@@ -1,0 +1,468 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// AUTENTICAÇÃO E USUÁRIOS
+// ============================================================================
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String
+  type          UserType
+  profile       Profile?
+  
+  // Relacionamentos
+  educator      Educator?
+  athlete       Athlete?
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([email])
+}
+
+enum UserType {
+  educator
+  student
+}
+
+model Profile {
+  id        String  @id @default(cuid())
+  userId    String  @unique
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  name      String
+  avatar    String?
+  phone     String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================================================
+// EDUCADORES
+// ============================================================================
+
+model Educator {
+  id          String    @id @default(cuid())
+  userId      String    @unique
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Relacionamentos
+  athletes    Athlete[]
+  plans       TrainingPlan[]
+  library     TrainingLibrary[]
+  subscription Subscription?
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+// ============================================================================
+// ATLETAS
+// ============================================================================
+
+model Athlete {
+  id                      String    @id @default(cuid())
+  userId                  String    @unique
+  user                    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  educatorId              String
+  educator                Educator  @relation(fields: [educatorId], references: [id], onDelete: Cascade)
+  
+  // Dados Antropométricos
+  age                     Int
+  weight                  Float     // kg
+  height                  Float     // cm
+  bodyFatPercentage       Float?    // %
+  
+  // Performance
+  vo2Max                  Float     // ml/kg/min
+  anaerobicThreshold      Float     // km/h
+  maxHeartRate            Int       // bpm
+  restingHeartRate        Int       // bpm
+  
+  // Relacionamentos
+  trainingPlans           TrainingPlan[]
+  executions              TrainingExecution[]
+  progressMetrics         ProgressMetric[]
+  macronutrients          Macronutrients?
+  integrations            Integration[]
+  nutritionPlans          NutritionPlan[]
+  
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  @@index([educatorId])
+}
+
+// ============================================================================
+// PLANOS DE TREINO
+// ============================================================================
+
+model TrainingPlan {
+  id              String    @id @default(cuid())
+  educatorId      String
+  educator        Educator  @relation(fields: [educatorId], references: [id], onDelete: Cascade)
+  athleteId       String
+  athlete         Athlete   @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  
+  name            String
+  description     String?
+  startDate       DateTime
+  endDate         DateTime
+  
+  macrocycles     Macrocycle[]
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([educatorId])
+  @@index([athleteId])
+}
+
+model Macrocycle {
+  id              String    @id @default(cuid())
+  planId          String
+  plan            TrainingPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  
+  name            String
+  phase           TrainingPhase
+  weekStart       Int
+  weekEnd         Int
+  focusAreas      String[]  // JSON array
+  
+  mesocycles      Mesocycle[]
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([planId])
+}
+
+enum TrainingPhase {
+  base
+  build
+  peak
+  recovery
+  taper
+}
+
+model Mesocycle {
+  id              String    @id @default(cuid())
+  macrocycleId    String
+  macrocycle      Macrocycle @relation(fields: [macrocycleId], references: [id], onDelete: Cascade)
+  
+  weekNumber      Int
+  startDate       DateTime
+  endDate         DateTime
+  focus           String?
+  volumeTarget    Float?    // km
+  
+  microcycles     Microcycle[]
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([macrocycleId])
+}
+
+model Microcycle {
+  id                  String    @id @default(cuid())
+  mesocycleId         String
+  mesocycle           Mesocycle @relation(fields: [mesocycleId], references: [id], onDelete: Cascade)
+  
+  dayOfWeek           Int       // 0-6 (segunda a domingo)
+  sessionType         SessionType
+  
+  // Planejamento
+  durationMinutes     Int
+  distanceKm          Float?
+  intensityPercentage Float     // 50-100%
+  paceMinPerKm        Float?    // minutos por km
+  heartRateZone       Int?      // 1-5
+  
+  // Instruções
+  instructions        String?
+  notes               String?
+  
+  // Relacionamentos
+  executions          TrainingExecution[]
+  
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([mesocycleId])
+}
+
+enum SessionType {
+  easy
+  moderate
+  threshold
+  vo2max
+  anaerobic
+  recovery
+  long_run
+  strength
+  cross_training
+}
+
+// ============================================================================
+// EXECUÇÃO DE TREINOS
+// ============================================================================
+
+model TrainingExecution {
+  id                  String    @id @default(cuid())
+  microcycleId        String
+  microcycle          Microcycle @relation(fields: [microcycleId], references: [id], onDelete: Cascade)
+  athleteId           String
+  athlete             Athlete   @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  
+  plannedDate         DateTime
+  executedDate        DateTime?
+  completed           Boolean   @default(false)
+  
+  // Dados Executados
+  durationActual      Int?      // minutos
+  distanceActual      Float?    // km
+  heartRateAvg        Int?      // bpm
+  heartRateMax        Int?      // bpm
+  pace                Float?    // min/km
+  
+  // Percepções
+  pse                 Int?      // Perceived Exertion Scale (1-10)
+  psr                 Int?      // Perceived Recovery Scale (1-10)
+  
+  // Notas
+  notes               String?
+  
+  // Integrações
+  garminActivityId    String?
+  stravaActivityId    String?
+  
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([microcycleId])
+  @@index([athleteId])
+}
+
+// ============================================================================
+// NUTRIÇÃO
+// ============================================================================
+
+model Macronutrients {
+  id                      String    @id @default(cuid())
+  athleteId               String    @unique
+  athlete                 Athlete   @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  
+  carbohydratesPercentage Float     // 56.8%
+  proteinsPercentage      Float     // 25.6%
+  lipidsPercentage        Float     // 17.6%
+  
+  dailyCalories           Int?
+  
+  updatedAt               DateTime  @updatedAt
+}
+
+model NutritionPlan {
+  id              String    @id @default(cuid())
+  athleteId       String
+  athlete         Athlete   @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  
+  plan            Json      // Plano estruturado
+  source          String    // dieta_ia, manual, etc
+  rawResponse     String?   // Resposta bruta
+  
+  validFrom       DateTime
+  validUntil      DateTime
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([athleteId])
+}
+
+// ============================================================================
+// PROGRESSO
+// ============================================================================
+
+model ProgressMetric {
+  id                  String    @id @default(cuid())
+  athleteId           String
+  athlete             Athlete   @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  
+  date                DateTime
+  weight              Float?    // kg
+  bodyFatPercentage   Float?    // %
+  vo2MaxEstimated     Float?    // ml/kg/min
+  notes               String?
+  
+  createdAt           DateTime  @default(now())
+
+  @@index([athleteId])
+}
+
+// ============================================================================
+// BIBLIOTECA DE TREINOS
+// ============================================================================
+
+model TrainingLibrary {
+  id                  String    @id @default(cuid())
+  educatorId          String
+  educator            Educator  @relation(fields: [educatorId], references: [id], onDelete: Cascade)
+  
+  name                String
+  description         String?
+  sessionType         SessionType
+  durationMinutes     Int
+  intensityPercentage Float
+  instructions        String?
+  
+  isTemplate          Boolean   @default(true)
+  
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([educatorId])
+}
+
+// ============================================================================
+// INTEGRAÇÕES
+// ============================================================================
+
+model Integration {
+  id                  String    @id @default(cuid())
+  athleteId           String
+  athlete             Athlete   @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  
+  type                IntegrationType
+  accessToken         String?   // Criptografado
+  refreshToken        String?   // Criptografado
+  expiresAt           DateTime?
+  
+  lastSync            DateTime?
+  
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@unique([athleteId, type])
+  @@index([athleteId])
+}
+
+enum IntegrationType {
+  garmin
+  strava
+  apple_health
+  dieta_ia
+}
+
+// ============================================================================
+// PAGAMENTOS
+// ============================================================================
+
+model Subscription {
+  id                String    @id @default(cuid())
+  educatorId        String    @unique
+  educator          Educator  @relation(fields: [educatorId], references: [id], onDelete: Cascade)
+  
+  plan              Plan
+  status            String    // active, canceled, past_due
+  
+  stripeCustomerId  String?
+  stripeSubId       String?   @unique
+  
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  
+  canceledAt        DateTime?
+  cancelReason      String?
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+enum Plan {
+  free
+  pro
+  enterprise
+}
+
+model Payment {
+  id              String    @id @default(cuid())
+  educatorId      String
+  
+  stripeId        String    @unique
+  amount          Float
+  currency        String    // BRL
+  status          String    // pending, succeeded, failed
+  
+  createdAt       DateTime  @default(now())
+
+  @@index([educatorId])
+}
+
+// ============================================================================
+// NOTIFICAÇÕES
+// ============================================================================
+
+model Notification {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  type            NotificationType
+  title           String
+  message         String
+  data            Json?
+  
+  emailSent       Boolean   @default(false)
+  smsSent         Boolean   @default(false)
+  whatsappSent    Boolean   @default(false)
+  
+  emailError      String?
+  smsError        String?
+  whatsappError   String?
+  
+  createdAt       DateTime  @default(now())
+  sentAt          DateTime?
+
+  @@index([userId])
+}
+
+enum NotificationType {
+  new_athlete
+  training_completed
+  training_missed
+  payment_received
+  plan_expiring
+  new_training
+  training_reminder
+  educator_feedback
+  progress_achieved
+}
+
+model NotificationPreferences {
+  id              String    @id @default(cuid())
+  userId          String    @unique
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  emailEnabled    Boolean   @default(true)
+  smsEnabled      Boolean   @default(true)
+  whatsappEnabled Boolean   @default(true)
+  
+  emailFrequency  String    // immediate, daily, weekly
+  smsFrequency    String    // immediate, daily
+  whatsappFrequency String  // immediate, daily
+  
+  updatedAt       DateTime  @updatedAt
+}

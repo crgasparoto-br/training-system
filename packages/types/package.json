@@ -1,0 +1,9 @@
+{
+  "name": "@corrida/types",
+  "version": "0.1.0",
+  "description": "Tipos compartilhados do sistema Corrida",
+  "main": "index.ts",
+  "types": "index.ts",
+  "files": ["*.ts"],
+  "private": true
+}

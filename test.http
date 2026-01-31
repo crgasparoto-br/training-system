@@ -1,0 +1,155 @@
+### ============================================================================
+### CORRIDA TRAINING SYSTEM - TEST REQUESTS
+### ============================================================================
+### Use a extensão "REST Client" do VS Code para executar estes testes
+### Clique em "Send Request" acima de cada requisição
+### ============================================================================
+
+### 1. HEALTH CHECK
+### Verificar se a API está respondendo
+GET http://localhost:3000/health
+
+### ============================================================================
+
+### 2. REGISTRAR EDUCADOR
+### Criar um novo educador
+POST http://localhost:3000/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "email": "educador@example.com",
+  "password": "SenhaSegura123",
+  "name": "João Educador",
+  "type": "educator"
+}
+
+### ============================================================================
+
+### 3. REGISTRAR ALUNO
+### Criar um novo aluno
+POST http://localhost:3000/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "email": "aluno@example.com",
+  "password": "SenhaSegura123",
+  "name": "Maria Aluna",
+  "type": "student"
+}
+
+### ============================================================================
+
+### 4. LOGIN EDUCADOR
+### Fazer login com educador
+POST http://localhost:3000/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "educador@example.com",
+  "password": "SenhaSegura123"
+}
+
+### ============================================================================
+
+### 5. LOGIN ALUNO
+### Fazer login com aluno
+POST http://localhost:3000/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "aluno@example.com",
+  "password": "SenhaSegura123"
+}
+
+### ============================================================================
+
+### 6. OBTER DADOS DO USUÁRIO (EDUCADOR)
+### Substitua o token abaixo pelo token retornado do login/register
+GET http://localhost:3000/api/v1/auth/me
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJjbHJzOXdyZjAwMDAwMDAwMDAwMDAwMDEiLCJlbWFpbCI6ImVkdWNhZG9yQGV4YW1wbGUuY29tIiwidHlwZSI6ImVkdWNhdG9yIiwiaWF0IjoxNjc0OTk5OTk5LCJleHAiOjE2NzU2MDQ3OTl9.XXXX
+
+### ============================================================================
+
+### 7. OBTER DADOS DO USUÁRIO (ALUNO)
+### Substitua o token abaixo pelo token retornado do login/register
+GET http://localhost:3000/api/v1/auth/me
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJjbHJzOXdyZjAwMDAwMDAwMDAwMDAwMDIiLCJlbWFpbCI6ImFsdW5vQGV4YW1wbGUuY29tIiwidHlwZSI6InN0dWRlbnQiLCJpYXQiOjE2NzQ5OTk5OTksImV4cCI6MTY3NTYwNDc5OX0.XXXX
+
+### ============================================================================
+
+### 8. LOGOUT
+### Fazer logout
+POST http://localhost:3000/api/v1/auth/logout
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJjbHJzOXdyZjAwMDAwMDAwMDAwMDAwMDEiLCJlbWFpbCI6ImVkdWNhZG9yQGV4YW1wbGUuY29tIiwidHlwZSI6ImVkdWNhdG9yIiwiaWF0IjoxNjc0OTk5OTk5LCJleHAiOjE2NzU2MDQ3OTl9.XXXX
+
+### ============================================================================
+
+### 9. ERRO: LOGIN COM SENHA INCORRETA
+### Testar validação de erro
+POST http://localhost:3000/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "educador@example.com",
+  "password": "SenhaErrada"
+}
+
+### ============================================================================
+
+### 10. ERRO: ACESSAR ROTA PROTEGIDA SEM TOKEN
+### Testar autenticação obrigatória
+GET http://localhost:3000/api/v1/auth/me
+
+### ============================================================================
+
+### 11. ERRO: REGISTRAR COM EMAIL INVÁLIDO
+### Testar validação de email
+POST http://localhost:3000/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "email": "email-invalido",
+  "password": "SenhaSegura123",
+  "name": "Test User",
+  "type": "educator"
+}
+
+### ============================================================================
+
+### 12. ERRO: REGISTRAR COM SENHA CURTA
+### Testar validação de senha
+POST http://localhost:3000/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "password": "123",
+  "name": "Test User",
+  "type": "educator"
+}
+
+### ============================================================================
+
+### 13. ERRO: REGISTRAR COM TIPO INVÁLIDO
+### Testar validação de tipo
+POST http://localhost:3000/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "password": "SenhaSegura123",
+  "name": "Test User",
+  "type": "invalid"
+}
+
+### ============================================================================
+
+### INSTRUÇÕES:
+### 1. Instale a extensão "REST Client" no VS Code
+### 2. Abra este arquivo (test.http)
+### 3. Clique em "Send Request" acima de cada teste
+### 4. Veja a resposta no painel "Response"
+### 5. Copie tokens das respostas e cole nos testes que precisam
+### 6. Teste os erros para validar as mensagens
+
+### ============================================================================

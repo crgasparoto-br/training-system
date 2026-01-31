@@ -1,0 +1,13 @@
+{
+  "name": "@corrida/utils",
+  "version": "0.1.0",
+  "description": "Utilitários compartilhados do sistema Corrida",
+  "main": "index.ts",
+  "types": "index.ts",
+  "files": ["*.ts"],
+  "private": true,
+  "dependencies": {
+    "express": "^4.18.2",
+    "zod": "^3.22.4"
+  }
+}
