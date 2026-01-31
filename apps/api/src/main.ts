@@ -5,6 +5,7 @@ import 'express-async-errors';
 import dotenv from 'dotenv';
 import { authRoutes } from './modules/auth/index.js';
 import { athleteRoutes } from './modules/athletes/index.js';
+import { planRoutes } from './modules/plans/index.js';
 
 // Carregar variáveis de ambiente
 dotenv.config();
@@ -69,6 +70,9 @@ app.use('/api/v1/auth', authRoutes);
 
 // Rotas de Atletas
 app.use('/api/v1/athletes', athleteRoutes);
+
+// Rotas de Planos de Treino
+app.use('/api/v1/plans', planRoutes);
 
 // ============================================================================
 // ERROR HANDLING

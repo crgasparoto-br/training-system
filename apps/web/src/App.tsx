@@ -5,6 +5,8 @@ import { Dashboard } from './pages/Dashboard';
 import { Athletes } from './pages/Athletes';
 import { AthleteForm } from './pages/AthleteForm';
 import { AthleteDetails } from './pages/AthleteDetails';
+import { Plans } from './pages/Plans';
+import { PlanForm } from './pages/PlanForm';
 import { DashboardLayout } from './layouts/DashboardLayout';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
@@ -31,7 +33,8 @@ function App() {
           <Route path="athletes/new" element={<AthleteForm />} />
           <Route path="athletes/:id" element={<AthleteDetails />} />
           <Route path="athletes/:id/edit" element={<AthleteForm />} />
-          <Route path="plans" element={<div className="text-center py-12">Página de Planos (Em desenvolvimento)</div>} />
+          <Route path="plans" element={<Plans />} />
+          <Route path="plans/new" element={<PlanForm />} />
           <Route path="executions" element={<div className="text-center py-12">Página de Execuções (Em desenvolvimento)</div>} />
           <Route path="reports" element={<div className="text-center py-12">Página de Relatórios (Em desenvolvimento)</div>} />
           <Route path="settings" element={<div className="text-center py-12">Página de Configurações (Em desenvolvimento)</div>} />
