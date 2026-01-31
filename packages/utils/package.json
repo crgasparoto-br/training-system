@@ -2,6 +2,7 @@
   "name": "@corrida/utils",
   "version": "0.1.0",
   "description": "Utilitários compartilhados do sistema Corrida",
+  "type": "module",
   "main": "index.ts",
   "types": "index.ts",
   "files": ["*.ts"],

@@ -24,6 +24,8 @@ model User {
   // Relacionamentos
   educator      Educator?
   athlete       Athlete?
+  notifications Notification[]
+  notificationPreferences NotificationPreferences?
   
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
