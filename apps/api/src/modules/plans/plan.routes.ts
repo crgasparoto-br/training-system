@@ -92,19 +92,25 @@ router.get('/', async (req: Request, res: Response) => {
     let result;
 
     if (user.type === 'educator') {
-      // Buscar educatorId
-      const educatorId = user.educatorId || (req as any).user.educatorId;
-      if (!educatorId) {
+      // Buscar educatorId do banco
+      const { authService } = await import('../auth/auth.service');
+      const userWithEducator = await authService.getUserById(user.userId);
+      
+      if (!userWithEducator?.educator) {
         return sendError(res, 'Educador não encontrado', 404);
       }
-      result = await planService.findByEducator(educatorId, page, limit);
+      
+      result = await planService.findByEducator(userWithEducator.educator.id, page, limit);
     } else {
-      // Buscar athleteId
-      const athleteId = user.athleteId;
-      if (!athleteId) {
+      // Buscar athleteId do banco
+      const { authService } = await import('../auth/auth.service');
+      const userWithAthlete = await authService.getUserById(user.userId);
+      
+      if (!userWithAthlete?.athlete) {
         return sendError(res, 'Atleta não encontrado', 404);
       }
-      const plans = await planService.findByAthlete(athleteId);
+      
+      const plans = await planService.findByAthlete(userWithAthlete.athlete.id);
       result = { plans, pagination: { page: 1, limit: plans.length, total: plans.length, totalPages: 1 } };
     }
 
