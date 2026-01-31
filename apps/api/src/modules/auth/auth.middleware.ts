@@ -46,7 +46,7 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction) 
 /**
  * Middleware para verificar se é educador
  */
-export function educatorMiddleware(req: Request, res: Response, next: NextFunction) {
+export async function educatorMiddleware(req: Request, res: Response, next: NextFunction) {
   if (!req.user) {
     return res.status(401).json({
       success: false,
@@ -61,7 +61,28 @@ export function educatorMiddleware(req: Request, res: Response, next: NextFuncti
     });
   }
 
-  next();
+  try {
+    // Buscar educatorId do banco
+    const user = await authService.getUserById(req.user.userId);
+    
+    if (!user?.educator) {
+      return res.status(404).json({
+        success: false,
+        error: 'Educador não encontrado',
+      });
+    }
+
+    // Adicionar educatorId ao request
+    (req as any).user.educatorId = user.educator.id;
+
+    next();
+  } catch (error) {
+    console.error('Erro ao buscar educador:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro ao verificar educador',
+    });
+  }
 }
 
 /**
