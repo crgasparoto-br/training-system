@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
-import { planService, type TrainingPlan, type Mesocycle } from '../services/plan.service';
+import { planService, type TrainingPlan, type Mesocycle, type Microcycle, type CreateSessionDTO } from '../services/plan.service';
+import { SessionModal } from '../components/SessionModal';
 import { Button } from '../components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
 import {
@@ -22,6 +23,9 @@ export function PlanDetails() {
   const [plan, setPlan] = useState<TrainingPlan | null>(null);
   const [loading, setLoading] = useState(true);
   const [expandedWeeks, setExpandedWeeks] = useState<Set<string>>(new Set());
+  const [isSessionModalOpen, setIsSessionModalOpen] = useState(false);
+  const [selectedMesocycleId, setSelectedMesocycleId] = useState<string | null>(null);
+  const [editingSession, setEditingSession] = useState<Microcycle | null>(null);
 
   useEffect(() => {
     if (id) {
@@ -66,6 +70,65 @@ export function PlanDetails() {
       newExpanded.add(weekId);
     }
     setExpandedWeeks(newExpanded);
+  };
+
+  const handleAddSession = (mesocycleId: string) => {
+    setSelectedMesocycleId(mesocycleId);
+    setEditingSession(null);
+    setIsSessionModalOpen(true);
+  };
+
+  const handleEditSession = (session: Microcycle) => {
+    setSelectedMesocycleId(session.mesocycleId);
+    setEditingSession(session);
+    setIsSessionModalOpen(true);
+  };
+
+  const handleDeleteSession = async (sessionId: string) => {
+    if (!confirm('Tem certeza que deseja deletar esta sessão?')) {
+      return;
+    }
+
+    try {
+      await planService.deleteSession(sessionId);
+      if (id) {
+        await loadPlan(id);
+      }
+    } catch (error) {
+      console.error('Erro ao deletar sessão:', error);
+      alert('Erro ao deletar sessão');
+    }
+  };
+
+  const handleSessionSubmit = async (data: Omit<CreateSessionDTO, 'mesocycleId'>) => {
+    if (!selectedMesocycleId) return;
+
+    try {
+      if (editingSession) {
+        // Editar sessão existente
+        await planService.updateSession(editingSession.id, {
+          ...data,
+          mesocycleId: selectedMesocycleId,
+        });
+      } else {
+        // Criar nova sessão
+        await planService.createSession({
+          ...data,
+          mesocycleId: selectedMesocycleId,
+        });
+      }
+
+      setIsSessionModalOpen(false);
+      setSelectedMesocycleId(null);
+      setEditingSession(null);
+
+      if (id) {
+        await loadPlan(id);
+      }
+    } catch (error) {
+      console.error('Erro ao salvar sessão:', error);
+      alert('Erro ao salvar sessão');
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -272,7 +335,7 @@ export function PlanDetails() {
                         <div className="text-center py-8 text-muted-foreground">
                           <Activity className="h-12 w-12 mx-auto mb-2 opacity-50" />
                           <p>Nenhuma sessão adicionada</p>
-                          <Button className="mt-4" size="sm">
+                          <Button className="mt-4" size="sm" onClick={() => handleAddSession(week.id)}>
                             <Plus size={16} />
                             Adicionar Sessão
                           </Button>
@@ -314,9 +377,36 @@ export function PlanDetails() {
                                 <span className="text-xs text-muted-foreground">
                                   {session.intensityPercentage}% intensidade
                                 </span>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleEditSession(session)}
+                                >
+                                  <Edit size={14} />
+                                </Button>
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => handleDeleteSession(session.id)}
+                                >
+                                  <Trash2 size={14} />
+                                </Button>
                               </div>
                             </div>
                           ))
+                      )}
+                      {week.microcycles.length > 0 && (
+                        <div className="pt-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleAddSession(week.id)}
+                            className="w-full"
+                          >
+                            <Plus size={16} />
+                            Adicionar Sessão
+                          </Button>
+                        </div>
                       )}
                     </CardContent>
                   )}
@@ -343,6 +433,28 @@ export function PlanDetails() {
           </CardContent>
         </Card>
       )}
+      {/* Session Modal */}
+      <SessionModal
+        isOpen={isSessionModalOpen}
+        onClose={() => {
+          setIsSessionModalOpen(false);
+          setSelectedMesocycleId(null);
+          setEditingSession(null);
+        }}
+        onSubmit={handleSessionSubmit}
+        initialData={editingSession ? {
+          dayOfWeek: editingSession.dayOfWeek,
+          sessionType: editingSession.sessionType,
+          durationMinutes: editingSession.durationMinutes,
+          distanceKm: editingSession.distanceKm,
+          intensityPercentage: editingSession.intensityPercentage,
+          paceMinPerKm: editingSession.paceMinPerKm,
+          heartRateZone: editingSession.heartRateZone,
+          instructions: editingSession.instructions,
+          notes: editingSession.notes,
+        } : undefined}
+        isEditMode={!!editingSession}
+      />
     </div>
   );
 }

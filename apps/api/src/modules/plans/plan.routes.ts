@@ -301,4 +301,36 @@ router.post('/microcycles', educatorMiddleware, async (req: Request, res: Respon
   }
 });
 
+/**
+ * PUT /api/v1/plans/microcycles/:id
+ * Atualizar microciclo (sessão)
+ */
+router.put('/microcycles/:id', educatorMiddleware, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const microcycle = await planService.updateMicrocycle(id, req.body);
+
+    return sendSuccess(res, microcycle, 'Sessão atualizada com sucesso');
+  } catch (error) {
+    console.error('Erro ao atualizar sessão:', error);
+    return sendError(res, 'Erro ao atualizar sessão', 500);
+  }
+});
+
+/**
+ * DELETE /api/v1/plans/microcycles/:id
+ * Deletar microciclo (sessão)
+ */
+router.delete('/microcycles/:id', educatorMiddleware, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    await planService.deleteMicrocycle(id);
+
+    return sendSuccess(res, null, 'Sessão deletada com sucesso');
+  } catch (error) {
+    console.error('Erro ao deletar sessão:', error);
+    return sendError(res, 'Erro ao deletar sessão', 500);
+  }
+});
+
 export default router;

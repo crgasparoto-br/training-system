@@ -263,6 +263,25 @@ export const planService = {
   },
 
   /**
+   * Atualizar microciclo (sessão)
+   */
+  async updateMicrocycle(id: string, data: Partial<CreateMicrocycleDTO>) {
+    return await prisma.microcycle.update({
+      where: { id },
+      data,
+    });
+  },
+
+  /**
+   * Deletar microciclo (sessão)
+   */
+  async deleteMicrocycle(id: string) {
+    return await prisma.microcycle.delete({
+      where: { id },
+    });
+  },
+
+  /**
    * Gerar semanas automaticamente para um plano
    */
   async generateWeeks(planId: string, startDate: Date, endDate: Date) {

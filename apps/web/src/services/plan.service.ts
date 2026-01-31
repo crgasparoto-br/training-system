@@ -78,6 +78,19 @@ export interface CreatePlanDTO {
   endDate: string;
 }
 
+export interface CreateSessionDTO {
+  mesocycleId: string;
+  dayOfWeek: number;
+  sessionType: SessionType;
+  durationMinutes: number;
+  distanceKm?: number;
+  intensityPercentage: number;
+  paceMinPerKm?: number;
+  heartRateZone?: number;
+  instructions?: string;
+  notes?: string;
+}
+
 export interface PlansResponse {
   plans: TrainingPlan[];
   pagination: {
@@ -136,6 +149,29 @@ export const planService = {
   async generateWeeks(id: string): Promise<any> {
     const response = await api.post<{ success: boolean; data: any }>(`/plans/${id}/generate-weeks`);
     return response.data.data;
+  },
+
+  /**
+   * Criar sessão (microciclo)
+   */
+  async createSession(data: CreateSessionDTO): Promise<Microcycle> {
+    const response = await api.post<{ success: boolean; data: Microcycle }>('/plans/microcycles', data);
+    return response.data.data;
+  },
+
+  /**
+   * Atualizar sessão
+   */
+  async updateSession(id: string, data: Partial<CreateSessionDTO>): Promise<Microcycle> {
+    const response = await api.put<{ success: boolean; data: Microcycle }>(`/plans/microcycles/${id}`, data);
+    return response.data.data;
+  },
+
+  /**
+   * Deletar sessão
+   */
+  async deleteSession(id: string): Promise<void> {
+    await api.delete(`/plans/microcycles/${id}`);
   },
 
   /**
