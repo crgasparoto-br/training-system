@@ -37,6 +37,7 @@ function App() {
           <Route path="plans" element={<Plans />} />
           <Route path="plans/new" element={<PlanForm />} />
           <Route path="plans/:id" element={<PlanDetails />} />
+          <Route path="plans/:id/edit" element={<PlanForm />} />
           <Route path="executions" element={<div className="text-center py-12">Página de Execuções (Em desenvolvimento)</div>} />
           <Route path="reports" element={<div className="text-center py-12">Página de Relatórios (Em desenvolvimento)</div>} />
           <Route path="settings" element={<div className="text-center py-12">Página de Configurações (Em desenvolvimento)</div>} />

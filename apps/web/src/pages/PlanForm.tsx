@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -29,6 +29,8 @@ type PlanFormData = z.infer<typeof planSchema>;
 
 export function PlanForm() {
   const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
+  const isEditMode = !!id;
   const [loading, setLoading] = useState(false);
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [loadingAthletes, setLoadingAthletes] = useState(true);
@@ -38,6 +40,7 @@ export function PlanForm() {
     handleSubmit,
     formState: { errors },
     watch,
+    reset,
   } = useForm<PlanFormData>({
     resolver: zodResolver(planSchema),
   });
@@ -56,7 +59,27 @@ export function PlanForm() {
 
   useEffect(() => {
     loadAthletes();
-  }, []);
+    if (isEditMode && id) {
+      loadPlan(id);
+    }
+  }, [id, isEditMode]);
+
+  const loadPlan = async (planId: string) => {
+    try {
+      const plan = await planService.getById(planId);
+      reset({
+        athleteId: plan.athleteId,
+        name: plan.name,
+        description: plan.description || '',
+        startDate: plan.startDate.split('T')[0],
+        endDate: plan.endDate.split('T')[0],
+      });
+    } catch (error) {
+      console.error('Erro ao carregar plano:', error);
+      alert('Erro ao carregar plano');
+      navigate('/plans');
+    }
+  };
 
   const loadAthletes = async () => {
     setLoadingAthletes(true);
@@ -73,20 +96,32 @@ export function PlanForm() {
   const onSubmit = async (data: PlanFormData) => {
     setLoading(true);
     try {
-      const plan = await planService.create({
-        ...data,
-        startDate: new Date(data.startDate).toISOString(),
-        endDate: new Date(data.endDate).toISOString(),
-      });
+      if (isEditMode && id) {
+        // Modo de edição
+        await planService.update(id, {
+          ...data,
+          startDate: new Date(data.startDate).toISOString(),
+          endDate: new Date(data.endDate).toISOString(),
+        });
+        alert('Plano atualizado com sucesso!');
+        navigate(`/plans/${id}`);
+      } else {
+        // Modo de criação
+        const plan = await planService.create({
+          ...data,
+          startDate: new Date(data.startDate).toISOString(),
+          endDate: new Date(data.endDate).toISOString(),
+        });
 
-      // Gerar semanas automaticamente
-      await planService.generateWeeks(plan.id);
+        // Gerar semanas automaticamente
+        await planService.generateWeeks(plan.id);
 
-      alert('Plano criado com sucesso!');
-      navigate(`/plans/${plan.id}`);
+        alert('Plano criado com sucesso!');
+        navigate(`/plans/${plan.id}`);
+      }
     } catch (error: any) {
-      console.error('Erro ao criar plano:', error);
-      alert(error.response?.data?.error || 'Erro ao criar plano');
+      console.error(`Erro ao ${isEditMode ? 'atualizar' : 'criar'} plano:`, error);
+      alert(error.response?.data?.error || `Erro ao ${isEditMode ? 'atualizar' : 'criar'} plano`);
     } finally {
       setLoading(false);
     }
@@ -100,9 +135,9 @@ export function PlanForm() {
           <ArrowLeft size={20} />
         </Button>
         <div>
-          <h1 className="text-3xl font-bold">Novo Plano de Treino</h1>
+          <h1 className="text-3xl font-bold">{isEditMode ? 'Editar Plano de Treino' : 'Novo Plano de Treino'}</h1>
           <p className="text-muted-foreground mt-2">
-            Crie um plano de treino personalizado para seu atleta
+            {isEditMode ? 'Atualize as informações do plano de treino' : 'Crie um plano de treino personalizado para seu atleta'}
           </p>
         </div>
       </div>
@@ -233,7 +268,7 @@ export function PlanForm() {
             Cancelar
           </Button>
           <Button type="submit" isLoading={loading}>
-            Criar Plano
+            {isEditMode ? 'Atualizar Plano' : 'Criar Plano'}
           </Button>
         </div>
       </form>
