@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import 'express-async-errors';
 import dotenv from 'dotenv';
 import { authRoutes } from './modules/auth/index.js';
+import { athleteRoutes } from './modules/athletes/index.js';
 
 // Carregar variáveis de ambiente
 dotenv.config();
@@ -65,6 +66,9 @@ app.get('/api/v1', (req, res) => {
 
 // Rotas de Autenticação
 app.use('/api/v1/auth', authRoutes);
+
+// Rotas de Atletas
+app.use('/api/v1/athletes', athleteRoutes);
 
 // ============================================================================
 // ERROR HANDLING
