@@ -718,15 +718,570 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
         </div>
       </div>
 
-      {/* Estímulo Cíclico - Similar structure */}
+      {/* Estímulo Cíclico */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="bg-purple-600 px-4 py-3">
           <h3 className="text-lg font-semibold text-white">Estímulo Cíclico</h3>
         </div>
-        <div className="p-4 text-center text-gray-600">
-          <p>Seção de Estímulo Cíclico (em desenvolvimento)</p>
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse" style={{ minWidth: '1800px' }}>
+            <thead>
+              <tr className="bg-gray-50">
+                <th className="border border-gray-300 px-4 py-3 text-left text-sm font-semibold text-gray-700 sticky left-0 bg-gray-50 z-10">
+                  Parâmetro
+                </th>
+                {Array.from({ length: matrix.totalMesocycles }, (_, i) => i + 1).map((mesocycle) => (
+                  <th
+                    key={mesocycle}
+                    colSpan={matrix.weeksPerMesocycle + 1}
+                    className="border border-gray-300 px-4 py-3 text-center text-sm font-semibold text-gray-700"
+                  >
+                    Mesociclo {mesocycle}
+                  </th>
+                ))}
+              </tr>
+              <tr className="bg-gray-100">
+                <th className="border border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-600 sticky left-0 bg-gray-100 z-10">
+                  Semana
+                </th>
+                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
+                  <React.Fragment key={`meso-header-${mesocycle + 1}`}>
+                    <th className="border border-gray-300 px-2 py-1 text-center text-xs font-medium text-orange-600 bg-orange-50">
+                      REF
+                    </th>
+                    {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => (
+                      <th
+                        key={`${mesocycle + 1}-${week + 1}`}
+                        className="border border-gray-300 px-2 py-1 text-center text-xs font-medium text-gray-600"
+                      >
+                        S{week + 1}
+                      </th>
+                    ))}
+                  </React.Fragment>
+                ))}
+              </tr>
+              <tr className="bg-gray-100">
+                <th className="border border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-600 sticky left-0 bg-gray-100 z-10">
+                  Data
+                </th>
+                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
+                  <React.Fragment key={`meso-date-${mesocycle + 1}`}>
+                    <th className="border border-gray-300 px-2 py-1 text-center text-xs font-medium text-orange-600 bg-orange-50">
+                      -
+                    </th>
+                    {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => (
+                      <th
+                        key={`${mesocycle + 1}-${week + 1}`}
+                        className="border border-gray-300 px-2 py-1 text-center text-xs font-medium text-gray-600"
+                      >
+                        {getWeekStartDate(mesocycle + 1, week + 1)}
+                      </th>
+                    ))}
+                  </React.Fragment>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {/* Volume Total (min) */}
+              <tr>
+                <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-white z-10">
+                  Volume Total (min)
+                </td>
+                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
+                  <React.Fragment key={`meso-${mesocycle + 1}`}>
+                    <td className="border border-gray-300 p-2 bg-orange-50">
+                      <input
+                        type="number"
+                        placeholder=""
+                        onChange={(e) => {
+                          const value = e.target.value ? parseInt(e.target.value) : null;
+                          for (let week = 1; week <= matrix.weeksPerMesocycle; week++) {
+                            handleCyclicChange(mesocycle + 1, week, 'totalVolumeMinutes', value);
+                          }
+                        }}
+                        className="w-full px-2 py-1 text-xs text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
+                      />
+                    </td>
+                    {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
+                      const data = cyclicMap.get(mesocycle + 1)?.get(week + 1);
+                      return (
+                        <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-2">
+                          <input
+                            type="number"
+                            value={data?.totalVolumeMinutes || ''}
+                            onChange={(e) => handleCyclicChange(mesocycle + 1, week + 1, 'totalVolumeMinutes', e.target.value ? parseInt(e.target.value) : null)}
+                            className="w-full px-2 py-1 text-xs border-0 focus:ring-2 focus:ring-blue-500 rounded text-center"
+                            placeholder="-"
+                          />
+                        </td>
+                      );
+                    })}
+                  </React.Fragment>
+                ))}
+              </tr>
+
+              {/* Volume Total (km) */}
+              <tr>
+                <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-white z-10">
+                  Volume Total (km)
+                </td>
+                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
+                  <React.Fragment key={`meso-${mesocycle + 1}`}>
+                    <td className="border border-gray-300 p-2 bg-orange-50">
+                      <input
+                        type="number"
+                        placeholder=""
+                        onChange={(e) => {
+                          const value = e.target.value ? parseFloat(e.target.value) : null;
+                          for (let week = 1; week <= matrix.weeksPerMesocycle; week++) {
+                            handleCyclicChange(mesocycle + 1, week, 'totalVolumeKm', value);
+                          }
+                        }}
+                        className="w-full px-2 py-1 text-xs text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
+                      />
+                    </td>
+                    {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
+                      const data = cyclicMap.get(mesocycle + 1)?.get(week + 1);
+                      return (
+                        <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-2">
+                          <input
+                            type="number"
+                            step="0.1"
+                            value={data?.totalVolumeKm || ''}
+                            onChange={(e) => handleCyclicChange(mesocycle + 1, week + 1, 'totalVolumeKm', e.target.value ? parseFloat(e.target.value) : null)}
+                            className="w-full px-2 py-1 text-xs border-0 focus:ring-2 focus:ring-blue-500 rounded text-center"
+                            placeholder="-"
+                          />
+                        </td>
+                      );
+                    })}
+                  </React.Fragment>
+                ))}
+              </tr>
+
+              {/* Volume Corrida (km) */}
+              <tr>
+                <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-white z-10">
+                  Volume Corrida (km)
+                </td>
+                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
+                  <React.Fragment key={`meso-${mesocycle + 1}`}>
+                    <td className="border border-gray-300 p-2 bg-orange-50">
+                      <input
+                        type="number"
+                        placeholder=""
+                        onChange={(e) => {
+                          const value = e.target.value ? parseFloat(e.target.value) : null;
+                          for (let week = 1; week <= matrix.weeksPerMesocycle; week++) {
+                            handleCyclicChange(mesocycle + 1, week, 'runningVolumeKm', value);
+                          }
+                        }}
+                        className="w-full px-2 py-1 text-xs text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
+                      />
+                    </td>
+                    {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
+                      const data = cyclicMap.get(mesocycle + 1)?.get(week + 1);
+                      return (
+                        <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-2">
+                          <input
+                            type="number"
+                            step="0.1"
+                            value={data?.runningVolumeKm || ''}
+                            onChange={(e) => handleCyclicChange(mesocycle + 1, week + 1, 'runningVolumeKm', e.target.value ? parseFloat(e.target.value) : null)}
+                            className="w-full px-2 py-1 text-xs border-0 focus:ring-2 focus:ring-blue-500 rounded text-center"
+                            placeholder="-"
+                          />
+                        </td>
+                      );
+                    })}
+                  </React.Fragment>
+                ))}
+              </tr>
+
+              {/* Qtd Z1 */}
+              <tr className="bg-purple-50">
+                <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-purple-50 z-10">
+                  Qtd Z1
+                </td>
+                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
+                  <React.Fragment key={`meso-${mesocycle + 1}`}>
+                    <td className="border border-gray-300 p-2 bg-orange-50">
+                      <input
+                        type="number"
+                        placeholder=""
+                        onChange={(e) => {
+                          const value = e.target.value ? parseInt(e.target.value) : null;
+                          for (let week = 1; week <= matrix.weeksPerMesocycle; week++) {
+                            handleCyclicChange(mesocycle + 1, week, 'countZ1', value);
+                          }
+                        }}
+                        className="w-full px-2 py-1 text-xs text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
+                      />
+                    </td>
+                    {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
+                      const data = cyclicMap.get(mesocycle + 1)?.get(week + 1);
+                      return (
+                        <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-2 bg-purple-50">
+                          <input
+                            type="number"
+                            value={data?.countZ1 || ''}
+                            onChange={(e) => handleCyclicChange(mesocycle + 1, week + 1, 'countZ1', e.target.value ? parseInt(e.target.value) : null)}
+                            className="w-full px-2 py-1 text-xs border-0 focus:ring-2 focus:ring-blue-500 rounded text-center"
+                            placeholder="-"
+                          />
+                        </td>
+                      );
+                    })}
+                  </React.Fragment>
+                ))}
+              </tr>
+
+              {/* Qtd Z2 */}
+              <tr className="bg-purple-50">
+                <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-purple-50 z-10">
+                  Qtd Z2
+                </td>
+                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
+                  <React.Fragment key={`meso-${mesocycle + 1}`}>
+                    <td className="border border-gray-300 p-2 bg-orange-50">
+                      <input
+                        type="number"
+                        placeholder=""
+                        onChange={(e) => {
+                          const value = e.target.value ? parseInt(e.target.value) : null;
+                          for (let week = 1; week <= matrix.weeksPerMesocycle; week++) {
+                            handleCyclicChange(mesocycle + 1, week, 'countZ2', value);
+                          }
+                        }}
+                        className="w-full px-2 py-1 text-xs text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
+                      />
+                    </td>
+                    {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
+                      const data = cyclicMap.get(mesocycle + 1)?.get(week + 1);
+                      return (
+                        <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-2 bg-purple-50">
+                          <input
+                            type="number"
+                            value={data?.countZ2 || ''}
+                            onChange={(e) => handleCyclicChange(mesocycle + 1, week + 1, 'countZ2', e.target.value ? parseInt(e.target.value) : null)}
+                            className="w-full px-2 py-1 text-xs border-0 focus:ring-2 focus:ring-blue-500 rounded text-center"
+                            placeholder="-"
+                          />
+                        </td>
+                      );
+                    })}
+                  </React.Fragment>
+                ))}
+              </tr>
+
+              {/* Qtd Z3 */}
+              <tr className="bg-purple-50">
+                <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-purple-50 z-10">
+                  Qtd Z3
+                </td>
+                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
+                  <React.Fragment key={`meso-${mesocycle + 1}`}>
+                    <td className="border border-gray-300 p-2 bg-orange-50">
+                      <input
+                        type="number"
+                        placeholder=""
+                        onChange={(e) => {
+                          const value = e.target.value ? parseInt(e.target.value) : null;
+                          for (let week = 1; week <= matrix.weeksPerMesocycle; week++) {
+                            handleCyclicChange(mesocycle + 1, week, 'countZ3', value);
+                          }
+                        }}
+                        className="w-full px-2 py-1 text-xs text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
+                      />
+                    </td>
+                    {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
+                      const data = cyclicMap.get(mesocycle + 1)?.get(week + 1);
+                      return (
+                        <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-2 bg-purple-50">
+                          <input
+                            type="number"
+                            value={data?.countZ3 || ''}
+                            onChange={(e) => handleCyclicChange(mesocycle + 1, week + 1, 'countZ3', e.target.value ? parseInt(e.target.value) : null)}
+                            className="w-full px-2 py-1 text-xs border-0 focus:ring-2 focus:ring-blue-500 rounded text-center"
+                            placeholder="-"
+                          />
+                        </td>
+                      );
+                    })}
+                  </React.Fragment>
+                ))}
+              </tr>
+
+              {/* Qtd Z4 */}
+              <tr className="bg-purple-50">
+                <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-purple-50 z-10">
+                  Qtd Z4
+                </td>
+                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
+                  <React.Fragment key={`meso-${mesocycle + 1}`}>
+                    <td className="border border-gray-300 p-2 bg-orange-50">
+                      <input
+                        type="number"
+                        placeholder=""
+                        onChange={(e) => {
+                          const value = e.target.value ? parseInt(e.target.value) : null;
+                          for (let week = 1; week <= matrix.weeksPerMesocycle; week++) {
+                            handleCyclicChange(mesocycle + 1, week, 'countZ4', value);
+                          }
+                        }}
+                        className="w-full px-2 py-1 text-xs text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
+                      />
+                    </td>
+                    {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
+                      const data = cyclicMap.get(mesocycle + 1)?.get(week + 1);
+                      return (
+                        <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-2 bg-purple-50">
+                          <input
+                            type="number"
+                            value={data?.countZ4 || ''}
+                            onChange={(e) => handleCyclicChange(mesocycle + 1, week + 1, 'countZ4', e.target.value ? parseInt(e.target.value) : null)}
+                            className="w-full px-2 py-1 text-xs border-0 focus:ring-2 focus:ring-blue-500 rounded text-center"
+                            placeholder="-"
+                          />
+                        </td>
+                      );
+                    })}
+                  </React.Fragment>
+                ))}
+              </tr>
+
+              {/* Qtd Z5 */}
+              <tr className="bg-purple-50">
+                <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-purple-50 z-10">
+                  Qtd Z5
+                </td>
+                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
+                  <React.Fragment key={`meso-${mesocycle + 1}`}>
+                    <td className="border border-gray-300 p-2 bg-orange-50">
+                      <input
+                        type="number"
+                        placeholder=""
+                        onChange={(e) => {
+                          const value = e.target.value ? parseInt(e.target.value) : null;
+                          for (let week = 1; week <= matrix.weeksPerMesocycle; week++) {
+                            handleCyclicChange(mesocycle + 1, week, 'countZ5', value);
+                          }
+                        }}
+                        className="w-full px-2 py-1 text-xs text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
+                      />
+                    </td>
+                    {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
+                      const data = cyclicMap.get(mesocycle + 1)?.get(week + 1);
+                      return (
+                        <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-2 bg-purple-50">
+                          <input
+                            type="number"
+                            value={data?.countZ5 || ''}
+                            onChange={(e) => handleCyclicChange(mesocycle + 1, week + 1, 'countZ5', e.target.value ? parseInt(e.target.value) : null)}
+                            className="w-full px-2 py-1 text-xs border-0 focus:ring-2 focus:ring-blue-500 rounded text-center"
+                            placeholder="-"
+                          />
+                        </td>
+                      );
+                    })}
+                  </React.Fragment>
+                ))}
+              </tr>
+
+              {/* Min Z1 */}
+              <tr>
+                <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-white z-10">
+                  Min Z1
+                </td>
+                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
+                  <React.Fragment key={`meso-${mesocycle + 1}`}>
+                    <td className="border border-gray-300 p-2 bg-orange-50">
+                      <input
+                        type="number"
+                        placeholder=""
+                        onChange={(e) => {
+                          const value = e.target.value ? parseInt(e.target.value) : null;
+                          for (let week = 1; week <= matrix.weeksPerMesocycle; week++) {
+                            handleCyclicChange(mesocycle + 1, week, 'minutesZ1', value);
+                          }
+                        }}
+                        className="w-full px-2 py-1 text-xs text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
+                      />
+                    </td>
+                    {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
+                      const data = cyclicMap.get(mesocycle + 1)?.get(week + 1);
+                      return (
+                        <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-2">
+                          <input
+                            type="number"
+                            value={data?.minutesZ1 || ''}
+                            onChange={(e) => handleCyclicChange(mesocycle + 1, week + 1, 'minutesZ1', e.target.value ? parseInt(e.target.value) : null)}
+                            className="w-full px-2 py-1 text-xs border-0 focus:ring-2 focus:ring-blue-500 rounded text-center"
+                            placeholder="-"
+                          />
+                        </td>
+                      );
+                    })}
+                  </React.Fragment>
+                ))}
+              </tr>
+
+              {/* Min Z2 */}
+              <tr>
+                <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-white z-10">
+                  Min Z2
+                </td>
+                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
+                  <React.Fragment key={`meso-${mesocycle + 1}`}>
+                    <td className="border border-gray-300 p-2 bg-orange-50">
+                      <input
+                        type="number"
+                        placeholder=""
+                        onChange={(e) => {
+                          const value = e.target.value ? parseInt(e.target.value) : null;
+                          for (let week = 1; week <= matrix.weeksPerMesocycle; week++) {
+                            handleCyclicChange(mesocycle + 1, week, 'minutesZ2', value);
+                          }
+                        }}
+                        className="w-full px-2 py-1 text-xs text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
+                      />
+                    </td>
+                    {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
+                      const data = cyclicMap.get(mesocycle + 1)?.get(week + 1);
+                      return (
+                        <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-2">
+                          <input
+                            type="number"
+                            value={data?.minutesZ2 || ''}
+                            onChange={(e) => handleCyclicChange(mesocycle + 1, week + 1, 'minutesZ2', e.target.value ? parseInt(e.target.value) : null)}
+                            className="w-full px-2 py-1 text-xs border-0 focus:ring-2 focus:ring-blue-500 rounded text-center"
+                            placeholder="-"
+                          />
+                        </td>
+                      );
+                    })}
+                  </React.Fragment>
+                ))}
+              </tr>
+
+              {/* Min Z3 */}
+              <tr>
+                <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-white z-10">
+                  Min Z3
+                </td>
+                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
+                  <React.Fragment key={`meso-${mesocycle + 1}`}>
+                    <td className="border border-gray-300 p-2 bg-orange-50">
+                      <input
+                        type="number"
+                        placeholder=""
+                        onChange={(e) => {
+                          const value = e.target.value ? parseInt(e.target.value) : null;
+                          for (let week = 1; week <= matrix.weeksPerMesocycle; week++) {
+                            handleCyclicChange(mesocycle + 1, week, 'minutesZ3', value);
+                          }
+                        }}
+                        className="w-full px-2 py-1 text-xs text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
+                      />
+                    </td>
+                    {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
+                      const data = cyclicMap.get(mesocycle + 1)?.get(week + 1);
+                      return (
+                        <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-2">
+                          <input
+                            type="number"
+                            value={data?.minutesZ3 || ''}
+                            onChange={(e) => handleCyclicChange(mesocycle + 1, week + 1, 'minutesZ3', e.target.value ? parseInt(e.target.value) : null)}
+                            className="w-full px-2 py-1 text-xs border-0 focus:ring-2 focus:ring-blue-500 rounded text-center"
+                            placeholder="-"
+                          />
+                        </td>
+                      );
+                    })}
+                  </React.Fragment>
+                ))}
+              </tr>
+
+              {/* Min Z4 */}
+              <tr>
+                <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-white z-10">
+                  Min Z4
+                </td>
+                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
+                  <React.Fragment key={`meso-${mesocycle + 1}`}>
+                    <td className="border border-gray-300 p-2 bg-orange-50">
+                      <input
+                        type="number"
+                        placeholder=""
+                        onChange={(e) => {
+                          const value = e.target.value ? parseInt(e.target.value) : null;
+                          for (let week = 1; week <= matrix.weeksPerMesocycle; week++) {
+                            handleCyclicChange(mesocycle + 1, week, 'minutesZ4', value);
+                          }
+                        }}
+                        className="w-full px-2 py-1 text-xs text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
+                      />
+                    </td>
+                    {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
+                      const data = cyclicMap.get(mesocycle + 1)?.get(week + 1);
+                      return (
+                        <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-2">
+                          <input
+                            type="number"
+                            value={data?.minutesZ4 || ''}
+                            onChange={(e) => handleCyclicChange(mesocycle + 1, week + 1, 'minutesZ4', e.target.value ? parseInt(e.target.value) : null)}
+                            className="w-full px-2 py-1 text-xs border-0 focus:ring-2 focus:ring-blue-500 rounded text-center"
+                            placeholder="-"
+                          />
+                        </td>
+                      );
+                    })}
+                  </React.Fragment>
+                ))}
+              </tr>
+
+              {/* Min Z5 */}
+              <tr>
+                <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-white z-10">
+                  Min Z5
+                </td>
+                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
+                  <React.Fragment key={`meso-${mesocycle + 1}`}>
+                    <td className="border border-gray-300 p-2 bg-orange-50">
+                      <input
+                        type="number"
+                        placeholder=""
+                        onChange={(e) => {
+                          const value = e.target.value ? parseInt(e.target.value) : null;
+                          for (let week = 1; week <= matrix.weeksPerMesocycle; week++) {
+                            handleCyclicChange(mesocycle + 1, week, 'minutesZ5', value);
+                          }
+                        }}
+                        className="w-full px-2 py-1 text-xs text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
+                      />
+                    </td>
+                    {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
+                      const data = cyclicMap.get(mesocycle + 1)?.get(week + 1);
+                      return (
+                        <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-2">
+                          <input
+                            type="number"
+                            value={data?.minutesZ5 || ''}
+                            onChange={(e) => handleCyclicChange(mesocycle + 1, week + 1, 'minutesZ5', e.target.value ? parseInt(e.target.value) : null)}
+                            className="w-full px-2 py-1 text-xs border-0 focus:ring-2 focus:ring-blue-500 rounded text-center"
+                            placeholder="-"
+                          />
+                        </td>
+                      );
+                    })}
+                  </React.Fragment>
+                ))}
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
+
 
       {/* Nutrição - Similar structure */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
