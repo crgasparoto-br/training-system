@@ -291,7 +291,7 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                           handleResistedChange(mesocycle + 1, week, 'loadCycle', value);
                         }
                       }}
-                      className="w-full px-2 py-1 text-sm text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
+                      className="w-full px-2 py-1 text-xs text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
                     >
                       <option value="">-</option>
                       {loadCycleParams.map((param) => (
@@ -308,7 +308,7 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                         <select
                           value={data?.loadCycle || ''}
                           onChange={(e) => handleResistedChange(mesocycle + 1, week + 1, 'loadCycle', e.target.value || null)}
-                          className="w-full px-2 py-1 text-sm border-0 focus:ring-2 focus:ring-blue-500 rounded"
+                          className="w-full px-2 py-1 text-xs border-0 focus:ring-2 focus:ring-blue-500 rounded"
                         >
                           <option value="">-</option>
                           {loadCycleParams.map((param) => (
@@ -342,7 +342,7 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                           handleResistedChange(mesocycle + 1, week, 'repZone', value);
                         }
                       }}
-                      className="w-full px-2 py-1 text-sm text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
+                      className="w-full px-2 py-1 text-xs text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
                     />
                   </td>
                   {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
@@ -353,7 +353,7 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                           type="number"
                           value={data?.repZone || ''}
                           onChange={(e) => handleResistedChange(mesocycle + 1, week + 1, 'repZone', e.target.value ? parseInt(e.target.value) : null)}
-                          className="w-full px-2 py-1 text-sm border-0 focus:ring-2 focus:ring-blue-500 rounded text-center"
+                          className="w-full px-2 py-1 text-xs border-0 focus:ring-2 focus:ring-blue-500 rounded text-center"
                           placeholder="-"
                         />
                       </td>
@@ -451,7 +451,7 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                           handleResistedChange(mesocycle + 1, week, 'assembly', value);
                         }
                       }}
-                      className="w-full px-2 py-1 text-sm text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
+                      className="w-full px-2 py-1 text-xs text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
                     >
                       <option value="">-</option>
                       {assemblyParams.map((param) => (
@@ -468,7 +468,7 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                         <select
                           value={data?.assembly || ''}
                           onChange={(e) => handleResistedChange(mesocycle + 1, week + 1, 'assembly', e.target.value || null)}
-                          className="w-full px-2 py-1 text-sm border-0 focus:ring-2 focus:ring-blue-500 rounded"
+                          className="w-full px-2 py-1 text-xs border-0 focus:ring-2 focus:ring-blue-500 rounded"
                         >
                           <option value="">-</option>
                           {assemblyParams.map((param) => (
@@ -499,7 +499,7 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                           handleResistedChange(mesocycle + 1, week, 'method', value);
                         }
                       }}
-                      className="w-full px-2 py-1 text-sm text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
+                      className="w-full px-2 py-1 text-xs text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
                     >
                       <option value="">-</option>
                       {methodParams.map((param) => (
@@ -516,7 +516,7 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                         <select
                           value={data?.method || ''}
                           onChange={(e) => handleResistedChange(mesocycle + 1, week + 1, 'method', e.target.value || null)}
-                          className="w-full px-2 py-1 text-sm border-0 focus:ring-2 focus:ring-blue-500 rounded"
+                          className="w-full px-2 py-1 text-xs border-0 focus:ring-2 focus:ring-blue-500 rounded"
                         >
                           <option value="">-</option>
                           {methodParams.map((param) => (
@@ -547,7 +547,7 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                           handleResistedChange(mesocycle + 1, week, 'trainingDivision', value);
                         }
                       }}
-                      className="w-full px-2 py-1 text-sm text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
+                      className="w-full px-2 py-1 text-xs text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
                     >
                       <option value="">-</option>
                       {divisionParams.map((param) => (
@@ -564,7 +564,7 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                         <select
                           value={data?.trainingDivision || ''}
                           onChange={(e) => handleResistedChange(mesocycle + 1, week + 1, 'trainingDivision', e.target.value || null)}
-                          className="w-full px-2 py-1 text-sm border-0 focus:ring-2 focus:ring-blue-500 rounded"
+                          className="w-full px-2 py-1 text-xs border-0 focus:ring-2 focus:ring-blue-500 rounded"
                         >
                           <option value="">-</option>
                           {divisionParams.map((param) => (
@@ -597,7 +597,7 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                           handleResistedChange(mesocycle + 1, week, 'weeklyFrequency', value);
                         }
                       }}
-                      className="w-full px-2 py-1 text-sm text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
+                      className="w-full px-2 py-1 text-xs text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
                     />
                   </td>
                   {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
@@ -608,7 +608,7 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                           type="number"
                           value={data?.weeklyFrequency || ''}
                           onChange={(e) => handleResistedChange(mesocycle + 1, week + 1, 'weeklyFrequency', e.target.value ? parseInt(e.target.value) : null)}
-                          className="w-full px-2 py-1 text-sm border-0 focus:ring-2 focus:ring-blue-500 rounded text-center"
+                          className="w-full px-2 py-1 text-xs border-0 focus:ring-2 focus:ring-blue-500 rounded text-center"
                           placeholder="-"
                         />
                       </td>
