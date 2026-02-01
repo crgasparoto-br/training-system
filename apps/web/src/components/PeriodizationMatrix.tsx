@@ -237,7 +237,7 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
           <h3 className="text-lg font-semibold text-white">Estímulo Resistido</h3>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
+          <table className="min-w-full border-collapse">
             <thead>
               <tr className="bg-gray-50">
                 <th className="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-700 sticky left-0 bg-gray-50 z-10">
