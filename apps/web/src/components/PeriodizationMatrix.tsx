@@ -174,8 +174,8 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
           await periodizationService.upsertNutrition(data as Partial<NutritionWeekly>);
         }
 
-        // Recarregar dados
-        await loadData();
+        // Não recarregar dados para manter foco e posição da tela
+        // await loadData();
       } catch (error) {
         console.error('Erro ao salvar:', error);
       } finally {
