@@ -334,7 +334,7 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                     <td className="border border-gray-300 p-2 bg-orange-50">
                     <input
                       type="number"
-                      placeholder="REF"
+                      placeholder=""
                       onChange={(e) => {
                         const value = e.target.value ? parseInt(e.target.value) : null;
                         // Aplicar a todas as semanas do mesociclo
@@ -387,44 +387,6 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                 ))}
               </tr>
 
-              {/* REF */}
-              <tr>
-                <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-white z-10">
-                  REF
-                </td>
-                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
-                  <React.Fragment key={`meso-${mesocycle + 1}`}>
-                    <td className="border border-gray-300 p-2 bg-orange-50">
-                    <input
-                      type="number"
-                      placeholder="REF"
-                      onChange={(e) => {
-                        const value = e.target.value ? parseInt(e.target.value) : null;
-                        // Aplicar a todas as semanas do mesociclo
-                        for (let week = 1; week <= matrix.weeksPerMesocycle; week++) {
-                          handleResistedChange(mesocycle + 1, week, 'seriesReference', value);
-                        }
-                      }}
-                      className="w-full px-2 py-1 text-sm text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
-                    />
-                  </td>
-                  {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
-                    const data = resistedMap.get(mesocycle + 1)?.get(week + 1);
-                    return (
-                      <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-2">
-                        <input
-                          type="number"
-                          value={data?.seriesReference || ''}
-                          onChange={(e) => handleResistedChange(mesocycle + 1, week + 1, 'seriesReference', e.target.value ? parseInt(e.target.value) : null)}
-                          className="w-full px-2 py-1 text-sm border-0 focus:ring-2 focus:ring-blue-500 rounded text-center"
-                          placeholder="-"
-                        />
-                      </td>
-                    );
-                  })}
-                  </React.Fragment>
-                ))}
-              </tr>
 
               {/* Séries Grupo M. Inf. (calculado) */}
               <tr className="bg-green-50">
@@ -628,7 +590,7 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                     <td className="border border-gray-300 p-2 bg-orange-50">
                     <input
                       type="number"
-                      placeholder="REF"
+                      placeholder=""
                       onChange={(e) => {
                         const value = e.target.value ? parseInt(e.target.value) : null;
                         for (let week = 1; week <= matrix.weeksPerMesocycle; week++) {
