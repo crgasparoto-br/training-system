@@ -263,15 +263,15 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                     className="border border-gray-300 px-2 py-1 text-center text-xs font-medium text-orange-600 bg-orange-50"
                   >
                     REF
-                  </th>,
-                  ...Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => (
+                  </th>
+                  {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => (
                     <th
                       key={`${mesocycle + 1}-${week + 1}`}
                       className="border border-gray-300 px-2 py-1 text-center text-xs font-medium text-gray-600"
                     >
                       S{week + 1}
                     </th>
-                  ))
+                  ))}
                 ])}
               </tr>
             </thead>
@@ -300,8 +300,8 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                         </option>
                       ))}
                     </select>
-                  </td>,
-                  ...Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
+                  </td>
+                  {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
                     const data = resistedMap.get(mesocycle + 1)?.get(week + 1);
                     return (
                       <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-1">
@@ -319,7 +319,7 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                         </select>
                       </td>
                     );
-                  })
+                  })}
                 )}
               </tr>
 
@@ -342,8 +342,8 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                       }}
                       className="w-full px-2 py-1 text-sm text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
                     />
-                  </td>,
-                  ...Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
+                  </td>
+                  {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
                     const data = resistedMap.get(mesocycle + 1)?.get(week + 1);
                     return (
                       <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-1">
@@ -356,7 +356,7 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                         />
                       </td>
                     );
-                  })
+                  })}
                 ])}
               </tr>
 
@@ -368,8 +368,8 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                 {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => [
                   <td key={`ref-${mesocycle + 1}`} className="border border-gray-300 p-1 bg-orange-50">
                     <div className="text-center text-sm text-gray-400">-</div>
-                  </td>,
-                  ...Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
+                  </td>
+                  {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
                     const data = resistedMap.get(mesocycle + 1)?.get(week + 1);
                     return (
                       <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-1 bg-blue-50">
@@ -378,7 +378,7 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                         </div>
                       </td>
                     );
-                  })
+                  })}
                 ])}
               </tr>
 
@@ -401,8 +401,8 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                       }}
                       className="w-full px-2 py-1 text-sm text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
                     />
-                  </td>,
-                  ...Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
+                  </td>
+                  {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
                     const data = resistedMap.get(mesocycle + 1)?.get(week + 1);
                     return (
                       <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-1">
@@ -415,7 +415,7 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                         />
                       </td>
                     );
-                  })
+                  })}
                 ])}
               </tr>
 
@@ -427,8 +427,8 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                 {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => [
                   <td key={`ref-${mesocycle + 1}`} className="border border-gray-300 p-1 bg-orange-50">
                     <div className="text-center text-sm text-gray-400">-</div>
-                  </td>,
-                  ...Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
+                  </td>
+                  {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
                     const data = resistedMap.get(mesocycle + 1)?.get(week + 1);
                     return (
                       <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-1 bg-green-50">
@@ -437,7 +437,7 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                         </div>
                       </td>
                     );
-                  })
+                  })}
                 ])}
               </tr>
 
@@ -449,8 +449,8 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                 {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => [
                   <td key={`ref-${mesocycle + 1}`} className="border border-gray-300 p-1 bg-orange-50">
                     <div className="text-center text-sm text-gray-400">-</div>
-                  </td>,
-                  ...Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
+                  </td>
+                  {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
                     const data = resistedMap.get(mesocycle + 1)?.get(week + 1);
                     return (
                       <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-1 bg-yellow-50">
@@ -459,7 +459,7 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                         </div>
                       </td>
                     );
-                  })
+                  })}
                 ])}
               </tr>
 
@@ -486,8 +486,8 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                         </option>
                       ))}
                     </select>
-                  </td>,
-                  ...Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
+                  </td>
+                  {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
                     const data = resistedMap.get(mesocycle + 1)?.get(week + 1);
                     return (
                       <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-1">
@@ -505,7 +505,7 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                         </select>
                       </td>
                     );
-                  })
+                  })}
                 ])}
               </tr>
 
@@ -532,8 +532,8 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                         </option>
                       ))}
                     </select>
-                  </td>,
-                  ...Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
+                  </td>
+                  {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
                     const data = resistedMap.get(mesocycle + 1)?.get(week + 1);
                     return (
                       <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-1">
@@ -551,7 +551,7 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                         </select>
                       </td>
                     );
-                  })
+                  })}
                 ])}
               </tr>
 
@@ -578,8 +578,8 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                         </option>
                       ))}
                     </select>
-                  </td>,
-                  ...Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
+                  </td>
+                  {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
                     const data = resistedMap.get(mesocycle + 1)?.get(week + 1);
                     return (
                       <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-1">
@@ -597,7 +597,7 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                         </select>
                       </td>
                     );
-                  })
+                  })}
                 ])}
               </tr>
 
@@ -619,8 +619,8 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                       }}
                       className="w-full px-2 py-1 text-sm text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
                     />
-                  </td>,
-                  ...Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
+                  </td>
+                  {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
                     const data = resistedMap.get(mesocycle + 1)?.get(week + 1);
                     return (
                       <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-1">
@@ -633,7 +633,7 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                         />
                       </td>
                     );
-                  })
+                  })}
                 )}
               </tr>
             </tbody>
