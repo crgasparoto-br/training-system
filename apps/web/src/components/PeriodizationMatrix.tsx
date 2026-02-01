@@ -13,9 +13,10 @@ import { Save, Loader2 } from 'lucide-react';
 interface PeriodizationMatrixProps {
   planId: string;
   startDate: string;
+  endDate: string;
 }
 
-export function PeriodizationMatrixComponent({ planId, startDate }: PeriodizationMatrixProps) {
+export function PeriodizationMatrixComponent({ planId, startDate, endDate }: PeriodizationMatrixProps) {
   const [matrix, setMatrix] = useState<PeriodizationMatrix | null>(null);
   const [parameters, setParameters] = useState<TrainingParameter[]>([]);
   const [loading, setLoading] = useState(true);
@@ -26,6 +27,25 @@ export function PeriodizationMatrixComponent({ planId, startDate }: Periodizatio
   const [resistedMap, setResistedMap] = useState<Map<number, Map<number, ResistedStimulus>>>(new Map());
   const [cyclicMap, setCyclicMap] = useState<Map<number, Map<number, CyclicStimulus>>>(new Map());
   const [nutritionMap, setNutritionMap] = useState<Map<number, Map<number, NutritionWeekly>>>(new Map());
+
+  // Função para calcular número de mesociclos necessários
+  const calculateTotalMesocycles = (): number => {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    
+    // Calcular diferença em dias
+    const diffTime = Math.abs(end.getTime() - start.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    // Calcular número de semanas
+    const totalWeeks = Math.ceil(diffDays / 7);
+    
+    // Calcular número de mesociclos (4 semanas por mesociclo)
+    const weeksPerMesocycle = 4;
+    const totalMesocycles = Math.ceil(totalWeeks / weeksPerMesocycle);
+    
+    return totalMesocycles;
+  };
 
   // Função para calcular data de início da semana (segunda-feira)
   const getWeekStartDate = (mesocycleNumber: number, weekNumber: number): string => {
@@ -61,10 +81,11 @@ export function PeriodizationMatrixComponent({ planId, startDate }: Periodizatio
       let matrixData = await periodizationService.getMatrixByPlanId(planId);
       
       if (!matrixData) {
-        // Criar matriz padrão (5 mesociclos, 4 semanas cada)
+        // Criar matriz dinâmica baseada no período do plano
+        const totalMesocycles = calculateTotalMesocycles();
         matrixData = await periodizationService.createMatrix({
           planId,
-          totalMesocycles: 5,
+          totalMesocycles,
           weeksPerMesocycle: 4,
         });
       }
