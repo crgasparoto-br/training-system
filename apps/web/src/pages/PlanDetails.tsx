@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { planService, type TrainingPlan, type Mesocycle, type Microcycle, type CreateSessionDTO } from '../services/plan.service';
 import { SessionModal } from '../components/SessionModal';
+import { PeriodizationMatrixComponent } from '../components/PeriodizationMatrix';
 import { Button } from '../components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
 import {
@@ -26,6 +27,7 @@ export function PlanDetails() {
   const [isSessionModalOpen, setIsSessionModalOpen] = useState(false);
   const [selectedMesocycleId, setSelectedMesocycleId] = useState<string | null>(null);
   const [editingSession, setEditingSession] = useState<Microcycle | null>(null);
+  const [activeTab, setActiveTab] = useState<'sessions' | 'periodization'>('sessions');
 
   useEffect(() => {
     if (id) {
@@ -281,8 +283,34 @@ export function PlanDetails() {
         </Card>
       )}
 
-      {/* Weeks */}
-      {plan.macrocycles && plan.macrocycles.length > 0 && (
+      {/* Tabs */}
+      <div className="border-b border-gray-200">
+        <nav className="-mb-px flex space-x-8">
+          <button
+            onClick={() => setActiveTab('sessions')}
+            className={`${
+              activeTab === 'sessions'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors`}
+          >
+            Sessões de Treino
+          </button>
+          <button
+            onClick={() => setActiveTab('periodization')}
+            className={`${
+              activeTab === 'periodization'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors`}
+          >
+            Periodização Macrociclo
+          </button>
+        </nav>
+      </div>
+
+      {/* Tab Content: Sessions */}
+      {activeTab === 'sessions' && plan.macrocycles && plan.macrocycles.length > 0 && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-2xl font-bold">Semanas de Treino</h2>
@@ -433,6 +461,11 @@ export function PlanDetails() {
           </CardContent>
         </Card>
       )}
+      {/* Tab Content: Periodization */}
+      {activeTab === 'periodization' && (
+        <PeriodizationMatrixComponent planId={id!} />
+      )}
+
       {/* Session Modal */}
       <SessionModal
         isOpen={isSessionModalOpen}
