@@ -95,6 +95,20 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
     return Math.round(minutes).toString();
   };
 
+  // Função para calcular séries baseado na carga
+  // Fórmula: =IF(loadCycle="REG", seriesRef/2, seriesRef)
+  const calculateSeries = (loadCycle: string | null | undefined, seriesRef: number | null | undefined): number | null => {
+    if (!seriesRef && seriesRef !== 0) return null; // Se seriesRef vazio
+    if (!loadCycle) return seriesRef; // Se loadCycle vazio, retorna seriesRef
+    
+    // Se carga é REGENERATIVO, divide por 2
+    if (loadCycle === 'REGENERATIVO') {
+      return Math.round(seriesRef / 2);
+    }
+    
+    return seriesRef;
+  };
+
   // Parâmetros por categoria
   const [loadCycleParams, setLoadCycleParams] = useState<TrainingParameter[]>([]);
   const [assemblyParams, setAssemblyParams] = useState<TrainingParameter[]>([]);
@@ -495,7 +509,7 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
               </tr>
 
 
-              {/* Séries Grupo M. Inf. (calculado) */}
+{/* Séries Grupo M. Inf. - REF editável, semanas calculadas */}
               <tr className="bg-green-50">
                 <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-green-50 z-10">
                   Séries Grupo M. Inf.
@@ -503,18 +517,29 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
                 {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
                   <React.Fragment key={`meso-${mesocycle + 1}`}>
                     <td className="border border-gray-300 p-2 bg-orange-50">
-                    <div className="text-center text-sm text-gray-400">-</div>
-                  </td>
-                  {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
-                    const data = resistedMap.get(mesocycle + 1)?.get(week + 1);
-                    return (
-                      <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-2 bg-green-50">
-                        <div className="text-center text-sm font-semibold text-green-700">
-                          {data?.seriesLowerBody || '-'}
-                        </div>
-                      </td>
-                    );
-                  })}
+                      <input
+                        type="number"
+                        placeholder=""
+                        onChange={(e) => {
+                          const value = e.target.value ? parseInt(e.target.value) : null;
+                          for (let week = 1; week <= matrix.weeksPerMesocycle; week++) {
+                            handleResistedChange(mesocycle + 1, week, 'seriesReference', value);
+                          }
+                        }}
+                        className="w-full px-2 py-1 text-xs text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
+                      />
+                    </td>
+                    {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
+                      const data = resistedMap.get(mesocycle + 1)?.get(week + 1);
+                      const calculated = calculateSeries(data?.loadCycle, data?.seriesReference);
+                      return (
+                        <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-2 bg-green-50">
+                          <div className="text-center text-sm font-semibold text-green-700">
+                            {calculated !== null ? calculated : '-'}
+                          </div>
+                        </td>
+                      );
+                    })}
                   </React.Fragment>
                 ))}
               </tr>
