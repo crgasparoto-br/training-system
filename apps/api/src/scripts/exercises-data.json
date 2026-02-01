@@ -5,7 +5,8 @@
     "loadType": "C",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Abdômen"
   },
   {
     "name": "Abdominal infra no solo",
@@ -13,7 +14,8 @@
     "loadType": "C",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Abdômen"
   },
   {
     "name": "Abdominal P a P",
@@ -21,7 +23,8 @@
     "loadType": "C",
     "movementType": "A",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Abdômen"
   },
   {
     "name": "Abdominal Remador",
@@ -29,7 +32,8 @@
     "loadType": "C",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Abdômen"
   },
   {
     "name": "Abdominal Reto",
@@ -37,7 +41,8 @@
     "loadType": "C",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Abdômen"
   },
   {
     "name": "Abdominal Reto na Prancha",
@@ -45,7 +50,8 @@
     "loadType": "C",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Abdômen"
   },
   {
     "name": "Abdominal Reto Vela",
@@ -53,7 +59,8 @@
     "loadType": "C",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Abdômen"
   },
   {
     "name": "Abdominal roda",
@@ -61,7 +68,8 @@
     "loadType": "C",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Abdômen"
   },
   {
     "name": "Abdominal Twist",
@@ -69,7 +77,8 @@
     "loadType": "O",
     "movementType": "A",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Abdômen"
   },
   {
     "name": "AbduÆo de quadril com caneleira",
@@ -77,7 +86,8 @@
     "loadType": "H",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Abdutores"
   },
   {
     "name": "Afundo",
@@ -85,7 +95,8 @@
     "loadType": "H",
     "movementType": "A",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Quadríceps"
   },
   {
     "name": "Agachamento",
@@ -93,7 +104,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Quadríceps"
   },
   {
     "name": "Agachamento B£lgaro",
@@ -101,7 +113,8 @@
     "loadType": "H",
     "movementType": "U",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Quadríceps"
   },
   {
     "name": "Agachamento com Arremesso",
@@ -109,7 +122,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Quadríceps"
   },
   {
     "name": "Agachamento Livre",
@@ -117,7 +131,8 @@
     "loadType": "C",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Quadríceps"
   },
   {
     "name": "Arco e Flecha na banda",
@@ -125,7 +140,8 @@
     "loadType": "E",
     "movementType": "U",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Costas"
   },
   {
     "name": "Arremesso",
@@ -133,7 +149,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Ombros"
   },
   {
     "name": "Banco S¢leo",
@@ -141,7 +158,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Panturrilha"
   },
   {
     "name": "Barra fixa",
@@ -149,7 +167,8 @@
     "loadType": "C",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Costas"
   },
   {
     "name": "Deslocamento Lateral com Miniband",
@@ -157,7 +176,8 @@
     "loadType": "E",
     "movementType": "U",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Abdutores"
   },
   {
     "name": "Bicicleta",
@@ -165,7 +185,8 @@
     "loadType": "A",
     "movementType": "-",
     "countingType": "-",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Cardio"
   },
   {
     "name": "Cadeira Abdutora",
@@ -173,7 +194,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Abdutores"
   },
   {
     "name": "Cadeira Adutora",
@@ -181,7 +203,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Adutores"
   },
   {
     "name": "Cadeira Extensora",
@@ -189,7 +212,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Quadríceps"
   },
   {
     "name": "Cadeira Flexora",
@@ -197,7 +221,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Posterior de Coxa"
   },
   {
     "name": "CÆo Caador",
@@ -205,7 +230,8 @@
     "loadType": "C",
     "movementType": "A",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Core"
   },
   {
     "name": "Crucifixo",
@@ -213,7 +239,8 @@
     "loadType": "H",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Peitoral"
   },
   {
     "name": "Crucifixo Inclinado",
@@ -221,7 +248,8 @@
     "loadType": "H",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Peitoral"
   },
   {
     "name": "Crucifixo Inverso na Polia",
@@ -229,7 +257,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Peitoral"
   },
   {
     "name": "Crucifixo Inverso Sentado",
@@ -237,7 +266,8 @@
     "loadType": "H",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Peitoral"
   },
   {
     "name": "Crucifixo no Crossover",
@@ -245,7 +275,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Peitoral"
   },
   {
     "name": "Desenvolvimento Deltoide",
@@ -253,7 +284,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Ombros"
   },
   {
     "name": "Desenvolvimento Lombar",
@@ -261,7 +293,8 @@
     "loadType": "C",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Costas"
   },
   {
     "name": "Desenvolvimento Quebrado",
@@ -269,7 +302,8 @@
     "loadType": "H",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Ombros"
   },
   {
     "name": "DorsiflexÆo Unilateral com El stico",
@@ -277,7 +311,8 @@
     "loadType": "E",
     "movementType": "U",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Panturrilha"
   },
   {
     "name": "ElevaÆo de Quadril com AbduÆo na Banda El stica",
@@ -285,7 +320,8 @@
     "loadType": "E",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Glúteos"
   },
   {
     "name": "ElevaÆo de quadril com flexÆo de joelho no pano",
@@ -293,7 +329,8 @@
     "loadType": "C",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Glúteos"
   },
   {
     "name": "ElevaÆo de Quadril e FlexÆo de Joelho na Bola",
@@ -301,7 +338,8 @@
     "loadType": "C",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Glúteos"
   },
   {
     "name": "ElevaÆo de Quadril Unilateral no Banco",
@@ -309,7 +347,8 @@
     "loadType": "C",
     "movementType": "U",
     "countingType": "T",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Glúteos"
   },
   {
     "name": "ElevaÆo Frontal",
@@ -317,7 +356,8 @@
     "loadType": "H",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Ombros"
   },
   {
     "name": "ElevaÆo Frontal na Polia",
@@ -325,7 +365,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Ombros"
   },
   {
     "name": "ElevaÆo Lateral",
@@ -333,7 +374,8 @@
     "loadType": "H",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Ombros"
   },
   {
     "name": "ElevaÆo Lateral e Frontal",
@@ -341,7 +383,8 @@
     "loadType": "H",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Ombros"
   },
   {
     "name": "ElevaÆo Plvica",
@@ -349,7 +392,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Glúteos"
   },
   {
     "name": "Eliptico",
@@ -357,7 +401,8 @@
     "loadType": "A",
     "movementType": "-",
     "countingType": "-",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Cardio"
   },
   {
     "name": "Equil¡brio em cruz no trampolim",
@@ -365,7 +410,8 @@
     "loadType": "C",
     "movementType": "U",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Core"
   },
   {
     "name": "Equilibrio Monopedal II",
@@ -373,7 +419,8 @@
     "loadType": "C",
     "movementType": "U",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Core"
   },
   {
     "name": "Esteira",
@@ -381,7 +428,8 @@
     "loadType": "A",
     "movementType": "-",
     "countingType": "-",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Cardio"
   },
   {
     "name": "FlexÆo de Brao",
@@ -389,7 +437,8 @@
     "loadType": "C",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Peitoral"
   },
   {
     "name": "FlexÆo de brao Declinada",
@@ -397,7 +446,8 @@
     "loadType": "C",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Peitoral"
   },
   {
     "name": "FlexÆo de brao na bola",
@@ -405,7 +455,8 @@
     "loadType": "C",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Peitoral"
   },
   {
     "name": "FlexÆo de brao spider man",
@@ -413,7 +464,8 @@
     "loadType": "C",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Peitoral"
   },
   {
     "name": "FlexÆo N¢rdica",
@@ -421,7 +473,8 @@
     "loadType": "C",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Posterior de Coxa"
   },
   {
     "name": "FlexÆo N¢rdica Reversa",
@@ -429,7 +482,8 @@
     "loadType": "C",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Quadríceps"
   },
   {
     "name": "FlexÆo Plantar com Halteres",
@@ -437,7 +491,8 @@
     "loadType": "H",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Panturrilha"
   },
   {
     "name": "FlexÆo Plantar na M quina",
@@ -445,7 +500,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Panturrilha"
   },
   {
     "name": "Fly Inverso",
@@ -453,7 +509,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Costas"
   },
   {
     "name": "Fly no peck deck",
@@ -461,7 +518,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Peitoral"
   },
   {
     "name": "Gato Camelo",
@@ -469,7 +527,8 @@
     "loadType": "C",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Mobilidade"
   },
   {
     "name": "Lat PullDown",
@@ -477,7 +536,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Costas"
   },
   {
     "name": "Leg Press",
@@ -485,7 +545,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Quadríceps"
   },
   {
     "name": "Leg Pull Down",
@@ -493,7 +554,8 @@
     "loadType": "C",
     "movementType": "A",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Costas"
   },
   {
     "name": "Levantamento Terra",
@@ -501,7 +563,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Posterior de Coxa"
   },
   {
     "name": "Mobilidade de Ombro I",
@@ -509,7 +572,8 @@
     "loadType": "E",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Ombros"
   },
   {
     "name": "Mobilidade de Quadril - C¢coras",
@@ -517,7 +581,8 @@
     "loadType": "C",
     "movementType": "O",
     "countingType": "I",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Mobilidade"
   },
   {
     "name": "Mobilidade de Quadril - Iliopsoas",
@@ -525,7 +590,8 @@
     "loadType": "C",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Mobilidade"
   },
   {
     "name": "Mobilidade de Quadril Alternado",
@@ -533,7 +599,8 @@
     "loadType": "C",
     "movementType": "A",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Mobilidade"
   },
   {
     "name": "Mobilidade de Quadril em S",
@@ -541,7 +608,8 @@
     "loadType": "C",
     "movementType": "U",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Mobilidade"
   },
   {
     "name": "Mobilidade de tornozelo",
@@ -549,7 +617,8 @@
     "loadType": "C",
     "movementType": "U",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Mobilidade"
   },
   {
     "name": "Mobilidade Posterior de Coxa",
@@ -557,7 +626,8 @@
     "loadType": "C",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Posterior de Coxa"
   },
   {
     "name": "Mobilidade Quadril - Sum",
@@ -565,7 +635,8 @@
     "loadType": "C",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Mobilidade"
   },
   {
     "name": "Mobilidade Tor cica na Parede",
@@ -573,7 +644,8 @@
     "loadType": "C",
     "movementType": "U",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Mobilidade"
   },
   {
     "name": "NataÆo",
@@ -581,7 +653,8 @@
     "loadType": "A",
     "movementType": "-",
     "countingType": "-",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Cardio"
   },
   {
     "name": "Ostra",
@@ -589,7 +662,8 @@
     "loadType": "E",
     "movementType": "U",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Abdutores"
   },
   {
     "name": "Panturrilha Leg Press",
@@ -597,7 +671,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Quadríceps"
   },
   {
     "name": "Peck Deck",
@@ -605,7 +680,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Peitoral"
   },
   {
     "name": "Pista",
@@ -613,7 +689,8 @@
     "loadType": "A",
     "movementType": "-",
     "countingType": "-",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Cardio"
   },
   {
     "name": "Polichinelo",
@@ -621,7 +698,8 @@
     "loadType": "C",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Cardio"
   },
   {
     "name": "Polichinelo (Tempo)",
@@ -629,7 +707,8 @@
     "loadType": "C",
     "movementType": "O",
     "countingType": "T",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Cardio"
   },
   {
     "name": "Prancha",
@@ -637,7 +716,8 @@
     "loadType": "C",
     "movementType": "O",
     "countingType": "I",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Abdômen"
   },
   {
     "name": "Prancha Dinmica na Bola",
@@ -645,7 +725,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Abdômen"
   },
   {
     "name": "Prancha Dorsal",
@@ -653,7 +734,8 @@
     "loadType": "C",
     "movementType": "O",
     "countingType": "I",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Abdômen"
   },
   {
     "name": "Prancha Lateral",
@@ -661,7 +743,8 @@
     "loadType": "C",
     "movementType": "U",
     "countingType": "I",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Abdômen"
   },
   {
     "name": "Prancha Lateral com RotaÆo",
@@ -669,7 +752,8 @@
     "loadType": "C",
     "movementType": "U",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Abdômen"
   },
   {
     "name": "Pulley frente",
@@ -677,7 +761,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Costas"
   },
   {
     "name": "Remada Alta",
@@ -685,7 +770,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Costas"
   },
   {
     "name": "Remada Alta na Polia",
@@ -693,7 +779,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Costas"
   },
   {
     "name": "Remada Curvada",
@@ -701,7 +788,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Costas"
   },
   {
     "name": "Remada Frontal M quina",
@@ -709,7 +797,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Costas"
   },
   {
     "name": "Remada Horizontal com MovimentaÆo do Tronco",
@@ -717,7 +806,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Costas"
   },
   {
     "name": "Remada Horizontal sem MovimentaÆo do Tronco",
@@ -725,7 +815,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Costas"
   },
   {
     "name": "Rosca Alternada",
@@ -733,7 +824,8 @@
     "loadType": "H",
     "movementType": "A",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Bíceps"
   },
   {
     "name": "Rosca Biceps na Polia",
@@ -741,7 +833,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Bíceps"
   },
   {
     "name": "Rosca Direta",
@@ -749,7 +842,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Bíceps"
   },
   {
     "name": "Rosca Direta com Halteres",
@@ -757,7 +851,8 @@
     "loadType": "H",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Bíceps"
   },
   {
     "name": "Rosca Inclinado",
@@ -765,7 +860,8 @@
     "loadType": "H",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Bíceps"
   },
   {
     "name": "Rosca Martelo com Halteres",
@@ -773,7 +869,8 @@
     "loadType": "H",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Bíceps"
   },
   {
     "name": "RotaÆo Externa com El stico",
@@ -781,7 +878,8 @@
     "loadType": "E",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Ombros"
   },
   {
     "name": "RotaÆo Externa com Halter",
@@ -789,7 +887,8 @@
     "loadType": "O",
     "movementType": "U",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Ombros"
   },
   {
     "name": "RotaÆo Externa na Polia",
@@ -797,7 +896,8 @@
     "loadType": "O",
     "movementType": "U",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Ombros"
   },
   {
     "name": "Skipping Alto",
@@ -805,7 +905,8 @@
     "loadType": "C",
     "movementType": "O",
     "countingType": "T",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Cardio"
   },
   {
     "name": "Skipping Baixo",
@@ -813,7 +914,8 @@
     "loadType": "C",
     "movementType": "O",
     "countingType": "T",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Cardio"
   },
   {
     "name": "Stiff",
@@ -821,7 +923,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Posterior de Coxa"
   },
   {
     "name": "Superman",
@@ -829,7 +932,8 @@
     "loadType": "C",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Core"
   },
   {
     "name": "Supino",
@@ -837,7 +941,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Peitoral"
   },
   {
     "name": "Supino (Tempo)",
@@ -845,7 +950,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "T",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Peitoral"
   },
   {
     "name": "Supino Declinado",
@@ -853,7 +959,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Peitoral"
   },
   {
     "name": "Supino Inclinado",
@@ -861,7 +968,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Peitoral"
   },
   {
     "name": "Triceps Coice na Polia",
@@ -869,7 +977,8 @@
     "loadType": "O",
     "movementType": "U",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Glúteos"
   },
   {
     "name": "Tr¡ceps Francs",
@@ -877,7 +986,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Tríceps"
   },
   {
     "name": "Tr¡ceps Polia",
@@ -885,7 +995,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Tríceps"
   },
   {
     "name": "Tr¡ceps Testa",
@@ -893,7 +1004,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Tríceps"
   },
   {
     "name": "Tr¡ceps Testa polia",
@@ -901,7 +1013,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Tríceps"
   },
   {
     "name": "Abdominal reto no Smith",
@@ -909,7 +1022,8 @@
     "loadType": "C",
     "movementType": "A",
     "countingType": "T",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Abdômen"
   },
   {
     "name": "InclinaÆo Lateral do Tronco",
@@ -917,7 +1031,8 @@
     "loadType": "H",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Abdômen"
   },
   {
     "name": "ElevaÆo Lateral Sentado",
@@ -925,7 +1040,8 @@
     "loadType": "H",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Ombros"
   },
   {
     "name": "Encolhimento no Smith",
@@ -933,7 +1049,8 @@
     "loadType": "H",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Costas"
   },
   {
     "name": "Supino com Halteres",
@@ -941,7 +1058,8 @@
     "loadType": null,
     "movementType": null,
     "countingType": null,
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Peitoral"
   },
   {
     "name": "Supino Inclinado com Halteres",
@@ -949,7 +1067,8 @@
     "loadType": null,
     "movementType": null,
     "countingType": null,
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Peitoral"
   },
   {
     "name": "FlexÆo de brao Declinada",
@@ -957,7 +1076,8 @@
     "loadType": null,
     "movementType": null,
     "countingType": null,
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Peitoral"
   },
   {
     "name": "FlexÆo de brao com rotaÆo de tronco",
@@ -965,7 +1085,8 @@
     "loadType": null,
     "movementType": null,
     "countingType": null,
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Peitoral"
   },
   {
     "name": "Prancha tocando os ombros",
@@ -973,7 +1094,8 @@
     "loadType": null,
     "movementType": null,
     "countingType": null,
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Abdômen"
   },
   {
     "name": "Prancha tocando os ps",
@@ -981,7 +1103,8 @@
     "loadType": "C",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Abdômen"
   },
   {
     "name": "Supino na M quina",
@@ -989,7 +1112,8 @@
     "loadType": null,
     "movementType": null,
     "countingType": null,
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Peitoral"
   },
   {
     "name": "Supino no Smith",
@@ -997,7 +1121,8 @@
     "loadType": null,
     "movementType": null,
     "countingType": null,
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Peitoral"
   },
   {
     "name": "Supino com arremesso",
@@ -1005,7 +1130,8 @@
     "loadType": null,
     "movementType": null,
     "countingType": null,
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Peitoral"
   },
   {
     "name": "FlexÆo com impulsÆo",
@@ -1013,7 +1139,8 @@
     "loadType": null,
     "movementType": null,
     "countingType": null,
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Peitoral"
   },
   {
     "name": "Pullover",
@@ -1021,7 +1148,8 @@
     "loadType": null,
     "movementType": null,
     "countingType": null,
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Costas"
   },
   {
     "name": "Pulley com pegada Supinada",
@@ -1029,7 +1157,8 @@
     "loadType": null,
     "movementType": null,
     "countingType": null,
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Costas"
   },
   {
     "name": "Subida unilateral no Degrau",
@@ -1037,7 +1166,8 @@
     "loadType": "O",
     "movementType": "U",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Quadríceps"
   },
   {
     "name": "Abdominal Canoa",
@@ -1045,7 +1175,8 @@
     "loadType": "C",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Abdômen"
   },
   {
     "name": "Face Pull",
@@ -1053,7 +1184,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Costas"
   },
   {
     "name": "Subida unilateral no Degrau",
@@ -1061,7 +1193,8 @@
     "loadType": "O",
     "movementType": "U",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Quadríceps"
   },
   {
     "name": "Kettlebell Swing",
@@ -1069,7 +1202,8 @@
     "loadType": "H",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Full Body"
   },
   {
     "name": "Abdominal Escalador",
@@ -1077,7 +1211,8 @@
     "loadType": "C",
     "movementType": "A",
     "countingType": "T",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Abdômen"
   },
   {
     "name": "Burpee",
@@ -1085,7 +1220,8 @@
     "loadType": "C",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Full Body"
   },
   {
     "name": "Remada Invertida no Smith",
@@ -1093,7 +1229,8 @@
     "loadType": "C",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Costas"
   },
   {
     "name": "Salto bipodal",
@@ -1101,7 +1238,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Quadríceps"
   },
   {
     "name": "Remada Horizontal com pegada aberta",
@@ -1109,7 +1247,8 @@
     "loadType": null,
     "movementType": null,
     "countingType": null,
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Costas"
   },
   {
     "name": "Remada Cavalinho",
@@ -1117,7 +1256,8 @@
     "loadType": null,
     "movementType": null,
     "countingType": null,
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Costas"
   },
   {
     "name": "Crucifixo inverso em p",
@@ -1125,7 +1265,8 @@
     "loadType": null,
     "movementType": null,
     "countingType": null,
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Peitoral"
   },
   {
     "name": "Crucifixo inverso com apoio ventral no banco",
@@ -1133,7 +1274,8 @@
     "loadType": null,
     "movementType": null,
     "countingType": null,
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Peitoral"
   },
   {
     "name": "Crucifixo inverso ao n¡vel da esc pula",
@@ -1141,7 +1283,8 @@
     "loadType": null,
     "movementType": null,
     "countingType": null,
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Peitoral"
   },
   {
     "name": "Abdominal M quina",
@@ -1149,7 +1292,8 @@
     "loadType": null,
     "movementType": null,
     "countingType": null,
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Abdômen"
   },
   {
     "name": "LED Desloc. Anteroposterior",
@@ -1157,7 +1301,8 @@
     "loadType": null,
     "movementType": null,
     "countingType": null,
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Abdutores"
   },
   {
     "name": "LED Desloc. Mdio lateral",
@@ -1165,7 +1310,8 @@
     "loadType": null,
     "movementType": null,
     "countingType": null,
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Abdutores"
   },
   {
     "name": "LED Desloc. Mdio lateral Cruzado",
@@ -1173,7 +1319,8 @@
     "loadType": null,
     "movementType": null,
     "countingType": null,
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Abdutores"
   },
   {
     "name": "LED Prancha Super Man",
@@ -1181,7 +1328,8 @@
     "loadType": null,
     "movementType": null,
     "countingType": null,
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Abdômen"
   },
   {
     "name": "Stiff Polia Baixa",
@@ -1189,7 +1337,8 @@
     "loadType": null,
     "movementType": null,
     "countingType": null,
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Posterior de Coxa"
   },
   {
     "name": "Sissy Squat",
@@ -1197,7 +1346,8 @@
     "loadType": null,
     "movementType": null,
     "countingType": null,
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Quadríceps"
   },
   {
     "name": "Agachamento livre com peso do corpo",
@@ -1205,7 +1355,8 @@
     "loadType": null,
     "movementType": null,
     "countingType": null,
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Quadríceps"
   },
   {
     "name": "Agachamento smith",
@@ -1213,7 +1364,8 @@
     "loadType": null,
     "movementType": null,
     "countingType": null,
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Quadríceps"
   },
   {
     "name": "Leg press 45§",
@@ -1221,7 +1373,8 @@
     "loadType": null,
     "movementType": null,
     "countingType": null,
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Quadríceps"
   },
   {
     "name": "Cadeira Adutora + Cadeira Abdutora",
@@ -1229,7 +1382,8 @@
     "loadType": null,
     "movementType": null,
     "countingType": null,
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Adutores"
   },
   {
     "name": "Crucifixo m quina",
@@ -1237,7 +1391,8 @@
     "loadType": null,
     "movementType": null,
     "countingType": null,
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Peitoral"
   },
   {
     "name": "Mesa flexora (deitada)",
@@ -1245,7 +1400,8 @@
     "loadType": null,
     "movementType": null,
     "countingType": null,
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Posterior de Coxa"
   },
   {
     "name": "Alongamento piriforme com bola",
@@ -1253,7 +1409,8 @@
     "loadType": "C",
     "movementType": "U",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Mobilidade"
   },
   {
     "name": "Corda",
@@ -1261,7 +1418,8 @@
     "loadType": "A",
     "movementType": null,
     "countingType": "T",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Cardio"
   },
   {
     "name": "Abdominal canoa",
@@ -1269,7 +1427,8 @@
     "loadType": "C",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Abdômen"
   },
   {
     "name": "Abdominal canoa lateral",
@@ -1277,7 +1436,8 @@
     "loadType": "C",
     "movementType": "U",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Abdômen"
   },
   {
     "name": "Abdominal obliquo na polia alta",
@@ -1285,7 +1445,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Abdômen"
   },
   {
     "name": "Abdominal Obliquo na polia mdia",
@@ -1293,7 +1454,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Abdômen"
   },
   {
     "name": "Pulley com pegada Supinada",
@@ -1301,7 +1463,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Costas"
   },
   {
     "name": "Cadeira Extensora - Perna Direita",
@@ -1309,7 +1472,8 @@
     "loadType": "O",
     "movementType": "U",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Quadríceps"
   },
   {
     "name": "Descanso de 2 minutos",
@@ -1317,7 +1481,8 @@
     "loadType": null,
     "movementType": null,
     "countingType": null,
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Mobilidade"
   },
   {
     "name": "Esteira - 5 km o mais r pido poss¡vel",
@@ -1325,7 +1490,8 @@
     "loadType": null,
     "movementType": null,
     "countingType": null,
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Cardio"
   },
   {
     "name": "Esteira - 2 km o mais r pido poss¡vel",
@@ -1333,7 +1499,8 @@
     "loadType": null,
     "movementType": null,
     "countingType": null,
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Cardio"
   },
   {
     "name": "Esteira - 3 km o mais r pido poss¡vel",
@@ -1341,7 +1508,8 @@
     "loadType": null,
     "movementType": null,
     "countingType": null,
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Cardio"
   },
   {
     "name": "Esteira - 10 km o mais r pido poss¡vel",
@@ -1349,7 +1517,8 @@
     "loadType": null,
     "movementType": null,
     "countingType": null,
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Cardio"
   },
   {
     "name": "Rosca Inversa",
@@ -1357,7 +1526,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Bíceps"
   },
   {
     "name": "Rosca Scott",
@@ -1365,7 +1535,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Bíceps"
   },
   {
     "name": "ExtensÆo de quadril com el stico",
@@ -1373,7 +1544,8 @@
     "loadType": "E",
     "movementType": "U",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Glúteos"
   },
   {
     "name": "FlexÆo do arco plantar com estabilidade",
@@ -1381,7 +1553,8 @@
     "loadType": "E",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Panturrilha"
   },
   {
     "name": "Fortalecimento isomtrico do arco plantar",
@@ -1389,7 +1562,8 @@
     "loadType": "E",
     "movementType": "O",
     "countingType": "T",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Panturrilha"
   },
   {
     "name": "Alongamento Iliotibial I",
@@ -1397,7 +1571,8 @@
     "loadType": "C",
     "movementType": "U",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Mobilidade"
   },
   {
     "name": "Alongamento Iliotibial II",
@@ -1405,7 +1580,8 @@
     "loadType": "C",
     "movementType": "U",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Mobilidade"
   },
   {
     "name": "Alongamento Iliotibial III",
@@ -1413,7 +1589,8 @@
     "loadType": "C",
     "movementType": "U",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Mobilidade"
   },
   {
     "name": "cÆo caador com a bola",
@@ -1421,7 +1598,8 @@
     "loadType": "C",
     "movementType": "U",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Core"
   },
   {
     "name": "Esteira Intervalada",
@@ -1429,7 +1607,8 @@
     "loadType": "P",
     "movementType": null,
     "countingType": null,
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Cardio"
   },
   {
     "name": "Mobilidade Quadril - AbduÆo/AduÆo",
@@ -1437,7 +1616,8 @@
     "loadType": "C",
     "movementType": "U",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Mobilidade"
   },
   {
     "name": "Mobilidade de Pelve na bola",
@@ -1445,7 +1625,8 @@
     "loadType": "C",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Mobilidade"
   },
   {
     "name": "Mobilidade de Pelve no solo",
@@ -1453,7 +1634,8 @@
     "loadType": "C",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Mobilidade"
   },
   {
     "name": "Afundo com salto",
@@ -1461,7 +1643,8 @@
     "loadType": "H",
     "movementType": "A",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Quadríceps"
   },
   {
     "name": "Afundo com ElevaÆo de Joelhos",
@@ -1469,7 +1652,8 @@
     "loadType": "H",
     "movementType": "A",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Quadríceps"
   },
   {
     "name": "Agachamento B£lgaro com salto",
@@ -1477,7 +1661,8 @@
     "loadType": "H",
     "movementType": "A",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Quadríceps"
   },
   {
     "name": "Agachamento com Salto",
@@ -1485,7 +1670,8 @@
     "loadType": "O",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Quadríceps"
   },
   {
     "name": "Cadeira Flexora unilateral",
@@ -1493,7 +1679,8 @@
     "loadType": "O",
     "movementType": "U",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Posterior de Coxa"
   },
   {
     "name": "Salto Unipodal na caixa",
@@ -1501,7 +1688,8 @@
     "loadType": "C",
     "movementType": "U",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Quadríceps"
   },
   {
     "name": "Salto unipodal",
@@ -1509,7 +1697,8 @@
     "loadType": "C",
     "movementType": "U",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Quadríceps"
   },
   {
     "name": "Salto unipodal com descida",
@@ -1517,7 +1706,8 @@
     "loadType": "C",
     "movementType": "U",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Quadríceps"
   },
   {
     "name": "Salto bipodal na caixa",
@@ -1525,7 +1715,8 @@
     "loadType": "C",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Quadríceps"
   },
   {
     "name": "Kettlebell Swing",
@@ -1533,7 +1724,8 @@
     "loadType": "H",
     "movementType": "O",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Full Body"
   },
   {
     "name": "Agachamento B£lgaro c/ salto cone",
@@ -1541,7 +1733,8 @@
     "loadType": "H",
     "movementType": "A",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Quadríceps"
   },
   {
     "name": "Semi-agachamento com abduÆo",
@@ -1549,7 +1742,8 @@
     "loadType": "E",
     "movementType": "U",
     "countingType": "R",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Quadríceps"
   },
   {
     "name": "Saltitos Bipodais",
@@ -1557,7 +1751,8 @@
     "loadType": "C",
     "movementType": "O",
     "countingType": "T",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Cardio"
   },
   {
     "name": "Equil¡brio em 4 apoios na bola",
@@ -1565,7 +1760,8 @@
     "loadType": "C",
     "movementType": "B",
     "countingType": "T",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Core"
   },
   {
     "name": "Abdominal Escalador",
@@ -1573,6 +1769,7 @@
     "loadType": "C",
     "movementType": "B",
     "countingType": "T",
-    "notes": null
+    "notes": null,
+    "muscleGroup": "Abdômen"
   }
 ]
