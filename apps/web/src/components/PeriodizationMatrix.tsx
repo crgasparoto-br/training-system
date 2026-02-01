@@ -257,22 +257,21 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                 <th className="border border-gray-300 px-3 py-2 text-left text-xs font-medium text-gray-600 sticky left-0 bg-gray-100 z-10">
                   Semana
                 </th>
-                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => [
-                  <th
-                    key={`ref-${mesocycle + 1}`}
-                    className="border border-gray-300 px-2 py-1 text-center text-xs font-medium text-orange-600 bg-orange-50"
-                  >
-                    REF
-                  </th>
-                  {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => (
-                    <th
-                      key={`${mesocycle + 1}-${week + 1}`}
-                      className="border border-gray-300 px-2 py-1 text-center text-xs font-medium text-gray-600"
-                    >
-                      S{week + 1}
+                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
+                  <React.Fragment key={`meso-header-${mesocycle + 1}`}>
+                    <th className="border border-gray-300 px-2 py-1 text-center text-xs font-medium text-orange-600 bg-orange-50">
+                      REF
                     </th>
-                  ))}
-                ])}
+                    {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => (
+                      <th
+                        key={`${mesocycle + 1}-${week + 1}`}
+                        className="border border-gray-300 px-2 py-1 text-center text-xs font-medium text-gray-600"
+                      >
+                        S{week + 1}
+                      </th>
+                    ))}
+                  </React.Fragment>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -281,8 +280,9 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                 <td className="border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 sticky left-0 bg-white z-10">
                   Carga Microciclo
                 </td>
-                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => [
-                  <td key={`ref-${mesocycle + 1}`} className="border border-gray-300 p-1 bg-orange-50">
+                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
+                  <React.Fragment key={`meso-${mesocycle + 1}`}>
+                    <td className="border border-gray-300 p-1 bg-orange-50">
                     <select
                       onChange={(e) => {
                         const value = e.target.value || null;
@@ -328,8 +328,9 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                 <td className="border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 sticky left-0 bg-white z-10">
                   Zona Rep.
                 </td>
-                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => [
-                  <td key={`ref-${mesocycle + 1}`} className="border border-gray-300 p-1 bg-orange-50">
+                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
+                  <React.Fragment key={`meso-${mesocycle + 1}`}>
+                    <td className="border border-gray-300 p-1 bg-orange-50">
                     <input
                       type="number"
                       placeholder="REF"
@@ -357,7 +358,8 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                       </td>
                     );
                   })}
-                ])}
+                  </React.Fragment>
+                ))}
               </tr>
 
               {/* % Carga TR (calculado) */}
@@ -365,8 +367,9 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                 <td className="border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 sticky left-0 bg-blue-50 z-10">
                   % Carga TR
                 </td>
-                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => [
-                  <td key={`ref-${mesocycle + 1}`} className="border border-gray-300 p-1 bg-orange-50">
+                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
+                  <React.Fragment key={`meso-${mesocycle + 1}`}>
+                    <td className="border border-gray-300 p-1 bg-orange-50">
                     <div className="text-center text-sm text-gray-400">-</div>
                   </td>
                   {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
@@ -379,7 +382,8 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                       </td>
                     );
                   })}
-                ])}
+                  </React.Fragment>
+                ))}
               </tr>
 
               {/* REF */}
@@ -387,8 +391,9 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                 <td className="border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 sticky left-0 bg-white z-10">
                   REF
                 </td>
-                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => [
-                  <td key={`ref-${mesocycle + 1}`} className="border border-gray-300 p-1 bg-orange-50">
+                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
+                  <React.Fragment key={`meso-${mesocycle + 1}`}>
+                    <td className="border border-gray-300 p-1 bg-orange-50">
                     <input
                       type="number"
                       placeholder="REF"
@@ -416,7 +421,8 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                       </td>
                     );
                   })}
-                ])}
+                  </React.Fragment>
+                ))}
               </tr>
 
               {/* Séries Grupo M. Inf. (calculado) */}
@@ -424,8 +430,9 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                 <td className="border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 sticky left-0 bg-green-50 z-10">
                   Séries Grupo M. Inf.
                 </td>
-                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => [
-                  <td key={`ref-${mesocycle + 1}`} className="border border-gray-300 p-1 bg-orange-50">
+                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
+                  <React.Fragment key={`meso-${mesocycle + 1}`}>
+                    <td className="border border-gray-300 p-1 bg-orange-50">
                     <div className="text-center text-sm text-gray-400">-</div>
                   </td>
                   {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
@@ -438,7 +445,8 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                       </td>
                     );
                   })}
-                ])}
+                  </React.Fragment>
+                ))}
               </tr>
 
               {/* Rep Reserva (calculado) */}
@@ -446,8 +454,9 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                 <td className="border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 sticky left-0 bg-yellow-50 z-10">
                   Rep Reserva
                 </td>
-                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => [
-                  <td key={`ref-${mesocycle + 1}`} className="border border-gray-300 p-1 bg-orange-50">
+                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
+                  <React.Fragment key={`meso-${mesocycle + 1}`}>
+                    <td className="border border-gray-300 p-1 bg-orange-50">
                     <div className="text-center text-sm text-gray-400">-</div>
                   </td>
                   {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
@@ -460,7 +469,8 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                       </td>
                     );
                   })}
-                ])}
+                  </React.Fragment>
+                ))}
               </tr>
 
               {/* Montagem */}
@@ -468,8 +478,9 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                 <td className="border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 sticky left-0 bg-white z-10">
                   Montagem
                 </td>
-                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => [
-                  <td key={`ref-${mesocycle + 1}`} className="border border-gray-300 p-1 bg-orange-50">
+                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
+                  <React.Fragment key={`meso-${mesocycle + 1}`}>
+                    <td className="border border-gray-300 p-1 bg-orange-50">
                     <select
                       onChange={(e) => {
                         const value = e.target.value || null;
@@ -506,7 +517,8 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                       </td>
                     );
                   })}
-                ])}
+                  </React.Fragment>
+                ))}
               </tr>
 
               {/* Método */}
@@ -514,8 +526,9 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                 <td className="border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 sticky left-0 bg-white z-10">
                   Método
                 </td>
-                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => [
-                  <td key={`ref-${mesocycle + 1}`} className="border border-gray-300 p-1 bg-orange-50">
+                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
+                  <React.Fragment key={`meso-${mesocycle + 1}`}>
+                    <td className="border border-gray-300 p-1 bg-orange-50">
                     <select
                       onChange={(e) => {
                         const value = e.target.value || null;
@@ -552,7 +565,8 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                       </td>
                     );
                   })}
-                ])}
+                  </React.Fragment>
+                ))}
               </tr>
 
               {/* Divisão do Treino */}
@@ -560,8 +574,9 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                 <td className="border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 sticky left-0 bg-white z-10">
                   Divisão do Treino
                 </td>
-                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => [
-                  <td key={`ref-${mesocycle + 1}`} className="border border-gray-300 p-1 bg-orange-50">
+                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
+                  <React.Fragment key={`meso-${mesocycle + 1}`}>
+                    <td className="border border-gray-300 p-1 bg-orange-50">
                     <select
                       onChange={(e) => {
                         const value = e.target.value || null;
@@ -598,7 +613,8 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                       </td>
                     );
                   })}
-                ])}
+                  </React.Fragment>
+                ))}
               </tr>
 
               {/* Freq. Semanal */}
@@ -606,8 +622,9 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                 <td className="border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 sticky left-0 bg-white z-10">
                   Freq. Semanal
                 </td>
-                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => [
-                  <td key={`ref-${mesocycle + 1}`} className="border border-gray-300 p-1 bg-orange-50">
+                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
+                  <React.Fragment key={`meso-${mesocycle + 1}`}>
+                    <td className="border border-gray-300 p-1 bg-orange-50">
                     <input
                       type="number"
                       placeholder="REF"
