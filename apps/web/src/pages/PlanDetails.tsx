@@ -463,7 +463,7 @@ export function PlanDetails() {
       )}
       {/* Tab Content: Periodization */}
       {activeTab === 'periodization' && (
-        <PeriodizationMatrixComponent planId={id!} />
+        <PeriodizationMatrixComponent planId={id!} startDate={plan.startDate} />
       )}
 
       {/* Session Modal */}

@@ -12,9 +12,10 @@ import { Save, Loader2 } from 'lucide-react';
 
 interface PeriodizationMatrixProps {
   planId: string;
+  startDate: string;
 }
 
-export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProps) {
+export function PeriodizationMatrixComponent({ planId, startDate }: PeriodizationMatrixProps) {
   const [matrix, setMatrix] = useState<PeriodizationMatrix | null>(null);
   const [parameters, setParameters] = useState<TrainingParameter[]>([]);
   const [loading, setLoading] = useState(true);
@@ -25,6 +26,21 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
   const [resistedMap, setResistedMap] = useState<Map<number, Map<number, ResistedStimulus>>>(new Map());
   const [cyclicMap, setCyclicMap] = useState<Map<number, Map<number, CyclicStimulus>>>(new Map());
   const [nutritionMap, setNutritionMap] = useState<Map<number, Map<number, NutritionWeekly>>>(new Map());
+
+  // Função para calcular data de início da semana (segunda-feira)
+  const getWeekStartDate = (mesocycleNumber: number, weekNumber: number): string => {
+    const start = new Date(startDate);
+    // Calcular quantas semanas desde o início
+    const totalWeeks = (mesocycleNumber - 1) * matrix!.weeksPerMesocycle + (weekNumber - 1);
+    // Adicionar semanas
+    const weekStart = new Date(start);
+    weekStart.setDate(start.getDate() + (totalWeeks * 7));
+    
+    // Formatar como dd/mm
+    const day = String(weekStart.getDate()).padStart(2, '0');
+    const month = String(weekStart.getMonth() + 1).padStart(2, '0');
+    return `${day}/${month}`;
+  };
 
   // Parâmetros por categoria
   const [loadCycleParams, setLoadCycleParams] = useState<TrainingParameter[]>([]);
@@ -268,6 +284,26 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                         className="border border-gray-300 px-2 py-1 text-center text-xs font-medium text-gray-600"
                       >
                         S{week + 1}
+                      </th>
+                    ))}
+                  </React.Fragment>
+                ))}
+              </tr>
+              <tr className="bg-gray-100">
+                <th className="border border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-600 sticky left-0 bg-gray-100 z-10">
+                  Data
+                </th>
+                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
+                  <React.Fragment key={`meso-date-${mesocycle + 1}`}>
+                    <th className="border border-gray-300 px-2 py-1 text-center text-xs font-medium text-orange-600 bg-orange-50">
+                      -
+                    </th>
+                    {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => (
+                      <th
+                        key={`${mesocycle + 1}-${week + 1}`}
+                        className="border border-gray-300 px-2 py-1 text-center text-xs font-medium text-gray-600"
+                      >
+                        {getWeekStartDate(mesocycle + 1, week + 1)}
                       </th>
                     ))}
                   </React.Fragment>
