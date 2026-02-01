@@ -870,45 +870,6 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
                 ))}
               </tr>
 
-              {/* Volume Corrida (km) */}
-              <tr>
-                <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-white z-10">
-                  Volume Corrida (km)
-                </td>
-                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
-                  <React.Fragment key={`meso-${mesocycle + 1}`}>
-                    <td className="border border-gray-300 p-2 bg-orange-50">
-                      <input
-                        type="number"
-                        placeholder=""
-                        onChange={(e) => {
-                          const value = e.target.value ? parseFloat(e.target.value) : null;
-                          for (let week = 1; week <= matrix.weeksPerMesocycle; week++) {
-                            handleCyclicChange(mesocycle + 1, week, 'runningVolumeKm', value);
-                          }
-                        }}
-                        className="w-full px-2 py-1 text-xs text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
-                      />
-                    </td>
-                    {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
-                      const data = cyclicMap.get(mesocycle + 1)?.get(week + 1);
-                      return (
-                        <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-2">
-                          <input
-                            type="number"
-                            step="0.1"
-                            value={data?.runningVolumeKm || ''}
-                            onChange={(e) => handleCyclicChange(mesocycle + 1, week + 1, 'runningVolumeKm', e.target.value ? parseFloat(e.target.value) : null)}
-                            className="w-full px-2 py-1 text-xs border-0 focus:ring-2 focus:ring-blue-500 rounded text-center"
-                            placeholder="-"
-                          />
-                        </td>
-                      );
-                    })}
-                  </React.Fragment>
-                ))}
-              </tr>
-
               {/* Qtd Z1 */}
               <tr className="bg-purple-50">
                 <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-purple-50 z-10">
