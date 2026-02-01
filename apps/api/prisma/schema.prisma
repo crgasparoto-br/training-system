@@ -100,6 +100,8 @@ model Athlete {
   macronutrients          Macronutrients?
   integrations            Integration[]
   nutritionPlans          NutritionPlan[]
+  exerciseProgress        StudentExerciseProgress[]
+  workoutExecutions       WorkoutExecution[]
   
   createdAt               DateTime  @default(now())
   updatedAt               DateTime  @updatedAt
@@ -125,6 +127,7 @@ model TrainingPlan {
   
   macrocycles     Macrocycle[]
   periodization   PeriodizationMatrix?
+  workoutTemplates WorkoutTemplate[]
   
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -649,4 +652,228 @@ model PeriodizationTemplate {
   
   @@index([educatorId])
   @@index([category])
+}
+
+
+// ============================================================================
+// BIBLIOTECA DE EXERCÍCIOS
+// ============================================================================
+
+model ExerciseLibrary {
+  id            String   @id @default(cuid())
+  
+  name          String   // Nome do exercício
+  videoUrl      String?  @db.Text // Link do vídeo do YouTube
+  loadType      LoadType? // H, C, E, A, P, O
+  movementType  MovementType? // U, I, O
+  countingType  CountingType? // I, T, R
+  category      String?  // MOBILIDADE, RESISTIDO, CICLICO
+  muscleGroup   String?  // Abdominal, Quadríceps, etc
+  notes         String?  @db.Text
+  
+  // Relacionamentos
+  workoutExercises WorkoutExercise[]
+  studentProgress  StudentExerciseProgress[]
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@index([name])
+  @@index([category])
+}
+
+enum LoadType {
+  H  // Halteres
+  C  // Corporal
+  E  // Elásticos
+  A  // Aeróbicos
+  P  // P.S. (observações)
+  O  // Outros
+}
+
+enum MovementType {
+  U  // Unilateral
+  I  // Isolado
+  O  // Outros (Bilateral)
+}
+
+enum CountingType {
+  I  // Isometria
+  T  // por Tempo (Repetições)
+  R  // Repetições
+}
+
+// ============================================================================
+// PROGRESSO DO ALUNO POR EXERCÍCIO
+// ============================================================================
+
+model StudentExerciseProgress {
+  id          String   @id @default(cuid())
+  athleteId   String
+  athlete     Athlete  @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  exerciseId  String
+  exercise    ExerciseLibrary @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  
+  lastLoad    Float?   // Carga anterior (última executada)
+  maxLoad     Float?   // Carga máxima já levantada
+  
+  lastUpdated DateTime @default(now())
+  
+  @@unique([athleteId, exerciseId])
+  @@index([athleteId])
+  @@index([exerciseId])
+}
+
+// ============================================================================
+// MONTAGEM DE TREINOS
+// ============================================================================
+
+model WorkoutTemplate {
+  id                    String   @id @default(cuid())
+  planId                String
+  plan                  TrainingPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  mesocycleNumber       Int
+  weekNumber            Int      // 1-4 (S1, S2, S3, S4)
+  weekStartDate         DateTime
+  
+  // Dados do Cíclico
+  cyclicFrequency       Int?     // Frequência semanal de treinos cíclicos
+  totalVolumeMin        Int?
+  totalVolumeKm         Float?
+  
+  // Dados do Resistido
+  resistanceFrequency   Int?     // Frequência semanal de treinos de força
+  loadPercentage        Float?
+  repZone               Int?
+  repReserve            Int?
+  trainingMethod        String?
+  trainingDivision      String?
+  
+  // Observações
+  studentGoal           String?  @db.Text
+  coachGoal             String?  @db.Text
+  observation1          String?  @db.Text
+  observation2          String?  @db.Text
+  
+  // Relacionamentos
+  workoutDays           WorkoutDay[]
+  
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  
+  @@unique([planId, mesocycleNumber, weekNumber])
+  @@index([planId])
+  @@index([planId, mesocycleNumber, weekNumber])
+}
+
+model WorkoutDay {
+  id                    String   @id @default(cuid())
+  templateId            String
+  template              WorkoutTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  dayOfWeek             Int      // 1=Segunda, 7=Domingo
+  workoutDate           DateTime
+  
+  // Planejamento do Dia
+  sessionDurationMin    Int?     // Tempo total da sessão
+  stimulusDurationMin   Int?     // Tempo do estímulo
+  location              String?  // Esteira, Bicicleta, Pista, Corrida
+  method                String?  // IEXT, IINT
+  
+  // Intensidades
+  intensity1            String?
+  intensity2            String?
+  numSessions           Int?
+  numSets               Int?
+  sessionTime           Int?
+  restTime              Int?
+  vo2maxIntervalPct     Float?
+  iextIintTime          Float?
+  vo2maxPct             Float?
+  targetHrMin           Float?
+  targetHrMax           Float?
+  targetSpeedMin        Float?
+  targetSpeedMax        Float?
+  
+  // Detalhamento e Complemento
+  detailNotes           String?  @db.Text
+  complementNotes       String?  @db.Text
+  
+  // Orientações Gerais
+  generalGuidelines     String?  @db.Text
+  
+  // PSR (Percepção Subjetiva de Recuperação)
+  psrQuestion           String?  @default("Hoje recuperado você está se sentindo (PSR)?")
+  psrResponse           Int?     // Resposta do aluno (1-10)
+  
+  // Relacionamentos
+  exercises             WorkoutExercise[]
+  
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  
+  @@unique([templateId, dayOfWeek])
+  @@index([templateId])
+  @@index([workoutDate])
+}
+
+model WorkoutExercise {
+  id              String   @id @default(cuid())
+  workoutDayId    String
+  workoutDay      WorkoutDay @relation(fields: [workoutDayId], references: [id], onDelete: Cascade)
+  exerciseId      String
+  exercise        ExerciseLibrary @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  
+  // Seção do Treino
+  section         String   // MOBILIDADE, AQUECIMENTO, ATIVACAO, TECNICO, SESSAO
+  exerciseOrder   Int      // Ordem dentro da seção
+  
+  // Parâmetros do Exercício
+  system          String?  // BI-SET, TRI-SET, CIRCUITO
+  sets            Int?
+  reps            Int?
+  intervalSec     Int?     // Intervalo entre séries
+  cParam          Int?     // Parâmetro C (específico do treino)
+  eParam          Int?     // Parâmetro E (específico do treino)
+  load            Float?   // Carga sugerida
+  
+  // Observações
+  exerciseNotes   String?  @db.Text
+  
+  // Relacionamentos
+  executions      WorkoutExecution[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([workoutDayId])
+  @@index([workoutDayId, section, exerciseOrder])
+}
+
+// ============================================================================
+// EXECUÇÃO REAL DO TREINO
+// ============================================================================
+
+model WorkoutExecution {
+  id                  String   @id @default(cuid())
+  workoutExerciseId   String
+  workoutExercise     WorkoutExercise @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)
+  athleteId           String
+  athlete             Athlete  @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  executionDate       DateTime
+  
+  // Dados Executados
+  setsCompleted       Int?
+  repsCompleted       Int?
+  loadUsed            Float?
+  
+  // Feedback
+  difficultyRating    Int?     // 1-10
+  repsInReserve       Int?     // Repetições em reserva
+  notes               String?  @db.Text
+  
+  createdAt           DateTime @default(now())
+  
+  @@index([workoutExerciseId])
+  @@index([athleteId])
+  @@index([executionDate])
 }
