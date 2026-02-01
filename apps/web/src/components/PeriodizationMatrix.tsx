@@ -320,7 +320,8 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                       </td>
                     );
                   })}
-                )}
+                  </React.Fragment>
+                ))}
               </tr>
 
               {/* Zona Rep */}
@@ -651,7 +652,8 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                       </td>
                     );
                   })}
-                )}
+                  </React.Fragment>
+                ))}
               </tr>
             </tbody>
           </table>
