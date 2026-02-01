@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 import { authRoutes } from './modules/auth/index.js';
 import { athleteRoutes } from './modules/athletes/index.js';
 import { planRoutes } from './modules/plans/index.js';
+import { periodizationRoutes } from './modules/periodization/index.js';
 
 // Carregar variáveis de ambiente
 dotenv.config();
@@ -59,6 +60,7 @@ app.get('/api/v1', (req, res) => {
       auth: '/api/v1/auth',
       athletes: '/api/v1/athletes',
       plans: '/api/v1/plans',
+      periodization: '/api/v1/periodization',
       sessions: '/api/v1/sessions',
       executions: '/api/v1/executions',
     },
@@ -73,6 +75,9 @@ app.use('/api/v1/athletes', athleteRoutes);
 
 // Rotas de Planos de Treino
 app.use('/api/v1/plans', planRoutes);
+
+// Rotas de Periodização
+app.use('/api/v1/periodization', periodizationRoutes);
 
 // ============================================================================
 // ERROR HANDLING

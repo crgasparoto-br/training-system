@@ -1,0 +1,180 @@
+// ============================================================================
+// PERIODIZAÇÃO MACROCICLO
+// ============================================================================
+
+// Tabela de Parâmetros Configuráveis
+model TrainingParameter {
+  id          String   @id @default(cuid())
+  category    String   // "montagem", "metodo", "divisao_treino", "carga_microciclo"
+  code        String   // "AS", "SER", "FB", "ADP", etc
+  description String   // Descrição completa
+  order       Int      // Ordem de exibição
+  active      Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@unique([category, code])
+  @@index([category])
+}
+
+// Matriz de Periodização
+model PeriodizationMatrix {
+  id                String   @id @default(cuid())
+  planId            String   @unique
+  plan              TrainingPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  
+  totalMesocycles   Int      // Ex: 5
+  weeksPerMesocycle Int      // Ex: 4
+  
+  // Relacionamentos
+  resistedStimulus  ResistedStimulus[]
+  cyclicStimulus    CyclicStimulus[]
+  nutrition         NutritionWeekly[]
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+// Estímulo Resistido (Treino de Força)
+model ResistedStimulus {
+  id                String   @id @default(cuid())
+  matrixId          String
+  matrix            PeriodizationMatrix @relation(fields: [matrixId], references: [id], onDelete: Cascade)
+  
+  mesocycleNumber   Int      // 1, 2, 3, 4, 5
+  weekNumber        Int      // 1-20 (ou quantas semanas tiver)
+  
+  // Carga Microciclo (ADP, ORD, CHO, REG)
+  loadCycle         String   // Referência ao TrainingParameter
+  
+  // Parâmetros de Treino Resistido
+  repZone           Int?     // Zona de Repetições (ex: 4, 6, 8, 10, 12, 14)
+  loadPercentage    Float?   // % Carga TR (calculado automaticamente baseado em repZone)
+  
+  // Referência para cálculo de séries
+  seriesReference   Int?     // REF - valor de referência
+  
+  // Séries calculadas
+  seriesLowerBody   Int?     // Séries Membros Inferiores (calculado)
+  seriesUpperBody   Int?     // Séries Membros Superiores
+  seriesCore        Int?     // Séries Core/Estabilização
+  
+  // Rep Reserva (calculado automaticamente)
+  repReserve        Int?     // Calculado baseado em loadCycle
+  
+  // Montagem (AS, A/AN, CA, CGM, MIS)
+  assembly          String?  // Referência ao TrainingParameter
+  
+  // Método (SER, BS, TS, SS, CIR, CS, PC, PD, DS, RP, SN, FST-7)
+  method            String?  // Referência ao TrainingParameter
+  
+  // Divisão do Treino (FB, AB, ABC, ABCD, ABCDE)
+  trainingDivision  String?  // Referência ao TrainingParameter
+  
+  // Frequência Semanal
+  weeklyFrequency   Int?     // Ex: 3, 4, 5
+  
+  // Observações
+  observations      String?
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@unique([matrixId, mesocycleNumber, weekNumber])
+  @@index([matrixId])
+}
+
+// Estímulo Cíclico (Corrida/Cardio)
+model CyclicStimulus {
+  id                   String   @id @default(cuid())
+  matrixId             String
+  matrix               PeriodizationMatrix @relation(fields: [matrixId], references: [id], onDelete: Cascade)
+  
+  mesocycleNumber      Int
+  weekNumber           Int
+  
+  // Volume
+  totalVolumeMinutes   Float?   // Volume Geral em Minutos
+  totalVolumeKm        Float?   // Volume Geral em KM
+  runningVolumeKm      Float?   // Volume Corrida em KM
+  
+  // Número de Treinos por Zona
+  countZ1              Int?     // Número de treinos Zona 1
+  countZ2              Int?
+  countZ3              Int?
+  countZ4              Int?
+  countZ5              Int?
+  
+  // Minutos por Zona
+  minutesZ1            Float?   // Minutos na Zona 1
+  minutesZ2            Float?
+  minutesZ3            Float?
+  minutesZ4            Float?
+  minutesZ5            Float?
+  
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  
+  @@unique([matrixId, mesocycleNumber, weekNumber])
+  @@index([matrixId])
+}
+
+// Nutrição Semanal
+model NutritionWeekly {
+  id                String   @id @default(cuid())
+  matrixId          String
+  matrix            PeriodizationMatrix @relation(fields: [matrixId], references: [id], onDelete: Cascade)
+  
+  mesocycleNumber   Int
+  weekNumber        Int
+  
+  // Calorias e Macronutrientes
+  dailyCalories     Float?   // Calorias diárias
+  carbohydratesG    Float?   // Carboidratos em gramas
+  proteinsG         Float?   // Proteínas em gramas
+  lipidsG           Float?   // Lipídios em gramas
+  
+  // Hidratação
+  hydrationLiters   Float?   // Hidratação em litros/dia
+  
+  // Suplementos
+  supplements       String?  // Texto livre
+  
+  // Observações
+  notes             String?
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@unique([matrixId, mesocycleNumber, weekNumber])
+  @@index([matrixId])
+}
+
+// ============================================================================
+// TEMPLATES DE PERIODIZAÇÃO
+// ============================================================================
+
+model PeriodizationTemplate {
+  id                String   @id @default(cuid())
+  educatorId        String?  // null = template global
+  
+  name              String   // "Preparação para Maratona", "Base Aeróbica"
+  description       String?
+  category          String   // "marathon", "base", "peak", etc
+  
+  totalMesocycles   Int
+  weeksPerMesocycle Int
+  
+  // Dados do template (JSON)
+  templateData      Json     // Estrutura completa da matriz
+  
+  isPublic          Boolean  @default(false)
+  usageCount        Int      @default(0)
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@index([educatorId])
+  @@index([category])
+}
