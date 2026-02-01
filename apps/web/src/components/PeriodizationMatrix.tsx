@@ -237,24 +237,24 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
           <h3 className="text-lg font-semibold text-white">Estímulo Resistido</h3>
         </div>
         <div className="overflow-x-auto">
-          <table className="min-w-full border-collapse">
+          <table className="w-full border-collapse" style={{ minWidth: '1800px' }}>
             <thead>
               <tr className="bg-gray-50">
-                <th className="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-700 sticky left-0 bg-gray-50 z-10">
+                <th className="border border-gray-300 px-4 py-3 text-left text-sm font-semibold text-gray-700 sticky left-0 bg-gray-50 z-10">
                   Parâmetro
                 </th>
                 {Array.from({ length: matrix.totalMesocycles }, (_, i) => i + 1).map((mesocycle) => (
                   <th
                     key={mesocycle}
                     colSpan={matrix.weeksPerMesocycle + 1}
-                    className="border border-gray-300 px-3 py-2 text-center text-sm font-semibold text-gray-700"
+                    className="border border-gray-300 px-4 py-3 text-center text-sm font-semibold text-gray-700"
                   >
                     Mesociclo {mesocycle}
                   </th>
                 ))}
               </tr>
               <tr className="bg-gray-100">
-                <th className="border border-gray-300 px-3 py-2 text-left text-xs font-medium text-gray-600 sticky left-0 bg-gray-100 z-10">
+                <th className="border border-gray-300 px-4 py-3 text-left text-xs font-medium text-gray-600 sticky left-0 bg-gray-100 z-10">
                   Semana
                 </th>
                 {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
@@ -277,12 +277,12 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
             <tbody>
               {/* Carga Microciclo */}
               <tr>
-                <td className="border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 sticky left-0 bg-white z-10">
+                <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-white z-10">
                   Carga Microciclo
                 </td>
                 {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
                   <React.Fragment key={`meso-${mesocycle + 1}`}>
-                    <td className="border border-gray-300 p-1 bg-orange-50">
+                    <td className="border border-gray-300 p-2 bg-orange-50">
                     <select
                       onChange={(e) => {
                         const value = e.target.value || null;
@@ -304,7 +304,7 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                   {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
                     const data = resistedMap.get(mesocycle + 1)?.get(week + 1);
                     return (
-                      <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-1">
+                      <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-2">
                         <select
                           value={data?.loadCycle || ''}
                           onChange={(e) => handleResistedChange(mesocycle + 1, week + 1, 'loadCycle', e.target.value || null)}
@@ -326,12 +326,12 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
 
               {/* Zona Rep */}
               <tr>
-                <td className="border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 sticky left-0 bg-white z-10">
+                <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-white z-10">
                   Zona Rep.
                 </td>
                 {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
                   <React.Fragment key={`meso-${mesocycle + 1}`}>
-                    <td className="border border-gray-300 p-1 bg-orange-50">
+                    <td className="border border-gray-300 p-2 bg-orange-50">
                     <input
                       type="number"
                       placeholder="REF"
@@ -348,7 +348,7 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                   {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
                     const data = resistedMap.get(mesocycle + 1)?.get(week + 1);
                     return (
-                      <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-1">
+                      <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-2">
                         <input
                           type="number"
                           value={data?.repZone || ''}
@@ -365,18 +365,18 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
 
               {/* % Carga TR (calculado) */}
               <tr className="bg-blue-50">
-                <td className="border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 sticky left-0 bg-blue-50 z-10">
+                <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-blue-50 z-10">
                   % Carga TR
                 </td>
                 {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
                   <React.Fragment key={`meso-${mesocycle + 1}`}>
-                    <td className="border border-gray-300 p-1 bg-orange-50">
+                    <td className="border border-gray-300 p-2 bg-orange-50">
                     <div className="text-center text-sm text-gray-400">-</div>
                   </td>
                   {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
                     const data = resistedMap.get(mesocycle + 1)?.get(week + 1);
                     return (
-                      <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-1 bg-blue-50">
+                      <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-2 bg-blue-50">
                         <div className="text-center text-sm font-semibold text-blue-700">
                           {data?.loadPercentage ? `${data.loadPercentage}%` : '-'}
                         </div>
@@ -389,12 +389,12 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
 
               {/* REF */}
               <tr>
-                <td className="border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 sticky left-0 bg-white z-10">
+                <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-white z-10">
                   REF
                 </td>
                 {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
                   <React.Fragment key={`meso-${mesocycle + 1}`}>
-                    <td className="border border-gray-300 p-1 bg-orange-50">
+                    <td className="border border-gray-300 p-2 bg-orange-50">
                     <input
                       type="number"
                       placeholder="REF"
@@ -411,7 +411,7 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                   {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
                     const data = resistedMap.get(mesocycle + 1)?.get(week + 1);
                     return (
-                      <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-1">
+                      <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-2">
                         <input
                           type="number"
                           value={data?.seriesReference || ''}
@@ -428,18 +428,18 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
 
               {/* Séries Grupo M. Inf. (calculado) */}
               <tr className="bg-green-50">
-                <td className="border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 sticky left-0 bg-green-50 z-10">
+                <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-green-50 z-10">
                   Séries Grupo M. Inf.
                 </td>
                 {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
                   <React.Fragment key={`meso-${mesocycle + 1}`}>
-                    <td className="border border-gray-300 p-1 bg-orange-50">
+                    <td className="border border-gray-300 p-2 bg-orange-50">
                     <div className="text-center text-sm text-gray-400">-</div>
                   </td>
                   {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
                     const data = resistedMap.get(mesocycle + 1)?.get(week + 1);
                     return (
-                      <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-1 bg-green-50">
+                      <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-2 bg-green-50">
                         <div className="text-center text-sm font-semibold text-green-700">
                           {data?.seriesLowerBody || '-'}
                         </div>
@@ -452,18 +452,18 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
 
               {/* Rep Reserva (calculado) */}
               <tr className="bg-yellow-50">
-                <td className="border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 sticky left-0 bg-yellow-50 z-10">
+                <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-yellow-50 z-10">
                   Rep Reserva
                 </td>
                 {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
                   <React.Fragment key={`meso-${mesocycle + 1}`}>
-                    <td className="border border-gray-300 p-1 bg-orange-50">
+                    <td className="border border-gray-300 p-2 bg-orange-50">
                     <div className="text-center text-sm text-gray-400">-</div>
                   </td>
                   {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
                     const data = resistedMap.get(mesocycle + 1)?.get(week + 1);
                     return (
-                      <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-1 bg-yellow-50">
+                      <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-2 bg-yellow-50">
                         <div className="text-center text-sm font-semibold text-yellow-700">
                           {data?.repReserve !== null && data?.repReserve !== undefined ? data.repReserve : '-'}
                         </div>
@@ -476,12 +476,12 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
 
               {/* Montagem */}
               <tr>
-                <td className="border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 sticky left-0 bg-white z-10">
+                <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-white z-10">
                   Montagem
                 </td>
                 {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
                   <React.Fragment key={`meso-${mesocycle + 1}`}>
-                    <td className="border border-gray-300 p-1 bg-orange-50">
+                    <td className="border border-gray-300 p-2 bg-orange-50">
                     <select
                       onChange={(e) => {
                         const value = e.target.value || null;
@@ -502,7 +502,7 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                   {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
                     const data = resistedMap.get(mesocycle + 1)?.get(week + 1);
                     return (
-                      <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-1">
+                      <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-2">
                         <select
                           value={data?.assembly || ''}
                           onChange={(e) => handleResistedChange(mesocycle + 1, week + 1, 'assembly', e.target.value || null)}
@@ -524,12 +524,12 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
 
               {/* Método */}
               <tr>
-                <td className="border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 sticky left-0 bg-white z-10">
+                <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-white z-10">
                   Método
                 </td>
                 {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
                   <React.Fragment key={`meso-${mesocycle + 1}`}>
-                    <td className="border border-gray-300 p-1 bg-orange-50">
+                    <td className="border border-gray-300 p-2 bg-orange-50">
                     <select
                       onChange={(e) => {
                         const value = e.target.value || null;
@@ -550,7 +550,7 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                   {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
                     const data = resistedMap.get(mesocycle + 1)?.get(week + 1);
                     return (
-                      <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-1">
+                      <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-2">
                         <select
                           value={data?.method || ''}
                           onChange={(e) => handleResistedChange(mesocycle + 1, week + 1, 'method', e.target.value || null)}
@@ -572,12 +572,12 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
 
               {/* Divisão do Treino */}
               <tr>
-                <td className="border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 sticky left-0 bg-white z-10">
+                <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-white z-10">
                   Divisão do Treino
                 </td>
                 {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
                   <React.Fragment key={`meso-${mesocycle + 1}`}>
-                    <td className="border border-gray-300 p-1 bg-orange-50">
+                    <td className="border border-gray-300 p-2 bg-orange-50">
                     <select
                       onChange={(e) => {
                         const value = e.target.value || null;
@@ -598,7 +598,7 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                   {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
                     const data = resistedMap.get(mesocycle + 1)?.get(week + 1);
                     return (
-                      <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-1">
+                      <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-2">
                         <select
                           value={data?.trainingDivision || ''}
                           onChange={(e) => handleResistedChange(mesocycle + 1, week + 1, 'trainingDivision', e.target.value || null)}
@@ -620,12 +620,12 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
 
               {/* Freq. Semanal */}
               <tr>
-                <td className="border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 sticky left-0 bg-white z-10">
+                <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-white z-10">
                   Freq. Semanal
                 </td>
                 {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
                   <React.Fragment key={`meso-${mesocycle + 1}`}>
-                    <td className="border border-gray-300 p-1 bg-orange-50">
+                    <td className="border border-gray-300 p-2 bg-orange-50">
                     <input
                       type="number"
                       placeholder="REF"
@@ -641,7 +641,7 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                   {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
                     const data = resistedMap.get(mesocycle + 1)?.get(week + 1);
                     return (
-                      <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-1">
+                      <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-2">
                         <input
                           type="number"
                           value={data?.weeklyFrequency || ''}

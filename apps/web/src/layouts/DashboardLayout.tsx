@@ -40,7 +40,7 @@ export function DashboardLayout() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container flex h-16 items-center justify-between px-4">
+        <div className="flex h-16 items-center justify-between px-4 max-w-full mx-auto">
           <div className="flex items-center gap-4">
             <button
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -65,7 +65,7 @@ export function DashboardLayout() {
         </div>
       </header>
 
-      <div className="container flex px-4">
+      <div className="flex px-4 max-w-full mx-auto">
         {/* Sidebar */}
         <aside
           className={`
