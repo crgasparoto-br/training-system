@@ -1129,24 +1129,24 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
                 <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-green-50 z-10">
                   Z1 (min)
                 </td>
-                {{Array.from({{ length: matrix.totalMesocycles }}, (_, mesocycle) => (
-                  <React.Fragment key={{`meso-${{mesocycle + 1}}`}}>
+                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
+                  <React.Fragment key={`meso-${mesocycle + 1}`}>
                     <td className="border border-gray-300 p-2 bg-orange-50">
                       <div className="text-center text-sm text-gray-400">-</div>
                     </td>
-                    {{Array.from({{ length: matrix.weeksPerMesocycle }}, (_, week) => {{
+                    {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
                       const data = cyclicMap.get(mesocycle + 1)?.get(week + 1);
                       const calculated = calculateZoneMinutes(data?.totalVolumeMinutes, data?.countZ1);
                       return (
-                        <td key={{`${{mesocycle + 1}}-${{week + 1}}`}} className="border border-gray-300 p-2 bg-green-50">
+                        <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-2 bg-green-50">
                           <div className="text-center text-sm font-semibold text-green-700">
-                            {{calculated || '-'}}
+                            {calculated || '-'}
                           </div>
                         </td>
                       );
-                    }})}}
+                    })}
                   </React.Fragment>
-                ))}}
+                ))}
               </tr>
 
               {/* Z2 (min) - CALCULADO */}
@@ -1154,24 +1154,24 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
                 <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-green-50 z-10">
                   Z2 (min)
                 </td>
-                {{Array.from({{ length: matrix.totalMesocycles }}, (_, mesocycle) => (
-                  <React.Fragment key={{`meso-${{mesocycle + 1}}`}}>
+                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
+                  <React.Fragment key={`meso-${mesocycle + 1}`}>
                     <td className="border border-gray-300 p-2 bg-orange-50">
                       <div className="text-center text-sm text-gray-400">-</div>
                     </td>
-                    {{Array.from({{ length: matrix.weeksPerMesocycle }}, (_, week) => {{
+                    {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
                       const data = cyclicMap.get(mesocycle + 1)?.get(week + 1);
                       const calculated = calculateZoneMinutes(data?.totalVolumeMinutes, data?.countZ2);
                       return (
-                        <td key={{`${{mesocycle + 1}}-${{week + 1}}`}} className="border border-gray-300 p-2 bg-green-50">
+                        <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-2 bg-green-50">
                           <div className="text-center text-sm font-semibold text-green-700">
-                            {{calculated || '-'}}
+                            {calculated || '-'}
                           </div>
                         </td>
                       );
-                    }})}}
+                    })}
                   </React.Fragment>
-                ))}}
+                ))}
               </tr>
 
               {/* Z3 (min) - CALCULADO */}
@@ -1179,24 +1179,24 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
                 <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-green-50 z-10">
                   Z3 (min)
                 </td>
-                {{Array.from({{ length: matrix.totalMesocycles }}, (_, mesocycle) => (
-                  <React.Fragment key={{`meso-${{mesocycle + 1}}`}}>
+                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
+                  <React.Fragment key={`meso-${mesocycle + 1}`}>
                     <td className="border border-gray-300 p-2 bg-orange-50">
                       <div className="text-center text-sm text-gray-400">-</div>
                     </td>
-                    {{Array.from({{ length: matrix.weeksPerMesocycle }}, (_, week) => {{
+                    {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
                       const data = cyclicMap.get(mesocycle + 1)?.get(week + 1);
                       const calculated = calculateZoneMinutes(data?.totalVolumeMinutes, data?.countZ3);
                       return (
-                        <td key={{`${{mesocycle + 1}}-${{week + 1}}`}} className="border border-gray-300 p-2 bg-green-50">
+                        <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-2 bg-green-50">
                           <div className="text-center text-sm font-semibold text-green-700">
-                            {{calculated || '-'}}
+                            {calculated || '-'}
                           </div>
                         </td>
                       );
-                    }})}}
+                    })}
                   </React.Fragment>
-                ))}}
+                ))}
               </tr>
 
               {/* Z4 (min) - CALCULADO */}
@@ -1204,24 +1204,24 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
                 <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-green-50 z-10">
                   Z4 (min)
                 </td>
-                {{Array.from({{ length: matrix.totalMesocycles }}, (_, mesocycle) => (
-                  <React.Fragment key={{`meso-${{mesocycle + 1}}`}}>
+                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
+                  <React.Fragment key={`meso-${mesocycle + 1}`}>
                     <td className="border border-gray-300 p-2 bg-orange-50">
                       <div className="text-center text-sm text-gray-400">-</div>
                     </td>
-                    {{Array.from({{ length: matrix.weeksPerMesocycle }}, (_, week) => {{
+                    {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
                       const data = cyclicMap.get(mesocycle + 1)?.get(week + 1);
                       const calculated = calculateZoneMinutes(data?.totalVolumeMinutes, data?.countZ4);
                       return (
-                        <td key={{`${{mesocycle + 1}}-${{week + 1}}`}} className="border border-gray-300 p-2 bg-green-50">
+                        <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-2 bg-green-50">
                           <div className="text-center text-sm font-semibold text-green-700">
-                            {{calculated || '-'}}
+                            {calculated || '-'}
                           </div>
                         </td>
                       );
-                    }})}}
+                    })}
                   </React.Fragment>
-                ))}}
+                ))}
               </tr>
 
               {/* Z5 (min) - CALCULADO */}
@@ -1229,24 +1229,24 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
                 <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-green-50 z-10">
                   Z5 (min)
                 </td>
-                {{Array.from({{ length: matrix.totalMesocycles }}, (_, mesocycle) => (
-                  <React.Fragment key={{`meso-${{mesocycle + 1}}`}}>
+                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
+                  <React.Fragment key={`meso-${mesocycle + 1}`}>
                     <td className="border border-gray-300 p-2 bg-orange-50">
                       <div className="text-center text-sm text-gray-400">-</div>
                     </td>
-                    {{Array.from({{ length: matrix.weeksPerMesocycle }}, (_, week) => {{
+                    {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
                       const data = cyclicMap.get(mesocycle + 1)?.get(week + 1);
                       const calculated = calculateZoneMinutes(data?.totalVolumeMinutes, data?.countZ5);
                       return (
-                        <td key={{`${{mesocycle + 1}}-${{week + 1}}`}} className="border border-gray-300 p-2 bg-green-50">
+                        <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-2 bg-green-50">
                           <div className="text-center text-sm font-semibold text-green-700">
-                            {{calculated || '-'}}
+                            {calculated || '-'}
                           </div>
                         </td>
                       );
-                    }})}}
+                    })}
                   </React.Fragment>
-                ))}}
+                ))}
               </tr>
             </tbody>
           </table>
