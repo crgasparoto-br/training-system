@@ -246,7 +246,7 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                 {Array.from({ length: matrix.totalMesocycles }, (_, i) => i + 1).map((mesocycle) => (
                   <th
                     key={mesocycle}
-                    colSpan={matrix.weeksPerMesocycle}
+                    colSpan={matrix.weeksPerMesocycle + 1}
                     className="border border-gray-300 px-3 py-2 text-center text-sm font-semibold text-gray-700"
                   >
                     Mesociclo {mesocycle}
@@ -257,8 +257,14 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                 <th className="border border-gray-300 px-3 py-2 text-left text-xs font-medium text-gray-600 sticky left-0 bg-gray-100 z-10">
                   Semana
                 </th>
-                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) =>
-                  Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => (
+                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => [
+                  <th
+                    key={`ref-${mesocycle + 1}`}
+                    className="border border-gray-300 px-2 py-1 text-center text-xs font-medium text-orange-600 bg-orange-50"
+                  >
+                    REF
+                  </th>,
+                  ...Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => (
                     <th
                       key={`${mesocycle + 1}-${week + 1}`}
                       className="border border-gray-300 px-2 py-1 text-center text-xs font-medium text-gray-600"
@@ -266,7 +272,7 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                       S{week + 1}
                     </th>
                   ))
-                )}
+                ])}
               </tr>
             </thead>
             <tbody>
@@ -275,8 +281,27 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                 <td className="border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 sticky left-0 bg-white z-10">
                   Carga Microciclo
                 </td>
-                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) =>
-                  Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
+                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => [
+                  <td key={`ref-${mesocycle + 1}`} className="border border-gray-300 p-1 bg-orange-50">
+                    <select
+                      onChange={(e) => {
+                        const value = e.target.value || null;
+                        // Aplicar a todas as semanas do mesociclo
+                        for (let week = 1; week <= matrix.weeksPerMesocycle; week++) {
+                          handleResistedChange(mesocycle + 1, week, 'loadCycle', value);
+                        }
+                      }}
+                      className="w-full px-2 py-1 text-sm text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
+                    >
+                      <option value="">-</option>
+                      {loadCycleParams.map((param) => (
+                        <option key={param.id} value={param.code}>
+                          {param.code}
+                        </option>
+                      ))}
+                    </select>
+                  </td>,
+                  ...Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
                     const data = resistedMap.get(mesocycle + 1)?.get(week + 1);
                     return (
                       <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-1">
@@ -303,8 +328,22 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                 <td className="border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 sticky left-0 bg-white z-10">
                   Zona Rep.
                 </td>
-                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) =>
-                  Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
+                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => [
+                  <td key={`ref-${mesocycle + 1}`} className="border border-gray-300 p-1 bg-orange-50">
+                    <input
+                      type="number"
+                      placeholder="REF"
+                      onChange={(e) => {
+                        const value = e.target.value ? parseInt(e.target.value) : null;
+                        // Aplicar a todas as semanas do mesociclo
+                        for (let week = 1; week <= matrix.weeksPerMesocycle; week++) {
+                          handleResistedChange(mesocycle + 1, week, 'repZone', value);
+                        }
+                      }}
+                      className="w-full px-2 py-1 text-sm text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
+                    />
+                  </td>,
+                  ...Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
                     const data = resistedMap.get(mesocycle + 1)?.get(week + 1);
                     return (
                       <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-1">
@@ -318,7 +357,7 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                       </td>
                     );
                   })
-                )}
+                ])}
               </tr>
 
               {/* % Carga TR (calculado) */}
@@ -326,8 +365,11 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                 <td className="border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 sticky left-0 bg-blue-50 z-10">
                   % Carga TR
                 </td>
-                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) =>
-                  Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
+                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => [
+                  <td key={`ref-${mesocycle + 1}`} className="border border-gray-300 p-1 bg-orange-50">
+                    <div className="text-center text-sm text-gray-400">-</div>
+                  </td>,
+                  ...Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
                     const data = resistedMap.get(mesocycle + 1)?.get(week + 1);
                     return (
                       <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-1 bg-blue-50">
@@ -337,7 +379,7 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                       </td>
                     );
                   })
-                )}
+                ])}
               </tr>
 
               {/* REF */}
@@ -345,8 +387,22 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                 <td className="border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 sticky left-0 bg-white z-10">
                   REF
                 </td>
-                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) =>
-                  Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
+                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => [
+                  <td key={`ref-${mesocycle + 1}`} className="border border-gray-300 p-1 bg-orange-50">
+                    <input
+                      type="number"
+                      placeholder="REF"
+                      onChange={(e) => {
+                        const value = e.target.value ? parseInt(e.target.value) : null;
+                        // Aplicar a todas as semanas do mesociclo
+                        for (let week = 1; week <= matrix.weeksPerMesocycle; week++) {
+                          handleResistedChange(mesocycle + 1, week, 'seriesReference', value);
+                        }
+                      }}
+                      className="w-full px-2 py-1 text-sm text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
+                    />
+                  </td>,
+                  ...Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
                     const data = resistedMap.get(mesocycle + 1)?.get(week + 1);
                     return (
                       <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-1">
@@ -360,7 +416,7 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                       </td>
                     );
                   })
-                )}
+                ])}
               </tr>
 
               {/* Séries Grupo M. Inf. (calculado) */}
@@ -368,8 +424,11 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                 <td className="border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 sticky left-0 bg-green-50 z-10">
                   Séries Grupo M. Inf.
                 </td>
-                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) =>
-                  Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
+                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => [
+                  <td key={`ref-${mesocycle + 1}`} className="border border-gray-300 p-1 bg-orange-50">
+                    <div className="text-center text-sm text-gray-400">-</div>
+                  </td>,
+                  ...Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
                     const data = resistedMap.get(mesocycle + 1)?.get(week + 1);
                     return (
                       <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-1 bg-green-50">
@@ -379,7 +438,7 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                       </td>
                     );
                   })
-                )}
+                ])}
               </tr>
 
               {/* Rep Reserva (calculado) */}
@@ -387,8 +446,11 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                 <td className="border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 sticky left-0 bg-yellow-50 z-10">
                   Rep Reserva
                 </td>
-                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) =>
-                  Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
+                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => [
+                  <td key={`ref-${mesocycle + 1}`} className="border border-gray-300 p-1 bg-orange-50">
+                    <div className="text-center text-sm text-gray-400">-</div>
+                  </td>,
+                  ...Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
                     const data = resistedMap.get(mesocycle + 1)?.get(week + 1);
                     return (
                       <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-1 bg-yellow-50">
@@ -398,7 +460,7 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                       </td>
                     );
                   })
-                )}
+                ])}
               </tr>
 
               {/* Montagem */}
@@ -406,8 +468,26 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                 <td className="border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 sticky left-0 bg-white z-10">
                   Montagem
                 </td>
-                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) =>
-                  Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
+                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => [
+                  <td key={`ref-${mesocycle + 1}`} className="border border-gray-300 p-1 bg-orange-50">
+                    <select
+                      onChange={(e) => {
+                        const value = e.target.value || null;
+                        for (let week = 1; week <= matrix.weeksPerMesocycle; week++) {
+                          handleResistedChange(mesocycle + 1, week, 'assembly', value);
+                        }
+                      }}
+                      className="w-full px-2 py-1 text-sm text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
+                    >
+                      <option value="">-</option>
+                      {assemblyParams.map((param) => (
+                        <option key={param.id} value={param.code}>
+                          {param.code}
+                        </option>
+                      ))}
+                    </select>
+                  </td>,
+                  ...Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
                     const data = resistedMap.get(mesocycle + 1)?.get(week + 1);
                     return (
                       <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-1">
@@ -426,7 +506,7 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                       </td>
                     );
                   })
-                )}
+                ])}
               </tr>
 
               {/* Método */}
@@ -434,8 +514,26 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                 <td className="border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 sticky left-0 bg-white z-10">
                   Método
                 </td>
-                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) =>
-                  Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
+                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => [
+                  <td key={`ref-${mesocycle + 1}`} className="border border-gray-300 p-1 bg-orange-50">
+                    <select
+                      onChange={(e) => {
+                        const value = e.target.value || null;
+                        for (let week = 1; week <= matrix.weeksPerMesocycle; week++) {
+                          handleResistedChange(mesocycle + 1, week, 'method', value);
+                        }
+                      }}
+                      className="w-full px-2 py-1 text-sm text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
+                    >
+                      <option value="">-</option>
+                      {methodParams.map((param) => (
+                        <option key={param.id} value={param.code}>
+                          {param.code}
+                        </option>
+                      ))}
+                    </select>
+                  </td>,
+                  ...Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
                     const data = resistedMap.get(mesocycle + 1)?.get(week + 1);
                     return (
                       <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-1">
@@ -454,7 +552,7 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                       </td>
                     );
                   })
-                )}
+                ])}
               </tr>
 
               {/* Divisão do Treino */}
@@ -462,8 +560,26 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                 <td className="border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 sticky left-0 bg-white z-10">
                   Divisão do Treino
                 </td>
-                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) =>
-                  Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
+                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => [
+                  <td key={`ref-${mesocycle + 1}`} className="border border-gray-300 p-1 bg-orange-50">
+                    <select
+                      onChange={(e) => {
+                        const value = e.target.value || null;
+                        for (let week = 1; week <= matrix.weeksPerMesocycle; week++) {
+                          handleResistedChange(mesocycle + 1, week, 'trainingDivision', value);
+                        }
+                      }}
+                      className="w-full px-2 py-1 text-sm text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
+                    >
+                      <option value="">-</option>
+                      {divisionParams.map((param) => (
+                        <option key={param.id} value={param.code}>
+                          {param.code}
+                        </option>
+                      ))}
+                    </select>
+                  </td>,
+                  ...Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
                     const data = resistedMap.get(mesocycle + 1)?.get(week + 1);
                     return (
                       <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-1">
@@ -482,7 +598,7 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                       </td>
                     );
                   })
-                )}
+                ])}
               </tr>
 
               {/* Freq. Semanal */}
@@ -490,8 +606,21 @@ export function PeriodizationMatrixComponent({ planId }: PeriodizationMatrixProp
                 <td className="border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 sticky left-0 bg-white z-10">
                   Freq. Semanal
                 </td>
-                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) =>
-                  Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
+                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => [
+                  <td key={`ref-${mesocycle + 1}`} className="border border-gray-300 p-1 bg-orange-50">
+                    <input
+                      type="number"
+                      placeholder="REF"
+                      onChange={(e) => {
+                        const value = e.target.value ? parseInt(e.target.value) : null;
+                        for (let week = 1; week <= matrix.weeksPerMesocycle; week++) {
+                          handleResistedChange(mesocycle + 1, week, 'weeklyFrequency', value);
+                        }
+                      }}
+                      className="w-full px-2 py-1 text-sm text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
+                    />
+                  </td>,
+                  ...Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
                     const data = resistedMap.get(mesocycle + 1)?.get(week + 1);
                     return (
                       <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-1">
