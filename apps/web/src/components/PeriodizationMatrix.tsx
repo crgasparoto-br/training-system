@@ -84,6 +84,17 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
     return `${day}/${month}`;
   };
 
+  // Função para calcular minutos por zona
+  // Fórmula: =IFS(percentZ="", "", percentZ="X", "X", TRUE, volumeTotal * (percentZ / 100))
+  const calculateZoneMinutes = (volumeTotal: number | null | undefined, percentZ: number | null | undefined): string => {
+    if (!percentZ && percentZ !== 0) return ''; // Se percentZ vazio
+    if (percentZ === -1) return 'X'; // Usamos -1 para representar "X"
+    if (!volumeTotal) return ''; // Se volumeTotal vazio
+    
+    const minutes = volumeTotal * (percentZ / 100);
+    return Math.round(minutes).toString();
+  };
+
   // Parâmetros por categoria
   const [loadCycleParams, setLoadCycleParams] = useState<TrainingParameter[]>([]);
   const [assemblyParams, setAssemblyParams] = useState<TrainingParameter[]>([]);
@@ -901,7 +912,7 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
               {/* Qtd Z1 */}
               <tr className="bg-purple-50">
                 <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-purple-50 z-10">
-                  Qtd Z1
+                  % Z1
                 </td>
                 {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
                   <React.Fragment key={`meso-${mesocycle + 1}`}>
@@ -922,13 +933,18 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
                       const data = cyclicMap.get(mesocycle + 1)?.get(week + 1);
                       return (
                         <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-2 bg-purple-50">
-                          <input
-                            type="number"
-                            value={data?.countZ1 || ''}
-                            onChange={(e) => handleCyclicChange(mesocycle + 1, week + 1, 'countZ1', e.target.value ? parseInt(e.target.value) : null)}
-                            className="w-full px-2 py-1 text-xs border-0 focus:ring-2 focus:ring-blue-500 rounded text-center"
-                            placeholder="-"
-                          />
+                          <div className="flex items-center justify-center gap-1">
+                            <input
+                              type="number"
+                              value={data?.countZ1 || ''}
+                              onChange={(e) => handleCyclicChange(mesocycle + 1, week + 1, 'countZ1', e.target.value ? parseInt(e.target.value) : null)}
+                              className="w-16 px-2 py-1 text-xs border-0 focus:ring-2 focus:ring-blue-500 rounded text-center"
+                              placeholder="-"
+                              min="0"
+                              max="100"
+                            />
+                            <span className="text-xs text-gray-600">%</span>
+                          </div>
                         </td>
                       );
                     })}
@@ -939,7 +955,7 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
               {/* Qtd Z2 */}
               <tr className="bg-purple-50">
                 <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-purple-50 z-10">
-                  Qtd Z2
+                  % Z2
                 </td>
                 {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
                   <React.Fragment key={`meso-${mesocycle + 1}`}>
@@ -960,13 +976,18 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
                       const data = cyclicMap.get(mesocycle + 1)?.get(week + 1);
                       return (
                         <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-2 bg-purple-50">
-                          <input
-                            type="number"
-                            value={data?.countZ2 || ''}
-                            onChange={(e) => handleCyclicChange(mesocycle + 1, week + 1, 'countZ2', e.target.value ? parseInt(e.target.value) : null)}
-                            className="w-full px-2 py-1 text-xs border-0 focus:ring-2 focus:ring-blue-500 rounded text-center"
-                            placeholder="-"
-                          />
+                          <div className="flex items-center justify-center gap-1">
+                            <input
+                              type="number"
+                              value={data?.countZ2 || ''}
+                              onChange={(e) => handleCyclicChange(mesocycle + 1, week + 1, 'countZ2', e.target.value ? parseInt(e.target.value) : null)}
+                              className="w-16 px-2 py-1 text-xs border-0 focus:ring-2 focus:ring-blue-500 rounded text-center"
+                              placeholder="-"
+                              min="0"
+                              max="100"
+                            />
+                            <span className="text-xs text-gray-600">%</span>
+                          </div>
                         </td>
                       );
                     })}
@@ -977,7 +998,7 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
               {/* Qtd Z3 */}
               <tr className="bg-purple-50">
                 <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-purple-50 z-10">
-                  Qtd Z3
+                  % Z3
                 </td>
                 {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
                   <React.Fragment key={`meso-${mesocycle + 1}`}>
@@ -998,13 +1019,18 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
                       const data = cyclicMap.get(mesocycle + 1)?.get(week + 1);
                       return (
                         <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-2 bg-purple-50">
-                          <input
-                            type="number"
-                            value={data?.countZ3 || ''}
-                            onChange={(e) => handleCyclicChange(mesocycle + 1, week + 1, 'countZ3', e.target.value ? parseInt(e.target.value) : null)}
-                            className="w-full px-2 py-1 text-xs border-0 focus:ring-2 focus:ring-blue-500 rounded text-center"
-                            placeholder="-"
-                          />
+                          <div className="flex items-center justify-center gap-1">
+                            <input
+                              type="number"
+                              value={data?.countZ3 || ''}
+                              onChange={(e) => handleCyclicChange(mesocycle + 1, week + 1, 'countZ3', e.target.value ? parseInt(e.target.value) : null)}
+                              className="w-16 px-2 py-1 text-xs border-0 focus:ring-2 focus:ring-blue-500 rounded text-center"
+                              placeholder="-"
+                              min="0"
+                              max="100"
+                            />
+                            <span className="text-xs text-gray-600">%</span>
+                          </div>
                         </td>
                       );
                     })}
@@ -1015,7 +1041,7 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
               {/* Qtd Z4 */}
               <tr className="bg-purple-50">
                 <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-purple-50 z-10">
-                  Qtd Z4
+                  % Z4
                 </td>
                 {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
                   <React.Fragment key={`meso-${mesocycle + 1}`}>
@@ -1036,13 +1062,18 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
                       const data = cyclicMap.get(mesocycle + 1)?.get(week + 1);
                       return (
                         <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-2 bg-purple-50">
-                          <input
-                            type="number"
-                            value={data?.countZ4 || ''}
-                            onChange={(e) => handleCyclicChange(mesocycle + 1, week + 1, 'countZ4', e.target.value ? parseInt(e.target.value) : null)}
-                            className="w-full px-2 py-1 text-xs border-0 focus:ring-2 focus:ring-blue-500 rounded text-center"
-                            placeholder="-"
-                          />
+                          <div className="flex items-center justify-center gap-1">
+                            <input
+                              type="number"
+                              value={data?.countZ4 || ''}
+                              onChange={(e) => handleCyclicChange(mesocycle + 1, week + 1, 'countZ4', e.target.value ? parseInt(e.target.value) : null)}
+                              className="w-16 px-2 py-1 text-xs border-0 focus:ring-2 focus:ring-blue-500 rounded text-center"
+                              placeholder="-"
+                              min="0"
+                              max="100"
+                            />
+                            <span className="text-xs text-gray-600">%</span>
+                          </div>
                         </td>
                       );
                     })}
@@ -1053,7 +1084,7 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
               {/* Qtd Z5 */}
               <tr className="bg-purple-50">
                 <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-purple-50 z-10">
-                  Qtd Z5
+                  % Z5
                 </td>
                 {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
                   <React.Fragment key={`meso-${mesocycle + 1}`}>
@@ -1074,13 +1105,18 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
                       const data = cyclicMap.get(mesocycle + 1)?.get(week + 1);
                       return (
                         <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-2 bg-purple-50">
-                          <input
-                            type="number"
-                            value={data?.countZ5 || ''}
-                            onChange={(e) => handleCyclicChange(mesocycle + 1, week + 1, 'countZ5', e.target.value ? parseInt(e.target.value) : null)}
-                            className="w-full px-2 py-1 text-xs border-0 focus:ring-2 focus:ring-blue-500 rounded text-center"
-                            placeholder="-"
-                          />
+                          <div className="flex items-center justify-center gap-1">
+                            <input
+                              type="number"
+                              value={data?.countZ5 || ''}
+                              onChange={(e) => handleCyclicChange(mesocycle + 1, week + 1, 'countZ5', e.target.value ? parseInt(e.target.value) : null)}
+                              className="w-16 px-2 py-1 text-xs border-0 focus:ring-2 focus:ring-blue-500 rounded text-center"
+                              placeholder="-"
+                              min="0"
+                              max="100"
+                            />
+                            <span className="text-xs text-gray-600">%</span>
+                          </div>
                         </td>
                       );
                     })}
@@ -1088,194 +1124,129 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
                 ))}
               </tr>
 
-              {/* Min Z1 */}
-              <tr>
-                <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-white z-10">
-                  Min Z1
+              {/* Z1 (min) - CALCULADO */}
+              <tr className="bg-green-50">
+                <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-green-50 z-10">
+                  Z1 (min)
                 </td>
-                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
-                  <React.Fragment key={`meso-${mesocycle + 1}`}>
+                {{Array.from({{ length: matrix.totalMesocycles }}, (_, mesocycle) => (
+                  <React.Fragment key={{`meso-${{mesocycle + 1}}`}}>
                     <td className="border border-gray-300 p-2 bg-orange-50">
-                      <input
-                        type="number"
-                        placeholder=""
-                        onChange={(e) => {
-                          const value = e.target.value ? parseInt(e.target.value) : null;
-                          for (let week = 1; week <= matrix.weeksPerMesocycle; week++) {
-                            handleCyclicChange(mesocycle + 1, week, 'minutesZ1', value);
-                          }
-                        }}
-                        className="w-full px-2 py-1 text-xs text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
-                      />
+                      <div className="text-center text-sm text-gray-400">-</div>
                     </td>
-                    {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
+                    {{Array.from({{ length: matrix.weeksPerMesocycle }}, (_, week) => {{
                       const data = cyclicMap.get(mesocycle + 1)?.get(week + 1);
+                      const calculated = calculateZoneMinutes(data?.totalVolumeMinutes, data?.countZ1);
                       return (
-                        <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-2">
-                          <input
-                            type="number"
-                            value={data?.minutesZ1 || ''}
-                            onChange={(e) => handleCyclicChange(mesocycle + 1, week + 1, 'minutesZ1', e.target.value ? parseInt(e.target.value) : null)}
-                            className="w-full px-2 py-1 text-xs border-0 focus:ring-2 focus:ring-blue-500 rounded text-center"
-                            placeholder="-"
-                          />
+                        <td key={{`${{mesocycle + 1}}-${{week + 1}}`}} className="border border-gray-300 p-2 bg-green-50">
+                          <div className="text-center text-sm font-semibold text-green-700">
+                            {{calculated || '-'}}
+                          </div>
                         </td>
                       );
-                    })}
+                    }})}}
                   </React.Fragment>
-                ))}
+                ))}}
               </tr>
 
-              {/* Min Z2 */}
-              <tr>
-                <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-white z-10">
-                  Min Z2
+              {/* Z2 (min) - CALCULADO */}
+              <tr className="bg-green-50">
+                <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-green-50 z-10">
+                  Z2 (min)
                 </td>
-                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
-                  <React.Fragment key={`meso-${mesocycle + 1}`}>
+                {{Array.from({{ length: matrix.totalMesocycles }}, (_, mesocycle) => (
+                  <React.Fragment key={{`meso-${{mesocycle + 1}}`}}>
                     <td className="border border-gray-300 p-2 bg-orange-50">
-                      <input
-                        type="number"
-                        placeholder=""
-                        onChange={(e) => {
-                          const value = e.target.value ? parseInt(e.target.value) : null;
-                          for (let week = 1; week <= matrix.weeksPerMesocycle; week++) {
-                            handleCyclicChange(mesocycle + 1, week, 'minutesZ2', value);
-                          }
-                        }}
-                        className="w-full px-2 py-1 text-xs text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
-                      />
+                      <div className="text-center text-sm text-gray-400">-</div>
                     </td>
-                    {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
+                    {{Array.from({{ length: matrix.weeksPerMesocycle }}, (_, week) => {{
                       const data = cyclicMap.get(mesocycle + 1)?.get(week + 1);
+                      const calculated = calculateZoneMinutes(data?.totalVolumeMinutes, data?.countZ2);
                       return (
-                        <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-2">
-                          <input
-                            type="number"
-                            value={data?.minutesZ2 || ''}
-                            onChange={(e) => handleCyclicChange(mesocycle + 1, week + 1, 'minutesZ2', e.target.value ? parseInt(e.target.value) : null)}
-                            className="w-full px-2 py-1 text-xs border-0 focus:ring-2 focus:ring-blue-500 rounded text-center"
-                            placeholder="-"
-                          />
+                        <td key={{`${{mesocycle + 1}}-${{week + 1}}`}} className="border border-gray-300 p-2 bg-green-50">
+                          <div className="text-center text-sm font-semibold text-green-700">
+                            {{calculated || '-'}}
+                          </div>
                         </td>
                       );
-                    })}
+                    }})}}
                   </React.Fragment>
-                ))}
+                ))}}
               </tr>
 
-              {/* Min Z3 */}
-              <tr>
-                <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-white z-10">
-                  Min Z3
+              {/* Z3 (min) - CALCULADO */}
+              <tr className="bg-green-50">
+                <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-green-50 z-10">
+                  Z3 (min)
                 </td>
-                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
-                  <React.Fragment key={`meso-${mesocycle + 1}`}>
+                {{Array.from({{ length: matrix.totalMesocycles }}, (_, mesocycle) => (
+                  <React.Fragment key={{`meso-${{mesocycle + 1}}`}}>
                     <td className="border border-gray-300 p-2 bg-orange-50">
-                      <input
-                        type="number"
-                        placeholder=""
-                        onChange={(e) => {
-                          const value = e.target.value ? parseInt(e.target.value) : null;
-                          for (let week = 1; week <= matrix.weeksPerMesocycle; week++) {
-                            handleCyclicChange(mesocycle + 1, week, 'minutesZ3', value);
-                          }
-                        }}
-                        className="w-full px-2 py-1 text-xs text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
-                      />
+                      <div className="text-center text-sm text-gray-400">-</div>
                     </td>
-                    {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
+                    {{Array.from({{ length: matrix.weeksPerMesocycle }}, (_, week) => {{
                       const data = cyclicMap.get(mesocycle + 1)?.get(week + 1);
+                      const calculated = calculateZoneMinutes(data?.totalVolumeMinutes, data?.countZ3);
                       return (
-                        <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-2">
-                          <input
-                            type="number"
-                            value={data?.minutesZ3 || ''}
-                            onChange={(e) => handleCyclicChange(mesocycle + 1, week + 1, 'minutesZ3', e.target.value ? parseInt(e.target.value) : null)}
-                            className="w-full px-2 py-1 text-xs border-0 focus:ring-2 focus:ring-blue-500 rounded text-center"
-                            placeholder="-"
-                          />
+                        <td key={{`${{mesocycle + 1}}-${{week + 1}}`}} className="border border-gray-300 p-2 bg-green-50">
+                          <div className="text-center text-sm font-semibold text-green-700">
+                            {{calculated || '-'}}
+                          </div>
                         </td>
                       );
-                    })}
+                    }})}}
                   </React.Fragment>
-                ))}
+                ))}}
               </tr>
 
-              {/* Min Z4 */}
-              <tr>
-                <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-white z-10">
-                  Min Z4
+              {/* Z4 (min) - CALCULADO */}
+              <tr className="bg-green-50">
+                <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-green-50 z-10">
+                  Z4 (min)
                 </td>
-                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
-                  <React.Fragment key={`meso-${mesocycle + 1}`}>
+                {{Array.from({{ length: matrix.totalMesocycles }}, (_, mesocycle) => (
+                  <React.Fragment key={{`meso-${{mesocycle + 1}}`}}>
                     <td className="border border-gray-300 p-2 bg-orange-50">
-                      <input
-                        type="number"
-                        placeholder=""
-                        onChange={(e) => {
-                          const value = e.target.value ? parseInt(e.target.value) : null;
-                          for (let week = 1; week <= matrix.weeksPerMesocycle; week++) {
-                            handleCyclicChange(mesocycle + 1, week, 'minutesZ4', value);
-                          }
-                        }}
-                        className="w-full px-2 py-1 text-xs text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
-                      />
+                      <div className="text-center text-sm text-gray-400">-</div>
                     </td>
-                    {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
+                    {{Array.from({{ length: matrix.weeksPerMesocycle }}, (_, week) => {{
                       const data = cyclicMap.get(mesocycle + 1)?.get(week + 1);
+                      const calculated = calculateZoneMinutes(data?.totalVolumeMinutes, data?.countZ4);
                       return (
-                        <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-2">
-                          <input
-                            type="number"
-                            value={data?.minutesZ4 || ''}
-                            onChange={(e) => handleCyclicChange(mesocycle + 1, week + 1, 'minutesZ4', e.target.value ? parseInt(e.target.value) : null)}
-                            className="w-full px-2 py-1 text-xs border-0 focus:ring-2 focus:ring-blue-500 rounded text-center"
-                            placeholder="-"
-                          />
+                        <td key={{`${{mesocycle + 1}}-${{week + 1}}`}} className="border border-gray-300 p-2 bg-green-50">
+                          <div className="text-center text-sm font-semibold text-green-700">
+                            {{calculated || '-'}}
+                          </div>
                         </td>
                       );
-                    })}
+                    }})}}
                   </React.Fragment>
-                ))}
+                ))}}
               </tr>
 
-              {/* Min Z5 */}
-              <tr>
-                <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-white z-10">
-                  Min Z5
+              {/* Z5 (min) - CALCULADO */}
+              <tr className="bg-green-50">
+                <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-green-50 z-10">
+                  Z5 (min)
                 </td>
-                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
-                  <React.Fragment key={`meso-${mesocycle + 1}`}>
+                {{Array.from({{ length: matrix.totalMesocycles }}, (_, mesocycle) => (
+                  <React.Fragment key={{`meso-${{mesocycle + 1}}`}}>
                     <td className="border border-gray-300 p-2 bg-orange-50">
-                      <input
-                        type="number"
-                        placeholder=""
-                        onChange={(e) => {
-                          const value = e.target.value ? parseInt(e.target.value) : null;
-                          for (let week = 1; week <= matrix.weeksPerMesocycle; week++) {
-                            handleCyclicChange(mesocycle + 1, week, 'minutesZ5', value);
-                          }
-                        }}
-                        className="w-full px-2 py-1 text-xs text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
-                      />
+                      <div className="text-center text-sm text-gray-400">-</div>
                     </td>
-                    {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
+                    {{Array.from({{ length: matrix.weeksPerMesocycle }}, (_, week) => {{
                       const data = cyclicMap.get(mesocycle + 1)?.get(week + 1);
+                      const calculated = calculateZoneMinutes(data?.totalVolumeMinutes, data?.countZ5);
                       return (
-                        <td key={`${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-2">
-                          <input
-                            type="number"
-                            value={data?.minutesZ5 || ''}
-                            onChange={(e) => handleCyclicChange(mesocycle + 1, week + 1, 'minutesZ5', e.target.value ? parseInt(e.target.value) : null)}
-                            className="w-full px-2 py-1 text-xs border-0 focus:ring-2 focus:ring-blue-500 rounded text-center"
-                            placeholder="-"
-                          />
+                        <td key={{`${{mesocycle + 1}}-${{week + 1}}`}} className="border border-gray-300 p-2 bg-green-50">
+                          <div className="text-center text-sm font-semibold text-green-700">
+                            {{calculated || '-'}}
+                          </div>
                         </td>
                       );
-                    })}
+                    }})}}
                   </React.Fragment>
-                ))}
+                ))}}
               </tr>
             </tbody>
           </table>
