@@ -28,6 +28,28 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
   const [cyclicMap, setCyclicMap] = useState<Map<number, Map<number, CyclicStimulus>>>(new Map());
   const [nutritionMap, setNutritionMap] = useState<Map<number, Map<number, NutritionWeekly>>>(new Map());
 
+  // Função para verificar se a matriz tem dados lançados
+  const hasMatrixData = (matrixData: PeriodizationMatrix): boolean => {
+    // Verificar se há dados em resistedStimulus
+    const hasResisted = matrixData.resistedStimulus?.some(item => 
+      item.loadCycle || item.repZone || item.assembly || 
+      item.method || item.trainingDivision || item.weeklyFrequency
+    );
+
+    // Verificar se há dados em cyclicStimulus
+    const hasCyclic = matrixData.cyclicStimulus?.some(item => 
+      item.totalVolumeMinutes || item.totalVolumeKm || item.runningVolumeKm ||
+      item.countZ1 || item.countZ2 || item.countZ3 || item.countZ4 || item.countZ5
+    );
+
+    // Verificar se há dados em nutrition
+    const hasNutrition = matrixData.nutrition?.some(item => 
+      item.totalCalories || item.carbohydratesG || item.proteinsG || item.fatsG
+    );
+
+    return !!(hasResisted || hasCyclic || hasNutrition);
+  };
+
   // Função para calcular número de mesociclos necessários
   const calculateTotalMesocycles = (): number => {
     const start = new Date(startDate);
@@ -71,7 +93,7 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
   // Carregar dados
   useEffect(() => {
     loadData();
-  }, [planId]);
+  }, [planId, startDate, endDate]); // Recarregar quando datas mudarem
 
   const loadData = async () => {
     try {
@@ -79,15 +101,32 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
 
       // Carregar ou criar matriz
       let matrixData = await periodizationService.getMatrixByPlanId(planId);
+      const expectedMesocycles = calculateTotalMesocycles();
       
       if (!matrixData) {
         // Criar matriz dinâmica baseada no período do plano
-        const totalMesocycles = calculateTotalMesocycles();
         matrixData = await periodizationService.createMatrix({
           planId,
-          totalMesocycles,
+          totalMesocycles: expectedMesocycles,
           weeksPerMesocycle: 4,
         });
+      } else if (matrixData.totalMesocycles !== expectedMesocycles) {
+        // Período do plano foi alterado
+        const hasData = hasMatrixData(matrixData);
+        
+        if (!hasData) {
+          // Não há dados lançados, pode recriar
+          console.log('Período alterado e sem dados. Recriando matriz...');
+          await periodizationService.deleteMatrix(matrixData.id);
+          matrixData = await periodizationService.createMatrix({
+            planId,
+            totalMesocycles: expectedMesocycles,
+            weeksPerMesocycle: 4,
+          });
+        } else {
+          // Há dados lançados, manter matriz atual
+          console.log('Período alterado mas há dados. Mantendo matriz atual.');
+        }
       }
 
       setMatrix(matrixData);
