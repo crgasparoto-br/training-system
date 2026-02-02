@@ -9,7 +9,7 @@ import { Plans } from './pages/Plans';
 import { PlanForm } from './pages/PlanForm';
 import { PlanDetails } from './pages/PlanDetails';
 import Library from './pages/Library';
-import { WorkoutBuilder } from './pages/WorkoutBuilder';
+import WorkoutBuilder2 from './pages/WorkoutBuilder2';
 import { DashboardLayout } from './layouts/DashboardLayout';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
@@ -40,7 +40,7 @@ function App() {
           <Route path="plans/new" element={<PlanForm />} />
           <Route path="plans/:id" element={<PlanDetails />} />
           <Route path="plans/:id/edit" element={<PlanForm />} />
-          <Route path="plans/:planId/workout-builder/:mesocycleNumber/:weekNumber" element={<WorkoutBuilder />} />
+          <Route path="plans/:planId/workout-builder/:mesocycleNumber/:weekNumber" element={<WorkoutBuilder2 />} />
           <Route path="library" element={<Library />} />
           <Route path="executions" element={<div className="text-center py-12">Página de Execuções (Em desenvolvimento)</div>} />
           <Route path="reports" element={<div className="text-center py-12">Página de Relatórios (Em desenvolvimento)</div>} />

@@ -732,8 +732,8 @@ model WorkoutTemplate {
   id                    String   @id @default(cuid())
   planId                String
   plan                  TrainingPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
-  mesocycleNumber       Int
-  weekNumber            Int      // 1-4 (S1, S2, S3, S4)
+  mesocycleNumber       Int      // Meso (compartilhado entre cíclico e resistido)
+  weekNumber            Int      // Micro (compartilhado entre cíclico e resistido)
   weekStartDate         DateTime
   
   // Dados do Cíclico
@@ -773,26 +773,32 @@ model WorkoutDay {
   dayOfWeek             Int      // 1=Segunda, 7=Domingo
   workoutDate           DateTime
   
-  // Planejamento do Dia
+  // Planejamento do Dia - Geral
   sessionDurationMin    Int?     // Tempo total da sessão
+  cyclicTimeMin         Int?     // Tempo de treino cíclico
+  resistanceTimeMin     Int?     // Tempo de treino resistido
+  
+  // Planejamento do Dia - Cíclico
   stimulusDurationMin   Int?     // Tempo do estímulo
   location              String?  // Esteira, Bicicleta, Pista, Corrida
-  method                String?  // IEXT, IINT
+  method                String?  // CEXT, CINT, IEXT, IINT
   
   // Intensidades
-  intensity1            String?
-  intensity2            String?
-  numSessions           Int?
-  numSets               Int?
-  sessionTime           Int?
-  restTime              Int?
-  vo2maxIntervalPct     Float?
-  iextIintTime          Float?
-  vo2maxPct             Float?
-  targetHrMin           Float?
-  targetHrMax           Float?
-  targetSpeedMin        Float?
-  targetSpeedMax        Float?
+  intensity1            Float?   // Intensidade 1 (porcentagem)
+  intensity2            Float?   // Intensidade 2 (porcentagem)
+  numSessions           Int?     // Número de sessões
+  numSets               Int?     // Número de séries
+  sessionTime           Int?     // Tempo intenso (segundos)
+  restTime              Int?     // Tempo repouso (segundos)
+  vo2maxIntervalPct     Float?   // %VO2Máx intervalo
+  iextIintTime          Float?   // Tempo IEXT IINT
+  vo2maxPct             Float?   // %VO2Máx
+  targetHrMin           Float?   // FC alvo mínima (bpm)
+  targetHrMax           Float?   // FC alvo máxima (bpm)
+  targetSpeedMin        Float?   // Velocidade mínima (km/h)
+  targetSpeedMax        Float?   // Velocidade máxima (km/h)
+  paceMin               Float?   // Pace mínimo (min/km)
+  paceMax               Float?   // Pace máximo (min/km)
   
   // Detalhamento e Complemento
   detailNotes           String?  @db.Text
