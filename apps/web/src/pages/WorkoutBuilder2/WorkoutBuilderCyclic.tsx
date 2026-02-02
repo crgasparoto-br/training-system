@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface WorkoutBuilderCyclicProps {
   templateData: any;
@@ -26,6 +26,57 @@ export default function WorkoutBuilderCyclic({ templateData, onChange }: Workout
     6: { sessionDurationMin: 14, stimulusDurationMin: null, location: 'Pista', method: '' },
     7: { sessionDurationMin: 0, stimulusDurationMin: null, location: '', method: '' }
   });
+
+  // Estado para Volume Total e Distribuição (virá da periodização)
+  const [volumeTotalMin, setVolumeTotalMin] = useState(284);
+  const [volumeTotalKm, setVolumeTotalKm] = useState(0);
+  
+  // Distribuição vem da periodização (% Z1, Z2, Z3, Z4, Z5)
+  const [distribution, setDistribution] = useState({
+    z1: 25,
+    z2: 40,
+    z3: 20,
+    z4: 10,
+    z5: 5
+  });
+
+  // Planejamento (editável)
+  const [planning, setPlanning] = useState({
+    z1: 60,
+    z2: 0,
+    z3: 0,
+    z4: 0,
+    z5: 0
+  });
+
+  // Cálculos automáticos
+  const calculateAbsolute = (zone: keyof typeof distribution) => {
+    return Math.round(volumeTotalMin * (distribution[zone] / 100));
+  };
+
+  const calculateRemaining = (zone: keyof typeof distribution) => {
+    const absolute = calculateAbsolute(zone);
+    const plan = planning[zone];
+    return absolute - plan;
+  };
+
+  const getTotalAbsolute = () => {
+    return Object.keys(distribution).reduce((sum, zone) => {
+      return sum + calculateAbsolute(zone as keyof typeof distribution);
+    }, 0);
+  };
+
+  const getTotalPlanning = () => {
+    return Object.values(planning).reduce((sum, val) => sum + val, 0);
+  };
+
+  const getTotalRemaining = () => {
+    return getTotalAbsolute() - getTotalPlanning();
+  };
+
+  const getTotalDistribution = () => {
+    return Object.values(distribution).reduce((sum, val) => sum + val, 0);
+  };
 
   const handleChange = (dayOfWeek: number, field: string, value: any) => {
     const newDayData = {
@@ -95,7 +146,8 @@ export default function WorkoutBuilderCyclic({ templateData, onChange }: Workout
             </label>
             <input
               type="number"
-              defaultValue={284}
+              value={volumeTotalMin}
+              onChange={(e) => setVolumeTotalMin(parseInt(e.target.value) || 0)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
@@ -106,7 +158,8 @@ export default function WorkoutBuilderCyclic({ templateData, onChange }: Workout
             <input
               type="number"
               step="0.1"
-              defaultValue={0}
+              value={volumeTotalKm}
+              onChange={(e) => setVolumeTotalKm(parseFloat(e.target.value) || 0)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
@@ -141,7 +194,7 @@ export default function WorkoutBuilderCyclic({ templateData, onChange }: Workout
               </tr>
             </thead>
             <tbody>
-              {/* Distribuição (%) */}
+              {/* Distribuição (%) - vem da periodização */}
               <tr>
                 <td className="border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-50">
                   Distribuição (%)
@@ -149,89 +202,74 @@ export default function WorkoutBuilderCyclic({ templateData, onChange }: Workout
                 <td className="border border-gray-300 px-4 py-2 text-center text-sm">
                   <input
                     type="number"
-                    defaultValue={25}
+                    value={distribution.z1}
+                    onChange={(e) => setDistribution({ ...distribution, z1: parseInt(e.target.value) || 0 })}
                     className="w-full px-2 py-1 text-sm border border-gray-300 rounded text-center focus:ring-2 focus:ring-blue-500"
                   />
                 </td>
                 <td className="border border-gray-300 px-4 py-2 text-center text-sm">
                   <input
                     type="number"
-                    defaultValue={40}
+                    value={distribution.z2}
+                    onChange={(e) => setDistribution({ ...distribution, z2: parseInt(e.target.value) || 0 })}
                     className="w-full px-2 py-1 text-sm border border-gray-300 rounded text-center focus:ring-2 focus:ring-blue-500"
                   />
                 </td>
                 <td className="border border-gray-300 px-4 py-2 text-center text-sm">
                   <input
                     type="number"
-                    defaultValue={20}
+                    value={distribution.z3}
+                    onChange={(e) => setDistribution({ ...distribution, z3: parseInt(e.target.value) || 0 })}
                     className="w-full px-2 py-1 text-sm border border-gray-300 rounded text-center focus:ring-2 focus:ring-blue-500"
                   />
                 </td>
                 <td className="border border-gray-300 px-4 py-2 text-center text-sm">
                   <input
                     type="number"
-                    defaultValue={10}
+                    value={distribution.z4}
+                    onChange={(e) => setDistribution({ ...distribution, z4: parseInt(e.target.value) || 0 })}
                     className="w-full px-2 py-1 text-sm border border-gray-300 rounded text-center focus:ring-2 focus:ring-blue-500"
                   />
                 </td>
                 <td className="border border-gray-300 px-4 py-2 text-center text-sm">
                   <input
                     type="number"
-                    defaultValue={5}
+                    value={distribution.z5}
+                    onChange={(e) => setDistribution({ ...distribution, z5: parseInt(e.target.value) || 0 })}
                     className="w-full px-2 py-1 text-sm border border-gray-300 rounded text-center focus:ring-2 focus:ring-blue-500"
                   />
                 </td>
                 <td className="border border-gray-300 px-4 py-2 text-center text-sm font-semibold bg-blue-50">
-                  100
+                  {getTotalDistribution()}
                 </td>
               </tr>
 
-              {/* Absoluto */}
+              {/* Absoluto - calculado automaticamente */}
               <tr>
                 <td className="border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-50">
                   Absoluto
                 </td>
-                <td className="border border-gray-300 px-4 py-2 text-center text-sm">
-                  <input
-                    type="number"
-                    defaultValue={0}
-                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded text-center focus:ring-2 focus:ring-blue-500"
-                  />
+                <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
+                  {calculateAbsolute('z1')}
                 </td>
-                <td className="border border-gray-300 px-4 py-2 text-center text-sm">
-                  <input
-                    type="number"
-                    defaultValue={0}
-                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded text-center focus:ring-2 focus:ring-blue-500"
-                  />
+                <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
+                  {calculateAbsolute('z2')}
                 </td>
-                <td className="border border-gray-300 px-4 py-2 text-center text-sm">
-                  <input
-                    type="number"
-                    defaultValue={0}
-                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded text-center focus:ring-2 focus:ring-blue-500"
-                  />
+                <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
+                  {calculateAbsolute('z3')}
                 </td>
-                <td className="border border-gray-300 px-4 py-2 text-center text-sm">
-                  <input
-                    type="number"
-                    defaultValue={0}
-                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded text-center focus:ring-2 focus:ring-blue-500"
-                  />
+                <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
+                  {calculateAbsolute('z4')}
                 </td>
-                <td className="border border-gray-300 px-4 py-2 text-center text-sm">
-                  <input
-                    type="number"
-                    defaultValue={0}
-                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded text-center focus:ring-2 focus:ring-blue-500"
-                  />
+                <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
+                  {calculateAbsolute('z5')}
                 </td>
                 <td className="border border-gray-300 px-4 py-2 text-center text-sm font-semibold bg-blue-50">
-                  0
+                  {getTotalAbsolute()}
                 </td>
               </tr>
 
-              {/* Planejamento */}
+              {/* Planejamento - editável */}
               <tr>
                 <td className="border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-50">
                   Planejamento
@@ -239,65 +277,70 @@ export default function WorkoutBuilderCyclic({ templateData, onChange }: Workout
                 <td className="border border-gray-300 px-4 py-2 text-center text-sm">
                   <input
                     type="number"
-                    defaultValue={60}
+                    value={planning.z1}
+                    onChange={(e) => setPlanning({ ...planning, z1: parseInt(e.target.value) || 0 })}
                     className="w-full px-2 py-1 text-sm border border-gray-300 rounded text-center focus:ring-2 focus:ring-blue-500"
                   />
                 </td>
                 <td className="border border-gray-300 px-4 py-2 text-center text-sm">
                   <input
                     type="number"
-                    defaultValue={0}
+                    value={planning.z2}
+                    onChange={(e) => setPlanning({ ...planning, z2: parseInt(e.target.value) || 0 })}
                     className="w-full px-2 py-1 text-sm border border-gray-300 rounded text-center focus:ring-2 focus:ring-blue-500"
                   />
                 </td>
                 <td className="border border-gray-300 px-4 py-2 text-center text-sm">
                   <input
                     type="number"
-                    defaultValue={0}
+                    value={planning.z3}
+                    onChange={(e) => setPlanning({ ...planning, z3: parseInt(e.target.value) || 0 })}
                     className="w-full px-2 py-1 text-sm border border-gray-300 rounded text-center focus:ring-2 focus:ring-blue-500"
                   />
                 </td>
                 <td className="border border-gray-300 px-4 py-2 text-center text-sm">
                   <input
                     type="number"
-                    defaultValue={0}
+                    value={planning.z4}
+                    onChange={(e) => setPlanning({ ...planning, z4: parseInt(e.target.value) || 0 })}
                     className="w-full px-2 py-1 text-sm border border-gray-300 rounded text-center focus:ring-2 focus:ring-blue-500"
                   />
                 </td>
                 <td className="border border-gray-300 px-4 py-2 text-center text-sm">
                   <input
                     type="number"
-                    defaultValue={0}
+                    value={planning.z5}
+                    onChange={(e) => setPlanning({ ...planning, z5: parseInt(e.target.value) || 0 })}
                     className="w-full px-2 py-1 text-sm border border-gray-300 rounded text-center focus:ring-2 focus:ring-blue-500"
                   />
                 </td>
                 <td className="border border-gray-300 px-4 py-2 text-center text-sm font-semibold bg-blue-50">
-                  60
+                  {getTotalPlanning()}
                 </td>
               </tr>
 
-              {/* Restante */}
+              {/* Restante - calculado automaticamente */}
               <tr>
                 <td className="border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-50">
                   Restante
                 </td>
-                <td className="border border-gray-300 px-4 py-2 text-center text-sm text-red-600 font-medium">
-                  -60
+                <td className={`border border-gray-300 px-4 py-2 text-center text-sm font-medium bg-gray-100 ${calculateRemaining('z1') < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                  {calculateRemaining('z1')}
                 </td>
-                <td className="border border-gray-300 px-4 py-2 text-center text-sm">
-                  0
+                <td className={`border border-gray-300 px-4 py-2 text-center text-sm font-medium bg-gray-100 ${calculateRemaining('z2') < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                  {calculateRemaining('z2')}
                 </td>
-                <td className="border border-gray-300 px-4 py-2 text-center text-sm">
-                  0
+                <td className={`border border-gray-300 px-4 py-2 text-center text-sm font-medium bg-gray-100 ${calculateRemaining('z3') < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                  {calculateRemaining('z3')}
                 </td>
-                <td className="border border-gray-300 px-4 py-2 text-center text-sm">
-                  0
+                <td className={`border border-gray-300 px-4 py-2 text-center text-sm font-medium bg-gray-100 ${calculateRemaining('z4') < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                  {calculateRemaining('z4')}
                 </td>
-                <td className="border border-gray-300 px-4 py-2 text-center text-sm">
-                  0
+                <td className={`border border-gray-300 px-4 py-2 text-center text-sm font-medium bg-gray-100 ${calculateRemaining('z5') < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                  {calculateRemaining('z5')}
                 </td>
-                <td className="border border-gray-300 px-4 py-2 text-center text-sm font-semibold bg-blue-50 text-red-600">
-                  -60
+                <td className={`border border-gray-300 px-4 py-2 text-center text-sm font-semibold bg-blue-50 ${getTotalRemaining() < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                  {getTotalRemaining()}
                 </td>
               </tr>
             </tbody>
@@ -306,13 +349,13 @@ export default function WorkoutBuilderCyclic({ templateData, onChange }: Workout
       </div>
 
       {/* Planejamento do Treinamento Cíclico */}
-      <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">
+      <div className="bg-green-50 rounded-lg p-4 border border-green-200">
+        <h3 className="text-base font-semibold text-gray-900 mb-4">
           Planejamento do Treinamento Cíclico
         </h3>
 
         <div className="overflow-x-auto">
-          <table className="min-w-full border-collapse border border-gray-300">
+          <table className="min-w-full border-collapse border border-gray-300 bg-white">
             {/* Header */}
             <thead>
               <tr className="bg-gray-100">
