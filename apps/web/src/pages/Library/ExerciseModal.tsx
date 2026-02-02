@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { X, Video } from 'lucide-react';
 import { libraryService, Exercise, CreateExerciseDTO } from '../../services/library.service';
+import YouTubeEmbed from './YouTubeEmbed';
 
 const LOAD_TYPES = [
   { value: 'H', label: 'Halteres' },
@@ -64,6 +65,27 @@ export default function ExerciseModal({ mode, exercise, onClose }: ExerciseModal
     }
   }, [exercise]);
 
+  // Atalhos de teclado
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // ESC para fechar
+      if (e.key === 'Escape') {
+        onClose(false);
+      }
+      // Ctrl+S ou Cmd+S para salvar (apenas em modo edit/create)
+      if ((e.ctrlKey || e.metaKey) && e.key === 's' && !isViewMode) {
+        e.preventDefault();
+        const form = document.querySelector('form');
+        if (form) {
+          form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isViewMode, onClose]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -98,11 +120,23 @@ export default function ExerciseModal({ mode, exercise, onClose }: ExerciseModal
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div 
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose(false);
+        }
+      }}
+    >
       <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h2 className="text-2xl font-bold text-gray-900">{getTitle()}</h2>
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900">{getTitle()}</h2>
+            {!isViewMode && (
+              <p className="text-xs text-gray-500 mt-1">ESC para fechar • Ctrl+S para salvar</p>
+            )}
+          </div>
           <button
             onClick={() => onClose(false)}
             className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -137,7 +171,10 @@ export default function ExerciseModal({ mode, exercise, onClose }: ExerciseModal
           {/* Link Vídeo */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Link Vídeo Youtube
+              <div className="flex items-center gap-2">
+                <Video className="w-4 h-4" />
+                Link Vídeo Youtube
+              </div>
             </label>
             <input
               type="url"
@@ -147,6 +184,19 @@ export default function ExerciseModal({ mode, exercise, onClose }: ExerciseModal
               value={formData.videoUrl}
               onChange={(e) => setFormData({ ...formData, videoUrl: e.target.value })}
             />
+            
+            {/* Preview do Vídeo */}
+            {formData.videoUrl && (
+              <div className="mt-4">
+                <YouTubeEmbed url={formData.videoUrl} />
+              </div>
+            )}
+            
+            {!formData.videoUrl && (
+              <p className="mt-2 text-sm text-gray-500">
+                Adicione um link do YouTube para visualizar o vídeo de demonstração
+              </p>
+            )}
           </div>
 
           {/* Grid 2 colunas */}

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Plus, Search, Filter, Edit, Trash2, Eye } from 'lucide-react';
+import { Plus, Search, Filter, Edit, Trash2, Eye, X, Video as VideoIcon, BookOpen } from 'lucide-react';
 import { libraryService, Exercise, ExerciseFilters } from '../../services/library.service';
 import ExerciseModal from './ExerciseModal';
+import LibraryStats from './LibraryStats';
 
 const LOAD_TYPES = [
   { value: 'H', label: 'Halteres' },
@@ -25,6 +26,25 @@ const COUNTING_TYPES = [
 ];
 
 const CATEGORIES = ['MOBILIDADE', 'RESISTIDO', 'CICLICO'];
+
+const MUSCLE_GROUPS = [
+  'Abdômen',
+  'Abdutores',
+  'Adutores',
+  'Bíceps',
+  'Cardio',
+  'Core',
+  'Costas',
+  'Full Body',
+  'Glúteos',
+  'Mobilidade',
+  'Ombros',
+  'Panturrilha',
+  'Peitoral',
+  'Posterior de Coxa',
+  'Quadríceps',
+  'Tríceps',
+];
 
 export default function Library() {
   const [exercises, setExercises] = useState<Exercise[]>([]);
@@ -91,6 +111,18 @@ export default function Library() {
     }
   };
 
+  const handleClearFilters = () => {
+    setFilters({});
+  };
+
+  const hasActiveFilters = () => {
+    return Object.keys(filters).some(key => filters[key as keyof ExerciseFilters]);
+  };
+
+  const activeFiltersCount = () => {
+    return Object.keys(filters).filter(key => filters[key as keyof ExerciseFilters]).length;
+  };
+
   const getLoadTypeLabel = (type?: string) => {
     return LOAD_TYPES.find((t) => t.value === type)?.label || '-';
   };
@@ -111,6 +143,13 @@ export default function Library() {
           <h1 className="text-3xl font-bold text-gray-900">Biblioteca de Exercícios</h1>
           <p className="text-gray-600 mt-2">Gerencie o catálogo de exercícios disponíveis</p>
         </div>
+
+        {/* Statistics */}
+        {!loading && exercises.length > 0 && (
+          <div className="mb-6">
+            <LibraryStats exercises={exercises} />
+          </div>
+        )}
 
         {/* Toolbar */}
         <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
@@ -133,11 +172,26 @@ export default function Library() {
             <div className="flex gap-2">
               <button
                 onClick={() => setShowFilters(!showFilters)}
-                className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors relative"
               >
                 <Filter className="w-5 h-5" />
                 Filtros
+                {activeFiltersCount() > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-blue-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                    {activeFiltersCount()}
+                  </span>
+                )}
               </button>
+              {hasActiveFilters() && (
+                <button
+                  onClick={handleClearFilters}
+                  className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-gray-700"
+                  title="Limpar todos os filtros"
+                >
+                  <X className="w-5 h-5" />
+                  Limpar
+                </button>
+              )}
               <button
                 onClick={handleCreate}
                 className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -150,7 +204,7 @@ export default function Library() {
 
           {/* Filters Panel */}
           {showFilters && (
-            <div className="mt-4 pt-4 border-t border-gray-200 grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="mt-4 pt-4 border-t border-gray-200 grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
                 <select
@@ -162,6 +216,22 @@ export default function Library() {
                   {CATEGORIES.map((cat) => (
                     <option key={cat} value={cat}>
                       {cat}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Grupo Muscular</label>
+                <select
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  value={filters.muscleGroup || ''}
+                  onChange={(e) => setFilters({ ...filters, muscleGroup: e.target.value || undefined })}
+                >
+                  <option value="">Todos</option>
+                  {MUSCLE_GROUPS.map((group) => (
+                    <option key={group} value={group}>
+                      {group}
                     </option>
                   ))}
                 </select>
@@ -221,10 +291,37 @@ export default function Library() {
         {/* Table */}
         <div className="bg-white rounded-lg shadow-sm overflow-hidden">
           {loading ? (
-            <div className="p-8 text-center text-gray-500">Carregando...</div>
+            <div className="p-8">
+              <div className="animate-pulse space-y-4">
+                <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                <div className="h-4 bg-gray-200 rounded w-5/6"></div>
+                <div className="h-4 bg-gray-200 rounded w-2/3"></div>
+                <div className="h-4 bg-gray-200 rounded w-4/5"></div>
+              </div>
+            </div>
           ) : exercises.length === 0 ? (
-            <div className="p-8 text-center text-gray-500">
-              Nenhum exercício encontrado. Clique em "Novo Exercício" para adicionar.
+            <div className="p-12 text-center">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4">
+                <BookOpen className="w-8 h-8 text-gray-400" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                {hasActiveFilters() ? 'Nenhum exercício encontrado' : 'Biblioteca vazia'}
+              </h3>
+              <p className="text-gray-500 mb-6">
+                {hasActiveFilters()
+                  ? 'Tente ajustar os filtros para encontrar exercícios.'
+                  : 'Comece adicionando exercícios à sua biblioteca.'}
+              </p>
+              {!hasActiveFilters() && (
+                <button
+                  onClick={handleCreate}
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  <Plus className="w-5 h-5" />
+                  Adicionar Primeiro Exercício
+                </button>
+              )}
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -256,9 +353,14 @@ export default function Library() {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {exercises.map((exercise) => (
-                    <tr key={exercise.id} className="hover:bg-gray-50">
+                    <tr key={exercise.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">{exercise.name}</div>
+                        <div className="flex items-center gap-2">
+                          <div className="text-sm font-medium text-gray-900">{exercise.name}</div>
+                          {exercise.videoUrl && (
+                            <VideoIcon className="w-4 h-4 text-green-600" title="Com vídeo" />
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">

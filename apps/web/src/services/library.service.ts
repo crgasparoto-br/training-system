@@ -17,6 +17,7 @@ export interface Exercise {
 export interface ExerciseFilters {
   search?: string;
   category?: string;
+  muscleGroup?: string;
   loadType?: string;
   movementType?: string;
   countingType?: string;
@@ -38,6 +39,7 @@ export const libraryService = {
     const params = new URLSearchParams();
     if (filters?.search) params.append('search', filters.search);
     if (filters?.category) params.append('category', filters.category);
+    if (filters?.muscleGroup) params.append('muscleGroup', filters.muscleGroup);
     if (filters?.loadType) params.append('loadType', filters.loadType);
     if (filters?.movementType) params.append('movementType', filters.movementType);
     if (filters?.countingType) params.append('countingType', filters.countingType);
