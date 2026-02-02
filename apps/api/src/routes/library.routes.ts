@@ -15,6 +15,7 @@ router.get('/exercises', async (req, res) => {
       loadType: req.query.loadType as any,
       movementType: req.query.movementType as any,
       countingType: req.query.countingType as any,
+      muscleGroup: req.query.muscleGroup as string,
     };
 
     const exercises = await libraryService.listExercises(filters);

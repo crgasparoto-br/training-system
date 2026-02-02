@@ -21,6 +21,7 @@ export interface ExerciseFilters {
   loadType?: LoadType;
   movementType?: MovementType;
   countingType?: CountingType;
+  muscleGroup?: string;
 }
 
 /**
@@ -63,6 +64,10 @@ export const libraryService = {
 
     if (filters.countingType) {
       where.countingType = filters.countingType;
+    }
+
+    if (filters.muscleGroup) {
+      where.muscleGroup = filters.muscleGroup;
     }
 
     return await prisma.exerciseLibrary.findMany({
