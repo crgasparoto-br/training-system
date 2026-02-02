@@ -175,6 +175,10 @@ export function PlanDetails() {
           </div>
         </div>
         <div className="flex gap-2">
+          <Button onClick={() => navigate(`/plans/${id}/workout-builder/1/1`)}>
+            <Activity size={20} />
+            Montar Treinos
+          </Button>
           <Button variant="outline" onClick={() => navigate(`/plans/${id}/edit`)}>
             <Edit size={20} />
             Editar

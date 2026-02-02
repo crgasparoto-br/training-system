@@ -3,19 +3,21 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Save, Copy } from 'lucide-react';
 import WorkoutBuilderCyclic from './WorkoutBuilderCyclic';
 import WorkoutBuilderResistance from './WorkoutBuilderResistance';
+import { planService } from '../../services/plan.service';
 
 export default function WorkoutBuilder2() {
-  const { planId } = useParams();
+  const { planId, mesocycleNumber: mesoParam, weekNumber: weekParam } = useParams();
   const navigate = useNavigate();
   
   const [activeTab, setActiveTab] = useState<'cyclic' | 'resistance'>('cyclic');
   const [templateData, setTemplateData] = useState<any>(null);
+  const [planData, setPlanData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   // Parâmetros únicos compartilhados
-  const [mesocycleNumber, setMesocycleNumber] = useState(8);
-  const [weekNumber, setWeekNumber] = useState(30);
+  const [mesocycleNumber, setMesocycleNumber] = useState(parseInt(mesoParam || '1'));
+  const [weekNumber, setWeekNumber] = useState(parseInt(weekParam || '1'));
 
   // Auto-save timer
   const [autoSaveTimer, setAutoSaveTimer] = useState<NodeJS.Timeout | null>(null);
@@ -27,23 +29,35 @@ export default function WorkoutBuilder2() {
   const loadTemplate = async () => {
     try {
       setLoading(true);
-      // TODO: Implementar chamada à API
-      // const response = await workoutService.getOrCreateTemplate(planId, mesocycleNumber, weekNumber);
-      // setTemplateData(response);
       
-      // Mock temporário
-      setTemplateData({
-        id: '1',
-        mesocycleNumber,
-        weekNumber,
-        cyclicFrequency: 4,
-        resistanceFrequency: 6,
-        totalVolumeMin: 284,
-        totalVolumeKm: 0,
-        workoutDays: []
-      });
+      // Carregar dados do plano
+      if (planId) {
+        const plan = await planService.getById(planId);
+        setPlanData(plan);
+        
+        // TODO: Carregar dados da periodização
+        // TODO: Implementar chamada à API de workout
+        // const response = await workoutService.getOrCreateTemplate(planId, mesocycleNumber, weekNumber);
+        // setTemplateData(response);
+        
+        // Mock temporário
+        setTemplateData({
+          id: '1',
+          planId,
+          athleteId: plan.athlete.id,
+          mesocycleNumber,
+          weekNumber,
+          cyclicFrequency: 4,
+          resistanceFrequency: 6,
+          totalVolumeMin: 284,
+          totalVolumeKm: 0,
+          workoutDays: []
+        });
+      }
     } catch (error) {
       console.error('Erro ao carregar template:', error);
+      alert('Erro ao carregar dados do plano');
+      navigate('/plans');
     } finally {
       setLoading(false);
     }
@@ -119,7 +133,7 @@ export default function WorkoutBuilder2() {
                   Montagem de Treinos
                 </h1>
                 <p className="text-sm text-gray-500">
-                  Configure os parâmetros e monte os treinos da semana
+                  {planData ? `${planData.name} - ${planData.athlete.user.profile.name}` : 'Carregando...'}
                 </p>
               </div>
             </div>
