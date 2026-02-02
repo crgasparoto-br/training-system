@@ -93,6 +93,107 @@ export default function WorkoutBuilderCyclic({ templateData, onChange }: Workout
     return Object.values(distribution).reduce((sum, val) => sum + val, 0);
   };
 
+  // Funções de cálculo
+  const calculateTempoIntenso = (dayOfWeek: number) => {
+    const data = dayData[dayOfWeek];
+    if (!data?.sessionTime || !data?.numSets || !data?.numSessions) return 0;
+    return (data.sessionTime / 60) * data.numSets * data.numSessions;
+  };
+
+  const calculateTempoRepouso = (dayOfWeek: number) => {
+    const data = dayData[dayOfWeek];
+    if (!data?.restTime || !data?.numSets || !data?.numSessions) return 0;
+    return (data.restTime / 60) * data.numSets * data.numSessions;
+  };
+
+  const calculateTempoIEXTIINT = (dayOfWeek: number) => {
+    const data = dayData[dayOfWeek];
+    if (data?.method === 'IEXT' || data?.method === 'IINT') {
+      return calculateTempoIntenso(dayOfWeek) + calculateTempoRepouso(dayOfWeek);
+    }
+    return null;
+  };
+
+  const calculateVO2Max = (dayOfWeek: number) => {
+    const data = dayData[dayOfWeek];
+    if (data?.intensity1 !== null && data?.intensity1 !== undefined && 
+        data?.intensity2 !== null && data?.intensity2 !== undefined) {
+      return (data.intensity1 + data.intensity2) / 2;
+    }
+    return null;
+  };
+
+  const generateDetalhamento = (dayOfWeek: number) => {
+    const data = dayData[dayOfWeek];
+    if (!data?.method) return '';
+
+    if (data.method === 'CEXT' || data.method === 'CINT') {
+      const sessionDuration = data.sessionDurationMin || 0;
+      const numSessions = data.numSessions || 1;
+      const durationPerSession = sessionDuration / numSessions;
+      const minDuration = durationPerSession - 3;
+      const maxDuration = durationPerSession;
+      
+      let text = `Mantenha ${minDuration}-${maxDuration}min em intensidade constante com frequência cardíaca entre ${data.targetHrMin || 0} bpm`;
+      
+      if (data.intensity1 && data.intensity2) {
+        text += ` (${data.intensity1 * 100} - ${data.intensity2 * 100}% VO2Máx`;
+      }
+      
+      if (data.location === 'Esteira' || data.location === 'Pista') {
+        text += ` -> ${data.targetSpeedMin || 0}km/h`;
+      }
+      
+      text += ')';
+      return text;
+    }
+
+    if (data.method === 'IEXT' || data.method === 'IINT') {
+      const numSets = data.numSets || 0;
+      const sessionTime = data.sessionTime || 0;
+      const restTime = data.restTime || 0;
+      
+      let text = `${numSets}x (`;
+      
+      // Tempo intenso
+      if (sessionTime >= 60) {
+        text += `${Math.floor(sessionTime / 60)}m `;
+      }
+      const remainingSeconds = sessionTime % 60;
+      if (remainingSeconds > 0) {
+        text += `${remainingSeconds}s `;
+      }
+      
+      if (data.intensity2 === 1.2) {
+        text += 'all out';
+      } else if (data.targetHrMin) {
+        text += `a ${data.targetHrMin} bpm`;
+      }
+      
+      if (data.location === 'Esteira' || data.location === 'Pista') {
+        text += ` -> ${data.targetSpeedMin || 0}km/h`;
+      }
+      
+      // Tempo repouso
+      if (restTime > 0) {
+        text += ' + ';
+        if (restTime >= 60) {
+          text += `${Math.floor(restTime / 60)}m `;
+        }
+        const remainingRestSeconds = restTime % 60;
+        if (remainingRestSeconds > 0) {
+          text += `${remainingRestSeconds}s `;
+        }
+        text += 'repouso';
+      }
+      
+      text += ')';
+      return text;
+    }
+
+    return '';
+  };
+
   const handleChange = (dayOfWeek: number, field: string, value: any) => {
     const newDayData = {
       ...dayData,
@@ -209,49 +310,54 @@ export default function WorkoutBuilderCyclic({ templateData, onChange }: Workout
               </tr>
             </thead>
             <tbody>
-              {/* Distribuição (%) - vem da periodização */}
+              {/* Distribuição (%) - vem da periodização (BLOQUEADO) */}
               <tr>
                 <td className="border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-50">
                   Distribuição (%)
                 </td>
-                <td className="border border-gray-300 px-4 py-2 text-center text-sm">
+                <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
                   <input
                     type="number"
                     value={distribution.z1}
-                    onChange={(e) => setDistribution({ ...distribution, z1: parseInt(e.target.value) || 0 })}
-                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded text-center focus:ring-2 focus:ring-blue-500"
+                    readOnly
+                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded text-center bg-gray-100 cursor-not-allowed"
+                    title="Valor vinculado à periodização (somente leitura)"
                   />
                 </td>
-                <td className="border border-gray-300 px-4 py-2 text-center text-sm">
+                <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
                   <input
                     type="number"
                     value={distribution.z2}
-                    onChange={(e) => setDistribution({ ...distribution, z2: parseInt(e.target.value) || 0 })}
-                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded text-center focus:ring-2 focus:ring-blue-500"
+                    readOnly
+                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded text-center bg-gray-100 cursor-not-allowed"
+                    title="Valor vinculado à periodização (somente leitura)"
                   />
                 </td>
-                <td className="border border-gray-300 px-4 py-2 text-center text-sm">
+                <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
                   <input
                     type="number"
                     value={distribution.z3}
-                    onChange={(e) => setDistribution({ ...distribution, z3: parseInt(e.target.value) || 0 })}
-                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded text-center focus:ring-2 focus:ring-blue-500"
+                    readOnly
+                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded text-center bg-gray-100 cursor-not-allowed"
+                    title="Valor vinculado à periodização (somente leitura)"
                   />
                 </td>
-                <td className="border border-gray-300 px-4 py-2 text-center text-sm">
+                <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
                   <input
                     type="number"
                     value={distribution.z4}
-                    onChange={(e) => setDistribution({ ...distribution, z4: parseInt(e.target.value) || 0 })}
-                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded text-center focus:ring-2 focus:ring-blue-500"
+                    readOnly
+                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded text-center bg-gray-100 cursor-not-allowed"
+                    title="Valor vinculado à periodização (somente leitura)"
                   />
                 </td>
-                <td className="border border-gray-300 px-4 py-2 text-center text-sm">
+                <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
                   <input
                     type="number"
                     value={distribution.z5}
-                    onChange={(e) => setDistribution({ ...distribution, z5: parseInt(e.target.value) || 0 })}
-                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded text-center focus:ring-2 focus:ring-blue-500"
+                    readOnly
+                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded text-center bg-gray-100 cursor-not-allowed"
+                    title="Valor vinculado à periodização (somente leitura)"
                   />
                 </td>
                 <td className="border border-gray-300 px-4 py-2 text-center text-sm font-semibold bg-blue-50">
@@ -531,28 +637,34 @@ export default function WorkoutBuilderCyclic({ templateData, onChange }: Workout
                 ))}
               </tr>
 
-              {/* Tempo IEXT IINT */}
+              {/* Tempo IEXT IINT - CALCULADO */}
               <tr className="bg-pink-50">
                 <td className="border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-50">
                   Tempo IEXT IINT
                 </td>
-                {days.map((day) => (
-                  <td key={day.dayOfWeek} className="border border-gray-300 px-2 py-2">
-                    {renderCell(day.dayOfWeek, 'iextIintTime')}
-                  </td>
-                ))}
+                {days.map((day) => {
+                  const tempoIEXTIINT = calculateTempoIEXTIINT(day.dayOfWeek);
+                  return (
+                    <td key={day.dayOfWeek} className="border border-gray-300 px-2 py-2 bg-gray-100 text-center text-sm">
+                      {tempoIEXTIINT !== null ? tempoIEXTIINT.toFixed(1) : ''}
+                    </td>
+                  );
+                })}
               </tr>
 
-              {/* %VO2Máx */}
+              {/* %VO2Máx - CALCULADO */}
               <tr className="bg-pink-50">
                 <td className="border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-50">
                   %VO2Máx
                 </td>
-                {days.map((day) => (
-                  <td key={day.dayOfWeek} className="border border-gray-300 px-2 py-2">
-                    {renderCell(day.dayOfWeek, 'vo2Max')}
-                  </td>
-                ))}
+                {days.map((day) => {
+                  const vo2Max = calculateVO2Max(day.dayOfWeek);
+                  return (
+                    <td key={day.dayOfWeek} className="border border-gray-300 px-2 py-2 bg-gray-100 text-center text-sm">
+                      {vo2Max !== null ? `${(vo2Max * 100).toFixed(0)}%` : ''}
+                    </td>
+                  );
+                })}
               </tr>
 
               {/* FC alvo */}
@@ -587,16 +699,21 @@ export default function WorkoutBuilderCyclic({ templateData, onChange }: Workout
                 ))}
               </tr>
 
-              {/* Detalhamento */}
+              {/* Detalhamento - GERADO AUTOMATICAMENTE */}
               <tr className="bg-yellow-50">
                 <td className="border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-50">
                   Detalhamento
                 </td>
-                {days.map((day) => (
-                  <td key={day.dayOfWeek} className="border border-gray-300 px-2 py-2">
-                    {renderCell(day.dayOfWeek, 'detailNotes', 'textarea')}
-                  </td>
-                ))}
+                {days.map((day) => {
+                  const detalhamento = generateDetalhamento(day.dayOfWeek);
+                  return (
+                    <td key={day.dayOfWeek} className="border border-gray-300 px-2 py-2">
+                      <div className="text-xs text-gray-700 whitespace-pre-wrap">
+                        {detalhamento}
+                      </div>
+                    </td>
+                  );
+                })}
               </tr>
             </tbody>
           </table>
