@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, Copy } from 'lucide-react';
+import { ArrowLeft, Save, Copy, CheckCircle, Lock } from 'lucide-react';
 import WorkoutBuilderCyclic from './WorkoutBuilderCyclic';
 import WorkoutBuilderResistance from './WorkoutBuilderResistance';
 import { planService } from '../../services/plan.service';
@@ -35,7 +35,37 @@ export default function WorkoutBuilder2() {
         const plan = await planService.getById(planId);
         setPlanData(plan);
         
-        // TODO: Carregar dados da periodização
+        // TODO: Carregar dados da periodização via API
+        // const periodization = await periodizationService.getCyclicStimulus(planId, mesocycleNumber, weekNumber);
+        
+        // Mock temporário - simular dados da periodização
+        const mockPeriodization = {
+          totalVolumeMinutes: 284,
+          totalVolumeKm: 0,
+          minutesZ1: 71,  // 25% de 284
+          minutesZ2: 114, // 40% de 284
+          minutesZ3: 57,  // 20% de 284
+          minutesZ4: 28,  // 10% de 284
+          minutesZ5: 14   // 5% de 284
+        };
+        
+        // Calcular distribuição percentual
+        const distributionZ1 = mockPeriodization.totalVolumeMinutes > 0 
+          ? Math.round((mockPeriodization.minutesZ1 / mockPeriodization.totalVolumeMinutes) * 100)
+          : 0;
+        const distributionZ2 = mockPeriodization.totalVolumeMinutes > 0
+          ? Math.round((mockPeriodization.minutesZ2 / mockPeriodization.totalVolumeMinutes) * 100)
+          : 0;
+        const distributionZ3 = mockPeriodization.totalVolumeMinutes > 0
+          ? Math.round((mockPeriodization.minutesZ3 / mockPeriodization.totalVolumeMinutes) * 100)
+          : 0;
+        const distributionZ4 = mockPeriodization.totalVolumeMinutes > 0
+          ? Math.round((mockPeriodization.minutesZ4 / mockPeriodization.totalVolumeMinutes) * 100)
+          : 0;
+        const distributionZ5 = mockPeriodization.totalVolumeMinutes > 0
+          ? Math.round((mockPeriodization.minutesZ5 / mockPeriodization.totalVolumeMinutes) * 100)
+          : 0;
+        
         // TODO: Implementar chamada à API de workout
         // const response = await workoutService.getOrCreateTemplate(planId, mesocycleNumber, weekNumber);
         // setTemplateData(response);
@@ -49,8 +79,15 @@ export default function WorkoutBuilder2() {
           weekNumber,
           cyclicFrequency: 4,
           resistanceFrequency: 6,
-          totalVolumeMin: 284,
-          totalVolumeKm: 0,
+          totalVolumeMin: mockPeriodization.totalVolumeMinutes,
+          totalVolumeKm: mockPeriodization.totalVolumeKm,
+          // Distribuição percentual das zonas (vem da periodização)
+          distributionZ1,
+          distributionZ2,
+          distributionZ3,
+          distributionZ4,
+          distributionZ5,
+          released: false,
           workoutDays: []
         });
       }
@@ -96,6 +133,28 @@ export default function WorkoutBuilder2() {
     alert('Funcionalidade de copiar semana será implementada');
   };
 
+  const handleRelease = async () => {
+    try {
+      setSaving(true);
+      // TODO: Implementar chamada à API
+      // await workoutService.releaseTemplate(templateData.id);
+      
+      // Atualizar estado local
+      setTemplateData({
+        ...templateData,
+        released: true,
+        releasedAt: new Date().toISOString()
+      });
+      
+      alert('Treino liberado com sucesso! O atleta já pode visualizá-lo.');
+    } catch (error) {
+      console.error('Erro ao liberar treino:', error);
+      alert('Erro ao liberar treino');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // Calcular tempo de sessão por dia (mock)
   const sessionTimes = {
     seg: 74,
@@ -139,6 +198,27 @@ export default function WorkoutBuilder2() {
             </div>
 
             <div className="flex items-center gap-3">
+              {/* Indicador de Status */}
+              {templateData && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg border" 
+                     style={{ 
+                       backgroundColor: templateData.released ? '#f0fdf4' : '#fef2f2',
+                       borderColor: templateData.released ? '#86efac' : '#fecaca'
+                     }}>
+                  {templateData.released ? (
+                    <>
+                      <CheckCircle className="w-4 h-4 text-green-600" />
+                      <span className="text-sm font-medium text-green-700">Liberado</span>
+                    </>
+                  ) : (
+                    <>
+                      <Lock className="w-4 h-4 text-red-600" />
+                      <span className="text-sm font-medium text-red-700">Não Liberado</span>
+                    </>
+                  )}
+                </div>
+              )}
+              
               {saving && (
                 <span className="text-sm text-gray-500">Salvando...</span>
               )}
@@ -158,6 +238,16 @@ export default function WorkoutBuilder2() {
               >
                 <Save className="w-4 h-4" />
                 Salvar
+              </button>
+
+              <button
+                onClick={() => handleRelease()}
+                disabled={saving || templateData?.released}
+                className="flex items-center gap-2 px-4 py-2 text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title={templateData?.released ? 'Treino já está liberado' : 'Liberar treino para o atleta'}
+              >
+                <CheckCircle className="w-4 h-4" />
+                Liberar
               </button>
             </div>
           </div>

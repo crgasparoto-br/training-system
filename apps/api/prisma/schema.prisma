@@ -755,6 +755,10 @@ model WorkoutTemplate {
   observation1          String?  @db.Text
   observation2          String?  @db.Text
   
+  // Status de Liberação
+  released              Boolean  @default(false) // Se true, o treino está disponível para o atleta
+  releasedAt            DateTime? // Data/hora em que foi liberado
+  
   // Relacionamentos
   workoutDays           WorkoutDay[]
   

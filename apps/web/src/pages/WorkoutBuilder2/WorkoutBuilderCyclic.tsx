@@ -27,18 +27,33 @@ export default function WorkoutBuilderCyclic({ templateData, onChange }: Workout
     7: { sessionDurationMin: 0, stimulusDurationMin: null, location: '', method: '' }
   });
 
-  // Estado para Volume Total e Distribuição (virá da periodização)
-  const [volumeTotalMin, setVolumeTotalMin] = useState(284);
-  const [volumeTotalKm, setVolumeTotalKm] = useState(0);
+  // Estado para Volume Total (virá da periodização)
+  const [volumeTotalMin, setVolumeTotalMin] = useState(templateData?.totalVolumeMin || 284);
+  const [volumeTotalKm, setVolumeTotalKm] = useState(templateData?.totalVolumeKm || 0);
   
   // Distribuição vem da periodização (% Z1, Z2, Z3, Z4, Z5)
   const [distribution, setDistribution] = useState({
-    z1: 25,
-    z2: 40,
-    z3: 20,
-    z4: 10,
-    z5: 5
+    z1: templateData?.distributionZ1 || 25,
+    z2: templateData?.distributionZ2 || 40,
+    z3: templateData?.distributionZ3 || 20,
+    z4: templateData?.distributionZ4 || 10,
+    z5: templateData?.distributionZ5 || 5
   });
+  
+  // Atualizar distribuição quando templateData mudar
+  useEffect(() => {
+    if (templateData) {
+      setVolumeTotalMin(templateData.totalVolumeMin || 284);
+      setVolumeTotalKm(templateData.totalVolumeKm || 0);
+      setDistribution({
+        z1: templateData.distributionZ1 || 25,
+        z2: templateData.distributionZ2 || 40,
+        z3: templateData.distributionZ3 || 20,
+        z4: templateData.distributionZ4 || 10,
+        z5: templateData.distributionZ5 || 5
+      });
+    }
+  }, [templateData]);
 
   // Planejamento (editável)
   const [planning, setPlanning] = useState({
