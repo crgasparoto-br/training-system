@@ -1,9 +1,11 @@
 import { useAuthStore } from '../stores/useAuthStore';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
-import { Activity, Users, Calendar, TrendingUp } from 'lucide-react';
+import { Activity, Users, Calendar, TrendingUp, BookOpen } from 'lucide-react';
 
 export function Dashboard() {
   const { user } = useAuthStore();
+  const navigate = useNavigate();
 
   const stats = [
     {
@@ -108,7 +110,10 @@ export function Dashboard() {
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 md:grid-cols-3">
-            <button className="p-4 border rounded-lg hover:bg-accent transition-colors text-left">
+            <button 
+              onClick={() => navigate('/athletes/new')}
+              className="p-4 border rounded-lg hover:bg-accent transition-colors text-left"
+            >
               <Users className="h-8 w-8 mb-2 text-primary" />
               <h3 className="font-semibold mb-1">Adicionar Atleta</h3>
               <p className="text-sm text-muted-foreground">
@@ -116,7 +121,10 @@ export function Dashboard() {
               </p>
             </button>
 
-            <button className="p-4 border rounded-lg hover:bg-accent transition-colors text-left">
+            <button 
+              onClick={() => navigate('/plans/new')}
+              className="p-4 border rounded-lg hover:bg-accent transition-colors text-left"
+            >
               <Calendar className="h-8 w-8 mb-2 text-primary" />
               <h3 className="font-semibold mb-1">Criar Plano</h3>
               <p className="text-sm text-muted-foreground">
@@ -124,11 +132,14 @@ export function Dashboard() {
               </p>
             </button>
 
-            <button className="p-4 border rounded-lg hover:bg-accent transition-colors text-left">
-              <Activity className="h-8 w-8 mb-2 text-primary" />
-              <h3 className="font-semibold mb-1">Registrar Treino</h3>
+            <button 
+              onClick={() => navigate('/library')}
+              className="p-4 border rounded-lg hover:bg-accent transition-colors text-left"
+            >
+              <BookOpen className="h-8 w-8 mb-2 text-primary" />
+              <h3 className="font-semibold mb-1">Biblioteca de Exercícios</h3>
               <p className="text-sm text-muted-foreground">
-                Registre a execução de um treino
+                Gerencie o catálogo de exercícios
               </p>
             </button>
           </div>

@@ -8,6 +8,7 @@ import { AthleteDetails } from './pages/AthleteDetails';
 import { Plans } from './pages/Plans';
 import { PlanForm } from './pages/PlanForm';
 import { PlanDetails } from './pages/PlanDetails';
+import Library from './pages/Library';
 import { DashboardLayout } from './layouts/DashboardLayout';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
@@ -38,6 +39,7 @@ function App() {
           <Route path="plans/new" element={<PlanForm />} />
           <Route path="plans/:id" element={<PlanDetails />} />
           <Route path="plans/:id/edit" element={<PlanForm />} />
+          <Route path="library" element={<Library />} />
           <Route path="executions" element={<div className="text-center py-12">Página de Execuções (Em desenvolvimento)</div>} />
           <Route path="reports" element={<div className="text-center py-12">Página de Relatórios (Em desenvolvimento)</div>} />
           <Route path="settings" element={<div className="text-center py-12">Página de Configurações (Em desenvolvimento)</div>} />

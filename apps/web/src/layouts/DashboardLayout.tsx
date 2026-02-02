@@ -12,6 +12,7 @@ import {
   Menu,
   X,
   BarChart3,
+  BookOpen,
 } from 'lucide-react';
 
 export function DashboardLayout() {
@@ -29,6 +30,7 @@ export function DashboardLayout() {
     { icon: Home, label: 'Dashboard', path: '/dashboard' },
     { icon: Users, label: 'Atletas', path: '/athletes' },
     { icon: Calendar, label: 'Planos de Treino', path: '/plans' },
+    { icon: BookOpen, label: 'Biblioteca', path: '/library' },
     { icon: Activity, label: 'Execuções', path: '/executions' },
     { icon: BarChart3, label: 'Relatórios', path: '/reports' },
     { icon: Settings, label: 'Configurações', path: '/settings' },
