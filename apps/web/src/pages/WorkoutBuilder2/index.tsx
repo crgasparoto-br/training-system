@@ -3,16 +3,19 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Save, Copy } from 'lucide-react';
 import WorkoutBuilderCyclic from './WorkoutBuilderCyclic';
 import WorkoutBuilderResistance from './WorkoutBuilderResistance';
-import WeeklySummaryGeneral from './WeeklySummaryGeneral';
 
 export default function WorkoutBuilder2() {
-  const { planId, mesocycleNumber, weekNumber } = useParams();
+  const { planId } = useParams();
   const navigate = useNavigate();
   
   const [activeTab, setActiveTab] = useState<'cyclic' | 'resistance'>('cyclic');
   const [templateData, setTemplateData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  // Parâmetros únicos compartilhados
+  const [mesocycleNumber, setMesocycleNumber] = useState(8);
+  const [weekNumber, setWeekNumber] = useState(30);
 
   // Auto-save timer
   const [autoSaveTimer, setAutoSaveTimer] = useState<NodeJS.Timeout | null>(null);
@@ -31,10 +34,10 @@ export default function WorkoutBuilder2() {
       // Mock temporário
       setTemplateData({
         id: '1',
-        mesocycleNumber: parseInt(mesocycleNumber || '1'),
-        weekNumber: parseInt(weekNumber || '1'),
+        mesocycleNumber,
+        weekNumber,
         cyclicFrequency: 4,
-        resistanceFrequency: 2,
+        resistanceFrequency: 6,
         totalVolumeMin: 284,
         totalVolumeKm: 0,
         workoutDays: []
@@ -79,6 +82,17 @@ export default function WorkoutBuilder2() {
     alert('Funcionalidade de copiar semana será implementada');
   };
 
+  // Calcular tempo de sessão por dia (mock)
+  const sessionTimes = {
+    seg: 74,
+    ter: 52,
+    qua: 14,
+    qui: 50,
+    sex: 84,
+    sab: 14,
+    dom: 0
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -105,7 +119,7 @@ export default function WorkoutBuilder2() {
                   Montagem de Treinos
                 </h1>
                 <p className="text-sm text-gray-500">
-                  Meso {mesocycleNumber} - Semana {weekNumber}
+                  Configure os parâmetros e monte os treinos da semana
                 </p>
               </div>
             </div>
@@ -134,59 +148,174 @@ export default function WorkoutBuilder2() {
             </div>
           </div>
         </div>
-
-        {/* Tabs */}
-        <div className="px-6">
-          <div className="flex gap-2 border-b border-gray-200">
-            <button
-              onClick={() => setActiveTab('cyclic')}
-              className={`px-4 py-3 font-medium transition-colors relative ${
-                activeTab === 'cyclic'
-                  ? 'text-blue-600'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              📊 Treinamento Cíclico
-              {activeTab === 'cyclic' && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600"></div>
-              )}
-            </button>
-
-            <button
-              onClick={() => setActiveTab('resistance')}
-              className={`px-4 py-3 font-medium transition-colors relative ${
-                activeTab === 'resistance'
-                  ? 'text-blue-600'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              💪 Treinamento Resistido
-              {activeTab === 'resistance' && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600"></div>
-              )}
-            </button>
-          </div>
-        </div>
       </div>
 
       {/* Content */}
       <div className="px-6 py-6">
-        {/* Resumo Geral */}
-        <WeeklySummaryGeneral templateData={templateData} />
+        {/* Parâmetros Únicos: Meso e Semana (Micro) */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            Parâmetros do Treino
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Mesociclo (Meso)
+              </label>
+              <input
+                type="number"
+                value={mesocycleNumber}
+                onChange={(e) => setMesocycleNumber(parseInt(e.target.value) || 1)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Semana (Microciclo)
+              </label>
+              <input
+                type="number"
+                value={weekNumber}
+                onChange={(e) => setWeekNumber(parseInt(e.target.value) || 1)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+        </div>
 
-        {/* Tab Content */}
-        <div className="mt-6">
-          {activeTab === 'cyclic' ? (
-            <WorkoutBuilderCyclic
-              templateData={templateData}
-              onChange={handleDataChange}
-            />
-          ) : (
-            <WorkoutBuilderResistance
-              templateData={templateData}
-              onChange={handleDataChange}
-            />
-          )}
+        {/* Resumo Geral da Semana */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            Resumo da Semana
+          </h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Frequências */}
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 mb-3">Frequências</h3>
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Frequência Total:</span>
+                  <span className="text-sm font-medium text-gray-900">
+                    {(templateData.cyclicFrequency || 0) + (templateData.resistanceFrequency || 0)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Frequência Cíclico:</span>
+                  <span className="text-sm font-medium text-gray-900">
+                    {templateData.cyclicFrequency || 0}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Frequência Resistido:</span>
+                  <span className="text-sm font-medium text-gray-900">
+                    {templateData.resistanceFrequency || 0}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Volumes */}
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 mb-3">Volumes</h3>
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Volume Total:</span>
+                  <span className="text-sm font-medium text-gray-900">
+                    {templateData.totalVolumeMin || 0} min
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Volume Km:</span>
+                  <span className="text-sm font-medium text-gray-900">
+                    {templateData.totalVolumeKm || 0} km
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Tempo de Sessão por Dia */}
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 mb-3">Tempo sessão total</h3>
+              <div className="overflow-hidden rounded-lg border border-gray-200">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      {['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map((day) => (
+                        <th
+                          key={day}
+                          className="px-2 py-2 text-xs font-medium text-gray-700 text-center"
+                        >
+                          {day}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    <tr>
+                      <td className="px-2 py-2 text-xs text-center text-gray-900">{sessionTimes.seg}</td>
+                      <td className="px-2 py-2 text-xs text-center text-gray-900">{sessionTimes.ter}</td>
+                      <td className="px-2 py-2 text-xs text-center text-gray-900">{sessionTimes.qua}</td>
+                      <td className="px-2 py-2 text-xs text-center text-gray-900">{sessionTimes.qui}</td>
+                      <td className="px-2 py-2 text-xs text-center text-gray-900">{sessionTimes.sex}</td>
+                      <td className="px-2 py-2 text-xs text-center text-gray-900">{sessionTimes.sab}</td>
+                      <td className="px-2 py-2 text-xs text-center text-gray-900">{sessionTimes.dom}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div className="px-6 pt-4">
+            <div className="flex gap-2 border-b border-gray-200">
+              <button
+                onClick={() => setActiveTab('cyclic')}
+                className={`px-4 py-3 font-medium transition-colors relative ${
+                  activeTab === 'cyclic'
+                    ? 'text-blue-600'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                📊 Treinamento Cíclico
+                {activeTab === 'cyclic' && (
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600"></div>
+                )}
+              </button>
+
+              <button
+                onClick={() => setActiveTab('resistance')}
+                className={`px-4 py-3 font-medium transition-colors relative ${
+                  activeTab === 'resistance'
+                    ? 'text-blue-600'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                💪 Treinamento Resistido
+                {activeTab === 'resistance' && (
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600"></div>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Tab Content */}
+          <div className="p-6">
+            {activeTab === 'cyclic' ? (
+              <WorkoutBuilderCyclic
+                templateData={templateData}
+                onChange={handleDataChange}
+              />
+            ) : (
+              <WorkoutBuilderResistance
+                templateData={templateData}
+                onChange={handleDataChange}
+              />
+            )}
+          </div>
         </div>
       </div>
     </div>
