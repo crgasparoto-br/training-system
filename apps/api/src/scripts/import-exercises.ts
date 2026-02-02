@@ -132,6 +132,7 @@ interface ExerciseRow {
   loadType?: string;
   movementType?: string;
   countingType?: string;
+  muscleGroup?: string;
   notes?: string;
 }
 
@@ -181,6 +182,7 @@ async function importExercises(filePath: string) {
         movementType: normalizeMovementType(row.movementType),
         countingType: normalizeCountingType(row.countingType),
         category: determineCategory(normalizedName),
+        muscleGroup: row.muscleGroup?.trim() || undefined,
         notes: row.notes?.trim() || undefined,
       };
 
