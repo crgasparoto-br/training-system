@@ -80,6 +80,44 @@ export interface RecordExecutionDTO {
  */
 export const workoutService = {
   /**
+   * Get or create template (busca ou cria se não existir)
+   */
+  async getOrCreateTemplate(data: CreateWorkoutTemplateDTO) {
+    const existing = await prisma.workoutTemplate.findUnique({
+      where: {
+        planId_mesocycleNumber_weekNumber: {
+          planId: data.planId,
+          mesocycleNumber: data.mesocycleNumber,
+          weekNumber: data.weekNumber,
+        },
+      },
+      include: {
+        plan: true,
+        workoutDays: {
+          include: {
+            exercises: {
+              include: {
+                exercise: true,
+              },
+              orderBy: [
+                { section: 'asc' },
+                { exerciseOrder: 'asc' },
+              ],
+            },
+          },
+          orderBy: { dayOfWeek: 'asc' },
+        },
+      },
+    });
+
+    if (existing) {
+      return existing;
+    }
+
+    return await this.createTemplate(data);
+  },
+
+  /**
    * Criar template semanal de treino
    */
   async createTemplate(data: CreateWorkoutTemplateDTO) {
@@ -168,6 +206,38 @@ export const workoutService = {
   },
 
   /**
+   * Get or create workout day (busca ou cria se não existir)
+   */
+  async getOrCreateDay(data: CreateWorkoutDayDTO) {
+    const existing = await prisma.workoutDay.findUnique({
+      where: {
+        templateId_dayOfWeek: {
+          templateId: data.templateId,
+          dayOfWeek: data.dayOfWeek,
+        },
+      },
+      include: {
+        template: true,
+        exercises: {
+          include: {
+            exercise: true,
+          },
+          orderBy: [
+            { section: 'asc' },
+            { exerciseOrder: 'asc' },
+          ],
+        },
+      },
+    });
+
+    if (existing) {
+      return existing;
+    }
+
+    return await this.createWorkoutDay(data);
+  },
+
+  /**
    * Criar dia de treino
    */
   async createWorkoutDay(data: CreateWorkoutDayDTO) {
@@ -230,6 +300,22 @@ export const workoutService = {
   },
 
   /**
+   * Listar exercícios de um dia
+   */
+  async getExercises(workoutDayId: string) {
+    return await prisma.workoutExercise.findMany({
+      where: { workoutDayId },
+      include: {
+        exercise: true,
+      },
+      orderBy: [
+        { section: 'asc' },
+        { exerciseOrder: 'asc' },
+      ],
+    });
+  },
+
+  /**
    * Adicionar exercício ao dia de treino
    */
   async addExerciseToDay(data: CreateWorkoutExerciseDTO) {
@@ -250,6 +336,125 @@ export const workoutService = {
       where: { id },
       data,
     });
+  },
+
+  /**
+   * Copiar template para outra semana
+   */
+  async copyTemplate(id: string, targetWeekNumber: number, targetWeekStartDate: Date) {
+    const source = await prisma.workoutTemplate.findUnique({
+      where: { id },
+      include: {
+        workoutDays: {
+          include: {
+            exercises: true,
+          },
+        },
+      },
+    });
+
+    if (!source) {
+      throw new Error('Template not found');
+    }
+
+    // Criar novo template
+    const newTemplate = await prisma.workoutTemplate.create({
+      data: {
+        planId: source.planId,
+        mesocycleNumber: source.mesocycleNumber,
+        weekNumber: targetWeekNumber,
+        weekStartDate: targetWeekStartDate,
+        cyclicFrequency: source.cyclicFrequency,
+        resistanceFrequency: source.resistanceFrequency,
+        totalVolumeMin: source.totalVolumeMin,
+        totalVolumeKm: source.totalVolumeKm,
+        loadPercentage: source.loadPercentage,
+        repZone: source.repZone,
+        repReserve: source.repReserve,
+        trainingMethod: source.trainingMethod,
+        trainingDivision: source.trainingDivision,
+        studentGoal: source.studentGoal,
+        coachGoal: source.coachGoal,
+        observation1: source.observation1,
+        observation2: source.observation2,
+      },
+    });
+
+    // Copiar dias e exercícios
+    for (const day of source.workoutDays) {
+      const newDay = await prisma.workoutDay.create({
+        data: {
+          templateId: newTemplate.id,
+          dayOfWeek: day.dayOfWeek,
+          workoutDate: day.workoutDate,
+          sessionDurationMin: day.sessionDurationMin,
+          stimulusDurationMin: day.stimulusDurationMin,
+          location: day.location,
+          method: day.method,
+        },
+      });
+
+      for (const exercise of day.exercises) {
+        await prisma.workoutExercise.create({
+          data: {
+            workoutDayId: newDay.id,
+            exerciseId: exercise.exerciseId,
+            section: exercise.section,
+            exerciseOrder: exercise.exerciseOrder,
+            system: exercise.system,
+            sets: exercise.sets,
+            reps: exercise.reps,
+            intervalSec: exercise.intervalSec,
+            load: exercise.load,
+            exerciseNotes: exercise.exerciseNotes,
+          },
+        });
+      }
+    }
+
+    return await this.getTemplate(source.planId, source.mesocycleNumber, targetWeekNumber);
+  },
+
+  /**
+   * Copiar dia de treino
+   */
+  async copyDay(id: string, targetDayOfWeek: number, targetDate: Date) {
+    const source = await this.getWorkoutDay(id);
+
+    if (!source) {
+      throw new Error('Workout day not found');
+    }
+
+    const newDay = await prisma.workoutDay.create({
+      data: {
+        templateId: source.templateId,
+        dayOfWeek: targetDayOfWeek,
+        workoutDate: targetDate,
+        sessionDurationMin: source.sessionDurationMin,
+        stimulusDurationMin: source.stimulusDurationMin,
+        location: source.location,
+        method: source.method,
+      },
+    });
+
+    for (const exercise of source.exercises) {
+      await prisma.workoutExercise.create({
+        data: {
+          workoutDayId: newDay.id,
+          exerciseId: exercise.exerciseId,
+          section: exercise.section,
+          exerciseOrder: exercise.exerciseOrder,
+          system: exercise.system,
+          sets: exercise.sets,
+          reps: exercise.reps,
+          intervalSec: exercise.intervalSec,
+          load: exercise.load,
+          exerciseNotes: exercise.exerciseNotes,
+        },
+      });
+    }
+
+    return await this.getWorkoutDay(newDay.id);
   },
 
   /**
