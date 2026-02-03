@@ -118,7 +118,7 @@ export default function WorkoutBuilderCyclic({ templateData, onChange }: Workout
     const data = dayData[dayOfWeek];
     if (data?.intensity1 !== null && data?.intensity1 !== undefined && 
         data?.intensity2 !== null && data?.intensity2 !== undefined) {
-      return (data.intensity1 + data.intensity2) / 2;
+      return ((data.intensity1 + data.intensity2) / 2) / 100;
     }
     return null;
   };
@@ -257,27 +257,31 @@ export default function WorkoutBuilderCyclic({ templateData, onChange }: Workout
         {/* Volume Total (separado) */}
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div className="bg-white rounded-lg p-3 border border-gray-200">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Volume Total (min)
-            </label>
-            <input
-              type="number"
-              value={volumeTotalMin}
-              onChange={(e) => setVolumeTotalMin(parseInt(e.target.value) || 0)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-gray-700">
+                Volume Total (min)
+              </label>
+              <input
+                type="number"
+                value={volumeTotalMin}
+                onChange={(e) => setVolumeTotalMin(parseInt(e.target.value) || 0)}
+                className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-right"
+              />
+            </div>
           </div>
           <div className="bg-white rounded-lg p-3 border border-gray-200">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Volume Total (km)
-            </label>
-            <input
-              type="number"
-              step="0.1"
-              value={volumeTotalKm}
-              onChange={(e) => setVolumeTotalKm(parseFloat(e.target.value) || 0)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-gray-700">
+                Volume Total (km)
+              </label>
+              <input
+                type="number"
+                step="0.1"
+                value={volumeTotalKm}
+                onChange={(e) => setVolumeTotalKm(parseFloat(e.target.value) || 0)}
+                className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-right"
+              />
+            </div>
           </div>
         </div>
 
@@ -316,51 +320,46 @@ export default function WorkoutBuilderCyclic({ templateData, onChange }: Workout
                   Distribuição (%)
                 </td>
                 <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
-                  <input
-                    type="number"
-                    value={distribution.z1}
-                    readOnly
-                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded text-center bg-gray-100 cursor-not-allowed"
+                  <span
+                    className="text-sm text-center tabular-nums"
                     title="Valor vinculado à periodização (somente leitura)"
-                  />
+                  >
+                    {distribution.z1}
+                  </span>
                 </td>
                 <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
-                  <input
-                    type="number"
-                    value={distribution.z2}
-                    readOnly
-                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded text-center bg-gray-100 cursor-not-allowed"
+                  <span
+                    className="text-sm text-center tabular-nums"
                     title="Valor vinculado à periodização (somente leitura)"
-                  />
+                  >
+                    {distribution.z2}
+                  </span>
                 </td>
                 <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
-                  <input
-                    type="number"
-                    value={distribution.z3}
-                    readOnly
-                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded text-center bg-gray-100 cursor-not-allowed"
+                  <span
+                    className="text-sm text-center tabular-nums"
                     title="Valor vinculado à periodização (somente leitura)"
-                  />
+                  >
+                    {distribution.z3}
+                  </span>
                 </td>
                 <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
-                  <input
-                    type="number"
-                    value={distribution.z4}
-                    readOnly
-                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded text-center bg-gray-100 cursor-not-allowed"
+                  <span
+                    className="text-sm text-center tabular-nums"
                     title="Valor vinculado à periodização (somente leitura)"
-                  />
+                  >
+                    {distribution.z4}
+                  </span>
                 </td>
                 <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
-                  <input
-                    type="number"
-                    value={distribution.z5}
-                    readOnly
-                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded text-center bg-gray-100 cursor-not-allowed"
+                  <span
+                    className="text-sm text-center tabular-nums"
                     title="Valor vinculado à periodização (somente leitura)"
-                  />
+                  >
+                    {distribution.z5}
+                  </span>
                 </td>
-                <td className="border border-gray-300 px-4 py-2 text-center text-sm font-semibold bg-blue-50">
+                <td className="border border-gray-300 px-4 py-2 text-center text-sm font-semibold tabular-nums bg-blue-50">
                   {getTotalDistribution()}
                 </td>
               </tr>
@@ -706,14 +705,30 @@ export default function WorkoutBuilderCyclic({ templateData, onChange }: Workout
                 </td>
                 {days.map((day) => {
                   const detalhamento = generateDetalhamento(day.dayOfWeek);
+                  const complemento = dayData[day.dayOfWeek]?.complemento || '';
+                  const detalhamentoFinal = complemento
+                    ? `${detalhamento}${detalhamento ? '\n' : ''}${complemento}`
+                    : detalhamento;
                   return (
                     <td key={day.dayOfWeek} className="border border-gray-300 px-2 py-2">
                       <div className="text-xs text-gray-700 whitespace-pre-wrap">
-                        {detalhamento}
+                        {detalhamentoFinal}
                       </div>
                     </td>
                   );
                 })}
+              </tr>
+
+              {/* Complemento - TEXTO LIVRE */}
+              <tr className="bg-yellow-50">
+                <td className="border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-50">
+                  Complemento
+                </td>
+                {days.map((day) => (
+                  <td key={day.dayOfWeek} className="border border-gray-300 px-2 py-2">
+                    {renderCell(day.dayOfWeek, 'complemento', 'textarea')}
+                  </td>
+                ))}
               </tr>
             </tbody>
           </table>

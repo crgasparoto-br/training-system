@@ -1,12 +1,14 @@
 import { useState } from 'react';
+import { ResistedStimulus } from '../../services/periodization.service';
 import ResistanceDayTable from './ResistanceDayTable';
 
 interface WorkoutBuilderResistanceProps {
   templateData: any;
+  resistedSummary: ResistedStimulus | null;
   onChange: (data: any) => void;
 }
 
-export default function WorkoutBuilderResistance({ templateData, onChange }: WorkoutBuilderResistanceProps) {
+export default function WorkoutBuilderResistance({ templateData, resistedSummary, onChange }: WorkoutBuilderResistanceProps) {
   const days = [
     { dayOfWeek: 1, label: 'Segunda-Feira', date: '19/1' },
     { dayOfWeek: 2, label: 'Terça-Feira', date: '20/1' },
@@ -34,132 +36,102 @@ export default function WorkoutBuilderResistance({ templateData, onChange }: Wor
         </h3>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Meso
-            </label>
-            <input
-              type="number"
-              defaultValue={templateData?.mesocycleNumber || 8}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Micro
-            </label>
-            <input
-              type="number"
-              defaultValue={templateData?.weekNumber || 30}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Frequência Resistido
-            </label>
-            <input
-              type="number"
-              defaultValue={6}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Semana
-            </label>
-            <input
-              type="number"
-              defaultValue={2}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="flex items-center gap-3 text-sm font-medium text-gray-700">
               % Carga TR
+              <input
+                type="number"
+                step="0.1"
+                value={resistedSummary?.loadPercentage ?? ''}
+                readOnly
+                className="w-24 px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-right"
+              />
             </label>
-            <input
-              type="number"
-              step="0.1"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="flex items-center gap-3 text-sm font-medium text-gray-700">
               Sér. Gr. M.
+              <input
+                type="number"
+                value={resistedSummary?.seriesReference ?? ''}
+                readOnly
+                className="w-24 px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-right"
+              />
             </label>
-            <input
-              type="number"
-              defaultValue={30}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="flex items-center gap-3 text-sm font-medium text-gray-700">
               Zona Rep.
+              <input
+                type="text"
+                value={resistedSummary?.repZone ?? ''}
+                readOnly
+                className="w-40 px-3 py-2 border border-gray-300 rounded-lg bg-gray-50"
+              />
             </label>
-            <input
-              type="text"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="flex items-center gap-3 text-sm font-medium text-gray-700">
               Rep Reserva
+              <input
+                type="number"
+                value={resistedSummary?.repReserve ?? ''}
+                readOnly
+                className="w-24 px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-right"
+              />
             </label>
-            <input
-              type="number"
-              defaultValue={2}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="flex items-center gap-3 text-sm font-medium text-gray-700">
               Método
+              <input
+                type="text"
+                value={resistedSummary?.method ?? ''}
+                readOnly
+                className="w-40 px-3 py-2 border border-gray-300 rounded-lg bg-gray-50"
+              />
             </label>
-            <input
-              type="text"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="flex items-center gap-3 text-sm font-medium text-gray-700">
               Micro Ciclo
+              <input
+                type="text"
+                value={resistedSummary?.loadCycle ?? ''}
+                readOnly
+                className="w-40 px-3 py-2 border border-gray-300 rounded-lg bg-gray-50"
+              />
             </label>
-            <input
-              type="text"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="flex items-center gap-3 text-sm font-medium text-gray-700">
               Divisão do Treino
+              <input
+                type="text"
+                value={resistedSummary?.trainingDivision ?? ''}
+                readOnly
+                className="w-40 px-3 py-2 border border-gray-300 rounded-lg bg-gray-50"
+              />
             </label>
-            <input
-              type="text"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="flex items-center gap-3 text-sm font-medium text-gray-700">
               Freq. Semanal F
+              <input
+                type="number"
+                value={resistedSummary?.weeklyFrequency ?? ''}
+                readOnly
+                className="w-24 px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-right"
+              />
             </label>
-            <input
-              type="number"
-              defaultValue={6}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
           </div>
         </div>
       </div>

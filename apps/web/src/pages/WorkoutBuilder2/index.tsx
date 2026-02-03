@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, Copy, CheckCircle, Lock } from 'lucide-react';
+import { ArrowLeft, Save, Copy, CheckCircle, Lock, ChevronLeft, ChevronRight } from 'lucide-react';
 import WorkoutBuilderCyclic from './WorkoutBuilderCyclic';
 import WorkoutBuilderResistance from './WorkoutBuilderResistance';
 import { planService } from '../../services/plan.service';
+import { periodizationService, ResistedStimulus } from '../../services/periodization.service';
 
 export default function WorkoutBuilder2() {
   const { planId, mesocycleNumber: mesoParam, weekNumber: weekParam } = useParams();
@@ -12,12 +13,19 @@ export default function WorkoutBuilder2() {
   const [activeTab, setActiveTab] = useState<'cyclic' | 'resistance'>('cyclic');
   const [templateData, setTemplateData] = useState<any>(null);
   const [planData, setPlanData] = useState<any>(null);
+  const [resistedSummary, setResistedSummary] = useState<ResistedStimulus | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   // Parâmetros únicos compartilhados
   const [mesocycleNumber, setMesocycleNumber] = useState(parseInt(mesoParam || '1'));
   const [weekNumber, setWeekNumber] = useState(parseInt(weekParam || '1'));
+
+  const mesoOptions = Array.from(
+    { length: planData?.stats?.totalMesocycles || 12 },
+    (_, index) => index + 1
+  );
+  const weekOptions = Array.from({ length: 4 }, (_, index) => index + 1);
 
   // Auto-save timer
   const [autoSaveTimer, setAutoSaveTimer] = useState<NodeJS.Timeout | null>(null);
@@ -34,6 +42,15 @@ export default function WorkoutBuilder2() {
       if (planId) {
         const plan = await planService.getById(planId);
         setPlanData(plan);
+
+        const matrix = await periodizationService.getMatrixByPlanId(planId);
+        if (matrix) {
+          const resistedStimuli = await periodizationService.getResistedStimulusByMatrix(matrix.id);
+          const groupedResisted = periodizationService.groupResistedByMesocycleAndWeek(resistedStimuli);
+          setResistedSummary(groupedResisted.get(mesocycleNumber)?.get(weekNumber) || null);
+        } else {
+          setResistedSummary(null);
+        }
         
         // TODO: Carregar dados da periodização via API
         // const periodization = await periodizationService.getCyclicStimulus(planId, mesocycleNumber, weekNumber);
@@ -262,27 +279,69 @@ export default function WorkoutBuilder2() {
             Parâmetros do Treino
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setMesocycleNumber((prev) => Math.max(1, prev - 1))}
+                className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                Mesociclo Anterior
+              </button>
+              <label className="flex items-center gap-3 text-sm font-medium text-gray-700">
                 Mesociclo (Meso)
+                <select
+                  value={mesocycleNumber}
+                  onChange={(e) => setMesocycleNumber(parseInt(e.target.value) || 1)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  {mesoOptions.map((value) => (
+                    <option key={value} value={value}>
+                      {value}
+                    </option>
+                  ))}
+                </select>
               </label>
-              <input
-                type="number"
-                value={mesocycleNumber}
-                onChange={(e) => setMesocycleNumber(parseInt(e.target.value) || 1)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
+              <button
+                type="button"
+                onClick={() => setMesocycleNumber((prev) => prev + 1)}
+                className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Próximo Mesociclo
+                <ChevronRight className="w-4 h-4" />
+              </button>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setWeekNumber((prev) => Math.max(1, prev - 1))}
+                className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                Microciclo Anterior
+              </button>
+              <label className="flex items-center gap-3 text-sm font-medium text-gray-700">
                 Semana (Microciclo)
+                <select
+                  value={weekNumber}
+                  onChange={(e) => setWeekNumber(parseInt(e.target.value) || 1)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  {weekOptions.map((value) => (
+                    <option key={value} value={value}>
+                      {value}
+                    </option>
+                  ))}
+                </select>
               </label>
-              <input
-                type="number"
-                value={weekNumber}
-                onChange={(e) => setWeekNumber(parseInt(e.target.value) || 1)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
+              <button
+                type="button"
+                onClick={() => setWeekNumber((prev) => prev + 1)}
+                className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                Próximo Microciclo
+                <ChevronRight className="w-4 h-4" />
+              </button>
             </div>
           </div>
         </div>
@@ -416,6 +475,7 @@ export default function WorkoutBuilder2() {
             ) : (
               <WorkoutBuilderResistance
                 templateData={templateData}
+                resistedSummary={resistedSummary}
                 onChange={handleDataChange}
               />
             )}
