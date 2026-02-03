@@ -30,108 +30,138 @@ export default function WorkoutBuilderResistance({ templateData, resistedSummary
   return (
     <div className="space-y-6">
       {/* Resumo Resistido da Semana */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">
-          Resumo Resistido da Semana
-        </h3>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-
-          <div>
-            <label className="flex items-center gap-3 text-sm font-medium text-gray-700">
-              % Carga TR
-              <input
-                type="number"
-                step="0.1"
-                value={resistedSummary?.loadPercentage ?? ''}
-                readOnly
-                className="w-24 px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-right"
-              />
-            </label>
+      <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-xl shadow-md border border-purple-200 p-6">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center">
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-bold text-gray-900">
+              Resumo Resistido da Semana
+            </h3>
           </div>
+        </div>
 
-          <div>
-            <label className="flex items-center gap-3 text-sm font-medium text-gray-700">
-              Sér. Gr. M.
+        {/* Seção: Parâmetros de Carga */}
+        <div className="mb-6">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-1 h-5 bg-purple-600 rounded-full"></div>
+            <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Parâmetros de Carga</h4>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
+              <label className="block text-xs font-medium text-gray-500 mb-2">
+                % Carga TR
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  step="0.1"
+                  value={resistedSummary?.loadPercentage ?? ''}
+                  readOnly
+                  className="w-full px-3 py-2 text-lg font-semibold border border-gray-300 rounded-lg bg-gray-100 text-center"
+                />
+                <span className="text-gray-500 font-medium">%</span>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
+              <label className="block text-xs font-medium text-gray-500 mb-2">
+                Séries Grandes Músculos
+              </label>
               <input
                 type="number"
                 value={resistedSummary?.seriesReference ?? ''}
                 readOnly
-                className="w-24 px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-right"
+                className="w-full px-3 py-2 text-lg font-semibold border border-gray-300 rounded-lg bg-gray-100 text-center"
               />
-            </label>
-          </div>
+            </div>
 
-          <div>
-            <label className="flex items-center gap-3 text-sm font-medium text-gray-700">
-              Zona Rep.
+            <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
+              <label className="block text-xs font-medium text-gray-500 mb-2">
+                Zona de Repetições
+              </label>
               <input
                 type="text"
                 value={resistedSummary?.repZone ?? ''}
                 readOnly
-                className="w-40 px-3 py-2 border border-gray-300 rounded-lg bg-gray-50"
+                className="w-full px-3 py-2 text-lg font-semibold border border-gray-300 rounded-lg bg-gray-100 text-center"
               />
-            </label>
-          </div>
+            </div>
 
-          <div>
-            <label className="flex items-center gap-3 text-sm font-medium text-gray-700">
-              Rep Reserva
+            <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
+              <label className="block text-xs font-medium text-gray-500 mb-2">
+                Repetições em Reserva
+              </label>
               <input
                 type="number"
                 value={resistedSummary?.repReserve ?? ''}
                 readOnly
-                className="w-24 px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-right"
+                className="w-full px-3 py-2 text-lg font-semibold border border-gray-300 rounded-lg bg-gray-100 text-center"
               />
-            </label>
+            </div>
           </div>
+        </div>
 
-          <div>
-            <label className="flex items-center gap-3 text-sm font-medium text-gray-700">
-              Método
+        {/* Seção: Organização do Treino */}
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-1 h-5 bg-indigo-600 rounded-full"></div>
+            <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Organização do Treino</h4>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
+              <label className="block text-xs font-medium text-gray-500 mb-2">
+                Método
+              </label>
               <input
                 type="text"
                 value={resistedSummary?.method ?? ''}
                 readOnly
-                className="w-40 px-3 py-2 border border-gray-300 rounded-lg bg-gray-50"
+                className="w-full px-3 py-2 text-lg font-semibold border border-gray-300 rounded-lg bg-gray-100 text-center"
               />
-            </label>
-          </div>
+            </div>
 
-          <div>
-            <label className="flex items-center gap-3 text-sm font-medium text-gray-700">
-              Micro Ciclo
+            <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
+              <label className="block text-xs font-medium text-gray-500 mb-2">
+                Micro Ciclo
+              </label>
               <input
                 type="text"
                 value={resistedSummary?.loadCycle ?? ''}
                 readOnly
-                className="w-40 px-3 py-2 border border-gray-300 rounded-lg bg-gray-50"
+                className="w-full px-3 py-2 text-lg font-semibold border border-gray-300 rounded-lg bg-gray-100 text-center"
               />
-            </label>
-          </div>
+            </div>
 
-          <div>
-            <label className="flex items-center gap-3 text-sm font-medium text-gray-700">
-              Divisão do Treino
+            <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
+              <label className="block text-xs font-medium text-gray-500 mb-2">
+                Divisão do Treino
+              </label>
               <input
                 type="text"
                 value={resistedSummary?.trainingDivision ?? ''}
                 readOnly
-                className="w-40 px-3 py-2 border border-gray-300 rounded-lg bg-gray-50"
+                className="w-full px-3 py-2 text-lg font-semibold border border-gray-300 rounded-lg bg-gray-100 text-center"
               />
-            </label>
-          </div>
+            </div>
 
-          <div>
-            <label className="flex items-center gap-3 text-sm font-medium text-gray-700">
-              Freq. Semanal F
-              <input
-                type="number"
-                value={resistedSummary?.weeklyFrequency ?? ''}
-                readOnly
-                className="w-24 px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-right"
-              />
-            </label>
+            <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
+              <label className="block text-xs font-medium text-gray-500 mb-2">
+                Frequência Semanal
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  value={resistedSummary?.weeklyFrequency ?? ''}
+                  readOnly
+                  className="w-full px-3 py-2 text-lg font-semibold border border-gray-300 rounded-lg bg-gray-100 text-center"
+                />
+                <span className="text-gray-500 text-sm">x/sem</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
