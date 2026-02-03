@@ -45,6 +45,13 @@ export default function WorkoutBuilder2() {
     }
   }, [storageKey, templateData]);
 
+  useEffect(() => {
+    if (autoSaveTimer) {
+      clearTimeout(autoSaveTimer);
+      setAutoSaveTimer(null);
+    }
+  }, [mesocycleNumber, weekNumber]);
+
   const loadTemplate = async () => {
     try {
       setLoading(true);
@@ -127,8 +134,9 @@ export default function WorkoutBuilder2() {
           weekNumber,
         };
 
-        if (storageKey) {
-          const cached = localStorage.getItem(storageKey);
+        const cachedKey = storageKey;
+        if (cachedKey) {
+          const cached = localStorage.getItem(cachedKey);
           if (cached) {
             try {
               const cachedData = JSON.parse(cached);
@@ -162,11 +170,12 @@ export default function WorkoutBuilder2() {
 
   const handleDataChange = (newData: any) => {
     setTemplateData(newData);
-    const key = planId
-      ? `workoutBuilder2:${planId}:${mesocycleNumber}:${weekNumber}`
-      : newData?.planId
-        ? `workoutBuilder2:${newData.planId}:${newData.mesocycleNumber}:${newData.weekNumber}`
-        : null;
+    const resolvedPlanId = newData?.planId ?? planId;
+    const resolvedMesocycle = newData?.mesocycleNumber ?? mesocycleNumber;
+    const resolvedWeek = newData?.weekNumber ?? weekNumber;
+    const key = resolvedPlanId
+      ? `workoutBuilder2:${resolvedPlanId}:${resolvedMesocycle}:${resolvedWeek}`
+      : null;
 
     if (key) {
       localStorage.setItem(key, JSON.stringify(newData));
