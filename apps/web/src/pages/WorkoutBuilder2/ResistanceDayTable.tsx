@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { Plus, Edit2, Trash2 } from 'lucide-react';
+import { Exercise as LibraryExercise } from '../../services/library.service';
+import ExerciseSelectionModal from './ExerciseSelectionModal';
 
 interface ResistanceDayTableProps {
   dayOfWeek: number;
@@ -33,9 +35,37 @@ export default function ResistanceDayTable({ dayOfWeek, label, date, data, onCha
     resfriamento: []
   });
 
+  const [showExerciseModal, setShowExerciseModal] = useState(false);
+  const [currentSection, setCurrentSection] = useState<'mobilidade' | 'sessao' | 'resfriamento' | null>(null);
+
   const handleAddExercise = (section: 'mobilidade' | 'sessao' | 'resfriamento') => {
-    // TODO: Abrir modal de seleção de exercícios
-    alert(`Adicionar exercício na seção: ${section}`);
+    setCurrentSection(section);
+    setShowExerciseModal(true);
+  };
+
+  const handleSelectExercise = (libraryExercise: LibraryExercise) => {
+    if (!currentSection) return;
+
+    const newExercise: Exercise = {
+      id: `${Date.now()}-${Math.random()}`,
+      exerciseName: libraryExercise.name,
+      system: libraryExercise.loadType || '',
+      sets: null,
+      reps: null,
+      interval: null,
+      cParam: null,
+      eParam: null,
+      load: null,
+      notes: libraryExercise.notes || '',
+    };
+
+    const newExercises = {
+      ...exercises,
+      [currentSection]: [...exercises[currentSection], newExercise]
+    };
+    setExercises(newExercises);
+    setShowExerciseModal(false);
+    setCurrentSection(null);
   };
 
   const handleEditExercise = (section: string, exerciseId: string) => {
@@ -140,7 +170,19 @@ export default function ResistanceDayTable({ dayOfWeek, label, date, data, onCha
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+    <>
+      {showExerciseModal && (
+        <ExerciseSelectionModal
+          onClose={() => {
+            setShowExerciseModal(false);
+            setCurrentSection(null);
+          }}
+          onSelect={handleSelectExercise}
+          category="RESISTIDO"
+        />
+      )}
+
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200">
       {/* Header do Dia */}
       <div className="px-6 py-4 border-b border-gray-200">
         <div className="flex items-center justify-between">
@@ -239,5 +281,6 @@ export default function ResistanceDayTable({ dayOfWeek, label, date, data, onCha
         </button>
       </div>
     </div>
+    </>
   );
 }
