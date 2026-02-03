@@ -1,10 +1,10 @@
 import axios, { type AxiosError, type AxiosResponse } from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const API_URL = import.meta.env.VITE_API_URL;
 
 // Criar instância do Axios
 export const api = axios.create({
-  baseURL: `${API_URL}/api/v1`,
+  baseURL: API_URL ? `${API_URL}/api/v1` : '/api/v1',
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
