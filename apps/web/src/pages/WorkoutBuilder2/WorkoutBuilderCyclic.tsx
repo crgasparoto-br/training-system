@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 
 interface WorkoutBuilderCyclicProps {
   templateData: any;
@@ -6,26 +6,56 @@ interface WorkoutBuilderCyclicProps {
 }
 
 export default function WorkoutBuilderCyclic({ templateData, onChange }: WorkoutBuilderCyclicProps) {
-  const days = [
-    { dayOfWeek: 1, label: 'Segunda', date: '12/1' },
-    { dayOfWeek: 2, label: 'Terça', date: '13/1' },
-    { dayOfWeek: 3, label: 'Quarta', date: '14/1' },
-    { dayOfWeek: 4, label: 'Quinta', date: '15/1' },
-    { dayOfWeek: 5, label: 'Sexta', date: '16/1' },
-    { dayOfWeek: 6, label: 'Sábado', date: '17/1' },
-    { dayOfWeek: 7, label: 'Domingo', date: '18/1' }
-  ];
+  const lastHydratedKey = useRef<string | null>(null);
+  const normalizeWorkoutDays = (workoutDays: any) => {
+    if (Array.isArray(workoutDays)) {
+      return workoutDays.reduce<Record<number, any>>((acc, day) => {
+        acc[day.dayOfWeek] = {
+          ...day,
+          complementNotes: day.complementNotes ?? day.complemento ?? ''
+        };
+        return acc;
+      }, {});
+    }
+    if (workoutDays && typeof workoutDays === 'object') {
+      return Object.entries(workoutDays).reduce<Record<number, any>>((acc, [key, day]) => {
+        const dayOfWeek = day?.dayOfWeek ?? Number(key);
+        acc[dayOfWeek] = {
+          ...day,
+          dayOfWeek,
+          complementNotes: day?.complementNotes ?? day?.complemento ?? ''
+        };
+        return acc;
+      }, {});
+    }
+    return workoutDays;
+  };
+  const days = useMemo(() => {
+    const labels = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
+    const start = templateData?.weekStartDate ? new Date(templateData.weekStartDate) : new Date();
 
-  // Estado inicial com dados do print
-  const [dayData, setDayData] = useState<any>({
-    1: { sessionDurationMin: 74, stimulusDurationMin: 25, location: 'Esteira', method: 'CEXT', intensity1: 50, intensity2: 60, numSessions: 1, targetHrMin: 105.5, targetHrMax: 116.2, targetSpeedMin: 8.5, targetSpeedMax: 10.9 },
-    2: { sessionDurationMin: 52, stimulusDurationMin: 5, location: 'Bicicleta', method: 'IINT', intensity2: 120, numSessions: 1, numSets: 5 },
-    3: { sessionDurationMin: 14, stimulusDurationMin: null, location: '', method: '' },
-    4: { sessionDurationMin: 50, stimulusDurationMin: 6, location: 'Corda', method: 'IINT', intensity2: 120, numSessions: 2, numSets: 1, sessionTime: 180 },
-    5: { sessionDurationMin: 84, stimulusDurationMin: 35, location: 'Esteira', method: 'CEXT', intensity1: 50, intensity2: 60, targetHrMin: 105.5, targetHrMax: 116.2, targetSpeedMin: 8.5, targetSpeedMax: 10.9 },
-    6: { sessionDurationMin: 14, stimulusDurationMin: null, location: 'Pista', method: '' },
-    7: { sessionDurationMin: 0, stimulusDurationMin: null, location: '', method: '' }
-  });
+    return labels.map((label, index) => {
+      const date = new Date(start);
+      date.setDate(start.getDate() + index);
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+
+      return {
+        dayOfWeek: index + 1,
+        label,
+        date: `${day}/${month}`
+      };
+    });
+  }, [templateData?.weekStartDate]);
+
+  const getWorkoutDate = (dayOfWeek: number) => {
+    const start = templateData?.weekStartDate ? new Date(templateData.weekStartDate) : new Date();
+    const date = new Date(start);
+    date.setDate(start.getDate() + (dayOfWeek - 1));
+    return date.toISOString();
+  };
+
+  const [dayData, setDayData] = useState<any>({});
 
   // Estado para Volume Total (virá da periodização)
   const [volumeTotalMin, setVolumeTotalMin] = useState(templateData?.totalVolumeMin || 284);
@@ -40,21 +70,6 @@ export default function WorkoutBuilderCyclic({ templateData, onChange }: Workout
     z5: templateData?.distributionZ5 || 5
   });
   
-  // Atualizar distribuição quando templateData mudar
-  useEffect(() => {
-    if (templateData) {
-      setVolumeTotalMin(templateData.totalVolumeMin || 284);
-      setVolumeTotalKm(templateData.totalVolumeKm || 0);
-      setDistribution({
-        z1: templateData.distributionZ1 || 25,
-        z2: templateData.distributionZ2 || 40,
-        z3: templateData.distributionZ3 || 20,
-        z4: templateData.distributionZ4 || 10,
-        z5: templateData.distributionZ5 || 5
-      });
-    }
-  }, [templateData]);
-
   // Planejamento (editável)
   const [planning, setPlanning] = useState({
     z1: 60,
@@ -63,6 +78,50 @@ export default function WorkoutBuilderCyclic({ templateData, onChange }: Workout
     z4: 0,
     z5: 0
   });
+
+  // Hidratar dados quando o template mudar (evita sobrescrever edição)
+  useEffect(() => {
+    if (!templateData) return;
+    const templateKey = `${templateData.id || ''}:${templateData.planId || ''}:${templateData.mesocycleNumber || ''}:${templateData.weekNumber || ''}`;
+    if (lastHydratedKey.current === templateKey) return;
+
+    if (templateData.workoutDays) {
+      setDayData(normalizeWorkoutDays(templateData.workoutDays));
+    } else {
+      setDayData({});
+    }
+
+    setVolumeTotalMin(templateData.totalVolumeMin || 284);
+    setVolumeTotalKm(templateData.totalVolumeKm || 0);
+    setDistribution({
+      z1: templateData.distributionZ1 || 25,
+      z2: templateData.distributionZ2 || 40,
+      z3: templateData.distributionZ3 || 20,
+      z4: templateData.distributionZ4 || 10,
+      z5: templateData.distributionZ5 || 5
+    });
+
+    lastHydratedKey.current = templateKey;
+  }, [templateData]);
+
+  useEffect(() => {
+    if (!templateData) return;
+    onChange({
+      ...templateData,
+      totalVolumeMin: volumeTotalMin,
+      totalVolumeKm: volumeTotalKm,
+      distributionZ1: distribution.z1,
+      distributionZ2: distribution.z2,
+      distributionZ3: distribution.z3,
+      distributionZ4: distribution.z4,
+      distributionZ5: distribution.z5,
+      planningZ1: planning.z1,
+      planningZ2: planning.z2,
+      planningZ3: planning.z3,
+      planningZ4: planning.z4,
+      planningZ5: planning.z5,
+    });
+  }, [volumeTotalMin, volumeTotalKm, distribution, planning]);
 
   // Cálculos automáticos
   const calculateAbsolute = (zone: keyof typeof distribution) => {
@@ -195,10 +254,13 @@ export default function WorkoutBuilderCyclic({ templateData, onChange }: Workout
   };
 
   const handleChange = (dayOfWeek: number, field: string, value: any) => {
+    const currentDay = dayData[dayOfWeek] || { dayOfWeek };
     const newDayData = {
       ...dayData,
       [dayOfWeek]: {
-        ...dayData[dayOfWeek],
+        ...currentDay,
+        dayOfWeek,
+        workoutDate: getWorkoutDate(dayOfWeek),
         [field]: value
       }
     };
@@ -492,18 +554,6 @@ export default function WorkoutBuilderCyclic({ templateData, onChange }: Workout
             </thead>
 
             <tbody>
-              {/* Tempo da sessão */}
-              <tr>
-                <td className="border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-50">
-                  Tempo da sessão
-                </td>
-                {days.map((day) => (
-                  <td key={day.dayOfWeek} className="border border-gray-300 px-2 py-2">
-                    {renderCell(day.dayOfWeek, 'sessionDurationMin')}
-                  </td>
-                ))}
-              </tr>
-
               {/* Tempo do estímulo */}
               <tr>
                 <td className="border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-50">
@@ -705,7 +755,7 @@ export default function WorkoutBuilderCyclic({ templateData, onChange }: Workout
                 </td>
                 {days.map((day) => {
                   const detalhamento = generateDetalhamento(day.dayOfWeek);
-                  const complemento = dayData[day.dayOfWeek]?.complemento || '';
+                  const complemento = dayData[day.dayOfWeek]?.complementNotes || '';
                   const detalhamentoFinal = complemento
                     ? `${detalhamento}${detalhamento ? '\n' : ''}${complemento}`
                     : detalhamento;
@@ -726,7 +776,7 @@ export default function WorkoutBuilderCyclic({ templateData, onChange }: Workout
                 </td>
                 {days.map((day) => (
                   <td key={day.dayOfWeek} className="border border-gray-300 px-2 py-2">
-                    {renderCell(day.dayOfWeek, 'complemento', 'textarea')}
+                    {renderCell(day.dayOfWeek, 'complementNotes', 'textarea')}
                   </td>
                 ))}
               </tr>

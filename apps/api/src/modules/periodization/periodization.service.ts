@@ -344,25 +344,25 @@ export const periodizationService = {
   /**
    * Obter parâmetros por categoria
    */
-  async getParametersByCategory(category: string) {
+  async getParametersByCategory(category: string, includeInactive = false) {
     return await prisma.trainingParameter.findMany({
-      where: { category, active: true },
+      where: includeInactive ? { category } : { category, active: true },
       orderBy: { order: 'asc' },
     });
-  },
+  }
 
   /**
    * Obter todos os parâmetros
    */
-  async getAllParameters() {
+  async getAllParameters(includeInactive = false) {
     return await prisma.trainingParameter.findMany({
-      where: { active: true },
+      where: includeInactive ? {} : { active: true },
       orderBy: [
         { category: 'asc' },
         { order: 'asc' },
       ],
     });
-  },
+  }
 
   /**
    * Atualizar parâmetro

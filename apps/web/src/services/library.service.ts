@@ -34,6 +34,15 @@ export interface CreateExerciseDTO {
   notes?: string;
 }
 
+export interface StudentExerciseProgress {
+  athleteId: string;
+  exerciseId: string;
+  lastLoad?: number | null;
+  maxLoad?: number | null;
+  lastUpdated?: string | null;
+  exercise?: Exercise;
+}
+
 export const libraryService = {
   async listExercises(filters?: ExerciseFilters): Promise<Exercise[]> {
     const params = new URLSearchParams();
@@ -65,5 +74,10 @@ export const libraryService = {
 
   async deleteExercise(id: string): Promise<void> {
     await api.delete(`/library/exercises/${id}`);
+  },
+
+  async getStudentProgress(athleteId: string, exerciseId: string): Promise<StudentExerciseProgress | null> {
+    const response = await api.get(`/library/progress/${athleteId}/${exerciseId}`);
+    return response.data;
   },
 };

@@ -36,7 +36,8 @@ export function DashboardLayout() {
     { icon: Settings, label: 'Configurações', path: '/settings' },
   ];
 
-  const isActive = (path: string) => location.pathname === path;
+  const isActive = (path: string) =>
+    location.pathname === path || location.pathname.startsWith(`${path}/`);
 
   return (
     <div className="min-h-screen bg-background">
@@ -80,22 +81,42 @@ export function DashboardLayout() {
               const Icon = item.icon;
               const active = isActive(item.path);
               return (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  onClick={() => setIsSidebarOpen(false)}
-                  className={`
-                    flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors
-                    ${
-                      active
-                        ? 'bg-primary text-primary-foreground'
-                        : 'hover:bg-accent hover:text-accent-foreground'
-                    }
-                  `}
-                >
-                  <Icon size={20} />
-                  {item.label}
-                </Link>
+                <div key={item.path} className="space-y-1">
+                  <Link
+                    to={item.path}
+                    onClick={() => setIsSidebarOpen(false)}
+                    className={`
+                      flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors
+                      ${
+                        active
+                          ? 'bg-primary text-primary-foreground'
+                          : 'hover:bg-accent hover:text-accent-foreground'
+                      }
+                    `}
+                  >
+                    <Icon size={20} />
+                    {item.label}
+                  </Link>
+
+                  {item.path === '/settings' && (
+                    <div className="ml-9 flex flex-col gap-1">
+                      <Link
+                        to="/settings/parameters"
+                        onClick={() => setIsSidebarOpen(false)}
+                        className={`
+                          rounded-md px-3 py-2 text-xs font-medium transition-colors
+                          ${
+                            isActive('/settings/parameters')
+                              ? 'bg-blue-50 text-blue-700'
+                              : 'text-gray-600 hover:bg-accent'
+                          }
+                        `}
+                      >
+                        Parâmetros
+                      </Link>
+                    </div>
+                  )}
+                </div>
               );
             })}
           </nav>

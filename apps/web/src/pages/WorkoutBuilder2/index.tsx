@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, Copy, CheckCircle, Lock, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Copy, CheckCircle, Lock, ChevronLeft, ChevronRight } from 'lucide-react';
 import WorkoutBuilderCyclic from './WorkoutBuilderCyclic';
 import WorkoutBuilderResistance from './WorkoutBuilderResistance';
 import { planService } from '../../services/plan.service';
 import { periodizationService, ResistedStimulus } from '../../services/periodization.service';
+import { workoutService } from '../../services/workout.service';
 
 export default function WorkoutBuilder2() {
   const { planId, mesocycleNumber: mesoParam, weekNumber: weekParam } = useParams();
@@ -26,6 +27,10 @@ export default function WorkoutBuilder2() {
     (_, index) => index + 1
   );
   const weekOptions = Array.from({ length: 4 }, (_, index) => index + 1);
+  const storageKey = useMemo(() => {
+    if (!planId) return null;
+    return `workoutBuilder2:${planId}:${mesocycleNumber}:${weekNumber}`;
+  }, [planId, mesocycleNumber, weekNumber]);
 
   // Auto-save timer
   const [autoSaveTimer, setAutoSaveTimer] = useState<NodeJS.Timeout | null>(null);
@@ -34,9 +39,16 @@ export default function WorkoutBuilder2() {
     loadTemplate();
   }, [planId, mesocycleNumber, weekNumber]);
 
+  useEffect(() => {
+    if (storageKey && templateData) {
+      localStorage.setItem(storageKey, JSON.stringify(templateData));
+    }
+  }, [storageKey, templateData]);
+
   const loadTemplate = async () => {
     try {
       setLoading(true);
+      setTemplateData(null);
       
       // Carregar dados do plano
       if (planId) {
@@ -83,30 +95,61 @@ export default function WorkoutBuilder2() {
           ? Math.round((mockPeriodization.minutesZ5 / mockPeriodization.totalVolumeMinutes) * 100)
           : 0;
         
-        // TODO: Implementar chamada à API de workout
-        // const response = await workoutService.getOrCreateTemplate(planId, mesocycleNumber, weekNumber);
-        // setTemplateData(response);
-        
-        // Mock temporário
-        setTemplateData({
-          id: '1',
+        const weeksPerMesocycle = matrix?.weeksPerMesocycle ?? 4;
+
+        const weekStartDate = (() => {
+          const start = new Date(plan.startDate);
+          const weekIndex = (mesocycleNumber - 1) * weeksPerMesocycle + (weekNumber - 1);
+          const date = new Date(start);
+          date.setDate(start.getDate() + weekIndex * 7);
+          return date.toISOString();
+        })();
+
+        const templateFromApi = await workoutService.getOrCreateTemplate({
           planId,
-          athleteId: plan.athlete.id,
           mesocycleNumber,
           weekNumber,
-          cyclicFrequency: 4,
-          resistanceFrequency: 6,
+          weekStartDate
+        });
+
+        const mergedTemplate = {
+          ...templateFromApi,
+          athleteId: plan.athleteId,
           totalVolumeMin: mockPeriodization.totalVolumeMinutes,
           totalVolumeKm: mockPeriodization.totalVolumeKm,
-          // Distribuição percentual das zonas (vem da periodização)
           distributionZ1,
           distributionZ2,
           distributionZ3,
           distributionZ4,
           distributionZ5,
-          released: false,
-          workoutDays: []
-        });
+          weekStartDate: templateFromApi.weekStartDate || weekStartDate,
+          mesocycleNumber,
+          weekNumber,
+        };
+
+        if (storageKey) {
+          const cached = localStorage.getItem(storageKey);
+          if (cached) {
+            try {
+              const cachedData = JSON.parse(cached);
+              setTemplateData({
+                ...mergedTemplate,
+                ...cachedData,
+                id: templateFromApi.id,
+                weekStartDate: mergedTemplate.weekStartDate,
+                mesocycleNumber,
+                weekNumber,
+                planId
+              });
+            } catch (error) {
+              setTemplateData(mergedTemplate);
+            }
+          } else {
+            setTemplateData(mergedTemplate);
+          }
+        } else {
+          setTemplateData(mergedTemplate);
+        }
       }
     } catch (error) {
       console.error('Erro ao carregar template:', error);
@@ -119,6 +162,15 @@ export default function WorkoutBuilder2() {
 
   const handleDataChange = (newData: any) => {
     setTemplateData(newData);
+    const key = planId
+      ? `workoutBuilder2:${planId}:${mesocycleNumber}:${weekNumber}`
+      : newData?.planId
+        ? `workoutBuilder2:${newData.planId}:${newData.mesocycleNumber}:${newData.weekNumber}`
+        : null;
+
+    if (key) {
+      localStorage.setItem(key, JSON.stringify(newData));
+    }
     
     // Auto-save após 2 segundos de inatividade
     if (autoSaveTimer) {
@@ -135,9 +187,67 @@ export default function WorkoutBuilder2() {
   const handleSave = async (data: any = templateData) => {
     try {
       setSaving(true);
-      // TODO: Implementar chamada à API
-      // await workoutService.updateTemplate(data);
-      console.log('Salvando...', data);
+      if (data?.id) {
+        await workoutService.updateTemplate(data.id, {
+          cyclicFrequency: data.cyclicFrequency,
+          resistanceFrequency: data.resistanceFrequency,
+          totalVolumeMin: data.totalVolumeMin,
+          totalVolumeKm: data.totalVolumeKm,
+          loadPercentage: data.loadPercentage,
+          repZone: data.repZone,
+          repReserve: data.repReserve,
+          trainingMethod: data.trainingMethod,
+          trainingDivision: data.trainingDivision,
+          studentGoal: data.studentGoal,
+          coachGoal: data.coachGoal,
+          observation1: data.observation1,
+          observation2: data.observation2,
+        });
+
+        if (data.workoutDays) {
+          const daysArray = Array.isArray(data.workoutDays)
+            ? data.workoutDays
+            : Object.values(data.workoutDays);
+
+          const weekStart = data.weekStartDate ? new Date(data.weekStartDate) : null;
+
+          for (const day of daysArray) {
+            if (!day?.dayOfWeek) continue;
+
+            const workoutDate = day.workoutDate
+              ? new Date(day.workoutDate)
+              : weekStart
+                ? new Date(new Date(weekStart).setDate(weekStart.getDate() + (day.dayOfWeek - 1)))
+                : new Date();
+
+            const savedDay = await workoutService.getOrCreateDay({
+              templateId: data.id,
+              dayOfWeek: day.dayOfWeek,
+              workoutDate: workoutDate.toISOString(),
+            });
+
+            await workoutService.updateDay(savedDay.id, {
+              sessionDurationMin: day.sessionDurationMin,
+              stimulusDurationMin: day.stimulusDurationMin,
+              location: day.location,
+              method: day.method,
+              intensity1: day.intensity1,
+              intensity2: day.intensity2,
+              numSessions: day.numSessions,
+              numSets: day.numSets,
+              sessionTime: day.sessionTime,
+              restTime: day.restTime,
+              targetHrMin: day.targetHrMin,
+              targetHrMax: day.targetHrMax,
+              targetSpeedMin: day.targetSpeedMin,
+              targetSpeedMax: day.targetSpeedMax,
+              detailNotes: day.detailNotes,
+              complementNotes: day.complementNotes,
+              generalGuidelines: day.generalGuidelines,
+            });
+          }
+        }
+      }
     } catch (error) {
       console.error('Erro ao salvar:', error);
     } finally {
@@ -217,7 +327,7 @@ export default function WorkoutBuilder2() {
       {/* Header */}
       <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
         <div className="px-6 py-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center gap-6">
             <div className="flex items-center gap-4">
               <button
                 onClick={() => navigate(-1)}
@@ -270,15 +380,6 @@ export default function WorkoutBuilder2() {
               </button>
 
               <button
-                onClick={() => handleSave()}
-                disabled={saving}
-                className="flex items-center gap-2 px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-              >
-                <Save className="w-4 h-4" />
-                Salvar
-              </button>
-
-              <button
                 onClick={() => handleRelease()}
                 disabled={saving || templateData?.released}
                 className="flex items-center gap-2 px-4 py-2 text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -295,7 +396,7 @@ export default function WorkoutBuilder2() {
       {/* Content */}
       <div className="px-6 py-6">
         {/* Parâmetros Únicos: Meso e Semana (Micro) */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6 max-w-[1800px]">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
             Parâmetros do Treino
           </h2>
@@ -310,7 +411,7 @@ export default function WorkoutBuilder2() {
                 Mesociclo Anterior
               </button>
               <label className="flex items-center gap-3 text-sm font-medium text-gray-700">
-                Mesociclo (Meso)
+                Mesociclo
                 <select
                   value={mesocycleNumber}
                   onChange={(e) => setMesocycleNumber(parseInt(e.target.value) || 1)}
@@ -342,7 +443,7 @@ export default function WorkoutBuilder2() {
                 Microciclo Anterior
               </button>
               <label className="flex items-center gap-3 text-sm font-medium text-gray-700">
-                Semana (Microciclo)
+                Microciclo
                 <select
                   value={weekNumber}
                   onChange={(e) => setWeekNumber(parseInt(e.target.value) || 1)}
@@ -368,7 +469,7 @@ export default function WorkoutBuilder2() {
         </div>
 
         {/* Resumo Geral da Semana */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6 max-w-[1800px]">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
             Resumo da Semana
           </h2>
@@ -431,55 +532,44 @@ export default function WorkoutBuilder2() {
                         Treinamentos
                       </th>
                       {['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map((day) => (
-                        <th
-                          key={day}
-                          className="px-2 py-2 text-xs font-medium text-gray-700 text-center"
-                        >
+                        <th key={day} className="px-2 py-2 text-xs font-medium text-gray-700 text-center">
                           {day}
                         </th>
                       ))}
-                      <th className="px-2 py-2 text-xs font-medium text-gray-700 text-center">
-                        Total
-                      </th>
+                      <th className="px-2 py-2 text-xs font-medium text-gray-700 text-center">Total</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     <tr>
-                      <td className="px-2 py-2 text-xs text-gray-600">Cíclico</td>
-                      <td className="px-2 py-2 text-sm text-center text-gray-900">{cyclicTimes.seg}</td>
-                      <td className="px-2 py-2 text-sm text-center text-gray-900">{cyclicTimes.ter}</td>
-                      <td className="px-2 py-2 text-sm text-center text-gray-900">{cyclicTimes.qua}</td>
-                      <td className="px-2 py-2 text-sm text-center text-gray-900">{cyclicTimes.qui}</td>
-                      <td className="px-2 py-2 text-sm text-center text-gray-900">{cyclicTimes.sex}</td>
-                      <td className="px-2 py-2 text-sm text-center text-gray-900">{cyclicTimes.sab}</td>
-                      <td className="px-2 py-2 text-sm text-center text-gray-900">{cyclicTimes.dom}</td>
-                      <td className="px-2 py-2 text-sm text-center text-gray-900 font-medium">
+                      <td className="px-2 py-2 text-xs font-medium text-gray-700">Cíclico</td>
+                      {Object.values(cyclicTimes).map((value, idx) => (
+                        <td key={idx} className="px-2 py-2 text-xs text-gray-700 text-center">
+                          {value}
+                        </td>
+                      ))}
+                      <td className="px-2 py-2 text-xs text-gray-700 text-center font-semibold">
                         {sumTimes(cyclicTimes)}
                       </td>
                     </tr>
                     <tr>
-                      <td className="px-2 py-2 text-xs text-gray-600">Resistido</td>
-                      <td className="px-2 py-2 text-sm text-center text-gray-900">{resistanceTimes.seg}</td>
-                      <td className="px-2 py-2 text-sm text-center text-gray-900">{resistanceTimes.ter}</td>
-                      <td className="px-2 py-2 text-sm text-center text-gray-900">{resistanceTimes.qua}</td>
-                      <td className="px-2 py-2 text-sm text-center text-gray-900">{resistanceTimes.qui}</td>
-                      <td className="px-2 py-2 text-sm text-center text-gray-900">{resistanceTimes.sex}</td>
-                      <td className="px-2 py-2 text-sm text-center text-gray-900">{resistanceTimes.sab}</td>
-                      <td className="px-2 py-2 text-sm text-center text-gray-900">{resistanceTimes.dom}</td>
-                      <td className="px-2 py-2 text-sm text-center text-gray-900 font-medium">
+                      <td className="px-2 py-2 text-xs font-medium text-gray-700">Resistido</td>
+                      {Object.values(resistanceTimes).map((value, idx) => (
+                        <td key={idx} className="px-2 py-2 text-xs text-gray-700 text-center">
+                          {value}
+                        </td>
+                      ))}
+                      <td className="px-2 py-2 text-xs text-gray-700 text-center font-semibold">
                         {sumTimes(resistanceTimes)}
                       </td>
                     </tr>
                     <tr className="bg-blue-50">
-                      <td className="px-2 py-2 text-xs text-gray-700 font-semibold">Tempo da Sessão</td>
-                      <td className="px-2 py-2 text-xs text-center text-gray-900 font-semibold">{sessionTimes.seg}</td>
-                      <td className="px-2 py-2 text-xs text-center text-gray-900 font-semibold">{sessionTimes.ter}</td>
-                      <td className="px-2 py-2 text-xs text-center text-gray-900 font-semibold">{sessionTimes.qua}</td>
-                      <td className="px-2 py-2 text-xs text-center text-gray-900 font-semibold">{sessionTimes.qui}</td>
-                      <td className="px-2 py-2 text-xs text-center text-gray-900 font-semibold">{sessionTimes.sex}</td>
-                      <td className="px-2 py-2 text-xs text-center text-gray-900 font-semibold">{sessionTimes.sab}</td>
-                      <td className="px-2 py-2 text-xs text-center text-gray-900 font-semibold">{sessionTimes.dom}</td>
-                      <td className="px-2 py-2 text-xs text-center text-gray-900 font-semibold">
+                      <td className="px-2 py-2 text-xs font-medium text-gray-700">Tempo da Sessão</td>
+                      {Object.values(sessionTimes).map((value, idx) => (
+                        <td key={idx} className="px-2 py-2 text-xs text-gray-700 text-center font-semibold">
+                          {value}
+                        </td>
+                      ))}
+                      <td className="px-2 py-2 text-xs text-gray-700 text-center font-semibold">
                         {sumTimes(sessionTimes)}
                       </td>
                     </tr>

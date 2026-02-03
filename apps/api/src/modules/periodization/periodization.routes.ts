@@ -309,13 +309,17 @@ router.post('/parameters', educatorMiddleware, async (req: Request, res: Respons
  */
 router.get('/parameters', async (req: Request, res: Response) => {
   try {
-    const { category } = req.query;
+    const { category, includeInactive } = req.query;
+    const includeInactiveFlag = includeInactive === 'true';
 
     let parameters;
     if (category) {
-      parameters = await periodizationService.getParametersByCategory(category as string);
+      parameters = await periodizationService.getParametersByCategory(
+        category as string,
+        includeInactiveFlag
+      );
     } else {
-      parameters = await periodizationService.getAllParameters();
+      parameters = await periodizationService.getAllParameters(includeInactiveFlag);
     }
 
     return sendSuccess(res, parameters);

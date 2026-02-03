@@ -198,8 +198,9 @@ export const periodizationService = {
     return response.data.data;
   },
 
-  async getAllParameters(): Promise<TrainingParameter[]> {
-    const response = await api.get('/periodization/parameters');
+  async getAllParameters(includeInactive = false): Promise<TrainingParameter[]> {
+    const query = includeInactive ? '?includeInactive=true' : '';
+    const response = await api.get(`/periodization/parameters${query}`);
     return response.data.data;
   },
 
