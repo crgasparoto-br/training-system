@@ -40,10 +40,19 @@ export default function WorkoutBuilder2() {
   }, [planId, mesocycleNumber, weekNumber]);
 
   useEffect(() => {
-    if (storageKey && templateData) {
-      localStorage.setItem(storageKey, JSON.stringify(templateData));
+    if (!storageKey || !templateData) return;
+    if (templateData.mesocycleNumber !== mesocycleNumber || templateData.weekNumber !== weekNumber) {
+      return;
     }
-  }, [storageKey, templateData]);
+    localStorage.setItem(storageKey, JSON.stringify(templateData));
+  }, [storageKey, templateData, mesocycleNumber, weekNumber]);
+
+  useEffect(() => {
+    if (autoSaveTimer) {
+      clearTimeout(autoSaveTimer);
+      setAutoSaveTimer(null);
+    }
+  }, [mesocycleNumber, weekNumber]);
 
   const loadTemplate = async () => {
     try {
@@ -127,8 +136,9 @@ export default function WorkoutBuilder2() {
           weekNumber,
         };
 
-        if (storageKey) {
-          const cached = localStorage.getItem(storageKey);
+        const cachedKey = storageKey;
+        if (cachedKey) {
+          const cached = localStorage.getItem(cachedKey);
           if (cached) {
             try {
               const cachedData = JSON.parse(cached);
@@ -162,11 +172,12 @@ export default function WorkoutBuilder2() {
 
   const handleDataChange = (newData: any) => {
     setTemplateData(newData);
-    const key = planId
-      ? `workoutBuilder2:${planId}:${mesocycleNumber}:${weekNumber}`
-      : newData?.planId
-        ? `workoutBuilder2:${newData.planId}:${newData.mesocycleNumber}:${newData.weekNumber}`
-        : null;
+    const resolvedPlanId = newData?.planId ?? planId;
+    const resolvedMesocycle = newData?.mesocycleNumber ?? mesocycleNumber;
+    const resolvedWeek = newData?.weekNumber ?? weekNumber;
+    const key = resolvedPlanId
+      ? `workoutBuilder2:${resolvedPlanId}:${resolvedMesocycle}:${resolvedWeek}`
+      : null;
 
     if (key) {
       localStorage.setItem(key, JSON.stringify(newData));
