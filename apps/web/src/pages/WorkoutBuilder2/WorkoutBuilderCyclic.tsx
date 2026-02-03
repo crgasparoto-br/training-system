@@ -100,6 +100,13 @@ export default function WorkoutBuilderCyclic({ templateData, onChange }: Workout
       z4: templateData.distributionZ4 || 10,
       z5: templateData.distributionZ5 || 5
     });
+    setPlanning({
+      z1: templateData.planningZ1 ?? 60,
+      z2: templateData.planningZ2 ?? 0,
+      z3: templateData.planningZ3 ?? 0,
+      z4: templateData.planningZ4 ?? 0,
+      z5: templateData.planningZ5 ?? 0
+    });
 
     lastHydratedKey.current = templateKey;
   }, [templateData]);
