@@ -1,6 +1,5 @@
-import { useState } from 'react';
 import { ResistedStimulus } from '../../services/periodization.service';
-import ResistanceDayTable from './ResistanceDayTable';
+import { Plus } from 'lucide-react';
 
 interface WorkoutBuilderResistanceProps {
   templateData: any;
@@ -8,7 +7,7 @@ interface WorkoutBuilderResistanceProps {
   onChange: (data: any) => void;
 }
 
-export default function WorkoutBuilderResistance({ templateData, resistedSummary, onChange }: WorkoutBuilderResistanceProps) {
+export default function WorkoutBuilderResistance({ resistedSummary }: WorkoutBuilderResistanceProps) {
   const days = [
     { dayOfWeek: 1, label: 'Segunda-Feira', date: '19/1' },
     { dayOfWeek: 2, label: 'Terça-Feira', date: '20/1' },
@@ -19,13 +18,45 @@ export default function WorkoutBuilderResistance({ templateData, resistedSummary
     { dayOfWeek: 7, label: 'Domingo', date: '25/1' }
   ];
 
-  const [dayData, setDayData] = useState<any>({});
-
-  const handleDayChange = (dayOfWeek: number, data: any) => {
-    const newDayData = { ...dayData, [dayOfWeek]: data };
-    setDayData(newDayData);
-    onChange({ ...templateData, workoutDays: newDayData });
-  };
+  const renderDayExerciseCell = (dayLabel: string, sectionTitle: string) => (
+    <div className="rounded-md border border-gray-200 bg-white">
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-[11px]">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-2 py-1 text-left font-medium text-gray-600">n</th>
+              <th className="px-2 py-1 text-left font-medium text-gray-600 min-w-[140px]">Exercício</th>
+              <th className="px-2 py-1 text-left font-medium text-gray-600">Sistema</th>
+              <th className="px-2 py-1 text-center font-medium text-gray-600">S</th>
+              <th className="px-2 py-1 text-center font-medium text-gray-600">Rep</th>
+              <th className="px-2 py-1 text-center font-medium text-gray-600">Int</th>
+              <th className="px-2 py-1 text-center font-medium text-gray-600">C</th>
+              <th className="px-2 py-1 text-center font-medium text-gray-600">E</th>
+              <th className="px-2 py-1 text-center font-medium text-gray-600">Crg</th>
+              <th className="px-2 py-1 text-center font-medium text-gray-600">Aj</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td colSpan={10} className="px-2 py-3 text-center text-gray-400">
+                Nenhum exercício adicionado
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div className="border-t border-gray-200 px-2 py-2">
+        <button
+          type="button"
+          onClick={() => alert(`Adicionar exercício em ${dayLabel} - ${sectionTitle}`)}
+          className="inline-flex items-center gap-1 text-[11px] text-blue-600 hover:text-blue-700"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          Adicionar Exercício
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     <div className="space-y-6">
@@ -47,8 +78,8 @@ export default function WorkoutBuilderResistance({ templateData, resistedSummary
         <div className="bg-white rounded-lg px-6 py-4 shadow-sm border border-gray-200 space-y-3">
           {/* Primeira linha */}
           <div className="grid grid-cols-4 gap-6">
-            <div className="flex items-center justify-between">
-              <label className="text-base font-medium text-gray-700">
+            <div className="flex items-center gap-2">
+              <label className="text-base font-medium text-gray-700 whitespace-nowrap">
                 % Carga TR....................:
               </label>
               <div className="flex items-center gap-1">
@@ -63,8 +94,8 @@ export default function WorkoutBuilderResistance({ templateData, resistedSummary
               </div>
             </div>
 
-            <div className="flex items-center justify-between">
-              <label className="text-base font-medium text-gray-700">
+            <div className="flex items-center gap-2">
+              <label className="text-base font-medium text-gray-700 whitespace-nowrap">
                 Séries Grandes Músculos:
               </label>
               <input
@@ -75,8 +106,8 @@ export default function WorkoutBuilderResistance({ templateData, resistedSummary
               />
             </div>
 
-            <div className="flex items-center justify-between">
-              <label className="text-base font-medium text-gray-700">
+            <div className="flex items-center gap-2">
+              <label className="text-base font-medium text-gray-700 whitespace-nowrap">
                 Zona de Repetições........:
               </label>
               <input
@@ -87,8 +118,8 @@ export default function WorkoutBuilderResistance({ templateData, resistedSummary
               />
             </div>
 
-            <div className="flex items-center justify-between">
-              <label className="text-base font-medium text-gray-700">
+            <div className="flex items-center gap-2">
+              <label className="text-base font-medium text-gray-700 whitespace-nowrap">
                 Repetições em Reserva:
               </label>
               <input
@@ -102,8 +133,8 @@ export default function WorkoutBuilderResistance({ templateData, resistedSummary
 
           {/* Segunda linha */}
           <div className="grid grid-cols-4 gap-6">
-            <div className="flex items-center justify-between">
-              <label className="text-base font-medium text-gray-700">
+            <div className="flex items-center gap-2">
+              <label className="text-base font-medium text-gray-700 whitespace-nowrap">
                 Método............................:
               </label>
               <input
@@ -114,8 +145,8 @@ export default function WorkoutBuilderResistance({ templateData, resistedSummary
               />
             </div>
 
-            <div className="flex items-center justify-between">
-              <label className="text-base font-medium text-gray-700">
+            <div className="flex items-center gap-2">
+              <label className="text-base font-medium text-gray-700 whitespace-nowrap">
                 Micro Ciclo.....................:
               </label>
               <input
@@ -126,8 +157,8 @@ export default function WorkoutBuilderResistance({ templateData, resistedSummary
               />
             </div>
 
-            <div className="flex items-center justify-between">
-              <label className="text-base font-medium text-gray-700">
+            <div className="flex items-center gap-2">
+              <label className="text-base font-medium text-gray-700 whitespace-nowrap">
                 Divisão do Treino............:
               </label>
               <input
@@ -138,8 +169,8 @@ export default function WorkoutBuilderResistance({ templateData, resistedSummary
               />
             </div>
 
-            <div className="flex items-center justify-between">
-              <label className="text-base font-medium text-gray-700">
+            <div className="flex items-center gap-2">
+              <label className="text-base font-medium text-gray-700 whitespace-nowrap">
                 Frequência Semanal........:
               </label>
               <div className="flex items-center gap-1">
@@ -156,18 +187,50 @@ export default function WorkoutBuilderResistance({ templateData, resistedSummary
         </div>
       </div>
 
-      {/* Dias da Semana - Layout Tabular */}
-      <div className="space-y-6">
-        {days.map((day) => (
-          <ResistanceDayTable
-            key={day.dayOfWeek}
-            dayOfWeek={day.dayOfWeek}
-            label={day.label}
-            date={day.date}
-            data={dayData[day.dayOfWeek] || {}}
-            onChange={(data) => handleDayChange(day.dayOfWeek, data)}
-          />
-        ))}
+      {/* Tabela Semanal - Layout Colunar */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-900">Treinamento Resistido - Semana</h3>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="min-w-full border-collapse">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 border-b border-gray-200 min-w-[280px]">
+                  Treinamentos
+                </th>
+                {days.map((day) => (
+                  <th
+                    key={day.dayOfWeek}
+                    className="px-4 py-3 text-center text-xs font-semibold text-gray-700 border-b border-gray-200 min-w-[160px]"
+                  >
+                    <div className="font-medium text-gray-900">{day.label}</div>
+                    <div className="text-[11px] text-gray-500">{day.date}</div>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="bg-white">
+              {[
+                { key: 'mobilidade', title: 'MOBILIDADE | AQUECIMENTO | ATIVAÇÃO | TÉCNICO', bg: 'bg-purple-50' },
+                { key: 'sessao', title: 'SESSÃO', bg: 'bg-green-50' },
+                { key: 'resfriamento', title: 'RESFRIAMENTO | FINALIZAÇÃO', bg: 'bg-blue-50' }
+              ].map((section) => (
+                <tr key={section.key} className="border-b border-gray-200">
+                  <td className={`px-4 py-3 text-xs font-semibold text-gray-800 ${section.bg}`}>
+                    {section.title}
+                  </td>
+                  {days.map((day) => (
+                    <td key={day.dayOfWeek} className="px-4 py-3 align-top">
+                      {renderDayExerciseCell(day.label, section.title)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
