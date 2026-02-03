@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { periodizationService, ResistedStimulus, TrainingParameter } from '../../services/periodization.service';
 import { Plus, ChevronUp, ChevronDown, Copy, Trash2 } from 'lucide-react';
 import { ExerciseSelectorModal } from '../../components/ExerciseSelectorModal';
@@ -26,6 +26,7 @@ interface SelectedExercise {
 }
 
 export default function WorkoutBuilderResistance({ templateData, resistedSummary, onChange }: WorkoutBuilderResistanceProps) {
+  const lastHydratedKey = useRef<string | null>(null);
   const days = useMemo(() => {
     const labels = ['Segunda-Feira', 'Terça-Feira', 'Quarta-Feira', 'Quinta-Feira', 'Sexta-Feira', 'Sábado', 'Domingo'];
     const start = templateData?.weekStartDate ? new Date(templateData.weekStartDate) : new Date();
@@ -54,11 +55,17 @@ export default function WorkoutBuilderResistance({ templateData, resistedSummary
   const [maxLoads, setMaxLoads] = useState<Record<string, number | null>>({});
 
   useEffect(() => {
-    if (templateData?.resistedExercises) {
+    if (!templateData) return;
+    const templateKey = `${templateData.id || ''}:${templateData.planId || ''}:${templateData.mesocycleNumber || ''}:${templateData.weekNumber || ''}`;
+    if (lastHydratedKey.current === templateKey) return;
+
+    if (templateData.resistedExercises) {
       setExercisesByDay(templateData.resistedExercises);
     } else {
       setExercisesByDay({});
     }
+
+    lastHydratedKey.current = templateKey;
   }, [templateData]);
 
   useEffect(() => {
