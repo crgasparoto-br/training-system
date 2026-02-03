@@ -40,10 +40,19 @@ export default function WorkoutBuilder2() {
   }, [planId, mesocycleNumber, weekNumber]);
 
   useEffect(() => {
-    if (storageKey && templateData) {
-      localStorage.setItem(storageKey, JSON.stringify(templateData));
+    if (!storageKey || !templateData) return;
+    if (templateData.mesocycleNumber !== mesocycleNumber || templateData.weekNumber !== weekNumber) {
+      return;
     }
-  }, [storageKey, templateData]);
+    localStorage.setItem(storageKey, JSON.stringify(templateData));
+  }, [storageKey, templateData, mesocycleNumber, weekNumber]);
+
+  useEffect(() => {
+    if (autoSaveTimer) {
+      clearTimeout(autoSaveTimer);
+      setAutoSaveTimer(null);
+    }
+  }, [mesocycleNumber, weekNumber]);
 
   useEffect(() => {
     if (autoSaveTimer) {
