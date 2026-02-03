@@ -349,7 +349,7 @@ export const periodizationService = {
       where: includeInactive ? { category } : { category, active: true },
       orderBy: { order: 'asc' },
     });
-  }
+  },
 
   /**
    * Obter todos os parâmetros
@@ -362,7 +362,7 @@ export const periodizationService = {
         { order: 'asc' },
       ],
     });
-  }
+  },
 
   /**
    * Atualizar parâmetro
