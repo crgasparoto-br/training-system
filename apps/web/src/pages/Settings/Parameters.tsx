@@ -3,6 +3,7 @@ import { periodizationService, TrainingParameter } from '../../services/periodiz
 
 const DEFAULT_CATEGORIES = [
   'carga_microciclo',
+  'objetivo',
   'montagem',
   'metodo',
   'divisao_treino',
@@ -18,6 +19,8 @@ export default function SettingsParameters() {
   const [error, setError] = useState<string | null>(null);
 
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [categoryMode, setCategoryMode] = useState<'select' | 'new'>('select');
+  const [categoryEdit, setCategoryEdit] = useState({ from: '', to: '' });
 
   const [form, setForm] = useState({
     category: '',
@@ -81,10 +84,11 @@ export default function SettingsParameters() {
       .sort((a, b) => a.category.localeCompare(b.category) || a.order - b.order);
   }, [parameters, filters]);
 
-  const resetForm = () => {
+  const resetForm = (keepCategory?: string) => {
     setEditingId(null);
+    setCategoryMode('select');
     setForm({
-      category: '',
+      category: keepCategory ?? '',
       code: '',
       description: '',
       order: 1,
@@ -94,6 +98,7 @@ export default function SettingsParameters() {
 
   const handleEdit = (param: TrainingParameter) => {
     setEditingId(param.id);
+    setCategoryMode('select');
     setForm({
       category: param.category,
       code: param.code,
@@ -105,7 +110,8 @@ export default function SettingsParameters() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.category || !form.code || !form.description) {
+    const normalizedCategory = form.category.trim();
+    if (!normalizedCategory || !form.code || !form.description) {
       setError('Preencha categoria, código e descrição.');
       return;
     }
@@ -119,9 +125,12 @@ export default function SettingsParameters() {
           order: form.order,
           active: form.active,
         });
+        await loadParameters();
+        resetForm();
+        return;
       } else {
         await periodizationService.createParameter({
-          category: form.category,
+          category: normalizedCategory,
           code: form.code,
           description: form.description,
           order: form.order,
@@ -129,7 +138,7 @@ export default function SettingsParameters() {
       }
 
       await loadParameters();
-      resetForm();
+      resetForm(normalizedCategory);
     } catch (err: any) {
       setError(err?.message || 'Erro ao salvar parâmetro');
     } finally {
@@ -145,6 +154,36 @@ export default function SettingsParameters() {
       await loadParameters();
     } catch (err: any) {
       setError(err?.message || 'Erro ao excluir parâmetro');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRenameCategory = async () => {
+    const fromCategory = categoryEdit.from.trim();
+    const toCategory = categoryEdit.to.trim();
+
+    if (!fromCategory || !toCategory) {
+      setError('Informe categoria atual e nova.');
+      return;
+    }
+
+    if (fromCategory === toCategory) {
+      setError('A nova categoria deve ser diferente.');
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+    try {
+      await periodizationService.renameParameterCategory({
+        fromCategory,
+        toCategory,
+      });
+      await loadParameters();
+      setCategoryEdit({ from: '', to: '' });
+    } catch (err: any) {
+      setError(err?.message || 'Erro ao renomear categoria');
     } finally {
       setSaving(false);
     }
@@ -176,6 +215,42 @@ export default function SettingsParameters() {
 
       <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
         <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+          <div className="mb-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
+            <h3 className="text-sm font-semibold text-gray-900">Gerenciar categorias</h3>
+            <div className="mt-3 grid gap-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+              <select
+                value={categoryEdit.from}
+                onChange={(e) => setCategoryEdit({ ...categoryEdit, from: e.target.value })}
+                className="w-full min-w-0 rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              >
+                <option value="">Categoria atual</option>
+                {categories.map((category) => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
+                ))}
+              </select>
+              <input
+                type="text"
+                value={categoryEdit.to}
+                onChange={(e) => setCategoryEdit({ ...categoryEdit, to: e.target.value })}
+                className="w-full min-w-0 rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                placeholder="Nova categoria"
+              />
+              <button
+                type="button"
+                onClick={handleRenameCategory}
+                disabled={saving}
+                className="h-10 whitespace-nowrap rounded-lg bg-gray-900 px-4 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-60"
+              >
+                Renomear
+              </button>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Renomeia a categoria de todos os parâmetros existentes.
+            </p>
+          </div>
+
           <h2 className="text-lg font-semibold text-gray-900">
             {editingId ? 'Alterar Parâmetro' : 'Cadastrar Parâmetro'}
           </h2>
@@ -188,19 +263,47 @@ export default function SettingsParameters() {
           <form className="mt-4 space-y-4" onSubmit={handleSubmit}>
             <div>
               <label className="text-sm font-medium text-gray-700">Categoria</label>
-              <select
-                value={form.category}
-                onChange={(e) => setForm({ ...form, category: e.target.value })}
-                disabled={!!editingId}
-                className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-              >
-                <option value="">Selecione...</option>
-                {categories.map((category) => (
-                  <option key={category} value={category}>
-                    {category}
-                  </option>
-                ))}
-              </select>
+              <div className="mt-1 flex flex-col gap-2">
+                <select
+                  value={categoryMode === 'new' ? '__new__' : form.category}
+                  onChange={(e) => {
+                    if (e.target.value === '__new__') {
+                      setCategoryMode('new');
+                      setForm({ ...form, category: '' });
+                      return;
+                    }
+
+                    setCategoryMode('select');
+                    setForm({ ...form, category: e.target.value });
+                  }}
+                  disabled={!!editingId}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                >
+                  <option value="">Selecione...</option>
+                  <option value="__new__">Nova categoria...</option>
+                  {categories.map((category) => (
+                    <option key={category} value={category}>
+                      {category}
+                    </option>
+                  ))}
+                </select>
+
+                {categoryMode === 'new' && (
+                  <div className="flex flex-col gap-1">
+                    <input
+                      type="text"
+                      value={form.category}
+                      onChange={(e) => setForm({ ...form, category: e.target.value })}
+                      disabled={!!editingId}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                      placeholder="Ex: zona_repeticoes"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Use nomes em snake_case para manter o padrão das categorias.
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
 
             <div>
@@ -329,7 +432,7 @@ export default function SettingsParameters() {
                 ) : filteredParameters.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="px-3 py-6 text-center text-gray-400">
-                      Nenhum parâmetro encontrado
+Nenhum parâmetro encontrado
                     </td>
                   </tr>
                 ) : (
@@ -376,6 +479,7 @@ export default function SettingsParameters() {
           </div>
         </div>
       </div>
+
     </div>
   );
 }

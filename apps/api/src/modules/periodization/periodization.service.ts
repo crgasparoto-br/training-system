@@ -146,6 +146,7 @@ export const periodizationService = {
     mesocycleNumber: number;
     weekNumber: number;
     loadCycle?: string | null;
+    objective?: string | null;
     repZone?: number | null;
     seriesReference?: number | null;
     seriesUpperBody?: number | null;
@@ -388,6 +389,44 @@ export const periodizationService = {
     return await prisma.trainingParameter.delete({
       where: { id },
     });
+  },
+
+  /**
+   * Renomear categoria de parametros
+   */
+  async renameParameterCategory(fromCategory: string, toCategory: string) {
+    if (fromCategory === toCategory) {
+      return { updated: 0 };
+    }
+
+    const [toCodes, fromCodes] = await Promise.all([
+      prisma.trainingParameter.findMany({
+        where: { category: toCategory },
+        select: { code: true },
+      }),
+      prisma.trainingParameter.findMany({
+        where: { category: fromCategory },
+        select: { code: true },
+      }),
+    ]);
+
+    const toCodeSet = new Set(toCodes.map((item) => item.code));
+    const conflicts = fromCodes
+      .map((item) => item.code)
+      .filter((code) => toCodeSet.has(code));
+
+    if (conflicts.length > 0) {
+      throw new Error(
+        `CONFLICT: Ja existem parametros com os codigos: ${conflicts.join(', ')}`
+      );
+    }
+
+    const result = await prisma.trainingParameter.updateMany({
+      where: { category: fromCategory },
+      data: { category: toCategory },
+    });
+
+    return { updated: result.count };
   },
 
   // =========================================================================

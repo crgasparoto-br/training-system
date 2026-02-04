@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Copy, CheckCircle, Lock, ChevronLeft, ChevronRight } from 'lucide-react';
 import WorkoutBuilderCyclic from './WorkoutBuilderCyclic';
@@ -28,18 +28,96 @@ export default function WorkoutBuilder2() {
     (_, index) => index + 1
   );
   const weekOptions = Array.from({ length: 4 }, (_, index) => index + 1);
+  const summaryVisibilityUserKey =
+    planData?.athlete?.user?.id ?? planData?.athleteId ?? 'unknown-user';
+  const summaryVisibilityStorageKey = planId
+    ? `workoutBuilder2:summaryVisibility:${planId}:${mesocycleNumber}:${summaryVisibilityUserKey}`
+    : 'workoutBuilder2:summaryVisibility:unknown';
+
+
+  const [summaryVisibilityByWeek, setSummaryVisibilityByWeek] = useState<
+    Record<number, { session: boolean; resistedSummary: boolean }>
+  >(() =>
+    weekOptions.reduce((acc, week) => {
+      acc[week] = { session: true, resistedSummary: true };
+      return acc;
+    }, {} as Record<number, { session: boolean; resistedSummary: boolean }>)
+  );
+  const [methodParameters, setMethodParameters] = useState<any[]>([]);
+  const [assemblyParameters, setAssemblyParameters] = useState<any[]>([]);
+  const [loadCycleParameters, setLoadCycleParameters] = useState<any[]>([]);
+  const [objectiveParameters, setObjectiveParameters] = useState<any[]>([]);
 
   // Auto-save timer
   const [autoSaveTimers, setAutoSaveTimers] = useState<Record<number, NodeJS.Timeout>>({});
+  const resistanceScrollContainersRef = useRef(new Map<number, HTMLDivElement>());
+  const resistanceIsSyncingRef = useRef(false);
 
   useEffect(() => {
     loadTemplate();
   }, [planId, mesocycleNumber]);
 
   useEffect(() => {
+    try {
+      const stored = localStorage.getItem(summaryVisibilityStorageKey);
+      if (stored) {
+        const parsed = JSON.parse(stored) as Record<number, { session: boolean; resistedSummary: boolean }>;
+        const merged = weekOptions.reduce((acc, week) => {
+          acc[week] = parsed[week] ?? { session: true, resistedSummary: true };
+          return acc;
+        }, {} as Record<number, { session: boolean; resistedSummary: boolean }>);
+        setSummaryVisibilityByWeek(merged);
+        return;
+      }
+    } catch (error) {
+      // ignore storage errors
+    }
+    setSummaryVisibilityByWeek(
+      weekOptions.reduce((acc, week) => {
+        acc[week] = { session: true, resistedSummary: true };
+        return acc;
+      }, {} as Record<number, { session: boolean; resistedSummary: boolean }> )
+    );
+  }, [summaryVisibilityStorageKey]);
+
+
+  useEffect(() => {
     Object.values(autoSaveTimers).forEach(timer => clearTimeout(timer));
     setAutoSaveTimers({});
   }, [mesocycleNumber]);
+
+  useEffect(() => {
+    const loadParameters = async () => {
+      try {
+        const [methods, assemblies, loadCycles, objectives] = await Promise.all([
+          periodizationService.getParametersByCategory('metodo'),
+          periodizationService.getParametersByCategory('montagem'),
+          periodizationService.getParametersByCategory('carga_microciclo'),
+          periodizationService.getParametersByCategory('objetivo')
+        ]);
+        setMethodParameters(methods);
+        setAssemblyParameters(assemblies);
+        setLoadCycleParameters(loadCycles);
+        setObjectiveParameters(objectives);
+      } catch (error) {
+        setMethodParameters([]);
+        setAssemblyParameters([]);
+        setLoadCycleParameters([]);
+        setObjectiveParameters([]);
+      }
+    };
+
+    void loadParameters();
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(summaryVisibilityStorageKey, JSON.stringify(summaryVisibilityByWeek));
+    } catch (error) {
+      // ignore storage errors
+    }
+  }, [summaryVisibilityByWeek, summaryVisibilityStorageKey]);
+
 
   const loadTemplate = async () => {
     try {
@@ -275,6 +353,56 @@ export default function WorkoutBuilder2() {
     alert('Funcionalidade de copiar semana será implementada');
   };
 
+  const toggleSummaryVisibility = (
+    weekNumber: number,
+    section: 'session' | 'resistedSummary'
+  ) => {
+    setSummaryVisibilityByWeek((prev) => {
+      const current = prev[weekNumber] ?? { session: true, resistedSummary: true };
+      return {
+        ...prev,
+        [weekNumber]: {
+          ...current,
+          [section]: !current[section]
+        }
+      };
+    });
+  };
+
+  const methodParamMap = useMemo(() => new Map(methodParameters.map((param) => [param.code, param])), [methodParameters]);
+  const assemblyParamMap = useMemo(() => new Map(assemblyParameters.map((param) => [param.code, param])), [assemblyParameters]);
+  const loadCycleParamMap = useMemo(() => new Map(loadCycleParameters.map((param) => [param.code, param])), [loadCycleParameters]);
+  const objectiveParamMap = useMemo(() => new Map(objectiveParameters.map((param) => [param.code, param])), [objectiveParameters]);
+
+  const registerResistanceScrollContainer = (weekNumber: number) => (el: HTMLDivElement | null) => {
+    if (el) {
+      resistanceScrollContainersRef.current.set(weekNumber, el);
+    } else {
+      resistanceScrollContainersRef.current.delete(weekNumber);
+    }
+  };
+
+  const handleResistanceScrollSync = (source: HTMLDivElement) => {
+    if (resistanceIsSyncingRef.current) return;
+    resistanceIsSyncingRef.current = true;
+    try {
+      const left = source.scrollLeft;
+      const top = source.scrollTop;
+      resistanceScrollContainersRef.current.forEach((el) => {
+        if (el !== source) {
+          el.scrollLeft = left;
+          el.scrollTop = top;
+        }
+      });
+    } catch (error) {
+      // ignore sync errors
+    } finally {
+      requestAnimationFrame(() => {
+        resistanceIsSyncingRef.current = false;
+      });
+    }
+  };
+
   const handleRelease = async (weekNumber: number) => {
     try {
       setSaving(true);
@@ -421,6 +549,10 @@ export default function WorkoutBuilder2() {
         </div>
 
         {weekOptions.map((weekNumber) => {
+          const visibility = summaryVisibilityByWeek[weekNumber] ?? {
+            session: true,
+            resistedSummary: true
+          };
           const weekTemplateData = templateDataByWeek[weekNumber];
           return (
             <div
@@ -480,123 +612,230 @@ export default function WorkoutBuilder2() {
                     <CheckCircle className="w-4 h-4" />
                     Liberar
                   </button>
+                  
                 </div>
               </div>
 
               <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Frequências */}
-                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-                    <h3 className="text-sm font-medium text-gray-700 mb-3">Frequências</h3>
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-600">Frequência Total:</span>
-                        <span className="text-sm font-medium text-gray-900">
-                          {(weekTemplateData?.cyclicFrequency || 0) +
-                            (weekTemplateData?.resistanceFrequency || 0)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-600">Frequência Cíclico:</span>
-                        <span className="text-sm font-medium text-gray-900">
-                          {weekTemplateData?.cyclicFrequency || 0}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-600">Frequência Resistido:</span>
-                        <span className="text-sm font-medium text-gray-900">
-                          {weekTemplateData?.resistanceFrequency || 0}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Volumes */}
-                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-                    <h3 className="text-sm font-medium text-gray-700 mb-3">Volumes</h3>
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-600">Volume Total:</span>
-                        <span className="text-sm font-medium text-gray-900">
-                          {weekTemplateData?.totalVolumeMin || 0} min
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-gray-600">Volume Km:</span>
-                        <span className="text-sm font-medium text-gray-900">
-                          {weekTemplateData?.totalVolumeKm || 0} km
-                        </span>
-                      </div>
-                    </div>
-                  </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => toggleSummaryVisibility(weekNumber, 'session')}
+                    className="inline-flex items-center rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    {visibility.session ? 'Ocultar' : 'Exibir'} Tempo da Sessão
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleSummaryVisibility(weekNumber, 'resistedSummary')}
+                    className="inline-flex items-center rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    {visibility.resistedSummary ? 'Ocultar' : 'Exibir'} Resumo da Semana
+                  </button>
                 </div>
-
                 {/* Tempo de Sessão por Dia */}
-                <div>
-                  <h3 className="text-sm font-medium text-gray-700 mb-3">Tempo Sessão Total</h3>
+                <div className={visibility.session ? '' : 'hidden'}>
+                  <h3 className="text-base font-semibold text-gray-800 mb-3">Tempo da Sessão</h3>
                   <div className="overflow-hidden rounded-lg border border-gray-200">
                     <table className="min-w-full divide-y divide-gray-200">
                       <thead className="bg-gray-50">
                         <tr>
-                          <th className="px-2 py-2 text-xs font-medium text-gray-700 text-left">
+                          <th className="px-3 py-2 text-sm font-medium text-gray-700 text-left">
                             Treinamentos
                           </th>
                           {['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map((day) => (
                             <th
                               key={day}
-                              className="px-2 py-2 text-xs font-medium text-gray-700 text-center"
+                              className="px-3 py-2 text-sm font-medium text-gray-700 text-center"
                             >
                               {day}
                             </th>
                           ))}
-                          <th className="px-2 py-2 text-xs font-medium text-gray-700 text-center">
+                          <th className="px-3 py-2 text-sm font-medium text-gray-700 text-center">
                             Total
                           </th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
                         <tr>
-                          <td className="px-2 py-2 text-xs font-medium text-gray-700">Cíclico</td>
+                          <td className="px-3 py-2 text-sm font-medium text-gray-700">Cíclico</td>
                           {Object.values(cyclicTimes).map((value, idx) => (
-                            <td key={idx} className="px-2 py-2 text-xs text-gray-700 text-center">
+                            <td key={idx} className="px-3 py-2 text-sm text-gray-700 text-center">
                               {value}
                             </td>
                           ))}
-                          <td className="px-2 py-2 text-xs text-gray-700 text-center font-semibold">
+                          <td className="px-3 py-2 text-sm text-gray-700 text-center font-semibold">
                             {sumTimes(cyclicTimes)}
                           </td>
                         </tr>
                         <tr>
-                          <td className="px-2 py-2 text-xs font-medium text-gray-700">
+                          <td className="px-3 py-2 text-sm font-medium text-gray-700">
                             Resistido
                           </td>
                           {Object.values(resistanceTimes).map((value, idx) => (
-                            <td key={idx} className="px-2 py-2 text-xs text-gray-700 text-center">
+                            <td key={idx} className="px-3 py-2 text-sm text-gray-700 text-center">
                               {value}
                             </td>
                           ))}
-                          <td className="px-2 py-2 text-xs text-gray-700 text-center font-semibold">
+                          <td className="px-3 py-2 text-sm text-gray-700 text-center font-semibold">
                             {sumTimes(resistanceTimes)}
                           </td>
                         </tr>
                         <tr className="bg-blue-50">
-                          <td className="px-2 py-2 text-xs font-medium text-gray-700">
+                          <td className="px-3 py-2 text-sm font-medium text-gray-700">
                             Tempo da Sessão
                           </td>
                           {Object.values(sessionTimes).map((value, idx) => (
                             <td
                               key={idx}
-                              className="px-2 py-2 text-xs text-gray-700 text-center font-semibold"
+                              className="px-3 py-2 text-sm text-gray-700 text-center font-semibold"
                             >
                               {value}
                             </td>
                           ))}
-                          <td className="px-2 py-2 text-xs text-gray-700 text-center font-semibold">
+                          <td className="px-3 py-2 text-sm text-gray-700 text-center font-semibold">
                             {sumTimes(sessionTimes)}
                           </td>
                         </tr>
                       </tbody>
                     </table>
+                  </div>
+                </div>
+
+                <div className={visibility.resistedSummary ? '' : 'hidden'}>
+                  <h3 className="text-base font-semibold text-gray-800 mb-3">Resumo da Semana</h3>
+                  <div className="rounded-md border border-gray-200 bg-white px-3 py-2 shadow-sm">
+                    <div className="flex flex-nowrap gap-2 overflow-x-auto pb-1">
+                      <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
+                        <span className="text-[12px] font-medium text-gray-600">% Carga TR</span>
+                        <span className="inline-flex items-center rounded-full bg-gray-900 px-2 py-0.5 text-[12px] font-semibold text-white">
+                          {resistedSummaryByWeek[weekNumber]?.loadPercentage ?? '-'}
+                          {resistedSummaryByWeek[weekNumber]?.loadPercentage === null ||
+                          resistedSummaryByWeek[weekNumber]?.loadPercentage === undefined
+                            ? ''
+                            : '%'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
+                        <span className="text-[12px] font-medium text-gray-600">Séries Grandes Músculos</span>
+                        <span className="inline-flex items-center rounded-full bg-gray-900 px-2 py-0.5 text-[12px] font-semibold text-white">
+                          {resistedSummaryByWeek[weekNumber]?.seriesReference ?? '-'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
+                        <span className="text-[12px] font-medium text-gray-600">Zona de Repetições</span>
+                        <span className="inline-flex max-w-[260px] items-center rounded-full bg-gray-100 px-2 py-0.5 text-[12px] font-semibold text-gray-800">
+                          {resistedSummaryByWeek[weekNumber]?.repZone ?? '-'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
+                        <span className="text-[12px] font-medium text-gray-600">Repetições em Reserva</span>
+                        <span className="inline-flex items-center rounded-full bg-gray-900 px-2 py-0.5 text-[12px] font-semibold text-white">
+                          {resistedSummaryByWeek[weekNumber]?.repReserve ?? '-'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
+                        <span className="text-[12px] font-medium text-gray-600">Montagem</span>
+                        <span
+                          className="inline-flex max-w-[260px] items-center rounded-full bg-gray-100 px-2 py-0.5 text-[12px] font-semibold text-gray-800"
+                          title={
+                            resistedSummaryByWeek[weekNumber]?.assembly
+                              ? `${resistedSummaryByWeek[weekNumber]?.assembly} - ${
+                                  assemblyParamMap.get(resistedSummaryByWeek[weekNumber]?.assembly)?.description || ''
+                                }`.trim()
+                              : ''
+                          }
+                        >
+                          {resistedSummaryByWeek[weekNumber]?.assembly
+                            ? `${resistedSummaryByWeek[weekNumber]?.assembly} - ${
+                                assemblyParamMap.get(resistedSummaryByWeek[weekNumber]?.assembly)?.description || ''
+                              }`.trim()
+                            : '-'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
+                        <span className="text-[12px] font-medium text-gray-600">Método</span>
+                        <span
+                          className="inline-flex max-w-[260px] items-center rounded-full bg-gray-100 px-2 py-0.5 text-[12px] font-semibold text-gray-800"
+                          title={
+                            resistedSummaryByWeek[weekNumber]?.method
+                              ? `${resistedSummaryByWeek[weekNumber]?.method} - ${
+                                  methodParamMap.get(resistedSummaryByWeek[weekNumber]?.method)?.description || ''
+                                }`.trim()
+                              : ''
+                          }
+                        >
+                          {resistedSummaryByWeek[weekNumber]?.method
+                            ? `${resistedSummaryByWeek[weekNumber]?.method} - ${
+                                methodParamMap.get(resistedSummaryByWeek[weekNumber]?.method)?.description || ''
+                              }`.trim()
+                            : '-'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
+                        <span className="text-[12px] font-medium text-gray-600">Microciclo</span>
+                        <span
+                          className="inline-flex max-w-[260px] items-center rounded-full bg-gray-100 px-2 py-0.5 text-[12px] font-semibold text-gray-800"
+                          title={
+                            resistedSummaryByWeek[weekNumber]?.loadCycle
+                              ? `${resistedSummaryByWeek[weekNumber]?.loadCycle} - ${
+                                  loadCycleParamMap.get(resistedSummaryByWeek[weekNumber]?.loadCycle)?.description || ''
+                                }`.trim()
+                              : ''
+                          }
+                        >
+                          {resistedSummaryByWeek[weekNumber]?.loadCycle
+                            ? `${resistedSummaryByWeek[weekNumber]?.loadCycle} - ${
+                                loadCycleParamMap.get(resistedSummaryByWeek[weekNumber]?.loadCycle)?.description || ''
+                              }`.trim()
+                            : '-'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
+                        <span className="text-[12px] font-medium text-gray-600">Divisão do Treino</span>
+                        <span className="inline-flex max-w-[260px] items-center rounded-full bg-gray-100 px-2 py-0.5 text-[12px] font-semibold text-gray-800">
+                          {resistedSummaryByWeek[weekNumber]?.trainingDivision ?? '-'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
+                        <span className="text-[12px] font-medium text-gray-600">Frequência Semanal</span>
+                        <span className="inline-flex items-center rounded-full bg-gray-900 px-2 py-0.5 text-[12px] font-semibold text-white">
+                          {resistedSummaryByWeek[weekNumber]?.weeklyFrequency ?? '-'}
+                          {resistedSummaryByWeek[weekNumber]?.weeklyFrequency === null ||
+                          resistedSummaryByWeek[weekNumber]?.weeklyFrequency === undefined
+                            ? ''
+                            : 'x/sem'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
+                        <span className="text-[12px] font-medium text-gray-600">Objetivo do Mesociclo</span>
+                        <span
+                          className="inline-flex max-w-[320px] items-center rounded-full bg-gray-100 px-2 py-0.5 text-[12px] font-semibold text-gray-800"
+                          title={
+                            resistedSummaryByWeek[weekNumber]?.objective
+                              ? `${resistedSummaryByWeek[weekNumber]?.objective} - ${
+                                  objectiveParamMap.get(resistedSummaryByWeek[weekNumber]?.objective)?.description || ''
+                                }`.trim()
+                              : ''
+                          }
+                        >
+                          {resistedSummaryByWeek[weekNumber]?.objective
+                            ? `${resistedSummaryByWeek[weekNumber]?.objective} - ${
+                                objectiveParamMap.get(resistedSummaryByWeek[weekNumber]?.objective)?.description || ''
+                              }`.trim()
+                            : '-'}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -637,7 +876,11 @@ export default function WorkoutBuilder2() {
                 <div className="p-6">
                   {activeTab === 'cyclic' ? (
                     <WorkoutBuilderCyclic
+                      key={`cyclic-${weekTemplateData?.id ?? 'new'}-${weekNumber}-${mesocycleNumber}`}
                       templateData={weekTemplateData}
+                      planId={planId}
+                      mesocycleNumber={mesocycleNumber}
+                      weekNumber={weekNumber}
                       onChange={(data: any) => handleDataChange(weekNumber, data)}
                     />
                   ) : (
@@ -645,6 +888,8 @@ export default function WorkoutBuilder2() {
                       templateData={weekTemplateData}
                       resistedSummary={resistedSummaryByWeek[weekNumber] || null}
                       onChange={(data: any) => handleDataChange(weekNumber, data)}
+                      registerScrollContainer={registerResistanceScrollContainer(weekNumber)}
+                      onScrollSync={handleResistanceScrollSync}
                     />
                   )}
                 </div>

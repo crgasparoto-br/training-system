@@ -89,7 +89,7 @@ export default function WeeklySummaryGeneral({ templateData }: WeeklySummaryGene
 
         {/* Tempo de Sessão por Dia */}
         <div>
-          <h3 className="text-sm font-medium text-gray-700 mb-3">Tempo Sessão Total</h3>
+          <h3 className="text-sm font-medium text-gray-700 mb-3">Tempo da Sessão</h3>
           <div className="overflow-hidden rounded-lg border border-gray-200">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">

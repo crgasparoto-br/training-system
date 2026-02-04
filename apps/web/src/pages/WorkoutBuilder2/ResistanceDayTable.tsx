@@ -195,7 +195,7 @@ export default function ResistanceDayTable({ dayOfWeek, label, date, data, onCha
         <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">
-              Tempo sessão total (min)
+              Tempo da sessão (min)
             </label>
             <input
               type="number"

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   periodizationService,
   type PeriodizationMatrix,
@@ -21,7 +21,10 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
   const [parameters, setParameters] = useState<TrainingParameter[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [autoSaveTimeout, setAutoSaveTimeout] = useState<NodeJS.Timeout | null>(null);
+  const autoSaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingResistedRef = useRef<Map<string, Partial<ResistedStimulus>>>(new Map());
+  const pendingCyclicRef = useRef<Map<string, Partial<CyclicStimulus>>>(new Map());
+  const pendingNutritionRef = useRef<Map<string, Partial<NutritionWeekly>>>(new Map());
 
   // Agrupar dados
   const [resistedMap, setResistedMap] = useState<Map<number, Map<number, ResistedStimulus>>>(new Map());
@@ -32,7 +35,7 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
   const hasMatrixData = (matrixData: PeriodizationMatrix): boolean => {
     // Verificar se há dados em resistedStimulus
     const hasResisted = matrixData.resistedStimulus?.some(item => 
-      item.loadCycle || item.repZone || item.assembly || 
+      item.loadCycle || item.objective || item.repZone || item.assembly || 
       item.method || item.trainingDivision || item.weeklyFrequency
     );
 
@@ -54,63 +57,56 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
   const calculateTotalMesocycles = (): number => {
     const start = new Date(startDate);
     const end = new Date(endDate);
-    
+
     // Calcular diferença em dias
     const diffTime = Math.abs(end.getTime() - start.getTime());
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
+
     // Calcular número de semanas
     const totalWeeks = Math.ceil(diffDays / 7);
-    
+
     // Calcular número de mesociclos (4 semanas por mesociclo)
     const weeksPerMesocycle = 4;
     const totalMesocycles = Math.ceil(totalWeeks / weeksPerMesocycle);
-    
+
     return totalMesocycles;
   };
 
   // Função para calcular data de início da semana (segunda-feira)
   const getWeekStartDate = (mesocycleNumber: number, weekNumber: number): string => {
     const start = new Date(startDate);
-    // Calcular quantas semanas desde o início
     const totalWeeks = (mesocycleNumber - 1) * matrix!.weeksPerMesocycle + (weekNumber - 1);
-    // Adicionar semanas
     const weekStart = new Date(start);
-    weekStart.setDate(start.getDate() + (totalWeeks * 7));
-    
-    // Formatar como dd/mm
+    weekStart.setDate(start.getDate() + totalWeeks * 7);
+
     const day = String(weekStart.getDate()).padStart(2, '0');
     const month = String(weekStart.getMonth() + 1).padStart(2, '0');
     return `${day}/${month}`;
   };
 
   // Função para calcular minutos por zona
-  // Fórmula: =IFS(percentZ="", "", percentZ="X", "X", TRUE, volumeTotal * (percentZ / 100))
   const calculateZoneMinutes = (volumeTotal: number | null | undefined, percentZ: number | null | undefined): string => {
-    if (!percentZ && percentZ !== 0) return ''; // Se percentZ vazio
-    if (percentZ === -1) return 'X'; // Usamos -1 para representar "X"
-    if (!volumeTotal) return ''; // Se volumeTotal vazio
-    
+    if (!percentZ && percentZ !== 0) return '';
+    if (percentZ === -1) return 'X';
+    if (!volumeTotal) return '';
+
     const minutes = volumeTotal * (percentZ / 100);
     return Math.round(minutes).toString();
   };
 
   // Função para calcular séries baseado na carga
-  // Fórmula: =IF(loadCycle="REG", seriesRef/2, seriesRef)
   const calculateSeries = (loadCycle: string | null | undefined, seriesRef: number | null | undefined): number | null => {
-    if (!seriesRef && seriesRef !== 0) return null; // Se seriesRef vazio
-    if (!loadCycle) return seriesRef; // Se loadCycle vazio, retorna seriesRef
-    
-    // Se carga é REGENERATIVO, divide por 2
-    if (loadCycle === 'REGENERATIVO') {
+    if (!seriesRef && seriesRef !== 0) return null;
+    if (!loadCycle) return seriesRef;
+    if (loadCycle === 'REGENERATIVO' || loadCycle === 'REG') {
       return Math.round(seriesRef / 2);
     }
-    
     return seriesRef;
   };
 
   // Parâmetros por categoria
   const [loadCycleParams, setLoadCycleParams] = useState<TrainingParameter[]>([]);
+  const [objectiveParams, setObjectiveParams] = useState<TrainingParameter[]>([]);
   const [assemblyParams, setAssemblyParams] = useState<TrainingParameter[]>([]);
   const [methodParams, setMethodParams] = useState<TrainingParameter[]>([]);
   const [divisionParams, setDivisionParams] = useState<TrainingParameter[]>([]);
@@ -118,29 +114,25 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
   // Carregar dados
   useEffect(() => {
     loadData();
-  }, [planId, startDate, endDate]); // Recarregar quando datas mudarem
+  }, [planId, startDate, endDate]);
 
   const loadData = async () => {
     try {
       setLoading(true);
 
-      // Carregar ou criar matriz
       let matrixData = await periodizationService.getMatrixByPlanId(planId);
       const expectedMesocycles = calculateTotalMesocycles();
-      
+
       if (!matrixData) {
-        // Criar matriz dinâmica baseada no período do plano
         matrixData = await periodizationService.createMatrix({
           planId,
           totalMesocycles: expectedMesocycles,
           weeksPerMesocycle: 4,
         });
       } else if (matrixData.totalMesocycles !== expectedMesocycles) {
-        // Período do plano foi alterado
         const hasData = hasMatrixData(matrixData);
-        
+
         if (!hasData) {
-          // Não há dados lançados, pode recriar
           console.log('Período alterado e sem dados. Recriando matriz...');
           await periodizationService.deleteMatrix(matrixData.id);
           matrixData = await periodizationService.createMatrix({
@@ -149,28 +141,24 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
             weeksPerMesocycle: 4,
           });
         } else {
-          // Há dados lançados, manter matriz atual
           console.log('Período alterado mas há dados. Mantendo matriz atual.');
         }
       }
 
       setMatrix(matrixData);
 
-      // Agrupar dados
       setResistedMap(periodizationService.groupResistedByMesocycleAndWeek(matrixData.resistedStimulus || []));
       setCyclicMap(periodizationService.groupCyclicByMesocycleAndWeek(matrixData.cyclicStimulus || []));
       setNutritionMap(periodizationService.groupNutritionByMesocycleAndWeek(matrixData.nutrition || []));
 
-      // Carregar parâmetros
       const allParams = await periodizationService.getAllParameters();
       setParameters(allParams);
 
-      // Filtrar por categoria
       setLoadCycleParams(allParams.filter(p => p.category === 'carga_microciclo'));
+      setObjectiveParams(allParams.filter(p => p.category === 'objetivo'));
       setAssemblyParams(allParams.filter(p => p.category === 'montagem'));
       setMethodParams(allParams.filter(p => p.category === 'metodo'));
       setDivisionParams(allParams.filter(p => p.category === 'divisao_treino'));
-
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
     } finally {
@@ -178,38 +166,160 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
     }
   };
 
-  // Auto-save com debounce
-  const scheduleAutoSave = useCallback((
-    type: 'resisted' | 'cyclic' | 'nutrition',
-    data: Partial<ResistedStimulus> | Partial<CyclicStimulus> | Partial<NutritionWeekly>
-  ) => {
-    if (autoSaveTimeout) {
-      clearTimeout(autoSaveTimeout);
+  const scheduleAutoSaveFlush = useCallback(() => {
+    if (autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current);
     }
 
-    const timeout = setTimeout(async () => {
+    autoSaveTimeoutRef.current = setTimeout(async () => {
+      const resistedItems = Array.from(pendingResistedRef.current.values());
+      const cyclicItems = Array.from(pendingCyclicRef.current.values());
+      const nutritionItems = Array.from(pendingNutritionRef.current.values());
+
+      pendingResistedRef.current.clear();
+      pendingCyclicRef.current.clear();
+      pendingNutritionRef.current.clear();
+
+      if (resistedItems.length === 0 && cyclicItems.length === 0 && nutritionItems.length === 0) {
+        return;
+      }
+
       try {
         setSaving(true);
-        
-        if (type === 'resisted') {
-          await periodizationService.upsertResistedStimulus(data as Partial<ResistedStimulus>);
-        } else if (type === 'cyclic') {
-          await periodizationService.upsertCyclicStimulus(data as Partial<CyclicStimulus>);
-        } else if (type === 'nutrition') {
-          await periodizationService.upsertNutrition(data as Partial<NutritionWeekly>);
-        }
 
-        // Não recarregar dados para manter foco e posição da tela
-        // await loadData();
+        if (resistedItems.length) {
+          await Promise.all(resistedItems.map((item) => periodizationService.upsertResistedStimulus(item)));
+        }
+        if (cyclicItems.length) {
+          await Promise.all(cyclicItems.map((item) => periodizationService.upsertCyclicStimulus(item)));
+        }
+        if (nutritionItems.length) {
+          await Promise.all(nutritionItems.map((item) => periodizationService.upsertNutrition(item)));
+        }
       } catch (error) {
         console.error('Erro ao salvar:', error);
       } finally {
         setSaving(false);
       }
-    }, 2000); // 2 segundos de debounce
+    }, 2000);
+  }, []);
 
-    setAutoSaveTimeout(timeout);
-  }, [autoSaveTimeout]);
+  const queueAutoSave = useCallback(
+    (
+      type: 'resisted' | 'cyclic' | 'nutrition',
+      data: Partial<ResistedStimulus> | Partial<CyclicStimulus> | Partial<NutritionWeekly>
+    ) => {
+      if (!data.matrixId || !data.mesocycleNumber || !data.weekNumber) return;
+      const key = `${data.matrixId}:${data.mesocycleNumber}:${data.weekNumber}`;
+
+      if (type === 'resisted') {
+        pendingResistedRef.current.set(key, data as Partial<ResistedStimulus>);
+      } else if (type === 'cyclic') {
+        pendingCyclicRef.current.set(key, data as Partial<CyclicStimulus>);
+      } else {
+        pendingNutritionRef.current.set(key, data as Partial<NutritionWeekly>);
+      }
+
+      scheduleAutoSaveFlush();
+    },
+    [scheduleAutoSaveFlush]
+  );
+
+  const scheduleAutoSave = useCallback(
+    (
+      type: 'resisted' | 'cyclic' | 'nutrition',
+      data: Partial<ResistedStimulus> | Partial<CyclicStimulus> | Partial<NutritionWeekly>
+    ) => {
+      queueAutoSave(type, data);
+    },
+    [queueAutoSave]
+  );
+
+  const scheduleAutoSaveBatch = useCallback(
+    (
+      type: 'resisted' | 'cyclic' | 'nutrition',
+      dataList: Array<Partial<ResistedStimulus> | Partial<CyclicStimulus> | Partial<NutritionWeekly>>
+    ) => {
+      dataList.forEach((item) => queueAutoSave(type, item));
+    },
+    [queueAutoSave]
+  );
+
+  const applyToMesocycleWeeks = <T extends { matrixId: string; mesocycleNumber: number; weekNumber: number }>(
+    mesocycle: number,
+    field: keyof T,
+    value: any,
+    dataMap: Map<number, Map<number, T>>,
+    setMap: React.Dispatch<React.SetStateAction<Map<number, Map<number, T>>>>,
+    type: 'resisted' | 'cyclic' | 'nutrition'
+  ) => {
+    if (!matrix) return;
+
+    const newMap = new Map(dataMap);
+    if (!newMap.has(mesocycle)) {
+      newMap.set(mesocycle, new Map());
+    }
+
+    const mesoMap = newMap.get(mesocycle)!;
+    const updates: T[] = [];
+
+    for (let week = 1; week <= matrix.weeksPerMesocycle; week++) {
+      const current = mesoMap.get(week) || {
+        matrixId: matrix.id,
+        mesocycleNumber: mesocycle,
+        weekNumber: week,
+      };
+
+      const updated = { ...current, [field]: value } as T;
+      mesoMap.set(week, updated);
+      updates.push(updated);
+    }
+
+    setMap(newMap);
+    scheduleAutoSaveBatch(type, updates);
+  };
+
+  const applyResistedToMesocycleWeeks = (
+    mesocycle: number,
+    field: keyof ResistedStimulus,
+    value: any
+  ) =>
+    applyToMesocycleWeeks<ResistedStimulus>(
+      mesocycle,
+      field,
+      value,
+      resistedMap,
+      setResistedMap,
+      'resisted'
+    );
+
+  const applyCyclicToMesocycleWeeks = (
+    mesocycle: number,
+    field: keyof CyclicStimulus,
+    value: any
+  ) =>
+    applyToMesocycleWeeks<CyclicStimulus>(
+      mesocycle,
+      field,
+      value,
+      cyclicMap,
+      setCyclicMap,
+      'cyclic'
+    );
+
+  const applyNutritionToMesocycleWeeks = (
+    mesocycle: number,
+    field: keyof NutritionWeekly,
+    value: any
+  ) =>
+    applyToMesocycleWeeks<NutritionWeekly>(
+      mesocycle,
+      field,
+      value,
+      nutritionMap,
+      setNutritionMap,
+      'nutrition'
+    );
 
   // Handlers de mudança
   const handleResistedChange = (
@@ -409,7 +519,7 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
                         const value = e.target.value || null;
                         // Aplicar a todas as semanas do mesociclo
                         for (let week = 1; week <= matrix.weeksPerMesocycle; week++) {
-                          handleResistedChange(mesocycle + 1, week, 'loadCycle', value);
+                          applyResistedToMesocycleWeeks(mesocycle + 1, 'loadCycle', value);
                         }
                       }}
                       className="w-full px-2 py-1 text-xs text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
@@ -445,6 +555,55 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
                 ))}
               </tr>
 
+              {/* Objetivo */}
+              <tr>
+                <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-white z-10">
+                  Objetivo
+                </td>
+                {Array.from({ length: matrix.totalMesocycles }, (_, mesocycle) => (
+                  <React.Fragment key={`meso-objetivo-${mesocycle + 1}`}>
+                    <td className="border border-gray-300 p-2 bg-orange-50">
+                      <select
+                        onChange={(e) => {
+                          const value = e.target.value || null;
+                          // Aplicar a todas as semanas do mesociclo
+                          for (let week = 1; week <= matrix.weeksPerMesocycle; week++) {
+                            applyResistedToMesocycleWeeks(mesocycle + 1, 'objective', value);
+                          }
+                        }}
+                        className="w-full px-2 py-1 text-xs text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
+                      >
+                        <option value="">-</option>
+                        {objectiveParams.map((param) => (
+                          <option key={param.id} value={param.code}>
+                            {param.code}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    {Array.from({ length: matrix.weeksPerMesocycle }, (_, week) => {
+                      const data = resistedMap.get(mesocycle + 1)?.get(week + 1);
+                      return (
+                        <td key={`objetivo-${mesocycle + 1}-${week + 1}`} className="border border-gray-300 p-2">
+                          <select
+                            value={data?.objective || ''}
+                            onChange={(e) => handleResistedChange(mesocycle + 1, week + 1, 'objective', e.target.value || null)}
+                            className="w-full px-2 py-1 text-xs border-0 focus:ring-2 focus:ring-blue-500 rounded"
+                          >
+                            <option value="">-</option>
+                            {objectiveParams.map((param) => (
+                              <option key={param.id} value={param.code}>
+                                {param.code}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                      );
+                    })}
+                  </React.Fragment>
+                ))}
+              </tr>
+
               {/* Zona Rep */}
               <tr>
                 <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 sticky left-0 bg-white z-10">
@@ -460,7 +619,7 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
                         const value = e.target.value ? parseInt(e.target.value) : null;
                         // Aplicar a todas as semanas do mesociclo
                         for (let week = 1; week <= matrix.weeksPerMesocycle; week++) {
-                          handleResistedChange(mesocycle + 1, week, 'repZone', value);
+                          applyResistedToMesocycleWeeks(mesocycle + 1, 'repZone', value);
                         }
                       }}
                       className="w-full px-2 py-1 text-xs text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
@@ -522,9 +681,7 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
                         placeholder=""
                         onChange={(e) => {
                           const value = e.target.value ? parseInt(e.target.value) : null;
-                          for (let week = 1; week <= matrix.weeksPerMesocycle; week++) {
-                            handleResistedChange(mesocycle + 1, week, 'seriesReference', value);
-                          }
+                          applyResistedToMesocycleWeeks(mesocycle + 1, 'seriesReference', value);
                         }}
                         className="w-full px-2 py-1 text-xs text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
                       />
@@ -580,7 +737,7 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
                       onChange={(e) => {
                         const value = e.target.value || null;
                         for (let week = 1; week <= matrix.weeksPerMesocycle; week++) {
-                          handleResistedChange(mesocycle + 1, week, 'assembly', value);
+                          applyResistedToMesocycleWeeks(mesocycle + 1, 'assembly', value);
                         }
                       }}
                       className="w-full px-2 py-1 text-xs text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
@@ -628,7 +785,7 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
                       onChange={(e) => {
                         const value = e.target.value || null;
                         for (let week = 1; week <= matrix.weeksPerMesocycle; week++) {
-                          handleResistedChange(mesocycle + 1, week, 'method', value);
+                          applyResistedToMesocycleWeeks(mesocycle + 1, 'method', value);
                         }
                       }}
                       className="w-full px-2 py-1 text-xs text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
@@ -676,7 +833,7 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
                       onChange={(e) => {
                         const value = e.target.value || null;
                         for (let week = 1; week <= matrix.weeksPerMesocycle; week++) {
-                          handleResistedChange(mesocycle + 1, week, 'trainingDivision', value);
+                          applyResistedToMesocycleWeeks(mesocycle + 1, 'trainingDivision', value);
                         }
                       }}
                       className="w-full px-2 py-1 text-xs text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
@@ -726,7 +883,7 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
                       onChange={(e) => {
                         const value = e.target.value ? parseInt(e.target.value) : null;
                         for (let week = 1; week <= matrix.weeksPerMesocycle; week++) {
-                          handleResistedChange(mesocycle + 1, week, 'weeklyFrequency', value);
+                          applyResistedToMesocycleWeeks(mesocycle + 1, 'weeklyFrequency', value);
                         }
                       }}
                       className="w-full px-2 py-1 text-xs text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
@@ -832,7 +989,7 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
                         onChange={(e) => {
                           const value = e.target.value ? parseInt(e.target.value) : null;
                           for (let week = 1; week <= matrix.weeksPerMesocycle; week++) {
-                            handleCyclicChange(mesocycle + 1, week, 'totalVolumeMinutes', value);
+                            applyCyclicToMesocycleWeeks(mesocycle + 1, 'totalVolumeMinutes', value);
                           }
                         }}
                         className="w-full px-2 py-1 text-xs text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
@@ -870,7 +1027,7 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
                         onChange={(e) => {
                           const value = e.target.value ? parseFloat(e.target.value) : null;
                           for (let week = 1; week <= matrix.weeksPerMesocycle; week++) {
-                            handleCyclicChange(mesocycle + 1, week, 'totalVolumeKm', value);
+                            applyCyclicToMesocycleWeeks(mesocycle + 1, 'totalVolumeKm', value);
                           }
                         }}
                         className="w-full px-2 py-1 text-xs text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
@@ -909,7 +1066,7 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
                         onChange={(e) => {
                           const value = e.target.value ? parseInt(e.target.value) : null;
                           for (let week = 1; week <= matrix.weeksPerMesocycle; week++) {
-                            handleCyclicChange(mesocycle + 1, week, 'countZ1', value);
+                            applyCyclicToMesocycleWeeks(mesocycle + 1, 'countZ1', value);
                           }
                         }}
                         className="w-full px-2 py-1 text-xs text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
@@ -952,7 +1109,7 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
                         onChange={(e) => {
                           const value = e.target.value ? parseInt(e.target.value) : null;
                           for (let week = 1; week <= matrix.weeksPerMesocycle; week++) {
-                            handleCyclicChange(mesocycle + 1, week, 'countZ2', value);
+                            applyCyclicToMesocycleWeeks(mesocycle + 1, 'countZ2', value);
                           }
                         }}
                         className="w-full px-2 py-1 text-xs text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
@@ -995,7 +1152,7 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
                         onChange={(e) => {
                           const value = e.target.value ? parseInt(e.target.value) : null;
                           for (let week = 1; week <= matrix.weeksPerMesocycle; week++) {
-                            handleCyclicChange(mesocycle + 1, week, 'countZ3', value);
+                            applyCyclicToMesocycleWeeks(mesocycle + 1, 'countZ3', value);
                           }
                         }}
                         className="w-full px-2 py-1 text-xs text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
@@ -1038,7 +1195,7 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
                         onChange={(e) => {
                           const value = e.target.value ? parseInt(e.target.value) : null;
                           for (let week = 1; week <= matrix.weeksPerMesocycle; week++) {
-                            handleCyclicChange(mesocycle + 1, week, 'countZ4', value);
+                            applyCyclicToMesocycleWeeks(mesocycle + 1, 'countZ4', value);
                           }
                         }}
                         className="w-full px-2 py-1 text-xs text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
@@ -1081,7 +1238,7 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
                         onChange={(e) => {
                           const value = e.target.value ? parseInt(e.target.value) : null;
                           for (let week = 1; week <= matrix.weeksPerMesocycle; week++) {
-                            handleCyclicChange(mesocycle + 1, week, 'countZ5', value);
+                            applyCyclicToMesocycleWeeks(mesocycle + 1, 'countZ5', value);
                           }
                         }}
                         className="w-full px-2 py-1 text-xs text-center border-0 focus:ring-2 focus:ring-orange-500 rounded bg-transparent font-medium"
@@ -1246,6 +1403,7 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
           <h3 className="text-lg font-semibold text-white">Nutrição</h3>
         </div>
         <div className="p-4 text-center text-gray-600">
+          {/* Quando houver inputs, use applyNutritionToMesocycleWeeks para replicação por mesociclo. */}
           <p>Seção de Nutrição (em desenvolvimento)</p>
         </div>
       </div>
