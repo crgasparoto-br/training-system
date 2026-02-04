@@ -162,7 +162,7 @@ export function PlanDetails() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => navigate('/plans')}>
             <ArrowLeft size={20} />
@@ -174,7 +174,7 @@ export function PlanDetails() {
             </p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button onClick={() => navigate(`/plans/${id}/workout-builder/1/1`)}>
             <Activity size={20} />
             Montar Treinos

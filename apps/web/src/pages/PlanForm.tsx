@@ -259,7 +259,7 @@ export function PlanForm() {
         </Card>
 
         {/* Actions */}
-        <div className="flex gap-4 justify-end">
+        <div className="flex gap-4 justify-start">
           <Button
             type="button"
             variant="outline"

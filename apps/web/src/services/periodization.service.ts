@@ -19,6 +19,7 @@ export interface ResistedStimulus {
   mesocycleNumber: number;
   weekNumber: number;
   loadCycle?: string | null;
+  objective?: string | null;
   repZone?: number | null;
   loadPercentage?: number | null;
   seriesReference?: number | null;
@@ -218,6 +219,14 @@ export const periodizationService = {
     }
   ): Promise<TrainingParameter> {
     const response = await api.put(`/periodization/parameters/${id}`, data);
+    return response.data.data;
+  },
+
+  async renameParameterCategory(data: {
+    fromCategory: string;
+    toCategory: string;
+  }): Promise<{ updated: number }> {
+    const response = await api.put('/periodization/parameters/category', data);
     return response.data.data;
   },
 

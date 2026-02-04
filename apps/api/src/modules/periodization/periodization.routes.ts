@@ -352,6 +352,37 @@ router.put('/parameters/:id', educatorMiddleware, async (req: Request, res: Resp
 });
 
 /**
+ * PUT /api/v1/periodization/parameters/category
+ * Renomear categoria de parametros
+ */
+router.put('/parameters/category', educatorMiddleware, async (req: Request, res: Response) => {
+  try {
+    const { fromCategory, toCategory } = req.body;
+
+    if (!fromCategory || !toCategory) {
+      return sendError(res, 'Dados invalidos', 400);
+    }
+
+    const result = await periodizationService.renameParameterCategory(
+      fromCategory,
+      toCategory
+    );
+
+    return sendSuccess(
+      res,
+      result,
+      `Categoria renomeada com sucesso. ${result.updated} parametros atualizados.`
+    );
+  } catch (error: any) {
+    console.error('Erro ao renomear categoria:', error);
+    if (error?.message?.startsWith('CONFLICT:')) {
+      return sendError(res, error.message.replace('CONFLICT:', '').trim(), 409);
+    }
+    return sendError(res, error.message, 500);
+  }
+});
+
+/**
  * DELETE /api/v1/periodization/parameters/:id
  * Deletar parâmetro
  */

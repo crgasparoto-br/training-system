@@ -8,12 +8,15 @@ interface WorkoutBuilderResistanceProps {
   templateData: any;
   resistedSummary: ResistedStimulus | null;
   onChange: (data: any) => void;
+  registerScrollContainer?: (el: HTMLDivElement | null) => void;
+  onScrollSync?: (source: HTMLDivElement) => void;
 }
 
 type SectionKey = 'mobilidade' | 'sessao' | 'resfriamento';
 
 interface SelectedExercise {
   id: string;
+  exerciseId?: string;
   name: string;
   system?: string;
   sets?: number | null;
@@ -25,8 +28,15 @@ interface SelectedExercise {
   adjustment?: string | null;
 }
 
-export default function WorkoutBuilderResistance({ templateData, resistedSummary, onChange }: WorkoutBuilderResistanceProps) {
+export default function WorkoutBuilderResistance({
+  templateData,
+  resistedSummary,
+  onChange,
+  registerScrollContainer,
+  onScrollSync
+}: WorkoutBuilderResistanceProps) {
   const lastHydratedKey = useRef<string | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const days = useMemo(() => {
     const labels = ['Segunda-Feira', 'Terça-Feira', 'Quarta-Feira', 'Quinta-Feira', 'Sexta-Feira', 'Sábado', 'Domingo'];
     const start = templateData?.weekStartDate ? new Date(templateData.weekStartDate) : new Date();
@@ -159,7 +169,8 @@ export default function WorkoutBuilderResistance({ templateData, resistedSummary
             const updatedSections = { ...sections };
             (Object.keys(updatedSections) as SectionKey[]).forEach((sectionKey) => {
               updatedSections[sectionKey] = updatedSections[sectionKey].map((exercise) => {
-                if (exercise.id !== exerciseId) return exercise;
+                const referenceId = exercise.exerciseId ?? exercise.id;
+                if (referenceId !== exerciseId) return exercise;
                 const computedLoad = calculateLoad(maxLoad, exercise.reps ?? null);
                 return { ...exercise, load: computedLoad };
               });
@@ -256,6 +267,7 @@ export default function WorkoutBuilderResistance({ templateData, resistedSummary
 
   const handleSelectExercise = (exercise: Exercise) => {
     if (!selectedDay || !selectedSection) return;
+    const rowId = `${exercise.id}-${Date.now()}-${Math.random()}`;
 
     setExercisesByDay((prev) => {
       const currentDay = prev[selectedDay] || {
@@ -269,7 +281,8 @@ export default function WorkoutBuilderResistance({ templateData, resistedSummary
         [selectedSection]: [
           ...currentDay[selectedSection],
           {
-            id: exercise.id,
+            id: rowId,
+            exerciseId: exercise.id,
             name: exercise.name,
             system:
               selectedSection === 'mobilidade'
@@ -394,7 +407,8 @@ export default function WorkoutBuilderResistance({ templateData, resistedSummary
                       value={exercise.reps ?? ''}
                       onChange={(e) => {
                         const repsValue = e.target.value ? Number(e.target.value) : null;
-                        const maxLoad = maxLoads[exercise.id];
+                        const referenceId = exercise.exerciseId ?? exercise.id;
+                        const maxLoad = maxLoads[referenceId];
                         const computedLoad = calculateLoad(maxLoad, repsValue);
                         updateExerciseFields(dayOfWeek, section, exercise.id, {
                           reps: repsValue,
@@ -500,148 +514,30 @@ export default function WorkoutBuilderResistance({ templateData, resistedSummary
   );
   };
 
+  useEffect(() => {
+    if (registerScrollContainer) {
+      registerScrollContainer(scrollContainerRef.current);
+      return () => registerScrollContainer(null);
+    }
+  }, [registerScrollContainer]);
+
   return (
     <div className="space-y-6">
-      {/* Resumo Resistido da Semana */}
-      <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-xl shadow-md border border-purple-200 p-6 max-w-[1800px]">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center">
-              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-              </svg>
-            </div>
-            <h3 className="text-xl font-bold text-gray-900">
-              Resumo Resistido da Semana
-            </h3>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg px-6 py-4 shadow-sm border border-gray-200 space-y-4 max-w-[1600px]">
-          {/* Primeira linha */}
-          <div className="grid grid-cols-4 gap-6">
-            <div className="flex flex-col gap-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 min-w-[220px]">
-              <label className="text-sm font-medium text-gray-600">% Carga TR</label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  step="0.1"
-                  value={resistedSummary?.loadPercentage ?? ''}
-                  readOnly
-                  className="w-20 px-2 py-2 text-base font-semibold border border-gray-300 rounded-lg bg-white text-center"
-                />
-                <span className="text-gray-600 font-medium text-sm">%</span>
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 min-w-[220px]">
-              <label className="text-sm font-medium text-gray-600">Séries Grandes Músculos</label>
-              <input
-                type="number"
-                value={resistedSummary?.seriesReference ?? ''}
-                readOnly
-                className="w-20 px-2 py-2 text-base font-semibold border border-gray-300 rounded-lg bg-white text-center"
-              />
-            </div>
-
-            <div className="flex flex-col gap-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 min-w-[220px]">
-              <label className="text-sm font-medium text-gray-600">Zona de Repetições</label>
-              <input
-                type="text"
-                value={resistedSummary?.repZone ?? ''}
-                readOnly
-                className="w-20 px-2 py-2 text-base font-semibold border border-gray-300 rounded-lg bg-white text-center"
-              />
-            </div>
-
-            <div className="flex flex-col gap-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 min-w-[220px]">
-              <label className="text-sm font-medium text-gray-600">Repetições em Reserva</label>
-              <input
-                type="number"
-                value={resistedSummary?.repReserve ?? ''}
-                readOnly
-                className="w-20 px-2 py-2 text-base font-semibold border border-gray-300 rounded-lg bg-white text-center"
-              />
-            </div>
-          </div>
-
-          {/* Segunda linha */}
-          <div className="grid grid-cols-5 gap-6">
-            <div className="flex flex-col gap-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 min-w-[220px]">
-              <label className="text-sm font-medium text-gray-600">Montagem</label>
-              <input
-                type="text"
-                value={
-                  resistedSummary?.assembly
-                    ? `${resistedSummary.assembly} - ${assemblyParamMap.get(resistedSummary.assembly)?.description || ''}`.trim()
-                    : ''
-                }
-                readOnly
-                className="w-40 px-2 py-2 text-base font-semibold border border-gray-300 rounded-lg bg-white text-center"
-              />
-            </div>
-
-            <div className="flex flex-col gap-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 min-w-[220px]">
-              <label className="text-sm font-medium text-gray-600">Método</label>
-              <input
-                type="text"
-                value={
-                  resistedSummary?.method
-                    ? `${resistedSummary.method} - ${methodParamMap.get(resistedSummary.method)?.description || ''}`.trim()
-                    : ''
-                }
-                readOnly
-                className="w-full px-2 py-2 text-base font-semibold border border-gray-300 rounded-lg bg-white text-center"
-              />
-            </div>
-
-            <div className="flex flex-col gap-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 min-w-[220px]">
-              <label className="text-sm font-medium text-gray-600">Microciclo</label>
-              <input
-                type="text"
-                value={
-                  resistedSummary?.loadCycle
-                    ? `${resistedSummary.loadCycle} - ${loadCycleParamMap.get(resistedSummary.loadCycle)?.description || ''}`.trim()
-                    : ''
-                }
-                readOnly
-                className="w-40 px-2 py-2 text-base font-semibold border border-gray-300 rounded-lg bg-white text-center"
-              />
-            </div>
-
-            <div className="flex flex-col gap-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 min-w-[220px]">
-              <label className="text-sm font-medium text-gray-600">Divisão do Treino</label>
-              <input
-                type="text"
-                value={resistedSummary?.trainingDivision ?? ''}
-                readOnly
-                className="w-20 px-2 py-2 text-base font-semibold border border-gray-300 rounded-lg bg-white text-center"
-              />
-            </div>
-
-            <div className="flex flex-col gap-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 min-w-[220px]">
-              <label className="text-sm font-medium text-gray-600">Frequência Semanal</label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  value={resistedSummary?.weeklyFrequency ?? ''}
-                  readOnly
-                  className="w-20 px-2 py-2 text-base font-semibold border border-gray-300 rounded-lg bg-white text-center"
-                />
-                <span className="text-gray-600 font-medium text-sm">x/sem</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Tabela Semanal - Layout Colunar */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900">Treinamento Resistido - Semana</h3>
         </div>
 
-        <div className="overflow-x-auto">
+        <div
+          className="overflow-x-auto"
+          ref={scrollContainerRef}
+          onScroll={(event) => {
+            if (onScrollSync) {
+              onScrollSync(event.currentTarget);
+            }
+          }}
+        >
           <table className="min-w-full border-collapse">
             <thead className="bg-gray-50">
               <tr>

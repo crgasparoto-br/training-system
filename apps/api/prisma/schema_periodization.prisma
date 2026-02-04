@@ -5,7 +5,7 @@
 // Tabela de Parâmetros Configuráveis
 model TrainingParameter {
   id          String   @id @default(cuid())
-  category    String   // "montagem", "metodo", "divisao_treino", "carga_microciclo"
+  category    String   // "montagem", "metodo", "divisao_treino", "carga_microciclo", "objetivo"
   code        String   // "AS", "SER", "FB", "ADP", etc
   description String   // Descrição completa
   order       Int      // Ordem de exibição
@@ -47,6 +47,9 @@ model ResistedStimulus {
   
   // Carga Microciclo (ADP, ORD, CHO, REG)
   loadCycle         String   // Referência ao TrainingParameter
+
+  // Objetivo
+  objective         String?  // Referência ao TrainingParameter
   
   // Parâmetros de Treino Resistido
   repZone           Int?     // Zona de Repetições (ex: 4, 6, 8, 10, 12, 14)

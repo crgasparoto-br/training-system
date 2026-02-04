@@ -3,9 +3,18 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 interface WorkoutBuilderCyclicProps {
   templateData: any;
   onChange: (data: any) => void;
+  planId?: string;
+  mesocycleNumber?: number;
+  weekNumber?: number;
 }
 
-export default function WorkoutBuilderCyclic({ templateData, onChange }: WorkoutBuilderCyclicProps) {
+export default function WorkoutBuilderCyclic({
+  templateData,
+  onChange,
+  planId,
+  mesocycleNumber,
+  weekNumber
+}: WorkoutBuilderCyclicProps) {
   const lastHydratedKey = useRef<string | null>(null);
   const normalizeWorkoutDays = (workoutDays: any) => {
     if (Array.isArray(workoutDays)) {
@@ -56,6 +65,21 @@ export default function WorkoutBuilderCyclic({ templateData, onChange }: Workout
   };
 
   const [dayData, setDayData] = useState<any>({});
+  const summaryStorageKey = useMemo(() => {
+    const planKey = planId ?? templateData?.planId ?? 'unknown-plan';
+    const mesoKey = mesocycleNumber ?? templateData?.mesocycleNumber ?? 'unknown-meso';
+    const weekKey = weekNumber ?? templateData?.weekNumber ?? 'unknown-week';
+    return `workoutBuilder2:cyclicSummary:${planKey}:${mesoKey}:${weekKey}`;
+  }, [planId, mesocycleNumber, weekNumber, templateData?.planId, templateData?.mesocycleNumber, templateData?.weekNumber]);
+  const [showCyclicSummary, setShowCyclicSummary] = useState(() => {
+    try {
+      const stored = localStorage.getItem(summaryStorageKey);
+      if (stored !== null) return stored === 'true';
+    } catch (error) {
+      // ignore storage errors
+    }
+    return true;
+  });
 
   // Estado para Volume Total (virá da periodização)
   const [volumeTotalMin, setVolumeTotalMin] = useState(templateData?.totalVolumeMin || 284);
@@ -103,6 +127,27 @@ export default function WorkoutBuilderCyclic({ templateData, onChange }: Workout
 
     lastHydratedKey.current = templateKey;
   }, [templateData]);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(summaryStorageKey);
+      if (stored !== null) {
+        setShowCyclicSummary(stored === 'true');
+        return;
+      }
+    } catch (error) {
+      // ignore storage errors
+    }
+    setShowCyclicSummary(true);
+  }, [summaryStorageKey]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(summaryStorageKey, String(showCyclicSummary));
+    } catch (error) {
+      // ignore storage errors
+    }
+  }, [showCyclicSummary, summaryStorageKey]);
 
   useEffect(() => {
     if (!templateData) return;
@@ -311,226 +356,234 @@ export default function WorkoutBuilderCyclic({ templateData, onChange }: Workout
   return (
     <div className="space-y-6">
       {/* Resumo Cíclico da Semana */}
-      <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-        <h3 className="text-base font-semibold text-gray-900 mb-4">
-          Resumo Cíclico da Semana
-        </h3>
-
-        {/* Volume Total (separado) */}
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          <div className="bg-white rounded-lg p-3 border border-gray-200">
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-medium text-gray-700">
-                Volume Total (min)
-              </label>
-              <input
-                type="number"
-                value={volumeTotalMin}
-                onChange={(e) => setVolumeTotalMin(parseInt(e.target.value) || 0)}
-                className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-right"
-              />
-            </div>
-          </div>
-          <div className="bg-white rounded-lg p-3 border border-gray-200">
-            <div className="flex items-center gap-2">
-              <label className="text-sm font-medium text-gray-700">
-                Volume Total (km)
-              </label>
-              <input
-                type="number"
-                step="0.1"
-                value={volumeTotalKm}
-                onChange={(e) => setVolumeTotalKm(parseFloat(e.target.value) || 0)}
-                className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-right"
-              />
-            </div>
-          </div>
+      <div
+        className={`bg-blue-50 rounded-lg border border-blue-200 ${showCyclicSummary ? 'p-4' : 'p-2'}`}
+      >
+        <div className={`${showCyclicSummary ? 'mb-4' : 'mb-0'} flex items-center justify-between`}>
+          <h3 className="text-base font-semibold text-gray-900">
+            Resumo Cíclico da Semana
+          </h3>
+          <button
+            type="button"
+            onClick={() => setShowCyclicSummary((prev) => !prev)}
+            className="inline-flex items-center rounded-md border border-blue-200 bg-white px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-50"
+          >
+            {showCyclicSummary ? 'Ocultar' : 'Exibir'}
+          </button>
         </div>
 
-        {/* Tabela de Zonas */}
-        <div className="overflow-x-auto">
-          <table className="min-w-full border-collapse border border-gray-300 bg-white">
-            <thead>
-              <tr className="bg-gray-100">
-                <th className="border border-gray-300 px-4 py-2 text-left text-sm font-semibold text-gray-900">
-                  Zonas
-                </th>
-                <th className="border border-gray-300 px-4 py-2 text-center text-sm font-semibold text-gray-900">
-                  Z1
-                </th>
-                <th className="border border-gray-300 px-4 py-2 text-center text-sm font-semibold text-gray-900">
-                  Z2
-                </th>
-                <th className="border border-gray-300 px-4 py-2 text-center text-sm font-semibold text-gray-900">
-                  Z3
-                </th>
-                <th className="border border-gray-300 px-4 py-2 text-center text-sm font-semibold text-gray-900">
-                  Z4
-                </th>
-                <th className="border border-gray-300 px-4 py-2 text-center text-sm font-semibold text-gray-900">
-                  Z5
-                </th>
-                <th className="border border-gray-300 px-4 py-2 text-center text-sm font-semibold text-gray-900 bg-blue-100">
-                  Total
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {/* Distribuição (%) - vem da periodização (BLOQUEADO) */}
-              <tr>
-                <td className="border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-50">
-                  Distribuição (%)
-                </td>
-                <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
-                  <span
-                    className="text-sm text-center tabular-nums"
-                    title="Valor vinculado à periodização (somente leitura)"
-                  >
-                    {distribution.z1}
+        {showCyclicSummary && (
+          <>
+            {/* Volume Total (separado) */}
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div className="bg-white rounded-lg p-3 border border-gray-200">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[12px] font-medium text-gray-600">
+                    Volume Total (min)
                   </span>
-                </td>
-                <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
-                  <span
-                    className="text-sm text-center tabular-nums"
-                    title="Valor vinculado à periodização (somente leitura)"
-                  >
-                    {distribution.z2}
+                  <span className="text-[12px] font-semibold text-gray-900 tabular-nums">
+                    {Number.isFinite(volumeTotalMin) ? Math.round(volumeTotalMin) : 0}
                   </span>
-                </td>
-                <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
-                  <span
-                    className="text-sm text-center tabular-nums"
-                    title="Valor vinculado à periodização (somente leitura)"
-                  >
-                    {distribution.z3}
+                </div>
+              </div>
+              <div className="bg-white rounded-lg p-3 border border-gray-200">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[12px] font-medium text-gray-600">
+                    Volume Total (km)
                   </span>
-                </td>
-                <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
-                  <span
-                    className="text-sm text-center tabular-nums"
-                    title="Valor vinculado à periodização (somente leitura)"
-                  >
-                    {distribution.z4}
+                  <span className="text-[12px] font-semibold text-gray-900 tabular-nums">
+                    {Number.isFinite(volumeTotalKm) ? Number(volumeTotalKm.toFixed(1)) : 0}
                   </span>
-                </td>
-                <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
-                  <span
-                    className="text-sm text-center tabular-nums"
-                    title="Valor vinculado à periodização (somente leitura)"
-                  >
-                    {distribution.z5}
-                  </span>
-                </td>
-                <td className="border border-gray-300 px-4 py-2 text-center text-sm font-semibold tabular-nums bg-blue-50">
-                  {getTotalDistribution()}
-                </td>
-              </tr>
+                </div>
+              </div>
+            </div>
 
-              {/* Absoluto - calculado automaticamente */}
-              <tr>
-                <td className="border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-50">
-                  Absoluto
-                </td>
-                <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
-                  {calculateAbsolute('z1')}
-                </td>
-                <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
-                  {calculateAbsolute('z2')}
-                </td>
-                <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
-                  {calculateAbsolute('z3')}
-                </td>
-                <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
-                  {calculateAbsolute('z4')}
-                </td>
-                <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
-                  {calculateAbsolute('z5')}
-                </td>
-                <td className="border border-gray-300 px-4 py-2 text-center text-sm font-semibold bg-blue-50">
-                  {getTotalAbsolute()}
-                </td>
-              </tr>
+            {/* Tabela de Zonas */}
+            <div className="overflow-x-auto">
+              <table className="min-w-full border-collapse border border-gray-300 bg-white">
+                <thead>
+                  <tr className="bg-gray-100">
+                    <th className="border border-gray-300 px-4 py-2 text-left text-sm font-semibold text-gray-900">
+                      Zonas
+                    </th>
+                    <th className="border border-gray-300 px-4 py-2 text-center text-sm font-semibold text-gray-900">
+                      Z1
+                    </th>
+                    <th className="border border-gray-300 px-4 py-2 text-center text-sm font-semibold text-gray-900">
+                      Z2
+                    </th>
+                    <th className="border border-gray-300 px-4 py-2 text-center text-sm font-semibold text-gray-900">
+                      Z3
+                    </th>
+                    <th className="border border-gray-300 px-4 py-2 text-center text-sm font-semibold text-gray-900">
+                      Z4
+                    </th>
+                    <th className="border border-gray-300 px-4 py-2 text-center text-sm font-semibold text-gray-900">
+                      Z5
+                    </th>
+                    <th className="border border-gray-300 px-4 py-2 text-center text-sm font-semibold text-gray-900 bg-blue-100">
+                      Total
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* Distribui??o (%) - vem da periodiza??o (BLOQUEADO) */}
+                  <tr>
+                    <td className="border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-50">
+                      Distribui??o (%)
+                    </td>
+                    <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
+                      <span
+                        className="text-sm text-center tabular-nums"
+                        title="Valor vinculado ? periodiza??o (somente leitura)"
+                      >
+                        {distribution.z1}
+                      </span>
+                    </td>
+                    <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
+                      <span
+                        className="text-sm text-center tabular-nums"
+                        title="Valor vinculado ? periodiza??o (somente leitura)"
+                      >
+                        {distribution.z2}
+                      </span>
+                    </td>
+                    <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
+                      <span
+                        className="text-sm text-center tabular-nums"
+                        title="Valor vinculado ? periodiza??o (somente leitura)"
+                      >
+                        {distribution.z3}
+                      </span>
+                    </td>
+                    <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
+                      <span
+                        className="text-sm text-center tabular-nums"
+                        title="Valor vinculado ? periodiza??o (somente leitura)"
+                      >
+                        {distribution.z4}
+                      </span>
+                    </td>
+                    <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
+                      <span
+                        className="text-sm text-center tabular-nums"
+                        title="Valor vinculado ? periodiza??o (somente leitura)"
+                      >
+                        {distribution.z5}
+                      </span>
+                    </td>
+                    <td className="border border-gray-300 px-4 py-2 text-center text-sm font-semibold tabular-nums bg-blue-50">
+                      {getTotalDistribution()}
+                    </td>
+                  </tr>
 
-              {/* Planejamento - editável */}
-              <tr>
-                <td className="border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-50">
-                  Planejamento
-                </td>
-                <td className="border border-gray-300 px-4 py-2 text-center text-sm">
-                  <input
-                    type="number"
-                    value={planning.z1}
-                    onChange={(e) => setPlanning({ ...planning, z1: parseInt(e.target.value) || 0 })}
-                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded text-center focus:ring-2 focus:ring-blue-500"
-                  />
-                </td>
-                <td className="border border-gray-300 px-4 py-2 text-center text-sm">
-                  <input
-                    type="number"
-                    value={planning.z2}
-                    onChange={(e) => setPlanning({ ...planning, z2: parseInt(e.target.value) || 0 })}
-                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded text-center focus:ring-2 focus:ring-blue-500"
-                  />
-                </td>
-                <td className="border border-gray-300 px-4 py-2 text-center text-sm">
-                  <input
-                    type="number"
-                    value={planning.z3}
-                    onChange={(e) => setPlanning({ ...planning, z3: parseInt(e.target.value) || 0 })}
-                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded text-center focus:ring-2 focus:ring-blue-500"
-                  />
-                </td>
-                <td className="border border-gray-300 px-4 py-2 text-center text-sm">
-                  <input
-                    type="number"
-                    value={planning.z4}
-                    onChange={(e) => setPlanning({ ...planning, z4: parseInt(e.target.value) || 0 })}
-                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded text-center focus:ring-2 focus:ring-blue-500"
-                  />
-                </td>
-                <td className="border border-gray-300 px-4 py-2 text-center text-sm">
-                  <input
-                    type="number"
-                    value={planning.z5}
-                    onChange={(e) => setPlanning({ ...planning, z5: parseInt(e.target.value) || 0 })}
-                    className="w-full px-2 py-1 text-sm border border-gray-300 rounded text-center focus:ring-2 focus:ring-blue-500"
-                  />
-                </td>
-                <td className="border border-gray-300 px-4 py-2 text-center text-sm font-semibold bg-blue-50">
-                  {getTotalPlanning()}
-                </td>
-              </tr>
+                  {/* Absoluto - calculado automaticamente */}
+                  <tr>
+                    <td className="border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-50">
+                      Absoluto
+                    </td>
+                    <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
+                      {calculateAbsolute('z1')}
+                    </td>
+                    <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
+                      {calculateAbsolute('z2')}
+                    </td>
+                    <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
+                      {calculateAbsolute('z3')}
+                    </td>
+                    <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
+                      {calculateAbsolute('z4')}
+                    </td>
+                    <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
+                      {calculateAbsolute('z5')}
+                    </td>
+                    <td className="border border-gray-300 px-4 py-2 text-center text-sm font-semibold bg-blue-50">
+                      {getTotalAbsolute()}
+                    </td>
+                  </tr>
 
-              {/* Restante - calculado automaticamente */}
-              <tr>
-                <td className="border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-50">
-                  Restante
-                </td>
-                <td className={`border border-gray-300 px-4 py-2 text-center text-sm font-medium bg-gray-100 ${calculateRemaining('z1') < 0 ? 'text-red-600' : 'text-gray-900'}`}>
-                  {calculateRemaining('z1')}
-                </td>
-                <td className={`border border-gray-300 px-4 py-2 text-center text-sm font-medium bg-gray-100 ${calculateRemaining('z2') < 0 ? 'text-red-600' : 'text-gray-900'}`}>
-                  {calculateRemaining('z2')}
-                </td>
-                <td className={`border border-gray-300 px-4 py-2 text-center text-sm font-medium bg-gray-100 ${calculateRemaining('z3') < 0 ? 'text-red-600' : 'text-gray-900'}`}>
-                  {calculateRemaining('z3')}
-                </td>
-                <td className={`border border-gray-300 px-4 py-2 text-center text-sm font-medium bg-gray-100 ${calculateRemaining('z4') < 0 ? 'text-red-600' : 'text-gray-900'}`}>
-                  {calculateRemaining('z4')}
-                </td>
-                <td className={`border border-gray-300 px-4 py-2 text-center text-sm font-medium bg-gray-100 ${calculateRemaining('z5') < 0 ? 'text-red-600' : 'text-gray-900'}`}>
-                  {calculateRemaining('z5')}
-                </td>
-                <td className={`border border-gray-300 px-4 py-2 text-center text-sm font-semibold bg-blue-50 ${getTotalRemaining() < 0 ? 'text-red-600' : 'text-gray-900'}`}>
-                  {getTotalRemaining()}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+                  {/* Planejamento - edit?vel */}
+                  <tr>
+                    <td className="border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-50">
+                      Planejamento
+                    </td>
+                    <td className="border border-gray-300 px-4 py-2 text-center text-sm">
+                      <input
+                        type="number"
+                        value={planning.z1}
+                        onChange={(e) => setPlanning({ ...planning, z1: parseInt(e.target.value) || 0 })}
+                        className="w-full px-2 py-1 text-sm border border-gray-300 rounded text-center focus:ring-2 focus:ring-blue-500"
+                      />
+                    </td>
+                    <td className="border border-gray-300 px-4 py-2 text-center text-sm">
+                      <input
+                        type="number"
+                        value={planning.z2}
+                        onChange={(e) => setPlanning({ ...planning, z2: parseInt(e.target.value) || 0 })}
+                        className="w-full px-2 py-1 text-sm border border-gray-300 rounded text-center focus:ring-2 focus:ring-blue-500"
+                      />
+                    </td>
+                    <td className="border border-gray-300 px-4 py-2 text-center text-sm">
+                      <input
+                        type="number"
+                        value={planning.z3}
+                        onChange={(e) => setPlanning({ ...planning, z3: parseInt(e.target.value) || 0 })}
+                        className="w-full px-2 py-1 text-sm border border-gray-300 rounded text-center focus:ring-2 focus:ring-blue-500"
+                      />
+                    </td>
+                    <td className="border border-gray-300 px-4 py-2 text-center text-sm">
+                      <input
+                        type="number"
+                        value={planning.z4}
+                        onChange={(e) => setPlanning({ ...planning, z4: parseInt(e.target.value) || 0 })}
+                        className="w-full px-2 py-1 text-sm border border-gray-300 rounded text-center focus:ring-2 focus:ring-blue-500"
+                      />
+                    </td>
+                    <td className="border border-gray-300 px-4 py-2 text-center text-sm">
+                      <input
+                        type="number"
+                        value={planning.z5}
+                        onChange={(e) => setPlanning({ ...planning, z5: parseInt(e.target.value) || 0 })}
+                        className="w-full px-2 py-1 text-sm border border-gray-300 rounded text-center focus:ring-2 focus:ring-blue-500"
+                      />
+                    </td>
+                    <td className="border border-gray-300 px-4 py-2 text-center text-sm font-semibold bg-blue-50">
+                      {getTotalPlanning()}
+                    </td>
+                  </tr>
+
+                  {/* Restante - calculado automaticamente */}
+                  <tr>
+                    <td className="border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-50">
+                      Restante
+                    </td>
+                    <td className={`border border-gray-300 px-4 py-2 text-center text-sm font-medium bg-gray-100 ${calculateRemaining('z1') < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                      {calculateRemaining('z1')}
+                    </td>
+                    <td className={`border border-gray-300 px-4 py-2 text-center text-sm font-medium bg-gray-100 ${calculateRemaining('z2') < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                      {calculateRemaining('z2')}
+                    </td>
+                    <td className={`border border-gray-300 px-4 py-2 text-center text-sm font-medium bg-gray-100 ${calculateRemaining('z3') < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                      {calculateRemaining('z3')}
+                    </td>
+                    <td className={`border border-gray-300 px-4 py-2 text-center text-sm font-medium bg-gray-100 ${calculateRemaining('z4') < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                      {calculateRemaining('z4')}
+                    </td>
+                    <td className={`border border-gray-300 px-4 py-2 text-center text-sm font-medium bg-gray-100 ${calculateRemaining('z5') < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                      {calculateRemaining('z5')}
+                    </td>
+                    <td className={`border border-gray-300 px-4 py-2 text-center text-sm font-semibold bg-blue-50 ${getTotalRemaining() < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                      {getTotalRemaining()}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </div>
 
-      {/* Planejamento do Treinamento Cíclico */}
+{/* Planejamento do Treinamento Cíclico */}
       <div className="bg-green-50 rounded-lg p-4 border border-green-200">
         <h3 className="text-base font-semibold text-gray-900 mb-4">
           Planejamento do Treinamento Cíclico
