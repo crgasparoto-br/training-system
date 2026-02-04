@@ -14,6 +14,7 @@ export default function ExerciseSelectionModal({ onClose, onSelect, category = '
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedMuscleGroup, setSelectedMuscleGroup] = useState<string>('');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadExercises();
@@ -70,8 +71,22 @@ export default function ExerciseSelectionModal({ onClose, onSelect, category = '
 
   const muscleGroups = Array.from(new Set(exercises.map(ex => ex.muscleGroup).filter(Boolean)));
 
-  const handleSelectExercise = (exercise: Exercise) => {
-    onSelect(exercise);
+  const handleToggleExercise = (exercise: Exercise) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(exercise.id)) {
+        next.delete(exercise.id);
+      } else {
+        next.add(exercise.id);
+      }
+      return next;
+    });
+  };
+
+  const handleAddSelected = () => {
+    if (selectedIds.size === 0) return;
+    const selectedExercises = exercises.filter((exercise) => selectedIds.has(exercise.id));
+    selectedExercises.forEach((exercise) => onSelect(exercise));
     onClose();
   };
 
@@ -146,47 +161,74 @@ export default function ExerciseSelectionModal({ onClose, onSelect, category = '
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {filteredExercises.map((exercise) => (
-                <button
-                  key={exercise.id}
-                  onClick={() => handleSelectExercise(exercise)}
-                  className="flex items-start gap-3 p-4 border border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all text-left group"
-                >
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-gray-900 group-hover:text-blue-600 truncate">
-                      {exercise.name}
-                    </h3>
-                    <div className="flex items-center gap-2 mt-1">
-                      {exercise.muscleGroup && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
-                          {exercise.muscleGroup}
-                        </span>
-                      )}
-                      {exercise.loadType && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700">
-                          {exercise.loadType}
-                        </span>
-                      )}
-                      {exercise.videoUrl && (
-                        <Video className="w-4 h-4 text-gray-400" />
-                      )}
+              {filteredExercises.map((exercise) => {
+                const isSelected = selectedIds.has(exercise.id);
+                return (
+                  <button
+                    key={exercise.id}
+                    onClick={() => handleToggleExercise(exercise)}
+                    className={`flex items-start gap-3 p-4 border rounded-lg transition-all text-left group ${
+                      isSelected
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 hover:border-blue-500 hover:bg-blue-50'
+                    }`}
+                    aria-pressed={isSelected}
+                  >
+                    <span
+                      className={`mt-1 h-4 w-4 rounded border flex items-center justify-center ${
+                        isSelected ? 'border-blue-600 bg-blue-600' : 'border-gray-300'
+                      }`}
+                    >
+                      {isSelected && <span className="h-2 w-2 rounded bg-white" />}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-gray-900 group-hover:text-blue-600 truncate">
+                        {exercise.name}
+                      </h3>
+                      <div className="flex items-center gap-2 mt-1">
+                        {exercise.muscleGroup && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                            {exercise.muscleGroup}
+                          </span>
+                        )}
+                        {exercise.loadType && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700">
+                            {exercise.loadType}
+                          </span>
+                        )}
+                        {exercise.videoUrl && (
+                          <Video className="w-4 h-4 text-gray-400" />
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </button>
-              ))}
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
 
         {/* Footer */}
         <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
-          <div className="flex items-center justify-between text-sm text-gray-600">
+          <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-gray-600">
             <span>
               {filteredExercises.length} exercício{filteredExercises.length !== 1 ? 's' : ''} encontrado{filteredExercises.length !== 1 ? 's' : ''}
+            </span>
+            <span className="text-sm text-gray-700">
+              {selectedIds.size} exercício{selectedIds.size !== 1 ? 's' : ''} selecionado{selectedIds.size !== 1 ? 's' : ''}
             </span>
             <span className="text-xs">
               Pressione <kbd className="px-2 py-1 bg-gray-200 rounded">ESC</kbd> para fechar
             </span>
+          </div>
+          <div className="mt-4 flex justify-end">
+            <button
+              onClick={handleAddSelected}
+              disabled={selectedIds.size === 0}
+              className="px-4 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Adicionar selecionados
+            </button>
           </div>
         </div>
       </div>
