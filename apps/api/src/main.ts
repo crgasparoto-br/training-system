@@ -7,6 +7,9 @@ import { authRoutes } from './modules/auth/index.js';
 import { athleteRoutes } from './modules/athletes/index.js';
 import { planRoutes } from './modules/plans/index.js';
 import { periodizationRoutes } from './modules/periodization/index.js';
+import { educatorRoutes } from './modules/educators/index.js';
+import { contractRoutes } from './modules/contracts/index.js';
+import { assessmentTypeRoutes } from './modules/assessments/index.js';
 import libraryRoutes from './routes/library.routes.js';
 import workoutRoutes from './routes/workout.routes.js';
 
@@ -61,8 +64,11 @@ app.get('/api/v1', (req, res) => {
     endpoints: {
       auth: '/api/v1/auth',
       athletes: '/api/v1/athletes',
+      educators: '/api/v1/educators',
+      contracts: '/api/v1/contracts',
       plans: '/api/v1/plans',
       periodization: '/api/v1/periodization',
+      assessmentTypes: '/api/v1/assessment-types',
       library: '/api/v1/library',
       workout: '/api/v1/workout',
       sessions: '/api/v1/sessions',
@@ -77,11 +83,20 @@ app.use('/api/v1/auth', authRoutes);
 // Rotas de Atletas
 app.use('/api/v1/athletes', athleteRoutes);
 
+// Rotas de Educadores
+app.use('/api/v1/educators', educatorRoutes);
+
+// Rotas de Contratos
+app.use('/api/v1/contracts', contractRoutes);
+
 // Rotas de Planos de Treino
 app.use('/api/v1/plans', planRoutes);
 
 // Rotas de Periodização
 app.use('/api/v1/periodization', periodizationRoutes);
+
+// Rotas de Tipos de AvaliaÃ§Ã£o
+app.use('/api/v1/assessment-types', assessmentTypeRoutes);
 
 // Rotas de Biblioteca de Exercícios
 app.use('/api/v1/library', libraryRoutes);

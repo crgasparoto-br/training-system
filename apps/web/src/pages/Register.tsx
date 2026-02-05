@@ -13,10 +13,18 @@ const registerSchema = z.object({
   email: z.string().email('Email inválido'),
   password: z.string().min(8, 'Senha deve ter no mínimo 8 caracteres'),
   confirmPassword: z.string(),
-  type: z.enum(['educator', 'student']),
+  type: z.literal('educator'),
+  contractType: z.enum(['academy', 'personal']),
+  document: z.string().min(11, 'Documento inválido'),
 }).refine((data) => data.password === data.confirmPassword, {
   message: 'As senhas não coincidem',
   path: ['confirmPassword'],
+}).refine((data) => {
+  const normalized = data.document.replace(/\D/g, '');
+  return data.contractType === 'academy' ? normalized.length === 14 : normalized.length === 11;
+}, {
+  message: 'Documento inválido para o tipo de contrato',
+  path: ['document'],
 });
 
 type RegisterFormData = z.infer<typeof registerSchema>;
@@ -30,12 +38,35 @@ export function Register() {
     register,
     handleSubmit,
     formState: { errors },
+    watch,
+    setValue,
   } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
       type: 'educator',
+      contractType: 'academy',
     },
   });
+
+  const contractType = watch('contractType');
+  const documentLabel = contractType === 'academy' ? 'CNPJ' : 'CPF';
+
+  const formatDocument = (value: string) => {
+    const digits = value.replace(/\D/g, '');
+    if (contractType === 'academy') {
+      const limited = digits.slice(0, 14);
+      return limited
+        .replace(/^(\d{2})(\d)/, '$1.$2')
+        .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+        .replace(/\.(\d{3})(\d)/, '.$1/$2')
+        .replace(/(\d{4})(\d)/, '$1-$2');
+    }
+    const limited = digits.slice(0, 11);
+    return limited
+      .replace(/^(\d{3})(\d)/, '$1.$2')
+      .replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3')
+      .replace(/\.(\d{3})(\d)/, '.$1-$2');
+  };
 
   const onSubmit = async (data: RegisterFormData) => {
     setIsLoading(true);
@@ -46,6 +77,8 @@ export function Register() {
         email: data.email,
         password: data.password,
         type: data.type,
+        contractType: data.contractType,
+        document: data.document,
       });
       navigate('/dashboard');
     } catch (error) {
@@ -66,6 +99,7 @@ export function Register() {
         </CardHeader>
         <form onSubmit={handleSubmit(onSubmit)}>
           <CardContent className="space-y-4">
+            <input type="hidden" value="educator" {...register('type')} />
             {error && (
               <div className="bg-destructive/10 text-destructive text-sm p-3 rounded-md border border-destructive/20">
                 {error}
@@ -90,32 +124,45 @@ export function Register() {
 
             <div>
               <label className="block text-sm font-medium mb-2">
-                Tipo de Conta <span className="text-destructive">*</span>
+                Tipo de Contrato <span className="text-destructive">*</span>
               </label>
               <div className="flex gap-4">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="radio"
-                    value="educator"
-                    {...register('type')}
+                    value="academy"
+                    {...register('contractType')}
                     className="w-4 h-4"
                   />
-                  <span>Educador Físico</span>
+                  <span>Academia (CNPJ)</span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="radio"
-                    value="student"
-                    {...register('type')}
+                    value="personal"
+                    {...register('contractType')}
                     className="w-4 h-4"
                   />
-                  <span>Aluno</span>
+                  <span>Personal (CPF)</span>
                 </label>
               </div>
-              {errors.type && (
-                <p className="text-sm text-destructive mt-1">{errors.type.message}</p>
+              {errors.contractType && (
+                <p className="text-sm text-destructive mt-1">{errors.contractType.message}</p>
               )}
             </div>
+
+            <Input
+              label={documentLabel}
+              type="text"
+              placeholder={documentLabel === 'CNPJ' ? '00.000.000/0000-00' : '000.000.000-00'}
+              error={errors.document?.message}
+              {...register('document', {
+                onChange: (event) => {
+                  const formatted = formatDocument(event.target.value);
+                  setValue('document', formatted, { shouldValidate: true });
+                },
+              })}
+            />
 
             <Input
               label="Senha"

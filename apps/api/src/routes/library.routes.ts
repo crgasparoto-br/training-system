@@ -1,7 +1,11 @@
 import { Router } from 'express';
 import { libraryService } from '../modules/library/library.service';
+import { authMiddleware, educatorMiddleware } from '../modules/auth/auth.middleware';
 
 const router = Router();
+
+router.use(authMiddleware);
+router.use(educatorMiddleware);
 
 /**
  * GET /api/library/exercises
@@ -9,6 +13,7 @@ const router = Router();
  */
 router.get('/exercises', async (req, res) => {
   try {
+    const contractId = (req as any).user.contractId;
     const filters = {
       search: req.query.search as string,
       category: req.query.category as string,
@@ -18,7 +23,7 @@ router.get('/exercises', async (req, res) => {
       muscleGroup: req.query.muscleGroup as string,
     };
 
-    const exercises = await libraryService.listExercises(filters);
+    const exercises = await libraryService.listExercises(contractId, filters);
     res.json(exercises);
   } catch (error) {
     console.error('Error listing exercises:', error);
@@ -32,7 +37,8 @@ router.get('/exercises', async (req, res) => {
  */
 router.get('/exercises/:id', async (req, res) => {
   try {
-    const exercise = await libraryService.getExerciseById(req.params.id);
+    const contractId = (req as any).user.contractId;
+    const exercise = await libraryService.getExerciseById(contractId, req.params.id);
     
     if (!exercise) {
       return res.status(404).json({ message: 'Exercício não encontrado' });
@@ -51,7 +57,8 @@ router.get('/exercises/:id', async (req, res) => {
  */
 router.post('/exercises', async (req, res) => {
   try {
-    const exercise = await libraryService.createExercise(req.body);
+    const contractId = (req as any).user.contractId;
+    const exercise = await libraryService.createExercise(contractId, req.body);
     res.status(201).json(exercise);
   } catch (error) {
     console.error('Error creating exercise:', error);
@@ -65,7 +72,8 @@ router.post('/exercises', async (req, res) => {
  */
 router.put('/exercises/:id', async (req, res) => {
   try {
-    const exercise = await libraryService.updateExercise(req.params.id, req.body);
+    const contractId = (req as any).user.contractId;
+    const exercise = await libraryService.updateExercise(contractId, req.params.id, req.body);
     res.json(exercise);
   } catch (error) {
     console.error('Error updating exercise:', error);
@@ -79,7 +87,8 @@ router.put('/exercises/:id', async (req, res) => {
  */
 router.delete('/exercises/:id', async (req, res) => {
   try {
-    await libraryService.deleteExercise(req.params.id);
+    const contractId = (req as any).user.contractId;
+    await libraryService.deleteExercise(contractId, req.params.id);
     res.status(204).send();
   } catch (error) {
     console.error('Error deleting exercise:', error);
@@ -93,7 +102,9 @@ router.delete('/exercises/:id', async (req, res) => {
  */
 router.get('/progress/:athleteId/:exerciseId', async (req, res) => {
   try {
+    const contractId = (req as any).user.contractId;
     const progress = await libraryService.getStudentProgress(
+      contractId,
       req.params.athleteId,
       req.params.exerciseId
     );
@@ -110,7 +121,9 @@ router.get('/progress/:athleteId/:exerciseId', async (req, res) => {
  */
 router.put('/progress/:athleteId/:exerciseId', async (req, res) => {
   try {
+    const contractId = (req as any).user.contractId;
     const progress = await libraryService.updateStudentProgress(
+      contractId,
       req.params.athleteId,
       req.params.exerciseId,
       req.body
@@ -128,7 +141,8 @@ router.put('/progress/:athleteId/:exerciseId', async (req, res) => {
  */
 router.get('/progress/:athleteId', async (req, res) => {
   try {
-    const progress = await libraryService.listStudentProgress(req.params.athleteId);
+    const contractId = (req as any).user.contractId;
+    const progress = await libraryService.listStudentProgress(contractId, req.params.athleteId);
     res.json(progress);
   } catch (error) {
     console.error('Error listing progress:', error);

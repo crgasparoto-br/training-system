@@ -332,6 +332,7 @@ export const periodizationService = {
    * Criar parâmetro
    */
   async createParameter(data: {
+    contractId: string;
     category: string;
     code: string;
     description: string;
@@ -345,9 +346,11 @@ export const periodizationService = {
   /**
    * Obter parâmetros por categoria
    */
-  async getParametersByCategory(category: string, includeInactive = false) {
+  async getParametersByCategory(contractId: string, category: string, includeInactive = false) {
     return await prisma.trainingParameter.findMany({
-      where: includeInactive ? { category } : { category, active: true },
+      where: includeInactive
+        ? { contractId, category }
+        : { contractId, category, active: true },
       orderBy: { order: 'asc' },
     });
   },
@@ -355,9 +358,9 @@ export const periodizationService = {
   /**
    * Obter todos os parâmetros
    */
-  async getAllParameters(includeInactive = false) {
+  async getAllParameters(contractId: string, includeInactive = false) {
     return await prisma.trainingParameter.findMany({
-      where: includeInactive ? {} : { active: true },
+      where: includeInactive ? { contractId } : { contractId, active: true },
       orderBy: [
         { category: 'asc' },
         { order: 'asc' },
@@ -369,6 +372,7 @@ export const periodizationService = {
    * Atualizar parâmetro
    */
   async updateParameter(
+    contractId: string,
     id: string,
     data: {
       description?: string;
@@ -376,6 +380,14 @@ export const periodizationService = {
       active?: boolean;
     }
   ) {
+    const existing = await prisma.trainingParameter.findFirst({
+      where: { id, contractId },
+    });
+
+    if (!existing) {
+      throw new Error('Parâmetro não encontrado');
+    }
+
     return await prisma.trainingParameter.update({
       where: { id },
       data,
@@ -385,7 +397,15 @@ export const periodizationService = {
   /**
    * Deletar parâmetro
    */
-  async deleteParameter(id: string) {
+  async deleteParameter(contractId: string, id: string) {
+    const existing = await prisma.trainingParameter.findFirst({
+      where: { id, contractId },
+    });
+
+    if (!existing) {
+      throw new Error('Parâmetro não encontrado');
+    }
+
     return await prisma.trainingParameter.delete({
       where: { id },
     });
@@ -394,18 +414,18 @@ export const periodizationService = {
   /**
    * Renomear categoria de parametros
    */
-  async renameParameterCategory(fromCategory: string, toCategory: string) {
+  async renameParameterCategory(contractId: string, fromCategory: string, toCategory: string) {
     if (fromCategory === toCategory) {
       return { updated: 0 };
     }
 
     const [toCodes, fromCodes] = await Promise.all([
       prisma.trainingParameter.findMany({
-        where: { category: toCategory },
+        where: { contractId, category: toCategory },
         select: { code: true },
       }),
       prisma.trainingParameter.findMany({
-        where: { category: fromCategory },
+        where: { contractId, category: fromCategory },
         select: { code: true },
       }),
     ]);
@@ -422,7 +442,7 @@ export const periodizationService = {
     }
 
     const result = await prisma.trainingParameter.updateMany({
-      where: { category: fromCategory },
+      where: { contractId, category: fromCategory },
       data: { category: toCategory },
     });
 

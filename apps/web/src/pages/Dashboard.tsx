@@ -6,6 +6,23 @@ import { Activity, Users, Calendar, TrendingUp, BookOpen } from 'lucide-react';
 export function Dashboard() {
   const { user } = useAuthStore();
   const navigate = useNavigate();
+  const formatDocument = (document: string) => {
+    const digits = document.replace(/\D/g, '');
+    if (digits.length === 14) {
+      return digits
+        .replace(/^(\d{2})(\d)/, '$1.$2')
+        .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+        .replace(/\.(\d{3})(\d)/, '.$1/$2')
+        .replace(/(\d{4})(\d)/, '$1-$2');
+    }
+    if (digits.length === 11) {
+      return digits
+        .replace(/^(\d{3})(\d)/, '$1.$2')
+        .replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3')
+        .replace(/\.(\d{3})(\d)/, '.$1-$2');
+    }
+    return document;
+  };
 
   const stats = [
     {
@@ -51,6 +68,33 @@ export function Dashboard() {
           Bem-vindo de volta, {user?.name}! 👋
         </p>
       </div>
+
+      {user?.educator?.contract && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Contrato</CardTitle>
+            <CardDescription>Informações vinculadas ao seu acesso</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-3">
+            <div>
+              <p className="text-sm text-muted-foreground">Tipo</p>
+              <p className="font-semibold">
+                {user.educator.contract.type === 'academy' ? 'Academia' : 'Personal'}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Documento</p>
+              <p className="font-semibold">
+                {formatDocument(user.educator.contract.document)}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Nome</p>
+              <p className="font-semibold">{user.educator.contract.name || 'Não informado'}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

@@ -1,9 +1,13 @@
 import { PrismaClient } from '@prisma/client';
+import bcryptjs from 'bcryptjs';
+import crypto from 'crypto';
 
 const prisma = new PrismaClient();
 
 export interface CreateAthleteDTO {
-  userId: string;
+  name: string;
+  email: string;
+  phone?: string;
   educatorId: string;
   age: number;
   weight: number;
@@ -31,40 +35,99 @@ export const athleteService = {
    * Criar novo atleta
    */
   async create(data: CreateAthleteDTO) {
-    return await prisma.athlete.create({
-      data,
-      include: {
-        user: {
-          include: {
-            profile: true,
+    const existingUser = await prisma.user.findUnique({
+      where: { email: data.email },
+    });
+
+    if (existingUser) {
+      throw new Error('Email já está registrado');
+    }
+
+    const tempPassword = `temp-${Date.now()}`;
+    const passwordHash = await bcryptjs.hash(tempPassword, 10);
+
+    const athlete = await prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          email: data.email,
+          passwordHash,
+          type: 'student',
+          profile: {
+            create: {
+              name: data.name,
+              phone: data.phone,
+            },
           },
         },
-        educator: {
-          include: {
-            user: {
-              include: {
-                profile: true,
+        include: {
+          profile: true,
+        },
+      });
+
+      return tx.athlete.create({
+        data: {
+          userId: user.id,
+          educatorId: data.educatorId,
+          age: data.age,
+          weight: data.weight,
+          height: data.height,
+          bodyFatPercentage: data.bodyFatPercentage,
+          vo2Max: data.vo2Max,
+          anaerobicThreshold: data.anaerobicThreshold,
+          maxHeartRate: data.maxHeartRate,
+          restingHeartRate: data.restingHeartRate,
+        },
+        include: {
+          user: {
+            include: {
+              profile: true,
+            },
+          },
+          educator: {
+            include: {
+              user: {
+                include: {
+                  profile: true,
+                },
               },
             },
           },
         },
-      },
+      });
     });
+
+    return athlete;
   },
 
   /**
    * Listar atletas de um educador
    */
-  async findByEducator(educatorId: string, page: number = 1, limit: number = 10) {
+  async findByEducator(
+    educatorId: string,
+    page: number = 1,
+    limit: number = 10,
+    status: 'active' | 'inactive' | 'all' = 'active'
+  ) {
     const skip = (page - 1) * limit;
+    const statusFilter =
+      status === 'all' ? {} : { user: { isActive: status === 'active' } };
 
     const [athletes, total] = await Promise.all([
       prisma.athlete.findMany({
-        where: { educatorId },
+        where: { educatorId, ...statusFilter },
         include: {
           user: {
             include: {
               profile: true,
+            },
+          },
+          educator: {
+            include: {
+              user: {
+                include: {
+                  profile: true,
+                },
+              },
             },
           },
           macronutrients: true,
@@ -76,7 +139,73 @@ export const athleteService = {
         take: limit,
       }),
       prisma.athlete.count({
-        where: { educatorId },
+        where: { educatorId, ...statusFilter },
+      }),
+    ]);
+
+    return {
+      athletes,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  },
+
+  /**
+   * Listar atletas por contrato (opcionalmente filtrando por educador)
+   */
+  async findByContract(
+    contractId: string,
+    page: number = 1,
+    limit: number = 10,
+    educatorId?: string,
+    status: 'active' | 'inactive' | 'all' = 'active'
+  ) {
+    const skip = (page - 1) * limit;
+    const statusFilter =
+      status === 'all' ? {} : { user: { isActive: status === 'active' } };
+    const where: any = educatorId
+      ? {
+          educatorId,
+          educator: { contractId },
+          ...statusFilter,
+        }
+      : {
+          educator: { contractId },
+          ...statusFilter,
+        };
+
+    const [athletes, total] = await Promise.all([
+      prisma.athlete.findMany({
+        where,
+        include: {
+          user: {
+            include: {
+              profile: true,
+            },
+          },
+          educator: {
+            include: {
+              user: {
+                include: {
+                  profile: true,
+                },
+              },
+            },
+          },
+          macronutrients: true,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+        skip,
+        take: limit,
+      }),
+      prisma.athlete.count({
+        where,
       }),
     ]);
 
@@ -221,17 +350,83 @@ export const athleteService = {
   /**
    * Buscar atletas por nome
    */
-  async search(educatorId: string, query: string) {
+  async search(params: {
+    query: string;
+    educatorId?: string;
+    contractId?: string;
+    status?: 'active' | 'inactive' | 'all';
+  }) {
+    const { query, educatorId, contractId, status = 'active' } = params;
+    const where: any = {
+      user: {
+        profile: {
+          name: {
+            contains: query,
+            mode: 'insensitive',
+          },
+        },
+      },
+    };
+
+    if (status !== 'all') {
+      where.user = {
+        ...where.user,
+        isActive: status === 'active',
+      };
+    }
+
+    if (educatorId) {
+      where.educatorId = educatorId;
+    }
+
+    if (contractId) {
+      where.educator = { contractId };
+    }
+
     return await prisma.athlete.findMany({
-      where: {
-        educatorId,
+      where,
+      include: {
         user: {
-          profile: {
-            name: {
-              contains: query,
-              mode: 'insensitive',
+          include: {
+            profile: true,
+          },
+        },
+        educator: {
+          include: {
+            user: {
+              include: {
+                profile: true,
+              },
             },
           },
+        },
+      },
+      take: 10,
+    });
+  },
+
+  /**
+   * Verificar se atleta pertence ao contrato
+   */
+  async belongsToContract(athleteId: string, contractId: string): Promise<boolean> {
+    const athlete = await prisma.athlete.findFirst({
+      where: {
+        id: athleteId,
+        educator: { contractId },
+      },
+    });
+    return !!athlete;
+  },
+
+  /**
+   * Ativar/Inativar atleta (via usuário)
+   */
+  async setActive(athleteId: string, isActive: boolean) {
+    return await prisma.athlete.update({
+      where: { id: athleteId },
+      data: {
+        user: {
+          update: { isActive },
         },
       },
       include: {
@@ -240,8 +435,47 @@ export const athleteService = {
             profile: true,
           },
         },
+        educator: {
+          include: {
+            user: {
+              include: {
+                profile: true,
+              },
+            },
+          },
+        },
       },
-      take: 10,
     });
+  },
+
+  /**
+   * Resetar senha do atleta (gera senha temporária)
+   */
+  async resetPassword(athleteId: string) {
+    const athlete = await prisma.athlete.findUnique({
+      where: { id: athleteId },
+      include: {
+        user: true,
+      },
+    });
+
+    if (!athlete?.user) {
+      throw new Error('Atleta não encontrado');
+    }
+
+    const tempPassword = `temp-${crypto.randomBytes(4).toString('hex')}`;
+    const passwordHash = await bcryptjs.hash(tempPassword, 10);
+
+    await prisma.user.update({
+      where: { id: athlete.user.id },
+      data: { passwordHash },
+    });
+
+    await prisma.athlete.update({
+      where: { id: athleteId },
+      data: { lastPasswordResetAt: new Date() },
+    });
+
+    return tempPassword;
   },
 };

@@ -2,12 +2,17 @@ import jwt from 'jsonwebtoken';
 import bcryptjs from 'bcryptjs';
 import { PrismaClient } from '@prisma/client';
 import type { JwtPayload, LoginRequest, RegisterRequest, AuthResponse } from '@corrida/types';
+import { ensureDefaultAssessmentTypes } from '../assessments/assessment-type.service';
 
 const prisma = new PrismaClient();
 
 export class AuthService {
   private readonly jwtSecret = process.env.JWT_SECRET || 'dev-secret';
   private readonly jwtExpiresIn = process.env.JWT_EXPIRES_IN || '7d';
+
+  private normalizeDocument(document: string): string {
+    return document.replace(/\D/g, '');
+  }
 
   /**
    * Registrar novo usuário
@@ -22,36 +27,75 @@ export class AuthService {
       throw new Error('Email já está registrado');
     }
 
+    if (data.type !== 'educator') {
+      throw new Error('Apenas educadores podem se cadastrar diretamente');
+    }
+
+    const document = this.normalizeDocument(data.document);
+    const expectedLength = data.contractType === 'academy' ? 14 : 11;
+
+    if (document.length !== expectedLength) {
+      throw new Error(
+        data.contractType === 'academy'
+          ? 'CNPJ inválido'
+          : 'CPF inválido'
+      );
+    }
+
+    const existingContract = await prisma.contract.findUnique({
+      where: { document },
+    });
+
+    if (existingContract) {
+      throw new Error('Documento já está registrado');
+    }
+
     // Hash da senha
     const passwordHash = await bcryptjs.hash(data.password, 10);
 
-    // Criar usuário
-    const user = await prisma.user.create({
-      data: {
-        email: data.email,
-        passwordHash,
-        type: data.type,
-        profile: {
-          create: {
-            name: data.name,
-          },
-        },
-      },
-      include: {
-        profile: true,
-      },
-    });
-
-    // Criar perfil de educador ou aluno
-    if (data.type === 'educator') {
-      await prisma.educator.create({
+    // Criar contrato, usuário e educador master
+    const { user, educator } = await prisma.$transaction(async (tx) => {
+      const contract = await tx.contract.create({
         data: {
-          userId: user.id,
+          type: data.contractType,
+          document,
         },
       });
-    } else {
-      // Aluno será criado quando associado a um educador
-    }
+
+      const createdUser = await tx.user.create({
+        data: {
+          email: data.email,
+          passwordHash,
+          type: data.type,
+          profile: {
+            create: {
+              name: data.name,
+            },
+          },
+        },
+        include: {
+          profile: true,
+        },
+      });
+
+      const createdEducator = await tx.educator.create({
+        data: {
+          userId: createdUser.id,
+          contractId: contract.id,
+          role: 'master',
+        },
+        include: {
+          contract: true,
+        },
+      });
+
+      await ensureDefaultAssessmentTypes(tx, contract.id);
+
+      return {
+        user: createdUser,
+        educator: createdEducator,
+      };
+    });
 
     // Gerar token
     const token = this.generateToken(user.id, user.email, user.type);
@@ -63,6 +107,18 @@ export class AuthService {
         email: user.email,
         name: user.profile?.name || '',
         type: user.type,
+        educator: educator
+          ? {
+              id: educator.id,
+              role: educator.role,
+              contract: {
+                id: educator.contract.id,
+                type: educator.contract.type,
+                document: educator.contract.document,
+                name: educator.contract.name,
+              },
+            }
+          : null,
       },
     };
   }
@@ -76,11 +132,19 @@ export class AuthService {
       where: { email: data.email },
       include: {
         profile: true,
+        educator: {
+          include: {
+            contract: true,
+          },
+        },
       },
     });
 
     if (!user) {
       throw new Error('Email ou senha incorretos');
+    }
+    if (!user.isActive) {
+      throw new Error('Usuário desativado');
     }
 
     // Verificar senha
@@ -89,6 +153,11 @@ export class AuthService {
     if (!passwordMatch) {
       throw new Error('Email ou senha incorretos');
     }
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+    });
 
     // Gerar token
     const token = this.generateToken(user.id, user.email, user.type);
@@ -100,6 +169,18 @@ export class AuthService {
         email: user.email,
         name: user.profile?.name || '',
         type: user.type,
+        educator: user.educator
+          ? {
+              id: user.educator.id,
+              role: user.educator.role,
+              contract: {
+                id: user.educator.contract.id,
+                type: user.educator.contract.type,
+                document: user.educator.contract.document,
+                name: user.educator.contract.name,
+              },
+            }
+          : null,
       },
     };
   }
@@ -149,7 +230,11 @@ export class AuthService {
       where: { id: userId },
       include: {
         profile: true,
-        educator: true,
+        educator: {
+          include: {
+            contract: true,
+          },
+        },
         athlete: true,
       },
     });

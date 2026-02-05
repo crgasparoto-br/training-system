@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
 import { Dashboard } from './pages/Dashboard';
+import { Educators } from './pages/Educators';
 import { Athletes } from './pages/Athletes';
 import { AthleteForm } from './pages/AthleteForm';
 import { AthleteDetails } from './pages/AthleteDetails';
@@ -10,6 +11,8 @@ import { PlanForm } from './pages/PlanForm';
 import { PlanDetails } from './pages/PlanDetails';
 import Settings from './pages/Settings';
 import SettingsParameters from './pages/Settings/Parameters';
+import ContractSettings from './pages/Settings/Contract';
+import SettingsAssessmentTypes from './pages/Settings/AssessmentTypes';
 import Library from './pages/Library';
 import WorkoutBuilder2 from './pages/WorkoutBuilder2';
 import { DashboardLayout } from './layouts/DashboardLayout';
@@ -34,6 +37,7 @@ function App() {
         >
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
+          <Route path="educators" element={<Educators />} />
           <Route path="athletes" element={<Athletes />} />
           <Route path="athletes/new" element={<AthleteForm />} />
           <Route path="athletes/:id" element={<AthleteDetails />} />
@@ -48,6 +52,8 @@ function App() {
           <Route path="reports" element={<div className="text-center py-12">Página de Relatórios (Em desenvolvimento)</div>} />
           <Route path="settings" element={<Settings />} />
           <Route path="settings/parameters" element={<SettingsParameters />} />
+          <Route path="settings/contract" element={<ContractSettings />} />
+          <Route path="settings/assessment-types" element={<SettingsAssessmentTypes />} />
         </Route>
 
         {/* 404 */}

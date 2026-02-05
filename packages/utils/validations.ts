@@ -13,9 +13,17 @@ export const RegisterSchema = z.object({
   email: z.string().email('Email inválido'),
   password: z.string().min(8, 'Senha deve ter no mínimo 8 caracteres'),
   name: z.string().min(3, 'Nome deve ter no mínimo 3 caracteres'),
-  type: z.enum(['educator', 'student'], {
-    errorMap: () => ({ message: 'Tipo deve ser educator ou student' }),
+  type: z.literal('educator'),
+  contractType: z.enum(['academy', 'personal'], {
+    errorMap: () => ({ message: 'Tipo de contrato deve ser academy ou personal' }),
   }),
+  document: z.string().min(11, 'Documento inválido'),
+});
+
+export const CreateEducatorSchema = z.object({
+  name: z.string().min(3, 'Nome deve ter no mínimo 3 caracteres'),
+  email: z.string().email('Email inválido'),
+  password: z.string().min(8, 'Senha deve ter no mínimo 8 caracteres'),
 });
 
 // ============================================================================

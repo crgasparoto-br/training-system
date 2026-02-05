@@ -7,6 +7,16 @@ interface User {
   email: string;
   name: string;
   type: 'educator' | 'student';
+  educator?: {
+    id: string;
+    role: 'master' | 'educator';
+    contract: {
+      id: string;
+      type: 'academy' | 'personal';
+      document: string;
+      name?: string | null;
+    };
+  } | null;
 }
 
 interface AuthState {
