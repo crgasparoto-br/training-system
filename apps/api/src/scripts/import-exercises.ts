@@ -142,6 +142,18 @@ interface ExerciseRow {
 async function importExercises(filePath: string) {
   console.log('🚀 Iniciando importação de exercícios...\n');
 
+  const contractId =
+    process.env.CONTRACT_ID ||
+    (await prisma.contract.findFirst({
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    }))?.id;
+
+  if (!contractId) {
+    console.error('❌ Nenhum contrato encontrado. Defina CONTRACT_ID.');
+    process.exit(1);
+  }
+
   // Ler arquivo JSON
   const fileContent = fs.readFileSync(filePath, 'utf-8');
   const rows: ExerciseRow[] = JSON.parse(fileContent);
@@ -165,7 +177,7 @@ async function importExercises(filePath: string) {
 
       // Verificar se já existe
       const existing = await prisma.exerciseLibrary.findFirst({
-        where: { name: normalizedName },
+        where: { name: normalizedName, contractId },
       });
 
       if (existing) {
@@ -176,6 +188,7 @@ async function importExercises(filePath: string) {
 
       // Preparar dados
       const data = {
+        contractId,
         name: normalizedName,
         videoUrl: row.videoUrl?.trim() || undefined,
         loadType: normalizeLoadType(row.loadType),

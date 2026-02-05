@@ -14,10 +14,19 @@ export interface Athlete {
   restingHeartRate: number;
   user: {
     email: string;
+    isActive?: boolean;
     profile: {
       name: string;
       phone?: string;
       avatar?: string;
+    };
+  };
+  educator?: {
+    id: string;
+    user?: {
+      profile?: {
+        name?: string;
+      };
     };
   };
   macronutrients?: {
@@ -26,12 +35,15 @@ export interface Athlete {
     lipidsPercentage: number;
     dailyCalories?: number;
   };
+  lastPasswordResetAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface CreateAthleteDTO {
-  userId: string;
+  name: string;
+  email: string;
+  phone?: string;
   age: number;
   weight: number;
   height: number;
@@ -75,9 +87,24 @@ export const athleteService = {
   /**
    * Listar atletas
    */
-  async list(page: number = 1, limit: number = 10): Promise<AthletesResponse> {
+  async list(
+    page: number = 1,
+    limit: number = 10,
+    educatorId?: string,
+    status: 'active' | 'inactive' | 'all' = 'active'
+  ): Promise<AthletesResponse> {
+    const params = new URLSearchParams({
+      page: String(page),
+      limit: String(limit),
+      status,
+    });
+
+    if (educatorId) {
+      params.set('educatorId', educatorId);
+    }
+
     const response = await api.get<{ success: boolean; data: AthletesResponse }>(
-      `/athletes?page=${page}&limit=${limit}`
+      `/athletes?${params.toString()}`
     );
     return response.data.data;
   },
@@ -85,9 +112,18 @@ export const athleteService = {
   /**
    * Buscar atletas por nome
    */
-  async search(query: string): Promise<Athlete[]> {
+  async search(
+    query: string,
+    educatorId?: string,
+    status: 'active' | 'inactive' | 'all' = 'active'
+  ): Promise<Athlete[]> {
+    const params = new URLSearchParams({ q: query, status });
+    if (educatorId) {
+      params.set('educatorId', educatorId);
+    }
+
     const response = await api.get<{ success: boolean; data: Athlete[] }>(
-      `/athletes/search?q=${encodeURIComponent(query)}`
+      `/athletes/search?${params.toString()}`
     );
     return response.data.data;
   },
@@ -113,6 +149,36 @@ export const athleteService = {
    */
   async delete(id: string): Promise<void> {
     await api.delete(`/athletes/${id}`);
+  },
+
+  /**
+   * Inativar atleta
+   */
+  async deactivate(id: string): Promise<Athlete> {
+    const response = await api.post<{ success: boolean; data: Athlete }>(
+      `/athletes/${id}/deactivate`
+    );
+    return response.data.data;
+  },
+
+  /**
+   * Reativar atleta
+   */
+  async activate(id: string): Promise<Athlete> {
+    const response = await api.post<{ success: boolean; data: Athlete }>(
+      `/athletes/${id}/activate`
+    );
+    return response.data.data;
+  },
+
+  /**
+   * Resetar senha do atleta (gera senha temporária)
+   */
+  async resetPassword(id: string): Promise<{ tempPassword: string }> {
+    const response = await api.post<{ success: boolean; data: { tempPassword: string } }>(
+      `/athletes/${id}/reset-password`
+    );
+    return response.data.data;
   },
 
   /**

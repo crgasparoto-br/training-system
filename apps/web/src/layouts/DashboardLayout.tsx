@@ -26,8 +26,14 @@ export function DashboardLayout() {
     navigate('/login');
   };
 
+  const canManageEducators =
+    user?.type === 'educator' &&
+    user?.educator?.role === 'master' &&
+    user?.educator?.contract?.type === 'academy';
+
   const menuItems = [
     { icon: Home, label: 'Dashboard', path: '/dashboard' },
+    ...(canManageEducators ? [{ icon: Users, label: 'Educadores', path: '/educators' }] : []),
     { icon: Users, label: 'Atletas', path: '/athletes' },
     { icon: Calendar, label: 'Planos de Treino', path: '/plans' },
     { icon: BookOpen, label: 'Biblioteca', path: '/library' },
@@ -58,7 +64,11 @@ export function DashboardLayout() {
             <div className="hidden md:flex flex-col items-end">
               <span className="text-sm font-medium">{user?.name}</span>
               <span className="text-xs text-muted-foreground">
-                {user?.type === 'educator' ? 'Educador Físico' : 'Aluno'}
+                {user?.type === 'educator'
+                  ? user.educator?.role === 'master'
+                    ? 'Educador Master'
+                    : 'Educador'
+                  : 'Aluno'}
               </span>
             </div>
             <Button variant="ghost" size="icon" onClick={handleLogout}>
@@ -101,6 +111,20 @@ export function DashboardLayout() {
                   {item.path === '/settings' && (
                     <div className="ml-9 flex flex-col gap-1">
                       <Link
+                        to="/settings/contract"
+                        onClick={() => setIsSidebarOpen(false)}
+                        className={`
+                          rounded-md px-3 py-2 text-xs font-medium transition-colors
+                          ${
+                            isActive('/settings/contract')
+                              ? 'bg-blue-50 text-blue-700'
+                              : 'text-gray-600 hover:bg-accent'
+                          }
+                        `}
+                      >
+                        Contrato
+                      </Link>
+                      <Link
                         to="/settings/parameters"
                         onClick={() => setIsSidebarOpen(false)}
                         className={`
@@ -113,6 +137,20 @@ export function DashboardLayout() {
                         `}
                       >
                         Parâmetros
+                      </Link>
+                      <Link
+                        to="/settings/assessment-types"
+                        onClick={() => setIsSidebarOpen(false)}
+                        className={`
+                          rounded-md px-3 py-2 text-xs font-medium transition-colors
+                          ${
+                            isActive('/settings/assessment-types')
+                              ? 'bg-blue-50 text-blue-700'
+                              : 'text-gray-600 hover:bg-accent'
+                          }
+                        `}
+                      >
+                        Avaliações
                       </Link>
                     </div>
                   )}

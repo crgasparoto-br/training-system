@@ -4,7 +4,6 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { athleteService } from '../services/athlete.service';
-import { authService } from '../services/auth.service';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
@@ -49,6 +48,18 @@ export function AthleteForm() {
   // Calcular IMC em tempo real
   const bmi = weight && height ? athleteService.calculateBMI(weight, height) : 0;
   const bmiClass = bmi ? athleteService.getBMIClassification(bmi) : '';
+
+  const formatPhone = (value: string) => {
+    const digits = value.replace(/\D/g, '').slice(0, 11);
+    if (digits.length <= 10) {
+      return digits
+        .replace(/^(\d{2})(\d)/, '($1) $2')
+        .replace(/(\d{4})(\d)/, '$1-$2');
+    }
+    return digits
+      .replace(/^(\d{2})(\d)/, '($1) $2')
+      .replace(/(\d{5})(\d)/, '$1-$2');
+  };
 
   useEffect(() => {
     if (isEditMode && id) {
@@ -98,17 +109,10 @@ export function AthleteForm() {
         alert('Atleta atualizado com sucesso!');
       } else {
         // Criar novo atleta
-        // Primeiro, criar o usuário
-        const userResponse = await authService.register({
+        await athleteService.create({
           name: data.name,
           email: data.email,
-          password: 'temp123456', // Senha temporária
-          type: 'student',
-        });
-
-        // Depois, criar o atleta
-        await athleteService.create({
-          userId: userResponse.user.id,
+          phone: data.phone,
           age: data.age,
           weight: data.weight,
           height: data.height,
@@ -191,7 +195,12 @@ export function AthleteForm() {
                 placeholder="(11) 99999-9999"
                 error={errors.phone?.message}
                 disabled={isEditMode}
-                {...register('phone')}
+                {...register('phone', {
+                  onChange: (event) => {
+                    const formatted = formatPhone(event.target.value);
+                    setValue('phone', formatted, { shouldValidate: true });
+                  },
+                })}
               />
             </div>
 

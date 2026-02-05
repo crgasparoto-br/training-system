@@ -31,17 +31,20 @@ export const libraryService = {
   /**
    * Criar novo exercício
    */
-  async createExercise(data: CreateExerciseDTO) {
+  async createExercise(contractId: string, data: CreateExerciseDTO) {
     return await prisma.exerciseLibrary.create({
-      data,
+      data: {
+        ...data,
+        contractId,
+      },
     });
   },
 
   /**
    * Listar exercícios com filtros
    */
-  async listExercises(filters: ExerciseFilters = {}) {
-    const where: any = {};
+  async listExercises(contractId: string, filters: ExerciseFilters = {}) {
+    const where: any = { contractId };
 
     if (filters.search) {
       where.OR = [
@@ -79,9 +82,9 @@ export const libraryService = {
   /**
    * Obter exercício por ID
    */
-  async getExerciseById(id: string) {
-    return await prisma.exerciseLibrary.findUnique({
-      where: { id },
+  async getExerciseById(contractId: string, id: string) {
+    return await prisma.exerciseLibrary.findFirst({
+      where: { id, contractId },
       include: {
         workoutExercises: {
           include: {
@@ -100,7 +103,15 @@ export const libraryService = {
   /**
    * Atualizar exercício
    */
-  async updateExercise(id: string, data: UpdateExerciseDTO) {
+  async updateExercise(contractId: string, id: string, data: UpdateExerciseDTO) {
+    const existing = await prisma.exerciseLibrary.findFirst({
+      where: { id, contractId },
+    });
+
+    if (!existing) {
+      throw new Error('Exercício não encontrado');
+    }
+
     return await prisma.exerciseLibrary.update({
       where: { id },
       data,
@@ -110,7 +121,15 @@ export const libraryService = {
   /**
    * Deletar exercício
    */
-  async deleteExercise(id: string) {
+  async deleteExercise(contractId: string, id: string) {
+    const existing = await prisma.exerciseLibrary.findFirst({
+      where: { id, contractId },
+    });
+
+    if (!existing) {
+      throw new Error('Exercício não encontrado');
+    }
+
     return await prisma.exerciseLibrary.delete({
       where: { id },
     });
@@ -119,7 +138,25 @@ export const libraryService = {
   /**
    * Obter progresso do aluno em um exercício
    */
-  async getStudentProgress(athleteId: string, exerciseId: string) {
+  async getStudentProgress(contractId: string, athleteId: string, exerciseId: string) {
+    const [exercise, athlete] = await Promise.all([
+      prisma.exerciseLibrary.findFirst({
+        where: { id: exerciseId, contractId },
+      }),
+      prisma.athlete.findFirst({
+        where: {
+          id: athleteId,
+          educator: {
+            contractId,
+          },
+        },
+      }),
+    ]);
+
+    if (!exercise || !athlete) {
+      return null;
+    }
+
     return await prisma.studentExerciseProgress.findUnique({
       where: {
         athleteId_exerciseId: {
@@ -137,10 +174,29 @@ export const libraryService = {
    * Atualizar progresso do aluno
    */
   async updateStudentProgress(
+    contractId: string,
     athleteId: string,
     exerciseId: string,
     data: { lastLoad?: number; maxLoad?: number }
   ) {
+    const [exercise, athlete] = await Promise.all([
+      prisma.exerciseLibrary.findFirst({
+        where: { id: exerciseId, contractId },
+      }),
+      prisma.athlete.findFirst({
+        where: {
+          id: athleteId,
+          educator: {
+            contractId,
+          },
+        },
+      }),
+    ]);
+
+    if (!exercise || !athlete) {
+      throw new Error('Progresso não encontrado');
+    }
+
     return await prisma.studentExerciseProgress.upsert({
       where: {
         athleteId_exerciseId: {
@@ -163,7 +219,20 @@ export const libraryService = {
   /**
    * Listar todo o progresso de um aluno
    */
-  async listStudentProgress(athleteId: string) {
+  async listStudentProgress(contractId: string, athleteId: string) {
+    const athlete = await prisma.athlete.findFirst({
+      where: {
+        id: athleteId,
+        educator: {
+          contractId,
+        },
+      },
+    });
+
+    if (!athlete) {
+      return [];
+    }
+
     return await prisma.studentExerciseProgress.findMany({
       where: { athleteId },
       include: {

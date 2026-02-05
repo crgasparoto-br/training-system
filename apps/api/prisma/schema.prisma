@@ -19,6 +19,8 @@ model User {
   email         String    @unique
   passwordHash  String
   type          UserType
+  isActive      Boolean   @default(true)
+  lastLoginAt   DateTime?
   profile       Profile?
   
   // Relacionamentos
@@ -52,22 +54,85 @@ model Profile {
 }
 
 // ============================================================================
+// CONTRATOS
+// ============================================================================
+
+model Contract {
+  id        String       @id @default(cuid())
+  type      ContractType
+  document  String       @unique
+  name      String?
+
+  educators Educator[]
+  trainingParameters TrainingParameter[]
+  exerciseLibrary ExerciseLibrary[]
+  assessmentTypes AssessmentType[]
+  cloneLogsAsSource ContractDataCloneLog[] @relation("ContractCloneSource")
+  cloneLogsAsTarget ContractDataCloneLog[] @relation("ContractCloneTarget")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([type])
+}
+
+enum ContractType {
+  academy
+  personal
+}
+
+// ============================================================================
 // EDUCADORES
 // ============================================================================
+
+enum EducatorRole {
+  master
+  educator
+}
 
 model Educator {
   id          String    @id @default(cuid())
   userId      String    @unique
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contractId  String
+  contract    Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  role        EducatorRole @default(educator)
   
   // Relacionamentos
   athletes    Athlete[]
   plans       TrainingPlan[]
   library     TrainingLibrary[]
   subscription Subscription?
+  cloneLogs   ContractDataCloneLog[]
+  assessmentAuditLogs AssessmentAuditLog[]
   
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
+  @@index([contractId])
+}
+
+model ContractDataCloneLog {
+  id                    String   @id @default(cuid())
+  sourceContractId      String
+  sourceContract        Contract @relation("ContractCloneSource", fields: [sourceContractId], references: [id], onDelete: Cascade)
+  targetContractId      String
+  targetContract        Contract @relation("ContractCloneTarget", fields: [targetContractId], references: [id], onDelete: Cascade)
+  educatorId            String?
+  educator              Educator? @relation(fields: [educatorId], references: [id], onDelete: SetNull)
+
+  parametersCreated     Int
+  parametersSkipped     Int
+  exercisesCreated      Int
+  exercisesSkipped      Int
+  assessmentTypesCreated Int     @default(0)
+  assessmentTypesSkipped Int     @default(0)
+
+  createdAt             DateTime @default(now())
+
+  @@index([sourceContractId])
+  @@index([targetContractId])
+  @@index([educatorId])
 }
 
 // ============================================================================
@@ -102,10 +167,91 @@ model Athlete {
   nutritionPlans          NutritionPlan[]
   exerciseProgress        StudentExerciseProgress[]
   workoutExecutions       WorkoutExecution[]
+  assessments             Assessment[]
+
+  lastPasswordResetAt     DateTime?
   
   createdAt               DateTime  @default(now())
   updatedAt               DateTime  @updatedAt
 
+  @@index([educatorId])
+}
+
+// ============================================================================
+// AVALIACOES FISICAS
+// ============================================================================
+
+enum AssessmentScheduleType {
+  fixed_interval
+  after_type
+}
+
+enum AssessmentAuditAction {
+  update
+  delete
+}
+
+model AssessmentType {
+  id             String   @id @default(cuid())
+  contractId     String
+  contract       Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  name           String
+  code           String
+  description    String?
+  scheduleType   AssessmentScheduleType
+  intervalMonths Int?
+  afterTypeId    String?
+  afterType      AssessmentType? @relation("AssessmentTypeDependencies", fields: [afterTypeId], references: [id], onDelete: SetNull)
+  offsetMonths   Int?
+  isActive       Boolean  @default(true)
+
+  assessments    Assessment[]
+  dependents     AssessmentType[] @relation("AssessmentTypeDependencies")
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([contractId, code])
+  @@index([contractId])
+}
+
+model Assessment {
+  id               String   @id @default(cuid())
+  athleteId        String
+  athlete          Athlete  @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  typeId           String
+  type             AssessmentType @relation(fields: [typeId], references: [id], onDelete: Cascade)
+
+  assessmentDate   DateTime
+
+  filePath         String
+  originalFileName String
+  mimeType         String
+  fileSize         Int
+  extractedData    Json?
+  auditLogs        AssessmentAuditLog[]
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([athleteId])
+  @@index([typeId])
+  @@index([assessmentDate])
+}
+
+model AssessmentAuditLog {
+  id            String   @id @default(cuid())
+  assessmentId  String
+  assessment    Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  educatorId    String
+  educator      Educator @relation(fields: [educatorId], references: [id], onDelete: Cascade)
+  action        AssessmentAuditAction
+  beforeData    Json?
+  afterData     Json?
+  createdAt     DateTime @default(now())
+
+  @@index([assessmentId])
   @@index([educatorId])
 }
 
@@ -480,6 +626,8 @@ model NotificationPreferences {
 // Tabela de Parâmetros Configuráveis
 model TrainingParameter {
   id          String   @id @default(cuid())
+  contractId  String
+  contract    Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
   category    String   // "montagem", "metodo", "divisao_treino", "carga_microciclo", "objetivo"
   code        String   // "AS", "SER", "FB", "ADP", etc
   description String   // Descrição completa
@@ -489,8 +637,8 @@ model TrainingParameter {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   
-  @@unique([category, code])
-  @@index([category])
+  @@unique([contractId, category, code])
+  @@index([contractId, category])
 }
 
 // Matriz de Periodização
@@ -664,6 +812,8 @@ model PeriodizationTemplate {
 
 model ExerciseLibrary {
   id            String   @id @default(cuid())
+  contractId    String
+  contract      Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
   
   name          String   // Nome do exercício
   videoUrl      String?  @db.Text // Link do vídeo do YouTube
@@ -681,8 +831,9 @@ model ExerciseLibrary {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   
-  @@index([name])
-  @@index([category])
+  @@index([contractId])
+  @@index([contractId, name])
+  @@index([contractId, category])
 }
 
 enum LoadType {

@@ -20,6 +20,9 @@ export interface AthleteProfile {
 }
 
 export interface CreateAthleteRequest {
+  name: string;
+  email: string;
+  phone?: string;
   age: number;
   weight: number;
   height: number;

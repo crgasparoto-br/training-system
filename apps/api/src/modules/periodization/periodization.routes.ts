@@ -284,12 +284,14 @@ router.delete('/nutrition/:id', educatorMiddleware, async (req: Request, res: Re
 router.post('/parameters', educatorMiddleware, async (req: Request, res: Response) => {
   try {
     const { category, code, description, order } = req.body;
+    const contractId = (req as any).user.contractId;
 
     if (!category || !code || !description) {
       return sendError(res, 'Dados inválidos', 400);
     }
 
     const parameter = await periodizationService.createParameter({
+      contractId,
       category,
       code,
       description,
@@ -307,19 +309,21 @@ router.post('/parameters', educatorMiddleware, async (req: Request, res: Respons
  * GET /api/v1/periodization/parameters
  * Obter todos os parâmetros
  */
-router.get('/parameters', async (req: Request, res: Response) => {
+router.get('/parameters', educatorMiddleware, async (req: Request, res: Response) => {
   try {
     const { category, includeInactive } = req.query;
     const includeInactiveFlag = includeInactive === 'true';
+    const contractId = (req as any).user.contractId;
 
     let parameters;
     if (category) {
       parameters = await periodizationService.getParametersByCategory(
+        contractId,
         category as string,
         includeInactiveFlag
       );
     } else {
-      parameters = await periodizationService.getAllParameters(includeInactiveFlag);
+      parameters = await periodizationService.getAllParameters(contractId, includeInactiveFlag);
     }
 
     return sendSuccess(res, parameters);
@@ -337,8 +341,9 @@ router.put('/parameters/:id', educatorMiddleware, async (req: Request, res: Resp
   try {
     const { id } = req.params;
     const { description, order, active } = req.body;
+    const contractId = (req as any).user.contractId;
 
-    const parameter = await periodizationService.updateParameter(id, {
+    const parameter = await periodizationService.updateParameter(contractId, id, {
       description,
       order,
       active,
@@ -358,12 +363,14 @@ router.put('/parameters/:id', educatorMiddleware, async (req: Request, res: Resp
 router.put('/parameters/category', educatorMiddleware, async (req: Request, res: Response) => {
   try {
     const { fromCategory, toCategory } = req.body;
+    const contractId = (req as any).user.contractId;
 
     if (!fromCategory || !toCategory) {
       return sendError(res, 'Dados invalidos', 400);
     }
 
     const result = await periodizationService.renameParameterCategory(
+      contractId,
       fromCategory,
       toCategory
     );
@@ -389,8 +396,9 @@ router.put('/parameters/category', educatorMiddleware, async (req: Request, res:
 router.delete('/parameters/:id', educatorMiddleware, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const contractId = (req as any).user.contractId;
 
-    await periodizationService.deleteParameter(id);
+    await periodizationService.deleteParameter(contractId, id);
 
     return sendSuccess(res, null, 'Parâmetro deletado com sucesso');
   } catch (error: any) {
