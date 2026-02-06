@@ -3,6 +3,7 @@ import bcryptjs from 'bcryptjs';
 import { PrismaClient } from '@prisma/client';
 import type { JwtPayload, LoginRequest, RegisterRequest, AuthResponse } from '@corrida/types';
 import { ensureDefaultAssessmentTypes } from '../assessments/assessment-type.service';
+import { ensureDefaultSubjectiveScales } from '../assessments/subjective-scale.service';
 
 const prisma = new PrismaClient();
 
@@ -90,6 +91,7 @@ export class AuthService {
       });
 
       await ensureDefaultAssessmentTypes(tx, contract.id);
+      await ensureDefaultSubjectiveScales(tx, contract.id);
 
       return {
         user: createdUser,

@@ -152,6 +152,20 @@ export function DashboardLayout() {
                       >
                         Avaliações
                       </Link>
+                      <Link
+                        to="/settings/psr-pse"
+                        onClick={() => setIsSidebarOpen(false)}
+                        className={`
+                          rounded-md px-3 py-2 text-xs font-medium transition-colors
+                          ${
+                            isActive('/settings/psr-pse')
+                              ? 'bg-blue-50 text-blue-700'
+                              : 'text-gray-600 hover:bg-accent'
+                          }
+                        `}
+                      >
+                        PSR e PSE
+                      </Link>
                     </div>
                   )}
                 </div>

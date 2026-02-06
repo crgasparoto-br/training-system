@@ -47,6 +47,18 @@ export default function Settings() {
             Acessar avaliações â†’
           </div>
         </Link>
+        <Link
+          to="/settings/psr-pse"
+          className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm transition hover:border-blue-300 hover:shadow"
+        >
+          <h2 className="text-lg font-semibold text-gray-900">PSR e PSE</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Consulte as escalas subjetivas usadas pelos atletas.
+          </p>
+          <div className="mt-4 inline-flex items-center text-sm font-medium text-blue-600">
+            Acessar escalas →
+          </div>
+        </Link>
       </div>
     </div>
   );
