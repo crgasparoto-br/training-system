@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -8,6 +8,7 @@ import { athleteService, type Athlete } from '../services/athlete.service';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
+import { parseDateOnly, toDateInputValue, toIsoDateAtNoonUTC } from '../utils/date';
 import { ArrowLeft } from 'lucide-react';
 
 const planSchema = z.object({
@@ -30,7 +31,9 @@ type PlanFormData = z.infer<typeof planSchema>;
 export function PlanForm() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
   const isEditMode = !!id;
+  const athleteIdParam = searchParams.get('athleteId') || '';
   const [loading, setLoading] = useState(false);
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [loadingAthletes, setLoadingAthletes] = useState(true);
@@ -41,6 +44,7 @@ export function PlanForm() {
     formState: { errors },
     watch,
     reset,
+    setValue,
   } = useForm<PlanFormData>({
     resolver: zodResolver(planSchema),
   });
@@ -50,8 +54,9 @@ export function PlanForm() {
 
   // Calcular duração em semanas
   const duration = startDate && endDate ? (() => {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
+    const start = parseDateOnly(startDate);
+    const end = parseDateOnly(endDate);
+    if (!start || !end) return 0;
     const diffTime = Math.abs(end.getTime() - start.getTime());
     const diffWeeks = Math.ceil(diffTime / (1000 * 60 * 60 * 24 * 7));
     return diffWeeks;
@@ -71,8 +76,8 @@ export function PlanForm() {
         athleteId: plan.athleteId,
         name: plan.name,
         description: plan.description || '',
-        startDate: plan.startDate.split('T')[0],
-        endDate: plan.endDate.split('T')[0],
+        startDate: toDateInputValue(plan.startDate),
+        endDate: toDateInputValue(plan.endDate),
       });
     } catch (error) {
       console.error('Erro ao carregar plano:', error);
@@ -86,6 +91,9 @@ export function PlanForm() {
     try {
       const data = await athleteService.list(1, 100);
       setAthletes(data.athletes);
+      if (!isEditMode && athleteIdParam) {
+        setValue('athleteId', athleteIdParam, { shouldValidate: true });
+      }
     } catch (error) {
       console.error('Erro ao carregar atletas:', error);
     } finally {
@@ -100,8 +108,8 @@ export function PlanForm() {
         // Modo de edição
         await planService.update(id, {
           ...data,
-          startDate: new Date(data.startDate).toISOString(),
-          endDate: new Date(data.endDate).toISOString(),
+          startDate: toIsoDateAtNoonUTC(data.startDate),
+          endDate: toIsoDateAtNoonUTC(data.endDate),
         });
         alert('Plano atualizado com sucesso!');
         navigate(`/plans/${id}`);
@@ -109,8 +117,8 @@ export function PlanForm() {
         // Modo de criação
         const plan = await planService.create({
           ...data,
-          startDate: new Date(data.startDate).toISOString(),
-          endDate: new Date(data.endDate).toISOString(),
+          startDate: toIsoDateAtNoonUTC(data.startDate),
+          endDate: toIsoDateAtNoonUTC(data.endDate),
         });
 
         // Gerar semanas automaticamente
@@ -159,6 +167,7 @@ export function PlanForm() {
                 <select
                   className="w-full p-2 border rounded-md"
                   {...register('athleteId')}
+                  disabled={!isEditMode && !!athleteIdParam}
                 >
                   <option value="">Selecione um atleta</option>
                   {athletes.map((athlete) => (

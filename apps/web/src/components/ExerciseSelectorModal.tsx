@@ -7,6 +7,7 @@ interface ExerciseSelectorModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSelect: (exercise: Exercise) => void;
+  onSelectMany?: (exercises: Exercise[]) => void;
   section: string;
 }
 
@@ -37,13 +38,20 @@ const CATEGORIES = [
   { value: 'CICLICO', label: 'Cíclico' },
 ];
 
-export function ExerciseSelectorModal({ isOpen, onClose, onSelect, section }: ExerciseSelectorModalProps) {
+export function ExerciseSelectorModal({
+  isOpen,
+  onClose,
+  onSelect,
+  onSelectMany,
+  section
+}: ExerciseSelectorModalProps) {
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedMuscleGroup, setSelectedMuscleGroup] = useState('Todos');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectedExercisesMap, setSelectedExercisesMap] = useState<Record<string, Exercise>>({});
 
   useEffect(() => {
     if (!isOpen) return;
@@ -98,13 +106,27 @@ export function ExerciseSelectorModal({ isOpen, onClose, onSelect, section }: Ex
       }
       return next;
     });
+    setSelectedExercisesMap((prev) => {
+      const next = { ...prev };
+      if (next[exercise.id]) {
+        delete next[exercise.id];
+      } else {
+        next[exercise.id] = exercise;
+      }
+      return next;
+    });
   };
 
   const handleConfirmSelection = () => {
-    const selectedExercises = exercises.filter((exercise) => selectedIds.has(exercise.id));
-    selectedExercises.forEach((exercise) => onSelect(exercise));
+    const selectedExercises = Object.values(selectedExercisesMap);
+    if (onSelectMany) {
+      onSelectMany(selectedExercises);
+    } else {
+      selectedExercises.forEach((exercise) => onSelect(exercise));
+    }
     onClose();
     setSelectedIds(new Set());
+    setSelectedExercisesMap({});
     // Limpar filtros
     setSearch('');
     setSelectedCategory('');

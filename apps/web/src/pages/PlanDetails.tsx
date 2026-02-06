@@ -5,6 +5,7 @@ import { SessionModal } from '../components/SessionModal';
 import { PeriodizationMatrixComponent } from '../components/PeriodizationMatrix';
 import { Button } from '../components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
+import { formatDateBR } from '../utils/date';
 import {
   ArrowLeft,
   Edit,
@@ -133,9 +134,7 @@ export function PlanDetails() {
     }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('pt-BR');
-  };
+  const formatDate = (dateString: string) => formatDateBR(dateString);
 
   if (loading) {
     return (

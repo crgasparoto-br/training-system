@@ -1,10 +1,12 @@
 ﻿import { useState, useEffect, Fragment } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { athleteService, type Athlete } from '../services/athlete.service';
+import { planService, type TrainingPlan } from '../services/plan.service';
 import { assessmentService, type Assessment, type AssessmentSummary, type AssessmentAuditLog } from '../services/assessment.service';
 import { assessmentTypeService, type AssessmentType } from '../services/assessment-type.service';
 import { assessmentHistorySections } from '../data/assessmentVariables';
 import { Button } from '../components/ui/Button';
+import { formatDateBR, isDateWithinRange } from '../utils/date';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
 import {
   ArrowLeft,
@@ -36,6 +38,7 @@ export function AthleteDetails() {
     assessmentDate: '',
     file: null as File | null,
   });
+  const [plans, setPlans] = useState<TrainingPlan[]>([]);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewName, setPreviewName] = useState<string>('');
@@ -54,7 +57,41 @@ export function AthleteDetails() {
   const [historyEditSectionTitle, setHistoryEditSectionTitle] = useState('');
   const [historyEditAssessmentId, setHistoryEditAssessmentId] = useState('');
   const [historyEditValues, setHistoryEditValues] = useState<Record<string, string>>({});
-  const historyTextVariables = new Set(['Protocolo', 'R. VO2máximo']);
+  const historyTextVariables = new Set(['Protocolo', 'R. VO2máximo', 'Tipo de Dieta']);
+  const historyVariableColumnWidthClass = 'w-56';
+  const historyVariableLabelMap: Record<string, string> = {
+    'Br. Dir. Rel.': 'Braço Direito Relaxado',
+    'Br. Dir. Con.': 'Braço Direito Contraído',
+    'Br. Esq. Rel.': 'Braço Esquerdo Relaxado',
+    'Br. Esq. Con.': 'Braço Esquerdo Contraído',
+    'Coxa Dir.': 'Coxa Direita',
+    'Perna Dir.': 'Perna Direita',
+    'Coxa Esq.': 'Coxa Esquerda',
+    'Perna Esq.': 'Perna Esquerda',
+    'D.C. Tricipital': 'Dobra Cutânea Tricipital',
+    'D.C. Subescapular': 'Dobra Cutânea Subescapular',
+    'D.C. Suprailíaca': 'Dobra Cutânea Suprailíaca',
+    'D.C. Abdominal': 'Dobra Cutânea Abdominal',
+    'D.C. Coxa': 'Dobra Cutânea Coxa',
+    'M. Perna Direita': 'Massa Muscular Perna Direita',
+    'M. Perna Esquerda': 'Massa Muscular Perna Esquerda',
+    'M. Braço Direito': 'Massa Muscular Braço Direito',
+    'M. Braço Esquerdo': 'Massa Muscular Braço Esquerdo',
+    'M. Tronco': 'Massa Muscular Tronco',
+    'G. Perna Direita': 'Gordura Perna Direita',
+    'G. Perna Esquerda': 'Gordura Perna Esquerda',
+    'G. Braço Direito': 'Gordura Braço Direito',
+    'G. Braço Esquerdo': 'Gordura Braço Esquerdo',
+    'G. Tronco': 'Gordura Tronco',
+    IMC: 'Índice de Massa Corporal',
+    'RML Abdominal': 'Resistência Muscular Localizada Abdominal',
+    'R. Abdominal': 'Resistência Abdominal',
+    'R. Flexibilidade': 'Resultado de Flexibilidade',
+    'R. VO2máximo': 'Ritmo VO2máximo',
+    'FC Repouso': 'Frequência Cardíaca de Repouso',
+    'FC Máxima Predita': 'Frequência Cardíaca Máxima Predita',
+    'FC Máxima no Teste': 'Frequência Cardíaca Máxima no Teste',
+  };
 
   useEffect(() => {
     if (id) {
@@ -65,17 +102,19 @@ export function AthleteDetails() {
   const loadAthlete = async (athleteId: string) => {
     setLoading(true);
     try {
-      const [data, assessmentsData, summaryData, typesData] = await Promise.all([
+      const [data, assessmentsData, summaryData, typesData, plansData] = await Promise.all([
         athleteService.getById(athleteId),
         assessmentService.listByAthlete(athleteId),
         assessmentService.getSummary(athleteId),
         assessmentTypeService.list(),
+        planService.listByAthlete(athleteId),
       ]);
 
       setAthlete(data);
       setAssessments(assessmentsData);
       setAssessmentSummary(summaryData);
       setAssessmentTypes(typesData);
+      setPlans(plansData.plans);
 
     } catch (error) {
       console.error('Erro ao carregar atleta:', error);
@@ -344,14 +383,42 @@ export function AthleteDetails() {
     { label: '% Gordura', key: 'percent_gordura', unit: '%' },
     { label: 'VO2Máx (ml)', key: 'vo2max_ml', unit: 'ml/kg/min' },
     { label: 'VO2Máx (MET)', key: 'vo2max_met', unit: 'MET', computed: true },
-    { label: 'FC Rep', key: 'fc_rep', unit: 'bpm' },
+    {
+      label: 'FC Repouso',
+      key: 'fc_rep',
+      unit: 'bpm',
+      historyKeys: ['FC Repouso', 'FC Rep'],
+    },
     { label: 'FC Máx', key: 'fc_max', unit: 'bpm' },
     { label: 'MM', key: 'massa_magra', unit: 'kg', computed: true },
-    { label: 'Lan Km/h', key: 'limiar_anaerobio_kmh', unit: 'km/h' },
-    { label: 'Lan FC', key: 'limiar_anaerobio_fc', unit: 'bpm' },
-    { label: 'G.A', key: 'gordura_absoluta', unit: 'kg', computed: true },
+    {
+      label: 'Lan Km/h',
+      key: 'limiar_anaerobio_kmh',
+      unit: 'km/h',
+      historyKeys: ['Limiar Anaeróbico (km/h ou watt)', 'Lan Km/h'],
+    },
+    {
+      label: 'Lan FC',
+      key: 'limiar_anaerobio_fc',
+      unit: 'bpm',
+      historyKeys: ['Limiar Anaeróbico (bpm)', 'Lan FC'],
+    },
+    { label: 'Gordura Absoluta', key: 'gordura_absoluta', unit: 'kg', computed: true },
     { label: 'TMB/dia', key: 'tmb_dia', unit: 'kcal' },
     { label: 'CIT Méd Ant.', key: 'cit_med_ant', unit: '', computed: true, pending: true },
+  ];
+  const vo2IntensityRows = [
+    { percent: '50%', color: '#d9eac3', epe: '01' },
+    { percent: '55%', color: '#d9eac3', epe: '02' },
+    { percent: '60%', color: '#cfe3a6', epe: '02-03' },
+    { percent: '65%', color: '#fff400', epe: '03' },
+    { percent: '70%', color: '#fff400', epe: '03-04' },
+    { percent: '75%', color: '#ffe600', epe: '04' },
+    { percent: '80%', color: '#ffd400', epe: '05' },
+    { percent: '85%', color: '#f4a300', epe: '06' },
+    { percent: '90%', color: '#f07f00', epe: '07-08' },
+    { percent: '95%', color: '#d90000', epe: '09' },
+    { percent: '100%', color: '#b30000', epe: '10' },
   ];
 
   const toNumber = (value: any) => {
@@ -375,14 +442,30 @@ export function AthleteDetails() {
     if (numeric === null) return '—';
     return numeric.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
   };
+  const formatOneDecimal = (value: any) => {
+    const numeric = toNumber(value);
+    if (numeric === null) return '—';
+    return numeric.toLocaleString('pt-BR', {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1,
+    });
+  };
+
+  const formatDate = (value: string) => formatDateBR(value);
 
   const getHistoryValue = (assessment: Assessment, variable: string) => {
     const source =
       assessment.extractedData?.variables?.[variable] ??
+      (variable === 'VAM (km/h)' ? assessment.extractedData?.variables?.['VAM'] : undefined) ??
+      (variable === 'Carga Limiar (km/h)'
+        ? assessment.extractedData?.variables?.['Carga Limiar']
+        : undefined) ??
       assessment.extractedData?.history?.[variable] ??
       assessment.extractedData?.[variable];
     return source ?? null;
   };
+  const formatHistoryVariableLabel = (variable: string) =>
+    historyVariableLabelMap[variable] ?? variable;
 
   const sortedAssessments = [...assessments].sort(
     (a, b) => new Date(a.assessmentDate).getTime() - new Date(b.assessmentDate).getTime()
@@ -393,6 +476,7 @@ export function AthleteDetails() {
   const filteredHistorySections = assessmentHistorySections.filter(
     (section) => historyFilterTitle === 'all' || section.title === historyFilterTitle
   );
+  const historyColumnCount = 2 + sortedAssessments.length * 2;
 
   const buildHistoryEditValues = (sectionTitle: string, assessmentId: string) => {
     const sectionVariables = assessmentHistorySections
@@ -634,23 +718,108 @@ export function AthleteDetails() {
             </CardHeader>
             <CardContent>
               {latestAssessment ? (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {summaryFields.map((field) => {
-                    const value = latestMetrics?.[field.key];
-                    return (
-                      <div key={field.key} className="rounded-lg border border-gray-200 p-3">
-                        <div className="text-xs text-muted-foreground">{field.label}</div>
-                        <div className="mt-1 text-lg font-semibold">
-                          {formatValue(value)} {field.unit}
-                        </div>
-                        {field.computed && (
-                          <div className="mt-1 text-[10px] text-amber-600">
-                            {field.pending && !value ? 'Cálculo pendente' : 'Campo calculado'}
+                <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {summaryFields.map((field) => {
+                      const historyKeys = (field as { historyKeys?: string[] }).historyKeys;
+                      const historyValue =
+                        historyKeys && latestAssessment
+                          ? historyKeys
+                              .map((key) => getHistoryValue(latestAssessment, key))
+                              .find((value) => value !== null && value !== undefined)
+                          : null;
+                      const rawValue = latestMetrics?.[field.key] ?? historyValue;
+                      const value =
+                        field.key === 'vo2max_met'
+                          ? (() => {
+                              const vo2ml = toNumber(latestMetrics?.vo2max_ml);
+                              return vo2ml !== null ? vo2ml / 3.5 : rawValue;
+                            })()
+                          : rawValue;
+                      return (
+                        <div key={field.key} className="rounded-lg border border-gray-200 p-3">
+                          <div className="text-xs text-muted-foreground">{field.label}</div>
+                          <div className="mt-1 text-lg font-semibold">
+                            {formatValue(value)} {field.unit}
                           </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="overflow-x-auto rounded-lg border border-gray-200">
+                    <table className="min-w-full text-sm table-fixed border-collapse">
+                      <thead>
+                        <tr className="bg-muted text-xs uppercase text-gray-500">
+                          <th className="px-3 py-2 text-left w-24">% VO2Máx</th>
+                          <th className="px-3 py-2 text-center">FC (min)</th>
+                          <th className="px-3 py-2 text-center">FC (15”)</th>
+                          <th className="px-3 py-2 text-center">Vel (km/h)</th>
+                          <th className="px-3 py-2 text-center">Pace (min/km)</th>
+                          <th className="px-3 py-2 text-center">EPE</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {vo2IntensityRows.map((row) => {
+                          const percentValue = Number(row.percent.replace('%', '')) / 100;
+                          const fcRep = toNumber(
+                            latestMetrics?.fc_rep ??
+                              (latestAssessment
+                                ? getHistoryValue(latestAssessment, 'FC Repouso')
+                                : null)
+                          );
+                          const fcMax = toNumber(
+                            latestMetrics?.fc_max ??
+                              (latestAssessment
+                                ? getHistoryValue(latestAssessment, 'FC Máxima no Teste') ??
+                                  getHistoryValue(latestAssessment, 'FC Máxima Predita')
+                                : null)
+                          );
+                          const fcMinValue =
+                            fcRep !== null && fcMax !== null
+                              ? fcRep + (fcMax - fcRep) * percentValue
+                              : null;
+                          const vamValue = toNumber(
+                            latestAssessment
+                              ? getHistoryValue(latestAssessment, 'VAM (km/h)') ??
+                                  getHistoryValue(latestAssessment, 'VAM')
+                              : null
+                          );
+                          const velValue = vamValue !== null ? vamValue * percentValue : null;
+
+                          return (
+                            <tr
+                              key={row.percent}
+                              className="border-b border-black/15 text-center last:border-b-0"
+                              style={{
+                                backgroundColor: row.color,
+                                color: percentValue >= 0.9 ? '#ffffff' : '#111111',
+                              }}
+                            >
+                              <td className="px-3 py-2 text-left font-semibold">
+                                {row.percent}
+                              </td>
+                              <td className="px-3 py-2 font-medium">
+                                {formatOneDecimal(fcMinValue)}
+                              </td>
+                              <td className="px-3 py-2 font-medium">
+                                {formatOneDecimal(fcMinValue === null ? null : fcMinValue / 4)}
+                              </td>
+                              <td className="px-3 py-2 font-medium">
+                                {formatOneDecimal(velValue)}
+                              </td>
+                              <td className="px-3 py-2 font-medium">
+                                {formatOneDecimal(
+                                  velValue !== null && velValue !== 0 ? 60 / velValue : null
+                                )}
+                              </td>
+                              <td className="px-3 py-2 font-semibold">{row.epe}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               ) : (
                 <div className="text-sm text-muted-foreground">
@@ -701,16 +870,61 @@ export function AthleteDetails() {
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Planos de Treino
-            </CardTitle>
+            <div className="flex items-center justify-between gap-3">
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="h-5 w-5" />
+                Planos de Treino
+              </CardTitle>
+              <Link to={`/plans/new?athleteId=${id}`}>
+                <Button variant="outline" size="sm">
+                  Novo Plano
+                </Button>
+              </Link>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-center py-8 text-muted-foreground">
-              <Calendar className="h-12 w-12 mx-auto mb-2 opacity-50" />
-              <p>Nenhum plano de treino ativo</p>
-            </div>
+            {plans.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Calendar className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                <p>Nenhum plano de treino cadastrado</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {plans.map((plan) => {
+                  const now = new Date();
+                  const isActive = isDateWithinRange(now, plan.startDate, plan.endDate);
+                  return (
+                    <div
+                      key={plan.id}
+                      className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 p-3"
+                    >
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">{plan.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatDate(plan.startDate)} - {formatDate(plan.endDate)}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`text-[10px] px-2 py-1 rounded-full ${
+                            isActive
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-gray-100 text-gray-600'
+                          }`}
+                        >
+                          {isActive ? 'Ativo' : 'Finalizado'}
+                        </span>
+                        <Link to={`/plans/${plan.id}`}>
+                          <Button variant="outline" size="sm">
+                            Abrir
+                          </Button>
+                        </Link>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -900,7 +1114,7 @@ export function AthleteDetails() {
                 Nenhuma avaliação registrada para exibir histórico.
               </div>
             ) : (
-              <div className="space-y-8">
+              <div className="space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground">Filtrar por título</span>
@@ -921,109 +1135,137 @@ export function AthleteDetails() {
                     Editar dados
                   </Button>
                 </div>
-                {filteredHistorySections.map((section) => (
-                  <div key={`${section.title}-${section.subtitle || 'main'}`}>
-                    <div className="flex items-baseline gap-2 mb-3">
-                      <h3 className="text-sm font-semibold text-gray-900">{section.title}</h3>
-                      {section.subtitle && (
-                        <span className="text-xs text-muted-foreground">• {section.subtitle}</span>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => openHistoryEdit(section.title)}
-                        className="ml-auto rounded-md border border-gray-200 px-2 py-1 text-[10px] font-medium text-gray-700 hover:bg-gray-50"
-                      >
-                        Editar dados
-                      </button>
-                    </div>
-                    <div className="overflow-x-auto rounded-lg border border-gray-200">
-  <table className="min-w-full text-sm">
-    <thead>
-      <tr className="bg-muted text-left text-xs uppercase text-gray-500">
-        <th className="px-3 py-2">Variável</th>
-        {sortedAssessments.map((assessment) => (
-          <th key={assessment.id} className="px-3 py-2" colSpan={2}>
-            {new Date(assessment.assessmentDate).toLocaleDateString()}
-          </th>
-        ))}
-        <th className="px-3 py-2">Δ% Total</th>
-      </tr>
-      <tr className="border-b text-left text-xs uppercase text-gray-400">
-        <th className="px-3 py-2"></th>
-        {sortedAssessments.map((assessment) => (
-          <Fragment key={assessment.id}>
-            <th className="px-3 py-2">Valor</th>
-            <th className="px-3 py-2">Δ%</th>
-          </Fragment>
-        ))}
-        <th className="px-3 py-2"></th>
-      </tr>
-    </thead>
-    <tbody>
-      {section.variables.map((variable) => {
-        const rawValues = sortedAssessments.map((assessment) =>
-          getHistoryValue(assessment, variable)
-        );
-        const numericValues = rawValues.map((value) => toNumber(value));
-        const firstValue = numericValues.find(
-          (value) => value !== null && value !== undefined
-        );
-        const lastValue = [...numericValues]
-          .reverse()
-          .find((value) => value !== null && value !== undefined);
-        const totalDelta =
-          firstValue !== null &&
-          firstValue !== undefined &&
-          lastValue !== null &&
-          lastValue !== undefined
-            ? ((lastValue - firstValue) / firstValue) * 100
-            : null;
+                <div className="overflow-x-auto rounded-lg border border-gray-200 max-h-[70vh] overflow-y-auto">
+                  <table className="min-w-full text-sm table-fixed">
+                    <colgroup>
+                      <col className={historyVariableColumnWidthClass} />
+                      {sortedAssessments.map((assessment) => (
+                        <Fragment key={assessment.id}>
+                          <col className="w-24" />
+                          <col className="w-24" />
+                        </Fragment>
+                      ))}
+                      <col className="w-24" />
+                    </colgroup>
+                    <thead className="sticky top-0 z-10">
+                      <tr className="bg-muted text-center text-xs uppercase text-gray-500">
+                        <th className={`px-3 py-2 ${historyVariableColumnWidthClass} text-left`}>
+                          Variável
+                        </th>
+                        {sortedAssessments.map((assessment) => (
+                          <th
+                            key={assessment.id}
+                            className="px-3 py-2 text-center border-l border-gray-200/60"
+                            colSpan={2}
+                          >
+                            {new Date(assessment.assessmentDate).toLocaleDateString()}
+                          </th>
+                        ))}
+                        <th className="px-3 py-2 text-center w-24 border-l border-gray-200/60">
+                          Δ% Total
+                        </th>
+                      </tr>
+                      <tr className="border-b text-center text-xs uppercase text-gray-400 bg-muted">
+                        <th className="px-3 py-2 text-left"></th>
+                        {sortedAssessments.map((assessment) => (
+                          <Fragment key={assessment.id}>
+                            <th className="px-3 py-2 border-l border-gray-200/60">Valor</th>
+                            <th className="px-3 py-2">Δ%</th>
+                          </Fragment>
+                        ))}
+                        <th className="px-3 py-2"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredHistorySections.map((section) => (
+                        <Fragment key={`${section.title}-${section.subtitle || 'main'}`}>
+                          <tr className="bg-gray-50">
+                            <td colSpan={historyColumnCount} className="px-3 py-2">
+                              <div className="flex items-center gap-2">
+                                <div className="text-sm font-semibold text-gray-900">
+                                  {section.title}
+                                </div>
+                                {section.subtitle && (
+                                  <div className="text-xs text-muted-foreground">
+                                    • {section.subtitle}
+                                  </div>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => openHistoryEdit(section.title)}
+                                  className="ml-auto rounded-md border border-gray-200 px-2 py-1 text-[10px] font-medium text-gray-700 hover:bg-gray-50"
+                                >
+                                  Editar dados
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                          {section.variables.map((variable) => {
+                            const rawValues = sortedAssessments.map((assessment) =>
+                              getHistoryValue(assessment, variable)
+                            );
+                            const numericValues = rawValues.map((value) => toNumber(value));
+                            const firstValue = numericValues.find(
+                              (value) => value !== null && value !== undefined
+                            );
+                            const lastValue = [...numericValues]
+                              .reverse()
+                              .find((value) => value !== null && value !== undefined);
+                            const totalDelta =
+                              firstValue !== null &&
+                              firstValue !== undefined &&
+                              lastValue !== null &&
+                              lastValue !== undefined
+                                ? ((lastValue - firstValue) / firstValue) * 100
+                                : null;
 
-        return (
-          <tr key={variable} className="border-b">
-            <td className="px-3 py-2 font-medium text-gray-700 whitespace-nowrap">
-              {variable}
-            </td>
-            {rawValues.map((value, index) => {
-              const prev = index > 0 ? numericValues[index - 1] : null;
-              const currentNumeric = numericValues[index];
-              const delta =
-                prev !== null &&
-                prev !== undefined &&
-                currentNumeric !== null &&
-                currentNumeric !== undefined
-                  ? ((currentNumeric - prev) / prev) * 100
-                  : null;
-              return (
-                <Fragment key={`${variable}-${index}`}>
-                  <td className="px-3 py-2">
-                    {value === null || value === undefined
-                      ? '—'
-                      : typeof value === 'string'
-                        ? value
-                        : formatValue(value)}
-                  </td>
-                  <td className="px-3 py-2 text-xs text-muted-foreground">
-                    {delta === null || !Number.isFinite(delta)
-                      ? '—'
-                      : `${delta > 0 ? '+' : ''}${delta.toFixed(1)}%`}
-                  </td>
-                </Fragment>
-              );
-            })}
-            <td className="px-3 py-2 text-xs text-muted-foreground">
-              {totalDelta === null || !Number.isFinite(totalDelta)
-                ? '—'
-                : `${totalDelta > 0 ? '+' : ''}${totalDelta.toFixed(1)}%`}
-            </td>
-          </tr>
-        );
-      })}
-    </tbody>
-  </table>
-</div>
-                  </div>
-                ))}
+                            return (
+                              <tr key={variable} className="border-b text-center">
+                                <td
+                                  className={`px-3 py-2 font-medium text-gray-700 whitespace-nowrap ${historyVariableColumnWidthClass} text-left`}
+                                >
+                                  {formatHistoryVariableLabel(variable)}
+                                </td>
+                                {rawValues.map((value, index) => {
+                                  const prev = index > 0 ? numericValues[index - 1] : null;
+                                  const currentNumeric = numericValues[index];
+                                  const delta =
+                                    prev !== null &&
+                                    prev !== undefined &&
+                                    currentNumeric !== null &&
+                                    currentNumeric !== undefined
+                                      ? ((currentNumeric - prev) / prev) * 100
+                                      : null;
+                                  return (
+                                    <Fragment key={`${variable}-${index}`}>
+                                      <td className="px-3 py-2 text-center border-l border-gray-200/60">
+                                        {value === null || value === undefined
+                                          ? '—'
+                                          : typeof value === 'string'
+                                            ? value
+                                            : formatValue(value)}
+                                      </td>
+                                      <td className="px-3 py-2 text-xs text-muted-foreground text-center">
+                                        {delta === null || !Number.isFinite(delta)
+                                          ? '—'
+                                          : `${delta > 0 ? '+' : ''}${delta.toFixed(1)}%`}
+                                      </td>
+                                    </Fragment>
+                                  );
+                                })}
+                                <td className="px-3 py-2 text-xs text-muted-foreground text-center w-24 border-l border-gray-200/60">
+                                  {totalDelta === null || !Number.isFinite(totalDelta)
+                                    ? '—'
+                                    : `${totalDelta > 0 ? '+' : ''}${totalDelta.toFixed(1)}%`}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </Fragment>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
           </CardContent>
@@ -1126,21 +1368,25 @@ export function AthleteDetails() {
               </div>
 
               <div className="max-h-[50vh] overflow-y-auto rounded-md border border-gray-200">
-                <table className="min-w-full text-sm">
+                <table className="min-w-full text-sm table-fixed">
                   <thead>
-                    <tr className="bg-muted text-left text-xs uppercase text-gray-500">
-                      <th className="px-3 py-2">Variável</th>
-                      <th className="px-3 py-2">Valor</th>
+                    <tr className="bg-muted text-center text-xs uppercase text-gray-500">
+                      <th className={`px-3 py-2 ${historyVariableColumnWidthClass} text-left`}>Variável</th>
+                      <th className="px-3 py-2 w-40">Valor</th>
                     </tr>
                   </thead>
                   <tbody>
                     {historyEditSectionVariables.map((variable) => (
-                      <tr key={variable} className="border-b">
-                        <td className="px-3 py-2 text-gray-700">{variable}</td>
-                        <td className="px-3 py-2">
+                      <tr key={variable} className="border-b text-center">
+                        <td
+                          className={`px-3 py-2 text-gray-700 ${historyVariableColumnWidthClass} text-left`}
+                        >
+                          {formatHistoryVariableLabel(variable)}
+                        </td>
+                        <td className="px-3 py-2 w-40">
                           <input
                             type="text"
-                            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-center"
                             value={historyEditValues[variable] ?? ''}
                             onChange={(event) =>
                               setHistoryEditValues({

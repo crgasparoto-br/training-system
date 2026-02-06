@@ -1,5 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { planService } from './plan.service';
+import { periodizationService } from '../periodization/periodization.service';
+import { athleteService } from '../athletes/athlete.service';
 import { authMiddleware, educatorMiddleware } from '../auth/auth.middleware';
 import { sendSuccess, sendError } from '@corrida/utils';
 import { z } from 'zod';
@@ -88,20 +90,72 @@ router.get('/', async (req: Request, res: Response) => {
     const user = (req as any).user;
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
+    const rawAthleteId = typeof req.query.athleteId === 'string' ? req.query.athleteId.trim() : '';
+    const rawEducatorId =
+      typeof req.query.educatorId === 'string' ? req.query.educatorId.trim() : '';
+    const athleteId = rawAthleteId || undefined;
+    const educatorId = rawEducatorId || undefined;
+    const rawQuery = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    const query = rawQuery || undefined;
+    const rawStatus = typeof req.query.status === 'string' ? req.query.status.trim() : '';
+    const status = rawStatus === 'active' || rawStatus === 'finished' ? rawStatus : 'all';
 
     let result;
-
     if (user.type === 'educator') {
       // Buscar educatorId do banco
       const { authService } = await import('../auth/auth.service');
       const userWithEducator = await authService.getUserById(user.userId);
       
       if (!userWithEducator?.educator) {
-        return sendError(res, 'Educador não encontrado', 404);
+        return sendError(res, 'Educador nao encontrado', 404);
       }
-      
-      result = await planService.findByEducator(userWithEducator.educator.id, page, limit);
+
+      const isMasterAcademy =
+        userWithEducator.educator.role === 'master' &&
+        userWithEducator.educator.contract?.type === 'academy';
+
+      if (isMasterAcademy && userWithEducator.educator.contractId) {
+        if (athleteId) {
+          const belongs = await athleteService.belongsToContract(
+            athleteId,
+            userWithEducator.educator.contractId
+          );
+          if (!belongs) {
+            return sendError(res, 'Atleta nao encontrado ou nao pertence ao contrato', 404);
+          }
+        }
+
+        result = await planService.findByContract(
+          userWithEducator.educator.contractId,
+          page,
+          limit,
+          educatorId,
+          athleteId,
+          status,
+          query
+        );
+      } else {
+        if (athleteId) {
+          const belongs = await athleteService.belongsToEducator(
+            athleteId,
+            userWithEducator.educator.id
+          );
+          if (!belongs) {
+            return sendError(res, 'Atleta nao encontrado ou nao pertence a voce', 404);
+          }
+        }
+
+        result = await planService.findByEducator(
+          userWithEducator.educator.id,
+          page,
+          limit,
+          athleteId,
+          status,
+          query
+        );
+      }
     } else {
+
       // Buscar athleteId do banco
       const { authService } = await import('../auth/auth.service');
       const userWithAthlete = await authService.getUserById(user.userId);
@@ -110,7 +164,7 @@ router.get('/', async (req: Request, res: Response) => {
         return sendError(res, 'Atleta não encontrado', 404);
       }
       
-      const plans = await planService.findByAthlete(userWithAthlete.athlete.id);
+      const plans = await planService.findByAthlete(userWithAthlete.athlete.id, status, query);
       result = { plans, pagination: { page: 1, limit: plans.length, total: plans.length, totalPages: 1 } };
     }
 
@@ -118,6 +172,46 @@ router.get('/', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Erro ao listar planos:', error);
     return sendError(res, 'Erro ao listar planos', 500);
+  }
+});
+
+/**
+ * GET /api/v1/plans/:id
+ * Obter plano por ID
+ */
+router.get('/athlete/:athleteId', educatorMiddleware, async (req: Request, res: Response) => {
+  try {
+    const { athleteId } = req.params;
+    const educatorId = (req as any).user.educatorId;
+    const rawQuery = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    const query = rawQuery || undefined;
+    const rawStatus = typeof req.query.status === 'string' ? req.query.status.trim() : '';
+    const status = rawStatus === 'active' || rawStatus === 'finished' ? rawStatus : 'all';
+
+    if (!educatorId) {
+      return sendError(res, 'Educador não encontrado', 404);
+    }
+
+    const belongs = await athleteService.belongsToEducator(athleteId, educatorId);
+    if (!belongs) {
+      return sendError(res, 'Atleta não encontrado ou não pertence a você', 404);
+    }
+
+    const plans = await planService.findByAthlete(athleteId, status, query);
+    const result = {
+      plans,
+      pagination: {
+        page: 1,
+        limit: plans.length,
+        total: plans.length,
+        totalPages: 1,
+      },
+    };
+
+    return sendSuccess(res, result, 'Planos recuperados com sucesso');
+  } catch (error) {
+    console.error('Erro ao listar planos do atleta:', error);
+    return sendError(res, 'Erro ao listar planos do atleta', 500);
   }
 });
 
@@ -170,7 +264,40 @@ router.put('/:id', educatorMiddleware, async (req: Request, res: Response) => {
       return sendError(res, 'Plano não encontrado ou não pertence a você', 404);
     }
 
+    const existingPlan = await planService.findById(id);
+    if (!existingPlan) {
+      return sendError(res, 'Plano não encontrado', 404);
+    }
+
     const plan = await planService.updatePlan(id, req.body);
+
+    const incomingStartDate = req.body?.startDate
+      ? new Date(req.body.startDate)
+      : existingPlan.startDate;
+    const incomingEndDate = req.body?.endDate
+      ? new Date(req.body.endDate)
+      : existingPlan.endDate;
+
+    const startChanged = incomingStartDate.getTime() !== existingPlan.startDate.getTime();
+    const endChanged = incomingEndDate.getTime() !== existingPlan.endDate.getTime();
+
+    if (startChanged || endChanged) {
+      await planService.generateWeeks(id, incomingStartDate, incomingEndDate);
+
+      const diffTime = Math.abs(incomingEndDate.getTime() - incomingStartDate.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      const totalWeeks = Math.max(1, Math.ceil(diffDays / 7));
+      const weeksPerMesocycle = 4;
+      const totalMesocycles = Math.max(1, Math.ceil(totalWeeks / weeksPerMesocycle));
+
+      const matrix = await periodizationService.getByPlanId(id);
+      if (matrix && matrix.totalMesocycles !== totalMesocycles) {
+        await periodizationService.updateMatrix(matrix.id, {
+          totalMesocycles,
+          weeksPerMesocycle,
+        });
+      }
+    }
 
     return sendSuccess(res, plan, 'Plano atualizado com sucesso');
   } catch (error) {
@@ -334,3 +461,4 @@ router.delete('/microcycles/:id', educatorMiddleware, async (req: Request, res: 
 });
 
 export default router;
+

@@ -127,7 +127,7 @@ const updateAssessmentSchema = z.object({
   variables: z.record(z.union([z.number(), z.string(), z.null()])).optional(),
 });
 
-const textVariableKeys = new Set(['Protocolo', 'R. VO2máximo']);
+const textVariableKeys = new Set(['Protocolo', 'R. VO2máximo', 'Tipo de Dieta']);
 
 const parseVariableValue = (key: string, value: unknown) => {
   if (textVariableKeys.has(key)) {

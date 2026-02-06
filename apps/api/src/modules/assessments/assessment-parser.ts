@@ -67,9 +67,33 @@ export const assessmentVariableLabels = [
   'Limiar Anaeróbico (bpm)',
   'Limiar Anaeróbico (km/h ou watt)',
   'Limiar Anaeróbico (pace)',
+  'VAM (km/h)',
+  'Carga Limiar (km/h)',
   'Velocidade Máxima (km/h ou watt)',
   'FC Máxima Predita',
   'FC Máxima no Teste',
+  'Diferença % em relação à necessidade estimada',
+  'Tipo de Dieta',
+  'Disponibilidade Energética',
+  'Aporte energético Diário Sugerido',
+  'Diferença Absoluta Necessidade vs Consumo',
+  'Diferença Percentual Necessidade vs Consumo',
+  'Proteínas (g/kg)',
+  'Carboidratos (g/kg)',
+  'Lipídios (g/kg)',
+  'Proteínas (g/dia)',
+  'Carboidratos (g/dia)',
+  'Lipídios (g/dia)',
+  'Proteínas (kcal/dia)',
+  'Carboidratos (kcal/dia)',
+  'Lipídios (kcal/dia)',
+  'Proteínas (%)',
+  'Carboidratos (%)',
+  'Lipídios (%)',
+  'Total de Kcal/dia',
+  'Variação de Redução de Gordura Estimada',
+  'Variação de Redução 1kg de gordura',
+  'Variação da meta proposta (-0,1kg)',
 ];
 
 const normalizeText = (value: string) =>
@@ -111,6 +135,10 @@ const parseNumber = (raw?: string | null) => {
 const extractNumbersForRow = (line: string) => {
   const sanitized = line.replace(/(?<=\d)-(?=\d)/g, ' ');
   const compact = sanitized.replace(/\s+/g, '');
+  const twoCommaMatch = compact.match(/^(-?\d{1,3},\d)(\d{2,3},\d)$/);
+  if (twoCommaMatch) {
+    return [twoCommaMatch[1], twoCommaMatch[2]];
+  }
   const oneDecimal = compact.match(/-?\d{1,3},\d/g) || [];
   const twoDecimals = compact.match(/-?\d{1,3},\d{1,2}/g) || [];
   const startsWithZero = compact.startsWith('0,');
@@ -122,6 +150,15 @@ const extractNumbersForRow = (line: string) => {
   }
   if (twoDecimals.length >= 4) {
     return twoDecimals;
+  }
+  if (/^\d{6,}$/.test(compact)) {
+    const chunks: string[] = [];
+    for (let i = 0; i < compact.length; i += 2) {
+      chunks.push(compact.slice(i, i + 2));
+    }
+    if (chunks.length >= 4) {
+      return chunks;
+    }
   }
   return sanitized.match(/-?\d+(?:,\d+)?/g) || [];
 };
@@ -164,6 +201,61 @@ const findNumberByLineProximity = (text: string, labels: string[], lookahead = 2
       const numbers = extractNumbersForRow(candidate);
       if (numbers.length > 0) {
         return parseNumber(numbers[0]);
+      }
+    }
+  }
+  return null;
+};
+
+const findNumberByFollowingNumericLine = (text: string, labels: string[], lookahead = 120) => {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+  const normalizedLabels = labels.map((label) => normalizeLabelForMatch(label));
+  for (let i = 0; i < lines.length; i += 1) {
+    const normalizedLine = normalizeLabelForMatch(lines[i]);
+    const matched = normalizedLabels.find((label) => normalizedLine.includes(label));
+    if (!matched) continue;
+    for (let j = 1; j <= lookahead; j += 1) {
+      const candidate = lines[i + j];
+      if (!candidate) continue;
+      const nums = extractNumbersForRow(candidate);
+      const hasLetters = /[a-zA-Z]/.test(candidate);
+      if (nums.length >= 4 && !hasLetters) {
+        return parseNumber(nums[0]);
+      }
+    }
+  }
+  return null;
+};
+
+const findIntegerByFollowingNumericLine = (
+  text: string,
+  labels: string[],
+  lookahead = 120,
+  min = 30,
+  max = 120
+) => {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+  const normalizedLabels = labels.map((label) => normalizeLabelForMatch(label));
+  for (let i = 0; i < lines.length; i += 1) {
+    const normalizedLine = normalizeLabelForMatch(lines[i]);
+    const matched = normalizedLabels.find((label) => normalizedLine.includes(label));
+    if (!matched) continue;
+    for (let j = 1; j <= lookahead; j += 1) {
+      const candidate = lines[i + j];
+      if (!candidate) continue;
+      const nums = extractNumbersForRow(candidate);
+      const hasLetters = /[a-zA-Z]/.test(candidate);
+      if (nums.length >= 4 && !hasLetters) {
+        const parsed = parseNumber(nums[0]);
+        if (parsed !== null && Number.isInteger(parsed) && parsed >= min && parsed <= max) {
+          return parsed;
+        }
       }
     }
   }
@@ -241,12 +333,14 @@ const extractTabularValues = (text: string) => {
       normalizedLine.includes('relacao abdome') ||
       normalizedLine.includes('indice neuromuscular') ||
       normalizedLine.includes('avaliacao metabolica') ||
+      normalizedLine.includes('aporte energetico') ||
       compactLine.includes('ultrassom') ||
       compactLine.includes('espessuradetecido') ||
       compactLine.includes('tecidoadiposo') ||
       compactLine.includes('relacaoabdome') ||
       compactLine.includes('indicesneuromusculares') ||
-      compactLine.includes('avaliacaometabolica');
+      compactLine.includes('avaliacaometabolica') ||
+      compactLine.includes('aporteenergetico');
     if (!isVariableHeader) continue;
 
     const labels: string[] = [];
@@ -583,6 +677,328 @@ const extractTabularValues = (text: string) => {
   return variables;
 };
 
+const aporteEnergeticoVariables = [
+  'Diferença % em relação à necessidade estimada',
+  'Tipo de Dieta',
+  'Disponibilidade Energética',
+  'Aporte energético Diário Sugerido',
+  'Diferença Absoluta Necessidade vs Consumo',
+  'Diferença Percentual Necessidade vs Consumo',
+  'Proteínas (g/kg)',
+  'Carboidratos (g/kg)',
+  'Lipídios (g/kg)',
+  'Proteínas (g/dia)',
+  'Carboidratos (g/dia)',
+  'Lipídios (g/dia)',
+  'Proteínas (kcal/dia)',
+  'Carboidratos (kcal/dia)',
+  'Lipídios (kcal/dia)',
+  'Proteínas (%)',
+  'Carboidratos (%)',
+  'Lipídios (%)',
+  'Total de Kcal/dia',
+  'Variação de Redução de Gordura Estimada',
+  'Variação de Redução 1kg de gordura',
+  'Variação da meta proposta (-0,1kg)',
+];
+
+const extractAporteEnergetico = (text: string, variables: Record<string, number | string | null>) => {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+  const normalized = lines.map((line) => normalizeText(line).replace(/\s+/g, '').replace(/-/g, ''));
+  const startIndex = normalized.findIndex((line) => line.includes('aporteenergetico'));
+  if (startIndex < 0) return;
+  const endIndex = normalized.findIndex(
+    (line, idx) => idx > startIndex && line.includes('distribuicaoporrefeicao')
+  );
+  const slice = lines.slice(startIndex, endIndex > 0 ? endIndex : startIndex + 160);
+  const sliceNormalized = slice.map((line) => normalizeLabelForMatch(line));
+
+  const findNumericAfterLabel = (labels: string[], numericRegex: RegExp, lookahead = 20) => {
+    const normalizedLabels = labels.map((label) => normalizeLabelForMatch(label));
+    for (let i = 0; i < slice.length; i += 1) {
+      const current = sliceNormalized[i];
+      if (!normalizedLabels.some((label) => current.includes(label))) continue;
+      for (let j = 1; j <= lookahead; j += 1) {
+        const candidate = slice[i + j];
+        if (!candidate) continue;
+        const match = candidate.match(numericRegex);
+        if (match?.[0]) {
+          return parseNumber(match[0]);
+        }
+      }
+    }
+    return null;
+  };
+
+  const findStandaloneNumberAfterLabel = (labels: string[], numericRegex: RegExp, lookahead = 40) => {
+    const normalizedLabels = labels.map((label) => normalizeLabelForMatch(label));
+    for (let i = 0; i < slice.length; i += 1) {
+      const current = sliceNormalized[i];
+      if (!normalizedLabels.some((label) => current.includes(label))) continue;
+      for (let j = 1; j <= lookahead; j += 1) {
+        const candidate = slice[i + j];
+        if (!candidate) continue;
+        const trimmed = candidate.replace(/\s+/g, '');
+        if (!numericRegex.test(trimmed)) continue;
+        return parseNumber(trimmed);
+      }
+    }
+    return null;
+  };
+
+  if (variables['Tipo de Dieta'] == null) {
+    const dietWords = ['isocalorica', 'hipocalorica', 'hipercalorica', 'normocalorica'];
+    const dietLine = slice.find((line) =>
+      dietWords.some((word) => normalizeText(line).includes(word))
+    );
+    if (dietLine) {
+      const value = dietLine.replace(/\d.+$/, '').trim();
+      if (value) variables['Tipo de Dieta'] = value;
+    }
+  }
+
+  if (variables['DiferenÃ§a Absoluta Necessidade vs Consumo'] == null) {
+    const value = findNumericAfterLabel(
+      ['DiferenÃ§a Absoluta Necessidade vs Consumo', 'DiferenÃ§a Absoluta'],
+      /-?\d{2,4},\d/
+    );
+    if (value != null) variables['DiferenÃ§a Absoluta Necessidade vs Consumo'] = value;
+  }
+
+  if (variables['DiferenÃ§a Percentual Necessidade vs Consumo'] == null) {
+    const value = findNumericAfterLabel(
+      ['DiferenÃ§a Percentual Necessidade vs Consumo', 'DiferenÃ§a Percentual'],
+      /-?\d{1,3},\d/
+    );
+    if (value != null) variables['DiferenÃ§a Percentual Necessidade vs Consumo'] = value;
+  }
+
+  const macroIndex = sliceNormalized.findIndex((line) =>
+    line.includes('proteinascarboidratoslipidios')
+  );
+  if (macroIndex >= 0) {
+    if (variables['Diferença % em relação à necessidade estimada'] == null) {
+      const percentMatches = slice
+        .slice(0, macroIndex + 10)
+        .flatMap((line) => Array.from(line.matchAll(/-?\d{1,3},\d%/g)).map((m) => m[0]))
+        .map((value) => parseNumber(value.replace('%', '')))
+        .filter((value): value is number => value !== null);
+      const smallPercent = percentMatches.find((value) => value <= 20);
+      if (smallPercent != null) {
+        variables['Diferença % em relação à necessidade estimada'] = smallPercent;
+      } else if (percentMatches.length > 0) {
+        variables['Diferença % em relação à necessidade estimada'] = percentMatches[0];
+      }
+    }
+
+    const dietWords = ['isocalorica', 'hipocalorica', 'hipercalorica', 'normocalorica'];
+    const rowLines = slice.filter((line) => {
+      if (!line.includes(',')) return false;
+      if (normalizeText(line).includes('dias')) return false;
+      const nums = extractNumbersForRow(line);
+      if (nums.length !== 4) return false;
+      const last = parseNumber(nums[3]);
+      return last != null && last >= 0 && last <= 100;
+    });
+
+    const assignRow = (rowType: 'Proteínas' | 'Carboidratos' | 'Lipídios', nums: string[]) => {
+      const values = nums.slice(0, 4).map((value) => parseNumber(value));
+      if (values[0] != null) variables[`${rowType} (g/kg)`] = values[0];
+      if (values[1] != null) variables[`${rowType} (g/dia)`] = values[1];
+      if (values[2] != null) variables[`${rowType} (kcal/dia)`] = values[2];
+      if (values[3] != null) variables[`${rowType} (%)`] = values[3];
+    };
+
+    let proteinSet = false;
+    let carbSet = false;
+    let fatSet = false;
+
+    rowLines.forEach((line) => {
+      const nums = extractNumbersForRow(line);
+      if (nums.length < 4) return;
+      const normalizedLine = normalizeText(line);
+      if (!fatSet && dietWords.some((word) => normalizedLine.includes(word))) {
+        if (variables['Tipo de Dieta'] == null) {
+          const value = line.replace(/\d.+$/, '').trim();
+          if (value) variables['Tipo de Dieta'] = value;
+        }
+        assignRow('Lipídios', nums);
+        fatSet = true;
+        return;
+      }
+      if (!proteinSet) {
+        assignRow('Proteínas', nums);
+        proteinSet = true;
+        return;
+      }
+      if (!carbSet) {
+        assignRow('Carboidratos', nums);
+        carbSet = true;
+        return;
+      }
+      if (!fatSet) {
+        assignRow('Lipídios', nums);
+        fatSet = true;
+      }
+    });
+  }
+
+  if (variables['Total de Kcal/dia'] == null) {
+    const totalKcal = findStandaloneNumberAfterLabel(['Total de Kcal/dia'], /^-?\d{3,4},\d$/);
+    if (totalKcal != null) variables['Total de Kcal/dia'] = totalKcal;
+  }
+
+  if (variables['Aporte energético Diário Sugerido'] == null) {
+    const aporteKcal = findStandaloneNumberAfterLabel(
+      ['Aporte energético Diário', 'Aporte energético Diário Sugerido'],
+      /^-?\d{3,4},\d$/
+    );
+    if (aporteKcal != null) variables['Aporte energético Diário Sugerido'] = aporteKcal;
+  }
+
+  if (variables['Disponibilidade Energética'] == null) {
+    let idx = sliceNormalized.findIndex((line) => line.includes('disponibilidadeenergetica'));
+    if (idx < 0) {
+      idx = sliceNormalized.findIndex((line, i) => {
+        const next = sliceNormalized[i + 1];
+        return line === 'disponibilidade' && next === 'energetica';
+      });
+    }
+    if (idx >= 0) {
+      for (let i = idx + 1; i < Math.min(slice.length, idx + 20); i += 1) {
+        const line = slice[i];
+        if (/[A-Za-z]/.test(line)) continue;
+        if (!line.includes(',')) continue;
+        const compact = line.replace(/\s+/g, '');
+        let rawNumbers = compact.match(/-?\d{1,3},\d/g) || [];
+        if (rawNumbers.length < 2) {
+          const splitMatch = compact.match(/(-?\d{1,3},\d)(\d{2,3},\d)/);
+          if (splitMatch) {
+            rawNumbers = [splitMatch[1], splitMatch[2]];
+          }
+        }
+        const nums = rawNumbers
+          .map((value) => parseNumber(value))
+          .filter((value): value is number => value !== null);
+        if (nums.length === 2) {
+          const filtered = nums.filter((value) => value >= 20 && value <= 500);
+          variables['Disponibilidade Energética'] = filtered.length > 0 ? Math.max(...filtered) : Math.max(...nums);
+          break;
+        }
+      }
+    }
+  }
+
+  // Demais campos ficam para o preenchimento via IA quando necessÃ¡rio.
+};
+
+const extractProtocolText = (text: string) => {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+  const normalized = lines.map((line) => normalizeText(line));
+  const stopWords = ['bpm', 'ml/kg/min', 'km/h', 'watt', 'pace', 'fc', 'limiar', 'predita', 'maxima', 'av'];
+  const preferWords = ['teste', 'esteira', 'bicicleta', 'ciclismo', 'ergometrico', 'ergométrico'];
+
+  for (let i = 0; i < lines.length; i += 1) {
+    if (normalized[i] !== 'teste de') continue;
+    const next = normalized[i + 1];
+    if (!next) continue;
+    const next2 = normalized[i + 2];
+    const next3 = normalized[i + 3];
+    const hasEsteira = next.includes('esteira') || next2?.includes('esteira') || next3?.includes('esteira');
+    const hasProgressiva =
+      next.includes('progressiva') || next2?.includes('progressiva') || next3?.includes('progressiva');
+    if (hasEsteira && hasProgressiva) {
+      const parts = ['Teste de'];
+      if (next) parts.push(lines[i + 1]);
+      if (next2) parts.push(lines[i + 2]);
+      if (next3 && normalizeText(lines[i + 3]).includes('progressiva')) parts.push(lines[i + 3]);
+      return parts.join(' ').replace(/\s+/g, ' ').trim();
+    }
+  }
+
+  let best: { value: string; priority: number } | null = null;
+
+  for (let i = 0; i < lines.length; i += 1) {
+    if (!normalized[i].includes('protocolo')) continue;
+    for (let j = i + 1; j < Math.min(lines.length, i + 10); j += 1) {
+      const current = lines[j];
+      const normalizedLine = normalized[j];
+      if (!normalizedLine) continue;
+      if (/\d/.test(current)) continue;
+      if (normalizedLine.includes('protocolo')) continue;
+      if (stopWords.some((word) => normalizedLine.includes(word))) break;
+      if (normalizedLine.length < 2) continue;
+      if (normalizedLine.includes('assessoria')) continue;
+
+      const parts = [current];
+      const shouldAppend = (value: string, normalizedValue: string) => {
+        if (!value) return false;
+        if (/\d/.test(value)) return false;
+        if (normalizedValue.includes('assessoria')) return false;
+        if (normalizedValue.includes('academia')) return false;
+        if (value.includes('/') || value.includes('|')) return false;
+        if (value.length > 24) return false;
+        return !stopWords.some((word) => normalizedValue.includes(word));
+      };
+
+      const next = lines[j + 1];
+      const nextNorm = normalized[j + 1];
+      if (next && nextNorm && shouldAppend(next, nextNorm)) {
+        parts.push(next);
+        const next2 = lines[j + 2];
+        const next2Norm = normalized[j + 2];
+        if (next2 && next2Norm && shouldAppend(next2, next2Norm)) {
+          parts.push(next2);
+        }
+      }
+
+      const phrase = parts.join(' ').replace(/\s+/g, ' ').trim();
+      const normalizedPhrase = normalizeText(phrase);
+      const priority = preferWords.some((word) => normalizedPhrase.includes(word)) ? 2 : 1;
+      if (!best || priority > best.priority) {
+        best = { value: phrase, priority };
+      }
+      if (priority === 2) return best.value;
+    }
+  }
+
+  return best?.value ?? null;
+};
+
+const extractRVo2MaxText = (text: string) => {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+  const normalized = lines.map((line) => normalizeText(line));
+  const startIndex = normalized.findIndex((line) => line.includes('teste de consumo'));
+  const slice = lines.slice(startIndex >= 0 ? startIndex : 0, startIndex >= 0 ? startIndex + 160 : lines.length);
+
+  const ratingRegex = /(Superior|Excelente|Boa|Média|Médio|Media|Fraca)/gi;
+  let bestMatch: { value: string; count: number } | null = null;
+
+  slice.forEach((line) => {
+    const normalizedLine = normalizeText(line);
+    if (normalizedLine.includes('vo2max')) return;
+    const matches = Array.from(line.matchAll(ratingRegex)).map((match) => match[0]);
+    if (matches.length === 0) return;
+    const last = matches[matches.length - 1];
+    const value = last.replace(/media/i, 'Média').replace(/médio/i, 'Médio').trim();
+    if (!value) return;
+    if (!bestMatch || matches.length > bestMatch.count) {
+      bestMatch = { value, count: matches.length };
+    }
+  });
+
+  return bestMatch?.value ?? null;
+};
+
 export function parseAssessmentPdf(text: string): ParsedAssessmentData {
   const metrics: Record<string, number | null> = {
     peso: findNumberAfterLabel(text, ['peso']),
@@ -652,6 +1068,10 @@ export function parseAssessmentPdf(text: string): ParsedAssessmentData {
     } else {
       const value = findNumberByLineProximity(text, ['fc repouso', 'fc rep']);
       metrics.fc_rep = value !== null && value >= 30 && value <= 120 ? value : null;
+      if (metrics.fc_rep === null) {
+        const fallback = findIntegerByFollowingNumericLine(text, ['fc repouso'], 120, 30, 120);
+        metrics.fc_rep = fallback !== null ? fallback : null;
+      }
     }
   }
 
@@ -662,7 +1082,11 @@ export function parseAssessmentPdf(text: string): ParsedAssessmentData {
     metrics.fc_rep = null;
   }
 
-  const variables: Record<string, number | null> = extractTabularValues(text);
+  const variables: Record<string, number | string | null> = extractTabularValues(text);
+  aporteEnergeticoVariables.forEach((label) => {
+    variables[label] = null;
+  });
+  extractAporteEnergetico(text, variables);
   for (const variable of assessmentVariableLabels) {
     if (variables[variable] !== undefined) continue;
     const value = findNumberAfterLabel(text, [variable]);
@@ -694,7 +1118,8 @@ export function parseAssessmentPdf(text: string): ParsedAssessmentData {
 
   const fcLimFromText = findNumberByLineProximity(text, ['fc limiar']);
   const cargaLimiarFromText = findNumberByLineProximity(text, ['carga limiar']);
-  const cargaMaxFromText = findNumberByLineProximity(text, ['carga máx', 'carga max', 'vam']);
+  const cargaMaxFromText = findNumberByLineProximity(text, ['carga máx', 'carga max']);
+  const vamFromText = findNumberByLineProximity(text, ['vam']);
 
   if (variables['VO2máximo'] == null && metrics.vo2max_ml != null) {
     variables['VO2máximo'] = metrics.vo2max_ml;
@@ -705,11 +1130,35 @@ export function parseAssessmentPdf(text: string): ParsedAssessmentData {
   if (variables['Limiar Anaeróbico (km/h ou watt)'] == null && cargaLimiarFromText != null) {
     variables['Limiar Anaeróbico (km/h ou watt)'] = cargaLimiarFromText;
   }
+  if (variables['Carga Limiar (km/h)'] == null && cargaLimiarFromText != null) {
+    variables['Carga Limiar (km/h)'] = cargaLimiarFromText;
+  }
   if (variables['Velocidade Máxima (km/h ou watt)'] == null && cargaMaxFromText != null) {
     variables['Velocidade Máxima (km/h ou watt)'] = cargaMaxFromText;
   }
+  if (variables['VAM (km/h)'] == null && vamFromText != null) {
+    variables['VAM (km/h)'] = vamFromText;
+  }
   if (variables['FC Máxima no Teste'] == null && metrics.fc_max != null) {
     variables['FC Máxima no Teste'] = metrics.fc_max;
+  }
+  if (variables['FC Repouso'] == null && metrics.fc_rep != null) {
+    variables['FC Repouso'] = metrics.fc_rep;
+  }
+
+  if (variables['Protocolo'] == null) {
+    const protocolText = extractProtocolText(text);
+    if (protocolText) {
+      variables['Protocolo'] = protocolText;
+    }
+  }
+
+  if (variables['R. VO2mÃ¡ximo'] == null && (variables['R. VO2máximo'] == null || variables['R. VO2máximo'] === '')) {
+    const rVo2Text = extractRVo2MaxText(text);
+    if (rVo2Text) {
+      variables['R. VO2mÃ¡ximo'] = rVo2Text;
+      variables['R. VO2máximo'] = rVo2Text;
+    }
   }
 
   return { metrics, variables };

@@ -18,6 +18,13 @@ export interface TrainingPlan {
       };
     };
   };
+  educator?: {
+    user?: {
+      profile?: {
+        name?: string;
+      };
+    };
+  };
   macrocycles: Macrocycle[];
   stats?: PlanStats;
   createdAt: string;
@@ -113,9 +120,47 @@ export const planService = {
   /**
    * Listar planos
    */
-  async list(page: number = 1, limit: number = 10): Promise<PlansResponse> {
+  async list(
+    page: number = 1,
+    limit: number = 10,
+    athleteId?: string,
+    educatorId?: string,
+    status?: 'active' | 'finished' | 'all',
+    query?: string
+  ): Promise<PlansResponse> {
+    const params = new URLSearchParams({
+      page: String(page),
+      limit: String(limit),
+    });
+
+    if (athleteId) {
+      params.set('athleteId', athleteId);
+    }
+
+    if (educatorId) {
+      params.set('educatorId', educatorId);
+    }
+
+    if (status && status !== 'all') {
+      params.set('status', status);
+    }
+
+    if (query) {
+      params.set('q', query);
+    }
+
     const response = await api.get<{ success: boolean; data: PlansResponse }>(
-      `/plans?page=${page}&limit=${limit}`
+      `/plans?${params.toString()}`
+    );
+    return response.data.data;
+  },
+
+  /**
+   * Listar planos de um atleta (educador)
+   */
+  async listByAthlete(athleteId: string): Promise<PlansResponse> {
+    const response = await api.get<{ success: boolean; data: PlansResponse }>(
+      `/plans/athlete/${athleteId}`
     );
     return response.data.data;
   },
