@@ -1,9 +1,20 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { isDateWithinRange, parseDateOnly, toDateInputValue, toIsoDateAtNoonUTC } from '../../utils/date';
 
 interface WorkoutBuilderCyclicProps {
   templateData: any;
   onChange: (data: any) => void;
   planId?: string;
+  weekStartDateOverride?: string | null;
+  dayEditability?: boolean[];
+  weekEditable?: boolean;
+  planStartDate?: string | Date | null;
+  planEndDate?: string | Date | null;
+  athleteData?: {
+    restingHeartRate?: number | null;
+    maxHeartRate?: number | null;
+  } | null;
+  vamValue?: number | null;
   mesocycleNumber?: number;
   weekNumber?: number;
 }
@@ -12,6 +23,13 @@ export default function WorkoutBuilderCyclic({
   templateData,
   onChange,
   planId,
+  weekStartDateOverride,
+  dayEditability,
+  weekEditable = true,
+  planStartDate,
+  planEndDate,
+  athleteData,
+  vamValue,
   mesocycleNumber,
   weekNumber
 }: WorkoutBuilderCyclicProps) {
@@ -39,29 +57,125 @@ export default function WorkoutBuilderCyclic({
     }
     return workoutDays;
   };
+
+  const startWeekday = useMemo(() => {
+    const start = parseDateOnly(weekStartDateOverride ?? templateData?.weekStartDate) ?? new Date();
+    const startJsDay = start.getDay();
+    return startJsDay === 0 ? 7 : startJsDay; // 1=Seg ... 7=Dom
+  }, [templateData?.weekStartDate, weekStartDateOverride]);
+
+  const resolveDayDate = (dayOfWeek: number) => {
+    const start = parseDateOnly(weekStartDateOverride ?? templateData?.weekStartDate) ?? new Date();
+    const offset = dayOfWeek - startWeekday;
+    const date = new Date(start);
+    date.setDate(start.getDate() + offset);
+    return date;
+  };
+
+  const isDayEditable = (dayOfWeek: number) => {
+    if (!weekEditable) return false;
+    if (dayEditability && dayEditability[dayOfWeek - 1] !== undefined) {
+      return dayEditability[dayOfWeek - 1];
+    }
+    if (!planStartDate || !planEndDate) return true;
+    const start = parseDateOnly(planStartDate);
+    const end = parseDateOnly(planEndDate);
+    if (!start || !end) return true;
+    return isDateWithinRange(resolveDayDate(dayOfWeek), start, end);
+  };
+
   const days = useMemo(() => {
     const labels = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
-    const start = templateData?.weekStartDate ? new Date(templateData.weekStartDate) : new Date();
 
     return labels.map((label, index) => {
-      const date = new Date(start);
-      date.setDate(start.getDate() + index);
+      const dayOfWeek = index + 1;
+      const date = resolveDayDate(dayOfWeek);
       const day = String(date.getDate()).padStart(2, '0');
       const month = String(date.getMonth() + 1).padStart(2, '0');
 
       return {
-        dayOfWeek: index + 1,
+        dayOfWeek,
         label,
         date: `${day}/${month}`
       };
     });
-  }, [templateData?.weekStartDate]);
+  }, [templateData?.weekStartDate, weekStartDateOverride, startWeekday]);
 
   const getWorkoutDate = (dayOfWeek: number) => {
-    const start = templateData?.weekStartDate ? new Date(templateData.weekStartDate) : new Date();
-    const date = new Date(start);
-    date.setDate(start.getDate() + (dayOfWeek - 1));
-    return date.toISOString();
+    const date = resolveDayDate(dayOfWeek);
+    return toIsoDateAtNoonUTC(toDateInputValue(date));
+  };
+
+  const normalizeIntensity = (value: number | null | undefined) => {
+    if (value === null || value === undefined || Number.isNaN(value)) return null;
+    return value / 100;
+  };
+
+  const toPercentValue = (value: number | null | undefined) => {
+    if (value === null || value === undefined || Number.isNaN(value)) return null;
+    return value <= 1.5 ? value * 100 : value;
+  };
+
+  const calculateTargetHrValues = (intensity1: number | null, intensity2: number | null) => {
+    if (intensity1 === null || intensity2 === null) return null;
+    const fcRep = athleteData?.restingHeartRate ?? null;
+    const fcMax = athleteData?.maxHeartRate ?? null;
+    if (fcRep === null || fcMax === null) return null;
+    const pct1 = normalizeIntensity(intensity1);
+    const pct2 = normalizeIntensity(intensity2);
+    if (pct1 === null || pct2 === null) return null;
+    const hr1 = fcRep + (fcMax - fcRep) * pct1;
+    const hr2 = fcRep + (fcMax - fcRep) * pct2;
+    return { hrMin: hr1, hrMax: hr2 };
+  };
+
+  const calculateTargetSpeedValues = (intensity1: number | null, intensity2: number | null) => {
+    if (intensity1 === null || intensity2 === null) return null;
+    if (vamValue === null || vamValue === undefined) return null;
+    const pct1 = normalizeIntensity(intensity1);
+    const pct2 = normalizeIntensity(intensity2);
+    if (pct1 === null || pct2 === null) return null;
+    const speed1 = vamValue * pct1;
+    const speed2 = vamValue * pct2;
+    return { speedMin: speed1, speedMax: speed2 };
+  };
+
+
+  const formatHrValue = (value: number | null | undefined) => {
+    if (value === null || value === undefined || Number.isNaN(value)) return '';
+    return value.toLocaleString('pt-BR', {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1,
+    });
+  };
+
+  const formatSpeedValue = (value: number | null | undefined) => {
+    if (value === null || value === undefined || Number.isNaN(value)) return '';
+    return value.toLocaleString('pt-BR', {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1,
+    });
+  };
+
+
+  const getTargetHrText = (dayOfWeek: number) => {
+    const data = dayData[dayOfWeek];
+    const intensity1 = data?.intensity1 ?? null;
+    const intensity2 = data?.intensity2 ?? null;
+    if (intensity1 === null || intensity1 === undefined) return '';
+    const computed = calculateTargetHrValues(intensity1, intensity2);
+    if (!computed) return '';
+    return `${formatHrValue(computed.hrMin)} - ${formatHrValue(computed.hrMax)}`;
+  };
+
+  const getTargetSpeedText = (dayOfWeek: number) => {
+    const data = dayData[dayOfWeek];
+    const intensity1 = data?.intensity1 ?? null;
+    const intensity2 = data?.intensity2 ?? null;
+    if (intensity1 === null || intensity1 === undefined) return '';
+    const computed = calculateTargetSpeedValues(intensity1, intensity2);
+    if (!computed) return '';
+    return `${formatSpeedValue(computed.speedMin)} - ${formatSpeedValue(computed.speedMax)}`;
   };
 
   const [dayData, setDayData] = useState<any>({});
@@ -104,69 +218,7 @@ export default function WorkoutBuilderCyclic({
   });
 
   // Hidratar dados quando o template mudar (evita sobrescrever edição)
-  useEffect(() => {
-    if (!templateData) return;
-    const templateKey = `${templateData.id || ''}:${templateData.planId || ''}:${templateData.mesocycleNumber || ''}:${templateData.weekNumber || ''}`;
-    if (lastHydratedKey.current === templateKey) return;
 
-    if (templateData.workoutDays) {
-      setDayData(normalizeWorkoutDays(templateData.workoutDays));
-    } else {
-      setDayData({});
-    }
-
-    setVolumeTotalMin(templateData.totalVolumeMin || 284);
-    setVolumeTotalKm(templateData.totalVolumeKm || 0);
-    setDistribution({
-      z1: templateData.distributionZ1 || 25,
-      z2: templateData.distributionZ2 || 40,
-      z3: templateData.distributionZ3 || 20,
-      z4: templateData.distributionZ4 || 10,
-      z5: templateData.distributionZ5 || 5
-    });
-
-    lastHydratedKey.current = templateKey;
-  }, [templateData]);
-
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(summaryStorageKey);
-      if (stored !== null) {
-        setShowCyclicSummary(stored === 'true');
-        return;
-      }
-    } catch (error) {
-      // ignore storage errors
-    }
-    setShowCyclicSummary(true);
-  }, [summaryStorageKey]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(summaryStorageKey, String(showCyclicSummary));
-    } catch (error) {
-      // ignore storage errors
-    }
-  }, [showCyclicSummary, summaryStorageKey]);
-
-  useEffect(() => {
-    if (!templateData) return;
-    onChange({
-      ...templateData,
-      totalVolumeMin: volumeTotalMin,
-      totalVolumeKm: volumeTotalKm,
-      distributionZ1: distribution.z1,
-      distributionZ2: distribution.z2,
-      distributionZ3: distribution.z3,
-      distributionZ4: distribution.z4,
-      distributionZ5: distribution.z5,
-      planningZ1: planning.z1,
-      planningZ2: planning.z2,
-      planningZ3: planning.z3,
-      planningZ4: planning.z4,
-      planningZ5: planning.z5,
-    });
-  }, [volumeTotalMin, volumeTotalKm, distribution, planning]);
 
   // Cálculos automáticos
   const calculateAbsolute = (zone: keyof typeof distribution) => {
@@ -175,7 +227,7 @@ export default function WorkoutBuilderCyclic({
 
   const calculateRemaining = (zone: keyof typeof distribution) => {
     const absolute = calculateAbsolute(zone);
-    const plan = planning[zone];
+    const plan = planningDerived[zone];
     return absolute - plan;
   };
 
@@ -186,7 +238,7 @@ export default function WorkoutBuilderCyclic({
   };
 
   const getTotalPlanning = () => {
-    return Object.values(planning).reduce((sum, val) => sum + val, 0);
+    return Object.values(planningDerived).reduce((sum, val) => sum + val, 0);
   };
 
   const getTotalRemaining = () => {
@@ -227,25 +279,331 @@ export default function WorkoutBuilderCyclic({
     return null;
   };
 
+  const normalizePercent = (value: number | null | undefined) => {
+    if (value === null || value === undefined || Number.isNaN(value)) return null;
+    return value > 1.5 ? value / 100 : value;
+  };
+
+  const planningZ1Computed = useMemo(() => {
+    const total = days.reduce((sum, day) => {
+      const dayOfWeek = day.dayOfWeek;
+      const tempoIntenso = calculateTempoIntenso(dayOfWeek);
+      const tempoRepouso = calculateTempoRepouso(dayOfWeek);
+      const tempoEstimulo = Number(dayData[dayOfWeek]?.stimulusDurationMin) || 0;
+      const vo2Max = calculateVO2Max(dayOfWeek);
+      const vo2MaxInterv = normalizePercent(dayData[dayOfWeek]?.vo2MaxInterval ?? null);
+
+      if (vo2Max !== null && vo2Max <= 0.6) {
+        sum += tempoIntenso;
+        if (tempoIntenso === 0) {
+          sum += tempoEstimulo;
+        }
+      }
+
+      if (vo2MaxInterv !== null && vo2MaxInterv <= 0.6) {
+        sum += tempoRepouso;
+      }
+
+      return sum;
+    }, 0);
+
+    return Math.round(total);
+  }, [days, dayData]);
+
+  const planningZ2Computed = useMemo(() => {
+    const total = days.reduce((sum, day) => {
+      const dayOfWeek = day.dayOfWeek;
+      const tempoIntenso = calculateTempoIntenso(dayOfWeek);
+      const tempoRepouso = calculateTempoRepouso(dayOfWeek);
+      const tempoEstimulo = Number(dayData[dayOfWeek]?.stimulusDurationMin) || 0;
+      const vo2Max = calculateVO2Max(dayOfWeek);
+      const vo2MaxInterv = normalizePercent(dayData[dayOfWeek]?.vo2MaxInterval ?? null);
+
+      if (vo2Max !== null && vo2Max > 0.6 && vo2Max <= 0.8) {
+        sum += tempoIntenso;
+        if (tempoIntenso === 0) {
+          sum += tempoEstimulo;
+        }
+      }
+
+      if (vo2MaxInterv !== null && vo2MaxInterv > 0.6 && vo2MaxInterv <= 0.8) {
+        sum += tempoRepouso;
+      }
+
+      return sum;
+    }, 0);
+
+    return Math.round(total);
+  }, [days, dayData]);
+
+  const planningZ3Computed = useMemo(() => {
+    const total = days.reduce((sum, day) => {
+      const dayOfWeek = day.dayOfWeek;
+      const tempoIntenso = calculateTempoIntenso(dayOfWeek);
+      const tempoRepouso = calculateTempoRepouso(dayOfWeek);
+      const tempoEstimulo = Number(dayData[dayOfWeek]?.stimulusDurationMin) || 0;
+      const vo2Max = calculateVO2Max(dayOfWeek);
+      const vo2MaxInterv = normalizePercent(dayData[dayOfWeek]?.vo2MaxInterval ?? null);
+
+      if (vo2Max !== null && vo2Max > 0.8 && vo2Max <= 0.9) {
+        sum += tempoIntenso;
+        if (tempoIntenso === 0) {
+          sum += tempoEstimulo;
+        }
+      }
+
+      if (vo2MaxInterv !== null && vo2MaxInterv > 0.8 && vo2MaxInterv <= 0.9) {
+        sum += tempoRepouso;
+      }
+
+      return sum;
+    }, 0);
+
+    return Math.round(total);
+  }, [days, dayData]);
+
+  const planningZ4Computed = useMemo(() => {
+    const total = days.reduce((sum, day) => {
+      const dayOfWeek = day.dayOfWeek;
+      const tempoIntenso = calculateTempoIntenso(dayOfWeek);
+      const tempoRepouso = calculateTempoRepouso(dayOfWeek);
+      const tempoEstimulo = Number(dayData[dayOfWeek]?.stimulusDurationMin) || 0;
+      const vo2Max = calculateVO2Max(dayOfWeek);
+      const vo2MaxInterv = normalizePercent(dayData[dayOfWeek]?.vo2MaxInterval ?? null);
+
+      if (vo2Max !== null && vo2Max > 0.9 && vo2Max <= 1) {
+        sum += tempoIntenso;
+        if (tempoIntenso === 0) {
+          sum += tempoEstimulo;
+        }
+      }
+
+      if (vo2MaxInterv !== null && vo2MaxInterv > 0.9 && vo2MaxInterv <= 1) {
+        sum += tempoRepouso;
+      }
+
+      return sum;
+    }, 0);
+
+    return Math.round(total);
+  }, [days, dayData]);
+
+  const planningZ5Computed = useMemo(() => {
+    const total = days.reduce((sum, day) => {
+      const dayOfWeek = day.dayOfWeek;
+      const tempoIntenso = calculateTempoIntenso(dayOfWeek);
+      const tempoRepouso = calculateTempoRepouso(dayOfWeek);
+      const tempoEstimulo = Number(dayData[dayOfWeek]?.stimulusDurationMin) || 0;
+      const vo2Max = calculateVO2Max(dayOfWeek);
+      const vo2MaxInterv = normalizePercent(dayData[dayOfWeek]?.vo2MaxInterval ?? null);
+
+      if (vo2Max !== null && vo2Max > 1) {
+        sum += tempoIntenso;
+        if (tempoIntenso === 0) {
+          sum += tempoEstimulo;
+        }
+      }
+
+      if (vo2MaxInterv !== null && vo2MaxInterv > 1) {
+        sum += tempoRepouso;
+      }
+
+      return sum;
+    }, 0);
+
+    return Math.round(total);
+  }, [days, dayData]);
+
+  const planningDerived = useMemo(
+    () => ({
+      ...planning,
+      z1: planningZ1Computed,
+      z2: planningZ2Computed,
+      z3: planningZ3Computed,
+      z4: planningZ4Computed,
+      z5: planningZ5Computed
+    }),
+    [planning, planningZ1Computed, planningZ2Computed, planningZ3Computed, planningZ4Computed, planningZ5Computed]
+  );
+
+  useEffect(() => {
+    if (!templateData) return;
+    const templateKey = `${templateData.id || ''}:${templateData.planId || ''}:${templateData.mesocycleNumber || ''}:${templateData.weekNumber || ''}`;
+    if (lastHydratedKey.current === templateKey) return;
+
+    if (templateData.workoutDays) {
+      const normalized = normalizeWorkoutDays(templateData.workoutDays);
+      const updated: Record<number, any> = { ...normalized };
+      Object.keys(updated).forEach((key) => {
+        const dayKey = Number(key);
+        const current = updated[dayKey];
+        const intensity1 = toPercentValue(current?.intensity1 ?? null);
+        const intensity2 = toPercentValue(current?.intensity2 ?? null);
+        if (intensity1 !== null && intensity1 !== undefined) {
+          const hrComputed = calculateTargetHrValues(intensity1, intensity2);
+          const speedComputed = calculateTargetSpeedValues(intensity1, intensity2);
+          const hrText = hrComputed
+            ? `${formatHrValue(hrComputed.hrMin)} - ${formatHrValue(hrComputed.hrMax)}`
+            : null;
+          const speedText = speedComputed
+            ? `${formatSpeedValue(speedComputed.speedMin)} - ${formatSpeedValue(speedComputed.speedMax)}`
+            : null;
+          updated[dayKey] = {
+            ...current,
+            intensity1,
+            intensity2,
+            targetHrMin: hrText,
+            targetHrMax: null,
+            targetSpeedMin: speedText,
+            targetSpeedMax: null,
+          };
+        } else {
+          updated[dayKey] = {
+            ...current,
+            intensity1: intensity1 ?? null,
+            intensity2: intensity2 ?? null,
+            targetHrMin: null,
+            targetHrMax: null,
+            targetSpeedMin: null,
+            targetSpeedMax: null,
+          };
+        }
+      });
+      setDayData(updated);
+    } else {
+      setDayData({});
+    }
+
+    setVolumeTotalMin(templateData.totalVolumeMin || 284);
+    setVolumeTotalKm(templateData.totalVolumeKm || 0);
+    setDistribution({
+      z1: templateData.distributionZ1 || 25,
+      z2: templateData.distributionZ2 || 40,
+      z3: templateData.distributionZ3 || 20,
+      z4: templateData.distributionZ4 || 10,
+      z5: templateData.distributionZ5 || 5
+    });
+
+    lastHydratedKey.current = templateKey;
+  }, [templateData]);
+
+  useEffect(() => {
+    if (!athleteData && (vamValue === null || vamValue === undefined)) return;
+    if (!dayData || Object.keys(dayData).length === 0) return;
+    const updated: Record<number, any> = { ...dayData };
+    let changed = false;
+    Object.keys(updated).forEach((key) => {
+      const dayKey = Number(key);
+      const current = updated[dayKey];
+      const intensity1 = current?.intensity1 ?? null;
+      const intensity2 = current?.intensity2 ?? null;
+      if (intensity1 === null || intensity1 === undefined) {
+        if (
+          current?.targetHrMin !== null ||
+          current?.targetHrMax !== null ||
+          current?.targetSpeedMin !== null ||
+          current?.targetSpeedMax !== null
+        ) {
+          updated[dayKey] = {
+            ...current,
+            targetHrMin: null,
+            targetHrMax: null,
+            targetSpeedMin: null,
+            targetSpeedMax: null,
+          };
+          changed = true;
+        }
+        return;
+      }
+      const hrComputed = calculateTargetHrValues(intensity1, intensity2);
+      const speedComputed = calculateTargetSpeedValues(intensity1, intensity2);
+      const nextMin = hrComputed
+        ? `${formatHrValue(hrComputed.hrMin)} - ${formatHrValue(hrComputed.hrMax)}`
+        : null;
+      const nextSpeedMin = speedComputed
+        ? `${formatSpeedValue(speedComputed.speedMin)} - ${formatSpeedValue(speedComputed.speedMax)}`
+        : null;
+      if (
+        current?.targetHrMin !== nextMin ||
+        current?.targetSpeedMin !== nextSpeedMin ||
+        current?.targetHrMax !== null ||
+        current?.targetSpeedMax !== null
+      ) {
+        updated[dayKey] = {
+          ...current,
+          targetHrMin: nextMin,
+          targetHrMax: null,
+          targetSpeedMin: nextSpeedMin,
+          targetSpeedMax: null,
+        };
+        changed = true;
+      }
+    });
+    if (changed) {
+      setDayData(updated);
+      onChange({ ...templateData, workoutDays: updated });
+    }
+  }, [athleteData, vamValue]);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(summaryStorageKey);
+      if (stored !== null) {
+        setShowCyclicSummary(stored === 'true');
+        return;
+      }
+    } catch (error) {
+      // ignore storage errors
+    }
+    setShowCyclicSummary(true);
+  }, [summaryStorageKey]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(summaryStorageKey, String(showCyclicSummary));
+    } catch (error) {
+      // ignore storage errors
+    }
+  }, [showCyclicSummary, summaryStorageKey]);
+
+  useEffect(() => {
+    if (!templateData) return;
+    onChange({
+      ...templateData,
+      totalVolumeMin: volumeTotalMin,
+      totalVolumeKm: volumeTotalKm,
+      distributionZ1: distribution.z1,
+      distributionZ2: distribution.z2,
+      distributionZ3: distribution.z3,
+      distributionZ4: distribution.z4,
+      distributionZ5: distribution.z5,
+      planningZ1: planningDerived.z1,
+      planningZ2: planning.z2,
+      planningZ3: planning.z3,
+      planningZ4: planning.z4,
+      planningZ5: planning.z5,
+    });
+  }, [volumeTotalMin, volumeTotalKm, distribution, planning, planningDerived]);
+
   const generateDetalhamento = (dayOfWeek: number) => {
     const data = dayData[dayOfWeek];
     if (!data?.method) return '';
 
     if (data.method === 'CEXT' || data.method === 'CINT') {
-      const sessionDuration = data.sessionDurationMin || 0;
+      const sessionDuration = data.stimulusDurationMin || 0;
       const numSessions = data.numSessions || 1;
       const durationPerSession = sessionDuration / numSessions;
       const minDuration = durationPerSession - 3;
       const maxDuration = durationPerSession;
       
-      let text = `Mantenha ${minDuration}-${maxDuration}min em intensidade constante com frequência cardíaca entre ${data.targetHrMin || 0} bpm`;
+      let text = `Mantenha ${minDuration}-${maxDuration}min em intensidade constante com frequência cardíaca entre ${data.targetHrMin || ''} bpm`;
       
       if (data.intensity1 && data.intensity2) {
-        text += ` (${data.intensity1 * 100} - ${data.intensity2 * 100}% VO2Máx`;
+        text += ` (${data.intensity1} - ${data.intensity2}% VO2Máx`;
       }
       
       if (data.location === 'Esteira' || data.location === 'Pista') {
-        text += ` -> ${data.targetSpeedMin || 0}km/h`;
+        text += ` -> ${data.targetSpeedMin || ''}km/h`;
       }
       
       text += ')';
@@ -268,14 +626,15 @@ export default function WorkoutBuilderCyclic({
         text += `${remainingSeconds}s `;
       }
       
-      if (data.intensity2 === 1.2) {
+      const intensity2Pct = normalizeIntensity(data.intensity2);
+      if (intensity2Pct === 1.2) {
         text += 'all out';
       } else if (data.targetHrMin) {
         text += `a ${data.targetHrMin} bpm`;
       }
       
       if (data.location === 'Esteira' || data.location === 'Pista') {
-        text += ` -> ${data.targetSpeedMin || 0}km/h`;
+        text += ` -> ${data.targetSpeedMin || ''}km/h`;
       }
       
       // Tempo repouso
@@ -300,28 +659,62 @@ export default function WorkoutBuilderCyclic({
 
   const handleChange = (dayOfWeek: number, field: string, value: any) => {
     const currentDay = dayData[dayOfWeek] || { dayOfWeek };
+    const nextIntensity1 =
+      field === 'intensity1' ? value : currentDay.intensity1 ?? null;
+    const nextIntensity2 =
+      field === 'intensity2' ? value : currentDay.intensity2 ?? null;
+    const nextStimulusDuration =
+      field === 'stimulusDurationMin' ? value : currentDay.stimulusDurationMin ?? null;
+    const targetHr =
+      nextIntensity1 === null || nextIntensity1 === undefined
+        ? null
+        : calculateTargetHrValues(nextIntensity1, nextIntensity2);
+    const targetSpeed =
+      nextIntensity1 === null || nextIntensity1 === undefined
+        ? null
+        : calculateTargetSpeedValues(nextIntensity1, nextIntensity2);
+    const targetHrText = targetHr
+      ? `${formatHrValue(targetHr.hrMin)} - ${formatHrValue(targetHr.hrMax)}`
+      : null;
+    const targetSpeedText = targetSpeed
+      ? `${formatSpeedValue(targetSpeed.speedMin)} - ${formatSpeedValue(targetSpeed.speedMax)}`
+      : null;
     const newDayData = {
       ...dayData,
       [dayOfWeek]: {
         ...currentDay,
         dayOfWeek,
         workoutDate: getWorkoutDate(dayOfWeek),
-        [field]: value
+        [field]: value,
+        sessionDurationMin: nextStimulusDuration ?? currentDay.sessionDurationMin ?? null,
+        targetHrMin: targetHrText,
+        targetHrMax: null,
+        targetSpeedMin: targetSpeedText,
+        targetSpeedMax: null,
       }
     };
     setDayData(newDayData);
     onChange({ ...templateData, workoutDays: newDayData });
   };
 
-  const renderCell = (dayOfWeek: number, field: string, type: 'number' | 'select' | 'textarea' = 'number', options?: string[]) => {
-    const value = dayData[dayOfWeek]?.[field] || '';
+  const renderCell = (
+    dayOfWeek: number,
+    field: string,
+    type: 'number' | 'select' | 'textarea' = 'number',
+    options?: string[]
+  ) => {
+    const disabled = !isDayEditable(dayOfWeek);
+    const disabledClass = disabled ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : '';
+    const rawValue = dayData[dayOfWeek]?.[field];
+    const value = rawValue ?? '';
 
     if (type === 'select' && options) {
       return (
         <select
           value={value}
           onChange={(e) => handleChange(dayOfWeek, field, e.target.value)}
-          className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+          disabled={disabled}
+          className={`w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent ${disabledClass}`}
         >
           <option value="">-</option>
           {options.map((opt) => (
@@ -336,19 +729,39 @@ export default function WorkoutBuilderCyclic({
         <textarea
           value={value}
           onChange={(e) => handleChange(dayOfWeek, field, e.target.value)}
+          disabled={disabled}
           rows={3}
-          className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+          className={`w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none ${disabledClass}`}
         />
+      );
+    }
+
+    if (field.includes('intensity')) {
+      return (
+        <div className="flex items-center gap-1">
+          <input
+            type="number"
+            step="0.1"
+            value={value}
+            onChange={(e) =>
+              handleChange(dayOfWeek, field, e.target.value ? parseFloat(e.target.value) : null)
+            }
+            disabled={disabled}
+            className={`w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center ${disabledClass}`}
+          />
+          <span className="text-xs text-gray-500">%</span>
+        </div>
       );
     }
 
     return (
       <input
         type="number"
-        step={field.includes('intensity') || field.includes('Speed') || field.includes('Hr') ? '0.1' : '1'}
+        step={field.includes('Speed') || field.includes('Hr') ? '0.1' : '1'}
         value={value}
         onChange={(e) => handleChange(dayOfWeek, field, e.target.value ? parseFloat(e.target.value) : null)}
-        className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center"
+        disabled={disabled}
+        className={`w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center ${disabledClass}`}
       />
     );
   };
@@ -378,20 +791,20 @@ export default function WorkoutBuilderCyclic({
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div className="bg-white rounded-lg p-3 border border-gray-200">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-[12px] font-medium text-gray-600">
+                  <span className="text-base font-medium text-gray-600">
                     Volume Total (min)
                   </span>
-                  <span className="text-[12px] font-semibold text-gray-900 tabular-nums">
+                  <span className="text-lg font-semibold text-gray-900 tabular-nums">
                     {Number.isFinite(volumeTotalMin) ? Math.round(volumeTotalMin) : 0}
                   </span>
                 </div>
               </div>
               <div className="bg-white rounded-lg p-3 border border-gray-200">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-[12px] font-medium text-gray-600">
+                  <span className="text-base font-medium text-gray-600">
                     Volume Total (km)
                   </span>
-                  <span className="text-[12px] font-semibold text-gray-900 tabular-nums">
+                  <span className="text-lg font-semibold text-gray-900 tabular-nums">
                     {Number.isFinite(volumeTotalKm) ? Number(volumeTotalKm.toFixed(1)) : 0}
                   </span>
                 </div>
@@ -427,15 +840,15 @@ export default function WorkoutBuilderCyclic({
                   </tr>
                 </thead>
                 <tbody>
-                  {/* Distribui??o (%) - vem da periodiza??o (BLOQUEADO) */}
+                  {/* Distribuição (%) - vem da periodização (BLOQUEADO) */}
                   <tr>
                     <td className="border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-50">
-                      Distribui??o (%)
+                      Distribuição (%)
                     </td>
                     <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
                       <span
                         className="text-sm text-center tabular-nums"
-                        title="Valor vinculado ? periodiza??o (somente leitura)"
+                        title="Valor vinculado à periodização (somente leitura)"
                       >
                         {distribution.z1}
                       </span>
@@ -443,7 +856,7 @@ export default function WorkoutBuilderCyclic({
                     <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
                       <span
                         className="text-sm text-center tabular-nums"
-                        title="Valor vinculado ? periodiza??o (somente leitura)"
+                        title="Valor vinculado à periodização (somente leitura)"
                       >
                         {distribution.z2}
                       </span>
@@ -451,7 +864,7 @@ export default function WorkoutBuilderCyclic({
                     <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
                       <span
                         className="text-sm text-center tabular-nums"
-                        title="Valor vinculado ? periodiza??o (somente leitura)"
+                        title="Valor vinculado à periodização (somente leitura)"
                       >
                         {distribution.z3}
                       </span>
@@ -459,7 +872,7 @@ export default function WorkoutBuilderCyclic({
                     <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
                       <span
                         className="text-sm text-center tabular-nums"
-                        title="Valor vinculado ? periodiza??o (somente leitura)"
+                        title="Valor vinculado à periodização (somente leitura)"
                       >
                         {distribution.z4}
                       </span>
@@ -467,7 +880,7 @@ export default function WorkoutBuilderCyclic({
                     <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
                       <span
                         className="text-sm text-center tabular-nums"
-                        title="Valor vinculado ? periodiza??o (somente leitura)"
+                        title="Valor vinculado à periodização (somente leitura)"
                       >
                         {distribution.z5}
                       </span>
@@ -507,45 +920,20 @@ export default function WorkoutBuilderCyclic({
                     <td className="border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-50">
                       Planejamento
                     </td>
-                    <td className="border border-gray-300 px-4 py-2 text-center text-sm">
-                      <input
-                        type="number"
-                        value={planning.z1}
-                        onChange={(e) => setPlanning({ ...planning, z1: parseInt(e.target.value) || 0 })}
-                        className="w-full px-2 py-1 text-sm border border-gray-300 rounded text-center focus:ring-2 focus:ring-blue-500"
-                      />
+                    <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
+                      {planningDerived.z1}
                     </td>
-                    <td className="border border-gray-300 px-4 py-2 text-center text-sm">
-                      <input
-                        type="number"
-                        value={planning.z2}
-                        onChange={(e) => setPlanning({ ...planning, z2: parseInt(e.target.value) || 0 })}
-                        className="w-full px-2 py-1 text-sm border border-gray-300 rounded text-center focus:ring-2 focus:ring-blue-500"
-                      />
+                    <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
+                      {planningDerived.z2}
                     </td>
-                    <td className="border border-gray-300 px-4 py-2 text-center text-sm">
-                      <input
-                        type="number"
-                        value={planning.z3}
-                        onChange={(e) => setPlanning({ ...planning, z3: parseInt(e.target.value) || 0 })}
-                        className="w-full px-2 py-1 text-sm border border-gray-300 rounded text-center focus:ring-2 focus:ring-blue-500"
-                      />
+                    <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
+                      {planningDerived.z3}
                     </td>
-                    <td className="border border-gray-300 px-4 py-2 text-center text-sm">
-                      <input
-                        type="number"
-                        value={planning.z4}
-                        onChange={(e) => setPlanning({ ...planning, z4: parseInt(e.target.value) || 0 })}
-                        className="w-full px-2 py-1 text-sm border border-gray-300 rounded text-center focus:ring-2 focus:ring-blue-500"
-                      />
+                    <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
+                      {planningDerived.z4}
                     </td>
-                    <td className="border border-gray-300 px-4 py-2 text-center text-sm">
-                      <input
-                        type="number"
-                        value={planning.z5}
-                        onChange={(e) => setPlanning({ ...planning, z5: parseInt(e.target.value) || 0 })}
-                        className="w-full px-2 py-1 text-sm border border-gray-300 rounded text-center focus:ring-2 focus:ring-blue-500"
-                      />
+                    <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
+                      {planningDerived.z5}
                     </td>
                     <td className="border border-gray-300 px-4 py-2 text-center text-sm font-semibold bg-blue-50">
                       {getTotalPlanning()}
@@ -590,15 +978,21 @@ export default function WorkoutBuilderCyclic({
         </h3>
 
         <div className="overflow-x-auto">
-          <table className="min-w-full border-collapse border border-gray-300 bg-white">
+          <table className="w-full table-fixed border-collapse border border-gray-300 bg-white">
+            <colgroup>
+              <col className="w-[200px]" />
+              {days.map((day) => (
+                <col key={`col-${day.dayOfWeek}`} className="w-[120px]" />
+              ))}
+            </colgroup>
             {/* Header */}
             <thead>
               <tr className="bg-gray-100">
-                <th className="border border-gray-300 px-4 py-2 text-left text-sm font-semibold text-gray-900 min-w-[180px]">
+                <th className="border border-gray-300 px-4 py-2 text-left text-sm font-semibold text-gray-900">
                   Parâmetro
                 </th>
                 {days.map((day) => (
-                  <th key={day.dayOfWeek} className="border border-gray-300 px-3 py-2 text-center text-sm font-semibold text-gray-900 min-w-[120px]">
+                  <th key={day.dayOfWeek} className="border border-gray-300 px-3 py-2 text-center text-sm font-semibold text-gray-900">
                     <div>{day.date}</div>
                     <div className="font-normal text-xs text-gray-600">{day.label}</div>
                   </th>
@@ -776,10 +1170,8 @@ export default function WorkoutBuilderCyclic({
                 </td>
                 {days.map((day) => (
                   <td key={day.dayOfWeek} className="border border-gray-300 px-2 py-2">
-                    <div className="flex gap-1">
-                      {renderCell(day.dayOfWeek, 'targetHrMin')}
-                      <span className="text-xs text-gray-500 self-center">-</span>
-                      {renderCell(day.dayOfWeek, 'targetHrMax')}
+                    <div className="text-center text-sm font-medium text-gray-800">
+                      {getTargetHrText(day.dayOfWeek)}
                     </div>
                   </td>
                 ))}
@@ -792,10 +1184,8 @@ export default function WorkoutBuilderCyclic({
                 </td>
                 {days.map((day) => (
                   <td key={day.dayOfWeek} className="border border-gray-300 px-2 py-2">
-                    <div className="flex gap-1">
-                      {renderCell(day.dayOfWeek, 'targetSpeedMin')}
-                      <span className="text-xs text-gray-500 self-center">-</span>
-                      {renderCell(day.dayOfWeek, 'targetSpeedMax')}
+                    <div className="text-center text-sm font-medium text-gray-800">
+                      {getTargetSpeedText(day.dayOfWeek)}
                     </div>
                   </td>
                 ))}
@@ -840,3 +1230,4 @@ export default function WorkoutBuilderCyclic({
     </div>
   );
 }
+

@@ -951,10 +951,10 @@ model WorkoutDay {
   vo2maxIntervalPct     Float?   // %VO2Máx intervalo
   iextIintTime          Float?   // Tempo IEXT IINT
   vo2maxPct             Float?   // %VO2Máx
-  targetHrMin           Float?   // FC alvo mínima (bpm)
-  targetHrMax           Float?   // FC alvo máxima (bpm)
-  targetSpeedMin        Float?   // Velocidade mínima (km/h)
-  targetSpeedMax        Float?   // Velocidade máxima (km/h)
+  targetHrMin           String?  @db.Text // FC alvo (bpm)
+  targetHrMax           String?  @db.Text // FC alvo máximo (bpm)
+  targetSpeedMin        String?  @db.Text // Velocidade (km/h)
+  targetSpeedMax        String?  @db.Text // Velocidade máxima (km/h)
   paceMin               Float?   // Pace mínimo (min/km)
   paceMax               Float?   // Pace máximo (min/km)
   

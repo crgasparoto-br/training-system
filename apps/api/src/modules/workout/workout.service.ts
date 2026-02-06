@@ -39,10 +39,10 @@ export interface CreateWorkoutDayDTO {
   vo2maxIntervalPct?: number;
   iextIintTime?: number;
   vo2maxPct?: number;
-  targetHrMin?: number;
-  targetHrMax?: number;
-  targetSpeedMin?: number;
-  targetSpeedMax?: number;
+  targetHrMin?: string;
+  targetHrMax?: string;
+  targetSpeedMin?: string;
+  targetSpeedMax?: string;
   detailNotes?: string;
   complementNotes?: string;
   generalGuidelines?: string;
@@ -111,6 +111,58 @@ export const workoutService = {
     });
 
     if (existing) {
+      const existingStart = existing.weekStartDate?.getTime?.() ?? null;
+      const incomingStart = data.weekStartDate?.getTime?.() ?? null;
+
+      if (existingStart && incomingStart && existingStart !== incomingStart) {
+        const weekStartDate = data.weekStartDate;
+        await prisma.$transaction(async (tx) => {
+          await tx.workoutTemplate.update({
+            where: { id: existing.id },
+            data: { weekStartDate },
+          });
+
+          if (existing.workoutDays?.length) {
+            for (const day of existing.workoutDays) {
+              const offset = Math.max(0, (day.dayOfWeek || 1) - 1);
+              const workoutDate = new Date(weekStartDate);
+              workoutDate.setDate(workoutDate.getDate() + offset);
+              await tx.workoutDay.update({
+                where: { id: day.id },
+                data: { workoutDate },
+              });
+            }
+          }
+        });
+
+        return await prisma.workoutTemplate.findUnique({
+          where: {
+            planId_mesocycleNumber_weekNumber: {
+              planId: data.planId,
+              mesocycleNumber: data.mesocycleNumber,
+              weekNumber: data.weekNumber,
+            },
+          },
+          include: {
+            plan: true,
+            workoutDays: {
+              include: {
+                exercises: {
+                  include: {
+                    exercise: true,
+                  },
+                  orderBy: [
+                    { section: 'asc' },
+                    { exerciseOrder: 'asc' },
+                  ],
+                },
+              },
+              orderBy: { dayOfWeek: 'asc' },
+            },
+          },
+        });
+      }
+
       return existing;
     }
 

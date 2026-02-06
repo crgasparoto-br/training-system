@@ -42,6 +42,59 @@ export interface CreateMicrocycleDTO {
   notes?: string;
 }
 
+type PlanStatusFilter = 'active' | 'finished' | 'all';
+
+const buildPlanWhere = (params: {
+  educatorId?: string;
+  athleteId?: string;
+  contractId?: string;
+  status?: PlanStatusFilter;
+  query?: string;
+}) => {
+  const { educatorId, athleteId, contractId, status = 'all', query } = params;
+  const where: any = {};
+
+  if (educatorId) {
+    where.educatorId = educatorId;
+  }
+
+  if (athleteId) {
+    where.athleteId = athleteId;
+  }
+
+  if (contractId) {
+    where.educator = { contractId };
+  }
+
+  if (status && status !== 'all') {
+    const today = new Date();
+    if (status === 'active') {
+      where.startDate = { lte: today };
+      where.endDate = { gte: today };
+    } else if (status === 'finished') {
+      where.endDate = { lt: today };
+    }
+  }
+
+  if (query && query.trim().length >= 2) {
+    const value = query.trim();
+    where.OR = [
+      { name: { contains: value, mode: 'insensitive' } },
+      {
+        athlete: {
+          user: {
+            profile: {
+              name: { contains: value, mode: 'insensitive' },
+            },
+          },
+        },
+      },
+    ];
+  }
+
+  return where;
+};
+
 export const planService = {
   /**
    * Criar novo plano de treino
@@ -75,14 +128,31 @@ export const planService = {
   /**
    * Listar planos de um educador
    */
-  async findByEducator(educatorId: string, page: number = 1, limit: number = 10) {
+  async findByEducator(
+    educatorId: string,
+    page: number = 1,
+    limit: number = 10,
+    athleteId?: string,
+    status: PlanStatusFilter = 'all',
+    query?: string
+  ) {
     const skip = (page - 1) * limit;
+    const where = buildPlanWhere({ educatorId, athleteId, status, query });
 
     const [plans, total] = await Promise.all([
       prisma.trainingPlan.findMany({
-        where: { educatorId },
+        where,
         include: {
           athlete: {
+            include: {
+              user: {
+                include: {
+                  profile: true,
+                },
+              },
+            },
+          },
+          educator: {
             include: {
               user: {
                 include: {
@@ -108,7 +178,7 @@ export const planService = {
         take: limit,
       }),
       prisma.trainingPlan.count({
-        where: { educatorId },
+        where,
       }),
     ]);
 
@@ -126,9 +196,13 @@ export const planService = {
   /**
    * Listar planos de um atleta
    */
-  async findByAthlete(athleteId: string) {
+  async findByAthlete(
+    athleteId: string,
+    status: PlanStatusFilter = 'all',
+    query?: string
+  ) {
     return await prisma.trainingPlan.findMany({
-      where: { athleteId },
+      where: buildPlanWhere({ athleteId, status, query }),
       include: {
         educator: {
           include: {
@@ -153,6 +227,81 @@ export const planService = {
         startDate: 'desc',
       },
     });
+  },
+
+  /**
+   * Listar planos por contrato (opcionalmente filtrando por educador ou atleta)
+   */
+  async findByContract(
+    contractId: string,
+    page: number = 1,
+    limit: number = 10,
+    educatorId?: string,
+    athleteId?: string,
+    status: PlanStatusFilter = 'all',
+    query?: string
+  ) {
+    const skip = (page - 1) * limit;
+    const where = buildPlanWhere({
+      contractId,
+      educatorId,
+      athleteId,
+      status,
+      query,
+    });
+
+    const [plans, total] = await Promise.all([
+      prisma.trainingPlan.findMany({
+        where,
+        include: {
+          athlete: {
+            include: {
+              user: {
+                include: {
+                  profile: true,
+                },
+              },
+            },
+          },
+          educator: {
+            include: {
+              user: {
+                include: {
+                  profile: true,
+                },
+              },
+            },
+          },
+          macrocycles: {
+            include: {
+              mesocycles: {
+                include: {
+                  microcycles: true,
+                },
+              },
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+        skip,
+        take: limit,
+      }),
+      prisma.trainingPlan.count({
+        where,
+      }),
+    ]);
+
+    return {
+      plans,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   },
 
   /**
@@ -290,36 +439,62 @@ export const planService = {
 
     // Calcular número de semanas
     const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
-    const diffWeeks = Math.ceil(diffTime / (1000 * 60 * 60 * 24 * 7));
+    const diffWeeks = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24 * 7)));
 
-    // Criar macrociclo padrão
-    const macrocycle = await this.createMacrocycle({
-      planId,
-      name: 'Macrociclo Principal',
-      phase: 'base',
-      weekStart: 1,
-      weekEnd: diffWeeks,
-      focusAreas: ['Resistência Aeróbica', 'Técnica de Corrida'],
+    const existingMacrocycle = plan.macrocycles[0] ?? null;
+    const macrocycle = existingMacrocycle
+      ? await prisma.macrocycle.update({
+          where: { id: existingMacrocycle.id },
+          data: {
+            weekStart: 1,
+            weekEnd: diffWeeks,
+          },
+        })
+      : await this.createMacrocycle({
+          planId,
+          name: 'Macrociclo Principal',
+          phase: 'base',
+          weekStart: 1,
+          weekEnd: diffWeeks,
+          focusAreas: ['Resistência Aeróbica', 'Técnica de Corrida'],
+        });
+
+    const existingMesocycles = await prisma.mesocycle.findMany({
+      where: { macrocycleId: macrocycle.id },
+      orderBy: { weekNumber: 'asc' },
     });
+    const existingByWeek = new Map(existingMesocycles.map((meso) => [meso.weekNumber, meso]));
 
-    // Criar mesociclos (semanas)
+    // Criar/atualizar mesociclos (semanas)
     const mesocycles = [];
     for (let week = 1; week <= diffWeeks; week++) {
       const weekStartDate = new Date(startDate);
       weekStartDate.setDate(weekStartDate.getDate() + (week - 1) * 7);
-      
+
       const weekEndDate = new Date(weekStartDate);
       weekEndDate.setDate(weekEndDate.getDate() + 6);
 
-      const mesocycle = await this.createMesocycle({
-        macrocycleId: macrocycle.id,
-        weekNumber: week,
-        startDate: weekStartDate,
-        endDate: weekEndDate,
-        focus: `Semana ${week}`,
-      });
-
-      mesocycles.push(mesocycle);
+      const existing = existingByWeek.get(week);
+      if (existing) {
+        const updated = await prisma.mesocycle.update({
+          where: { id: existing.id },
+          data: {
+            startDate: weekStartDate,
+            endDate: weekEndDate,
+            focus: existing.focus ?? `Semana ${week}`,
+          },
+        });
+        mesocycles.push(updated);
+      } else {
+        const created = await this.createMesocycle({
+          macrocycleId: macrocycle.id,
+          weekNumber: week,
+          startDate: weekStartDate,
+          endDate: weekEndDate,
+          focus: `Semana ${week}`,
+        });
+        mesocycles.push(created);
+      }
     }
 
     return { macrocycle, mesocycles };
@@ -413,3 +588,4 @@ export const planService = {
     };
   },
 };
+

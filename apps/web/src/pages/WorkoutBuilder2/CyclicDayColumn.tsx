@@ -42,7 +42,11 @@ export default function CyclicDayColumn({ dayOfWeek, label, date, data, onChange
           <input
             type="number"
             value={data.stimulusDurationMin || ''}
-            onChange={(e) => handleChange('stimulusDurationMin', parseInt(e.target.value) || null)}
+            onChange={(e) => {
+              const nextValue = parseInt(e.target.value) || null;
+              handleChange('stimulusDurationMin', nextValue);
+              handleChange('sessionDurationMin', nextValue);
+            }}
             className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
         </div>
@@ -169,22 +173,13 @@ export default function CyclicDayColumn({ dayOfWeek, label, date, data, onChange
           <label className="block text-xs font-medium text-gray-700 mb-1">
             FC alvo (bpm)
           </label>
-          <div className="grid grid-cols-2 gap-2">
-            <input
-              type="number"
-              placeholder="Min"
-              value={data.targetHrMin || ''}
-              onChange={(e) => handleChange('targetHrMin', parseFloat(e.target.value) || null)}
-              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-            <input
-              type="number"
-              placeholder="Max"
-              value={data.targetHrMax || ''}
-              onChange={(e) => handleChange('targetHrMax', parseFloat(e.target.value) || null)}
-              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
+          <input
+            type="text"
+            placeholder="Ex: 105,5 - 116,2"
+            value={data.targetHrMin || ''}
+            onChange={(e) => handleChange('targetHrMin', e.target.value || null)}
+            className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
         </div>
 
         {/* Velocidade */}
@@ -192,24 +187,13 @@ export default function CyclicDayColumn({ dayOfWeek, label, date, data, onChange
           <label className="block text-xs font-medium text-gray-700 mb-1">
             Velocidade (km/h)
           </label>
-          <div className="grid grid-cols-2 gap-2">
-            <input
-              type="number"
-              step="0.1"
-              placeholder="Min"
-              value={data.targetSpeedMin || ''}
-              onChange={(e) => handleChange('targetSpeedMin', parseFloat(e.target.value) || null)}
-              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-            <input
-              type="number"
-              step="0.1"
-              placeholder="Max"
-              value={data.targetSpeedMax || ''}
-              onChange={(e) => handleChange('targetSpeedMax', parseFloat(e.target.value) || null)}
-              className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
+          <input
+            type="text"
+            placeholder="Ex: 8,5 - 10,9"
+            value={data.targetSpeedMin || ''}
+            onChange={(e) => handleChange('targetSpeedMin', e.target.value || null)}
+            className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
         </div>
 
         {/* Detalhamento */}

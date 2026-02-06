@@ -39,6 +39,10 @@ export interface WorkoutDay {
   numSets?: number;
   sessionTime?: number;
   restTime?: number;
+  targetHrMin?: string | null;
+  targetHrMax?: string | null;
+  targetSpeedMin?: string | null;
+  targetSpeedMax?: string | null;
   detailNotes?: string;
   complementNotes?: string;
   generalGuidelines?: string;
@@ -119,6 +123,10 @@ export interface UpdateWorkoutDayDTO {
   numSets?: number;
   sessionTime?: number;
   restTime?: number;
+  targetHrMin?: string | null;
+  targetHrMax?: string | null;
+  targetSpeedMin?: string | null;
+  targetSpeedMax?: string | null;
   detailNotes?: string;
   complementNotes?: string;
   generalGuidelines?: string;

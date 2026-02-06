@@ -1,4 +1,4 @@
-export interface AssessmentHistorySection {
+﻿export interface AssessmentHistorySection {
   title: string;
   subtitle?: string | null;
   variables: string[];
@@ -118,8 +118,45 @@ export const assessmentHistorySections: AssessmentHistorySection[] = [
       'Limiar Anaeróbico (km/h ou watt)',
       'Limiar Anaeróbico (pace)',
       'Velocidade Máxima (km/h ou watt)',
+      'VAM (km/h)',
+      'Carga Limiar (km/h)',
       'FC Máxima Predita',
       'FC Máxima no Teste',
     ],
   },
+  {
+    title: 'Aporte Energético',
+    subtitle: 'Disponibilidade Energética',
+    variables: [
+      'Diferença % em relação à necessidade estimada',
+      'Tipo de Dieta',
+      'Disponibilidade Energética',
+      'Aporte energético Diário Sugerido',
+      'Diferença Absoluta Necessidade vs Consumo',
+      'Diferença Percentual Necessidade vs Consumo',
+    ],
+  },
+  {
+    title: 'Aporte Energético',
+    subtitle: 'Distribuição de Macronutrientes',
+    variables: [
+      'Proteínas (g/kg)',
+      'Carboidratos (g/kg)',
+      'Lipídios (g/kg)',
+      'Proteínas (g/dia)',
+      'Carboidratos (g/dia)',
+      'Lipídios (g/dia)',
+      'Proteínas (kcal/dia)',
+      'Carboidratos (kcal/dia)',
+      'Lipídios (kcal/dia)',
+      'Proteínas (%)',
+      'Carboidratos (%)',
+      'Lipídios (%)',
+      'Total de Kcal/dia',
+      'Variação de Redução de Gordura Estimada',
+      'Variação de Redução 1kg de gordura',
+      'Variação da meta proposta (-0,1kg)',
+    ],
+  },
 ];
+

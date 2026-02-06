@@ -3,6 +3,7 @@ import { periodizationService, ResistedStimulus, TrainingParameter } from '../..
 import { Plus, ChevronUp, ChevronDown, Copy, Trash2 } from 'lucide-react';
 import { ExerciseSelectorModal } from '../../components/ExerciseSelectorModal';
 import { libraryService, type Exercise } from '../../services/library.service';
+import { isDateWithinRange, parseDateOnly } from '../../utils/date';
 
 interface WorkoutBuilderResistanceProps {
   templateData: any;
@@ -10,6 +11,11 @@ interface WorkoutBuilderResistanceProps {
   onChange: (data: any) => void;
   registerScrollContainer?: (el: HTMLDivElement | null) => void;
   onScrollSync?: (source: HTMLDivElement) => void;
+  planStartDate?: string | Date | null;
+  planEndDate?: string | Date | null;
+  weekStartDateOverride?: string | null;
+  dayEditability?: boolean[];
+  weekEditable?: boolean;
 }
 
 type SectionKey = 'mobilidade' | 'sessao' | 'resfriamento';
@@ -33,27 +39,58 @@ export default function WorkoutBuilderResistance({
   resistedSummary,
   onChange,
   registerScrollContainer,
-  onScrollSync
+  onScrollSync,
+  planStartDate,
+  planEndDate,
+  weekStartDateOverride,
+  dayEditability,
+  weekEditable = true
 }: WorkoutBuilderResistanceProps) {
   const lastHydratedKey = useRef<string | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const startWeekday = useMemo(() => {
+    const start = parseDateOnly(weekStartDateOverride ?? templateData?.weekStartDate) ?? new Date();
+    const startJsDay = start.getDay();
+    return startJsDay === 0 ? 7 : startJsDay; // 1=Seg ... 7=Dom
+  }, [templateData?.weekStartDate, weekStartDateOverride]);
+
+  const resolveDayDate = (dayOfWeek: number) => {
+    const start = parseDateOnly(weekStartDateOverride ?? templateData?.weekStartDate) ?? new Date();
+    const offset = dayOfWeek - startWeekday;
+    const date = new Date(start);
+    date.setDate(start.getDate() + offset);
+    return date;
+  };
+
+  const isDayEditable = (dayOfWeek: number) => {
+    if (!weekEditable) return false;
+    if (dayEditability && dayEditability[dayOfWeek - 1] !== undefined) {
+      return dayEditability[dayOfWeek - 1];
+    }
+    if (!planStartDate || !planEndDate) return true;
+    const start = parseDateOnly(planStartDate);
+    const end = parseDateOnly(planEndDate);
+    if (!start || !end) return true;
+    return isDateWithinRange(resolveDayDate(dayOfWeek), start, end);
+  };
+
   const days = useMemo(() => {
     const labels = ['Segunda-Feira', 'Terça-Feira', 'Quarta-Feira', 'Quinta-Feira', 'Sexta-Feira', 'Sábado', 'Domingo'];
-    const start = templateData?.weekStartDate ? new Date(templateData.weekStartDate) : new Date();
 
     return labels.map((label, index) => {
-      const date = new Date(start);
-      date.setDate(start.getDate() + index);
+      const dayOfWeek = index + 1;
+      const date = resolveDayDate(dayOfWeek);
       const day = String(date.getDate()).padStart(2, '0');
       const month = String(date.getMonth() + 1).padStart(2, '0');
 
       return {
-        dayOfWeek: index + 1,
+        dayOfWeek,
         label,
         date: `${day}/${month}`
       };
     });
-  }, [templateData?.weekStartDate]);
+  }, [templateData?.weekStartDate, weekStartDateOverride, startWeekday]);
+
 
   const [exerciseModalOpen, setExerciseModalOpen] = useState(false);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
@@ -312,18 +349,76 @@ export default function WorkoutBuilderResistance({
     void fetchMaxLoad(exercise.id);
   };
 
-  const renderDayExerciseCell = (dayOfWeek: number, section: SectionKey) => {
+  const handleSelectExercises = (exercises: Exercise[]) => {
+    if (!selectedDay || !selectedSection) return;
+    if (!exercises.length) return;
+
+    const newEntries = exercises.map((exercise) => ({
+      id: `${exercise.id}-${Date.now()}-${Math.random()}`,
+      exerciseId: exercise.id,
+      name: exercise.name,
+      system:
+        selectedSection === 'mobilidade'
+          ? 'SER'
+          : selectedSection === 'sessao'
+            ? (resistedSummary?.method ?? '')
+            : '',
+      sets: null,
+      reps: null,
+      interval: null,
+      cParam: null,
+      eParam: null,
+      load: null,
+      adjustment: ''
+    }));
+
+    setExercisesByDay((prev) => {
+      const currentDay = prev[selectedDay] || {
+        mobilidade: [],
+        sessao: [],
+        resfriamento: []
+      };
+
+      const updatedDay = {
+        ...currentDay,
+        [selectedSection]: [...currentDay[selectedSection], ...newEntries]
+      };
+
+      const updated = {
+        ...prev,
+        [selectedDay]: updatedDay
+      };
+
+      onChange({ ...templateData, resistedExercises: updated });
+      return updated;
+    });
+
+    exercises.forEach((exercise) => {
+      void fetchMaxLoad(exercise.id);
+    });
+  };
+
+  const renderDayExerciseCell = (dayOfWeek: number, section: SectionKey, editable: boolean) => {
     const sectionExercises = exercisesByDay[dayOfWeek]?.[section] || [];
     const getCyclicLocation = () => {
       const workoutDays = templateData?.workoutDays;
+      const formatLocation = (entry?: any) => {
+        if (!entry?.location) return '';
+        const sessions = Number(entry?.numSessions);
+        if (Number.isFinite(sessions) && sessions > 0) {
+          return `${entry.location} ${sessions}x`;
+        }
+        return entry.location;
+      };
       if (Array.isArray(workoutDays)) {
-        return workoutDays.find((day: any) => day.dayOfWeek === dayOfWeek)?.location || '';
+        const entry = workoutDays.find((day: any) => day.dayOfWeek === dayOfWeek);
+        return formatLocation(entry);
       }
-      return workoutDays?.[dayOfWeek]?.location || '';
+      return formatLocation(workoutDays?.[dayOfWeek]);
     };
 
     return (
-    <div className="rounded-md border border-gray-200 bg-white">
+    <div className={`rounded-md border border-gray-200 bg-white ${editable ? '' : 'opacity-60 pointer-events-none'}`}>
       {section === 'sessao' && (
         <div className="border-b border-gray-200 px-3 py-2">
           <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
@@ -530,7 +625,7 @@ export default function WorkoutBuilderResistance({
         </div>
 
         <div
-          className="overflow-x-auto"
+          className="overflow-x-auto overflow-y-hidden"
           ref={scrollContainerRef}
           onScroll={(event) => {
             if (onScrollSync) {
@@ -567,7 +662,7 @@ export default function WorkoutBuilderResistance({
                   </td>
                   {days.map((day) => (
                     <td key={day.dayOfWeek} className="px-4 py-3 align-top">
-                      {renderDayExerciseCell(day.dayOfWeek, section.key as SectionKey)}
+                      {renderDayExerciseCell(day.dayOfWeek, section.key as SectionKey, isDayEditable(day.dayOfWeek))}
                     </td>
                   ))}
                 </tr>
@@ -581,6 +676,7 @@ export default function WorkoutBuilderResistance({
         isOpen={exerciseModalOpen}
         onClose={() => setExerciseModalOpen(false)}
         onSelect={handleSelectExercise}
+        onSelectMany={handleSelectExercises}
         section={selectedSection ? selectedSection.toUpperCase() : ''}
       />
     </div>

@@ -9,16 +9,60 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../co
 import { Input } from '../components/ui/Input';
 import { Plus, Search, Edit, Eye, User, LayoutGrid, List, UserX, UserCheck } from 'lucide-react';
 
+const VIEW_STATE_STORAGE_KEY = 'athletes.viewState';
+
 export function Athletes() {
   const user = useAuthStore((state) => state.user);
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [educators, setEducators] = useState<EducatorSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingEducators, setLoadingEducators] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [educatorFilter, setEducatorFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'active' | 'inactive' | 'all'>('active');
-  const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
+  const [searchQuery, setSearchQuery] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    try {
+      const stored = window.localStorage.getItem(VIEW_STATE_STORAGE_KEY);
+      if (!stored) return '';
+      const parsed = JSON.parse(stored) as { searchQuery?: string };
+      return parsed.searchQuery || '';
+    } catch {
+      return '';
+    }
+  });
+  const [educatorFilter, setEducatorFilter] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    try {
+      const stored = window.localStorage.getItem(VIEW_STATE_STORAGE_KEY);
+      if (!stored) return '';
+      const parsed = JSON.parse(stored) as { educatorFilter?: string };
+      return parsed.educatorFilter || '';
+    } catch {
+      return '';
+    }
+  });
+  const [statusFilter, setStatusFilter] = useState<'active' | 'inactive' | 'all'>(() => {
+    if (typeof window === 'undefined') return 'active';
+    try {
+      const stored = window.localStorage.getItem(VIEW_STATE_STORAGE_KEY);
+      if (!stored) return 'active';
+      const parsed = JSON.parse(stored) as { statusFilter?: 'active' | 'inactive' | 'all' };
+      return parsed.statusFilter === 'inactive' || parsed.statusFilter === 'all'
+        ? parsed.statusFilter
+        : 'active';
+    } catch {
+      return 'active';
+    }
+  });
+  const [viewMode, setViewMode] = useState<'cards' | 'list'>(() => {
+    if (typeof window === 'undefined') return 'cards';
+    try {
+      const stored = window.localStorage.getItem(VIEW_STATE_STORAGE_KEY);
+      if (!stored) return 'cards';
+      const parsed = JSON.parse(stored) as { viewMode?: 'cards' | 'list' };
+      return parsed.viewMode === 'list' || parsed.viewMode === 'cards' ? parsed.viewMode : 'cards';
+    } catch {
+      return 'cards';
+    }
+  });
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
@@ -35,6 +79,17 @@ export function Athletes() {
 
     loadAthletes();
   }, [page, educatorFilter, statusFilter]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const payload = {
+      viewMode,
+      searchQuery,
+      educatorFilter,
+      statusFilter,
+    };
+    window.localStorage.setItem(VIEW_STATE_STORAGE_KEY, JSON.stringify(payload));
+  }, [viewMode, searchQuery, educatorFilter, statusFilter]);
 
   useEffect(() => {
     if (canManageEducators) {
