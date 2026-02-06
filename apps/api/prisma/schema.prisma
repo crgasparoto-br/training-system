@@ -67,6 +67,7 @@ model Contract {
   trainingParameters TrainingParameter[]
   exerciseLibrary ExerciseLibrary[]
   assessmentTypes AssessmentType[]
+  subjectiveScaleItems SubjectiveScaleItem[]
   cloneLogsAsSource ContractDataCloneLog[] @relation("ContractCloneSource")
   cloneLogsAsTarget ContractDataCloneLog[] @relation("ContractCloneTarget")
 
@@ -184,6 +185,11 @@ model Athlete {
 enum AssessmentScheduleType {
   fixed_interval
   after_type
+}
+
+enum SubjectiveScaleType {
+  PSE
+  PSR
 }
 
 enum AssessmentAuditAction {
@@ -639,6 +645,23 @@ model TrainingParameter {
   
   @@unique([contractId, category, code])
   @@index([contractId, category])
+}
+
+model SubjectiveScaleItem {
+  id         String             @id @default(cuid())
+  contractId String
+  contract   Contract           @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  type       SubjectiveScaleType
+  value      Int
+  label      String?
+  order      Int
+  isActive   Boolean            @default(true)
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([contractId, type, value])
+  @@index([contractId, type])
 }
 
 // Matriz de Periodização

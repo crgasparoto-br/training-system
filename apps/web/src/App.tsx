@@ -13,6 +13,7 @@ import Settings from './pages/Settings';
 import SettingsParameters from './pages/Settings/Parameters';
 import ContractSettings from './pages/Settings/Contract';
 import SettingsAssessmentTypes from './pages/Settings/AssessmentTypes';
+import SettingsSubjectiveScales from './pages/Settings/SubjectiveScales';
 import Library from './pages/Library';
 import WorkoutBuilder2 from './pages/WorkoutBuilder2';
 import { DashboardLayout } from './layouts/DashboardLayout';
@@ -54,6 +55,7 @@ function App() {
           <Route path="settings/parameters" element={<SettingsParameters />} />
           <Route path="settings/contract" element={<ContractSettings />} />
           <Route path="settings/assessment-types" element={<SettingsAssessmentTypes />} />
+          <Route path="settings/psr-pse" element={<SettingsSubjectiveScales />} />
         </Route>
 
         {/* 404 */}
