@@ -154,9 +154,13 @@ const formatDurationFromMinutes = (value?: number | null) => {
 
 const formatSeconds = (value: number) => {
   const safe = Math.max(0, Math.floor(value));
-  const min = String(Math.floor(safe / 60)).padStart(2, '0');
-  const sec = String(safe % 60).padStart(2, '0');
-  return `${min}:${sec}`;
+  const hours = Math.floor(safe / 3600);
+  const min = Math.floor((safe % 3600) / 60);
+  const sec = safe % 60;
+  if (hours > 0) {
+    return `${String(hours).padStart(2, '0')}:${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+  }
+  return `${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
 };
 
 const normalizeSection = (value: string) => {
@@ -188,6 +192,15 @@ const normalizeSystemText = (value: string) => {
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
+};
+
+const resolveSystemDisplay = (system?: string | null) => {
+  if (!system) return 'Seriado';
+  const label = resolveGroupLabel(system, system);
+  if (label) return label;
+  const normalized = normalizeSystemText(system);
+  if (normalized === 'ser' || normalized === 'seri' || normalized === 'seriado') return 'Seriado';
+  return system;
 };
 
 const resolveGroupLabel = (system?: string | null, text?: string | null) => {
@@ -606,16 +619,16 @@ export default function Executions() {
         (exercise) => normalizeCategory(exercise.exercise?.category) !== 'Cíclico'
       );
 
-      const resistedList: DailyExerciseBlock[] = resistedExercises.map((exercise) => ({
-        id: exercise.id,
-        name: exercise.exercise?.name ?? 'Exercicio',
-        system: exercise.system ?? undefined,
-        sets: exercise.sets !== null && exercise.sets !== undefined ? String(exercise.sets) : undefined,
-        reps: exercise.reps !== null && exercise.reps !== undefined ? String(exercise.reps) : undefined,
-        interval: exercise.intervalSec ? `${exercise.intervalSec}s` : undefined,
-        load: exercise.load ? `${exercise.load} kg` : undefined,
-        status: exercise.executions && exercise.executions.length > 0 ? 'realizado' : 'planejado',
-      }));
+        const resistedList: DailyExerciseBlock[] = resistedExercises.map((exercise) => ({
+          id: exercise.id,
+          name: exercise.exercise?.name ?? 'Exercicio',
+          system: exercise.system ?? undefined,
+          sets: exercise.sets !== null && exercise.sets !== undefined ? String(exercise.sets) : undefined,
+          reps: exercise.reps !== null && exercise.reps !== undefined ? String(exercise.reps) : undefined,
+          interval: exercise.intervalSec ? formatSeconds(exercise.intervalSec) : undefined,
+          load: exercise.load ? `${exercise.load} kg` : undefined,
+          status: exercise.executions && exercise.executions.length > 0 ? 'realizado' : 'planejado',
+        }));
 
       const totalSeries = resistedExercises.reduce((acc, exercise) => acc + (exercise.sets ?? 0), 0);
       const cyclicDescription =
@@ -1041,7 +1054,9 @@ export default function Executions() {
     <div key={exercise.id} className="rounded-lg border border-gray-200 bg-white p-3 space-y-2">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="text-[11px] text-muted-foreground truncate">{exercise.system} • {exercise.notes}</p>
+          <p className="text-[11px] text-muted-foreground truncate">
+            {resolveSystemDisplay(exercise.system)} • {exercise.notes}
+          </p>
         </div>
         <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-700">
           {exercise.sets.length} series
@@ -1049,19 +1064,19 @@ export default function Executions() {
       </div>
 
       <div className="space-y-2">
-        {exercise.sets.map((set) => (
-          <div key={set.id}>{renderExerciseSetBlock(exercise, set)}</div>
+        {exercise.sets.map((set, idx) => (
+          <div key={set.id} className="space-y-2">
+            {renderExerciseSetBlock(exercise, set)}
+            {idx === 1 && exercise.intervalSec ? (
+              <div className="space-y-1 text-[11px] text-gray-600">
+                <div className="flex items-center gap-2">
+                  <Timer size={12} />
+                  Entre séries: {formatSeconds(exercise.intervalSec ?? 0)}
+                </div>
+              </div>
+            ) : null}
+          </div>
         ))}
-      </div>
-      <div className="flex flex-wrap items-center gap-4 text-[11px] text-gray-600">
-        <span className="inline-flex items-center gap-2">
-          <Timer size={12} />
-          Entre exercícios: {formatSeconds(exercise.cParam ?? exercise.eParam ?? 0)}
-        </span>
-        <span className="inline-flex items-center gap-2">
-          <Timer size={12} />
-          Entre séries: {formatSeconds(exercise.intervalSec ?? 0)}
-        </span>
       </div>
     </div>
   );
@@ -1954,19 +1969,22 @@ export default function Executions() {
                       )}
                       {groupedExercises.map((item, index) => {
                         if (item.type === 'single') {
-                          return renderExerciseCard(item.items[0]);
+                          const currentExercise = item.items[0];
+                          return (
+                            <div key={currentExercise.id} className="space-y-2">
+                              {renderExerciseCard(currentExercise)}
+                            </div>
+                          );
                         }
 
                         const tone = getGroupTone(item.label);
                         const isBiSet = item.label === 'Bi-Set' && item.items.length >= 2;
                         const betweenExercisesSec =
-                          item.items[0].cParam ??
-                          item.items[1]?.cParam ??
-                          item.items[0].eParam ??
-                          item.items[1]?.eParam ??
+                          item.items[0].intervalSec ??
+                          item.items[1]?.intervalSec ??
                           10;
                         const betweenSetsSec =
-                          item.items[0].intervalSec ?? item.items[1]?.intervalSec ?? 60;
+                          item.items[item.items.length - 1]?.intervalSec ?? 60;
                         const totalSets = Math.max(
                           1,
                           Math.min(item.items[0].sets.length, item.items[1]?.sets.length ?? 0)
@@ -2125,24 +2143,27 @@ export default function Executions() {
                                   const groupExercises = item.items;
                                   return (
                                     <div key={`biset-${index}-${idx}`} className="space-y-2">
-                                      {groupExercises.map((exercise, exerciseIndex) => {
-                                        const exerciseSet = exercise.sets[idx];
-                                        return (
-                                          <div key={`${exercise.id}-set-${idx}`} className="space-y-2">
-                                            {exerciseSet && renderExerciseSetBlock(exercise, exerciseSet)}
-                                            {exerciseIndex < groupExercises.length - 1 && (
-                                              <div className="flex items-center gap-2 text-[11px] text-amber-800">
-                                                <Timer size={12} />
-                                                Entre exercícios: {formatSeconds(betweenExercisesSec)}
-                                              </div>
-                                            )}
-                                          </div>
-                                        );
-                                      })}
+                                    {groupExercises.map((exercise, exerciseIndex) => {
+                                      const exerciseSet = exercise.sets[idx];
+                                      const isLastExercise = exerciseIndex === groupExercises.length - 1;
+                                      return (
+                                        <div key={`${exercise.id}-set-${idx}`} className="space-y-2">
+                                          {exerciseSet && renderExerciseSetBlock(exercise, exerciseSet)}
+                                          {!isLastExercise && exercise.intervalSec ? (
+                                            <div className="flex items-center gap-2 text-[11px] text-amber-800">
+                                              <Timer size={12} />
+                                              Entre exercícios: {formatSeconds(exercise.intervalSec)}
+                                            </div>
+                                          ) : null}
+                                        </div>
+                                      );
+                                    })}
+                                    {betweenSetsSec ? (
                                       <div className="flex items-center gap-2 text-[11px] text-amber-800">
                                         <Timer size={12} />
                                         Entre séries: {formatSeconds(betweenSetsSec)}
                                       </div>
+                                    ) : null}
                                     </div>
                                   );
                                 })}
