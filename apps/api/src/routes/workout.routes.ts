@@ -21,7 +21,7 @@ router.post('/templates/get-or-create', async (req, res) => {
 // Get template by ID
 router.get('/templates/:id', async (req, res) => {
   try {
-    const template = await workoutService.getTemplate(req.params.id);
+    const template = await workoutService.getTemplateById(req.params.id);
     res.json(template);
   } catch (error: any) {
     console.error('Error getting template:', error);
@@ -51,13 +51,32 @@ router.delete('/templates/:id', async (req, res) => {
   }
 });
 
+// Release template
+router.post('/templates/:id/release', async (req, res) => {
+  try {
+    const template = await workoutService.releaseTemplate(req.params.id);
+    res.json(template);
+  } catch (error: any) {
+    console.error('Error releasing template:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Copy template
 router.post('/templates/:id/copy', async (req, res) => {
   try {
+    const targetWeekStartDate = new Date(req.body.targetWeekStartDate);
+    if (Number.isNaN(targetWeekStartDate.getTime())) {
+      return res.status(400).json({ error: 'Invalid targetWeekStartDate' });
+    }
+    const targetWeekNumber = Number(req.body.targetWeekNumber);
+    if (!Number.isFinite(targetWeekNumber) || targetWeekNumber <= 0) {
+      return res.status(400).json({ error: 'Invalid targetWeekNumber' });
+    }
     const template = await workoutService.copyTemplate(
       req.params.id,
-      req.body.targetWeekNumber,
-      req.body.targetWeekStartDate
+      targetWeekNumber,
+      targetWeekStartDate
     );
     res.json(template);
   } catch (error: any) {

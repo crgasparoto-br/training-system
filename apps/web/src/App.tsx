@@ -14,8 +14,10 @@ import SettingsParameters from './pages/Settings/Parameters';
 import ContractSettings from './pages/Settings/Contract';
 import SettingsAssessmentTypes from './pages/Settings/AssessmentTypes';
 import SettingsSubjectiveScales from './pages/Settings/SubjectiveScales';
+import SettingsAthleteAccess from './pages/Settings/AthleteAccess';
 import Library from './pages/Library';
 import WorkoutBuilder2 from './pages/WorkoutBuilder2';
+import Executions from './pages/Executions';
 import { DashboardLayout } from './layouts/DashboardLayout';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
@@ -49,13 +51,14 @@ function App() {
           <Route path="plans/:id/edit" element={<PlanForm />} />
           <Route path="plans/:planId/workout-builder/:mesocycleNumber/:weekNumber" element={<WorkoutBuilder2 />} />
           <Route path="library" element={<Library />} />
-          <Route path="executions" element={<div className="text-center py-12">Página de Execuções (Em desenvolvimento)</div>} />
+          <Route path="executions" element={<Executions />} />
           <Route path="reports" element={<div className="text-center py-12">Página de Relatórios (Em desenvolvimento)</div>} />
           <Route path="settings" element={<Settings />} />
           <Route path="settings/parameters" element={<SettingsParameters />} />
           <Route path="settings/contract" element={<ContractSettings />} />
           <Route path="settings/assessment-types" element={<SettingsAssessmentTypes />} />
           <Route path="settings/psr-pse" element={<SettingsSubjectiveScales />} />
+          <Route path="settings/athlete-access" element={<SettingsAthleteAccess />} />
         </Route>
 
         {/* 404 */}

@@ -33,8 +33,8 @@ export interface WorkoutDay {
   stimulusDurationMin?: number;
   location?: string;
   method?: string;
-  intensity1?: string;
-  intensity2?: string;
+  intensity1?: number | null;
+  intensity2?: number | null;
   numSessions?: number;
   numSets?: number;
   sessionTime?: number;
@@ -113,7 +113,10 @@ export interface CreateWorkoutDayDTO {
 }
 
 export interface UpdateWorkoutDayDTO {
+  workoutDate?: string;
   sessionDurationMin?: number;
+  cyclicTimeMin?: number;
+  resistanceTimeMin?: number;
   stimulusDurationMin?: number;
   location?: string;
   method?: string;
@@ -123,6 +126,9 @@ export interface UpdateWorkoutDayDTO {
   numSets?: number;
   sessionTime?: number;
   restTime?: number;
+  vo2maxIntervalPct?: number | null;
+  iextIintTime?: number | null;
+  vo2maxPct?: number | null;
   targetHrMin?: string | null;
   targetHrMax?: string | null;
   targetSpeedMin?: string | null;
@@ -141,6 +147,8 @@ export interface AddExerciseDTO {
   sets?: number;
   reps?: number;
   intervalSec?: number;
+  cParam?: number;
+  eParam?: number;
   load?: number;
   exerciseNotes?: string;
 }
@@ -179,6 +187,11 @@ class WorkoutService {
 
   async updateTemplate(id: string, data: UpdateWorkoutTemplateDTO): Promise<WorkoutTemplate> {
     const response = await api.put<WorkoutTemplate>(`/workout/templates/${id}`, data);
+    return response.data;
+  }
+
+  async releaseTemplate(id: string): Promise<WorkoutTemplate> {
+    const response = await api.post<WorkoutTemplate>(`/workout/templates/${id}/release`);
     return response.data;
   }
 
