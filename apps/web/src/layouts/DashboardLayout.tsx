@@ -30,6 +30,8 @@ export function DashboardLayout() {
     user?.type === 'educator' &&
     user?.educator?.role === 'master' &&
     user?.educator?.contract?.type === 'academy';
+  const canAccessAthleteSettings =
+    user?.type === 'educator' && user?.educator?.role === 'master';
 
   const menuItems = [
     { icon: Home, label: 'Dashboard', path: '/dashboard' },
@@ -166,6 +168,22 @@ export function DashboardLayout() {
                       >
                         PSR e PSE
                       </Link>
+                      {canAccessAthleteSettings && (
+                        <Link
+                          to="/settings/athlete-access"
+                          onClick={() => setIsSidebarOpen(false)}
+                          className={`
+                            rounded-md px-3 py-2 text-xs font-medium transition-colors
+                            ${
+                              isActive('/settings/athlete-access')
+                                ? 'bg-blue-50 text-blue-700'
+                                : 'text-gray-600 hover:bg-accent'
+                            }
+                          `}
+                        >
+                          Cadastro de Alunos
+                        </Link>
+                      )}
                     </div>
                   )}
                 </div>

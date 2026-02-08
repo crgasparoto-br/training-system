@@ -12,6 +12,7 @@ import { contractRoutes } from './modules/contracts/index.js';
 import { assessmentTypeRoutes, subjectiveScaleRoutes } from './modules/assessments/index.js';
 import libraryRoutes from './routes/library.routes.js';
 import workoutRoutes from './routes/workout.routes.js';
+import executionsRoutes from './routes/executions.routes.js';
 
 // Carregar variáveis de ambiente
 dotenv.config();
@@ -105,6 +106,7 @@ app.use('/api/v1/library', libraryRoutes);
 
 // Rotas de Montagem de Treinos
 app.use('/api/v1/workout', workoutRoutes);
+app.use('/api/v1/executions', executionsRoutes);
 
 // ============================================================================
 // ERROR HANDLING

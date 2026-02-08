@@ -953,6 +953,9 @@ model WorkoutDay {
   template              WorkoutTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
   dayOfWeek             Int      // 1=Segunda, 7=Domingo
   workoutDate           DateTime
+  status                WorkoutDayStatus @default(planned)
+  startedAt             DateTime?
+  finishedAt            DateTime?
   
   // Planejamento do Dia - Geral
   sessionDurationMin    Int?     // Tempo total da sessão
@@ -991,6 +994,7 @@ model WorkoutDay {
   // PSR (Percepção Subjetiva de Recuperação)
   psrQuestion           String?  @default("Hoje recuperado você está se sentindo (PSR)?")
   psrResponse           Int?     // Resposta do aluno (1-10)
+  pseResponse           Int?     // Percep????o de esfor??o ap??s o treino (1-10)
   
   // Relacionamentos
   exercises             WorkoutExercise[]
@@ -1001,6 +1005,12 @@ model WorkoutDay {
   @@unique([templateId, dayOfWeek])
   @@index([templateId])
   @@index([workoutDate])
+}
+
+enum WorkoutDayStatus {
+  planned
+  in_progress
+  completed
 }
 
 model WorkoutExercise {
@@ -1047,6 +1057,7 @@ model WorkoutExecution {
   athleteId           String
   athlete             Athlete  @relation(fields: [athleteId], references: [id], onDelete: Cascade)
   executionDate       DateTime
+  setNumber           Int?
   
   // Dados Executados
   setsCompleted       Int?

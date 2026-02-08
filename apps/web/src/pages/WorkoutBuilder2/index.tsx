@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Copy, CheckCircle, Lock, ChevronLeft, ChevronRight } from 'lucide-react';
 import WorkoutBuilderCyclic from './WorkoutBuilderCyclic';
@@ -10,8 +10,10 @@ import { periodizationService, ResistedStimulus } from '../../services/periodiza
 import { workoutService } from '../../services/workout.service';
 import { isDateWithinRange, parseDateOnly, toDateInputValue, toIsoDateAtNoonUTC } from '../../utils/date';
 
+type ResistedSectionKey = 'mobilidade' | 'sessao' | 'resfriamento';
+
 export default function WorkoutBuilder2() {
-  const { planId, mesocycleNumber: mesoParam } = useParams();
+  const { planId, mesocycleNumber: mesoParam, weekNumber: weekParam } = useParams();
   const navigate = useNavigate();
 
   const normalizeWorkoutDays = (workoutDays: any) => {
@@ -31,6 +33,46 @@ export default function WorkoutBuilder2() {
     return {};
   };
 
+  const buildResistedExercisesFromTemplate = (template: any) => {
+    const base: Record<number, Record<ResistedSectionKey, any[]>> = {};
+    for (let day = 1; day <= 7; day += 1) {
+      base[day] = { mobilidade: [], sessao: [], resfriamento: [] };
+    }
+
+    const workoutDays = Array.isArray(template?.workoutDays)
+      ? template.workoutDays
+      : Object.values(template?.workoutDays || {});
+
+    workoutDays.forEach((day: any) => {
+      const dayOfWeek = day?.dayOfWeek;
+      if (!dayOfWeek) return;
+      const exercises = Array.isArray(day?.exercises) ? day.exercises : [];
+      exercises.forEach((exercise: any) => {
+        const section = (exercise.section as ResistedSectionKey) || 'sessao';
+        if (!base[dayOfWeek]) {
+          base[dayOfWeek] = { mobilidade: [], sessao: [], resfriamento: [] };
+        }
+        base[dayOfWeek][section] = base[dayOfWeek][section] || [];
+        base[dayOfWeek][section].push({
+          id: exercise.id,
+          exerciseId: exercise.exerciseId,
+          name: exercise.exercise?.name ?? '',
+          category: exercise.exercise?.category ?? exercise.exerciseCategory,
+          system: exercise.system ?? null,
+          sets: exercise.sets ?? null,
+          reps: exercise.reps ?? null,
+          interval: exercise.intervalSec ?? null,
+          cParam: exercise.cParam ?? null,
+          eParam: exercise.eParam ?? null,
+          load: exercise.load ?? null,
+          adjustment: exercise.exerciseNotes ?? null,
+        });
+      });
+    });
+
+    return base;
+  };
+
   const [activeTab, setActiveTab] = useState<'cyclic' | 'resistance'>('cyclic');
   const [planData, setPlanData] = useState<any>(null);
   const [resistedSummaryByWeek, setResistedSummaryByWeek] = useState<
@@ -38,6 +80,8 @@ export default function WorkoutBuilder2() {
   >({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [copyWeekError, setCopyWeekError] = useState<string | null>(null);
+  const [copyModeByWeek, setCopyModeByWeek] = useState<Record<number, { cyclic: boolean; resistance: boolean }>>({});
   const [templateDataByWeek, setTemplateDataByWeek] = useState<Record<number, any>>({});
   const [totalMesocycles, setTotalMesocycles] = useState(12);
   const [weeksPerMesocycle, setWeeksPerMesocycle] = useState(4);
@@ -47,8 +91,14 @@ export default function WorkoutBuilder2() {
   // Parâmetros únicos compartilhados
   const [mesocycleNumber, setMesocycleNumber] = useState(parseInt(mesoParam || '1'));
 
-  const mesoOptions = Array.from({ length: totalMesocycles }, (_, index) => index + 1);
-  const weekOptions = Array.from({ length: weeksPerMesocycle }, (_, index) => index + 1);
+  const mesoOptions = useMemo(
+    () => Array.from({ length: totalMesocycles }, (_, index) => index + 1),
+    [totalMesocycles]
+  );
+  const weekOptions = useMemo(
+    () => Array.from({ length: weeksPerMesocycle }, (_, index) => index + 1),
+    [weeksPerMesocycle]
+  );
   const summaryVisibilityUserKey =
     planData?.athlete?.user?.id ?? planData?.athleteId ?? 'unknown-user';
   const summaryVisibilityStorageKey = planId
@@ -67,6 +117,10 @@ export default function WorkoutBuilder2() {
       return acc;
     }, {} as Record<number, { session: boolean; resistedSummary: boolean }>)
   );
+  const weekFilterStorageKey = planId
+    ? `workoutBuilder2:weekFilter:${planId}:${mesocycleNumber}:${summaryVisibilityUserKey}`
+    : 'workoutBuilder2:weekFilter:unknown';
+  const [visibleWeeks, setVisibleWeeks] = useState<Record<number, boolean>>({});
   const [methodParameters, setMethodParameters] = useState<any[]>([]);
   const [assemblyParameters, setAssemblyParameters] = useState<any[]>([]);
   const [loadCycleParameters, setLoadCycleParameters] = useState<any[]>([]);
@@ -104,22 +158,46 @@ export default function WorkoutBuilder2() {
     );
   }, [summaryVisibilityStorageKey, weekOptions]);
 
+  const resolveWeekParam = useCallback(() => {
+    const parsed = Number(weekParam);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+  }, [weekParam]);
+
+  const navigateToMesocycle = useCallback((nextMesocycle: number) => {
+    if (!planId) return;
+    const weekNumber = resolveWeekParam();
+    navigate(`/plans/${planId}/workout-builder/${nextMesocycle}/${weekNumber}`, { replace: true });
+  }, [navigate, planId, resolveWeekParam]);
+
+  const hasAppliedStoredMesoRef = useRef(false);
+
   useEffect(() => {
     if (!planId) return;
-    if (mesoParam) return; // respeita a rota quando o mesociclo vem na URL
+    const paramValue = Number(mesoParam);
+    const hasParam = Number.isFinite(paramValue) && paramValue > 0;
+
+    if (hasParam && paramValue !== mesocycleNumber) {
+      setMesocycleNumber(paramValue);
+      return;
+    }
+
+    if (hasAppliedStoredMesoRef.current) return;
+
     try {
       const stored = localStorage.getItem(mesocycleFilterStorageKey);
       if (!stored) return;
       const parsed = Number(stored);
       if (!Number.isFinite(parsed)) return;
       const normalized = Math.min(Math.max(1, parsed), totalMesocycles);
-      if (normalized !== mesocycleNumber) {
+      if (!hasParam && normalized !== mesocycleNumber) {
+        hasAppliedStoredMesoRef.current = true;
         setMesocycleNumber(normalized);
+        navigateToMesocycle(normalized);
       }
     } catch (error) {
       // ignore storage errors
     }
-  }, [planId, mesoParam, mesocycleFilterStorageKey, totalMesocycles, mesocycleNumber]);
+  }, [planId, mesoParam, mesocycleFilterStorageKey, totalMesocycles, mesocycleNumber, navigateToMesocycle]);
 
   useEffect(() => {
     try {
@@ -134,6 +212,18 @@ export default function WorkoutBuilder2() {
     Object.values(autoSaveTimers).forEach(timer => clearTimeout(timer));
     setAutoSaveTimers({});
   }, [mesocycleNumber]);
+
+  useEffect(() => {
+    setCopyModeByWeek((prev) => {
+      const updated = { ...prev };
+      weekOptions.forEach((week) => {
+        if (!updated[week]) {
+          updated[week] = { cyclic: true, resistance: true };
+        }
+      });
+      return updated;
+    });
+  }, [weekOptions]);
 
   useEffect(() => {
     const loadParameters = async () => {
@@ -166,6 +256,37 @@ export default function WorkoutBuilder2() {
       // ignore storage errors
     }
   }, [summaryVisibilityByWeek, summaryVisibilityStorageKey]);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(weekFilterStorageKey);
+      if (stored) {
+        const parsed = JSON.parse(stored) as Record<number, boolean>;
+        const merged = weekOptions.reduce((acc, week) => {
+          acc[week] = parsed[week] ?? true;
+          return acc;
+        }, {} as Record<number, boolean>);
+        setVisibleWeeks(merged);
+        return;
+      }
+    } catch (error) {
+      // ignore storage errors
+    }
+    setVisibleWeeks(
+      weekOptions.reduce((acc, week) => {
+        acc[week] = true;
+        return acc;
+      }, {} as Record<number, boolean>)
+    );
+  }, [weekFilterStorageKey, weekOptions]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(weekFilterStorageKey, JSON.stringify(visibleWeeks));
+    } catch (error) {
+      // ignore storage errors
+    }
+  }, [visibleWeeks, weekFilterStorageKey]);
 
 
   const buildCacheKey = (
@@ -353,6 +474,7 @@ export default function WorkoutBuilder2() {
               weekNumber,
               weekStartDate
             });
+            const resistedFromApi = buildResistedExercisesFromTemplate(templateFromApi);
 
             const mergedTemplate = {
               ...templateFromApi,
@@ -367,6 +489,7 @@ export default function WorkoutBuilder2() {
               weekStartDate,
               mesocycleNumber,
               weekNumber,
+              resistedExercises: resistedFromApi,
             };
 
             const cachedKey = buildCacheKey(planId, mesocycleNumber, weekNumber, plan.updatedAt);
@@ -374,9 +497,15 @@ export default function WorkoutBuilder2() {
             if (cached) {
               try {
                 const cachedData = JSON.parse(cached);
+                const releasedData = {
+                  released: templateFromApi.released,
+                  releasedAt: templateFromApi.releasedAt,
+                };
                 return {
                   ...mergedTemplate,
                   ...cachedData,
+                  resistedExercises: cachedData?.resistedExercises ?? resistedFromApi,
+                  ...releasedData,
                   id: templateFromApi.id,
                   weekStartDate: mergedTemplate.weekStartDate,
                   mesocycleNumber,
@@ -409,13 +538,26 @@ export default function WorkoutBuilder2() {
   };
 
   const handleDataChange = (weekNumber: number, newData: any) => {
+    const merged = {
+      ...(templateDataByWeek[weekNumber] || {}),
+      ...newData,
+      workoutDays:
+        newData?.workoutDays !== undefined
+          ? newData.workoutDays
+          : templateDataByWeek[weekNumber]?.workoutDays,
+      resistedExercises:
+        newData?.resistedExercises !== undefined
+          ? newData.resistedExercises
+          : templateDataByWeek[weekNumber]?.resistedExercises,
+    };
+
     setTemplateDataByWeek((prev) => ({
       ...prev,
-      [weekNumber]: newData
+      [weekNumber]: merged
     }));
-    const resolvedPlanId = newData?.planId ?? planId;
-    const resolvedMesocycle = newData?.mesocycleNumber ?? mesocycleNumber;
-    const resolvedWeek = newData?.weekNumber ?? weekNumber;
+    const resolvedPlanId = merged?.planId ?? planId;
+    const resolvedMesocycle = merged?.mesocycleNumber ?? mesocycleNumber;
+    const resolvedWeek = merged?.weekNumber ?? weekNumber;
     const key = resolvedPlanId
       ? buildCacheKey(
           resolvedPlanId,
@@ -426,7 +568,7 @@ export default function WorkoutBuilder2() {
       : null;
 
     if (key) {
-      localStorage.setItem(key, JSON.stringify(newData));
+      localStorage.setItem(key, JSON.stringify(merged));
     }
     
     // Auto-save após 2 segundos de inatividade
@@ -435,7 +577,7 @@ export default function WorkoutBuilder2() {
     }
     
     const timer = setTimeout(() => {
-      handleSave(newData);
+      handleSave(merged);
     }, 2000);
     
     setAutoSaveTimers((prev) => ({
@@ -489,6 +631,8 @@ export default function WorkoutBuilder2() {
 
             await workoutService.updateDay(savedDay.id, {
               sessionDurationMin: day.sessionDurationMin,
+              cyclicTimeMin: day.cyclicTimeMin,
+              resistanceTimeMin: day.resistanceTimeMin,
               stimulusDurationMin: day.stimulusDurationMin,
               location: day.location,
               method: day.method,
@@ -498,6 +642,9 @@ export default function WorkoutBuilder2() {
               numSets: day.numSets,
               sessionTime: day.sessionTime,
               restTime: day.restTime,
+              vo2maxIntervalPct: day.vo2maxIntervalPct,
+              iextIintTime: day.iextIintTime,
+              vo2maxPct: day.vo2maxPct,
               targetHrMin: day.targetHrMin,
               targetHrMax: day.targetHrMax,
               targetSpeedMin: day.targetSpeedMin,
@@ -508,6 +655,50 @@ export default function WorkoutBuilder2() {
             });
           }
         }
+
+        if (data.resistedExercises) {
+          const weekStart = data.weekStartDate ? new Date(data.weekStartDate) : null;
+          for (const dayOfWeek of dayNumbers) {
+            const correctedDate = weekStart
+              ? resolveWeekDate(weekStart, dayOfWeek)
+              : new Date();
+            const targetDay = await workoutService.getOrCreateDay({
+              templateId: data.id,
+              dayOfWeek,
+              workoutDate: correctedDate.toISOString(),
+            });
+
+            const existingExercises = await workoutService.getExercises(targetDay.id);
+            if (existingExercises.length) {
+              await Promise.all(existingExercises.map((exercise) => workoutService.deleteExercise(exercise.id)));
+            }
+
+            const daySections = data.resistedExercises?.[dayOfWeek] || {};
+            const sectionEntries = Object.entries(daySections) as Array<[string, any[]]>;
+            for (const [section, exercises] of sectionEntries) {
+              const list = Array.isArray(exercises) ? exercises : [];
+              await Promise.all(
+                list.map((exercise, index) => {
+                  if (!exercise?.exerciseId) return Promise.resolve();
+                  return workoutService.addExercise({
+                    workoutDayId: targetDay.id,
+                    exerciseId: exercise.exerciseId,
+                    section,
+                    exerciseOrder: index + 1,
+                    system: exercise.system ?? undefined,
+                    sets: exercise.sets ?? undefined,
+                    reps: exercise.reps ?? undefined,
+                    intervalSec: exercise.interval ?? undefined,
+                    cParam: exercise.cParam ?? undefined,
+                    eParam: exercise.eParam ?? undefined,
+                    load: exercise.load ?? undefined,
+                    exerciseNotes: exercise.adjustment ?? exercise.exerciseNotes ?? undefined,
+                  });
+                })
+              );
+            }
+          }
+        }
       }
     } catch (error) {
       console.error('Erro ao salvar:', error);
@@ -516,11 +707,267 @@ export default function WorkoutBuilder2() {
     }
   };
 
-  const handleCopyWeek = async () => {
-    // TODO: Implementar funcionalidade de copiar semana
-    alert('Funcionalidade de copiar semana será implementada');
-  };
+  const handleCopyWeek = async (sourceWeekNumber: number) => {
+    if (!planId) return;
 
+    const sourceTemplate = templateDataByWeek[sourceWeekNumber];
+    if (!sourceTemplate?.id) {
+      alert('Não foi possível localizar o template da semana selecionada.');
+      return;
+    }
+
+    const baseWeekNumber = (mesocycleNumber - 1) * weeksPerMesocycle;
+    const absoluteSourceWeek = baseWeekNumber + sourceWeekNumber;
+    const absoluteRangeStart = baseWeekNumber + 1;
+    const absoluteRangeEnd = baseWeekNumber + weeksPerMesocycle;
+
+    const mode = copyModeByWeek[sourceWeekNumber] ?? { cyclic: true, resistance: true };
+    const copyMode = mode.cyclic && mode.resistance ? '1' : mode.cyclic ? '2' : mode.resistance ? '3' : '';
+    if (!copyMode) {
+      alert('Selecione pelo menos um treinamento para copiar.');
+      return;
+    }
+
+    const input = prompt(
+      `Copiar a semana ${absoluteSourceWeek} para qual semana do mesociclo ${mesocycleNumber}? (${absoluteRangeStart}-${absoluteRangeEnd})`,
+      String(absoluteSourceWeek)
+    );
+
+    if (input === null) return;
+
+    const absoluteTargetWeek = Number(input);
+    const targetWeekNumber = absoluteTargetWeek - baseWeekNumber;
+    if (
+      !Number.isFinite(absoluteTargetWeek) ||
+      targetWeekNumber < 1 ||
+      targetWeekNumber > weeksPerMesocycle
+    ) {
+      alert('Semana de destino inválida.');
+      return;
+    }
+
+    if (targetWeekNumber === sourceWeekNumber) {
+      alert('Selecione uma semana de destino diferente da semana origem.');
+      return;
+    }
+
+    const targetTemplate = templateDataByWeek[targetWeekNumber];
+    const confirmMessage = targetTemplate?.id
+      ? `Isso irá substituir os dados da semana ${absoluteTargetWeek}. Deseja continuar?`
+      : `Deseja copiar a semana ${absoluteSourceWeek} para a semana ${absoluteTargetWeek}?`;
+
+    if (!confirm(confirmMessage)) return;
+
+    try {
+      setSaving(true);
+      setCopyWeekError(null);
+
+      const resolvedStartDate =
+        resolveWeekStartDate(mesocycleNumber, targetWeekNumber) ||
+        targetTemplate?.weekStartDate ||
+        sourceTemplate?.weekStartDate;
+
+      if (!resolvedStartDate) {
+        alert('Não foi possível determinar a data de início da semana de destino.');
+        return;
+      }
+
+      const weekStart = new Date(resolvedStartDate);
+      const clearCacheForWeek = () => {
+        const cacheKey = buildCacheKey(planId, mesocycleNumber, targetWeekNumber, planData?.updatedAt);
+        if (cacheKey) {
+          localStorage.removeItem(cacheKey);
+        }
+      };
+
+      let refreshed: any;
+
+      if (copyMode === '1') {
+        if (targetTemplate?.id) {
+          await workoutService.deleteTemplate(targetTemplate.id);
+          clearCacheForWeek();
+        }
+
+        const sourceFromApi = await workoutService.getTemplate(sourceTemplate.id);
+        const copied = await workoutService.copyTemplate(
+          sourceFromApi.id,
+          targetWeekNumber,
+          resolvedStartDate
+        );
+
+        if (copied?.workoutDays?.length) {
+          await Promise.all(
+            copied.workoutDays.map((day: any) => {
+              if (!day?.id || !day?.dayOfWeek) return Promise.resolve();
+              const correctedDate = resolveWeekDate(weekStart, day.dayOfWeek);
+              return workoutService.updateDay(day.id, { workoutDate: correctedDate.toISOString() });
+            })
+          );
+        }
+
+        refreshed = await workoutService.getTemplate(copied.id);
+      } else {
+        const sourceFromApi = await workoutService.getTemplate(sourceTemplate.id);
+        const targetTemplateFromApi = await workoutService.getOrCreateTemplate({
+          planId,
+          mesocycleNumber,
+          weekNumber: targetWeekNumber,
+          weekStartDate: resolvedStartDate,
+        });
+
+        const sourceDays = Array.isArray(sourceFromApi.workoutDays)
+          ? sourceFromApi.workoutDays
+          : Object.values(sourceFromApi.workoutDays || {});
+
+        const sourceDayMap = sourceDays.reduce<Record<number, any>>((acc, day) => {
+          if (day?.dayOfWeek) acc[day.dayOfWeek] = day;
+          return acc;
+        }, {});
+
+        if (copyMode === '2') {
+          await workoutService.updateTemplate(targetTemplateFromApi.id, {
+            cyclicFrequency: sourceFromApi.cyclicFrequency ?? null,
+            totalVolumeMin: sourceFromApi.totalVolumeMin ?? null,
+            totalVolumeKm: sourceFromApi.totalVolumeKm ?? null,
+          });
+
+          await Promise.all(
+            dayNumbers.map(async (dayOfWeek) => {
+              const sourceDay = sourceDayMap[dayOfWeek];
+              const correctedDate = resolveWeekDate(weekStart, dayOfWeek);
+              const targetDay = await workoutService.getOrCreateDay({
+                templateId: targetTemplateFromApi.id,
+                dayOfWeek,
+                workoutDate: correctedDate.toISOString(),
+              });
+              if (!sourceDay) return;
+              await workoutService.updateDay(targetDay.id, {
+                workoutDate: correctedDate.toISOString(),
+                sessionDurationMin: sourceDay.sessionDurationMin ?? null,
+                cyclicTimeMin: sourceDay.cyclicTimeMin ?? null,
+                stimulusDurationMin: sourceDay.stimulusDurationMin ?? null,
+                location: sourceDay.location ?? null,
+                method: sourceDay.method ?? null,
+                intensity1: sourceDay.intensity1 ?? null,
+                intensity2: sourceDay.intensity2 ?? null,
+                numSessions: sourceDay.numSessions ?? null,
+                numSets: sourceDay.numSets ?? null,
+                sessionTime: sourceDay.sessionTime ?? null,
+                restTime: sourceDay.restTime ?? null,
+                vo2maxIntervalPct: sourceDay.vo2maxIntervalPct ?? null,
+                iextIintTime: sourceDay.iextIintTime ?? null,
+                vo2maxPct: sourceDay.vo2maxPct ?? null,
+                targetHrMin: sourceDay.targetHrMin ?? null,
+                targetHrMax: sourceDay.targetHrMax ?? null,
+                targetSpeedMin: sourceDay.targetSpeedMin ?? null,
+                targetSpeedMax: sourceDay.targetSpeedMax ?? null,
+                detailNotes: sourceDay.detailNotes ?? null,
+                complementNotes: sourceDay.complementNotes ?? null,
+                generalGuidelines: sourceDay.generalGuidelines ?? null,
+              });
+            })
+          );
+        } else {
+          await workoutService.updateTemplate(targetTemplateFromApi.id, {
+            resistanceFrequency: sourceFromApi.resistanceFrequency ?? null,
+            loadPercentage: sourceFromApi.loadPercentage ?? null,
+            repZone: sourceFromApi.repZone ?? null,
+            repReserve: sourceFromApi.repReserve ?? null,
+            trainingMethod: sourceFromApi.trainingMethod ?? null,
+            trainingDivision: sourceFromApi.trainingDivision ?? null,
+            studentGoal: sourceFromApi.studentGoal ?? null,
+            coachGoal: sourceFromApi.coachGoal ?? null,
+            observation1: sourceFromApi.observation1 ?? null,
+            observation2: sourceFromApi.observation2 ?? null,
+          });
+
+          await Promise.all(
+            dayNumbers.map(async (dayOfWeek) => {
+              const sourceDay = sourceDayMap[dayOfWeek];
+              const correctedDate = resolveWeekDate(weekStart, dayOfWeek);
+              const targetDay = await workoutService.getOrCreateDay({
+                templateId: targetTemplateFromApi.id,
+                dayOfWeek,
+                workoutDate: correctedDate.toISOString(),
+              });
+
+              if (sourceDay?.resistanceTimeMin !== undefined) {
+                await workoutService.updateDay(targetDay.id, {
+                  resistanceTimeMin: sourceDay.resistanceTimeMin ?? null,
+                });
+              }
+
+              const targetExercises = Array.isArray(targetDay.exercises) ? targetDay.exercises : [];
+              await Promise.all(
+                targetExercises.map((exercise: any) => workoutService.deleteExercise(exercise.id))
+              );
+
+              const sourceExercises = Array.isArray(sourceDay?.exercises) ? sourceDay.exercises : [];
+              await Promise.all(
+                sourceExercises.map((exercise: any) =>
+                  workoutService.addExercise({
+                    workoutDayId: targetDay.id,
+                    exerciseId: exercise.exerciseId,
+                    section: exercise.section,
+                    exerciseOrder: exercise.exerciseOrder,
+                    system: exercise.system ?? undefined,
+                    sets: exercise.sets ?? undefined,
+                    reps: exercise.reps ?? undefined,
+                    intervalSec: exercise.intervalSec ?? undefined,
+                    cParam: exercise.cParam ?? undefined,
+                    eParam: exercise.eParam ?? undefined,
+                    load: exercise.load ?? undefined,
+                    exerciseNotes: exercise.exerciseNotes ?? undefined,
+                  })
+                )
+              );
+            })
+          );
+        }
+
+        refreshed = await workoutService.getTemplate(targetTemplateFromApi.id);
+      }
+
+      const refreshedResisted = buildResistedExercisesFromTemplate(refreshed);
+      const mergedTemplate = {
+        ...targetTemplate,
+        ...refreshed,
+        resistedExercises: refreshedResisted,
+        athleteId: planData?.athleteId,
+        weekStartDate: resolvedStartDate,
+        mesocycleNumber,
+        weekNumber: targetWeekNumber,
+        planId,
+        totalVolumeMin: sourceTemplate.totalVolumeMin ?? refreshed.totalVolumeMin,
+        totalVolumeKm: sourceTemplate.totalVolumeKm ?? refreshed.totalVolumeKm,
+        distributionZ1: sourceTemplate.distributionZ1 ?? targetTemplate?.distributionZ1,
+        distributionZ2: sourceTemplate.distributionZ2 ?? targetTemplate?.distributionZ2,
+        distributionZ3: sourceTemplate.distributionZ3 ?? targetTemplate?.distributionZ3,
+        distributionZ4: sourceTemplate.distributionZ4 ?? targetTemplate?.distributionZ4,
+        distributionZ5: sourceTemplate.distributionZ5 ?? targetTemplate?.distributionZ5,
+      };
+
+      setTemplateDataByWeek((prev) => ({
+        ...prev,
+        [targetWeekNumber]: mergedTemplate,
+      }));
+
+      const cacheKey = buildCacheKey(planId, mesocycleNumber, targetWeekNumber, planData?.updatedAt);
+      if (cacheKey) {
+        localStorage.setItem(cacheKey, JSON.stringify(mergedTemplate));
+      }
+
+      alert('Semana copiada com sucesso!');
+    } catch (error: any) {
+      const apiMessage = error?.response?.data?.error;
+      const message = apiMessage ? `Erro ao copiar semana: ${apiMessage}` : 'Erro ao copiar semana';
+      console.error('Erro ao copiar semana:', error);
+      setCopyWeekError(message);
+      alert(message);
+    } finally {
+      setSaving(false);
+    }
+  };
   const toggleSummaryVisibility = (
     weekNumber: number,
     section: 'session' | 'resistedSummary'
@@ -570,21 +1017,33 @@ export default function WorkoutBuilder2() {
   };
 
   const handleRelease = async (weekNumber: number) => {
+    const weekTemplate = templateDataByWeek[weekNumber];
+    if (!weekTemplate?.id) {
+      alert('Não foi possível localizar o template da semana.');
+      return;
+    }
+
     try {
       setSaving(true);
-      // TODO: Implementar chamada à API
-      // await workoutService.releaseTemplate(templateData.id);
-      
-      // Atualizar estado local
+
+      const releasedTemplate = await workoutService.releaseTemplate(weekTemplate.id);
       setTemplateDataByWeek((prev) => ({
         ...prev,
         [weekNumber]: {
           ...prev[weekNumber],
-          released: true,
-          releasedAt: new Date().toISOString()
+          ...releasedTemplate,
         }
       }));
-      
+
+      const cacheKey = buildCacheKey(planId!, mesocycleNumber, weekNumber, planData?.updatedAt);
+      if (cacheKey) {
+        const cached = {
+          ...(templateDataByWeek[weekNumber] || {}),
+          ...releasedTemplate,
+        };
+        localStorage.setItem(cacheKey, JSON.stringify(cached));
+      }
+
       alert('Treino liberado com sucesso! O atleta já pode visualizá-lo.');
     } catch (error) {
       console.error('Erro ao liberar treino:', error);
@@ -650,7 +1109,15 @@ export default function WorkoutBuilder2() {
             <div className="flex flex-wrap items-center gap-3">
               <button
                 type="button"
-                onClick={() => setMesocycleNumber((prev) => Math.max(1, prev - 1))}
+                onClick={() => {
+                  setMesocycleNumber((prev) => {
+                    const next = Math.max(1, prev - 1);
+                    if (next !== prev) {
+                      navigateToMesocycle(next);
+                    }
+                    return next;
+                  });
+                }}
                 className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
               >
                 <ChevronLeft className="w-4 h-4" />
@@ -664,9 +1131,12 @@ export default function WorkoutBuilder2() {
                     const value = parseInt(e.target.value);
                     if (!Number.isFinite(value)) {
                       setMesocycleNumber(1);
+                      navigateToMesocycle(1);
                       return;
                     }
-                    setMesocycleNumber(Math.min(Math.max(1, value), totalMesocycles));
+                    const next = Math.min(Math.max(1, value), totalMesocycles);
+                    setMesocycleNumber(next);
+                    navigateToMesocycle(next);
                   }}
                   className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
@@ -679,7 +1149,15 @@ export default function WorkoutBuilder2() {
               </label>
               <button
                 type="button"
-                onClick={() => setMesocycleNumber((prev) => Math.min(totalMesocycles, prev + 1))}
+                onClick={() => {
+                  setMesocycleNumber((prev) => {
+                    const next = Math.min(totalMesocycles, prev + 1);
+                    if (next !== prev) {
+                      navigateToMesocycle(next);
+                    }
+                    return next;
+                  });
+                }}
                 className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
               >
                 Próximo Mesociclo
@@ -692,9 +1170,28 @@ export default function WorkoutBuilder2() {
               </span>
             </div>
           </div>
+          <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-gray-700">
+            <span className="font-medium">Semanas:</span>
+            {weekOptions.map((weekNumber) => (
+              <label key={weekNumber} className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={visibleWeeks[weekNumber] ?? true}
+                  onChange={(e) =>
+                    setVisibleWeeks((prev) => ({
+                      ...prev,
+                      [weekNumber]: e.target.checked,
+                    }))
+                  }
+                  className="h-4 w-4 rounded border-gray-300 text-blue-600"
+                />
+                <span>S{(mesocycleNumber - 1) * weeksPerMesocycle + weekNumber}</span>
+              </label>
+            ))}
+          </div>
         </div>
 
-        {weekOptions.map((weekNumber) => {
+        {weekOptions.filter((weekNumber) => visibleWeeks[weekNumber] ?? true).map((weekNumber) => {
           const visibility = summaryVisibilityByWeek[weekNumber] ?? {
             session: true,
             resistedSummary: true
@@ -730,6 +1227,42 @@ export default function WorkoutBuilder2() {
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={copyModeByWeek[weekNumber]?.cyclic ?? true}
+                        onChange={(e) =>
+                          setCopyModeByWeek((prev) => ({
+                            ...prev,
+                            [weekNumber]: {
+                              cyclic: e.target.checked,
+                              resistance: prev[weekNumber]?.resistance ?? true,
+                            },
+                          }))
+                        }
+                        className="h-4 w-4 rounded border-gray-300 text-blue-600"
+                      />
+                      Cíclico
+                    </label>
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={copyModeByWeek[weekNumber]?.resistance ?? true}
+                        onChange={(e) =>
+                          setCopyModeByWeek((prev) => ({
+                            ...prev,
+                            [weekNumber]: {
+                              cyclic: prev[weekNumber]?.cyclic ?? true,
+                              resistance: e.target.checked,
+                            },
+                          }))
+                        }
+                        className="h-4 w-4 rounded border-gray-300 text-blue-600"
+                      />
+                      Resistido
+                    </label>
+                  </div>
                   {weekTemplateData && (
                     <div
                       className="flex items-center gap-2 px-3 py-2 rounded-lg border"
@@ -753,7 +1286,7 @@ export default function WorkoutBuilder2() {
                   )}
 
                   <button
-                    onClick={() => handleCopyWeek()}
+                    onClick={() => handleCopyWeek(weekNumber)}
                     className="flex items-center gap-2 px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
                   >
                     <Copy className="w-4 h-4" />
@@ -775,6 +1308,11 @@ export default function WorkoutBuilder2() {
                   </button>
                   
                 </div>
+                {copyWeekError && (
+                  <div className="mt-3 w-full rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {copyWeekError}
+                  </div>
+                )}
               </div>
 
               <div className="space-y-4">
@@ -1058,4 +1596,5 @@ export default function WorkoutBuilder2() {
     </div>
   );
 }
+
 
