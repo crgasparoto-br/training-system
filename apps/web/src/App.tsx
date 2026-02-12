@@ -15,6 +15,7 @@ import ContractSettings from './pages/Settings/Contract';
 import SettingsAssessmentTypes from './pages/Settings/AssessmentTypes';
 import SettingsSubjectiveScales from './pages/Settings/SubjectiveScales';
 import SettingsAthleteAccess from './pages/Settings/AthleteAccess';
+import SettingsReferenceTable from './pages/Settings/ReferenceTable';
 import Library from './pages/Library';
 import WorkoutBuilder2 from './pages/WorkoutBuilder2';
 import Executions from './pages/Executions';
@@ -59,6 +60,7 @@ function App() {
           <Route path="settings/assessment-types" element={<SettingsAssessmentTypes />} />
           <Route path="settings/psr-pse" element={<SettingsSubjectiveScales />} />
           <Route path="settings/athlete-access" element={<SettingsAthleteAccess />} />
+          <Route path="settings/reference-table" element={<SettingsReferenceTable />} />
         </Route>
 
         {/* 404 */}
