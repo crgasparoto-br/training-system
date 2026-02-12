@@ -381,7 +381,7 @@ Aprimorar a experiência do usuário na tela de Biblioteca de Exercícios, torna
 ## 📞 Suporte
 
 Para dúvidas ou sugestões sobre as melhorias implementadas, consulte:
-- Repositório GitHub: `crgasparoto-br/corrida-training-system`
+- Repositório GitHub: `crgasparoto-br/training_system`
 - Documentação do projeto: `README.md`
 - Issues do GitHub para reportar bugs ou solicitar features
 

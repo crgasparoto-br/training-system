@@ -1,4 +1,4 @@
-# Corrida Training System
+# Training System
 
 Sistema SaaS completo para gestão de treinos de corrida com suporte a educadores e alunos.
 
@@ -37,7 +37,7 @@ packages/
 ```bash
 # 1. Clone o repositório
 git clone <repo-url>
-cd corrida-training-system
+cd training_system
 
 # 2. Instale dependências
 pnpm install
@@ -66,7 +66,7 @@ pnpm dev
 ## 📦 Estrutura de Pastas
 
 ```
-corrida-training-system/
+training_system/
 ├── apps/
 │   ├── api/
 │   │   ├── src/

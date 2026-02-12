@@ -33,8 +33,8 @@
 
 ```bash
 # Clonar o repositório (se ainda não fez)
-git clone https://github.com/crgasparoto-br/corrida-training-system.git
-cd corrida-training-system
+git clone https://github.com/crgasparoto-br/training_system.git
+cd training_system
 
 # Instalar dependências
 pnpm install
