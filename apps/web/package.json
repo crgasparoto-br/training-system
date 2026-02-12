@@ -1,7 +1,7 @@
 {
   "name": "@corrida/web",
   "version": "0.1.0",
-  "description": "Frontend Web para Educadores - Corrida Training System",
+  "description": "Frontend Web para Educadores - Training System",
   "type": "module",
   "scripts": {
     "dev": "vite",

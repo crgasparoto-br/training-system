@@ -54,7 +54,7 @@ choco install nodejs pnpm docker-desktop
 ### Clonar o Repositório
 ```bash
 git clone <seu-repositorio>
-cd corrida-training-system
+cd training_system
 ```
 
 ### Instalar Dependências
@@ -134,7 +134,7 @@ pnpm dev
 Você verá:
 ```
 ╔════════════════════════════════════════════════════════════╗
-║   🏃 Corrida Training System API                          ║
+║   🏃 Training System API                          ║
 ║   ✅ Servidor iniciado com sucesso                        ║
 ║   🌐 URL: http://localhost:3000                           ║
 ║   📝 Health: http://localhost:3000/health                 ║
@@ -163,7 +163,7 @@ Resposta esperada:
 
 ### Estrutura do Projeto
 ```
-corrida-training-system/
+training_system/
 ├── apps/
 │   ├── api/              # Backend (Node.js)
 │   ├── web/              # Frontend Web (React)

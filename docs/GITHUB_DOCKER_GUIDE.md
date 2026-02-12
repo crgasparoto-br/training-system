@@ -203,10 +203,10 @@ docker-compose --version
 
 ## 🚀 Criar Repositório GitHub para Seu Projeto
 
-Vou criar um repositório privado para o **Corrida Training System**:
+Vou criar um repositório privado para o **Training System**:
 
 ```bash
-cd /home/ubuntu/corrida-training-system
+cd /home/ubuntu/training_system
 
 # Inicializar Git
 git init
@@ -218,7 +218,7 @@ git add .
 git commit -m "Initial commit: Fase 1 - Fundação completa"
 
 # Criar repositório no GitHub (privado)
-gh repo create corrida-training-system \
+gh repo create training_system \
   --private \
   --description "Sistema SaaS de gestão de treinos de corrida" \
   --source=. \
@@ -301,8 +301,8 @@ build/
 
 ### 1. Criar Repositório
 ```bash
-cd /home/ubuntu/corrida-training-system
-gh repo create corrida-training-system --private --source=. --push
+cd /home/ubuntu/training_system
+gh repo create training_system --private --source=. --push
 ```
 
 ### 2. Trabalhar com Branches
@@ -346,8 +346,8 @@ gh repo view
 
 2. **Criar Repositório GitHub**
    ```bash
-   cd /home/ubuntu/corrida-training-system
-   gh repo create corrida-training-system --private --source=. --push
+   cd /home/ubuntu/training_system
+   gh repo create training_system --private --source=. --push
    ```
 
 3. **Configurar CI/CD** (Opcional)

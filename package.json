@@ -1,5 +1,5 @@
 {
-  "name": "corrida-training-system",
+  "name": "training_system",
   "version": "0.1.0",
   "description": "Sistema SaaS de gestão de treinos de corrida",
   "private": true,

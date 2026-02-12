@@ -1,6 +1,6 @@
 {
   "info": {
-    "name": "Corrida Training System API",
+    "name": "Training System API",
     "description": "Coleção de testes para a API do Sistema de Gestão de Treinos",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },

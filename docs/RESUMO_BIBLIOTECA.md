@@ -4,7 +4,7 @@
 
 **Data:** 02 de Fevereiro de 2026  
 **Projeto:** Sistema de Treinos de Corrida  
-**Repositório:** [crgasparoto-br/corrida-training-system](https://github.com/crgasparoto-br/corrida-training-system)  
+**Repositório:** [crgasparoto-br/training_system](https://github.com/crgasparoto-br/training_system)  
 **Commit:** `6578939` - feat: implementar melhorias na tela de Biblioteca de Exercícios
 
 ---
@@ -163,7 +163,7 @@ pnpm dev
 ## 📞 Suporte e Manutenção
 
 ### Repositório GitHub
-- **URL:** https://github.com/crgasparoto-br/corrida-training-system
+- **URL:** https://github.com/crgasparoto-br/training_system
 - **Branch:** main
 - **Último commit:** 6578939
 

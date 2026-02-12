@@ -95,7 +95,7 @@ Registro da execução real pelo aluno.
 
 ### 1. Atualizar Código
 ```powershell
-cd C:\Users\PC01\OneDrive\Projetos\corrida-training-system
+cd C:\Users\PC01\OneDrive\Projetos\training_system
 git pull origin main
 ```
 

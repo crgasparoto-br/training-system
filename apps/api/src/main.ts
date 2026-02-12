@@ -60,7 +60,7 @@ app.get('/health', (req, res) => {
 
 app.get('/api/v1', (req, res) => {
   res.json({
-    message: 'Corrida Training System API',
+    message: 'Training System API',
     version: '0.1.0',
     endpoints: {
       auth: '/api/v1/auth',
@@ -142,7 +142,7 @@ app.listen(PORT, () => {
   console.log(`
 ╔════════════════════════════════════════════════════════════╗
 ║                                                            ║
-║   🏃 Corrida Training System API                          ║
+║   🏃 Training System API                          ║
 ║   ✅ Servidor iniciado com sucesso                        ║
 ║                                                            ║
 ║   🌐 URL: http://localhost:${PORT}                        ║

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ============================================================================
-# CORRIDA TRAINING SYSTEM - API TEST SCRIPT
+# Training System - API TEST SCRIPT
 # ============================================================================
 # Este script executa uma sÃ©rie de testes na API
 # Uso: bash test-api.sh

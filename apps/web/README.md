@@ -1,4 +1,4 @@
-# 🌐 Frontend Web - Corrida Training System
+# 🌐 Frontend Web - Training System
 
 Frontend web para educadores físicos gerenciarem atletas e planos de treino.
 

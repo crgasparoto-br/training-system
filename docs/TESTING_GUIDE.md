@@ -25,7 +25,7 @@ Antes de começar, certifique-se de que:
 Abra um **terminal** e execute:
 
 ```bash
-cd /home/ubuntu/corrida-training-system
+cd /home/ubuntu/training_system
 docker-compose up -d
 ```
 
@@ -52,7 +52,7 @@ corrida-redis-commander  "redis-commander"  redis-commander     Up 2 seconds
 Abra um **novo terminal** e execute:
 
 ```bash
-cd /home/ubuntu/corrida-training-system/apps/api
+cd /home/ubuntu/training_system/apps/api
 pnpm prisma migrate dev
 ```
 
@@ -79,7 +79,7 @@ Isso vai:
 No **mesmo terminal** (ou novo), execute:
 
 ```bash
-cd /home/ubuntu/corrida-training-system/apps/api
+cd /home/ubuntu/training_system/apps/api
 pnpm dev
 ```
 
@@ -88,7 +88,7 @@ Você verá:
 ```
 ╔════════════════════════════════════════════════════════════╗
 ║                                                            ║
-║   🏃 Corrida Training System API                          ║
+║   🏃 Training System API                          ║
 ║   ✅ Servidor iniciado com sucesso                        ║
 ║                                                            ║
 ║   🌐 URL: http://localhost:3000                           ║
