@@ -8,6 +8,7 @@ import { assessmentHistorySections } from '../data/assessmentVariables';
 import { Button } from '../components/ui/Button';
 import { formatDateBR, isDateWithinRange } from '../utils/date';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../components/ui/Accordion';
 import {
   ArrowLeft,
   Edit,
@@ -896,30 +897,53 @@ export function AthleteDetails() {
                   return (
                     <div
                       key={plan.id}
-                      className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 p-3"
+                      className="rounded-lg border border-gray-200 p-3"
                     >
-                      <div>
-                        <p className="text-sm font-semibold text-gray-900">{plan.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {formatDate(plan.startDate)} - {formatDate(plan.endDate)}
-                        </p>
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-gray-900">{plan.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {formatDate(plan.startDate)} - {formatDate(plan.endDate)}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`text-[10px] px-2 py-1 rounded-full ${
+                              isActive
+                                ? 'bg-green-100 text-green-700'
+                                : 'bg-gray-100 text-gray-600'
+                            }`}
+                          >
+                            {isActive ? 'Ativo' : 'Finalizado'}
+                          </span>
+                          <Link to={`/plans/${plan.id}`}>
+                            <Button variant="outline" size="sm">
+                              Abrir
+                            </Button>
+                          </Link>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`text-[10px] px-2 py-1 rounded-full ${
-                            isActive
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-gray-100 text-gray-600'
-                          }`}
-                        >
-                          {isActive ? 'Ativo' : 'Finalizado'}
-                        </span>
-                        <Link to={`/plans/${plan.id}`}>
-                          <Button variant="outline" size="sm">
-                            Abrir
-                          </Button>
-                        </Link>
-                      </div>
+
+                      {plan.macrocycles?.length > 0 && (
+                        <div className="mt-3 rounded-md border border-gray-100 px-3">
+                          <Accordion type="single" collapsible>
+                            {plan.macrocycles.map((macro, index) => (
+                              <AccordionItem key={macro.id} value={macro.id}>
+                                <AccordionTrigger>
+                                  Macro Bloco {index + 1}: {macro.name}
+                                </AccordionTrigger>
+                                <AccordionContent>
+                                  <div className="space-y-1 text-xs text-muted-foreground">
+                                    <p>Fase: {planService.translatePhase(macro.phase)}</p>
+                                    <p>Semanas: {macro.weekStart} - {macro.weekEnd}</p>
+                                    <p>Mesociclos: {macro.mesocycles?.length ?? 0}</p>
+                                  </div>
+                                </AccordionContent>
+                              </AccordionItem>
+                            ))}
+                          </Accordion>
+                        </div>
+                      )}
                     </div>
                   );
                 })}

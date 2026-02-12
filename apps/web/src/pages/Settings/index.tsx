@@ -63,6 +63,18 @@ export default function Settings() {
             Acessar escalas &rarr;
           </div>
         </Link>
+        <Link
+          to="/settings/reference-table"
+          className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm transition hover:border-blue-300 hover:shadow"
+        >
+          <h2 className="text-lg font-semibold text-gray-900">Tabela de Referencia</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Cadastro e manutencao da base de referencia com dados e imagens da planilha.
+          </p>
+          <div className="mt-4 inline-flex items-center text-sm font-medium text-blue-600">
+            Acessar tabela &rarr;
+          </div>
+        </Link>
         {canAccessAthleteSettings && (
           <Link
             to="/settings/athlete-access"
