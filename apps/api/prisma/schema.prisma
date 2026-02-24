@@ -68,6 +68,8 @@ model Contract {
   exerciseLibrary ExerciseLibrary[]
   assessmentTypes AssessmentType[]
   subjectiveScaleItems SubjectiveScaleItem[]
+  trainingSpaces TrainingSpace[]
+  agendaBookings AgendaBooking[]
   cloneLogsAsSource ContractDataCloneLog[] @relation("ContractCloneSource")
   cloneLogsAsTarget ContractDataCloneLog[] @relation("ContractCloneTarget")
 
@@ -106,6 +108,9 @@ model Educator {
   subscription Subscription?
   cloneLogs   ContractDataCloneLog[]
   assessmentAuditLogs AssessmentAuditLog[]
+  availabilities EducatorAvailability[]
+  fixedSlots FixedScheduleSlot[]
+  agendaBookings AgendaBooking[]
   
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -158,6 +163,7 @@ model Athlete {
   anaerobicThreshold      Float     // km/h
   maxHeartRate            Int       // bpm
   restingHeartRate        Int       // bpm
+  schedulePlan            AthleteSchedulePlan @default(free)
   
   // Relacionamentos
   trainingPlans           TrainingPlan[]
@@ -169,6 +175,8 @@ model Athlete {
   exerciseProgress        StudentExerciseProgress[]
   workoutExecutions       WorkoutExecution[]
   assessments             Assessment[]
+  fixedSlots              FixedScheduleSlot[]
+  agendaBookings          AgendaBooking[]
 
   lastPasswordResetAt     DateTime?
   
@@ -176,6 +184,119 @@ model Athlete {
   updatedAt               DateTime  @updatedAt
 
   @@index([educatorId])
+}
+
+enum AthleteSchedulePlan {
+  free
+  fixed
+}
+
+// ============================================================================
+// AGENDA E DISPONIBILIDADES
+// ============================================================================
+
+model TrainingSpace {
+  id          String   @id @default(cuid())
+  contractId  String
+  contract    Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  name        String
+  capacity    Int      @default(1)
+  isActive    Boolean  @default(true)
+
+  fixedSlots  FixedScheduleSlot[]
+  bookings    AgendaBooking[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([contractId, name])
+  @@index([contractId])
+}
+
+model EducatorAvailability {
+  id          String   @id @default(cuid())
+  educatorId  String
+  educator    Educator @relation(fields: [educatorId], references: [id], onDelete: Cascade)
+
+  dayOfWeek   Int      // 1=Segunda, 7=Domingo
+  startTime   String   // HH:mm
+  endTime     String   // HH:mm
+  isActive    Boolean  @default(true)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([educatorId, dayOfWeek, startTime, endTime])
+  @@index([educatorId, dayOfWeek])
+}
+
+model FixedScheduleSlot {
+  id          String   @id @default(cuid())
+  athleteId   String
+  athlete     Athlete  @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  educatorId  String
+  educator    Educator @relation(fields: [educatorId], references: [id], onDelete: Cascade)
+  spaceId     String?
+  space       TrainingSpace? @relation(fields: [spaceId], references: [id], onDelete: SetNull)
+
+  dayOfWeek   Int      // 1=Segunda, 7=Domingo
+  startTime   String   // HH:mm
+  endTime     String   // HH:mm
+  isActive    Boolean  @default(true)
+  notes       String?  @db.Text
+
+  bookings    AgendaBooking[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([athleteId, isActive])
+  @@index([educatorId, dayOfWeek, isActive])
+  @@index([spaceId, dayOfWeek, isActive])
+}
+
+enum AgendaBookingType {
+  free
+  fixed_makeup
+}
+
+enum AgendaBookingStatus {
+  scheduled
+  completed
+  canceled
+  no_show
+}
+
+model AgendaBooking {
+  id          String   @id @default(cuid())
+  contractId  String
+  contract    Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  athleteId   String
+  athlete     Athlete  @relation(fields: [athleteId], references: [id], onDelete: Cascade)
+  educatorId  String
+  educator    Educator @relation(fields: [educatorId], references: [id], onDelete: Cascade)
+  spaceId     String?
+  space       TrainingSpace? @relation(fields: [spaceId], references: [id], onDelete: SetNull)
+  fixedSlotId String?
+  fixedSlot   FixedScheduleSlot? @relation(fields: [fixedSlotId], references: [id], onDelete: SetNull)
+
+  bookingType AgendaBookingType
+  status      AgendaBookingStatus @default(scheduled)
+  bookingDate DateTime
+  startTime   String // HH:mm
+  endTime     String // HH:mm
+  notes       String? @db.Text
+  canceledReason String? @db.Text
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([contractId, bookingDate])
+  @@index([athleteId, bookingDate])
+  @@index([educatorId, bookingDate])
+  @@index([spaceId, bookingDate])
+  @@index([fixedSlotId])
 }
 
 // ============================================================================

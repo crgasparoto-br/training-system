@@ -31,6 +31,7 @@ export function DashboardLayout() {
       ...(canManageEducators ? [{ id: 'educators', icon: Users, label: 'Educadores', path: '/educators' }] : []),
       { id: 'athletes', icon: Users, label: 'Atletas', path: '/athletes' },
       { id: 'plans', icon: Calendar, label: 'Planos de Treino', path: '/plans' },
+      { id: 'agenda', icon: Calendar, label: 'Agenda', path: '/agenda' },
       { id: 'library', icon: BookOpen, label: 'Biblioteca', path: '/library' },
       { id: 'executions', icon: Activity, label: 'Execucoes', path: '/executions' },
       { id: 'reports', icon: BarChart3, label: 'Relatorios', path: '/reports' },
