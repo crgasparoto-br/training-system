@@ -62,10 +62,9 @@ export async function educatorMiddleware(req: Request, res: Response, next: Next
   }
 
   try {
-    // Buscar educatorId do banco
-    const user = await authService.getUserById(req.user.userId);
-    
-    if (!user?.educator) {
+    const educator = await authService.getEducatorByUserId(req.user.userId);
+
+    if (!educator) {
       return res.status(404).json({
         success: false,
         error: 'Educador não encontrado',
@@ -73,9 +72,9 @@ export async function educatorMiddleware(req: Request, res: Response, next: Next
     }
 
     // Adicionar educatorId ao request
-    (req as any).user.educatorId = user.educator.id;
-    (req as any).user.contractId = user.educator.contractId;
-    (req as any).user.educatorRole = user.educator.role;
+    (req as any).user.educatorId = educator.id;
+    (req as any).user.contractId = educator.contractId;
+    (req as any).user.educatorRole = educator.role;
 
     next();
   } catch (error) {
@@ -106,25 +105,25 @@ export async function masterMiddleware(req: Request, res: Response, next: NextFu
   }
 
   try {
-    const user = await authService.getUserById(req.user.userId);
+    const educator = await authService.getEducatorByUserId(req.user.userId);
 
-    if (!user?.educator) {
+    if (!educator) {
       return res.status(404).json({
         success: false,
         error: 'Educador não encontrado',
       });
     }
 
-    if (user.educator.role !== 'master') {
+    if (educator.role !== 'master') {
       return res.status(403).json({
         success: false,
         error: 'Apenas educador master pode acessar este recurso',
       });
     }
 
-    (req as any).user.educatorId = user.educator.id;
-    (req as any).user.contractId = user.educator.contractId;
-    (req as any).user.educatorRole = user.educator.role;
+    (req as any).user.educatorId = educator.id;
+    (req as any).user.contractId = educator.contractId;
+    (req as any).user.educatorRole = educator.role;
 
     next();
   } catch (error) {

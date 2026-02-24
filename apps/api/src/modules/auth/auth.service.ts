@@ -241,6 +241,15 @@ export class AuthService {
       },
     });
   }
+
+  async getEducatorByUserId(userId: string) {
+    return prisma.educator.findUnique({
+      where: { userId },
+      include: {
+        contract: true,
+      },
+    });
+  }
 }
 
 export const authService = new AuthService();

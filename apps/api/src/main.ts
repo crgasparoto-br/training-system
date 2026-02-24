@@ -9,6 +9,7 @@ import { planRoutes } from './modules/plans/index.js';
 import { periodizationRoutes } from './modules/periodization/index.js';
 import { educatorRoutes } from './modules/educators/index.js';
 import { contractRoutes } from './modules/contracts/index.js';
+import { agendaRoutes } from './modules/agenda/index.js';
 import { assessmentTypeRoutes, subjectiveScaleRoutes } from './modules/assessments/index.js';
 import libraryRoutes from './routes/library.routes.js';
 import workoutRoutes from './routes/workout.routes.js';
@@ -71,6 +72,7 @@ app.get('/api/v1', (req, res) => {
       periodization: '/api/v1/periodization',
       assessmentTypes: '/api/v1/assessment-types',
       subjectiveScales: '/api/v1/subjective-scales',
+      agenda: '/api/v1/agenda',
       library: '/api/v1/library',
       workout: '/api/v1/workout',
       sessions: '/api/v1/sessions',
@@ -100,6 +102,7 @@ app.use('/api/v1/periodization', periodizationRoutes);
 // Rotas de Tipos de AvaliaÃ§Ã£o
 app.use('/api/v1/assessment-types', assessmentTypeRoutes);
 app.use('/api/v1/subjective-scales', subjectiveScaleRoutes);
+app.use('/api/v1/agenda', agendaRoutes);
 
 // Rotas de Biblioteca de Exercícios
 app.use('/api/v1/library', libraryRoutes);

@@ -9,6 +9,7 @@ import { AthleteDetails } from './pages/AthleteDetails';
 import { Plans } from './pages/Plans';
 import { PlanForm } from './pages/PlanForm';
 import { PlanDetails } from './pages/PlanDetails';
+import { Agenda } from './pages/Agenda';
 import Settings from './pages/Settings';
 import SettingsParameters from './pages/Settings/Parameters';
 import ContractSettings from './pages/Settings/Contract';
@@ -50,6 +51,7 @@ function App() {
           <Route path="plans/new" element={<PlanForm />} />
           <Route path="plans/:id" element={<PlanDetails />} />
           <Route path="plans/:id/edit" element={<PlanForm />} />
+          <Route path="agenda" element={<Agenda />} />
           <Route path="plans/:planId/workout-builder/:mesocycleNumber/:weekNumber" element={<WorkoutBuilder2 />} />
           <Route path="library" element={<Library />} />
           <Route path="executions" element={<Executions />} />
