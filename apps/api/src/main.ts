@@ -11,6 +11,7 @@ import { educatorRoutes } from './modules/educators/index.js';
 import { contractRoutes } from './modules/contracts/index.js';
 import { agendaRoutes } from './modules/agenda/index.js';
 import { assessmentTypeRoutes, subjectiveScaleRoutes } from './modules/assessments/index.js';
+import { jiraRoutes } from './modules/jira/index.js';
 import libraryRoutes from './routes/library.routes.js';
 import workoutRoutes from './routes/workout.routes.js';
 import executionsRoutes from './routes/executions.routes.js';
@@ -18,7 +19,7 @@ import executionsRoutes from './routes/executions.routes.js';
 // Carregar variáveis de ambiente
 dotenv.config();
 
-const app = express();
+const app: express.Express = express();
 const PORT = process.env.API_PORT || 3000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
@@ -73,6 +74,7 @@ app.get('/api/v1', (req, res) => {
       assessmentTypes: '/api/v1/assessment-types',
       subjectiveScales: '/api/v1/subjective-scales',
       agenda: '/api/v1/agenda',
+      jira: '/api/v1/jira',
       library: '/api/v1/library',
       workout: '/api/v1/workout',
       sessions: '/api/v1/sessions',
@@ -103,6 +105,7 @@ app.use('/api/v1/periodization', periodizationRoutes);
 app.use('/api/v1/assessment-types', assessmentTypeRoutes);
 app.use('/api/v1/subjective-scales', subjectiveScaleRoutes);
 app.use('/api/v1/agenda', agendaRoutes);
+app.use('/api/v1/jira', jiraRoutes);
 
 // Rotas de Biblioteca de Exercícios
 app.use('/api/v1/library', libraryRoutes);

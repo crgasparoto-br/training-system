@@ -104,7 +104,7 @@ export function Athletes() {
       setAthletes(data.athletes);
       setTotalPages(data.pagination.totalPages);
     } catch (error) {
-      console.error('Erro ao carregar atletas:', error);
+      console.error('Erro ao carregar alunos:', error);
     } finally {
       setLoading(false);
     }
@@ -125,7 +125,7 @@ export function Athletes() {
       );
       setAthletes(data);
     } catch (error) {
-      console.error('Erro ao buscar atletas:', error);
+      console.error('Erro ao buscar alunos:', error);
     } finally {
       setLoading(false);
     }
@@ -137,7 +137,7 @@ export function Athletes() {
       const data = await educatorService.list();
       setEducators(data);
     } catch (error) {
-      console.error('Erro ao carregar educadores:', error);
+      console.error('Erro ao carregar professores:', error);
     } finally {
       setLoadingEducators(false);
     }
@@ -154,7 +154,7 @@ export function Athletes() {
   };
 
   const handleDeactivate = async (id: string) => {
-    if (!confirm('Tem certeza que deseja inativar este atleta?')) {
+    if (!confirm('Tem certeza que deseja inativar este aluno?')) {
       return;
     }
 
@@ -162,8 +162,8 @@ export function Athletes() {
       await athleteService.deactivate(id);
       loadAthletes();
     } catch (error) {
-      console.error('Erro ao inativar atleta:', error);
-      alert('Erro ao inativar atleta');
+      console.error('Erro ao inativar aluno:', error);
+      alert('Erro ao inativar aluno');
     }
   };
 
@@ -172,8 +172,8 @@ export function Athletes() {
       await athleteService.activate(id);
       loadAthletes();
     } catch (error) {
-      console.error('Erro ao reativar atleta:', error);
-      alert('Erro ao reativar atleta');
+      console.error('Erro ao reativar aluno:', error);
+      alert('Erro ao reativar aluno');
     }
   };
 
@@ -182,15 +182,15 @@ export function Athletes() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Atletas</h1>
+          <h1 className="text-3xl font-bold">Alunos</h1>
           <p className="text-muted-foreground mt-2">
-            Gerencie seus atletas e acompanhe seu progresso
+            Gerencie seus alunos e acompanhe seu progresso
           </p>
         </div>
         <Link to="/athletes/new">
           <Button>
             <Plus size={20} />
-            Novo Atleta
+            Novo Aluno
           </Button>
         </Link>
       </div>
@@ -201,7 +201,7 @@ export function Athletes() {
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
             <div className="flex-1">
               <Input
-                placeholder="Buscar atleta por nome..."
+                placeholder="Buscar aluno por nome..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
@@ -223,14 +223,14 @@ export function Athletes() {
             </div>
             {canManageEducators && (
               <div className="w-full lg:w-64">
-                <label className="block text-sm font-medium mb-2">Educador</label>
+                <label className="block text-sm font-medium mb-2">Professor</label>
                 <select
                   value={educatorFilter}
                   onChange={(e) => handleEducatorFilterChange(e.target.value)}
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={loadingEducators}
                 >
-                  <option value="">Todos educadores</option>
+                  <option value="">Todos os professores</option>
                   {educators.map((educator) => (
                     <option key={educator.id} value={educator.id}>
                       {educator.user?.profile?.name || 'Sem nome'}
@@ -268,22 +268,22 @@ export function Athletes() {
         <Card>
           <CardContent className="py-12 text-center">
             <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mx-auto" />
-            <p className="mt-4 text-muted-foreground">Carregando atletas...</p>
+            <p className="mt-4 text-muted-foreground">Carregando alunos...</p>
           </CardContent>
         </Card>
       ) : athletes.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
             <User className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-            <h3 className="text-lg font-semibold mb-2">Nenhum atleta encontrado</h3>
+            <h3 className="text-lg font-semibold mb-2">Nenhum aluno encontrado</h3>
             <p className="text-muted-foreground mb-4">
-              {searchQuery ? 'Tente buscar com outros termos' : 'Comece adicionando seu primeiro atleta'}
+              {searchQuery ? 'Tente buscar com outros termos' : 'Comece adicionando seu primeiro aluno'}
             </p>
             {!searchQuery && (
               <Link to="/athletes/new">
                 <Button>
                   <Plus size={20} />
-                  Adicionar Atleta
+                  Adicionar Aluno
                 </Button>
               </Link>
             )}
@@ -310,7 +310,7 @@ export function Athletes() {
                           {canManageEducators && (
                             <>
                               {' '}
-                              • {athlete.educator?.user?.profile?.name || 'Educador'}
+                              • {athlete.educator?.user?.profile?.name || 'Professor'}
                             </>
                           )}
                           {athlete.user.isActive === false && (
@@ -383,7 +383,7 @@ export function Athletes() {
         <Card>
           <CardContent className="pt-6">
             <div className="grid grid-cols-12 gap-2 text-xs font-semibold text-muted-foreground pb-3 border-b">
-              <div className="col-span-4">Atleta</div>
+              <div className="col-span-4">Aluno</div>
               <div className="col-span-2">Peso</div>
               <div className="col-span-2">Altura</div>
               <div className="col-span-1">IMC</div>
@@ -408,7 +408,7 @@ export function Athletes() {
                           {canManageEducators && (
                             <>
                               {' '}
-                              • {educatorName || 'Educador'}
+                              • {educatorName || 'Professor'}
                             </>
                           )}
                           {athlete.user.isActive === false && (

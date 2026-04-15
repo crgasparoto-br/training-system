@@ -30,8 +30,8 @@ export interface CreateWorkoutDayDTO {
   stimulusDurationMin?: number;
   location?: string;
   method?: string;
-  intensity1?: string;
-  intensity2?: string;
+  intensity1?: number;
+  intensity2?: number;
   numSessions?: number;
   numSets?: number;
   sessionTime?: number;
@@ -47,6 +47,9 @@ export interface CreateWorkoutDayDTO {
   complementNotes?: string;
   generalGuidelines?: string;
 }
+
+type WorkoutDayCreateData = CreateWorkoutDayDTO;
+type WorkoutDayUpdateData = Partial<Omit<CreateWorkoutDayDTO, 'templateId'>>;
 
 export interface CreateWorkoutExerciseDTO {
   workoutDayId: string;
@@ -356,7 +359,7 @@ export const workoutService = {
   /**
    * Criar dia de treino
    */
-  async createWorkoutDay(data: CreateWorkoutDayDTO) {
+  async createWorkoutDay(data: WorkoutDayCreateData) {
     return await prisma.workoutDay.create({
       data,
       include: {
@@ -399,7 +402,7 @@ export const workoutService = {
   /**
    * Atualizar dia de treino
    */
-  async updateWorkoutDay(id: string, data: Partial<CreateWorkoutDayDTO>) {
+  async updateWorkoutDay(id: string, data: WorkoutDayUpdateData) {
     return await prisma.workoutDay.update({
       where: { id },
       data,

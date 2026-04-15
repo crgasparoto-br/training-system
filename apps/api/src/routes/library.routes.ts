@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { libraryService } from '../modules/library/library.service';
 import { authMiddleware, educatorMiddleware } from '../modules/auth/auth.middleware';
 
-const router = Router();
+const router: Router = Router();
 
 router.use(authMiddleware);
 router.use(educatorMiddleware);

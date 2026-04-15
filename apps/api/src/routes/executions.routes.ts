@@ -4,7 +4,7 @@ import { authService } from '../modules/auth/auth.service.js';
 import { athleteService } from '../modules/athletes/athlete.service.js';
 import { workoutService } from '../modules/workout/workout.service.js';
 
-const router = Router();
+const router: Router = Router();
 
 router.use(authMiddleware);
 

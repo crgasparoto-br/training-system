@@ -172,7 +172,7 @@ export default function ContractSettings() {
           )}
           {!canEdit && (
             <div className="text-sm text-muted-foreground mb-4">
-              Somente o educador master pode editar o contrato.
+              Somente o professor master pode editar o contrato.
             </div>
           )}
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">

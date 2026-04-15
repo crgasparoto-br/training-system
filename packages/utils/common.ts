@@ -9,6 +9,7 @@ export interface ApiResponse<T = any> {
   data?: T;
   error?: string;
   message?: string;
+  details?: unknown;
   timestamp: string;
 }
 
@@ -29,11 +30,13 @@ export function sendSuccess<T>(
 export function sendError(
   res: Response,
   error: string,
-  statusCode: number = 400
+  statusCode: number = 400,
+  details?: unknown
 ): Response {
   return res.status(statusCode).json({
     success: false,
     error,
+    ...(details !== undefined ? { details } : {}),
     timestamp: new Date().toISOString(),
   });
 }

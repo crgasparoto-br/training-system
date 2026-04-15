@@ -6,7 +6,7 @@ import { authMiddleware, educatorMiddleware } from '../auth/auth.middleware';
 import { sendSuccess, sendError } from '@corrida/utils';
 import { z } from 'zod';
 
-const router = Router();
+const router: Router = Router();
 
 // Aplicar autenticação em todas as rotas
 router.use(authMiddleware);
@@ -41,7 +41,7 @@ const createMesocycleSchema = z.object({
 const createMicrocycleSchema = z.object({
   mesocycleId: z.string().cuid(),
   dayOfWeek: z.number().int().min(0).max(6),
-  sessionType: z.enum(['easy_run', 'tempo_run', 'interval', 'long_run', 'recovery', 'strength', 'rest']),
+  sessionType: z.enum(['easy', 'moderate', 'threshold', 'vo2max', 'anaerobic', 'recovery', 'long_run', 'strength', 'cross_training']),
   durationMinutes: z.number().int().positive(),
   distanceKm: z.number().positive().optional(),
   intensityPercentage: z.number().min(0).max(100),

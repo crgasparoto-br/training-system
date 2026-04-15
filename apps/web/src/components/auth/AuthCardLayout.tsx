@@ -20,10 +20,10 @@ export function AuthCardLayout({ title, description, children, footer }: AuthCar
               </span>
               <h1 className="text-3xl font-semibold leading-tight">Gestao de Treinos</h1>
               <p className="max-w-sm text-sm text-slate-300">
-                Acesse sua conta para organizar atletas, acompanhar execucoes e planejar periodizacoes com seguranca.
+                Acesse sua conta para organizar alunos, acompanhar execucoes e planejar periodizacoes com seguranca.
               </p>
             </div>
-            <p className="text-xs text-slate-400">Ambiente seguro para educadores e alunos.</p>
+            <p className="text-xs text-slate-400">Ambiente seguro para professores e alunos.</p>
           </section>
 
           <section className="p-4 sm:p-6 md:p-8">

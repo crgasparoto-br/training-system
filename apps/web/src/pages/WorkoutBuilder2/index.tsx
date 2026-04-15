@@ -1044,7 +1044,7 @@ export default function WorkoutBuilder2() {
         localStorage.setItem(cacheKey, JSON.stringify(cached));
       }
 
-      alert('Treino liberado com sucesso! O atleta já pode visualizá-lo.');
+      alert('Treino liberado com sucesso! O aluno ja pode visualiza-lo.');
     } catch (error) {
       console.error('Erro ao liberar treino:', error);
       alert('Erro ao liberar treino');
@@ -1300,7 +1300,7 @@ export default function WorkoutBuilder2() {
                     title={
                       weekTemplateData?.released
                         ? 'Treino já está liberado'
-                        : 'Liberar treino para o atleta'
+                        : 'Liberar treino para o aluno'
                     }
                   >
                     <CheckCircle className="w-4 h-4" />

@@ -9,12 +9,12 @@ const scaleMeta: Record<SubjectiveScaleType, { title: string; description: strin
   PSE: {
     title: 'PSE - Percepção Subjetiva de Esforço',
     description:
-      'Escala usada para o atleta informar o quanto o esforço foi percebido na sessão.',
+      'Escala usada para o aluno informar o quanto o esforco foi percebido na sessao.',
   },
   PSR: {
     title: 'PSR - Percepção Subjetiva de Recuperação',
     description:
-      'Escala usada para o atleta informar o nível de recuperação antes da sessão.',
+      'Escala usada para o aluno informar o nivel de recuperacao antes da sessao.',
   },
 };
 
@@ -103,7 +103,7 @@ export default function SettingsSubjectiveScales() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">PSR e PSE</h1>
           <p className="text-sm text-muted-foreground">
-            Cadastro base das escalas subjetivas utilizadas pelos atletas.
+            Cadastro base das escalas subjetivas utilizadas pelos alunos.
           </p>
         </div>
         <button

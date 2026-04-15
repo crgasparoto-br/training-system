@@ -4,7 +4,7 @@ import { authMiddleware } from './auth.middleware';
 import { LoginSchema, RegisterSchema } from '@corrida/utils';
 import { sendSuccess, sendError } from '@corrida/utils';
 
-const router = Router();
+const router: Router = Router();
 
 /**
  * POST /api/v1/auth/register

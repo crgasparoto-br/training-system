@@ -4,7 +4,7 @@ import { cloneContractData } from './contract-data.service';
 import { authMiddleware, masterMiddleware } from '../auth/auth.middleware';
 import { sendSuccess, sendError } from '@corrida/utils';
 
-const router = Router();
+const router: Router = Router();
 
 router.use(authMiddleware);
 router.use(masterMiddleware);
@@ -94,8 +94,8 @@ router.put('/me', async (req: Request, res: Response) => {
  */
 router.post('/clone-data', async (req: Request, res: Response) => {
   try {
-    const contractId = (req as any).user.contractId;
-    const educatorId = (req as any).user.educatorId;
+    const contractId = (req as any).user.contractId as string | undefined;
+    const educatorId = (req as any).user.educatorId as string | undefined;
 
     if (!contractId) {
       return sendError(res, 'Contrato não encontrado', 404);

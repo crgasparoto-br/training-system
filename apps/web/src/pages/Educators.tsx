@@ -58,7 +58,7 @@ export function Educators() {
       const result = await educatorService.list();
       setEducators(result);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Erro ao carregar educadores');
+      setError(err.response?.data?.error || 'Erro ao carregar professores');
     } finally {
       setLoading(false);
     }
@@ -80,7 +80,7 @@ export function Educators() {
       reset();
       await loadEducators();
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Erro ao criar educador');
+      setError(err.response?.data?.error || 'Erro ao criar professor');
     } finally {
       setIsSubmitting(false);
     }
@@ -117,14 +117,14 @@ export function Educators() {
       await loadEducators();
       setEditingId(null);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Erro ao atualizar educador');
+      setError(err.response?.data?.error || 'Erro ao atualizar professor');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleResetPassword = async (educatorId: string) => {
-    if (!confirm('Deseja gerar uma nova senha temporária para este educador?')) {
+    if (!confirm('Deseja gerar uma nova senha temporaria para este professor?')) {
       return;
     }
     setIsSubmitting(true);
@@ -141,7 +141,7 @@ export function Educators() {
   };
 
   const handleDeactivate = async (educatorId: string) => {
-    if (!confirm('Deseja desativar este educador?')) {
+    if (!confirm('Deseja desativar este professor?')) {
       return;
     }
     setIsSubmitting(true);
@@ -150,7 +150,7 @@ export function Educators() {
       await educatorService.deactivate(educatorId);
       await loadEducators();
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Erro ao desativar educador');
+      setError(err.response?.data?.error || 'Erro ao desativar professor');
     } finally {
       setIsSubmitting(false);
     }
@@ -159,7 +159,7 @@ export function Educators() {
   if (!canManageEducators) {
     return (
       <div className="text-center py-12 text-muted-foreground">
-        Você não tem permissão para gerenciar educadores.
+        Voce nao tem permissao para gerenciar professores.
       </div>
     );
   }
@@ -167,16 +167,16 @@ export function Educators() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Educadores</h1>
+        <h1 className="text-3xl font-bold">Professores</h1>
         <p className="text-muted-foreground mt-2">
-          Cadastre educadores e gerencie o time da academia
+          Cadastre professores e gerencie o time da academia
         </p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Novo Educador</CardTitle>
-          <CardDescription>Crie um acesso para um educador da academia</CardDescription>
+          <CardTitle>Novo Professor</CardTitle>
+          <CardDescription>Crie um acesso para um professor da academia</CardDescription>
         </CardHeader>
         <CardContent>
           {error && (
@@ -209,7 +209,7 @@ export function Educators() {
             />
             <div className="flex justify-end">
               <Button type="submit" isLoading={isSubmitting}>
-                Criar Educador
+                Criar Professor
               </Button>
             </div>
           </form>
@@ -218,14 +218,14 @@ export function Educators() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Lista de Educadores</CardTitle>
-          <CardDescription>Educadores vinculados ao contrato</CardDescription>
+          <CardTitle>Lista de Professores</CardTitle>
+          <CardDescription>Professores vinculados ao contrato</CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
             <div className="text-muted-foreground">Carregando...</div>
           ) : educators.length === 0 ? (
-            <div className="text-muted-foreground">Nenhum educador cadastrado ainda.</div>
+            <div className="text-muted-foreground">Nenhum professor cadastrado ainda.</div>
           ) : (
             <div className="space-y-3">
               {educators.map((educator) => (
@@ -287,7 +287,7 @@ export function Educators() {
                       </div>
                       <div className="flex items-center gap-3">
                         <span className="text-xs rounded-full px-2 py-1 bg-muted">
-                          {educator.role === 'master' ? 'Master' : 'Educador'}
+                          {educator.role === 'master' ? 'Master' : 'Professor'}
                         </span>
                         {educator.user?.isActive === false && (
                           <span className="text-xs rounded-full px-2 py-1 bg-red-100 text-red-700">

@@ -250,7 +250,7 @@ export function Agenda() {
         <div>
           <h1 className="text-3xl font-bold">Agenda</h1>
           <p className="text-muted-foreground mt-1">
-            Controle de capacidade do espaco, disponibilidade do educador e agendamentos (livre/reposicao).
+            Controle de capacidade do espaco, disponibilidade do professor e agendamentos (livre/reposicao).
           </p>
         </div>
         <div className="flex items-end gap-2">
@@ -382,13 +382,13 @@ export function Agenda() {
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Disponibilidade do Educador</CardTitle>
+            <CardTitle>Disponibilidade do Professor</CardTitle>
             <CardDescription>Janela de atendimento usada para validar agendamentos.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="grid grid-cols-2 gap-2">
               <select value={availabilityForm.educatorId} onChange={(e) => setAvailabilityForm((prev) => ({ ...prev, educatorId: e.target.value }))} className="h-10 rounded-md border px-3 text-sm">
-                <option value="">Selecione o educador</option>
+                <option value="">Selecione o professor</option>
                 {metadata.educators.map((educator) => (
                   <option key={educator.id} value={educator.id}>{educator.user.profile.name}</option>
                 ))}

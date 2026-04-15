@@ -38,6 +38,8 @@ export async function cloneContractData(
       parametersSkipped: 0,
       exercisesCreated: 0,
       exercisesSkipped: 0,
+      assessmentTypesCreated: 0,
+      assessmentTypesSkipped: 0,
     };
   }
 

@@ -77,7 +77,7 @@ export interface AthletesResponse {
 
 export const athleteService = {
   /**
-   * Criar novo atleta
+   * Criar novo aluno
    */
   async create(data: CreateAthleteDTO): Promise<Athlete> {
     const response = await api.post<{ success: boolean; data: Athlete }>('/athletes', data);
@@ -85,7 +85,7 @@ export const athleteService = {
   },
 
   /**
-   * Listar atletas
+   * Listar alunos
    */
   async list(
     page: number = 1,
@@ -110,7 +110,7 @@ export const athleteService = {
   },
 
   /**
-   * Buscar atletas por nome
+   * Buscar alunos por nome
    */
   async search(
     query: string,
@@ -129,7 +129,7 @@ export const athleteService = {
   },
 
   /**
-   * Obter atleta por ID
+   * Obter aluno por ID
    */
   async getById(id: string): Promise<Athlete> {
     const response = await api.get<{ success: boolean; data: Athlete }>(`/athletes/${id}`);
@@ -137,7 +137,7 @@ export const athleteService = {
   },
 
   /**
-   * Atualizar atleta
+   * Atualizar aluno
    */
   async update(id: string, data: UpdateAthleteDTO): Promise<Athlete> {
     const response = await api.put<{ success: boolean; data: Athlete }>(`/athletes/${id}`, data);
@@ -145,14 +145,14 @@ export const athleteService = {
   },
 
   /**
-   * Deletar atleta
+   * Excluir aluno
    */
   async delete(id: string): Promise<void> {
     await api.delete(`/athletes/${id}`);
   },
 
   /**
-   * Inativar atleta
+   * Inativar aluno
    */
   async deactivate(id: string): Promise<Athlete> {
     const response = await api.post<{ success: boolean; data: Athlete }>(
@@ -162,7 +162,7 @@ export const athleteService = {
   },
 
   /**
-   * Reativar atleta
+   * Reativar aluno
    */
   async activate(id: string): Promise<Athlete> {
     const response = await api.post<{ success: boolean; data: Athlete }>(
@@ -172,7 +172,7 @@ export const athleteService = {
   },
 
   /**
-   * Resetar senha do atleta (gera senha temporária)
+   * Resetar senha do aluno (gera senha temporaria)
    */
   async resetPassword(id: string): Promise<{ tempPassword: string }> {
     const response = await api.post<{ success: boolean; data: { tempPassword: string } }>(

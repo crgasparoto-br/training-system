@@ -12,7 +12,7 @@ import { assessmentService } from '../assessments/assessment.service';
 import { parseAssessmentPdf } from '../assessments/assessment-parser';
 import { fillAssessmentWithAi } from '../assessments/assessment-ai';
 
-const router = Router();
+const router: Router = Router();
 const prisma = new PrismaClient();
 
 const uploadRoot = path.resolve(process.cwd(), 'uploads', 'assessments');

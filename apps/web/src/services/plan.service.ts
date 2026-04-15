@@ -156,7 +156,7 @@ export const planService = {
   },
 
   /**
-   * Listar planos de um atleta (educador)
+   * Listar planos de um aluno (professor)
    */
   async listByAthlete(athleteId: string): Promise<PlansResponse> {
     const response = await api.get<{ success: boolean; data: PlansResponse }>(

@@ -57,7 +57,7 @@ export default function Settings() {
         >
           <h2 className="text-lg font-semibold text-gray-900">PSR e PSE</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Consulte as escalas subjetivas usadas pelos atletas.
+            Consulte as escalas subjetivas usadas pelos alunos.
           </p>
           <div className="mt-4 inline-flex items-center text-sm font-medium text-blue-600">
             Acessar escalas &rarr;

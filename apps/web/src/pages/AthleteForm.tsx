@@ -83,8 +83,8 @@ export function AthleteForm() {
       setValue('maxHeartRate', athlete.maxHeartRate);
       setValue('restingHeartRate', athlete.restingHeartRate);
     } catch (error) {
-      console.error('Erro ao carregar atleta:', error);
-      alert('Erro ao carregar dados do atleta');
+      console.error('Erro ao carregar aluno:', error);
+      alert('Erro ao carregar dados do aluno');
       navigate('/athletes');
     } finally {
       setLoadingData(false);
@@ -95,7 +95,7 @@ export function AthleteForm() {
     setLoading(true);
     try {
       if (isEditMode && id) {
-        // Atualizar atleta existente
+        // Atualizar aluno existente
         await athleteService.update(id, {
           age: data.age,
           weight: data.weight,
@@ -106,9 +106,9 @@ export function AthleteForm() {
           maxHeartRate: data.maxHeartRate,
           restingHeartRate: data.restingHeartRate,
         });
-        alert('Atleta atualizado com sucesso!');
+        alert('Aluno atualizado com sucesso!');
       } else {
-        // Criar novo atleta
+        // Criar novo aluno
         await athleteService.create({
           name: data.name,
           email: data.email,
@@ -122,12 +122,12 @@ export function AthleteForm() {
           maxHeartRate: data.maxHeartRate,
           restingHeartRate: data.restingHeartRate,
         });
-        alert('Atleta criado com sucesso!');
+        alert('Aluno criado com sucesso!');
       }
       navigate('/athletes');
     } catch (error: any) {
-      console.error('Erro ao salvar atleta:', error);
-      alert(error.response?.data?.error || 'Erro ao salvar atleta');
+      console.error('Erro ao salvar aluno:', error);
+      alert(error.response?.data?.error || 'Erro ao salvar aluno');
     } finally {
       setLoading(false);
     }
@@ -153,12 +153,12 @@ export function AthleteForm() {
         </Button>
         <div>
           <h1 className="text-3xl font-bold">
-            {isEditMode ? 'Editar Atleta' : 'Novo Atleta'}
+            {isEditMode ? 'Editar Aluno' : 'Novo Aluno'}
           </h1>
           <p className="text-muted-foreground mt-2">
             {isEditMode
-              ? 'Atualize as informações do atleta'
-              : 'Preencha os dados para cadastrar um novo atleta'}
+              ? 'Atualize as informações do aluno'
+              : 'Preencha os dados para cadastrar um novo aluno'}
           </p>
         </div>
       </div>
@@ -168,7 +168,7 @@ export function AthleteForm() {
         <Card>
           <CardHeader>
             <CardTitle>Dados Pessoais</CardTitle>
-            <CardDescription>Informações básicas do atleta</CardDescription>
+            <CardDescription>Informacoes basicas do aluno</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <Input
@@ -218,7 +218,7 @@ export function AthleteForm() {
         <Card>
           <CardHeader>
             <CardTitle>Dados Antropométricos</CardTitle>
-            <CardDescription>Medidas físicas do atleta</CardDescription>
+            <CardDescription>Medidas fisicas do aluno</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -264,7 +264,7 @@ export function AthleteForm() {
         <Card>
           <CardHeader>
             <CardTitle>Dados de Performance</CardTitle>
-            <CardDescription>Métricas de desempenho do atleta</CardDescription>
+            <CardDescription>Metricas de desempenho do aluno</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -317,7 +317,7 @@ export function AthleteForm() {
             Cancelar
           </Button>
           <Button type="submit" isLoading={loading}>
-            {isEditMode ? 'Atualizar Atleta' : 'Criar Atleta'}
+            {isEditMode ? 'Atualizar Aluno' : 'Criar Aluno'}
           </Button>
         </div>
       </form>

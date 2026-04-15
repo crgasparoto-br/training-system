@@ -462,7 +462,7 @@ export default function Executions() {
       } catch (error: any) {
         if (!isMounted) return;
         setAthletes([]);
-        setAthletesError(error?.response?.data?.error || 'Erro ao carregar atletas');
+        setAthletesError(error?.response?.data?.error || 'Erro ao carregar alunos');
       } finally {
         if (isMounted) {
           setAthletesLoading(false);
@@ -809,7 +809,7 @@ export default function Executions() {
       if (isEducator) {
         if (!selectedAthleteId) {
           setDailyData(null);
-          setDailyError('Selecione um atleta.');
+          setDailyError('Selecione um aluno.');
           return;
         }
         const day = await executionsService.getWorkoutDayByDateForEducator(targetDate, selectedAthleteId);
@@ -1087,7 +1087,7 @@ export default function Executions() {
         <div>
           <h1 className="text-3xl font-bold">Execução de Exercícios</h1>
           <p className="text-muted-foreground mt-2">
-            Acompanhe o que foi planejado e o que já foi executado pelo atleta.
+            Acompanhe o que foi planejado e o que ja foi executado pelo aluno.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -1747,8 +1747,8 @@ export default function Executions() {
               </CardTitle>
               <CardDescription>
                 {isEducator
-                  ? 'Treino do dia liberado pelo educador (visualizacao somente leitura).'
-                  : 'Treino do dia liberado pelo educador.'}
+                  ? 'Treino do dia liberado pelo professor (visualizacao somente leitura).'
+                  : 'Treino do dia liberado pelo professor.'}
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-wrap items-center justify-between gap-4">
@@ -1767,7 +1767,7 @@ export default function Executions() {
                       className="rounded-md border border-gray-200 bg-white px-3 py-2 text-sm"
                       disabled={athletesLoading}
                     >
-                      <option value="">Selecione o atleta</option>
+                      <option value="">Selecione o aluno</option>
                       {athletes.map((athlete) => (
                         <option key={athlete.id} value={athlete.id}>
                           {athlete.user?.profile?.name || 'Sem nome'}
@@ -1775,7 +1775,7 @@ export default function Executions() {
                       ))}
                     </select>
                     {athletesLoading && (
-                      <span className="text-xs text-muted-foreground">Carregando atletas...</span>
+                      <span className="text-xs text-muted-foreground">Carregando alunos...</span>
                     )}
                     {athletesError && (
                       <span className="text-xs text-red-600">{athletesError}</span>
