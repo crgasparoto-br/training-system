@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Demo Login</title>
+  </head>
+  <body>
+    <script>
+      const token =
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJkZW1vLWVkdWNhdG9yLWlkIiwiZW1haWwiOiJkZW1vLmFjZXNzby5sb2NhbEBnbWFpbC5jb20iLCJ0eXBlIjoiZWR1Y2F0b3IiLCJpYXQiOjE3NzYyODE0MjYsImV4cCI6MTc3Njg4NjIyNn0.2rc21UBMobn0X4bj_v6WU_ZYPiAs94B5Wv1lSm22xB0';
+
+      const user = {
+        id: 'demo-educator-id',
+        email: 'demo.acesso.local@gmail.com',
+        name: 'Claudinei Demo',
+        type: 'educator',
+        educator: {
+          id: 'demo-educator-profile-id',
+          role: 'master',
+          contract: {
+            id: 'demo-contract-id',
+            type: 'academy',
+            document: '12345678000195',
+            name: 'Contrato Demo',
+          },
+        },
+      };
+
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(user));
+      window.location.replace('/dashboard');
+    </script>
+  </body>
+</html>

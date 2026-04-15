@@ -118,8 +118,8 @@ export function AthleteDetails() {
       setPlans(plansData.plans);
 
     } catch (error) {
-      console.error('Erro ao carregar atleta:', error);
-      alert('Erro ao carregar atleta');
+      console.error('Erro ao carregar aluno:', error);
+      alert('Erro ao carregar aluno');
       navigate('/athletes');
     } finally {
       setLoading(false);
@@ -127,23 +127,23 @@ export function AthleteDetails() {
   };
 
   const handleDelete = async () => {
-    if (!id || !confirm('Tem certeza que deseja deletar este atleta?')) {
+    if (!id || !confirm('Tem certeza que deseja excluir este aluno?')) {
       return;
     }
 
     try {
       await athleteService.delete(id);
-      alert('Atleta deletado com sucesso!');
+      alert('Aluno excluido com sucesso!');
       navigate('/athletes');
     } catch (error) {
-      console.error('Erro ao deletar atleta:', error);
-      alert('Erro ao deletar atleta');
+      console.error('Erro ao excluir aluno:', error);
+      alert('Erro ao excluir aluno');
     }
   };
 
   const handleResetPassword = async () => {
     if (!id) return;
-    if (!confirm('Deseja gerar uma nova senha temporária para este atleta?')) {
+    if (!confirm('Deseja gerar uma nova senha temporaria para este aluno?')) {
       return;
     }
 
@@ -202,7 +202,7 @@ export function AthleteDetails() {
     const rawPhone = athlete.user.profile.phone || '';
     const digits = rawPhone.replace(/\D/g, '');
     if (!digits) {
-      alert('Telefone do atleta não informado');
+      alert('Telefone do aluno nao informado');
       return;
     }
     const normalized =
@@ -554,7 +554,7 @@ export function AthleteDetails() {
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
           <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mx-auto" />
-          <p className="mt-4 text-muted-foreground">Carregando atleta...</p>
+          <p className="mt-4 text-muted-foreground">Carregando aluno...</p>
         </div>
       </div>
     );
@@ -563,9 +563,9 @@ export function AthleteDetails() {
   if (!athlete) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground">Atleta não encontrado</p>
+        <p className="text-muted-foreground">Aluno nao encontrado</p>
         <Button onClick={() => navigate('/athletes')} className="mt-4">
-          Voltar para Atletas
+          Voltar para Alunos
         </Button>
       </div>
     );
@@ -611,7 +611,7 @@ export function AthleteDetails() {
         <Card>
           <CardHeader>
             <CardTitle>Senha Temporária</CardTitle>
-            <CardDescription>Compartilhe esta senha com o atleta.</CardDescription>
+            <CardDescription>Compartilhe esta senha com o aluno.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between gap-4">
@@ -972,7 +972,7 @@ export function AthleteDetails() {
       <Card>
         <CardHeader>
           <CardTitle>Avaliações Físicas</CardTitle>
-          <CardDescription>Gerencie os PDFs e o calendário de avaliações do atleta.</CardDescription>
+          <CardDescription>Gerencie os PDFs e o calendario de avaliacoes do aluno.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="grid gap-4 md:grid-cols-3">
@@ -1502,7 +1502,7 @@ export function AthleteDetails() {
                           {log.action === 'update' ? 'Atualização' : 'Exclusão'}
                         </div>
                         <div>
-                          {log.educator?.user?.profile?.name || 'Educador'} •{' '}
+                          {log.educator?.user?.profile?.name || 'Professor'} •{' '}
                           {new Date(log.createdAt).toLocaleString()}
                         </div>
                       </div>

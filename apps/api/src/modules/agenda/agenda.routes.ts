@@ -4,7 +4,7 @@ import { sendError, sendSuccess } from '@corrida/utils';
 import { authMiddleware, educatorMiddleware } from '../auth/auth.middleware';
 import { agendaService } from './agenda.service';
 
-const router = Router();
+const router: Router = Router();
 
 router.use(authMiddleware);
 router.use(educatorMiddleware);

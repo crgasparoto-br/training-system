@@ -28,8 +28,8 @@ export function DashboardLayout() {
   const menuItems = useMemo<SidebarNavItem[]>(
     () => [
       { id: 'dashboard', icon: Home, label: 'Dashboard', path: '/dashboard' },
-      ...(canManageEducators ? [{ id: 'educators', icon: Users, label: 'Educadores', path: '/educators' }] : []),
-      { id: 'athletes', icon: Users, label: 'Atletas', path: '/athletes' },
+      ...(canManageEducators ? [{ id: 'educators', icon: Users, label: 'Professores', path: '/educators' }] : []),
+      { id: 'athletes', icon: Users, label: 'Alunos', path: '/athletes' },
       { id: 'plans', icon: Calendar, label: 'Planos de Treino', path: '/plans' },
       { id: 'agenda', icon: Calendar, label: 'Agenda', path: '/agenda' },
       { id: 'library', icon: BookOpen, label: 'Biblioteca', path: '/library' },
@@ -76,8 +76,8 @@ export function DashboardLayout() {
               <span className="text-xs text-muted-foreground">
                 {user?.type === 'educator'
                   ? user.educator?.role === 'master'
-                    ? 'Educador Master'
-                    : 'Educador'
+                    ? 'Professor Master'
+                    : 'Professor'
                   : 'Aluno'}
               </span>
             </div>

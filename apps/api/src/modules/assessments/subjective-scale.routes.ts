@@ -8,7 +8,7 @@ import {
   subjectiveScaleService,
 } from './subjective-scale.service';
 
-const router = Router();
+const router: Router = Router();
 const prisma = new PrismaClient();
 
 router.use(authMiddleware);

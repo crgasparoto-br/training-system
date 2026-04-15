@@ -12,7 +12,7 @@ import { parseDateOnly, toDateInputValue, toIsoDateAtNoonUTC } from '../utils/da
 import { ArrowLeft } from 'lucide-react';
 
 const planSchema = z.object({
-  athleteId: z.string().min(1, 'Selecione um atleta'),
+  athleteId: z.string().min(1, 'Selecione um aluno'),
   name: z.string().min(3, 'Nome deve ter no mínimo 3 caracteres'),
   description: z.string().optional(),
   startDate: z.string().min(1, 'Data de início é obrigatória'),
@@ -95,7 +95,7 @@ export function PlanForm() {
         setValue('athleteId', athleteIdParam, { shouldValidate: true });
       }
     } catch (error) {
-      console.error('Erro ao carregar atletas:', error);
+      console.error('Erro ao carregar alunos:', error);
     } finally {
       setLoadingAthletes(false);
     }
@@ -145,7 +145,7 @@ export function PlanForm() {
         <div>
           <h1 className="text-3xl font-bold">{isEditMode ? 'Editar Plano de Treino' : 'Novo Plano de Treino'}</h1>
           <p className="text-muted-foreground mt-2">
-            {isEditMode ? 'Atualize as informações do plano de treino' : 'Crie um plano de treino personalizado para seu atleta'}
+            {isEditMode ? 'Atualize as informações do plano de treino' : 'Crie um plano de treino personalizado para seu aluno'}
           </p>
         </div>
       </div>
@@ -158,18 +158,18 @@ export function PlanForm() {
             <CardDescription>Dados principais do plano de treino</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Atleta */}
+            {/* Aluno */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">Atleta *</label>
+              <label className="text-sm font-medium">Aluno *</label>
               {loadingAthletes ? (
-                <div className="text-sm text-muted-foreground">Carregando atletas...</div>
+                <div className="text-sm text-muted-foreground">Carregando alunos...</div>
               ) : (
                 <select
                   className="w-full p-2 border rounded-md"
                   {...register('athleteId')}
                   disabled={!isEditMode && !!athleteIdParam}
                 >
-                  <option value="">Selecione um atleta</option>
+                  <option value="">Selecione um aluno</option>
                   {athletes.map((athlete) => (
                     <option key={athlete.id} value={athlete.id}>
                       {athlete.user.profile.name}
@@ -261,7 +261,7 @@ export function PlanForm() {
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-primary">✓</span>
-                <span>O atleta terá acesso ao plano no app mobile</span>
+                <span>O aluno terá acesso ao plano no app mobile</span>
               </li>
             </ul>
           </CardContent>

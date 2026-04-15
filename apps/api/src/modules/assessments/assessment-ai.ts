@@ -3,7 +3,7 @@ import { fetch, FormData, File } from 'undici';
 
 type AiAssessmentResult = {
   metrics: Record<string, number | null>;
-  variables: Record<string, number | null>;
+  variables: Record<string, number | string | null>;
   ai?: {
     used: boolean;
     model?: string;
@@ -135,7 +135,7 @@ const buildPrompt = (missingMetrics: MetricKey[], missingVariables: string[]) =>
 };
 
 const requestAiExtraction = async (buffer: Buffer, filename: string, missingMetrics: MetricKey[], missingVariables: string[]) => {
-  const file = await createFile(buffer, filename);
+  const file = await createFile(buffer, filename) as { id?: string };
   const fileId = file?.id;
   if (!fileId) {
     throw new Error('OpenAI file upload missing file id');

@@ -144,7 +144,7 @@ export function Dashboard() {
           .slice(0, 5)
           .map((entry) => ({
             id: entry.day.id,
-            athleteName: athleteNameById.get(entry.athleteId) || 'Atleta',
+            athleteName: athleteNameById.get(entry.athleteId) || 'Aluno',
             date: entry.day.workoutDate,
             status: entry.day.status,
             duration: entry.day.sessionDurationMin ?? null,
@@ -156,7 +156,7 @@ export function Dashboard() {
           .slice(0, 3)
           .map((athlete: Athlete) => ({
             id: `athlete-${athlete.id}`,
-            title: 'Atleta cadastrado',
+            title: 'Aluno cadastrado',
             description: athlete.user.profile.name,
             createdAt: athlete.createdAt,
           }));
@@ -168,7 +168,7 @@ export function Dashboard() {
           .map((plan: TrainingPlan) => ({
             id: `plan-${plan.id}`,
             title: 'Plano criado',
-            description: `${plan.name} - ${plan.athlete?.user?.profile?.name || 'Atleta'}`,
+            description: `${plan.name} - ${plan.athlete?.user?.profile?.name || 'Aluno'}`,
             createdAt: plan.createdAt,
           }));
 
@@ -200,10 +200,10 @@ export function Dashboard() {
   const dashboardStats = useMemo(
     () => [
       {
-        title: 'Total de Atletas',
+        title: 'Total de Alunos',
         value: String(stats.totalAthletes),
         description:
-          stats.totalAthletes > 0 ? `${stats.totalAthletes} atleta(s) ativo(s)` : 'Nenhum atleta cadastrado ainda',
+          stats.totalAthletes > 0 ? `${stats.totalAthletes} aluno(s) ativo(s)` : 'Nenhum aluno cadastrado ainda',
         icon: Users,
         color: 'text-blue-600',
         bgColor: 'bg-blue-100',
@@ -394,8 +394,8 @@ export function Dashboard() {
               className="p-4 border rounded-lg hover:bg-accent transition-colors text-left"
             >
               <Users className="h-8 w-8 mb-2 text-primary" />
-              <h3 className="font-semibold mb-1">Adicionar Atleta</h3>
-              <p className="text-sm text-muted-foreground">Cadastre um novo atleta no sistema</p>
+              <h3 className="font-semibold mb-1">Adicionar Aluno</h3>
+              <p className="text-sm text-muted-foreground">Cadastre um novo aluno no sistema</p>
             </button>
 
             <button

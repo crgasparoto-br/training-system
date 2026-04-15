@@ -6,7 +6,7 @@ import { assessmentTypeService, ensureDefaultAssessmentTypesForContract } from '
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
-const router = Router();
+const router: Router = Router();
 
 router.use(authMiddleware);
 router.use(educatorMiddleware);

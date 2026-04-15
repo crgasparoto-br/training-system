@@ -7,20 +7,26 @@
 
 ### 1. HEALTH CHECK
 ### Verificar se a API está respondendo
-GET http://localhost:3000/health
+@baseUrl = http://localhost:3000
+@authToken = cole-o-token-do-educador-aqui
+@jiraIssueKey = SDT-1
+
+GET {{baseUrl}}/health
 
 ### ============================================================================
 
 ### 2. REGISTRAR EDUCADOR
 ### Criar um novo educador
-POST http://localhost:3000/api/v1/auth/register
+POST {{baseUrl}}/api/v1/auth/register
 Content-Type: application/json
 
 {
   "email": "educador@example.com",
   "password": "SenhaSegura123",
   "name": "João Educador",
-  "type": "educator"
+  "type": "educator",
+  "contractType": "personal",
+  "document": "12345678901"
 }
 
 ### ============================================================================
@@ -41,7 +47,7 @@ Content-Type: application/json
 
 ### 4. LOGIN EDUCADOR
 ### Fazer login com educador
-POST http://localhost:3000/api/v1/auth/login
+POST {{baseUrl}}/api/v1/auth/login
 Content-Type: application/json
 
 {
@@ -65,8 +71,8 @@ Content-Type: application/json
 
 ### 6. OBTER DADOS DO USUÁRIO (EDUCADOR)
 ### Substitua o token abaixo pelo token retornado do login/register
-GET http://localhost:3000/api/v1/auth/me
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJjbHJzOXdyZjAwMDAwMDAwMDAwMDAwMDEiLCJlbWFpbCI6ImVkdWNhZG9yQGV4YW1wbGUuY29tIiwidHlwZSI6ImVkdWNhdG9yIiwiaWF0IjoxNjc0OTk5OTk5LCJleHAiOjE2NzU2MDQ3OTl9.XXXX
+GET {{baseUrl}}/api/v1/auth/me
+Authorization: Bearer {{authToken}}
 
 ### ============================================================================
 
@@ -151,5 +157,42 @@ Content-Type: application/json
 ### 4. Veja a resposta no painel "Response"
 ### 5. Copie tokens das respostas e cole nos testes que precisam
 ### 6. Teste os erros para validar as mensagens
+
+### ============================================================================
+
+### 14. JIRA STATUS
+### Validar conexao com Jira Cloud e acesso ao projeto SDT
+GET {{baseUrl}}/api/v1/jira/status
+Authorization: Bearer {{authToken}}
+
+### ============================================================================
+
+### 15. JIRA METADATA
+### Listar tipos de issue e prioridades disponiveis no projeto configurado
+GET {{baseUrl}}/api/v1/jira/metadata
+Authorization: Bearer {{authToken}}
+
+### ============================================================================
+
+### 16. JIRA GET ISSUE
+### Buscar uma issue especifica no SDT
+GET {{baseUrl}}/api/v1/jira/issues/{{jiraIssueKey}}
+Authorization: Bearer {{authToken}}
+
+### ============================================================================
+
+### 17. JIRA CREATE ISSUE
+### Criar uma issue no projeto SDT
+POST {{baseUrl}}/api/v1/jira/issues
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "summary": "Teste de integracao Jira via sistema_acesso",
+  "description": "Issue criada para validar a integracao Jira Cloud no projeto SDT.",
+  "issueType": "Tarefa",
+  "priorityName": "Medium",
+  "labels": ["sistema_acesso", "jira", "integracao"]
+}
 
 ### ============================================================================

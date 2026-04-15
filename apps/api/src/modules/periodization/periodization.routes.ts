@@ -3,7 +3,7 @@ import { periodizationService } from './periodization.service';
 import { authMiddleware, educatorMiddleware } from '../auth/auth.middleware';
 import { sendSuccess, sendError } from '../../common/response';
 
-const router = Router();
+const router: Router = Router();
 
 // Aplicar autenticação em todas as rotas
 router.use(authMiddleware);

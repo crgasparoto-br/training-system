@@ -5,7 +5,7 @@ import { CreateEducatorSchema } from '@corrida/utils';
 import { sendSuccess, sendError } from '@corrida/utils';
 import { z } from 'zod';
 
-const router = Router();
+const router: Router = Router();
 
 router.use(authMiddleware);
 router.use(masterMiddleware);

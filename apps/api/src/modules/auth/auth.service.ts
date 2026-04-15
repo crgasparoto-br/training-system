@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import bcryptjs from 'bcryptjs';
 import { PrismaClient } from '@prisma/client';
 import type { JwtPayload, LoginRequest, RegisterRequest, AuthResponse } from '@corrida/types';
+import type { SignOptions } from 'jsonwebtoken';
 import { ensureDefaultAssessmentTypes } from '../assessments/assessment-type.service';
 import { ensureDefaultSubjectiveScales } from '../assessments/subjective-scale.service';
 
@@ -9,7 +10,7 @@ const prisma = new PrismaClient();
 
 export class AuthService {
   private readonly jwtSecret = process.env.JWT_SECRET || 'dev-secret';
-  private readonly jwtExpiresIn = process.env.JWT_EXPIRES_IN || '7d';
+  private readonly jwtExpiresIn = (process.env.JWT_EXPIRES_IN || '7d') as SignOptions['expiresIn'];
 
   private normalizeDocument(document: string): string {
     return document.replace(/\D/g, '');

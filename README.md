@@ -63,6 +63,24 @@ pnpm dev
 - **pgAdmin**: http://localhost:5050
 - **Redis Commander**: http://localhost:8081
 
+### IntegraÃ§Ã£o Jira
+
+Configure as variÃ¡veis abaixo no arquivo `.env` para habilitar a integraÃ§Ã£o com o Jira Cloud no projeto `SDT`:
+
+```bash
+JIRA_BASE_URL="https://sua-organizacao.atlassian.net"
+JIRA_USER_EMAIL="seu-email@empresa.com"
+JIRA_API_TOKEN="seu-token-atlassian"
+JIRA_PROJECT_KEY="SDT"
+```
+
+Endpoints disponÃ­veis na API:
+
+- `GET /api/v1/jira/status`: valida conexÃ£o e acesso ao projeto configurado
+- `GET /api/v1/jira/metadata`: retorna projeto, tipos de issue e prioridades
+- `GET /api/v1/jira/issues/:issueKey`: consulta uma issue especÃ­fica
+- `POST /api/v1/jira/issues`: cria issue no Jira
+
 ## 📦 Estrutura de Pastas
 
 ```

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { workoutService } from '../modules/workout/workout.service.js';
 
-const router = Router();
+const router: Router = Router();
 
 // ============================================================================
 // WORKOUT TEMPLATE ROUTES
@@ -203,7 +203,12 @@ router.delete('/exercises/:id', async (req, res) => {
 // Reorder exercises
 router.put('/exercises/reorder', async (req, res) => {
   try {
-    await workoutService.reorderExercises(req.body);
+    const { workoutDayId, section, exerciseIds } = req.body as {
+      workoutDayId: string;
+      section: string;
+      exerciseIds: string[];
+    };
+    await workoutService.reorderExercises(workoutDayId, section, exerciseIds);
     res.status(204).send();
   } catch (error: any) {
     console.error('Error reordering exercises:', error);

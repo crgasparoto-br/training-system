@@ -21,7 +21,7 @@ export default function SettingsAthleteAccess() {
       const data = await athleteService.list(1, 100, undefined, 'all');
       setAthletes(data.athletes);
     } catch (err: any) {
-      setError(err?.message || 'Erro ao carregar atletas');
+      setError(err?.message || 'Erro ao carregar alunos');
     } finally {
       setLoading(false);
     }
@@ -46,14 +46,14 @@ export default function SettingsAthleteAccess() {
         setAthletes(data.athletes);
       }
     } catch (err: any) {
-      setError(err?.message || 'Erro ao buscar atletas');
+      setError(err?.message || 'Erro ao buscar alunos');
     } finally {
       setLoading(false);
     }
   };
 
   const handleResetPassword = async (athleteId: string) => {
-    if (!confirm('Deseja gerar uma nova senha temporaria para este atleta?')) {
+    if (!confirm('Deseja gerar uma nova senha temporaria para este aluno?')) {
       return;
     }
     setResettingId(athleteId);
@@ -91,7 +91,7 @@ export default function SettingsAthleteAccess() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Acesso ao Cadastro de Alunos</h1>
           <p className="text-sm text-muted-foreground">
-            Esta tela e restrita ao educador master.
+            Esta tela e restrita ao professor master.
           </p>
         </div>
         <div className="rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
@@ -131,7 +131,7 @@ export default function SettingsAthleteAccess() {
             type="text"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Buscar atleta por nome"
+            placeholder="Buscar aluno por nome"
             className="h-10 flex-1 min-w-[220px] rounded-lg border border-gray-300 px-3 text-sm"
           />
           <button
@@ -156,7 +156,7 @@ export default function SettingsAthleteAccess() {
           <table className="min-w-full text-sm">
             <thead>
               <tr className="border-b text-left text-xs uppercase text-gray-500">
-                <th className="px-3 py-2">Atleta</th>
+                <th className="px-3 py-2">Aluno</th>
                 <th className="px-3 py-2">Email</th>
                 <th className="px-3 py-2 text-center">Status</th>
                 <th className="px-3 py-2">Senha temporaria</th>
@@ -173,7 +173,7 @@ export default function SettingsAthleteAccess() {
               ) : visibleAthletes.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-3 py-6 text-center text-gray-400">
-                    Nenhum atleta encontrado
+                    Nenhum aluno encontrado
                   </td>
                 </tr>
               ) : (
@@ -182,7 +182,7 @@ export default function SettingsAthleteAccess() {
                     <td className="px-3 py-2 text-gray-700">
                       <div className="font-medium">{athlete.user.profile.name}</div>
                       <div className="text-xs text-gray-500">
-                        {athlete.educator?.user?.profile?.name || 'Educador'}
+                        {athlete.educator?.user?.profile?.name || 'Professor'}
                       </div>
                     </td>
                     <td className="px-3 py-2 text-gray-700">{athlete.user.email}</td>

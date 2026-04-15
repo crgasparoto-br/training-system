@@ -1,6 +1,6 @@
 export interface ParsedAssessmentData {
   metrics: Record<string, number | null>;
-  variables: Record<string, number | null>;
+  variables: Record<string, number | string | null>;
 }
 
 export const assessmentVariableLabels = [
@@ -996,7 +996,15 @@ const extractRVo2MaxText = (text: string) => {
     }
   });
 
-  return bestMatch?.value ?? null;
+  return (bestMatch as { value: string; count: number } | null)?.value ?? null;
+};
+
+const getNumericVariable = (
+  variables: Record<string, number | string | null>,
+  key: string
+): number | null => {
+  const value = variables[key];
+  return typeof value === 'number' ? value : null;
 };
 
 export function parseAssessmentPdf(text: string): ParsedAssessmentData {
@@ -1082,7 +1090,7 @@ export function parseAssessmentPdf(text: string): ParsedAssessmentData {
     metrics.fc_rep = null;
   }
 
-  const variables: Record<string, number | string | null> = extractTabularValues(text);
+  const variables: Record<string, any> = extractTabularValues(text);
   aporteEnergeticoVariables.forEach((label) => {
     variables[label] = null;
   });
@@ -1095,17 +1103,17 @@ export function parseAssessmentPdf(text: string): ParsedAssessmentData {
     }
   }
 
-  if (metrics.peso === null && variables['Peso'] !== undefined) {
-    metrics.peso = variables['Peso'];
+  if (metrics.peso === null) {
+    metrics.peso = getNumericVariable(variables, 'Peso');
   }
-  if (metrics.percent_gordura === null && variables['% Gordura'] !== undefined) {
-    metrics.percent_gordura = variables['% Gordura'];
+  if (metrics.percent_gordura === null) {
+    metrics.percent_gordura = getNumericVariable(variables, '% Gordura');
   }
-  if (metrics.massa_magra === null && variables['Massa Magra'] !== undefined) {
-    metrics.massa_magra = variables['Massa Magra'];
+  if (metrics.massa_magra === null) {
+    metrics.massa_magra = getNumericVariable(variables, 'Massa Magra');
   }
-  if (metrics.gordura_absoluta === null && variables['Gordura Absoluta'] !== undefined) {
-    metrics.gordura_absoluta = variables['Gordura Absoluta'];
+  if (metrics.gordura_absoluta === null) {
+    metrics.gordura_absoluta = getNumericVariable(variables, 'Gordura Absoluta');
   }
   if (metrics.vo2max_ml === null && variables['VO2máximo'] !== undefined) {
     metrics.vo2max_ml = variables['VO2máximo'];

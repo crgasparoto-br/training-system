@@ -144,7 +144,7 @@ export function Plans() {
       );
       setAthletes(data.athletes);
     } catch (error) {
-      console.error('Erro ao carregar atletas:', error);
+      console.error('Erro ao carregar alunos:', error);
     } finally {
       setLoadingAthletes(false);
     }
@@ -156,7 +156,7 @@ export function Plans() {
       const data = await educatorService.list();
       setEducators(data);
     } catch (error) {
-      console.error('Erro ao carregar educadores:', error);
+      console.error('Erro ao carregar professores:', error);
     } finally {
       setLoadingEducators(false);
     }
@@ -256,7 +256,7 @@ export function Plans() {
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
             <div className="flex-1">
               <Input
-                placeholder="Buscar por plano ou atleta..."
+                placeholder="Buscar por plano ou aluno..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
@@ -264,14 +264,14 @@ export function Plans() {
             </div>
             {isEducator && (
               <div className="w-full lg:w-64">
-                <label className="block text-sm font-medium mb-2">Atleta</label>
+                <label className="block text-sm font-medium mb-2">Aluno</label>
                 <select
                   value={athleteFilter}
                   onChange={(e) => handleAthleteFilterChange(e.target.value)}
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={loadingAthletes}
                 >
-                  <option value="">Todos atletas</option>
+                  <option value="">Todos os alunos</option>
                   {athletes.map((athlete) => (
                     <option key={athlete.id} value={athlete.id}>
                       {athlete.user.profile.name}
@@ -294,14 +294,14 @@ export function Plans() {
             </div>
             {canManageEducators && (
               <div className="w-full lg:w-64">
-                <label className="block text-sm font-medium mb-2">Educador</label>
+                <label className="block text-sm font-medium mb-2">Professor</label>
                 <select
                   value={educatorFilter}
                   onChange={(e) => handleEducatorFilterChange(e.target.value)}
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={loadingEducators}
                 >
-                  <option value="">Todos educadores</option>
+                  <option value="">Todos os professores</option>
                   {educators.map((educator) => (
                     <option key={educator.id} value={educator.id}>
                       {educator.user?.profile?.name || 'Sem nome'}
@@ -373,7 +373,7 @@ export function Plans() {
                       {canManageEducators && (
                         <div className="flex items-center gap-1 text-xs text-muted-foreground">
                           <User className="h-3 w-3" />
-                          {plan.educator?.user?.profile?.name || 'Educador'}
+                          {plan.educator?.user?.profile?.name || 'Professor'}
                         </div>
                       )}
                     </CardDescription>
@@ -485,8 +485,8 @@ export function Plans() {
           <CardContent className="pt-6">
             <div className="grid grid-cols-12 gap-2 text-xs font-semibold text-muted-foreground pb-3 border-b">
               <div className={canManageEducators ? 'col-span-3' : 'col-span-4'}>Plano</div>
-              <div className={canManageEducators ? 'col-span-2' : 'col-span-3'}>Atleta</div>
-              {canManageEducators && <div className="col-span-2">Educador</div>}
+              <div className={canManageEducators ? 'col-span-2' : 'col-span-3'}>Aluno</div>
+              {canManageEducators && <div className="col-span-2">Professor</div>}
               <div className="col-span-1">Status</div>
               <div className="col-span-2">Fases</div>
               <div className="col-span-1">Periodo</div>
@@ -511,7 +511,7 @@ export function Plans() {
                     </div>
                     {canManageEducators && (
                       <div className="col-span-2 text-sm">
-                        {plan.educator?.user?.profile?.name || 'Educador'}
+                        {plan.educator?.user?.profile?.name || 'Professor'}
                       </div>
                     )}
                     <div className="col-span-1">
