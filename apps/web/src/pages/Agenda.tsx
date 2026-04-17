@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import { Button } from '../components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
 import { agendaService, type AgendaAvailability, type AgendaBooking, type AgendaBookingStatus, type AgendaBookingType, type AgendaMetadataResponse, type FixedScheduleSlot, type TrainingSpace } from '../services/agenda.service';
@@ -32,7 +32,7 @@ export function Agenda() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  const [metadata, setMetadata] = useState<AgendaMetadataResponse>({ educators: [], athletes: [], spaces: [] });
+  const [metadata, setMetadata] = useState<AgendaMetadataResponse>({ professores: [], alunos: [], spaces: [] });
   const [bookings, setBookings] = useState<AgendaBooking[]>([]);
   const [availabilities, setAvailabilities] = useState<AgendaAvailability[]>([]);
   const [fixedSlots, setFixedSlots] = useState<FixedScheduleSlot[]>([]);
@@ -43,8 +43,8 @@ export function Agenda() {
   const [dateTo, setDateTo] = useState(toDateInput(plusDays(today, 7)));
 
   const [bookingForm, setBookingForm] = useState({
-    athleteId: '',
-    educatorId: '',
+    alunoId: '',
+    professorId: '',
     bookingDate: toDateInput(today),
     startTime: '08:00',
     endTime: '09:00',
@@ -55,15 +55,15 @@ export function Agenda() {
   });
 
   const [availabilityForm, setAvailabilityForm] = useState({
-    educatorId: '',
+    professorId: '',
     dayOfWeek: 1,
     startTime: '08:00',
     endTime: '12:00',
   });
 
   const [fixedSlotForm, setFixedSlotForm] = useState({
-    athleteId: '',
-    educatorId: '',
+    alunoId: '',
+    professorId: '',
     dayOfWeek: 1,
     startTime: '08:00',
     endTime: '09:00',
@@ -76,13 +76,13 @@ export function Agenda() {
     capacity: 1,
   });
 
-  const athleteById = useMemo(
-    () => new Map(metadata.athletes.map((athlete) => [athlete.id, athlete])),
-    [metadata.athletes]
+  const alunoById = useMemo(
+    () => new Map(metadata.alunos.map((aluno) => [aluno.id, aluno])),
+    [metadata.alunos]
   );
 
-  const selectedAthlete = bookingForm.athleteId ? athleteById.get(bookingForm.athleteId) : undefined;
-  const selectedFixedAthlete = fixedSlotForm.athleteId ? athleteById.get(fixedSlotForm.athleteId) : undefined;
+  const selectedAluno = bookingForm.alunoId ? alunoById.get(bookingForm.alunoId) : undefined;
+  const selectedFixedAluno = fixedSlotForm.alunoId ? alunoById.get(fixedSlotForm.alunoId) : undefined;
 
   const reloadData = async () => {
     const [meta, bookingItems, availabilityItems, fixedItems, spaceItems] = await Promise.all([
@@ -115,14 +115,14 @@ export function Agenda() {
   }, [dateFrom, dateTo]);
 
   useEffect(() => {
-    if (!selectedAthlete) return;
-    setBookingForm((prev) => ({ ...prev, educatorId: selectedAthlete.educator.id }));
-  }, [selectedAthlete?.id]);
+    if (!selectedAluno) return;
+    setBookingForm((prev) => ({ ...prev, professorId: selectedAluno.professor.id }));
+  }, [selectedAluno?.id]);
 
   useEffect(() => {
-    if (!selectedFixedAthlete) return;
-    setFixedSlotForm((prev) => ({ ...prev, educatorId: selectedFixedAthlete.educator.id }));
-  }, [selectedFixedAthlete?.id]);
+    if (!selectedFixedAluno) return;
+    setFixedSlotForm((prev) => ({ ...prev, professorId: selectedFixedAluno.professor.id }));
+  }, [selectedFixedAluno?.id]);
 
   const clearMessages = () => {
     setError(null);
@@ -134,8 +134,8 @@ export function Agenda() {
     setSubmitting(true);
     try {
       await agendaService.createBooking({
-        athleteId: bookingForm.athleteId,
-        educatorId: bookingForm.educatorId,
+        alunoId: bookingForm.alunoId,
+        professorId: bookingForm.professorId,
         bookingDate: bookingForm.bookingDate,
         startTime: bookingForm.startTime,
         endTime: bookingForm.endTime,
@@ -190,8 +190,8 @@ export function Agenda() {
     clearMessages();
     try {
       await agendaService.createFixedSlot({
-        athleteId: fixedSlotForm.athleteId,
-        educatorId: fixedSlotForm.educatorId,
+        alunoId: fixedSlotForm.alunoId,
+        professorId: fixedSlotForm.professorId,
         dayOfWeek: fixedSlotForm.dayOfWeek,
         startTime: fixedSlotForm.startTime,
         endTime: fixedSlotForm.endTime,
@@ -276,14 +276,14 @@ export function Agenda() {
           </CardHeader>
           <CardContent className="space-y-3">
             <select
-              value={bookingForm.athleteId}
-              onChange={(e) => setBookingForm((prev) => ({ ...prev, athleteId: e.target.value }))}
+              value={bookingForm.alunoId}
+              onChange={(e) => setBookingForm((prev) => ({ ...prev, alunoId: e.target.value }))}
               className="h-10 w-full rounded-md border px-3 text-sm"
             >
               <option value="">Selecione o aluno</option>
-              {metadata.athletes.map((athlete) => (
-                <option key={athlete.id} value={athlete.id}>
-                  {athlete.user.profile.name} ({athlete.schedulePlan === 'fixed' ? 'Fixo' : 'Livre'})
+              {metadata.alunos.map((aluno) => (
+                <option key={aluno.id} value={aluno.id}>
+                  {aluno.user.profile.name} ({aluno.schedulePlan === 'fixed' ? 'Fixo' : 'Livre'})
                 </option>
               ))}
             </select>
@@ -314,10 +314,10 @@ export function Agenda() {
               <select value={bookingForm.fixedSlotId} onChange={(e) => setBookingForm((prev) => ({ ...prev, fixedSlotId: e.target.value }))} className="h-10 w-full rounded-md border px-3 text-sm">
                 <option value="">Horario fixo de origem (opcional)</option>
                 {fixedSlots
-                  .filter((slot) => slot.isActive && (!bookingForm.athleteId || slot.athleteId === bookingForm.athleteId))
+                  .filter((slot) => slot.isActive && (!bookingForm.alunoId || slot.alunoId === bookingForm.alunoId))
                   .map((slot) => (
                     <option key={slot.id} value={slot.id}>
-                      {slot.athlete.user.profile.name} - {weekDays.find((day) => day.value === slot.dayOfWeek)?.label} {slot.startTime}-{slot.endTime}
+                      {slot.aluno.user.profile.name} - {weekDays.find((day) => day.value === slot.dayOfWeek)?.label} {slot.startTime}-{slot.endTime}
                     </option>
                   ))}
               </select>
@@ -334,7 +334,7 @@ export function Agenda() {
             <Button
               onClick={handleCreateBooking}
               isLoading={submitting}
-              disabled={!bookingForm.athleteId || !bookingForm.educatorId}
+              disabled={!bookingForm.alunoId || !bookingForm.professorId}
             >
               Criar Agendamento
             </Button>
@@ -387,10 +387,10 @@ export function Agenda() {
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="grid grid-cols-2 gap-2">
-              <select value={availabilityForm.educatorId} onChange={(e) => setAvailabilityForm((prev) => ({ ...prev, educatorId: e.target.value }))} className="h-10 rounded-md border px-3 text-sm">
+              <select value={availabilityForm.professorId} onChange={(e) => setAvailabilityForm((prev) => ({ ...prev, professorId: e.target.value }))} className="h-10 rounded-md border px-3 text-sm">
                 <option value="">Selecione o professor</option>
-                {metadata.educators.map((educator) => (
-                  <option key={educator.id} value={educator.id}>{educator.user.profile.name}</option>
+                {metadata.professores.map((professor) => (
+                  <option key={professor.id} value={professor.id}>{professor.user.profile.name}</option>
                 ))}
               </select>
               <select value={availabilityForm.dayOfWeek} onChange={(e) => setAvailabilityForm((prev) => ({ ...prev, dayOfWeek: Number(e.target.value) }))} className="h-10 rounded-md border px-3 text-sm">
@@ -403,7 +403,7 @@ export function Agenda() {
               <input type="time" value={availabilityForm.startTime} onChange={(e) => setAvailabilityForm((prev) => ({ ...prev, startTime: e.target.value }))} className="h-10 rounded-md border px-3 text-sm" />
               <input type="time" value={availabilityForm.endTime} onChange={(e) => setAvailabilityForm((prev) => ({ ...prev, endTime: e.target.value }))} className="h-10 rounded-md border px-3 text-sm" />
             </div>
-            <Button onClick={handleCreateAvailability} disabled={!availabilityForm.educatorId}>Adicionar Disponibilidade</Button>
+            <Button onClick={handleCreateAvailability} disabled={!availabilityForm.professorId}>Adicionar Disponibilidade</Button>
 
             <div className="space-y-2">
               {availabilities.length === 0 ? (
@@ -412,7 +412,7 @@ export function Agenda() {
                 availabilities.map((item) => (
                   <div key={item.id} className="rounded-md border p-2 text-sm flex items-center justify-between">
                     <span>
-                      <strong>{item.educator.user.profile.name}</strong> - {weekDays.find((day) => day.value === item.dayOfWeek)?.label} {item.startTime}-{item.endTime}
+                      <strong>{item.professor.user.profile.name}</strong> - {weekDays.find((day) => day.value === item.dayOfWeek)?.label} {item.startTime}-{item.endTime}
                     </span>
                     <Button variant="outline" size="sm" onClick={() => handleDeleteAvailability(item.id)}>Remover</Button>
                   </div>
@@ -428,11 +428,11 @@ export function Agenda() {
             <CardDescription>Base para alunos de plano fixo e reposicoes.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <select value={fixedSlotForm.athleteId} onChange={(e) => setFixedSlotForm((prev) => ({ ...prev, athleteId: e.target.value }))} className="h-10 w-full rounded-md border px-3 text-sm">
+            <select value={fixedSlotForm.alunoId} onChange={(e) => setFixedSlotForm((prev) => ({ ...prev, alunoId: e.target.value }))} className="h-10 w-full rounded-md border px-3 text-sm">
               <option value="">Selecione o aluno</option>
-              {metadata.athletes.map((athlete) => (
-                <option key={athlete.id} value={athlete.id}>
-                  {athlete.user.profile.name}
+              {metadata.alunos.map((aluno) => (
+                <option key={aluno.id} value={aluno.id}>
+                  {aluno.user.profile.name}
                 </option>
               ))}
             </select>
@@ -451,7 +451,7 @@ export function Agenda() {
                 <option key={space.id} value={space.id}>{space.name}</option>
               ))}
             </select>
-            <Button onClick={handleCreateFixedSlot} disabled={!fixedSlotForm.athleteId || !fixedSlotForm.educatorId}>Cadastrar Horario Fixo</Button>
+            <Button onClick={handleCreateFixedSlot} disabled={!fixedSlotForm.alunoId || !fixedSlotForm.professorId}>Cadastrar Horario Fixo</Button>
 
             <div className="space-y-2">
               {fixedSlots.length === 0 ? (
@@ -460,7 +460,7 @@ export function Agenda() {
                 fixedSlots.map((slot) => (
                   <div key={slot.id} className="rounded-md border p-2 text-sm flex items-center justify-between">
                     <span>
-                      <strong>{slot.athlete.user.profile.name}</strong> - {weekDays.find((day) => day.value === slot.dayOfWeek)?.label} {slot.startTime}-{slot.endTime} ({slot.isActive ? 'Ativo' : 'Inativo'})
+                      <strong>{slot.aluno.user.profile.name}</strong> - {weekDays.find((day) => day.value === slot.dayOfWeek)?.label} {slot.startTime}-{slot.endTime} ({slot.isActive ? 'Ativo' : 'Inativo'})
                     </span>
                     {slot.isActive && (
                       <Button variant="outline" size="sm" onClick={() => handleDeactivateFixedSlot(slot.id)}>
@@ -488,7 +488,7 @@ export function Agenda() {
               <div key={booking.id} className="rounded-md border p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="text-sm">
-                    <strong>{booking.athlete.user.profile.name}</strong> com {booking.educator.user.profile.name} em{' '}
+                    <strong>{booking.aluno.user.profile.name}</strong> com {booking.professor.user.profile.name} em{' '}
                     {new Date(booking.bookingDate).toLocaleDateString('pt-BR')} - {booking.startTime}-{booking.endTime}
                     {booking.space ? ` - ${booking.space.name}` : ''}
                     <span className="ml-2 text-xs text-muted-foreground">
@@ -520,4 +520,5 @@ export function Agenda() {
     </div>
   );
 }
+
 

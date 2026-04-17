@@ -1,22 +1,22 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { athleteService, type Athlete } from '../services/athlete.service';
-import { educatorService } from '../services/educator.service';
-import type { EducatorSummary } from '@corrida/types';
+import { alunoService, type Aluno } from '../services/aluno.service';
+import { professorService } from '../services/professor.service';
+import type { ProfessorSummary } from '@corrida/types';
 import { useAuthStore } from '../stores/useAuthStore';
 import { Button } from '../components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
 import { Plus, Search, Edit, Eye, User, LayoutGrid, List, UserX, UserCheck } from 'lucide-react';
 
-const VIEW_STATE_STORAGE_KEY = 'athletes.viewState';
+const VIEW_STATE_STORAGE_KEY = 'alunos.viewState';
 
-export function Athletes() {
+export function Alunos() {
   const user = useAuthStore((state) => state.user);
-  const [athletes, setAthletes] = useState<Athlete[]>([]);
-  const [educators, setEducators] = useState<EducatorSummary[]>([]);
+  const [alunos, setAlunos] = useState<Aluno[]>([]);
+  const [professores, setProfessores] = useState<ProfessorSummary[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadingEducators, setLoadingEducators] = useState(false);
+  const [loadingProfessores, setLoadingProfessores] = useState(false);
   const [searchQuery, setSearchQuery] = useState(() => {
     if (typeof window === 'undefined') return '';
     try {
@@ -28,13 +28,13 @@ export function Athletes() {
       return '';
     }
   });
-  const [educatorFilter, setEducatorFilter] = useState(() => {
+  const [professorFilter, setProfessorFilter] = useState(() => {
     if (typeof window === 'undefined') return '';
     try {
       const stored = window.localStorage.getItem(VIEW_STATE_STORAGE_KEY);
       if (!stored) return '';
-      const parsed = JSON.parse(stored) as { educatorFilter?: string };
-      return parsed.educatorFilter || '';
+      const parsed = JSON.parse(stored) as { professorFilter?: string };
+      return parsed.professorFilter || '';
     } catch {
       return '';
     }
@@ -66,10 +66,10 @@ export function Athletes() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
-  const canManageEducators =
-    user?.type === 'educator' &&
-    user?.educator?.role === 'master' &&
-    user?.educator?.contract?.type === 'academy';
+  const canManageProfessores =
+    user?.type === 'professor' &&
+    user?.professor?.role === 'master' &&
+    user?.professor?.contract?.type === 'academy';
 
   useEffect(() => {
     if (searchQuery.length >= 2) {
@@ -77,31 +77,31 @@ export function Athletes() {
       return;
     }
 
-    loadAthletes();
-  }, [page, educatorFilter, statusFilter]);
+    loadAlunos();
+  }, [page, professorFilter, statusFilter]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const payload = {
       viewMode,
       searchQuery,
-      educatorFilter,
+      professorFilter,
       statusFilter,
     };
     window.localStorage.setItem(VIEW_STATE_STORAGE_KEY, JSON.stringify(payload));
-  }, [viewMode, searchQuery, educatorFilter, statusFilter]);
+  }, [viewMode, searchQuery, professorFilter, statusFilter]);
 
   useEffect(() => {
-    if (canManageEducators) {
-      loadEducators();
+    if (canManageProfessores) {
+      loadProfessores();
     }
-  }, [canManageEducators]);
+  }, [canManageProfessores]);
 
-  const loadAthletes = async () => {
+  const loadAlunos = async () => {
     setLoading(true);
     try {
-      const data = await athleteService.list(page, 10, educatorFilter || undefined, statusFilter);
-      setAthletes(data.athletes);
+      const data = await alunoService.list(page, 10, professorFilter || undefined, statusFilter);
+      setAlunos(data.alunos);
       setTotalPages(data.pagination.totalPages);
     } catch (error) {
       console.error('Erro ao carregar alunos:', error);
@@ -112,18 +112,18 @@ export function Athletes() {
 
   const handleSearch = async () => {
     if (searchQuery.length < 2) {
-      loadAthletes();
+      loadAlunos();
       return;
     }
 
     setLoading(true);
     try {
-      const data = await athleteService.search(
+      const data = await alunoService.search(
         searchQuery,
-        educatorFilter || undefined,
+        professorFilter || undefined,
         statusFilter
       );
-      setAthletes(data);
+      setAlunos(data);
     } catch (error) {
       console.error('Erro ao buscar alunos:', error);
     } finally {
@@ -131,20 +131,20 @@ export function Athletes() {
     }
   };
 
-  const loadEducators = async () => {
-    setLoadingEducators(true);
+  const loadProfessores = async () => {
+    setLoadingProfessores(true);
     try {
-      const data = await educatorService.list();
-      setEducators(data);
+      const data = await professorService.list();
+      setProfessores(data);
     } catch (error) {
       console.error('Erro ao carregar professores:', error);
     } finally {
-      setLoadingEducators(false);
+      setLoadingProfessores(false);
     }
   };
 
-  const handleEducatorFilterChange = (value: string) => {
-    setEducatorFilter(value);
+  const handleProfessorFilterChange = (value: string) => {
+    setProfessorFilter(value);
     setPage(1);
   };
 
@@ -159,8 +159,8 @@ export function Athletes() {
     }
 
     try {
-      await athleteService.deactivate(id);
-      loadAthletes();
+      await alunoService.deactivate(id);
+      loadAlunos();
     } catch (error) {
       console.error('Erro ao inativar aluno:', error);
       alert('Erro ao inativar aluno');
@@ -169,8 +169,8 @@ export function Athletes() {
 
   const handleActivate = async (id: string) => {
     try {
-      await athleteService.activate(id);
-      loadAthletes();
+      await alunoService.activate(id);
+      loadAlunos();
     } catch (error) {
       console.error('Erro ao reativar aluno:', error);
       alert('Erro ao reativar aluno');
@@ -187,7 +187,7 @@ export function Athletes() {
             Gerencie seus alunos e acompanhe seu progresso
           </p>
         </div>
-        <Link to="/athletes/new">
+        <Link to="/alunos/new">
           <Button>
             <Plus size={20} />
             Novo Aluno
@@ -221,19 +221,19 @@ export function Athletes() {
                 <option value="all">Todos</option>
               </select>
             </div>
-            {canManageEducators && (
+            {canManageProfessores && (
               <div className="w-full lg:w-64">
                 <label className="block text-sm font-medium mb-2">Professor</label>
                 <select
-                  value={educatorFilter}
-                  onChange={(e) => handleEducatorFilterChange(e.target.value)}
+                  value={professorFilter}
+                  onChange={(e) => handleProfessorFilterChange(e.target.value)}
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={loadingEducators}
+                  disabled={loadingProfessores}
                 >
                   <option value="">Todos os professores</option>
-                  {educators.map((educator) => (
-                    <option key={educator.id} value={educator.id}>
-                      {educator.user?.profile?.name || 'Sem nome'}
+                  {professores.map((professor) => (
+                    <option key={professor.id} value={professor.id}>
+                      {professor.user?.profile?.name || 'Sem nome'}
                     </option>
                   ))}
                 </select>
@@ -263,7 +263,7 @@ export function Athletes() {
         </CardContent>
       </Card>
 
-      {/* Athletes List */}
+      {/* Alunos List */}
       {loading ? (
         <Card>
           <CardContent className="py-12 text-center">
@@ -271,7 +271,7 @@ export function Athletes() {
             <p className="mt-4 text-muted-foreground">Carregando alunos...</p>
           </CardContent>
         </Card>
-      ) : athletes.length === 0 ? (
+      ) : alunos.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
             <User className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
@@ -280,7 +280,7 @@ export function Athletes() {
               {searchQuery ? 'Tente buscar com outros termos' : 'Comece adicionando seu primeiro aluno'}
             </p>
             {!searchQuery && (
-              <Link to="/athletes/new">
+              <Link to="/alunos/new">
                 <Button>
                   <Plus size={20} />
                   Adicionar Aluno
@@ -291,12 +291,11 @@ export function Athletes() {
         </Card>
       ) : viewMode === 'cards' ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {athletes.map((athlete) => {
-            const bmi = athleteService.calculateBMI(athlete.weight, athlete.height);
-            const bmiClass = athleteService.getBMIClassification(bmi);
+          {alunos.map((aluno) => {
+            const bmi = alunoService.calculateBMI(aluno.weight, aluno.height);
 
             return (
-              <Card key={athlete.id} className="hover:shadow-lg transition-shadow">
+              <Card key={aluno.id} className="hover:shadow-lg transition-shadow">
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
@@ -304,16 +303,16 @@ export function Athletes() {
                         <User className="h-6 w-6 text-primary" />
                       </div>
                       <div>
-                        <CardTitle className="text-lg">{athlete.user.profile.name}</CardTitle>
+                        <CardTitle className="text-lg">{aluno.user.profile.name}</CardTitle>
                         <CardDescription className="flex flex-wrap items-center gap-2">
-                          {athlete.age} anos
-                          {canManageEducators && (
+                          {aluno.age} anos
+                          {canManageProfessores && (
                             <>
                               {' '}
-                              • {athlete.educator?.user?.profile?.name || 'Professor'}
+                              â€¢ {aluno.professor?.user?.profile?.name || 'Professor'}
                             </>
                           )}
-                          {athlete.user.isActive === false && (
+                          {aluno.user.isActive === false && (
                             <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-xs text-destructive">
                               Inativo
                             </span>
@@ -327,11 +326,11 @@ export function Athletes() {
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <div>
                       <span className="text-muted-foreground">Peso:</span>
-                      <p className="font-medium">{athlete.weight} kg</p>
+                      <p className="font-medium">{aluno.weight} kg</p>
                     </div>
                     <div>
                       <span className="text-muted-foreground">Altura:</span>
-                      <p className="font-medium">{athlete.height} cm</p>
+                      <p className="font-medium">{aluno.height} cm</p>
                     </div>
                     <div>
                       <span className="text-muted-foreground">IMC:</span>
@@ -339,28 +338,28 @@ export function Athletes() {
                     </div>
                     <div>
                       <span className="text-muted-foreground">VO2 Max:</span>
-                      <p className="font-medium">{athlete.vo2Max}</p>
+                      <p className="font-medium">{aluno.vo2Max}</p>
                     </div>
                   </div>
 
                   <div className="pt-4 border-t flex gap-2">
-                    <Link to={`/athletes/${athlete.id}`} className="flex-1">
+                    <Link to={`/alunos/${aluno.id}`} className="flex-1">
                       <Button variant="outline" size="sm" className="w-full">
                         <Eye size={16} />
                         Ver
                       </Button>
                     </Link>
-                    <Link to={`/athletes/${athlete.id}/edit`} className="flex-1">
+                    <Link to={`/alunos/${aluno.id}/edit`} className="flex-1">
                       <Button variant="outline" size="sm" className="w-full">
                         <Edit size={16} />
                         Editar
                       </Button>
                     </Link>
-                    {athlete.user.isActive === false ? (
+                    {aluno.user.isActive === false ? (
                       <Button
                         variant="secondary"
                         size="sm"
-                        onClick={() => handleActivate(athlete.id)}
+                        onClick={() => handleActivate(aluno.id)}
                       >
                         <UserCheck size={16} />
                       </Button>
@@ -368,7 +367,7 @@ export function Athletes() {
                       <Button
                         variant="destructive"
                         size="sm"
-                        onClick={() => handleDeactivate(athlete.id)}
+                        onClick={() => handleDeactivate(aluno.id)}
                       >
                         <UserX size={16} />
                       </Button>
@@ -388,30 +387,30 @@ export function Athletes() {
               <div className="col-span-2">Altura</div>
               <div className="col-span-1">IMC</div>
               <div className="col-span-1">VO2</div>
-              <div className="col-span-2 text-right">Ações</div>
+              <div className="col-span-2 text-right">AÃ§Ãµes</div>
             </div>
             <div className="divide-y">
-              {athletes.map((athlete) => {
-                const bmi = athleteService.calculateBMI(athlete.weight, athlete.height);
-                const educatorName = athlete.educator?.user?.profile?.name;
+              {alunos.map((aluno) => {
+                const bmi = alunoService.calculateBMI(aluno.weight, aluno.height);
+                const professorName = aluno.professor?.user?.profile?.name;
 
                 return (
-                  <div key={athlete.id} className="grid grid-cols-12 gap-2 py-3 items-center">
+                  <div key={aluno.id} className="grid grid-cols-12 gap-2 py-3 items-center">
                     <div className="col-span-4 flex items-center gap-3">
                       <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
                         <User className="h-5 w-5 text-primary" />
                       </div>
                       <div>
-                        <p className="font-medium">{athlete.user.profile.name}</p>
+                        <p className="font-medium">{aluno.user.profile.name}</p>
                         <p className="text-xs text-muted-foreground">
-                          {athlete.age} anos
-                          {canManageEducators && (
+                          {aluno.age} anos
+                          {canManageProfessores && (
                             <>
                               {' '}
-                              • {educatorName || 'Professor'}
+                              â€¢ {professorName || 'Professor'}
                             </>
                           )}
-                          {athlete.user.isActive === false && (
+                          {aluno.user.isActive === false && (
                             <span className="ml-2 rounded-full bg-destructive/10 px-2 py-0.5 text-xs text-destructive">
                               Inativo
                             </span>
@@ -419,26 +418,26 @@ export function Athletes() {
                         </p>
                       </div>
                     </div>
-                    <div className="col-span-2 text-sm">{athlete.weight} kg</div>
-                    <div className="col-span-2 text-sm">{athlete.height} cm</div>
+                    <div className="col-span-2 text-sm">{aluno.weight} kg</div>
+                    <div className="col-span-2 text-sm">{aluno.height} cm</div>
                     <div className="col-span-1 text-sm">{bmi.toFixed(1)}</div>
-                    <div className="col-span-1 text-sm">{athlete.vo2Max}</div>
+                    <div className="col-span-1 text-sm">{aluno.vo2Max}</div>
                     <div className="col-span-2 flex justify-end gap-2">
-                      <Link to={`/athletes/${athlete.id}`}>
+                      <Link to={`/alunos/${aluno.id}`}>
                         <Button variant="outline" size="sm">
                           <Eye size={16} />
                         </Button>
                       </Link>
-                      <Link to={`/athletes/${athlete.id}/edit`}>
+                      <Link to={`/alunos/${aluno.id}/edit`}>
                         <Button variant="outline" size="sm">
                           <Edit size={16} />
                         </Button>
                       </Link>
-                      {athlete.user.isActive === false ? (
+                      {aluno.user.isActive === false ? (
                         <Button
                           variant="secondary"
                           size="sm"
-                          onClick={() => handleActivate(athlete.id)}
+                          onClick={() => handleActivate(aluno.id)}
                         >
                           <UserCheck size={16} />
                         </Button>
@@ -446,7 +445,7 @@ export function Athletes() {
                         <Button
                           variant="destructive"
                           size="sm"
-                          onClick={() => handleDeactivate(athlete.id)}
+                          onClick={() => handleDeactivate(aluno.id)}
                         >
                           <UserX size={16} />
                         </Button>
@@ -473,14 +472,14 @@ export function Athletes() {
                 Anterior
               </Button>
               <span className="text-sm text-muted-foreground">
-                Página {page} de {totalPages}
+                PÃ¡gina {page} de {totalPages}
               </span>
               <Button
                 variant="outline"
                 onClick={() => setPage(page + 1)}
                 disabled={page === totalPages}
               >
-                Próxima
+                PrÃ³xima
               </Button>
             </div>
           </CardContent>
@@ -489,3 +488,4 @@ export function Athletes() {
     </div>
   );
 }
+

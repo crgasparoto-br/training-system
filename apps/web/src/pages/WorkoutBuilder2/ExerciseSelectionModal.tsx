@@ -69,7 +69,9 @@ export default function ExerciseSelectionModal({ onClose, onSelect, category = '
     setFilteredExercises(filtered);
   };
 
-  const muscleGroups = Array.from(new Set(exercises.map(ex => ex.muscleGroup).filter(Boolean)));
+  const muscleGroups = Array.from(
+    new Set(exercises.map((ex) => ex.muscleGroup).filter((group): group is string => Boolean(group)))
+  );
 
   const handleToggleExercise = (exercise: Exercise) => {
     setSelectedIds((prev) => {

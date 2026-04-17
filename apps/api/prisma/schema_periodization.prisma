@@ -1,14 +1,14 @@
 // ============================================================================
-// PERIODIZAÇÃO MACROCICLO
+// PERIODIZAÃ‡ÃƒO MACROCICLO
 // ============================================================================
 
-// Tabela de Parâmetros Configuráveis
+// Tabela de ParÃ¢metros ConfigurÃ¡veis
 model TrainingParameter {
   id          String   @id @default(cuid())
   category    String   // "montagem", "metodo", "divisao_treino", "carga_microciclo", "objetivo"
   code        String   // "AS", "SER", "FB", "ADP", etc
-  description String   // Descrição completa
-  order       Int      // Ordem de exibição
+  description String   // DescriÃ§Ã£o completa
+  order       Int      // Ordem de exibiÃ§Ã£o
   active      Boolean  @default(true)
   
   createdAt   DateTime @default(now())
@@ -18,7 +18,7 @@ model TrainingParameter {
   @@index([category])
 }
 
-// Matriz de Periodização
+// Matriz de PeriodizaÃ§Ã£o
 model PeriodizationMatrix {
   id                String   @id @default(cuid())
   planId            String   @unique
@@ -36,7 +36,7 @@ model PeriodizationMatrix {
   updatedAt         DateTime @updatedAt
 }
 
-// Estímulo Resistido (Treino de Força)
+// EstÃ­mulo Resistido (Treino de ForÃ§a)
 model ResistedStimulus {
   id                String   @id @default(cuid())
   matrixId          String
@@ -46,39 +46,39 @@ model ResistedStimulus {
   weekNumber        Int      // 1-20 (ou quantas semanas tiver)
   
   // Carga Microciclo (ADP, ORD, CHO, REG)
-  loadCycle         String   // Referência ao TrainingParameter
+  loadCycle         String   // ReferÃªncia ao TrainingParameter
 
   // Objetivo
-  objective         String?  // Referência ao TrainingParameter
+  objective         String?  // ReferÃªncia ao TrainingParameter
   
-  // Parâmetros de Treino Resistido
-  repZone           Int?     // Zona de Repetições (ex: 4, 6, 8, 10, 12, 14)
+  // ParÃ¢metros de Treino Resistido
+  repZone           Int?     // Zona de RepetiÃ§Ãµes (ex: 4, 6, 8, 10, 12, 14)
   loadPercentage    Float?   // % Carga TR (calculado automaticamente baseado em repZone)
   
-  // Referência para cálculo de séries
-  seriesReference   Int?     // REF - valor de referência
+  // ReferÃªncia para cÃ¡lculo de sÃ©ries
+  seriesReference   Int?     // REF - valor de referÃªncia
   
-  // Séries calculadas
-  seriesLowerBody   Int?     // Séries Membros Inferiores (calculado)
-  seriesUpperBody   Int?     // Séries Membros Superiores
-  seriesCore        Int?     // Séries Core/Estabilização
+  // SÃ©ries calculadas
+  seriesLowerBody   Int?     // SÃ©ries Membros Inferiores (calculado)
+  seriesUpperBody   Int?     // SÃ©ries Membros Superiores
+  seriesCore        Int?     // SÃ©ries Core/EstabilizaÃ§Ã£o
   
   // Rep Reserva (calculado automaticamente)
   repReserve        Int?     // Calculado baseado em loadCycle
   
   // Montagem (AS, A/AN, CA, CGM, MIS)
-  assembly          String?  // Referência ao TrainingParameter
+  assembly          String?  // ReferÃªncia ao TrainingParameter
   
-  // Método (SER, BS, TS, SS, CIR, CS, PC, PD, DS, RP, SN, FST-7)
-  method            String?  // Referência ao TrainingParameter
+  // MÃ©todo (SER, BS, TS, SS, CIR, CS, PC, PD, DS, RP, SN, FST-7)
+  method            String?  // ReferÃªncia ao TrainingParameter
   
-  // Divisão do Treino (FB, AB, ABC, ABCD, ABCDE)
-  trainingDivision  String?  // Referência ao TrainingParameter
+  // DivisÃ£o do Treino (FB, AB, ABC, ABCD, ABCDE)
+  trainingDivision  String?  // ReferÃªncia ao TrainingParameter
   
-  // Frequência Semanal
+  // FrequÃªncia Semanal
   weeklyFrequency   Int?     // Ex: 3, 4, 5
   
-  // Observações
+  // ObservaÃ§Ãµes
   observations      String?
   
   createdAt         DateTime @default(now())
@@ -88,7 +88,7 @@ model ResistedStimulus {
   @@index([matrixId])
 }
 
-// Estímulo Cíclico (Corrida/Cardio)
+// EstÃ­mulo CÃ­clico (Corrida/Cardio)
 model CyclicStimulus {
   id                   String   @id @default(cuid())
   matrixId             String
@@ -102,8 +102,8 @@ model CyclicStimulus {
   totalVolumeKm        Float?   // Volume Geral em KM
   runningVolumeKm      Float?   // Volume Corrida em KM
   
-  // Número de Treinos por Zona
-  countZ1              Int?     // Número de treinos Zona 1
+  // NÃºmero de Treinos por Zona
+  countZ1              Int?     // NÃºmero de treinos Zona 1
   countZ2              Int?
   countZ3              Int?
   countZ4              Int?
@@ -123,7 +123,7 @@ model CyclicStimulus {
   @@index([matrixId])
 }
 
-// Nutrição Semanal
+// NutriÃ§Ã£o Semanal
 model NutritionWeekly {
   id                String   @id @default(cuid())
   matrixId          String
@@ -133,18 +133,18 @@ model NutritionWeekly {
   weekNumber        Int
   
   // Calorias e Macronutrientes
-  dailyCalories     Float?   // Calorias diárias
+  dailyCalories     Float?   // Calorias diÃ¡rias
   carbohydratesG    Float?   // Carboidratos em gramas
-  proteinsG         Float?   // Proteínas em gramas
-  lipidsG           Float?   // Lipídios em gramas
+  proteinsG         Float?   // ProteÃ­nas em gramas
+  lipidsG           Float?   // LipÃ­dios em gramas
   
-  // Hidratação
-  hydrationLiters   Float?   // Hidratação em litros/dia
+  // HidrataÃ§Ã£o
+  hydrationLiters   Float?   // HidrataÃ§Ã£o em litros/dia
   
   // Suplementos
   supplements       String?  // Texto livre
   
-  // Observações
+  // ObservaÃ§Ãµes
   notes             String?
   
   createdAt         DateTime @default(now())
@@ -155,14 +155,14 @@ model NutritionWeekly {
 }
 
 // ============================================================================
-// TEMPLATES DE PERIODIZAÇÃO
+// TEMPLATES DE PERIODIZAÃ‡ÃƒO
 // ============================================================================
 
 model PeriodizationTemplate {
   id                String   @id @default(cuid())
-  educatorId        String?  // null = template global
+  professorId        String?  // null = template global
   
-  name              String   // "Preparação para Maratona", "Base Aeróbica"
+  name              String   // "PreparaÃ§Ã£o para Maratona", "Base AerÃ³bica"
   description       String?
   category          String   // "marathon", "base", "peak", etc
   
@@ -178,6 +178,7 @@ model PeriodizationTemplate {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
   
-  @@index([educatorId])
+  @@index([professorId])
   @@index([category])
 }
+

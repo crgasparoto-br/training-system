@@ -1,3 +1,4 @@
-export { authService } from './auth.service';
-export { authMiddleware, educatorMiddleware, studentMiddleware, masterMiddleware } from './auth.middleware';
+﻿export { authService } from './auth.service';
+export { authMiddleware, professorMiddleware, alunoMiddleware, masterMiddleware } from './auth.middleware';
 export { default as authRoutes } from './auth.routes';
+

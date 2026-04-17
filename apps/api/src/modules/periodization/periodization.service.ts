@@ -1,12 +1,12 @@
-import { PrismaClient } from '@prisma/client';
+﻿import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
 /**
- * Regras de Cálculo Automático
+ * Regras de CÃ¡lculo AutomÃ¡tico
  */
 
-// Calcular % Carga TR baseado em Zona de Repetições
+// Calcular % Carga TR baseado em Zona de RepetiÃ§Ãµes
 export function calculateLoadPercentage(repZone: number | null): number | null {
   if (!repZone) return null;
   
@@ -22,7 +22,7 @@ export function calculateLoadPercentage(repZone: number | null): number | null {
   return loadMap[repZone] || null;
 }
 
-// Calcular Séries baseado em Carga Microciclo e REF
+// Calcular SÃ©ries baseado em Carga Microciclo e REF
 export function calculateSeries(
   loadCycle: string | null,
   seriesReference: number | null
@@ -46,11 +46,11 @@ export function calculateRepReserve(loadCycle: string | null): number | null {
 }
 
 /**
- * Service de Periodização
+ * Service de PeriodizaÃ§Ã£o
  */
 export const periodizationService = {
   /**
-   * Criar matriz de periodização para um plano
+   * Criar matriz de periodizaÃ§Ã£o para um plano
    */
   async createMatrix(data: {
     planId: string;
@@ -94,7 +94,7 @@ export const periodizationService = {
         },
         plan: {
           include: {
-            athlete: {
+            aluno: {
               include: {
                 user: {
                   include: {
@@ -135,11 +135,11 @@ export const periodizationService = {
   },
 
   // =========================================================================
-  // ESTÍMULO RESISTIDO
+  // ESTÃMULO RESISTIDO
   // =========================================================================
 
   /**
-   * Criar ou atualizar estímulo resistido
+   * Criar ou atualizar estÃ­mulo resistido
    */
   async upsertResistedStimulus(data: {
     matrixId: string;
@@ -157,7 +157,7 @@ export const periodizationService = {
     weeklyFrequency?: number | null;
     observations?: string | null;
   }) {
-    // Calcular campos automáticos
+    // Calcular campos automÃ¡ticos
     const loadPercentage = calculateLoadPercentage(data.repZone || null);
     const seriesLowerBody = calculateSeries(
       data.loadCycle || null,
@@ -189,7 +189,7 @@ export const periodizationService = {
   },
 
   /**
-   * Obter estímulos resistidos por matriz
+   * Obter estÃ­mulos resistidos por matriz
    */
   async getResistedStimulusByMatrix(matrixId: string) {
     return await prisma.resistedStimulus.findMany({
@@ -202,7 +202,7 @@ export const periodizationService = {
   },
 
   /**
-   * Deletar estímulo resistido
+   * Deletar estÃ­mulo resistido
    */
   async deleteResistedStimulus(id: string) {
     return await prisma.resistedStimulus.delete({
@@ -211,11 +211,11 @@ export const periodizationService = {
   },
 
   // =========================================================================
-  // ESTÍMULO CÍCLICO
+  // ESTÃMULO CÃCLICO
   // =========================================================================
 
   /**
-   * Criar ou atualizar estímulo cíclico
+   * Criar ou atualizar estÃ­mulo cÃ­clico
    */
   async upsertCyclicStimulus(data: {
     matrixId: string;
@@ -249,7 +249,7 @@ export const periodizationService = {
   },
 
   /**
-   * Obter estímulos cíclicos por matriz
+   * Obter estÃ­mulos cÃ­clicos por matriz
    */
   async getCyclicStimulusByMatrix(matrixId: string) {
     return await prisma.cyclicStimulus.findMany({
@@ -262,7 +262,7 @@ export const periodizationService = {
   },
 
   /**
-   * Deletar estímulo cíclico
+   * Deletar estÃ­mulo cÃ­clico
    */
   async deleteCyclicStimulus(id: string) {
     return await prisma.cyclicStimulus.delete({
@@ -271,11 +271,11 @@ export const periodizationService = {
   },
 
   // =========================================================================
-  // NUTRIÇÃO
+  // NUTRIÃ‡ÃƒO
   // =========================================================================
 
   /**
-   * Criar ou atualizar nutrição semanal
+   * Criar ou atualizar nutriÃ§Ã£o semanal
    */
   async upsertNutrition(data: {
     matrixId: string;
@@ -303,7 +303,7 @@ export const periodizationService = {
   },
 
   /**
-   * Obter nutrição por matriz
+   * Obter nutriÃ§Ã£o por matriz
    */
   async getNutritionByMatrix(matrixId: string) {
     return await prisma.nutritionWeekly.findMany({
@@ -316,7 +316,7 @@ export const periodizationService = {
   },
 
   /**
-   * Deletar nutrição
+   * Deletar nutriÃ§Ã£o
    */
   async deleteNutrition(id: string) {
     return await prisma.nutritionWeekly.delete({
@@ -325,11 +325,11 @@ export const periodizationService = {
   },
 
   // =========================================================================
-  // PARÂMETROS
+  // PARÃ‚METROS
   // =========================================================================
 
   /**
-   * Criar parâmetro
+   * Criar parÃ¢metro
    */
   async createParameter(data: {
     contractId: string;
@@ -344,7 +344,7 @@ export const periodizationService = {
   },
 
   /**
-   * Obter parâmetros por categoria
+   * Obter parÃ¢metros por categoria
    */
   async getParametersByCategory(contractId: string, category: string, includeInactive = false) {
     return await prisma.trainingParameter.findMany({
@@ -356,7 +356,7 @@ export const periodizationService = {
   },
 
   /**
-   * Obter todos os parâmetros
+   * Obter todos os parÃ¢metros
    */
   async getAllParameters(contractId: string, includeInactive = false) {
     return await prisma.trainingParameter.findMany({
@@ -369,7 +369,7 @@ export const periodizationService = {
   },
 
   /**
-   * Atualizar parâmetro
+   * Atualizar parÃ¢metro
    */
   async updateParameter(
     contractId: string,
@@ -385,7 +385,7 @@ export const periodizationService = {
     });
 
     if (!existing) {
-      throw new Error('Parâmetro não encontrado');
+      throw new Error('ParÃ¢metro nÃ£o encontrado');
     }
 
     return await prisma.trainingParameter.update({
@@ -395,7 +395,7 @@ export const periodizationService = {
   },
 
   /**
-   * Deletar parâmetro
+   * Deletar parÃ¢metro
    */
   async deleteParameter(contractId: string, id: string) {
     const existing = await prisma.trainingParameter.findFirst({
@@ -403,7 +403,7 @@ export const periodizationService = {
     });
 
     if (!existing) {
-      throw new Error('Parâmetro não encontrado');
+      throw new Error('ParÃ¢metro nÃ£o encontrado');
     }
 
     return await prisma.trainingParameter.delete({
@@ -457,7 +457,7 @@ export const periodizationService = {
    * Criar template
    */
   async createTemplate(data: {
-    educatorId?: string;
+    professorId?: string;
     name: string;
     description?: string;
     category: string;
@@ -474,12 +474,12 @@ export const periodizationService = {
   /**
    * Listar templates
    */
-  async listTemplates(educatorId?: string) {
+  async listTemplates(professorId?: string) {
     return await prisma.periodizationTemplate.findMany({
       where: {
         OR: [
           { isPublic: true },
-          { educatorId },
+          { professorId },
         ],
       },
       orderBy: { usageCount: 'desc' },
@@ -518,3 +518,4 @@ export const periodizationService = {
     });
   },
 };
+

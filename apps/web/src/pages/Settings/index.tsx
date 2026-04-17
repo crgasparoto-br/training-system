@@ -1,10 +1,10 @@
-import { Link } from 'react-router-dom';
+﻿import { Link } from 'react-router-dom';
 import { useAuthStore } from '../../stores/useAuthStore';
 
 export default function Settings() {
   const { user } = useAuthStore();
-  const canAccessAthleteSettings =
-    user?.type === 'educator' && user?.educator?.role === 'master';
+  const canAccessAlunoSettings =
+    user?.type === 'professor' && user?.professor?.role === 'master';
   return (
     <div className="space-y-6">
       <div>
@@ -75,9 +75,9 @@ export default function Settings() {
             Acessar tabela &rarr;
           </div>
         </Link>
-        {canAccessAthleteSettings && (
+        {canAccessAlunoSettings && (
           <Link
-            to="/settings/athlete-access"
+            to="/settings/aluno-access"
             className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm transition hover:border-blue-300 hover:shadow"
           >
             <h2 className="text-lg font-semibold text-gray-900">Cadastro de Alunos (Testes)</h2>
@@ -93,3 +93,4 @@ export default function Settings() {
     </div>
   );
 }
+

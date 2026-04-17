@@ -1,20 +1,20 @@
-import { Router, Request, Response } from 'express';
+﻿import { Router, Request, Response } from 'express';
 import { planService } from './plan.service';
 import { periodizationService } from '../periodization/periodization.service';
-import { athleteService } from '../athletes/athlete.service';
-import { authMiddleware, educatorMiddleware } from '../auth/auth.middleware';
+import { alunoService } from '../alunos/aluno.service';
+import { authMiddleware, professorMiddleware } from '../auth/auth.middleware';
 import { sendSuccess, sendError } from '@corrida/utils';
 import { z } from 'zod';
 
 const router: Router = Router();
 
-// Aplicar autenticação em todas as rotas
+// Aplicar autenticaÃ§Ã£o em todas as rotas
 router.use(authMiddleware);
 
-// Schemas de validação
+// Schemas de validaÃ§Ã£o
 const createPlanSchema = z.object({
-  athleteId: z.string().cuid(),
-  name: z.string().min(3, 'Nome deve ter no mínimo 3 caracteres'),
+  alunoId: z.string().cuid(),
+  name: z.string().min(3, 'Nome deve ter no mÃ­nimo 3 caracteres'),
   description: z.string().optional(),
   startDate: z.string().datetime(),
   endDate: z.string().datetime(),
@@ -53,20 +53,20 @@ const createMicrocycleSchema = z.object({
 
 /**
  * POST /api/v1/plans
- * Criar novo plano de treino (apenas educadores)
+ * Criar novo plano de treino (apenas professores)
  */
-router.post('/', educatorMiddleware, async (req: Request, res: Response) => {
+router.post('/', professorMiddleware, async (req: Request, res: Response) => {
   try {
     const validatedData = createPlanSchema.parse(req.body);
-    const educatorId = (req as any).user.educatorId;
+    const professorId = (req as any).user.professorId;
 
-    if (!educatorId) {
-      return sendError(res, 'Educador não encontrado', 404);
+    if (!professorId) {
+      return sendError(res, 'Professor nÃ£o encontrado', 404);
     }
 
     const plan = await planService.createPlan({
       ...validatedData,
-      educatorId,
+      professorId,
       startDate: new Date(validatedData.startDate),
       endDate: new Date(validatedData.endDate),
     });
@@ -74,7 +74,7 @@ router.post('/', educatorMiddleware, async (req: Request, res: Response) => {
     return sendSuccess(res, plan, 'Plano criado com sucesso', 201);
   } catch (error: any) {
     if (error instanceof z.ZodError) {
-      return sendError(res, 'Dados inválidos', 400, error.errors);
+      return sendError(res, 'Dados invÃ¡lidos', 400, error.errors);
     }
     console.error('Erro ao criar plano:', error);
     return sendError(res, 'Erro ao criar plano', 500);
@@ -83,88 +83,88 @@ router.post('/', educatorMiddleware, async (req: Request, res: Response) => {
 
 /**
  * GET /api/v1/plans
- * Listar planos do educador ou atleta
+ * Listar planos do professor ou aluno
  */
 router.get('/', async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 10;
-    const rawAthleteId = typeof req.query.athleteId === 'string' ? req.query.athleteId.trim() : '';
-    const rawEducatorId =
-      typeof req.query.educatorId === 'string' ? req.query.educatorId.trim() : '';
-    const athleteId = rawAthleteId || undefined;
-    const educatorId = rawEducatorId || undefined;
+    const rawAlunoId = typeof req.query.alunoId === 'string' ? req.query.alunoId.trim() : '';
+    const rawProfessorId =
+      typeof req.query.professorId === 'string' ? req.query.professorId.trim() : '';
+    const alunoId = rawAlunoId || undefined;
+    const professorId = rawProfessorId || undefined;
     const rawQuery = typeof req.query.q === 'string' ? req.query.q.trim() : '';
     const query = rawQuery || undefined;
     const rawStatus = typeof req.query.status === 'string' ? req.query.status.trim() : '';
     const status = rawStatus === 'active' || rawStatus === 'finished' ? rawStatus : 'all';
 
     let result;
-    if (user.type === 'educator') {
-      // Buscar educatorId do banco
+    if (user.type === 'professor') {
+      // Buscar professorId do banco
       const { authService } = await import('../auth/auth.service');
-      const userWithEducator = await authService.getUserById(user.userId);
+      const userWithProfessor = await authService.getUserById(user.userId);
       
-      if (!userWithEducator?.educator) {
-        return sendError(res, 'Educador nao encontrado', 404);
+      if (!userWithProfessor?.professor) {
+        return sendError(res, 'Professor nao encontrado', 404);
       }
 
       const isMasterAcademy =
-        userWithEducator.educator.role === 'master' &&
-        userWithEducator.educator.contract?.type === 'academy';
+        userWithProfessor.professor.role === 'master' &&
+        userWithProfessor.professor.contract?.type === 'academy';
 
-      if (isMasterAcademy && userWithEducator.educator.contractId) {
-        if (athleteId) {
-          const belongs = await athleteService.belongsToContract(
-            athleteId,
-            userWithEducator.educator.contractId
+      if (isMasterAcademy && userWithProfessor.professor.contractId) {
+        if (alunoId) {
+          const belongs = await alunoService.belongsToContract(
+            alunoId,
+            userWithProfessor.professor.contractId
           );
           if (!belongs) {
-            return sendError(res, 'Atleta nao encontrado ou nao pertence ao contrato', 404);
+            return sendError(res, 'Aluno nao encontrado ou nao pertence ao contrato', 404);
           }
         }
 
         result = await planService.findByContract(
-          userWithEducator.educator.contractId,
+          userWithProfessor.professor.contractId,
           page,
           limit,
-          educatorId,
-          athleteId,
+          professorId,
+          alunoId,
           status,
           query
         );
       } else {
-        if (athleteId) {
-          const belongs = await athleteService.belongsToEducator(
-            athleteId,
-            userWithEducator.educator.id
+        if (alunoId) {
+          const belongs = await alunoService.belongsToProfessor(
+            alunoId,
+            userWithProfessor.professor.id
           );
           if (!belongs) {
-            return sendError(res, 'Atleta nao encontrado ou nao pertence a voce', 404);
+            return sendError(res, 'Aluno nao encontrado ou nao pertence a voce', 404);
           }
         }
 
-        result = await planService.findByEducator(
-          userWithEducator.educator.id,
+        result = await planService.findByProfessor(
+          userWithProfessor.professor.id,
           page,
           limit,
-          athleteId,
+          alunoId,
           status,
           query
         );
       }
     } else {
 
-      // Buscar athleteId do banco
+      // Buscar alunoId do banco
       const { authService } = await import('../auth/auth.service');
-      const userWithAthlete = await authService.getUserById(user.userId);
+      const userWithAluno = await authService.getUserById(user.userId);
       
-      if (!userWithAthlete?.athlete) {
-        return sendError(res, 'Atleta não encontrado', 404);
+      if (!userWithAluno?.aluno) {
+        return sendError(res, 'Aluno nÃ£o encontrado', 404);
       }
       
-      const plans = await planService.findByAthlete(userWithAthlete.athlete.id, status, query);
+      const plans = await planService.findByAluno(userWithAluno.aluno.id, status, query);
       result = { plans, pagination: { page: 1, limit: plans.length, total: plans.length, totalPages: 1 } };
     }
 
@@ -179,25 +179,25 @@ router.get('/', async (req: Request, res: Response) => {
  * GET /api/v1/plans/:id
  * Obter plano por ID
  */
-router.get('/athlete/:athleteId', educatorMiddleware, async (req: Request, res: Response) => {
+router.get('/aluno/:alunoId', professorMiddleware, async (req: Request, res: Response) => {
   try {
-    const { athleteId } = req.params;
-    const educatorId = (req as any).user.educatorId;
+    const { alunoId } = req.params;
+    const professorId = (req as any).user.professorId;
     const rawQuery = typeof req.query.q === 'string' ? req.query.q.trim() : '';
     const query = rawQuery || undefined;
     const rawStatus = typeof req.query.status === 'string' ? req.query.status.trim() : '';
     const status = rawStatus === 'active' || rawStatus === 'finished' ? rawStatus : 'all';
 
-    if (!educatorId) {
-      return sendError(res, 'Educador não encontrado', 404);
+    if (!professorId) {
+      return sendError(res, 'Professor nÃ£o encontrado', 404);
     }
 
-    const belongs = await athleteService.belongsToEducator(athleteId, educatorId);
+    const belongs = await alunoService.belongsToProfessor(alunoId, professorId);
     if (!belongs) {
-      return sendError(res, 'Atleta não encontrado ou não pertence a você', 404);
+      return sendError(res, 'Aluno nÃ£o encontrado ou nÃ£o pertence a vocÃª', 404);
     }
 
-    const plans = await planService.findByAthlete(athleteId, status, query);
+    const plans = await planService.findByAluno(alunoId, status, query);
     const result = {
       plans,
       pagination: {
@@ -210,8 +210,8 @@ router.get('/athlete/:athleteId', educatorMiddleware, async (req: Request, res: 
 
     return sendSuccess(res, result, 'Planos recuperados com sucesso');
   } catch (error) {
-    console.error('Erro ao listar planos do atleta:', error);
-    return sendError(res, 'Erro ao listar planos do atleta', 500);
+    console.error('Erro ao listar planos do aluno:', error);
+    return sendError(res, 'Erro ao listar planos do aluno', 500);
   }
 });
 
@@ -225,10 +225,10 @@ router.get('/:id', async (req: Request, res: Response) => {
     const plan = await planService.findById(id);
 
     if (!plan) {
-      return sendError(res, 'Plano não encontrado', 404);
+      return sendError(res, 'Plano nÃ£o encontrado', 404);
     }
 
-    // Calcular estatísticas
+    // Calcular estatÃ­sticas
     const stats = await planService.getPlanStats(id);
 
     return sendSuccess(
@@ -247,26 +247,26 @@ router.get('/:id', async (req: Request, res: Response) => {
 
 /**
  * PUT /api/v1/plans/:id
- * Atualizar plano (apenas educador dono)
+ * Atualizar plano (apenas professor dono)
  */
-router.put('/:id', educatorMiddleware, async (req: Request, res: Response) => {
+router.put('/:id', professorMiddleware, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const educatorId = (req as any).user.educatorId;
+    const professorId = (req as any).user.professorId;
 
-    if (!educatorId) {
-      return sendError(res, 'Educador não encontrado', 404);
+    if (!professorId) {
+      return sendError(res, 'Professor nÃ£o encontrado', 404);
     }
 
-    // Verificar se plano pertence ao educador
-    const belongs = await planService.belongsToEducator(id, educatorId);
+    // Verificar se plano pertence ao professor
+    const belongs = await planService.belongsToProfessor(id, professorId);
     if (!belongs) {
-      return sendError(res, 'Plano não encontrado ou não pertence a você', 404);
+      return sendError(res, 'Plano nÃ£o encontrado ou nÃ£o pertence a vocÃª', 404);
     }
 
     const existingPlan = await planService.findById(id);
     if (!existingPlan) {
-      return sendError(res, 'Plano não encontrado', 404);
+      return sendError(res, 'Plano nÃ£o encontrado', 404);
     }
 
     const plan = await planService.updatePlan(id, req.body);
@@ -308,21 +308,21 @@ router.put('/:id', educatorMiddleware, async (req: Request, res: Response) => {
 
 /**
  * DELETE /api/v1/plans/:id
- * Deletar plano (apenas educador dono)
+ * Deletar plano (apenas professor dono)
  */
-router.delete('/:id', educatorMiddleware, async (req: Request, res: Response) => {
+router.delete('/:id', professorMiddleware, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const educatorId = (req as any).user.educatorId;
+    const professorId = (req as any).user.professorId;
 
-    if (!educatorId) {
-      return sendError(res, 'Educador não encontrado', 404);
+    if (!professorId) {
+      return sendError(res, 'Professor nÃ£o encontrado', 404);
     }
 
-    // Verificar se plano pertence ao educador
-    const belongs = await planService.belongsToEducator(id, educatorId);
+    // Verificar se plano pertence ao professor
+    const belongs = await planService.belongsToProfessor(id, professorId);
     if (!belongs) {
-      return sendError(res, 'Plano não encontrado ou não pertence a você', 404);
+      return sendError(res, 'Plano nÃ£o encontrado ou nÃ£o pertence a vocÃª', 404);
     }
 
     await planService.deletePlan(id);
@@ -338,24 +338,24 @@ router.delete('/:id', educatorMiddleware, async (req: Request, res: Response) =>
  * POST /api/v1/plans/:id/generate-weeks
  * Gerar semanas automaticamente para um plano
  */
-router.post('/:id/generate-weeks', educatorMiddleware, async (req: Request, res: Response) => {
+router.post('/:id/generate-weeks', professorMiddleware, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const educatorId = (req as any).user.educatorId;
+    const professorId = (req as any).user.professorId;
 
-    if (!educatorId) {
-      return sendError(res, 'Educador não encontrado', 404);
+    if (!professorId) {
+      return sendError(res, 'Professor nÃ£o encontrado', 404);
     }
 
-    // Verificar se plano pertence ao educador
-    const belongs = await planService.belongsToEducator(id, educatorId);
+    // Verificar se plano pertence ao professor
+    const belongs = await planService.belongsToProfessor(id, professorId);
     if (!belongs) {
-      return sendError(res, 'Plano não encontrado ou não pertence a você', 404);
+      return sendError(res, 'Plano nÃ£o encontrado ou nÃ£o pertence a vocÃª', 404);
     }
 
     const plan = await planService.findById(id);
     if (!plan) {
-      return sendError(res, 'Plano não encontrado', 404);
+      return sendError(res, 'Plano nÃ£o encontrado', 404);
     }
 
     const result = await planService.generateWeeks(id, plan.startDate, plan.endDate);
@@ -371,7 +371,7 @@ router.post('/:id/generate-weeks', educatorMiddleware, async (req: Request, res:
  * POST /api/v1/plans/macrocycles
  * Criar macrociclo
  */
-router.post('/macrocycles', educatorMiddleware, async (req: Request, res: Response) => {
+router.post('/macrocycles', professorMiddleware, async (req: Request, res: Response) => {
   try {
     const validatedData = createMacrocycleSchema.parse(req.body);
     const macrocycle = await planService.createMacrocycle(validatedData);
@@ -379,7 +379,7 @@ router.post('/macrocycles', educatorMiddleware, async (req: Request, res: Respon
     return sendSuccess(res, macrocycle, 'Macrociclo criado com sucesso', 201);
   } catch (error: any) {
     if (error instanceof z.ZodError) {
-      return sendError(res, 'Dados inválidos', 400, error.errors);
+      return sendError(res, 'Dados invÃ¡lidos', 400, error.errors);
     }
     console.error('Erro ao criar macrociclo:', error);
     return sendError(res, 'Erro ao criar macrociclo', 500);
@@ -390,7 +390,7 @@ router.post('/macrocycles', educatorMiddleware, async (req: Request, res: Respon
  * POST /api/v1/plans/mesocycles
  * Criar mesociclo
  */
-router.post('/mesocycles', educatorMiddleware, async (req: Request, res: Response) => {
+router.post('/mesocycles', professorMiddleware, async (req: Request, res: Response) => {
   try {
     const validatedData = createMesocycleSchema.parse(req.body);
     const mesocycle = await planService.createMesocycle({
@@ -402,7 +402,7 @@ router.post('/mesocycles', educatorMiddleware, async (req: Request, res: Respons
     return sendSuccess(res, mesocycle, 'Mesociclo criado com sucesso', 201);
   } catch (error: any) {
     if (error instanceof z.ZodError) {
-      return sendError(res, 'Dados inválidos', 400, error.errors);
+      return sendError(res, 'Dados invÃ¡lidos', 400, error.errors);
     }
     console.error('Erro ao criar mesociclo:', error);
     return sendError(res, 'Erro ao criar mesociclo', 500);
@@ -411,54 +411,55 @@ router.post('/mesocycles', educatorMiddleware, async (req: Request, res: Respons
 
 /**
  * POST /api/v1/plans/microcycles
- * Criar microciclo (sessão)
+ * Criar microciclo (sessÃ£o)
  */
-router.post('/microcycles', educatorMiddleware, async (req: Request, res: Response) => {
+router.post('/microcycles', professorMiddleware, async (req: Request, res: Response) => {
   try {
     const validatedData = createMicrocycleSchema.parse(req.body);
     const microcycle = await planService.createMicrocycle(validatedData);
 
-    return sendSuccess(res, microcycle, 'Sessão criada com sucesso', 201);
+    return sendSuccess(res, microcycle, 'SessÃ£o criada com sucesso', 201);
   } catch (error: any) {
     if (error instanceof z.ZodError) {
-      return sendError(res, 'Dados inválidos', 400, error.errors);
+      return sendError(res, 'Dados invÃ¡lidos', 400, error.errors);
     }
-    console.error('Erro ao criar sessão:', error);
-    return sendError(res, 'Erro ao criar sessão', 500);
+    console.error('Erro ao criar sessÃ£o:', error);
+    return sendError(res, 'Erro ao criar sessÃ£o', 500);
   }
 });
 
 /**
  * PUT /api/v1/plans/microcycles/:id
- * Atualizar microciclo (sessão)
+ * Atualizar microciclo (sessÃ£o)
  */
-router.put('/microcycles/:id', educatorMiddleware, async (req: Request, res: Response) => {
+router.put('/microcycles/:id', professorMiddleware, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const microcycle = await planService.updateMicrocycle(id, req.body);
 
-    return sendSuccess(res, microcycle, 'Sessão atualizada com sucesso');
+    return sendSuccess(res, microcycle, 'SessÃ£o atualizada com sucesso');
   } catch (error) {
-    console.error('Erro ao atualizar sessão:', error);
-    return sendError(res, 'Erro ao atualizar sessão', 500);
+    console.error('Erro ao atualizar sessÃ£o:', error);
+    return sendError(res, 'Erro ao atualizar sessÃ£o', 500);
   }
 });
 
 /**
  * DELETE /api/v1/plans/microcycles/:id
- * Deletar microciclo (sessão)
+ * Deletar microciclo (sessÃ£o)
  */
-router.delete('/microcycles/:id', educatorMiddleware, async (req: Request, res: Response) => {
+router.delete('/microcycles/:id', professorMiddleware, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     await planService.deleteMicrocycle(id);
 
-    return sendSuccess(res, null, 'Sessão deletada com sucesso');
+    return sendSuccess(res, null, 'SessÃ£o deletada com sucesso');
   } catch (error) {
-    console.error('Erro ao deletar sessão:', error);
-    return sendError(res, 'Erro ao deletar sessão', 500);
+    console.error('Erro ao deletar sessÃ£o:', error);
+    return sendError(res, 'Erro ao deletar sessÃ£o', 500);
   }
 });
 
 export default router;
+
 

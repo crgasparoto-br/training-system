@@ -48,7 +48,6 @@ export default function ExerciseModal({ mode, exercise, onClose }: ExerciseModal
 
   const isViewMode = mode === 'view';
   const isEditMode = mode === 'edit';
-  const isCreateMode = mode === 'create';
 
   useEffect(() => {
     if (exercise) {

@@ -1,26 +1,26 @@
 ﻿import { Router, Request, Response } from 'express';
-import { authMiddleware, educatorMiddleware, studentMiddleware } from '../modules/auth/auth.middleware.js';
+import { authMiddleware, professorMiddleware, alunoMiddleware } from '../modules/auth/auth.middleware.js';
 import { authService } from '../modules/auth/auth.service.js';
-import { athleteService } from '../modules/athletes/athlete.service.js';
+import { alunoService } from '../modules/alunos/aluno.service.js';
 import { workoutService } from '../modules/workout/workout.service.js';
 
 const router: Router = Router();
 
 router.use(authMiddleware);
 
-const getAthleteId = async (req: Request) => {
+const getAlunoId = async (req: Request) => {
   const userId = req.user?.userId;
   if (!userId) return null;
   const user = await authService.getUserById(userId);
-  return user?.athlete?.id ?? null;
+  return user?.aluno?.id ?? null;
 };
 
 // Get workout day by id
-router.get('/workout-day/:id', studentMiddleware, async (req: Request, res: Response) => {
+router.get('/workout-day/:id', alunoMiddleware, async (req: Request, res: Response) => {
   try {
-    const athleteId = await getAthleteId(req);
-    if (!athleteId) {
-      return res.status(403).json({ error: 'Atleta nao encontrado' });
+    const alunoId = await getAlunoId(req);
+    if (!alunoId) {
+      return res.status(403).json({ error: 'Aluno nao encontrado' });
     }
 
     const day = await workoutService.getWorkoutDay(req.params.id);
@@ -29,7 +29,7 @@ router.get('/workout-day/:id', studentMiddleware, async (req: Request, res: Resp
       return res.status(404).json({ error: 'Treino nao encontrado' });
     }
 
-    if (day.template?.plan?.athleteId !== athleteId) {
+    if (day.template?.plan?.alunoId !== alunoId) {
       return res.status(403).json({ error: 'Sem permissao para este treino' });
     }
 
@@ -45,11 +45,11 @@ router.get('/workout-day/:id', studentMiddleware, async (req: Request, res: Resp
 });
 
 // Get workout day by date
-router.get('/workout-day', studentMiddleware, async (req: Request, res: Response) => {
+router.get('/workout-day', alunoMiddleware, async (req: Request, res: Response) => {
   try {
-    const athleteId = await getAthleteId(req);
-    if (!athleteId) {
-      return res.status(403).json({ error: 'Atleta nao encontrado' });
+    const alunoId = await getAlunoId(req);
+    if (!alunoId) {
+      return res.status(403).json({ error: 'Aluno nao encontrado' });
     }
 
     const { date } = req.query;
@@ -57,7 +57,7 @@ router.get('/workout-day', studentMiddleware, async (req: Request, res: Response
       return res.status(400).json({ error: 'date is required (YYYY-MM-DD)' });
     }
 
-    const day = await workoutService.getWorkoutDayByDate(athleteId, date);
+    const day = await workoutService.getWorkoutDayByDate(alunoId, date);
 
     if (!day) {
       return res.status(404).json({ error: 'Treino nao encontrado para a data' });
@@ -71,11 +71,11 @@ router.get('/workout-day', studentMiddleware, async (req: Request, res: Response
 });
 
 // List workout days by date range
-router.get('/workout-days', studentMiddleware, async (req: Request, res: Response) => {
+router.get('/workout-days', alunoMiddleware, async (req: Request, res: Response) => {
   try {
-    const athleteId = await getAthleteId(req);
-    if (!athleteId) {
-      return res.status(403).json({ error: 'Atleta nao encontrado' });
+    const alunoId = await getAlunoId(req);
+    if (!alunoId) {
+      return res.status(403).json({ error: 'Aluno nao encontrado' });
     }
 
     const { startDate, endDate } = req.query;
@@ -83,7 +83,7 @@ router.get('/workout-days', studentMiddleware, async (req: Request, res: Respons
       return res.status(400).json({ error: 'startDate and endDate are required (YYYY-MM-DD)' });
     }
 
-    const days = await workoutService.getWorkoutDaysByRange(athleteId, startDate, endDate, {
+    const days = await workoutService.getWorkoutDaysByRange(alunoId, startDate, endDate, {
       releasedOnly: true,
     });
 
@@ -95,11 +95,11 @@ router.get('/workout-days', studentMiddleware, async (req: Request, res: Respons
 });
 
 // Update workout day status / PSR / PSE
-router.put('/workout-day/:id/status', studentMiddleware, async (req: Request, res: Response) => {
+router.put('/workout-day/:id/status', alunoMiddleware, async (req: Request, res: Response) => {
   try {
-    const athleteId = await getAthleteId(req);
-    if (!athleteId) {
-      return res.status(403).json({ error: 'Atleta nao encontrado' });
+    const alunoId = await getAlunoId(req);
+    if (!alunoId) {
+      return res.status(403).json({ error: 'Aluno nao encontrado' });
     }
 
     const day = await workoutService.getWorkoutDay(req.params.id);
@@ -107,7 +107,7 @@ router.put('/workout-day/:id/status', studentMiddleware, async (req: Request, re
       return res.status(404).json({ error: 'Treino nao encontrado' });
     }
 
-    if (day.template?.plan?.athleteId !== athleteId) {
+    if (day.template?.plan?.alunoId !== alunoId) {
       return res.status(403).json({ error: 'Sem permissao para este treino' });
     }
 
@@ -125,16 +125,16 @@ router.put('/workout-day/:id/status', studentMiddleware, async (req: Request, re
 });
 
 // Record execution by set
-router.post('/workout-exercise/:id/records', studentMiddleware, async (req: Request, res: Response) => {
+router.post('/workout-exercise/:id/records', alunoMiddleware, async (req: Request, res: Response) => {
   try {
-    const athleteId = await getAthleteId(req);
-    if (!athleteId) {
-      return res.status(403).json({ error: 'Atleta nao encontrado' });
+    const alunoId = await getAlunoId(req);
+    if (!alunoId) {
+      return res.status(403).json({ error: 'Aluno nao encontrado' });
     }
 
     const execution = await workoutService.recordExecution({
       workoutExerciseId: req.params.id,
-      athleteId,
+      alunoId,
       executionDate: new Date(),
       setNumber: req.body.setNumber ?? null,
       setsCompleted: req.body.setsCompleted ?? null,
@@ -152,12 +152,12 @@ router.post('/workout-exercise/:id/records', studentMiddleware, async (req: Requ
   }
 });
 
-// List executions by athlete and period
-router.get('/athlete', studentMiddleware, async (req: Request, res: Response) => {
+// List executions by aluno and period
+router.get('/aluno', alunoMiddleware, async (req: Request, res: Response) => {
   try {
-    const athleteId = await getAthleteId(req);
-    if (!athleteId) {
-      return res.status(403).json({ error: 'Atleta nao encontrado' });
+    const alunoId = await getAlunoId(req);
+    if (!alunoId) {
+      return res.status(403).json({ error: 'Aluno nao encontrado' });
     }
 
     const { startDate, endDate } = req.query;
@@ -165,8 +165,8 @@ router.get('/athlete', studentMiddleware, async (req: Request, res: Response) =>
       return res.status(400).json({ error: 'startDate and endDate are required' });
     }
 
-    const data = await workoutService.getExecutionsByAthlete(
-      athleteId,
+    const data = await workoutService.getExecutionsByAluno(
+      alunoId,
       new Date(`${startDate}T00:00:00`),
       new Date(`${endDate}T23:59:59`)
     );
@@ -182,11 +182,11 @@ router.get('/athlete', studentMiddleware, async (req: Request, res: Response) =>
 // EDUCATOR READ-ONLY ROUTES
 // ============================================================================
 
-router.get('/educator/workout-day/:id', educatorMiddleware, async (req: Request, res: Response) => {
+router.get('/professor/workout-day/:id', professorMiddleware, async (req: Request, res: Response) => {
   try {
-    const educatorId = (req as any).user?.educatorId as string | undefined;
-    if (!educatorId) {
-      return res.status(403).json({ error: 'Educador nao encontrado' });
+    const professorId = (req as any).user?.professorId as string | undefined;
+    if (!professorId) {
+      return res.status(403).json({ error: 'Professor nao encontrado' });
     }
 
     const day = await workoutService.getWorkoutDay(req.params.id);
@@ -194,12 +194,12 @@ router.get('/educator/workout-day/:id', educatorMiddleware, async (req: Request,
       return res.status(404).json({ error: 'Treino nao encontrado' });
     }
 
-    const athleteId = day.template?.plan?.athleteId ?? null;
-    if (!athleteId) {
-      return res.status(404).json({ error: 'Atleta nao encontrado' });
+    const alunoId = day.template?.plan?.alunoId ?? null;
+    if (!alunoId) {
+      return res.status(404).json({ error: 'Aluno nao encontrado' });
     }
 
-    const belongs = await athleteService.belongsToEducator(athleteId, educatorId);
+    const belongs = await alunoService.belongsToProfessor(alunoId, professorId);
     if (!belongs) {
       return res.status(403).json({ error: 'Sem permissao para este treino' });
     }
@@ -210,72 +210,73 @@ router.get('/educator/workout-day/:id', educatorMiddleware, async (req: Request,
 
     return res.json(day);
   } catch (error: any) {
-    console.error('Error getting workout day (educator):', error);
+    console.error('Error getting workout day (professor):', error);
     return res.status(500).json({ error: error.message });
   }
 });
 
-router.get('/educator/workout-day', educatorMiddleware, async (req: Request, res: Response) => {
+router.get('/professor/workout-day', professorMiddleware, async (req: Request, res: Response) => {
   try {
-    const educatorId = (req as any).user?.educatorId as string | undefined;
-    if (!educatorId) {
-      return res.status(403).json({ error: 'Educador nao encontrado' });
+    const professorId = (req as any).user?.professorId as string | undefined;
+    if (!professorId) {
+      return res.status(403).json({ error: 'Professor nao encontrado' });
     }
 
-    const { date, athleteId } = req.query;
+    const { date, alunoId } = req.query;
     if (!date || typeof date !== 'string') {
       return res.status(400).json({ error: 'date is required (YYYY-MM-DD)' });
     }
-    if (!athleteId || typeof athleteId !== 'string') {
-      return res.status(400).json({ error: 'athleteId is required' });
+    if (!alunoId || typeof alunoId !== 'string') {
+      return res.status(400).json({ error: 'alunoId is required' });
     }
 
-    const belongs = await athleteService.belongsToEducator(athleteId, educatorId);
+    const belongs = await alunoService.belongsToProfessor(alunoId, professorId);
     if (!belongs) {
-      return res.status(403).json({ error: 'Sem permissao para este atleta' });
+      return res.status(403).json({ error: 'Sem permissao para este aluno' });
     }
 
-    const day = await workoutService.getWorkoutDayByDate(athleteId, date);
+    const day = await workoutService.getWorkoutDayByDate(alunoId, date);
     if (!day) {
       return res.status(404).json({ error: 'Treino nao encontrado para a data' });
     }
 
     return res.json(day);
   } catch (error: any) {
-    console.error('Error getting workout day by date (educator):', error);
+    console.error('Error getting workout day by date (professor):', error);
     return res.status(500).json({ error: error.message });
   }
 });
 
-router.get('/educator/workout-days', educatorMiddleware, async (req: Request, res: Response) => {
+router.get('/professor/workout-days', professorMiddleware, async (req: Request, res: Response) => {
   try {
-    const educatorId = (req as any).user?.educatorId as string | undefined;
-    if (!educatorId) {
-      return res.status(403).json({ error: 'Educador nao encontrado' });
+    const professorId = (req as any).user?.professorId as string | undefined;
+    if (!professorId) {
+      return res.status(403).json({ error: 'Professor nao encontrado' });
     }
 
-    const { startDate, endDate, athleteId } = req.query;
+    const { startDate, endDate, alunoId } = req.query;
     if (!startDate || !endDate || typeof startDate !== 'string' || typeof endDate !== 'string') {
       return res.status(400).json({ error: 'startDate and endDate are required (YYYY-MM-DD)' });
     }
-    if (!athleteId || typeof athleteId !== 'string') {
-      return res.status(400).json({ error: 'athleteId is required' });
+    if (!alunoId || typeof alunoId !== 'string') {
+      return res.status(400).json({ error: 'alunoId is required' });
     }
 
-    const belongs = await athleteService.belongsToEducator(athleteId, educatorId);
+    const belongs = await alunoService.belongsToProfessor(alunoId, professorId);
     if (!belongs) {
-      return res.status(403).json({ error: 'Sem permissao para este atleta' });
+      return res.status(403).json({ error: 'Sem permissao para este aluno' });
     }
 
-    const days = await workoutService.getWorkoutDaysByRange(athleteId, startDate, endDate, {
+    const days = await workoutService.getWorkoutDaysByRange(alunoId, startDate, endDate, {
       releasedOnly: false,
     });
 
     return res.json(days);
   } catch (error: any) {
-    console.error('Error listing workout days (educator):', error);
+    console.error('Error listing workout days (professor):', error);
     return res.status(500).json({ error: error.message });
   }
 });
 
 export default router;
+

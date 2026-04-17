@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+﻿import { create } from 'zustand';
 import { authService } from '../services/auth.service';
 import type { LoginRequest, RegisterRequest } from '@corrida/types';
 
@@ -6,10 +6,10 @@ interface User {
   id: string;
   email: string;
   name: string;
-  type: 'educator' | 'student';
-  educator?: {
+  type: 'professor' | 'aluno';
+  professor?: {
     id: string;
-    role: 'master' | 'educator';
+    role: 'master' | 'professor';
     contract: {
       id: string;
       type: 'academy' | 'personal';
@@ -125,3 +125,4 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   clearError: () => set({ error: null }),
 }));
+

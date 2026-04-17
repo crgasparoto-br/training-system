@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { athleteService, type Athlete } from '../../services/athlete.service';
+import { alunoService, type Aluno } from '../../services/aluno.service';
 import { useAuthStore } from '../../stores/useAuthStore';
 
-export default function SettingsAthleteAccess() {
+export default function SettingsAlunoAccess() {
   const { user } = useAuthStore();
-  const canAccess = user?.type === 'educator' && user.educator?.role === 'master';
-  const [athletes, setAthletes] = useState<Athlete[]>([]);
+  const canAccess = user?.type === 'professor' && user.professor?.role === 'master';
+  const [alunos, setAlunos] = useState<Aluno[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
@@ -14,12 +14,12 @@ export default function SettingsAthleteAccess() {
   const [tempPasswords, setTempPasswords] = useState<Record<string, string>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  const loadAthletes = async () => {
+  const loadAlunos = async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await athleteService.list(1, 100, undefined, 'all');
-      setAthletes(data.athletes);
+      const data = await alunoService.list(1, 100, undefined, 'all');
+      setAlunos(data.alunos);
     } catch (err: any) {
       setError(err?.message || 'Erro ao carregar alunos');
     } finally {
@@ -29,7 +29,7 @@ export default function SettingsAthleteAccess() {
 
   useEffect(() => {
     if (!canAccess) return;
-    loadAthletes();
+    loadAlunos();
   }, [canAccess]);
 
   const handleSearch = async (event: React.FormEvent) => {
@@ -39,11 +39,11 @@ export default function SettingsAthleteAccess() {
     try {
       const trimmed = query.trim();
       if (trimmed) {
-        const data = await athleteService.search(trimmed, undefined, 'all');
-        setAthletes(data);
+        const data = await alunoService.search(trimmed, undefined, 'all');
+        setAlunos(data);
       } else {
-        const data = await athleteService.list(1, 100, undefined, 'all');
-        setAthletes(data.athletes);
+        const data = await alunoService.list(1, 100, undefined, 'all');
+        setAlunos(data.alunos);
       }
     } catch (err: any) {
       setError(err?.message || 'Erro ao buscar alunos');
@@ -52,15 +52,15 @@ export default function SettingsAthleteAccess() {
     }
   };
 
-  const handleResetPassword = async (athleteId: string) => {
+  const handleResetPassword = async (alunoId: string) => {
     if (!confirm('Deseja gerar uma nova senha temporaria para este aluno?')) {
       return;
     }
-    setResettingId(athleteId);
+    setResettingId(alunoId);
     setCopiedId(null);
     try {
-      const result = await athleteService.resetPassword(athleteId);
-      setTempPasswords((prev) => ({ ...prev, [athleteId]: result.tempPassword }));
+      const result = await alunoService.resetPassword(alunoId);
+      setTempPasswords((prev) => ({ ...prev, [alunoId]: result.tempPassword }));
     } catch (error: any) {
       alert(error.response?.data?.error || 'Erro ao resetar senha');
     } finally {
@@ -68,22 +68,22 @@ export default function SettingsAthleteAccess() {
     }
   };
 
-  const handleCopyPassword = async (athleteId: string) => {
-    const password = tempPasswords[athleteId];
+  const handleCopyPassword = async (alunoId: string) => {
+    const password = tempPasswords[alunoId];
     if (!password) return;
     try {
       await navigator.clipboard.writeText(password);
-      setCopiedId(athleteId);
+      setCopiedId(alunoId);
     } catch {
       alert('Nao foi possivel copiar a senha automaticamente');
     }
   };
 
-  const visibleAthletes = useMemo(() => {
-    return athletes.slice().sort((a, b) =>
+  const visibleAlunos = useMemo(() => {
+    return alunos.slice().sort((a, b) =>
       a.user.profile.name.localeCompare(b.user.profile.name)
     );
-  }, [athletes]);
+  }, [alunos]);
 
   if (!canAccess) {
     return (
@@ -112,7 +112,7 @@ export default function SettingsAthleteAccess() {
         </div>
         <button
           type="button"
-          onClick={loadAthletes}
+          onClick={loadAlunos}
           className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
         >
           Atualizar lista
@@ -144,7 +144,7 @@ export default function SettingsAthleteAccess() {
             type="button"
             onClick={() => {
               setQuery('');
-              loadAthletes();
+              loadAlunos();
             }}
             className="h-10 rounded-lg border border-gray-200 px-4 text-sm font-medium text-gray-700 hover:bg-gray-50"
           >
@@ -170,45 +170,45 @@ export default function SettingsAthleteAccess() {
                     Carregando...
                   </td>
                 </tr>
-              ) : visibleAthletes.length === 0 ? (
+              ) : visibleAlunos.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-3 py-6 text-center text-gray-400">
                     Nenhum aluno encontrado
                   </td>
                 </tr>
               ) : (
-                visibleAthletes.map((athlete) => (
-                  <tr key={athlete.id} className="border-b">
+                visibleAlunos.map((aluno) => (
+                  <tr key={aluno.id} className="border-b">
                     <td className="px-3 py-2 text-gray-700">
-                      <div className="font-medium">{athlete.user.profile.name}</div>
+                      <div className="font-medium">{aluno.user.profile.name}</div>
                       <div className="text-xs text-gray-500">
-                        {athlete.educator?.user?.profile?.name || 'Professor'}
+                        {aluno.professor?.user?.profile?.name || 'Professor'}
                       </div>
                     </td>
-                    <td className="px-3 py-2 text-gray-700">{athlete.user.email}</td>
+                    <td className="px-3 py-2 text-gray-700">{aluno.user.email}</td>
                     <td className="px-3 py-2 text-center">
                       <span
                         className={`rounded-full px-2 py-1 text-xs font-medium ${
-                          athlete.user.isActive === false
+                          aluno.user.isActive === false
                             ? 'bg-gray-100 text-gray-500'
                             : 'bg-green-100 text-green-700'
                         }`}
                       >
-                        {athlete.user.isActive === false ? 'Inativo' : 'Ativo'}
+                        {aluno.user.isActive === false ? 'Inativo' : 'Ativo'}
                       </span>
                     </td>
                     <td className="px-3 py-2 text-gray-700">
-                      {tempPasswords[athlete.id] ? (
+                      {tempPasswords[aluno.id] ? (
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="font-mono text-xs">
-                            {tempPasswords[athlete.id]}
+                            {tempPasswords[aluno.id]}
                           </span>
                           <button
                             type="button"
-                            onClick={() => handleCopyPassword(athlete.id)}
+                            onClick={() => handleCopyPassword(aluno.id)}
                             className="rounded-md border border-gray-200 px-2 py-1 text-[10px] font-medium text-gray-700 hover:bg-gray-50"
                           >
-                            {copiedId === athlete.id ? 'Copiado' : 'Copiar'}
+                            {copiedId === aluno.id ? 'Copiado' : 'Copiar'}
                           </button>
                         </div>
                       ) : (
@@ -220,18 +220,18 @@ export default function SettingsAthleteAccess() {
                     <td className="px-3 py-2 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <Link
-                          to={`/athletes/${athlete.id}`}
+                          to={`/alunos/${aluno.id}`}
                           className="rounded-lg border border-gray-200 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
                         >
                           Abrir cadastro
                         </Link>
                         <button
                           type="button"
-                          onClick={() => handleResetPassword(athlete.id)}
-                          disabled={resettingId === athlete.id}
+                          onClick={() => handleResetPassword(aluno.id)}
+                          disabled={resettingId === aluno.id}
                           className="rounded-lg border border-blue-200 px-3 py-1 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-60"
                         >
-                          {resettingId === athlete.id ? 'Gerando...' : 'Gerar senha'}
+                          {resettingId === aluno.id ? 'Gerando...' : 'Gerar senha'}
                         </button>
                       </div>
                     </td>
@@ -245,3 +245,4 @@ export default function SettingsAthleteAccess() {
     </div>
   );
 }
+

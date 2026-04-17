@@ -1,4 +1,4 @@
-import { PrismaClient, type AgendaBookingStatus, type AgendaBookingType } from '@prisma/client';
+﻿import { PrismaClient, type AgendaBookingStatus, type AgendaBookingType } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -53,17 +53,17 @@ function getDayOfWeekIso(value: Date): number {
 
 export const agendaService = {
   async getMetadata(contractId: string) {
-    const [educators, athletes, spaces] = await Promise.all([
-      prisma.educator.findMany({
+    const [professores, alunos, spaces] = await Promise.all([
+      prisma.professor.findMany({
         where: { contractId },
         include: { user: { include: { profile: true } } },
         orderBy: { createdAt: 'asc' },
       }),
-      prisma.athlete.findMany({
-        where: { educator: { contractId }, user: { isActive: true } },
+      prisma.aluno.findMany({
+        where: { professor: { contractId }, user: { isActive: true } },
         include: {
           user: { include: { profile: true } },
-          educator: { include: { user: { include: { profile: true } } } },
+          professor: { include: { user: { include: { profile: true } } } },
         },
         orderBy: { createdAt: 'asc' },
       }),
@@ -73,7 +73,7 @@ export const agendaService = {
       }),
     ]);
 
-    return { educators, athletes, spaces };
+    return { professores, alunos, spaces };
   },
 
   async listSpaces(contractId: string) {
@@ -107,33 +107,33 @@ export const agendaService = {
     });
   },
 
-  async listAvailabilities(contractId: string, educatorId?: string) {
-    const where: any = { educator: { contractId } };
-    if (educatorId) where.educatorId = educatorId;
+  async listAvailabilities(contractId: string, professorId?: string) {
+    const where: any = { professor: { contractId } };
+    if (professorId) where.professorId = professorId;
 
-    return prisma.educatorAvailability.findMany({
+    return prisma.professorAvailability.findMany({
       where,
       include: {
-        educator: { include: { user: { include: { profile: true } } } },
+        professor: { include: { user: { include: { profile: true } } } },
       },
       orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }],
     });
   },
 
-  async createAvailability(contractId: string, data: { educatorId: string; dayOfWeek: number; startTime: string; endTime: string }) {
-    const educator = await prisma.educator.findFirst({
-      where: { id: data.educatorId, contractId },
+  async createAvailability(contractId: string, data: { professorId: string; dayOfWeek: number; startTime: string; endTime: string }) {
+    const professor = await prisma.professor.findFirst({
+      where: { id: data.professorId, contractId },
       select: { id: true },
     });
-    if (!educator) throw new Error('Educador nao encontrado');
+    if (!professor) throw new Error('Professor nao encontrado');
 
     const startTime = normalizeTime(data.startTime);
     const endTime = normalizeTime(data.endTime);
     ensureTimeRange(startTime, endTime);
 
-    return prisma.educatorAvailability.create({
+    return prisma.professorAvailability.create({
       data: {
-        educatorId: data.educatorId,
+        professorId: data.professorId,
         dayOfWeek: data.dayOfWeek,
         startTime,
         endTime,
@@ -142,24 +142,24 @@ export const agendaService = {
   },
 
   async deleteAvailability(contractId: string, id: string) {
-    const existing = await prisma.educatorAvailability.findFirst({
-      where: { id, educator: { contractId } },
+    const existing = await prisma.professorAvailability.findFirst({
+      where: { id, professor: { contractId } },
       select: { id: true },
     });
     if (!existing) throw new Error('Disponibilidade nao encontrada');
-    await prisma.educatorAvailability.delete({ where: { id } });
+    await prisma.professorAvailability.delete({ where: { id } });
   },
 
-  async listFixedSlots(contractId: string, filters: { educatorId?: string; athleteId?: string }) {
-    const where: any = { educator: { contractId } };
-    if (filters.educatorId) where.educatorId = filters.educatorId;
-    if (filters.athleteId) where.athleteId = filters.athleteId;
+  async listFixedSlots(contractId: string, filters: { professorId?: string; alunoId?: string }) {
+    const where: any = { professor: { contractId } };
+    if (filters.professorId) where.professorId = filters.professorId;
+    if (filters.alunoId) where.alunoId = filters.alunoId;
 
     return prisma.fixedScheduleSlot.findMany({
       where,
       include: {
-        athlete: { include: { user: { include: { profile: true } } } },
-        educator: { include: { user: { include: { profile: true } } } },
+        aluno: { include: { user: { include: { profile: true } } } },
+        professor: { include: { user: { include: { profile: true } } } },
         space: true,
       },
       orderBy: [{ dayOfWeek: 'asc' }, { startTime: 'asc' }],
@@ -169,8 +169,8 @@ export const agendaService = {
   async createFixedSlot(
     contractId: string,
     data: {
-      athleteId: string;
-      educatorId: string;
+      alunoId: string;
+      professorId: string;
       dayOfWeek: number;
       startTime: string;
       endTime: string;
@@ -182,20 +182,20 @@ export const agendaService = {
     const endTime = normalizeTime(data.endTime);
     ensureTimeRange(startTime, endTime);
 
-    const [athlete, educator] = await Promise.all([
-      prisma.athlete.findFirst({
-        where: { id: data.athleteId, educator: { contractId } },
-        select: { id: true, educatorId: true },
+    const [aluno, professor] = await Promise.all([
+      prisma.aluno.findFirst({
+        where: { id: data.alunoId, professor: { contractId } },
+        select: { id: true, professorId: true },
       }),
-      prisma.educator.findFirst({
-        where: { id: data.educatorId, contractId },
+      prisma.professor.findFirst({
+        where: { id: data.professorId, contractId },
         select: { id: true },
       }),
     ]);
-    if (!athlete) throw new Error('Aluno nao encontrado');
-    if (!educator) throw new Error('Educador nao encontrado');
-    if (athlete.educatorId !== data.educatorId) {
-      throw new Error('Aluno nao pertence ao educador informado');
+    if (!aluno) throw new Error('Aluno nao encontrado');
+    if (!professor) throw new Error('Professor nao encontrado');
+    if (aluno.professorId !== data.professorId) {
+      throw new Error('Aluno nao pertence ao professor informado');
     }
 
     if (data.spaceId) {
@@ -210,7 +210,7 @@ export const agendaService = {
       where: {
         isActive: true,
         dayOfWeek: data.dayOfWeek,
-        OR: [{ athleteId: data.athleteId }, { educatorId: data.educatorId }],
+        OR: [{ alunoId: data.alunoId }, { professorId: data.professorId }],
       },
       select: { startTime: true, endTime: true },
     });
@@ -219,15 +219,15 @@ export const agendaService = {
     }
 
     return prisma.$transaction(async (tx) => {
-      await tx.athlete.update({
-        where: { id: data.athleteId },
+      await tx.aluno.update({
+        where: { id: data.alunoId },
         data: { schedulePlan: 'fixed' },
       });
 
       return tx.fixedScheduleSlot.create({
         data: {
-          athleteId: data.athleteId,
-          educatorId: data.educatorId,
+          alunoId: data.alunoId,
+          professorId: data.professorId,
           dayOfWeek: data.dayOfWeek,
           startTime,
           endTime,
@@ -251,7 +251,7 @@ export const agendaService = {
     }
   ) {
     const existing = await prisma.fixedScheduleSlot.findFirst({
-      where: { id, educator: { contractId } },
+      where: { id, professor: { contractId } },
       select: { id: true },
     });
     if (!existing) throw new Error('Horario fixo nao encontrado');
@@ -282,7 +282,7 @@ export const agendaService = {
 
   async deactivateFixedSlot(contractId: string, id: string) {
     const existing = await prisma.fixedScheduleSlot.findFirst({
-      where: { id, educator: { contractId } },
+      where: { id, professor: { contractId } },
       select: { id: true },
     });
     if (!existing) throw new Error('Horario fixo nao encontrado');
@@ -297,14 +297,14 @@ export const agendaService = {
     filters: {
       dateFrom?: Date;
       dateTo?: Date;
-      educatorId?: string;
-      athleteId?: string;
+      professorId?: string;
+      alunoId?: string;
       status?: AgendaBookingStatus;
     }
   ) {
     const where: any = { contractId };
-    if (filters.educatorId) where.educatorId = filters.educatorId;
-    if (filters.athleteId) where.athleteId = filters.athleteId;
+    if (filters.professorId) where.professorId = filters.professorId;
+    if (filters.alunoId) where.alunoId = filters.alunoId;
     if (filters.status) where.status = filters.status;
     if (filters.dateFrom || filters.dateTo) {
       where.bookingDate = {};
@@ -315,8 +315,8 @@ export const agendaService = {
     return prisma.agendaBooking.findMany({
       where,
       include: {
-        athlete: { include: { user: { include: { profile: true } } } },
-        educator: { include: { user: { include: { profile: true } } } },
+        aluno: { include: { user: { include: { profile: true } } } },
+        professor: { include: { user: { include: { profile: true } } } },
         space: true,
         fixedSlot: true,
       },
@@ -327,8 +327,8 @@ export const agendaService = {
   async createBooking(
     contractId: string,
     data: {
-      athleteId: string;
-      educatorId: string;
+      alunoId: string;
+      professorId: string;
       bookingDate: Date;
       startTime: string;
       endTime: string;
@@ -344,28 +344,28 @@ export const agendaService = {
     ensureTimeRange(startTime, endTime);
     const dayOfWeek = getDayOfWeekIso(bookingDate);
 
-    const [athlete, educator] = await Promise.all([
-      prisma.athlete.findFirst({
-        where: { id: data.athleteId, educator: { contractId } },
-        select: { id: true, educatorId: true, schedulePlan: true },
+    const [aluno, professor] = await Promise.all([
+      prisma.aluno.findFirst({
+        where: { id: data.alunoId, professor: { contractId } },
+        select: { id: true, professorId: true, schedulePlan: true },
       }),
-      prisma.educator.findFirst({
-        where: { id: data.educatorId, contractId },
+      prisma.professor.findFirst({
+        where: { id: data.professorId, contractId },
         select: { id: true },
       }),
     ]);
-    if (!athlete) throw new Error('Aluno nao encontrado');
-    if (!educator) throw new Error('Educador nao encontrado');
-    if (athlete.educatorId !== data.educatorId) {
-      throw new Error('Aluno nao pertence ao educador informado');
+    if (!aluno) throw new Error('Aluno nao encontrado');
+    if (!professor) throw new Error('Professor nao encontrado');
+    if (aluno.professorId !== data.professorId) {
+      throw new Error('Aluno nao pertence ao professor informado');
     }
 
-    if (data.bookingType === 'fixed_makeup' && athlete.schedulePlan !== 'fixed') {
+    if (data.bookingType === 'fixed_makeup' && aluno.schedulePlan !== 'fixed') {
       throw new Error('Reposicao permitida apenas para aluno com plano fixo');
     }
 
-    const availability = await prisma.educatorAvailability.findMany({
-      where: { educatorId: data.educatorId, dayOfWeek, isActive: true },
+    const availability = await prisma.professorAvailability.findMany({
+      where: { professorId: data.professorId, dayOfWeek, isActive: true },
       select: { startTime: true, endTime: true },
     });
     const coversWindow = availability.some((slot) =>
@@ -373,7 +373,7 @@ export const agendaService = {
       timeToMinutes(slot.endTime) >= timeToMinutes(endTime)
     );
     if (!coversWindow) {
-      throw new Error('Horario fora da disponibilidade do educador');
+      throw new Error('Horario fora da disponibilidade do professor');
     }
 
     if (data.spaceId) {
@@ -399,10 +399,10 @@ export const agendaService = {
       }
     }
 
-    const [educatorBookings, athleteBookings] = await Promise.all([
+    const [professorBookings, alunoBookings] = await Promise.all([
       prisma.agendaBooking.findMany({
         where: {
-          educatorId: data.educatorId,
+          professorId: data.professorId,
           bookingDate,
           status: { in: ACTIVE_BOOKING_STATUSES },
         },
@@ -410,7 +410,7 @@ export const agendaService = {
       }),
       prisma.agendaBooking.findMany({
         where: {
-          athleteId: data.athleteId,
+          alunoId: data.alunoId,
           bookingDate,
           status: { in: ACTIVE_BOOKING_STATUSES },
         },
@@ -418,10 +418,10 @@ export const agendaService = {
       }),
     ]);
 
-    if (educatorBookings.some((item) => overlaps(startTime, endTime, item.startTime, item.endTime))) {
-      throw new Error('Educador com conflito de horario');
+    if (professorBookings.some((item) => overlaps(startTime, endTime, item.startTime, item.endTime))) {
+      throw new Error('Professor com conflito de horario');
     }
-    if (athleteBookings.some((item) => overlaps(startTime, endTime, item.startTime, item.endTime))) {
+    if (alunoBookings.some((item) => overlaps(startTime, endTime, item.startTime, item.endTime))) {
       throw new Error('Aluno ja possui agendamento nesse horario');
     }
 
@@ -429,8 +429,8 @@ export const agendaService = {
       const slot = await prisma.fixedScheduleSlot.findFirst({
         where: {
           id: data.fixedSlotId,
-          athleteId: data.athleteId,
-          educatorId: data.educatorId,
+          alunoId: data.alunoId,
+          professorId: data.professorId,
           isActive: true,
         },
         select: { id: true },
@@ -441,8 +441,8 @@ export const agendaService = {
     return prisma.agendaBooking.create({
       data: {
         contractId,
-        athleteId: data.athleteId,
-        educatorId: data.educatorId,
+        alunoId: data.alunoId,
+        professorId: data.professorId,
         bookingDate,
         startTime,
         endTime,
@@ -452,8 +452,8 @@ export const agendaService = {
         notes: data.notes,
       },
       include: {
-        athlete: { include: { user: { include: { profile: true } } } },
-        educator: { include: { user: { include: { profile: true } } } },
+        aluno: { include: { user: { include: { profile: true } } } },
+        professor: { include: { user: { include: { profile: true } } } },
         space: true,
         fixedSlot: true,
       },
@@ -480,4 +480,5 @@ export const agendaService = {
     });
   },
 };
+
 

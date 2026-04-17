@@ -7,8 +7,7 @@ import {
   type NutritionWeekly,
   type TrainingParameter,
 } from '../services/periodization.service';
-import { Button } from './ui/Button';
-import { Save, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { parseDateOnly } from '../utils/date';
 
 interface PeriodizationMatrixProps {
@@ -19,7 +18,6 @@ interface PeriodizationMatrixProps {
 
 export function PeriodizationMatrixComponent({ planId, startDate, endDate }: PeriodizationMatrixProps) {
   const [matrix, setMatrix] = useState<PeriodizationMatrix | null>(null);
-  const [parameters, setParameters] = useState<TrainingParameter[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [visibleMesocycles, setVisibleMesocycles] = useState<Set<number>>(new Set());
@@ -32,7 +30,6 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
   // Agrupar dados
   const [resistedMap, setResistedMap] = useState<Map<number, Map<number, ResistedStimulus>>>(new Map());
   const [cyclicMap, setCyclicMap] = useState<Map<number, Map<number, CyclicStimulus>>>(new Map());
-  const [nutritionMap, setNutritionMap] = useState<Map<number, Map<number, NutritionWeekly>>>(new Map());
 
   // Função para verificar se a matriz tem dados lançados
   const hasMatrixData = (matrixData: PeriodizationMatrix): boolean => {
@@ -50,7 +47,7 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
 
     // Verificar se há dados em nutrition
     const hasNutrition = matrixData.nutrition?.some(item => 
-      item.totalCalories || item.carbohydratesG || item.proteinsG || item.fatsG
+      item.dailyCalories || item.carbohydratesG || item.proteinsG || item.lipidsG
     );
 
     return !!(hasResisted || hasCyclic || hasNutrition);
@@ -187,11 +184,8 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
 
       setResistedMap(periodizationService.groupResistedByMesocycleAndWeek(matrixData.resistedStimulus || []));
       setCyclicMap(periodizationService.groupCyclicByMesocycleAndWeek(matrixData.cyclicStimulus || []));
-      setNutritionMap(periodizationService.groupNutritionByMesocycleAndWeek(matrixData.nutrition || []));
 
       const allParams = await periodizationService.getAllParameters();
-      setParameters(allParams);
-
       setLoadCycleParams(allParams.filter(p => p.category === 'carga_microciclo'));
       setObjectiveParams(allParams.filter(p => p.category === 'objetivo'));
       setAssemblyParams(allParams.filter(p => p.category === 'montagem'));
@@ -345,20 +339,6 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
       'cyclic'
     );
 
-  const applyNutritionToMesocycleWeeks = (
-    mesocycle: number,
-    field: keyof NutritionWeekly,
-    value: any
-  ) =>
-    applyToMesocycleWeeks<NutritionWeekly>(
-      mesocycle,
-      field,
-      value,
-      nutritionMap,
-      setNutritionMap,
-      'nutrition'
-    );
-
   // Handlers de mudança
   const handleResistedChange = (
     mesocycle: number,
@@ -414,34 +394,6 @@ export function PeriodizationMatrixComponent({ planId, startDate, endDate }: Per
 
     // Agendar auto-save
     scheduleAutoSave('cyclic', updated);
-  };
-
-  const handleNutritionChange = (
-    mesocycle: number,
-    week: number,
-    field: keyof NutritionWeekly,
-    value: any
-  ) => {
-    if (!matrix) return;
-
-    const current = nutritionMap.get(mesocycle)?.get(week) || {
-      matrixId: matrix.id,
-      mesocycleNumber: mesocycle,
-      weekNumber: week,
-    };
-
-    const updated = { ...current, [field]: value };
-
-    // Atualizar mapa local
-    const newMap = new Map(nutritionMap);
-    if (!newMap.has(mesocycle)) {
-      newMap.set(mesocycle, new Map());
-    }
-    newMap.get(mesocycle)!.set(week, updated as NutritionWeekly);
-    setNutritionMap(newMap);
-
-    // Agendar auto-save
-    scheduleAutoSave('nutrition', updated);
   };
 
   if (loading) {

@@ -1,10 +1,10 @@
-import { PrismaClient, TrainingPhase, SessionType } from '@prisma/client';
+﻿import { PrismaClient, TrainingPhase, SessionType } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
 export interface CreatePlanDTO {
-  educatorId: string;
-  athleteId: string;
+  professorId: string;
+  alunoId: string;
   name: string;
   description?: string;
   startDate: Date;
@@ -45,25 +45,25 @@ export interface CreateMicrocycleDTO {
 type PlanStatusFilter = 'active' | 'finished' | 'all';
 
 const buildPlanWhere = (params: {
-  educatorId?: string;
-  athleteId?: string;
+  professorId?: string;
+  alunoId?: string;
   contractId?: string;
   status?: PlanStatusFilter;
   query?: string;
 }) => {
-  const { educatorId, athleteId, contractId, status = 'all', query } = params;
+  const { professorId, alunoId, contractId, status = 'all', query } = params;
   const where: any = {};
 
-  if (educatorId) {
-    where.educatorId = educatorId;
+  if (professorId) {
+    where.professorId = professorId;
   }
 
-  if (athleteId) {
-    where.athleteId = athleteId;
+  if (alunoId) {
+    where.alunoId = alunoId;
   }
 
   if (contractId) {
-    where.educator = { contractId };
+    where.professor = { contractId };
   }
 
   if (status && status !== 'all') {
@@ -81,7 +81,7 @@ const buildPlanWhere = (params: {
     where.OR = [
       { name: { contains: value, mode: 'insensitive' } },
       {
-        athlete: {
+        aluno: {
           user: {
             profile: {
               name: { contains: value, mode: 'insensitive' },
@@ -103,7 +103,7 @@ export const planService = {
     return await prisma.trainingPlan.create({
       data,
       include: {
-        athlete: {
+        aluno: {
           include: {
             user: {
               include: {
@@ -112,7 +112,7 @@ export const planService = {
             },
           },
         },
-        educator: {
+        professor: {
           include: {
             user: {
               include: {
@@ -126,24 +126,24 @@ export const planService = {
   },
 
   /**
-   * Listar planos de um educador
+   * Listar planos de um professor
    */
-  async findByEducator(
-    educatorId: string,
+  async findByProfessor(
+    professorId: string,
     page: number = 1,
     limit: number = 10,
-    athleteId?: string,
+    alunoId?: string,
     status: PlanStatusFilter = 'all',
     query?: string
   ) {
     const skip = (page - 1) * limit;
-    const where = buildPlanWhere({ educatorId, athleteId, status, query });
+    const where = buildPlanWhere({ professorId, alunoId, status, query });
 
     const [plans, total] = await Promise.all([
       prisma.trainingPlan.findMany({
         where,
         include: {
-          athlete: {
+          aluno: {
             include: {
               user: {
                 include: {
@@ -152,7 +152,7 @@ export const planService = {
               },
             },
           },
-          educator: {
+          professor: {
             include: {
               user: {
                 include: {
@@ -194,17 +194,17 @@ export const planService = {
   },
 
   /**
-   * Listar planos de um atleta
+   * Listar planos de um aluno
    */
-  async findByAthlete(
-    athleteId: string,
+  async findByAluno(
+    alunoId: string,
     status: PlanStatusFilter = 'all',
     query?: string
   ) {
     return await prisma.trainingPlan.findMany({
-      where: buildPlanWhere({ athleteId, status, query }),
+      where: buildPlanWhere({ alunoId, status, query }),
       include: {
-        educator: {
+        professor: {
           include: {
             user: {
               include: {
@@ -230,22 +230,22 @@ export const planService = {
   },
 
   /**
-   * Listar planos por contrato (opcionalmente filtrando por educador ou atleta)
+   * Listar planos por contrato (opcionalmente filtrando por professor ou aluno)
    */
   async findByContract(
     contractId: string,
     page: number = 1,
     limit: number = 10,
-    educatorId?: string,
-    athleteId?: string,
+    professorId?: string,
+    alunoId?: string,
     status: PlanStatusFilter = 'all',
     query?: string
   ) {
     const skip = (page - 1) * limit;
     const where = buildPlanWhere({
       contractId,
-      educatorId,
-      athleteId,
+      professorId,
+      alunoId,
       status,
       query,
     });
@@ -254,7 +254,7 @@ export const planService = {
       prisma.trainingPlan.findMany({
         where,
         include: {
-          athlete: {
+          aluno: {
             include: {
               user: {
                 include: {
@@ -263,7 +263,7 @@ export const planService = {
               },
             },
           },
-          educator: {
+          professor: {
             include: {
               user: {
                 include: {
@@ -311,7 +311,7 @@ export const planService = {
     return await prisma.trainingPlan.findUnique({
       where: { id },
       include: {
-        athlete: {
+        aluno: {
           include: {
             user: {
               include: {
@@ -320,7 +320,7 @@ export const planService = {
             },
           },
         },
-        educator: {
+        professor: {
           include: {
             user: {
               include: {
@@ -372,13 +372,13 @@ export const planService = {
   },
 
   /**
-   * Verificar se plano pertence ao educador
+   * Verificar se plano pertence ao professor
    */
-  async belongsToEducator(planId: string, educatorId: string): Promise<boolean> {
+  async belongsToProfessor(planId: string, professorId: string): Promise<boolean> {
     const plan = await prisma.trainingPlan.findFirst({
       where: {
         id: planId,
-        educatorId,
+        professorId,
       },
     });
     return !!plan;
@@ -403,7 +403,7 @@ export const planService = {
   },
 
   /**
-   * Criar microciclo (sessão)
+   * Criar microciclo (sessÃ£o)
    */
   async createMicrocycle(data: CreateMicrocycleDTO) {
     return await prisma.microcycle.create({
@@ -412,7 +412,7 @@ export const planService = {
   },
 
   /**
-   * Atualizar microciclo (sessão)
+   * Atualizar microciclo (sessÃ£o)
    */
   async updateMicrocycle(id: string, data: Partial<CreateMicrocycleDTO>) {
     return await prisma.microcycle.update({
@@ -422,7 +422,7 @@ export const planService = {
   },
 
   /**
-   * Deletar microciclo (sessão)
+   * Deletar microciclo (sessÃ£o)
    */
   async deleteMicrocycle(id: string) {
     return await prisma.microcycle.delete({
@@ -435,9 +435,9 @@ export const planService = {
    */
   async generateWeeks(planId: string, startDate: Date, endDate: Date) {
     const plan = await this.findById(planId);
-    if (!plan) throw new Error('Plano não encontrado');
+    if (!plan) throw new Error('Plano nÃ£o encontrado');
 
-    // Calcular número de semanas
+    // Calcular nÃºmero de semanas
     const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
     const diffWeeks = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24 * 7)));
 
@@ -456,7 +456,7 @@ export const planService = {
           phase: 'base',
           weekStart: 1,
           weekEnd: diffWeeks,
-          focusAreas: ['Resistência Aeróbica', 'Técnica de Corrida'],
+          focusAreas: ['ResistÃªncia AerÃ³bica', 'TÃ©cnica de Corrida'],
         });
 
     const existingMesocycles = await prisma.mesocycle.findMany({
@@ -504,7 +504,7 @@ export const planService = {
    * Calcular pace baseado em VO2 Max e intensidade
    */
   calculatePace(vo2Max: number, intensityPercentage: number): number {
-    // Fórmula simplificada: pace = 60 / (vo2Max * intensityPercentage / 100)
+    // FÃ³rmula simplificada: pace = 60 / (vo2Max * intensityPercentage / 100)
     // Retorna em minutos por km
     const velocity = (vo2Max * intensityPercentage) / 100;
     return 60 / velocity;
@@ -514,9 +514,9 @@ export const planService = {
    * Calcular zona de FC baseado em intensidade
    */
   calculateHeartRateZone(intensityPercentage: number): number {
-    if (intensityPercentage <= 60) return 1; // Recuperação
-    if (intensityPercentage <= 70) return 2; // Aeróbico Leve
-    if (intensityPercentage <= 80) return 3; // Aeróbico Moderado
+    if (intensityPercentage <= 60) return 1; // RecuperaÃ§Ã£o
+    if (intensityPercentage <= 70) return 2; // AerÃ³bico Leve
+    if (intensityPercentage <= 80) return 3; // AerÃ³bico Moderado
     if (intensityPercentage <= 90) return 4; // Limiar
     return 5; // VO2 Max
   },
@@ -535,11 +535,11 @@ export const planService = {
   },
 
   /**
-   * Obter estatísticas do plano
+   * Obter estatÃ­sticas do plano
    */
   async getPlanStats(planId: string) {
     const plan = await this.findById(planId);
-    if (!plan) throw new Error('Plano não encontrado');
+    if (!plan) throw new Error('Plano nÃ£o encontrado');
 
     const totalMacrocycles = plan.macrocycles.length;
     const totalMesocycles = plan.macrocycles.reduce(
@@ -588,4 +588,5 @@ export const planService = {
     };
   },
 };
+
 

@@ -1,4 +1,4 @@
-import jwt from 'jsonwebtoken';
+﻿import jwt from 'jsonwebtoken';
 import bcryptjs from 'bcryptjs';
 import { PrismaClient } from '@prisma/client';
 import type { JwtPayload, LoginRequest, RegisterRequest, AuthResponse } from '@corrida/types';
@@ -17,20 +17,20 @@ export class AuthService {
   }
 
   /**
-   * Registrar novo usuário
+   * Registrar novo usuÃ¡rio
    */
   async register(data: RegisterRequest): Promise<AuthResponse> {
-    // Verificar se email já existe
+    // Verificar se email jÃ¡ existe
     const existingUser = await prisma.user.findUnique({
       where: { email: data.email },
     });
 
     if (existingUser) {
-      throw new Error('Email já está registrado');
+      throw new Error('Email jÃ¡ estÃ¡ registrado');
     }
 
-    if (data.type !== 'educator') {
-      throw new Error('Apenas educadores podem se cadastrar diretamente');
+    if (data.type !== 'professor') {
+      throw new Error('Apenas professores podem se cadastrar diretamente');
     }
 
     const document = this.normalizeDocument(data.document);
@@ -39,8 +39,8 @@ export class AuthService {
     if (document.length !== expectedLength) {
       throw new Error(
         data.contractType === 'academy'
-          ? 'CNPJ inválido'
-          : 'CPF inválido'
+          ? 'CNPJ invÃ¡lido'
+          : 'CPF invÃ¡lido'
       );
     }
 
@@ -49,14 +49,14 @@ export class AuthService {
     });
 
     if (existingContract) {
-      throw new Error('Documento já está registrado');
+      throw new Error('Documento jÃ¡ estÃ¡ registrado');
     }
 
     // Hash da senha
     const passwordHash = await bcryptjs.hash(data.password, 10);
 
-    // Criar contrato, usuário e educador master
-    const { user, educator } = await prisma.$transaction(async (tx) => {
+    // Criar contrato, usuÃ¡rio e professor master
+    const { user, professor } = await prisma.$transaction(async (tx) => {
       const contract = await tx.contract.create({
         data: {
           type: data.contractType,
@@ -80,7 +80,7 @@ export class AuthService {
         },
       });
 
-      const createdEducator = await tx.educator.create({
+      const createdProfessor = await tx.professor.create({
         data: {
           userId: createdUser.id,
           contractId: contract.id,
@@ -96,7 +96,7 @@ export class AuthService {
 
       return {
         user: createdUser,
-        educator: createdEducator,
+        professor: createdProfessor,
       };
     });
 
@@ -110,15 +110,15 @@ export class AuthService {
         email: user.email,
         name: user.profile?.name || '',
         type: user.type,
-        educator: educator
+        professor: professor
           ? {
-              id: educator.id,
-              role: educator.role,
+              id: professor.id,
+              role: professor.role,
               contract: {
-                id: educator.contract.id,
-                type: educator.contract.type,
-                document: educator.contract.document,
-                name: educator.contract.name,
+                id: professor.contract.id,
+                type: professor.contract.type,
+                document: professor.contract.document,
+                name: professor.contract.name,
               },
             }
           : null,
@@ -130,12 +130,12 @@ export class AuthService {
    * Fazer login
    */
   async login(data: LoginRequest): Promise<AuthResponse> {
-    // Buscar usuário
+    // Buscar usuÃ¡rio
     const user = await prisma.user.findUnique({
       where: { email: data.email },
       include: {
         profile: true,
-        educator: {
+        professor: {
           include: {
             contract: true,
           },
@@ -147,7 +147,7 @@ export class AuthService {
       throw new Error('Email ou senha incorretos');
     }
     if (!user.isActive) {
-      throw new Error('Usuário desativado');
+      throw new Error('UsuÃ¡rio desativado');
     }
 
     // Verificar senha
@@ -172,15 +172,15 @@ export class AuthService {
         email: user.email,
         name: user.profile?.name || '',
         type: user.type,
-        educator: user.educator
+        professor: user.professor
           ? {
-              id: user.educator.id,
-              role: user.educator.role,
+              id: user.professor.id,
+              role: user.professor.role,
               contract: {
-                id: user.educator.contract.id,
-                type: user.educator.contract.type,
-                document: user.educator.contract.document,
-                name: user.educator.contract.name,
+                id: user.professor.contract.id,
+                type: user.professor.contract.type,
+                document: user.professor.contract.document,
+                name: user.professor.contract.name,
               },
             }
           : null,
@@ -196,7 +196,7 @@ export class AuthService {
       const decoded = jwt.verify(token, this.jwtSecret) as JwtPayload;
       return decoded;
     } catch (error) {
-      throw new Error('Token inválido ou expirado');
+      throw new Error('Token invÃ¡lido ou expirado');
     }
   }
 
@@ -207,7 +207,7 @@ export class AuthService {
     const payload: JwtPayload = {
       userId,
       email,
-      type: type as 'educator' | 'student',
+      type: type as 'professor' | 'aluno',
     };
 
     return jwt.sign(payload, this.jwtSecret, {
@@ -226,25 +226,25 @@ export class AuthService {
   }
 
   /**
-   * Obter usuário por ID
+   * Obter usuÃ¡rio por ID
    */
   async getUserById(userId: string) {
     return prisma.user.findUnique({
       where: { id: userId },
       include: {
         profile: true,
-        educator: {
+        professor: {
           include: {
             contract: true,
           },
         },
-        athlete: true,
+        aluno: true,
       },
     });
   }
 
-  async getEducatorByUserId(userId: string) {
-    return prisma.educator.findUnique({
+  async getProfessorByUserId(userId: string) {
+    return prisma.professor.findUnique({
       where: { userId },
       include: {
         contract: true,
@@ -254,3 +254,4 @@ export class AuthService {
 }
 
 export const authService = new AuthService();
+

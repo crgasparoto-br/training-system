@@ -1,14 +1,20 @@
-import type { EducatorRole, ContractInfo } from './auth';
+﻿import type { ProfessorRole, ContractInfo } from './auth';
 
-export interface CreateEducatorRequest {
+export interface CreateProfessorRequest {
   name: string;
   email: string;
   password: string;
 }
 
-export interface EducatorSummary {
+export interface UpdateProfessorRequest {
+  name?: string;
+  email?: string;
+  password?: string;
+}
+
+export interface ProfessorSummary {
   id: string;
-  role: EducatorRole;
+  role: ProfessorRole;
   user: {
     id: string;
     email: string;
@@ -22,3 +28,4 @@ export interface EducatorSummary {
   contract: ContractInfo;
   createdAt: string;
 }
+

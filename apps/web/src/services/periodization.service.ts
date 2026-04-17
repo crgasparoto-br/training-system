@@ -1,4 +1,4 @@
-import api from './api';
+﻿import api from './api';
 
 export interface PeriodizationMatrix {
   id: string;
@@ -79,7 +79,7 @@ export interface TrainingParameter {
 
 export interface PeriodizationTemplate {
   id: string;
-  educatorId?: string;
+  professorId?: string;
   name: string;
   description?: string;
   category: string;
@@ -132,7 +132,7 @@ export const periodizationService = {
   },
 
   // =========================================================================
-  // ESTÍMULO RESISTIDO
+  // ESTÃMULO RESISTIDO
   // =========================================================================
 
   async upsertResistedStimulus(data: Partial<ResistedStimulus>): Promise<ResistedStimulus> {
@@ -150,7 +150,7 @@ export const periodizationService = {
   },
 
   // =========================================================================
-  // ESTÍMULO CÍCLICO
+  // ESTÃMULO CÃCLICO
   // =========================================================================
 
   async upsertCyclicStimulus(data: Partial<CyclicStimulus>): Promise<CyclicStimulus> {
@@ -168,7 +168,7 @@ export const periodizationService = {
   },
 
   // =========================================================================
-  // NUTRIÇÃO
+  // NUTRIÃ‡ÃƒO
   // =========================================================================
 
   async upsertNutrition(data: Partial<NutritionWeekly>): Promise<NutritionWeekly> {
@@ -186,7 +186,7 @@ export const periodizationService = {
   },
 
   // =========================================================================
-  // PARÂMETROS
+  // PARÃ‚METROS
   // =========================================================================
 
   async createParameter(data: {
@@ -275,7 +275,7 @@ export const periodizationService = {
   // =========================================================================
 
   /**
-   * Agrupar estímulos resistidos por mesociclo e semana
+   * Agrupar estÃ­mulos resistidos por mesociclo e semana
    */
   groupResistedByMesocycleAndWeek(stimuli: ResistedStimulus[]): Map<number, Map<number, ResistedStimulus>> {
     const grouped = new Map<number, Map<number, ResistedStimulus>>();
@@ -291,7 +291,7 @@ export const periodizationService = {
   },
 
   /**
-   * Agrupar estímulos cíclicos por mesociclo e semana
+   * Agrupar estÃ­mulos cÃ­clicos por mesociclo e semana
    */
   groupCyclicByMesocycleAndWeek(stimuli: CyclicStimulus[]): Map<number, Map<number, CyclicStimulus>> {
     const grouped = new Map<number, Map<number, CyclicStimulus>>();
@@ -307,7 +307,7 @@ export const periodizationService = {
   },
 
   /**
-   * Agrupar nutrição por mesociclo e semana
+   * Agrupar nutriÃ§Ã£o por mesociclo e semana
    */
   groupNutritionByMesocycleAndWeek(nutrition: NutritionWeekly[]): Map<number, Map<number, NutritionWeekly>> {
     const grouped = new Map<number, Map<number, NutritionWeekly>>();
@@ -322,3 +322,4 @@ export const periodizationService = {
     return grouped;
   },
 };
+

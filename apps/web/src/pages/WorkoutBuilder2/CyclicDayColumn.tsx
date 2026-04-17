@@ -1,12 +1,11 @@
 interface CyclicDayColumnProps {
-  dayOfWeek: number;
   label: string;
   date: string;
   data: any;
   onChange: (data: any) => void;
 }
 
-export default function CyclicDayColumn({ dayOfWeek, label, date, data, onChange }: CyclicDayColumnProps) {
+export default function CyclicDayColumn({ label, date, data, onChange }: CyclicDayColumnProps) {
   const handleChange = (field: string, value: any) => {
     onChange({ ...data, [field]: value });
   };

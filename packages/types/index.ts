@@ -1,3 +1,4 @@
-export * from './auth';
-export * from './athlete';
-export * from './educator';
+﻿export * from './auth';
+export * from './aluno';
+export * from './professor';
+

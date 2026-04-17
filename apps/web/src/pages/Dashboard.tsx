@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Activity, BookOpen, Calendar, TrendingUp, Users } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
 import { useAuthStore } from '../stores/useAuthStore';
-import { athleteService, type Athlete } from '../services/athlete.service';
+import { alunoService, type Aluno } from '../services/aluno.service';
 import { planService, type TrainingPlan } from '../services/plan.service';
 import { executionsService, type WorkoutDayDetail } from '../services/executions.service';
 
@@ -16,7 +16,7 @@ type DashboardActivity = {
 
 type UpcomingWorkout = {
   id: string;
-  athleteName: string;
+  alunoName: string;
   date: string;
   status: WorkoutDayDetail['status'];
   duration: number | null;
@@ -29,7 +29,7 @@ export function Dashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState({
-    totalAthletes: 0,
+    totalAlunos: 0,
     activePlans: 0,
     weekWorkouts: 0,
     completionRate: 0,
@@ -93,7 +93,7 @@ export function Dashboard() {
 
   useEffect(() => {
     const loadDashboardData = async () => {
-      if (user?.type !== 'educator') {
+      if (user?.type !== 'professor') {
         setIsLoading(false);
         return;
       }
@@ -104,27 +104,27 @@ export function Dashboard() {
       try {
         const { startDate, endDate } = getWeekRange();
 
-        const [athletesResult, activePlansResult, recentPlansResult] = await Promise.all([
-          athleteService.list(1, 500, undefined, 'active'),
+        const [alunosResult, activePlansResult, recentPlansResult] = await Promise.all([
+          alunoService.list(1, 500, undefined, 'active'),
           planService.list(1, 1, undefined, undefined, 'active'),
           planService.list(1, 20, undefined, undefined, 'all'),
         ]);
 
-        const athletes = athletesResult.athletes;
-        const athleteNameById = new Map(athletes.map((athlete) => [athlete.id, athlete.user.profile.name]));
+        const alunos = alunosResult.alunos;
+        const alunoNameById = new Map(alunos.map((aluno) => [aluno.id, aluno.user.profile.name]));
 
-        const workoutEntriesByAthlete = await Promise.all(
-          athletes.map(async (athlete) => {
+        const workoutEntriesByAluno = await Promise.all(
+          alunos.map(async (aluno) => {
             try {
-              const days = await executionsService.listWorkoutDaysForEducator(startDate, endDate, athlete.id);
-              return days.map((day) => ({ day, athleteId: athlete.id }));
+              const days = await executionsService.listWorkoutDaysForProfessor(startDate, endDate, aluno.id);
+              return days.map((day) => ({ day, alunoId: aluno.id }));
             } catch {
-              return [] as Array<{ day: WorkoutDayDetail; athleteId: string }>;
+              return [] as Array<{ day: WorkoutDayDetail; alunoId: string }>;
             }
           })
         );
 
-        const weekWorkoutEntries = workoutEntriesByAthlete.flat();
+        const weekWorkoutEntries = workoutEntriesByAluno.flat();
         const completedWorkouts = weekWorkoutEntries.filter((entry) => entry.day.status === 'completed').length;
 
         const completionRate = weekWorkoutEntries.length
@@ -144,21 +144,21 @@ export function Dashboard() {
           .slice(0, 5)
           .map((entry) => ({
             id: entry.day.id,
-            athleteName: athleteNameById.get(entry.athleteId) || 'Aluno',
+            alunoName: alunoNameById.get(entry.alunoId) || 'Aluno',
             date: entry.day.workoutDate,
             status: entry.day.status,
             duration: entry.day.sessionDurationMin ?? null,
           }));
 
-        const athleteActivities: DashboardActivity[] = athletes
+        const alunoActivities: DashboardActivity[] = alunos
           .slice()
           .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
           .slice(0, 3)
-          .map((athlete: Athlete) => ({
-            id: `athlete-${athlete.id}`,
+          .map((aluno: Aluno) => ({
+            id: `aluno-${aluno.id}`,
             title: 'Aluno cadastrado',
-            description: athlete.user.profile.name,
-            createdAt: athlete.createdAt,
+            description: aluno.user.profile.name,
+            createdAt: aluno.createdAt,
           }));
 
         const planActivities: DashboardActivity[] = recentPlansResult.plans
@@ -168,19 +168,19 @@ export function Dashboard() {
           .map((plan: TrainingPlan) => ({
             id: `plan-${plan.id}`,
             title: 'Plano criado',
-            description: `${plan.name} - ${plan.athlete?.user?.profile?.name || 'Aluno'}`,
+            description: `${plan.name} - ${plan.aluno?.user?.profile?.name || 'Aluno'}`,
             createdAt: plan.createdAt,
           }));
 
         setStats({
-          totalAthletes: athletesResult.pagination.total,
+          totalAlunos: alunosResult.pagination.total,
           activePlans: activePlansResult.pagination.total,
           weekWorkouts: weekWorkoutEntries.length,
           completionRate,
         });
 
         setRecentActivities(
-          [...athleteActivities, ...planActivities]
+          [...alunoActivities, ...planActivities]
             .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
             .slice(0, 6)
         );
@@ -201,9 +201,9 @@ export function Dashboard() {
     () => [
       {
         title: 'Total de Alunos',
-        value: String(stats.totalAthletes),
+        value: String(stats.totalAlunos),
         description:
-          stats.totalAthletes > 0 ? `${stats.totalAthletes} aluno(s) ativo(s)` : 'Nenhum aluno cadastrado ainda',
+          stats.totalAlunos > 0 ? `${stats.totalAlunos} aluno(s) ativo(s)` : 'Nenhum aluno cadastrado ainda',
         icon: Users,
         color: 'text-blue-600',
         bgColor: 'bg-blue-100',
@@ -278,7 +278,7 @@ export function Dashboard() {
         </Card>
       )}
 
-      {user?.educator?.contract && (
+      {user?.professor?.contract && (
         <Card>
           <CardHeader>
             <CardTitle>Contrato</CardTitle>
@@ -287,15 +287,15 @@ export function Dashboard() {
           <CardContent className="grid gap-4 md:grid-cols-3">
             <div>
               <p className="text-sm text-muted-foreground">Tipo</p>
-              <p className="font-semibold">{user.educator.contract.type === 'academy' ? 'Academia' : 'Personal'}</p>
+              <p className="font-semibold">{user.professor.contract.type === 'academy' ? 'Academia' : 'Personal'}</p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Documento</p>
-              <p className="font-semibold">{formatDocument(user.educator.contract.document)}</p>
+              <p className="font-semibold">{formatDocument(user.professor.contract.document)}</p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Nome</p>
-              <p className="font-semibold">{user.educator.contract.name || 'Nao informado'}</p>
+              <p className="font-semibold">{user.professor.contract.name || 'Nao informado'}</p>
             </div>
           </CardContent>
         </Card>
@@ -364,7 +364,7 @@ export function Dashboard() {
                   <div key={workout.id} className="border rounded-md p-3">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-sm font-medium">{workout.athleteName}</p>
+                        <p className="text-sm font-medium">{workout.alunoName}</p>
                         <p className="text-xs text-muted-foreground">
                           {formatDate(workout.date)}
                           {workout.duration ? ` - ${workout.duration} min` : ''}
@@ -390,7 +390,7 @@ export function Dashboard() {
         <CardContent>
           <div className="grid gap-4 md:grid-cols-3">
             <button
-              onClick={() => navigate('/athletes/new')}
+              onClick={() => navigate('/alunos/new')}
               className="p-4 border rounded-lg hover:bg-accent transition-colors text-left"
             >
               <Users className="h-8 w-8 mb-2 text-primary" />
@@ -421,3 +421,4 @@ export function Dashboard() {
     </div>
   );
 }
+

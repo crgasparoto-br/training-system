@@ -1,4 +1,4 @@
-import api from './api';
+﻿import api from './api';
 
 export interface AssessmentSummary {
   typeId: string;
@@ -13,7 +13,7 @@ export interface AssessmentSummary {
 
 export interface Assessment {
   id: string;
-  athleteId: string;
+  alunoId: string;
   typeId: string;
   assessmentDate: string;
   filePath: string;
@@ -37,12 +37,12 @@ export interface Assessment {
 export interface AssessmentAuditLog {
   id: string;
   assessmentId: string;
-  educatorId: string;
+  professorId: string;
   action: 'update' | 'delete';
   beforeData?: any;
   afterData?: any;
   createdAt: string;
-  educator?: {
+  professor?: {
     user?: {
       profile?: {
         name?: string;
@@ -52,21 +52,21 @@ export interface AssessmentAuditLog {
 }
 
 export const assessmentService = {
-  async listByAthlete(athleteId: string): Promise<Assessment[]> {
+  async listByAluno(alunoId: string): Promise<Assessment[]> {
     const response = await api.get<{ success: boolean; data: Assessment[] }>(
-      `/athletes/${athleteId}/assessments`
+      `/alunos/${alunoId}/assessments`
     );
     return response.data.data;
   },
 
-  async getSummary(athleteId: string): Promise<AssessmentSummary[]> {
+  async getSummary(alunoId: string): Promise<AssessmentSummary[]> {
     const response = await api.get<{ success: boolean; data: AssessmentSummary[] }>(
-      `/athletes/${athleteId}/assessments/summary`
+      `/alunos/${alunoId}/assessments/summary`
     );
     return response.data.data;
   },
 
-  async uploadAssessment(athleteId: string, data: {
+  async uploadAssessment(alunoId: string, data: {
     typeId: string;
     assessmentDate?: string;
     file: File;
@@ -79,7 +79,7 @@ export const assessmentService = {
     formData.append('file', data.file);
 
     const response = await api.post<{ success: boolean; data: Assessment }>(
-      `/athletes/${athleteId}/assessments`,
+      `/alunos/${alunoId}/assessments`,
       formData,
       {
         headers: {
@@ -90,9 +90,9 @@ export const assessmentService = {
     return response.data.data;
   },
 
-  async downloadFile(athleteId: string, assessmentId: string): Promise<Blob> {
+  async downloadFile(alunoId: string, assessmentId: string): Promise<Blob> {
     const response = await api.get(
-      `/athletes/${athleteId}/assessments/${assessmentId}/file`,
+      `/alunos/${alunoId}/assessments/${assessmentId}/file`,
       {
         responseType: 'blob',
       }
@@ -101,32 +101,37 @@ export const assessmentService = {
   },
 
   async updateAssessment(
-    athleteId: string,
+    alunoId: string,
     assessmentId: string,
-    data: { typeId?: string; assessmentDate?: string; variables?: Record<string, number | null> }
+    data: {
+      typeId?: string;
+      assessmentDate?: string;
+      variables?: Record<string, string | number | null>;
+    }
   ): Promise<Assessment> {
     const response = await api.put<{ success: boolean; data: Assessment }>(
-      `/athletes/${athleteId}/assessments/${assessmentId}`,
+      `/alunos/${alunoId}/assessments/${assessmentId}`,
       data
     );
     return response.data.data;
   },
 
-  async deleteAssessment(athleteId: string, assessmentId: string): Promise<void> {
-    await api.delete(`/athletes/${athleteId}/assessments/${assessmentId}`);
+  async deleteAssessment(alunoId: string, assessmentId: string): Promise<void> {
+    await api.delete(`/alunos/${alunoId}/assessments/${assessmentId}`);
   },
 
-  async getLogs(athleteId: string, assessmentId: string): Promise<AssessmentAuditLog[]> {
+  async getLogs(alunoId: string, assessmentId: string): Promise<AssessmentAuditLog[]> {
     const response = await api.get<{ success: boolean; data: AssessmentAuditLog[] }>(
-      `/athletes/${athleteId}/assessments/${assessmentId}/logs`
+      `/alunos/${alunoId}/assessments/${assessmentId}/logs`
     );
     return response.data.data;
   },
 
-  async reprocessAssessment(athleteId: string, assessmentId: string): Promise<Assessment> {
+  async reprocessAssessment(alunoId: string, assessmentId: string): Promise<Assessment> {
     const response = await api.post<{ success: boolean; data: Assessment }>(
-      `/athletes/${athleteId}/assessments/${assessmentId}/reprocess`
+      `/alunos/${alunoId}/assessments/${assessmentId}/reprocess`
     );
     return response.data.data;
   },
 };
+

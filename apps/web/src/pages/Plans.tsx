@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { planService, type TrainingPlan } from '../services/plan.service';
-import { athleteService, type Athlete } from '../services/athlete.service';
-import { educatorService } from '../services/educator.service';
-import type { EducatorSummary } from '@corrida/types';
+import { alunoService, type Aluno } from '../services/aluno.service';
+import { professorService } from '../services/professor.service';
+import type { ProfessorSummary } from '@corrida/types';
 import { useAuthStore } from '../stores/useAuthStore';
 import { Button } from '../components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
@@ -18,14 +18,14 @@ type PlanStatusFilter = 'active' | 'finished' | 'all';
 export function Plans() {
   const user = useAuthStore((state) => state.user);
   const [plans, setPlans] = useState<TrainingPlan[]>([]);
-  const [athletes, setAthletes] = useState<Athlete[]>([]);
-  const [educators, setEducators] = useState<EducatorSummary[]>([]);
+  const [alunos, setAlunos] = useState<Aluno[]>([]);
+  const [professores, setProfessores] = useState<ProfessorSummary[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadingAthletes, setLoadingAthletes] = useState(false);
-  const [loadingEducators, setLoadingEducators] = useState(false);
+  const [loadingAlunos, setLoadingAlunos] = useState(false);
+  const [loadingProfessores, setLoadingProfessores] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [athleteFilter, setAthleteFilter] = useState('');
-  const [educatorFilter, setEducatorFilter] = useState('');
+  const [alunoFilter, setAlunoFilter] = useState('');
+  const [professorFilter, setProfessorFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<PlanStatusFilter>('all');
   const [viewMode, setViewMode] = useState<'cards' | 'list'>(() => {
     if (typeof window === 'undefined') return 'cards';
@@ -40,76 +40,76 @@ export function Plans() {
   });
   const [appliedFilters, setAppliedFilters] = useState<{
     searchQuery: string;
-    athleteFilter: string;
-    educatorFilter: string;
+    alunoFilter: string;
+    professorFilter: string;
     statusFilter: PlanStatusFilter;
   }>(() => {
     if (typeof window === 'undefined') {
-      return { searchQuery: '', athleteFilter: '', educatorFilter: '', statusFilter: 'all' };
+      return { searchQuery: '', alunoFilter: '', professorFilter: '', statusFilter: 'all' };
     }
     try {
       const stored = window.localStorage.getItem(VIEW_STATE_STORAGE_KEY);
       if (!stored) {
-        return { searchQuery: '', athleteFilter: '', educatorFilter: '', statusFilter: 'all' };
+        return { searchQuery: '', alunoFilter: '', professorFilter: '', statusFilter: 'all' };
       }
       const parsed = JSON.parse(stored) as {
         searchQuery?: string;
-        athleteFilter?: string;
-        educatorFilter?: string;
+        alunoFilter?: string;
+        professorFilter?: string;
         statusFilter?: PlanStatusFilter;
       };
       return {
         searchQuery: parsed.searchQuery || '',
-        athleteFilter: parsed.athleteFilter || '',
-        educatorFilter: parsed.educatorFilter || '',
+        alunoFilter: parsed.alunoFilter || '',
+        professorFilter: parsed.professorFilter || '',
         statusFilter: parsed.statusFilter || 'all',
       };
     } catch {
-      return { searchQuery: '', athleteFilter: '', educatorFilter: '', statusFilter: 'all' };
+      return { searchQuery: '', alunoFilter: '', professorFilter: '', statusFilter: 'all' };
     }
   });
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
-  const isEducator = user?.type === 'educator';
-  const canManageEducators =
-    user?.type === 'educator' &&
-    user?.educator?.role === 'master' &&
-    user?.educator?.contract?.type === 'academy';
+  const isProfessor = user?.type === 'professor';
+  const canManageProfessores =
+    user?.type === 'professor' &&
+    user?.professor?.role === 'master' &&
+    user?.professor?.contract?.type === 'academy';
 
   useEffect(() => {
     loadPlans();
-  }, [page, appliedFilters, canManageEducators]);
+  }, [page, appliedFilters, canManageProfessores]);
 
   useEffect(() => {
-    if (canManageEducators) {
-      loadEducators();
+    if (canManageProfessores) {
+      loadProfessores();
     }
-  }, [canManageEducators]);
+  }, [canManageProfessores]);
 
   useEffect(() => {
-    if (!isEducator) {
+    if (!isProfessor) {
       return;
     }
-    loadAthletes();
-  }, [isEducator, educatorFilter, canManageEducators]);
+    loadAlunos();
+  }, [isProfessor, professorFilter, canManageProfessores]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const payload = {
       viewMode,
       searchQuery,
-      athleteFilter,
-      educatorFilter,
+      alunoFilter,
+      professorFilter,
       statusFilter,
     };
     window.localStorage.setItem(VIEW_STATE_STORAGE_KEY, JSON.stringify(payload));
-  }, [viewMode, searchQuery, athleteFilter, educatorFilter, statusFilter]);
+  }, [viewMode, searchQuery, alunoFilter, professorFilter, statusFilter]);
 
   useEffect(() => {
     setSearchQuery(appliedFilters.searchQuery);
-    setAthleteFilter(appliedFilters.athleteFilter);
-    setEducatorFilter(appliedFilters.educatorFilter);
+    setAlunoFilter(appliedFilters.alunoFilter);
+    setProfessorFilter(appliedFilters.professorFilter);
     setStatusFilter(appliedFilters.statusFilter);
   }, []);
 
@@ -119,8 +119,8 @@ export function Plans() {
       const data = await planService.list(
         page,
         10,
-        appliedFilters.athleteFilter || undefined,
-        canManageEducators ? appliedFilters.educatorFilter || undefined : undefined,
+        appliedFilters.alunoFilter || undefined,
+        canManageProfessores ? appliedFilters.professorFilter || undefined : undefined,
         appliedFilters.statusFilter,
         appliedFilters.searchQuery || undefined
       );
@@ -133,42 +133,42 @@ export function Plans() {
     }
   };
 
-  const loadAthletes = async () => {
-    setLoadingAthletes(true);
+  const loadAlunos = async () => {
+    setLoadingAlunos(true);
     try {
-      const data = await athleteService.list(
+      const data = await alunoService.list(
         1,
         200,
-        canManageEducators ? educatorFilter || undefined : undefined,
+        canManageProfessores ? professorFilter || undefined : undefined,
         'all'
       );
-      setAthletes(data.athletes);
+      setAlunos(data.alunos);
     } catch (error) {
       console.error('Erro ao carregar alunos:', error);
     } finally {
-      setLoadingAthletes(false);
+      setLoadingAlunos(false);
     }
   };
 
-  const loadEducators = async () => {
-    setLoadingEducators(true);
+  const loadProfessores = async () => {
+    setLoadingProfessores(true);
     try {
-      const data = await educatorService.list();
-      setEducators(data);
+      const data = await professorService.list();
+      setProfessores(data);
     } catch (error) {
       console.error('Erro ao carregar professores:', error);
     } finally {
-      setLoadingEducators(false);
+      setLoadingProfessores(false);
     }
   };
 
-  const handleAthleteFilterChange = (value: string) => {
-    setAthleteFilter(value);
+  const handleAlunoFilterChange = (value: string) => {
+    setAlunoFilter(value);
   };
 
-  const handleEducatorFilterChange = (value: string) => {
-    setEducatorFilter(value);
-    setAthleteFilter('');
+  const handleProfessorFilterChange = (value: string) => {
+    setProfessorFilter(value);
+    setAlunoFilter('');
   };
 
   const handleStatusFilterChange = (value: PlanStatusFilter) => {
@@ -179,8 +179,8 @@ export function Plans() {
     const normalizedQuery = searchQuery.trim();
     setAppliedFilters({
       searchQuery: normalizedQuery.length >= 2 ? normalizedQuery : '',
-      athleteFilter,
-      educatorFilter: canManageEducators ? educatorFilter : '',
+      alunoFilter,
+      professorFilter: canManageProfessores ? professorFilter : '',
       statusFilter,
     });
     setPage(1);
@@ -262,19 +262,19 @@ export function Plans() {
                 onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
               />
             </div>
-            {isEducator && (
+            {isProfessor && (
               <div className="w-full lg:w-64">
                 <label className="block text-sm font-medium mb-2">Aluno</label>
                 <select
-                  value={athleteFilter}
-                  onChange={(e) => handleAthleteFilterChange(e.target.value)}
+                  value={alunoFilter}
+                  onChange={(e) => handleAlunoFilterChange(e.target.value)}
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={loadingAthletes}
+                  disabled={loadingAlunos}
                 >
                   <option value="">Todos os alunos</option>
-                  {athletes.map((athlete) => (
-                    <option key={athlete.id} value={athlete.id}>
-                      {athlete.user.profile.name}
+                  {alunos.map((aluno) => (
+                    <option key={aluno.id} value={aluno.id}>
+                      {aluno.user.profile.name}
                     </option>
                   ))}
                 </select>
@@ -292,19 +292,19 @@ export function Plans() {
                 <option value="finished">Finalizados</option>
               </select>
             </div>
-            {canManageEducators && (
+            {canManageProfessores && (
               <div className="w-full lg:w-64">
                 <label className="block text-sm font-medium mb-2">Professor</label>
                 <select
-                  value={educatorFilter}
-                  onChange={(e) => handleEducatorFilterChange(e.target.value)}
+                  value={professorFilter}
+                  onChange={(e) => handleProfessorFilterChange(e.target.value)}
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={loadingEducators}
+                  disabled={loadingProfessores}
                 >
                   <option value="">Todos os professores</option>
-                  {educators.map((educator) => (
-                    <option key={educator.id} value={educator.id}>
-                      {educator.user?.profile?.name || 'Sem nome'}
+                  {professores.map((professor) => (
+                    <option key={professor.id} value={professor.id}>
+                      {professor.user?.profile?.name || 'Sem nome'}
                     </option>
                   ))}
                 </select>
@@ -368,12 +368,12 @@ export function Plans() {
                     <CardDescription className="mt-1">
                       <div className="flex items-center gap-1">
                         <User className="h-3 w-3" />
-                        {plan.athlete.user.profile.name}
+                        {plan.aluno.user.profile.name}
                       </div>
-                      {canManageEducators && (
+                      {canManageProfessores && (
                         <div className="flex items-center gap-1 text-xs text-muted-foreground">
                           <User className="h-3 w-3" />
-                          {plan.educator?.user?.profile?.name || 'Professor'}
+                          {plan.professor?.user?.profile?.name || 'Professor'}
                         </div>
                       )}
                     </CardDescription>
@@ -391,7 +391,7 @@ export function Plans() {
 
                 {/* Duration */}
                 <div className="text-sm text-muted-foreground">
-                  Duração: {calculateDuration(plan.startDate, plan.endDate)}
+                  DuraÃ§Ã£o: {calculateDuration(plan.startDate, plan.endDate)}
                 </div>
                 <div>
                   {(() => {
@@ -412,15 +412,15 @@ export function Plans() {
                       <p className="font-bold">{plan.stats.totalMesocycles}</p>
                     </div>
                     <div>
-                      <p className="text-muted-foreground">Sessões</p>
+                      <p className="text-muted-foreground">SessÃµes</p>
                       <p className="font-bold">{plan.stats.totalMicrocycles}</p>
                     </div>
                     <div>
-                      <p className="text-muted-foreground">Distância</p>
+                      <p className="text-muted-foreground">DistÃ¢ncia</p>
                       <p className="font-bold">{plan.stats.totalDistance.toFixed(0)} km</p>
                     </div>
                     <div>
-                      <p className="text-muted-foreground">Duração</p>
+                      <p className="text-muted-foreground">DuraÃ§Ã£o</p>
                       <p className="font-bold">
                         {planService.formatDuration(plan.stats.totalDuration)}
                       </p>
@@ -484,9 +484,9 @@ export function Plans() {
         <Card>
           <CardContent className="pt-6">
             <div className="grid grid-cols-12 gap-2 text-xs font-semibold text-muted-foreground pb-3 border-b">
-              <div className={canManageEducators ? 'col-span-3' : 'col-span-4'}>Plano</div>
-              <div className={canManageEducators ? 'col-span-2' : 'col-span-3'}>Aluno</div>
-              {canManageEducators && <div className="col-span-2">Professor</div>}
+              <div className={canManageProfessores ? 'col-span-3' : 'col-span-4'}>Plano</div>
+              <div className={canManageProfessores ? 'col-span-2' : 'col-span-3'}>Aluno</div>
+              {canManageProfessores && <div className="col-span-2">Professor</div>}
               <div className="col-span-1">Status</div>
               <div className="col-span-2">Fases</div>
               <div className="col-span-1">Periodo</div>
@@ -498,7 +498,7 @@ export function Plans() {
                 const phases = getPhaseBadges(plan);
                 return (
                   <div key={plan.id} className="grid grid-cols-12 gap-2 py-3 items-center">
-                    <div className={canManageEducators ? 'col-span-3' : 'col-span-4'}>
+                    <div className={canManageProfessores ? 'col-span-3' : 'col-span-4'}>
                       <p className="font-medium">{plan.name}</p>
                       {plan.description && (
                         <p className="text-xs text-muted-foreground line-clamp-1">
@@ -506,12 +506,12 @@ export function Plans() {
                         </p>
                       )}
                     </div>
-                    <div className={canManageEducators ? 'col-span-2 text-sm' : 'col-span-3 text-sm'}>
-                      {plan.athlete.user.profile.name}
+                    <div className={canManageProfessores ? 'col-span-2 text-sm' : 'col-span-3 text-sm'}>
+                      {plan.aluno.user.profile.name}
                     </div>
-                    {canManageEducators && (
+                    {canManageProfessores && (
                       <div className="col-span-2 text-sm">
-                        {plan.educator?.user?.profile?.name || 'Professor'}
+                        {plan.professor?.user?.profile?.name || 'Professor'}
                       </div>
                     )}
                     <div className="col-span-1">
@@ -572,14 +572,14 @@ export function Plans() {
                 Anterior
               </Button>
               <span className="text-sm text-muted-foreground">
-                Página {page} de {totalPages}
+                PÃ¡gina {page} de {totalPages}
               </span>
               <Button
                 variant="outline"
                 onClick={() => setPage(page + 1)}
                 disabled={page === totalPages}
               >
-                Próxima
+                PrÃ³xima
               </Button>
             </div>
           </CardContent>
@@ -588,3 +588,4 @@ export function Plans() {
     </div>
   );
 }
+

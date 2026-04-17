@@ -5,7 +5,7 @@ export type WorkoutDayStatus = 'planned' | 'in_progress' | 'completed';
 export interface WorkoutExecutionRecord {
   id: string;
   workoutExerciseId: string;
-  athleteId: string;
+  alunoId: string;
   executionDate: string;
   setNumber?: number | null;
   setsCompleted?: number | null;
@@ -33,6 +33,7 @@ export interface WorkoutDayExercise {
   exercise?: {
     id: string;
     name: string;
+    category?: string | null;
     notes?: string | null;
   };
   executions?: WorkoutExecutionRecord[];
@@ -63,7 +64,7 @@ export interface WorkoutDayDetail {
     weekStartDate?: string | null;
     plan?: {
       id: string;
-      athleteId: string;
+      alunoId: string;
       name: string;
     };
   };
@@ -77,9 +78,9 @@ export const executionsService = {
     return response.data;
   },
 
-  async getWorkoutDayByDateForEducator(date: string, athleteId: string): Promise<WorkoutDayDetail> {
-    const response = await api.get<WorkoutDayDetail>(`/executions/educator/workout-day`, {
-      params: { date, athleteId },
+  async getWorkoutDayByDateForProfessor(date: string, alunoId: string): Promise<WorkoutDayDetail> {
+    const response = await api.get<WorkoutDayDetail>(`/executions/professor/workout-day`, {
+      params: { date, alunoId },
     });
     return response.data;
   },
@@ -91,13 +92,13 @@ export const executionsService = {
     return response.data;
   },
 
-  async listWorkoutDaysForEducator(
+  async listWorkoutDaysForProfessor(
     startDate: string,
     endDate: string,
-    athleteId: string
+    alunoId: string
   ): Promise<WorkoutDayDetail[]> {
-    const response = await api.get<WorkoutDayDetail[]>(`/executions/educator/workout-days`, {
-      params: { startDate, endDate, athleteId },
+    const response = await api.get<WorkoutDayDetail[]>(`/executions/professor/workout-days`, {
+      params: { startDate, endDate, alunoId },
     });
     return response.data;
   },
@@ -107,8 +108,8 @@ export const executionsService = {
     return response.data;
   },
 
-  async getWorkoutDayForEducator(id: string): Promise<WorkoutDayDetail> {
-    const response = await api.get<WorkoutDayDetail>(`/executions/educator/workout-day/${id}`);
+  async getWorkoutDayForProfessor(id: string): Promise<WorkoutDayDetail> {
+    const response = await api.get<WorkoutDayDetail>(`/executions/professor/workout-day/${id}`);
     return response.data;
   },
 
@@ -143,3 +144,4 @@ export const executionsService = {
     return response.data;
   },
 };
+

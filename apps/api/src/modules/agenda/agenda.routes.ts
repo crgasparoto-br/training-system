@@ -1,13 +1,13 @@
-import { Router, type Request, type Response } from 'express';
+﻿import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { sendError, sendSuccess } from '@corrida/utils';
-import { authMiddleware, educatorMiddleware } from '../auth/auth.middleware';
+import { authMiddleware, professorMiddleware } from '../auth/auth.middleware';
 import { agendaService } from './agenda.service';
 
 const router: Router = Router();
 
 router.use(authMiddleware);
-router.use(educatorMiddleware);
+router.use(professorMiddleware);
 
 const hhmm = z
   .string()
@@ -27,15 +27,15 @@ const updateSpaceSchema = z.object({
 });
 
 const createAvailabilitySchema = z.object({
-  educatorId: z.string().cuid(),
+  professorId: z.string().cuid(),
   dayOfWeek: z.number().int().min(1).max(7),
   startTime: hhmm,
   endTime: hhmm,
 });
 
 const createFixedSlotSchema = z.object({
-  athleteId: z.string().cuid(),
-  educatorId: z.string().cuid(),
+  alunoId: z.string().cuid(),
+  professorId: z.string().cuid(),
   dayOfWeek: z.number().int().min(1).max(7),
   startTime: hhmm,
   endTime: hhmm,
@@ -53,8 +53,8 @@ const updateFixedSlotSchema = z.object({
 });
 
 const createBookingSchema = z.object({
-  athleteId: z.string().cuid(),
-  educatorId: z.string().cuid(),
+  alunoId: z.string().cuid(),
+  professorId: z.string().cuid(),
   bookingDate: dateString,
   startTime: hhmm,
   endTime: hhmm,
@@ -129,11 +129,11 @@ router.get('/availabilities', async (req: Request, res: Response) => {
     const contractId = (req as any).user.contractId as string | undefined;
     if (!contractId) return sendError(res, 'Contrato nao encontrado', 404);
 
-    const educatorId =
-      typeof req.query.educatorId === 'string' && req.query.educatorId.trim()
-        ? req.query.educatorId.trim()
+    const professorId =
+      typeof req.query.professorId === 'string' && req.query.professorId.trim()
+        ? req.query.professorId.trim()
         : undefined;
-    const items = await agendaService.listAvailabilities(contractId, educatorId);
+    const items = await agendaService.listAvailabilities(contractId, professorId);
     return sendSuccess(res, items, 'Disponibilidades carregadas');
   } catch (error: any) {
     return sendError(res, error.message || 'Erro ao listar disponibilidades', 500);
@@ -170,16 +170,16 @@ router.get('/fixed-slots', async (req: Request, res: Response) => {
   try {
     const contractId = (req as any).user.contractId as string | undefined;
     if (!contractId) return sendError(res, 'Contrato nao encontrado', 404);
-    const educatorId =
-      typeof req.query.educatorId === 'string' && req.query.educatorId.trim()
-        ? req.query.educatorId.trim()
+    const professorId =
+      typeof req.query.professorId === 'string' && req.query.professorId.trim()
+        ? req.query.professorId.trim()
         : undefined;
-    const athleteId =
-      typeof req.query.athleteId === 'string' && req.query.athleteId.trim()
-        ? req.query.athleteId.trim()
+    const alunoId =
+      typeof req.query.alunoId === 'string' && req.query.alunoId.trim()
+        ? req.query.alunoId.trim()
         : undefined;
 
-    const items = await agendaService.listFixedSlots(contractId, { educatorId, athleteId });
+    const items = await agendaService.listFixedSlots(contractId, { professorId, alunoId });
     return sendSuccess(res, items, 'Horarios fixos carregados');
   } catch (error: any) {
     return sendError(res, error.message || 'Erro ao listar horarios fixos', 500);
@@ -234,13 +234,13 @@ router.get('/bookings', async (req: Request, res: Response) => {
 
     const dateFromRaw = typeof req.query.dateFrom === 'string' ? req.query.dateFrom : undefined;
     const dateToRaw = typeof req.query.dateTo === 'string' ? req.query.dateTo : undefined;
-    const educatorId =
-      typeof req.query.educatorId === 'string' && req.query.educatorId.trim()
-        ? req.query.educatorId.trim()
+    const professorId =
+      typeof req.query.professorId === 'string' && req.query.professorId.trim()
+        ? req.query.professorId.trim()
         : undefined;
-    const athleteId =
-      typeof req.query.athleteId === 'string' && req.query.athleteId.trim()
-        ? req.query.athleteId.trim()
+    const alunoId =
+      typeof req.query.alunoId === 'string' && req.query.alunoId.trim()
+        ? req.query.alunoId.trim()
         : undefined;
     const status =
       typeof req.query.status === 'string' &&
@@ -254,8 +254,8 @@ router.get('/bookings', async (req: Request, res: Response) => {
     const items = await agendaService.listBookings(contractId, {
       dateFrom,
       dateTo,
-      educatorId,
-      athleteId,
+      professorId,
+      alunoId,
       status,
     });
     return sendSuccess(res, items, 'Agendamentos carregados');
@@ -298,4 +298,5 @@ router.patch('/bookings/:id/status', async (req: Request, res: Response) => {
 });
 
 export default router;
+
 

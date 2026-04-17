@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -14,7 +14,7 @@ const registerSchema = z
     email: z.string().email('Email invalido'),
     password: z.string().min(8, 'Senha deve ter no minimo 8 caracteres'),
     confirmPassword: z.string(),
-    type: z.literal('educator'),
+    type: z.literal('professor'),
     contractType: z.enum(['academy', 'personal']),
     document: z.string().min(11, 'Documento invalido'),
   })
@@ -49,7 +49,7 @@ export function Register() {
   } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
-      type: 'educator',
+      type: 'professor',
       contractType: 'academy',
     },
   });
@@ -114,7 +114,7 @@ export function Register() {
       }
     >
       <form id="register-form" onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        <input type="hidden" value="educator" {...register('type')} />
+        <input type="hidden" value="professor" {...register('type')} />
 
         {error && (
           <div className="rounded-md border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">

@@ -1,27 +1,27 @@
-import { Router, Request, Response } from 'express';
+﻿import { Router, Request, Response } from 'express';
 import { periodizationService } from './periodization.service';
-import { authMiddleware, educatorMiddleware } from '../auth/auth.middleware';
+import { authMiddleware, professorMiddleware } from '../auth/auth.middleware';
 import { sendSuccess, sendError } from '../../common/response';
 
 const router: Router = Router();
 
-// Aplicar autenticação em todas as rotas
+// Aplicar autenticaÃ§Ã£o em todas as rotas
 router.use(authMiddleware);
 
 // ============================================================================
-// MATRIZ DE PERIODIZAÇÃO
+// MATRIZ DE PERIODIZAÃ‡ÃƒO
 // ============================================================================
 
 /**
  * POST /api/v1/periodization/matrix
- * Criar matriz de periodização
+ * Criar matriz de periodizaÃ§Ã£o
  */
-router.post('/matrix', educatorMiddleware, async (req: Request, res: Response) => {
+router.post('/matrix', professorMiddleware, async (req: Request, res: Response) => {
   try {
     const { planId, totalMesocycles, weeksPerMesocycle } = req.body;
 
     if (!planId || !totalMesocycles || !weeksPerMesocycle) {
-      return sendError(res, 'Dados inválidos', 400);
+      return sendError(res, 'Dados invÃ¡lidos', 400);
     }
 
     const matrix = await periodizationService.createMatrix({
@@ -48,7 +48,7 @@ router.get('/matrix/:planId', async (req: Request, res: Response) => {
     const matrix = await periodizationService.getByPlanId(planId);
 
     if (!matrix) {
-      return sendError(res, 'Matriz não encontrada', 404);
+      return sendError(res, 'Matriz nÃ£o encontrada', 404);
     }
 
     return sendSuccess(res, matrix);
@@ -62,7 +62,7 @@ router.get('/matrix/:planId', async (req: Request, res: Response) => {
  * PUT /api/v1/periodization/matrix/:id
  * Atualizar matriz
  */
-router.put('/matrix/:id', educatorMiddleware, async (req: Request, res: Response) => {
+router.put('/matrix/:id', professorMiddleware, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { totalMesocycles, weeksPerMesocycle } = req.body;
@@ -83,7 +83,7 @@ router.put('/matrix/:id', educatorMiddleware, async (req: Request, res: Response
  * DELETE /api/v1/periodization/matrix/:id
  * Deletar matriz
  */
-router.delete('/matrix/:id', educatorMiddleware, async (req: Request, res: Response) => {
+router.delete('/matrix/:id', professorMiddleware, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
@@ -97,33 +97,33 @@ router.delete('/matrix/:id', educatorMiddleware, async (req: Request, res: Respo
 });
 
 // ============================================================================
-// ESTÍMULO RESISTIDO
+// ESTÃMULO RESISTIDO
 // ============================================================================
 
 /**
  * POST /api/v1/periodization/resisted
- * Criar ou atualizar estímulo resistido
+ * Criar ou atualizar estÃ­mulo resistido
  */
-router.post('/resisted', educatorMiddleware, async (req: Request, res: Response) => {
+router.post('/resisted', professorMiddleware, async (req: Request, res: Response) => {
   try {
     const data = req.body;
 
     if (!data.matrixId || !data.mesocycleNumber || !data.weekNumber) {
-      return sendError(res, 'Dados inválidos', 400);
+      return sendError(res, 'Dados invÃ¡lidos', 400);
     }
 
     const stimulus = await periodizationService.upsertResistedStimulus(data);
 
-    return sendSuccess(res, stimulus, 'Estímulo resistido salvo com sucesso');
+    return sendSuccess(res, stimulus, 'EstÃ­mulo resistido salvo com sucesso');
   } catch (error: any) {
-    console.error('Erro ao salvar estímulo resistido:', error);
+    console.error('Erro ao salvar estÃ­mulo resistido:', error);
     return sendError(res, error.message, 500);
   }
 });
 
 /**
  * GET /api/v1/periodization/resisted/:matrixId
- * Obter estímulos resistidos por matriz
+ * Obter estÃ­mulos resistidos por matriz
  */
 router.get('/resisted/:matrixId', async (req: Request, res: Response) => {
   try {
@@ -133,56 +133,56 @@ router.get('/resisted/:matrixId', async (req: Request, res: Response) => {
 
     return sendSuccess(res, stimuli);
   } catch (error: any) {
-    console.error('Erro ao buscar estímulos resistidos:', error);
+    console.error('Erro ao buscar estÃ­mulos resistidos:', error);
     return sendError(res, error.message, 500);
   }
 });
 
 /**
  * DELETE /api/v1/periodization/resisted/:id
- * Deletar estímulo resistido
+ * Deletar estÃ­mulo resistido
  */
-router.delete('/resisted/:id', educatorMiddleware, async (req: Request, res: Response) => {
+router.delete('/resisted/:id', professorMiddleware, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
     await periodizationService.deleteResistedStimulus(id);
 
-    return sendSuccess(res, null, 'Estímulo resistido deletado com sucesso');
+    return sendSuccess(res, null, 'EstÃ­mulo resistido deletado com sucesso');
   } catch (error: any) {
-    console.error('Erro ao deletar estímulo resistido:', error);
+    console.error('Erro ao deletar estÃ­mulo resistido:', error);
     return sendError(res, error.message, 500);
   }
 });
 
 // ============================================================================
-// ESTÍMULO CÍCLICO
+// ESTÃMULO CÃCLICO
 // ============================================================================
 
 /**
  * POST /api/v1/periodization/cyclic
- * Criar ou atualizar estímulo cíclico
+ * Criar ou atualizar estÃ­mulo cÃ­clico
  */
-router.post('/cyclic', educatorMiddleware, async (req: Request, res: Response) => {
+router.post('/cyclic', professorMiddleware, async (req: Request, res: Response) => {
   try {
     const data = req.body;
 
     if (!data.matrixId || !data.mesocycleNumber || !data.weekNumber) {
-      return sendError(res, 'Dados inválidos', 400);
+      return sendError(res, 'Dados invÃ¡lidos', 400);
     }
 
     const stimulus = await periodizationService.upsertCyclicStimulus(data);
 
-    return sendSuccess(res, stimulus, 'Estímulo cíclico salvo com sucesso');
+    return sendSuccess(res, stimulus, 'EstÃ­mulo cÃ­clico salvo com sucesso');
   } catch (error: any) {
-    console.error('Erro ao salvar estímulo cíclico:', error);
+    console.error('Erro ao salvar estÃ­mulo cÃ­clico:', error);
     return sendError(res, error.message, 500);
   }
 });
 
 /**
  * GET /api/v1/periodization/cyclic/:matrixId
- * Obter estímulos cíclicos por matriz
+ * Obter estÃ­mulos cÃ­clicos por matriz
  */
 router.get('/cyclic/:matrixId', async (req: Request, res: Response) => {
   try {
@@ -192,56 +192,56 @@ router.get('/cyclic/:matrixId', async (req: Request, res: Response) => {
 
     return sendSuccess(res, stimuli);
   } catch (error: any) {
-    console.error('Erro ao buscar estímulos cíclicos:', error);
+    console.error('Erro ao buscar estÃ­mulos cÃ­clicos:', error);
     return sendError(res, error.message, 500);
   }
 });
 
 /**
  * DELETE /api/v1/periodization/cyclic/:id
- * Deletar estímulo cíclico
+ * Deletar estÃ­mulo cÃ­clico
  */
-router.delete('/cyclic/:id', educatorMiddleware, async (req: Request, res: Response) => {
+router.delete('/cyclic/:id', professorMiddleware, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
     await periodizationService.deleteCyclicStimulus(id);
 
-    return sendSuccess(res, null, 'Estímulo cíclico deletado com sucesso');
+    return sendSuccess(res, null, 'EstÃ­mulo cÃ­clico deletado com sucesso');
   } catch (error: any) {
-    console.error('Erro ao deletar estímulo cíclico:', error);
+    console.error('Erro ao deletar estÃ­mulo cÃ­clico:', error);
     return sendError(res, error.message, 500);
   }
 });
 
 // ============================================================================
-// NUTRIÇÃO
+// NUTRIÃ‡ÃƒO
 // ============================================================================
 
 /**
  * POST /api/v1/periodization/nutrition
- * Criar ou atualizar nutrição semanal
+ * Criar ou atualizar nutriÃ§Ã£o semanal
  */
-router.post('/nutrition', educatorMiddleware, async (req: Request, res: Response) => {
+router.post('/nutrition', professorMiddleware, async (req: Request, res: Response) => {
   try {
     const data = req.body;
 
     if (!data.matrixId || !data.mesocycleNumber || !data.weekNumber) {
-      return sendError(res, 'Dados inválidos', 400);
+      return sendError(res, 'Dados invÃ¡lidos', 400);
     }
 
     const nutrition = await periodizationService.upsertNutrition(data);
 
-    return sendSuccess(res, nutrition, 'Nutrição salva com sucesso');
+    return sendSuccess(res, nutrition, 'NutriÃ§Ã£o salva com sucesso');
   } catch (error: any) {
-    console.error('Erro ao salvar nutrição:', error);
+    console.error('Erro ao salvar nutriÃ§Ã£o:', error);
     return sendError(res, error.message, 500);
   }
 });
 
 /**
  * GET /api/v1/periodization/nutrition/:matrixId
- * Obter nutrição por matriz
+ * Obter nutriÃ§Ã£o por matriz
  */
 router.get('/nutrition/:matrixId', async (req: Request, res: Response) => {
   try {
@@ -251,43 +251,43 @@ router.get('/nutrition/:matrixId', async (req: Request, res: Response) => {
 
     return sendSuccess(res, nutrition);
   } catch (error: any) {
-    console.error('Erro ao buscar nutrição:', error);
+    console.error('Erro ao buscar nutriÃ§Ã£o:', error);
     return sendError(res, error.message, 500);
   }
 });
 
 /**
  * DELETE /api/v1/periodization/nutrition/:id
- * Deletar nutrição
+ * Deletar nutriÃ§Ã£o
  */
-router.delete('/nutrition/:id', educatorMiddleware, async (req: Request, res: Response) => {
+router.delete('/nutrition/:id', professorMiddleware, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
     await periodizationService.deleteNutrition(id);
 
-    return sendSuccess(res, null, 'Nutrição deletada com sucesso');
+    return sendSuccess(res, null, 'NutriÃ§Ã£o deletada com sucesso');
   } catch (error: any) {
-    console.error('Erro ao deletar nutrição:', error);
+    console.error('Erro ao deletar nutriÃ§Ã£o:', error);
     return sendError(res, error.message, 500);
   }
 });
 
 // ============================================================================
-// PARÂMETROS
+// PARÃ‚METROS
 // ============================================================================
 
 /**
  * POST /api/v1/periodization/parameters
- * Criar parâmetro
+ * Criar parÃ¢metro
  */
-router.post('/parameters', educatorMiddleware, async (req: Request, res: Response) => {
+router.post('/parameters', professorMiddleware, async (req: Request, res: Response) => {
   try {
     const { category, code, description, order } = req.body;
     const contractId = (req as any).user.contractId;
 
     if (!category || !code || !description) {
-      return sendError(res, 'Dados inválidos', 400);
+      return sendError(res, 'Dados invÃ¡lidos', 400);
     }
 
     const parameter = await periodizationService.createParameter({
@@ -298,18 +298,18 @@ router.post('/parameters', educatorMiddleware, async (req: Request, res: Respons
       order: order || 0,
     });
 
-    return sendSuccess(res, parameter, 'Parâmetro criado com sucesso', 201);
+    return sendSuccess(res, parameter, 'ParÃ¢metro criado com sucesso', 201);
   } catch (error: any) {
-    console.error('Erro ao criar parâmetro:', error);
+    console.error('Erro ao criar parÃ¢metro:', error);
     return sendError(res, error.message, 500);
   }
 });
 
 /**
  * GET /api/v1/periodization/parameters
- * Obter todos os parâmetros
+ * Obter todos os parÃ¢metros
  */
-router.get('/parameters', educatorMiddleware, async (req: Request, res: Response) => {
+router.get('/parameters', professorMiddleware, async (req: Request, res: Response) => {
   try {
     const { category, includeInactive } = req.query;
     const includeInactiveFlag = includeInactive === 'true';
@@ -328,16 +328,16 @@ router.get('/parameters', educatorMiddleware, async (req: Request, res: Response
 
     return sendSuccess(res, parameters);
   } catch (error: any) {
-    console.error('Erro ao buscar parâmetros:', error);
+    console.error('Erro ao buscar parÃ¢metros:', error);
     return sendError(res, error.message, 500);
   }
 });
 
 /**
  * PUT /api/v1/periodization/parameters/:id
- * Atualizar parâmetro
+ * Atualizar parÃ¢metro
  */
-router.put('/parameters/:id', educatorMiddleware, async (req: Request, res: Response) => {
+router.put('/parameters/:id', professorMiddleware, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { description, order, active } = req.body;
@@ -349,9 +349,9 @@ router.put('/parameters/:id', educatorMiddleware, async (req: Request, res: Resp
       active,
     });
 
-    return sendSuccess(res, parameter, 'Parâmetro atualizado com sucesso');
+    return sendSuccess(res, parameter, 'ParÃ¢metro atualizado com sucesso');
   } catch (error: any) {
-    console.error('Erro ao atualizar parâmetro:', error);
+    console.error('Erro ao atualizar parÃ¢metro:', error);
     return sendError(res, error.message, 500);
   }
 });
@@ -360,7 +360,7 @@ router.put('/parameters/:id', educatorMiddleware, async (req: Request, res: Resp
  * PUT /api/v1/periodization/parameters/category
  * Renomear categoria de parametros
  */
-router.put('/parameters/category', educatorMiddleware, async (req: Request, res: Response) => {
+router.put('/parameters/category', professorMiddleware, async (req: Request, res: Response) => {
   try {
     const { fromCategory, toCategory } = req.body;
     const contractId = (req as any).user.contractId;
@@ -391,18 +391,18 @@ router.put('/parameters/category', educatorMiddleware, async (req: Request, res:
 
 /**
  * DELETE /api/v1/periodization/parameters/:id
- * Deletar parâmetro
+ * Deletar parÃ¢metro
  */
-router.delete('/parameters/:id', educatorMiddleware, async (req: Request, res: Response) => {
+router.delete('/parameters/:id', professorMiddleware, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const contractId = (req as any).user.contractId;
 
     await periodizationService.deleteParameter(contractId, id);
 
-    return sendSuccess(res, null, 'Parâmetro deletado com sucesso');
+    return sendSuccess(res, null, 'ParÃ¢metro deletado com sucesso');
   } catch (error: any) {
-    console.error('Erro ao deletar parâmetro:', error);
+    console.error('Erro ao deletar parÃ¢metro:', error);
     return sendError(res, error.message, 500);
   }
 });
@@ -415,14 +415,14 @@ router.delete('/parameters/:id', educatorMiddleware, async (req: Request, res: R
  * POST /api/v1/periodization/templates
  * Criar template
  */
-router.post('/templates', educatorMiddleware, async (req: Request, res: Response) => {
+router.post('/templates', professorMiddleware, async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
     const data = req.body;
 
     const template = await periodizationService.createTemplate({
       ...data,
-      educatorId: user.educatorId,
+      professorId: user.professorId,
     });
 
     return sendSuccess(res, template, 'Template criado com sucesso', 201);
@@ -440,7 +440,7 @@ router.get('/templates', async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
     
-    const templates = await periodizationService.listTemplates(user.educatorId);
+    const templates = await periodizationService.listTemplates(user.professorId);
 
     return sendSuccess(res, templates);
   } catch (error: any) {
@@ -460,7 +460,7 @@ router.get('/templates/:id', async (req: Request, res: Response) => {
     const template = await periodizationService.getTemplateById(id);
 
     if (!template) {
-      return sendError(res, 'Template não encontrado', 404);
+      return sendError(res, 'Template nÃ£o encontrado', 404);
     }
 
     return sendSuccess(res, template);
@@ -491,7 +491,7 @@ router.post('/templates/:id/use', async (req: Request, res: Response) => {
  * DELETE /api/v1/periodization/templates/:id
  * Deletar template
  */
-router.delete('/templates/:id', educatorMiddleware, async (req: Request, res: Response) => {
+router.delete('/templates/:id', professorMiddleware, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
@@ -505,3 +505,4 @@ router.delete('/templates/:id', educatorMiddleware, async (req: Request, res: Re
 });
 
 export default router;
+

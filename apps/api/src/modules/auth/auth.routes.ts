@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+﻿import { Router, Request, Response } from 'express';
 import { authService } from './auth.service';
 import { authMiddleware } from './auth.middleware';
 import { LoginSchema, RegisterSchema } from '@corrida/utils';
@@ -8,7 +8,7 @@ const router: Router = Router();
 
 /**
  * POST /api/v1/auth/register
- * Registrar novo usuário
+ * Registrar novo usuÃ¡rio
  */
 router.post('/register', async (req: Request, res: Response) => {
   try {
@@ -20,10 +20,10 @@ router.post('/register', async (req: Request, res: Response) => {
       return sendError(res, errors, 400);
     }
 
-    // Registrar usuário
+    // Registrar usuÃ¡rio
     const result = await authService.register(validation.data);
 
-    return sendSuccess(res, result, 'Usuário registrado com sucesso', 201);
+    return sendSuccess(res, result, 'UsuÃ¡rio registrado com sucesso', 201);
   } catch (error: any) {
     return sendError(res, error.message, 400);
   }
@@ -54,18 +54,18 @@ router.post('/login', async (req: Request, res: Response) => {
 
 /**
  * GET /api/v1/auth/me
- * Obter dados do usuário autenticado
+ * Obter dados do usuÃ¡rio autenticado
  */
 router.get('/me', authMiddleware, async (req: Request, res: Response) => {
   try {
     if (!req.user) {
-      return sendError(res, 'Não autenticado', 401);
+      return sendError(res, 'NÃ£o autenticado', 401);
     }
 
     const user = await authService.getUserById(req.user.userId);
 
     if (!user) {
-      return sendError(res, 'Usuário não encontrado', 404);
+      return sendError(res, 'UsuÃ¡rio nÃ£o encontrado', 404);
     }
 
     return sendSuccess(res, {
@@ -74,8 +74,8 @@ router.get('/me', authMiddleware, async (req: Request, res: Response) => {
       name: user.profile?.name,
       type: user.type,
       profile: user.profile,
-      educator: user.educator,
-      athlete: user.athlete,
+      professor: user.professor,
+      aluno: user.aluno,
     });
   } catch (error: any) {
     return sendError(res, error.message, 500);
@@ -91,3 +91,4 @@ router.post('/logout', authMiddleware, (req: Request, res: Response) => {
 });
 
 export default router;
+
