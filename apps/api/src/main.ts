@@ -1,13 +1,13 @@
-import express from 'express';
+﻿import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import 'express-async-errors';
 import dotenv from 'dotenv';
 import { authRoutes } from './modules/auth/index.js';
-import { athleteRoutes } from './modules/athletes/index.js';
+import { alunoRoutes } from './modules/alunos/index.js';
 import { planRoutes } from './modules/plans/index.js';
 import { periodizationRoutes } from './modules/periodization/index.js';
-import { educatorRoutes } from './modules/educators/index.js';
+import { professorRoutes } from './modules/professores/index.js';
 import { contractRoutes } from './modules/contracts/index.js';
 import { agendaRoutes } from './modules/agenda/index.js';
 import { assessmentTypeRoutes, subjectiveScaleRoutes } from './modules/assessments/index.js';
@@ -16,7 +16,7 @@ import libraryRoutes from './routes/library.routes.js';
 import workoutRoutes from './routes/workout.routes.js';
 import executionsRoutes from './routes/executions.routes.js';
 
-// Carregar variáveis de ambiente
+// Carregar variÃ¡veis de ambiente
 dotenv.config();
 
 const app: express.Express = express();
@@ -27,7 +27,7 @@ const NODE_ENV = process.env.NODE_ENV || 'development';
 // MIDDLEWARE
 // ============================================================================
 
-// Segurança
+// SeguranÃ§a
 app.use(helmet());
 
 // CORS
@@ -66,8 +66,8 @@ app.get('/api/v1', (req, res) => {
     version: '0.1.0',
     endpoints: {
       auth: '/api/v1/auth',
-      athletes: '/api/v1/athletes',
-      educators: '/api/v1/educators',
+      alunos: '/api/v1/alunos',
+      professores: '/api/v1/professores',
       contracts: '/api/v1/contracts',
       plans: '/api/v1/plans',
       periodization: '/api/v1/periodization',
@@ -83,14 +83,14 @@ app.get('/api/v1', (req, res) => {
   });
 });
 
-// Rotas de Autenticação
+// Rotas de AutenticaÃ§Ã£o
 app.use('/api/v1/auth', authRoutes);
 
-// Rotas de Atletas
-app.use('/api/v1/athletes', athleteRoutes);
+// Rotas de Alunos
+app.use('/api/v1/alunos', alunoRoutes);
 
-// Rotas de Educadores
-app.use('/api/v1/educators', educatorRoutes);
+// Rotas de Professores
+app.use('/api/v1/professores', professorRoutes);
 
 // Rotas de Contratos
 app.use('/api/v1/contracts', contractRoutes);
@@ -98,16 +98,16 @@ app.use('/api/v1/contracts', contractRoutes);
 // Rotas de Planos de Treino
 app.use('/api/v1/plans', planRoutes);
 
-// Rotas de Periodização
+// Rotas de PeriodizaÃ§Ã£o
 app.use('/api/v1/periodization', periodizationRoutes);
 
-// Rotas de Tipos de AvaliaÃ§Ã£o
+// Rotas de Tipos de AvaliaÃƒÂ§ÃƒÂ£o
 app.use('/api/v1/assessment-types', assessmentTypeRoutes);
 app.use('/api/v1/subjective-scales', subjectiveScaleRoutes);
 app.use('/api/v1/agenda', agendaRoutes);
 app.use('/api/v1/jira', jiraRoutes);
 
-// Rotas de Biblioteca de Exercícios
+// Rotas de Biblioteca de ExercÃ­cios
 app.use('/api/v1/library', libraryRoutes);
 
 // Rotas de Montagem de Treinos
@@ -146,20 +146,21 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 
 app.listen(PORT, () => {
   console.log(`
-╔════════════════════════════════════════════════════════════╗
-║                                                            ║
-║   🏃 Training System API                          ║
-║   ✅ Servidor iniciado com sucesso                        ║
-║                                                            ║
-║   🌐 URL: http://localhost:${PORT}                        ║
-║   📝 Health: http://localhost:${PORT}/health              ║
-║   📚 API: http://localhost:${PORT}/api/v1                 ║
-║   🔐 Auth: http://localhost:${PORT}/api/v1/auth           ║
-║                                                            ║
-║   🔧 Environment: ${NODE_ENV}                             ║
-║                                                            ║
-╚════════════════════════════════════════════════════════════╝
+â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
+â•‘                                                            â•‘
+â•‘   ðŸƒ Training System API                          â•‘
+â•‘   âœ… Servidor iniciado com sucesso                        â•‘
+â•‘                                                            â•‘
+â•‘   ðŸŒ URL: http://localhost:${PORT}                        â•‘
+â•‘   ðŸ“ Health: http://localhost:${PORT}/health              â•‘
+â•‘   ðŸ“š API: http://localhost:${PORT}/api/v1                 â•‘
+â•‘   ðŸ” Auth: http://localhost:${PORT}/api/v1/auth           â•‘
+â•‘                                                            â•‘
+â•‘   ðŸ”§ Environment: ${NODE_ENV}                             â•‘
+â•‘                                                            â•‘
+â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   `);
 });
 
 export default app;
+

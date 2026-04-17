@@ -1,4 +1,4 @@
-import api from './api';
+﻿import api from './api';
 
 export interface Exercise {
   id: string;
@@ -34,8 +34,8 @@ export interface CreateExerciseDTO {
   notes?: string;
 }
 
-export interface StudentExerciseProgress {
-  athleteId: string;
+export interface AlunoExerciseProgress {
+  alunoId: string;
   exerciseId: string;
   lastLoad?: number | null;
   maxLoad?: number | null;
@@ -62,6 +62,10 @@ export const libraryService = {
     return response.data;
   },
 
+  async getExercises(filters?: ExerciseFilters): Promise<Exercise[]> {
+    return this.listExercises(filters);
+  },
+
   async createExercise(data: CreateExerciseDTO): Promise<Exercise> {
     const response = await api.post('/library/exercises', data);
     return response.data;
@@ -76,8 +80,9 @@ export const libraryService = {
     await api.delete(`/library/exercises/${id}`);
   },
 
-  async getStudentProgress(athleteId: string, exerciseId: string): Promise<StudentExerciseProgress | null> {
-    const response = await api.get(`/library/progress/${athleteId}/${exerciseId}`);
+  async getAlunoProgress(alunoId: string, exerciseId: string): Promise<AlunoExerciseProgress | null> {
+    const response = await api.get(`/library/progress/${alunoId}/${exerciseId}`);
     return response.data;
   },
 };
+

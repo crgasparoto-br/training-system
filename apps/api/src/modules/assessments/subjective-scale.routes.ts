@@ -23,17 +23,17 @@ router.get('/', async (req: Request, res: Response) => {
       const user = await prisma.user.findUnique({
         where: { id: (req as any).user.userId },
         include: {
-          educator: true,
-          athlete: {
+          professor: true,
+          aluno: {
             include: {
-              educator: true,
+              professor: true,
             },
           },
         },
       });
 
       contractId =
-        user?.educator?.contractId || user?.athlete?.educator?.contractId || undefined;
+        user?.professor?.contractId || user?.aluno?.professor?.contractId || undefined;
     }
 
     if (!contractId) {
@@ -58,3 +58,4 @@ router.get('/', async (req: Request, res: Response) => {
 });
 
 export default router;
+

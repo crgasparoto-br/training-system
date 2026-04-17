@@ -1,15 +1,15 @@
-import { Router } from 'express';
+﻿import { Router } from 'express';
 import { libraryService } from '../modules/library/library.service';
-import { authMiddleware, educatorMiddleware } from '../modules/auth/auth.middleware';
+import { authMiddleware, professorMiddleware } from '../modules/auth/auth.middleware';
 
 const router: Router = Router();
 
 router.use(authMiddleware);
-router.use(educatorMiddleware);
+router.use(professorMiddleware);
 
 /**
  * GET /api/library/exercises
- * Listar exercícios com filtros
+ * Listar exercÃ­cios com filtros
  */
 router.get('/exercises', async (req, res) => {
   try {
@@ -27,13 +27,13 @@ router.get('/exercises', async (req, res) => {
     res.json(exercises);
   } catch (error) {
     console.error('Error listing exercises:', error);
-    res.status(500).json({ message: 'Erro ao listar exercícios' });
+    res.status(500).json({ message: 'Erro ao listar exercÃ­cios' });
   }
 });
 
 /**
  * GET /api/library/exercises/:id
- * Obter exercício por ID
+ * Obter exercÃ­cio por ID
  */
 router.get('/exercises/:id', async (req, res) => {
   try {
@@ -41,19 +41,19 @@ router.get('/exercises/:id', async (req, res) => {
     const exercise = await libraryService.getExerciseById(contractId, req.params.id);
     
     if (!exercise) {
-      return res.status(404).json({ message: 'Exercício não encontrado' });
+      return res.status(404).json({ message: 'ExercÃ­cio nÃ£o encontrado' });
     }
 
     res.json(exercise);
   } catch (error) {
     console.error('Error getting exercise:', error);
-    res.status(500).json({ message: 'Erro ao buscar exercício' });
+    res.status(500).json({ message: 'Erro ao buscar exercÃ­cio' });
   }
 });
 
 /**
  * POST /api/library/exercises
- * Criar novo exercício
+ * Criar novo exercÃ­cio
  */
 router.post('/exercises', async (req, res) => {
   try {
@@ -62,13 +62,13 @@ router.post('/exercises', async (req, res) => {
     res.status(201).json(exercise);
   } catch (error) {
     console.error('Error creating exercise:', error);
-    res.status(500).json({ message: 'Erro ao criar exercício' });
+    res.status(500).json({ message: 'Erro ao criar exercÃ­cio' });
   }
 });
 
 /**
  * PUT /api/library/exercises/:id
- * Atualizar exercício
+ * Atualizar exercÃ­cio
  */
 router.put('/exercises/:id', async (req, res) => {
   try {
@@ -77,13 +77,13 @@ router.put('/exercises/:id', async (req, res) => {
     res.json(exercise);
   } catch (error) {
     console.error('Error updating exercise:', error);
-    res.status(500).json({ message: 'Erro ao atualizar exercício' });
+    res.status(500).json({ message: 'Erro ao atualizar exercÃ­cio' });
   }
 });
 
 /**
  * DELETE /api/library/exercises/:id
- * Deletar exercício
+ * Deletar exercÃ­cio
  */
 router.delete('/exercises/:id', async (req, res) => {
   try {
@@ -92,20 +92,20 @@ router.delete('/exercises/:id', async (req, res) => {
     res.status(204).send();
   } catch (error) {
     console.error('Error deleting exercise:', error);
-    res.status(500).json({ message: 'Erro ao deletar exercício' });
+    res.status(500).json({ message: 'Erro ao deletar exercÃ­cio' });
   }
 });
 
 /**
- * GET /api/library/progress/:athleteId/:exerciseId
- * Obter progresso do aluno em um exercício
+ * GET /api/library/progress/:alunoId/:exerciseId
+ * Obter progresso do aluno em um exercÃ­cio
  */
-router.get('/progress/:athleteId/:exerciseId', async (req, res) => {
+router.get('/progress/:alunoId/:exerciseId', async (req, res) => {
   try {
     const contractId = (req as any).user.contractId;
-    const progress = await libraryService.getStudentProgress(
+    const progress = await libraryService.getAlunoProgress(
       contractId,
-      req.params.athleteId,
+      req.params.alunoId,
       req.params.exerciseId
     );
     res.json(progress);
@@ -116,15 +116,15 @@ router.get('/progress/:athleteId/:exerciseId', async (req, res) => {
 });
 
 /**
- * PUT /api/library/progress/:athleteId/:exerciseId
+ * PUT /api/library/progress/:alunoId/:exerciseId
  * Atualizar progresso do aluno
  */
-router.put('/progress/:athleteId/:exerciseId', async (req, res) => {
+router.put('/progress/:alunoId/:exerciseId', async (req, res) => {
   try {
     const contractId = (req as any).user.contractId;
-    const progress = await libraryService.updateStudentProgress(
+    const progress = await libraryService.updateAlunoProgress(
       contractId,
-      req.params.athleteId,
+      req.params.alunoId,
       req.params.exerciseId,
       req.body
     );
@@ -136,13 +136,13 @@ router.put('/progress/:athleteId/:exerciseId', async (req, res) => {
 });
 
 /**
- * GET /api/library/progress/:athleteId
+ * GET /api/library/progress/:alunoId
  * Listar todo o progresso de um aluno
  */
-router.get('/progress/:athleteId', async (req, res) => {
+router.get('/progress/:alunoId', async (req, res) => {
   try {
     const contractId = (req as any).user.contractId;
-    const progress = await libraryService.listStudentProgress(contractId, req.params.athleteId);
+    const progress = await libraryService.listAlunoProgress(contractId, req.params.alunoId);
     res.json(progress);
   } catch (error) {
     console.error('Error listing progress:', error);
@@ -151,3 +151,4 @@ router.get('/progress/:athleteId', async (req, res) => {
 });
 
 export default router;
+

@@ -1,4 +1,4 @@
-import { PrismaClient, LoadType, MovementType, CountingType } from '@prisma/client';
+﻿import { PrismaClient, LoadType, MovementType, CountingType } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -25,11 +25,11 @@ export interface ExerciseFilters {
 }
 
 /**
- * Service de Biblioteca de Exercícios
+ * Service de Biblioteca de ExercÃ­cios
  */
 export const libraryService = {
   /**
-   * Criar novo exercício
+   * Criar novo exercÃ­cio
    */
   async createExercise(contractId: string, data: CreateExerciseDTO) {
     return await prisma.exerciseLibrary.create({
@@ -41,7 +41,7 @@ export const libraryService = {
   },
 
   /**
-   * Listar exercícios com filtros
+   * Listar exercÃ­cios com filtros
    */
   async listExercises(contractId: string, filters: ExerciseFilters = {}) {
     const where: any = { contractId };
@@ -80,7 +80,7 @@ export const libraryService = {
   },
 
   /**
-   * Obter exercício por ID
+   * Obter exercÃ­cio por ID
    */
   async getExerciseById(contractId: string, id: string) {
     return await prisma.exerciseLibrary.findFirst({
@@ -95,13 +95,13 @@ export const libraryService = {
             },
           },
         },
-        studentProgress: true,
+        alunoProgress: true,
       },
     });
   },
 
   /**
-   * Atualizar exercício
+   * Atualizar exercÃ­cio
    */
   async updateExercise(contractId: string, id: string, data: UpdateExerciseDTO) {
     const existing = await prisma.exerciseLibrary.findFirst({
@@ -109,7 +109,7 @@ export const libraryService = {
     });
 
     if (!existing) {
-      throw new Error('Exercício não encontrado');
+      throw new Error('ExercÃ­cio nÃ£o encontrado');
     }
 
     return await prisma.exerciseLibrary.update({
@@ -119,7 +119,7 @@ export const libraryService = {
   },
 
   /**
-   * Deletar exercício
+   * Deletar exercÃ­cio
    */
   async deleteExercise(contractId: string, id: string) {
     const existing = await prisma.exerciseLibrary.findFirst({
@@ -127,7 +127,7 @@ export const libraryService = {
     });
 
     if (!existing) {
-      throw new Error('Exercício não encontrado');
+      throw new Error('ExercÃ­cio nÃ£o encontrado');
     }
 
     return await prisma.exerciseLibrary.delete({
@@ -136,31 +136,31 @@ export const libraryService = {
   },
 
   /**
-   * Obter progresso do aluno em um exercício
+   * Obter progresso do aluno em um exercÃ­cio
    */
-  async getStudentProgress(contractId: string, athleteId: string, exerciseId: string) {
-    const [exercise, athlete] = await Promise.all([
+  async getAlunoProgress(contractId: string, alunoId: string, exerciseId: string) {
+    const [exercise, aluno] = await Promise.all([
       prisma.exerciseLibrary.findFirst({
         where: { id: exerciseId, contractId },
       }),
-      prisma.athlete.findFirst({
+      prisma.aluno.findFirst({
         where: {
-          id: athleteId,
-          educator: {
+          id: alunoId,
+          professor: {
             contractId,
           },
         },
       }),
     ]);
 
-    if (!exercise || !athlete) {
+    if (!exercise || !aluno) {
       return null;
     }
 
-    return await prisma.studentExerciseProgress.findUnique({
+    return await prisma.alunoExerciseProgress.findUnique({
       where: {
-        athleteId_exerciseId: {
-          athleteId,
+        alunoId_exerciseId: {
+          alunoId,
           exerciseId,
         },
       },
@@ -173,39 +173,39 @@ export const libraryService = {
   /**
    * Atualizar progresso do aluno
    */
-  async updateStudentProgress(
+  async updateAlunoProgress(
     contractId: string,
-    athleteId: string,
+    alunoId: string,
     exerciseId: string,
     data: { lastLoad?: number; maxLoad?: number }
   ) {
-    const [exercise, athlete] = await Promise.all([
+    const [exercise, aluno] = await Promise.all([
       prisma.exerciseLibrary.findFirst({
         where: { id: exerciseId, contractId },
       }),
-      prisma.athlete.findFirst({
+      prisma.aluno.findFirst({
         where: {
-          id: athleteId,
-          educator: {
+          id: alunoId,
+          professor: {
             contractId,
           },
         },
       }),
     ]);
 
-    if (!exercise || !athlete) {
-      throw new Error('Progresso não encontrado');
+    if (!exercise || !aluno) {
+      throw new Error('Progresso nÃ£o encontrado');
     }
 
-    return await prisma.studentExerciseProgress.upsert({
+    return await prisma.alunoExerciseProgress.upsert({
       where: {
-        athleteId_exerciseId: {
-          athleteId,
+        alunoId_exerciseId: {
+          alunoId,
           exerciseId,
         },
       },
       create: {
-        athleteId,
+        alunoId,
         exerciseId,
         ...data,
       },
@@ -219,22 +219,22 @@ export const libraryService = {
   /**
    * Listar todo o progresso de um aluno
    */
-  async listStudentProgress(contractId: string, athleteId: string) {
-    const athlete = await prisma.athlete.findFirst({
+  async listAlunoProgress(contractId: string, alunoId: string) {
+    const aluno = await prisma.aluno.findFirst({
       where: {
-        id: athleteId,
-        educator: {
+        id: alunoId,
+        professor: {
           contractId,
         },
       },
     });
 
-    if (!athlete) {
+    if (!aluno) {
       return [];
     }
 
-    return await prisma.studentExerciseProgress.findMany({
-      where: { athleteId },
+    return await prisma.alunoExerciseProgress.findMany({
+      where: { alunoId },
       include: {
         exercise: true,
       },
@@ -242,3 +242,4 @@ export const libraryService = {
     });
   },
 };
+

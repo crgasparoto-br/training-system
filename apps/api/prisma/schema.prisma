@@ -11,46 +11,54 @@ datasource db {
 }
 
 // ============================================================================
-// AUTENTICAÇÃO E USUÁRIOS
+// AUTENTICAÃ‡ÃƒO E USUÃRIOS
 // ============================================================================
 
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  passwordHash  String
-  type          UserType
-  isActive      Boolean   @default(true)
-  lastLoginAt   DateTime?
-  profile       Profile?
-  
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  type         UserType
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  profile      Profile?
+
   // Relacionamentos
-  educator      Educator?
-  athlete       Athlete?
-  notifications Notification[]
+  professor               Professor?
+  aluno                   Aluno?
+  notifications           Notification[]
   notificationPreferences NotificationPreferences?
-  
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([email])
 }
 
 enum UserType {
-  educator
-  student
+  professor
+  aluno
 }
 
 model Profile {
-  id        String  @id @default(cuid())
-  userId    String  @unique
-  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   name      String
   avatar    String?
   phone     String?
-  
+  birthDate DateTime?
+  gender    Gender?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+enum Gender {
+  male
+  female
+  other
 }
 
 // ============================================================================
@@ -58,20 +66,20 @@ model Profile {
 // ============================================================================
 
 model Contract {
-  id        String       @id @default(cuid())
-  type      ContractType
-  document  String       @unique
-  name      String?
+  id       String       @id @default(cuid())
+  type     ContractType
+  document String       @unique
+  name     String?
 
-  educators Educator[]
-  trainingParameters TrainingParameter[]
-  exerciseLibrary ExerciseLibrary[]
-  assessmentTypes AssessmentType[]
+  professores          Professor[]
+  trainingParameters   TrainingParameter[]
+  exerciseLibrary      ExerciseLibrary[]
+  assessmentTypes      AssessmentType[]
   subjectiveScaleItems SubjectiveScaleItem[]
-  trainingSpaces TrainingSpace[]
-  agendaBookings AgendaBooking[]
-  cloneLogsAsSource ContractDataCloneLog[] @relation("ContractCloneSource")
-  cloneLogsAsTarget ContractDataCloneLog[] @relation("ContractCloneTarget")
+  trainingSpaces       TrainingSpace[]
+  agendaBookings       AgendaBooking[]
+  cloneLogsAsSource    ContractDataCloneLog[] @relation("ContractCloneSource")
+  cloneLogsAsTarget    ContractDataCloneLog[] @relation("ContractCloneTarget")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -85,110 +93,133 @@ enum ContractType {
 }
 
 // ============================================================================
-// EDUCADORES
+// PROFESSORES
 // ============================================================================
 
-enum EducatorRole {
+enum ProfessorRole {
   master
-  educator
+  professor
 }
 
-model Educator {
-  id          String    @id @default(cuid())
-  userId      String    @unique
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  contractId  String
-  contract    Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  role        EducatorRole @default(educator)
-  
+model Professor {
+  id         String        @id @default(cuid())
+  userId     String        @unique
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contractId String
+  contract   Contract      @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  role       ProfessorRole @default(professor)
+
   // Relacionamentos
-  athletes    Athlete[]
-  plans       TrainingPlan[]
-  library     TrainingLibrary[]
-  subscription Subscription?
-  cloneLogs   ContractDataCloneLog[]
+  alunos              Aluno[]
+  plans               TrainingPlan[]
+  library             TrainingLibrary[]
+  subscription        Subscription?
+  cloneLogs           ContractDataCloneLog[]
   assessmentAuditLogs AssessmentAuditLog[]
-  availabilities EducatorAvailability[]
-  fixedSlots FixedScheduleSlot[]
-  agendaBookings AgendaBooking[]
-  
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  availabilities      ProfessorAvailability[]
+  fixedSlots          FixedScheduleSlot[]
+  agendaBookings      AgendaBooking[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([contractId])
 }
 
 model ContractDataCloneLog {
-  id                    String   @id @default(cuid())
-  sourceContractId      String
-  sourceContract        Contract @relation("ContractCloneSource", fields: [sourceContractId], references: [id], onDelete: Cascade)
-  targetContractId      String
-  targetContract        Contract @relation("ContractCloneTarget", fields: [targetContractId], references: [id], onDelete: Cascade)
-  educatorId            String?
-  educator              Educator? @relation(fields: [educatorId], references: [id], onDelete: SetNull)
+  id               String     @id @default(cuid())
+  sourceContractId String
+  sourceContract   Contract   @relation("ContractCloneSource", fields: [sourceContractId], references: [id], onDelete: Cascade)
+  targetContractId String
+  targetContract   Contract   @relation("ContractCloneTarget", fields: [targetContractId], references: [id], onDelete: Cascade)
+  professorId      String?
+  professor        Professor? @relation(fields: [professorId], references: [id], onDelete: SetNull)
 
-  parametersCreated     Int
-  parametersSkipped     Int
-  exercisesCreated      Int
-  exercisesSkipped      Int
-  assessmentTypesCreated Int     @default(0)
-  assessmentTypesSkipped Int     @default(0)
+  parametersCreated      Int
+  parametersSkipped      Int
+  exercisesCreated       Int
+  exercisesSkipped       Int
+  assessmentTypesCreated Int @default(0)
+  assessmentTypesSkipped Int @default(0)
 
-  createdAt             DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@index([sourceContractId])
   @@index([targetContractId])
-  @@index([educatorId])
+  @@index([professorId])
 }
 
 // ============================================================================
-// ATLETAS
+// ALUNOS
 // ============================================================================
 
-model Athlete {
-  id                      String    @id @default(cuid())
-  userId                  String    @unique
-  user                    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  educatorId              String
-  educator                Educator  @relation(fields: [educatorId], references: [id], onDelete: Cascade)
-  
-  // Dados Antropométricos
-  age                     Int
-  weight                  Float     // kg
-  height                  Float     // cm
-  bodyFatPercentage       Float?    // %
-  
+model Aluno {
+  id          String    @id @default(cuid())
+  userId      String    @unique
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  professorId String
+  professor   Professor @relation(fields: [professorId], references: [id], onDelete: Cascade)
+
+  // Dados AntropomÃ©tricos
+  age               Int
+  weight            Float // kg
+  height            Float // cm
+  bodyFatPercentage Float? // %
+
   // Performance
-  vo2Max                  Float     // ml/kg/min
-  anaerobicThreshold      Float     // km/h
-  maxHeartRate            Int       // bpm
-  restingHeartRate        Int       // bpm
-  schedulePlan            AthleteSchedulePlan @default(free)
-  
+  vo2Max             Float // ml/kg/min
+  anaerobicThreshold Float // km/h
+  maxHeartRate       Int // bpm
+  restingHeartRate   Int // bpm
+  systolicPressure   Int?
+  diastolicPressure  Int?
+  schedulePlan       AlunoSchedulePlan @default(free)
+
   // Relacionamentos
-  trainingPlans           TrainingPlan[]
-  executions              TrainingExecution[]
-  progressMetrics         ProgressMetric[]
-  macronutrients          Macronutrients?
-  integrations            Integration[]
-  nutritionPlans          NutritionPlan[]
-  exerciseProgress        StudentExerciseProgress[]
-  workoutExecutions       WorkoutExecution[]
-  assessments             Assessment[]
-  fixedSlots              FixedScheduleSlot[]
-  agendaBookings          AgendaBooking[]
+  trainingPlans     TrainingPlan[]
+  executions        TrainingExecution[]
+  progressMetrics   ProgressMetric[]
+  macronutrients    Macronutrients?
+  intakeForm        AlunoIntakeForm?
+  integrations      Integration[]
+  nutritionPlans    NutritionPlan[]
+  exerciseProgress  AlunoExerciseProgress[]
+  workoutExecutions WorkoutExecution[]
+  assessments       Assessment[]
+  fixedSlots        FixedScheduleSlot[]
+  agendaBookings    AgendaBooking[]
 
-  lastPasswordResetAt     DateTime?
-  
-  createdAt               DateTime  @default(now())
-  updatedAt               DateTime  @updatedAt
+  lastPasswordResetAt DateTime?
 
-  @@index([educatorId])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([professorId])
 }
 
-enum AthleteSchedulePlan {
+enum AlunoSchedulePlan {
   free
   fixed
+}
+
+model AlunoIntakeForm {
+  id      String @id @default(cuid())
+  alunoId String @unique
+  aluno   Aluno  @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+
+  assessmentDate     DateTime?
+  mainGoal           String? @db.Text
+  medicalHistory     String? @db.Text
+  currentMedications String? @db.Text
+  injuriesHistory    String? @db.Text
+  trainingBackground String? @db.Text
+  observations       String? @db.Text
+  parqResponses      Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([assessmentDate])
 }
 
 // ============================================================================
@@ -196,63 +227,63 @@ enum AthleteSchedulePlan {
 // ============================================================================
 
 model TrainingSpace {
-  id          String   @id @default(cuid())
-  contractId  String
-  contract    Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  id         String   @id @default(cuid())
+  contractId String
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
 
-  name        String
-  capacity    Int      @default(1)
-  isActive    Boolean  @default(true)
+  name     String
+  capacity Int     @default(1)
+  isActive Boolean @default(true)
 
-  fixedSlots  FixedScheduleSlot[]
-  bookings    AgendaBooking[]
+  fixedSlots FixedScheduleSlot[]
+  bookings   AgendaBooking[]
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([contractId, name])
   @@index([contractId])
 }
 
-model EducatorAvailability {
-  id          String   @id @default(cuid())
-  educatorId  String
-  educator    Educator @relation(fields: [educatorId], references: [id], onDelete: Cascade)
+model ProfessorAvailability {
+  id          String    @id @default(cuid())
+  professorId String
+  professor   Professor @relation(fields: [professorId], references: [id], onDelete: Cascade)
 
-  dayOfWeek   Int      // 1=Segunda, 7=Domingo
-  startTime   String   // HH:mm
-  endTime     String   // HH:mm
-  isActive    Boolean  @default(true)
+  dayOfWeek Int // 1=Segunda, 7=Domingo
+  startTime String // HH:mm
+  endTime   String // HH:mm
+  isActive  Boolean @default(true)
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  @@unique([educatorId, dayOfWeek, startTime, endTime])
-  @@index([educatorId, dayOfWeek])
+  @@unique([professorId, dayOfWeek, startTime, endTime])
+  @@index([professorId, dayOfWeek])
 }
 
 model FixedScheduleSlot {
-  id          String   @id @default(cuid())
-  athleteId   String
-  athlete     Athlete  @relation(fields: [athleteId], references: [id], onDelete: Cascade)
-  educatorId  String
-  educator    Educator @relation(fields: [educatorId], references: [id], onDelete: Cascade)
+  id          String         @id @default(cuid())
+  alunoId     String
+  aluno       Aluno          @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  professorId String
+  professor   Professor      @relation(fields: [professorId], references: [id], onDelete: Cascade)
   spaceId     String?
   space       TrainingSpace? @relation(fields: [spaceId], references: [id], onDelete: SetNull)
 
-  dayOfWeek   Int      // 1=Segunda, 7=Domingo
-  startTime   String   // HH:mm
-  endTime     String   // HH:mm
-  isActive    Boolean  @default(true)
-  notes       String?  @db.Text
+  dayOfWeek Int // 1=Segunda, 7=Domingo
+  startTime String // HH:mm
+  endTime   String // HH:mm
+  isActive  Boolean @default(true)
+  notes     String? @db.Text
 
-  bookings    AgendaBooking[]
+  bookings AgendaBooking[]
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  @@index([athleteId, isActive])
-  @@index([educatorId, dayOfWeek, isActive])
+  @@index([alunoId, isActive])
+  @@index([professorId, dayOfWeek, isActive])
   @@index([spaceId, dayOfWeek, isActive])
 }
 
@@ -269,32 +300,32 @@ enum AgendaBookingStatus {
 }
 
 model AgendaBooking {
-  id          String   @id @default(cuid())
+  id          String             @id @default(cuid())
   contractId  String
-  contract    Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  athleteId   String
-  athlete     Athlete  @relation(fields: [athleteId], references: [id], onDelete: Cascade)
-  educatorId  String
-  educator    Educator @relation(fields: [educatorId], references: [id], onDelete: Cascade)
+  contract    Contract           @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  alunoId     String
+  aluno       Aluno              @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  professorId String
+  professor   Professor          @relation(fields: [professorId], references: [id], onDelete: Cascade)
   spaceId     String?
-  space       TrainingSpace? @relation(fields: [spaceId], references: [id], onDelete: SetNull)
+  space       TrainingSpace?     @relation(fields: [spaceId], references: [id], onDelete: SetNull)
   fixedSlotId String?
   fixedSlot   FixedScheduleSlot? @relation(fields: [fixedSlotId], references: [id], onDelete: SetNull)
 
-  bookingType AgendaBookingType
-  status      AgendaBookingStatus @default(scheduled)
-  bookingDate DateTime
-  startTime   String // HH:mm
-  endTime     String // HH:mm
-  notes       String? @db.Text
-  canceledReason String? @db.Text
+  bookingType    AgendaBookingType
+  status         AgendaBookingStatus @default(scheduled)
+  bookingDate    DateTime
+  startTime      String // HH:mm
+  endTime        String // HH:mm
+  notes          String?             @db.Text
+  canceledReason String?             @db.Text
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([contractId, bookingDate])
-  @@index([athleteId, bookingDate])
-  @@index([educatorId, bookingDate])
+  @@index([alunoId, bookingDate])
+  @@index([professorId, bookingDate])
   @@index([spaceId, bookingDate])
   @@index([fixedSlotId])
 }
@@ -319,9 +350,9 @@ enum AssessmentAuditAction {
 }
 
 model AssessmentType {
-  id             String   @id @default(cuid())
-  contractId     String
-  contract       Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  id         String   @id @default(cuid())
+  contractId String
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
 
   name           String
   code           String
@@ -329,28 +360,28 @@ model AssessmentType {
   scheduleType   AssessmentScheduleType
   intervalMonths Int?
   afterTypeId    String?
-  afterType      AssessmentType? @relation("AssessmentTypeDependencies", fields: [afterTypeId], references: [id], onDelete: SetNull)
+  afterType      AssessmentType?        @relation("AssessmentTypeDependencies", fields: [afterTypeId], references: [id], onDelete: SetNull)
   offsetMonths   Int?
-  isActive       Boolean  @default(true)
+  isActive       Boolean                @default(true)
 
-  assessments    Assessment[]
-  dependents     AssessmentType[] @relation("AssessmentTypeDependencies")
+  assessments Assessment[]
+  dependents  AssessmentType[] @relation("AssessmentTypeDependencies")
 
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([contractId, code])
   @@index([contractId])
 }
 
 model Assessment {
-  id               String   @id @default(cuid())
-  athleteId        String
-  athlete          Athlete  @relation(fields: [athleteId], references: [id], onDelete: Cascade)
-  typeId           String
-  type             AssessmentType @relation(fields: [typeId], references: [id], onDelete: Cascade)
+  id      String         @id @default(cuid())
+  alunoId String
+  aluno   Aluno          @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  typeId  String
+  type    AssessmentType @relation(fields: [typeId], references: [id], onDelete: Cascade)
 
-  assessmentDate   DateTime
+  assessmentDate DateTime
 
   filePath         String
   originalFileName String
@@ -359,27 +390,27 @@ model Assessment {
   extractedData    Json?
   auditLogs        AssessmentAuditLog[]
 
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  @@index([athleteId])
+  @@index([alunoId])
   @@index([typeId])
   @@index([assessmentDate])
 }
 
 model AssessmentAuditLog {
-  id            String   @id @default(cuid())
-  assessmentId  String
-  assessment    Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
-  educatorId    String
-  educator      Educator @relation(fields: [educatorId], references: [id], onDelete: Cascade)
-  action        AssessmentAuditAction
-  beforeData    Json?
-  afterData     Json?
-  createdAt     DateTime @default(now())
+  id           String                @id @default(cuid())
+  assessmentId String
+  assessment   Assessment            @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  professorId  String
+  professor    Professor             @relation(fields: [professorId], references: [id], onDelete: Cascade)
+  action       AssessmentAuditAction
+  beforeData   Json?
+  afterData    Json?
+  createdAt    DateTime              @default(now())
 
   @@index([assessmentId])
-  @@index([educatorId])
+  @@index([professorId])
 }
 
 // ============================================================================
@@ -387,43 +418,43 @@ model AssessmentAuditLog {
 // ============================================================================
 
 model TrainingPlan {
-  id              String    @id @default(cuid())
-  educatorId      String
-  educator        Educator  @relation(fields: [educatorId], references: [id], onDelete: Cascade)
-  athleteId       String
-  athlete         Athlete   @relation(fields: [athleteId], references: [id], onDelete: Cascade)
-  
-  name            String
-  description     String?
-  startDate       DateTime
-  endDate         DateTime
-  
-  macrocycles     Macrocycle[]
-  periodization   PeriodizationMatrix?
-  workoutTemplates WorkoutTemplate[]
-  
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id          String    @id @default(cuid())
+  professorId String
+  professor   Professor @relation(fields: [professorId], references: [id], onDelete: Cascade)
+  alunoId     String
+  aluno       Aluno     @relation(fields: [alunoId], references: [id], onDelete: Cascade)
 
-  @@index([educatorId])
-  @@index([athleteId])
+  name        String
+  description String?
+  startDate   DateTime
+  endDate     DateTime
+
+  macrocycles      Macrocycle[]
+  periodization    PeriodizationMatrix?
+  workoutTemplates WorkoutTemplate[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([professorId])
+  @@index([alunoId])
 }
 
 model Macrocycle {
-  id              String    @id @default(cuid())
-  planId          String
-  plan            TrainingPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
-  
-  name            String
-  phase           TrainingPhase
-  weekStart       Int
-  weekEnd         Int
-  focusAreas      String[]  // JSON array
-  
-  mesocycles      Mesocycle[]
-  
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id     String       @id @default(cuid())
+  planId String
+  plan   TrainingPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  name       String
+  phase      TrainingPhase
+  weekStart  Int
+  weekEnd    Int
+  focusAreas String[] // JSON array
+
+  mesocycles Mesocycle[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([planId])
 }
@@ -437,48 +468,48 @@ enum TrainingPhase {
 }
 
 model Mesocycle {
-  id              String    @id @default(cuid())
-  macrocycleId    String
-  macrocycle      Macrocycle @relation(fields: [macrocycleId], references: [id], onDelete: Cascade)
-  
-  weekNumber      Int
-  startDate       DateTime
-  endDate         DateTime
-  focus           String?
-  volumeTarget    Float?    // km
-  
-  microcycles     Microcycle[]
-  
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id           String     @id @default(cuid())
+  macrocycleId String
+  macrocycle   Macrocycle @relation(fields: [macrocycleId], references: [id], onDelete: Cascade)
+
+  weekNumber   Int
+  startDate    DateTime
+  endDate      DateTime
+  focus        String?
+  volumeTarget Float? // km
+
+  microcycles Microcycle[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([macrocycleId])
 }
 
 model Microcycle {
-  id                  String    @id @default(cuid())
-  mesocycleId         String
-  mesocycle           Mesocycle @relation(fields: [mesocycleId], references: [id], onDelete: Cascade)
-  
-  dayOfWeek           Int       // 0-6 (segunda a domingo)
-  sessionType         SessionType
-  
+  id          String    @id @default(cuid())
+  mesocycleId String
+  mesocycle   Mesocycle @relation(fields: [mesocycleId], references: [id], onDelete: Cascade)
+
+  dayOfWeek   Int // 0-6 (segunda a domingo)
+  sessionType SessionType
+
   // Planejamento
   durationMinutes     Int
   distanceKm          Float?
-  intensityPercentage Float     // 50-100%
-  paceMinPerKm        Float?    // minutos por km
-  heartRateZone       Int?      // 1-5
-  
-  // Instruções
-  instructions        String?
-  notes               String?
-  
+  intensityPercentage Float // 50-100%
+  paceMinPerKm        Float? // minutos por km
+  heartRateZone       Int? // 1-5
+
+  // InstruÃ§Ãµes
+  instructions String?
+  notes        String?
+
   // Relacionamentos
-  executions          TrainingExecution[]
-  
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  executions TrainingExecution[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([mesocycleId])
 }
@@ -496,79 +527,79 @@ enum SessionType {
 }
 
 // ============================================================================
-// EXECUÇÃO DE TREINOS
+// EXECUÃ‡ÃƒO DE TREINOS
 // ============================================================================
 
 model TrainingExecution {
-  id                  String    @id @default(cuid())
-  microcycleId        String
-  microcycle          Microcycle @relation(fields: [microcycleId], references: [id], onDelete: Cascade)
-  athleteId           String
-  athlete             Athlete   @relation(fields: [athleteId], references: [id], onDelete: Cascade)
-  
-  plannedDate         DateTime
-  executedDate        DateTime?
-  completed           Boolean   @default(false)
-  
+  id           String     @id @default(cuid())
+  microcycleId String
+  microcycle   Microcycle @relation(fields: [microcycleId], references: [id], onDelete: Cascade)
+  alunoId      String
+  aluno        Aluno      @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+
+  plannedDate  DateTime
+  executedDate DateTime?
+  completed    Boolean   @default(false)
+
   // Dados Executados
-  durationActual      Int?      // minutos
-  distanceActual      Float?    // km
-  heartRateAvg        Int?      // bpm
-  heartRateMax        Int?      // bpm
-  pace                Float?    // min/km
-  
-  // Percepções
-  pse                 Int?      // Perceived Exertion Scale (1-10)
-  psr                 Int?      // Perceived Recovery Scale (1-10)
-  
+  durationActual Int? // minutos
+  distanceActual Float? // km
+  heartRateAvg   Int? // bpm
+  heartRateMax   Int? // bpm
+  pace           Float? // min/km
+
+  // PercepÃ§Ãµes
+  pse Int? // Perceived Exertion Scale (1-10)
+  psr Int? // Perceived Recovery Scale (1-10)
+
   // Notas
-  notes               String?
-  
-  // Integrações
-  garminActivityId    String?
-  stravaActivityId    String?
-  
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  notes String?
+
+  // IntegraÃ§Ãµes
+  garminActivityId String?
+  stravaActivityId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([microcycleId])
-  @@index([athleteId])
+  @@index([alunoId])
 }
 
 // ============================================================================
-// NUTRIÇÃO
+// NUTRIÃ‡ÃƒO
 // ============================================================================
 
 model Macronutrients {
-  id                      String    @id @default(cuid())
-  athleteId               String    @unique
-  athlete                 Athlete   @relation(fields: [athleteId], references: [id], onDelete: Cascade)
-  
-  carbohydratesPercentage Float     // 56.8%
-  proteinsPercentage      Float     // 25.6%
-  lipidsPercentage        Float     // 17.6%
-  
-  dailyCalories           Int?
-  
-  updatedAt               DateTime  @updatedAt
+  id      String @id @default(cuid())
+  alunoId String @unique
+  aluno   Aluno  @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+
+  carbohydratesPercentage Float // 56.8%
+  proteinsPercentage      Float // 25.6%
+  lipidsPercentage        Float // 17.6%
+
+  dailyCalories Int?
+
+  updatedAt DateTime @updatedAt
 }
 
 model NutritionPlan {
-  id              String    @id @default(cuid())
-  athleteId       String
-  athlete         Athlete   @relation(fields: [athleteId], references: [id], onDelete: Cascade)
-  
-  plan            Json      // Plano estruturado
-  source          String    // dieta_ia, manual, etc
-  rawResponse     String?   // Resposta bruta
-  
-  validFrom       DateTime
-  validUntil      DateTime
-  
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id      String @id @default(cuid())
+  alunoId String
+  aluno   Aluno  @relation(fields: [alunoId], references: [id], onDelete: Cascade)
 
-  @@index([athleteId])
+  plan        Json // Plano estruturado
+  source      String // dieta_ia, manual, etc
+  rawResponse String? // Resposta bruta
+
+  validFrom  DateTime
+  validUntil DateTime
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([alunoId])
 }
 
 // ============================================================================
@@ -576,19 +607,19 @@ model NutritionPlan {
 // ============================================================================
 
 model ProgressMetric {
-  id                  String    @id @default(cuid())
-  athleteId           String
-  athlete             Athlete   @relation(fields: [athleteId], references: [id], onDelete: Cascade)
-  
-  date                DateTime
-  weight              Float?    // kg
-  bodyFatPercentage   Float?    // %
-  vo2MaxEstimated     Float?    // ml/kg/min
-  notes               String?
-  
-  createdAt           DateTime  @default(now())
+  id      String @id @default(cuid())
+  alunoId String
+  aluno   Aluno  @relation(fields: [alunoId], references: [id], onDelete: Cascade)
 
-  @@index([athleteId])
+  date              DateTime
+  weight            Float? // kg
+  bodyFatPercentage Float? // %
+  vo2MaxEstimated   Float? // ml/kg/min
+  notes             String?
+
+  createdAt DateTime @default(now())
+
+  @@index([alunoId])
 }
 
 // ============================================================================
@@ -596,46 +627,46 @@ model ProgressMetric {
 // ============================================================================
 
 model TrainingLibrary {
-  id                  String    @id @default(cuid())
-  educatorId          String
-  educator            Educator  @relation(fields: [educatorId], references: [id], onDelete: Cascade)
-  
+  id          String    @id @default(cuid())
+  professorId String
+  professor   Professor @relation(fields: [professorId], references: [id], onDelete: Cascade)
+
   name                String
   description         String?
   sessionType         SessionType
   durationMinutes     Int
   intensityPercentage Float
   instructions        String?
-  
-  isTemplate          Boolean   @default(true)
-  
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
 
-  @@index([educatorId])
+  isTemplate Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([professorId])
 }
 
 // ============================================================================
-// INTEGRAÇÕES
+// INTEGRAÃ‡Ã•ES
 // ============================================================================
 
 model Integration {
-  id                  String    @id @default(cuid())
-  athleteId           String
-  athlete             Athlete   @relation(fields: [athleteId], references: [id], onDelete: Cascade)
-  
-  type                IntegrationType
-  accessToken         String?   // Criptografado
-  refreshToken        String?   // Criptografado
-  expiresAt           DateTime?
-  
-  lastSync            DateTime?
-  
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  id      String @id @default(cuid())
+  alunoId String
+  aluno   Aluno  @relation(fields: [alunoId], references: [id], onDelete: Cascade)
 
-  @@unique([athleteId, type])
-  @@index([athleteId])
+  type         IntegrationType
+  accessToken  String? // Criptografado
+  refreshToken String? // Criptografado
+  expiresAt    DateTime?
+
+  lastSync DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([alunoId, type])
+  @@index([alunoId])
 }
 
 enum IntegrationType {
@@ -650,24 +681,24 @@ enum IntegrationType {
 // ============================================================================
 
 model Subscription {
-  id                String    @id @default(cuid())
-  educatorId        String    @unique
-  educator          Educator  @relation(fields: [educatorId], references: [id], onDelete: Cascade)
-  
-  plan              Plan
-  status            String    // active, canceled, past_due
-  
-  stripeCustomerId  String?
-  stripeSubId       String?   @unique
-  
+  id          String    @id @default(cuid())
+  professorId String    @unique
+  professor   Professor @relation(fields: [professorId], references: [id], onDelete: Cascade)
+
+  plan   Plan
+  status String // active, canceled, past_due
+
+  stripeCustomerId String?
+  stripeSubId      String? @unique
+
   currentPeriodStart DateTime
   currentPeriodEnd   DateTime
-  
-  canceledAt        DateTime?
-  cancelReason      String?
-  
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+
+  canceledAt   DateTime?
+  cancelReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 enum Plan {
@@ -677,348 +708,347 @@ enum Plan {
 }
 
 model Payment {
-  id              String    @id @default(cuid())
-  educatorId      String
-  
-  stripeId        String    @unique
-  amount          Float
-  currency        String    // BRL
-  status          String    // pending, succeeded, failed
-  
-  createdAt       DateTime  @default(now())
+  id          String @id @default(cuid())
+  professorId String
 
-  @@index([educatorId])
+  stripeId String @unique
+  amount   Float
+  currency String // BRL
+  status   String // pending, succeeded, failed
+
+  createdAt DateTime @default(now())
+
+  @@index([professorId])
 }
 
 // ============================================================================
-// NOTIFICAÇÕES
+// NOTIFICAÃ‡Ã•ES
 // ============================================================================
 
 model Notification {
-  id              String    @id @default(cuid())
-  userId          String
-  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  type            NotificationType
-  title           String
-  message         String
-  data            Json?
-  
-  emailSent       Boolean   @default(false)
-  smsSent         Boolean   @default(false)
-  whatsappSent    Boolean   @default(false)
-  
-  emailError      String?
-  smsError        String?
-  whatsappError   String?
-  
-  createdAt       DateTime  @default(now())
-  sentAt          DateTime?
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type    NotificationType
+  title   String
+  message String
+  data    Json?
+
+  emailSent    Boolean @default(false)
+  smsSent      Boolean @default(false)
+  whatsappSent Boolean @default(false)
+
+  emailError    String?
+  smsError      String?
+  whatsappError String?
+
+  createdAt DateTime  @default(now())
+  sentAt    DateTime?
 
   @@index([userId])
 }
 
 enum NotificationType {
-  new_athlete
+  new_aluno
   training_completed
   training_missed
   payment_received
   plan_expiring
   new_training
   training_reminder
-  educator_feedback
+  professor_feedback
   progress_achieved
 }
 
 model NotificationPreferences {
-  id              String    @id @default(cuid())
-  userId          String    @unique
-  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  emailEnabled    Boolean   @default(true)
-  smsEnabled      Boolean   @default(true)
-  whatsappEnabled Boolean   @default(true)
-  
-  emailFrequency  String    // immediate, daily, weekly
-  smsFrequency    String    // immediate, daily
-  whatsappFrequency String  // immediate, daily
-  
-  updatedAt       DateTime  @updatedAt
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  emailEnabled    Boolean @default(true)
+  smsEnabled      Boolean @default(true)
+  whatsappEnabled Boolean @default(true)
+
+  emailFrequency    String // immediate, daily, weekly
+  smsFrequency      String // immediate, daily
+  whatsappFrequency String // immediate, daily
+
+  updatedAt DateTime @updatedAt
 }
 
 // ============================================================================
-// PERIODIZAÇÃO MACROCICLO
+// PERIODIZAÃ‡ÃƒO MACROCICLO
 // ============================================================================
 
-// Tabela de Parâmetros Configuráveis
+// Tabela de ParÃ¢metros ConfigurÃ¡veis
 model TrainingParameter {
   id          String   @id @default(cuid())
   contractId  String
   contract    Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  category    String   // "montagem", "metodo", "divisao_treino", "carga_microciclo", "objetivo"
-  code        String   // "AS", "SER", "FB", "ADP", etc
-  description String   // Descrição completa
-  order       Int      // Ordem de exibição
+  category    String // "montagem", "metodo", "divisao_treino", "carga_microciclo", "objetivo"
+  code        String // "AS", "SER", "FB", "ADP", etc
+  description String // DescriÃ§Ã£o completa
+  order       Int // Ordem de exibiÃ§Ã£o
   active      Boolean  @default(true)
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@unique([contractId, category, code])
   @@index([contractId, category])
 }
 
 model SubjectiveScaleItem {
-  id         String             @id @default(cuid())
+  id         String              @id @default(cuid())
   contractId String
-  contract   Contract           @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  contract   Contract            @relation(fields: [contractId], references: [id], onDelete: Cascade)
   type       SubjectiveScaleType
   value      Int
   label      String?
   order      Int
-  isActive   Boolean            @default(true)
+  isActive   Boolean             @default(true)
 
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([contractId, type, value])
   @@index([contractId, type])
 }
 
-// Matriz de Periodização
+// Matriz de PeriodizaÃ§Ã£o
 model PeriodizationMatrix {
-  id                String   @id @default(cuid())
-  planId            String   @unique
-  plan              TrainingPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
-  
-  totalMesocycles   Int      // Ex: 5
-  weeksPerMesocycle Int      // Ex: 4
-  
+  id     String       @id @default(cuid())
+  planId String       @unique
+  plan   TrainingPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  totalMesocycles   Int // Ex: 5
+  weeksPerMesocycle Int // Ex: 4
+
   // Relacionamentos
-  resistedStimulus  ResistedStimulus[]
-  cyclicStimulus    CyclicStimulus[]
-  nutrition         NutritionWeekly[]
-  
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  resistedStimulus ResistedStimulus[]
+  cyclicStimulus   CyclicStimulus[]
+  nutrition        NutritionWeekly[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
-// Estímulo Resistido (Treino de Força)
+// EstÃ­mulo Resistido (Treino de ForÃ§a)
 model ResistedStimulus {
-  id                String   @id @default(cuid())
-  matrixId          String
-  matrix            PeriodizationMatrix @relation(fields: [matrixId], references: [id], onDelete: Cascade)
-  
-  mesocycleNumber   Int      // 1, 2, 3, 4, 5
-  weekNumber        Int      // 1-20 (ou quantas semanas tiver)
-  
+  id       String              @id @default(cuid())
+  matrixId String
+  matrix   PeriodizationMatrix @relation(fields: [matrixId], references: [id], onDelete: Cascade)
+
+  mesocycleNumber Int // 1, 2, 3, 4, 5
+  weekNumber      Int // 1-20 (ou quantas semanas tiver)
+
   // Carga Microciclo (ADP, ORD, CHO, REG)
-  loadCycle         String?  // Referência ao TrainingParameter
+  loadCycle String? // ReferÃªncia ao TrainingParameter
 
   // Objetivo
-  objective         String?  // Referência ao TrainingParameter
-  
-  // Parâmetros de Treino Resistido
-  repZone           Int?     // Zona de Repetições (ex: 4, 6, 8, 10, 12, 14)
-  loadPercentage    Float?   // % Carga TR (calculado automaticamente baseado em repZone)
-  
-  // Referência para cálculo de séries
-  seriesReference   Int?     // REF - valor de referência
-  
-  // Séries calculadas
-  seriesLowerBody   Int?     // Séries Membros Inferiores (calculado)
-  seriesUpperBody   Int?     // Séries Membros Superiores
-  seriesCore        Int?     // Séries Core/Estabilização
-  
+  objective String? // ReferÃªncia ao TrainingParameter
+
+  // ParÃ¢metros de Treino Resistido
+  repZone        Int? // Zona de RepetiÃ§Ãµes (ex: 4, 6, 8, 10, 12, 14)
+  loadPercentage Float? // % Carga TR (calculado automaticamente baseado em repZone)
+
+  // ReferÃªncia para cÃ¡lculo de sÃ©ries
+  seriesReference Int? // REF - valor de referÃªncia
+
+  // SÃ©ries calculadas
+  seriesLowerBody Int? // SÃ©ries Membros Inferiores (calculado)
+  seriesUpperBody Int? // SÃ©ries Membros Superiores
+  seriesCore      Int? // SÃ©ries Core/EstabilizaÃ§Ã£o
+
   // Rep Reserva (calculado automaticamente)
-  repReserve        Int?     // Calculado baseado em loadCycle
-  
+  repReserve Int? // Calculado baseado em loadCycle
+
   // Montagem (AS, A/AN, CA, CGM, MIS)
-  assembly          String?  // Referência ao TrainingParameter
-  
-  // Método (SER, BS, TS, SS, CIR, CS, PC, PD, DS, RP, SN, FST-7)
-  method            String?  // Referência ao TrainingParameter
-  
-  // Divisão do Treino (FB, AB, ABC, ABCD, ABCDE)
-  trainingDivision  String?  // Referência ao TrainingParameter
-  
-  // Frequência Semanal
-  weeklyFrequency   Int?     // Ex: 3, 4, 5
-  
-  // Observações
-  observations      String?  @db.Text
-  
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  
+  assembly String? // ReferÃªncia ao TrainingParameter
+
+  // MÃ©todo (SER, BS, TS, SS, CIR, CS, PC, PD, DS, RP, SN, FST-7)
+  method String? // ReferÃªncia ao TrainingParameter
+
+  // DivisÃ£o do Treino (FB, AB, ABC, ABCD, ABCDE)
+  trainingDivision String? // ReferÃªncia ao TrainingParameter
+
+  // FrequÃªncia Semanal
+  weeklyFrequency Int? // Ex: 3, 4, 5
+
+  // ObservaÃ§Ãµes
+  observations String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@unique([matrixId, mesocycleNumber, weekNumber])
   @@index([matrixId])
 }
 
-// Estímulo Cíclico (Corrida/Cardio)
+// EstÃ­mulo CÃ­clico (Corrida/Cardio)
 model CyclicStimulus {
-  id                   String   @id @default(cuid())
-  matrixId             String
-  matrix               PeriodizationMatrix @relation(fields: [matrixId], references: [id], onDelete: Cascade)
-  
-  mesocycleNumber      Int
-  weekNumber           Int
-  
+  id       String              @id @default(cuid())
+  matrixId String
+  matrix   PeriodizationMatrix @relation(fields: [matrixId], references: [id], onDelete: Cascade)
+
+  mesocycleNumber Int
+  weekNumber      Int
+
   // Volume
-  totalVolumeMinutes   Float?   // Volume Geral em Minutos
-  totalVolumeKm        Float?   // Volume Geral em KM
-  runningVolumeKm      Float?   // Volume Corrida em KM
-  
-  // Número de Treinos por Zona
-  countZ1              Int?     // Número de treinos Zona 1
-  countZ2              Int?
-  countZ3              Int?
-  countZ4              Int?
-  countZ5              Int?
-  
+  totalVolumeMinutes Float? // Volume Geral em Minutos
+  totalVolumeKm      Float? // Volume Geral em KM
+  runningVolumeKm    Float? // Volume Corrida em KM
+
+  // NÃºmero de Treinos por Zona
+  countZ1 Int? // NÃºmero de treinos Zona 1
+  countZ2 Int?
+  countZ3 Int?
+  countZ4 Int?
+  countZ5 Int?
+
   // Minutos por Zona
-  minutesZ1            Float?   // Minutos na Zona 1
-  minutesZ2            Float?
-  minutesZ3            Float?
-  minutesZ4            Float?
-  minutesZ5            Float?
-  
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
-  
+  minutesZ1 Float? // Minutos na Zona 1
+  minutesZ2 Float?
+  minutesZ3 Float?
+  minutesZ4 Float?
+  minutesZ5 Float?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@unique([matrixId, mesocycleNumber, weekNumber])
   @@index([matrixId])
 }
 
-// Nutrição Semanal
+// NutriÃ§Ã£o Semanal
 model NutritionWeekly {
-  id                String   @id @default(cuid())
-  matrixId          String
-  matrix            PeriodizationMatrix @relation(fields: [matrixId], references: [id], onDelete: Cascade)
-  
-  mesocycleNumber   Int
-  weekNumber        Int
-  
+  id       String              @id @default(cuid())
+  matrixId String
+  matrix   PeriodizationMatrix @relation(fields: [matrixId], references: [id], onDelete: Cascade)
+
+  mesocycleNumber Int
+  weekNumber      Int
+
   // Calorias e Macronutrientes
-  dailyCalories     Float?   // Calorias diárias
-  carbohydratesG    Float?   // Carboidratos em gramas
-  proteinsG         Float?   // Proteínas em gramas
-  lipidsG           Float?   // Lipídios em gramas
-  
-  // Hidratação
-  hydrationLiters   Float?   // Hidratação em litros/dia
-  
+  dailyCalories  Float? // Calorias diÃ¡rias
+  carbohydratesG Float? // Carboidratos em gramas
+  proteinsG      Float? // ProteÃ­nas em gramas
+  lipidsG        Float? // LipÃ­dios em gramas
+
+  // HidrataÃ§Ã£o
+  hydrationLiters Float? // HidrataÃ§Ã£o em litros/dia
+
   // Suplementos
-  supplements       String?  @db.Text
-  
-  // Observações
-  notes             String?  @db.Text
-  
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  
+  supplements String? @db.Text
+
+  // ObservaÃ§Ãµes
+  notes String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@unique([matrixId, mesocycleNumber, weekNumber])
   @@index([matrixId])
 }
 
 // ============================================================================
-// TEMPLATES DE PERIODIZAÇÃO
+// TEMPLATES DE PERIODIZAÃ‡ÃƒO
 // ============================================================================
 
 model PeriodizationTemplate {
-  id                String   @id @default(cuid())
-  educatorId        String?  // null = template global
-  
-  name              String   // "Preparação para Maratona", "Base Aeróbica"
-  description       String?  @db.Text
-  category          String   // "marathon", "base", "peak", etc
-  
+  id          String  @id @default(cuid())
+  professorId String? // null = template global
+
+  name        String // "PreparaÃ§Ã£o para Maratona", "Base AerÃ³bica"
+  description String? @db.Text
+  category    String // "marathon", "base", "peak", etc
+
   totalMesocycles   Int
   weeksPerMesocycle Int
-  
+
   // Dados do template (JSON)
-  templateData      Json     // Estrutura completa da matriz
-  
-  isPublic          Boolean  @default(false)
-  usageCount        Int      @default(0)
-  
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  
-  @@index([educatorId])
+  templateData Json // Estrutura completa da matriz
+
+  isPublic   Boolean @default(false)
+  usageCount Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([professorId])
   @@index([category])
 }
 
-
 // ============================================================================
-// BIBLIOTECA DE EXERCÍCIOS
+// BIBLIOTECA DE EXERCÃCIOS
 // ============================================================================
 
 model ExerciseLibrary {
-  id            String   @id @default(cuid())
-  contractId    String
-  contract      Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  
-  name          String   // Nome do exercício
-  videoUrl      String?  @db.Text // Link do vídeo do YouTube
-  loadType      LoadType? // H, C, E, A, P, O
-  movementType  MovementType? // U, I, O
-  countingType  CountingType? // I, T, R
-  category      String?  // MOBILIDADE, RESISTIDO, CICLICO
-  muscleGroup   String?  // Abdominal, Quadríceps, etc
-  notes         String?  @db.Text
-  
+  id         String   @id @default(cuid())
+  contractId String
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  name         String // Nome do exercÃ­cio
+  videoUrl     String?       @db.Text // Link do vÃ­deo do YouTube
+  loadType     LoadType? // H, C, E, A, P, O
+  movementType MovementType? // U, I, O
+  countingType CountingType? // I, T, R
+  category     String? // MOBILIDADE, RESISTIDO, CICLICO
+  muscleGroup  String? // Abdominal, QuadrÃ­ceps, etc
+  notes        String?       @db.Text
+
   // Relacionamentos
   workoutExercises WorkoutExercise[]
-  studentProgress  StudentExerciseProgress[]
-  
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  
+  alunoProgress    AlunoExerciseProgress[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([contractId])
   @@index([contractId, name])
   @@index([contractId, category])
 }
 
 enum LoadType {
-  H  // Halteres
-  C  // Corporal
-  E  // Elásticos
-  A  // Aeróbicos
-  P  // P.S. (observações)
-  O  // Outros
+  H // Halteres
+  C // Corporal
+  E // ElÃ¡sticos
+  A // AerÃ³bicos
+  P // P.S. (observaÃ§Ãµes)
+  O // Outros
 }
 
 enum MovementType {
-  U  // Unilateral
-  I  // Isolado
-  O  // Outros (Bilateral)
+  U // Unilateral
+  I // Isolado
+  O // Outros (Bilateral)
 }
 
 enum CountingType {
-  I  // Isometria
-  T  // por Tempo (Repetições)
-  R  // Repetições
+  I // Isometria
+  T // por Tempo (RepetiÃ§Ãµes)
+  R // RepetiÃ§Ãµes
 }
 
 // ============================================================================
-// PROGRESSO DO ALUNO POR EXERCÍCIO
+// PROGRESSO DO ALUNO POR EXERCÃCIO
 // ============================================================================
 
-model StudentExerciseProgress {
-  id          String   @id @default(cuid())
-  athleteId   String
-  athlete     Athlete  @relation(fields: [athleteId], references: [id], onDelete: Cascade)
-  exerciseId  String
-  exercise    ExerciseLibrary @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
-  
-  lastLoad    Float?   // Carga anterior (última executada)
-  maxLoad     Float?   // Carga máxima já levantada
-  
+model AlunoExerciseProgress {
+  id         String          @id @default(cuid())
+  alunoId    String
+  aluno      Aluno           @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  exerciseId String
+  exercise   ExerciseLibrary @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+
+  lastLoad Float? // Carga anterior (Ãºltima executada)
+  maxLoad  Float? // Carga mÃ¡xima jÃ¡ levantada
+
   lastUpdated DateTime @default(now())
-  
-  @@unique([athleteId, exerciseId])
-  @@index([athleteId])
+
+  @@unique([alunoId, exerciseId])
+  @@index([alunoId])
   @@index([exerciseId])
 }
 
@@ -1027,102 +1057,102 @@ model StudentExerciseProgress {
 // ============================================================================
 
 model WorkoutTemplate {
-  id                    String   @id @default(cuid())
-  planId                String
-  plan                  TrainingPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
-  mesocycleNumber       Int      // Meso (compartilhado entre cíclico e resistido)
-  weekNumber            Int      // Micro (compartilhado entre cíclico e resistido)
-  weekStartDate         DateTime
-  
-  // Dados do Cíclico
-  cyclicFrequency       Int?     // Frequência semanal de treinos cíclicos
-  totalVolumeMin        Int?
-  totalVolumeKm         Float?
-  
+  id              String       @id @default(cuid())
+  planId          String
+  plan            TrainingPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  mesocycleNumber Int // Meso (compartilhado entre cÃ­clico e resistido)
+  weekNumber      Int // Micro (compartilhado entre cÃ­clico e resistido)
+  weekStartDate   DateTime
+
+  // Dados do CÃ­clico
+  cyclicFrequency Int? // FrequÃªncia semanal de treinos cÃ­clicos
+  totalVolumeMin  Int?
+  totalVolumeKm   Float?
+
   // Dados do Resistido
-  resistanceFrequency   Int?     // Frequência semanal de treinos de força
-  loadPercentage        Float?
-  repZone               Int?
-  repReserve            Int?
-  trainingMethod        String?
-  trainingDivision      String?
-  
-  // Observações
-  studentGoal           String?  @db.Text
-  coachGoal             String?  @db.Text
-  observation1          String?  @db.Text
-  observation2          String?  @db.Text
-  
-  // Status de Liberação
-  released              Boolean  @default(false) // Se true, o treino está disponível para o atleta
-  releasedAt            DateTime? // Data/hora em que foi liberado
-  
+  resistanceFrequency Int? // FrequÃªncia semanal de treinos de forÃ§a
+  loadPercentage      Float?
+  repZone             Int?
+  repReserve          Int?
+  trainingMethod      String?
+  trainingDivision    String?
+
+  // ObservaÃ§Ãµes
+  alunoGoal    String? @db.Text
+  coachGoal    String? @db.Text
+  observation1 String? @db.Text
+  observation2 String? @db.Text
+
+  // Status de LiberaÃ§Ã£o
+  released   Boolean   @default(false) // Se true, o treino estÃ¡ disponÃ­vel para o aluno
+  releasedAt DateTime? // Data/hora em que foi liberado
+
   // Relacionamentos
-  workoutDays           WorkoutDay[]
-  
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-  
+  workoutDays WorkoutDay[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@unique([planId, mesocycleNumber, weekNumber])
   @@index([planId])
   @@index([planId, mesocycleNumber, weekNumber])
 }
 
 model WorkoutDay {
-  id                    String   @id @default(cuid())
-  templateId            String
-  template              WorkoutTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  dayOfWeek             Int      // 1=Segunda, 7=Domingo
-  workoutDate           DateTime
-  status                WorkoutDayStatus @default(planned)
-  startedAt             DateTime?
-  finishedAt            DateTime?
-  
+  id          String           @id @default(cuid())
+  templateId  String
+  template    WorkoutTemplate  @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  dayOfWeek   Int // 1=Segunda, 7=Domingo
+  workoutDate DateTime
+  status      WorkoutDayStatus @default(planned)
+  startedAt   DateTime?
+  finishedAt  DateTime?
+
   // Planejamento do Dia - Geral
-  sessionDurationMin    Int?     // Tempo total da sessão
-  cyclicTimeMin         Int?     // Tempo de treino cíclico
-  resistanceTimeMin     Int?     // Tempo de treino resistido
-  
-  // Planejamento do Dia - Cíclico
-  stimulusDurationMin   Int?     // Tempo do estímulo
-  location              String?  // Esteira, Bicicleta, Pista, Corrida
-  method                String?  // CEXT, CINT, IEXT, IINT
-  
+  sessionDurationMin Int? // Tempo total da sessÃ£o
+  cyclicTimeMin      Int? // Tempo de treino cÃ­clico
+  resistanceTimeMin  Int? // Tempo de treino resistido
+
+  // Planejamento do Dia - CÃ­clico
+  stimulusDurationMin Int? // Tempo do estÃ­mulo
+  location            String? // Esteira, Bicicleta, Pista, Corrida
+  method              String? // CEXT, CINT, IEXT, IINT
+
   // Intensidades
-  intensity1            Float?   // Intensidade 1 (porcentagem)
-  intensity2            Float?   // Intensidade 2 (porcentagem)
-  numSessions           Int?     // Número de sessões
-  numSets               Int?     // Número de séries
-  sessionTime           Int?     // Tempo intenso (segundos)
-  restTime              Int?     // Tempo repouso (segundos)
-  vo2maxIntervalPct     Float?   // %VO2Máx intervalo
-  iextIintTime          Float?   // Tempo IEXT IINT
-  vo2maxPct             Float?   // %VO2Máx
-  targetHrMin           String?  @db.Text // FC alvo (bpm)
-  targetHrMax           String?  @db.Text // FC alvo máximo (bpm)
-  targetSpeedMin        String?  @db.Text // Velocidade (km/h)
-  targetSpeedMax        String?  @db.Text // Velocidade máxima (km/h)
-  paceMin               Float?   // Pace mínimo (min/km)
-  paceMax               Float?   // Pace máximo (min/km)
-  
+  intensity1        Float? // Intensidade 1 (porcentagem)
+  intensity2        Float? // Intensidade 2 (porcentagem)
+  numSessions       Int? // NÃºmero de sessÃµes
+  numSets           Int? // NÃºmero de sÃ©ries
+  sessionTime       Int? // Tempo intenso (segundos)
+  restTime          Int? // Tempo repouso (segundos)
+  vo2maxIntervalPct Float? // %VO2MÃ¡x intervalo
+  iextIintTime      Float? // Tempo IEXT IINT
+  vo2maxPct         Float? // %VO2MÃ¡x
+  targetHrMin       String? @db.Text // FC alvo (bpm)
+  targetHrMax       String? @db.Text // FC alvo mÃ¡ximo (bpm)
+  targetSpeedMin    String? @db.Text // Velocidade (km/h)
+  targetSpeedMax    String? @db.Text // Velocidade mÃ¡xima (km/h)
+  paceMin           Float? // Pace mÃ­nimo (min/km)
+  paceMax           Float? // Pace mÃ¡ximo (min/km)
+
   // Detalhamento e Complemento
-  detailNotes           String?  @db.Text
-  complementNotes       String?  @db.Text
-  
-  // Orientações Gerais
-  generalGuidelines     String?  @db.Text
-  
-  // PSR (Percepção Subjetiva de Recuperação)
-  psrQuestion           String?  @default("Hoje recuperado você está se sentindo (PSR)?")
-  psrResponse           Int?     // Resposta do aluno (1-10)
-  pseResponse           Int?     // Percep????o de esfor??o ap??s o treino (1-10)
-  
+  detailNotes     String? @db.Text
+  complementNotes String? @db.Text
+
+  // OrientaÃ§Ãµes Gerais
+  generalGuidelines String? @db.Text
+
+  // PSR (PercepÃ§Ã£o Subjetiva de RecuperaÃ§Ã£o)
+  psrQuestion String? @default("Hoje recuperado vocÃª estÃ¡ se sentindo (PSR)?")
+  psrResponse Int? // Resposta do aluno (1-10)
+  pseResponse Int? // Percep????o de esfor??o ap??s o treino (1-10)
+
   // Relacionamentos
-  exercises             WorkoutExercise[]
-  
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
-  
+  exercises WorkoutExercise[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@unique([templateId, dayOfWeek])
   @@index([templateId])
   @@index([workoutDate])
@@ -1135,64 +1165,64 @@ enum WorkoutDayStatus {
 }
 
 model WorkoutExercise {
-  id              String   @id @default(cuid())
-  workoutDayId    String
-  workoutDay      WorkoutDay @relation(fields: [workoutDayId], references: [id], onDelete: Cascade)
-  exerciseId      String
-  exercise        ExerciseLibrary @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
-  
-  // Seção do Treino
-  section         String   // MOBILIDADE, AQUECIMENTO, ATIVACAO, TECNICO, SESSAO
-  exerciseOrder   Int      // Ordem dentro da seção
-  
-  // Parâmetros do Exercício
-  system          String?  // BI-SET, TRI-SET, CIRCUITO
-  sets            Int?
-  reps            Int?
-  intervalSec     Int?     // Intervalo entre séries
-  cParam          Int?     // Parâmetro C (específico do treino)
-  eParam          Int?     // Parâmetro E (específico do treino)
-  load            Float?   // Carga sugerida
-  
-  // Observações
-  exerciseNotes   String?  @db.Text
-  
+  id           String          @id @default(cuid())
+  workoutDayId String
+  workoutDay   WorkoutDay      @relation(fields: [workoutDayId], references: [id], onDelete: Cascade)
+  exerciseId   String
+  exercise     ExerciseLibrary @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+
+  // SeÃ§Ã£o do Treino
+  section       String // MOBILIDADE, AQUECIMENTO, ATIVACAO, TECNICO, SESSAO
+  exerciseOrder Int // Ordem dentro da seÃ§Ã£o
+
+  // ParÃ¢metros do ExercÃ­cio
+  system      String? // BI-SET, TRI-SET, CIRCUITO
+  sets        Int?
+  reps        Int?
+  intervalSec Int? // Intervalo entre sÃ©ries
+  cParam      Int? // ParÃ¢metro C (especÃ­fico do treino)
+  eParam      Int? // ParÃ¢metro E (especÃ­fico do treino)
+  load        Float? // Carga sugerida
+
+  // ObservaÃ§Ãµes
+  exerciseNotes String? @db.Text
+
   // Relacionamentos
-  executions      WorkoutExecution[]
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  
+  executions WorkoutExecution[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([workoutDayId])
   @@index([workoutDayId, section, exerciseOrder])
 }
 
 // ============================================================================
-// EXECUÇÃO REAL DO TREINO
+// EXECUÃ‡ÃƒO REAL DO TREINO
 // ============================================================================
 
 model WorkoutExecution {
-  id                  String   @id @default(cuid())
-  workoutExerciseId   String
-  workoutExercise     WorkoutExercise @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)
-  athleteId           String
-  athlete             Athlete  @relation(fields: [athleteId], references: [id], onDelete: Cascade)
-  executionDate       DateTime
-  setNumber           Int?
-  
+  id                String          @id @default(cuid())
+  workoutExerciseId String
+  workoutExercise   WorkoutExercise @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)
+  alunoId           String
+  aluno             Aluno           @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  executionDate     DateTime
+  setNumber         Int?
+
   // Dados Executados
-  setsCompleted       Int?
-  repsCompleted       Int?
-  loadUsed            Float?
-  
+  setsCompleted Int?
+  repsCompleted Int?
+  loadUsed      Float?
+
   // Feedback
-  difficultyRating    Int?     // 1-10
-  repsInReserve       Int?     // Repetições em reserva
-  notes               String?  @db.Text
-  
-  createdAt           DateTime @default(now())
-  
+  difficultyRating Int? // 1-10
+  repsInReserve    Int? // RepetiÃ§Ãµes em reserva
+  notes            String? @db.Text
+
+  createdAt DateTime @default(now())
+
   @@index([workoutExerciseId])
-  @@index([athleteId])
+  @@index([alunoId])
   @@index([executionDate])
 }

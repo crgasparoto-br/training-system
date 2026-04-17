@@ -1,7 +1,7 @@
-import { Router, Request, Response } from 'express';
+﻿import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { sendError, sendSuccess } from '@corrida/utils';
-import { authMiddleware, educatorMiddleware } from '../auth/auth.middleware';
+import { authMiddleware, professorMiddleware } from '../auth/auth.middleware';
 import { assessmentTypeService, ensureDefaultAssessmentTypesForContract } from './assessment-type.service';
 import { PrismaClient } from '@prisma/client';
 
@@ -9,7 +9,7 @@ const prisma = new PrismaClient();
 const router: Router = Router();
 
 router.use(authMiddleware);
-router.use(educatorMiddleware);
+router.use(professorMiddleware);
 
 const scheduleTypeEnum = z.enum(['fixed_interval', 'after_type']);
 
@@ -49,11 +49,11 @@ const validateScheduleRules = (data: {
   }
 
   if (!data.afterTypeId) {
-    return 'Selecione o tipo base para calcular a prÃ³xima avaliaÃ§Ã£o.';
+    return 'Selecione o tipo base para calcular a prÃƒÂ³xima avaliaÃƒÂ§ÃƒÂ£o.';
   }
 
   if (data.offsetMonths !== undefined && data.offsetMonths !== null && data.offsetMonths < 0) {
-    return 'O intervalo apÃ³s o tipo base deve ser 0 ou maior.';
+    return 'O intervalo apÃƒÂ³s o tipo base deve ser 0 ou maior.';
   }
 
   return null;
@@ -63,15 +63,15 @@ router.get('/', async (req: Request, res: Response) => {
   try {
     const contractId = (req as any).user.contractId;
     if (!contractId) {
-      return sendError(res, 'Contrato nÃ£o encontrado', 404);
+      return sendError(res, 'Contrato nÃƒÂ£o encontrado', 404);
     }
 
     await ensureDefaultAssessmentTypesForContract(contractId);
     const types = await assessmentTypeService.listByContract(contractId);
-    return sendSuccess(res, types, 'Tipos de avaliaÃ§Ã£o carregados');
+    return sendSuccess(res, types, 'Tipos de avaliaÃƒÂ§ÃƒÂ£o carregados');
   } catch (error) {
-    console.error('Erro ao listar tipos de avaliaÃ§Ã£o:', error);
-    return sendError(res, 'Erro ao listar tipos de avaliaÃ§Ã£o', 500);
+    console.error('Erro ao listar tipos de avaliaÃƒÂ§ÃƒÂ£o:', error);
+    return sendError(res, 'Erro ao listar tipos de avaliaÃƒÂ§ÃƒÂ£o', 500);
   }
 });
 
@@ -79,7 +79,7 @@ router.post('/', async (req: Request, res: Response) => {
   try {
     const contractId = (req as any).user.contractId;
     if (!contractId) {
-      return sendError(res, 'Contrato nÃ£o encontrado', 404);
+      return sendError(res, 'Contrato nÃƒÂ£o encontrado', 404);
     }
 
     const validated = createSchema.parse(req.body);
@@ -93,7 +93,7 @@ router.post('/', async (req: Request, res: Response) => {
         where: { id: validated.afterTypeId, contractId },
       });
       if (!baseType) {
-        return sendError(res, 'Tipo base nÃ£o encontrado no contrato', 404);
+        return sendError(res, 'Tipo base nÃƒÂ£o encontrado no contrato', 404);
       }
     }
 
@@ -102,16 +102,16 @@ router.post('/', async (req: Request, res: Response) => {
       ...validated,
     });
 
-    return sendSuccess(res, created, 'Tipo de avaliaÃ§Ã£o criado com sucesso', 201);
+    return sendSuccess(res, created, 'Tipo de avaliaÃƒÂ§ÃƒÂ£o criado com sucesso', 201);
   } catch (error: any) {
     if (error instanceof z.ZodError) {
-      return sendError(res, 'Dados invÃ¡lidos', 400, error.errors);
+      return sendError(res, 'Dados invÃƒÂ¡lidos', 400, error.errors);
     }
     if (error?.code === 'P2002') {
-      return sendError(res, 'CÃ³digo jÃ¡ estÃ¡ em uso', 400);
+      return sendError(res, 'CÃƒÂ³digo jÃƒÂ¡ estÃƒÂ¡ em uso', 400);
     }
-    console.error('Erro ao criar tipo de avaliaÃ§Ã£o:', error);
-    return sendError(res, 'Erro ao criar tipo de avaliaÃ§Ã£o', 500);
+    console.error('Erro ao criar tipo de avaliaÃƒÂ§ÃƒÂ£o:', error);
+    return sendError(res, 'Erro ao criar tipo de avaliaÃƒÂ§ÃƒÂ£o', 500);
   }
 });
 
@@ -120,7 +120,7 @@ router.put('/:id', async (req: Request, res: Response) => {
     const { id } = req.params;
     const contractId = (req as any).user.contractId;
     if (!contractId) {
-      return sendError(res, 'Contrato nÃ£o encontrado', 404);
+      return sendError(res, 'Contrato nÃƒÂ£o encontrado', 404);
     }
 
     const validated = updateSchema.parse(req.body);
@@ -129,7 +129,7 @@ router.put('/:id', async (req: Request, res: Response) => {
     });
 
     if (!existing) {
-      return sendError(res, 'Tipo de avaliaÃ§Ã£o nÃ£o encontrado', 404);
+      return sendError(res, 'Tipo de avaliaÃƒÂ§ÃƒÂ£o nÃƒÂ£o encontrado', 404);
     }
 
     const scheduleType = validated.scheduleType ?? existing.scheduleType;
@@ -158,7 +158,7 @@ router.put('/:id', async (req: Request, res: Response) => {
     }
 
     if (afterTypeId && afterTypeId === id) {
-      return sendError(res, 'O tipo base nÃ£o pode ser o mesmo tipo.', 400);
+      return sendError(res, 'O tipo base nÃƒÂ£o pode ser o mesmo tipo.', 400);
     }
 
     if (afterTypeId) {
@@ -166,7 +166,7 @@ router.put('/:id', async (req: Request, res: Response) => {
         where: { id: afterTypeId, contractId },
       });
       if (!baseType) {
-        return sendError(res, 'Tipo base nÃ£o encontrado no contrato', 404);
+        return sendError(res, 'Tipo base nÃƒÂ£o encontrado no contrato', 404);
       }
     }
 
@@ -178,16 +178,16 @@ router.put('/:id', async (req: Request, res: Response) => {
       offsetMonths,
     });
 
-    return sendSuccess(res, updated, 'Tipo de avaliaÃ§Ã£o atualizado com sucesso');
+    return sendSuccess(res, updated, 'Tipo de avaliaÃƒÂ§ÃƒÂ£o atualizado com sucesso');
   } catch (error: any) {
     if (error instanceof z.ZodError) {
-      return sendError(res, 'Dados invÃ¡lidos', 400, error.errors);
+      return sendError(res, 'Dados invÃƒÂ¡lidos', 400, error.errors);
     }
     if (error?.code === 'P2002') {
-      return sendError(res, 'CÃ³digo jÃ¡ estÃ¡ em uso', 400);
+      return sendError(res, 'CÃƒÂ³digo jÃƒÂ¡ estÃƒÂ¡ em uso', 400);
     }
-    console.error('Erro ao atualizar tipo de avaliaÃ§Ã£o:', error);
-    return sendError(res, 'Erro ao atualizar tipo de avaliaÃ§Ã£o', 500);
+    console.error('Erro ao atualizar tipo de avaliaÃƒÂ§ÃƒÂ£o:', error);
+    return sendError(res, 'Erro ao atualizar tipo de avaliaÃƒÂ§ÃƒÂ£o', 500);
   }
 });
 
@@ -196,15 +196,16 @@ router.delete('/:id', async (req: Request, res: Response) => {
     const { id } = req.params;
     const contractId = (req as any).user.contractId;
     if (!contractId) {
-      return sendError(res, 'Contrato nÃ£o encontrado', 404);
+      return sendError(res, 'Contrato nÃƒÂ£o encontrado', 404);
     }
 
     const deleted = await assessmentTypeService.delete(id, contractId);
-    return sendSuccess(res, deleted, 'Tipo de avaliaÃ§Ã£o atualizado');
+    return sendSuccess(res, deleted, 'Tipo de avaliaÃƒÂ§ÃƒÂ£o atualizado');
   } catch (error) {
-    console.error('Erro ao excluir tipo de avaliaÃ§Ã£o:', error);
-    return sendError(res, 'Erro ao excluir tipo de avaliaÃ§Ã£o', 500);
+    console.error('Erro ao excluir tipo de avaliaÃƒÂ§ÃƒÂ£o:', error);
+    return sendError(res, 'Erro ao excluir tipo de avaliaÃƒÂ§ÃƒÂ£o', 500);
   }
 });
 
 export default router;
+

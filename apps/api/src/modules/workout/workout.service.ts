@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+﻿import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -16,7 +16,7 @@ export interface CreateWorkoutTemplateDTO {
   repReserve?: number;
   trainingMethod?: string;
   trainingDivision?: string;
-  studentGoal?: string;
+  alunoGoal?: string;
   coachGoal?: string;
   observation1?: string;
   observation2?: string;
@@ -68,7 +68,7 @@ export interface CreateWorkoutExerciseDTO {
 
 export interface RecordExecutionDTO {
   workoutExerciseId: string;
-  athleteId: string;
+  alunoId: string;
   executionDate: Date;
   setNumber?: number;
   setsCompleted?: number;
@@ -104,11 +104,11 @@ const resolveUtcDate = (input: string | Date, endOfDay: boolean) => {
 };
 
 /**
- * Service de Montagem e Execução de Treinos
+ * Service de Montagem e ExecuÃ§Ã£o de Treinos
  */
 export const workoutService = {
   /**
-   * Get or create template (busca ou cria se não existir)
+   * Get or create template (busca ou cria se nÃ£o existir)
    */
   async getOrCreateTemplate(data: CreateWorkoutTemplateDTO) {
     const existing = await prisma.workoutTemplate.findUnique({
@@ -312,7 +312,7 @@ export const workoutService = {
   },
 
   /**
-   * Liberar template para o atleta
+   * Liberar template para o aluno
    */
   async releaseTemplate(id: string) {
     return await prisma.workoutTemplate.update({
@@ -325,7 +325,7 @@ export const workoutService = {
   },
 
   /**
-   * Get or create workout day (busca ou cria se não existir)
+   * Get or create workout day (busca ou cria se nÃ£o existir)
    */
   async getOrCreateDay(data: CreateWorkoutDayDTO) {
     const existing = await prisma.workoutDay.findUnique({
@@ -431,7 +431,7 @@ export const workoutService = {
     return await this.getWorkoutDay(id);
   },
 
-  async getWorkoutDayByDate(athleteId: string, dateInput: string | Date) {
+  async getWorkoutDayByDate(alunoId: string, dateInput: string | Date) {
     const start = resolveUtcDate(dateInput, false);
     const end = resolveUtcDate(dateInput, true);
 
@@ -444,7 +444,7 @@ export const workoutService = {
         template: {
           released: true,
           plan: {
-            athleteId,
+            alunoId,
           },
         },
       },
@@ -500,7 +500,7 @@ export const workoutService = {
   },
 
   /**
-   * Listar exercícios de um dia
+   * Listar exercÃ­cios de um dia
    */
   async getExercises(workoutDayId: string) {
     return await prisma.workoutExercise.findMany({
@@ -516,7 +516,7 @@ export const workoutService = {
   },
 
   /**
-   * Adicionar exercício ao dia de treino
+   * Adicionar exercÃ­cio ao dia de treino
    */
   async addExerciseToDay(data: CreateWorkoutExerciseDTO) {
     return await prisma.workoutExercise.create({
@@ -529,7 +529,7 @@ export const workoutService = {
   },
 
   /**
-   * Atualizar exercício do treino
+   * Atualizar exercÃ­cio do treino
    */
   async updateWorkoutExercise(id: string, data: Partial<CreateWorkoutExerciseDTO>) {
     return await prisma.workoutExercise.update({
@@ -597,14 +597,14 @@ export const workoutService = {
         repReserve: source.repReserve,
         trainingMethod: source.trainingMethod,
         trainingDivision: source.trainingDivision,
-        studentGoal: source.studentGoal,
+        alunoGoal: source.alunoGoal,
         coachGoal: source.coachGoal,
         observation1: source.observation1,
         observation2: source.observation2,
       },
     });
 
-    // Copiar dias e exercícios
+    // Copiar dias e exercÃ­cios
     for (const day of source.workoutDays) {
       const newDay = await prisma.workoutDay.create({
         data: {
@@ -679,7 +679,7 @@ export const workoutService = {
   },
 
   async getWorkoutDaysByRange(
-    athleteId: string,
+    alunoId: string,
     startInput: string | Date,
     endInput: string | Date,
     options?: { releasedOnly?: boolean }
@@ -697,7 +697,7 @@ export const workoutService = {
         template: {
           ...(releasedOnly ? { released: true } : {}),
           plan: {
-            athleteId,
+            alunoId,
           },
         },
       },
@@ -783,7 +783,7 @@ export const workoutService = {
   },
 
   /**
-   * Remover exercício do treino
+   * Remover exercÃ­cio do treino
    */
   async removeExerciseFromDay(id: string) {
     return await prisma.workoutExercise.delete({
@@ -792,7 +792,7 @@ export const workoutService = {
   },
 
   /**
-   * Reordenar exercícios de uma seção
+   * Reordenar exercÃ­cios de uma seÃ§Ã£o
    */
   async reorderExercises(
     workoutDayId: string,
@@ -810,10 +810,10 @@ export const workoutService = {
   },
 
   /**
-   * Registrar execução de exercício
+   * Registrar execuÃ§Ã£o de exercÃ­cio
    */
   async recordExecution(data: RecordExecutionDTO) {
-    // Registrar execução
+    // Registrar execuÃ§Ã£o
     const execution = await prisma.workoutExecution.create({
       data,
     });
@@ -825,10 +825,10 @@ export const workoutService = {
       });
 
       if (workoutExercise) {
-        const progress = await prisma.studentExerciseProgress.findUnique({
+        const progress = await prisma.alunoExerciseProgress.findUnique({
           where: {
-            athleteId_exerciseId: {
-              athleteId: data.athleteId,
+            alunoId_exerciseId: {
+              alunoId: data.alunoId,
               exerciseId: workoutExercise.exerciseId,
             },
           },
@@ -839,15 +839,15 @@ export const workoutService = {
             ? data.loadUsed
             : progress.maxLoad;
 
-        await prisma.studentExerciseProgress.upsert({
+        await prisma.alunoExerciseProgress.upsert({
           where: {
-            athleteId_exerciseId: {
-              athleteId: data.athleteId,
+            alunoId_exerciseId: {
+              alunoId: data.alunoId,
               exerciseId: workoutExercise.exerciseId,
             },
           },
           create: {
-            athleteId: data.athleteId,
+            alunoId: data.alunoId,
             exerciseId: workoutExercise.exerciseId,
             lastLoad: data.loadUsed,
             maxLoad: newMaxLoad,
@@ -865,16 +865,16 @@ export const workoutService = {
   },
 
   /**
-   * Obter execuções de um aluno em um período
+   * Obter execuÃ§Ãµes de um aluno em um perÃ­odo
    */
-  async getExecutionsByAthlete(
-    athleteId: string,
+  async getExecutionsByAluno(
+    alunoId: string,
     startDate: Date,
     endDate: Date
   ) {
     return await prisma.workoutExecution.findMany({
       where: {
-        athleteId,
+        alunoId,
         executionDate: {
           gte: startDate,
           lte: endDate,
@@ -897,7 +897,7 @@ export const workoutService = {
   },
 
   /**
-   * Obter treinos de uma semana específica
+   * Obter treinos de uma semana especÃ­fica
    */
   async getWeekWorkouts(planId: string, mesocycleNumber: number, weekNumber: number) {
     const template = await this.getTemplate(planId, mesocycleNumber, weekNumber);
@@ -912,3 +912,4 @@ export const workoutService = {
     };
   },
 };
+

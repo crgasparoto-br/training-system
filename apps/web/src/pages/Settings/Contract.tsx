@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -11,7 +11,7 @@ import { Input } from '../../components/ui/Input';
 
 const contractSchema = z.object({
   name: z.string().optional(),
-  document: z.string().min(11, 'Documento inválido'),
+  document: z.string().min(11, 'Documento invÃ¡lido'),
 });
 
 type ContractForm = z.infer<typeof contractSchema>;
@@ -36,7 +36,7 @@ export default function ContractSettings() {
     resolver: zodResolver(contractSchema),
   });
 
-  const canEdit = user?.type === 'educator' && user?.educator?.role === 'master';
+  const canEdit = user?.type === 'professor' && user?.professor?.role === 'master';
   const formatDocument = (value: string, type: 'academy' | 'personal' = contractType) => {
     const digits = value.replace(/\D/g, '');
     if (type === 'academy') {
@@ -60,7 +60,7 @@ export default function ContractSettings() {
       setErrorMessage(null);
       try {
         if (!canEdit) {
-          const contract = user?.educator?.contract;
+          const contract = user?.professor?.contract;
           if (contract) {
             setContractType(contract.type);
             reset({
@@ -97,7 +97,7 @@ export default function ContractSettings() {
       const expected = contractType === 'academy' ? 14 : 11;
       if (normalized.length !== expected) {
         setError('document', {
-          message: contractType === 'academy' ? 'CNPJ inválido' : 'CPF inválido',
+          message: contractType === 'academy' ? 'CNPJ invÃ¡lido' : 'CPF invÃ¡lido',
         });
         setSaving(false);
         return;
@@ -119,7 +119,7 @@ export default function ContractSettings() {
 
   const handleCloneData = async () => {
     if (!canEdit) return;
-    if (!confirm('Deseja clonar parâmetros, exercícios e tipos de avaliação para este contrato?')) {
+    if (!confirm('Deseja clonar parÃ¢metros, exercÃ­cios e tipos de avaliaÃ§Ã£o para este contrato?')) {
       return;
     }
 
@@ -135,7 +135,7 @@ export default function ContractSettings() {
 
       const result = response.data?.data;
       setCloneResult(
-        `Parâmetros: +${result.parametersCreated} (ignorado ${result.parametersSkipped}) | Exercícios: +${result.exercisesCreated} (ignorado ${result.exercisesSkipped}) | Avaliações: +${result.assessmentTypesCreated} (ignorado ${result.assessmentTypesSkipped})`
+        `ParÃ¢metros: +${result.parametersCreated} (ignorado ${result.parametersSkipped}) | ExercÃ­cios: +${result.exercisesCreated} (ignorado ${result.exercisesSkipped}) | AvaliaÃ§Ãµes: +${result.assessmentTypesCreated} (ignorado ${result.assessmentTypesSkipped})`
       );
     } catch (err: any) {
       setErrorMessage(err.response?.data?.error || 'Erro ao clonar dados');
@@ -155,13 +155,13 @@ export default function ContractSettings() {
       <div>
         <h1 className="text-2xl font-bold">Contrato</h1>
         <p className="text-sm text-muted-foreground">
-          Dados do contrato e identificação fiscal.
+          Dados do contrato e identificaÃ§Ã£o fiscal.
         </p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Informações do Contrato</CardTitle>
+          <CardTitle>InformaÃ§Ãµes do Contrato</CardTitle>
           <CardDescription>Atualize nome e documento fiscal do contrato.</CardDescription>
         </CardHeader>
         <CardContent>
@@ -189,7 +189,7 @@ export default function ContractSettings() {
                   Nome do Contrato
                 </label>
                 <div className="h-10 w-full rounded-md border border-input bg-muted px-3 py-2 text-sm text-muted-foreground">
-                  {user?.educator?.contract?.name || 'Não informado'}
+                  {user?.professor?.contract?.name || 'NÃ£o informado'}
                 </div>
               </div>
             )}
@@ -214,7 +214,7 @@ export default function ContractSettings() {
                 </label>
                 <div className="h-10 w-full rounded-md border border-input bg-muted px-3 py-2 text-sm text-muted-foreground">
                   {formatDocument(
-                    user?.educator?.contract?.document || ''
+                    user?.professor?.contract?.document || ''
                   )}
                 </div>
               </div>
@@ -233,9 +233,9 @@ export default function ContractSettings() {
       {canEdit && (
         <Card>
           <CardHeader>
-          <CardTitle>Clonar Dados Padrão</CardTitle>
+          <CardTitle>Clonar Dados PadrÃ£o</CardTitle>
           <CardDescription>
-              Copia parâmetros, exercícios e tipos de avaliação do contrato padrão para este contrato.
+              Copia parÃ¢metros, exercÃ­cios e tipos de avaliaÃ§Ã£o do contrato padrÃ£o para este contrato.
           </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -248,7 +248,7 @@ export default function ContractSettings() {
               Clonar Dados
             </Button>
             <p className="text-xs text-muted-foreground">
-              A clonagem ignora itens já existentes neste contrato.
+              A clonagem ignora itens jÃ¡ existentes neste contrato.
             </p>
           </CardContent>
         </Card>
@@ -256,3 +256,4 @@ export default function ContractSettings() {
     </div>
   );
 }
+

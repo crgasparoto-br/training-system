@@ -1,13 +1,13 @@
-export interface JwtPayload {
+﻿export interface JwtPayload {
   userId: string;
   email: string;
-  type: 'educator' | 'student';
+  type: 'professor' | 'aluno';
   iat?: number;
   exp?: number;
 }
 
 export type ContractType = 'academy' | 'personal';
-export type EducatorRole = 'master' | 'educator';
+export type ProfessorRole = 'master' | 'professor';
 
 export interface ContractInfo {
   id: string;
@@ -16,9 +16,9 @@ export interface ContractInfo {
   name?: string | null;
 }
 
-export interface EducatorInfo {
+export interface ProfessorInfo {
   id: string;
-  role: EducatorRole;
+  role: ProfessorRole;
   contract: ContractInfo;
 }
 
@@ -31,7 +31,7 @@ export interface RegisterRequest {
   email: string;
   password: string;
   name: string;
-  type: 'educator';
+  type: 'professor';
   contractType: ContractType;
   document: string;
 }
@@ -42,8 +42,8 @@ export interface AuthResponse {
     id: string;
     email: string;
     name: string;
-    type: 'educator' | 'student';
-    educator?: EducatorInfo | null;
+    type: 'professor' | 'aluno';
+    professor?: ProfessorInfo | null;
   };
 }
 
@@ -55,3 +55,4 @@ export interface RefreshTokenResponse {
   token: string;
   refreshToken: string;
 }
+

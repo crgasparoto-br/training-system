@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect, Fragment } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
-import { athleteService, type Athlete } from '../services/athlete.service';
+import { useNavigate, useParams, Link, useLocation } from 'react-router-dom';
+import { alunoService, type Aluno } from '../services/aluno.service';
 import { planService, type TrainingPlan } from '../services/plan.service';
 import { assessmentService, type Assessment, type AssessmentSummary, type AssessmentAuditLog } from '../services/assessment.service';
 import { assessmentTypeService, type AssessmentType } from '../services/assessment-type.service';
@@ -20,13 +20,16 @@ import {
   Mail,
 } from 'lucide-react';
 
-export function AthleteDetails() {
+export function AlunoDetails() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { id } = useParams<{ id: string }>();
-  const [athlete, setAthlete] = useState<Athlete | null>(null);
+  const initialTempPassword =
+    (location.state as { tempPassword?: string | null } | null)?.tempPassword ?? null;
+  const [aluno, setAluno] = useState<Aluno | null>(null);
   const [loading, setLoading] = useState(true);
   const [isResetting, setIsResetting] = useState(false);
-  const [tempPassword, setTempPassword] = useState<string | null>(null);
+  const [tempPassword, setTempPassword] = useState<string | null>(initialTempPassword);
   const [copied, setCopied] = useState(false);
   const [messageCopied, setMessageCopied] = useState(false);
   const [countryCode, setCountryCode] = useState('55');
@@ -96,22 +99,22 @@ export function AthleteDetails() {
 
   useEffect(() => {
     if (id) {
-      loadAthlete(id);
+      loadAluno(id);
     }
   }, [id]);
 
-  const loadAthlete = async (athleteId: string) => {
+  const loadAluno = async (alunoId: string) => {
     setLoading(true);
     try {
       const [data, assessmentsData, summaryData, typesData, plansData] = await Promise.all([
-        athleteService.getById(athleteId),
-        assessmentService.listByAthlete(athleteId),
-        assessmentService.getSummary(athleteId),
+        alunoService.getById(alunoId),
+        assessmentService.listByAluno(alunoId),
+        assessmentService.getSummary(alunoId),
         assessmentTypeService.list(),
-        planService.listByAthlete(athleteId),
+        planService.listByAluno(alunoId),
       ]);
 
-      setAthlete(data);
+      setAluno(data);
       setAssessments(assessmentsData);
       setAssessmentSummary(summaryData);
       setAssessmentTypes(typesData);
@@ -120,7 +123,7 @@ export function AthleteDetails() {
     } catch (error) {
       console.error('Erro ao carregar aluno:', error);
       alert('Erro ao carregar aluno');
-      navigate('/athletes');
+      navigate('/alunos');
     } finally {
       setLoading(false);
     }
@@ -132,9 +135,9 @@ export function AthleteDetails() {
     }
 
     try {
-      await athleteService.delete(id);
+      await alunoService.delete(id);
       alert('Aluno excluido com sucesso!');
-      navigate('/athletes');
+      navigate('/alunos');
     } catch (error) {
       console.error('Erro ao excluir aluno:', error);
       alert('Erro ao excluir aluno');
@@ -151,9 +154,9 @@ export function AthleteDetails() {
     setCopied(false);
     setMessageCopied(false);
     try {
-      const result = await athleteService.resetPassword(id);
+      const result = await alunoService.resetPassword(id);
       setTempPassword(result.tempPassword);
-      const phoneDigits = athlete?.user.profile.phone?.replace(/\D/g, '') || '';
+      const phoneDigits = aluno?.user.profile.phone?.replace(/\D/g, '') || '';
       if (phoneDigits.startsWith('55')) {
         setCountryCode('55');
       }
@@ -175,8 +178,8 @@ export function AthleteDetails() {
   };
 
   const buildMessage = () => {
-    if (!tempPassword || !athlete) return '';
-    return `Olá ${athlete.user.profile.name}, sua senha temporária é ${tempPassword}.`;
+    if (!tempPassword || !aluno) return '';
+    return `Olá ${aluno.user.profile.name}, sua senha temporária é ${tempPassword}.`;
   };
 
   const handleCopyMessage = async () => {
@@ -191,15 +194,15 @@ export function AthleteDetails() {
   };
 
   const handleSendEmail = () => {
-    if (!athlete || !tempPassword) return;
+    if (!aluno || !tempPassword) return;
     const subject = encodeURIComponent('Senha temporária de acesso');
     const body = encodeURIComponent(buildMessage());
-    window.location.href = `mailto:${athlete.user.email}?subject=${subject}&body=${body}`;
+    window.location.href = `mailto:${aluno.user.email}?subject=${subject}&body=${body}`;
   };
 
   const handleSendWhatsApp = () => {
-    if (!athlete || !tempPassword) return;
-    const rawPhone = athlete.user.profile.phone || '';
+    if (!aluno || !tempPassword) return;
+    const rawPhone = aluno.user.profile.phone || '';
     const digits = rawPhone.replace(/\D/g, '');
     if (!digits) {
       alert('Telefone do aluno nao informado');
@@ -232,7 +235,7 @@ export function AthleteDetails() {
         file: assessmentForm.file,
       });
       const [assessmentsData, summaryData] = await Promise.all([
-        assessmentService.listByAthlete(id),
+        assessmentService.listByAluno(id),
         assessmentService.getSummary(id),
       ]);
       setAssessments(assessmentsData);
@@ -331,7 +334,7 @@ export function AthleteDetails() {
         assessmentDate: editForm.assessmentDate || undefined,
       });
       const [assessmentsData, summaryData] = await Promise.all([
-        assessmentService.listByAthlete(id),
+        assessmentService.listByAluno(id),
         assessmentService.getSummary(id),
       ]);
       setAssessments(assessmentsData);
@@ -349,7 +352,7 @@ export function AthleteDetails() {
     try {
       await assessmentService.deleteAssessment(id, assessment.id);
       const [assessmentsData, summaryData] = await Promise.all([
-        assessmentService.listByAthlete(id),
+        assessmentService.listByAluno(id),
         assessmentService.getSummary(id),
       ]);
       setAssessments(assessmentsData);
@@ -365,7 +368,7 @@ export function AthleteDetails() {
     try {
       await assessmentService.reprocessAssessment(id, assessment.id);
       const [assessmentsData, summaryData] = await Promise.all([
-        assessmentService.listByAthlete(id),
+        assessmentService.listByAluno(id),
         assessmentService.getSummary(id),
       ]);
       setAssessments(assessmentsData);
@@ -531,7 +534,7 @@ export function AthleteDetails() {
         variables: payload,
       });
       const [assessmentsData, summaryData] = await Promise.all([
-        assessmentService.listByAthlete(id),
+        assessmentService.listByAluno(id),
         assessmentService.getSummary(id),
       ]);
       setAssessments(assessmentsData);
@@ -560,11 +563,11 @@ export function AthleteDetails() {
     );
   }
 
-  if (!athlete) {
+  if (!aluno) {
     return (
       <div className="text-center py-12">
         <p className="text-muted-foreground">Aluno nao encontrado</p>
-        <Button onClick={() => navigate('/athletes')} className="mt-4">
+        <Button onClick={() => navigate('/alunos')} className="mt-4">
           Voltar para Alunos
         </Button>
       </div>
@@ -576,7 +579,7 @@ export function AthleteDetails() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/athletes')}>
+          <Button variant="ghost" size="icon" onClick={() => navigate('/alunos')}>
             <ArrowLeft size={20} />
           </Button>
           <div className="flex items-center gap-4">
@@ -584,13 +587,13 @@ export function AthleteDetails() {
               <User className="h-8 w-8 text-primary" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold">{athlete.user.profile.name}</h1>
-              <p className="text-muted-foreground">{athlete.age} anos</p>
+              <h1 className="text-3xl font-bold">{aluno.user.profile.name}</h1>
+              <p className="text-muted-foreground">{aluno.age} anos</p>
             </div>
           </div>
         </div>
         <div className="flex gap-2">
-          <Link to={`/athletes/${id}/edit`}>
+          <Link to={`/alunos/${id}/edit`}>
             <Button variant="outline">
               <Edit size={20} />
               Editar
@@ -632,7 +635,7 @@ export function AthleteDetails() {
               <Button
                 variant="outline"
                 onClick={handleSendEmail}
-                disabled={!athlete.user.email}
+                disabled={!aluno.user.email}
               >
                 Enviar por Email
               </Button>
@@ -649,7 +652,7 @@ export function AthleteDetails() {
                 <Button
                   variant="outline"
                   onClick={handleSendWhatsApp}
-                  disabled={!athlete.user.profile.phone}
+                  disabled={!aluno.user.profile.phone}
                 >
                   Enviar por WhatsApp
                 </Button>
@@ -667,17 +670,17 @@ export function AthleteDetails() {
         <CardContent className="space-y-3">
           <div className="flex items-center gap-3">
             <Mail className="h-5 w-5 text-muted-foreground" />
-            <span>{athlete.user.email}</span>
+            <span>{aluno.user.email}</span>
           </div>
-          {athlete.user.profile.phone && (
+          {aluno.user.profile.phone && (
             <div className="flex items-center gap-3">
               <Phone className="h-5 w-5 text-muted-foreground" />
-              <span>{athlete.user.profile.phone}</span>
+              <span>{aluno.user.profile.phone}</span>
             </div>
           )}
-          {athlete.lastPasswordResetAt && (
+          {aluno.lastPasswordResetAt && (
             <div className="text-xs text-muted-foreground">
-              Último reset de senha: {new Date(athlete.lastPasswordResetAt).toLocaleString()}
+              Último reset de senha: {new Date(aluno.lastPasswordResetAt).toLocaleString()}
             </div>
           )}
         </CardContent>
@@ -831,7 +834,7 @@ export function AthleteDetails() {
           </Card>
 
       {/* Macronutrientes */}
-      {athlete.macronutrients && (
+      {aluno.macronutrients && (
         <Card>
           <CardHeader>
             <CardTitle>Distribuição de Macronutrientes</CardTitle>
@@ -841,26 +844,26 @@ export function AthleteDetails() {
               <div className="text-center p-4 bg-blue-50 dark:bg-blue-950 rounded-lg">
                 <p className="text-sm text-muted-foreground">Carboidratos</p>
                 <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                  {athlete.macronutrients.carbohydratesPercentage}%
+                  {aluno.macronutrients.carbohydratesPercentage}%
                 </p>
               </div>
               <div className="text-center p-4 bg-green-50 dark:bg-green-950 rounded-lg">
                 <p className="text-sm text-muted-foreground">Proteínas</p>
                 <p className="text-2xl font-bold text-green-600 dark:text-green-400">
-                  {athlete.macronutrients.proteinsPercentage}%
+                  {aluno.macronutrients.proteinsPercentage}%
                 </p>
               </div>
               <div className="text-center p-4 bg-orange-50 dark:bg-orange-950 rounded-lg">
                 <p className="text-sm text-muted-foreground">Lipídios</p>
                 <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">
-                  {athlete.macronutrients.lipidsPercentage}%
+                  {aluno.macronutrients.lipidsPercentage}%
                 </p>
               </div>
             </div>
-            {athlete.macronutrients.dailyCalories && (
+            {aluno.macronutrients.dailyCalories && (
               <div className="mt-4 text-center">
                 <p className="text-sm text-muted-foreground">Calorias Diárias</p>
-                <p className="text-2xl font-bold">{athlete.macronutrients.dailyCalories} kcal</p>
+                <p className="text-2xl font-bold">{aluno.macronutrients.dailyCalories} kcal</p>
               </div>
             )}
           </CardContent>
@@ -876,7 +879,7 @@ export function AthleteDetails() {
                 <Calendar className="h-5 w-5" />
                 Planos de Treino
               </CardTitle>
-              <Link to={`/plans/new?athleteId=${id}`}>
+              <Link to={`/plans/new?alunoId=${id}`}>
                 <Button variant="outline" size="sm">
                   Novo Plano
                 </Button>
@@ -1502,7 +1505,7 @@ export function AthleteDetails() {
                           {log.action === 'update' ? 'Atualização' : 'Exclusão'}
                         </div>
                         <div>
-                          {log.educator?.user?.profile?.name || 'Professor'} •{' '}
+                          {log.professor?.user?.profile?.name || 'Professor'} •{' '}
                           {new Date(log.createdAt).toLocaleString()}
                         </div>
                       </div>
@@ -1531,6 +1534,7 @@ export function AthleteDetails() {
     </div>
   );
 }
+
 
 
 

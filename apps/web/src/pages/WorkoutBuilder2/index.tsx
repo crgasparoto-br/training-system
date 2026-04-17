@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+﻿import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Copy, CheckCircle, Lock, ChevronLeft, ChevronRight } from 'lucide-react';
 import WorkoutBuilderCyclic from './WorkoutBuilderCyclic';
 import WorkoutBuilderResistance from './WorkoutBuilderResistance';
 import { planService } from '../../services/plan.service';
-import { athleteService, type Athlete } from '../../services/athlete.service';
+import { alunoService, type Aluno } from '../../services/aluno.service';
 import { assessmentService } from '../../services/assessment.service';
 import { periodizationService, ResistedStimulus } from '../../services/periodization.service';
 import { workoutService } from '../../services/workout.service';
@@ -25,8 +25,9 @@ export default function WorkoutBuilder2() {
     }
     if (workoutDays && typeof workoutDays === 'object') {
       return Object.entries(workoutDays).reduce<Record<number, any>>((acc, [key, day]) => {
-        const dayOfWeek = day?.dayOfWeek ?? Number(key);
-        acc[dayOfWeek] = { ...day, dayOfWeek };
+        const rawDay = (day ?? {}) as Record<string, any>;
+        const dayOfWeek = Number(rawDay.dayOfWeek ?? key);
+        acc[dayOfWeek] = { ...rawDay, dayOfWeek };
         return acc;
       }, {});
     }
@@ -85,10 +86,10 @@ export default function WorkoutBuilder2() {
   const [templateDataByWeek, setTemplateDataByWeek] = useState<Record<number, any>>({});
   const [totalMesocycles, setTotalMesocycles] = useState(12);
   const [weeksPerMesocycle, setWeeksPerMesocycle] = useState(4);
-  const [athleteData, setAthleteData] = useState<Athlete | null>(null);
+  const [alunoData, setAlunoData] = useState<Aluno | null>(null);
   const [vamValue, setVamValue] = useState<number | null>(null);
 
-  // Parâmetros únicos compartilhados
+  // ParÃ¢metros Ãºnicos compartilhados
   const [mesocycleNumber, setMesocycleNumber] = useState(parseInt(mesoParam || '1'));
 
   const mesoOptions = useMemo(
@@ -100,7 +101,7 @@ export default function WorkoutBuilder2() {
     [weeksPerMesocycle]
   );
   const summaryVisibilityUserKey =
-    planData?.athlete?.user?.id ?? planData?.athleteId ?? 'unknown-user';
+    planData?.aluno?.user?.id ?? planData?.alunoId ?? 'unknown-user';
   const summaryVisibilityStorageKey = planId
     ? `workoutBuilder2:summaryVisibility:${planId}:${mesocycleNumber}:${summaryVisibilityUserKey}`
     : 'workoutBuilder2:summaryVisibility:unknown';
@@ -351,15 +352,15 @@ export default function WorkoutBuilder2() {
       if (planId) {
         const plan = await planService.getById(planId);
         setPlanData(plan);
-        if (plan?.athleteId) {
+        if (plan?.alunoId) {
           try {
-            const athlete = await athleteService.getById(plan.athleteId);
-            setAthleteData(athlete);
+            const aluno = await alunoService.getById(plan.alunoId);
+            setAlunoData(aluno);
           } catch (error) {
-            setAthleteData(null);
+            setAlunoData(null);
           }
           try {
-            const assessments = await assessmentService.listByAthlete(plan.athleteId);
+            const assessments = await assessmentService.listByAluno(plan.alunoId);
             const latest = assessments
               .filter((assessment) => assessment.assessmentDate)
               .sort(
@@ -392,7 +393,7 @@ export default function WorkoutBuilder2() {
             setVamValue(null);
           }
         } else {
-          setAthleteData(null);
+          setAlunoData(null);
           setVamValue(null);
         }
 
@@ -424,10 +425,10 @@ export default function WorkoutBuilder2() {
           }
         }
         
-        // TODO: Carregar dados da periodização via API
+        // TODO: Carregar dados da periodizaÃ§Ã£o via API
         // const periodization = await periodizationService.getCyclicStimulus(planId, mesocycleNumber, weekNumber);
         
-        // Mock temporário - simular dados da periodização
+        // Mock temporÃ¡rio - simular dados da periodizaÃ§Ã£o
         const mockPeriodization = {
           totalVolumeMinutes: 284,
           totalVolumeKm: 0,
@@ -438,7 +439,7 @@ export default function WorkoutBuilder2() {
           minutesZ5: 14   // 5% de 284
         };
         
-        // Calcular distribuição percentual
+        // Calcular distribuiÃ§Ã£o percentual
         const distributionZ1 = mockPeriodization.totalVolumeMinutes > 0 
           ? Math.round((mockPeriodization.minutesZ1 / mockPeriodization.totalVolumeMinutes) * 100)
           : 0;
@@ -478,7 +479,7 @@ export default function WorkoutBuilder2() {
 
             const mergedTemplate = {
               ...templateFromApi,
-              athleteId: plan.athleteId,
+              alunoId: plan.alunoId,
               totalVolumeMin: mockPeriodization.totalVolumeMinutes,
               totalVolumeKm: mockPeriodization.totalVolumeKm,
               distributionZ1,
@@ -493,7 +494,7 @@ export default function WorkoutBuilder2() {
             };
 
             const cachedKey = buildCacheKey(planId, mesocycleNumber, weekNumber, plan.updatedAt);
-            const cached = localStorage.getItem(cachedKey);
+            const cached = cachedKey ? localStorage.getItem(cachedKey) : null;
             if (cached) {
               try {
                 const cachedData = JSON.parse(cached);
@@ -571,7 +572,7 @@ export default function WorkoutBuilder2() {
       localStorage.setItem(key, JSON.stringify(merged));
     }
     
-    // Auto-save após 2 segundos de inatividade
+    // Auto-save apÃ³s 2 segundos de inatividade
     if (autoSaveTimers[weekNumber]) {
       clearTimeout(autoSaveTimers[weekNumber]);
     }
@@ -601,7 +602,7 @@ export default function WorkoutBuilder2() {
           repReserve: data.repReserve,
           trainingMethod: data.trainingMethod,
           trainingDivision: data.trainingDivision,
-          studentGoal: data.studentGoal,
+          alunoGoal: data.alunoGoal,
           coachGoal: data.coachGoal,
           observation1: data.observation1,
           observation2: data.observation2,
@@ -712,7 +713,7 @@ export default function WorkoutBuilder2() {
 
     const sourceTemplate = templateDataByWeek[sourceWeekNumber];
     if (!sourceTemplate?.id) {
-      alert('Não foi possível localizar o template da semana selecionada.');
+      alert('NÃ£o foi possÃ­vel localizar o template da semana selecionada.');
       return;
     }
 
@@ -742,7 +743,7 @@ export default function WorkoutBuilder2() {
       targetWeekNumber < 1 ||
       targetWeekNumber > weeksPerMesocycle
     ) {
-      alert('Semana de destino inválida.');
+      alert('Semana de destino invÃ¡lida.');
       return;
     }
 
@@ -753,7 +754,7 @@ export default function WorkoutBuilder2() {
 
     const targetTemplate = templateDataByWeek[targetWeekNumber];
     const confirmMessage = targetTemplate?.id
-      ? `Isso irá substituir os dados da semana ${absoluteTargetWeek}. Deseja continuar?`
+      ? `Isso irÃ¡ substituir os dados da semana ${absoluteTargetWeek}. Deseja continuar?`
       : `Deseja copiar a semana ${absoluteSourceWeek} para a semana ${absoluteTargetWeek}?`;
 
     if (!confirm(confirmMessage)) return;
@@ -768,7 +769,7 @@ export default function WorkoutBuilder2() {
         sourceTemplate?.weekStartDate;
 
       if (!resolvedStartDate) {
-        alert('Não foi possível determinar a data de início da semana de destino.');
+        alert('NÃ£o foi possÃ­vel determinar a data de inÃ­cio da semana de destino.');
         return;
       }
 
@@ -820,7 +821,8 @@ export default function WorkoutBuilder2() {
           : Object.values(sourceFromApi.workoutDays || {});
 
         const sourceDayMap = sourceDays.reduce<Record<number, any>>((acc, day) => {
-          if (day?.dayOfWeek) acc[day.dayOfWeek] = day;
+          const rawDay = (day ?? {}) as Record<string, any>;
+          if (rawDay.dayOfWeek) acc[rawDay.dayOfWeek] = rawDay;
           return acc;
         }, {});
 
@@ -875,7 +877,7 @@ export default function WorkoutBuilder2() {
             repReserve: sourceFromApi.repReserve ?? null,
             trainingMethod: sourceFromApi.trainingMethod ?? null,
             trainingDivision: sourceFromApi.trainingDivision ?? null,
-            studentGoal: sourceFromApi.studentGoal ?? null,
+            alunoGoal: sourceFromApi.alunoGoal ?? null,
             coachGoal: sourceFromApi.coachGoal ?? null,
             observation1: sourceFromApi.observation1 ?? null,
             observation2: sourceFromApi.observation2 ?? null,
@@ -933,7 +935,7 @@ export default function WorkoutBuilder2() {
         ...targetTemplate,
         ...refreshed,
         resistedExercises: refreshedResisted,
-        athleteId: planData?.athleteId,
+        alunoId: planData?.alunoId,
         weekStartDate: resolvedStartDate,
         mesocycleNumber,
         weekNumber: targetWeekNumber,
@@ -1019,7 +1021,7 @@ export default function WorkoutBuilder2() {
   const handleRelease = async (weekNumber: number) => {
     const weekTemplate = templateDataByWeek[weekNumber];
     if (!weekTemplate?.id) {
-      alert('Não foi possível localizar o template da semana.');
+      alert('NÃ£o foi possÃ­vel localizar o template da semana.');
       return;
     }
 
@@ -1054,7 +1056,7 @@ export default function WorkoutBuilder2() {
   };
 
  
-  const dayLabels = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+  const dayLabels = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'SÃ¡b', 'Dom'];
   const dayNumbers = [1, 2, 3, 4, 5, 6, 7];
   const sumTimes = (times: number[]) => times.reduce((acc, value) => acc + value, 0);
 
@@ -1084,7 +1086,7 @@ export default function WorkoutBuilder2() {
                   Montagem de Treinos
                 </h1>
                 <p className="text-sm text-gray-500">
-                  {planData ? `${planData.name} - ${planData.athlete.user.profile.name}` : 'Carregando...'}
+                  {planData ? `${planData.name} - ${planData.aluno.user.profile.name}` : 'Carregando...'}
                 </p>
               </div>
             </div>
@@ -1100,10 +1102,10 @@ export default function WorkoutBuilder2() {
 
       {/* Content */}
       <div className="px-6 py-6">
-        {/* Parâmetros Únicos: Meso e Semana (Micro) */}
+        {/* ParÃ¢metros Ãšnicos: Meso e Semana (Micro) */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6 max-w-[1800px]">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            Parâmetros do Treino
+            ParÃ¢metros do Treino
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="flex flex-wrap items-center gap-3">
@@ -1160,7 +1162,7 @@ export default function WorkoutBuilder2() {
                 }}
                 className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
               >
-                Próximo Mesociclo
+                PrÃ³ximo Mesociclo
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
@@ -1243,7 +1245,7 @@ export default function WorkoutBuilder2() {
                         }
                         className="h-4 w-4 rounded border-gray-300 text-blue-600"
                       />
-                      Cíclico
+                      CÃ­clico
                     </label>
                     <label className="flex items-center gap-2">
                       <input
@@ -1279,7 +1281,7 @@ export default function WorkoutBuilder2() {
                       ) : (
                         <>
                           <Lock className="w-4 h-4 text-red-600" />
-                          <span className="text-sm font-medium text-red-700">Não Liberado</span>
+                          <span className="text-sm font-medium text-red-700">NÃ£o Liberado</span>
                         </>
                       )}
                     </div>
@@ -1299,7 +1301,7 @@ export default function WorkoutBuilder2() {
                     className="flex items-center gap-2 px-4 py-2 text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     title={
                       weekTemplateData?.released
-                        ? 'Treino já está liberado'
+                        ? 'Treino jÃ¡ estÃ¡ liberado'
                         : 'Liberar treino para o aluno'
                     }
                   >
@@ -1322,7 +1324,7 @@ export default function WorkoutBuilder2() {
                     onClick={() => toggleSummaryVisibility(weekNumber, 'session')}
                     className="inline-flex items-center rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
                   >
-                    {visibility.session ? 'Ocultar' : 'Exibir'} Tempo da Sessão
+                    {visibility.session ? 'Ocultar' : 'Exibir'} Tempo da SessÃ£o
                   </button>
                   <button
                     type="button"
@@ -1332,9 +1334,9 @@ export default function WorkoutBuilder2() {
                     {visibility.resistedSummary ? 'Ocultar' : 'Exibir'} Resumo da Semana
                   </button>
                 </div>
-                {/* Tempo de Sessão por Dia */}
+                {/* Tempo de SessÃ£o por Dia */}
                 <div className={visibility.session ? '' : 'hidden'}>
-                  <h3 className="text-base font-semibold text-gray-800 mb-3">Tempo da Sessão</h3>
+                  <h3 className="text-base font-semibold text-gray-800 mb-3">Tempo da SessÃ£o</h3>
                   <div className="overflow-hidden rounded-lg border border-gray-200">
                     <table className="min-w-full divide-y divide-gray-200">
                       <thead className="bg-gray-50">
@@ -1357,7 +1359,7 @@ export default function WorkoutBuilder2() {
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
                         <tr>
-                          <td className="px-3 py-2 text-sm font-medium text-gray-700">Cíclico</td>
+                          <td className="px-3 py-2 text-sm font-medium text-gray-700">CÃ­clico</td>
                           {cyclicTimes.map((value, idx) => (
                             <td key={idx} className="px-3 py-2 text-sm text-gray-700 text-center">
                               {value}
@@ -1382,7 +1384,7 @@ export default function WorkoutBuilder2() {
                         </tr>
                         <tr className="bg-blue-50">
                           <td className="px-3 py-2 text-sm font-medium text-gray-700">
-                            Tempo da Sessão
+                            Tempo da SessÃ£o
                           </td>
                           {sessionTimes.map((value, idx) => (
                             <td
@@ -1417,21 +1419,21 @@ export default function WorkoutBuilder2() {
                       </div>
 
                       <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
-                        <span className="text-sm font-medium text-gray-600">Séries Grandes Músculos</span>
+                        <span className="text-sm font-medium text-gray-600">SÃ©ries Grandes MÃºsculos</span>
                         <span className="inline-flex items-center rounded-full bg-gray-900 px-2 py-0.5 text-sm font-semibold text-white">
                           {resistedSummaryByWeek[weekNumber]?.seriesReference ?? '-'}
                         </span>
                       </div>
 
                       <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
-                        <span className="text-sm font-medium text-gray-600">Zona de Repetições</span>
+                        <span className="text-sm font-medium text-gray-600">Zona de RepetiÃ§Ãµes</span>
                         <span className="inline-flex max-w-[260px] items-center rounded-full bg-gray-100 px-2 py-0.5 text-sm font-semibold text-gray-800">
                           {resistedSummaryByWeek[weekNumber]?.repZone ?? '-'}
                         </span>
                       </div>
 
                       <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
-                        <span className="text-sm font-medium text-gray-600">Repetições em Reserva</span>
+                        <span className="text-sm font-medium text-gray-600">RepetiÃ§Ãµes em Reserva</span>
                         <span className="inline-flex items-center rounded-full bg-gray-900 px-2 py-0.5 text-sm font-semibold text-white">
                           {resistedSummaryByWeek[weekNumber]?.repReserve ?? '-'}
                         </span>
@@ -1454,7 +1456,7 @@ export default function WorkoutBuilder2() {
                       </div>
 
                       <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
-                        <span className="text-sm font-medium text-gray-600">Método</span>
+                        <span className="text-sm font-medium text-gray-600">MÃ©todo</span>
                         <span
                           className="inline-flex max-w-[260px] items-center rounded-full bg-gray-100 px-2 py-0.5 text-sm font-semibold text-gray-800"
                           title={
@@ -1486,14 +1488,14 @@ export default function WorkoutBuilder2() {
                       </div>
 
                       <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
-                        <span className="text-sm font-medium text-gray-600">Divisão do Treino</span>
+                        <span className="text-sm font-medium text-gray-600">DivisÃ£o do Treino</span>
                         <span className="inline-flex max-w-[260px] items-center rounded-full bg-gray-100 px-2 py-0.5 text-sm font-semibold text-gray-800">
                           {resistedSummaryByWeek[weekNumber]?.trainingDivision ?? '-'}
                         </span>
                       </div>
 
                       <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
-                        <span className="text-sm font-medium text-gray-600">Frequência Semanal</span>
+                        <span className="text-sm font-medium text-gray-600">FrequÃªncia Semanal</span>
                         <span className="inline-flex items-center rounded-full bg-gray-900 px-2 py-0.5 text-sm font-semibold text-white">
                           {resistedSummaryByWeek[weekNumber]?.weeklyFrequency ?? '-'}
                           {resistedSummaryByWeek[weekNumber]?.weeklyFrequency === null ||
@@ -1534,7 +1536,7 @@ export default function WorkoutBuilder2() {
                           : 'text-gray-600 hover:text-gray-900'
                       }`}
                     >
-                      📊 Treinamento Cíclico
+                      ðŸ“Š Treinamento CÃ­clico
                       {activeTab === 'cyclic' && (
                         <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600"></div>
                       )}
@@ -1548,7 +1550,7 @@ export default function WorkoutBuilder2() {
                           : 'text-gray-600 hover:text-gray-900'
                       }`}
                     >
-                      💪 Treinamento Resistido
+                      ðŸ’ª Treinamento Resistido
                       {activeTab === 'resistance' && (
                         <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600"></div>
                       )}
@@ -1565,7 +1567,7 @@ export default function WorkoutBuilder2() {
                       dayEditability={dayEditability}
                       weekEditable={weekEditable}
                       planId={planId}
-                      athleteData={athleteData}
+                      alunoData={alunoData}
                       vamValue={vamValue}
                       planStartDate={planData?.startDate}
                       planEndDate={planData?.endDate}
@@ -1596,5 +1598,6 @@ export default function WorkoutBuilder2() {
     </div>
   );
 }
+
 
 

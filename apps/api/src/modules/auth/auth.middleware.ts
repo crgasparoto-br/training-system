@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+﻿import { Request, Response, NextFunction } from 'express';
 import { authService } from './auth.service';
 import type { JwtPayload } from '@corrida/types';
 
@@ -12,7 +12,7 @@ declare global {
 }
 
 /**
- * Middleware para verificar autenticação
+ * Middleware para verificar autenticaÃ§Ã£o
  */
 export function authMiddleware(req: Request, res: Response, next: NextFunction) {
   try {
@@ -22,7 +22,7 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction) 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({
         success: false,
-        error: 'Token não fornecido',
+        error: 'Token nÃ£o fornecido',
       });
     }
 
@@ -38,115 +38,115 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction) 
   } catch (error) {
     return res.status(401).json({
       success: false,
-      error: 'Token inválido ou expirado',
+      error: 'Token invÃ¡lido ou expirado',
     });
   }
 }
 
 /**
- * Middleware para verificar se é educador
+ * Middleware para verificar se Ã© professor
  */
-export async function educatorMiddleware(req: Request, res: Response, next: NextFunction) {
+export async function professorMiddleware(req: Request, res: Response, next: NextFunction) {
   if (!req.user) {
     return res.status(401).json({
       success: false,
-      error: 'Não autenticado',
+      error: 'NÃ£o autenticado',
     });
   }
 
-  if (req.user.type !== 'educator') {
+  if (req.user.type !== 'professor') {
     return res.status(403).json({
       success: false,
-      error: 'Apenas educadores podem acessar este recurso',
+      error: 'Apenas professores podem acessar este recurso',
     });
   }
 
   try {
-    const educator = await authService.getEducatorByUserId(req.user.userId);
+    const professor = await authService.getProfessorByUserId(req.user.userId);
 
-    if (!educator) {
+    if (!professor) {
       return res.status(404).json({
         success: false,
-        error: 'Educador não encontrado',
+        error: 'Professor nÃ£o encontrado',
       });
     }
 
-    // Adicionar educatorId ao request
-    (req as any).user.educatorId = educator.id;
-    (req as any).user.contractId = educator.contractId;
-    (req as any).user.educatorRole = educator.role;
+    // Adicionar professorId ao request
+    (req as any).user.professorId = professor.id;
+    (req as any).user.contractId = professor.contractId;
+    (req as any).user.professorRole = professor.role;
 
     next();
   } catch (error) {
-    console.error('Erro ao buscar educador:', error);
+    console.error('Erro ao buscar professor:', error);
     return res.status(500).json({
       success: false,
-      error: 'Erro ao verificar educador',
+      error: 'Erro ao verificar professor',
     });
   }
 }
 
 /**
- * Middleware para verificar se é educador master
+ * Middleware para verificar se Ã© professor master
  */
 export async function masterMiddleware(req: Request, res: Response, next: NextFunction) {
   if (!req.user) {
     return res.status(401).json({
       success: false,
-      error: 'Não autenticado',
+      error: 'NÃ£o autenticado',
     });
   }
 
-  if (req.user.type !== 'educator') {
+  if (req.user.type !== 'professor') {
     return res.status(403).json({
       success: false,
-      error: 'Apenas educadores podem acessar este recurso',
+      error: 'Apenas professores podem acessar este recurso',
     });
   }
 
   try {
-    const educator = await authService.getEducatorByUserId(req.user.userId);
+    const professor = await authService.getProfessorByUserId(req.user.userId);
 
-    if (!educator) {
+    if (!professor) {
       return res.status(404).json({
         success: false,
-        error: 'Educador não encontrado',
+        error: 'Professor nÃ£o encontrado',
       });
     }
 
-    if (educator.role !== 'master') {
+    if (professor.role !== 'master') {
       return res.status(403).json({
         success: false,
-        error: 'Apenas educador master pode acessar este recurso',
+        error: 'Apenas professor master pode acessar este recurso',
       });
     }
 
-    (req as any).user.educatorId = educator.id;
-    (req as any).user.contractId = educator.contractId;
-    (req as any).user.educatorRole = educator.role;
+    (req as any).user.professorId = professor.id;
+    (req as any).user.contractId = professor.contractId;
+    (req as any).user.professorRole = professor.role;
 
     next();
   } catch (error) {
-    console.error('Erro ao buscar educador master:', error);
+    console.error('Erro ao buscar professor master:', error);
     return res.status(500).json({
       success: false,
-      error: 'Erro ao verificar educador master',
+      error: 'Erro ao verificar professor master',
     });
   }
 }
 
 /**
- * Middleware para verificar se é aluno
+ * Middleware para verificar se Ã© aluno
  */
-export function studentMiddleware(req: Request, res: Response, next: NextFunction) {
+export function alunoMiddleware(req: Request, res: Response, next: NextFunction) {
   if (!req.user) {
     return res.status(401).json({
       success: false,
-      error: 'Não autenticado',
+      error: 'NÃ£o autenticado',
     });
   }
 
-  if (req.user.type !== 'student') {
+  if (req.user.type !== 'aluno') {
     return res.status(403).json({
       success: false,
       error: 'Apenas alunos podem acessar este recurso',
@@ -155,3 +155,4 @@ export function studentMiddleware(req: Request, res: Response, next: NextFunctio
 
   next();
 }
+

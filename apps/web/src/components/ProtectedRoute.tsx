@@ -1,21 +1,22 @@
-import { Navigate } from 'react-router-dom';
+﻿import { Navigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/useAuthStore';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  requireEducator?: boolean;
+  requireProfessor?: boolean;
 }
 
-export function ProtectedRoute({ children, requireEducator = false }: ProtectedRouteProps) {
+export function ProtectedRoute({ children, requireProfessor = false }: ProtectedRouteProps) {
   const { isAuthenticated, user } = useAuthStore();
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
 
-  if (requireEducator && user?.type !== 'educator') {
+  if (requireProfessor && user?.type !== 'professor') {
     return <Navigate to="/dashboard" replace />;
   }
 
   return <>{children}</>;
 }
+

@@ -21,8 +21,12 @@ import {
 import { Button } from '../components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../components/ui/Card';
 import { formatDateBR, parseDateOnly, toDateInputValue } from '../utils/date';
-import { executionsService, type WorkoutDayDetail } from '../services/executions.service';
-import { athleteService, type Athlete } from '../services/athlete.service';
+import {
+  executionsService,
+  type WorkoutDayDetail,
+  type WorkoutExecutionRecord,
+} from '../services/executions.service';
+import { alunoService, type Aluno } from '../services/aluno.service';
 import { useAuthStore } from '../stores/useAuthStore';
 
 type ViewMode = 'resumo' | 'detalhe' | 'diario';
@@ -57,6 +61,8 @@ type DailySet = {
   setNumber: number;
   reps: string;
   targetLoad: string;
+  workoutExerciseId: string;
+  existingExecution?: WorkoutExecutionRecord;
 };
 
 type DailyExercise = {
@@ -361,7 +367,7 @@ const getCategoryColor = (category: Exclude<ExerciseCategory, 'Todos'>) => {
 
 export default function Executions() {
   const { user } = useAuthStore();
-  const isEducator = user?.type === 'educator';
+  const isProfessor = user?.type === 'professor';
   const [viewMode, setViewMode] = useState<ViewMode>('resumo');
   const [calendarView, setCalendarView] = useState<CalendarView>('semana');
   const [categoryFilter, setCategoryFilter] = useState<ExerciseCategory>('Todos');
@@ -376,10 +382,10 @@ export default function Executions() {
   const [rangeDays, setRangeDays] = useState<WorkoutDayDetail[]>([]);
   const [rangeLoading, setRangeLoading] = useState(false);
   const [rangeError, setRangeError] = useState<string | null>(null);
-  const [athletes, setAthletes] = useState<Athlete[]>([]);
-  const [athletesLoading, setAthletesLoading] = useState(false);
-  const [athletesError, setAthletesError] = useState<string | null>(null);
-  const [selectedAthleteId, setSelectedAthleteId] = useState('');
+  const [alunos, setAlunos] = useState<Aluno[]>([]);
+  const [alunosLoading, setAlunosLoading] = useState(false);
+  const [alunosError, setAlunosError] = useState<string | null>(null);
+  const [selectedAlunoId, setSelectedAlunoId] = useState('');
   const [compactDaily, setCompactDaily] = useState(true);
   const [biSetTimers, setBiSetTimers] = useState<Record<string, BiSetTimerState>>({});
 
@@ -439,42 +445,42 @@ export default function Executions() {
   }, [weekStart]);
 
   useEffect(() => {
-    if (!isEducator) {
-      setAthletes([]);
-      setSelectedAthleteId('');
-      setAthletesError(null);
-      setAthletesLoading(false);
+    if (!isProfessor) {
+      setAlunos([]);
+      setSelectedAlunoId('');
+      setAlunosError(null);
+      setAlunosLoading(false);
       return;
     }
 
     let isMounted = true;
-    const loadAthletes = async () => {
+    const loadAlunos = async () => {
       try {
-        setAthletesLoading(true);
-        setAthletesError(null);
-        const response = await athleteService.list(1, 200, undefined, 'active');
+        setAlunosLoading(true);
+        setAlunosError(null);
+        const response = await alunoService.list(1, 200, undefined, 'active');
         if (!isMounted) return;
-        const list = response.athletes ?? [];
-        setAthletes(list);
-        if (!selectedAthleteId && list.length > 0) {
-          setSelectedAthleteId(list[0].id);
+        const list = response.alunos ?? [];
+        setAlunos(list);
+        if (!selectedAlunoId && list.length > 0) {
+          setSelectedAlunoId(list[0].id);
         }
       } catch (error: any) {
         if (!isMounted) return;
-        setAthletes([]);
-        setAthletesError(error?.response?.data?.error || 'Erro ao carregar alunos');
+        setAlunos([]);
+        setAlunosError(error?.response?.data?.error || 'Erro ao carregar alunos');
       } finally {
         if (isMounted) {
-          setAthletesLoading(false);
+          setAlunosLoading(false);
         }
       }
     };
 
-    loadAthletes();
+    loadAlunos();
     return () => {
       isMounted = false;
     };
-  }, [isEducator]);
+  }, [isProfessor]);
 
   const rangeBounds = useMemo(() => {
     if (viewMode === 'diario') return null;
@@ -502,7 +508,7 @@ export default function Executions() {
       setRangeLoading(false);
       return;
     }
-    if (isEducator && !selectedAthleteId) return;
+    if (isProfessor && !selectedAlunoId) return;
 
     let isMounted = true;
     const loadRange = async () => {
@@ -517,8 +523,8 @@ export default function Executions() {
           return;
         }
 
-        const days = isEducator
-          ? await executionsService.listWorkoutDaysForEducator(startDate, endDate, selectedAthleteId)
+        const days = isProfessor
+          ? await executionsService.listWorkoutDaysForProfessor(startDate, endDate, selectedAlunoId)
           : await executionsService.listWorkoutDays(startDate, endDate);
 
         if (!isMounted) return;
@@ -538,7 +544,7 @@ export default function Executions() {
     return () => {
       isMounted = false;
     };
-  }, [rangeBounds, isEducator, selectedAthleteId]);
+  }, [rangeBounds, isProfessor, selectedAlunoId]);
 
   const calendarExercises = useMemo(() => {
     const items: CalendarExercise[] = [];
@@ -726,15 +732,15 @@ export default function Executions() {
   }, [baseDate]);
 
   const dailyDateValue = toDateInputValue(baseDate);
-  const canEditDaily = !isEducator;
+  const canEditDaily = !isProfessor;
 
-  const dailyExercises = useMemo(() => {
+  const dailyExercises = useMemo<DailyExercise[]>(() => {
     if (!dailyData) return [];
     const exercises = Array.isArray(dailyData.exercises) ? dailyData.exercises : [];
 
     return exercises.map((exercise) => {
       const totalSets = exercise.sets ?? 0;
-      const sets = Array.from({ length: totalSets }, (_, idx) => {
+      const sets: DailySet[] = Array.from({ length: totalSets }, (_, idx) => {
         const setNumber = idx + 1;
         const id = `${exercise.id}-set-${setNumber}`;
         const existingExecution = exercise.executions?.find((execution) => execution.setNumber === setNumber);
@@ -806,13 +812,13 @@ export default function Executions() {
         setDailyError('Selecione uma data valida.');
         return;
       }
-      if (isEducator) {
-        if (!selectedAthleteId) {
+      if (isProfessor) {
+        if (!selectedAlunoId) {
           setDailyData(null);
           setDailyError('Selecione um aluno.');
           return;
         }
-        const day = await executionsService.getWorkoutDayByDateForEducator(targetDate, selectedAthleteId);
+        const day = await executionsService.getWorkoutDayByDateForProfessor(targetDate, selectedAlunoId);
         setDailyData(day);
         setPsrInput(day.psrResponse ?? '');
         setPseInput(day.pseResponse ?? '');
@@ -844,9 +850,9 @@ export default function Executions() {
 
   useEffect(() => {
     if (viewMode !== 'diario') return;
-    if (isEducator && !selectedAthleteId) return;
+    if (isProfessor && !selectedAlunoId) return;
     void loadDaily();
-  }, [viewMode, dailyDateValue, isEducator, selectedAthleteId]);
+  }, [viewMode, dailyDateValue, isProfessor, selectedAlunoId]);
 
   useEffect(() => {
     if (!dailyData) {
@@ -872,127 +878,6 @@ export default function Executions() {
     setPerformedLoads(nextLoads);
     setConfirmedSets(nextConfirmed);
   }, [dailyData, dailyExercises]);
-
-  const renderExerciseSet = (exercise: DailyExercise, set: DailySet) => {
-    const performedValue = performedLoads[set.id] ?? '';
-    const isConfirmed = confirmedSets.has(set.id);
-
-    if (compactDaily) {
-      return (
-        <div
-          className={`flex items-center gap-2 rounded-full border px-2 py-1 text-[11px] ${
-            isConfirmed
-              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-              : 'border-gray-200 bg-gray-50 text-gray-600'
-          }`}
-        >
-          <span className="font-semibold">S{set.setNumber}</span>
-          <span>{set.reps} reps</span>
-          <span className="text-[10px]">Carga: {set.targetLoad}</span>
-          <input
-            type="text"
-            value={performedValue}
-            onChange={(e) =>
-              setPerformedLoads((prev) => ({
-                ...prev,
-                [set.id]: e.target.value,
-              }))
-            }
-            className="h-6 w-16 rounded-md border border-gray-200 bg-white px-2 text-[11px]"
-            placeholder={set.targetLoad}
-            disabled={!canEditDaily}
-          />
-          <button
-            type="button"
-            onClick={async () => {
-              if (!canEditDaily || isConfirmed) {
-                return;
-              }
-              const loadUsed = performedLoads[set.id]
-                ? Number(String(performedLoads[set.id]).replace(',', '.'))
-                : null;
-              await executionsService.recordExecution(set.workoutExerciseId, {
-                setNumber: set.setNumber,
-                repsCompleted: exercise.reps ?? null,
-                loadUsed: Number.isNaN(loadUsed ?? NaN) ? null : loadUsed,
-                setsCompleted: 1,
-              });
-              toggleSetConfirmation(set.id);
-            }}
-            disabled={!canEditDaily}
-            className={`h-6 rounded-full px-2 text-[10px] font-semibold transition-colors ${
-              isConfirmed
-                ? 'bg-emerald-500 text-white'
-                : 'bg-white text-gray-700 hover:bg-gray-100'
-            } ${!canEditDaily ? 'opacity-60 cursor-not-allowed' : ''}`}
-          >
-            {isConfirmed ? 'OK' : 'Confirmar'}
-          </button>
-        </div>
-      );
-    }
-
-    return (
-      <div className="rounded-md border border-gray-200 bg-gray-50 p-2 text-xs">
-        <div className="flex items-center justify-between text-[11px] text-gray-600">
-          <span className="font-semibold text-gray-700">S{set.setNumber}</span>
-          <span>{set.reps} reps</span>
-        </div>
-        <div className="mt-1 flex items-center justify-between text-[11px] text-gray-600">
-          <span>Carga: {set.targetLoad}</span>
-          {isConfirmed ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
-              <CheckCircle2 size={12} />
-              OK
-            </span>
-          ) : (
-            <span className="text-[10px] text-gray-400">Pendente</span>
-          )}
-        </div>
-        <div className="mt-2 flex items-center gap-2">
-          <input
-            type="text"
-            value={performedValue}
-            onChange={(e) =>
-              setPerformedLoads((prev) => ({
-                ...prev,
-                [set.id]: e.target.value,
-              }))
-            }
-            className="h-7 w-20 rounded-md border border-gray-200 bg-white px-2 text-xs"
-            placeholder={set.targetLoad}
-            disabled={!canEditDaily}
-          />
-          <button
-            type="button"
-            onClick={async () => {
-              if (!canEditDaily || isConfirmed) {
-                return;
-              }
-              const loadUsed = performedLoads[set.id]
-                ? Number(String(performedLoads[set.id]).replace(',', '.'))
-                : null;
-              await executionsService.recordExecution(set.workoutExerciseId, {
-                setNumber: set.setNumber,
-                repsCompleted: exercise.reps ?? null,
-                loadUsed: Number.isNaN(loadUsed ?? NaN) ? null : loadUsed,
-                setsCompleted: 1,
-              });
-              toggleSetConfirmation(set.id);
-            }}
-            disabled={!canEditDaily}
-            className={`h-7 rounded-md px-2 text-[11px] font-semibold transition-colors ${
-              isConfirmed
-                ? 'bg-emerald-500 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            } ${!canEditDaily ? 'opacity-60 cursor-not-allowed' : ''}`}
-          >
-            {isConfirmed ? 'Confirmado' : 'Confirmar'}
-          </button>
-        </div>
-      </div>
-    );
-  };
 
   const renderExerciseSetBlock = (exercise: DailyExercise, set: DailySet) => (
     <div className="rounded-md border border-gray-200 bg-white p-2 space-y-2">
@@ -1746,7 +1631,7 @@ export default function Executions() {
                 </div>
               </CardTitle>
               <CardDescription>
-                {isEducator
+                {isProfessor
                   ? 'Treino do dia liberado pelo professor (visualizacao somente leitura).'
                   : 'Treino do dia liberado pelo professor.'}
               </CardDescription>
@@ -1759,26 +1644,26 @@ export default function Executions() {
                   onChange={(e) => handleDailyDateChange(e.target.value)}
                   className="rounded-md border border-gray-200 bg-white px-3 py-2 text-sm"
                 />
-                {isEducator && (
+                {isProfessor && (
                   <div className="flex flex-col gap-1">
                     <select
-                      value={selectedAthleteId}
-                      onChange={(e) => setSelectedAthleteId(e.target.value)}
+                      value={selectedAlunoId}
+                      onChange={(e) => setSelectedAlunoId(e.target.value)}
                       className="rounded-md border border-gray-200 bg-white px-3 py-2 text-sm"
-                      disabled={athletesLoading}
+                      disabled={alunosLoading}
                     >
                       <option value="">Selecione o aluno</option>
-                      {athletes.map((athlete) => (
-                        <option key={athlete.id} value={athlete.id}>
-                          {athlete.user?.profile?.name || 'Sem nome'}
+                      {alunos.map((aluno) => (
+                        <option key={aluno.id} value={aluno.id}>
+                          {aluno.user?.profile?.name || 'Sem nome'}
                         </option>
                       ))}
                     </select>
-                    {athletesLoading && (
+                    {alunosLoading && (
                       <span className="text-xs text-muted-foreground">Carregando alunos...</span>
                     )}
-                    {athletesError && (
-                      <span className="text-xs text-red-600">{athletesError}</span>
+                    {alunosError && (
+                      <span className="text-xs text-red-600">{alunosError}</span>
                     )}
                   </div>
                 )}
@@ -1954,7 +1839,7 @@ export default function Executions() {
                       <CardDescription>Confirme a carga utilizada em cada serie.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3">
-                      {isEducator && groupWarnings.length > 0 && (
+                      {isProfessor && groupWarnings.length > 0 && (
                         <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
                           <p className="font-semibold">Atenção: grupo incompleto</p>
                           <div className="mt-1 text-[10px] text-amber-800">
@@ -2194,3 +2079,4 @@ export default function Executions() {
     </div>
   );
 }
+

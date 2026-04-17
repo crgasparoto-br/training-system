@@ -1,9 +1,9 @@
-import api from './api';
+﻿import api from './api';
 
 export type AgendaBookingType = 'free' | 'fixed_makeup';
 export type AgendaBookingStatus = 'scheduled' | 'completed' | 'canceled' | 'no_show';
 
-export interface AgendaEducator {
+export interface AgendaProfessor {
   id: string;
   user: {
     profile: {
@@ -12,7 +12,7 @@ export interface AgendaEducator {
   };
 }
 
-export interface AgendaAthlete {
+export interface AgendaAluno {
   id: string;
   schedulePlan: 'free' | 'fixed';
   user: {
@@ -20,7 +20,7 @@ export interface AgendaAthlete {
       name: string;
     };
   };
-  educator: AgendaEducator;
+  professor: AgendaProfessor;
 }
 
 export interface TrainingSpace {
@@ -32,33 +32,33 @@ export interface TrainingSpace {
 
 export interface AgendaAvailability {
   id: string;
-  educatorId: string;
+  professorId: string;
   dayOfWeek: number;
   startTime: string;
   endTime: string;
   isActive: boolean;
-  educator: AgendaEducator;
+  professor: AgendaProfessor;
 }
 
 export interface FixedScheduleSlot {
   id: string;
-  athleteId: string;
-  educatorId: string;
+  alunoId: string;
+  professorId: string;
   spaceId?: string | null;
   dayOfWeek: number;
   startTime: string;
   endTime: string;
   isActive: boolean;
   notes?: string | null;
-  athlete: AgendaAthlete;
-  educator: AgendaEducator;
+  aluno: AgendaAluno;
+  professor: AgendaProfessor;
   space?: TrainingSpace | null;
 }
 
 export interface AgendaBooking {
   id: string;
-  athleteId: string;
-  educatorId: string;
+  alunoId: string;
+  professorId: string;
   spaceId?: string | null;
   fixedSlotId?: string | null;
   bookingType: AgendaBookingType;
@@ -68,15 +68,15 @@ export interface AgendaBooking {
   endTime: string;
   notes?: string | null;
   canceledReason?: string | null;
-  athlete: AgendaAthlete;
-  educator: AgendaEducator;
+  aluno: AgendaAluno;
+  professor: AgendaProfessor;
   space?: TrainingSpace | null;
   fixedSlot?: FixedScheduleSlot | null;
 }
 
 export interface AgendaMetadataResponse {
-  educators: AgendaEducator[];
-  athletes: AgendaAthlete[];
+  professores: AgendaProfessor[];
+  alunos: AgendaAluno[];
   spaces: TrainingSpace[];
 }
 
@@ -89,8 +89,8 @@ export const agendaService = {
   async listBookings(params: {
     dateFrom?: string;
     dateTo?: string;
-    educatorId?: string;
-    athleteId?: string;
+    professorId?: string;
+    alunoId?: string;
     status?: AgendaBookingStatus;
   }): Promise<AgendaBooking[]> {
     const response = await api.get<{ success: boolean; data: AgendaBooking[] }>('/agenda/bookings', { params });
@@ -98,8 +98,8 @@ export const agendaService = {
   },
 
   async createBooking(data: {
-    athleteId: string;
-    educatorId: string;
+    alunoId: string;
+    professorId: string;
     bookingDate: string;
     startTime: string;
     endTime: string;
@@ -117,15 +117,15 @@ export const agendaService = {
     return response.data.data;
   },
 
-  async listAvailabilities(educatorId?: string): Promise<AgendaAvailability[]> {
+  async listAvailabilities(professorId?: string): Promise<AgendaAvailability[]> {
     const response = await api.get<{ success: boolean; data: AgendaAvailability[] }>('/agenda/availabilities', {
-      params: educatorId ? { educatorId } : undefined,
+      params: professorId ? { professorId } : undefined,
     });
     return response.data.data;
   },
 
   async createAvailability(data: {
-    educatorId: string;
+    professorId: string;
     dayOfWeek: number;
     startTime: string;
     endTime: string;
@@ -138,14 +138,14 @@ export const agendaService = {
     await api.delete(`/agenda/availabilities/${id}`);
   },
 
-  async listFixedSlots(params?: { educatorId?: string; athleteId?: string }): Promise<FixedScheduleSlot[]> {
+  async listFixedSlots(params?: { professorId?: string; alunoId?: string }): Promise<FixedScheduleSlot[]> {
     const response = await api.get<{ success: boolean; data: FixedScheduleSlot[] }>('/agenda/fixed-slots', { params });
     return response.data.data;
   },
 
   async createFixedSlot(data: {
-    athleteId: string;
-    educatorId: string;
+    alunoId: string;
+    professorId: string;
     dayOfWeek: number;
     startTime: string;
     endTime: string;
@@ -171,4 +171,5 @@ export const agendaService = {
     return response.data.data;
   },
 };
+
 

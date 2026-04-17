@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+﻿import { Router, Request, Response } from 'express';
 import { contractService } from './contract.service';
 import { cloneContractData } from './contract-data.service';
 import { authMiddleware, masterMiddleware } from '../auth/auth.middleware';
@@ -13,20 +13,20 @@ const normalizeDocument = (document: string) => document.replace(/\D/g, '');
 
 /**
  * GET /api/v1/contracts/me
- * Obter contrato do educador master
+ * Obter contrato do professor master
  */
 router.get('/me', async (req: Request, res: Response) => {
   try {
     const contractId = (req as any).user.contractId;
 
     if (!contractId) {
-      return sendError(res, 'Contrato não encontrado', 404);
+      return sendError(res, 'Contrato nÃ£o encontrado', 404);
     }
 
     const contract = await contractService.getById(contractId);
 
     if (!contract) {
-      return sendError(res, 'Contrato não encontrado', 404);
+      return sendError(res, 'Contrato nÃ£o encontrado', 404);
     }
 
     return sendSuccess(res, contract, 'Contrato recuperado com sucesso');
@@ -38,20 +38,20 @@ router.get('/me', async (req: Request, res: Response) => {
 
 /**
  * PUT /api/v1/contracts/me
- * Atualizar contrato do educador master
+ * Atualizar contrato do professor master
  */
 router.put('/me', async (req: Request, res: Response) => {
   try {
     const contractId = (req as any).user.contractId;
 
     if (!contractId) {
-      return sendError(res, 'Contrato não encontrado', 404);
+      return sendError(res, 'Contrato nÃ£o encontrado', 404);
     }
 
     const contract = await contractService.getById(contractId);
 
     if (!contract) {
-      return sendError(res, 'Contrato não encontrado', 404);
+      return sendError(res, 'Contrato nÃ£o encontrado', 404);
     }
 
     const { name, document } = req.body as { name?: string; document?: string };
@@ -68,7 +68,7 @@ router.put('/me', async (req: Request, res: Response) => {
       if (normalized.length !== expectedLength) {
         return sendError(
           res,
-          contract.type === 'academy' ? 'CNPJ inválido' : 'CPF inválido',
+          contract.type === 'academy' ? 'CNPJ invÃ¡lido' : 'CPF invÃ¡lido',
           400
         );
       }
@@ -81,7 +81,7 @@ router.put('/me', async (req: Request, res: Response) => {
     return sendSuccess(res, updated, 'Contrato atualizado com sucesso');
   } catch (error: any) {
     if (error?.code === 'P2002') {
-      return sendError(res, 'Documento já está registrado', 400);
+      return sendError(res, 'Documento jÃ¡ estÃ¡ registrado', 400);
     }
     console.error('Erro ao atualizar contrato:', error);
     return sendError(res, 'Erro ao atualizar contrato', 500);
@@ -90,15 +90,15 @@ router.put('/me', async (req: Request, res: Response) => {
 
 /**
  * POST /api/v1/contracts/clone-data
- * Clonar parâmetros e exercícios para o contrato atual
+ * Clonar parÃ¢metros e exercÃ­cios para o contrato atual
  */
 router.post('/clone-data', async (req: Request, res: Response) => {
   try {
     const contractId = (req as any).user.contractId as string | undefined;
-    const educatorId = (req as any).user.educatorId as string | undefined;
+    const professorId = (req as any).user.professorId as string | undefined;
 
     if (!contractId) {
-      return sendError(res, 'Contrato não encontrado', 404);
+      return sendError(res, 'Contrato nÃ£o encontrado', 404);
     }
 
     const {
@@ -120,7 +120,7 @@ router.post('/clone-data', async (req: Request, res: Response) => {
       if (!firstSource) {
         return sendError(
           res,
-          'Nenhum contrato de origem disponível para clonagem',
+          'Nenhum contrato de origem disponÃ­vel para clonagem',
           404
         );
       }
@@ -138,7 +138,7 @@ router.post('/clone-data', async (req: Request, res: Response) => {
     const result = await cloneContractData({
       sourceContractId: resolvedSourceId,
       targetContractId: contractId,
-      educatorId,
+      professorId,
       copyParameters,
       copyExercises,
       copyAssessmentTypes,
@@ -152,3 +152,4 @@ router.post('/clone-data', async (req: Request, res: Response) => {
 });
 
 export default router;
+

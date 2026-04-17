@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+﻿import { useMemo, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Activity, BarChart3, BookOpen, Calendar, Home, LogOut, Menu, Settings, Users, X } from 'lucide-react';
 import { useAuthStore } from '../stores/useAuthStore';
@@ -18,18 +18,18 @@ export function DashboardLayout() {
     navigate('/login');
   };
 
-  const canManageEducators =
-    user?.type === 'educator' &&
-    user?.educator?.role === 'master' &&
-    user?.educator?.contract?.type === 'academy';
+  const canManageProfessores =
+    user?.type === 'professor' &&
+    user?.professor?.role === 'master' &&
+    user?.professor?.contract?.type === 'academy';
 
-  const canAccessAthleteSettings = user?.type === 'educator' && user?.educator?.role === 'master';
+  const canAccessAlunoSettings = user?.type === 'professor' && user?.professor?.role === 'master';
 
   const menuItems = useMemo<SidebarNavItem[]>(
     () => [
       { id: 'dashboard', icon: Home, label: 'Dashboard', path: '/dashboard' },
-      ...(canManageEducators ? [{ id: 'educators', icon: Users, label: 'Professores', path: '/educators' }] : []),
-      { id: 'athletes', icon: Users, label: 'Alunos', path: '/athletes' },
+      ...(canManageProfessores ? [{ id: 'professores', icon: Users, label: 'Professores', path: '/professores' }] : []),
+      { id: 'alunos', icon: Users, label: 'Alunos', path: '/alunos' },
       { id: 'plans', icon: Calendar, label: 'Planos de Treino', path: '/plans' },
       { id: 'agenda', icon: Calendar, label: 'Agenda', path: '/agenda' },
       { id: 'library', icon: BookOpen, label: 'Biblioteca', path: '/library' },
@@ -46,13 +46,13 @@ export function DashboardLayout() {
           { id: 'settings-assessment-types', label: 'Avaliacoes', path: '/settings/assessment-types' },
           { id: 'settings-psr-pse', label: 'PSR e PSE', path: '/settings/psr-pse' },
           { id: 'settings-reference-table', label: 'Tabela de Referencia', path: '/settings/reference-table' },
-          ...(canAccessAthleteSettings
-            ? [{ id: 'settings-athlete-access', label: 'Cadastro de Alunos', path: '/settings/athlete-access' }]
+          ...(canAccessAlunoSettings
+            ? [{ id: 'settings-aluno-access', label: 'Cadastro de Alunos', path: '/settings/aluno-access' }]
             : []),
         ],
       },
     ],
-    [canAccessAthleteSettings, canManageEducators]
+    [canAccessAlunoSettings, canManageProfessores]
   );
 
   return (
@@ -74,8 +74,8 @@ export function DashboardLayout() {
             <div className="hidden flex-col items-end md:flex">
               <span className="text-sm font-medium">{user?.name}</span>
               <span className="text-xs text-muted-foreground">
-                {user?.type === 'educator'
-                  ? user.educator?.role === 'master'
+                {user?.type === 'professor'
+                  ? user.professor?.role === 'master'
                     ? 'Professor Master'
                     : 'Professor'
                   : 'Aluno'}
@@ -109,3 +109,4 @@ export function DashboardLayout() {
     </div>
   );
 }
+

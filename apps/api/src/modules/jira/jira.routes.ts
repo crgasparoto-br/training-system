@@ -1,13 +1,13 @@
-import { Router, type Request, type Response } from 'express';
+﻿import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { sendError, sendSuccess } from '@corrida/utils';
-import { authMiddleware, educatorMiddleware } from '../auth/auth.middleware';
+import { authMiddleware, professorMiddleware } from '../auth/auth.middleware';
 import { jiraService } from './jira.service';
 
 const router: Router = Router();
 
 router.use(authMiddleware);
-router.use(educatorMiddleware);
+router.use(professorMiddleware);
 
 const createIssueSchema = z.object({
   projectKey: z.string().min(2).optional(),
@@ -66,3 +66,4 @@ router.post('/issues', async (req: Request, res: Response) => {
 });
 
 export default router;
+

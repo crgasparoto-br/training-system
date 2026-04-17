@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { planService } from '../services/plan.service';
-import { athleteService, type Athlete } from '../services/athlete.service';
+import { alunoService, type Aluno } from '../services/aluno.service';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
@@ -12,17 +12,17 @@ import { parseDateOnly, toDateInputValue, toIsoDateAtNoonUTC } from '../utils/da
 import { ArrowLeft } from 'lucide-react';
 
 const planSchema = z.object({
-  athleteId: z.string().min(1, 'Selecione um aluno'),
-  name: z.string().min(3, 'Nome deve ter no mínimo 3 caracteres'),
+  alunoId: z.string().min(1, 'Selecione um aluno'),
+  name: z.string().min(3, 'Nome deve ter no mÃ­nimo 3 caracteres'),
   description: z.string().optional(),
-  startDate: z.string().min(1, 'Data de início é obrigatória'),
-  endDate: z.string().min(1, 'Data de término é obrigatória'),
+  startDate: z.string().min(1, 'Data de inÃ­cio Ã© obrigatÃ³ria'),
+  endDate: z.string().min(1, 'Data de tÃ©rmino Ã© obrigatÃ³ria'),
 }).refine((data) => {
   const start = new Date(data.startDate);
   const end = new Date(data.endDate);
   return end > start;
 }, {
-  message: 'Data de término deve ser posterior à data de início',
+  message: 'Data de tÃ©rmino deve ser posterior Ã  data de inÃ­cio',
   path: ['endDate'],
 });
 
@@ -33,10 +33,10 @@ export function PlanForm() {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const isEditMode = !!id;
-  const athleteIdParam = searchParams.get('athleteId') || '';
+  const alunoIdParam = searchParams.get('alunoId') || '';
   const [loading, setLoading] = useState(false);
-  const [athletes, setAthletes] = useState<Athlete[]>([]);
-  const [loadingAthletes, setLoadingAthletes] = useState(true);
+  const [alunos, setAlunos] = useState<Aluno[]>([]);
+  const [loadingAlunos, setLoadingAlunos] = useState(true);
 
   const {
     register,
@@ -52,7 +52,7 @@ export function PlanForm() {
   const startDate = watch('startDate');
   const endDate = watch('endDate');
 
-  // Calcular duração em semanas
+  // Calcular duraÃ§Ã£o em semanas
   const duration = startDate && endDate ? (() => {
     const start = parseDateOnly(startDate);
     const end = parseDateOnly(endDate);
@@ -63,7 +63,7 @@ export function PlanForm() {
   })() : 0;
 
   useEffect(() => {
-    loadAthletes();
+    loadAlunos();
     if (isEditMode && id) {
       loadPlan(id);
     }
@@ -73,7 +73,7 @@ export function PlanForm() {
     try {
       const plan = await planService.getById(planId);
       reset({
-        athleteId: plan.athleteId,
+        alunoId: plan.alunoId,
         name: plan.name,
         description: plan.description || '',
         startDate: toDateInputValue(plan.startDate),
@@ -86,18 +86,18 @@ export function PlanForm() {
     }
   };
 
-  const loadAthletes = async () => {
-    setLoadingAthletes(true);
+  const loadAlunos = async () => {
+    setLoadingAlunos(true);
     try {
-      const data = await athleteService.list(1, 100);
-      setAthletes(data.athletes);
-      if (!isEditMode && athleteIdParam) {
-        setValue('athleteId', athleteIdParam, { shouldValidate: true });
+      const data = await alunoService.list(1, 100);
+      setAlunos(data.alunos);
+      if (!isEditMode && alunoIdParam) {
+        setValue('alunoId', alunoIdParam, { shouldValidate: true });
       }
     } catch (error) {
       console.error('Erro ao carregar alunos:', error);
     } finally {
-      setLoadingAthletes(false);
+      setLoadingAlunos(false);
     }
   };
 
@@ -105,7 +105,7 @@ export function PlanForm() {
     setLoading(true);
     try {
       if (isEditMode && id) {
-        // Modo de edição
+        // Modo de ediÃ§Ã£o
         await planService.update(id, {
           ...data,
           startDate: toIsoDateAtNoonUTC(data.startDate),
@@ -114,7 +114,7 @@ export function PlanForm() {
         alert('Plano atualizado com sucesso!');
         navigate(`/plans/${id}`);
       } else {
-        // Modo de criação
+        // Modo de criaÃ§Ã£o
         const plan = await planService.create({
           ...data,
           startDate: toIsoDateAtNoonUTC(data.startDate),
@@ -145,57 +145,57 @@ export function PlanForm() {
         <div>
           <h1 className="text-3xl font-bold">{isEditMode ? 'Editar Plano de Treino' : 'Novo Plano de Treino'}</h1>
           <p className="text-muted-foreground mt-2">
-            {isEditMode ? 'Atualize as informações do plano de treino' : 'Crie um plano de treino personalizado para seu aluno'}
+            {isEditMode ? 'Atualize as informaÃ§Ãµes do plano de treino' : 'Crie um plano de treino personalizado para seu aluno'}
           </p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-        {/* Informações Básicas */}
+        {/* InformaÃ§Ãµes BÃ¡sicas */}
         <Card>
           <CardHeader>
-            <CardTitle>Informações Básicas</CardTitle>
+            <CardTitle>InformaÃ§Ãµes BÃ¡sicas</CardTitle>
             <CardDescription>Dados principais do plano de treino</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Aluno */}
             <div className="space-y-2">
               <label className="text-sm font-medium">Aluno *</label>
-              {loadingAthletes ? (
+              {loadingAlunos ? (
                 <div className="text-sm text-muted-foreground">Carregando alunos...</div>
               ) : (
                 <select
                   className="w-full p-2 border rounded-md"
-                  {...register('athleteId')}
-                  disabled={!isEditMode && !!athleteIdParam}
+                  {...register('alunoId')}
+                  disabled={!isEditMode && !!alunoIdParam}
                 >
                   <option value="">Selecione um aluno</option>
-                  {athletes.map((athlete) => (
-                    <option key={athlete.id} value={athlete.id}>
-                      {athlete.user.profile.name}
+                  {alunos.map((aluno) => (
+                    <option key={aluno.id} value={aluno.id}>
+                      {aluno.user.profile.name}
                     </option>
                   ))}
                 </select>
               )}
-              {errors.athleteId && (
-                <p className="text-sm text-red-500">{errors.athleteId.message}</p>
+              {errors.alunoId && (
+                <p className="text-sm text-red-500">{errors.alunoId.message}</p>
               )}
             </div>
 
             {/* Nome */}
             <Input
               label="Nome do Plano"
-              placeholder="Preparação para Maratona de São Paulo"
+              placeholder="PreparaÃ§Ã£o para Maratona de SÃ£o Paulo"
               error={errors.name?.message}
               {...register('name')}
             />
 
-            {/* Descrição */}
+            {/* DescriÃ§Ã£o */}
             <div className="space-y-2">
-              <label className="text-sm font-medium">Descrição</label>
+              <label className="text-sm font-medium">DescriÃ§Ã£o</label>
               <textarea
                 className="w-full p-2 border rounded-md min-h-[100px]"
-                placeholder="Descreva os objetivos e características deste plano..."
+                placeholder="Descreva os objetivos e caracterÃ­sticas deste plano..."
                 {...register('description')}
               />
               {errors.description && (
@@ -205,23 +205,23 @@ export function PlanForm() {
           </CardContent>
         </Card>
 
-        {/* Período */}
+        {/* PerÃ­odo */}
         <Card>
           <CardHeader>
-            <CardTitle>Período do Plano</CardTitle>
-            <CardDescription>Defina o período de duração do plano</CardDescription>
+            <CardTitle>PerÃ­odo do Plano</CardTitle>
+            <CardDescription>Defina o perÃ­odo de duraÃ§Ã£o do plano</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Input
-                label="Data de Início"
+                label="Data de InÃ­cio"
                 type="date"
                 error={errors.startDate?.message}
                 {...register('startDate')}
               />
 
               <Input
-                label="Data de Término"
+                label="Data de TÃ©rmino"
                 type="date"
                 error={errors.endDate?.message}
                 {...register('endDate')}
@@ -230,7 +230,7 @@ export function PlanForm() {
 
             {duration > 0 && (
               <div className="p-4 bg-muted rounded-lg">
-                <p className="text-sm font-medium">Duração Calculada</p>
+                <p className="text-sm font-medium">DuraÃ§Ã£o Calculada</p>
                 <p className="text-2xl font-bold">{duration} semanas</p>
                 <p className="text-sm text-muted-foreground mt-1">
                   {Math.floor(duration / 4)} meses aproximadamente
@@ -240,28 +240,28 @@ export function PlanForm() {
           </CardContent>
         </Card>
 
-        {/* Informações Adicionais */}
+        {/* InformaÃ§Ãµes Adicionais */}
         <Card>
           <CardHeader>
-            <CardTitle>O Que Acontece Após Criar?</CardTitle>
+            <CardTitle>O Que Acontece ApÃ³s Criar?</CardTitle>
           </CardHeader>
           <CardContent>
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li className="flex items-start gap-2">
-                <span className="text-primary">✓</span>
-                <span>O plano será criado com a estrutura básica</span>
+                <span className="text-primary">âœ“</span>
+                <span>O plano serÃ¡ criado com a estrutura bÃ¡sica</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-primary">✓</span>
-                <span>As semanas serão geradas automaticamente</span>
+                <span className="text-primary">âœ“</span>
+                <span>As semanas serÃ£o geradas automaticamente</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-primary">✓</span>
-                <span>Você poderá adicionar sessões de treino em cada semana</span>
+                <span className="text-primary">âœ“</span>
+                <span>VocÃª poderÃ¡ adicionar sessÃµes de treino em cada semana</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-primary">✓</span>
-                <span>O aluno terá acesso ao plano no app mobile</span>
+                <span className="text-primary">âœ“</span>
+                <span>O aluno terÃ¡ acesso ao plano no app mobile</span>
               </li>
             </ul>
           </CardContent>
@@ -284,3 +284,4 @@ export function PlanForm() {
     </div>
   );
 }
+

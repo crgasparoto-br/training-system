@@ -1,9 +1,9 @@
-import { PrismaClient, type AssessmentScheduleType } from '@prisma/client';
+﻿import { PrismaClient, type AssessmentScheduleType } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
 export interface CreateAssessmentDTO {
-  athleteId: string;
+  alunoId: string;
   typeId: string;
   assessmentDate: Date;
   filePath: string;
@@ -14,9 +14,9 @@ export interface CreateAssessmentDTO {
 }
 
 export const assessmentService = {
-  async listByAthlete(athleteId: string) {
+  async listByAluno(alunoId: string) {
     return prisma.assessment.findMany({
-      where: { athleteId },
+      where: { alunoId },
       include: {
         type: true,
       },
@@ -31,7 +31,7 @@ export const assessmentService = {
       where: { id },
       include: {
         type: true,
-        athlete: true,
+        aluno: true,
       },
     });
   },
@@ -39,7 +39,7 @@ export const assessmentService = {
   async create(data: CreateAssessmentDTO) {
     return prisma.assessment.create({
       data: {
-        athleteId: data.athleteId,
+        alunoId: data.alunoId,
         typeId: data.typeId,
         assessmentDate: data.assessmentDate,
         filePath: data.filePath,
@@ -73,14 +73,14 @@ export const assessmentService = {
     });
   },
 
-  async getSummaryByAthlete(athleteId: string, contractId: string) {
+  async getSummaryByAluno(alunoId: string, contractId: string) {
     const [types, assessments] = await Promise.all([
       prisma.assessmentType.findMany({
         where: { contractId, isActive: true },
         orderBy: { name: 'asc' },
       }),
       prisma.assessment.findMany({
-        where: { athleteId },
+        where: { alunoId },
         orderBy: { assessmentDate: 'desc' },
         include: { type: true },
       }),
@@ -138,3 +138,4 @@ export const assessmentService = {
     });
   },
 };
+

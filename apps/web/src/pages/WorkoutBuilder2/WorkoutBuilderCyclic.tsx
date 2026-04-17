@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+﻿import { useState, useEffect, useMemo, useRef } from 'react';
 import { isDateWithinRange, parseDateOnly, toDateInputValue, toIsoDateAtNoonUTC } from '../../utils/date';
 
 interface WorkoutBuilderCyclicProps {
@@ -10,7 +10,7 @@ interface WorkoutBuilderCyclicProps {
   weekEditable?: boolean;
   planStartDate?: string | Date | null;
   planEndDate?: string | Date | null;
-  athleteData?: {
+  alunoData?: {
     restingHeartRate?: number | null;
     maxHeartRate?: number | null;
   } | null;
@@ -28,7 +28,7 @@ export default function WorkoutBuilderCyclic({
   weekEditable = true,
   planStartDate,
   planEndDate,
-  athleteData,
+  alunoData,
   vamValue,
   mesocycleNumber,
   weekNumber
@@ -46,11 +46,12 @@ export default function WorkoutBuilderCyclic({
     }
     if (workoutDays && typeof workoutDays === 'object') {
       return Object.entries(workoutDays).reduce<Record<number, any>>((acc, [key, day]) => {
-        const dayOfWeek = day?.dayOfWeek ?? Number(key);
+        const rawDay = (day ?? {}) as Record<string, any>;
+        const dayOfWeek = Number(rawDay.dayOfWeek ?? key);
         acc[dayOfWeek] = {
-          ...day,
+          ...rawDay,
           dayOfWeek,
-          complementNotes: day?.complementNotes ?? day?.complemento ?? ''
+          complementNotes: rawDay.complementNotes ?? rawDay.complemento ?? ''
         };
         return acc;
       }, {});
@@ -85,7 +86,7 @@ export default function WorkoutBuilderCyclic({
   };
 
   const days = useMemo(() => {
-    const labels = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
+    const labels = ['Segunda', 'TerÃ§a', 'Quarta', 'Quinta', 'Sexta', 'SÃ¡bado', 'Domingo'];
 
     return labels.map((label, index) => {
       const dayOfWeek = index + 1;
@@ -118,8 +119,8 @@ export default function WorkoutBuilderCyclic({
 
   const calculateTargetHrValues = (intensity1: number | null, intensity2: number | null) => {
     if (intensity1 === null || intensity2 === null) return null;
-    const fcRep = athleteData?.restingHeartRate ?? null;
-    const fcMax = athleteData?.maxHeartRate ?? null;
+    const fcRep = alunoData?.restingHeartRate ?? null;
+    const fcMax = alunoData?.maxHeartRate ?? null;
     if (fcRep === null || fcMax === null) return null;
     const pct1 = normalizeIntensity(intensity1);
     const pct2 = normalizeIntensity(intensity2);
@@ -195,11 +196,11 @@ export default function WorkoutBuilderCyclic({
     return true;
   });
 
-  // Estado para Volume Total (virá da periodização)
+  // Estado para Volume Total (virÃ¡ da periodizaÃ§Ã£o)
   const [volumeTotalMin, setVolumeTotalMin] = useState(templateData?.totalVolumeMin || 284);
   const [volumeTotalKm, setVolumeTotalKm] = useState(templateData?.totalVolumeKm || 0);
   
-  // Distribuição vem da periodização (% Z1, Z2, Z3, Z4, Z5)
+  // DistribuiÃ§Ã£o vem da periodizaÃ§Ã£o (% Z1, Z2, Z3, Z4, Z5)
   const [distribution, setDistribution] = useState({
     z1: templateData?.distributionZ1 || 25,
     z2: templateData?.distributionZ2 || 40,
@@ -208,8 +209,8 @@ export default function WorkoutBuilderCyclic({
     z5: templateData?.distributionZ5 || 5
   });
   
-  // Planejamento (editável)
-  const [planning, setPlanning] = useState({
+  // Planejamento (editÃ¡vel)
+  const [planning] = useState({
     z1: 60,
     z2: 0,
     z3: 0,
@@ -217,10 +218,10 @@ export default function WorkoutBuilderCyclic({
     z5: 0
   });
 
-  // Hidratar dados quando o template mudar (evita sobrescrever edição)
+  // Hidratar dados quando o template mudar (evita sobrescrever ediÃ§Ã£o)
 
 
-  // Cálculos automáticos
+  // CÃ¡lculos automÃ¡ticos
   const calculateAbsolute = (zone: keyof typeof distribution) => {
     return Math.round(volumeTotalMin * (distribution[zone] / 100));
   };
@@ -249,7 +250,7 @@ export default function WorkoutBuilderCyclic({
     return Object.values(distribution).reduce((sum, val) => sum + val, 0);
   };
 
-  // Funções de cálculo
+  // FunÃ§Ãµes de cÃ¡lculo
   const calculateTempoIntenso = (dayOfWeek: number) => {
     const data = dayData[dayOfWeek];
     if (!data?.sessionTime || !data?.numSets || !data?.numSessions) return 0;
@@ -488,7 +489,7 @@ export default function WorkoutBuilderCyclic({
   }, [templateData]);
 
   useEffect(() => {
-    if (!athleteData && (vamValue === null || vamValue === undefined)) return;
+    if (!alunoData && (vamValue === null || vamValue === undefined)) return;
     if (!dayData || Object.keys(dayData).length === 0) return;
     const updated: Record<number, any> = { ...dayData };
     let changed = false;
@@ -543,7 +544,7 @@ export default function WorkoutBuilderCyclic({
       setDayData(updated);
       onChange({ ...templateData, workoutDays: updated });
     }
-  }, [athleteData, vamValue]);
+  }, [alunoData, vamValue]);
 
   useEffect(() => {
     try {
@@ -596,10 +597,10 @@ export default function WorkoutBuilderCyclic({
       const minDuration = durationPerSession - 3;
       const maxDuration = durationPerSession;
       
-      let text = `Mantenha ${minDuration}-${maxDuration}min em intensidade constante com frequência cardíaca entre ${data.targetHrMin || ''} bpm`;
+      let text = `Mantenha ${minDuration}-${maxDuration}min em intensidade constante com frequÃªncia cardÃ­aca entre ${data.targetHrMin || ''} bpm`;
       
       if (data.intensity1 && data.intensity2) {
-        text += ` (${data.intensity1} - ${data.intensity2}% VO2Máx`;
+        text += ` (${data.intensity1} - ${data.intensity2}% VO2MÃ¡x`;
       }
       
       if (data.location === 'Esteira' || data.location === 'Pista') {
@@ -768,13 +769,13 @@ export default function WorkoutBuilderCyclic({
 
   return (
     <div className="space-y-6">
-      {/* Resumo Cíclico da Semana */}
+      {/* Resumo CÃ­clico da Semana */}
       <div
         className={`bg-blue-50 rounded-lg border border-blue-200 ${showCyclicSummary ? 'p-4' : 'p-2'}`}
       >
         <div className={`${showCyclicSummary ? 'mb-4' : 'mb-0'} flex items-center justify-between`}>
           <h3 className="text-base font-semibold text-gray-900">
-            Resumo Cíclico da Semana
+            Resumo CÃ­clico da Semana
           </h3>
           <button
             type="button"
@@ -840,15 +841,15 @@ export default function WorkoutBuilderCyclic({
                   </tr>
                 </thead>
                 <tbody>
-                  {/* Distribuição (%) - vem da periodização (BLOQUEADO) */}
+                  {/* DistribuiÃ§Ã£o (%) - vem da periodizaÃ§Ã£o (BLOQUEADO) */}
                   <tr>
                     <td className="border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-50">
-                      Distribuição (%)
+                      DistribuiÃ§Ã£o (%)
                     </td>
                     <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
                       <span
                         className="text-sm text-center tabular-nums"
-                        title="Valor vinculado à periodização (somente leitura)"
+                        title="Valor vinculado Ã  periodizaÃ§Ã£o (somente leitura)"
                       >
                         {distribution.z1}
                       </span>
@@ -856,7 +857,7 @@ export default function WorkoutBuilderCyclic({
                     <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
                       <span
                         className="text-sm text-center tabular-nums"
-                        title="Valor vinculado à periodização (somente leitura)"
+                        title="Valor vinculado Ã  periodizaÃ§Ã£o (somente leitura)"
                       >
                         {distribution.z2}
                       </span>
@@ -864,7 +865,7 @@ export default function WorkoutBuilderCyclic({
                     <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
                       <span
                         className="text-sm text-center tabular-nums"
-                        title="Valor vinculado à periodização (somente leitura)"
+                        title="Valor vinculado Ã  periodizaÃ§Ã£o (somente leitura)"
                       >
                         {distribution.z3}
                       </span>
@@ -872,7 +873,7 @@ export default function WorkoutBuilderCyclic({
                     <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
                       <span
                         className="text-sm text-center tabular-nums"
-                        title="Valor vinculado à periodização (somente leitura)"
+                        title="Valor vinculado Ã  periodizaÃ§Ã£o (somente leitura)"
                       >
                         {distribution.z4}
                       </span>
@@ -880,7 +881,7 @@ export default function WorkoutBuilderCyclic({
                     <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
                       <span
                         className="text-sm text-center tabular-nums"
-                        title="Valor vinculado à periodização (somente leitura)"
+                        title="Valor vinculado Ã  periodizaÃ§Ã£o (somente leitura)"
                       >
                         {distribution.z5}
                       </span>
@@ -971,10 +972,10 @@ export default function WorkoutBuilderCyclic({
         )}
       </div>
 
-{/* Planejamento do Treinamento Cíclico */}
+{/* Planejamento do Treinamento CÃ­clico */}
       <div className="bg-green-50 rounded-lg p-4 border border-green-200">
         <h3 className="text-base font-semibold text-gray-900 mb-4">
-          Planejamento do Treinamento Cíclico
+          Planejamento do Treinamento CÃ­clico
         </h3>
 
         <div className="overflow-x-auto">
@@ -989,7 +990,7 @@ export default function WorkoutBuilderCyclic({
             <thead>
               <tr className="bg-gray-100">
                 <th className="border border-gray-300 px-4 py-2 text-left text-sm font-semibold text-gray-900">
-                  Parâmetro
+                  ParÃ¢metro
                 </th>
                 {days.map((day) => (
                   <th key={day.dayOfWeek} className="border border-gray-300 px-3 py-2 text-center text-sm font-semibold text-gray-900">
@@ -1001,10 +1002,10 @@ export default function WorkoutBuilderCyclic({
             </thead>
 
             <tbody>
-              {/* Tempo do estímulo */}
+              {/* Tempo do estÃ­mulo */}
               <tr>
                 <td className="border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-50">
-                  Tempo do estímulo
+                  Tempo do estÃ­mulo
                 </td>
                 {days.map((day) => (
                   <td key={day.dayOfWeek} className="border border-gray-300 px-2 py-2">
@@ -1025,10 +1026,10 @@ export default function WorkoutBuilderCyclic({
                 ))}
               </tr>
 
-              {/* Método */}
+              {/* MÃ©todo */}
               <tr>
                 <td className="border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-50">
-                  Método
+                  MÃ©todo
                 </td>
                 {days.map((day) => (
                   <td key={day.dayOfWeek} className="border border-gray-300 px-2 py-2">
@@ -1061,10 +1062,10 @@ export default function WorkoutBuilderCyclic({
                 ))}
               </tr>
 
-              {/* Inserção */}
+              {/* InserÃ§Ã£o */}
               <tr>
                 <td className="border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-50">
-                  Inserção
+                  InserÃ§Ã£o
                 </td>
                 {days.map((day) => (
                   <td key={day.dayOfWeek} className="border border-gray-300 px-2 py-2">
@@ -1073,10 +1074,10 @@ export default function WorkoutBuilderCyclic({
                 ))}
               </tr>
 
-              {/* Nº sessões */}
+              {/* NÂº sessÃµes */}
               <tr>
                 <td className="border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-50">
-                  Nº sessões
+                  NÂº sessÃµes
                 </td>
                 {days.map((day) => (
                   <td key={day.dayOfWeek} className="border border-gray-300 px-2 py-2">
@@ -1085,10 +1086,10 @@ export default function WorkoutBuilderCyclic({
                 ))}
               </tr>
 
-              {/* Nº de séries */}
+              {/* NÂº de sÃ©ries */}
               <tr>
                 <td className="border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-50">
-                  Nº de séries
+                  NÂº de sÃ©ries
                 </td>
                 {days.map((day) => (
                   <td key={day.dayOfWeek} className="border border-gray-300 px-2 py-2">
@@ -1121,10 +1122,10 @@ export default function WorkoutBuilderCyclic({
                 ))}
               </tr>
 
-              {/* %VO2Máx interv. */}
+              {/* %VO2MÃ¡x interv. */}
               <tr className="bg-pink-50">
                 <td className="border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-50">
-                  %VO2Máx interv.
+                  %VO2MÃ¡x interv.
                 </td>
                 {days.map((day) => (
                   <td key={day.dayOfWeek} className="border border-gray-300 px-2 py-2">
@@ -1148,10 +1149,10 @@ export default function WorkoutBuilderCyclic({
                 })}
               </tr>
 
-              {/* %VO2Máx - CALCULADO */}
+              {/* %VO2MÃ¡x - CALCULADO */}
               <tr className="bg-pink-50">
                 <td className="border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-50">
-                  %VO2Máx
+                  %VO2MÃ¡x
                 </td>
                 {days.map((day) => {
                   const vo2Max = calculateVO2Max(day.dayOfWeek);
@@ -1230,4 +1231,5 @@ export default function WorkoutBuilderCyclic({
     </div>
   );
 }
+
 

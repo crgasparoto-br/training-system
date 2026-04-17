@@ -1,11 +1,11 @@
-import { PrismaClient } from '@prisma/client';
+﻿import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
 export interface CloneContractDataOptions {
   sourceContractId: string;
   targetContractId: string;
-  educatorId?: string | null;
+  professorId?: string | null;
   copyParameters?: boolean;
   copyExercises?: boolean;
   copyAssessmentTypes?: boolean;
@@ -26,7 +26,7 @@ export async function cloneContractData(
   const {
     sourceContractId,
     targetContractId,
-    educatorId,
+    professorId,
     copyParameters = true,
     copyExercises = true,
     copyAssessmentTypes = true,
@@ -202,7 +202,7 @@ export async function cloneContractData(
     data: {
       sourceContractId,
       targetContractId,
-      educatorId: educatorId || null,
+      professorId: professorId || null,
       parametersCreated,
       parametersSkipped,
       exercisesCreated,
@@ -221,3 +221,4 @@ export async function cloneContractData(
     assessmentTypesSkipped,
   };
 }
+

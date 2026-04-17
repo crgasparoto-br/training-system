@@ -1,4 +1,4 @@
-import api from './api';
+﻿import api from './api';
 
 export interface WorkoutTemplate {
   id: string;
@@ -15,10 +15,12 @@ export interface WorkoutTemplate {
   repReserve?: number;
   trainingMethod?: string;
   trainingDivision?: string;
-  studentGoal?: string;
+  alunoGoal?: string;
   coachGoal?: string;
   observation1?: string;
   observation2?: string;
+  released?: boolean;
+  releasedAt?: string | null;
   workoutDays?: WorkoutDay[];
   createdAt: string;
   updatedAt: string;
@@ -88,19 +90,19 @@ export interface CreateWorkoutTemplateDTO {
 }
 
 export interface UpdateWorkoutTemplateDTO {
-  cyclicFrequency?: number;
-  resistanceFrequency?: number;
-  totalVolumeMin?: number;
-  totalVolumeKm?: number;
-  loadPercentage?: number;
-  repZone?: number;
-  repReserve?: number;
-  trainingMethod?: string;
-  trainingDivision?: string;
-  studentGoal?: string;
-  coachGoal?: string;
-  observation1?: string;
-  observation2?: string;
+  cyclicFrequency?: number | null;
+  resistanceFrequency?: number | null;
+  totalVolumeMin?: number | null;
+  totalVolumeKm?: number | null;
+  loadPercentage?: number | null;
+  repZone?: number | null;
+  repReserve?: number | null;
+  trainingMethod?: string | null;
+  trainingDivision?: string | null;
+  alunoGoal?: string | null;
+  coachGoal?: string | null;
+  observation1?: string | null;
+  observation2?: string | null;
 }
 
 export interface CreateWorkoutDayDTO {
@@ -120,8 +122,8 @@ export interface UpdateWorkoutDayDTO {
   stimulusDurationMin?: number;
   location?: string;
   method?: string;
-  intensity1?: string;
-  intensity2?: string;
+  intensity1?: number | null;
+  intensity2?: number | null;
   numSessions?: number;
   numSets?: number;
   sessionTime?: number;
@@ -269,3 +271,4 @@ class WorkoutService {
 }
 
 export const workoutService = new WorkoutService();
+

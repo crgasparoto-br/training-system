@@ -1,24 +1,24 @@
-import api from './api';
+﻿import api from './api';
 
 export type TrainingPhase = 'base' | 'build' | 'peak' | 'recovery' | 'taper';
 export type SessionType = 'easy_run' | 'tempo_run' | 'interval' | 'long_run' | 'recovery' | 'strength' | 'rest';
 
 export interface TrainingPlan {
   id: string;
-  educatorId: string;
-  athleteId: string;
+  professorId: string;
+  alunoId: string;
   name: string;
   description?: string;
   startDate: string;
   endDate: string;
-  athlete: {
+  aluno: {
     user: {
       profile: {
         name: string;
       };
     };
   };
-  educator?: {
+  professor?: {
     user?: {
       profile?: {
         name?: string;
@@ -78,7 +78,7 @@ export interface PlanStats {
 }
 
 export interface CreatePlanDTO {
-  athleteId: string;
+  alunoId: string;
   name: string;
   description?: string;
   startDate: string;
@@ -123,8 +123,8 @@ export const planService = {
   async list(
     page: number = 1,
     limit: number = 10,
-    athleteId?: string,
-    educatorId?: string,
+    alunoId?: string,
+    professorId?: string,
     status?: 'active' | 'finished' | 'all',
     query?: string
   ): Promise<PlansResponse> {
@@ -133,12 +133,12 @@ export const planService = {
       limit: String(limit),
     });
 
-    if (athleteId) {
-      params.set('athleteId', athleteId);
+    if (alunoId) {
+      params.set('alunoId', alunoId);
     }
 
-    if (educatorId) {
-      params.set('educatorId', educatorId);
+    if (professorId) {
+      params.set('professorId', professorId);
     }
 
     if (status && status !== 'all') {
@@ -158,9 +158,9 @@ export const planService = {
   /**
    * Listar planos de um aluno (professor)
    */
-  async listByAthlete(athleteId: string): Promise<PlansResponse> {
+  async listByAluno(alunoId: string): Promise<PlansResponse> {
     const response = await api.get<{ success: boolean; data: PlansResponse }>(
-      `/plans/athlete/${athleteId}`
+      `/plans/aluno/${alunoId}`
     );
     return response.data.data;
   },
@@ -197,7 +197,7 @@ export const planService = {
   },
 
   /**
-   * Criar sessão (microciclo)
+   * Criar sessÃ£o (microciclo)
    */
   async createSession(data: CreateSessionDTO): Promise<Microcycle> {
     const response = await api.post<{ success: boolean; data: Microcycle }>('/plans/microcycles', data);
@@ -205,7 +205,7 @@ export const planService = {
   },
 
   /**
-   * Atualizar sessão
+   * Atualizar sessÃ£o
    */
   async updateSession(id: string, data: Partial<CreateSessionDTO>): Promise<Microcycle> {
     const response = await api.put<{ success: boolean; data: Microcycle }>(`/plans/microcycles/${id}`, data);
@@ -213,7 +213,7 @@ export const planService = {
   },
 
   /**
-   * Deletar sessão
+   * Deletar sessÃ£o
    */
   async deleteSession(id: string): Promise<void> {
     await api.delete(`/plans/microcycles/${id}`);
@@ -224,17 +224,17 @@ export const planService = {
    */
   translatePhase(phase: TrainingPhase): string {
     const translations: Record<TrainingPhase, string> = {
-      base: 'Base Aeróbica',
-      build: 'Construção',
+      base: 'Base AerÃ³bica',
+      build: 'ConstruÃ§Ã£o',
       peak: 'Pico',
-      recovery: 'Recuperação',
+      recovery: 'RecuperaÃ§Ã£o',
       taper: 'Polimento',
     };
     return translations[phase];
   },
 
   /**
-   * Traduzir tipo de sessão
+   * Traduzir tipo de sessÃ£o
    */
   translateSessionType(type: SessionType): string {
     const translations: Record<SessionType, string> = {
@@ -242,7 +242,7 @@ export const planService = {
       tempo_run: 'Corrida Tempo',
       interval: 'Intervalado',
       long_run: 'Corrida Longa',
-      recovery: 'Recuperação',
+      recovery: 'RecuperaÃ§Ã£o',
       strength: 'Fortalecimento',
       rest: 'Descanso',
     };
@@ -264,7 +264,7 @@ export const planService = {
   },
 
   /**
-   * Obter cor do tipo de sessão
+   * Obter cor do tipo de sessÃ£o
    */
   getSessionTypeColor(type: SessionType): string {
     const colors: Record<SessionType, string> = {
@@ -280,7 +280,7 @@ export const planService = {
   },
 
   /**
-   * Formatar duração em minutos para horas:minutos
+   * Formatar duraÃ§Ã£o em minutos para horas:minutos
    */
   formatDuration(minutes: number): string {
     const hours = Math.floor(minutes / 60);
@@ -304,7 +304,8 @@ export const planService = {
    * Obter nome do dia da semana
    */
   getDayName(dayOfWeek: number): string {
-    const days = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+    const days = ['Domingo', 'Segunda', 'TerÃ§a', 'Quarta', 'Quinta', 'Sexta', 'SÃ¡bado'];
     return days[dayOfWeek];
   },
 };
+

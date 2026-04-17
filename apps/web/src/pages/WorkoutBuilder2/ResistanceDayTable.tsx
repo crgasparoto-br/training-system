@@ -1,10 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Plus, Edit2, Trash2 } from 'lucide-react';
 import { Exercise as LibraryExercise } from '../../services/library.service';
 import ExerciseSelectionModal from './ExerciseSelectionModal';
 
 interface ResistanceDayTableProps {
-  dayOfWeek: number;
   label: string;
   date: string;
   data: any;
@@ -24,7 +23,7 @@ interface Exercise {
   notes: string;
 }
 
-export default function ResistanceDayTable({ dayOfWeek, label, date, data, onChange }: ResistanceDayTableProps) {
+export default function ResistanceDayTable({ label, date, data, onChange }: ResistanceDayTableProps) {
   const [exercises, setExercises] = useState<{
     mobilidade: Exercise[];
     sessao: Exercise[];
@@ -37,6 +36,16 @@ export default function ResistanceDayTable({ dayOfWeek, label, date, data, onCha
 
   const [showExerciseModal, setShowExerciseModal] = useState(false);
   const [currentSection, setCurrentSection] = useState<'mobilidade' | 'sessao' | 'resfriamento' | null>(null);
+
+  useEffect(() => {
+    if (data) {
+      setExercises(data);
+    }
+  }, [data]);
+
+  useEffect(() => {
+    onChange(exercises);
+  }, [exercises, onChange]);
 
   const handleAddExercise = (section: 'mobilidade' | 'sessao' | 'resfriamento') => {
     setCurrentSection(section);
@@ -68,7 +77,7 @@ export default function ResistanceDayTable({ dayOfWeek, label, date, data, onCha
     setCurrentSection(null);
   };
 
-  const handleEditExercise = (section: string, exerciseId: string) => {
+  const handleEditExercise = (_section: string, exerciseId: string) => {
     // TODO: Abrir modal de edição
     alert(`Editar exercício: ${exerciseId}`);
   };
