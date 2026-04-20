@@ -2,79 +2,82 @@
 @tailwind components;
 @tailwind utilities;
 
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
 @layer base {
   :root {
-    /* Core palette from visual identity guide */
-    --background: 210 20% 98%;
-    --foreground: 220 36% 15%;
+    /* Marca principal */
+    --background: 220 14% 96%; /* #F4F5F7 */
+    --foreground: 0 0% 0%; /* #000000 */
     --card: 0 0% 100%;
-    --card-foreground: 220 36% 15%;
+    --card-foreground: 0 0% 0%;
     --popover: 0 0% 100%;
-    --popover-foreground: 220 36% 15%;
+    --popover-foreground: 0 0% 0%;
 
-    /* Primary, accent and feedback colors */
-    --primary: 217 91% 60%;            /* #3b82f6 */
-    --primary-hover: 220 80% 54%;      /* #2563eb */
-    --primary-foreground: 210 40% 98%;
+    /* Verde performance como primário */
+    --primary: 142 71% 45%; /* #22C55E */
+    --primary-hover: 142 72% 40%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 40% 96%;          /* #f1f5f9 */
-    --secondary-hover: 214 32% 91%;    /* #e2e8f0 */
-    --secondary-foreground: 220 36% 15%;
+    --secondary: 220 16% 93%;
+    --secondary-hover: 220 11% 88%;
+    --secondary-foreground: 222 10% 13%; /* #1B1D21 */
 
-    --accent: 258 90% 67%;             /* #8b5cf6 */
-    --accent-foreground: 210 40% 98%;
-    --indigo: 239 84% 67%;             /* #6366f1 */
+    --accent: 220 14% 90%;
+    --accent-foreground: 222 10% 13%;
+    --indigo: 221 83% 53%; /* #2563EB */
 
-    --destructive: 0 84% 60%;          /* #ef4444 */
-    --destructive-hover: 0 72% 51%;    /* #dc2626 */
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 70% 50%; /* #DC2626 */
+    --destructive-hover: 0 74% 42%;
+    --destructive-foreground: 0 0% 100%;
 
-    --success: 142 71% 45%;            /* #22c55e */
-    --success-hover: 142 76% 37%;      /* #16a34a */
-    --warning: 45 88% 48%;             /* #eab308 */
-    --info: 217 91% 60%;               /* #3b82f6 */
+    --success: 142 71% 45%; /* #22C55E */
+    --success-hover: 142 72% 40%;
+    --warning: 38 92% 50%; /* #F59E0B */
+    --info: 221 83% 53%; /* #2563EB */
 
-    --section-mobility: 266 43% 96%;   /* #f5f3ff */
-    --section-session: 146 30% 95%;    /* #f0fdf4 */
-    --section-cooldown: 214 100% 97%;  /* #eff6ff */
+    --muted: 220 12% 95%;
+    --muted-foreground: 220 6% 56%; /* #8A8F98 */
 
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 46%;
-
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 217 91% 60%;
+    --border: 220 14% 88%;
+    --input: 220 14% 88%;
+    --ring: 142 71% 45%;
     --radius: 0.75rem;
+    --radius-sm: 0.5rem;
+    --radius-md: 0.75rem;
+    --radius-lg: 1rem;
+    --shadow-soft: 0 2px 8px rgba(27, 29, 33, 0.06);
+    --shadow-card: 0 10px 24px rgba(27, 29, 33, 0.08);
   }
 
   .dark {
-    --background: 222 47% 11%;
+    --background: 222 10% 13%;
     --foreground: 210 40% 98%;
-    --card: 222 47% 11%;
+    --card: 222 10% 16%;
     --card-foreground: 210 40% 98%;
-    --popover: 222 47% 11%;
+    --popover: 222 10% 16%;
     --popover-foreground: 210 40% 98%;
-    --primary: 217 91% 60%;
-    --primary-hover: 220 80% 54%;
-    --primary-foreground: 222 47% 11%;
-    --secondary: 217 33% 18%;
-    --secondary-hover: 217 28% 22%;
+    --primary: 142 71% 45%;
+    --primary-hover: 142 72% 40%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 8% 22%;
+    --secondary-hover: 220 8% 28%;
     --secondary-foreground: 210 40% 98%;
-    --muted: 217 33% 18%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 258 90% 67%;
+    --muted: 220 8% 22%;
+    --muted-foreground: 220 8% 68%;
+    --accent: 220 8% 28%;
     --accent-foreground: 210 40% 98%;
-    --indigo: 239 84% 67%;
-    --destructive: 0 84% 60%;
-    --destructive-hover: 0 72% 51%;
-    --destructive-foreground: 210 40% 98%;
+    --indigo: 221 83% 53%;
+    --destructive: 0 70% 50%;
+    --destructive-hover: 0 74% 42%;
+    --destructive-foreground: 0 0% 100%;
     --success: 142 71% 45%;
-    --success-hover: 142 76% 37%;
-    --warning: 45 88% 48%;
-    --info: 217 91% 60%;
-    --border: 217 33% 18%;
-    --input: 217 33% 18%;
-    --ring: 217 91% 60%;
+    --success-hover: 142 72% 40%;
+    --warning: 38 92% 50%;
+    --info: 221 83% 53%;
+    --border: 220 8% 28%;
+    --input: 220 8% 28%;
+    --ring: 142 71% 45%;
   }
 }
 
@@ -84,12 +87,70 @@
   }
   body {
     @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     font-size: 16px;
     line-height: 1.5;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply tracking-tight;
+  }
+
+  h1,
+  h2 {
+    @apply font-bold;
+  }
+
+  h3,
+  h4 {
+    @apply font-semibold;
   }
 }
 
 @layer utilities {
+  .ts-container {
+    @apply mx-auto w-full max-w-[1600px] px-4 sm:px-6;
+  }
+
+  .ts-page-heading {
+    @apply text-3xl font-bold text-foreground;
+  }
+
+  .ts-page-description {
+    @apply mt-1 text-sm font-normal text-muted-foreground;
+  }
+
+  .ts-form-control {
+    @apply h-10 w-full rounded-lg border border-input bg-card px-3 text-sm text-foreground outline-none transition focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground;
+  }
+
+  .ts-textarea {
+    @apply w-full rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground outline-none transition focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground;
+  }
+
+  .ts-badge {
+    @apply inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold;
+  }
+
+  .ts-badge-success {
+    @apply ts-badge bg-emerald-50 text-emerald-700;
+  }
+
+  .ts-badge-info {
+    @apply ts-badge bg-blue-50 text-blue-700;
+  }
+
+  .ts-badge-warning {
+    @apply ts-badge bg-amber-50 text-amber-700;
+  }
+
+  .ts-badge-danger {
+    @apply ts-badge bg-red-50 text-red-700;
+  }
+
   /* Typography scale from the guide */
   .ts-h1 {
     font-size: 36px;
