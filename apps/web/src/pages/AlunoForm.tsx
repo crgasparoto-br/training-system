@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { alunoService } from '../services/aluno.service';
+import { alunoService, type AlunoAssessmentPrefill } from '../services/aluno.service';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
@@ -89,6 +89,9 @@ export function AlunoForm() {
   const isEditMode = !!id;
   const [loading, setLoading] = useState(false);
   const [loadingData, setLoadingData] = useState(isEditMode);
+  const [prefillLoading, setPrefillLoading] = useState(false);
+  const [prefillFile, setPrefillFile] = useState<File | null>(null);
+  const [prefillSummary, setPrefillSummary] = useState<string>('');
 
   const {
     register,
@@ -139,6 +142,84 @@ export function AlunoForm() {
       return digits.replace(/^(\d{2})(\d)/, '($1) $2').replace(/(\d{4})(\d)/, '$1-$2');
     }
     return digits.replace(/^(\d{2})(\d)/, '($1) $2').replace(/(\d{5})(\d)/, '$1-$2');
+  };
+
+  const applyAssessmentPrefill = (prefill: AlunoAssessmentPrefill) => {
+    if (!isEditMode && prefill.name) setValue('name', prefill.name);
+    if (prefill.birthDate) setValue('birthDate', formatDateForInput(prefill.birthDate));
+    if (prefill.gender) setValue('gender', prefill.gender);
+    if (prefill.age !== undefined) setValue('age', prefill.age);
+    if (prefill.weight !== undefined) setValue('weight', prefill.weight);
+    if (prefill.height !== undefined) setValue('height', prefill.height);
+    if (prefill.bodyFatPercentage !== undefined) {
+      setValue('bodyFatPercentage', prefill.bodyFatPercentage);
+    }
+    if (prefill.vo2Max !== undefined) setValue('vo2Max', prefill.vo2Max);
+    if (prefill.anaerobicThreshold !== undefined) {
+      setValue('anaerobicThreshold', prefill.anaerobicThreshold);
+    }
+    if (prefill.maxHeartRate !== undefined) setValue('maxHeartRate', prefill.maxHeartRate);
+    if (prefill.restingHeartRate !== undefined) {
+      setValue('restingHeartRate', prefill.restingHeartRate);
+    }
+    if (prefill.systolicPressure !== undefined) {
+      setValue('systolicPressure', prefill.systolicPressure);
+    }
+    if (prefill.diastolicPressure !== undefined) {
+      setValue('diastolicPressure', prefill.diastolicPressure);
+    }
+    if (prefill.macronutrients?.carbohydratesPercentage !== undefined) {
+      setValue('macronutrients.carbohydratesPercentage', prefill.macronutrients.carbohydratesPercentage);
+    }
+    if (prefill.macronutrients?.proteinsPercentage !== undefined) {
+      setValue('macronutrients.proteinsPercentage', prefill.macronutrients.proteinsPercentage);
+    }
+    if (prefill.macronutrients?.lipidsPercentage !== undefined) {
+      setValue('macronutrients.lipidsPercentage', prefill.macronutrients.lipidsPercentage);
+    }
+    if (prefill.macronutrients?.dailyCalories !== undefined) {
+      setValue('macronutrients.dailyCalories', prefill.macronutrients.dailyCalories);
+    }
+    if (prefill.intakeForm?.assessmentDate) {
+      setValue('intakeForm.assessmentDate', formatDateForInput(prefill.intakeForm.assessmentDate));
+    }
+    if (prefill.intakeForm?.trainingBackground) {
+      setValue('intakeForm.trainingBackground', prefill.intakeForm.trainingBackground);
+    }
+    if (prefill.intakeForm?.observations) {
+      setValue('intakeForm.observations', prefill.intakeForm.observations);
+    }
+  };
+
+  const handleAssessmentPrefill = async () => {
+    if (!prefillFile) {
+      alert('Selecione um PDF de avaliacao para pre-preencher o cadastro.');
+      return;
+    }
+
+    setPrefillLoading(true);
+    try {
+      const prefill = await alunoService.previewAssessmentPdf(prefillFile);
+      applyAssessmentPrefill(prefill);
+
+      const summaryParts = [
+        prefill.extractedPreview?.sourceName ? `Nome identificado: ${prefill.extractedPreview.sourceName}` : null,
+        prefill.extractedPreview?.sourceAssessmentDate
+          ? `Data da avaliacao: ${formatDateForInput(prefill.extractedPreview.sourceAssessmentDate)}`
+          : null,
+      ].filter(Boolean);
+
+      setPrefillSummary(
+        summaryParts.length > 0
+          ? summaryParts.join(' | ')
+          : 'Campos compativeis foram pre-preenchidos a partir do PDF.'
+      );
+    } catch (error: any) {
+      console.error('Erro ao pre-preencher cadastro:', error);
+      alert(error.response?.data?.error || 'Erro ao ler PDF de avaliacao');
+    } finally {
+      setPrefillLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -197,14 +278,7 @@ export function AlunoForm() {
   const onSubmit = async (data: AlunoFormData) => {
     setLoading(true);
     try {
-      const payload = {
-        ...(isEditMode
-          ? {}
-          : {
-              name: data.name,
-              email: data.email,
-              phone: data.phone,
-            }),
+      const basePayload = {
         birthDate: data.birthDate || undefined,
         gender: data.gender,
         schedulePlan: data.schedulePlan,
@@ -232,13 +306,18 @@ export function AlunoForm() {
       };
 
       if (isEditMode && id) {
-        await alunoService.update(id, payload);
+        await alunoService.update(id, basePayload);
         alert('Aluno atualizado com sucesso!');
         navigate(`/alunos/${id}`);
         return;
       }
 
-      const createdAluno = await alunoService.create(payload);
+      const createdAluno = await alunoService.create({
+        name: data.name,
+        email: data.email,
+        phone: data.phone,
+        ...basePayload,
+      });
       navigate(`/alunos/${createdAluno.aluno.id}`, {
         state: { tempPassword: createdAluno.tempPassword },
       });
@@ -289,6 +368,40 @@ export function AlunoForm() {
             <div className="rounded-lg border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
               Historicos completos de avaliacao fisica em PDF, variaveis detalhadas de laudo e reprocessamento continuam centralizados na area de avaliacoes do aluno.
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Leitura de PDF da Avaliacao</CardTitle>
+            <CardDescription>
+              Envie um PDF da avaliacao para preencher automaticamente os campos compativeis do cadastro inicial.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_auto] md:items-end">
+              <div>
+                <label className="mb-2 block text-sm font-medium text-foreground">Arquivo PDF</label>
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  title="Selecionar PDF da avaliacao"
+                  className="flex h-12 w-full rounded-xl border border-[#cbd5e1] bg-background px-4 py-3 text-base"
+                  onChange={(event) => setPrefillFile(event.target.files?.[0] || null)}
+                />
+              </div>
+              <Button type="button" onClick={handleAssessmentPrefill} isLoading={prefillLoading}>
+                Aplicar pre-preenchimento
+              </Button>
+            </div>
+            <div className="rounded-lg border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
+              O PDF pode preencher nome, antropometria, variaveis cardiovasculares, data da avaliacao e parte do resumo nutricional.
+            </div>
+            {prefillSummary && (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                {prefillSummary}
+              </div>
+            )}
           </CardContent>
         </Card>
 

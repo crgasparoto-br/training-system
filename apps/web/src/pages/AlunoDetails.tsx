@@ -456,6 +456,14 @@ export function AlunoDetails() {
   };
 
   const formatDate = (value: string) => formatDateBR(value);
+  const formatGender = (value?: 'male' | 'female' | 'other') => {
+    if (value === 'male') return 'Masculino';
+    if (value === 'female') return 'Feminino';
+    if (value === 'other') return 'Outro';
+    return 'Nao informado';
+  };
+  const schedulePlanLabel = aluno?.schedulePlan === 'fixed' ? 'Fixo' : 'Livre';
+  const parqPositiveCount = Object.values(aluno?.intakeForm?.parqResponses || {}).filter(Boolean).length;
 
   const getHistoryValue = (assessment: Assessment, variable: string) => {
     const source =
@@ -713,6 +721,84 @@ export function AlunoDetails() {
 
       {activeTab === 'summary' && (
         <>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle>Cadastro Inicial</CardTitle>
+                <CardDescription>Dados principais persistidos no cadastro do aluno.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="rounded-lg border border-gray-200 p-4">
+                    <div className="text-xs text-muted-foreground">Data de nascimento</div>
+                    <div className="mt-1 text-sm font-semibold text-gray-900">
+                      {aluno.user.profile.birthDate ? formatDateBR(aluno.user.profile.birthDate) : 'Nao informada'}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 p-4">
+                    <div className="text-xs text-muted-foreground">Genero</div>
+                    <div className="mt-1 text-sm font-semibold text-gray-900">
+                      {formatGender(aluno.user.profile.gender)}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 p-4">
+                    <div className="text-xs text-muted-foreground">Plano de agenda</div>
+                    <div className="mt-1 text-sm font-semibold text-gray-900">{schedulePlanLabel}</div>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 p-4">
+                    <div className="text-xs text-muted-foreground">Pressao arterial</div>
+                    <div className="mt-1 text-sm font-semibold text-gray-900">
+                      {aluno.systolicPressure && aluno.diastolicPressure
+                        ? `${aluno.systolicPressure}/${aluno.diastolicPressure} mmHg`
+                        : 'Nao informada'}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Avaliacao Inicial Complementar</CardTitle>
+                <CardDescription>Resumo clinico e operacional preenchido no intake.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="rounded-lg border border-gray-200 p-4">
+                    <div className="text-xs text-muted-foreground">Data da avaliacao inicial</div>
+                    <div className="mt-1 text-sm font-semibold text-gray-900">
+                      {aluno.intakeForm?.assessmentDate ? formatDateBR(aluno.intakeForm.assessmentDate) : 'Nao informada'}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 p-4">
+                    <div className="text-xs text-muted-foreground">Respostas positivas no PAR-Q</div>
+                    <div className="mt-1 text-sm font-semibold text-gray-900">{parqPositiveCount}</div>
+                  </div>
+                </div>
+                <div className="space-y-3 text-sm">
+                  <div>
+                    <div className="text-xs text-muted-foreground">Objetivo principal</div>
+                    <div className="mt-1 text-gray-900">{aluno.intakeForm?.mainGoal || 'Nao informado'}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground">Historico de treino</div>
+                    <div className="mt-1 text-gray-900">{aluno.intakeForm?.trainingBackground || 'Nao informado'}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground">Historico medico e restricoes</div>
+                    <div className="mt-1 text-gray-900">
+                      {aluno.intakeForm?.medicalHistory || aluno.intakeForm?.injuriesHistory || 'Nao informado'}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground">Observacoes</div>
+                    <div className="mt-1 text-gray-900">{aluno.intakeForm?.observations || 'Nao informado'}</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
           <Card>
             <CardHeader>
               <CardTitle>Resumo da Avaliação</CardTitle>

@@ -68,6 +68,38 @@ export interface CreateAlunoResult {
   tempPassword: string;
 }
 
+export interface AlunoAssessmentPrefill {
+  name?: string;
+  birthDate?: string;
+  gender?: 'male' | 'female' | 'other';
+  age?: number;
+  weight?: number;
+  height?: number;
+  bodyFatPercentage?: number;
+  vo2Max?: number;
+  anaerobicThreshold?: number;
+  maxHeartRate?: number;
+  restingHeartRate?: number;
+  systolicPressure?: number;
+  diastolicPressure?: number;
+  macronutrients?: {
+    carbohydratesPercentage?: number;
+    proteinsPercentage?: number;
+    lipidsPercentage?: number;
+    dailyCalories?: number;
+  };
+  intakeForm?: {
+    assessmentDate?: string;
+    trainingBackground?: string;
+    observations?: string;
+  };
+  extractedPreview?: {
+    parseOk: boolean;
+    sourceName?: string;
+    sourceAssessmentDate?: string;
+  };
+}
+
 export interface CreateAlunoDTO {
   name: string;
   email: string;
@@ -267,6 +299,26 @@ export const alunoService = {
     const response = await api.post<{ success: boolean; data: { tempPassword: string } }>(
       `/alunos/${id}/reset-password`
     );
+    return response.data.data;
+  },
+
+  /**
+   * Ler PDF de avaliacao e retornar pre-preenchimento do cadastro
+   */
+  async previewAssessmentPdf(file: File): Promise<AlunoAssessmentPrefill> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await api.post<{ success: boolean; data: AlunoAssessmentPrefill }>(
+      '/alunos/assessment-prefill',
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
+
     return response.data.data;
   },
 

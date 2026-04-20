@@ -385,6 +385,29 @@ router.get('/search', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * POST /api/v1/alunos/assessment-prefill
+ * Processar PDF de avaliacao e retornar dados para pre-preenchimento do cadastro
+ */
+router.post('/assessment-prefill', uploadAssessmentPrefillFile, async (req: Request, res: Response) => {
+  try {
+    if (!req.file) {
+      return sendError(res, 'Arquivo PDF nao enviado', 400);
+    }
+
+    const parsed = await pdfParse(req.file.buffer);
+    const rawText = parsed.text || '';
+    const parsedData = parseAssessmentPdf(rawText);
+    const aiResult = await fillAssessmentWithAi(parsedData, req.file.buffer, req.file.originalname);
+    const payload = buildAlunoPrefillPayload(rawText, aiResult.metrics, aiResult.variables);
+
+    return sendSuccess(res, payload, 'PDF processado com sucesso');
+  } catch (error: any) {
+    console.error('Erro ao pre-processar PDF de avaliacao:', error);
+    return sendError(res, error?.message || 'Erro ao processar PDF de avaliacao', 500);
+  }
+});
+
 
 /**
  * GET /api/v1/alunos/:id
