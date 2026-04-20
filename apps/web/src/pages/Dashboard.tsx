@@ -206,16 +206,16 @@ export function Dashboard() {
         description:
           stats.totalAlunos > 0 ? `${stats.totalAlunos} aluno(s) ativo(s)` : 'Nenhum aluno cadastrado ainda',
         icon: Users,
-        color: 'text-blue-600',
-        bgColor: 'bg-blue-100',
+        color: 'text-blue-700',
+        bgColor: 'bg-blue-50',
       },
       {
         title: 'Planos Ativos',
         value: String(stats.activePlans),
         description: stats.activePlans > 0 ? `${stats.activePlans} plano(s) em andamento` : 'Nenhum plano ativo',
         icon: Calendar,
-        color: 'text-green-600',
-        bgColor: 'bg-green-100',
+        color: 'text-emerald-700',
+        bgColor: 'bg-emerald-50',
       },
       {
         title: 'Treinos desta semana',
@@ -225,8 +225,8 @@ export function Dashboard() {
             ? `${stats.weekWorkouts} treino(s) previsto(s)`
             : 'Nenhum treino previsto nesta semana',
         icon: Activity,
-        color: 'text-purple-600',
-        bgColor: 'bg-purple-100',
+        color: 'text-amber-700',
+        bgColor: 'bg-amber-50',
       },
       {
         title: 'Taxa de conclusão',
@@ -234,8 +234,8 @@ export function Dashboard() {
         description:
           stats.weekWorkouts > 0 ? `${stats.completionRate}% dos treinos concluídos` : 'Sem dados suficientes',
         icon: TrendingUp,
-        color: 'text-orange-600',
-        bgColor: 'bg-orange-100',
+        color: 'text-red-700',
+        bgColor: 'bg-red-50',
       },
     ],
     [stats]
@@ -248,17 +248,17 @@ export function Dashboard() {
   };
 
   const getStatusClassName = (status?: WorkoutDayDetail['status']) => {
-    if (status === 'completed') return 'bg-green-100 text-green-700';
-    if (status === 'in_progress') return 'bg-yellow-100 text-yellow-700';
-    return 'bg-blue-100 text-blue-700';
+    if (status === 'completed') return 'ts-badge-success';
+    if (status === 'in_progress') return 'ts-badge-warning';
+    return 'ts-badge-info';
   };
 
   if (isLoading) {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold">Dashboard</h1>
-          <p className="text-muted-foreground mt-2">Carregando dados...</p>
+          <h1 className="ts-page-heading">Dashboard</h1>
+          <p className="ts-page-description">Carregando dados...</p>
         </div>
       </div>
     );
@@ -267,8 +267,8 @@ export function Dashboard() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Dashboard</h1>
-        <p className="text-muted-foreground mt-2">Bem-vindo de volta, {user?.name}!</p>
+        <h1 className="ts-page-heading">Dashboard operacional</h1>
+        <p className="ts-page-description">Bem-vindo de volta, {user?.name}!</p>
       </div>
 
       {error && (
@@ -337,7 +337,7 @@ export function Dashboard() {
             ) : (
               <div className="space-y-3">
                 {recentActivities.map((activity) => (
-                  <div key={activity.id} className="border rounded-md p-3">
+                  <div key={activity.id} className="rounded-lg border border-border p-3">
                     <p className="text-sm font-medium">{activity.title}</p>
                     <p className="text-sm text-muted-foreground">{activity.description}</p>
                     <p className="text-xs text-muted-foreground mt-1">{formatDate(activity.createdAt)}</p>
@@ -362,7 +362,7 @@ export function Dashboard() {
             ) : (
               <div className="space-y-3">
                 {upcomingWorkouts.map((workout) => (
-                  <div key={workout.id} className="border rounded-md p-3">
+                  <div key={workout.id} className="rounded-lg border border-border p-3">
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <p className="text-sm font-medium">{workout.alunoName}</p>
@@ -371,7 +371,7 @@ export function Dashboard() {
                           {workout.duration ? ` - ${workout.duration} min` : ''}
                         </p>
                       </div>
-                      <span className={`text-xs px-2 py-1 rounded-full ${getStatusClassName(workout.status)}`}>
+                      <span className={getStatusClassName(workout.status)}>
                         {getStatusLabel(workout.status)}
                       </span>
                     </div>
@@ -392,7 +392,7 @@ export function Dashboard() {
           <div className="grid gap-4 md:grid-cols-3">
             <button
               onClick={() => navigate('/alunos/new')}
-              className="p-4 border rounded-lg hover:bg-accent transition-colors text-left"
+              className="rounded-xl border border-border p-4 text-left transition-colors hover:bg-accent"
             >
               <Users className="h-8 w-8 mb-2 text-primary" />
               <h3 className="font-semibold mb-1">Adicionar Aluno</h3>
@@ -401,7 +401,7 @@ export function Dashboard() {
 
             <button
               onClick={() => navigate('/plans/new')}
-              className="p-4 border rounded-lg hover:bg-accent transition-colors text-left"
+              className="rounded-xl border border-border p-4 text-left transition-colors hover:bg-accent"
             >
               <Calendar className="h-8 w-8 mb-2 text-primary" />
               <h3 className="font-semibold mb-1">Criar Plano</h3>
@@ -410,7 +410,7 @@ export function Dashboard() {
 
             <button
               onClick={() => navigate('/library')}
-              className="p-4 border rounded-lg hover:bg-accent transition-colors text-left"
+              className="rounded-xl border border-border p-4 text-left transition-colors hover:bg-accent"
             >
               <BookOpen className="h-8 w-8 mb-2 text-primary" />
               <h3 className="font-semibold mb-1">{dashboardCopy.libraryTitle}</h3>
@@ -422,4 +422,3 @@ export function Dashboard() {
     </div>
   );
 }
-

@@ -236,11 +236,18 @@ export function Agenda() {
     no_show: 'Falta',
   };
 
+  const statusClassName: Record<AgendaBookingStatus, string> = {
+    scheduled: 'ts-badge-info',
+    completed: 'ts-badge-success',
+    canceled: 'ts-badge-danger',
+    no_show: 'ts-badge-warning',
+  };
+
   if (loading) {
     return (
       <div className="space-y-6">
-        <h1 className="text-3xl font-bold">Agenda</h1>
-        <p className="text-muted-foreground">{agendaCopy.loading}</p>
+        <h1 className="ts-page-heading">Agenda</h1>
+        <p className="ts-page-description">{agendaCopy.loading}</p>
       </div>
     );
   }
@@ -249,25 +256,25 @@ export function Agenda() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-bold">{agendaCopy.title}</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className="ts-page-heading">{agendaCopy.title}</h1>
+          <p className="ts-page-description">
             {agendaCopy.description}
           </p>
         </div>
         <div className="flex items-end gap-2">
           <div>
-            <label className="block text-xs text-muted-foreground mb-1">{agendaCopy.from}</label>
-            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="h-10 rounded-md border px-3 text-sm" />
+            <label className="mb-1 block text-xs text-muted-foreground">{agendaCopy.from}</label>
+            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="ts-form-control" />
           </div>
           <div>
-            <label className="block text-xs text-muted-foreground mb-1">{agendaCopy.to}</label>
-            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="h-10 rounded-md border px-3 text-sm" />
+            <label className="mb-1 block text-xs text-muted-foreground">{agendaCopy.to}</label>
+            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="ts-form-control" />
           </div>
         </div>
       </div>
 
-      {error && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
-      {success && <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">{success}</div>}
+      {error && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+      {success && <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{success}</div>}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
@@ -279,7 +286,7 @@ export function Agenda() {
             <select
               value={bookingForm.alunoId}
               onChange={(e) => setBookingForm((prev) => ({ ...prev, alunoId: e.target.value }))}
-              className="h-10 w-full rounded-md border px-3 text-sm"
+              className="ts-form-control"
             >
               <option value="">{agendaCopy.selectAluno}</option>
               {metadata.alunos.map((aluno) => (
@@ -290,19 +297,19 @@ export function Agenda() {
             </select>
 
             <div className="grid grid-cols-2 gap-2">
-              <input type="date" value={bookingForm.bookingDate} onChange={(e) => setBookingForm((prev) => ({ ...prev, bookingDate: e.target.value }))} className="h-10 rounded-md border px-3 text-sm" />
-              <select value={bookingForm.bookingType} onChange={(e) => setBookingForm((prev) => ({ ...prev, bookingType: e.target.value as AgendaBookingType }))} className="h-10 rounded-md border px-3 text-sm">
+              <input type="date" value={bookingForm.bookingDate} onChange={(e) => setBookingForm((prev) => ({ ...prev, bookingDate: e.target.value }))} className="ts-form-control" />
+              <select value={bookingForm.bookingType} onChange={(e) => setBookingForm((prev) => ({ ...prev, bookingType: e.target.value as AgendaBookingType }))} className="ts-form-control">
                 <option value="free">{agendaCopy.freeSchedule}</option>
                 <option value="fixed_makeup">{agendaCopy.fixedMakeup}</option>
               </select>
             </div>
 
             <div className="grid grid-cols-2 gap-2">
-              <input type="time" value={bookingForm.startTime} onChange={(e) => setBookingForm((prev) => ({ ...prev, startTime: e.target.value }))} className="h-10 rounded-md border px-3 text-sm" />
-              <input type="time" value={bookingForm.endTime} onChange={(e) => setBookingForm((prev) => ({ ...prev, endTime: e.target.value }))} className="h-10 rounded-md border px-3 text-sm" />
+              <input type="time" value={bookingForm.startTime} onChange={(e) => setBookingForm((prev) => ({ ...prev, startTime: e.target.value }))} className="ts-form-control" />
+              <input type="time" value={bookingForm.endTime} onChange={(e) => setBookingForm((prev) => ({ ...prev, endTime: e.target.value }))} className="ts-form-control" />
             </div>
 
-            <select value={bookingForm.spaceId} onChange={(e) => setBookingForm((prev) => ({ ...prev, spaceId: e.target.value }))} className="h-10 w-full rounded-md border px-3 text-sm">
+            <select value={bookingForm.spaceId} onChange={(e) => setBookingForm((prev) => ({ ...prev, spaceId: e.target.value }))} className="ts-form-control">
               <option value="">{agendaCopy.noSpaceDefined}</option>
               {spaces.filter((space) => space.isActive).map((space) => (
                 <option key={space.id} value={space.id}>
@@ -312,7 +319,7 @@ export function Agenda() {
             </select>
 
             {bookingForm.bookingType === 'fixed_makeup' && (
-              <select value={bookingForm.fixedSlotId} onChange={(e) => setBookingForm((prev) => ({ ...prev, fixedSlotId: e.target.value }))} className="h-10 w-full rounded-md border px-3 text-sm">
+              <select value={bookingForm.fixedSlotId} onChange={(e) => setBookingForm((prev) => ({ ...prev, fixedSlotId: e.target.value }))} className="ts-form-control">
                 <option value="">{agendaCopy.sourceFixedSlot}</option>
                 {fixedSlots
                   .filter((slot) => slot.isActive && (!bookingForm.alunoId || slot.alunoId === bookingForm.alunoId))
@@ -327,7 +334,7 @@ export function Agenda() {
             <textarea
               value={bookingForm.notes}
               onChange={(e) => setBookingForm((prev) => ({ ...prev, notes: e.target.value }))}
-              className="w-full rounded-md border px-3 py-2 text-sm"
+              className="ts-textarea"
               rows={2}
               placeholder={agendaCopy.notesPlaceholder}
             />
@@ -352,7 +359,7 @@ export function Agenda() {
               <input
                 value={spaceForm.name}
                 onChange={(e) => setSpaceForm((prev) => ({ ...prev, name: e.target.value }))}
-                className="h-10 rounded-md border px-3 text-sm"
+                className="ts-form-control"
                 placeholder={agendaCopy.spaceNamePlaceholder}
               />
               <input
@@ -360,7 +367,7 @@ export function Agenda() {
                 min={1}
                 value={spaceForm.capacity}
                 onChange={(e) => setSpaceForm((prev) => ({ ...prev, capacity: Number(e.target.value) || 1 }))}
-                className="h-10 rounded-md border px-3 text-sm"
+                className="ts-form-control"
                 placeholder={agendaCopy.capacityPlaceholder}
               />
               <Button onClick={handleCreateSpace}>{agendaCopy.add}</Button>
@@ -370,7 +377,7 @@ export function Agenda() {
                 <p className="text-sm text-muted-foreground">{agendaCopy.noSpaces}</p>
               ) : (
                 spaces.map((space) => (
-                  <div key={space.id} className="rounded-md border p-2 text-sm">
+                  <div key={space.id} className="rounded-lg border border-border p-2 text-sm">
                     <strong>{space.name}</strong> - capacidade {space.capacity} - {space.isActive ? 'Ativo' : 'Inativo'}
                   </div>
                 ))
@@ -388,21 +395,21 @@ export function Agenda() {
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="grid grid-cols-2 gap-2">
-              <select value={availabilityForm.professorId} onChange={(e) => setAvailabilityForm((prev) => ({ ...prev, professorId: e.target.value }))} className="h-10 rounded-md border px-3 text-sm">
+              <select value={availabilityForm.professorId} onChange={(e) => setAvailabilityForm((prev) => ({ ...prev, professorId: e.target.value }))} className="ts-form-control">
                 <option value="">{agendaCopy.selectProfessor}</option>
                 {metadata.professores.map((professor) => (
                   <option key={professor.id} value={professor.id}>{professor.user.profile.name}</option>
                 ))}
               </select>
-              <select value={availabilityForm.dayOfWeek} onChange={(e) => setAvailabilityForm((prev) => ({ ...prev, dayOfWeek: Number(e.target.value) }))} className="h-10 rounded-md border px-3 text-sm">
+              <select value={availabilityForm.dayOfWeek} onChange={(e) => setAvailabilityForm((prev) => ({ ...prev, dayOfWeek: Number(e.target.value) }))} className="ts-form-control">
                 {weekDays.map((day) => (
                   <option key={day.value} value={day.value}>{day.label}</option>
                 ))}
               </select>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <input type="time" value={availabilityForm.startTime} onChange={(e) => setAvailabilityForm((prev) => ({ ...prev, startTime: e.target.value }))} className="h-10 rounded-md border px-3 text-sm" />
-              <input type="time" value={availabilityForm.endTime} onChange={(e) => setAvailabilityForm((prev) => ({ ...prev, endTime: e.target.value }))} className="h-10 rounded-md border px-3 text-sm" />
+              <input type="time" value={availabilityForm.startTime} onChange={(e) => setAvailabilityForm((prev) => ({ ...prev, startTime: e.target.value }))} className="ts-form-control" />
+              <input type="time" value={availabilityForm.endTime} onChange={(e) => setAvailabilityForm((prev) => ({ ...prev, endTime: e.target.value }))} className="ts-form-control" />
             </div>
             <Button onClick={handleCreateAvailability} disabled={!availabilityForm.professorId}>{agendaCopy.addAvailability}</Button>
 
@@ -411,7 +418,7 @@ export function Agenda() {
                 <p className="text-sm text-muted-foreground">{agendaCopy.noAvailability}</p>
               ) : (
                 availabilities.map((item) => (
-                  <div key={item.id} className="rounded-md border p-2 text-sm flex items-center justify-between">
+                  <div key={item.id} className="flex items-center justify-between rounded-lg border border-border p-2 text-sm">
                     <span>
                       <strong>{item.professor.user.profile.name}</strong> - {weekDays.find((day) => day.value === item.dayOfWeek)?.label} {item.startTime}-{item.endTime}
                     </span>
@@ -429,7 +436,7 @@ export function Agenda() {
             <CardDescription>{agendaCopy.fixedDescription}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <select value={fixedSlotForm.alunoId} onChange={(e) => setFixedSlotForm((prev) => ({ ...prev, alunoId: e.target.value }))} className="h-10 w-full rounded-md border px-3 text-sm">
+            <select value={fixedSlotForm.alunoId} onChange={(e) => setFixedSlotForm((prev) => ({ ...prev, alunoId: e.target.value }))} className="ts-form-control">
               <option value="">{agendaCopy.selectAluno}</option>
               {metadata.alunos.map((aluno) => (
                 <option key={aluno.id} value={aluno.id}>
@@ -438,15 +445,15 @@ export function Agenda() {
               ))}
             </select>
             <div className="grid grid-cols-3 gap-2">
-              <select value={fixedSlotForm.dayOfWeek} onChange={(e) => setFixedSlotForm((prev) => ({ ...prev, dayOfWeek: Number(e.target.value) }))} className="h-10 rounded-md border px-3 text-sm">
+              <select value={fixedSlotForm.dayOfWeek} onChange={(e) => setFixedSlotForm((prev) => ({ ...prev, dayOfWeek: Number(e.target.value) }))} className="ts-form-control">
                 {weekDays.map((day) => (
                   <option key={day.value} value={day.value}>{day.label}</option>
                 ))}
               </select>
-              <input type="time" value={fixedSlotForm.startTime} onChange={(e) => setFixedSlotForm((prev) => ({ ...prev, startTime: e.target.value }))} className="h-10 rounded-md border px-3 text-sm" />
-              <input type="time" value={fixedSlotForm.endTime} onChange={(e) => setFixedSlotForm((prev) => ({ ...prev, endTime: e.target.value }))} className="h-10 rounded-md border px-3 text-sm" />
+              <input type="time" value={fixedSlotForm.startTime} onChange={(e) => setFixedSlotForm((prev) => ({ ...prev, startTime: e.target.value }))} className="ts-form-control" />
+              <input type="time" value={fixedSlotForm.endTime} onChange={(e) => setFixedSlotForm((prev) => ({ ...prev, endTime: e.target.value }))} className="ts-form-control" />
             </div>
-            <select value={fixedSlotForm.spaceId} onChange={(e) => setFixedSlotForm((prev) => ({ ...prev, spaceId: e.target.value }))} className="h-10 w-full rounded-md border px-3 text-sm">
+            <select value={fixedSlotForm.spaceId} onChange={(e) => setFixedSlotForm((prev) => ({ ...prev, spaceId: e.target.value }))} className="ts-form-control">
               <option value="">{agendaCopy.noSpaceDefined}</option>
               {spaces.filter((space) => space.isActive).map((space) => (
                 <option key={space.id} value={space.id}>{space.name}</option>
@@ -459,7 +466,7 @@ export function Agenda() {
                 <p className="text-sm text-muted-foreground">{agendaCopy.noFixed}</p>
               ) : (
                 fixedSlots.map((slot) => (
-                  <div key={slot.id} className="rounded-md border p-2 text-sm flex items-center justify-between">
+                  <div key={slot.id} className="flex items-center justify-between rounded-lg border border-border p-2 text-sm">
                     <span>
                       <strong>{slot.aluno.user.profile.name}</strong> - {weekDays.find((day) => day.value === slot.dayOfWeek)?.label} {slot.startTime}-{slot.endTime} ({slot.isActive ? 'Ativo' : 'Inativo'})
                     </span>
@@ -486,7 +493,7 @@ export function Agenda() {
             <p className="text-sm text-muted-foreground">{agendaCopy.noBookings}</p>
           ) : (
             bookings.map((booking) => (
-              <div key={booking.id} className="rounded-md border p-3">
+              <div key={booking.id} className="rounded-lg border border-border p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="text-sm">
                     <strong>{booking.aluno.user.profile.name}</strong> com {booking.professor.user.profile.name} em{' '}
@@ -497,7 +504,7 @@ export function Agenda() {
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs rounded-full bg-gray-100 px-2 py-1">{statusLabel[booking.status]}</span>
+                    <span className={statusClassName[booking.status]}>{statusLabel[booking.status]}</span>
                     {booking.status === 'scheduled' && (
                       <>
                         <Button size="sm" variant="outline" onClick={() => handleUpdateBookingStatus(booking.id, 'completed')}>
@@ -521,5 +528,3 @@ export function Agenda() {
     </div>
   );
 }
-
-
