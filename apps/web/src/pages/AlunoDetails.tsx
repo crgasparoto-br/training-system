@@ -928,21 +928,21 @@ export function AlunoDetails() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-3 gap-4">
-              <div className="text-center p-4 bg-blue-50 dark:bg-blue-950 rounded-lg">
+              <div className="text-center p-4 bg-info/10 rounded-lg">
                 <p className="text-sm text-muted-foreground">Carboidratos</p>
-                <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                <p className="text-2xl font-bold text-info">
                   {aluno.macronutrients.carbohydratesPercentage}%
                 </p>
               </div>
-              <div className="text-center p-4 bg-green-50 dark:bg-green-950 rounded-lg">
+              <div className="text-center p-4 bg-success/10 rounded-lg">
                 <p className="text-sm text-muted-foreground">Proteínas</p>
-                <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+                <p className="text-2xl font-bold text-success">
                   {aluno.macronutrients.proteinsPercentage}%
                 </p>
               </div>
-              <div className="text-center p-4 bg-orange-50 dark:bg-orange-950 rounded-lg">
+              <div className="text-center p-4 bg-warning/10 rounded-lg">
                 <p className="text-sm text-muted-foreground">Lipídios</p>
-                <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">
+                <p className="text-2xl font-bold text-warning">
                   {aluno.macronutrients.lipidsPercentage}%
                 </p>
               </div>
@@ -1000,8 +1000,8 @@ export function AlunoDetails() {
                           <span
                             className={`text-[10px] px-2 py-1 rounded-full ${
                               isActive
-                                ? 'bg-green-100 text-green-700'
-                                : 'bg-gray-100 text-gray-600'
+                                ? 'bg-success/10 text-success'
+                                : 'bg-muted text-muted-foreground'
                             }`}
                           >
                             {isActive ? 'Ativo' : 'Finalizado'}
@@ -1197,7 +1197,7 @@ export function AlunoDetails() {
                 <button
                   type="button"
                   onClick={() => handleDeleteAssessment(assessment)}
-                  className="rounded-lg border border-red-200 px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
+                  className="rounded-lg border border-destructive/20 px-3 py-1 text-xs font-medium text-destructive hover:bg-destructive/10"
                 >
                   Excluir
                 </button>
@@ -1610,8 +1610,8 @@ export function AlunoDetails() {
           <div
             className={`rounded-lg px-4 py-2 text-sm shadow-lg ${
               toast.type === 'success'
-                ? 'bg-green-600 text-white'
-                : 'bg-red-600 text-white'
+                ? 'bg-success text-white'
+                : 'bg-destructive text-white'
             }`}
           >
             {toast.message}

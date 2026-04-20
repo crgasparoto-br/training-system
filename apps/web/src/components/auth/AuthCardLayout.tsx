@@ -16,8 +16,8 @@ export function AuthCardLayout({ title, description, children, footer }: AuthCar
     <div className="min-h-screen bg-background px-4 py-10 sm:px-6 lg:px-8">
       <div className="mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-5xl items-center justify-center">
         <div className="grid w-full overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-card)] md:grid-cols-[1.05fr_1fr]">
-          <section className="hidden bg-[#1B1D21] p-10 text-white md:flex md:flex-col md:justify-between">
-            <div className="space-y-4">
+          <section className="hidden bg-sidebar p-10 text-sidebar-foreground md:flex md:flex-col md:justify-between">
+            <div className="space-y-6">
               <img
                 src={logoSrc}
                 alt="Logo Sistema Acesso"
@@ -26,15 +26,15 @@ export function AuthCardLayout({ title, description, children, footer }: AuthCar
                   event.currentTarget.style.display = 'none';
                 }}
               />
-              <span className="inline-flex w-fit rounded-full border border-white/20 px-3 py-1 text-xs font-medium uppercase tracking-wide text-white/90">
+              <span className="inline-flex w-fit rounded-full border border-white/20 px-3 py-1 text-xs font-medium uppercase tracking-wide text-white/80">
                 {shellCopy.heroBadge}
               </span>
-              <h1 className="text-3xl font-semibold leading-tight">{shellCopy.heroTitle}</h1>
-              <p className="max-w-sm text-sm text-white/75">
+              <h1 className="text-3xl font-semibold leading-tight text-white">{shellCopy.heroTitle}</h1>
+              <p className="max-w-sm text-sm text-white/70">
                 {shellCopy.heroDescription}
               </p>
             </div>
-            <p className="text-xs text-white/60">{shellCopy.heroFooter}</p>
+            <p className="text-xs text-white/50">{shellCopy.heroFooter}</p>
           </section>
 
           <section className="p-4 sm:p-6 md:p-8">

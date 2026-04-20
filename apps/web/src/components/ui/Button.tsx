@@ -11,13 +11,13 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant = 'default', size = 'default', isLoading, children, disabled, ...props }, ref) => {
     const variantStyles = {
-      default: 'bg-primary text-primary-foreground hover:bg-[hsl(var(--primary-hover))] shadow-sm',
-      destructive: 'bg-destructive text-destructive-foreground hover:bg-[hsl(var(--destructive-hover))] shadow-sm',
-      success: 'bg-success text-white hover:bg-[hsl(var(--success-hover))] shadow-sm',
-      info: 'bg-info text-white hover:bg-blue-700 shadow-sm',
-      warning: 'bg-warning text-white hover:bg-amber-600 shadow-sm',
+      default: 'bg-primary text-primary-foreground hover:bg-primary-hover shadow-sm',
+      destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive-hover shadow-sm',
+      success: 'bg-success text-white hover:bg-success-hover shadow-sm',
+      info: 'bg-info text-white hover:bg-info-hover shadow-sm',
+      warning: 'bg-warning text-white hover:brightness-95 shadow-sm',
       outline: 'border border-input bg-card text-foreground hover:bg-accent hover:text-accent-foreground',
-      secondary: 'bg-secondary text-secondary-foreground hover:bg-[hsl(var(--secondary-hover))] shadow-sm',
+      secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary-hover shadow-sm',
       ghost: 'hover:bg-accent hover:text-accent-foreground',
       link: 'text-primary underline-offset-4 hover:underline',
     };

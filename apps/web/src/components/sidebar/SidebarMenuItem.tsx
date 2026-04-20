@@ -50,11 +50,11 @@ export function SidebarMenuItem({
   const triggerClassName = useMemo(
     () =>
       cn(
-        'flex w-full items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+        'flex w-full items-center rounded-md px-3 py-2 text-sm font-medium transition-colors',
         collapsed ? 'justify-center' : 'gap-3',
         active || activeChild
-          ? 'bg-white text-[#1B1D21]'
-          : 'text-white/85 hover:bg-white/10 hover:text-white'
+          ? 'bg-sidebar-accent text-sidebar-accent-foreground font-semibold'
+          : 'text-sidebar-foreground/80 hover:bg-sidebar-muted hover:text-sidebar-foreground'
       ),
     [active, activeChild, collapsed]
   );
@@ -109,7 +109,7 @@ export function SidebarMenuItem({
                 onClick={onNavigate}
                 className={cn(
                   'rounded-md px-3 py-2 text-xs font-medium transition-colors',
-                  childActive ? 'bg-white/15 text-white' : 'text-white/70 hover:bg-white/10 hover:text-white'
+                  childActive ? 'bg-sidebar-muted text-sidebar-foreground' : 'text-sidebar-foreground/60 hover:bg-sidebar-muted hover:text-sidebar-foreground'
                 )}
               >
                 {child.label}

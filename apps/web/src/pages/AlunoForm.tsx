@@ -8,7 +8,7 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
 import { ArrowLeft } from 'lucide-react';
-import { alunoFormCopy, commonCopy } from '../i18n/ptBR';
+import { alunoFormCopy } from '../i18n/ptBR';
 
 const numberOrUndefined = (value: unknown) =>
   typeof value === 'number' && Number.isNaN(value) ? undefined : value;

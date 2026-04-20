@@ -14,8 +14,8 @@ export const commonCopy = {
 
 export const shellCopy = {
   productName: 'Sistema Acesso Saúde e Performance',
-  heroBadge: 'training_system',
-  heroTitle: 'Gestão de Treinos',
+  heroBadge: 'Gestão em Movimento',
+  heroTitle: 'Sistema Acesso',
   heroDescription:
     'Acesse sua conta para organizar alunos, acompanhar execuções e planejar periodizações com segurança.',
   heroFooter: 'Ambiente seguro para professores e alunos.',

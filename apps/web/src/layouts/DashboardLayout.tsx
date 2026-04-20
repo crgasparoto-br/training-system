@@ -1,10 +1,10 @@
-﻿import { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Activity, BarChart3, BookOpen, Calendar, Home, LogOut, Menu, Settings, Users, X } from 'lucide-react';
+import { cn } from '@/utils/cn';
 import { useAuthStore } from '../stores/useAuthStore';
 import { Button } from '../components/ui/Button';
 import { AppSidebar, type SidebarNavItem } from '../components/sidebar';
-import { cn } from '@/utils/cn';
 import { shellCopy } from '../i18n/ptBR';
 
 export function DashboardLayout() {
@@ -73,7 +73,7 @@ export function DashboardLayout() {
 
           <div className="flex items-center gap-4">
             <div className="hidden flex-col items-end md:flex">
-              <span className="text-sm font-medium">{user?.name}</span>
+              <span className="text-sm font-semibold text-foreground">{user?.name}</span>
               <span className="text-xs text-muted-foreground">
                 {user?.type === 'professor'
                   ? user.professor?.role === 'master'
@@ -82,12 +82,16 @@ export function DashboardLayout() {
                   : 'Aluno'}
               </span>
             </div>
-            <Button variant="ghost" size="icon" onClick={handleLogout}>
-              <LogOut size={20} />
+            <Button variant="ghost" size="icon" onClick={handleLogout} className="text-muted-foreground hover:text-foreground">
+              <LogOut size={18} />
             </Button>
           </div>
         </div>
       </header>
+
+      {isSidebarOpen && (
+        <div className="fixed inset-0 z-20 bg-black/50 lg:hidden" onClick={() => setIsSidebarOpen(false)} />
+      )}
 
       <div className="ts-container flex max-w-full">
         <AppSidebar
@@ -98,10 +102,6 @@ export function DashboardLayout() {
           onToggleCollapsed={() => setIsSidebarCollapsed((prev) => !prev)}
           onNavigate={() => setIsSidebarOpen(false)}
         />
-
-        {isSidebarOpen && (
-          <div className="fixed inset-0 z-20 bg-black/50 lg:hidden" onClick={() => setIsSidebarOpen(false)} />
-        )}
 
         <main className={cn('flex-1 py-6 transition-all duration-200', isSidebarCollapsed ? 'lg:pl-4' : 'lg:pl-6')}>
           <Outlet />

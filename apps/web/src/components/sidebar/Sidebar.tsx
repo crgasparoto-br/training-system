@@ -37,6 +37,8 @@ export function AppSidebar({
   onToggleCollapsed,
   onNavigate,
 }: AppSidebarProps) {
+  const logoSrc = '/brand/acesso-logo.jpg';
+
   const defaultOpenMap = useMemo(() => {
     const opened = new Set<string>();
     collectParentIdsWithActiveChild(items, currentPath, opened);
@@ -56,33 +58,35 @@ export function AppSidebar({
   return (
     <SidebarShell collapsible collapsed={collapsed} mobileOpen={mobileOpen}>
       <div className="flex h-full flex-col">
-        <div className={cn('border-b border-white/10 px-3 py-4', collapsed ? 'items-center' : '')}>
+        <div className={cn('flex flex-col border-b border-white/10 px-4 py-4', collapsed && 'items-center')}>
           <img
-            src="/brand/acesso-logo.jpg"
+            src={logoSrc}
             alt="Logo Sistema Acesso"
             className={cn('h-10 w-auto rounded bg-white p-2 object-contain', collapsed && 'mx-auto')}
             onError={(event) => {
               event.currentTarget.style.display = 'none';
             }}
           />
-          {!collapsed && <p className="mt-2 text-xs font-medium uppercase tracking-wide text-white/70">Sistema Acesso</p>}
+          {!collapsed && (
+            <span className="mt-3 text-sm font-semibold tracking-tight text-sidebar-foreground">Sistema Acesso</span>
+          )}
         </div>
 
         <div className="hidden items-center justify-between border-b border-white/10 px-3 py-3 lg:flex">
-          <span className={cn('text-sm font-semibold text-white/90', collapsed && 'sr-only')}>Menu</span>
+          <span className={cn('text-sm font-semibold text-sidebar-foreground/90', collapsed && 'sr-only')}>Menu</span>
           <Button
             type="button"
             size="icon"
             variant="ghost"
-            className="text-white hover:bg-white/10 hover:text-white"
             onClick={onToggleCollapsed}
             aria-label={collapsed ? 'Expandir menu lateral' : 'Recolher menu lateral'}
+            className="text-sidebar-foreground hover:bg-sidebar-muted hover:text-sidebar-foreground"
           >
             {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
           </Button>
         </div>
 
-        <nav className="flex flex-col gap-2 p-3">
+        <nav className="flex flex-col gap-1 px-3 pb-3">
           {items.map((item) => (
             <SidebarMenuItem
               key={item.id}
