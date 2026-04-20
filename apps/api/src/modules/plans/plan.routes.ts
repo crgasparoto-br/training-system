@@ -61,7 +61,7 @@ router.post('/', professorMiddleware, async (req: Request, res: Response) => {
     const professorId = (req as any).user.professorId;
 
     if (!professorId) {
-      return sendError(res, 'Professor nÃ£o encontrado', 404);
+      return sendError(res, 'Professor não encontrado', 404);
     }
 
     const plan = await planService.createPlan({
@@ -74,7 +74,7 @@ router.post('/', professorMiddleware, async (req: Request, res: Response) => {
     return sendSuccess(res, plan, 'Plano criado com sucesso', 201);
   } catch (error: any) {
     if (error instanceof z.ZodError) {
-      return sendError(res, 'Dados invÃ¡lidos', 400, error.errors);
+      return sendError(res, 'Dados inválidos', 400, error.errors);
     }
     console.error('Erro ao criar plano:', error);
     return sendError(res, 'Erro ao criar plano', 500);
@@ -107,7 +107,7 @@ router.get('/', async (req: Request, res: Response) => {
       const userWithProfessor = await authService.getUserById(user.userId);
       
       if (!userWithProfessor?.professor) {
-        return sendError(res, 'Professor nao encontrado', 404);
+        return sendError(res, 'Professor não encontrado', 404);
       }
 
       const isMasterAcademy =
@@ -121,7 +121,7 @@ router.get('/', async (req: Request, res: Response) => {
             userWithProfessor.professor.contractId
           );
           if (!belongs) {
-            return sendError(res, 'Aluno nao encontrado ou nao pertence ao contrato', 404);
+            return sendError(res, 'Aluno não encontrado ou não pertence ao contrato', 404);
           }
         }
 
@@ -141,7 +141,7 @@ router.get('/', async (req: Request, res: Response) => {
             userWithProfessor.professor.id
           );
           if (!belongs) {
-            return sendError(res, 'Aluno nao encontrado ou nao pertence a voce', 404);
+            return sendError(res, 'Aluno não encontrado ou não pertence a você', 404);
           }
         }
 
@@ -161,7 +161,7 @@ router.get('/', async (req: Request, res: Response) => {
       const userWithAluno = await authService.getUserById(user.userId);
       
       if (!userWithAluno?.aluno) {
-        return sendError(res, 'Aluno nÃ£o encontrado', 404);
+        return sendError(res, 'Aluno não encontrado', 404);
       }
       
       const plans = await planService.findByAluno(userWithAluno.aluno.id, status, query);
@@ -189,12 +189,12 @@ router.get('/aluno/:alunoId', professorMiddleware, async (req: Request, res: Res
     const status = rawStatus === 'active' || rawStatus === 'finished' ? rawStatus : 'all';
 
     if (!professorId) {
-      return sendError(res, 'Professor nÃ£o encontrado', 404);
+      return sendError(res, 'Professor não encontrado', 404);
     }
 
     const belongs = await alunoService.belongsToProfessor(alunoId, professorId);
     if (!belongs) {
-      return sendError(res, 'Aluno nÃ£o encontrado ou nÃ£o pertence a vocÃª', 404);
+      return sendError(res, 'Aluno não encontrado ou não pertence a você', 404);
     }
 
     const plans = await planService.findByAluno(alunoId, status, query);
@@ -255,18 +255,18 @@ router.put('/:id', professorMiddleware, async (req: Request, res: Response) => {
     const professorId = (req as any).user.professorId;
 
     if (!professorId) {
-      return sendError(res, 'Professor nÃ£o encontrado', 404);
+      return sendError(res, 'Professor não encontrado', 404);
     }
 
     // Verificar se plano pertence ao professor
     const belongs = await planService.belongsToProfessor(id, professorId);
     if (!belongs) {
-      return sendError(res, 'Plano nÃ£o encontrado ou nÃ£o pertence a vocÃª', 404);
+      return sendError(res, 'Plano não encontrado ou não pertence a você', 404);
     }
 
     const existingPlan = await planService.findById(id);
     if (!existingPlan) {
-      return sendError(res, 'Plano nÃ£o encontrado', 404);
+      return sendError(res, 'Plano não encontrado', 404);
     }
 
     const plan = await planService.updatePlan(id, req.body);
@@ -316,13 +316,13 @@ router.delete('/:id', professorMiddleware, async (req: Request, res: Response) =
     const professorId = (req as any).user.professorId;
 
     if (!professorId) {
-      return sendError(res, 'Professor nÃ£o encontrado', 404);
+      return sendError(res, 'Professor não encontrado', 404);
     }
 
     // Verificar se plano pertence ao professor
     const belongs = await planService.belongsToProfessor(id, professorId);
     if (!belongs) {
-      return sendError(res, 'Plano nÃ£o encontrado ou nÃ£o pertence a vocÃª', 404);
+      return sendError(res, 'Plano não encontrado ou não pertence a você', 404);
     }
 
     await planService.deletePlan(id);
@@ -344,18 +344,18 @@ router.post('/:id/generate-weeks', professorMiddleware, async (req: Request, res
     const professorId = (req as any).user.professorId;
 
     if (!professorId) {
-      return sendError(res, 'Professor nÃ£o encontrado', 404);
+      return sendError(res, 'Professor não encontrado', 404);
     }
 
     // Verificar se plano pertence ao professor
     const belongs = await planService.belongsToProfessor(id, professorId);
     if (!belongs) {
-      return sendError(res, 'Plano nÃ£o encontrado ou nÃ£o pertence a vocÃª', 404);
+      return sendError(res, 'Plano não encontrado ou não pertence a você', 404);
     }
 
     const plan = await planService.findById(id);
     if (!plan) {
-      return sendError(res, 'Plano nÃ£o encontrado', 404);
+      return sendError(res, 'Plano não encontrado', 404);
     }
 
     const result = await planService.generateWeeks(id, plan.startDate, plan.endDate);

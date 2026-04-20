@@ -86,7 +86,7 @@ export default function WorkoutBuilderCyclic({
   };
 
   const days = useMemo(() => {
-    const labels = ['Segunda', 'TerÃ§a', 'Quarta', 'Quinta', 'Sexta', 'SÃ¡bado', 'Domingo'];
+    const labels = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
 
     return labels.map((label, index) => {
       const dayOfWeek = index + 1;
@@ -597,10 +597,10 @@ export default function WorkoutBuilderCyclic({
       const minDuration = durationPerSession - 3;
       const maxDuration = durationPerSession;
       
-      let text = `Mantenha ${minDuration}-${maxDuration}min em intensidade constante com frequÃªncia cardÃ­aca entre ${data.targetHrMin || ''} bpm`;
+      let text = `Mantenha ${minDuration}-${maxDuration}min em intensidade constante com frequência cardíaca entre ${data.targetHrMin || ''} bpm`;
       
       if (data.intensity1 && data.intensity2) {
-        text += ` (${data.intensity1} - ${data.intensity2}% VO2MÃ¡x`;
+        text += ` (${data.intensity1} - ${data.intensity2}% VO2Máx`;
       }
       
       if (data.location === 'Esteira' || data.location === 'Pista') {
@@ -769,13 +769,13 @@ export default function WorkoutBuilderCyclic({
 
   return (
     <div className="space-y-6">
-      {/* Resumo CÃ­clico da Semana */}
+      {/* Resumo Cíclico da Semana */}
       <div
         className={`bg-blue-50 rounded-lg border border-blue-200 ${showCyclicSummary ? 'p-4' : 'p-2'}`}
       >
         <div className={`${showCyclicSummary ? 'mb-4' : 'mb-0'} flex items-center justify-between`}>
           <h3 className="text-base font-semibold text-gray-900">
-            Resumo CÃ­clico da Semana
+            Resumo Cíclico da Semana
           </h3>
           <button
             type="button"
@@ -841,15 +841,15 @@ export default function WorkoutBuilderCyclic({
                   </tr>
                 </thead>
                 <tbody>
-                  {/* DistribuiÃ§Ã£o (%) - vem da periodizaÃ§Ã£o (BLOQUEADO) */}
+                  {/* Distribuição (%) - vem da periodização (BLOQUEADO) */}
                   <tr>
                     <td className="border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-50">
-                      DistribuiÃ§Ã£o (%)
+                      Distribuição (%)
                     </td>
                     <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
                       <span
                         className="text-sm text-center tabular-nums"
-                        title="Valor vinculado Ã  periodizaÃ§Ã£o (somente leitura)"
+                        title="Valor vinculado à periodização (somente leitura)"
                       >
                         {distribution.z1}
                       </span>
@@ -857,7 +857,7 @@ export default function WorkoutBuilderCyclic({
                     <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
                       <span
                         className="text-sm text-center tabular-nums"
-                        title="Valor vinculado Ã  periodizaÃ§Ã£o (somente leitura)"
+                        title="Valor vinculado à periodização (somente leitura)"
                       >
                         {distribution.z2}
                       </span>
@@ -865,7 +865,7 @@ export default function WorkoutBuilderCyclic({
                     <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
                       <span
                         className="text-sm text-center tabular-nums"
-                        title="Valor vinculado Ã  periodizaÃ§Ã£o (somente leitura)"
+                        title="Valor vinculado à periodização (somente leitura)"
                       >
                         {distribution.z3}
                       </span>
@@ -873,7 +873,7 @@ export default function WorkoutBuilderCyclic({
                     <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
                       <span
                         className="text-sm text-center tabular-nums"
-                        title="Valor vinculado Ã  periodizaÃ§Ã£o (somente leitura)"
+                        title="Valor vinculado à periodização (somente leitura)"
                       >
                         {distribution.z4}
                       </span>
@@ -881,7 +881,7 @@ export default function WorkoutBuilderCyclic({
                     <td className="border border-gray-300 px-4 py-2 text-center text-sm bg-gray-100">
                       <span
                         className="text-sm text-center tabular-nums"
-                        title="Valor vinculado Ã  periodizaÃ§Ã£o (somente leitura)"
+                        title="Valor vinculado à periodização (somente leitura)"
                       >
                         {distribution.z5}
                       </span>
@@ -972,10 +972,10 @@ export default function WorkoutBuilderCyclic({
         )}
       </div>
 
-{/* Planejamento do Treinamento CÃ­clico */}
+{/* Planejamento do Treinamento Cíclico */}
       <div className="bg-green-50 rounded-lg p-4 border border-green-200">
         <h3 className="text-base font-semibold text-gray-900 mb-4">
-          Planejamento do Treinamento CÃ­clico
+          Planejamento do Treinamento Cíclico
         </h3>
 
         <div className="overflow-x-auto">
@@ -990,7 +990,7 @@ export default function WorkoutBuilderCyclic({
             <thead>
               <tr className="bg-gray-100">
                 <th className="border border-gray-300 px-4 py-2 text-left text-sm font-semibold text-gray-900">
-                  ParÃ¢metro
+                  Parâmetro
                 </th>
                 {days.map((day) => (
                   <th key={day.dayOfWeek} className="border border-gray-300 px-3 py-2 text-center text-sm font-semibold text-gray-900">
@@ -1002,10 +1002,10 @@ export default function WorkoutBuilderCyclic({
             </thead>
 
             <tbody>
-              {/* Tempo do estÃ­mulo */}
+              {/* Tempo do estímulo */}
               <tr>
                 <td className="border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-50">
-                  Tempo do estÃ­mulo
+                  Tempo do estímulo
                 </td>
                 {days.map((day) => (
                   <td key={day.dayOfWeek} className="border border-gray-300 px-2 py-2">
@@ -1026,10 +1026,10 @@ export default function WorkoutBuilderCyclic({
                 ))}
               </tr>
 
-              {/* MÃ©todo */}
+              {/* Método */}
               <tr>
                 <td className="border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-50">
-                  MÃ©todo
+                  Método
                 </td>
                 {days.map((day) => (
                   <td key={day.dayOfWeek} className="border border-gray-300 px-2 py-2">

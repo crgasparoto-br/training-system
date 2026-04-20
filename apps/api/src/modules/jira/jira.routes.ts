@@ -58,7 +58,7 @@ router.post('/issues', async (req: Request, res: Response) => {
     return sendSuccess(res, data, 'Issue criada com sucesso no Jira', 201);
   } catch (error: any) {
     if (error instanceof z.ZodError) {
-      return sendError(res, `Dados invalidos: ${error.errors.map((item) => item.message).join(', ')}`, 400);
+      return sendError(res, `Dados inválidos: ${error.errors.map((item) => item.message).join(', ')}`, 400);
     }
 
     return sendError(res, error.message || 'Erro ao criar issue no Jira', error.statusCode || 500);

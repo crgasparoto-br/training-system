@@ -8,22 +8,23 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
+import { commonCopy, professoresCopy } from '../i18n/ptBR';
 
 const createProfessorSchema = z.object({
-  name: z.string().trim().min(3, 'Nome deve ter no mÃ­nimo 3 caracteres'),
-  email: z.string().trim().email('Email invÃ¡lido'),
-  password: z.string().min(8, 'Senha deve ter no mÃ­nimo 8 caracteres'),
+  name: z.string().trim().min(3, 'O nome deve ter no mínimo 3 caracteres'),
+  email: z.string().trim().email('E-mail inválido'),
+  password: z.string().min(8, 'A senha deve ter no mínimo 8 caracteres'),
 });
 
 const editProfessorSchema = z.object({
-  name: z.string().trim().min(3, 'Nome deve ter no mÃ­nimo 3 caracteres'),
-  email: z.string().trim().email('Email invÃ¡lido'),
+  name: z.string().trim().min(3, 'O nome deve ter no mínimo 3 caracteres'),
+  email: z.string().trim().email('E-mail inválido'),
   password: z
     .string()
     .optional()
     .refine(
       (value) => value === undefined || value.trim().length === 0 || value.length >= 8,
-      'Senha deve ter no mÃ­nimo 8 caracteres'
+      'A senha deve ter no mínimo 8 caracteres'
     ),
 });
 
@@ -93,7 +94,7 @@ export function Professores() {
       const result = await professorService.list();
       setProfessores(result);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Erro ao carregar professores');
+      setError(err.response?.data?.error || professoresCopy.loadError);
     } finally {
       setLoading(false);
     }
@@ -115,7 +116,7 @@ export function Professores() {
       reset();
       await loadProfessores();
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Erro ao criar professor');
+      setError(err.response?.data?.error || professoresCopy.createError);
     } finally {
       setIsSubmitting(false);
     }
@@ -148,14 +149,14 @@ export function Professores() {
       await loadProfessores();
       setEditingId(null);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Erro ao atualizar professor');
+      setError(err.response?.data?.error || professoresCopy.updateError);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleResetPassword = async (professorId: string) => {
-    if (!confirm('Deseja gerar uma nova senha temporaria para este professor?')) {
+    if (!confirm(professoresCopy.resetPasswordConfirm)) {
       return;
     }
     setIsSubmitting(true);
@@ -165,14 +166,14 @@ export function Professores() {
       setResetPassword(result.tempPassword);
       setResetTarget(professorId);
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Erro ao resetar senha');
+      setError(err.response?.data?.error || professoresCopy.resetPasswordError);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleDeactivate = async (professorId: string) => {
-    if (!confirm('Deseja desativar este professor?')) {
+    if (!confirm(professoresCopy.deactivateConfirm)) {
       return;
     }
     setIsSubmitting(true);
@@ -181,7 +182,7 @@ export function Professores() {
       await professorService.deactivate(professorId);
       await loadProfessores();
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Erro ao desativar professor');
+      setError(err.response?.data?.error || professoresCopy.deactivateError);
     } finally {
       setIsSubmitting(false);
     }
@@ -190,7 +191,7 @@ export function Professores() {
   if (!canManageProfessores) {
     return (
       <div className="text-center py-12 text-muted-foreground">
-        Voce nao tem permissao para gerenciar professores.
+        {professoresCopy.permissionError}
       </div>
     );
   }
@@ -198,16 +199,16 @@ export function Professores() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Professores</h1>
+        <h1 className="text-3xl font-bold">{professoresCopy.title}</h1>
         <p className="text-muted-foreground mt-2">
-          Cadastre professores e gerencie o time da academia
+          {professoresCopy.description}
         </p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Novo Professor</CardTitle>
-          <CardDescription>Crie um acesso para um professor da academia</CardDescription>
+          <CardTitle>{professoresCopy.newProfessorTitle}</CardTitle>
+          <CardDescription>{professoresCopy.newProfessorDescription}</CardDescription>
         </CardHeader>
         <CardContent>
           {error && (
@@ -218,13 +219,13 @@ export function Professores() {
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Input
-                label="Nome"
+                label={professoresCopy.nameLabel}
                 placeholder="Maria Souza"
                 error={errors.name?.message}
                 {...register('name')}
               />
               <Input
-                label="Email"
+                label={commonCopy.emailLabel}
                 type="email"
                 placeholder="maria@academia.com"
                 error={errors.email?.message}
@@ -232,7 +233,7 @@ export function Professores() {
               />
             </div>
             <Input
-              label="Senha"
+              label={professoresCopy.passwordLabel}
               type="password"
               placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
               error={errors.password?.message}
@@ -240,7 +241,7 @@ export function Professores() {
             />
             <div className="flex justify-end">
               <Button type="submit" isLoading={isSubmitting}>
-                Criar Professor
+                {professoresCopy.createProfessor}
               </Button>
             </div>
           </form>
@@ -249,14 +250,14 @@ export function Professores() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Lista de Professores</CardTitle>
-          <CardDescription>Professores vinculados ao contrato</CardDescription>
+          <CardTitle>{professoresCopy.listTitle}</CardTitle>
+          <CardDescription>{professoresCopy.listDescription}</CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="text-muted-foreground">Carregando...</div>
+            <div className="text-muted-foreground">{professoresCopy.loading}</div>
           ) : professores.length === 0 ? (
-            <div className="text-muted-foreground">Nenhum professor cadastrado ainda.</div>
+            <div className="text-muted-foreground">{professoresCopy.empty}</div>
           ) : (
             <div className="space-y-3">
               {professores.map((professor) => (
@@ -271,20 +272,20 @@ export function Professores() {
                     >
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <Input
-                          label="Nome"
+                          label={professoresCopy.nameLabel}
                           error={editErrors.name?.message}
                           {...registerEdit('name')}
                         />
                         <Input
-                          label="Email"
+                          label={commonCopy.emailLabel}
                           type="email"
                           error={editErrors.email?.message}
                           {...registerEdit('email')}
                         />
                         <Input
-                          label="Nova Senha"
+                          label={professoresCopy.newPasswordLabel}
                           type="password"
-                          placeholder="Deixe em branco para manter a atual"
+                          placeholder={professoresCopy.keepCurrentPassword}
                           error={editErrors.password?.message}
                           {...registerEdit('password')}
                         />
@@ -302,48 +303,48 @@ export function Professores() {
                     <>
                       <div>
                         <p className="font-medium">
-                          {professor.user?.profile?.name || 'Sem nome'}
+                          {professor.user?.profile?.name || professoresCopy.noName}
                         </p>
                         <p className="text-sm text-muted-foreground">{professor.user?.email}</p>
                         <p className="text-xs text-muted-foreground">
-                          Ãšltimo acesso:{' '}
+                          {professoresCopy.lastAccess}:{' '}
                           {professor.user?.lastLoginAt
                             ? new Date(professor.user.lastLoginAt).toLocaleString()
-                            : 'Nunca'}
+                            : professoresCopy.neverAccessed}
                         </p>
                         {resetTarget === professor.id && resetPassword && (
                           <div className="mt-2 text-xs text-green-700 bg-green-50 border border-green-200 rounded-md p-2">
-                            Senha temporÃ¡ria: <span className="font-mono">{resetPassword}</span>
+                            {professoresCopy.temporaryPassword}: <span className="font-mono">{resetPassword}</span>
                           </div>
                         )}
                       </div>
                       <div className="flex items-center gap-3">
                         <span className="text-xs rounded-full px-2 py-1 bg-muted">
-                          {professor.role === 'master' ? 'Master' : 'Professor'}
+                          {professor.role === 'master' ? professoresCopy.masterRole : professoresCopy.professorRole}
                         </span>
                         {professor.user?.isActive === false && (
                           <span className="text-xs rounded-full px-2 py-1 bg-red-100 text-red-700">
-                            Desativado
+                            {professoresCopy.deactivated}
                           </span>
                         )}
                         {professor.role !== 'master' && (
                           <>
                             <Button variant="outline" onClick={() => startEdit(professor)}>
-                              Editar
+                              {professoresCopy.edit}
                             </Button>
                             <Button
                               variant="outline"
                               onClick={() => handleResetPassword(professor.id)}
                               isLoading={isSubmitting}
                             >
-                              Resetar Senha
+                              {professoresCopy.resetPassword}
                             </Button>
                             <Button
                               variant="destructive"
                               onClick={() => handleDeactivate(professor.id)}
                               isLoading={isSubmitting}
                             >
-                              Desativar
+                              {professoresCopy.deactivate}
                             </Button>
                           </>
                         )}

@@ -76,7 +76,7 @@ export default function WorkoutBuilderResistance({
   };
 
   const days = useMemo(() => {
-    const labels = ['Segunda-Feira', 'TerÃ§a-Feira', 'Quarta-Feira', 'Quinta-Feira', 'Sexta-Feira', 'SÃ¡bado', 'Domingo'];
+    const labels = ['Segunda-Feira', 'Terça-Feira', 'Quarta-Feira', 'Quinta-Feira', 'Sexta-Feira', 'Sábado', 'Domingo'];
 
     return labels.map((label, index) => {
       const dayOfWeek = index + 1;
@@ -695,7 +695,7 @@ export default function WorkoutBuilderResistance({
       {section === 'sessao' && (
         <div className="border-b border-gray-200 px-3 py-2">
           <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
-            <div className="text-xs font-medium text-gray-500">Planejamento do Treinamento CÃ­clico</div>
+            <div className="text-xs font-medium text-gray-500">Planejamento do Treinamento Cíclico</div>
             <div className="text-base font-semibold text-gray-800">
               {getCyclicLocation() || '-'}
             </div>
@@ -704,7 +704,7 @@ export default function WorkoutBuilderResistance({
             <div className="mt-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-[11px] text-red-700">
               {groupData.warnings.map((warning, idx) => (
                 <div key={`${warning.systemKey}-${idx}`}>
-                  {`${warning.label} incompleto: faltam ${warning.missing} exercicio(s) para fechar o grupo.`}
+                  {`${warning.label} incompleto: faltam ${warning.missing} exercício(s) para fechar o grupo.`}
                 </div>
               ))}
             </div>
@@ -716,7 +716,7 @@ export default function WorkoutBuilderResistance({
           <thead className="bg-gray-50">
             <tr>
               <th className="px-2 py-2 text-left font-medium text-gray-600">n</th>
-              <th className="px-2 py-2 text-left font-medium text-gray-600 min-w-[180px]">ExercÃ­cio</th>
+              <th className="px-2 py-2 text-left font-medium text-gray-600 min-w-[180px]">Exercício</th>
               <th className="px-2 py-2 text-left font-medium text-gray-600">Sistema</th>
               <th className="px-2 py-2 text-center font-medium text-gray-600">S</th>
               <th className="px-2 py-2 text-center font-medium text-gray-600">Rep</th>
@@ -725,14 +725,14 @@ export default function WorkoutBuilderResistance({
               <th className="px-2 py-2 text-center font-medium text-gray-600">E</th>
               <th className="px-2 py-2 text-center font-medium text-gray-600">Crg</th>
               <th className="px-2 py-2 text-center font-medium text-gray-600">Aj</th>
-              <th className="px-2 py-2 text-center font-medium text-gray-600">AÃ§Ãµes</th>
+              <th className="px-2 py-2 text-center font-medium text-gray-600">Ações</th>
             </tr>
           </thead>
           <tbody>
             {sectionExercises.length === 0 ? (
               <tr>
                 <td colSpan={11} className="px-2 py-4 text-center text-gray-400">
-                  Nenhum exercÃ­cio adicionado
+                  Nenhum exercício adicionado
                 </td>
               </tr>
             ) : (
@@ -785,7 +785,7 @@ export default function WorkoutBuilderResistance({
                           className="w-full min-w-[160px] rounded border border-gray-200 px-2 py-1 text-sm"
                         >
                           {methodParameters.length === 0 ? (
-                            <option value="SER">SER - SÃ©ries</option>
+                            <option value="SER">SER - Séries</option>
                           ) : (
                             methodParameters.map((param) => (
                               <option key={param.id} value={param.code}>
@@ -947,15 +947,15 @@ export default function WorkoutBuilderResistance({
             className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700"
           >
             <Plus className="w-3.5 h-3.5" />
-            Adicionar ExercÃ­cio
+            Adicionar Exercício
           </button>
           <button
             type="button"
             onClick={() => openQuickFillModal(dayOfWeek, section)}
             className="text-sm text-blue-600 hover:text-blue-700"
-            title="Preenchimento rÃ¡pido de Int, C e E"
+            title="Preenchimento rápido de Int, C e E"
           >
-            Preenchimento rÃ¡pido (Int/C/E)
+            Preenchimento rápido (Int/C/E)
           </button>
         </div>
       </div>
@@ -1006,9 +1006,9 @@ export default function WorkoutBuilderResistance({
             </thead>
             <tbody className="bg-white">
               {[
-                { key: 'mobilidade', title: 'MOBILIDADE | AQUECIMENTO | ATIVAÃ‡ÃƒO | TÃ‰CNICO', bg: 'bg-purple-50' },
-                { key: 'sessao', title: 'SESSÃƒO', bg: 'bg-green-50' },
-                { key: 'resfriamento', title: 'RESFRIAMENTO | FINALIZAÃ‡ÃƒO', bg: 'bg-blue-50' }
+                { key: 'mobilidade', title: 'MOBILIDADE | AQUECIMENTO | ATIVAÇÃO | TÉCNICO', bg: 'bg-purple-50' },
+                { key: 'sessao', title: 'SESSÃO', bg: 'bg-green-50' },
+                { key: 'resfriamento', title: 'RESFRIAMENTO | FINALIZAÇÃO', bg: 'bg-blue-50' }
               ].map((section) => (
                 <tr key={section.key} className="border-b border-gray-200">
                   <td className={`px-4 py-3 text-xs font-semibold text-gray-800 ${section.bg}`}>
@@ -1038,7 +1038,7 @@ export default function WorkoutBuilderResistance({
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40" onClick={() => setQuickFillOpen(false)} />
           <div className="relative w-full max-w-md rounded-lg bg-white p-5 shadow-lg">
-            <h4 className="text-base font-semibold text-gray-900 mb-4">Preenchimento rÃ¡pido</h4>
+            <h4 className="text-base font-semibold text-gray-900 mb-4">Preenchimento rápido</h4>
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <label className="text-xs text-gray-500">S</label>
@@ -1061,7 +1061,7 @@ export default function WorkoutBuilderResistance({
                 />
               </div>
               <div>
-                <label className="text-xs text-gray-500">Int SÃƒÂ©ries</label>
+                <label className="text-xs text-gray-500">Int Séries</label>
                 <input
                   type="number"
                   value={quickFillValues.intervalBetweenSeries}

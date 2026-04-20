@@ -7,19 +7,20 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { AuthCardLayout } from '../components/auth/AuthCardLayout';
+import { authCopy, commonCopy } from '../i18n/ptBR';
 
 const registerSchema = z
   .object({
-    name: z.string().min(3, 'Nome deve ter no minimo 3 caracteres'),
-    email: z.string().email('Email invalido'),
-    password: z.string().min(8, 'Senha deve ter no minimo 8 caracteres'),
+    name: z.string().min(3, authCopy.register.validation.minName),
+    email: z.string().email(authCopy.register.validation.invalidEmail),
+    password: z.string().min(8, authCopy.register.validation.minPassword),
     confirmPassword: z.string(),
     type: z.literal('professor'),
     contractType: z.enum(['academy', 'personal']),
-    document: z.string().min(11, 'Documento invalido'),
+    document: z.string().min(11, authCopy.register.validation.invalidDocument),
   })
   .refine((data) => data.password === data.confirmPassword, {
-    message: 'As senhas nao coincidem',
+    message: authCopy.register.validation.passwordMismatch,
     path: ['confirmPassword'],
   })
   .refine(
@@ -28,7 +29,7 @@ const registerSchema = z
       return data.contractType === 'academy' ? normalized.length === 14 : normalized.length === 11;
     },
     {
-      message: 'Documento invalido para o tipo de contrato',
+      message: authCopy.register.validation.invalidDocumentByContract,
       path: ['document'],
     }
   );
@@ -97,17 +98,17 @@ export function Register() {
 
   return (
     <AuthCardLayout
-      title="Criar conta"
-      description="Preencha os dados para cadastrar um novo acesso."
+      title={authCopy.register.title}
+      description={authCopy.register.description}
       footer={
         <>
           <Button type="submit" form="register-form" className="w-full" isLoading={isLoading}>
-            Criar conta
+            {authCopy.register.submit}
           </Button>
           <div className="text-center text-sm text-muted-foreground">
-            Ja tem uma conta?{' '}
+            {authCopy.register.hasAccount}{' '}
             <Link to="/login" className="font-medium text-primary hover:underline">
-              Entrar
+              {authCopy.login.title}
             </Link>
           </div>
         </>
@@ -122,10 +123,10 @@ export function Register() {
           </div>
         )}
 
-        <Input label="Nome completo" type="text" placeholder="Joao Silva" error={errors.name?.message} {...register('name')} />
+        <Input label="Nome completo" type="text" placeholder={authCopy.register.namePlaceholder} error={errors.name?.message} {...register('name')} />
 
         <Input
-          label="Email"
+          label={commonCopy.emailLabel}
           type="email"
           placeholder="seu@email.com"
           autoComplete="email"

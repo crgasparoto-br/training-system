@@ -6,6 +6,7 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { alunoService, type Aluno } from '../services/aluno.service';
 import { planService, type TrainingPlan } from '../services/plan.service';
 import { executionsService, type WorkoutDayDetail } from '../services/executions.service';
+import { dashboardCopy, commonCopy } from '../i18n/ptBR';
 
 type DashboardActivity = {
   id: string;
@@ -187,7 +188,7 @@ export function Dashboard() {
 
         setUpcomingWorkouts(nextWorkouts);
       } catch (err: any) {
-        const message = err?.response?.data?.error || 'Nao foi possivel carregar os dados do dashboard.';
+        const message = err?.response?.data?.error || 'Não foi possível carregar os dados do painel.';
         setError(message);
       } finally {
         setIsLoading(false);
@@ -217,7 +218,7 @@ export function Dashboard() {
         bgColor: 'bg-green-100',
       },
       {
-        title: 'Treinos Esta Semana',
+        title: 'Treinos desta semana',
         value: String(stats.weekWorkouts),
         description:
           stats.weekWorkouts > 0
@@ -228,10 +229,10 @@ export function Dashboard() {
         bgColor: 'bg-purple-100',
       },
       {
-        title: 'Taxa de Conclusao',
+        title: 'Taxa de conclusão',
         value: `${stats.completionRate}%`,
         description:
-          stats.weekWorkouts > 0 ? `${stats.completionRate}% dos treinos concluidos` : 'Sem dados suficientes',
+          stats.weekWorkouts > 0 ? `${stats.completionRate}% dos treinos concluídos` : 'Sem dados suficientes',
         icon: TrendingUp,
         color: 'text-orange-600',
         bgColor: 'bg-orange-100',
@@ -241,7 +242,7 @@ export function Dashboard() {
   );
 
   const getStatusLabel = (status?: WorkoutDayDetail['status']) => {
-    if (status === 'completed') return 'Concluido';
+    if (status === 'completed') return 'Concluído';
     if (status === 'in_progress') return 'Em andamento';
     return 'Planejado';
   };
@@ -282,7 +283,7 @@ export function Dashboard() {
         <Card>
           <CardHeader>
             <CardTitle>Contrato</CardTitle>
-            <CardDescription>Informacoes vinculadas ao seu acesso</CardDescription>
+            <CardDescription>Informações vinculadas ao seu acesso</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-3">
             <div>
@@ -295,7 +296,7 @@ export function Dashboard() {
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Nome</p>
-              <p className="font-semibold">{user.professor.contract.name || 'Nao informado'}</p>
+              <p className="font-semibold">{user.professor.contract.name || commonCopy.notInformed}</p>
             </div>
           </CardContent>
         </Card>
@@ -324,8 +325,8 @@ export function Dashboard() {
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Atividades Recentes</CardTitle>
-            <CardDescription>Ultimas acoes no sistema</CardDescription>
+            <CardTitle>{dashboardCopy.recentActivitiesTitle}</CardTitle>
+            <CardDescription>{dashboardCopy.recentActivitiesDescription}</CardDescription>
           </CardHeader>
           <CardContent>
             {recentActivities.length === 0 ? (
@@ -349,8 +350,8 @@ export function Dashboard() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Proximos Treinos</CardTitle>
-            <CardDescription>Treinos agendados para esta semana</CardDescription>
+            <CardTitle>{dashboardCopy.upcomingWorkoutsTitle}</CardTitle>
+            <CardDescription>{dashboardCopy.upcomingWorkoutsDescription}</CardDescription>
           </CardHeader>
           <CardContent>
             {upcomingWorkouts.length === 0 ? (
@@ -384,8 +385,8 @@ export function Dashboard() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Acoes Rapidas</CardTitle>
-          <CardDescription>Comece a usar o sistema</CardDescription>
+          <CardTitle>{dashboardCopy.quickActionsTitle}</CardTitle>
+          <CardDescription>{dashboardCopy.quickActionsDescription}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 md:grid-cols-3">
@@ -412,8 +413,8 @@ export function Dashboard() {
               className="p-4 border rounded-lg hover:bg-accent transition-colors text-left"
             >
               <BookOpen className="h-8 w-8 mb-2 text-primary" />
-              <h3 className="font-semibold mb-1">Biblioteca de Exercicios</h3>
-              <p className="text-sm text-muted-foreground">Gerencie o catalogo de exercicios</p>
+              <h3 className="font-semibold mb-1">{dashboardCopy.libraryTitle}</h3>
+              <p className="text-sm text-muted-foreground">{dashboardCopy.libraryDescription}</p>
             </button>
           </div>
         </CardContent>

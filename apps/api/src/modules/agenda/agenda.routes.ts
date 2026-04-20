@@ -102,7 +102,7 @@ router.post('/spaces', async (req: Request, res: Response) => {
     return sendSuccess(res, space, 'Espaco criado com sucesso', 201);
   } catch (error: any) {
     if (error instanceof z.ZodError) {
-      return sendError(res, 'Dados invalidos', 400, error.errors);
+      return sendError(res, 'Dados inválidos', 400, error.errors);
     }
     return sendError(res, error.message || 'Erro ao criar espaco', 400);
   }
@@ -118,7 +118,7 @@ router.put('/spaces/:id', async (req: Request, res: Response) => {
     return sendSuccess(res, space, 'Espaco atualizado com sucesso');
   } catch (error: any) {
     if (error instanceof z.ZodError) {
-      return sendError(res, 'Dados invalidos', 400, error.errors);
+      return sendError(res, 'Dados inválidos', 400, error.errors);
     }
     return sendError(res, error.message || 'Erro ao atualizar espaco', 400);
   }
@@ -149,7 +149,7 @@ router.post('/availabilities', async (req: Request, res: Response) => {
     return sendSuccess(res, item, 'Disponibilidade criada com sucesso', 201);
   } catch (error: any) {
     if (error instanceof z.ZodError) {
-      return sendError(res, 'Dados invalidos', 400, error.errors);
+      return sendError(res, 'Dados inválidos', 400, error.errors);
     }
     return sendError(res, error.message || 'Erro ao criar disponibilidade', 400);
   }
@@ -195,7 +195,7 @@ router.post('/fixed-slots', async (req: Request, res: Response) => {
     return sendSuccess(res, item, 'Horario fixo criado com sucesso', 201);
   } catch (error: any) {
     if (error instanceof z.ZodError) {
-      return sendError(res, 'Dados invalidos', 400, error.errors);
+      return sendError(res, 'Dados inválidos', 400, error.errors);
     }
     return sendError(res, error.message || 'Erro ao criar horario fixo', 400);
   }
@@ -210,7 +210,7 @@ router.put('/fixed-slots/:id', async (req: Request, res: Response) => {
     return sendSuccess(res, item, 'Horario fixo atualizado com sucesso');
   } catch (error: any) {
     if (error instanceof z.ZodError) {
-      return sendError(res, 'Dados invalidos', 400, error.errors);
+      return sendError(res, 'Dados inválidos', 400, error.errors);
     }
     return sendError(res, error.message || 'Erro ao atualizar horario fixo', 400);
   }
@@ -276,7 +276,7 @@ router.post('/bookings', async (req: Request, res: Response) => {
     return sendSuccess(res, booking, 'Agendamento criado com sucesso', 201);
   } catch (error: any) {
     if (error instanceof z.ZodError) {
-      return sendError(res, 'Dados invalidos', 400, error.errors);
+      return sendError(res, 'Dados inválidos', 400, error.errors);
     }
     return sendError(res, error.message || 'Erro ao criar agendamento', 400);
   }
@@ -291,7 +291,7 @@ router.patch('/bookings/:id/status', async (req: Request, res: Response) => {
     return sendSuccess(res, booking, 'Status do agendamento atualizado');
   } catch (error: any) {
     if (error instanceof z.ZodError) {
-      return sendError(res, 'Dados invalidos', 400, error.errors);
+      return sendError(res, 'Dados inválidos', 400, error.errors);
     }
     return sendError(res, error.message || 'Erro ao atualizar agendamento', 400);
   }

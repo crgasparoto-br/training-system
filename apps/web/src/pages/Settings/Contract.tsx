@@ -8,10 +8,11 @@ import api from '../../services/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
+import { commonCopy, contractCopy } from '../../i18n/ptBR';
 
 const contractSchema = z.object({
   name: z.string().optional(),
-  document: z.string().min(11, 'Documento invÃ¡lido'),
+  document: z.string().min(11, contractCopy.invalidDocument),
 });
 
 type ContractForm = z.infer<typeof contractSchema>;
@@ -79,7 +80,7 @@ export default function ContractSettings() {
           document: formatDocument(contract.document, contract.type),
         });
       } catch (err: any) {
-        setErrorMessage(err.response?.data?.error || 'Erro ao carregar contrato');
+        setErrorMessage(err.response?.data?.error || contractCopy.loadError);
       } finally {
         setLoading(false);
       }
@@ -97,7 +98,7 @@ export default function ContractSettings() {
       const expected = contractType === 'academy' ? 14 : 11;
       if (normalized.length !== expected) {
         setError('document', {
-          message: contractType === 'academy' ? 'CNPJ invÃ¡lido' : 'CPF invÃ¡lido',
+          message: contractType === 'academy' ? contractCopy.invalidCnpj : contractCopy.invalidCpf,
         });
         setSaving(false);
         return;
@@ -111,7 +112,7 @@ export default function ContractSettings() {
         document: formatDocument(updated.document, updated.type),
       });
     } catch (err: any) {
-      setErrorMessage(err.response?.data?.error || 'Erro ao atualizar contrato');
+      setErrorMessage(err.response?.data?.error || contractCopy.updateError);
     } finally {
       setSaving(false);
     }
@@ -119,7 +120,7 @@ export default function ContractSettings() {
 
   const handleCloneData = async () => {
     if (!canEdit) return;
-    if (!confirm('Deseja clonar parÃ¢metros, exercÃ­cios e tipos de avaliaÃ§Ã£o para este contrato?')) {
+    if (!confirm(contractCopy.cloneConfirm)) {
       return;
     }
 
@@ -135,17 +136,17 @@ export default function ContractSettings() {
 
       const result = response.data?.data;
       setCloneResult(
-        `ParÃ¢metros: +${result.parametersCreated} (ignorado ${result.parametersSkipped}) | ExercÃ­cios: +${result.exercisesCreated} (ignorado ${result.exercisesSkipped}) | AvaliaÃ§Ãµes: +${result.assessmentTypesCreated} (ignorado ${result.assessmentTypesSkipped})`
+        `Parâmetros: +${result.parametersCreated} (ignorado ${result.parametersSkipped}) | Exercícios: +${result.exercisesCreated} (ignorado ${result.exercisesSkipped}) | Avaliações: +${result.assessmentTypesCreated} (ignorado ${result.assessmentTypesSkipped})`
       );
     } catch (err: any) {
-      setErrorMessage(err.response?.data?.error || 'Erro ao clonar dados');
+      setErrorMessage(err.response?.data?.error || contractCopy.cloneError);
     } finally {
       setCloning(false);
     }
   };
 
   if (loading) {
-    return <div className="text-muted-foreground">Carregando...</div>;
+    return <div className="text-muted-foreground">{commonCopy.loading}</div>;
   }
 
   const documentLabel = contractType === 'academy' ? 'CNPJ' : 'CPF';
@@ -153,16 +154,16 @@ export default function ContractSettings() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Contrato</h1>
+        <h1 className="text-2xl font-bold">{contractCopy.title}</h1>
         <p className="text-sm text-muted-foreground">
-          Dados do contrato e identificaÃ§Ã£o fiscal.
+          {contractCopy.description}
         </p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>InformaÃ§Ãµes do Contrato</CardTitle>
-          <CardDescription>Atualize nome e documento fiscal do contrato.</CardDescription>
+          <CardTitle>{contractCopy.infoTitle}</CardTitle>
+          <CardDescription>{contractCopy.infoDescription}</CardDescription>
         </CardHeader>
         <CardContent>
           {errorMessage && (
@@ -172,13 +173,13 @@ export default function ContractSettings() {
           )}
           {!canEdit && (
             <div className="text-sm text-muted-foreground mb-4">
-              Somente o professor master pode editar o contrato.
+              {contractCopy.masterOnly}
             </div>
           )}
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             {canEdit ? (
               <Input
-                label="Nome do Contrato"
+                label={contractCopy.contractName}
                 placeholder="Academia Exemplo"
                 error={errors.name?.message}
                 {...register('name')}
@@ -186,10 +187,10 @@ export default function ContractSettings() {
             ) : (
               <div>
                 <label className="block text-sm font-medium mb-2">
-                  Nome do Contrato
+                  {contractCopy.contractName}
                 </label>
                 <div className="h-10 w-full rounded-md border border-input bg-muted px-3 py-2 text-sm text-muted-foreground">
-                  {user?.professor?.contract?.name || 'NÃ£o informado'}
+                  {user?.professor?.contract?.name || contractCopy.notInformed}
                 </div>
               </div>
             )}
@@ -233,9 +234,9 @@ export default function ContractSettings() {
       {canEdit && (
         <Card>
           <CardHeader>
-          <CardTitle>Clonar Dados PadrÃ£o</CardTitle>
+            <CardTitle>{contractCopy.cloneTitle}</CardTitle>
           <CardDescription>
-              Copia parÃ¢metros, exercÃ­cios e tipos de avaliaÃ§Ã£o do contrato padrÃ£o para este contrato.
+              {contractCopy.cloneDescription}
           </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -245,10 +246,10 @@ export default function ContractSettings() {
               </div>
             )}
             <Button variant="outline" onClick={handleCloneData} isLoading={cloning}>
-              Clonar Dados
+              {contractCopy.cloneButton}
             </Button>
             <p className="text-xs text-muted-foreground">
-              A clonagem ignora itens jÃ¡ existentes neste contrato.
+              {contractCopy.cloneIgnoreHint}
             </p>
           </CardContent>
         </Card>
