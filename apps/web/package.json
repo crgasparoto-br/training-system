@@ -1,7 +1,7 @@
 {
   "name": "@corrida/web",
   "version": "0.1.0",
-  "description": "Frontend Web para Educadores - Training System",
+  "description": "Frontend Web para Educadores - Sistema Acesso Saúde e Performance",
   "type": "module",
   "scripts": {
     "dev": "vite",
