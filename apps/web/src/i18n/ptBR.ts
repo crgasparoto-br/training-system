@@ -13,7 +13,7 @@ export const commonCopy = {
 } as const;
 
 export const shellCopy = {
-  productName: 'Training System',
+  productName: 'Sistema Acesso Saúde e Performance',
   heroBadge: 'training_system',
   heroTitle: 'Gestão de Treinos',
   heroDescription:

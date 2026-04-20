@@ -74,7 +74,7 @@ app.get('/health', (req, res) => {
 
 app.get('/api/v1', (req, res) => {
   res.json({
-    message: 'Training System API',
+    message: 'Sistema Acesso Saúde e Performance API',
     version: '0.1.0',
     endpoints: {
       auth: '/api/v1/auth',
@@ -160,7 +160,7 @@ app.listen(PORT, () => {
   console.log(`
 â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
 â•‘                                                            â•‘
-â•‘   ðŸƒ Training System API                          â•‘
+â•‘   ðŸƒ Sistema Acesso Saúde e Performance API      â•‘
 â•‘   âœ… Servidor iniciado com sucesso                        â•‘
 â•‘                                                            â•‘
 â•‘   ðŸŒ URL: http://localhost:${PORT}                        â•‘
