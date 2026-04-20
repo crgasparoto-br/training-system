@@ -58,17 +58,17 @@ export function DashboardLayout() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="mx-auto flex h-16 max-w-full items-center justify-between px-4">
+      <header className="sticky top-0 z-40 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/90">
+        <div className="ts-container flex h-16 max-w-full items-center justify-between">
           <div className="flex items-center gap-4">
             <button
               onClick={() => setIsSidebarOpen((prev) => !prev)}
-              className="lg:hidden"
+              className="rounded-md p-1 text-foreground lg:hidden"
               aria-label="Abrir menu lateral"
             >
               {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
-            <h1 className="text-xl font-bold">{shellCopy.productName}</h1>
+            <h1 className="text-lg font-semibold">{shellCopy.productName}</h1>
           </div>
 
           <div className="flex items-center gap-4">
@@ -89,7 +89,7 @@ export function DashboardLayout() {
         </div>
       </header>
 
-      <div className="mx-auto flex max-w-full px-4">
+      <div className="ts-container flex max-w-full">
         <AppSidebar
           items={menuItems}
           currentPath={location.pathname}
@@ -110,4 +110,3 @@ export function DashboardLayout() {
     </div>
   );
 }
-

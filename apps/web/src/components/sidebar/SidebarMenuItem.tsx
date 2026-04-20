@@ -53,8 +53,8 @@ export function SidebarMenuItem({
         'flex w-full items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors',
         collapsed ? 'justify-center' : 'gap-3',
         active || activeChild
-          ? 'bg-primary text-primary-foreground'
-          : 'text-foreground hover:bg-accent hover:text-accent-foreground'
+          ? 'bg-white text-[#1B1D21]'
+          : 'text-white/85 hover:bg-white/10 hover:text-white'
       ),
     [active, activeChild, collapsed]
   );
@@ -109,7 +109,7 @@ export function SidebarMenuItem({
                 onClick={onNavigate}
                 className={cn(
                   'rounded-md px-3 py-2 text-xs font-medium transition-colors',
-                  childActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-accent'
+                  childActive ? 'bg-white/15 text-white' : 'text-white/70 hover:bg-white/10 hover:text-white'
                 )}
               >
                 {child.label}

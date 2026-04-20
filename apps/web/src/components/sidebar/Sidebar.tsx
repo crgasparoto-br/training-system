@@ -56,12 +56,25 @@ export function AppSidebar({
   return (
     <SidebarShell collapsible collapsed={collapsed} mobileOpen={mobileOpen}>
       <div className="flex h-full flex-col">
-        <div className="hidden items-center justify-between border-b px-3 py-3 lg:flex">
-          <span className={cn('text-sm font-semibold', collapsed && 'sr-only')}>Menu</span>
+        <div className={cn('border-b border-white/10 px-3 py-4', collapsed ? 'items-center' : '')}>
+          <img
+            src="/brand/acesso-logo.jpg"
+            alt="Logo Sistema Acesso"
+            className={cn('h-10 w-auto rounded bg-white p-2 object-contain', collapsed && 'mx-auto')}
+            onError={(event) => {
+              event.currentTarget.style.display = 'none';
+            }}
+          />
+          {!collapsed && <p className="mt-2 text-xs font-medium uppercase tracking-wide text-white/70">Sistema Acesso</p>}
+        </div>
+
+        <div className="hidden items-center justify-between border-b border-white/10 px-3 py-3 lg:flex">
+          <span className={cn('text-sm font-semibold text-white/90', collapsed && 'sr-only')}>Menu</span>
           <Button
             type="button"
             size="icon"
             variant="ghost"
+            className="text-white hover:bg-white/10 hover:text-white"
             onClick={onToggleCollapsed}
             aria-label={collapsed ? 'Expandir menu lateral' : 'Recolher menu lateral'}
           >
