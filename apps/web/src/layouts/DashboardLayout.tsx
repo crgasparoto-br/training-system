@@ -5,6 +5,7 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { Button } from '../components/ui/Button';
 import { AppSidebar, type SidebarNavItem } from '../components/sidebar';
 import { cn } from '@/utils/cn';
+import { shellCopy } from '../i18n/ptBR';
 
 export function DashboardLayout() {
   const navigate = useNavigate();
@@ -27,27 +28,27 @@ export function DashboardLayout() {
 
   const menuItems = useMemo<SidebarNavItem[]>(
     () => [
-      { id: 'dashboard', icon: Home, label: 'Dashboard', path: '/dashboard' },
-      ...(canManageProfessores ? [{ id: 'professores', icon: Users, label: 'Professores', path: '/professores' }] : []),
-      { id: 'alunos', icon: Users, label: 'Alunos', path: '/alunos' },
-      { id: 'plans', icon: Calendar, label: 'Planos de Treino', path: '/plans' },
-      { id: 'agenda', icon: Calendar, label: 'Agenda', path: '/agenda' },
-      { id: 'library', icon: BookOpen, label: 'Biblioteca', path: '/library' },
-      { id: 'executions', icon: Activity, label: 'Execucoes', path: '/executions' },
-      { id: 'reports', icon: BarChart3, label: 'Relatorios', path: '/reports' },
+      { id: 'dashboard', icon: Home, label: shellCopy.menu.dashboard, path: '/dashboard' },
+      ...(canManageProfessores ? [{ id: 'professores', icon: Users, label: shellCopy.menu.professores, path: '/professores' }] : []),
+      { id: 'alunos', icon: Users, label: shellCopy.menu.alunos, path: '/alunos' },
+      { id: 'plans', icon: Calendar, label: shellCopy.menu.planos, path: '/plans' },
+      { id: 'agenda', icon: Calendar, label: shellCopy.menu.agenda, path: '/agenda' },
+      { id: 'library', icon: BookOpen, label: shellCopy.menu.biblioteca, path: '/library' },
+      { id: 'executions', icon: Activity, label: shellCopy.menu.execucoes, path: '/executions' },
+      { id: 'reports', icon: BarChart3, label: shellCopy.menu.relatorios, path: '/reports' },
       {
         id: 'settings',
         icon: Settings,
-        label: 'Configuracoes',
+        label: shellCopy.menu.configuracoes,
         path: '/settings',
         children: [
-          { id: 'settings-contract', label: 'Contrato', path: '/settings/contract' },
-          { id: 'settings-parameters', label: 'Parametros', path: '/settings/parameters' },
-          { id: 'settings-assessment-types', label: 'Avaliacoes', path: '/settings/assessment-types' },
+          { id: 'settings-contract', label: shellCopy.menu.contrato, path: '/settings/contract' },
+          { id: 'settings-parameters', label: shellCopy.menu.parametros, path: '/settings/parameters' },
+          { id: 'settings-assessment-types', label: shellCopy.menu.avaliacoes, path: '/settings/assessment-types' },
           { id: 'settings-psr-pse', label: 'PSR e PSE', path: '/settings/psr-pse' },
-          { id: 'settings-reference-table', label: 'Tabela de Referencia', path: '/settings/reference-table' },
+          { id: 'settings-reference-table', label: shellCopy.menu.tabelaReferencia, path: '/settings/reference-table' },
           ...(canAccessAlunoSettings
-            ? [{ id: 'settings-aluno-access', label: 'Cadastro de Alunos', path: '/settings/aluno-access' }]
+            ? [{ id: 'settings-aluno-access', label: shellCopy.menu.cadastroAlunos, path: '/settings/aluno-access' }]
             : []),
         ],
       },
@@ -67,7 +68,7 @@ export function DashboardLayout() {
             >
               {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
-            <h1 className="text-xl font-bold">Training System</h1>
+            <h1 className="text-xl font-bold">{shellCopy.productName}</h1>
           </div>
 
           <div className="flex items-center gap-4">

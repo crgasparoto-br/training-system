@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Button } from '../../components/ui/Button';
+import { commonCopy, referenceTableCopy } from '../../i18n/ptBR';
 import structured from '../../data/referenceTableStructured.json';
 import rawSeed from '../../data/referenceTableSeed.json';
 
@@ -175,26 +176,26 @@ export default function SettingsReferenceTable() {
   const addRecord = () => {
     setRecords((prev) => [...prev, defaultRecord()]);
     setSelectedIndex(records.length);
-    setStatusMessage('Nova linha adicionada.');
+    setStatusMessage(referenceTableCopy.rowAdded);
   };
 
   const removeRecord = () => {
     if (!selectedRecord) return;
     setRecords((prev) => prev.filter((_, index) => index !== selectedIndex));
     setSelectedIndex((prev) => Math.max(0, prev - 1));
-    setStatusMessage('Linha removida.');
+    setStatusMessage(referenceTableCopy.rowRemoved);
   };
 
   const saveChanges = () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
-    setStatusMessage('Alteracoes salvas no navegador.');
+    setStatusMessage(referenceTableCopy.changesSaved);
   };
 
   const resetChanges = () => {
     setRecords(seed.records.map(normalizeRecord));
     setSelectedIndex(0);
     localStorage.removeItem(STORAGE_KEY);
-    setStatusMessage('Dados restaurados da planilha original.');
+    setStatusMessage(referenceTableCopy.changesReset);
   };
 
   const images = ((rawSeed as any).images ?? []) as ReferenceImage[];
@@ -203,16 +204,16 @@ export default function SettingsReferenceTable() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="ts-h3">Tabela de Referencia</h1>
+          <h1 className="ts-h3">{referenceTableCopy.title}</h1>
           <p className="ts-body text-muted-foreground">
-            Estrutura normalizada no formato do modelo: Capacidade, Teste, Sexo, Idade, Indice e Status.
+            {referenceTableCopy.description}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" onClick={addRecord}>Adicionar linha</Button>
-          <Button variant="destructive" onClick={removeRecord} disabled={!selectedRecord}>Excluir linha</Button>
-          <Button onClick={saveChanges}>Salvar</Button>
-          <Button variant="outline" onClick={resetChanges}>Restaurar</Button>
+          <Button variant="secondary" onClick={addRecord}>{referenceTableCopy.addRow}</Button>
+          <Button variant="destructive" onClick={removeRecord} disabled={!selectedRecord}>{referenceTableCopy.removeRow}</Button>
+          <Button onClick={saveChanges}>{commonCopy.save}</Button>
+          <Button variant="outline" onClick={resetChanges}>{referenceTableCopy.restore}</Button>
         </div>
       </div>
 
@@ -226,7 +227,7 @@ export default function SettingsReferenceTable() {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar por capacidade, teste, status..."
+              placeholder={referenceTableCopy.searchPlaceholder}
               className="h-10 min-w-[260px] flex-1 rounded-xl border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3b82f6]"
             />
             <select
@@ -261,7 +262,7 @@ export default function SettingsReferenceTable() {
               value={idadeFrom}
               onChange={(e) => setIdadeFrom(e.target.value)}
               className="h-10 w-28 rounded-xl border border-input bg-background px-3 text-sm"
-              placeholder="Idade de"
+              placeholder={referenceTableCopy.ageFrom}
               min={0}
             />
             <input
@@ -269,25 +270,25 @@ export default function SettingsReferenceTable() {
               value={idadeTo}
               onChange={(e) => setIdadeTo(e.target.value)}
               className="h-10 w-28 rounded-xl border border-input bg-background px-3 text-sm"
-              placeholder="Idade até"
+              placeholder={referenceTableCopy.ageTo}
               min={0}
             />
-            <div className="text-xs text-muted-foreground">{filteredIndexes.length} linhas</div>
+            <div className="text-xs text-muted-foreground">{filteredIndexes.length} {referenceTableCopy.rowsCount}</div>
           </div>
 
           <div className="max-h-[68vh] overflow-auto">
             <table className="min-w-full border-collapse text-sm">
               <thead className="sticky top-0 z-10">
                 <tr className="bg-[#1f2937] text-white">
-                  <th className="border border-[#374151] px-3 py-2 text-left">Capacidades Fisicas</th>
-                  <th className="border border-[#374151] px-3 py-2 text-left">Testes Fisicos</th>
-                  <th className="border border-[#374151] px-3 py-2 text-left">Sexo</th>
+                  <th className="border border-[#374151] px-3 py-2 text-left">{referenceTableCopy.physicalCapabilities}</th>
+                  <th className="border border-[#374151] px-3 py-2 text-left">{referenceTableCopy.physicalTests}</th>
+                  <th className="border border-[#374151] px-3 py-2 text-left">{referenceTableCopy.gender}</th>
                   <th className="border border-[#374151] px-3 py-2 text-right">Idade (&gt;=)</th>
                   <th className="border border-[#374151] px-3 py-2 text-right">Idade (&lt;=)</th>
-                  <th className="border border-[#374151] px-3 py-2 text-right">Indice (&gt;=)</th>
-                  <th className="border border-[#374151] px-3 py-2 text-right">Indice (&lt;=)</th>
-                  <th className="border border-[#374151] px-3 py-2 text-left">Status</th>
-                  <th className="border border-[#374151] px-3 py-2 text-left">Fonte</th>
+                  <th className="border border-[#374151] px-3 py-2 text-right">{referenceTableCopy.index} (&gt;=)</th>
+                  <th className="border border-[#374151] px-3 py-2 text-right">{referenceTableCopy.index} (&lt;=)</th>
+                  <th className="border border-[#374151] px-3 py-2 text-left">{referenceTableCopy.status}</th>
+                  <th className="border border-[#374151] px-3 py-2 text-left">{referenceTableCopy.source}</th>
                 </tr>
               </thead>
               <tbody>
@@ -319,13 +320,13 @@ export default function SettingsReferenceTable() {
         </section>
 
         <section className="space-y-4 rounded-2xl border bg-card p-4">
-          <h2 className="ts-h4">Manutencao da linha selecionada</h2>
+          <h2 className="ts-h4">{referenceTableCopy.maintenanceTitle}</h2>
           {!selectedRecord ? (
-            <p className="text-sm text-muted-foreground">Selecione uma linha da tabela.</p>
+            <p className="text-sm text-muted-foreground">{referenceTableCopy.selectRowHint}</p>
           ) : (
             <div className="space-y-3">
               <label className="space-y-1 block">
-                <span className="ts-label">Capacidades Fisicas</span>
+                <span className="ts-label">{referenceTableCopy.physicalCapabilities}</span>
                 <input
                   value={selectedRecord.capacidadesFisicas}
                   onChange={(e) => updateRecord(selectedIndex, { capacidadesFisicas: e.target.value })}
@@ -333,7 +334,7 @@ export default function SettingsReferenceTable() {
                 />
               </label>
               <label className="space-y-1 block">
-                <span className="ts-label">Testes Fisicos</span>
+                <span className="ts-label">{referenceTableCopy.physicalTests}</span>
                 <input
                   value={selectedRecord.testesFisicos}
                   onChange={(e) => updateRecord(selectedIndex, { testesFisicos: e.target.value })}
@@ -342,7 +343,7 @@ export default function SettingsReferenceTable() {
               </label>
               <div className="grid grid-cols-2 gap-3">
                 <label className="space-y-1 block">
-                  <span className="ts-label">Sexo</span>
+                  <span className="ts-label">{referenceTableCopy.gender}</span>
                   <select
                     value={selectedRecord.sexo}
                     onChange={(e) => updateRecord(selectedIndex, { sexo: e.target.value as 'Masculino' | 'Feminino' })}
@@ -355,7 +356,7 @@ export default function SettingsReferenceTable() {
               </div>
               <div className="grid grid-cols-1 gap-3">
                 <label className="space-y-1 block">
-                  <span className="ts-label">Status</span>
+                  <span className="ts-label">{referenceTableCopy.status}</span>
                   <input
                     value={selectedRecord.status}
                     onChange={(e) => updateRecord(selectedIndex, { status: e.target.value })}
@@ -363,7 +364,7 @@ export default function SettingsReferenceTable() {
                   />
                 </label>
                 <label className="space-y-1 block">
-                  <span className="ts-label">Fonte</span>
+                  <span className="ts-label">{referenceTableCopy.source}</span>
                   <input
                     value={selectedRecord.fonte || ''}
                     onChange={(e) => updateRecord(selectedIndex, { fonte: e.target.value })}
@@ -393,7 +394,7 @@ export default function SettingsReferenceTable() {
 
               <div className="grid grid-cols-2 gap-3">
                 <label className="space-y-1 block">
-                  <span className="ts-label">Indice (&gt;=)</span>
+                  <span className="ts-label">{referenceTableCopy.index} (&gt;=)</span>
                   <input
                     value={toDisplay(selectedRecord.indiceMin)}
                     onChange={(e) => updateRecord(selectedIndex, { indiceMin: e.target.value || null })}
@@ -401,7 +402,7 @@ export default function SettingsReferenceTable() {
                   />
                 </label>
                 <label className="space-y-1 block">
-                  <span className="ts-label">Indice (&lt;=)</span>
+                  <span className="ts-label">{referenceTableCopy.index} (&lt;=)</span>
                   <input
                     value={toDisplay(selectedRecord.indiceMax)}
                     onChange={(e) => updateRecord(selectedIndex, { indiceMax: e.target.value || null })}
@@ -415,12 +416,12 @@ export default function SettingsReferenceTable() {
       </div>
 
       <section className="rounded-2xl border bg-card p-4">
-        <h2 className="ts-h4 mb-3">Imagens de referencia da planilha</h2>
+        <h2 className="ts-h4 mb-3">{referenceTableCopy.imagesTitle}</h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           {images.map((img) => (
             <figure key={img.file} className="space-y-1 rounded-xl border p-2">
               <img src={img.src} alt={img.file} className="h-28 w-full rounded-lg border object-cover" />
-              <figcaption className="text-xs text-muted-foreground">Linha {img.row} Coluna {img.col}</figcaption>
+              <figcaption className="text-xs text-muted-foreground">{referenceTableCopy.rowLabel} {img.row} {referenceTableCopy.columnLabel} {img.col}</figcaption>
             </figure>
           ))}
         </div>

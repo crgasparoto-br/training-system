@@ -759,7 +759,7 @@ export default function Executions() {
         section: normalizeSection(exercise.section ?? ''),
         name: exercise.exercise?.name ?? 'Exercicio',
         system: exercise.system ?? 'Seriado',
-        notes: exercise.exerciseNotes ?? exercise.exercise?.notes ?? 'Sem observacoes',
+        notes: exercise.exerciseNotes ?? exercise.exercise?.notes ?? 'Sem observações',
         reps: exercise.reps ?? null,
         intervalSec: exercise.intervalSec ?? null,
         cParam: exercise.cParam ?? null,
@@ -972,7 +972,7 @@ export default function Executions() {
         <div>
           <h1 className="text-3xl font-bold">Execução de Exercícios</h1>
           <p className="text-muted-foreground mt-2">
-            Acompanhe o que foi planejado e o que ja foi executado pelo aluno.
+            Acompanhe o que foi planejado e o que já foi executado pelo aluno.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -1582,12 +1582,12 @@ export default function Executions() {
                               })}
                             </div>
                           ) : (
-                            <div className="text-xs text-muted-foreground">Sem exercicios resistidos</div>
+                            <div className="text-xs text-muted-foreground">Sem exercícios resistidos</div>
                           )}
                         </div>
 
                         <div className="rounded-md border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600">
-                          <strong>Notas:</strong> {day.notes ?? 'Sem observacoes.'}
+                          <strong>Notas:</strong> {day.notes ?? 'Sem observações.'}
                         </div>
                       </div>
                     ))}
@@ -1632,7 +1632,7 @@ export default function Executions() {
               </CardTitle>
               <CardDescription>
                 {isProfessor
-                  ? 'Treino do dia liberado pelo professor (visualizacao somente leitura).'
+                  ? 'Treino do dia liberado pelo professor (visualização somente leitura).'
                   : 'Treino do dia liberado pelo professor.'}
               </CardDescription>
             </CardHeader>
@@ -1710,7 +1710,7 @@ export default function Executions() {
                     Resumo do Treino
                   </CardTitle>
                   <CardDescription>
-                    {dailyData.workoutDate ? formatDateBR(dailyData.workoutDate) : ''} - {dailyData.location ?? 'Local nao informado'}
+                    {dailyData.workoutDate ? formatDateBR(dailyData.workoutDate) : ''} - {dailyData.location ?? 'Local não informado'}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-4 lg:grid-cols-12">
@@ -1718,16 +1718,16 @@ export default function Executions() {
                     <div className="rounded-lg border border-gray-200 p-3">
                       <div className="flex items-center gap-2 text-xs font-semibold text-gray-600">
                         <Activity size={14} />
-                        Objetivo da sessao
+                        Objetivo da sessão
                       </div>
-                      <p className="mt-1 text-sm text-gray-900">{dailyData.generalGuidelines ?? 'Sem orientacoes gerais.'}</p>
+                      <p className="mt-1 text-sm text-gray-900">{dailyData.generalGuidelines ?? 'Sem orientações gerais.'}</p>
                     </div>
                     <div className="rounded-lg border border-gray-200 p-3">
                       <div className="flex items-center gap-2 text-xs font-semibold text-gray-600">
                         <ListChecks size={14} />
-                        Observacoes gerais
+                        Observações gerais
                       </div>
-                      <p className="mt-1 text-sm text-gray-700">{dailyData.detailNotes ?? 'Sem observacoes.'}</p>
+                      <p className="mt-1 text-sm text-gray-700">{dailyData.detailNotes ?? 'Sem observações.'}</p>
                     </div>
                   </div>
                   <div className="lg:col-span-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
@@ -1735,7 +1735,7 @@ export default function Executions() {
                       <div className="flex items-center justify-between gap-2">
                         <div>
                           <p className="text-xs font-semibold text-gray-600">PSR</p>
-                          <p className="text-xs text-muted-foreground">{dailyData.psrQuestion ?? 'Como voce esta se sentindo?'}</p>
+                          <p className="text-xs text-muted-foreground">{dailyData.psrQuestion ?? 'Como você está se sentindo?'}</p>
                         </div>
                         <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-700">Antes</span>
                       </div>
@@ -1770,7 +1770,7 @@ export default function Executions() {
                       <div className="flex items-center justify-between gap-2">
                         <div>
                           <p className="text-xs font-semibold text-gray-600">PSE</p>
-                          <p className="text-xs text-muted-foreground">{dailyData.pseResponse ? 'Ja informado' : 'Informe ao finalizar o treino'}</p>
+                          <p className="text-xs text-muted-foreground">{dailyData.pseResponse ? 'Já informado' : 'Informe ao finalizar o treino'}</p>
                         </div>
                         <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-700">Depois</span>
                       </div>

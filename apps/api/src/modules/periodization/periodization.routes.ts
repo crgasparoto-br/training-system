@@ -366,7 +366,7 @@ router.put('/parameters/category', professorMiddleware, async (req: Request, res
     const contractId = (req as any).user.contractId;
 
     if (!fromCategory || !toCategory) {
-      return sendError(res, 'Dados invalidos', 400);
+      return sendError(res, 'Dados inválidos', 400);
     }
 
     const result = await periodizationService.renameParameterCategory(

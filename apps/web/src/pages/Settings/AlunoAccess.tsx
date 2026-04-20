@@ -2,6 +2,7 @@
 import { Link } from 'react-router-dom';
 import { alunoService, type Aluno } from '../../services/aluno.service';
 import { useAuthStore } from '../../stores/useAuthStore';
+import { commonCopy } from '../../i18n/ptBR';
 
 export default function SettingsAlunoAccess() {
   const { user } = useAuthStore();
@@ -53,7 +54,7 @@ export default function SettingsAlunoAccess() {
   };
 
   const handleResetPassword = async (alunoId: string) => {
-    if (!confirm('Deseja gerar uma nova senha temporaria para este aluno?')) {
+    if (!confirm('Deseja gerar uma nova senha temporária para este aluno?')) {
       return;
     }
     setResettingId(alunoId);
@@ -75,7 +76,7 @@ export default function SettingsAlunoAccess() {
       await navigator.clipboard.writeText(password);
       setCopiedId(alunoId);
     } catch {
-      alert('Nao foi possivel copiar a senha automaticamente');
+      alert('Não foi possível copiar a senha automaticamente');
     }
   };
 
@@ -91,11 +92,11 @@ export default function SettingsAlunoAccess() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Acesso ao Cadastro de Alunos</h1>
           <p className="text-sm text-muted-foreground">
-            Esta tela e restrita ao professor master.
+            Esta tela é restrita ao professor master.
           </p>
         </div>
         <div className="rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
-          Sem permissao para acessar este recurso.
+          {commonCopy.noPermission}
         </div>
       </div>
     );
@@ -107,7 +108,7 @@ export default function SettingsAlunoAccess() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Acesso ao Cadastro de Alunos</h1>
           <p className="text-sm text-muted-foreground">
-            Tela temporaria para testes: reset de senha e acesso rapido ao cadastro.
+            Tela temporária para testes: reset de senha e acesso rápido ao cadastro.
           </p>
         </div>
         <button
@@ -115,7 +116,7 @@ export default function SettingsAlunoAccess() {
           onClick={loadAlunos}
           className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
         >
-          Atualizar lista
+          {commonCopy.updateList}
         </button>
       </div>
 
@@ -138,7 +139,7 @@ export default function SettingsAlunoAccess() {
             type="submit"
             className="h-10 rounded-lg bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700"
           >
-            Buscar
+            {commonCopy.search}
           </button>
           <button
             type="button"
@@ -148,7 +149,7 @@ export default function SettingsAlunoAccess() {
             }}
             className="h-10 rounded-lg border border-gray-200 px-4 text-sm font-medium text-gray-700 hover:bg-gray-50"
           >
-            Limpar
+            {commonCopy.clear}
           </button>
         </form>
 
@@ -157,10 +158,10 @@ export default function SettingsAlunoAccess() {
             <thead>
               <tr className="border-b text-left text-xs uppercase text-gray-500">
                 <th className="px-3 py-2">Aluno</th>
-                <th className="px-3 py-2">Email</th>
+                <th className="px-3 py-2">{commonCopy.emailLabel}</th>
                 <th className="px-3 py-2 text-center">Status</th>
-                <th className="px-3 py-2">Senha temporaria</th>
-                <th className="px-3 py-2 text-right">Acoes</th>
+                <th className="px-3 py-2">Senha temporária</th>
+                <th className="px-3 py-2 text-right">Ações</th>
               </tr>
             </thead>
             <tbody>

@@ -125,7 +125,7 @@ export const agendaService = {
       where: { id: data.professorId, contractId },
       select: { id: true },
     });
-    if (!professor) throw new Error('Professor nao encontrado');
+    if (!professor) throw new Error('Professor não encontrado');
 
     const startTime = normalizeTime(data.startTime);
     const endTime = normalizeTime(data.endTime);
@@ -192,10 +192,10 @@ export const agendaService = {
         select: { id: true },
       }),
     ]);
-    if (!aluno) throw new Error('Aluno nao encontrado');
-    if (!professor) throw new Error('Professor nao encontrado');
+    if (!aluno) throw new Error('Aluno não encontrado');
+    if (!professor) throw new Error('Professor não encontrado');
     if (aluno.professorId !== data.professorId) {
-      throw new Error('Aluno nao pertence ao professor informado');
+      throw new Error('Aluno não pertence ao professor informado');
     }
 
     if (data.spaceId) {
@@ -354,10 +354,10 @@ export const agendaService = {
         select: { id: true },
       }),
     ]);
-    if (!aluno) throw new Error('Aluno nao encontrado');
-    if (!professor) throw new Error('Professor nao encontrado');
+    if (!aluno) throw new Error('Aluno não encontrado');
+    if (!professor) throw new Error('Professor não encontrado');
     if (aluno.professorId !== data.professorId) {
-      throw new Error('Aluno nao pertence ao professor informado');
+      throw new Error('Aluno não pertence ao professor informado');
     }
 
     if (data.bookingType === 'fixed_makeup' && aluno.schedulePlan !== 'fixed') {

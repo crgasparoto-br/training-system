@@ -37,7 +37,7 @@ export const professorService = {
     });
 
     if (!contract) {
-      throw new Error('Contrato nÃ£o encontrado');
+      throw new Error('Contrato não encontrado');
     }
 
     if (contract.type !== 'academy') {
@@ -49,7 +49,7 @@ export const professorService = {
     });
 
     if (existingUser) {
-      throw new Error('Email jÃ¡ estÃ¡ registrado');
+      throw new Error('E-mail já está registrado');
     }
 
     const passwordHash = await bcryptjs.hash(data.password, 10);
@@ -118,7 +118,7 @@ export const professorService = {
     });
 
     if (!professor) {
-      throw new Error('Professor nÃ£o encontrado');
+      throw new Error('Professor não encontrado');
     }
     if (professor.role === 'master') {
       throw new Error('NÃ£o Ã© possÃ­vel desativar o professor master');
@@ -140,7 +140,7 @@ export const professorService = {
     });
 
     if (!professor?.user) {
-      throw new Error('Professor nÃ£o encontrado');
+      throw new Error('Professor não encontrado');
     }
     if (professor.role === 'master') {
       throw new Error('NÃ£o Ã© possÃ­vel resetar a senha do professor master');
@@ -169,7 +169,7 @@ export const professorService = {
     });
 
     if (!professor) {
-      throw new Error('Professor nÃ£o encontrado');
+      throw new Error('Professor não encontrado');
     }
 
     const normalizedEmail =
@@ -188,7 +188,7 @@ export const professorService = {
       });
 
       if (existingUser && existingUser.id !== professor.user.id) {
-        throw new Error('Email jÃ¡ estÃ¡ registrado');
+        throw new Error('E-mail já está registrado');
       }
     }
 

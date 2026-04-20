@@ -8,6 +8,7 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
 import { ArrowLeft } from 'lucide-react';
+import { alunoFormCopy, commonCopy } from '../i18n/ptBR';
 
 const numberOrUndefined = (value: unknown) =>
   typeof value === 'number' && Number.isNaN(value) ? undefined : value;
@@ -17,7 +18,7 @@ const optionalNumberSchema = (schema: z.ZodNumber) =>
 
 const alunoSchema = z.object({
   name: z.string().min(3, 'Nome deve ter no minimo 3 caracteres'),
-  email: z.string().email('Email invalido'),
+  email: z.string().email('E-mail inválido'),
   phone: z.string().optional(),
   birthDate: z.string().optional(),
   gender: z.enum(['male', 'female', 'other']).optional(),
@@ -68,11 +69,11 @@ const textareaClassName =
 
 const parqQuestions = [
   { key: 'q1', label: 'Sente dor no peito durante atividade fisica?' },
-  { key: 'q2', label: 'Perde equilibrio por tontura ou ja perdeu a consciencia?' },
+  { key: 'q2', label: 'Perde equilíbrio por tontura ou já perdeu a consciência?' },
   { key: 'q3', label: 'Possui problema osseo ou articular que pode piorar com exercicio?' },
-  { key: 'q4', label: 'Usa medicacao para pressao arterial ou condicao cardiaca?' },
+  { key: 'q4', label: 'Usa medicação para pressão arterial ou condição cardíaca?' },
   { key: 'q5', label: 'Tem restricao medica atual para praticar exercicios?' },
-  { key: 'q6', label: 'Teve lesoes recentes que limitam treino ou avaliacao?' },
+  { key: 'q6', label: 'Teve lesões recentes que limitam treino ou avaliação?' },
   { key: 'q7', label: 'Existe outro motivo para evitar atividade fisica neste momento?' },
 ] as const;
 
@@ -193,7 +194,7 @@ export function AlunoForm() {
 
   const handleAssessmentPrefill = async () => {
     if (!prefillFile) {
-      alert('Selecione um PDF de avaliacao para pre-preencher o cadastro.');
+      alert(alunoFormCopy.prefillValidation);
       return;
     }
 
@@ -205,18 +206,18 @@ export function AlunoForm() {
       const summaryParts = [
         prefill.extractedPreview?.sourceName ? `Nome identificado: ${prefill.extractedPreview.sourceName}` : null,
         prefill.extractedPreview?.sourceAssessmentDate
-          ? `Data da avaliacao: ${formatDateForInput(prefill.extractedPreview.sourceAssessmentDate)}`
+          ? `Data da avaliação: ${formatDateForInput(prefill.extractedPreview.sourceAssessmentDate)}`
           : null,
       ].filter(Boolean);
 
       setPrefillSummary(
         summaryParts.length > 0
           ? summaryParts.join(' | ')
-          : 'Campos compativeis foram pre-preenchidos a partir do PDF.'
+          : alunoFormCopy.prefillSummaryFallback
       );
     } catch (error: any) {
       console.error('Erro ao pre-preencher cadastro:', error);
-      alert(error.response?.data?.error || 'Erro ao ler PDF de avaliacao');
+      alert(error.response?.data?.error || alunoFormCopy.prefillReadError);
     } finally {
       setPrefillLoading(false);
     }
@@ -268,7 +269,7 @@ export function AlunoForm() {
       setValue('intakeForm.parqResponses.q7', aluno.intakeForm?.parqResponses?.q7 ?? false);
     } catch (error) {
       console.error('Erro ao carregar aluno:', error);
-      alert('Erro ao carregar dados do aluno');
+      alert(alunoFormCopy.loadError);
       navigate('/alunos');
     } finally {
       setLoadingData(false);
@@ -307,7 +308,7 @@ export function AlunoForm() {
 
       if (isEditMode && id) {
         await alunoService.update(id, basePayload);
-        alert('Aluno atualizado com sucesso!');
+        alert(alunoFormCopy.updateSuccess);
         navigate(`/alunos/${id}`);
         return;
       }
@@ -323,7 +324,7 @@ export function AlunoForm() {
       });
     } catch (error: any) {
       console.error('Erro ao salvar aluno:', error);
-      alert(error.response?.data?.error || 'Erro ao salvar aluno');
+      alert(error.response?.data?.error || alunoFormCopy.saveError);
     } finally {
       setLoading(false);
     }
@@ -334,7 +335,7 @@ export function AlunoForm() {
       <div className="flex min-h-[400px] items-center justify-center">
         <div className="text-center">
           <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-          <p className="mt-4 text-muted-foreground">Carregando dados...</p>
+          <p className="mt-4 text-muted-foreground">{alunoFormCopy.loading}</p>
         </div>
       </div>
     );
@@ -347,11 +348,11 @@ export function AlunoForm() {
           <ArrowLeft size={20} />
         </Button>
         <div>
-          <h1 className="text-3xl font-bold">{isEditMode ? 'Editar Aluno' : 'Novo Aluno'}</h1>
+          <h1 className="text-3xl font-bold">{isEditMode ? alunoFormCopy.editTitle : alunoFormCopy.newTitle}</h1>
           <p className="mt-2 text-muted-foreground">
             {isEditMode
-              ? 'Atualize o cadastro e a avaliacao inicial do aluno'
-              : 'Preencha o formulario de cadastro inicial do aluno'}
+              ? alunoFormCopy.editDescription
+              : alunoFormCopy.newDescription}
           </p>
         </div>
       </div>
@@ -359,43 +360,43 @@ export function AlunoForm() {
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         <Card>
           <CardHeader>
-            <CardTitle>Escopo do Cadastro</CardTitle>
+            <CardTitle>{alunoFormCopy.scopeTitle}</CardTitle>
             <CardDescription>
-              A tela agora cobre cadastro basico, indicadores iniciais, PAR-Q, pressao arterial, objetivos e distribuicao de macronutrientes.
+              {alunoFormCopy.scopeDescription}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="rounded-lg border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
-              Historicos completos de avaliacao fisica em PDF, variaveis detalhadas de laudo e reprocessamento continuam centralizados na area de avaliacoes do aluno.
+              {alunoFormCopy.scopeHint}
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Leitura de PDF da Avaliacao</CardTitle>
+            <CardTitle>{alunoFormCopy.pdfTitle}</CardTitle>
             <CardDescription>
-              Envie um PDF da avaliacao para preencher automaticamente os campos compativeis do cadastro inicial.
+              {alunoFormCopy.pdfDescription}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_auto] md:items-end">
               <div>
-                <label className="mb-2 block text-sm font-medium text-foreground">Arquivo PDF</label>
+                <label className="mb-2 block text-sm font-medium text-foreground">{alunoFormCopy.pdfFileLabel}</label>
                 <input
                   type="file"
                   accept="application/pdf"
-                  title="Selecionar PDF da avaliacao"
+                  title={alunoFormCopy.pdfFileTitle}
                   className="flex h-12 w-full rounded-xl border border-[#cbd5e1] bg-background px-4 py-3 text-base"
                   onChange={(event) => setPrefillFile(event.target.files?.[0] || null)}
                 />
               </div>
               <Button type="button" onClick={handleAssessmentPrefill} isLoading={prefillLoading}>
-                Aplicar pre-preenchimento
+                {alunoFormCopy.applyPrefill}
               </Button>
             </div>
             <div className="rounded-lg border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
-              O PDF pode preencher nome, antropometria, variaveis cardiovasculares, data da avaliacao e parte do resumo nutricional.
+              {alunoFormCopy.pdfHint}
             </div>
             {prefillSummary && (
               <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
@@ -407,14 +408,14 @@ export function AlunoForm() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Identificacao e Cadastro</CardTitle>
+            <CardTitle>Identificação e cadastro</CardTitle>
             <CardDescription>Dados fixos do aluno que devem permanecer no cadastro principal</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Input label="Nome Completo" placeholder="Joao Silva" error={errors.name?.message} disabled={isEditMode} {...register('name')} />
+            <Input label="Nome completo" placeholder="João Silva" error={errors.name?.message} disabled={isEditMode} {...register('name')} />
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <Input label="Email" type="email" placeholder="joao@email.com" error={errors.email?.message} disabled={isEditMode} {...register('email')} />
+              <Input label="E-mail" type="email" placeholder="joao@email.com" error={errors.email?.message} disabled={isEditMode} {...register('email')} />
               <Input
                 label="Telefone"
                 type="tel"
@@ -433,7 +434,7 @@ export function AlunoForm() {
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <Input label="Data de Nascimento" type="date" error={errors.birthDate?.message} {...register('birthDate')} />
               <div>
-                <label className="mb-2 block text-sm font-medium text-foreground">Genero</label>
+                <label className="mb-2 block text-sm font-medium text-foreground">Gênero</label>
                 <select className={selectClassName} {...register('gender')}>
                   <option value="male">Masculino</option>
                   <option value="female">Feminino</option>
@@ -449,15 +450,15 @@ export function AlunoForm() {
                 <option value="free">Livre</option>
                 <option value="fixed">Fixo</option>
               </select>
-              <p className="mt-2 text-sm text-muted-foreground">Use plano fixo para alunos com rotina recorrente de agenda e reposicoes vinculadas.</p>
+              <p className="mt-2 text-sm text-muted-foreground">Use plano fixo para alunos com rotina recorrente de agenda e reposições vinculadas.</p>
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Antropometria e Composicao Corporal</CardTitle>
-            <CardDescription>Campos iniciais do formulario fisico usados no acompanhamento do aluno</CardDescription>
+            <CardTitle>Antropometria e composição corporal</CardTitle>
+            <CardDescription>Campos iniciais do formulário físico usados no acompanhamento do aluno</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -478,38 +479,38 @@ export function AlunoForm() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Avaliacao Metabolica e Cardiovascular</CardTitle>
-            <CardDescription>Dados principais para prescricao e leitura inicial do aluno</CardDescription>
+            <CardTitle>Avaliação metabólica e cardiovascular</CardTitle>
+            <CardDescription>Dados principais para prescrição e leitura inicial do aluno</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <Input label="VO2 Max (ml/kg/min)" type="number" step="0.1" placeholder="55.0" error={errors.vo2Max?.message} {...register('vo2Max', { valueAsNumber: true })} />
-              <Input label="Limiar Anaerobico (km/h)" type="number" step="0.1" placeholder="15.0" error={errors.anaerobicThreshold?.message} {...register('anaerobicThreshold', { valueAsNumber: true })} />
+              <Input label="Limiar anaeróbico (km/h)" type="number" step="0.1" placeholder="15.0" error={errors.anaerobicThreshold?.message} {...register('anaerobicThreshold', { valueAsNumber: true })} />
             </div>
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <Input label="FC Maxima (bpm)" type="number" placeholder="190" error={errors.maxHeartRate?.message} {...register('maxHeartRate', { valueAsNumber: true })} />
+              <Input label="FC máxima (bpm)" type="number" placeholder="190" error={errors.maxHeartRate?.message} {...register('maxHeartRate', { valueAsNumber: true })} />
               <Input label="FC Repouso (bpm)" type="number" placeholder="60" error={errors.restingHeartRate?.message} {...register('restingHeartRate', { valueAsNumber: true })} />
             </div>
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              <Input label="Data da Avaliacao Inicial" type="date" error={errors.intakeForm?.assessmentDate?.message} {...register('intakeForm.assessmentDate')} />
-              <Input label="Pressao Sistólica (mmHg)" type="number" placeholder="120" error={errors.systolicPressure?.message} {...register('systolicPressure', { valueAsNumber: true })} />
-              <Input label="Pressao Diastólica (mmHg)" type="number" placeholder="80" error={errors.diastolicPressure?.message} {...register('diastolicPressure', { valueAsNumber: true })} />
+              <Input label="Data da avaliação inicial" type="date" error={errors.intakeForm?.assessmentDate?.message} {...register('intakeForm.assessmentDate')} />
+              <Input label="Pressão sistólica (mmHg)" type="number" placeholder="120" error={errors.systolicPressure?.message} {...register('systolicPressure', { valueAsNumber: true })} />
+              <Input label="Pressão diastólica (mmHg)" type="number" placeholder="80" error={errors.diastolicPressure?.message} {...register('diastolicPressure', { valueAsNumber: true })} />
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Aporte Energetico e Macronutrientes</CardTitle>
-            <CardDescription>Resumo nutricional do formulario inicial quando disponivel</CardDescription>
+            <CardTitle>Aporte energético e macronutrientes</CardTitle>
+            <CardDescription>Resumo nutricional do formulário inicial quando disponível</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
               <Input label="Carboidratos (%)" type="number" step="0.1" placeholder="55" error={errors.macronutrients?.carbohydratesPercentage?.message} {...register('macronutrients.carbohydratesPercentage', { valueAsNumber: true })} />
-              <Input label="Proteinas (%)" type="number" step="0.1" placeholder="25" error={errors.macronutrients?.proteinsPercentage?.message} {...register('macronutrients.proteinsPercentage', { valueAsNumber: true })} />
-              <Input label="Lipidios (%)" type="number" step="0.1" placeholder="20" error={errors.macronutrients?.lipidsPercentage?.message} {...register('macronutrients.lipidsPercentage', { valueAsNumber: true })} />
+              <Input label="Proteínas (%)" type="number" step="0.1" placeholder="25" error={errors.macronutrients?.proteinsPercentage?.message} {...register('macronutrients.proteinsPercentage', { valueAsNumber: true })} />
+              <Input label="Lipídios (%)" type="number" step="0.1" placeholder="20" error={errors.macronutrients?.lipidsPercentage?.message} {...register('macronutrients.lipidsPercentage', { valueAsNumber: true })} />
               <Input label="Kcal por dia" type="number" placeholder="2200" error={errors.macronutrients?.dailyCalories?.message} {...register('macronutrients.dailyCalories', { valueAsNumber: true })} />
             </div>
           </CardContent>
@@ -517,8 +518,8 @@ export function AlunoForm() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Avaliacao Inicial Complementar</CardTitle>
-            <CardDescription>Objetivos, historico, lesoes e contexto inicial do aluno</CardDescription>
+            <CardTitle>Avaliação inicial complementar</CardTitle>
+            <CardDescription>Objetivos, histórico, lesões e contexto inicial do aluno</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
@@ -526,26 +527,26 @@ export function AlunoForm() {
               <textarea className={textareaClassName} placeholder="Ex.: melhorar performance, reduzir gordura, retornar ao treino" {...register('intakeForm.mainGoal')} />
             </div>
             <div>
-              <label className="mb-2 block text-sm font-medium text-foreground">Historico de treino e atividade fisica</label>
-              <textarea className={textareaClassName} placeholder="Descreva frequencia, modalidades e experiencia previa" {...register('intakeForm.trainingBackground')} />
+              <label className="mb-2 block text-sm font-medium text-foreground">Histórico de treino e atividade física</label>
+              <textarea className={textareaClassName} placeholder="Descreva frequência, modalidades e experiência prévia" {...register('intakeForm.trainingBackground')} />
             </div>
             <div>
-              <label className="mb-2 block text-sm font-medium text-foreground">Historico medico</label>
-              <textarea className={textareaClassName} placeholder="Condicoes clinicas relevantes, cirurgias ou observacoes" {...register('intakeForm.medicalHistory')} />
+              <label className="mb-2 block text-sm font-medium text-foreground">Histórico médico</label>
+              <textarea className={textareaClassName} placeholder="Condições clínicas relevantes, cirurgias ou observações" {...register('intakeForm.medicalHistory')} />
             </div>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
-                <label className="mb-2 block text-sm font-medium text-foreground">Medicacoes em uso</label>
-                <textarea className={textareaClassName} placeholder="Medicacoes continuas ou recentes" {...register('intakeForm.currentMedications')} />
+                <label className="mb-2 block text-sm font-medium text-foreground">Medicações em uso</label>
+                <textarea className={textareaClassName} placeholder="Medicações contínuas ou recentes" {...register('intakeForm.currentMedications')} />
               </div>
               <div>
-                <label className="mb-2 block text-sm font-medium text-foreground">Lesoes e restricoes</label>
-                <textarea className={textareaClassName} placeholder="Lesoes anteriores, dores recorrentes e limitacoes" {...register('intakeForm.injuriesHistory')} />
+                <label className="mb-2 block text-sm font-medium text-foreground">Lesões e restrições</label>
+                <textarea className={textareaClassName} placeholder="Lesões anteriores, dores recorrentes e limitações" {...register('intakeForm.injuriesHistory')} />
               </div>
             </div>
             <div>
-              <label className="mb-2 block text-sm font-medium text-foreground">Observacoes do profissional</label>
-              <textarea className={textareaClassName} placeholder="Observacoes complementares da avaliacao inicial" {...register('intakeForm.observations')} />
+              <label className="mb-2 block text-sm font-medium text-foreground">Observações do profissional</label>
+              <textarea className={textareaClassName} placeholder="Observações complementares da avaliação inicial" {...register('intakeForm.observations')} />
             </div>
           </CardContent>
         </Card>
@@ -553,7 +554,7 @@ export function AlunoForm() {
         <Card>
           <CardHeader>
             <CardTitle>PAR-Q</CardTitle>
-            <CardDescription>Questionario de prontidao para atividade fisica registrado junto ao cadastro</CardDescription>
+            <CardDescription>Questionário de prontidão para atividade física registrado junto ao cadastro</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {parqQuestions.map((question) => (
@@ -562,16 +563,16 @@ export function AlunoForm() {
                 <span>{question.label}</span>
               </label>
             ))}
-            <p className="text-sm text-muted-foreground">Marque as respostas positivas. Se todas permanecerem desmarcadas, o aluno nao sinalizou restricoes no PAR-Q.</p>
+            <p className="text-sm text-muted-foreground">Marque as respostas positivas. Se todas permanecerem desmarcadas, o aluno não sinalizou restrições no PAR-Q.</p>
           </CardContent>
         </Card>
 
         <div className="flex justify-end gap-4">
           <Button type="button" variant="outline" onClick={() => navigate('/alunos')}>
-            Cancelar
+            {alunoFormCopy.cancel}
           </Button>
           <Button type="submit" isLoading={loading}>
-            {isEditMode ? 'Atualizar Aluno' : 'Criar Aluno'}
+            {isEditMode ? alunoFormCopy.updateAluno : alunoFormCopy.createAluno}
           </Button>
         </div>
       </form>

@@ -3,8 +3,8 @@ import bcryptjs from 'bcryptjs';
 import { PrismaClient } from '@prisma/client';
 import type { JwtPayload, LoginRequest, RegisterRequest, AuthResponse } from '@corrida/types';
 import type { SignOptions } from 'jsonwebtoken';
-import { ensureDefaultAssessmentTypes } from '../assessments/assessment-type.service';
-import { ensureDefaultSubjectiveScales } from '../assessments/subjective-scale.service';
+import { ensureDefaultAssessmentTypesForContract } from '../assessments/assessment-type.service';
+import { ensureDefaultSubjectiveScalesForContract } from '../assessments/subjective-scale.service';
 
 const prisma = new PrismaClient();
 
@@ -26,7 +26,7 @@ export class AuthService {
     });
 
     if (existingUser) {
-      throw new Error('Email jÃ¡ estÃ¡ registrado');
+      throw new Error('E-mail já está registrado');
     }
 
     if (data.type !== 'professor') {
@@ -39,8 +39,8 @@ export class AuthService {
     if (document.length !== expectedLength) {
       throw new Error(
         data.contractType === 'academy'
-          ? 'CNPJ invÃ¡lido'
-          : 'CPF invÃ¡lido'
+          ? 'CNPJ inválido'
+          : 'CPF inválido'
       );
     }
 
@@ -49,14 +49,14 @@ export class AuthService {
     });
 
     if (existingContract) {
-      throw new Error('Documento jÃ¡ estÃ¡ registrado');
+      throw new Error('Documento já está registrado');
     }
 
     // Hash da senha
     const passwordHash = await bcryptjs.hash(data.password, 10);
 
     // Criar contrato, usuÃ¡rio e professor master
-    const { user, professor } = await prisma.$transaction(async (tx) => {
+    const { user, professor, contractId } = await prisma.$transaction(async (tx) => {
       const contract = await tx.contract.create({
         data: {
           type: data.contractType,
@@ -91,14 +91,15 @@ export class AuthService {
         },
       });
 
-      await ensureDefaultAssessmentTypes(tx, contract.id);
-      await ensureDefaultSubjectiveScales(tx, contract.id);
-
       return {
         user: createdUser,
         professor: createdProfessor,
+        contractId: contract.id,
       };
     });
+
+    await ensureDefaultAssessmentTypesForContract(contractId);
+    await ensureDefaultSubjectiveScalesForContract(contractId);
 
     // Gerar token
     const token = this.generateToken(user.id, user.email, user.type);
@@ -144,17 +145,17 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new Error('Email ou senha incorretos');
+      throw new Error('E-mail ou senha incorretos');
     }
     if (!user.isActive) {
-      throw new Error('UsuÃ¡rio desativado');
+      throw new Error('Usuário desativado');
     }
 
     // Verificar senha
     const passwordMatch = await bcryptjs.compare(data.password, user.passwordHash);
 
     if (!passwordMatch) {
-      throw new Error('Email ou senha incorretos');
+      throw new Error('E-mail ou senha incorretos');
     }
 
     await prisma.user.update({

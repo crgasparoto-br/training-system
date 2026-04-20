@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../ui/Card';
+import { shellCopy } from '../../i18n/ptBR';
 
 interface AuthCardLayoutProps {
   title: string;
@@ -16,14 +17,14 @@ export function AuthCardLayout({ title, description, children, footer }: AuthCar
           <section className="hidden bg-slate-900 p-10 text-slate-100 md:flex md:flex-col md:justify-between">
             <div className="space-y-4">
               <span className="inline-flex w-fit rounded-full border border-slate-700 px-3 py-1 text-xs font-medium uppercase tracking-wide text-slate-200">
-                training_system
+                {shellCopy.heroBadge}
               </span>
-              <h1 className="text-3xl font-semibold leading-tight">Gestao de Treinos</h1>
+              <h1 className="text-3xl font-semibold leading-tight">{shellCopy.heroTitle}</h1>
               <p className="max-w-sm text-sm text-slate-300">
-                Acesse sua conta para organizar alunos, acompanhar execucoes e planejar periodizacoes com seguranca.
+                {shellCopy.heroDescription}
               </p>
             </div>
-            <p className="text-xs text-slate-400">Ambiente seguro para professores e alunos.</p>
+            <p className="text-xs text-slate-400">{shellCopy.heroFooter}</p>
           </section>
 
           <section className="p-4 sm:p-6 md:p-8">

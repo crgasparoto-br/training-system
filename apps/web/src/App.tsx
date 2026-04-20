@@ -55,7 +55,7 @@ function App() {
           <Route path="plans/:planId/workout-builder/:mesocycleNumber/:weekNumber" element={<WorkoutBuilder2 />} />
           <Route path="library" element={<Library />} />
           <Route path="executions" element={<Executions />} />
-          <Route path="reports" element={<div className="text-center py-12">PÃ¡gina de RelatÃ³rios (Em desenvolvimento)</div>} />
+          <Route path="reports" element={<div className="text-center py-12">Página de Relatórios (Em desenvolvimento)</div>} />
           <Route path="settings" element={<Settings />} />
           <Route path="settings/parameters" element={<SettingsParameters />} />
           <Route path="settings/contract" element={<ContractSettings />} />

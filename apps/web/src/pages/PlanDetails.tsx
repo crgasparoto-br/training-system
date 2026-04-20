@@ -5,6 +5,7 @@ import { SessionModal } from '../components/SessionModal';
 import { PeriodizationMatrixComponent } from '../components/PeriodizationMatrix';
 import { Button } from '../components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
+import { planDetailsCopy } from '../i18n/ptBR';
 import { formatDateBR } from '../utils/date';
 import {
   ArrowLeft,
@@ -41,7 +42,7 @@ export function PlanDetails() {
       setPlan(data);
     } catch (error) {
       console.error('Erro ao carregar plano:', error);
-      alert('Erro ao carregar plano');
+      alert(planDetailsCopy.loadError);
       navigate('/plans');
     } finally {
       setLoading(false);
@@ -49,17 +50,17 @@ export function PlanDetails() {
   };
 
   const handleDelete = async () => {
-    if (!id || !confirm('Tem certeza que deseja deletar este plano?')) {
+    if (!id || !confirm(planDetailsCopy.deleteConfirm)) {
       return;
     }
 
     try {
       await planService.delete(id);
-      alert('Plano deletado com sucesso!');
+      alert(planDetailsCopy.deleteSuccess);
       navigate('/plans');
     } catch (error) {
       console.error('Erro ao deletar plano:', error);
-      alert('Erro ao deletar plano');
+      alert(planDetailsCopy.deleteError);
     }
   };
 
@@ -86,7 +87,7 @@ export function PlanDetails() {
   };
 
   const handleDeleteSession = async (sessionId: string) => {
-    if (!confirm('Tem certeza que deseja deletar esta sessÃ£o?')) {
+    if (!confirm(planDetailsCopy.deleteSessionConfirm)) {
       return;
     }
 
@@ -96,8 +97,8 @@ export function PlanDetails() {
         await loadPlan(id);
       }
     } catch (error) {
-      console.error('Erro ao deletar sessÃ£o:', error);
-      alert('Erro ao deletar sessÃ£o');
+      console.error('Erro ao deletar sessão:', error);
+      alert(planDetailsCopy.deleteSessionError);
     }
   };
 
@@ -106,13 +107,13 @@ export function PlanDetails() {
 
     try {
       if (editingSession) {
-        // Editar sessÃ£o existente
+        // Editar sessão existente
         await planService.updateSession(editingSession.id, {
           ...data,
           mesocycleId: selectedMesocycleId,
         });
       } else {
-        // Criar nova sessÃ£o
+        // Criar nova sessão
         await planService.createSession({
           ...data,
           mesocycleId: selectedMesocycleId,
@@ -127,8 +128,8 @@ export function PlanDetails() {
         await loadPlan(id);
       }
     } catch (error) {
-      console.error('Erro ao salvar sessÃ£o:', error);
-      alert('Erro ao salvar sessÃ£o');
+      console.error('Erro ao salvar sessão:', error);
+      alert(planDetailsCopy.saveSessionError);
     }
   };
 
@@ -139,7 +140,7 @@ export function PlanDetails() {
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
           <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mx-auto" />
-          <p className="mt-4 text-muted-foreground">Carregando plano...</p>
+          <p className="mt-4 text-muted-foreground">{planDetailsCopy.loading}</p>
         </div>
       </div>
     );
@@ -148,9 +149,9 @@ export function PlanDetails() {
   if (!plan) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground">Plano nÃ£o encontrado</p>
+        <p className="text-muted-foreground">{planDetailsCopy.notFound}</p>
         <Button onClick={() => navigate('/plans')} className="mt-4">
-          Voltar para Planos
+          {planDetailsCopy.backToPlans}
         </Button>
       </div>
     );
@@ -174,15 +175,15 @@ export function PlanDetails() {
         <div className="flex flex-wrap gap-2">
           <Button onClick={() => navigate(`/plans/${id}/workout-builder/1/1`)}>
             <Activity size={20} />
-            Montar Treinos
+            {planDetailsCopy.buildWorkouts}
           </Button>
           <Button variant="outline" onClick={() => navigate(`/plans/${id}/edit`)}>
             <Edit size={20} />
-            Editar
+            {planDetailsCopy.edit}
           </Button>
           <Button variant="destructive" onClick={handleDelete}>
             <Trash2 size={20} />
-            Deletar
+            {planDetailsCopy.delete}
           </Button>
         </div>
       </div>
@@ -201,25 +202,25 @@ export function PlanDetails() {
         <div className="grid gap-4 md:grid-cols-4">
           <Card>
             <CardHeader className="pb-3">
-              <CardDescription>Semanas</CardDescription>
+              <CardDescription>{planDetailsCopy.weeks}</CardDescription>
               <CardTitle className="text-3xl">{plan.stats.totalMesocycles}</CardTitle>
             </CardHeader>
           </Card>
           <Card>
             <CardHeader className="pb-3">
-              <CardDescription>SessÃµes</CardDescription>
+              <CardDescription>{planDetailsCopy.sessions}</CardDescription>
               <CardTitle className="text-3xl">{plan.stats.totalMicrocycles}</CardTitle>
             </CardHeader>
           </Card>
           <Card>
             <CardHeader className="pb-3">
-              <CardDescription>DistÃ¢ncia Total</CardDescription>
+              <CardDescription>{planDetailsCopy.totalDistance}</CardDescription>
               <CardTitle className="text-3xl">{plan.stats.totalDistance.toFixed(0)} km</CardTitle>
             </CardHeader>
           </Card>
           <Card>
             <CardHeader className="pb-3">
-              <CardDescription>DuraÃ§Ã£o Total</CardDescription>
+              <CardDescription>{planDetailsCopy.totalDuration}</CardDescription>
               <CardTitle className="text-3xl">
                 {planService.formatDuration(plan.stats.totalDuration)}
               </CardTitle>
@@ -233,18 +234,18 @@ export function PlanDetails() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Calendar className="h-5 w-5" />
-            PerÃ­odo
+            {planDetailsCopy.period}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-4">
             <div>
-              <p className="text-sm text-muted-foreground">InÃ­cio</p>
+              <p className="text-sm text-muted-foreground">{planDetailsCopy.start}</p>
               <p className="font-bold">{formatDate(plan.startDate)}</p>
             </div>
-            <div className="text-muted-foreground">â†’</div>
+            <div className="text-muted-foreground">→</div>
             <div>
-              <p className="text-sm text-muted-foreground">TÃ©rmino</p>
+              <p className="text-sm text-muted-foreground">{planDetailsCopy.end}</p>
               <p className="font-bold">{formatDate(plan.endDate)}</p>
             </div>
           </div>
@@ -295,7 +296,7 @@ export function PlanDetails() {
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors`}
           >
-            SessÃµes de Treino
+            {planDetailsCopy.trainingSessionsTab}
           </button>
           <button
             onClick={() => setActiveTab('periodization')}
@@ -305,7 +306,7 @@ export function PlanDetails() {
                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
             } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors`}
           >
-            PeriodizaÃ§Ã£o Macrociclo
+            {planDetailsCopy.periodizationTab}
           </button>
         </nav>
       </div>
@@ -314,7 +315,7 @@ export function PlanDetails() {
       {activeTab === 'sessions' && plan.macrocycles && plan.macrocycles.length > 0 && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-bold">Semanas de Treino</h2>
+            <h2 className="text-2xl font-bold">{planDetailsCopy.trainingWeeks}</h2>
           </div>
 
           {plan.macrocycles.map((macro) =>
@@ -342,11 +343,11 @@ export function PlanDetails() {
                       </div>
                       <div className="flex items-center gap-4">
                         <div className="text-right">
-                          <p className="text-sm text-muted-foreground">Volume</p>
+                          <p className="text-sm text-muted-foreground">{planDetailsCopy.volume}</p>
                           <p className="font-bold">{weekVolume.toFixed(1)} km</p>
                         </div>
                         <div className="text-right">
-                          <p className="text-sm text-muted-foreground">SessÃµes</p>
+                          <p className="text-sm text-muted-foreground">{planDetailsCopy.sessions}</p>
                           <p className="font-bold">{week.microcycles.length}</p>
                         </div>
                         {isExpanded ? (
@@ -363,10 +364,10 @@ export function PlanDetails() {
                       {week.microcycles.length === 0 ? (
                         <div className="text-center py-8 text-muted-foreground">
                           <Activity className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                          <p>Nenhuma sessÃ£o adicionada</p>
+                          <p>{planDetailsCopy.noSessionAdded}</p>
                           <Button className="mt-4" size="sm" onClick={() => handleAddSession(week.id)}>
                             <Plus size={16} />
-                            Adicionar SessÃ£o
+                            {planDetailsCopy.addSession}
                           </Button>
                         </div>
                       ) : (
@@ -404,7 +405,7 @@ export function PlanDetails() {
                               </div>
                               <div className="flex items-center gap-2">
                                 <span className="text-xs text-muted-foreground">
-                                  {session.intensityPercentage}% intensidade
+                                  {session.intensityPercentage}% {planDetailsCopy.intensity}
                                 </span>
                                 <Button
                                   variant="outline"
@@ -433,7 +434,7 @@ export function PlanDetails() {
                             className="w-full"
                           >
                             <Plus size={16} />
-                            Adicionar SessÃ£o
+                            {planDetailsCopy.addSession}
                           </Button>
                         </div>
                       )}
@@ -451,13 +452,13 @@ export function PlanDetails() {
         <Card>
           <CardContent className="py-12 text-center">
             <Calendar className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-            <h3 className="text-lg font-semibold mb-2">Plano sem estrutura</h3>
+            <h3 className="text-lg font-semibold mb-2">{planDetailsCopy.emptyTitle}</h3>
             <p className="text-muted-foreground mb-4">
-              Este plano ainda nÃ£o tem semanas ou sessÃµes configuradas
+              {planDetailsCopy.emptyDescription}
             </p>
             <Button onClick={() => loadPlan(id!)}>
               <Activity size={20} />
-              Atualizar
+              {planDetailsCopy.refresh}
             </Button>
           </CardContent>
         </Card>

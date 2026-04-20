@@ -50,7 +50,7 @@ export async function professorMiddleware(req: Request, res: Response, next: Nex
   if (!req.user) {
     return res.status(401).json({
       success: false,
-      error: 'NÃ£o autenticado',
+      error: 'Não autenticado',
     });
   }
 
@@ -67,7 +67,7 @@ export async function professorMiddleware(req: Request, res: Response, next: Nex
     if (!professor) {
       return res.status(404).json({
         success: false,
-        error: 'Professor nÃ£o encontrado',
+        error: 'Professor não encontrado',
       });
     }
 
@@ -87,13 +87,13 @@ export async function professorMiddleware(req: Request, res: Response, next: Nex
 }
 
 /**
- * Middleware para verificar se Ã© professor master
+ * Middleware para verificar se é professor master
  */
 export async function masterMiddleware(req: Request, res: Response, next: NextFunction) {
   if (!req.user) {
     return res.status(401).json({
       success: false,
-      error: 'NÃ£o autenticado',
+      error: 'Não autenticado',
     });
   }
 
@@ -110,7 +110,7 @@ export async function masterMiddleware(req: Request, res: Response, next: NextFu
     if (!professor) {
       return res.status(404).json({
         success: false,
-        error: 'Professor nÃ£o encontrado',
+        error: 'Professor não encontrado',
       });
     }
 

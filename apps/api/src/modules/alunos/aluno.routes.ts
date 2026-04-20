@@ -94,7 +94,7 @@ const ensureAlunoAccess = async (req: Request, res: Response, alunoId: string) =
   const { professorId, professorRole, contractId } = getProfessorContext(req);
 
   if (!professorId) {
-    sendError(res, 'Professor nao encontrado', 404);
+    sendError(res, 'Professor não encontrado', 404);
     return false;
   }
 
@@ -104,7 +104,7 @@ const ensureAlunoAccess = async (req: Request, res: Response, alunoId: string) =
       : await alunoService.belongsToProfessor(alunoId, professorId);
 
   if (!belongs) {
-    sendError(res, 'Aluno nao encontrado ou nao pertence ao seu acesso', 404);
+    sendError(res, 'Aluno não encontrado ou não pertence ao seu acesso', 404);
     return false;
   }
 
@@ -122,7 +122,7 @@ router.post('/', async (req: Request, res: Response) => {
     const { professorId } = getProfessorContext(req);
 
     if (!professorId) {
-      return sendError(res, 'Professor nao encontrado', 404);
+      return sendError(res, 'Professor não encontrado', 404);
     }
 
     const aluno = await alunoService.create({
@@ -133,7 +133,7 @@ router.post('/', async (req: Request, res: Response) => {
     return sendSuccess(res, aluno, 'Aluno criado com sucesso', 201);
   } catch (error: any) {
     if (error instanceof z.ZodError) {
-      return sendError(res, 'Dados invalidos', 400, error.errors);
+      return sendError(res, 'Dados inválidos', 400, error.errors);
     }
     if (error?.message === 'Email jÃ¡ estÃ¡ registrado') {
       return sendError(res, error.message, 400);
@@ -321,7 +321,7 @@ router.get('/', async (req: Request, res: Response) => {
     const status = rawStatus === 'inactive' || rawStatus === 'all' ? rawStatus : 'active';
 
     if (!professorId) {
-      return sendError(res, 'Professor nao encontrado', 404);
+      return sendError(res, 'Professor não encontrado', 404);
     }
 
     const result =
@@ -467,7 +467,7 @@ router.put('/:id', async (req: Request, res: Response) => {
     return sendSuccess(res, aluno, 'Aluno atualizado com sucesso');
   } catch (error: any) {
     if (error instanceof z.ZodError) {
-      return sendError(res, 'Dados invalidos', 400, error.errors);
+      return sendError(res, 'Dados inválidos', 400, error.errors);
     }
     console.error('Erro ao atualizar aluno:', error);
     return sendError(res, 'Erro ao atualizar aluno', 500);
@@ -516,7 +516,7 @@ router.post('/:id/deactivate', async (req: Request, res: Response) => {
         : await alunoService.belongsToProfessor(id, professorId);
 
     if (!belongs) {
-      return sendError(res, 'Aluno nao encontrado ou nao pertence a voce', 404);
+      return sendError(res, 'Aluno não encontrado ou não pertence a você', 404);
     }
 
     const aluno = await alunoService.setActive(id, false);
@@ -539,7 +539,7 @@ router.post('/:id/activate', async (req: Request, res: Response) => {
     const contractId = (req as any).user.contractId as string | undefined;
 
     if (!professorId) {
-      return sendError(res, 'Professor nao encontrado', 404);
+      return sendError(res, 'Professor não encontrado', 404);
     }
 
     const belongs =
@@ -548,7 +548,7 @@ router.post('/:id/activate', async (req: Request, res: Response) => {
         : await alunoService.belongsToProfessor(id, professorId);
 
     if (!belongs) {
-      return sendError(res, 'Aluno nao encontrado ou nao pertence a voce', 404);
+      return sendError(res, 'Aluno não encontrado ou não pertence a você', 404);
     }
 
     const aluno = await alunoService.setActive(id, true);
@@ -590,7 +590,7 @@ router.get('/:id/assessments', async (req: Request, res: Response) => {
     }
 
     if (false) {
-      return sendError(res, 'Professor nao encontrado', 404);
+      return sendError(res, 'Professor não encontrado', 404);
     }
 
     const belongs = true;
@@ -739,7 +739,7 @@ router.get('/:id/assessments/:assessmentId/file', async (req: Request, res: Resp
     const professorId = (req as any).user.professorId;
 
     if (false) {
-      return sendError(res, 'Professor nao encontrado', 404);
+      return sendError(res, 'Professor não encontrado', 404);
     }
 
     const belongs = true;
@@ -782,23 +782,23 @@ router.post('/:id/assessments/:assessmentId/reprocess', async (req: Request, res
     });
 
     if (!professorId || !contractId) {
-      return sendError(res, 'Contrato ou professor nÃ£o encontrado', 404);
+      return sendError(res, 'Contrato ou professor não encontrado', 404);
     }
 
     const belongs = await alunoService.belongsToProfessor(id, professorId);
     if (!belongs) {
-      return sendError(res, 'Aluno nÃ£o encontrado ou nÃ£o pertence a vocÃª', 404);
+      return sendError(res, 'Aluno não encontrado ou não pertence a você', 404);
     }
 
     const assessment = await assessmentService.getById(assessmentId);
     if (!assessment || assessment.alunoId !== id) {
-      return sendError(res, 'AvaliaÃ§Ã£o nÃ£o encontrada', 404);
+      return sendError(res, 'Avaliação não encontrada', 404);
     }
 
     const filePath = path.resolve(process.cwd(), assessment.filePath);
     console.log('[assessments][reprocess] file', { filePath });
     if (!fs.existsSync(filePath)) {
-      return sendError(res, 'Arquivo nÃ£o encontrado no servidor', 404);
+      return sendError(res, 'Arquivo não encontrado no servidor', 404);
     }
 
     const buffer = fs.readFileSync(filePath);
@@ -850,16 +850,16 @@ router.post('/:id/assessments/:assessmentId/reprocess', async (req: Request, res
       },
     });
 
-    return sendSuccess(res, updated, 'AvaliaÃ§Ã£o reprocessada com sucesso');
+    return sendSuccess(res, updated, 'Avaliação reprocessada com sucesso');
   } catch (error) {
-    console.error('Erro ao reprocessar avaliaÃ§Ã£o:', error);
-    return sendError(res, 'Erro ao reprocessar avaliaÃ§Ã£o', 500);
+    console.error('Erro ao reprocessar avaliação:', error);
+    return sendError(res, 'Erro ao reprocessar avaliação', 500);
   }
 });
 
 /**
  * GET /api/v1/alunos/:id/assessments/:assessmentId/logs
- * HistÃ³rico de alteraÃ§Ãµes da avaliaÃ§Ã£o
+ * Histórico de alterações da avaliação
  */
 router.get('/:id/assessments/:assessmentId/logs', async (req: Request, res: Response) => {
   try {
@@ -867,17 +867,17 @@ router.get('/:id/assessments/:assessmentId/logs', async (req: Request, res: Resp
     const professorId = (req as any).user.professorId;
 
     if (!professorId) {
-      return sendError(res, 'Professor nÃ£o encontrado', 404);
+      return sendError(res, 'Professor não encontrado', 404);
     }
 
     const belongs = await alunoService.belongsToProfessor(id, professorId);
     if (!belongs) {
-      return sendError(res, 'Aluno nÃ£o encontrado ou nÃ£o pertence a vocÃª', 404);
+      return sendError(res, 'Aluno não encontrado ou não pertence a você', 404);
     }
 
     const assessment = await assessmentService.getById(assessmentId);
     if (!assessment || assessment.alunoId !== id) {
-      return sendError(res, 'AvaliaÃ§Ã£o nÃ£o encontrada', 404);
+      return sendError(res, 'Avaliação não encontrada', 404);
     }
 
     const logs = await prisma.assessmentAuditLog.findMany({
@@ -896,16 +896,16 @@ router.get('/:id/assessments/:assessmentId/logs', async (req: Request, res: Resp
       },
     });
 
-    return sendSuccess(res, logs, 'HistÃ³rico carregado');
+    return sendSuccess(res, logs, 'Histórico carregado');
   } catch (error) {
-    console.error('Erro ao carregar histÃ³rico:', error);
-    return sendError(res, 'Erro ao carregar histÃ³rico', 500);
+    console.error('Erro ao carregar histórico:', error);
+    return sendError(res, 'Erro ao carregar histórico', 500);
   }
 });
 
 /**
  * PUT /api/v1/alunos/:id/assessments/:assessmentId
- * Atualizar data/tipo da avaliaÃ§Ã£o
+ * Atualizar data/tipo da avaliação
  */
 router.put('/:id/assessments/:assessmentId', async (req: Request, res: Response) => {
   try {
@@ -914,21 +914,21 @@ router.put('/:id/assessments/:assessmentId', async (req: Request, res: Response)
     const contractId = (req as any).user.contractId;
 
     if (!professorId || !contractId) {
-      return sendError(res, 'Contrato ou professor nÃ£o encontrado', 404);
+      return sendError(res, 'Contrato ou professor não encontrado', 404);
     }
 
     const belongs = await alunoService.belongsToProfessor(id, professorId);
     if (!belongs) {
-      return sendError(res, 'Aluno nÃ£o encontrado ou nÃ£o pertence a vocÃª', 404);
+      return sendError(res, 'Aluno não encontrado ou não pertence a você', 404);
     }
 
     const assessment = await assessmentService.getById(assessmentId);
     if (!assessment || assessment.alunoId !== id) {
-      return sendError(res, 'AvaliaÃ§Ã£o nÃ£o encontrada', 404);
+      return sendError(res, 'Avaliação não encontrada', 404);
     }
 
     if (assessment.extractedData && (assessment.extractedData as any).parseOk === false) {
-      return sendError(res, 'NÃ£o Ã© possÃ­vel editar uma avaliaÃ§Ã£o com PDF corrompido', 400);
+      return sendError(res, 'Não é possível editar uma avaliação com PDF corrompido', 400);
     }
 
     const validated = updateAssessmentSchema.parse(req.body);
@@ -937,7 +937,7 @@ router.put('/:id/assessments/:assessmentId', async (req: Request, res: Response)
     if (validated.assessmentDate) {
       assessmentDate = new Date(validated.assessmentDate);
       if (Number.isNaN(assessmentDate.getTime())) {
-        return sendError(res, 'Data de avaliaÃ§Ã£o invÃ¡lida', 400);
+        return sendError(res, 'Data de avaliação inválida', 400);
       }
     }
 
@@ -946,7 +946,7 @@ router.put('/:id/assessments/:assessmentId', async (req: Request, res: Response)
         where: { id: validated.typeId, contractId },
       });
       if (!type) {
-        return sendError(res, 'Tipo de avaliaÃ§Ã£o nÃ£o encontrado', 404);
+        return sendError(res, 'Tipo de avaliação não encontrado', 404);
       }
     }
 
@@ -993,19 +993,19 @@ router.put('/:id/assessments/:assessmentId', async (req: Request, res: Response)
       },
     });
 
-    return sendSuccess(res, updated, 'AvaliaÃ§Ã£o atualizada com sucesso');
+    return sendSuccess(res, updated, 'Avaliação atualizada com sucesso');
   } catch (error: any) {
     if (error instanceof z.ZodError) {
-      return sendError(res, 'Dados invÃ¡lidos', 400, error.errors);
+      return sendError(res, 'Dados inválidos', 400, error.errors);
     }
-    console.error('Erro ao atualizar avaliaÃ§Ã£o:', error);
-    return sendError(res, 'Erro ao atualizar avaliaÃ§Ã£o', 500);
+    console.error('Erro ao atualizar avaliação:', error);
+    return sendError(res, 'Erro ao atualizar avaliação', 500);
   }
 });
 
 /**
  * DELETE /api/v1/alunos/:id/assessments/:assessmentId
- * Excluir avaliaÃ§Ã£o e PDF
+ * Excluir avaliação e PDF
  */
 router.delete('/:id/assessments/:assessmentId', async (req: Request, res: Response) => {
   try {
@@ -1013,17 +1013,17 @@ router.delete('/:id/assessments/:assessmentId', async (req: Request, res: Respon
     const professorId = (req as any).user.professorId;
 
     if (!professorId) {
-      return sendError(res, 'Professor nÃ£o encontrado', 404);
+      return sendError(res, 'Professor não encontrado', 404);
     }
 
     const belongs = await alunoService.belongsToProfessor(id, professorId);
     if (!belongs) {
-      return sendError(res, 'Aluno nÃ£o encontrado ou nÃ£o pertence a vocÃª', 404);
+      return sendError(res, 'Aluno não encontrado ou não pertence a você', 404);
     }
 
     const assessment = await assessmentService.getById(assessmentId);
     if (!assessment || assessment.alunoId !== id) {
-      return sendError(res, 'AvaliaÃ§Ã£o nÃ£o encontrada', 404);
+      return sendError(res, 'Avaliação não encontrada', 404);
     }
 
     await prisma.assessmentAuditLog.create({
@@ -1045,10 +1045,10 @@ router.delete('/:id/assessments/:assessmentId', async (req: Request, res: Respon
     }
 
     await assessmentService.delete(assessmentId);
-    return sendSuccess(res, null, 'AvaliaÃ§Ã£o excluÃ­da com sucesso');
+    return sendSuccess(res, null, 'Avaliação excluída com sucesso');
   } catch (error) {
-    console.error('Erro ao excluir avaliaÃ§Ã£o:', error);
-    return sendError(res, 'Erro ao excluir avaliaÃ§Ã£o', 500);
+    console.error('Erro ao excluir avaliação:', error);
+    return sendError(res, 'Erro ao excluir avaliação', 500);
   }
 });
 

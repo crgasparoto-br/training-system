@@ -391,7 +391,7 @@ export function Plans() {
 
                 {/* Duration */}
                 <div className="text-sm text-muted-foreground">
-                  DuraÃ§Ã£o: {calculateDuration(plan.startDate, plan.endDate)}
+                  Duração: {calculateDuration(plan.startDate, plan.endDate)}
                 </div>
                 <div>
                   {(() => {
@@ -412,15 +412,15 @@ export function Plans() {
                       <p className="font-bold">{plan.stats.totalMesocycles}</p>
                     </div>
                     <div>
-                      <p className="text-muted-foreground">SessÃµes</p>
+                      <p className="text-muted-foreground">Sessões</p>
                       <p className="font-bold">{plan.stats.totalMicrocycles}</p>
                     </div>
                     <div>
-                      <p className="text-muted-foreground">DistÃ¢ncia</p>
+                      <p className="text-muted-foreground">Distância</p>
                       <p className="font-bold">{plan.stats.totalDistance.toFixed(0)} km</p>
                     </div>
                     <div>
-                      <p className="text-muted-foreground">DuraÃ§Ã£o</p>
+                      <p className="text-muted-foreground">Duração</p>
                       <p className="font-bold">
                         {planService.formatDuration(plan.stats.totalDuration)}
                       </p>
@@ -489,8 +489,8 @@ export function Plans() {
               {canManageProfessores && <div className="col-span-2">Professor</div>}
               <div className="col-span-1">Status</div>
               <div className="col-span-2">Fases</div>
-              <div className="col-span-1">Periodo</div>
-              <div className="col-span-1 text-right">Acoes</div>
+              <div className="col-span-1">Período</div>
+              <div className="col-span-1 text-right">Ações</div>
             </div>
             <div className="divide-y">
               {plans.map((plan) => {

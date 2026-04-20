@@ -20,13 +20,13 @@ router.get('/workout-day/:id', alunoMiddleware, async (req: Request, res: Respon
   try {
     const alunoId = await getAlunoId(req);
     if (!alunoId) {
-      return res.status(403).json({ error: 'Aluno nao encontrado' });
+      return res.status(403).json({ error: 'Aluno não encontrado' });
     }
 
     const day = await workoutService.getWorkoutDay(req.params.id);
 
     if (!day) {
-      return res.status(404).json({ error: 'Treino nao encontrado' });
+      return res.status(404).json({ error: 'Treino não encontrado' });
     }
 
     if (day.template?.plan?.alunoId !== alunoId) {
@@ -34,7 +34,7 @@ router.get('/workout-day/:id', alunoMiddleware, async (req: Request, res: Respon
     }
 
     if (!day.template?.released) {
-      return res.status(404).json({ error: 'Treino nao liberado' });
+      return res.status(404).json({ error: 'Treino não liberado' });
     }
 
     return res.json(day);
@@ -49,7 +49,7 @@ router.get('/workout-day', alunoMiddleware, async (req: Request, res: Response) 
   try {
     const alunoId = await getAlunoId(req);
     if (!alunoId) {
-      return res.status(403).json({ error: 'Aluno nao encontrado' });
+      return res.status(403).json({ error: 'Aluno não encontrado' });
     }
 
     const { date } = req.query;
@@ -60,7 +60,7 @@ router.get('/workout-day', alunoMiddleware, async (req: Request, res: Response) 
     const day = await workoutService.getWorkoutDayByDate(alunoId, date);
 
     if (!day) {
-      return res.status(404).json({ error: 'Treino nao encontrado para a data' });
+      return res.status(404).json({ error: 'Treino não encontrado para a data' });
     }
 
     return res.json(day);
@@ -75,7 +75,7 @@ router.get('/workout-days', alunoMiddleware, async (req: Request, res: Response)
   try {
     const alunoId = await getAlunoId(req);
     if (!alunoId) {
-      return res.status(403).json({ error: 'Aluno nao encontrado' });
+      return res.status(403).json({ error: 'Aluno não encontrado' });
     }
 
     const { startDate, endDate } = req.query;
@@ -99,12 +99,12 @@ router.put('/workout-day/:id/status', alunoMiddleware, async (req: Request, res:
   try {
     const alunoId = await getAlunoId(req);
     if (!alunoId) {
-      return res.status(403).json({ error: 'Aluno nao encontrado' });
+      return res.status(403).json({ error: 'Aluno não encontrado' });
     }
 
     const day = await workoutService.getWorkoutDay(req.params.id);
     if (!day) {
-      return res.status(404).json({ error: 'Treino nao encontrado' });
+      return res.status(404).json({ error: 'Treino não encontrado' });
     }
 
     if (day.template?.plan?.alunoId !== alunoId) {
@@ -129,7 +129,7 @@ router.post('/workout-exercise/:id/records', alunoMiddleware, async (req: Reques
   try {
     const alunoId = await getAlunoId(req);
     if (!alunoId) {
-      return res.status(403).json({ error: 'Aluno nao encontrado' });
+      return res.status(403).json({ error: 'Aluno não encontrado' });
     }
 
     const execution = await workoutService.recordExecution({
@@ -157,7 +157,7 @@ router.get('/aluno', alunoMiddleware, async (req: Request, res: Response) => {
   try {
     const alunoId = await getAlunoId(req);
     if (!alunoId) {
-      return res.status(403).json({ error: 'Aluno nao encontrado' });
+      return res.status(403).json({ error: 'Aluno não encontrado' });
     }
 
     const { startDate, endDate } = req.query;
@@ -186,17 +186,17 @@ router.get('/professor/workout-day/:id', professorMiddleware, async (req: Reques
   try {
     const professorId = (req as any).user?.professorId as string | undefined;
     if (!professorId) {
-      return res.status(403).json({ error: 'Professor nao encontrado' });
+      return res.status(403).json({ error: 'Professor não encontrado' });
     }
 
     const day = await workoutService.getWorkoutDay(req.params.id);
     if (!day) {
-      return res.status(404).json({ error: 'Treino nao encontrado' });
+      return res.status(404).json({ error: 'Treino não encontrado' });
     }
 
     const alunoId = day.template?.plan?.alunoId ?? null;
     if (!alunoId) {
-      return res.status(404).json({ error: 'Aluno nao encontrado' });
+      return res.status(404).json({ error: 'Aluno não encontrado' });
     }
 
     const belongs = await alunoService.belongsToProfessor(alunoId, professorId);
@@ -205,7 +205,7 @@ router.get('/professor/workout-day/:id', professorMiddleware, async (req: Reques
     }
 
     if (!day.template?.released) {
-      return res.status(404).json({ error: 'Treino nao liberado' });
+      return res.status(404).json({ error: 'Treino não liberado' });
     }
 
     return res.json(day);
@@ -219,7 +219,7 @@ router.get('/professor/workout-day', professorMiddleware, async (req: Request, r
   try {
     const professorId = (req as any).user?.professorId as string | undefined;
     if (!professorId) {
-      return res.status(403).json({ error: 'Professor nao encontrado' });
+      return res.status(403).json({ error: 'Professor não encontrado' });
     }
 
     const { date, alunoId } = req.query;
@@ -237,7 +237,7 @@ router.get('/professor/workout-day', professorMiddleware, async (req: Request, r
 
     const day = await workoutService.getWorkoutDayByDate(alunoId, date);
     if (!day) {
-      return res.status(404).json({ error: 'Treino nao encontrado para a data' });
+      return res.status(404).json({ error: 'Treino não encontrado para a data' });
     }
 
     return res.json(day);
@@ -251,7 +251,7 @@ router.get('/professor/workout-days', professorMiddleware, async (req: Request, 
   try {
     const professorId = (req as any).user?.professorId as string | undefined;
     if (!professorId) {
-      return res.status(403).json({ error: 'Professor nao encontrado' });
+      return res.status(403).json({ error: 'Professor não encontrado' });
     }
 
     const { startDate, endDate, alunoId } = req.query;

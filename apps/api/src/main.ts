@@ -3,6 +3,8 @@ import cors from 'cors';
 import helmet from 'helmet';
 import 'express-async-errors';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { authRoutes } from './modules/auth/index.js';
 import { alunoRoutes } from './modules/alunos/index.js';
 import { planRoutes } from './modules/plans/index.js';
@@ -17,7 +19,17 @@ import workoutRoutes from './routes/workout.routes.js';
 import executionsRoutes from './routes/executions.routes.js';
 
 // Carregar variÃ¡veis de ambiente
-dotenv.config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+for (const envPath of [
+  path.resolve(process.cwd(), '.env'),
+  path.resolve(process.cwd(), '..', '.env'),
+  path.resolve(process.cwd(), '..', '..', '.env'),
+  path.resolve(__dirname, '../../../.env'),
+]) {
+  dotenv.config({ path: envPath, override: false });
+}
 
 const app: express.Express = express();
 const PORT = process.env.API_PORT || 3000;

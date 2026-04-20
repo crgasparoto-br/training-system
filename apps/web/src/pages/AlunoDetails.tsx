@@ -9,6 +9,7 @@ import { Button } from '../components/ui/Button';
 import { formatDateBR, isDateWithinRange } from '../utils/date';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../components/ui/Accordion';
+import { alunoDetailsCopy } from '../i18n/ptBR';
 import {
   ArrowLeft,
   Edit,
@@ -122,7 +123,7 @@ export function AlunoDetails() {
 
     } catch (error) {
       console.error('Erro ao carregar aluno:', error);
-      alert('Erro ao carregar aluno');
+      alert(alunoDetailsCopy.loadError);
       navigate('/alunos');
     } finally {
       setLoading(false);
@@ -130,23 +131,23 @@ export function AlunoDetails() {
   };
 
   const handleDelete = async () => {
-    if (!id || !confirm('Tem certeza que deseja excluir este aluno?')) {
+    if (!id || !confirm(alunoDetailsCopy.deleteConfirm)) {
       return;
     }
 
     try {
       await alunoService.delete(id);
-      alert('Aluno excluido com sucesso!');
+      alert(alunoDetailsCopy.deleteSuccess);
       navigate('/alunos');
     } catch (error) {
       console.error('Erro ao excluir aluno:', error);
-      alert('Erro ao excluir aluno');
+      alert(alunoDetailsCopy.deleteError);
     }
   };
 
   const handleResetPassword = async () => {
     if (!id) return;
-    if (!confirm('Deseja gerar uma nova senha temporaria para este aluno?')) {
+    if (!confirm(alunoDetailsCopy.resetPasswordConfirm)) {
       return;
     }
 
@@ -161,7 +162,7 @@ export function AlunoDetails() {
         setCountryCode('55');
       }
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Erro ao resetar senha');
+      alert(error.response?.data?.error || alunoDetailsCopy.resetPasswordError);
     } finally {
       setIsResetting(false);
     }
@@ -173,7 +174,7 @@ export function AlunoDetails() {
       await navigator.clipboard.writeText(tempPassword);
       setCopied(true);
     } catch {
-      alert('Não foi possível copiar a senha automaticamente');
+      alert(alunoDetailsCopy.copyPasswordError);
     }
   };
 
@@ -189,7 +190,7 @@ export function AlunoDetails() {
       await navigator.clipboard.writeText(message);
       setMessageCopied(true);
     } catch {
-      alert('Não foi possível copiar a mensagem automaticamente');
+      alert(alunoDetailsCopy.copyMessageError);
     }
   };
 
@@ -205,7 +206,7 @@ export function AlunoDetails() {
     const rawPhone = aluno.user.profile.phone || '';
     const digits = rawPhone.replace(/\D/g, '');
     if (!digits) {
-      alert('Telefone do aluno nao informado');
+      alert(alunoDetailsCopy.missingPhone);
       return;
     }
     const normalized =
@@ -223,7 +224,7 @@ export function AlunoDetails() {
   const handleAssessmentUpload = async () => {
     if (!id) return;
     if (!assessmentForm.typeId || !assessmentForm.file) {
-      alert('Selecione o tipo e o arquivo PDF da avaliação.');
+      alert(alunoDetailsCopy.uploadAssessmentValidation);
       return;
     }
 
@@ -242,7 +243,7 @@ export function AlunoDetails() {
       setAssessmentSummary(summaryData);
       setAssessmentForm({ typeId: '', assessmentDate: '', file: null });
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Erro ao enviar avaliação');
+      alert(error.response?.data?.error || alunoDetailsCopy.uploadAssessmentError);
     } finally {
       setUploadingAssessment(false);
     }
@@ -261,7 +262,7 @@ export function AlunoDetails() {
       link.remove();
       window.URL.revokeObjectURL(url);
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Erro ao baixar arquivo');
+      alert(error.response?.data?.error || alunoDetailsCopy.downloadError);
     }
   };
 
@@ -275,7 +276,7 @@ export function AlunoDetails() {
       setPreviewName(assessment.originalFileName || 'Avaliação');
       setPreviewOpen(true);
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Erro ao visualizar arquivo');
+      alert(error.response?.data?.error || alunoDetailsCopy.previewError);
     } finally {
       setPreviewLoading(false);
     }
@@ -308,7 +309,7 @@ export function AlunoDetails() {
 
   const openEditAssessment = (assessment: Assessment) => {
     if (assessment.extractedData?.parseOk === false) {
-      showToast('PDF corrompido: não é possível editar esta avaliação.', 'error');
+      showToast(alunoDetailsCopy.corruptedPdf, 'error');
       return;
     }
     setEditingAssessment(assessment);
@@ -340,15 +341,15 @@ export function AlunoDetails() {
       setAssessments(assessmentsData);
       setAssessmentSummary(summaryData);
       setEditingAssessment(null);
-      showToast('Avaliação atualizada com sucesso', 'success');
+      showToast(alunoDetailsCopy.updateAssessmentSuccess, 'success');
     } catch (error: any) {
-      showToast(error.response?.data?.error || 'Erro ao atualizar avaliação', 'error');
+      showToast(error.response?.data?.error || alunoDetailsCopy.updateAssessmentError, 'error');
     }
   };
 
   const handleDeleteAssessment = async (assessment: Assessment) => {
     if (!id) return;
-    if (!confirm('Deseja excluir esta avaliação?')) return;
+    if (!confirm(alunoDetailsCopy.deleteAssessmentConfirm)) return;
     try {
       await assessmentService.deleteAssessment(id, assessment.id);
       const [assessmentsData, summaryData] = await Promise.all([
@@ -357,9 +358,9 @@ export function AlunoDetails() {
       ]);
       setAssessments(assessmentsData);
       setAssessmentSummary(summaryData);
-      showToast('Avaliação excluída com sucesso', 'success');
+      showToast(alunoDetailsCopy.deleteAssessmentSuccess, 'success');
     } catch (error: any) {
-      showToast(error.response?.data?.error || 'Erro ao excluir avaliação', 'error');
+      showToast(error.response?.data?.error || alunoDetailsCopy.deleteAssessmentError, 'error');
     }
   };
 
@@ -373,9 +374,9 @@ export function AlunoDetails() {
       ]);
       setAssessments(assessmentsData);
       setAssessmentSummary(summaryData);
-      showToast('Avaliação reprocessada com sucesso', 'success');
+      showToast(alunoDetailsCopy.reprocessAssessmentSuccess, 'success');
     } catch (error: any) {
-      showToast(error.response?.data?.error || 'Erro ao reprocessar avaliação', 'error');
+      showToast(error.response?.data?.error || alunoDetailsCopy.reprocessAssessmentError, 'error');
     }
   };
 
@@ -460,7 +461,7 @@ export function AlunoDetails() {
     if (value === 'male') return 'Masculino';
     if (value === 'female') return 'Feminino';
     if (value === 'other') return 'Outro';
-    return 'Nao informado';
+    return 'Não informado';
   };
   const schedulePlanLabel = aluno?.schedulePlan === 'fixed' ? 'Fixo' : 'Livre';
   const parqPositiveCount = Object.values(aluno?.intakeForm?.parqResponses || {}).filter(Boolean).length;
@@ -524,7 +525,7 @@ export function AlunoDetails() {
     if (!id || !historyEditAssessmentId || !historyEditSectionTitle) return;
     const targetAssessment = assessments.find((item) => item.id === historyEditAssessmentId);
     if (targetAssessment?.extractedData?.parseOk === false) {
-      showToast('PDF corrompido: não é possível editar esta avaliação.', 'error');
+      showToast(alunoDetailsCopy.corruptedPdf, 'error');
       return;
     }
     const payload: Record<string, number | string | null> = {};
@@ -548,9 +549,9 @@ export function AlunoDetails() {
       setAssessments(assessmentsData);
       setAssessmentSummary(summaryData);
       setHistoryEditOpen(false);
-      showToast('Histórico atualizado com sucesso', 'success');
+      showToast(alunoDetailsCopy.updateHistorySuccess, 'success');
     } catch (error: any) {
-      showToast(error.response?.data?.error || 'Erro ao atualizar histórico', 'error');
+      showToast(error.response?.data?.error || alunoDetailsCopy.updateHistoryError, 'error');
     }
   };
 
@@ -565,7 +566,7 @@ export function AlunoDetails() {
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
           <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full mx-auto" />
-          <p className="mt-4 text-muted-foreground">Carregando aluno...</p>
+          <p className="mt-4 text-muted-foreground">{alunoDetailsCopy.loading}</p>
         </div>
       </div>
     );
@@ -574,9 +575,9 @@ export function AlunoDetails() {
   if (!aluno) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground">Aluno nao encontrado</p>
+        <p className="text-muted-foreground">{alunoDetailsCopy.notFound}</p>
         <Button onClick={() => navigate('/alunos')} className="mt-4">
-          Voltar para Alunos
+          {alunoDetailsCopy.backToAlunos}
         </Button>
       </div>
     );
@@ -604,15 +605,15 @@ export function AlunoDetails() {
           <Link to={`/alunos/${id}/edit`}>
             <Button variant="outline">
               <Edit size={20} />
-              Editar
+              {alunoDetailsCopy.edit}
             </Button>
           </Link>
           <Button variant="outline" onClick={handleResetPassword} isLoading={isResetting}>
-            Resetar Senha
+            {alunoDetailsCopy.resetPassword}
           </Button>
           <Button variant="destructive" onClick={handleDelete}>
             <Trash2 size={20} />
-            Deletar
+            {alunoDetailsCopy.delete}
           </Button>
         </div>
       </div>
@@ -621,31 +622,31 @@ export function AlunoDetails() {
       {tempPassword && (
         <Card>
           <CardHeader>
-            <CardTitle>Senha Temporária</CardTitle>
-            <CardDescription>Compartilhe esta senha com o aluno.</CardDescription>
+            <CardTitle>{alunoDetailsCopy.temporaryPassword}</CardTitle>
+            <CardDescription>{alunoDetailsCopy.temporaryPasswordDescription}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between gap-4">
               <div className="font-mono text-lg">{tempPassword}</div>
               <div className="flex gap-2">
                 <Button variant="outline" onClick={handleCopyPassword}>
-                  {copied ? 'Copiado' : 'Copiar senha'}
+                  {copied ? alunoDetailsCopy.copied : alunoDetailsCopy.copyPassword}
                 </Button>
                 <Button variant="outline" onClick={handleClearTempPassword}>
-                  Limpar
+                  {alunoDetailsCopy.clear}
                 </Button>
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" onClick={handleCopyMessage}>
-                {messageCopied ? 'Mensagem copiada' : 'Copiar mensagem'}
+                {messageCopied ? alunoDetailsCopy.messageCopied : alunoDetailsCopy.copyMessage}
               </Button>
               <Button
                 variant="outline"
                 onClick={handleSendEmail}
                 disabled={!aluno.user.email}
               >
-                Enviar por Email
+                {alunoDetailsCopy.sendByEmail}
               </Button>
               <div className="flex items-center gap-2">
                 <select
@@ -662,7 +663,7 @@ export function AlunoDetails() {
                   onClick={handleSendWhatsApp}
                   disabled={!aluno.user.profile.phone}
                 >
-                  Enviar por WhatsApp
+                  {alunoDetailsCopy.sendByWhatsApp}
                 </Button>
               </div>
             </div>
@@ -673,7 +674,7 @@ export function AlunoDetails() {
       {/* Contact Info */}
       <Card>
         <CardHeader>
-          <CardTitle>Informações de Contato</CardTitle>
+          <CardTitle>{alunoDetailsCopy.contactInfo}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex items-center gap-3">
@@ -704,7 +705,7 @@ export function AlunoDetails() {
               : 'text-muted-foreground'
           }`}
         >
-          Resumo
+          {alunoDetailsCopy.summaryTab}
         </button>
         <button
           type="button"
@@ -715,7 +716,7 @@ export function AlunoDetails() {
               : 'text-muted-foreground'
           }`}
         >
-          Histórico
+          {alunoDetailsCopy.historyTab}
         </button>
       </div>
 
@@ -732,11 +733,11 @@ export function AlunoDetails() {
                   <div className="rounded-lg border border-gray-200 p-4">
                     <div className="text-xs text-muted-foreground">Data de nascimento</div>
                     <div className="mt-1 text-sm font-semibold text-gray-900">
-                      {aluno.user.profile.birthDate ? formatDateBR(aluno.user.profile.birthDate) : 'Nao informada'}
+                      {aluno.user.profile.birthDate ? formatDateBR(aluno.user.profile.birthDate) : 'Não informada'}
                     </div>
                   </div>
                   <div className="rounded-lg border border-gray-200 p-4">
-                    <div className="text-xs text-muted-foreground">Genero</div>
+                    <div className="text-xs text-muted-foreground">Gênero</div>
                     <div className="mt-1 text-sm font-semibold text-gray-900">
                       {formatGender(aluno.user.profile.gender)}
                     </div>
@@ -746,11 +747,11 @@ export function AlunoDetails() {
                     <div className="mt-1 text-sm font-semibold text-gray-900">{schedulePlanLabel}</div>
                   </div>
                   <div className="rounded-lg border border-gray-200 p-4">
-                    <div className="text-xs text-muted-foreground">Pressao arterial</div>
+                    <div className="text-xs text-muted-foreground">Pressão arterial</div>
                     <div className="mt-1 text-sm font-semibold text-gray-900">
                       {aluno.systolicPressure && aluno.diastolicPressure
                         ? `${aluno.systolicPressure}/${aluno.diastolicPressure} mmHg`
-                        : 'Nao informada'}
+                        : 'Não informada'}
                     </div>
                   </div>
                 </div>
@@ -759,15 +760,15 @@ export function AlunoDetails() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Avaliacao Inicial Complementar</CardTitle>
-                <CardDescription>Resumo clinico e operacional preenchido no intake.</CardDescription>
+                <CardTitle>Avaliação inicial complementar</CardTitle>
+                <CardDescription>Resumo clínico e operacional preenchido no intake.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="rounded-lg border border-gray-200 p-4">
-                    <div className="text-xs text-muted-foreground">Data da avaliacao inicial</div>
+                    <div className="text-xs text-muted-foreground">Data da avaliação inicial</div>
                     <div className="mt-1 text-sm font-semibold text-gray-900">
-                      {aluno.intakeForm?.assessmentDate ? formatDateBR(aluno.intakeForm.assessmentDate) : 'Nao informada'}
+                      {aluno.intakeForm?.assessmentDate ? formatDateBR(aluno.intakeForm.assessmentDate) : 'Não informada'}
                     </div>
                   </div>
                   <div className="rounded-lg border border-gray-200 p-4">
@@ -778,21 +779,21 @@ export function AlunoDetails() {
                 <div className="space-y-3 text-sm">
                   <div>
                     <div className="text-xs text-muted-foreground">Objetivo principal</div>
-                    <div className="mt-1 text-gray-900">{aluno.intakeForm?.mainGoal || 'Nao informado'}</div>
+                    <div className="mt-1 text-gray-900">{aluno.intakeForm?.mainGoal || 'Não informado'}</div>
                   </div>
                   <div>
-                    <div className="text-xs text-muted-foreground">Historico de treino</div>
-                    <div className="mt-1 text-gray-900">{aluno.intakeForm?.trainingBackground || 'Nao informado'}</div>
+                    <div className="text-xs text-muted-foreground">Histórico de treino</div>
+                    <div className="mt-1 text-gray-900">{aluno.intakeForm?.trainingBackground || 'Não informado'}</div>
                   </div>
                   <div>
-                    <div className="text-xs text-muted-foreground">Historico medico e restricoes</div>
+                    <div className="text-xs text-muted-foreground">Histórico médico e restrições</div>
                     <div className="mt-1 text-gray-900">
-                      {aluno.intakeForm?.medicalHistory || aluno.intakeForm?.injuriesHistory || 'Nao informado'}
+                      {aluno.intakeForm?.medicalHistory || aluno.intakeForm?.injuriesHistory || 'Não informado'}
                     </div>
                   </div>
                   <div>
-                    <div className="text-xs text-muted-foreground">Observacoes</div>
-                    <div className="mt-1 text-gray-900">{aluno.intakeForm?.observations || 'Nao informado'}</div>
+                    <div className="text-xs text-muted-foreground">Observações</div>
+                    <div className="mt-1 text-gray-900">{aluno.intakeForm?.observations || 'Não informado'}</div>
                   </div>
                 </div>
               </CardContent>
@@ -803,7 +804,7 @@ export function AlunoDetails() {
             <CardHeader>
               <CardTitle>Resumo da Avaliação</CardTitle>
               <CardDescription>
-                Dados importados do PDF da avaliação mais recente.
+                {alunoDetailsCopy.assessmentDescription}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -913,7 +914,7 @@ export function AlunoDetails() {
                 </div>
               ) : (
                 <div className="text-sm text-muted-foreground">
-                  Nenhuma avaliação registrada ainda.
+                  {alunoDetailsCopy.noAssessmentYet}
                 </div>
               )}
             </CardContent>
@@ -976,7 +977,7 @@ export function AlunoDetails() {
             {plans.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 <Calendar className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                <p>Nenhum plano de treino cadastrado</p>
+                <p>{alunoDetailsCopy.noTrainingPlan}</p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -1060,8 +1061,8 @@ export function AlunoDetails() {
       {/* Avaliações */}
       <Card>
         <CardHeader>
-          <CardTitle>Avaliações Físicas</CardTitle>
-          <CardDescription>Gerencie os PDFs e o calendario de avaliacoes do aluno.</CardDescription>
+          <CardTitle>{alunoDetailsCopy.assessmentsTitle}</CardTitle>
+          <CardDescription>{alunoDetailsCopy.assessmentsDescription}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="grid gap-4 md:grid-cols-3">

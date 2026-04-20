@@ -7,10 +7,11 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { AuthCardLayout } from '../components/auth/AuthCardLayout';
+import { authCopy, commonCopy } from '../i18n/ptBR';
 
 const loginSchema = z.object({
-  email: z.string().email('Email invalido'),
-  password: z.string().min(6, 'Senha deve ter no minimo 6 caracteres'),
+  email: z.string().email(authCopy.login.validation.invalidEmail),
+  password: z.string().min(6, authCopy.login.validation.minPassword),
 });
 
 type LoginFormData = z.infer<typeof loginSchema>;
@@ -42,17 +43,17 @@ export function Login() {
 
   return (
     <AuthCardLayout
-      title="Entrar"
-      description="Use seu email e senha para acessar sua conta."
+      title={authCopy.login.title}
+      description={authCopy.login.description}
       footer={
         <>
           <Button type="submit" form="login-form" className="w-full" isLoading={isLoading}>
-            Entrar
+            {authCopy.login.submit}
           </Button>
           <div className="text-center text-sm text-muted-foreground">
-            Nao tem uma conta?{' '}
+            {authCopy.login.noAccount}{' '}
             <Link to="/register" className="font-medium text-primary hover:underline">
-              Criar conta
+              {authCopy.register.title}
             </Link>
           </div>
         </>
@@ -66,7 +67,7 @@ export function Login() {
         )}
 
         <Input
-          label="Email"
+          label={commonCopy.emailLabel}
           type="email"
           placeholder="seu@email.com"
           autoComplete="email"
@@ -85,7 +86,7 @@ export function Login() {
 
         <div className="flex items-center justify-end text-sm">
           <Link to="/forgot-password" className="text-primary hover:underline">
-            Esqueceu sua senha?
+            {authCopy.login.forgotPassword}
           </Link>
         </div>
       </form>
