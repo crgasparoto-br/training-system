@@ -183,8 +183,8 @@ export function Alunos() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">{alunosCopy.title}</h1>
-          <p className="text-muted-foreground mt-2">
+          <h1 className="ts-page-heading">{alunosCopy.title}</h1>
+          <p className="ts-page-description">
             {alunosCopy.description}
           </p>
         </div>
@@ -209,13 +209,13 @@ export function Alunos() {
               />
             </div>
             <div className="w-full lg:w-52">
-              <label className="block text-sm font-medium mb-2">{alunosCopy.statusLabel}</label>
+              <label className="mb-2 block text-sm font-medium">{alunosCopy.statusLabel}</label>
               <select
                 value={statusFilter}
                 onChange={(e) =>
                   handleStatusFilterChange(e.target.value as 'active' | 'inactive' | 'all')
                 }
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                className="ts-form-control"
               >
                 <option value="active">{alunosCopy.statusActive}</option>
                 <option value="inactive">{alunosCopy.statusInactive}</option>
@@ -224,11 +224,11 @@ export function Alunos() {
             </div>
             {canManageProfessores && (
               <div className="w-full lg:w-64">
-                <label className="block text-sm font-medium mb-2">{alunosCopy.professorLabel}</label>
+                <label className="mb-2 block text-sm font-medium">{alunosCopy.professorLabel}</label>
                 <select
                   value={professorFilter}
                   onChange={(e) => handleProfessorFilterChange(e.target.value)}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="ts-form-control"
                   disabled={loadingProfessores}
                 >
                   <option value="">{alunosCopy.allProfessores}</option>
@@ -296,7 +296,7 @@ export function Alunos() {
             const bmi = alunoService.calculateBMI(aluno.weight, aluno.height);
 
             return (
-              <Card key={aluno.id} className="hover:shadow-lg transition-shadow">
+              <Card key={aluno.id} className="transition-shadow hover:shadow-[var(--shadow-card)]">
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
@@ -314,7 +314,7 @@ export function Alunos() {
                             </>
                           )}
                           {aluno.user.isActive === false && (
-                            <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-xs text-destructive">
+                            <span className="ts-badge-danger">
                               {alunosCopy.inactive}
                             </span>
                           )}
@@ -343,7 +343,7 @@ export function Alunos() {
                     </div>
                   </div>
 
-                  <div className="pt-4 border-t flex gap-2">
+                  <div className="flex gap-2 border-t pt-4">
                     <Link to={`/alunos/${aluno.id}`} className="flex-1">
                       <Button variant="outline" size="sm" className="w-full">
                         <Eye size={16} />
@@ -382,7 +382,7 @@ export function Alunos() {
       ) : (
         <Card>
           <CardContent className="pt-6">
-            <div className="grid grid-cols-12 gap-2 text-xs font-semibold text-muted-foreground pb-3 border-b">
+            <div className="grid grid-cols-12 gap-2 border-b pb-3 text-xs font-semibold text-muted-foreground">
               <div className="col-span-4">{alunosCopy.studentColumn}</div>
               <div className="col-span-2">{alunosCopy.weightColumn}</div>
               <div className="col-span-2">{alunosCopy.heightColumn}</div>
@@ -412,7 +412,7 @@ export function Alunos() {
                             </>
                           )}
                           {aluno.user.isActive === false && (
-                            <span className="ml-2 rounded-full bg-destructive/10 px-2 py-0.5 text-xs text-destructive">
+                            <span className="ts-badge-danger ml-2">
                               {alunosCopy.inactive}
                             </span>
                           )}
@@ -489,4 +489,3 @@ export function Alunos() {
     </div>
   );
 }
-

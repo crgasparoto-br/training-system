@@ -25,9 +25,9 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           <input
             type={inputType}
             className={cn(
-              'flex h-12 w-full rounded-xl border border-[#cbd5e1] bg-background px-4 py-3 text-base ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-[#94a3b8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3b82f6] focus-visible:ring-offset-2 focus-visible:shadow-[0_0_0_6px_rgba(59,130,246,0.15)] disabled:cursor-not-allowed disabled:border-[#d1d5db] disabled:bg-[#f1f5f9] disabled:text-[#94a3b8]',
+              'flex h-11 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground',
               isPassword && 'pr-10',
-              error && 'border-[#ef4444] focus-visible:ring-[#ef4444] focus-visible:shadow-[0_0_0_6px_rgba(239,68,68,0.15)]',
+              error && 'border-destructive focus-visible:ring-destructive',
               className
             )}
             ref={ref}

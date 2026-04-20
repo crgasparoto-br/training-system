@@ -15,7 +15,7 @@ const Sidebar = React.forwardRef<HTMLElement, SidebarProps>(
         data-collapsible={collapsible ? 'true' : 'false'}
         data-collapsed={collapsed ? 'true' : 'false'}
         className={cn(
-          'fixed left-0 top-16 z-30 h-[calc(100vh-4rem)] border-r bg-background transition-all duration-200 ease-in-out',
+          'fixed left-0 top-16 z-30 h-[calc(100vh-4rem)] border-r border-white/10 bg-[#1B1D21] text-white transition-all duration-200 ease-in-out',
           'lg:sticky lg:translate-x-0',
           mobileOpen ? 'translate-x-0' : '-translate-x-full',
           collapsed ? 'w-20' : 'w-64',
