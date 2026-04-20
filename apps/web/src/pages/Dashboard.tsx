@@ -206,16 +206,16 @@ export function Dashboard() {
         description:
           stats.totalAlunos > 0 ? `${stats.totalAlunos} aluno(s) ativo(s)` : 'Nenhum aluno cadastrado ainda',
         icon: Users,
-        color: 'text-blue-700',
-        bgColor: 'bg-blue-50',
+        color: 'text-info',
+        bgColor: 'bg-info/10',
       },
       {
         title: 'Planos Ativos',
         value: String(stats.activePlans),
         description: stats.activePlans > 0 ? `${stats.activePlans} plano(s) em andamento` : 'Nenhum plano ativo',
         icon: Calendar,
-        color: 'text-emerald-700',
-        bgColor: 'bg-emerald-50',
+        color: 'text-success',
+        bgColor: 'bg-success/10',
       },
       {
         title: 'Treinos desta semana',
@@ -225,8 +225,8 @@ export function Dashboard() {
             ? `${stats.weekWorkouts} treino(s) previsto(s)`
             : 'Nenhum treino previsto nesta semana',
         icon: Activity,
-        color: 'text-amber-700',
-        bgColor: 'bg-amber-50',
+        color: 'text-warning',
+        bgColor: 'bg-warning/10',
       },
       {
         title: 'Taxa de conclusão',
@@ -234,8 +234,8 @@ export function Dashboard() {
         description:
           stats.weekWorkouts > 0 ? `${stats.completionRate}% dos treinos concluídos` : 'Sem dados suficientes',
         icon: TrendingUp,
-        color: 'text-red-700',
-        bgColor: 'bg-red-50',
+        color: 'text-primary',
+        bgColor: 'bg-primary/10',
       },
     ],
     [stats]
@@ -306,15 +306,15 @@ export function Dashboard() {
         {dashboardStats.map((stat) => {
           const Icon = stat.icon;
           return (
-            <Card key={stat.title}>
+            <Card key={stat.title} className="hover:shadow-card-hover transition-shadow">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
+                <CardTitle className="text-sm font-medium text-muted-foreground">{stat.title}</CardTitle>
                 <div className={`p-2 rounded-lg ${stat.bgColor}`}>
                   <Icon className={`h-4 w-4 ${stat.color}`} />
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{stat.value}</div>
+                <div className="ts-kpi">{stat.value}</div>
                 <p className="text-xs text-muted-foreground mt-1">{stat.description}</p>
               </CardContent>
             </Card>

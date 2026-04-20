@@ -1,43 +1,53 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
 @layer base {
   :root {
-    /* Marca principal */
+    /* Brand tokens */
     --background: 220 14% 96%; /* #F4F5F7 */
-    --foreground: 0 0% 0%; /* #000000 */
+    --foreground: 220 10% 12%; /* #1B1D21 */
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 0%;
+    --card-foreground: 220 10% 12%;
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 0%;
+    --popover-foreground: 220 10% 12%;
 
-    /* Verde performance como primário */
     --primary: 142 71% 45%; /* #22C55E */
-    --primary-hover: 142 72% 40%;
+    --primary-hover: 142 76% 36%; /* #16A34A */
     --primary-foreground: 0 0% 100%;
 
     --secondary: 220 16% 93%;
     --secondary-hover: 220 11% 88%;
-    --secondary-foreground: 222 10% 13%; /* #1B1D21 */
+    --secondary-foreground: 222 10% 13%;
 
     --accent: 220 14% 90%;
     --accent-foreground: 222 10% 13%;
-    --indigo: 221 83% 53%; /* #2563EB */
+    --indigo: 221 83% 53%;
 
     --destructive: 0 70% 50%; /* #DC2626 */
-    --destructive-hover: 0 74% 42%;
+    --destructive-hover: 0 72% 42%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 142 71% 45%; /* #22C55E */
-    --success-hover: 142 72% 40%;
-    --warning: 38 92% 50%; /* #F59E0B */
-    --info: 221 83% 53%; /* #2563EB */
+    --success: 142 71% 45%;
+    --success-hover: 142 76% 36%;
+    --warning: 38 92% 50%;
+    --info: 221 83% 53%;
+    --info-hover: 221 83% 47%;
 
     --muted: 220 12% 95%;
-    --muted-foreground: 220 6% 56%; /* #8A8F98 */
+    --muted-foreground: 220 6% 56%;
+
+    --sidebar: 220 10% 12%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-muted: 220 8% 20%;
+    --sidebar-accent: 142 71% 45%;
+    --sidebar-accent-foreground: 0 0% 100%;
+
+    --section-mobility: 266 43% 96%;
+    --section-session: 146 30% 95%;
+    --section-cooldown: 214 100% 97%;
 
     --border: 220 14% 88%;
     --input: 220 14% 88%;
@@ -58,7 +68,7 @@
     --popover: 222 10% 16%;
     --popover-foreground: 210 40% 98%;
     --primary: 142 71% 45%;
-    --primary-hover: 142 72% 40%;
+    --primary-hover: 142 76% 36%;
     --primary-foreground: 0 0% 100%;
     --secondary: 220 8% 22%;
     --secondary-hover: 220 8% 28%;
@@ -69,12 +79,18 @@
     --accent-foreground: 210 40% 98%;
     --indigo: 221 83% 53%;
     --destructive: 0 70% 50%;
-    --destructive-hover: 0 74% 42%;
+    --destructive-hover: 0 72% 42%;
     --destructive-foreground: 0 0% 100%;
     --success: 142 71% 45%;
-    --success-hover: 142 72% 40%;
+    --success-hover: 142 76% 36%;
     --warning: 38 92% 50%;
     --info: 221 83% 53%;
+    --info-hover: 221 83% 47%;
+    --sidebar: 220 10% 8%;
+    --sidebar-foreground: 220 16% 96%;
+    --sidebar-muted: 220 8% 16%;
+    --sidebar-accent: 142 71% 45%;
+    --sidebar-accent-foreground: 0 0% 100%;
     --border: 220 8% 28%;
     --input: 220 8% 28%;
     --ring: 142 71% 45%;
@@ -85,6 +101,7 @@
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground antialiased;
     font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -151,17 +168,18 @@
     @apply ts-badge bg-red-50 text-red-700;
   }
 
-  /* Typography scale from the guide */
   .ts-h1 {
     font-size: 36px;
     font-weight: 700;
     line-height: 1.1;
+    letter-spacing: -0.025em;
   }
 
   .ts-h2 {
     font-size: 30px;
     font-weight: 700;
     line-height: 1.15;
+    letter-spacing: -0.02em;
   }
 
   .ts-h3 {
@@ -192,5 +210,12 @@
     font-size: 12px;
     font-weight: 400;
     line-height: 1.3;
+  }
+
+  .ts-kpi {
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
   }
 }

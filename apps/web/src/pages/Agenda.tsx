@@ -273,8 +273,8 @@ export function Agenda() {
         </div>
       </div>
 
-      {error && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
-      {success && <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{success}</div>}
+      {error && <div className="rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
+      {success && <div className="rounded-lg border border-success/20 bg-success/10 px-3 py-2 text-sm text-success">{success}</div>}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
