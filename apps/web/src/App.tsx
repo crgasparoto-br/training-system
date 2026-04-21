@@ -14,6 +14,7 @@ import Settings from './pages/Settings';
 import SettingsParameters from './pages/Settings/Parameters';
 import ContractSettings from './pages/Settings/Contract';
 import SettingsAssessmentTypes from './pages/Settings/AssessmentTypes';
+import SettingsCollaboratorFunctions from './pages/Settings/CollaboratorFunctions';
 import SettingsSubjectiveScales from './pages/Settings/SubjectiveScales';
 import SettingsAlunoAccess from './pages/Settings/AlunoAccess';
 import SettingsReferenceTable from './pages/Settings/ReferenceTable';
@@ -60,6 +61,7 @@ function App() {
           <Route path="settings/parameters" element={<SettingsParameters />} />
           <Route path="settings/contract" element={<ContractSettings />} />
           <Route path="settings/assessment-types" element={<SettingsAssessmentTypes />} />
+          <Route path="settings/collaborator-functions" element={<SettingsCollaboratorFunctions />} />
           <Route path="settings/psr-pse" element={<SettingsSubjectiveScales />} />
           <Route path="settings/aluno-access" element={<SettingsAlunoAccess />} />
           <Route path="settings/reference-table" element={<SettingsReferenceTable />} />

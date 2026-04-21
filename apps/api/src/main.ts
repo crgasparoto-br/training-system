@@ -10,6 +10,7 @@ import { alunoRoutes } from './modules/alunos/index.js';
 import { planRoutes } from './modules/plans/index.js';
 import { periodizationRoutes } from './modules/periodization/index.js';
 import { professorRoutes } from './modules/professores/index.js';
+import { collaboratorFunctionRoutes } from './modules/collaborator-functions/index.js';
 import { contractRoutes } from './modules/contracts/index.js';
 import { agendaRoutes } from './modules/agenda/index.js';
 import { assessmentTypeRoutes, subjectiveScaleRoutes } from './modules/assessments/index.js';
@@ -35,6 +36,24 @@ const app: express.Express = express();
 const PORT = process.env.API_PORT || 3000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
+function parseCorsOrigins(value?: string) {
+  return (value || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+}
+
+const allowedOrigins = Array.from(
+  new Set([
+    ...parseCorsOrigins(process.env.CORS_ORIGINS),
+    process.env.FRONTEND_URL,
+    process.env.MOBILE_URL,
+    'http://localhost:5173',
+    'http://localhost:8081',
+    'exp://localhost:8081',
+  ].filter(Boolean) as string[])
+);
+
 // ============================================================================
 // MIDDLEWARE
 // ============================================================================
@@ -43,14 +62,25 @@ const NODE_ENV = process.env.NODE_ENV || 'development';
 app.use(helmet());
 
 // CORS
-app.use(cors({
-  origin: [
-    'http://localhost:5173',      // Frontend Web
-    'http://localhost:8081',      // Mobile (Expo)
-    'exp://localhost:8081',
-  ],
-  credentials: true,
-}));
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Requests server-to-server or via curl/healthchecks may not send Origin.
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error(`CORS blocked for origin: ${origin}`));
+    },
+    credentials: true,
+  })
+);
 
 // Body Parser
 app.use(express.json({ limit: '10mb' }));
@@ -80,6 +110,7 @@ app.get('/api/v1', (req, res) => {
       auth: '/api/v1/auth',
       alunos: '/api/v1/alunos',
       professores: '/api/v1/professores',
+      collaboratorFunctions: '/api/v1/collaborator-functions',
       contracts: '/api/v1/contracts',
       plans: '/api/v1/plans',
       periodization: '/api/v1/periodization',
@@ -103,6 +134,9 @@ app.use('/api/v1/alunos', alunoRoutes);
 
 // Rotas de Professores
 app.use('/api/v1/professores', professorRoutes);
+
+// Rotas de Funções de Colaboradores
+app.use('/api/v1/collaborator-functions', collaboratorFunctionRoutes);
 
 // Rotas de Contratos
 app.use('/api/v1/contracts', contractRoutes);

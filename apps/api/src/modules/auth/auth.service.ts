@@ -5,6 +5,7 @@ import type { JwtPayload, LoginRequest, RegisterRequest, AuthResponse } from '@c
 import type { SignOptions } from 'jsonwebtoken';
 import { ensureDefaultAssessmentTypesForContract } from '../assessments/assessment-type.service';
 import { ensureDefaultSubjectiveScalesForContract } from '../assessments/subjective-scale.service';
+import { getDefaultCollaboratorFunctionByCode } from '../collaborator-functions/index.js';
 
 const prisma = new PrismaClient();
 
@@ -16,11 +17,68 @@ export class AuthService {
     return document.replace(/\D/g, '');
   }
 
+  private serializeCollaboratorFunction(collaboratorFunction: {
+    id: string;
+    name: string;
+    code: string;
+    isActive: boolean;
+    isSystem: boolean;
+  }) {
+    return {
+      id: collaboratorFunction.id,
+      name: collaboratorFunction.name,
+      code: collaboratorFunction.code,
+      isActive: collaboratorFunction.isActive,
+      isSystem: collaboratorFunction.isSystem,
+    };
+  }
+
+  private serializeResponsibleManager(responsibleManager?: {
+    id: string;
+    role: 'master' | 'professor';
+    user?: {
+      id: string;
+      email: string;
+      isActive: boolean;
+      profile?: {
+        name: string;
+        phone?: string | null;
+      } | null;
+    } | null;
+    collaboratorFunction: {
+      id: string;
+      name: string;
+      code: string;
+      isActive: boolean;
+      isSystem: boolean;
+    };
+  } | null) {
+    if (!responsibleManager?.user) {
+      return null;
+    }
+
+    return {
+      id: responsibleManager.id,
+      role: responsibleManager.role,
+      user: {
+        id: responsibleManager.user.id,
+        email: responsibleManager.user.email,
+        isActive: responsibleManager.user.isActive,
+        profile: {
+          name: responsibleManager.user.profile?.name || '',
+          phone: responsibleManager.user.profile?.phone ?? null,
+        },
+      },
+      collaboratorFunction: this.serializeCollaboratorFunction(
+        responsibleManager.collaboratorFunction
+      ),
+    };
+  }
+
   /**
    * Registrar novo usuÃ¡rio
    */
   async register(data: RegisterRequest): Promise<AuthResponse> {
-    // Verificar se email jÃ¡ existe
     const existingUser = await prisma.user.findUnique({
       where: { email: data.email },
     });
@@ -37,11 +95,7 @@ export class AuthService {
     const expectedLength = data.contractType === 'academy' ? 14 : 11;
 
     if (document.length !== expectedLength) {
-      throw new Error(
-        data.contractType === 'academy'
-          ? 'CNPJ inválido'
-          : 'CPF inválido'
-      );
+      throw new Error(data.contractType === 'academy' ? 'CNPJ inválido' : 'CPF inválido');
     }
 
     const existingContract = await prisma.contract.findUnique({
@@ -52,10 +106,8 @@ export class AuthService {
       throw new Error('Documento já está registrado');
     }
 
-    // Hash da senha
     const passwordHash = await bcryptjs.hash(data.password, 10);
 
-    // Criar contrato, usuÃ¡rio e professor master
     const { user, professor, contractId } = await prisma.$transaction(async (tx) => {
       const contract = await tx.contract.create({
         data: {
@@ -63,6 +115,12 @@ export class AuthService {
           document,
         },
       });
+
+      const managerFunction = await getDefaultCollaboratorFunctionByCode(contract.id, 'manager', tx);
+
+      if (!managerFunction) {
+        throw new Error('Não foi possível preparar as funções padrão do contrato');
+      }
 
       const createdUser = await tx.user.create({
         data: {
@@ -85,9 +143,21 @@ export class AuthService {
           userId: createdUser.id,
           contractId: contract.id,
           role: 'master',
+          collaboratorFunctionId: managerFunction.id,
         },
         include: {
+          collaboratorFunction: true,
           contract: true,
+          responsibleManager: {
+            include: {
+              user: {
+                include: {
+                  profile: true,
+                },
+              },
+              collaboratorFunction: true,
+            },
+          },
         },
       });
 
@@ -98,7 +168,6 @@ export class AuthService {
       };
     });
 
-    await ensureDefaultAssessmentTypesForContract(contractId);
     await ensureDefaultSubjectiveScalesForContract(contractId);
 
     // Gerar token
@@ -115,6 +184,10 @@ export class AuthService {
           ? {
               id: professor.id,
               role: professor.role,
+              collaboratorFunction: this.serializeCollaboratorFunction(professor.collaboratorFunction),
+              responsibleManager: this.serializeResponsibleManager(
+                professor.responsibleManager
+              ),
               contract: {
                 id: professor.contract.id,
                 type: professor.contract.type,
@@ -138,7 +211,18 @@ export class AuthService {
         profile: true,
         professor: {
           include: {
+            collaboratorFunction: true,
             contract: true,
+            responsibleManager: {
+              include: {
+                user: {
+                  include: {
+                    profile: true,
+                  },
+                },
+                collaboratorFunction: true,
+              },
+            },
           },
         },
       },
@@ -177,6 +261,10 @@ export class AuthService {
           ? {
               id: user.professor.id,
               role: user.professor.role,
+              collaboratorFunction: this.serializeCollaboratorFunction(user.professor.collaboratorFunction),
+              responsibleManager: this.serializeResponsibleManager(
+                user.professor.responsibleManager
+              ),
               contract: {
                 id: user.professor.contract.id,
                 type: user.professor.contract.type,
@@ -236,7 +324,18 @@ export class AuthService {
         profile: true,
         professor: {
           include: {
+            collaboratorFunction: true,
             contract: true,
+            responsibleManager: {
+              include: {
+                user: {
+                  include: {
+                    profile: true,
+                  },
+                },
+                collaboratorFunction: true,
+              },
+            },
           },
         },
         aluno: true,
@@ -249,6 +348,17 @@ export class AuthService {
       where: { userId },
       include: {
         contract: true,
+        collaboratorFunction: true,
+        responsibleManager: {
+          include: {
+            user: {
+              include: {
+                profile: true,
+              },
+            },
+            collaboratorFunction: true,
+          },
+        },
       },
     });
   }
