@@ -136,6 +136,62 @@ export async function masterMiddleware(req: Request, res: Response, next: NextFu
 }
 
 /**
+ * Middleware para verificar se e professor master com contrato academy
+ */
+export async function academyMasterMiddleware(req: Request, res: Response, next: NextFunction) {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      error: 'Não autenticado',
+    });
+  }
+
+  if (req.user.type !== 'professor') {
+    return res.status(403).json({
+      success: false,
+      error: 'Apenas professores podem acessar este recurso',
+    });
+  }
+
+  try {
+    const professor = await authService.getProfessorByUserId(req.user.userId);
+
+    if (!professor) {
+      return res.status(404).json({
+        success: false,
+        error: 'Professor não encontrado',
+      });
+    }
+
+    if (professor.role !== 'master') {
+      return res.status(403).json({
+        success: false,
+        error: 'Apenas professor master pode acessar este recurso',
+      });
+    }
+
+    if (professor.contract.type !== 'academy') {
+      return res.status(403).json({
+        success: false,
+        error: 'Apenas contratos do tipo academia podem gerenciar professores',
+      });
+    }
+
+    (req as any).user.professorId = professor.id;
+    (req as any).user.contractId = professor.contractId;
+    (req as any).user.professorRole = professor.role;
+
+    next();
+  } catch (error) {
+    console.error('Erro ao validar professor master da academia:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Erro ao verificar acesso do professor master',
+    });
+  }
+}
+
+/**
  * Middleware para verificar se Ã© aluno
  */
 export function alunoMiddleware(req: Request, res: Response, next: NextFunction) {

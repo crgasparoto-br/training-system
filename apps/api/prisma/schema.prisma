@@ -72,6 +72,7 @@ model Contract {
   name     String?
 
   professores          Professor[]
+  collaboratorFunctions CollaboratorFunctionOption[]
   trainingParameters   TrainingParameter[]
   exerciseLibrary      ExerciseLibrary[]
   assessmentTypes      AssessmentType[]
@@ -101,6 +102,25 @@ enum ProfessorRole {
   professor
 }
 
+model CollaboratorFunctionOption {
+  id         String   @id @default(cuid())
+  contractId String
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  name     String
+  code     String
+  isActive Boolean @default(true)
+  isSystem Boolean @default(false)
+
+  professores Professor[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([contractId, code])
+  @@index([contractId])
+}
+
 model Professor {
   id         String        @id @default(cuid())
   userId     String        @unique
@@ -108,8 +128,13 @@ model Professor {
   contractId String
   contract   Contract      @relation(fields: [contractId], references: [id], onDelete: Cascade)
   role       ProfessorRole @default(professor)
+  collaboratorFunctionId String
+  collaboratorFunction CollaboratorFunctionOption @relation(fields: [collaboratorFunctionId], references: [id], onDelete: Restrict)
+  responsibleManagerId String?
+  responsibleManager   Professor? @relation("ProfessorResponsibleManager", fields: [responsibleManagerId], references: [id], onDelete: SetNull)
 
   // Relacionamentos
+  managedCollaborators Professor[] @relation("ProfessorResponsibleManager")
   alunos              Aluno[]
   plans               TrainingPlan[]
   library             TrainingLibrary[]
@@ -124,6 +149,8 @@ model Professor {
   updatedAt DateTime @updatedAt
 
   @@index([contractId])
+  @@index([collaboratorFunctionId])
+  @@index([responsibleManagerId])
 }
 
 model ContractDataCloneLog {

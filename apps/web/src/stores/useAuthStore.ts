@@ -1,6 +1,6 @@
 ﻿import { create } from 'zustand';
 import { authService } from '../services/auth.service';
-import type { LoginRequest, RegisterRequest } from '@corrida/types';
+import type { CollaboratorFunctionInfo, LoginRequest, RegisterRequest } from '@corrida/types';
 
 interface User {
   id: string;
@@ -10,6 +10,7 @@ interface User {
   professor?: {
     id: string;
     role: 'master' | 'professor';
+    collaboratorFunction: CollaboratorFunctionInfo;
     contract: {
       id: string;
       type: 'academy' | 'personal';

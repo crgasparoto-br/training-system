@@ -6,8 +6,10 @@ import type {
 } from '@corrida/types';
 
 export const professorService = {
-  async list(): Promise<ProfessorSummary[]> {
-    const response = await api.get<{ success: boolean; data: ProfessorSummary[] }>('/professores');
+  async list(status?: 'active' | 'inactive'): Promise<ProfessorSummary[]> {
+    const response = await api.get<{ success: boolean; data: ProfessorSummary[] }>('/professores', {
+      params: status ? { status } : undefined,
+    });
     return response.data.data;
   },
 
@@ -29,6 +31,10 @@ export const professorService = {
 
   async deactivate(id: string): Promise<void> {
     await api.post(`/professores/${id}/deactivate`);
+  },
+
+  async activate(id: string): Promise<void> {
+    await api.post(`/professores/${id}/activate`);
   },
 
   async resetPassword(id: string): Promise<{ tempPassword: string }> {

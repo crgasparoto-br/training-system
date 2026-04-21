@@ -5,6 +5,10 @@ export default function Settings() {
   const { user } = useAuthStore();
   const canAccessAlunoSettings =
     user?.type === 'professor' && user?.professor?.role === 'master';
+  const canManageCollaboratorFunctions =
+    user?.type === 'professor' &&
+    user?.professor?.role === 'master' &&
+    user?.professor?.contract?.type === 'academy';
   return (
     <div className="space-y-6">
       <div>
@@ -51,6 +55,20 @@ export default function Settings() {
             Acessar avalia&ccedil;&otilde;es &rarr;
           </div>
         </Link>
+        {canManageCollaboratorFunctions && (
+          <Link
+            to="/settings/collaborator-functions"
+            className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm transition hover:border-blue-300 hover:shadow"
+          >
+            <h2 className="text-lg font-semibold text-gray-900">Fun&ccedil;&otilde;es de Colaboradores</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Cadastro das fun&ccedil;&otilde;es exibidas no campo Fun&ccedil;&atilde;o do colaborador.
+            </p>
+            <div className="mt-4 inline-flex items-center text-sm font-medium text-blue-600">
+              Acessar fun&ccedil;&otilde;es &rarr;
+            </div>
+          </Link>
+        )}
         <Link
           to="/settings/psr-pse"
           className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm transition hover:border-blue-300 hover:shadow"

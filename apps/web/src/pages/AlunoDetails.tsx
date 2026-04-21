@@ -1,5 +1,6 @@
 ﻿import { useState, useEffect, Fragment } from 'react';
 import { useNavigate, useParams, Link, useLocation } from 'react-router-dom';
+import { useMemo, useRef } from 'react';
 import { alunoService, type Aluno } from '../services/aluno.service';
 import { planService, type TrainingPlan } from '../services/plan.service';
 import { assessmentService, type Assessment, type AssessmentSummary, type AssessmentAuditLog } from '../services/assessment.service';
@@ -10,6 +11,7 @@ import { formatDateBR, isDateWithinRange } from '../utils/date';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../components/ui/Accordion';
 import { alunoDetailsCopy } from '../i18n/ptBR';
+import { useAuthStore } from '../stores/useAuthStore';
 import {
   ArrowLeft,
   Edit,
@@ -19,12 +21,16 @@ import {
   Calendar,
   Phone,
   Mail,
+  Sparkles,
 } from 'lucide-react';
+
+const ASSESSMENT_GUIDE_STORAGE_PREFIX = 'assessment-first-use-banner';
 
 export function AlunoDetails() {
   const navigate = useNavigate();
   const location = useLocation();
   const { id } = useParams<{ id: string }>();
+  const { user } = useAuthStore();
   const initialTempPassword =
     (location.state as { tempPassword?: string | null } | null)?.tempPassword ?? null;
   const [aluno, setAluno] = useState<Aluno | null>(null);
@@ -62,6 +68,15 @@ export function AlunoDetails() {
   const [historyEditSectionTitle, setHistoryEditSectionTitle] = useState('');
   const [historyEditAssessmentId, setHistoryEditAssessmentId] = useState('');
   const [historyEditValues, setHistoryEditValues] = useState<Record<string, string>>({});
+  const [showAssessmentGuideBanner, setShowAssessmentGuideBanner] = useState(false);
+  const [assessmentGuideActive, setAssessmentGuideActive] = useState(false);
+  const [assessmentGuideStep, setAssessmentGuideStep] = useState(0);
+  const newAssessmentRef = useRef<HTMLDivElement | null>(null);
+  const assessmentSummaryRef = useRef<HTMLDivElement | null>(null);
+  const assessmentTypeFieldRef = useRef<HTMLDivElement | null>(null);
+  const assessmentDateFieldRef = useRef<HTMLDivElement | null>(null);
+  const assessmentFileFieldRef = useRef<HTMLDivElement | null>(null);
+  const assessmentSubmitRef = useRef<HTMLDivElement | null>(null);
   const historyTextVariables = new Set(['Protocolo', 'R. VO2máximo', 'Tipo de Dieta']);
   const historyVariableColumnWidthClass = 'w-56';
   const historyVariableLabelMap: Record<string, string> = {
@@ -97,12 +112,75 @@ export function AlunoDetails() {
     'FC Máxima Predita': 'Frequência Cardíaca Máxima Predita',
     'FC Máxima no Teste': 'Frequência Cardíaca Máxima no Teste',
   };
+  const assessmentGuideStorageKey = useMemo(() => {
+    if (user?.type !== 'professor' || !user.professor?.id) {
+      return null;
+    }
+
+    return `${ASSESSMENT_GUIDE_STORAGE_PREFIX}:${user.professor.id}`;
+  }, [user]);
+  const shouldOfferAssessmentGuide =
+    user?.type === 'professor' && assessments.length === 0;
+  const assessmentGuideSteps = useMemo(
+    () => [
+      {
+        title: alunoDetailsCopy.assessmentGuideStepSummaryTitle,
+        description: alunoDetailsCopy.assessmentGuideStepSummaryDescription,
+        ref: assessmentSummaryRef,
+      },
+      {
+        title: alunoDetailsCopy.assessmentGuideStepTypeTitle,
+        description: alunoDetailsCopy.assessmentGuideStepTypeDescription,
+        ref: assessmentTypeFieldRef,
+      },
+      {
+        title: alunoDetailsCopy.assessmentGuideStepDateTitle,
+        description: alunoDetailsCopy.assessmentGuideStepDateDescription,
+        ref: assessmentDateFieldRef,
+      },
+      {
+        title: alunoDetailsCopy.assessmentGuideStepFileTitle,
+        description: alunoDetailsCopy.assessmentGuideStepFileDescription,
+        ref: assessmentFileFieldRef,
+      },
+      {
+        title: alunoDetailsCopy.assessmentGuideStepSubmitTitle,
+        description: alunoDetailsCopy.assessmentGuideStepSubmitDescription,
+        ref: assessmentSubmitRef,
+      },
+    ],
+    []
+  );
+  const assessmentGuideCurrentStep = assessmentGuideSteps[assessmentGuideStep];
+  const isAssessmentGuideStep = (index: number) =>
+    assessmentGuideActive && assessmentGuideStep === index;
 
   useEffect(() => {
     if (id) {
       loadAluno(id);
     }
   }, [id]);
+
+  useEffect(() => {
+    if (!shouldOfferAssessmentGuide || !assessmentGuideStorageKey) {
+      setShowAssessmentGuideBanner(false);
+      return;
+    }
+
+    const storedValue = window.localStorage.getItem(assessmentGuideStorageKey);
+    setShowAssessmentGuideBanner(storedValue !== 'hidden');
+  }, [assessmentGuideStorageKey, shouldOfferAssessmentGuide]);
+
+  useEffect(() => {
+    if (!assessmentGuideActive) {
+      return;
+    }
+
+    assessmentGuideCurrentStep?.ref.current?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'center',
+    });
+  }, [assessmentGuideActive, assessmentGuideCurrentStep]);
 
   const loadAluno = async (alunoId: string) => {
     setLoading(true);
@@ -242,11 +320,44 @@ export function AlunoDetails() {
       setAssessments(assessmentsData);
       setAssessmentSummary(summaryData);
       setAssessmentForm({ typeId: '', assessmentDate: '', file: null });
+      setAssessmentGuideActive(false);
+      setShowAssessmentGuideBanner(false);
+      setAssessmentGuideStep(0);
     } catch (error: any) {
       alert(error.response?.data?.error || alunoDetailsCopy.uploadAssessmentError);
     } finally {
       setUploadingAssessment(false);
     }
+  };
+
+  const handleStartAssessmentGuide = () => {
+    setAssessmentGuideActive(true);
+    setShowAssessmentGuideBanner(false);
+    setAssessmentGuideStep(0);
+
+    window.requestAnimationFrame(() => {
+      newAssessmentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  };
+
+  const handleHideAssessmentGuidePermanently = () => {
+    if (assessmentGuideStorageKey) {
+      window.localStorage.setItem(assessmentGuideStorageKey, 'hidden');
+    }
+
+    setShowAssessmentGuideBanner(false);
+    setAssessmentGuideActive(false);
+    setAssessmentGuideStep(0);
+  };
+
+  const handleNextAssessmentGuideStep = () => {
+    setAssessmentGuideStep((currentStep) =>
+      Math.min(currentStep + 1, assessmentGuideSteps.length - 1)
+    );
+  };
+
+  const handlePreviousAssessmentGuideStep = () => {
+    setAssessmentGuideStep((currentStep) => Math.max(currentStep - 1, 0));
   };
 
   const handleDownloadAssessment = async (assessment: Assessment) => {
@@ -1061,11 +1172,65 @@ export function AlunoDetails() {
       {/* Avaliações */}
       <Card>
         <CardHeader>
-          <CardTitle>{alunoDetailsCopy.assessmentsTitle}</CardTitle>
-          <CardDescription>{alunoDetailsCopy.assessmentsDescription}</CardDescription>
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <CardTitle>{alunoDetailsCopy.assessmentsTitle}</CardTitle>
+              <CardDescription>{alunoDetailsCopy.assessmentsDescription}</CardDescription>
+            </div>
+            {user?.type === 'professor' && (
+              <Button type="button" variant="outline" size="sm" onClick={handleStartAssessmentGuide}>
+                <Sparkles className="h-4 w-4" />
+                {alunoDetailsCopy.assessmentGuideReopen}
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="grid gap-4 md:grid-cols-3">
+          {showAssessmentGuideBanner && (
+            <div className="rounded-2xl border border-info/20 bg-info/10 p-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                    <Sparkles className="h-4 w-4 text-info" />
+                    {alunoDetailsCopy.assessmentGuideBannerTitle}
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {alunoDetailsCopy.assessmentGuideBannerDescription}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" onClick={handleStartAssessmentGuide}>
+                    {alunoDetailsCopy.assessmentGuideStart}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setShowAssessmentGuideBanner(false)}
+                  >
+                    {alunoDetailsCopy.assessmentGuideLater}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={handleHideAssessmentGuidePermanently}
+                  >
+                    {alunoDetailsCopy.assessmentGuideHide}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div
+            ref={assessmentSummaryRef}
+            className={`grid gap-4 md:grid-cols-3 rounded-2xl transition-all ${
+              isAssessmentGuideStep(0)
+                ? 'border border-info/40 bg-info/5 p-3 shadow-[0_0_0_1px_rgba(14,165,233,0.12)]'
+                : ''
+            }`}
+          >
             {assessmentSummary.length === 0 ? (
               <div className="text-sm text-muted-foreground">
                 Nenhum tipo de avaliação configurado.
@@ -1085,48 +1250,152 @@ export function AlunoDetails() {
             )}
           </div>
 
-          <div className="rounded-lg border border-gray-200 p-4">
+          <div
+            ref={newAssessmentRef}
+            className={`rounded-lg border p-4 transition-colors ${
+              assessmentGuideActive
+                ? 'border-info bg-info/5 shadow-[0_0_0_1px_rgba(14,165,233,0.15)]'
+                : 'border-gray-200'
+            }`}
+          >
             <h3 className="text-sm font-semibold text-gray-900">Nova Avaliação</h3>
+            {assessmentGuideActive && (
+              <div className="mt-3 rounded-xl border border-info/20 bg-background p-4">
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div className="space-y-2">
+                    <p className="text-sm font-semibold text-foreground">
+                      {alunoDetailsCopy.assessmentGuidePanelTitle}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {alunoDetailsCopy.assessmentGuideProgressLabel} {assessmentGuideStep + 1} de{' '}
+                      {assessmentGuideSteps.length}
+                    </p>
+                    <p className="text-sm font-medium text-foreground">
+                      {assessmentGuideCurrentStep?.title}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {assessmentGuideCurrentStep?.description}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {alunoDetailsCopy.assessmentGuidePanelHint}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={handlePreviousAssessmentGuideStep}
+                      disabled={assessmentGuideStep === 0}
+                    >
+                      {alunoDetailsCopy.assessmentGuidePrevious}
+                    </Button>
+                    {assessmentGuideStep === assessmentGuideSteps.length - 1 ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => setAssessmentGuideActive(false)}
+                      >
+                        {alunoDetailsCopy.assessmentGuideFinish}
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={handleNextAssessmentGuideStep}
+                      >
+                        {alunoDetailsCopy.assessmentGuideNext}
+                      </Button>
+                    )}
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setAssessmentGuideActive(false)}
+                    >
+                      {alunoDetailsCopy.assessmentGuideClose}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
             <div className="mt-3 grid gap-3 md:grid-cols-[1.2fr_0.8fr_1fr_auto]">
-              <select
-                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-                value={assessmentForm.typeId}
-                onChange={(event) =>
-                  setAssessmentForm({ ...assessmentForm, typeId: event.target.value })
-                }
+              <div
+                ref={assessmentTypeFieldRef}
+                className={`rounded-xl transition-all ${
+                  isAssessmentGuideStep(1)
+                    ? 'bg-info/5 p-2 shadow-[0_0_0_1px_rgba(14,165,233,0.18)]'
+                    : ''
+                }`}
               >
-                <option value="">Selecione o tipo</option>
-                {assessmentTypes.map((type) => (
-                  <option key={type.id} value={type.id}>
-                    {type.name}
-                  </option>
-                ))}
-              </select>
-              <input
-                type="date"
-                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-                value={assessmentForm.assessmentDate}
-                onChange={(event) =>
-                  setAssessmentForm({ ...assessmentForm, assessmentDate: event.target.value })
-                }
-              />
-              <input
-                type="file"
-                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-                onChange={(event) =>
-                  setAssessmentForm({
-                    ...assessmentForm,
-                    file: event.target.files?.[0] || null,
-                  })
-                }
-              />
-              <Button
-                type="button"
-                onClick={handleAssessmentUpload}
-                isLoading={uploadingAssessment}
+                <select
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  value={assessmentForm.typeId}
+                  onChange={(event) =>
+                    setAssessmentForm({ ...assessmentForm, typeId: event.target.value })
+                  }
+                >
+                  <option value="">Selecione o tipo</option>
+                  {assessmentTypes.map((type) => (
+                    <option key={type.id} value={type.id}>
+                      {type.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div
+                ref={assessmentDateFieldRef}
+                className={`rounded-xl transition-all ${
+                  isAssessmentGuideStep(2)
+                    ? 'bg-info/5 p-2 shadow-[0_0_0_1px_rgba(14,165,233,0.18)]'
+                    : ''
+                }`}
               >
-                Enviar
-              </Button>
+                <input
+                  type="date"
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  value={assessmentForm.assessmentDate}
+                  onChange={(event) =>
+                    setAssessmentForm({ ...assessmentForm, assessmentDate: event.target.value })
+                  }
+                />
+              </div>
+              <div
+                ref={assessmentFileFieldRef}
+                className={`rounded-xl transition-all ${
+                  isAssessmentGuideStep(3)
+                    ? 'bg-info/5 p-2 shadow-[0_0_0_1px_rgba(14,165,233,0.18)]'
+                    : ''
+                }`}
+              >
+                <input
+                  type="file"
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  onChange={(event) =>
+                    setAssessmentForm({
+                      ...assessmentForm,
+                      file: event.target.files?.[0] || null,
+                    })
+                  }
+                />
+              </div>
+              <div
+                ref={assessmentSubmitRef}
+                className={`rounded-xl transition-all ${
+                  isAssessmentGuideStep(4)
+                    ? 'bg-info/5 p-2 shadow-[0_0_0_1px_rgba(14,165,233,0.18)]'
+                    : ''
+                }`}
+              >
+                <Button
+                  type="button"
+                  onClick={handleAssessmentUpload}
+                  isLoading={uploadingAssessment}
+                  className="w-full"
+                >
+                  Enviar
+                </Button>
+              </div>
             </div>
           </div>
 

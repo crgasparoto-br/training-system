@@ -72,6 +72,11 @@ export const CreateProfessorSchema = z.object({
   name: z.string().trim().min(3, 'Nome deve ter no minimo 3 caracteres'),
   email: z.string().trim().toLowerCase().email('Email invalido'),
   password: z.string().min(8, 'Senha deve ter no minimo 8 caracteres'),
+  collaboratorFunctionId: z.string().trim().min(1, 'Funcao do colaborador invalida'),
+  responsibleManagerId: z.preprocess(
+    emptyStringToUndefined,
+    z.string().trim().min(1, 'Gestor responsavel invalido').optional()
+  ),
 });
 
 export const UpdateProfessorSchema = z.object({
@@ -87,6 +92,27 @@ export const UpdateProfessorSchema = z.object({
     emptyStringToUndefined,
     z.string().min(8, 'Senha deve ter no minimo 8 caracteres').optional()
   ),
+  collaboratorFunctionId: z.preprocess(
+    emptyStringToUndefined,
+    z.string().trim().min(1, 'Funcao do colaborador invalida').optional()
+  ),
+  responsibleManagerId: z.preprocess(
+    emptyStringToUndefined,
+    z.string().trim().min(1, 'Gestor responsavel invalido').optional()
+  ),
+});
+
+export const CreateCollaboratorFunctionSchema = z.object({
+  name: z.string().trim().min(2, 'Nome da funcao deve ter no minimo 2 caracteres'),
+  isActive: z.boolean().optional(),
+});
+
+export const UpdateCollaboratorFunctionSchema = z.object({
+  name: z.preprocess(
+    emptyStringToUndefined,
+    z.string().trim().min(2, 'Nome da funcao deve ter no minimo 2 caracteres').optional()
+  ),
+  isActive: z.boolean().optional(),
 });
 
 // ============================================================================
@@ -230,4 +256,3 @@ export type LoginInput = z.infer<typeof LoginSchema>;
 export type RegisterInput = z.infer<typeof RegisterSchema>;
 export type CreateAlunoInput = z.infer<typeof CreateAlunoSchema>;
 export type UpdateAlunoInput = z.infer<typeof UpdateAlunoSchema>;
-

@@ -1,13 +1,13 @@
 ﻿import { Router, Request, Response } from 'express';
 import { professorService } from './professor.service';
-import { authMiddleware, masterMiddleware } from '../auth/auth.middleware';
+import { academyMasterMiddleware, authMiddleware } from '../auth/auth.middleware';
 import { CreateProfessorSchema, UpdateProfessorSchema } from '@corrida/utils';
 import { sendSuccess, sendError } from '@corrida/utils';
 
 const router: Router = Router();
 
 router.use(authMiddleware);
-router.use(masterMiddleware);
+router.use(academyMasterMiddleware);
 
 /**
  * GET /api/v1/professores
@@ -16,12 +16,14 @@ router.use(masterMiddleware);
 router.get('/', async (req: Request, res: Response) => {
   try {
     const contractId = (req as any).user.contractId;
+    const rawStatus = req.query.status as string | undefined;
+    const status = rawStatus === 'active' || rawStatus === 'inactive' ? rawStatus : 'all';
 
     if (!contractId) {
       return sendError(res, 'Contrato nÃ£o encontrado', 404);
     }
 
-    const professores = await professorService.listByContract(contractId);
+    const professores = await professorService.listByContract(contractId, status);
 
     return sendSuccess(res, professores, 'Professores recuperados com sucesso');
   } catch (error: any) {
@@ -98,6 +100,23 @@ router.post('/:id/deactivate', async (req: Request, res: Response) => {
     return sendSuccess(res, null, 'Professor desativado com sucesso');
   } catch (error: any) {
     return sendError(res, error.message || 'Erro ao desativar professor', 400);
+  }
+});
+
+/**
+ * POST /api/v1/professores/:id/activate
+ * Reativar professor
+ */
+router.post('/:id/activate', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const contractId = (req as any).user.contractId;
+
+    await professorService.activate(contractId, id);
+
+    return sendSuccess(res, null, 'Professor reativado com sucesso');
+  } catch (error: any) {
+    return sendError(res, error.message || 'Erro ao reativar professor', 400);
   }
 });
 

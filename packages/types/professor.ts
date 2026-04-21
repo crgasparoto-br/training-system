@@ -1,20 +1,31 @@
-﻿import type { ProfessorRole, ContractInfo } from './auth';
+import type {
+  CollaboratorFunctionInfo,
+  ContractInfo,
+  ProfessorManagerInfo,
+  ProfessorRole,
+} from './auth';
 
 export interface CreateProfessorRequest {
   name: string;
   email: string;
   password: string;
+  collaboratorFunctionId: string;
+  responsibleManagerId?: string;
 }
 
 export interface UpdateProfessorRequest {
   name?: string;
   email?: string;
   password?: string;
+  collaboratorFunctionId?: string;
+  responsibleManagerId?: string;
 }
 
 export interface ProfessorSummary {
   id: string;
   role: ProfessorRole;
+  collaboratorFunction: CollaboratorFunctionInfo;
+  responsibleManager?: ProfessorManagerInfo | null;
   user: {
     id: string;
     email: string;
@@ -28,4 +39,3 @@ export interface ProfessorSummary {
   contract: ContractInfo;
   createdAt: string;
 }
-

@@ -45,6 +45,15 @@ export function DashboardLayout() {
           { id: 'settings-contract', label: shellCopy.menu.contrato, path: '/settings/contract' },
           { id: 'settings-parameters', label: shellCopy.menu.parametros, path: '/settings/parameters' },
           { id: 'settings-assessment-types', label: shellCopy.menu.avaliacoes, path: '/settings/assessment-types' },
+          ...(canManageProfessores
+            ? [
+                {
+                  id: 'settings-collaborator-functions',
+                  label: shellCopy.menu.funcoesColaboradores,
+                  path: '/settings/collaborator-functions',
+                },
+              ]
+            : []),
           { id: 'settings-psr-pse', label: 'PSR e PSE', path: '/settings/psr-pse' },
           { id: 'settings-reference-table', label: shellCopy.menu.tabelaReferencia, path: '/settings/reference-table' },
           ...(canAccessAlunoSettings
