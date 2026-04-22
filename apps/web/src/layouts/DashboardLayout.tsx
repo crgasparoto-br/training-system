@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Activity, BarChart3, BookOpen, Calendar, Home, LogOut, Menu, Settings, Users, X } from 'lucide-react';
+import { Activity, BarChart3, BookOpen, Calendar, FileText, Home, LogOut, Menu, Settings, Users, X } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { useAuthStore } from '../stores/useAuthStore';
 import { Button } from '../components/ui/Button';
@@ -31,6 +31,39 @@ export function DashboardLayout() {
       { id: 'dashboard', icon: Home, label: shellCopy.menu.dashboard, path: '/dashboard' },
       ...(canManageProfessores ? [{ id: 'professores', icon: Users, label: shellCopy.menu.professores, path: '/professores' }] : []),
       { id: 'alunos', icon: Users, label: shellCopy.menu.alunos, path: '/alunos' },
+      {
+        id: 'physical-assessment-protocol',
+        icon: FileText,
+        label: 'Protocolo de Avaliação Física',
+        path: '/protocolo-avaliacao-fisica',
+        children: [
+          {
+            id: 'physical-assessment-protocol-anthropometry',
+            label: 'Antropometria',
+            path: '/protocolo-avaliacao-fisica/antropometria',
+          },
+          {
+            id: 'physical-assessment-protocol-interview',
+            label: 'Prontuário de entrevista e acompanhamento',
+            path: '/protocolo-avaliacao-fisica/prontuario-entrevista-acompanhamento',
+          },
+          {
+            id: 'physical-assessment-protocol-adipometry',
+            label: 'Adipometria',
+            path: '/protocolo-avaliacao-fisica/adipometria',
+          },
+          {
+            id: 'physical-assessment-protocol-bioimpedance',
+            label: 'Bioimpedanciometria',
+            path: '/protocolo-avaliacao-fisica/bioimpedanciometria',
+          },
+          {
+            id: 'physical-assessment-protocol-ultrasound',
+            label: 'Ultrassonografia',
+            path: '/protocolo-avaliacao-fisica/ultrassonografia',
+          },
+        ],
+      },
       { id: 'plans', icon: Calendar, label: shellCopy.menu.planos, path: '/plans' },
       { id: 'agenda', icon: Calendar, label: shellCopy.menu.agenda, path: '/agenda' },
       { id: 'library', icon: BookOpen, label: shellCopy.menu.biblioteca, path: '/library' },

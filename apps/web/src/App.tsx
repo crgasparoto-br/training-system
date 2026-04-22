@@ -21,6 +21,7 @@ import SettingsAlunoAccess from './pages/Settings/AlunoAccess';
 import SettingsProfessorManual from './pages/Settings/ProfessorManual';
 import SettingsReferenceTable from './pages/Settings/ReferenceTable';
 import Library from './pages/Library';
+import PhysicalAssessmentProtocol from './pages/PhysicalAssessmentProtocol';
 import WorkoutBuilder2 from './pages/WorkoutBuilder2';
 import Executions from './pages/Executions';
 import { DashboardLayout } from './layouts/DashboardLayout';
@@ -50,6 +51,18 @@ function App() {
           <Route path="alunos/new" element={<AlunoForm />} />
           <Route path="alunos/:id" element={<AlunoDetails />} />
           <Route path="alunos/:id/edit" element={<AlunoForm />} />
+          <Route
+            path="protocolo-avaliacao-fisica"
+            element={<Navigate to="/protocolo-avaliacao-fisica/antropometria" replace />}
+          />
+          <Route path="protocolo-avaliacao-fisica/antropometria" element={<PhysicalAssessmentProtocol />} />
+          <Route
+            path="protocolo-avaliacao-fisica/prontuario-entrevista-acompanhamento"
+            element={<PhysicalAssessmentProtocol />}
+          />
+          <Route path="protocolo-avaliacao-fisica/adipometria" element={<PhysicalAssessmentProtocol />} />
+          <Route path="protocolo-avaliacao-fisica/bioimpedanciometria" element={<PhysicalAssessmentProtocol />} />
+          <Route path="protocolo-avaliacao-fisica/ultrassonografia" element={<PhysicalAssessmentProtocol />} />
           <Route path="plans" element={<Plans />} />
           <Route path="plans/new" element={<PlanForm />} />
           <Route path="plans/:id" element={<PlanDetails />} />
