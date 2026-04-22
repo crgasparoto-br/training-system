@@ -46,6 +46,7 @@ router.post('/', async (req: Request, res: Response) => {
     }
 
     const contractId = (req as any).user.contractId;
+    const actorProfessorId = (req as any).user.professorId;
 
     if (!contractId) {
       return sendError(res, 'Contrato nÃ£o encontrado', 404);
@@ -53,6 +54,7 @@ router.post('/', async (req: Request, res: Response) => {
 
     const professor = await professorService.create({
       contractId,
+      actorProfessorId,
       ...validation.data,
     });
 
@@ -70,6 +72,7 @@ router.put('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const contractId = (req as any).user.contractId;
+    const actorProfessorId = (req as any).user.professorId;
 
     const validation = UpdateProfessorSchema.safeParse(req.body);
 
@@ -78,11 +81,40 @@ router.put('/:id', async (req: Request, res: Response) => {
       return sendError(res, errors, 400);
     }
 
-    const professor = await professorService.update(contractId, id, validation.data);
+    const professor = await professorService.update(contractId, id, {
+      actorProfessorId,
+      ...validation.data,
+    });
 
     return sendSuccess(res, professor, 'Professor atualizado com sucesso');
   } catch (error: any) {
     return sendError(res, error.message || 'Erro ao atualizar professor', 400);
+  }
+});
+
+/**
+ * POST /api/v1/professores/:id/legal-financial/validate
+ * Validar bloco juridico e financeiro do colaborador
+ */
+router.post('/:id/legal-financial/validate', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const contractId = (req as any).user.contractId;
+    const validatorProfessorId = (req as any).user.professorId;
+
+    const professor = await professorService.validateLegalFinancial(
+      contractId,
+      id,
+      validatorProfessorId
+    );
+
+    return sendSuccess(res, professor, 'Dados juridicos e financeiros validados com sucesso');
+  } catch (error: any) {
+    return sendError(
+      res,
+      error.message || 'Erro ao validar dados juridicos e financeiros',
+      400
+    );
   }
 });
 

@@ -37,6 +37,13 @@ export const professorService = {
     await api.post(`/professores/${id}/activate`);
   },
 
+  async validateLegalFinancial(id: string): Promise<ProfessorSummary> {
+    const response = await api.post<{ success: boolean; data: ProfessorSummary }>(
+      `/professores/${id}/legal-financial/validate`
+    );
+    return response.data.data;
+  },
+
   async resetPassword(id: string): Promise<{ tempPassword: string }> {
     const response = await api.post<{ success: boolean; data: { tempPassword: string } }>(
       `/professores/${id}/reset-password`

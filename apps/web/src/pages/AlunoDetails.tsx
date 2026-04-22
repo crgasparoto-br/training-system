@@ -26,6 +26,111 @@ import {
 
 const ASSESSMENT_GUIDE_STORAGE_PREFIX = 'assessment-first-use-banner';
 
+type AssessmentProtocolGuidance = {
+  badge: string;
+  whenToUse: string;
+  required: string;
+  commonError: string;
+  trainingRelation: string;
+  methodHint: string;
+};
+
+type AssessmentUploadFeedback = {
+  typeName: string;
+  assessmentDate: string | null;
+  hasTrainingPlan: boolean;
+};
+
+const getAssessmentProtocolGuidance = (
+  assessmentType: AssessmentType | null
+): AssessmentProtocolGuidance | null => {
+  if (!assessmentType) {
+    return null;
+  }
+
+  const normalizedCode = assessmentType.code.toLowerCase();
+  const normalizedName = assessmentType.name.toLowerCase();
+
+  if (normalizedCode.includes('intermediate') || normalizedName.includes('intermedi')) {
+    return {
+      badge: 'Revisao de acompanhamento',
+      whenToUse:
+        'Use quando o objetivo for revisar a evolucao entre duas avaliacoes amplas ou acompanhar um setor especifico sem refazer toda a bateria.',
+      required:
+        'Confirme que houve coleta real do protocolo intermediario, mantenha a data correta e anexe o PDF correspondente ao momento da revisao.',
+      commonError:
+        'Registrar como intermediaria uma avaliacao que, na pratica, foi completa ou deixar o arquivo sem relacao clara com o historico recente do aluno.',
+      trainingRelation:
+        'Ela ajuda a ajustar volume, progressao e pontos de atencao do treino sem redefinir todo o planejamento do ciclo.',
+      methodHint:
+        'Antes de salvar, confira se a revisao responde a uma duvida operacional concreta do treino atual e se o historico continua legivel.',
+    };
+  }
+
+  if (normalizedCode.includes('complete') || normalizedName.includes('completa')) {
+    return {
+      badge: 'Protocolo de referencia',
+      whenToUse:
+        'Use para entrada, reavaliacoes amplas ou momentos em que a equipe precisa de uma leitura global do aluno antes de revisar o plano.',
+      required:
+        'Nao pode faltar a data correta, o PDF consolidado da coleta e a confirmacao de que o arquivo representa a avaliacao principal daquele dia.',
+      commonError:
+        'Subir uma coleta parcial como se fosse avaliacao completa. Isso distorce o historico, o calendario e a interpretacao da evolucao.',
+      trainingRelation:
+        'Ela vira a principal base para revisar objetivos, coerencia do mesociclo e prioridades de progressao nas proximas semanas.',
+      methodHint:
+        'Se a avaliacao vai orientar um novo bloco de treino, revise se o arquivo entregue responde ao quadro geral do aluno e nao apenas a um setor isolado.',
+    };
+  }
+
+  return {
+    badge: 'Protocolo contextual',
+    whenToUse:
+      'Use quando esse tipo for o protocolo realmente aplicado no atendimento. O importante e manter o historico fiel ao que aconteceu na pratica.',
+    required:
+      'Garanta data correta, anexo coerente com o protocolo escolhido e uma leitura minima do impacto dessa coleta no acompanhamento do aluno.',
+    commonError:
+      'Escolher o tipo apenas para preencher o calendario, sem relacao com a coleta realizada ou com a interpretacao esperada pela equipe.',
+    trainingRelation:
+      'O registro precisa ajudar a explicar uma decisao de treino, um ajuste de monitoramento ou um proximo checkpoint do acompanhamento.',
+    methodHint:
+      'Quando houver duvida, prefira o protocolo que deixa mais claro para o proximo professor o que foi medido, por que foi medido e o que deve ser revisado depois.',
+  };
+};
+
+const getAssessmentProtocolCadence = (
+  assessmentType: AssessmentType | null,
+  assessmentTypes: AssessmentType[]
+): string | null => {
+  if (!assessmentType) {
+    return null;
+  }
+
+  if (assessmentType.scheduleType === 'fixed_interval' && assessmentType.intervalMonths) {
+    return assessmentType.intervalMonths === 1
+      ? 'A cada 1 mes'
+      : `A cada ${assessmentType.intervalMonths} meses`;
+  }
+
+  if (assessmentType.scheduleType === 'after_type') {
+    const previousType = assessmentTypes.find((type) => type.id === assessmentType.afterTypeId);
+
+    if (previousType && assessmentType.offsetMonths != null) {
+      return assessmentType.offsetMonths === 1
+        ? `1 mes apos ${previousType.name}`
+        : `${assessmentType.offsetMonths} meses apos ${previousType.name}`;
+    }
+
+    if (previousType) {
+      return `Depois de ${previousType.name}`;
+    }
+
+    return 'Depende do protocolo anterior configurado';
+  }
+
+  return null;
+};
+
 export function AlunoDetails() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -71,6 +176,9 @@ export function AlunoDetails() {
   const [showAssessmentGuideBanner, setShowAssessmentGuideBanner] = useState(false);
   const [assessmentGuideActive, setAssessmentGuideActive] = useState(false);
   const [assessmentGuideStep, setAssessmentGuideStep] = useState(0);
+  const [assessmentProtocolPanelExpanded, setAssessmentProtocolPanelExpanded] = useState(true);
+  const [assessmentUploadFeedback, setAssessmentUploadFeedback] =
+    useState<AssessmentUploadFeedback | null>(null);
   const newAssessmentRef = useRef<HTMLDivElement | null>(null);
   const assessmentSummaryRef = useRef<HTMLDivElement | null>(null);
   const assessmentTypeFieldRef = useRef<HTMLDivElement | null>(null);
@@ -154,6 +262,71 @@ export function AlunoDetails() {
   const assessmentGuideCurrentStep = assessmentGuideSteps[assessmentGuideStep];
   const isAssessmentGuideStep = (index: number) =>
     assessmentGuideActive && assessmentGuideStep === index;
+  const selectedAssessmentType = useMemo(
+    () => assessmentTypes.find((type) => type.id === assessmentForm.typeId) ?? null,
+    [assessmentForm.typeId, assessmentTypes]
+  );
+  const selectedAssessmentTypeSummary = useMemo(
+    () =>
+      selectedAssessmentType
+        ? assessmentSummary.find((item) => item.typeId === selectedAssessmentType.id) ?? null
+        : null,
+    [assessmentSummary, selectedAssessmentType]
+  );
+  const assessmentProtocolGuidance = useMemo(
+    () => getAssessmentProtocolGuidance(selectedAssessmentType),
+    [selectedAssessmentType]
+  );
+  const assessmentProtocolCadence = useMemo(
+    () => getAssessmentProtocolCadence(selectedAssessmentType, assessmentTypes),
+    [assessmentTypes, selectedAssessmentType]
+  );
+  const assessmentSubmissionChecklist = useMemo(
+    () => [
+      {
+        key: 'type',
+        complete: Boolean(selectedAssessmentType),
+        title: alunoDetailsCopy.assessmentSubmissionChecklistTypeTitle,
+        description: selectedAssessmentType
+          ? `${alunoDetailsCopy.assessmentSubmissionChecklistTypeDonePrefix} ${selectedAssessmentType.name}.`
+          : alunoDetailsCopy.assessmentSubmissionChecklistTypePending,
+      },
+      {
+        key: 'date',
+        complete: Boolean(assessmentForm.assessmentDate),
+        title: alunoDetailsCopy.assessmentSubmissionChecklistDateTitle,
+        description: assessmentForm.assessmentDate
+          ? `${alunoDetailsCopy.assessmentSubmissionChecklistDateDonePrefix} ${formatDateBR(
+              assessmentForm.assessmentDate
+            )}.`
+          : alunoDetailsCopy.assessmentSubmissionChecklistDatePending,
+      },
+      {
+        key: 'file',
+        complete: Boolean(assessmentForm.file),
+        title: alunoDetailsCopy.assessmentSubmissionChecklistFileTitle,
+        description: assessmentForm.file
+          ? `${alunoDetailsCopy.assessmentSubmissionChecklistFileDonePrefix} ${assessmentForm.file.name}.`
+          : alunoDetailsCopy.assessmentSubmissionChecklistFilePending,
+      },
+      {
+        key: 'history',
+        complete: Boolean(selectedAssessmentType),
+        title: alunoDetailsCopy.assessmentSubmissionChecklistHistoryTitle,
+        description: selectedAssessmentTypeSummary?.lastAssessmentDate
+          ? `${alunoDetailsCopy.assessmentSubmissionChecklistHistoryDonePrefix} ${formatDateBR(
+              selectedAssessmentTypeSummary.lastAssessmentDate
+            )}.`
+          : selectedAssessmentType
+            ? alunoDetailsCopy.assessmentSubmissionChecklistHistoryFirstRecord
+            : alunoDetailsCopy.assessmentSubmissionChecklistHistoryPending,
+      },
+    ],
+    [assessmentForm.assessmentDate, assessmentForm.file, selectedAssessmentType, selectedAssessmentTypeSummary]
+  );
+  const assessmentSubmissionPendingCount = assessmentSubmissionChecklist.filter(
+    (item) => !item.complete
+  ).length;
 
   useEffect(() => {
     if (id) {
@@ -181,6 +354,12 @@ export function AlunoDetails() {
       block: 'center',
     });
   }, [assessmentGuideActive, assessmentGuideCurrentStep]);
+
+  useEffect(() => {
+    if (assessmentForm.typeId) {
+      setAssessmentProtocolPanelExpanded(true);
+    }
+  }, [assessmentForm.typeId]);
 
   const loadAluno = async (alunoId: string) => {
     setLoading(true);
@@ -308,6 +487,10 @@ export function AlunoDetails() {
 
     setUploadingAssessment(true);
     try {
+      const uploadedTypeName =
+        assessmentTypes.find((type) => type.id === assessmentForm.typeId)?.name ||
+        alunoDetailsCopy.assessmentNextStepFallbackType;
+      const uploadedAssessmentDate = assessmentForm.assessmentDate || null;
       await assessmentService.uploadAssessment(id, {
         typeId: assessmentForm.typeId,
         assessmentDate: assessmentForm.assessmentDate || undefined,
@@ -323,6 +506,12 @@ export function AlunoDetails() {
       setAssessmentGuideActive(false);
       setShowAssessmentGuideBanner(false);
       setAssessmentGuideStep(0);
+      setAssessmentUploadFeedback({
+        typeName: uploadedTypeName,
+        assessmentDate: uploadedAssessmentDate,
+        hasTrainingPlan: plans.length > 0,
+      });
+      showToast(alunoDetailsCopy.uploadAssessmentSuccess);
     } catch (error: any) {
       alert(error.response?.data?.error || alunoDetailsCopy.uploadAssessmentError);
     } finally {
@@ -1397,6 +1586,213 @@ export function AlunoDetails() {
                 </Button>
               </div>
             </div>
+
+            <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50/80 p-4">
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-foreground">
+                  {alunoDetailsCopy.assessmentSubmissionChecklistTitle}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {assessmentSubmissionPendingCount === 0
+                    ? alunoDetailsCopy.assessmentSubmissionChecklistReady
+                    : `${assessmentSubmissionPendingCount} ${assessmentSubmissionPendingCount === 1 ? alunoDetailsCopy.assessmentSubmissionChecklistPendingSingular : alunoDetailsCopy.assessmentSubmissionChecklistPendingPlural}`}
+                </p>
+              </div>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                {assessmentSubmissionChecklist.map((item) => (
+                  <div
+                    key={item.key}
+                    className={`rounded-xl border p-4 ${
+                      item.complete
+                        ? 'border-emerald-200 bg-background'
+                        : 'border-amber-200 bg-background'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <span
+                        className={`mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold ${
+                          item.complete
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : 'bg-amber-100 text-amber-700'
+                        }`}
+                      >
+                        {item.complete ? 'OK' : '!'}
+                      </span>
+                      <div className="space-y-1">
+                        <p className="text-sm font-semibold text-foreground">{item.title}</p>
+                        <p className="text-sm text-muted-foreground">{item.description}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-4 text-xs text-muted-foreground">
+                {alunoDetailsCopy.assessmentSubmissionChecklistHint}
+              </p>
+            </div>
+
+            {selectedAssessmentType && assessmentProtocolGuidance && (
+              <div className="mt-4 rounded-2xl border border-info/20 bg-slate-50/80 p-4">
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div className="space-y-2">
+                    <span className="inline-flex items-center rounded-full bg-info/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-info">
+                      {assessmentProtocolGuidance.badge}
+                    </span>
+                    <div className="space-y-1">
+                      <p className="text-sm font-semibold text-foreground">
+                        {alunoDetailsCopy.assessmentProtocolPanelTitle}
+                      </p>
+                      <p className="text-base font-semibold text-gray-900">
+                        {selectedAssessmentType.name}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {selectedAssessmentType.description?.trim() ||
+                          alunoDetailsCopy.assessmentProtocolPanelDescriptionFallback}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      setAssessmentProtocolPanelExpanded((currentValue) => !currentValue)
+                    }
+                  >
+                    {assessmentProtocolPanelExpanded
+                      ? alunoDetailsCopy.assessmentProtocolPanelCollapse
+                      : alunoDetailsCopy.assessmentProtocolPanelExpand}
+                  </Button>
+                </div>
+
+                <div className="mt-4 grid gap-3 md:grid-cols-3">
+                  <div className="rounded-xl border border-border bg-background p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      {alunoDetailsCopy.assessmentProtocolPanelCadenceLabel}
+                    </p>
+                    <p className="mt-2 text-sm font-medium text-foreground">
+                      {assessmentProtocolCadence ||
+                        alunoDetailsCopy.assessmentProtocolPanelNotAvailable}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-border bg-background p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      {alunoDetailsCopy.assessmentProtocolPanelLastRecorded}
+                    </p>
+                    <p className="mt-2 text-sm font-medium text-foreground">
+                      {selectedAssessmentTypeSummary?.lastAssessmentDate
+                        ? formatDateBR(selectedAssessmentTypeSummary.lastAssessmentDate)
+                        : alunoDetailsCopy.assessmentProtocolPanelNotAvailable}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-border bg-background p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      {alunoDetailsCopy.assessmentProtocolPanelNextDue}
+                    </p>
+                    <p className="mt-2 text-sm font-medium text-foreground">
+                      {selectedAssessmentTypeSummary?.nextDueDate
+                        ? formatDateBR(selectedAssessmentTypeSummary.nextDueDate)
+                        : alunoDetailsCopy.assessmentProtocolPanelNotAvailable}
+                    </p>
+                  </div>
+                </div>
+
+                {assessmentProtocolPanelExpanded && (
+                  <>
+                    <div className="mt-4 grid gap-3 md:grid-cols-2">
+                      <div className="rounded-xl border border-border bg-background p-4">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          {alunoDetailsCopy.assessmentProtocolPanelWhenToUse}
+                        </p>
+                        <p className="mt-2 text-sm text-foreground">
+                          {assessmentProtocolGuidance.whenToUse}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-border bg-background p-4">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          {alunoDetailsCopy.assessmentProtocolPanelRequired}
+                        </p>
+                        <p className="mt-2 text-sm text-foreground">
+                          {assessmentProtocolGuidance.required}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-border bg-background p-4">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          {alunoDetailsCopy.assessmentProtocolPanelCommonError}
+                        </p>
+                        <p className="mt-2 text-sm text-foreground">
+                          {assessmentProtocolGuidance.commonError}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-border bg-background p-4">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          {alunoDetailsCopy.assessmentProtocolPanelTrainingRelation}
+                        </p>
+                        <p className="mt-2 text-sm text-foreground">
+                          {assessmentProtocolGuidance.trainingRelation}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 rounded-xl border border-info/20 bg-info/5 p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-info">
+                        {alunoDetailsCopy.assessmentProtocolPanelMethodHint}
+                      </p>
+                      <p className="mt-2 text-sm text-foreground">
+                        {assessmentProtocolGuidance.methodHint}
+                      </p>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {assessmentUploadFeedback && (
+              <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/80 p-4">
+                <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                  <div className="space-y-2">
+                    <p className="text-sm font-semibold text-foreground">
+                      {alunoDetailsCopy.assessmentNextStepTitle}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {assessmentUploadFeedback.assessmentDate
+                        ? `${alunoDetailsCopy.assessmentNextStepDescriptionWithDatePrefix} ${assessmentUploadFeedback.typeName} ${alunoDetailsCopy.assessmentNextStepDescriptionWithDateMiddle} ${formatDateBR(assessmentUploadFeedback.assessmentDate)}.`
+                        : `${alunoDetailsCopy.assessmentNextStepDescriptionWithoutDatePrefix} ${assessmentUploadFeedback.typeName}.`}
+                    </p>
+                    <p className="text-sm text-foreground">
+                      {assessmentUploadFeedback.hasTrainingPlan
+                        ? alunoDetailsCopy.assessmentNextStepTrainingPlanReady
+                        : alunoDetailsCopy.assessmentNextStepTrainingPlanMissing}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setActiveTab('history');
+                        window.requestAnimationFrame(() => {
+                          assessmentSummaryRef.current?.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'start',
+                          });
+                        });
+                      }}
+                    >
+                      {alunoDetailsCopy.assessmentNextStepHistoryCta}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => navigate('/plans')}
+                    >
+                      {alunoDetailsCopy.assessmentNextStepPlansCta}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="overflow-x-auto">

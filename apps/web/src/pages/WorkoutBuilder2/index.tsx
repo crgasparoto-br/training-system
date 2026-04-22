@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Copy, CheckCircle, Lock, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Copy, CheckCircle, Lock, ChevronLeft, ChevronRight, Sparkles, BookOpen } from 'lucide-react';
 import WorkoutBuilderCyclic from './WorkoutBuilderCyclic';
 import WorkoutBuilderResistance from './WorkoutBuilderResistance';
 import { planService } from '../../services/plan.service';
@@ -9,12 +9,19 @@ import { assessmentService } from '../../services/assessment.service';
 import { periodizationService, ResistedStimulus } from '../../services/periodization.service';
 import { workoutService } from '../../services/workout.service';
 import { isDateWithinRange, parseDateOnly, toDateInputValue, toIsoDateAtNoonUTC } from '../../utils/date';
+import { workoutBuilderGuideCopy } from '../../i18n/ptBR';
+import { useAuthStore } from '../../stores/useAuthStore';
 
 type ResistedSectionKey = 'mobilidade' | 'sessao' | 'resfriamento';
+type WorkoutGuidePanelMode = 'intro' | 'manual' | null;
+type WorkoutGuideStepTarget = 'weekHeader' | 'tabs' | 'copyAction' | 'releaseAction';
+
+const WORKOUT_GUIDE_BANNER_STORAGE_PREFIX = 'workout-guide-banner';
 
 export default function WorkoutBuilder2() {
   const { planId, mesocycleNumber: mesoParam, weekNumber: weekParam } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuthStore();
 
   const normalizeWorkoutDays = (workoutDays: any) => {
     if (Array.isArray(workoutDays)) {
@@ -121,16 +128,35 @@ export default function WorkoutBuilder2() {
   const weekFilterStorageKey = planId
     ? `workoutBuilder2:weekFilter:${planId}:${mesocycleNumber}:${summaryVisibilityUserKey}`
     : 'workoutBuilder2:weekFilter:unknown';
+  const workoutGuideStorageKey = useMemo(() => {
+    if (user?.type !== 'professor' || !user.professor?.id || !planId) {
+      return null;
+    }
+
+    return `${WORKOUT_GUIDE_BANNER_STORAGE_PREFIX}:${user.professor.id}:${planId}`;
+  }, [planId, user]);
+  const shouldOfferWorkoutGuide = user?.type === 'professor';
   const [visibleWeeks, setVisibleWeeks] = useState<Record<number, boolean>>({});
   const [methodParameters, setMethodParameters] = useState<any[]>([]);
   const [assemblyParameters, setAssemblyParameters] = useState<any[]>([]);
   const [loadCycleParameters, setLoadCycleParameters] = useState<any[]>([]);
   const [objectiveParameters, setObjectiveParameters] = useState<any[]>([]);
+  const [showWorkoutGuideBanner, setShowWorkoutGuideBanner] = useState(false);
+  const [workoutGuidePanelMode, setWorkoutGuidePanelMode] =
+    useState<WorkoutGuidePanelMode>(null);
+  const [workoutGuideActive, setWorkoutGuideActive] = useState(false);
+  const [workoutGuideStep, setWorkoutGuideStep] = useState(0);
+  const [workoutGuideWeekNumber, setWorkoutGuideWeekNumber] = useState<number | null>(null);
 
   // Auto-save timer
   const [autoSaveTimers, setAutoSaveTimers] = useState<Record<number, NodeJS.Timeout>>({});
   const resistanceScrollContainersRef = useRef(new Map<number, HTMLDivElement>());
   const resistanceIsSyncingRef = useRef(false);
+  const workoutGuideBannerRef = useRef<HTMLDivElement | null>(null);
+  const workoutGuideWeekHeaderRefs = useRef(new Map<number, HTMLDivElement>());
+  const workoutGuideTabsRefs = useRef(new Map<number, HTMLDivElement>());
+  const workoutGuideCopyRefs = useRef(new Map<number, HTMLButtonElement>());
+  const workoutGuideReleaseRefs = useRef(new Map<number, HTMLButtonElement>());
 
   useEffect(() => {
     loadTemplate();
@@ -288,6 +314,80 @@ export default function WorkoutBuilder2() {
       // ignore storage errors
     }
   }, [visibleWeeks, weekFilterStorageKey]);
+
+  useEffect(() => {
+    if (!shouldOfferWorkoutGuide || !workoutGuideStorageKey) {
+      setShowWorkoutGuideBanner(false);
+      return;
+    }
+
+    try {
+      const stored = localStorage.getItem(workoutGuideStorageKey);
+      setShowWorkoutGuideBanner(stored !== 'seen');
+    } catch (error) {
+      setShowWorkoutGuideBanner(true);
+    }
+  }, [shouldOfferWorkoutGuide, workoutGuideStorageKey]);
+
+  const visibleWeekNumbers = useMemo(
+    () => weekOptions.filter((weekNumber) => visibleWeeks[weekNumber] ?? true),
+    [visibleWeeks, weekOptions]
+  );
+  const preferredWorkoutGuideWeek = useMemo(() => {
+    const requestedWeekNumber = resolveWeekParam();
+
+    if (visibleWeeks[requestedWeekNumber] ?? true) {
+      return requestedWeekNumber;
+    }
+
+    return visibleWeekNumbers[0] ?? requestedWeekNumber;
+  }, [resolveWeekParam, visibleWeekNumbers, visibleWeeks]);
+  const workoutGuideSteps = useMemo(
+    () => [
+      {
+        title: workoutBuilderGuideCopy.coachmarkStepWeekTitle,
+        description: workoutBuilderGuideCopy.coachmarkStepWeekDescription,
+        target: 'weekHeader' as WorkoutGuideStepTarget,
+      },
+      {
+        title: workoutBuilderGuideCopy.coachmarkStepTabsTitle,
+        description: workoutBuilderGuideCopy.coachmarkStepTabsDescription,
+        target: 'tabs' as WorkoutGuideStepTarget,
+      },
+      {
+        title: workoutBuilderGuideCopy.coachmarkStepCopyTitle,
+        description: workoutBuilderGuideCopy.coachmarkStepCopyDescription,
+        target: 'copyAction' as WorkoutGuideStepTarget,
+      },
+      {
+        title: workoutBuilderGuideCopy.coachmarkStepReleaseTitle,
+        description: workoutBuilderGuideCopy.coachmarkStepReleaseDescription,
+        target: 'releaseAction' as WorkoutGuideStepTarget,
+      },
+    ],
+    []
+  );
+  const workoutGuideCurrentStep = workoutGuideSteps[workoutGuideStep];
+
+  useEffect(() => {
+    if (!workoutGuideActive || workoutGuideWeekNumber == null) {
+      return;
+    }
+
+    const targetMap =
+      workoutGuideCurrentStep?.target === 'weekHeader'
+        ? workoutGuideWeekHeaderRefs.current
+        : workoutGuideCurrentStep?.target === 'tabs'
+          ? workoutGuideTabsRefs.current
+          : workoutGuideCurrentStep?.target === 'copyAction'
+            ? workoutGuideCopyRefs.current
+            : workoutGuideReleaseRefs.current;
+
+    targetMap.get(workoutGuideWeekNumber)?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'center',
+    });
+  }, [workoutGuideActive, workoutGuideCurrentStep, workoutGuideWeekNumber]);
 
 
   const buildCacheKey = (
@@ -1060,6 +1160,110 @@ export default function WorkoutBuilder2() {
   const dayNumbers = [1, 2, 3, 4, 5, 6, 7];
   const sumTimes = (times: number[]) => times.reduce((acc, value) => acc + value, 0);
 
+  const markWorkoutGuideAsSeen = () => {
+    if (!workoutGuideStorageKey) {
+      return;
+    }
+
+    try {
+      localStorage.setItem(workoutGuideStorageKey, 'seen');
+    } catch (error) {
+      // ignore storage errors
+    }
+  };
+
+  const isWorkoutGuideStep = (stepIndex: number, weekNumber: number) =>
+    workoutGuideActive &&
+    workoutGuideWeekNumber === weekNumber &&
+    workoutGuideStep === stepIndex;
+
+  const registerWorkoutGuideContainerRef =
+    (target: WorkoutGuideStepTarget, weekNumber: number) => (element: HTMLDivElement | null) => {
+      const targetMap =
+        target === 'weekHeader'
+          ? workoutGuideWeekHeaderRefs.current
+          : workoutGuideTabsRefs.current;
+
+      if (element) {
+        targetMap.set(weekNumber, element);
+      } else {
+        targetMap.delete(weekNumber);
+      }
+    };
+
+  const registerWorkoutGuideButtonRef =
+    (target: 'copyAction' | 'releaseAction', weekNumber: number) =>
+    (element: HTMLButtonElement | null) => {
+      const targetMap =
+        target === 'copyAction'
+          ? workoutGuideCopyRefs.current
+          : workoutGuideReleaseRefs.current;
+
+      if (element) {
+        targetMap.set(weekNumber, element);
+      } else {
+        targetMap.delete(weekNumber);
+      }
+    };
+
+  const handleStartWorkoutGuide = () => {
+    const nextWeekNumber = preferredWorkoutGuideWeek;
+
+    setVisibleWeeks((prev) => ({
+      ...prev,
+      [nextWeekNumber]: true,
+    }));
+    setShowWorkoutGuideBanner(false);
+    setWorkoutGuidePanelMode(null);
+    setWorkoutGuideActive(true);
+    setWorkoutGuideStep(0);
+    setWorkoutGuideWeekNumber(nextWeekNumber);
+    setActiveTab('cyclic');
+    markWorkoutGuideAsSeen();
+  };
+
+  const handleSkipWorkoutGuide = () => {
+    setShowWorkoutGuideBanner(false);
+    setWorkoutGuidePanelMode(null);
+    setWorkoutGuideActive(false);
+    markWorkoutGuideAsSeen();
+  };
+
+  const handleOpenWorkoutGuideManual = () => {
+    setShowWorkoutGuideBanner(false);
+    setWorkoutGuideActive(false);
+    setWorkoutGuidePanelMode('manual');
+    markWorkoutGuideAsSeen();
+
+    window.requestAnimationFrame(() => {
+      workoutGuideBannerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  };
+
+  const handleReopenWorkoutGuide = () => {
+    setShowWorkoutGuideBanner(true);
+    setWorkoutGuideActive(false);
+    setWorkoutGuidePanelMode(null);
+
+    window.requestAnimationFrame(() => {
+      workoutGuideBannerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  };
+
+  const handlePreviousWorkoutGuideStep = () => {
+    setWorkoutGuideStep((currentStep) => Math.max(currentStep - 1, 0));
+  };
+
+  const handleNextWorkoutGuideStep = () => {
+    setWorkoutGuideStep((currentStep) =>
+      Math.min(currentStep + 1, workoutGuideSteps.length - 1)
+    );
+  };
+
+  const handleCloseWorkoutGuide = () => {
+    setWorkoutGuideActive(false);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -1095,6 +1299,16 @@ export default function WorkoutBuilder2() {
               {saving && (
                 <span className="text-sm text-gray-500">Salvando...</span>
               )}
+              {shouldOfferWorkoutGuide && (
+                <button
+                  type="button"
+                  onClick={handleReopenWorkoutGuide}
+                  className="inline-flex items-center gap-2 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-medium text-sky-700 transition-colors hover:bg-sky-100"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  {workoutBuilderGuideCopy.reopen}
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -1102,6 +1316,229 @@ export default function WorkoutBuilder2() {
 
       {/* Content */}
       <div className="px-6 py-6">
+        <div ref={workoutGuideBannerRef} className="mb-6 max-w-[1800px] space-y-4">
+          {showWorkoutGuideBanner && (
+            <div className="rounded-2xl border border-sky-200 bg-sky-50/90 p-5 shadow-sm">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div className="space-y-2">
+                  <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-semibold uppercase tracking-wide text-sky-700">
+                    <Sparkles className="h-4 w-4" />
+                    {workoutBuilderGuideCopy.bannerEyebrow}
+                  </div>
+                  <h2 className="text-lg font-semibold text-slate-900">
+                    {workoutBuilderGuideCopy.bannerTitle}
+                  </h2>
+                  <p className="max-w-3xl text-sm text-slate-600">
+                    {workoutBuilderGuideCopy.bannerDescription}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={handleStartWorkoutGuide}
+                    className="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-sky-700"
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    {workoutBuilderGuideCopy.start}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSkipWorkoutGuide}
+                    className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+                  >
+                    {workoutBuilderGuideCopy.skip}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleOpenWorkoutGuideManual}
+                    className="inline-flex items-center gap-2 rounded-lg border border-sky-200 bg-white px-4 py-2 text-sm font-medium text-sky-700 transition-colors hover:bg-sky-100"
+                  >
+                    <BookOpen className="h-4 w-4" />
+                    {workoutBuilderGuideCopy.manual}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {workoutGuidePanelMode === 'intro' && (
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 p-5 shadow-sm">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div className="space-y-3">
+                  <h2 className="text-lg font-semibold text-slate-900">
+                    {workoutBuilderGuideCopy.introTitle}
+                  </h2>
+                  <p className="max-w-3xl text-sm text-slate-600">
+                    {workoutBuilderGuideCopy.introDescription}
+                  </p>
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <div className="rounded-xl border border-white/80 bg-white p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                        {workoutBuilderGuideCopy.introStepOneLabel}
+                      </p>
+                      <p className="mt-2 text-sm text-slate-700">
+                        {workoutBuilderGuideCopy.introStepOneDescription}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-white/80 bg-white p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                        {workoutBuilderGuideCopy.introStepTwoLabel}
+                      </p>
+                      <p className="mt-2 text-sm text-slate-700">
+                        {workoutBuilderGuideCopy.introStepTwoDescription}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-white/80 bg-white p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                        {workoutBuilderGuideCopy.introStepThreeLabel}
+                      </p>
+                      <p className="mt-2 text-sm text-slate-700">
+                        {workoutBuilderGuideCopy.introStepThreeDescription}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={handleOpenWorkoutGuideManual}
+                    className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-white px-4 py-2 text-sm font-medium text-emerald-700 transition-colors hover:bg-emerald-100"
+                  >
+                    <BookOpen className="h-4 w-4" />
+                    {workoutBuilderGuideCopy.manual}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setWorkoutGuidePanelMode(null)}
+                    className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+                  >
+                    {workoutBuilderGuideCopy.close}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {workoutGuidePanelMode === 'manual' && (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-5 shadow-sm">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div className="space-y-3">
+                  <h2 className="text-lg font-semibold text-slate-900">
+                    {workoutBuilderGuideCopy.manualTitle}
+                  </h2>
+                  <p className="max-w-3xl text-sm text-slate-600">
+                    {workoutBuilderGuideCopy.manualDescription}
+                  </p>
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <div className="rounded-xl border border-white/80 bg-white p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
+                        {workoutBuilderGuideCopy.manualCardOneTitle}
+                      </p>
+                      <p className="mt-2 text-sm text-slate-700">
+                        {workoutBuilderGuideCopy.manualCardOneDescription}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-white/80 bg-white p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
+                        {workoutBuilderGuideCopy.manualCardTwoTitle}
+                      </p>
+                      <p className="mt-2 text-sm text-slate-700">
+                        {workoutBuilderGuideCopy.manualCardTwoDescription}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-white/80 bg-white p-4">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
+                        {workoutBuilderGuideCopy.manualCardThreeTitle}
+                      </p>
+                      <p className="mt-2 text-sm text-slate-700">
+                        {workoutBuilderGuideCopy.manualCardThreeDescription}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={handleStartWorkoutGuide}
+                    className="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-amber-600"
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    {workoutBuilderGuideCopy.start}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setWorkoutGuidePanelMode(null)}
+                    className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+                  >
+                    {workoutBuilderGuideCopy.close}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {workoutGuideActive && workoutGuideWeekNumber != null && (
+            <div className="rounded-2xl border border-sky-200 bg-white p-5 shadow-sm">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold text-slate-900">
+                    {workoutBuilderGuideCopy.coachmarkPanelTitle}
+                  </p>
+                  <p className="text-sm text-slate-600">
+                    {workoutBuilderGuideCopy.coachmarkProgressLabel} {workoutGuideStep + 1} {workoutBuilderGuideCopy.coachmarkProgressOf} {workoutGuideSteps.length}
+                  </p>
+                  <p className="text-sm font-medium text-slate-900">
+                    {workoutGuideCurrentStep?.title}
+                  </p>
+                  <p className="max-w-3xl text-sm text-slate-600">
+                    {workoutGuideCurrentStep?.description.replace(
+                      '{week}',
+                      String((mesocycleNumber - 1) * weeksPerMesocycle + workoutGuideWeekNumber)
+                    )}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {workoutBuilderGuideCopy.coachmarkHint}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={handlePreviousWorkoutGuideStep}
+                    disabled={workoutGuideStep === 0}
+                    className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {workoutBuilderGuideCopy.previous}
+                  </button>
+                  {workoutGuideStep === workoutGuideSteps.length - 1 ? (
+                    <button
+                      type="button"
+                      onClick={handleCloseWorkoutGuide}
+                      className="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-sky-700"
+                    >
+                      {workoutBuilderGuideCopy.finish}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleNextWorkoutGuideStep}
+                      className="inline-flex items-center gap-2 rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-sky-700"
+                    >
+                      {workoutBuilderGuideCopy.next}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleCloseWorkoutGuide}
+                    className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+                  >
+                    {workoutBuilderGuideCopy.close}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* ParÃ¢metros Ãšnicos: Meso e Semana (Micro) */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6 max-w-[1800px]">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">
@@ -1219,7 +1656,14 @@ export default function WorkoutBuilder2() {
           key={weekNumber}
           className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6 max-w-[1800px]"
         >
-              <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+              <div
+                ref={registerWorkoutGuideContainerRef('weekHeader', weekNumber)}
+                className={`mb-4 flex flex-wrap items-center justify-between gap-4 rounded-2xl transition-all ${
+                  isWorkoutGuideStep(0, weekNumber)
+                    ? 'border border-sky-200 bg-sky-50/80 p-4 shadow-sm'
+                    : ''
+                }`}
+              >
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900">
                     Semana {(mesocycleNumber - 1) * weeksPerMesocycle + weekNumber}
@@ -1288,17 +1732,27 @@ export default function WorkoutBuilder2() {
                   )}
 
                   <button
+                    ref={registerWorkoutGuideButtonRef('copyAction', weekNumber)}
                     onClick={() => handleCopyWeek(weekNumber)}
-                    className="flex items-center gap-2 px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                    className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-gray-700 transition-colors ${
+                      isWorkoutGuideStep(2, weekNumber)
+                        ? 'border-sky-300 bg-sky-50 shadow-sm'
+                        : 'border-gray-300 bg-white hover:bg-gray-50'
+                    }`}
                   >
                     <Copy className="w-4 h-4" />
                     Copiar Semana
                   </button>
 
                   <button
+                    ref={registerWorkoutGuideButtonRef('releaseAction', weekNumber)}
                     onClick={() => handleRelease(weekNumber)}
                     disabled={saving || weekTemplateData?.released}
-                    className="flex items-center gap-2 px-4 py-2 text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className={`flex items-center gap-2 rounded-lg px-4 py-2 text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                      isWorkoutGuideStep(3, weekNumber)
+                        ? 'bg-sky-600 shadow-sm hover:bg-sky-700'
+                        : 'bg-green-600 hover:bg-green-700'
+                    }`}
                     title={
                       weekTemplateData?.released
                         ? 'Treino jÃ¡ estÃ¡ liberado'
@@ -1527,7 +1981,14 @@ export default function WorkoutBuilder2() {
 
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 mt-6">
                 <div className="px-6 pt-4">
-                  <div className="flex gap-2 border-b border-gray-200">
+                  <div
+                    ref={registerWorkoutGuideContainerRef('tabs', weekNumber)}
+                    className={`flex gap-2 rounded-2xl border-b border-gray-200 transition-all ${
+                      isWorkoutGuideStep(1, weekNumber)
+                        ? 'border border-sky-200 bg-sky-50/80 px-3'
+                        : ''
+                    }`}
+                  >
                     <button
                       onClick={() => setActiveTab('cyclic')}
                       className={`px-4 py-3 font-medium transition-colors relative ${

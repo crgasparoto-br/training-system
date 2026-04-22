@@ -9,6 +9,15 @@ const emptyStringToUndefined = (value: unknown) => {
   return trimmedValue.length === 0 ? undefined : trimmedValue;
 };
 
+const emptyStringToNull = (value: unknown) => {
+  if (typeof value !== 'string') {
+    return value;
+  }
+
+  const trimmedValue = value.trim();
+  return trimmedValue.length === 0 ? null : trimmedValue;
+};
+
 const emptyStringOrNaNToUndefined = (value: unknown) => {
   if (typeof value === 'number' && Number.isNaN(value)) {
     return undefined;
@@ -35,9 +44,41 @@ const stringToDateOrUndefined = (value: unknown) => {
   return normalized;
 };
 
+const stringToDateOrNullish = (value: unknown) => {
+  if (value === null) {
+    return null;
+  }
+
+  const normalized = emptyStringToNull(value);
+  if (normalized === null || normalized === undefined) {
+    return normalized;
+  }
+
+  if (normalized instanceof Date) {
+    return normalized;
+  }
+
+  if (typeof normalized === 'string') {
+    const parsed = new Date(normalized);
+    return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+  }
+
+  return normalized;
+};
+
 const optionalTextSchema = z.preprocess(
   emptyStringToUndefined,
   z.string().trim().optional()
+);
+
+const optionalNullableTextSchema = z.preprocess(
+  emptyStringToNull,
+  z.string().trim().nullable().optional()
+);
+
+const optionalUrlSchema = z.preprocess(
+  emptyStringToUndefined,
+  z.string().trim().url('URL invalida').optional()
 );
 
 const optionalDateSchema = z.preprocess(
@@ -45,8 +86,82 @@ const optionalDateSchema = z.preprocess(
   z.date().optional()
 );
 
+const optionalNullableDateSchema = z.preprocess(
+  stringToDateOrNullish,
+  z.date().nullable().optional()
+);
+
+const optionalNullableUrlSchema = z.preprocess(
+  emptyStringToNull,
+  z.string().trim().url('URL invalida').nullable().optional()
+);
+
 const optionalNumberSchema = (schema: z.ZodNumber) =>
   z.preprocess(emptyStringOrNaNToUndefined, schema.optional());
+
+const normalizeDigits = (value: unknown) => {
+  const normalized = emptyStringToUndefined(value);
+  if (typeof normalized !== 'string') {
+    return normalized;
+  }
+
+  const digits = normalized.replace(/\D/g, '');
+  return digits.length > 0 ? digits : undefined;
+};
+
+const normalizeNullableDigits = (value: unknown) => {
+  const normalized = emptyStringToNull(value);
+  if (normalized === null) {
+    return null;
+  }
+
+  if (typeof normalized !== 'string') {
+    return normalized;
+  }
+
+  const digits = normalized.replace(/\D/g, '');
+  return digits.length > 0 ? digits : null;
+};
+
+const optionalCpfSchema = z.preprocess(
+  normalizeDigits,
+  z.string().length(11, 'CPF invalido').optional()
+);
+
+const optionalCnpjSchema = z.preprocess(
+  normalizeDigits,
+  z.string().length(14, 'CNPJ invalido').optional()
+);
+
+const optionalNullableCpfSchema = z.preprocess(
+  normalizeNullableDigits,
+  z.string().length(11, 'CPF invalido').nullable().optional()
+);
+
+const optionalNullableCnpjSchema = z.preprocess(
+  normalizeNullableDigits,
+  z.string().length(14, 'CNPJ invalido').nullable().optional()
+);
+
+const optionalZipCodeSchema = z.preprocess(
+  normalizeDigits,
+  z.string().length(8, 'CEP invalido').optional()
+);
+
+const optionalNullableZipCodeSchema = z.preprocess(
+  normalizeNullableDigits,
+  z.string().length(8, 'CEP invalido').nullable().optional()
+);
+
+const maritalStatusSchema = z.enum([
+  'single',
+  'married',
+  'stable_union',
+  'divorced',
+  'separated',
+  'widowed',
+  'other',
+]);
 
 // ============================================================================
 // AUTENTICACAO
@@ -72,6 +187,24 @@ export const CreateProfessorSchema = z.object({
   name: z.string().trim().min(3, 'Nome deve ter no minimo 3 caracteres'),
   email: z.string().trim().toLowerCase().email('Email invalido'),
   password: z.string().min(8, 'Senha deve ter no minimo 8 caracteres'),
+  phone: optionalTextSchema,
+  birthDate: optionalDateSchema,
+  cpf: optionalCpfSchema,
+  rg: optionalTextSchema,
+  maritalStatus: maritalStatusSchema.optional(),
+  addressStreet: optionalTextSchema,
+  addressNumber: optionalTextSchema,
+  addressComplement: optionalTextSchema,
+  addressZipCode: optionalZipCodeSchema,
+  instagramHandle: optionalTextSchema,
+  cref: optionalTextSchema,
+  professionalSummary: optionalTextSchema,
+  lattesUrl: optionalUrlSchema,
+  companyDocument: optionalCnpjSchema,
+  bankName: optionalTextSchema,
+  bankBranch: optionalTextSchema,
+  bankAccount: optionalTextSchema,
+  pixKey: optionalTextSchema,
   collaboratorFunctionId: z.string().trim().min(1, 'Funcao do colaborador invalida'),
   responsibleManagerId: z.preprocess(
     emptyStringToUndefined,
@@ -92,6 +225,24 @@ export const UpdateProfessorSchema = z.object({
     emptyStringToUndefined,
     z.string().min(8, 'Senha deve ter no minimo 8 caracteres').optional()
   ),
+  phone: optionalNullableTextSchema,
+  birthDate: optionalNullableDateSchema,
+  cpf: optionalNullableCpfSchema,
+  rg: optionalNullableTextSchema,
+  maritalStatus: maritalStatusSchema.nullable().optional(),
+  addressStreet: optionalNullableTextSchema,
+  addressNumber: optionalNullableTextSchema,
+  addressComplement: optionalNullableTextSchema,
+  addressZipCode: optionalNullableZipCodeSchema,
+  instagramHandle: optionalNullableTextSchema,
+  cref: optionalNullableTextSchema,
+  professionalSummary: optionalNullableTextSchema,
+  lattesUrl: optionalNullableUrlSchema,
+  companyDocument: optionalNullableCnpjSchema,
+  bankName: optionalNullableTextSchema,
+  bankBranch: optionalNullableTextSchema,
+  bankAccount: optionalNullableTextSchema,
+  pixKey: optionalNullableTextSchema,
   collaboratorFunctionId: z.preprocess(
     emptyStringToUndefined,
     z.string().trim().min(1, 'Funcao do colaborador invalida').optional()

@@ -45,19 +45,54 @@ model Profile {
   userId String @unique
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  name      String
-  avatar    String?
-  phone     String?
-  birthDate DateTime?
-  gender    Gender?
+  name              String
+  avatar            String?
+  phone             String?
+  birthDate         DateTime?
+  gender            Gender?
+  cpf               String?       @unique
+  rg                String?
+  maritalStatus     MaritalStatus?
+  addressStreet     String?
+  addressNumber     String?
+  addressComplement String?
+  addressZipCode    String?
+  instagramHandle   String?
+  cref              String?
+  professionalSummary String? @db.Text
+  lattesUrl           String?
+  companyDocument     String?
+  bankName            String?
+  bankBranch          String?
+  bankAccount         String?
+  pixKey              String?
+  legalFinancialProvidedAt DateTime?
+  legalFinancialProvidedByProfessorId String?
+  legalFinancialProvidedByProfessor   Professor? @relation("ProfileLegalFinancialProvidedBy", fields: [legalFinancialProvidedByProfessorId], references: [id], onDelete: SetNull)
+  legalFinancialValidatedAt DateTime?
+  legalFinancialValidatedByProfessorId String?
+  legalFinancialValidatedByProfessor   Professor? @relation("ProfileLegalFinancialValidatedBy", fields: [legalFinancialValidatedByProfessorId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([legalFinancialProvidedByProfessorId])
+  @@index([legalFinancialValidatedByProfessorId])
 }
 
 enum Gender {
   male
   female
+  other
+}
+
+enum MaritalStatus {
+  single
+  married
+  stable_union
+  divorced
+  separated
+  widowed
   other
 }
 
@@ -144,6 +179,8 @@ model Professor {
   availabilities      ProfessorAvailability[]
   fixedSlots          FixedScheduleSlot[]
   agendaBookings      AgendaBooking[]
+  providedLegalFinancialProfiles Profile[] @relation("ProfileLegalFinancialProvidedBy")
+  validatedLegalFinancialProfiles Profile[] @relation("ProfileLegalFinancialValidatedBy")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

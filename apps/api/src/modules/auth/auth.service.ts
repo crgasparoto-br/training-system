@@ -346,17 +346,16 @@ export class AuthService {
   async getProfessorByUserId(userId: string) {
     return prisma.professor.findUnique({
       where: { userId },
-      include: {
-        contract: true,
-        collaboratorFunction: true,
-        responsibleManager: {
-          include: {
-            user: {
-              include: {
-                profile: true,
-              },
-            },
-            collaboratorFunction: true,
+      select: {
+        id: true,
+        contractId: true,
+        role: true,
+        contract: {
+          select: {
+            id: true,
+            type: true,
+            document: true,
+            name: true,
           },
         },
       },
