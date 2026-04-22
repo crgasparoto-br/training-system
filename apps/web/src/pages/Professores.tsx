@@ -1,11 +1,13 @@
-﻿import { useEffect, useState } from 'react';
+﻿import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { Camera, Trash2, Upload } from 'lucide-react';
 import { collaboratorFunctionService } from '../services/collaborator-function.service';
 import { professorService } from '../services/professor.service';
 import type {
   CollaboratorFunctionOption,
+  ProfessorHourlyRates,
   ProfessorMaritalStatus,
   ProfessorSummary,
 } from '@corrida/types';
@@ -37,6 +39,28 @@ const createProfessorSchema = z.object({
   bankBranch: z.string().optional(),
   bankAccount: z.string().optional(),
   pixKey: z.string().optional(),
+  avatar: z.string().trim().url('URL da foto inválida').optional(),
+  admissionDate: z.string().optional(),
+  currentStatus: z.string().optional(),
+  operationalRoleIds: z.array(z.string()).optional(),
+  hourlyRates: z.object({
+    personal: z.object({
+      bronze: z.string().optional(),
+      silver: z.string().optional(),
+      gold: z.string().optional(),
+    }),
+    consulting: z.object({
+      bronze: z.string().optional(),
+      silver: z.string().optional(),
+      gold: z.string().optional(),
+    }),
+    evaluation: z.object({
+      bronze: z.string().optional(),
+      silver: z.string().optional(),
+      gold: z.string().optional(),
+    }),
+  }),
+  hasSignedContract: z.boolean().optional(),
   collaboratorFunctionId: z.string().trim().min(1, 'Selecione uma função'),
   responsibleManagerId: z.string().trim().optional(),
 });
@@ -69,6 +93,28 @@ const editProfessorSchema = z.object({
   bankBranch: z.string().optional(),
   bankAccount: z.string().optional(),
   pixKey: z.string().optional(),
+  avatar: z.string().trim().url('URL da foto inválida').optional(),
+  admissionDate: z.string().optional(),
+  currentStatus: z.string().optional(),
+  operationalRoleIds: z.array(z.string()).optional(),
+  hourlyRates: z.object({
+    personal: z.object({
+      bronze: z.string().optional(),
+      silver: z.string().optional(),
+      gold: z.string().optional(),
+    }),
+    consulting: z.object({
+      bronze: z.string().optional(),
+      silver: z.string().optional(),
+      gold: z.string().optional(),
+    }),
+    evaluation: z.object({
+      bronze: z.string().optional(),
+      silver: z.string().optional(),
+      gold: z.string().optional(),
+    }),
+  }),
+  hasSignedContract: z.boolean().optional(),
   collaboratorFunctionId: z.string().trim().min(1, 'Selecione uma função'),
   responsibleManagerId: z.string().trim().optional(),
 });
@@ -89,8 +135,264 @@ const maritalStatusOptions: Array<{
   { value: 'other', label: professoresCopy.maritalStatusOther },
 ];
 
+const hourlyRateSections = [
+  { key: 'personal', label: professoresCopy.hourlyRatePersonalLabel },
+  { key: 'consulting', label: professoresCopy.hourlyRateConsultingLabel },
+  { key: 'evaluation', label: professoresCopy.hourlyRateEvaluationLabel },
+] as const;
+
+const hourlyRateBands = [
+  { key: 'bronze', label: professoresCopy.hourlyRateBronzeLabel },
+  { key: 'silver', label: professoresCopy.hourlyRateSilverLabel },
+  { key: 'gold', label: professoresCopy.hourlyRateGoldLabel },
+] as const;
+
+const cadastroWorkflowCards = [
+  {
+    badge: 'Colaborador',
+    title: 'Preenchimento do colaborador',
+    description:
+      'Organiza os dados civis, contato, endereco, curriculo, Lattes e o bloco juridico-financeiro descritos na planilha.',
+  },
+  {
+    badge: 'Gestao',
+    title: 'Configuracao e validacao da gestao',
+    description:
+      'Concentra funcao operacional, gestor responsavel, admissao, status operacional, faixas de valor e confirmacao contratual.',
+  },
+] as const;
+
+const cadastroImplementedItems = [
+  'Dados pessoais, contato, documentos e endereco.',
+  'Foto profissional com upload de arquivo.',
+  'Curriculo resumido, CREF e link do Lattes.',
+  'CNPJ, banco, agencia, conta, PIX e trilha de validacao.',
+  'Funcao operacional, gestor responsavel e valores por faixa.',
+  'Confirmacao de contrato assinado e acao de ativar/desativar colaborador.',
+] as const;
+
+const cadastroEvaluationItems = [
+  'Vinculo futuro com catalogo de venda e apoio visual do perfil profissional.',
+  'Upload do contrato assinado em arquivo, alem da confirmacao operacional.',
+  'Horarios disponiveis e alunos atendidos vinculados com agenda/calendario.',
+] as const;
+
+function FormSectionIntro({
+  badge,
+  title,
+  description,
+  accent = false,
+}: {
+  badge: string;
+  title: string;
+  description: string;
+  accent?: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-2xl border px-4 py-4 text-sm ${
+        accent ? 'border-primary/20 bg-primary/5' : 'border-border bg-muted/40'
+      }`}
+    >
+      <span
+        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+          accent ? 'bg-primary/10 text-primary' : 'bg-secondary text-secondary-foreground'
+        }`}
+      >
+        {badge}
+      </span>
+      <p className="mt-3 font-medium text-foreground">{title}</p>
+      <p className="mt-1 text-muted-foreground">{description}</p>
+    </div>
+  );
+}
+
+function ScopeListCard({
+  title,
+  description,
+  items,
+  accent = false,
+}: {
+  title: string;
+  description: string;
+  items: readonly string[];
+  accent?: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-2xl border p-4 ${
+        accent ? 'border-warning/30 bg-warning/10' : 'border-border bg-card'
+      }`}
+    >
+      <p className="text-sm font-semibold text-foreground">{title}</p>
+      <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+      <div className="mt-4 space-y-2">
+        {items.map((item) => (
+          <div
+            key={item}
+            className="rounded-xl border border-border/70 bg-background/80 px-3 py-2 text-sm text-foreground"
+          >
+            {item}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function getAvatarInitials(name?: string | null) {
+  const parts = (name || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2);
+
+  if (parts.length === 0) {
+    return 'CL';
+  }
+
+  return parts.map((part) => part.charAt(0).toUpperCase()).join('');
+}
+
+function resolveAvatarUrl(avatar?: string | null) {
+  if (!avatar) {
+    return '';
+  }
+
+  if (/^(https?:|data:|blob:)/i.test(avatar)) {
+    return avatar;
+  }
+
+  const baseUrl = import.meta.env.VITE_API_URL || window.location.origin;
+  if (avatar.startsWith('/')) {
+    return `${baseUrl}${avatar}`;
+  }
+
+  return `${baseUrl}/${avatar}`;
+}
+
+function CollaboratorAvatar({
+  name,
+  avatar,
+  size = 'md',
+}: {
+  name?: string | null;
+  avatar?: string | null;
+  size?: 'sm' | 'md' | 'lg';
+}) {
+  const resolvedAvatar = resolveAvatarUrl(avatar);
+  const sizeClassName =
+    size === 'sm'
+      ? 'h-12 w-12 text-sm'
+      : size === 'lg'
+        ? 'h-32 w-32 text-3xl'
+        : 'h-16 w-16 text-lg';
+
+  return (
+    <div
+      className={`overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-primary/10 via-background to-secondary/40 ${sizeClassName}`}
+    >
+      {resolvedAvatar ? (
+        <img
+          src={resolvedAvatar}
+          alt={name ? `Foto de ${name}` : 'Foto do colaborador'}
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center font-semibold text-foreground/70">
+          {getAvatarInitials(name)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AvatarUploadField({
+  name,
+  avatar,
+  onUploadClick,
+  onRemove,
+  isUploading,
+}: {
+  name?: string;
+  avatar?: string;
+  onUploadClick: () => void;
+  onRemove: () => void;
+  isUploading: boolean;
+}) {
+  const hasAvatar = !!avatar;
+
+  return (
+    <div className="rounded-2xl border border-border bg-card p-4">
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium text-foreground">Foto do colaborador</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Envie uma foto frontal. Passe o mouse sobre a imagem para trocar ou remover.
+          </p>
+        </div>
+        {isUploading && (
+          <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
+            Enviando...
+          </span>
+        )}
+      </div>
+      <div className="group relative mx-auto h-32 w-32 overflow-hidden rounded-[28px] border border-border bg-muted/40 shadow-sm">
+        <CollaboratorAvatar name={name} avatar={avatar} size="lg" />
+        <div className="absolute inset-0 flex items-end justify-center bg-gradient-to-t from-black/75 via-black/20 to-transparent p-3 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onUploadClick}
+              disabled={isUploading}
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-full bg-white/92 px-3 text-xs font-medium text-slate-900 shadow-sm transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Upload size={14} />
+              {hasAvatar ? 'Trocar' : 'Enviar'}
+            </button>
+            <button
+              type="button"
+              onClick={onRemove}
+              disabled={!hasAvatar || isUploading}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/16 text-white shadow-sm transition hover:bg-white/24 disabled:cursor-not-allowed disabled:opacity-40"
+              aria-label="Remover foto"
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
+        </div>
+        {!hasAvatar && !isUploading && (
+          <div className="pointer-events-none absolute inset-x-0 top-3 flex justify-center text-white/90">
+            <Camera size={18} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const textareaClassName =
   'flex min-h-[120px] w-full rounded-lg border border-input bg-card px-4 py-3 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
+
+type HourlyRateFormBand = {
+  bronze?: string;
+  silver?: string;
+  gold?: string;
+};
+
+type HourlyRatesForm = {
+  personal: HourlyRateFormBand;
+  consulting: HourlyRateFormBand;
+  evaluation: HourlyRateFormBand;
+};
+
+function createDefaultHourlyRatesForm(): HourlyRatesForm {
+  return {
+    personal: { bronze: '', silver: '', gold: '' },
+    consulting: { bronze: '', silver: '', gold: '' },
+    evaluation: { bronze: '', silver: '', gold: '' },
+  };
+}
 
 function sanitizeBaseProfessorPayload<T extends { name: string; email: string }>(data: T) {
   return {
@@ -154,6 +456,80 @@ function normalizeInstagramHandle(value?: string | null) {
   if (!trimmedValue) return '';
 
   return trimmedValue.startsWith('@') ? trimmedValue : `@${trimmedValue}`;
+}
+
+function parseHourlyRateValue(value?: string) {
+  if (!value) {
+    return null;
+  }
+
+  const normalizedValue = Number(value.replace(',', '.'));
+  if (Number.isNaN(normalizedValue) || normalizedValue < 0) {
+    return null;
+  }
+
+  return normalizedValue;
+}
+
+function sanitizeHourlyRates(hourlyRates?: HourlyRatesForm): ProfessorHourlyRates | undefined {
+  if (!hourlyRates) {
+    return undefined;
+  }
+
+  const normalized: ProfessorHourlyRates = {
+    personal: {
+      bronze: parseHourlyRateValue(hourlyRates.personal.bronze),
+      silver: parseHourlyRateValue(hourlyRates.personal.silver),
+      gold: parseHourlyRateValue(hourlyRates.personal.gold),
+    },
+    consulting: {
+      bronze: parseHourlyRateValue(hourlyRates.consulting.bronze),
+      silver: parseHourlyRateValue(hourlyRates.consulting.silver),
+      gold: parseHourlyRateValue(hourlyRates.consulting.gold),
+    },
+    evaluation: {
+      bronze: parseHourlyRateValue(hourlyRates.evaluation.bronze),
+      silver: parseHourlyRateValue(hourlyRates.evaluation.silver),
+      gold: parseHourlyRateValue(hourlyRates.evaluation.gold),
+    },
+  };
+
+  const hasValue = Object.values(normalized).some((rateBand) =>
+    Object.values(rateBand).some((value) => typeof value === 'number')
+  );
+
+  return hasValue ? normalized : undefined;
+}
+
+function getHourlyRatesFormValue(hourlyRates?: ProfessorSummary['hourlyRates']): HourlyRatesForm {
+  return {
+    personal: {
+      bronze: hourlyRates?.personal?.bronze?.toString() ?? '',
+      silver: hourlyRates?.personal?.silver?.toString() ?? '',
+      gold: hourlyRates?.personal?.gold?.toString() ?? '',
+    },
+    consulting: {
+      bronze: hourlyRates?.consulting?.bronze?.toString() ?? '',
+      silver: hourlyRates?.consulting?.silver?.toString() ?? '',
+      gold: hourlyRates?.consulting?.gold?.toString() ?? '',
+    },
+    evaluation: {
+      bronze: hourlyRates?.evaluation?.bronze?.toString() ?? '',
+      silver: hourlyRates?.evaluation?.silver?.toString() ?? '',
+      gold: hourlyRates?.evaluation?.gold?.toString() ?? '',
+    },
+  };
+}
+
+function formatCurrencyValue(value?: number | null) {
+  if (typeof value !== 'number') {
+    return professoresCopy.hourlyRatesNotConfigured;
+  }
+
+  return value.toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  });
 }
 
 function getLegalFinancialStatus(profile: ProfessorSummary['user']['profile']) {
@@ -232,7 +608,12 @@ function sanitizeCreateProfessorPayload(data: CreateProfessorForm) {
   const bankBranch = data.bankBranch?.trim();
   const bankAccount = data.bankAccount?.trim();
   const pixKey = data.pixKey?.trim();
+  const avatar = data.avatar?.trim();
+  const admissionDate = data.admissionDate?.trim();
+  const currentStatus = data.currentStatus?.trim();
   const responsibleManagerId = data.responsibleManagerId?.trim();
+  const operationalRoleIds = data.collaboratorFunctionId ? [data.collaboratorFunctionId] : [];
+  const hourlyRates = sanitizeHourlyRates(data.hourlyRates);
 
   return {
     ...sanitizeBaseProfessorPayload(data),
@@ -255,6 +636,12 @@ function sanitizeCreateProfessorPayload(data: CreateProfessorForm) {
     ...(bankBranch ? { bankBranch } : {}),
     ...(bankAccount ? { bankAccount } : {}),
     ...(pixKey ? { pixKey } : {}),
+    ...(avatar ? { avatar } : {}),
+    ...(admissionDate ? { admissionDate } : {}),
+    ...(currentStatus ? { currentStatus } : {}),
+    ...(operationalRoleIds.length > 0 ? { operationalRoleIds } : {}),
+    ...(hourlyRates ? { hourlyRates } : {}),
+    ...(data.hasSignedContract ? { hasSignedContract: true } : {}),
     collaboratorFunctionId: data.collaboratorFunctionId,
     ...(responsibleManagerId ? { responsibleManagerId } : {}),
   };
@@ -280,7 +667,12 @@ function sanitizeUpdateProfessorPayload(data: EditProfessorForm) {
   const bankBranch = data.bankBranch?.trim();
   const bankAccount = data.bankAccount?.trim();
   const pixKey = data.pixKey?.trim();
+  const avatar = data.avatar?.trim();
+  const admissionDate = data.admissionDate?.trim();
+  const currentStatus = data.currentStatus?.trim();
   const responsibleManagerId = data.responsibleManagerId?.trim();
+  const operationalRoleIds = data.collaboratorFunctionId ? [data.collaboratorFunctionId] : [];
+  const hourlyRates = sanitizeHourlyRates(data.hourlyRates);
 
   return {
     ...sanitizeBaseProfessorPayload(data),
@@ -302,6 +694,12 @@ function sanitizeUpdateProfessorPayload(data: EditProfessorForm) {
     bankBranch: bankBranch || null,
     bankAccount: bankAccount || null,
     pixKey: pixKey || null,
+    avatar: avatar || null,
+    admissionDate: admissionDate || null,
+    currentStatus: currentStatus || null,
+    operationalRoleIds,
+    hourlyRates,
+    hasSignedContract: !!data.hasSignedContract,
     collaboratorFunctionId: data.collaboratorFunctionId,
     ...(responsibleManagerId ? { responsibleManagerId } : {}),
     ...(password ? { password } : {}),
@@ -317,9 +715,13 @@ export function Professores() {
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<'active' | 'inactive' | 'all'>('all');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadingCreateAvatar, setUploadingCreateAvatar] = useState(false);
+  const [uploadingEditAvatar, setUploadingEditAvatar] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [resetPassword, setResetPassword] = useState<string | null>(null);
   const [resetTarget, setResetTarget] = useState<string | null>(null);
+  const createAvatarInputRef = useRef<HTMLInputElement | null>(null);
+  const editAvatarInputRef = useRef<HTMLInputElement | null>(null);
 
   const {
     register,
@@ -350,6 +752,12 @@ export function Professores() {
       bankBranch: '',
       bankAccount: '',
       pixKey: '',
+      avatar: '',
+      admissionDate: '',
+      currentStatus: '',
+      operationalRoleIds: [],
+      hourlyRates: createDefaultHourlyRatesForm(),
+      hasSignedContract: false,
       collaboratorFunctionId: '',
       responsibleManagerId: '',
     },
@@ -374,6 +782,8 @@ export function Professores() {
 
   const createCollaboratorFunctionId = watch('collaboratorFunctionId');
   const editCollaboratorFunctionId = watchEdit('collaboratorFunctionId');
+  const createAvatarUrl = watch('avatar');
+  const editAvatarUrl = watchEdit('avatar');
 
   const loadData = async (status: 'active' | 'inactive' | 'all' = statusFilter) => {
     setLoading(true);
@@ -458,6 +868,12 @@ export function Professores() {
         bankBranch: '',
         bankAccount: '',
         pixKey: '',
+        avatar: '',
+        admissionDate: '',
+        currentStatus: '',
+        operationalRoleIds: [],
+        hourlyRates: createDefaultHourlyRatesForm(),
+        hasSignedContract: false,
         collaboratorFunctionId: getDefaultCollaboratorFunctionId(collaboratorFunctions),
         responsibleManagerId: getDefaultResponsibleManagerId(responsibleManagers),
       });
@@ -470,6 +886,8 @@ export function Professores() {
   };
 
   const startEdit = (professor: ProfessorSummary) => {
+    const operationalRoleIds = professor.operationalRoleIds ?? [];
+
     setEditingId(professor.id);
     resetEdit({
       name: professor.user.profile.name,
@@ -493,6 +911,15 @@ export function Professores() {
       bankBranch: professor.user.profile.bankBranch ?? '',
       bankAccount: professor.user.profile.bankAccount ?? '',
       pixKey: professor.user.profile.pixKey ?? '',
+      avatar: professor.user.profile.avatar ?? '',
+      admissionDate: formatDateForInput(professor.admissionDate),
+      currentStatus: professor.currentStatus ?? '',
+      operationalRoleIds:
+        operationalRoleIds.length > 0
+          ? operationalRoleIds
+          : [professor.collaboratorFunction.id],
+      hourlyRates: getHourlyRatesFormValue(professor.hourlyRates),
+      hasSignedContract: professor.hasSignedContract,
       collaboratorFunctionId: professor.collaboratorFunction.id,
       responsibleManagerId:
         professor.responsibleManager?.id ?? getDefaultResponsibleManagerId(responsibleManagers),
@@ -523,6 +950,12 @@ export function Professores() {
       bankBranch: '',
       bankAccount: '',
       pixKey: '',
+      avatar: '',
+      admissionDate: '',
+      currentStatus: '',
+      operationalRoleIds: [],
+      hourlyRates: createDefaultHourlyRatesForm(),
+      hasSignedContract: false,
       collaboratorFunctionId: getDefaultCollaboratorFunctionId(collaboratorFunctions),
       responsibleManagerId: getDefaultResponsibleManagerId(responsibleManagers),
     });
@@ -541,6 +974,54 @@ export function Professores() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleAvatarUpload = async (file: File, mode: 'create' | 'edit') => {
+    if (!file.type.startsWith('image/')) {
+      setError('Selecione um arquivo de imagem válido.');
+      return;
+    }
+
+    const setUploading = mode === 'create' ? setUploadingCreateAvatar : setUploadingEditAvatar;
+
+    setUploading(true);
+    setError(null);
+
+    try {
+      const avatarUrl = await professorService.uploadAvatar(file);
+
+      if (mode === 'create') {
+        setValue('avatar', avatarUrl, { shouldDirty: true, shouldValidate: true });
+      } else {
+        setEditValue('avatar', avatarUrl, { shouldDirty: true, shouldValidate: true });
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Erro ao enviar foto do colaborador');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleCreateAvatarChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+
+    if (!file) {
+      return;
+    }
+
+    await handleAvatarUpload(file, 'create');
+  };
+
+  const handleEditAvatarChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+
+    if (!file) {
+      return;
+    }
+
+    await handleAvatarUpload(file, 'edit');
   };
 
   const handleValidateLegalFinancial = async (professorId: string) => {
@@ -648,267 +1129,394 @@ export function Professores() {
               {error}
             </div>
           )}
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-              <p className="font-medium text-foreground">{professoresCopy.personalDataSectionTitle}</p>
-              <p className="mt-1">{professoresCopy.personalDataSectionDescription}</p>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Input
-                label={professoresCopy.nameLabel}
-                placeholder="Maria Souza"
-                error={errors.name?.message}
-                {...register('name')}
-              />
-              <Input
-                label={commonCopy.emailLabel}
-                type="email"
-                placeholder="maria@academia.com"
-                error={errors.email?.message}
-                {...register('email')}
-              />
-              <Input
-                label={professoresCopy.phoneLabel}
-                type="tel"
-                placeholder="(11) 99999-9999"
-                error={errors.phone?.message}
-                {...register('phone', {
-                  onChange: (event) => {
-                    setValue('phone', formatPhone(event.target.value), {
-                      shouldValidate: true,
-                    });
-                  },
-                })}
-              />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Input
-                label={professoresCopy.cpfLabel}
-                placeholder="000.000.000-00"
-                error={errors.cpf?.message}
-                {...register('cpf', {
-                  onChange: (event) => {
-                    setValue('cpf', formatCpf(event.target.value), {
-                      shouldValidate: true,
-                    });
-                  },
-                })}
-              />
-              <Input
-                label={professoresCopy.rgLabel}
-                placeholder="12.345.678-9"
-                error={errors.rg?.message}
-                {...register('rg')}
-              />
-              <Input
-                label={professoresCopy.birthDateLabel}
-                type="date"
-                error={errors.birthDate?.message}
-                {...register('birthDate')}
-              />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label htmlFor="create-marital-status" className="mb-2 block text-sm font-medium">
-                  {professoresCopy.maritalStatusLabel}
-                </label>
-                <select
-                  id="create-marital-status"
-                  className="ts-form-control"
-                  {...register('maritalStatus')}
-                >
-                  <option value="">{professoresCopy.maritalStatusPlaceholder}</option>
-                  {maritalStatusOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+              <div className="space-y-6">
+                <div className="grid gap-4 md:grid-cols-2">
+                  {cadastroWorkflowCards.map((item) => (
+                    <FormSectionIntro
+                      key={item.title}
+                      badge={item.badge}
+                      title={item.title}
+                      description={item.description}
+                      accent={item.badge === 'Gestao'}
+                    />
                   ))}
-                </select>
+                </div>
+
+                <div className="space-y-4">
+                  <FormSectionIntro
+                    badge="Acesso"
+                    title="Acesso base do colaborador"
+                    description="Primeiro bloco para criar o login inicial e identificar o colaborador no sistema."
+                    accent
+                  />
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                    <Input
+                      label={professoresCopy.nameLabel}
+                      placeholder="Maria Souza"
+                      error={errors.name?.message}
+                      {...register('name')}
+                    />
+                    <Input
+                      label={commonCopy.emailLabel}
+                      type="email"
+                      placeholder="maria@academia.com"
+                      error={errors.email?.message}
+                      {...register('email')}
+                    />
+                    <Input
+                      label={professoresCopy.passwordLabel}
+                      type="password"
+                      placeholder="********"
+                      error={errors.password?.message}
+                      {...register('password')}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <FormSectionIntro
+                    badge="Colaborador"
+                    title="Preenchimento do colaborador"
+                    description="Campos alinhados com a planilha para dados pessoais, contato, endereco, curriculo e dados juridico-financeiros."
+                  />
+                  <input type="hidden" {...register('avatar')} />
+                  <input
+                    ref={createAvatarInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    aria-label="Upload da foto do colaborador"
+                    title="Upload da foto do colaborador"
+                    onChange={handleCreateAvatarChange}
+                  />
+                  <AvatarUploadField
+                    name={watch('name')}
+                    avatar={createAvatarUrl}
+                    isUploading={uploadingCreateAvatar}
+                    onUploadClick={() => createAvatarInputRef.current?.click()}
+                    onRemove={() => setValue('avatar', '', { shouldDirty: true, shouldValidate: true })}
+                  />
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+                    <Input
+                      label={professoresCopy.phoneLabel}
+                      type="tel"
+                      placeholder="(11) 99999-9999"
+                      error={errors.phone?.message}
+                      {...register('phone', {
+                        onChange: (event) => {
+                          setValue('phone', formatPhone(event.target.value), {
+                            shouldValidate: true,
+                          });
+                        },
+                      })}
+                    />
+                    <Input
+                      label={professoresCopy.cpfLabel}
+                      placeholder="000.000.000-00"
+                      error={errors.cpf?.message}
+                      {...register('cpf', {
+                        onChange: (event) => {
+                          setValue('cpf', formatCpf(event.target.value), {
+                            shouldValidate: true,
+                          });
+                        },
+                      })}
+                    />
+                    <Input
+                      label={professoresCopy.rgLabel}
+                      placeholder="12.345.678-9"
+                      error={errors.rg?.message}
+                      {...register('rg')}
+                    />
+                    <Input
+                      label={professoresCopy.birthDateLabel}
+                      type="date"
+                      error={errors.birthDate?.message}
+                      {...register('birthDate')}
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                    <div>
+                      <label htmlFor="create-marital-status" className="mb-2 block text-sm font-medium">
+                        {professoresCopy.maritalStatusLabel}
+                      </label>
+                      <select
+                        id="create-marital-status"
+                        className="ts-form-control"
+                        {...register('maritalStatus')}
+                      >
+                        <option value="">{professoresCopy.maritalStatusPlaceholder}</option>
+                        {maritalStatusOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <Input
+                      label={professoresCopy.instagramLabel}
+                      placeholder="@maria.souza"
+                      error={errors.instagramHandle?.message}
+                      {...register('instagramHandle')}
+                    />
+                    <Input
+                      label={professoresCopy.crefLabel}
+                      placeholder="000000-G/SP"
+                      error={errors.cref?.message}
+                      {...register('cref')}
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+                    <div className="md:col-span-2">
+                      <Input
+                        label={professoresCopy.addressStreetLabel}
+                        placeholder="Rua Exemplo"
+                        error={errors.addressStreet?.message}
+                        {...register('addressStreet')}
+                      />
+                    </div>
+                    <Input
+                      label={professoresCopy.addressNumberLabel}
+                      placeholder="123"
+                      error={errors.addressNumber?.message}
+                      {...register('addressNumber')}
+                    />
+                    <Input
+                      label={professoresCopy.addressZipCodeLabel}
+                      placeholder="00000-000"
+                      error={errors.addressZipCode?.message}
+                      {...register('addressZipCode', {
+                        onChange: (event) => {
+                          setValue('addressZipCode', formatZipCode(event.target.value), {
+                            shouldValidate: true,
+                          });
+                        },
+                      })}
+                    />
+                  </div>
+                  <Input
+                    label={professoresCopy.addressComplementLabel}
+                    placeholder="Apto 42, bloco B"
+                    error={errors.addressComplement?.message}
+                    {...register('addressComplement')}
+                  />
+                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-foreground">
+                        {professoresCopy.professionalSummaryLabel}
+                      </label>
+                      <textarea
+                        className={textareaClassName}
+                        placeholder={professoresCopy.professionalSummaryPlaceholder}
+                        {...register('professionalSummary')}
+                      />
+                      {errors.professionalSummary?.message && (
+                        <p className="mt-1 text-sm text-destructive">
+                          {errors.professionalSummary.message}
+                        </p>
+                      )}
+                    </div>
+                    <Input
+                      label={professoresCopy.lattesLabel}
+                      type="url"
+                      placeholder={professoresCopy.lattesPlaceholder}
+                      error={errors.lattesUrl?.message}
+                      {...register('lattesUrl')}
+                    />
+                  </div>
+                  <div className="rounded-2xl border border-border p-4">
+                    <p className="text-sm font-medium text-foreground">
+                      {professoresCopy.legalFinancialSectionTitle}
+                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {professoresCopy.legalFinancialSectionDescription}
+                    </p>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      {professoresCopy.legalFinancialValidationHint}
+                    </p>
+                    <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+                      <Input
+                        label={professoresCopy.companyDocumentLabel}
+                        placeholder="00.000.000/0000-00"
+                        error={errors.companyDocument?.message}
+                        {...register('companyDocument', {
+                          onChange: (event) => {
+                            setValue('companyDocument', formatCnpj(event.target.value), {
+                              shouldValidate: true,
+                            });
+                          },
+                        })}
+                      />
+                      <Input
+                        label={professoresCopy.bankNameLabel}
+                        placeholder="Banco do Brasil"
+                        error={errors.bankName?.message}
+                        {...register('bankName')}
+                      />
+                      <Input
+                        label={professoresCopy.pixKeyLabel}
+                        placeholder="pix@empresa.com"
+                        error={errors.pixKey?.message}
+                        {...register('pixKey')}
+                      />
+                    </div>
+                    <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                      <Input
+                        label={professoresCopy.bankBranchLabel}
+                        placeholder="1234"
+                        error={errors.bankBranch?.message}
+                        {...register('bankBranch')}
+                      />
+                      <Input
+                        label={professoresCopy.bankAccountLabel}
+                        placeholder="12345-6"
+                        error={errors.bankAccount?.message}
+                        {...register('bankAccount')}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <FormSectionIntro
+                    badge="Gestao"
+                    title="Configuracao e validacao da gestao"
+                    description="Aqui ficam a classificacao operacional e os dados que dependem de acompanhamento da gestao. A ativacao/desativacao continua sendo feita pelos botoes da lista."
+                    accent
+                  />
+                  {createRequiresResponsibleManager && (
+                    <div>
+                      <label htmlFor="create-responsible-manager" className="mb-2 block text-sm font-medium">
+                        {professoresCopy.responsibleManagerLabel}
+                      </label>
+                      <select
+                        id="create-responsible-manager"
+                        className="ts-form-control"
+                        {...register('responsibleManagerId')}
+                        disabled={responsibleManagers.length === 0}
+                      >
+                        <option value="">{professoresCopy.selectResponsibleManager}</option>
+                        {responsibleManagers.map((manager) => (
+                          <option key={manager.id} value={manager.id}>
+                            {manager.user?.profile?.name || professoresCopy.noName}
+                          </option>
+                        ))}
+                      </select>
+                      {responsibleManagers.length === 0 && (
+                        <p className="mt-1 text-sm text-destructive">
+                          {professoresCopy.noResponsibleManagersAvailable}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                    <Input
+                      label={professoresCopy.admissionDateLabel}
+                      type="date"
+                      error={errors.admissionDate?.message}
+                      {...register('admissionDate')}
+                    />
+                    <Input
+                      label={professoresCopy.currentStatusLabel}
+                      placeholder={professoresCopy.currentStatusPlaceholder}
+                      error={errors.currentStatus?.message}
+                      {...register('currentStatus')}
+                    />
+                    <label className="flex items-center gap-3 rounded-2xl border border-border px-4 py-3 text-sm">
+                      <input type="checkbox" className="h-4 w-4" {...register('hasSignedContract')} />
+                      <span>{professoresCopy.hasSignedContractLabel}</span>
+                    </label>
+                  </div>
+                  <div className="rounded-2xl border border-border p-4">
+                    <p className="text-sm font-medium text-foreground">
+                      {professoresCopy.collaboratorFunctionLabel}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Selecione a função operacional cadastrada para este colaborador.
+                    </p>
+                    <div className="mt-3">
+                      <select
+                        id="create-collaborator-function"
+                        className="ts-form-control"
+                        {...register('collaboratorFunctionId')}
+                        disabled={activeCollaboratorFunctions.length === 0}
+                      >
+                        <option value="">Selecione uma função</option>
+                        {activeCollaboratorFunctions.map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.name}
+                          </option>
+                        ))}
+                      </select>
+                      {errors.collaboratorFunctionId?.message && (
+                        <p className="mt-1 text-sm text-destructive">
+                          {errors.collaboratorFunctionId.message}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-border p-4">
+                    <p className="text-sm font-medium text-foreground">{professoresCopy.hourlyRatesTitle}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {professoresCopy.hourlyRatesDescription}
+                    </p>
+                    <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
+                      {hourlyRateSections.map((section) => (
+                        <div key={section.key} className="rounded-2xl border border-border/70 p-3">
+                          <p className="mb-3 text-sm font-medium text-foreground">{section.label}</p>
+                          <div className="space-y-3">
+                            {hourlyRateBands.map((band) => (
+                              <Input
+                                key={`${section.key}-${band.key}`}
+                                label={band.label}
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                inputMode="decimal"
+                                error={
+                                  errors.hourlyRates?.[section.key]?.[band.key]?.message as
+                                    | string
+                                    | undefined
+                                }
+                                {...register(`hourlyRates.${section.key}.${band.key}` as const)}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end">
+                  <Button
+                    type="submit"
+                    isLoading={isSubmitting}
+                    disabled={
+                      activeCollaboratorFunctions.length === 0 ||
+                      (createRequiresResponsibleManager && responsibleManagers.length === 0)
+                    }
+                  >
+                    {professoresCopy.createProfessor}
+                  </Button>
+                </div>
               </div>
-              <Input
-                label={professoresCopy.instagramLabel}
-                placeholder="@maria.souza"
-                error={errors.instagramHandle?.message}
-                {...register('instagramHandle')}
-              />
-              <Input
-                label={professoresCopy.crefLabel}
-                placeholder="000000-G/SP"
-                error={errors.cref?.message}
-                {...register('cref')}
-              />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Input
-                label={professoresCopy.addressStreetLabel}
-                placeholder="Rua Exemplo, 123"
-                error={errors.addressStreet?.message}
-                {...register('addressStreet')}
-              />
-              <Input
-                label={professoresCopy.addressNumberLabel}
-                placeholder="123"
-                error={errors.addressNumber?.message}
-                {...register('addressNumber')}
-              />
-              <Input
-                label={professoresCopy.addressComplementLabel}
-                placeholder="Apto 42"
-                error={errors.addressComplement?.message}
-                {...register('addressComplement')}
-              />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Input
-                label={professoresCopy.addressZipCodeLabel}
-                placeholder="00000-000"
-                error={errors.addressZipCode?.message}
-                {...register('addressZipCode', {
-                  onChange: (event) => {
-                    setValue('addressZipCode', formatZipCode(event.target.value), {
-                      shouldValidate: true,
-                    });
-                  },
-                })}
-              />
-              <div>
-                <label htmlFor="create-collaborator-function" className="mb-2 block text-sm font-medium">
-                  {professoresCopy.collaboratorFunctionLabel}
-                </label>
-                <select
-                  id="create-collaborator-function"
-                  className="ts-form-control"
-                  {...register('collaboratorFunctionId')}
-                  disabled={activeCollaboratorFunctions.length === 0}
-                >
-                  <option value="">Selecione uma função</option>
-                  {activeCollaboratorFunctions.map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.name}
-                    </option>
-                  ))}
-                </select>
-                {errors.collaboratorFunctionId?.message && (
-                  <p className="mt-1 text-sm text-destructive">
-                    {errors.collaboratorFunctionId.message}
-                  </p>
-                )}
-              </div>
-              <Input
-                label={professoresCopy.passwordLabel}
-                type="password"
-                placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
-                error={errors.password?.message}
-                {...register('password')}
-              />
-            </div>
-            <div className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-              <p className="font-medium text-foreground">{professoresCopy.professionalDataSectionTitle}</p>
-              <p className="mt-1">{professoresCopy.professionalDataSectionDescription}</p>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="mb-2 block text-sm font-medium text-foreground">
-                  {professoresCopy.professionalSummaryLabel}
-                </label>
-                <textarea
-                  className={textareaClassName}
-                  placeholder={professoresCopy.professionalSummaryPlaceholder}
-                  {...register('professionalSummary')}
+
+              <div className="space-y-4">
+                <ScopeListCard
+                  title="Disponivel hoje"
+                  description="Itens da planilha que ja encontram suporte na tela e no payload atual."
+                  items={cadastroImplementedItems}
                 />
-                {errors.professionalSummary?.message && (
-                  <p className="mt-1 text-sm text-destructive">{errors.professionalSummary.message}</p>
-                )}
+                <ScopeListCard
+                  title="Itens em avaliacao"
+                  description="Pontos marcados com // na planilha que pedem desenho funcional antes de virarem campos ativos."
+                  items={cadastroEvaluationItems}
+                  accent
+                />
               </div>
-              <Input
-                label={professoresCopy.lattesLabel}
-                type="url"
-                placeholder={professoresCopy.lattesPlaceholder}
-                error={errors.lattesUrl?.message}
-                {...register('lattesUrl')}
-              />
-            </div>
-            <div className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-              <p className="font-medium text-foreground">{professoresCopy.legalFinancialSectionTitle}</p>
-              <p className="mt-1">{professoresCopy.legalFinancialSectionDescription}</p>
-              <p className="mt-2 text-xs">{professoresCopy.legalFinancialValidationHint}</p>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Input
-                label={professoresCopy.companyDocumentLabel}
-                placeholder="00.000.000/0000-00"
-                error={errors.companyDocument?.message}
-                {...register('companyDocument', {
-                  onChange: (event) => {
-                    setValue('companyDocument', formatCnpj(event.target.value), {
-                      shouldValidate: true,
-                    });
-                  },
-                })}
-              />
-              <Input
-                label={professoresCopy.bankNameLabel}
-                placeholder="Banco do Brasil"
-                error={errors.bankName?.message}
-                {...register('bankName')}
-              />
-              <Input
-                label={professoresCopy.pixKeyLabel}
-                placeholder="pix@empresa.com"
-                error={errors.pixKey?.message}
-                {...register('pixKey')}
-              />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Input
-                label={professoresCopy.bankBranchLabel}
-                placeholder="1234"
-                error={errors.bankBranch?.message}
-                {...register('bankBranch')}
-              />
-              <Input
-                label={professoresCopy.bankAccountLabel}
-                placeholder="12345-6"
-                error={errors.bankAccount?.message}
-                {...register('bankAccount')}
-              />
-            </div>
-            {createRequiresResponsibleManager && (
-              <div>
-                <label htmlFor="create-responsible-manager" className="mb-2 block text-sm font-medium">
-                  {professoresCopy.responsibleManagerLabel}
-                </label>
-                <select
-                  id="create-responsible-manager"
-                  className="ts-form-control"
-                  {...register('responsibleManagerId')}
-                  disabled={responsibleManagers.length === 0}
-                >
-                  <option value="">{professoresCopy.selectResponsibleManager}</option>
-                  {responsibleManagers.map((manager) => (
-                    <option key={manager.id} value={manager.id}>
-                      {manager.user?.profile?.name || professoresCopy.noName}
-                    </option>
-                  ))}
-                </select>
-                {responsibleManagers.length === 0 && (
-                  <p className="mt-1 text-sm text-destructive">
-                    {professoresCopy.noResponsibleManagersAvailable}
-                  </p>
-                )}
-              </div>
-            )}
-            <div className="flex justify-end">
-              <Button
-                type="submit"
-                isLoading={isSubmitting}
-                disabled={
-                  activeCollaboratorFunctions.length === 0 ||
-                  (createRequiresResponsibleManager && responsibleManagers.length === 0)
-                }
-              >
-                {professoresCopy.createProfessor}
-              </Button>
             </div>
           </form>
         </CardContent>
@@ -958,6 +1566,25 @@ export function Professores() {
                         <p className="font-medium text-foreground">{professoresCopy.personalDataSectionTitle}</p>
                         <p className="mt-1">{professoresCopy.personalDataSectionDescription}</p>
                       </div>
+                      <input type="hidden" {...registerEdit('avatar')} />
+                      <input
+                        ref={editAvatarInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        aria-label="Upload da foto do colaborador"
+                        title="Upload da foto do colaborador"
+                        onChange={handleEditAvatarChange}
+                      />
+                      <AvatarUploadField
+                        name={watchEdit('name') || professor.user?.profile?.name}
+                        avatar={editAvatarUrl}
+                        isUploading={uploadingEditAvatar}
+                        onUploadClick={() => editAvatarInputRef.current?.click()}
+                        onRemove={() =>
+                          setEditValue('avatar', '', { shouldDirty: true, shouldValidate: true })
+                        }
+                      />
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <Input
                           label={professoresCopy.nameLabel}
@@ -1177,6 +1804,99 @@ export function Professores() {
                           {...registerEdit('bankAccount')}
                         />
                       </div>
+                      <div className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+                        <p className="font-medium text-foreground">{professoresCopy.operationalDataSectionTitle}</p>
+                        <p className="mt-1">{professoresCopy.operationalDataSectionDescription}</p>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <Input
+                          label={professoresCopy.admissionDateLabel}
+                          type="date"
+                          error={editErrors.admissionDate?.message}
+                          {...registerEdit('admissionDate')}
+                        />
+                        <Input
+                          label={professoresCopy.currentStatusLabel}
+                          placeholder={professoresCopy.currentStatusPlaceholder}
+                          error={editErrors.currentStatus?.message}
+                          {...registerEdit('currentStatus')}
+                        />
+                        <label className="flex items-center gap-3 rounded-lg border border-border px-4 py-3 text-sm">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4"
+                            {...registerEdit('hasSignedContract')}
+                          />
+                          <span>{professoresCopy.hasSignedContractLabel}</span>
+                        </label>
+                      </div>
+                      <div className="rounded-lg border border-border p-4">
+                        <p className="text-sm font-medium text-foreground">
+                          {professoresCopy.collaboratorFunctionLabel}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Selecione a função operacional cadastrada para este colaborador.
+                        </p>
+                        <div className="mt-3">
+                          <select
+                            id={`edit-management-collaborator-function-${professor.id}`}
+                            className="ts-form-control"
+                            {...registerEdit('collaboratorFunctionId')}
+                          >
+                            {collaboratorFunctions
+                              .filter(
+                                (option) =>
+                                  option.isActive || option.id === professor.collaboratorFunction.id
+                              )
+                              .map((option) => (
+                                <option key={option.id} value={option.id}>
+                                  {option.name}
+                                </option>
+                              ))}
+                          </select>
+                          {editErrors.collaboratorFunctionId?.message && (
+                            <p className="mt-1 text-sm text-destructive">
+                              {editErrors.collaboratorFunctionId.message}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="rounded-lg border border-border p-4">
+                        <p className="text-sm font-medium text-foreground">
+                          {professoresCopy.hourlyRatesTitle}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {professoresCopy.hourlyRatesDescription}
+                        </p>
+                        <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
+                          {hourlyRateSections.map((section) => (
+                            <div key={section.key} className="rounded-lg border border-border/70 p-3">
+                              <p className="mb-3 text-sm font-medium text-foreground">
+                                {section.label}
+                              </p>
+                              <div className="space-y-3">
+                                {hourlyRateBands.map((band) => (
+                                  <Input
+                                    key={`${section.key}-${band.key}`}
+                                    label={band.label}
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    inputMode="decimal"
+                                    error={
+                                      editErrors.hourlyRates?.[section.key]?.[band.key]
+                                        ?.message as string | undefined
+                                    }
+                                    {...registerEdit(
+                                      `hourlyRates.${section.key}.${band.key}` as const
+                                    )}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                       {editRequiresResponsibleManager && (
                         <div>
                           <label htmlFor={`edit-responsible-manager-${professor.id}`} className="mb-2 block text-sm font-medium">
@@ -1214,11 +1934,16 @@ export function Professores() {
                     </form>
                   ) : (
                     <>
-                      <div>
-                        <p className="font-medium">
-                          {professor.user?.profile?.name || professoresCopy.noName}
-                        </p>
-                        <p className="text-sm text-muted-foreground">{professor.user?.email}</p>
+                      <div className="flex items-start gap-4">
+                        <CollaboratorAvatar
+                          name={professor.user?.profile?.name}
+                          avatar={professor.user?.profile?.avatar}
+                        />
+                        <div>
+                          <p className="font-medium">
+                            {professor.user?.profile?.name || professoresCopy.noName}
+                          </p>
+                          <p className="text-sm text-muted-foreground">{professor.user?.email}</p>
                         <p className="text-xs text-muted-foreground">
                           {professoresCopy.phoneLabel}:{' '}
                           {professor.user?.profile?.phone || commonCopy.notInformed}
@@ -1294,6 +2019,64 @@ export function Professores() {
                           {professoresCopy.collaboratorFunctionLabel}:{' '}
                           {professor.collaboratorFunction.name}
                         </p>
+                        <p className="text-xs text-muted-foreground">
+                          {professoresCopy.admissionDateLabel}:{' '}
+                          {professor.admissionDate
+                            ? new Date(professor.admissionDate).toLocaleDateString('pt-BR')
+                            : commonCopy.notInformed}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {professoresCopy.currentStatusLabel}:{' '}
+                          {professor.currentStatus || commonCopy.notInformed}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {professoresCopy.hasSignedContractLabel}:{' '}
+                          {professor.hasSignedContract
+                            ? professoresCopy.signedContractYes
+                            : professoresCopy.signedContractNo}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {professoresCopy.hourlyRatePersonalLabel}:{' '}
+                          {[
+                            `${professoresCopy.hourlyRateBronzeLabel} ${formatCurrencyValue(
+                              professor.hourlyRates?.personal?.bronze
+                            )}`,
+                            `${professoresCopy.hourlyRateSilverLabel} ${formatCurrencyValue(
+                              professor.hourlyRates?.personal?.silver
+                            )}`,
+                            `${professoresCopy.hourlyRateGoldLabel} ${formatCurrencyValue(
+                              professor.hourlyRates?.personal?.gold
+                            )}`,
+                          ].join(' | ')}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {professoresCopy.hourlyRateConsultingLabel}:{' '}
+                          {[
+                            `${professoresCopy.hourlyRateBronzeLabel} ${formatCurrencyValue(
+                              professor.hourlyRates?.consulting?.bronze
+                            )}`,
+                            `${professoresCopy.hourlyRateSilverLabel} ${formatCurrencyValue(
+                              professor.hourlyRates?.consulting?.silver
+                            )}`,
+                            `${professoresCopy.hourlyRateGoldLabel} ${formatCurrencyValue(
+                              professor.hourlyRates?.consulting?.gold
+                            )}`,
+                          ].join(' | ')}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {professoresCopy.hourlyRateEvaluationLabel}:{' '}
+                          {[
+                            `${professoresCopy.hourlyRateBronzeLabel} ${formatCurrencyValue(
+                              professor.hourlyRates?.evaluation?.bronze
+                            )}`,
+                            `${professoresCopy.hourlyRateSilverLabel} ${formatCurrencyValue(
+                              professor.hourlyRates?.evaluation?.silver
+                            )}`,
+                            `${professoresCopy.hourlyRateGoldLabel} ${formatCurrencyValue(
+                              professor.hourlyRates?.evaluation?.gold
+                            )}`,
+                          ].join(' | ')}
+                        </p>
                         {(professor.responsibleManager || professor.collaboratorFunction.code !== 'manager') && (
                           <p className="text-xs text-muted-foreground">
                             {professoresCopy.responsibleManagerLabel}:{' '}
@@ -1303,7 +2086,7 @@ export function Professores() {
                         )}
                         <p className="text-xs text-muted-foreground">
                           {professoresCopy.lastAccess}:{' '}
-                          {professor.user?.lastLoginAt
+                          {professor.user.lastLoginAt
                             ? new Date(professor.user.lastLoginAt).toLocaleString()
                             : professoresCopy.neverAccessed}
                         </p>
@@ -1312,6 +2095,7 @@ export function Professores() {
                             {professoresCopy.temporaryPassword}: <span className="font-mono">{resetPassword}</span>
                           </div>
                         )}
+                        </div>
                       </div>
                       <div className="flex items-center gap-3">
                         <span className="text-xs rounded-full px-2 py-1 bg-muted">

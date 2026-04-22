@@ -112,6 +112,7 @@ model Contract {
   exerciseLibrary      ExerciseLibrary[]
   assessmentTypes      AssessmentType[]
   subjectiveScaleItems SubjectiveScaleItem[]
+  professorManualItems ProfessorManualItem[]
   trainingSpaces       TrainingSpace[]
   agendaBookings       AgendaBooking[]
   cloneLogsAsSource    ContractDataCloneLog[] @relation("ContractCloneSource")
@@ -167,6 +168,11 @@ model Professor {
   collaboratorFunction CollaboratorFunctionOption @relation(fields: [collaboratorFunctionId], references: [id], onDelete: Restrict)
   responsibleManagerId String?
   responsibleManager   Professor? @relation("ProfessorResponsibleManager", fields: [responsibleManagerId], references: [id], onDelete: SetNull)
+  admissionDate        DateTime?
+  currentStatus        String?
+  operationalRoleIds   String[]      @default([])
+  hourlyRates          Json?
+  hasSignedContract    Boolean       @default(false)
 
   // Relacionamentos
   managedCollaborators Professor[] @relation("ProfessorResponsibleManager")
@@ -406,6 +412,20 @@ enum AssessmentScheduleType {
 enum SubjectiveScaleType {
   PSE
   PSR
+}
+
+enum ProfessorManualFormat {
+  dica_rapida
+  alerta
+  exemplo
+  lembrete_metodo
+  saiba_mais
+}
+
+enum ProfessorManualContext {
+  avaliacao_fisica
+  montagem_treino
+  uso_sistema
 }
 
 enum AssessmentAuditAction {
@@ -878,6 +898,35 @@ model SubjectiveScaleItem {
 
   @@unique([contractId, type, value])
   @@index([contractId, type])
+}
+
+model ProfessorManualItem {
+  id         String                 @id @default(cuid())
+  contractId String
+  contract   Contract               @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  code          String
+  title         String
+  content       String               @db.Text
+  format        ProfessorManualFormat
+  context       ProfessorManualContext
+  audience      String?
+  sourceSection String?
+  sourceItem    String?
+  sourceExcerpt String?              @db.Text
+  productArea   String
+  productMoment String?
+  linkLabel     String?
+  linkHref      String?
+  order         Int                  @default(0)
+  isActive      Boolean              @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([contractId, code])
+  @@index([contractId, context, isActive])
+  @@index([contractId, productArea, isActive])
 }
 
 // Matriz de PeriodizaÃ§Ã£o

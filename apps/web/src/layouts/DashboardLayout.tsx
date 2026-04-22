@@ -55,6 +55,11 @@ export function DashboardLayout() {
               ]
             : []),
           { id: 'settings-psr-pse', label: 'PSR e PSE', path: '/settings/psr-pse' },
+          {
+            id: 'settings-professor-manual',
+            label: shellCopy.menu.manualProfessor,
+            path: '/settings/professor-manual',
+          },
           { id: 'settings-reference-table', label: shellCopy.menu.tabelaReferencia, path: '/settings/reference-table' },
           ...(canAccessAlunoSettings
             ? [{ id: 'settings-aluno-access', label: shellCopy.menu.cadastroAlunos, path: '/settings/aluno-access' }]

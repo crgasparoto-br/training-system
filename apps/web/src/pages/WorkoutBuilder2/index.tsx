@@ -11,6 +11,7 @@ import { workoutService } from '../../services/workout.service';
 import { isDateWithinRange, parseDateOnly, toDateInputValue, toIsoDateAtNoonUTC } from '../../utils/date';
 import { workoutBuilderGuideCopy } from '../../i18n/ptBR';
 import { useAuthStore } from '../../stores/useAuthStore';
+import { ProfessorManualContextPanel } from '../../components/ProfessorManualContextPanel';
 
 type ResistedSectionKey = 'mobilidade' | 'sessao' | 'resfriamento';
 type WorkoutGuidePanelMode = 'intro' | 'manual' | null;
@@ -1429,32 +1430,13 @@ export default function WorkoutBuilder2() {
                   <p className="max-w-3xl text-sm text-slate-600">
                     {workoutBuilderGuideCopy.manualDescription}
                   </p>
-                  <div className="grid gap-3 md:grid-cols-3">
-                    <div className="rounded-xl border border-white/80 bg-white p-4">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
-                        {workoutBuilderGuideCopy.manualCardOneTitle}
-                      </p>
-                      <p className="mt-2 text-sm text-slate-700">
-                        {workoutBuilderGuideCopy.manualCardOneDescription}
-                      </p>
-                    </div>
-                    <div className="rounded-xl border border-white/80 bg-white p-4">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
-                        {workoutBuilderGuideCopy.manualCardTwoTitle}
-                      </p>
-                      <p className="mt-2 text-sm text-slate-700">
-                        {workoutBuilderGuideCopy.manualCardTwoDescription}
-                      </p>
-                    </div>
-                    <div className="rounded-xl border border-white/80 bg-white p-4">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">
-                        {workoutBuilderGuideCopy.manualCardThreeTitle}
-                      </p>
-                      <p className="mt-2 text-sm text-slate-700">
-                        {workoutBuilderGuideCopy.manualCardThreeDescription}
-                      </p>
-                    </div>
-                  </div>
+                  <ProfessorManualContextPanel
+                    title="Orientacoes conectadas ao fluxo"
+                    description="Conteudo do Manual do Professor convertido em apoio rapido para planejamento, leitura do historico e momento de liberacao."
+                    contexts={['montagem_treino', 'uso_sistema']}
+                    limit={6}
+                    className="border-white/80 bg-white/80 shadow-none"
+                  />
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <button

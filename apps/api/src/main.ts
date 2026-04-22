@@ -14,6 +14,7 @@ import { collaboratorFunctionRoutes } from './modules/collaborator-functions/ind
 import { contractRoutes } from './modules/contracts/index.js';
 import { agendaRoutes } from './modules/agenda/index.js';
 import { assessmentTypeRoutes, subjectiveScaleRoutes } from './modules/assessments/index.js';
+import { professorManualRoutes } from './modules/professor-manual/index.js';
 import { jiraRoutes } from './modules/jira/index.js';
 import libraryRoutes from './routes/library.routes.js';
 import workoutRoutes from './routes/workout.routes.js';
@@ -59,7 +60,11 @@ const allowedOrigins = Array.from(
 // ============================================================================
 
 // SeguranÃ§a
-app.use(helmet());
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })
+);
 
 // CORS
 app.use(
@@ -85,6 +90,7 @@ app.use(
 // Body Parser
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
+app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads')));
 
 // ============================================================================
 // HEALTH CHECK
@@ -116,6 +122,7 @@ app.get('/api/v1', (req, res) => {
       periodization: '/api/v1/periodization',
       assessmentTypes: '/api/v1/assessment-types',
       subjectiveScales: '/api/v1/subjective-scales',
+      professorManual: '/api/v1/professor-manual',
       agenda: '/api/v1/agenda',
       jira: '/api/v1/jira',
       library: '/api/v1/library',
@@ -150,6 +157,7 @@ app.use('/api/v1/periodization', periodizationRoutes);
 // Rotas de Tipos de AvaliaÃƒÂ§ÃƒÂ£o
 app.use('/api/v1/assessment-types', assessmentTypeRoutes);
 app.use('/api/v1/subjective-scales', subjectiveScaleRoutes);
+app.use('/api/v1/professor-manual', professorManualRoutes);
 app.use('/api/v1/agenda', agendaRoutes);
 app.use('/api/v1/jira', jiraRoutes);
 

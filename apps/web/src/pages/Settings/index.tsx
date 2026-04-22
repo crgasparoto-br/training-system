@@ -82,6 +82,18 @@ export default function Settings() {
           </div>
         </Link>
         <Link
+          to="/settings/professor-manual"
+          className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm transition hover:border-blue-300 hover:shadow"
+        >
+          <h2 className="text-lg font-semibold text-gray-900">Manual do Professor</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Cadastro do conteudo institucional e contextual usado nos fluxos de avaliacao e treino.
+          </p>
+          <div className="mt-4 inline-flex items-center text-sm font-medium text-blue-600">
+            Acessar manual &rarr;
+          </div>
+        </Link>
+        <Link
           to="/settings/reference-table"
           className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm transition hover:border-blue-300 hover:shadow"
         >

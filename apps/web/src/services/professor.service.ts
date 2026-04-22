@@ -29,6 +29,23 @@ export const professorService = {
     return response.data.data;
   },
 
+  async uploadAvatar(file: File): Promise<string> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await api.post<{ success: boolean; data: { url: string } }>(
+      '/professores/avatar-upload',
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
+
+    return response.data.data.url;
+  },
+
   async deactivate(id: string): Promise<void> {
     await api.post(`/professores/${id}/deactivate`);
   },
