@@ -99,6 +99,22 @@ const optionalNullableUrlSchema = z.preprocess(
 const optionalNumberSchema = (schema: z.ZodNumber) =>
   z.preprocess(emptyStringOrNaNToUndefined, schema.optional());
 
+const optionalNonNegativeNumberSchema = z.preprocess(
+  emptyStringOrNaNToUndefined,
+  z.number().min(0, 'Valor deve ser maior ou igual a zero').optional()
+);
+
+const optionalNullableNonNegativeNumberSchema = z.preprocess(
+  (value) => {
+    if (value === null) {
+      return null;
+    }
+
+    return emptyStringOrNaNToUndefined(value);
+  },
+  z.number().min(0, 'Valor deve ser maior ou igual a zero').nullable().optional()
+);
+
 const normalizeDigits = (value: unknown) => {
   const normalized = emptyStringToUndefined(value);
   if (typeof normalized !== 'string') {
@@ -163,6 +179,30 @@ const maritalStatusSchema = z.enum([
   'other',
 ]);
 
+const hourlyRateBandSchema = z.object({
+  bronze: optionalNonNegativeNumberSchema,
+  silver: optionalNonNegativeNumberSchema,
+  gold: optionalNonNegativeNumberSchema,
+});
+
+const hourlyRateBandNullableSchema = z.object({
+  bronze: optionalNullableNonNegativeNumberSchema,
+  silver: optionalNullableNonNegativeNumberSchema,
+  gold: optionalNullableNonNegativeNumberSchema,
+});
+
+const professorHourlyRatesSchema = z.object({
+  personal: hourlyRateBandSchema,
+  consulting: hourlyRateBandSchema,
+  evaluation: hourlyRateBandSchema,
+});
+
+const professorHourlyRatesNullableSchema = z.object({
+  personal: hourlyRateBandNullableSchema,
+  consulting: hourlyRateBandNullableSchema,
+  evaluation: hourlyRateBandNullableSchema,
+});
+
 // ============================================================================
 // AUTENTICACAO
 // ============================================================================
@@ -205,6 +245,12 @@ export const CreateProfessorSchema = z.object({
   bankBranch: optionalTextSchema,
   bankAccount: optionalTextSchema,
   pixKey: optionalTextSchema,
+  avatar: optionalUrlSchema,
+  admissionDate: optionalDateSchema,
+  currentStatus: optionalTextSchema,
+  operationalRoleIds: z.array(z.string().trim().min(1, 'Cargo invalido')).optional(),
+  hourlyRates: professorHourlyRatesSchema.optional(),
+  hasSignedContract: z.boolean().optional(),
   collaboratorFunctionId: z.string().trim().min(1, 'Funcao do colaborador invalida'),
   responsibleManagerId: z.preprocess(
     emptyStringToUndefined,
@@ -243,6 +289,12 @@ export const UpdateProfessorSchema = z.object({
   bankBranch: optionalNullableTextSchema,
   bankAccount: optionalNullableTextSchema,
   pixKey: optionalNullableTextSchema,
+  avatar: optionalNullableUrlSchema,
+  admissionDate: optionalNullableDateSchema,
+  currentStatus: optionalNullableTextSchema,
+  operationalRoleIds: z.array(z.string().trim().min(1, 'Cargo invalido')).optional(),
+  hourlyRates: professorHourlyRatesNullableSchema.optional(),
+  hasSignedContract: z.boolean().optional(),
   collaboratorFunctionId: z.preprocess(
     emptyStringToUndefined,
     z.string().trim().min(1, 'Funcao do colaborador invalida').optional()

@@ -10,6 +10,7 @@ import { Button } from '../components/ui/Button';
 import { formatDateBR, isDateWithinRange } from '../utils/date';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../components/ui/Accordion';
+import { ProfessorManualContextPanel } from '../components/ProfessorManualContextPanel';
 import { alunoDetailsCopy } from '../i18n/ptBR';
 import { useAuthStore } from '../stores/useAuthStore';
 import {
@@ -1746,6 +1747,14 @@ export function AlunoDetails() {
                 )}
               </div>
             )}
+
+            <ProfessorManualContextPanel
+              title="Manual do Professor para este momento"
+              description="Trechos curtos do manual que ajudam no envio, na leitura do historico e na conexao da avaliacao com o treino."
+              contexts={['avaliacao_fisica']}
+              limit={5}
+              className="mt-4"
+            />
 
             {assessmentUploadFeedback && (
               <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/80 p-4">

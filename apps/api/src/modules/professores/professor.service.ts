@@ -67,6 +67,70 @@ function normalizeInstagramHandle(instagramHandle?: string | null) {
   return normalizedValue.replace(/^@+/, '');
 }
 
+interface HourlyRateBandInput {
+  bronze?: number | null;
+  silver?: number | null;
+  gold?: number | null;
+}
+
+interface HourlyRatesInput {
+  personal: HourlyRateBandInput;
+  consulting: HourlyRateBandInput;
+  evaluation: HourlyRateBandInput;
+}
+
+function normalizeOperationalRoleIds(roleIds?: string[] | null) {
+  if (!Array.isArray(roleIds)) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      roleIds
+        .map((roleId) => (typeof roleId === 'string' ? roleId.trim() : ''))
+        .filter((roleId) => roleId.length > 0)
+    )
+  );
+}
+
+function normalizeHourlyRateValue(value?: number | null) {
+  if (typeof value !== 'number' || Number.isNaN(value) || value < 0) {
+    return null;
+  }
+
+  return Number(value.toFixed(2));
+}
+
+function normalizeHourlyRates(hourlyRates?: HourlyRatesInput | null): Prisma.JsonObject | null {
+  if (!hourlyRates) {
+    return null;
+  }
+
+  const normalized = {
+    personal: {
+      bronze: normalizeHourlyRateValue(hourlyRates.personal?.bronze),
+      silver: normalizeHourlyRateValue(hourlyRates.personal?.silver),
+      gold: normalizeHourlyRateValue(hourlyRates.personal?.gold),
+    },
+    consulting: {
+      bronze: normalizeHourlyRateValue(hourlyRates.consulting?.bronze),
+      silver: normalizeHourlyRateValue(hourlyRates.consulting?.silver),
+      gold: normalizeHourlyRateValue(hourlyRates.consulting?.gold),
+    },
+    evaluation: {
+      bronze: normalizeHourlyRateValue(hourlyRates.evaluation?.bronze),
+      silver: normalizeHourlyRateValue(hourlyRates.evaluation?.silver),
+      gold: normalizeHourlyRateValue(hourlyRates.evaluation?.gold),
+    },
+  } satisfies Prisma.JsonObject;
+
+  const hasValue = Object.values(normalized).some((band) =>
+    Object.values(band).some((value) => typeof value === 'number')
+  );
+
+  return hasValue ? normalized : null;
+}
+
 export interface CreateProfessorDTO {
   contractId: string;
   name: string;
@@ -90,6 +154,12 @@ export interface CreateProfessorDTO {
   bankBranch?: string;
   bankAccount?: string;
   pixKey?: string;
+  avatar?: string;
+  admissionDate?: Date;
+  currentStatus?: string;
+  operationalRoleIds?: string[];
+  hourlyRates?: HourlyRatesInput;
+  hasSignedContract?: boolean;
   collaboratorFunctionId: string;
   responsibleManagerId?: string;
   actorProfessorId?: string;
@@ -117,6 +187,12 @@ export interface UpdateProfessorDTO {
   bankBranch?: string | null;
   bankAccount?: string | null;
   pixKey?: string | null;
+  avatar?: string | null;
+  admissionDate?: Date | null;
+  currentStatus?: string | null;
+  operationalRoleIds?: string[];
+  hourlyRates?: HourlyRatesInput;
+  hasSignedContract?: boolean;
   collaboratorFunctionId?: string;
   responsibleManagerId?: string;
   actorProfessorId?: string;
@@ -184,6 +260,30 @@ async function ensureCpfAvailable(cpf: string, currentUserId?: string) {
   if (existingProfile && existingProfile.userId !== currentUserId) {
     throw new Error('CPF já está registrado');
   }
+}
+
+async function ensureOperationalRolesAvailable(contractId: string, operationalRoleIds: string[]) {
+  if (operationalRoleIds.length === 0) {
+    return [];
+  }
+
+  const availableRoles = await prisma.collaboratorFunctionOption.findMany({
+    where: {
+      contractId,
+      id: {
+        in: operationalRoleIds,
+      },
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (availableRoles.length !== operationalRoleIds.length) {
+    throw new Error('Um ou mais cargos operacionais são inválidos para este contrato');
+  }
+
+  return availableRoles.map((role) => role.id);
 }
 
 function hasAnyLegalFinancialValue(data: {
@@ -264,6 +364,9 @@ export const professorService = {
     const normalizedBankBranch = normalizeOptionalText(data.bankBranch);
     const normalizedBankAccount = normalizeOptionalText(data.bankAccount);
     const normalizedPixKey = normalizeOptionalText(data.pixKey);
+    const normalizedAvatar = normalizeOptionalText(data.avatar);
+    const normalizedCurrentStatus = normalizeOptionalText(data.currentStatus);
+    const normalizedHourlyRates = normalizeHourlyRates(data.hourlyRates);
     const legalFinancialFilled =
       !!data.actorProfessorId &&
       hasAnyLegalFinancialValue({
@@ -326,6 +429,17 @@ export const professorService = {
       responsibleManagerId = responsibleManager.id;
     }
 
+    const normalizedOperationalRoleIds = normalizeOperationalRoleIds(data.operationalRoleIds);
+    const operationalRoleIds = Array.from(
+      new Set(
+        (normalizedOperationalRoleIds.length > 0
+          ? normalizedOperationalRoleIds
+          : [collaboratorFunction.id]
+        ).concat(collaboratorFunction.id)
+      )
+    );
+    await ensureOperationalRolesAvailable(contract.id, operationalRoleIds);
+
     return prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
@@ -345,6 +459,7 @@ export const professorService = {
               ...(normalizedAddressComplement ? { addressComplement: normalizedAddressComplement } : {}),
               ...(normalizedAddressZipCode ? { addressZipCode: normalizedAddressZipCode } : {}),
               ...(normalizedInstagramHandle ? { instagramHandle: normalizedInstagramHandle } : {}),
+              ...(normalizedAvatar ? { avatar: normalizedAvatar } : {}),
               ...(normalizedCref ? { cref: normalizedCref } : {}),
               ...(normalizedProfessionalSummary ? { professionalSummary: normalizedProfessionalSummary } : {}),
               ...(normalizedLattesUrl ? { lattesUrl: normalizedLattesUrl } : {}),
@@ -376,6 +491,11 @@ export const professorService = {
           role: 'professor',
           collaboratorFunctionId: collaboratorFunction.id,
           responsibleManagerId,
+          ...(data.admissionDate ? { admissionDate: data.admissionDate } : {}),
+          ...(normalizedCurrentStatus ? { currentStatus: normalizedCurrentStatus } : {}),
+          operationalRoleIds,
+          ...(normalizedHourlyRates ? { hourlyRates: normalizedHourlyRates } : {}),
+          hasSignedContract: data.hasSignedContract ?? false,
         },
         include: professorProfileInclude,
       });
@@ -513,6 +633,8 @@ export const professorService = {
         ? normalizeName(data.name)
         : undefined;
     const normalizedCpf = data.cpf === undefined ? undefined : normalizeCpf(data.cpf);
+    const normalizedCurrentStatus =
+      data.currentStatus === undefined ? undefined : normalizeOptionalText(data.currentStatus);
     const normalizedCompanyDocument =
       data.companyDocument === undefined ? undefined : normalizeCompanyDocument(data.companyDocument);
 
@@ -686,6 +808,40 @@ export const professorService = {
 
       updateProfessorData.collaboratorFunctionId = collaboratorFunction.id;
       targetCollaboratorFunction = collaboratorFunction;
+    }
+
+    if (data.admissionDate !== undefined) {
+      updateProfessorData.admissionDate = data.admissionDate;
+    }
+
+    if (data.currentStatus !== undefined) {
+      updateProfessorData.currentStatus = normalizedCurrentStatus ?? null;
+    }
+
+    if (data.hourlyRates !== undefined) {
+      updateProfessorData.hourlyRates = normalizeHourlyRates(data.hourlyRates);
+    }
+
+    if (data.hasSignedContract !== undefined) {
+      updateProfessorData.hasSignedContract = data.hasSignedContract;
+    }
+
+    if (data.operationalRoleIds !== undefined || data.collaboratorFunctionId !== undefined) {
+      const baseOperationalRoleIds =
+        data.operationalRoleIds !== undefined
+          ? normalizeOperationalRoleIds(data.operationalRoleIds)
+          : professor.operationalRoleIds;
+      const operationalRoleIds = Array.from(
+        new Set(
+          (baseOperationalRoleIds.length > 0
+            ? baseOperationalRoleIds
+            : [targetCollaboratorFunction.id]
+          ).concat(targetCollaboratorFunction.id)
+        )
+      );
+
+      await ensureOperationalRolesAvailable(contractId, operationalRoleIds);
+      updateProfessorData.operationalRoleIds = operationalRoleIds;
     }
 
     const managedCollaboratorsCount = await countManagedCollaborators(professorId);

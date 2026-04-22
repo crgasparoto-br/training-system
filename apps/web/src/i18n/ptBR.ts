@@ -34,6 +34,7 @@ export const shellCopy = {
     avaliacoes: 'Avaliações',
     funcoesColaboradores: 'Funções de Colaboradores',
     tabelaReferencia: 'Tabela de Referência',
+    manualProfessor: 'Manual do Professor',
     cadastroAlunos: 'Cadastro de Alunos',
   },
 } as const;
@@ -210,6 +211,25 @@ export const professoresCopy = {
   personalDataSectionDescription: 'Campos centrais do cadastro civil, profissional e de contato do colaborador.',
   professionalDataSectionTitle: 'Dados profissionais',
   professionalDataSectionDescription: 'Bloco profissional do colaborador com registro de conselho, resumo de currículo e Lattes.',
+  operationalDataSectionTitle: 'Configuração operacional',
+  operationalDataSectionDescription: 'Defina admissão, status atual, papéis operacionais, valores de hora e confirmação contratual do colaborador.',
+  admissionDateLabel: 'Data de admissão',
+  currentStatusLabel: 'Status operacional atual',
+  currentStatusPlaceholder: 'Ex: integração, agenda parcial, afastado',
+  operationalRolesLabel: 'Papéis operacionais',
+  operationalRolesHint: 'A função principal continua obrigatória e é mantida automaticamente entre os papéis operacionais.',
+  hasSignedContractLabel: 'Contrato assinado',
+  signedContractYes: 'Assinado',
+  signedContractNo: 'Pendente',
+  hourlyRatesTitle: 'Valores de hora/aula',
+  hourlyRatesDescription: 'Configure a referência comercial por frente de atuação e faixa do aluno.',
+  hourlyRatePersonalLabel: 'Personal',
+  hourlyRateConsultingLabel: 'Consultoria',
+  hourlyRateEvaluationLabel: 'Avaliação',
+  hourlyRateBronzeLabel: 'Bronze',
+  hourlyRateSilverLabel: 'Prata',
+  hourlyRateGoldLabel: 'Ouro',
+  hourlyRatesNotConfigured: 'Não configurado',
 } as const;
 
 export const settingsCollaboratorFunctionsCopy = {

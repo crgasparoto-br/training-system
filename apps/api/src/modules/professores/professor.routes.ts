@@ -3,11 +3,73 @@ import { professorService } from './professor.service';
 import { academyMasterMiddleware, authMiddleware } from '../auth/auth.middleware';
 import { CreateProfessorSchema, UpdateProfessorSchema } from '@corrida/utils';
 import { sendSuccess, sendError } from '@corrida/utils';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 
 const router: Router = Router();
+const avatarUploadRoot = path.resolve(process.cwd(), 'uploads', 'professores');
+
+const ensureDir = (dirPath: string) => {
+  if (!fs.existsSync(dirPath)) {
+    fs.mkdirSync(dirPath, { recursive: true });
+  }
+};
+
+const avatarStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    ensureDir(avatarUploadRoot);
+    cb(null, avatarUploadRoot);
+  },
+  filename: (_req, file, cb) => {
+    const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]+/g, '_');
+    cb(null, `${Date.now()}-${safeName}`);
+  },
+});
+
+const avatarUpload = multer({
+  storage: avatarStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (!file.mimetype.startsWith('image/')) {
+      return cb(new Error('Envie um arquivo de imagem válido'));
+    }
+
+    cb(null, true);
+  },
+});
+
+const uploadAvatarFile = (req: Request, res: Response, next: any) => {
+  avatarUpload.single('file')(req, res, (err: any) => {
+    if (err) {
+      return sendError(res, err.message || 'Erro ao fazer upload da foto', 400);
+    }
+
+    next();
+  });
+};
 
 router.use(authMiddleware);
 router.use(academyMasterMiddleware);
+
+router.post('/avatar-upload', uploadAvatarFile, async (req: Request, res: Response) => {
+  try {
+    if (!req.file) {
+      return sendError(res, 'Selecione uma imagem para upload', 400);
+    }
+
+    const host = req.get('host');
+    if (!host) {
+      return sendError(res, 'Não foi possível montar a URL da foto enviada', 500);
+    }
+
+    const fileUrl = `${req.protocol}://${host}/uploads/professores/${req.file.filename}`;
+
+    return sendSuccess(res, { url: fileUrl }, 'Foto enviada com sucesso');
+  } catch (error: any) {
+    return sendError(res, error.message || 'Erro ao enviar foto', 400);
+  }
+});
 
 /**
  * GET /api/v1/professores

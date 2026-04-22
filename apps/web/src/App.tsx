@@ -17,6 +17,7 @@ import SettingsAssessmentTypes from './pages/Settings/AssessmentTypes';
 import SettingsCollaboratorFunctions from './pages/Settings/CollaboratorFunctions';
 import SettingsSubjectiveScales from './pages/Settings/SubjectiveScales';
 import SettingsAlunoAccess from './pages/Settings/AlunoAccess';
+import SettingsProfessorManual from './pages/Settings/ProfessorManual';
 import SettingsReferenceTable from './pages/Settings/ReferenceTable';
 import Library from './pages/Library';
 import WorkoutBuilder2 from './pages/WorkoutBuilder2';
@@ -63,6 +64,7 @@ function App() {
           <Route path="settings/assessment-types" element={<SettingsAssessmentTypes />} />
           <Route path="settings/collaborator-functions" element={<SettingsCollaboratorFunctions />} />
           <Route path="settings/psr-pse" element={<SettingsSubjectiveScales />} />
+          <Route path="settings/professor-manual" element={<SettingsProfessorManual />} />
           <Route path="settings/aluno-access" element={<SettingsAlunoAccess />} />
           <Route path="settings/reference-table" element={<SettingsReferenceTable />} />
         </Route>
