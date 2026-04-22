@@ -1,16 +1,16 @@
-﻿import express from 'express';
+﻿import './bootstrap-env.js';
+import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import 'express-async-errors';
-import dotenv from 'dotenv';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { authRoutes } from './modules/auth/index.js';
 import { alunoRoutes } from './modules/alunos/index.js';
 import { planRoutes } from './modules/plans/index.js';
 import { periodizationRoutes } from './modules/periodization/index.js';
 import { professorRoutes } from './modules/professores/index.js';
 import { collaboratorFunctionRoutes } from './modules/collaborator-functions/index.js';
+import { hourlyRateLevelRoutes } from './modules/hourly-rate-levels/index.js';
 import { contractRoutes } from './modules/contracts/index.js';
 import { agendaRoutes } from './modules/agenda/index.js';
 import { assessmentTypeRoutes, subjectiveScaleRoutes } from './modules/assessments/index.js';
@@ -19,19 +19,6 @@ import { jiraRoutes } from './modules/jira/index.js';
 import libraryRoutes from './routes/library.routes.js';
 import workoutRoutes from './routes/workout.routes.js';
 import executionsRoutes from './routes/executions.routes.js';
-
-// Carregar variÃ¡veis de ambiente
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-for (const envPath of [
-  path.resolve(process.cwd(), '.env'),
-  path.resolve(process.cwd(), '..', '.env'),
-  path.resolve(process.cwd(), '..', '..', '.env'),
-  path.resolve(__dirname, '../../../.env'),
-]) {
-  dotenv.config({ path: envPath, override: false });
-}
 
 const app: express.Express = express();
 const PORT = process.env.API_PORT || 3000;
@@ -117,6 +104,7 @@ app.get('/api/v1', (req, res) => {
       alunos: '/api/v1/alunos',
       professores: '/api/v1/professores',
       collaboratorFunctions: '/api/v1/collaborator-functions',
+      hourlyRateLevels: '/api/v1/hourly-rate-levels',
       contracts: '/api/v1/contracts',
       plans: '/api/v1/plans',
       periodization: '/api/v1/periodization',
@@ -144,6 +132,9 @@ app.use('/api/v1/professores', professorRoutes);
 
 // Rotas de Funções de Colaboradores
 app.use('/api/v1/collaborator-functions', collaboratorFunctionRoutes);
+
+// Rotas de Níveis de Valor/Hora
+app.use('/api/v1/hourly-rate-levels', hourlyRateLevelRoutes);
 
 // Rotas de Contratos
 app.use('/api/v1/contracts', contractRoutes);

@@ -9,6 +9,7 @@ import fs from 'fs';
 
 const router: Router = Router();
 const avatarUploadRoot = path.resolve(process.cwd(), 'uploads', 'professores');
+const signedContractUploadRoot = path.resolve(process.cwd(), 'uploads', 'professores', 'contracts');
 
 const ensureDir = (dirPath: string) => {
   if (!fs.existsSync(dirPath)) {
@@ -39,10 +40,43 @@ const avatarUpload = multer({
   },
 });
 
+const signedContractStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    ensureDir(signedContractUploadRoot);
+    cb(null, signedContractUploadRoot);
+  },
+  filename: (_req, file, cb) => {
+    const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]+/g, '_');
+    cb(null, `${Date.now()}-${safeName}`);
+  },
+});
+
+const signedContractUpload = multer({
+  storage: signedContractStorage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype !== 'application/pdf') {
+      return cb(new Error('Envie um arquivo PDF válido'));
+    }
+
+    cb(null, true);
+  },
+});
+
 const uploadAvatarFile = (req: Request, res: Response, next: any) => {
   avatarUpload.single('file')(req, res, (err: any) => {
     if (err) {
       return sendError(res, err.message || 'Erro ao fazer upload da foto', 400);
+    }
+
+    next();
+  });
+};
+
+const uploadSignedContractFile = (req: Request, res: Response, next: any) => {
+  signedContractUpload.single('file')(req, res, (err: any) => {
+    if (err) {
+      return sendError(res, err.message || 'Erro ao fazer upload do contrato', 400);
     }
 
     next();
@@ -68,6 +102,25 @@ router.post('/avatar-upload', uploadAvatarFile, async (req: Request, res: Respon
     return sendSuccess(res, { url: fileUrl }, 'Foto enviada com sucesso');
   } catch (error: any) {
     return sendError(res, error.message || 'Erro ao enviar foto', 400);
+  }
+});
+
+router.post('/signed-contract-upload', uploadSignedContractFile, async (req: Request, res: Response) => {
+  try {
+    if (!req.file) {
+      return sendError(res, 'Selecione um PDF para upload', 400);
+    }
+
+    const host = req.get('host');
+    if (!host) {
+      return sendError(res, 'Não foi possível montar a URL do contrato enviado', 500);
+    }
+
+    const fileUrl = `${req.protocol}://${host}/uploads/professores/contracts/${req.file.filename}`;
+
+    return sendSuccess(res, { url: fileUrl }, 'Contrato enviado com sucesso');
+  } catch (error: any) {
+    return sendError(res, error.message || 'Erro ao enviar contrato', 400);
   }
 });
 

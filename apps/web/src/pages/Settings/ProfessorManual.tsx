@@ -1,25 +1,31 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '../../components/ui/Button';
 import {
+  PROFESSOR_MANUAL_LOCALE,
+  professorManualContextLabels,
+  professorManualFormatLabels,
+} from '../../constants/professorManual';
+import {
   professorManualService,
   type ProfessorManualContext,
   type ProfessorManualFormat,
   type ProfessorManualItem,
   type ProfessorManualPayload,
 } from '../../services/professor-manual.service';
+import { useAuthStore } from '../../stores/useAuthStore';
 
 const contextOptions: Array<{ value: ProfessorManualContext; label: string }> = [
-  { value: 'avaliacao_fisica', label: 'Avaliacao fisica' },
-  { value: 'montagem_treino', label: 'Montagem de treino' },
-  { value: 'uso_sistema', label: 'Uso do sistema' },
+  { value: 'avaliacao_fisica', label: professorManualContextLabels.avaliacao_fisica },
+  { value: 'montagem_treino', label: professorManualContextLabels.montagem_treino },
+  { value: 'uso_sistema', label: professorManualContextLabels.uso_sistema },
 ];
 
 const formatOptions: Array<{ value: ProfessorManualFormat; label: string }> = [
-  { value: 'dica_rapida', label: 'Dica rapida' },
-  { value: 'alerta', label: 'Alerta' },
-  { value: 'exemplo', label: 'Exemplo' },
-  { value: 'lembrete_metodo', label: 'Lembrete de metodo' },
-  { value: 'saiba_mais', label: 'Saiba mais' },
+  { value: 'dica_rapida', label: professorManualFormatLabels.dica_rapida },
+  { value: 'alerta', label: professorManualFormatLabels.alerta },
+  { value: 'exemplo', label: professorManualFormatLabels.exemplo },
+  { value: 'lembrete_metodo', label: professorManualFormatLabels.lembrete_metodo },
+  { value: 'saiba_mais', label: professorManualFormatLabels.saiba_mais },
 ];
 
 const defaultForm = (): ProfessorManualPayload => ({
@@ -28,10 +34,10 @@ const defaultForm = (): ProfessorManualPayload => ({
   content: '',
   format: 'dica_rapida',
   context: 'avaliacao_fisica',
-  audience: 'Todos',
-  sourceSection: 'Todos',
-  sourceItem: '',
-  sourceExcerpt: '',
+  servicoContratado: 'Todos',
+  setor: 'Todos',
+  item: '',
+  frase: '',
   productArea: '',
   productMoment: '',
   linkLabel: 'Abrir cadastro do manual',
@@ -41,6 +47,7 @@ const defaultForm = (): ProfessorManualPayload => ({
 });
 
 export default function SettingsProfessorManual() {
+  const { user } = useAuthStore();
   const [items, setItems] = useState<ProfessorManualItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -71,6 +78,13 @@ export default function SettingsProfessorManual() {
     void loadItems();
   }, []);
 
+  const contractTypeLabel = useMemo(() => {
+    const contractType = user?.professor?.contract?.type;
+    if (contractType === 'academy') return 'Academia';
+    if (contractType === 'personal') return 'Personal';
+    return 'Não identificado';
+  }, [user?.professor?.contract?.type]);
+
   const filteredItems = useMemo(() => {
     const term = filters.search.trim().toLowerCase();
 
@@ -87,10 +101,12 @@ export default function SettingsProfessorManual() {
           item.code,
           item.title,
           item.content,
+          item.servicoContratado,
           item.productArea,
           item.productMoment,
-          item.sourceItem,
-          item.sourceExcerpt,
+          item.setor,
+          item.item,
+          item.frase,
         ]
           .filter(Boolean)
           .join(' ')
@@ -98,9 +114,14 @@ export default function SettingsProfessorManual() {
         return haystack.includes(term);
       })
       .sort((a, b) => {
-        if (a.context !== b.context) return a.context.localeCompare(b.context);
+        if (a.context !== b.context) {
+          return professorManualContextLabels[a.context].localeCompare(
+            professorManualContextLabels[b.context],
+            PROFESSOR_MANUAL_LOCALE
+          );
+        }
         if (a.order !== b.order) return a.order - b.order;
-        return a.title.localeCompare(b.title);
+        return a.title.localeCompare(b.title, PROFESSOR_MANUAL_LOCALE);
       });
   }, [filters, items]);
 
@@ -124,10 +145,10 @@ export default function SettingsProfessorManual() {
       content: item.content,
       format: item.format,
       context: item.context,
-      audience: item.audience || '',
-      sourceSection: item.sourceSection || '',
-      sourceItem: item.sourceItem || '',
-      sourceExcerpt: item.sourceExcerpt || '',
+      servicoContratado: item.servicoContratado || '',
+      setor: item.setor || '',
+      item: item.item || '',
+      frase: item.frase || '',
       productArea: item.productArea,
       productMoment: item.productMoment || '',
       linkLabel: item.linkLabel || '',
@@ -139,8 +160,19 @@ export default function SettingsProfessorManual() {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!form.code.trim() || !form.title.trim() || !form.content.trim() || !form.productArea.trim()) {
-      setError('Preencha codigo, titulo, conteudo e ponto do produto.');
+
+    if (
+      !form.code.trim() ||
+      !form.title.trim() ||
+      !form.content.trim() ||
+      !form.productArea.trim() ||
+      !form.setor?.trim() ||
+      !form.item?.trim() ||
+      !form.frase?.trim()
+    ) {
+      setError(
+        'Preencha código, setor, item, frase, título no sistema, texto de apoio e ponto do produto.'
+      );
       return;
     }
 
@@ -181,7 +213,7 @@ export default function SettingsProfessorManual() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Manual do Professor</h1>
           <p className="text-sm text-muted-foreground">
-            Cadastro de conteudo contextual reutilizavel para avaliacao, montagem de treino e uso do sistema.
+            Estruture o cadastro com base na planilha original: Setor, Item e Frase.
           </p>
         </div>
         <Button variant="outline" onClick={loadItems}>
@@ -205,26 +237,37 @@ export default function SettingsProfessorManual() {
         </div>
       ) : null}
 
-      <div className="grid gap-6 xl:grid-cols-[420px_1fr]">
+      <div className="grid gap-6 xl:grid-cols-[460px_1fr]">
         <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">
               {editingId ? 'Editar item do manual' : 'Cadastrar item do manual'}
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Converta um trecho institucional em orientacao curta, contextual e reutilizavel dentro do app.
+              Cadastre primeiro a base do manual e depois ajuste como ela será exibida no sistema.
             </p>
           </div>
 
           <form className="mt-5 space-y-4" onSubmit={handleSubmit}>
+            <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+              <p className="font-semibold">Referência da planilha</p>
+              <p className="mt-1">
+                Use os cabeçalhos da planilha como base: <strong>Setor</strong>, <strong>Item</strong> e <strong>Frase</strong>.
+              </p>
+              <p className="mt-1">
+                Observação: configure o campo de serviço conforme o serviço contratado. Contrato atual:{' '}
+                <strong>{contractTypeLabel}</strong>.
+              </p>
+            </div>
+
             <div className="grid gap-3 md:grid-cols-2">
               <label className="space-y-1">
-                <span className="text-sm font-medium text-gray-700">Codigo</span>
+                <span className="text-sm font-medium text-gray-700">Código</span>
                 <input
                   value={form.code}
                   onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
                   className="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm"
-                  placeholder="EX: MONTAGEM_ALERTA_IMPROVISO"
+                  placeholder="EX: VESTIMENTA_PADRAO"
                 />
               </label>
               <label className="space-y-1">
@@ -239,108 +282,139 @@ export default function SettingsProfessorManual() {
               </label>
             </div>
 
-            <label className="space-y-1 block">
-              <span className="text-sm font-medium text-gray-700">Titulo</span>
-              <input
-                value={form.title}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
-                className="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm"
-                placeholder="Ex: Objetivo do periodo primeiro"
-              />
-            </label>
+            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900">Base do manual</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Campos equivalentes aos cabeçalhos e textos da planilha.
+                </p>
+              </div>
 
-            <div className="grid gap-3 md:grid-cols-2">
-              <label className="space-y-1">
-                <span className="text-sm font-medium text-gray-700">Contexto</span>
-                <select
-                  value={form.context}
-                  onChange={(e) => setForm({ ...form, context: e.target.value as ProfessorManualContext })}
-                  className="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm"
-                >
-                  {contextOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="space-y-1">
-                <span className="text-sm font-medium text-gray-700">Formato</span>
-                <select
-                  value={form.format}
-                  onChange={(e) => setForm({ ...form, format: e.target.value as ProfessorManualFormat })}
-                  className="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm"
-                >
-                  {formatOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <label className="space-y-1">
+                  <span className="text-sm font-medium text-gray-700">Setor</span>
+                  <input
+                    value={form.setor || ''}
+                    onChange={(e) => setForm({ ...form, setor: e.target.value })}
+                    className="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm"
+                    placeholder="Ex: Todos"
+                  />
+                </label>
+                <label className="space-y-1">
+                  <span className="text-sm font-medium text-gray-700">Item</span>
+                  <input
+                    value={form.item || ''}
+                    onChange={(e) => setForm({ ...form, item: e.target.value })}
+                    className="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm"
+                    placeholder="Ex: Vestimenta"
+                  />
+                </label>
+              </div>
 
-            <label className="space-y-1 block">
-              <span className="text-sm font-medium text-gray-700">Conteudo curto</span>
-              <textarea
-                value={form.content}
-                onChange={(e) => setForm({ ...form, content: e.target.value })}
-                className="min-h-[110px] w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                placeholder="Frase curta e orientativa para o momento da acao."
-              />
-            </label>
-
-            <div className="grid gap-3 md:grid-cols-2">
-              <label className="space-y-1">
-                <span className="text-sm font-medium text-gray-700">Ponto do produto</span>
-                <input
-                  value={form.productArea}
-                  onChange={(e) => setForm({ ...form, productArea: e.target.value })}
-                  className="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm"
-                  placeholder="Ex: workout_builder_liberacao"
+              <label className="mt-4 block space-y-1">
+                <span className="text-sm font-medium text-gray-700">Frase</span>
+                <textarea
+                  value={form.frase || ''}
+                  onChange={(e) => setForm({ ...form, frase: e.target.value })}
+                  className="min-h-[110px] w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                  placeholder="Ex: Vestimenta: Estar sempre uniformizado durante atendimento..."
                 />
               </label>
-              <label className="space-y-1">
-                <span className="text-sm font-medium text-gray-700">Momento da orientacao</span>
-                <input
-                  value={form.productMoment || ''}
-                  onChange={(e) => setForm({ ...form, productMoment: e.target.value })}
-                  className="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm"
-                  placeholder="Ex: antes de liberar a semana"
-                />
-              </label>
-            </div>
 
-            <div className="grid gap-3 md:grid-cols-2">
-              <label className="space-y-1">
-                <span className="text-sm font-medium text-gray-700">Publico / setor</span>
+              <label className="mt-4 block space-y-1">
+                <span className="text-sm font-medium text-gray-700">Serviço contratado</span>
                 <input
-                  value={form.audience || ''}
-                  onChange={(e) => setForm({ ...form, audience: e.target.value })}
+                  value={form.servicoContratado || ''}
+                  onChange={(e) => setForm({ ...form, servicoContratado: e.target.value })}
                   className="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm"
                   placeholder="Ex: Todos ou Personal|Consultoria"
                 />
-              </label>
-              <label className="space-y-1">
-                <span className="text-sm font-medium text-gray-700">Origem na planilha</span>
-                <input
-                  value={form.sourceItem || ''}
-                  onChange={(e) => setForm({ ...form, sourceItem: e.target.value })}
-                  className="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm"
-                  placeholder="Ex: Planejamento"
-                />
+                <span className="block text-xs text-muted-foreground">
+                  Use este campo quando a aplicação do item depender do serviço contratado.
+                </span>
               </label>
             </div>
 
-            <label className="space-y-1 block">
-              <span className="text-sm font-medium text-gray-700">Trecho-base do manual</span>
-              <textarea
-                value={form.sourceExcerpt || ''}
-                onChange={(e) => setForm({ ...form, sourceExcerpt: e.target.value })}
-                className="min-h-[96px] w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                placeholder="Frase original da planilha que sustenta a orientacao."
-              />
-            </label>
+            <div className="rounded-xl border border-gray-200 bg-white p-4">
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900">Aplicação no sistema</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Configure como a frase do manual será transformada em apoio contextual dentro do app.
+                </p>
+              </div>
+
+              <label className="mt-4 block space-y-1">
+                <span className="text-sm font-medium text-gray-700">Título no sistema</span>
+                <input
+                  value={form.title}
+                  onChange={(e) => setForm({ ...form, title: e.target.value })}
+                  className="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm"
+                  placeholder="Ex: Objetivo do período primeiro"
+                />
+              </label>
+
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <label className="space-y-1">
+                  <span className="text-sm font-medium text-gray-700">Contexto</span>
+                  <select
+                    value={form.context}
+                    onChange={(e) => setForm({ ...form, context: e.target.value as ProfessorManualContext })}
+                    className="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm"
+                  >
+                    {contextOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="space-y-1">
+                  <span className="text-sm font-medium text-gray-700">Formato</span>
+                  <select
+                    value={form.format}
+                    onChange={(e) => setForm({ ...form, format: e.target.value as ProfessorManualFormat })}
+                    className="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm"
+                  >
+                    {formatOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              <label className="mt-4 block space-y-1">
+                <span className="text-sm font-medium text-gray-700">Texto de apoio no sistema</span>
+                <textarea
+                  value={form.content}
+                  onChange={(e) => setForm({ ...form, content: e.target.value })}
+                  className="min-h-[110px] w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                  placeholder="Frase curta e orientativa para o momento da ação."
+                />
+              </label>
+
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <label className="space-y-1">
+                  <span className="text-sm font-medium text-gray-700">Ponto do produto</span>
+                  <input
+                    value={form.productArea}
+                    onChange={(e) => setForm({ ...form, productArea: e.target.value })}
+                    className="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm"
+                    placeholder="Ex: workout_builder_liberacao"
+                  />
+                </label>
+                <label className="space-y-1">
+                  <span className="text-sm font-medium text-gray-700">Momento da orientação</span>
+                  <input
+                    value={form.productMoment || ''}
+                    onChange={(e) => setForm({ ...form, productMoment: e.target.value })}
+                    className="h-10 w-full rounded-lg border border-gray-300 px-3 text-sm"
+                    placeholder="Ex: antes de liberar a semana"
+                  />
+                </label>
+              </div>
+            </div>
 
             <div className="grid gap-3 md:grid-cols-2">
               <label className="space-y-1">
@@ -375,11 +449,11 @@ export default function SettingsProfessorManual() {
 
             <div className="flex flex-wrap gap-2">
               <Button type="submit" isLoading={saving}>
-                {editingId ? 'Salvar alteracoes' : 'Cadastrar item'}
+                {editingId ? 'Salvar alterações' : 'Cadastrar item'}
               </Button>
               {editingId ? (
                 <Button type="button" variant="outline" onClick={resetForm}>
-                  Cancelar edicao
+                  Cancelar edição
                 </Button>
               ) : null}
             </div>
@@ -425,7 +499,7 @@ export default function SettingsProfessorManual() {
               value={filters.search}
               onChange={(e) => setFilters({ ...filters, search: e.target.value })}
               className="h-10 min-w-[260px] flex-1 rounded-lg border border-gray-300 px-3 text-sm"
-              placeholder="Buscar por titulo, trecho, codigo ou ponto do produto"
+              placeholder="Buscar por setor, item, frase, título, serviço ou ponto do produto"
             />
           </div>
 
@@ -433,13 +507,13 @@ export default function SettingsProfessorManual() {
             <table className="min-w-full text-sm">
               <thead>
                 <tr className="border-b text-left text-xs uppercase text-gray-500">
-                  <th className="px-3 py-2">Contexto</th>
-                  <th className="px-3 py-2">Formato</th>
-                  <th className="px-3 py-2">Titulo</th>
-                  <th className="px-3 py-2">Produto</th>
+                  <th className="px-3 py-2">Setor</th>
+                  <th className="px-3 py-2">Item</th>
+                  <th className="px-3 py-2">Frase</th>
+                  <th className="px-3 py-2">Aplicação</th>
                   <th className="px-3 py-2 text-center">Ordem</th>
                   <th className="px-3 py-2 text-center">Status</th>
-                  <th className="px-3 py-2 text-right">Acoes</th>
+                  <th className="px-3 py-2 text-right">Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -458,14 +532,25 @@ export default function SettingsProfessorManual() {
                 ) : (
                   filteredItems.map((item) => (
                     <tr key={item.id} className="border-b align-top">
-                      <td className="px-3 py-3 text-gray-700">{contextOptions.find((option) => option.value === item.context)?.label || item.context}</td>
-                      <td className="px-3 py-3 text-gray-700">{formatOptions.find((option) => option.value === item.format)?.label || item.format}</td>
+                      <td className="px-3 py-3 text-gray-700">
+                        <div>{item.setor || '-'}</div>
+                        {item.servicoContratado ? (
+                          <div className="mt-1 text-xs text-muted-foreground">{item.servicoContratado}</div>
+                        ) : null}
+                      </td>
+                      <td className="px-3 py-3 text-gray-700">{item.item || '-'}</td>
                       <td className="px-3 py-3">
-                        <div className="font-semibold text-gray-900">{item.title}</div>
-                        <div className="mt-1 max-w-[420px] text-xs text-muted-foreground">{item.content}</div>
+                        <div className="max-w-[420px] text-sm text-gray-700">{item.frase || '-'}</div>
                       </td>
                       <td className="px-3 py-3 text-gray-700">
-                        <div>{item.productArea}</div>
+                        <div className="font-semibold text-gray-900">{item.title}</div>
+                        <div className="mt-1 text-xs text-muted-foreground">{item.content}</div>
+                        <div className="mt-2 text-xs text-muted-foreground">
+                          {contextOptions.find((option) => option.value === item.context)?.label || item.context}
+                          {' | '}
+                          {formatOptions.find((option) => option.value === item.format)?.label || item.format}
+                        </div>
+                        <div className="mt-1 text-xs text-muted-foreground">{item.productArea}</div>
                         {item.productMoment ? (
                           <div className="mt-1 text-xs text-muted-foreground">{item.productMoment}</div>
                         ) : null}

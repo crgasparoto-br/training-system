@@ -1,0 +1,4 @@
+﻿
+> @corrida/web@0.1.0 type-check D:\SolverIT\sistema_acesso\apps\web
+> tsc --noEmit
+

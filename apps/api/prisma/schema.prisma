@@ -108,6 +108,7 @@ model Contract {
 
   professores          Professor[]
   collaboratorFunctions CollaboratorFunctionOption[]
+  hourlyRateLevels     HourlyRateLevel[]
   trainingParameters   TrainingParameter[]
   exerciseLibrary      ExerciseLibrary[]
   assessmentTypes      AssessmentType[]
@@ -173,6 +174,7 @@ model Professor {
   operationalRoleIds   String[]      @default([])
   hourlyRates          Json?
   hasSignedContract    Boolean       @default(false)
+  signedContractDocumentUrl String?
 
   // Relacionamentos
   managedCollaborators Professor[] @relation("ProfessorResponsibleManager")
@@ -883,6 +885,24 @@ model TrainingParameter {
   @@index([contractId, category])
 }
 
+model HourlyRateLevel {
+  id         String   @id @default(cuid())
+  contractId String
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  code       String
+  label      String
+  minValue   Decimal? @db.Decimal(10, 2)
+  maxValue   Decimal? @db.Decimal(10, 2)
+  order      Int
+  isActive   Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([contractId, code])
+  @@index([contractId, order])
+}
+
 model SubjectiveScaleItem {
   id         String              @id @default(cuid())
   contractId String
@@ -910,10 +930,10 @@ model ProfessorManualItem {
   content       String               @db.Text
   format        ProfessorManualFormat
   context       ProfessorManualContext
-  audience      String?
-  sourceSection String?
-  sourceItem    String?
-  sourceExcerpt String?              @db.Text
+  servicoContratado String?
+  setor             String?
+  item              String?
+  frase             String?          @db.Text
   productArea   String
   productMoment String?
   linkLabel     String?

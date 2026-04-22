@@ -9,6 +9,7 @@ export default function Settings() {
     user?.type === 'professor' &&
     user?.professor?.role === 'master' &&
     user?.professor?.contract?.type === 'academy';
+  const canManageHourlyRateLevels = canManageCollaboratorFunctions;
   return (
     <div className="space-y-6">
       <div>
@@ -69,6 +70,20 @@ export default function Settings() {
             </div>
           </Link>
         )}
+        {canManageHourlyRateLevels && (
+          <Link
+            to="/settings/hourly-rate-levels"
+            className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm transition hover:border-blue-300 hover:shadow"
+          >
+            <h2 className="text-lg font-semibold text-gray-900">Níveis de Valor/Hora</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Configure as faixas usadas para classificar o nível do valor/hora dos colaboradores.
+            </p>
+            <div className="mt-4 inline-flex items-center text-sm font-medium text-blue-600">
+              Acessar níveis &rarr;
+            </div>
+          </Link>
+        )}
         <Link
           to="/settings/psr-pse"
           className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm transition hover:border-blue-300 hover:shadow"
@@ -87,7 +102,7 @@ export default function Settings() {
         >
           <h2 className="text-lg font-semibold text-gray-900">Manual do Professor</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Cadastro do conteudo institucional e contextual usado nos fluxos de avaliacao e treino.
+            Cadastro do conteúdo institucional e contextual usado nos fluxos de avaliação e treino.
           </p>
           <div className="mt-4 inline-flex items-center text-sm font-medium text-blue-600">
             Acessar manual &rarr;

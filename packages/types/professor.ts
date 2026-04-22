@@ -14,16 +14,24 @@ export type ProfessorMaritalStatus =
   | 'widowed'
   | 'other';
 
-export interface ProfessorHourlyRateBand {
-  bronze?: number | null;
-  silver?: number | null;
-  gold?: number | null;
+export type HourlyRateLevelCode = 'bronze' | 'silver' | 'gold';
+
+export interface HourlyRateLevel {
+  id: string;
+  code: HourlyRateLevelCode;
+  label: string;
+  minValue?: number | null;
+  maxValue?: number | null;
+  order: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ProfessorHourlyRates {
-  personal: ProfessorHourlyRateBand;
-  consulting: ProfessorHourlyRateBand;
-  evaluation: ProfessorHourlyRateBand;
+  personal?: number | null;
+  consulting?: number | null;
+  evaluation?: number | null;
 }
 
 export interface CreateProfessorRequest {
@@ -54,6 +62,7 @@ export interface CreateProfessorRequest {
   operationalRoleIds?: string[];
   hourlyRates?: ProfessorHourlyRates;
   hasSignedContract?: boolean;
+  signedContractDocumentUrl?: string;
   collaboratorFunctionId: string;
   responsibleManagerId?: string;
 }
@@ -86,6 +95,7 @@ export interface UpdateProfessorRequest {
   operationalRoleIds?: string[];
   hourlyRates?: ProfessorHourlyRates;
   hasSignedContract?: boolean;
+  signedContractDocumentUrl?: string | null;
   collaboratorFunctionId?: string;
   responsibleManagerId?: string;
 }
@@ -100,6 +110,7 @@ export interface ProfessorSummary {
   operationalRoleIds: string[];
   hourlyRates?: ProfessorHourlyRates | null;
   hasSignedContract: boolean;
+  signedContractDocumentUrl?: string | null;
   user: {
     id: string;
     email: string;

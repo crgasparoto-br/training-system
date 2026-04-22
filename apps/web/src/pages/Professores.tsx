@@ -2,16 +2,19 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Camera, Trash2, Upload } from 'lucide-react';
+import { Camera, FileText, Upload } from 'lucide-react';
 import { collaboratorFunctionService } from '../services/collaborator-function.service';
+import { hourlyRateLevelService } from '../services/hourly-rate-level.service';
 import { professorService } from '../services/professor.service';
 import type {
   CollaboratorFunctionOption,
+  HourlyRateLevel,
   ProfessorHourlyRates,
   ProfessorMaritalStatus,
   ProfessorSummary,
 } from '@corrida/types';
 import { useAuthStore } from '../stores/useAuthStore';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../components/ui/Accordion';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
@@ -42,27 +45,24 @@ const createProfessorSchema = z.object({
   avatar: z.string().trim().url('URL da foto inválida').optional(),
   admissionDate: z.string().optional(),
   currentStatus: z.string().optional(),
+  signedContractDocumentUrl: z.string().trim().url('URL do contrato inválida').optional(),
   operationalRoleIds: z.array(z.string()).optional(),
   hourlyRates: z.object({
-    personal: z.object({
-      bronze: z.string().optional(),
-      silver: z.string().optional(),
-      gold: z.string().optional(),
-    }),
-    consulting: z.object({
-      bronze: z.string().optional(),
-      silver: z.string().optional(),
-      gold: z.string().optional(),
-    }),
-    evaluation: z.object({
-      bronze: z.string().optional(),
-      silver: z.string().optional(),
-      gold: z.string().optional(),
-    }),
+    personal: z.string().optional(),
+    consulting: z.string().optional(),
+    evaluation: z.string().optional(),
   }),
   hasSignedContract: z.boolean().optional(),
   collaboratorFunctionId: z.string().trim().min(1, 'Selecione uma função'),
   responsibleManagerId: z.string().trim().optional(),
+}).superRefine((data, ctx) => {
+  if (data.hasSignedContract && !data.signedContractDocumentUrl?.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['signedContractDocumentUrl'],
+      message: professoresCopy.signedContractDocumentMissing,
+    });
+  }
 });
 
 const editProfessorSchema = z.object({
@@ -96,27 +96,24 @@ const editProfessorSchema = z.object({
   avatar: z.string().trim().url('URL da foto inválida').optional(),
   admissionDate: z.string().optional(),
   currentStatus: z.string().optional(),
+  signedContractDocumentUrl: z.string().trim().url('URL do contrato inválida').optional(),
   operationalRoleIds: z.array(z.string()).optional(),
   hourlyRates: z.object({
-    personal: z.object({
-      bronze: z.string().optional(),
-      silver: z.string().optional(),
-      gold: z.string().optional(),
-    }),
-    consulting: z.object({
-      bronze: z.string().optional(),
-      silver: z.string().optional(),
-      gold: z.string().optional(),
-    }),
-    evaluation: z.object({
-      bronze: z.string().optional(),
-      silver: z.string().optional(),
-      gold: z.string().optional(),
-    }),
+    personal: z.string().optional(),
+    consulting: z.string().optional(),
+    evaluation: z.string().optional(),
   }),
   hasSignedContract: z.boolean().optional(),
   collaboratorFunctionId: z.string().trim().min(1, 'Selecione uma função'),
   responsibleManagerId: z.string().trim().optional(),
+}).superRefine((data, ctx) => {
+  if (data.hasSignedContract && !data.signedContractDocumentUrl?.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['signedContractDocumentUrl'],
+      message: professoresCopy.signedContractDocumentMissing,
+    });
+  }
 });
 
 type CreateProfessorForm = z.infer<typeof createProfessorSchema>;
@@ -135,110 +132,18 @@ const maritalStatusOptions: Array<{
   { value: 'other', label: professoresCopy.maritalStatusOther },
 ];
 
+const currentStatusOptions = [
+  { value: 'Ativo', label: professoresCopy.currentStatusActive },
+  { value: 'Desligado', label: professoresCopy.currentStatusInactive },
+] as const;
+
 const hourlyRateSections = [
   { key: 'personal', label: professoresCopy.hourlyRatePersonalLabel },
   { key: 'consulting', label: professoresCopy.hourlyRateConsultingLabel },
   { key: 'evaluation', label: professoresCopy.hourlyRateEvaluationLabel },
 ] as const;
 
-const hourlyRateBands = [
-  { key: 'bronze', label: professoresCopy.hourlyRateBronzeLabel },
-  { key: 'silver', label: professoresCopy.hourlyRateSilverLabel },
-  { key: 'gold', label: professoresCopy.hourlyRateGoldLabel },
-] as const;
-
-const cadastroWorkflowCards = [
-  {
-    badge: 'Colaborador',
-    title: 'Preenchimento do colaborador',
-    description:
-      'Organiza os dados civis, contato, endereco, curriculo, Lattes e o bloco juridico-financeiro descritos na planilha.',
-  },
-  {
-    badge: 'Gestao',
-    title: 'Configuracao e validacao da gestao',
-    description:
-      'Concentra funcao operacional, gestor responsavel, admissao, status operacional, faixas de valor e confirmacao contratual.',
-  },
-] as const;
-
-const cadastroImplementedItems = [
-  'Dados pessoais, contato, documentos e endereco.',
-  'Foto profissional com upload de arquivo.',
-  'Curriculo resumido, CREF e link do Lattes.',
-  'CNPJ, banco, agencia, conta, PIX e trilha de validacao.',
-  'Funcao operacional, gestor responsavel e valores por faixa.',
-  'Confirmacao de contrato assinado e acao de ativar/desativar colaborador.',
-] as const;
-
-const cadastroEvaluationItems = [
-  'Vinculo futuro com catalogo de venda e apoio visual do perfil profissional.',
-  'Upload do contrato assinado em arquivo, alem da confirmacao operacional.',
-  'Horarios disponiveis e alunos atendidos vinculados com agenda/calendario.',
-] as const;
-
-function FormSectionIntro({
-  badge,
-  title,
-  description,
-  accent = false,
-}: {
-  badge: string;
-  title: string;
-  description: string;
-  accent?: boolean;
-}) {
-  return (
-    <div
-      className={`rounded-2xl border px-4 py-4 text-sm ${
-        accent ? 'border-primary/20 bg-primary/5' : 'border-border bg-muted/40'
-      }`}
-    >
-      <span
-        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
-          accent ? 'bg-primary/10 text-primary' : 'bg-secondary text-secondary-foreground'
-        }`}
-      >
-        {badge}
-      </span>
-      <p className="mt-3 font-medium text-foreground">{title}</p>
-      <p className="mt-1 text-muted-foreground">{description}</p>
-    </div>
-  );
-}
-
-function ScopeListCard({
-  title,
-  description,
-  items,
-  accent = false,
-}: {
-  title: string;
-  description: string;
-  items: readonly string[];
-  accent?: boolean;
-}) {
-  return (
-    <div
-      className={`rounded-2xl border p-4 ${
-        accent ? 'border-warning/30 bg-warning/10' : 'border-border bg-card'
-      }`}
-    >
-      <p className="text-sm font-semibold text-foreground">{title}</p>
-      <p className="mt-1 text-sm text-muted-foreground">{description}</p>
-      <div className="mt-4 space-y-2">
-        {items.map((item) => (
-          <div
-            key={item}
-            className="rounded-xl border border-border/70 bg-background/80 px-3 py-2 text-sm text-foreground"
-          >
-            {item}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+const baseUrl = import.meta.env.VITE_API_URL || '';
 
 function getAvatarInitials(name?: string | null) {
   const parts = (name || '')
@@ -263,73 +168,128 @@ function resolveAvatarUrl(avatar?: string | null) {
     return avatar;
   }
 
-  const baseUrl = import.meta.env.VITE_API_URL || window.location.origin;
-  if (avatar.startsWith('/')) {
-    return `${baseUrl}${avatar}`;
-  }
-
   return `${baseUrl}/${avatar}`;
-}
-
-function CollaboratorAvatar({
-  name,
-  avatar,
-  size = 'md',
-}: {
-  name?: string | null;
-  avatar?: string | null;
-  size?: 'sm' | 'md' | 'lg';
-}) {
-  const resolvedAvatar = resolveAvatarUrl(avatar);
-  const sizeClassName =
-    size === 'sm'
-      ? 'h-12 w-12 text-sm'
-      : size === 'lg'
-        ? 'h-32 w-32 text-3xl'
-        : 'h-16 w-16 text-lg';
-
-  return (
-    <div
-      className={`overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-primary/10 via-background to-secondary/40 ${sizeClassName}`}
-    >
-      {resolvedAvatar ? (
-        <img
-          src={resolvedAvatar}
-          alt={name ? `Foto de ${name}` : 'Foto do colaborador'}
-          className="h-full w-full object-cover"
-        />
-      ) : (
-        <div className="flex h-full w-full items-center justify-center font-semibold text-foreground/70">
-          {getAvatarInitials(name)}
-        </div>
-      )}
-    </div>
-  );
 }
 
 function AvatarUploadField({
   name,
   avatar,
+  size = 'md',
+  isUploading,
   onUploadClick,
   onRemove,
-  isUploading,
 }: {
   name?: string;
   avatar?: string;
+  size?: 'sm' | 'md' | 'lg';
+  isUploading: boolean;
   onUploadClick: () => void;
   onRemove: () => void;
-  isUploading: boolean;
 }) {
-  const hasAvatar = !!avatar;
+  const resolvedAvatar = resolveAvatarUrl(avatar);
+  const hasAvatar = !!resolvedAvatar;
+  const sizeClassName =
+    size === 'sm' ? 'h-12 w-12 text-sm' : size === 'lg' ? 'h-20 w-20 text-lg' : 'h-16 w-16 text-lg';
 
   return (
     <div className="rounded-2xl border border-border bg-card p-4">
-      <div className="mb-3 flex items-start justify-between gap-3">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-4">
+          <div
+            className={`relative flex items-center justify-center overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-primary/10 via-background to-secondary/40 font-semibold text-foreground ${sizeClassName}`}
+          >
+            {hasAvatar ? (
+              <img src={resolvedAvatar} alt={name || professoresCopy.nameLabel} className="h-full w-full object-cover" />
+            ) : (
+              <span>{getAvatarInitials(name)}</span>
+            )}
+            {!hasAvatar && !isUploading && (
+              <div className="pointer-events-none absolute inset-x-0 top-3 flex justify-center text-white/90">
+                <Camera size={18} />
+              </div>
+            )}
+          </div>
+          <div>
+            <p className="text-sm font-medium text-foreground">Foto do colaborador</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {hasAvatar ? 'Substitua a foto atual quando necessário.' : 'Envie uma foto para facilitar a identificação do colaborador.'}
+            </p>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onUploadClick}
+            disabled={isUploading}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <Upload size={14} />
+            {hasAvatar ? 'Trocar foto' : 'Enviar foto'}
+          </button>
+          <button
+            type="button"
+            onClick={onRemove}
+            disabled={!hasAvatar || isUploading}
+            className="inline-flex h-10 items-center justify-center rounded-full border border-border px-4 text-sm font-medium text-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Remover foto
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CollaboratorAvatar({
+  name,
+  avatar,
+}: {
+  name?: string | null;
+  avatar?: string | null;
+}) {
+  const resolvedAvatar = resolveAvatarUrl(avatar);
+
+  return (
+    <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-primary/10 via-background to-secondary/40 font-semibold text-foreground">
+      {resolvedAvatar ? (
+        <img src={resolvedAvatar} alt={name || professoresCopy.nameLabel} className="h-full w-full object-cover" />
+      ) : (
+        <span>{getAvatarInitials(name)}</span>
+      )}
+    </div>
+  );
+}
+
+function SignedContractUploadField({
+  documentUrl,
+  onUploadClick,
+  onRemove,
+  isUploading,
+  error,
+  required,
+}: {
+  documentUrl?: string;
+  onUploadClick: () => void;
+  onRemove: () => void;
+  isUploading: boolean;
+  error?: string;
+  required?: boolean;
+}) {
+  const hasDocument = !!documentUrl;
+
+  return (
+    <div className="rounded-2xl border border-border bg-card p-4">
+      <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-medium text-foreground">Foto do colaborador</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Envie uma foto frontal. Passe o mouse sobre a imagem para trocar ou remover.
-          </p>
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-medium text-foreground">{professoresCopy.signedContractDocumentLabel}</p>
+            {required ? (
+              <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-medium text-destructive">
+                Obrigatório
+              </span>
+            ) : null}
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">{professoresCopy.signedContractDocumentHint}</p>
         </div>
         {isUploading && (
           <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-medium text-primary">
@@ -337,36 +297,52 @@ function AvatarUploadField({
           </span>
         )}
       </div>
-      <div className="group relative mx-auto h-32 w-32 overflow-hidden rounded-[28px] border border-border bg-muted/40 shadow-sm">
-        <CollaboratorAvatar name={name} avatar={avatar} size="lg" />
-        <div className="absolute inset-0 flex items-end justify-center bg-gradient-to-t from-black/75 via-black/20 to-transparent p-3 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={onUploadClick}
-              disabled={isUploading}
-              className="inline-flex h-9 items-center justify-center gap-2 rounded-full bg-white/92 px-3 text-xs font-medium text-slate-900 shadow-sm transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <Upload size={14} />
-              {hasAvatar ? 'Trocar' : 'Enviar'}
-            </button>
-            <button
-              type="button"
-              onClick={onRemove}
-              disabled={!hasAvatar || isUploading}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/16 text-white shadow-sm transition hover:bg-white/24 disabled:cursor-not-allowed disabled:opacity-40"
-              aria-label="Remover foto"
-            >
-              <Trash2 size={14} />
-            </button>
+      <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-dashed border-border/80 bg-muted/30 p-4 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+            <FileText size={18} />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-foreground">
+              {hasDocument ? 'PDF anexado' : 'Nenhum PDF enviado'}
+            </p>
+            {hasDocument ? (
+              <a
+                href={documentUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-1 inline-flex text-xs font-medium text-primary underline-offset-4 hover:underline"
+              >
+                {professoresCopy.signedContractDocumentView}
+              </a>
+            ) : (
+              <p className="mt-1 text-xs text-muted-foreground">Arquivo aceito: PDF até 10 MB.</p>
+            )}
           </div>
         </div>
-        {!hasAvatar && !isUploading && (
-          <div className="pointer-events-none absolute inset-x-0 top-3 flex justify-center text-white/90">
-            <Camera size={18} />
-          </div>
-        )}
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onUploadClick}
+            disabled={isUploading}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <Upload size={14} />
+            {hasDocument
+              ? professoresCopy.signedContractDocumentReplace
+              : professoresCopy.signedContractDocumentUpload}
+          </button>
+          <button
+            type="button"
+            onClick={onRemove}
+            disabled={!hasDocument || isUploading}
+            className="inline-flex h-10 items-center justify-center rounded-full border border-border px-4 text-sm font-medium text-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {professoresCopy.signedContractDocumentRemove}
+          </button>
+        </div>
       </div>
+      {error ? <p className="mt-2 text-sm text-destructive">{error}</p> : null}
     </div>
   );
 }
@@ -374,23 +350,109 @@ function AvatarUploadField({
 const textareaClassName =
   'flex min-h-[120px] w-full rounded-lg border border-input bg-card px-4 py-3 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
 
-type HourlyRateFormBand = {
-  bronze?: string;
-  silver?: string;
-  gold?: string;
-};
+const hourlyRateInputClassName =
+  'h-11 w-full rounded-2xl border border-border bg-white px-4 text-sm text-foreground shadow-sm outline-none transition focus:border-primary/40 focus:ring-2 focus:ring-primary/15';
 
 type HourlyRatesForm = {
-  personal: HourlyRateFormBand;
-  consulting: HourlyRateFormBand;
-  evaluation: HourlyRateFormBand;
+  personal?: string;
+  consulting?: string;
+  evaluation?: string;
 };
+
+type HourlyRateSectionKey = keyof HourlyRatesForm;
+type HourlyRateErrors = Partial<Record<HourlyRateSectionKey, string | undefined>>;
+
+function hasConfiguredHourlyRateLevels(levels: HourlyRateLevel[]) {
+  return levels.length > 0 && levels.every((level) => typeof level.minValue === 'number' && typeof level.maxValue === 'number');
+}
+
+function getHourlyRateLevelLabel(value: string | undefined, levels: HourlyRateLevel[]) {
+  const parsedValue = parseHourlyRateValue(value);
+
+  if (parsedValue === null) {
+    return professoresCopy.hourlyRatesNotConfigured;
+  }
+
+  if (!hasConfiguredHourlyRateLevels(levels)) {
+    return professoresCopy.hourlyRateLevelPendingConfig;
+  }
+
+  const matchingLevel = levels.find(
+    (level) =>
+      typeof level.minValue === 'number' &&
+      typeof level.maxValue === 'number' &&
+      parsedValue >= level.minValue &&
+      parsedValue <= level.maxValue
+  );
+
+  return matchingLevel?.label ?? professoresCopy.hourlyRateLevelUnclassified;
+}
+
+function HourlyRatesMatrix({
+  errors,
+  getInputProps,
+  values,
+  levels,
+}: {
+  errors?: HourlyRateErrors;
+  getInputProps: (sectionKey: HourlyRateSectionKey) => Record<string, unknown>;
+  values?: HourlyRatesForm;
+  levels: HourlyRateLevel[];
+}) {
+  return (
+    <div className="rounded-2xl border border-border bg-card p-4">
+      <p className="text-sm font-medium text-foreground">{professoresCopy.hourlyRatesTitle}</p>
+      <p className="mt-1 text-xs text-muted-foreground">{professoresCopy.hourlyRatesDescription}</p>
+      <p className="mt-2 text-xs text-muted-foreground">{professoresCopy.hourlyRateLevelHint}</p>
+
+      <div className="mt-4 overflow-hidden rounded-[1.25rem] border border-border/70 bg-background/80">
+        <div className="grid grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,0.9fr)] gap-px bg-border/70">
+          <div className="bg-secondary/60 px-4 py-3 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+            Frente
+          </div>
+          <div className="bg-secondary/60 px-4 py-3 text-center text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+            {professoresCopy.hourlyRateValueColumnLabel}
+          </div>
+          <div className="bg-secondary/60 px-4 py-3 text-center text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+            {professoresCopy.hourlyRateLevelColumnLabel}
+          </div>
+
+          {hourlyRateSections.map((section) => (
+            <div key={section.key} className="contents">
+              <div className="flex items-center bg-white px-4 py-4 text-sm font-medium text-foreground">
+                {`Valor/hora ${section.label.toLowerCase()}`}
+              </div>
+              <div className="bg-white px-3 py-3">
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  inputMode="decimal"
+                  className={hourlyRateInputClassName}
+                  {...getInputProps(section.key)}
+                />
+                {errors?.[section.key] && (
+                  <p className="mt-1 text-xs text-destructive">{errors[section.key]}</p>
+                )}
+              </div>
+              <div className="flex items-center justify-center bg-white px-3 py-3">
+                <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+                  {getHourlyRateLevelLabel(values?.[section.key], levels)}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function createDefaultHourlyRatesForm(): HourlyRatesForm {
   return {
-    personal: { bronze: '', silver: '', gold: '' },
-    consulting: { bronze: '', silver: '', gold: '' },
-    evaluation: { bronze: '', silver: '', gold: '' },
+    personal: '',
+    consulting: '',
+    evaluation: '',
   };
 }
 
@@ -477,47 +539,21 @@ function sanitizeHourlyRates(hourlyRates?: HourlyRatesForm): ProfessorHourlyRate
   }
 
   const normalized: ProfessorHourlyRates = {
-    personal: {
-      bronze: parseHourlyRateValue(hourlyRates.personal.bronze),
-      silver: parseHourlyRateValue(hourlyRates.personal.silver),
-      gold: parseHourlyRateValue(hourlyRates.personal.gold),
-    },
-    consulting: {
-      bronze: parseHourlyRateValue(hourlyRates.consulting.bronze),
-      silver: parseHourlyRateValue(hourlyRates.consulting.silver),
-      gold: parseHourlyRateValue(hourlyRates.consulting.gold),
-    },
-    evaluation: {
-      bronze: parseHourlyRateValue(hourlyRates.evaluation.bronze),
-      silver: parseHourlyRateValue(hourlyRates.evaluation.silver),
-      gold: parseHourlyRateValue(hourlyRates.evaluation.gold),
-    },
+    personal: parseHourlyRateValue(hourlyRates.personal),
+    consulting: parseHourlyRateValue(hourlyRates.consulting),
+    evaluation: parseHourlyRateValue(hourlyRates.evaluation),
   };
 
-  const hasValue = Object.values(normalized).some((rateBand) =>
-    Object.values(rateBand).some((value) => typeof value === 'number')
-  );
+  const hasValue = Object.values(normalized).some((value) => typeof value === 'number');
 
   return hasValue ? normalized : undefined;
 }
 
 function getHourlyRatesFormValue(hourlyRates?: ProfessorSummary['hourlyRates']): HourlyRatesForm {
   return {
-    personal: {
-      bronze: hourlyRates?.personal?.bronze?.toString() ?? '',
-      silver: hourlyRates?.personal?.silver?.toString() ?? '',
-      gold: hourlyRates?.personal?.gold?.toString() ?? '',
-    },
-    consulting: {
-      bronze: hourlyRates?.consulting?.bronze?.toString() ?? '',
-      silver: hourlyRates?.consulting?.silver?.toString() ?? '',
-      gold: hourlyRates?.consulting?.gold?.toString() ?? '',
-    },
-    evaluation: {
-      bronze: hourlyRates?.evaluation?.bronze?.toString() ?? '',
-      silver: hourlyRates?.evaluation?.silver?.toString() ?? '',
-      gold: hourlyRates?.evaluation?.gold?.toString() ?? '',
-    },
+    personal: hourlyRates?.personal?.toString() ?? '',
+    consulting: hourlyRates?.consulting?.toString() ?? '',
+    evaluation: hourlyRates?.evaluation?.toString() ?? '',
   };
 }
 
@@ -530,6 +566,16 @@ function formatCurrencyValue(value?: number | null) {
     style: 'currency',
     currency: 'BRL',
   });
+}
+
+function formatHourlyRateSummary(value: number | null | undefined, levels: HourlyRateLevel[]) {
+  const currencyValue = formatCurrencyValue(value);
+  const levelLabel = getHourlyRateLevelLabel(
+    typeof value === 'number' ? value.toString() : undefined,
+    levels
+  );
+
+  return `${currencyValue} | ${professoresCopy.hourlyRateLevelColumnLabel}: ${levelLabel}`;
 }
 
 function getLegalFinancialStatus(profile: ProfessorSummary['user']['profile']) {
@@ -611,6 +657,7 @@ function sanitizeCreateProfessorPayload(data: CreateProfessorForm) {
   const avatar = data.avatar?.trim();
   const admissionDate = data.admissionDate?.trim();
   const currentStatus = data.currentStatus?.trim();
+  const signedContractDocumentUrl = data.signedContractDocumentUrl?.trim();
   const responsibleManagerId = data.responsibleManagerId?.trim();
   const operationalRoleIds = data.collaboratorFunctionId ? [data.collaboratorFunctionId] : [];
   const hourlyRates = sanitizeHourlyRates(data.hourlyRates);
@@ -639,6 +686,7 @@ function sanitizeCreateProfessorPayload(data: CreateProfessorForm) {
     ...(avatar ? { avatar } : {}),
     ...(admissionDate ? { admissionDate } : {}),
     ...(currentStatus ? { currentStatus } : {}),
+    ...(signedContractDocumentUrl ? { signedContractDocumentUrl } : {}),
     ...(operationalRoleIds.length > 0 ? { operationalRoleIds } : {}),
     ...(hourlyRates ? { hourlyRates } : {}),
     ...(data.hasSignedContract ? { hasSignedContract: true } : {}),
@@ -670,6 +718,7 @@ function sanitizeUpdateProfessorPayload(data: EditProfessorForm) {
   const avatar = data.avatar?.trim();
   const admissionDate = data.admissionDate?.trim();
   const currentStatus = data.currentStatus?.trim();
+  const signedContractDocumentUrl = data.signedContractDocumentUrl?.trim();
   const responsibleManagerId = data.responsibleManagerId?.trim();
   const operationalRoleIds = data.collaboratorFunctionId ? [data.collaboratorFunctionId] : [];
   const hourlyRates = sanitizeHourlyRates(data.hourlyRates);
@@ -697,6 +746,7 @@ function sanitizeUpdateProfessorPayload(data: EditProfessorForm) {
     avatar: avatar || null,
     admissionDate: admissionDate || null,
     currentStatus: currentStatus || null,
+    signedContractDocumentUrl: signedContractDocumentUrl || null,
     operationalRoleIds,
     hourlyRates,
     hasSignedContract: !!data.hasSignedContract,
@@ -711,17 +761,22 @@ export function Professores() {
   const [professores, setProfessores] = useState<ProfessorSummary[]>([]);
   const [collaboratorFunctions, setCollaboratorFunctions] = useState<CollaboratorFunctionOption[]>([]);
   const [responsibleManagers, setResponsibleManagers] = useState<ProfessorSummary[]>([]);
+  const [hourlyRateLevels, setHourlyRateLevels] = useState<HourlyRateLevel[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<'active' | 'inactive' | 'all'>('all');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadingCreateAvatar, setUploadingCreateAvatar] = useState(false);
   const [uploadingEditAvatar, setUploadingEditAvatar] = useState(false);
+  const [uploadingCreateSignedContract, setUploadingCreateSignedContract] = useState(false);
+  const [uploadingEditSignedContract, setUploadingEditSignedContract] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [resetPassword, setResetPassword] = useState<string | null>(null);
   const [resetTarget, setResetTarget] = useState<string | null>(null);
   const createAvatarInputRef = useRef<HTMLInputElement | null>(null);
   const editAvatarInputRef = useRef<HTMLInputElement | null>(null);
+  const createSignedContractInputRef = useRef<HTMLInputElement | null>(null);
+  const editSignedContractInputRef = useRef<HTMLInputElement | null>(null);
 
   const {
     register,
@@ -755,6 +810,7 @@ export function Professores() {
       avatar: '',
       admissionDate: '',
       currentStatus: '',
+      signedContractDocumentUrl: '',
       operationalRoleIds: [],
       hourlyRates: createDefaultHourlyRatesForm(),
       hasSignedContract: false,
@@ -784,21 +840,41 @@ export function Professores() {
   const editCollaboratorFunctionId = watchEdit('collaboratorFunctionId');
   const createAvatarUrl = watch('avatar');
   const editAvatarUrl = watchEdit('avatar');
+  const createHasSignedContract = watch('hasSignedContract');
+  const editHasSignedContract = watchEdit('hasSignedContract');
+  const createSignedContractDocumentUrl = watch('signedContractDocumentUrl');
+  const editSignedContractDocumentUrl = watchEdit('signedContractDocumentUrl');
+  const createHourlyRates = watch('hourlyRates');
+  const editHourlyRates = watchEdit('hourlyRates');
+
+  useEffect(() => {
+    if (!createHasSignedContract && createSignedContractDocumentUrl) {
+      setValue('signedContractDocumentUrl', '');
+    }
+  }, [createHasSignedContract, createSignedContractDocumentUrl, setValue]);
+
+  useEffect(() => {
+    if (!editHasSignedContract && editSignedContractDocumentUrl) {
+      setEditValue('signedContractDocumentUrl', '');
+    }
+  }, [editHasSignedContract, editSignedContractDocumentUrl, setEditValue]);
 
   const loadData = async (status: 'active' | 'inactive' | 'all' = statusFilter) => {
     setLoading(true);
     setError(null);
     try {
-      const [professorResult, activeProfessorResult, functionResult] = await Promise.all([
+      const [professorResult, activeProfessorResult, functionResult, hourlyRateLevelResult] = await Promise.all([
         professorService.list(status === 'all' ? undefined : status),
         professorService.list('active'),
         collaboratorFunctionService.list(),
+        hourlyRateLevelService.list(),
       ]);
       const managerOptions = getResponsibleManagerOptions(activeProfessorResult);
 
       setProfessores(professorResult);
       setCollaboratorFunctions(functionResult);
       setResponsibleManagers(managerOptions);
+      setHourlyRateLevels(hourlyRateLevelResult);
 
       const currentCreateValue = getValues('collaboratorFunctionId');
       if (!currentCreateValue) {
@@ -871,6 +947,7 @@ export function Professores() {
         avatar: '',
         admissionDate: '',
         currentStatus: '',
+        signedContractDocumentUrl: '',
         operationalRoleIds: [],
         hourlyRates: createDefaultHourlyRatesForm(),
         hasSignedContract: false,
@@ -914,6 +991,7 @@ export function Professores() {
       avatar: professor.user.profile.avatar ?? '',
       admissionDate: formatDateForInput(professor.admissionDate),
       currentStatus: professor.currentStatus ?? '',
+      signedContractDocumentUrl: professor.signedContractDocumentUrl ?? '',
       operationalRoleIds:
         operationalRoleIds.length > 0
           ? operationalRoleIds
@@ -953,6 +1031,7 @@ export function Professores() {
       avatar: '',
       admissionDate: '',
       currentStatus: '',
+      signedContractDocumentUrl: '',
       operationalRoleIds: [],
       hourlyRates: createDefaultHourlyRatesForm(),
       hasSignedContract: false,
@@ -1002,6 +1081,35 @@ export function Professores() {
     }
   };
 
+  const handleSignedContractUpload = async (file: File, mode: 'create' | 'edit') => {
+    if (file.type !== 'application/pdf') {
+      setError(professoresCopy.signedContractDocumentFormatError);
+      return;
+    }
+
+    const setUploading =
+      mode === 'create' ? setUploadingCreateSignedContract : setUploadingEditSignedContract;
+
+    setUploading(true);
+    setError(null);
+
+    try {
+      const documentUrl = await professorService.uploadSignedContract(file);
+
+      if (mode === 'create') {
+        setValue('signedContractDocumentUrl', documentUrl, { shouldDirty: true, shouldValidate: true });
+        setValue('hasSignedContract', true, { shouldDirty: true, shouldValidate: true });
+      } else {
+        setEditValue('signedContractDocumentUrl', documentUrl, { shouldDirty: true, shouldValidate: true });
+        setEditValue('hasSignedContract', true, { shouldDirty: true, shouldValidate: true });
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.error || professoresCopy.signedContractDocumentMissing);
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const handleCreateAvatarChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = '';
@@ -1013,6 +1121,17 @@ export function Professores() {
     await handleAvatarUpload(file, 'create');
   };
 
+  const handleCreateSignedContractChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+
+    if (!file) {
+      return;
+    }
+
+    await handleSignedContractUpload(file, 'create');
+  };
+
   const handleEditAvatarChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = '';
@@ -1022,6 +1141,27 @@ export function Professores() {
     }
 
     await handleAvatarUpload(file, 'edit');
+  };
+
+  const handleEditSignedContractChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+
+    if (!file) {
+      return;
+    }
+
+    await handleSignedContractUpload(file, 'edit');
+  };
+
+  const handleRemoveCreateSignedContract = () => {
+    setValue('signedContractDocumentUrl', '', { shouldDirty: true, shouldValidate: true });
+    setValue('hasSignedContract', false, { shouldDirty: true, shouldValidate: true });
+  };
+
+  const handleRemoveEditSignedContract = () => {
+    setEditValue('signedContractDocumentUrl', '', { shouldDirty: true, shouldValidate: true });
+    setEditValue('hasSignedContract', false, { shouldDirty: true, shouldValidate: true });
   };
 
   const handleValidateLegalFinancial = async (professorId: string) => {
@@ -1100,18 +1240,6 @@ export function Professores() {
         </p>
       </div>
 
-      <Card className="border-dashed">
-        <CardHeader>
-          <CardTitle>{professoresCopy.catalogRoadmapTitle}</CardTitle>
-          <CardDescription>{professoresCopy.catalogRoadmapDescription}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            {professoresCopy.catalogRoadmapBody}
-          </p>
-        </CardContent>
-      </Card>
-
       {activeCollaboratorFunctions.length === 0 && (
         <div className="rounded-lg border border-warning/20 bg-warning/10 px-4 py-3 text-sm text-warning">
           {professoresCopy.noFunctionsAvailable}
@@ -1129,29 +1257,19 @@ export function Professores() {
               {error}
             </div>
           )}
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
-              <div className="space-y-6">
-                <div className="grid gap-4 md:grid-cols-2">
-                  {cadastroWorkflowCards.map((item) => (
-                    <FormSectionIntro
-                      key={item.title}
-                      badge={item.badge}
-                      title={item.title}
-                      description={item.description}
-                      accent={item.badge === 'Gestao'}
-                    />
-                  ))}
-                </div>
-
-                <div className="space-y-4">
-                  <FormSectionIntro
-                    badge="Acesso"
-                    title="Acesso base do colaborador"
-                    description="Primeiro bloco para criar o login inicial e identificar o colaborador no sistema."
-                    accent
-                  />
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+            <Accordion type="single" collapsible defaultValue="access" className="rounded-2xl border border-border bg-card px-4">
+              <AccordionItem value="access" className="border-none">
+                <AccordionTrigger className="py-4 hover:no-underline">
+                  <div className="space-y-1 text-left">
+                    <p className="text-sm font-semibold text-foreground">Informações de acesso do colaborador</p>
+                    <p className="text-sm text-muted-foreground">
+                      Primeiro bloco para criar o login inicial e identificar o colaborador no sistema.
+                    </p>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="space-y-3 pb-4 pt-0">
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                     <Input
                       label={professoresCopy.nameLabel}
                       placeholder="Maria Souza"
@@ -1173,32 +1291,7 @@ export function Professores() {
                       {...register('password')}
                     />
                   </div>
-                </div>
-
-                <div className="space-y-4">
-                  <FormSectionIntro
-                    badge="Colaborador"
-                    title="Preenchimento do colaborador"
-                    description="Campos alinhados com a planilha para dados pessoais, contato, endereco, curriculo e dados juridico-financeiros."
-                  />
-                  <input type="hidden" {...register('avatar')} />
-                  <input
-                    ref={createAvatarInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    aria-label="Upload da foto do colaborador"
-                    title="Upload da foto do colaborador"
-                    onChange={handleCreateAvatarChange}
-                  />
-                  <AvatarUploadField
-                    name={watch('name')}
-                    avatar={createAvatarUrl}
-                    isUploading={uploadingCreateAvatar}
-                    onUploadClick={() => createAvatarInputRef.current?.click()}
-                    onRemove={() => setValue('avatar', '', { shouldDirty: true, shouldValidate: true })}
-                  />
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
                     <Input
                       label={professoresCopy.phoneLabel}
                       type="tel"
@@ -1237,7 +1330,7 @@ export function Professores() {
                       {...register('birthDate')}
                     />
                   </div>
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                     <div>
                       <label htmlFor="create-marital-status" className="mb-2 block text-sm font-medium">
                         {professoresCopy.maritalStatusLabel}
@@ -1268,7 +1361,7 @@ export function Professores() {
                       {...register('cref')}
                     />
                   </div>
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
                     <div className="md:col-span-2">
                       <Input
                         label={professoresCopy.addressStreetLabel}
@@ -1302,7 +1395,7 @@ export function Professores() {
                     error={errors.addressComplement?.message}
                     {...register('addressComplement')}
                   />
-                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_280px]">
                     <div>
                       <label className="mb-2 block text-sm font-medium text-foreground">
                         {professoresCopy.professionalSummaryLabel}
@@ -1336,7 +1429,7 @@ export function Professores() {
                     <p className="mt-2 text-xs text-muted-foreground">
                       {professoresCopy.legalFinancialValidationHint}
                     </p>
-                    <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+                    <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
                       <Input
                         label={professoresCopy.companyDocumentLabel}
                         placeholder="00.000.000/0000-00"
@@ -1362,7 +1455,7 @@ export function Professores() {
                         {...register('pixKey')}
                       />
                     </div>
-                    <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
                       <Input
                         label={professoresCopy.bankBranchLabel}
                         placeholder="1234"
@@ -1377,14 +1470,47 @@ export function Professores() {
                       />
                     </div>
                   </div>
-                </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
 
-                <div className="space-y-4">
-                  <FormSectionIntro
-                    badge="Gestao"
-                    title="Configuracao e validacao da gestao"
-                    description="Aqui ficam a classificacao operacional e os dados que dependem de acompanhamento da gestao. A ativacao/desativacao continua sendo feita pelos botoes da lista."
-                    accent
+            <Accordion type="single" collapsible defaultValue="management" className="rounded-2xl border border-border bg-card px-4">
+              <AccordionItem value="management" className="border-none">
+                <AccordionTrigger className="py-4 hover:no-underline">
+                  <div className="space-y-1 text-left">
+                    <p className="text-sm font-semibold text-foreground">Configurações da gestão</p>
+                    <p className="text-sm text-muted-foreground">
+                      Classificação operacional e dados acompanhados pela gestão do contrato.
+                    </p>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="space-y-3 pb-4 pt-0">
+                  <input type="hidden" {...register('avatar')} />
+                  <input type="hidden" {...register('signedContractDocumentUrl')} />
+                  <input
+                    ref={createAvatarInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    aria-label="Upload da foto do colaborador"
+                    title="Upload da foto do colaborador"
+                    onChange={handleCreateAvatarChange}
+                  />
+                  <input
+                    ref={createSignedContractInputRef}
+                    type="file"
+                    accept="application/pdf"
+                    className="hidden"
+                    aria-label="Upload do contrato assinado"
+                    title="Upload do contrato assinado"
+                    onChange={handleCreateSignedContractChange}
+                  />
+                  <AvatarUploadField
+                    name={watch('name')}
+                    avatar={createAvatarUrl}
+                    isUploading={uploadingCreateAvatar}
+                    onUploadClick={() => createAvatarInputRef.current?.click()}
+                    onRemove={() => setValue('avatar', '', { shouldDirty: true, shouldValidate: true })}
                   />
                   {createRequiresResponsibleManager && (
                     <div>
@@ -1411,24 +1537,48 @@ export function Professores() {
                       )}
                     </div>
                   )}
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                     <Input
                       label={professoresCopy.admissionDateLabel}
                       type="date"
                       error={errors.admissionDate?.message}
                       {...register('admissionDate')}
                     />
-                    <Input
-                      label={professoresCopy.currentStatusLabel}
-                      placeholder={professoresCopy.currentStatusPlaceholder}
-                      error={errors.currentStatus?.message}
-                      {...register('currentStatus')}
-                    />
+                    <div>
+                      <label htmlFor="create-current-status" className="mb-2 block text-sm font-medium">
+                        {professoresCopy.currentStatusLabel}
+                      </label>
+                      <select
+                        id="create-current-status"
+                        className="ts-form-control"
+                        {...register('currentStatus')}
+                      >
+                        <option value="">{professoresCopy.currentStatusPlaceholder}</option>
+                        {currentStatusOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      {errors.currentStatus?.message ? (
+                        <p className="mt-2 text-sm text-destructive">{errors.currentStatus.message}</p>
+                      ) : null}
+                    </div>
                     <label className="flex items-center gap-3 rounded-2xl border border-border px-4 py-3 text-sm">
                       <input type="checkbox" className="h-4 w-4" {...register('hasSignedContract')} />
                       <span>{professoresCopy.hasSignedContractLabel}</span>
                     </label>
                   </div>
+                  {createHasSignedContract && (
+                    <SignedContractUploadField
+                      documentUrl={createSignedContractDocumentUrl}
+                      onUploadClick={() => createSignedContractInputRef.current?.click()}
+                      onRemove={handleRemoveCreateSignedContract}
+                      isUploading={uploadingCreateSignedContract}
+                      error={errors.signedContractDocumentUrl?.message}
+                      required={createHasSignedContract}
+                    />
+                  )}
                   <div className="rounded-2xl border border-border p-4">
                     <p className="text-sm font-medium text-foreground">
                       {professoresCopy.collaboratorFunctionLabel}
@@ -1457,66 +1607,31 @@ export function Professores() {
                       )}
                     </div>
                   </div>
-                  <div className="rounded-2xl border border-border p-4">
-                    <p className="text-sm font-medium text-foreground">{professoresCopy.hourlyRatesTitle}</p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {professoresCopy.hourlyRatesDescription}
-                    </p>
-                    <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
-                      {hourlyRateSections.map((section) => (
-                        <div key={section.key} className="rounded-2xl border border-border/70 p-3">
-                          <p className="mb-3 text-sm font-medium text-foreground">{section.label}</p>
-                          <div className="space-y-3">
-                            {hourlyRateBands.map((band) => (
-                              <Input
-                                key={`${section.key}-${band.key}`}
-                                label={band.label}
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                inputMode="decimal"
-                                error={
-                                  errors.hourlyRates?.[section.key]?.[band.key]?.message as
-                                    | string
-                                    | undefined
-                                }
-                                {...register(`hourlyRates.${section.key}.${band.key}` as const)}
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+                  <HourlyRatesMatrix
+                    errors={{
+                      personal: errors.hourlyRates?.personal?.message,
+                      consulting: errors.hourlyRates?.consulting?.message,
+                      evaluation: errors.hourlyRates?.evaluation?.message,
+                    }}
+                    getInputProps={(sectionKey) => register(`hourlyRates.${sectionKey}` as const)}
+                    values={createHourlyRates}
+                    levels={hourlyRateLevels}
+                  />
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
 
-                <div className="flex justify-end">
-                  <Button
-                    type="submit"
-                    isLoading={isSubmitting}
-                    disabled={
-                      activeCollaboratorFunctions.length === 0 ||
-                      (createRequiresResponsibleManager && responsibleManagers.length === 0)
-                    }
-                  >
-                    {professoresCopy.createProfessor}
-                  </Button>
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <ScopeListCard
-                  title="Disponivel hoje"
-                  description="Itens da planilha que ja encontram suporte na tela e no payload atual."
-                  items={cadastroImplementedItems}
-                />
-                <ScopeListCard
-                  title="Itens em avaliacao"
-                  description="Pontos marcados com // na planilha que pedem desenho funcional antes de virarem campos ativos."
-                  items={cadastroEvaluationItems}
-                  accent
-                />
-              </div>
+            <div className="flex justify-end pt-1">
+              <Button
+                type="submit"
+                isLoading={isSubmitting}
+                disabled={
+                  activeCollaboratorFunctions.length === 0 ||
+                  (createRequiresResponsibleManager && responsibleManagers.length === 0)
+                }
+              >
+                {professoresCopy.createProfessor}
+              </Button>
             </div>
           </form>
         </CardContent>
@@ -1815,12 +1930,26 @@ export function Professores() {
                           error={editErrors.admissionDate?.message}
                           {...registerEdit('admissionDate')}
                         />
-                        <Input
-                          label={professoresCopy.currentStatusLabel}
-                          placeholder={professoresCopy.currentStatusPlaceholder}
-                          error={editErrors.currentStatus?.message}
-                          {...registerEdit('currentStatus')}
-                        />
+                        <div>
+                          <label htmlFor={`edit-current-status-${professor.id}`} className="mb-2 block text-sm font-medium">
+                            {professoresCopy.currentStatusLabel}
+                          </label>
+                          <select
+                            id={`edit-current-status-${professor.id}`}
+                            className="ts-form-control"
+                            {...registerEdit('currentStatus')}
+                          >
+                            <option value="">{professoresCopy.currentStatusPlaceholder}</option>
+                            {currentStatusOptions.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                          {editErrors.currentStatus?.message ? (
+                            <p className="mt-2 text-sm text-destructive">{editErrors.currentStatus.message}</p>
+                          ) : null}
+                        </div>
                         <label className="flex items-center gap-3 rounded-lg border border-border px-4 py-3 text-sm">
                           <input
                             type="checkbox"
@@ -1830,6 +1959,26 @@ export function Professores() {
                           <span>{professoresCopy.hasSignedContractLabel}</span>
                         </label>
                       </div>
+                      <input type="hidden" {...registerEdit('signedContractDocumentUrl')} />
+                      <input
+                        ref={editSignedContractInputRef}
+                        type="file"
+                        accept="application/pdf"
+                        className="hidden"
+                        aria-label="Upload do contrato assinado"
+                        title="Upload do contrato assinado"
+                        onChange={handleEditSignedContractChange}
+                      />
+                      {editHasSignedContract && (
+                        <SignedContractUploadField
+                          documentUrl={editSignedContractDocumentUrl}
+                          onUploadClick={() => editSignedContractInputRef.current?.click()}
+                          onRemove={handleRemoveEditSignedContract}
+                          isUploading={uploadingEditSignedContract}
+                          error={editErrors.signedContractDocumentUrl?.message}
+                          required={editHasSignedContract}
+                        />
+                      )}
                       <div className="rounded-lg border border-border p-4">
                         <p className="text-sm font-medium text-foreground">
                           {professoresCopy.collaboratorFunctionLabel}
@@ -1861,42 +2010,16 @@ export function Professores() {
                           )}
                         </div>
                       </div>
-                      <div className="rounded-lg border border-border p-4">
-                        <p className="text-sm font-medium text-foreground">
-                          {professoresCopy.hourlyRatesTitle}
-                        </p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {professoresCopy.hourlyRatesDescription}
-                        </p>
-                        <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
-                          {hourlyRateSections.map((section) => (
-                            <div key={section.key} className="rounded-lg border border-border/70 p-3">
-                              <p className="mb-3 text-sm font-medium text-foreground">
-                                {section.label}
-                              </p>
-                              <div className="space-y-3">
-                                {hourlyRateBands.map((band) => (
-                                  <Input
-                                    key={`${section.key}-${band.key}`}
-                                    label={band.label}
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    inputMode="decimal"
-                                    error={
-                                      editErrors.hourlyRates?.[section.key]?.[band.key]
-                                        ?.message as string | undefined
-                                    }
-                                    {...registerEdit(
-                                      `hourlyRates.${section.key}.${band.key}` as const
-                                    )}
-                                  />
-                                ))}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
+                      <HourlyRatesMatrix
+                        errors={{
+                          personal: editErrors.hourlyRates?.personal?.message,
+                          consulting: editErrors.hourlyRates?.consulting?.message,
+                          evaluation: editErrors.hourlyRates?.evaluation?.message,
+                        }}
+                        getInputProps={(sectionKey) => registerEdit(`hourlyRates.${sectionKey}` as const)}
+                        values={editHourlyRates}
+                        levels={hourlyRateLevels}
+                      />
                       {editRequiresResponsibleManager && (
                         <div>
                           <label htmlFor={`edit-responsible-manager-${professor.id}`} className="mb-2 block text-sm font-medium">
@@ -2035,47 +2158,29 @@ export function Professores() {
                             ? professoresCopy.signedContractYes
                             : professoresCopy.signedContractNo}
                         </p>
+                        {professor.signedContractDocumentUrl && (
+                          <p className="text-xs text-muted-foreground">
+                            <a
+                              href={professor.signedContractDocumentUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="font-medium text-primary underline-offset-4 hover:underline"
+                            >
+                              {professoresCopy.signedContractDocumentView}
+                            </a>
+                          </p>
+                        )}
                         <p className="text-xs text-muted-foreground">
                           {professoresCopy.hourlyRatePersonalLabel}:{' '}
-                          {[
-                            `${professoresCopy.hourlyRateBronzeLabel} ${formatCurrencyValue(
-                              professor.hourlyRates?.personal?.bronze
-                            )}`,
-                            `${professoresCopy.hourlyRateSilverLabel} ${formatCurrencyValue(
-                              professor.hourlyRates?.personal?.silver
-                            )}`,
-                            `${professoresCopy.hourlyRateGoldLabel} ${formatCurrencyValue(
-                              professor.hourlyRates?.personal?.gold
-                            )}`,
-                          ].join(' | ')}
+                          {formatHourlyRateSummary(professor.hourlyRates?.personal, hourlyRateLevels)}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {professoresCopy.hourlyRateConsultingLabel}:{' '}
-                          {[
-                            `${professoresCopy.hourlyRateBronzeLabel} ${formatCurrencyValue(
-                              professor.hourlyRates?.consulting?.bronze
-                            )}`,
-                            `${professoresCopy.hourlyRateSilverLabel} ${formatCurrencyValue(
-                              professor.hourlyRates?.consulting?.silver
-                            )}`,
-                            `${professoresCopy.hourlyRateGoldLabel} ${formatCurrencyValue(
-                              professor.hourlyRates?.consulting?.gold
-                            )}`,
-                          ].join(' | ')}
+                          {formatHourlyRateSummary(professor.hourlyRates?.consulting, hourlyRateLevels)}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {professoresCopy.hourlyRateEvaluationLabel}:{' '}
-                          {[
-                            `${professoresCopy.hourlyRateBronzeLabel} ${formatCurrencyValue(
-                              professor.hourlyRates?.evaluation?.bronze
-                            )}`,
-                            `${professoresCopy.hourlyRateSilverLabel} ${formatCurrencyValue(
-                              professor.hourlyRates?.evaluation?.silver
-                            )}`,
-                            `${professoresCopy.hourlyRateGoldLabel} ${formatCurrencyValue(
-                              professor.hourlyRates?.evaluation?.gold
-                            )}`,
-                          ].join(' | ')}
+                          {formatHourlyRateSummary(professor.hourlyRates?.evaluation, hourlyRateLevels)}
                         </p>
                         {(professor.responsibleManager || professor.collaboratorFunction.code !== 'manager') && (
                           <p className="text-xs text-muted-foreground">

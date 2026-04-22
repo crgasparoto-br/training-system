@@ -32,10 +32,10 @@ const createSchema = z.object({
   content: z.string().min(10),
   format: formatSchema,
   context: contextSchema,
-  audience: z.string().max(60).optional().nullable(),
-  sourceSection: z.string().max(60).optional().nullable(),
-  sourceItem: z.string().max(120).optional().nullable(),
-  sourceExcerpt: z.string().optional().nullable(),
+  servicoContratado: z.string().max(60).optional().nullable(),
+  setor: z.string().max(60).optional().nullable(),
+  item: z.string().max(120).optional().nullable(),
+  frase: z.string().optional().nullable(),
   productArea: z.string().min(3).max(80),
   productMoment: z.string().max(120).optional().nullable(),
   linkLabel: z.string().max(80).optional().nullable(),
@@ -50,7 +50,7 @@ router.get('/', async (req: Request, res: Response) => {
   try {
     const contractId = (req as any).user.contractId as string | undefined;
     if (!contractId) {
-      return sendError(res, 'Contrato nao encontrado', 404);
+      return sendError(res, 'Contrato não encontrado', 404);
     }
 
     await ensureDefaultProfessorManualForContract(contractId);
@@ -70,7 +70,7 @@ router.get('/', async (req: Request, res: Response) => {
     return sendSuccess(res, items, 'Manual do professor carregado');
   } catch (error: any) {
     if (error instanceof z.ZodError) {
-      return sendError(res, 'Filtro invalido para o Manual do Professor', 400, error.errors);
+      return sendError(res, 'Filtro inválido para o Manual do Professor', 400, error.errors);
     }
 
     console.error('Erro ao listar manual do professor:', error);
@@ -82,7 +82,7 @@ router.post('/', async (req: Request, res: Response) => {
   try {
     const contractId = (req as any).user.contractId as string | undefined;
     if (!contractId) {
-      return sendError(res, 'Contrato nao encontrado', 404);
+      return sendError(res, 'Contrato não encontrado', 404);
     }
 
     const validated = createSchema.parse(req.body);
@@ -92,10 +92,10 @@ router.post('/', async (req: Request, res: Response) => {
       code: validated.code.trim().toUpperCase(),
       title: validated.title.trim(),
       content: validated.content.trim(),
-      audience: validated.audience?.trim() || null,
-      sourceSection: validated.sourceSection?.trim() || null,
-      sourceItem: validated.sourceItem?.trim() || null,
-      sourceExcerpt: validated.sourceExcerpt?.trim() || null,
+      servicoContratado: validated.servicoContratado?.trim() || null,
+      setor: validated.setor?.trim() || null,
+      item: validated.item?.trim() || null,
+      frase: validated.frase?.trim() || null,
       productArea: validated.productArea.trim(),
       productMoment: validated.productMoment?.trim() || null,
       linkLabel: validated.linkLabel?.trim() || null,
@@ -105,11 +105,11 @@ router.post('/', async (req: Request, res: Response) => {
     return sendSuccess(res, created, 'Item do Manual do Professor criado com sucesso', 201);
   } catch (error: any) {
     if (error instanceof z.ZodError) {
-      return sendError(res, 'Dados invalidos', 400, error.errors);
+      return sendError(res, 'Dados inválidos', 400, error.errors);
     }
 
     if (error?.code === 'P2002') {
-      return sendError(res, 'Ja existe um item com esse codigo no contrato', 400);
+      return sendError(res, 'Já existe um item com esse código no contrato', 400);
     }
 
     console.error('Erro ao criar item do manual do professor:', error);
@@ -122,7 +122,7 @@ router.put('/:id', async (req: Request, res: Response) => {
     const { id } = req.params;
     const contractId = (req as any).user.contractId as string | undefined;
     if (!contractId) {
-      return sendError(res, 'Contrato nao encontrado', 404);
+      return sendError(res, 'Contrato não encontrado', 404);
     }
 
     const validated = updateSchema.parse(req.body);
@@ -131,12 +131,13 @@ router.put('/:id', async (req: Request, res: Response) => {
       code: validated.code ? validated.code.trim().toUpperCase() : undefined,
       title: validated.title?.trim(),
       content: validated.content?.trim(),
-      audience: validated.audience === undefined ? undefined : validated.audience?.trim() || null,
-      sourceSection:
-        validated.sourceSection === undefined ? undefined : validated.sourceSection?.trim() || null,
-      sourceItem: validated.sourceItem === undefined ? undefined : validated.sourceItem?.trim() || null,
-      sourceExcerpt:
-        validated.sourceExcerpt === undefined ? undefined : validated.sourceExcerpt?.trim() || null,
+      servicoContratado:
+        validated.servicoContratado === undefined
+          ? undefined
+          : validated.servicoContratado?.trim() || null,
+      setor: validated.setor === undefined ? undefined : validated.setor?.trim() || null,
+      item: validated.item === undefined ? undefined : validated.item?.trim() || null,
+      frase: validated.frase === undefined ? undefined : validated.frase?.trim() || null,
       productArea: validated.productArea?.trim(),
       productMoment:
         validated.productMoment === undefined ? undefined : validated.productMoment?.trim() || null,
@@ -147,15 +148,15 @@ router.put('/:id', async (req: Request, res: Response) => {
     return sendSuccess(res, updated, 'Item do Manual do Professor atualizado com sucesso');
   } catch (error: any) {
     if (error instanceof z.ZodError) {
-      return sendError(res, 'Dados invalidos', 400, error.errors);
+      return sendError(res, 'Dados inválidos', 400, error.errors);
     }
 
     if (error?.message === 'ITEM_NOT_FOUND') {
-      return sendError(res, 'Item do Manual do Professor nao encontrado', 404);
+      return sendError(res, 'Item do Manual do Professor não encontrado', 404);
     }
 
     if (error?.code === 'P2002') {
-      return sendError(res, 'Ja existe um item com esse codigo no contrato', 400);
+      return sendError(res, 'Já existe um item com esse código no contrato', 400);
     }
 
     console.error('Erro ao atualizar item do manual do professor:', error);
@@ -168,14 +169,14 @@ router.delete('/:id', async (req: Request, res: Response) => {
     const { id } = req.params;
     const contractId = (req as any).user.contractId as string | undefined;
     if (!contractId) {
-      return sendError(res, 'Contrato nao encontrado', 404);
+      return sendError(res, 'Contrato não encontrado', 404);
     }
 
     const deleted = await professorManualService.delete(id, contractId);
     return sendSuccess(res, deleted, 'Item do Manual do Professor removido com sucesso');
   } catch (error: any) {
     if (error?.message === 'ITEM_NOT_FOUND') {
-      return sendError(res, 'Item do Manual do Professor nao encontrado', 404);
+      return sendError(res, 'Item do Manual do Professor não encontrado', 404);
     }
 
     console.error('Erro ao excluir item do manual do professor:', error);
