@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { LogOut, Menu, Users, X } from 'lucide-react';
+import { Activity, BarChart3, BookOpen, Calendar, FileText, LogOut, Menu, Settings, Users, X } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { useAuthStore } from '../stores/useAuthStore';
 import { Button } from '../components/ui/Button';
@@ -24,12 +24,83 @@ export function DashboardLayout() {
     user?.professor?.role === 'master' &&
     user?.professor?.contract?.type === 'academy';
 
+  const canAccessAlunoSettings =
+    user?.type === 'professor' && user?.professor?.role === 'master';
+
   const menuItems = useMemo<SidebarNavItem[]>(
     () => [
       ...(canManageProfessores ? [{ id: 'professores', icon: Users, label: shellCopy.menu.professores, path: '/professores' }] : []),
       { id: 'alunos', icon: Users, label: shellCopy.menu.alunos, path: '/alunos' },
+      {
+        id: 'physical-assessment-protocol',
+        icon: FileText,
+        label: 'Protocolo de Avaliação Física',
+        path: '/protocolo-avaliacao-fisica',
+        children: [
+          {
+            id: 'physical-assessment-protocol-anthropometry',
+            label: 'Antropometria',
+            path: '/protocolo-avaliacao-fisica/antropometria',
+          },
+          {
+            id: 'physical-assessment-protocol-interview',
+            label: 'Prontuário de entrevista e acompanhamento',
+            path: '/protocolo-avaliacao-fisica/prontuario-entrevista-acompanhamento',
+          },
+          {
+            id: 'physical-assessment-protocol-adipometry',
+            label: 'Adipometria',
+            path: '/protocolo-avaliacao-fisica/adipometria',
+          },
+          {
+            id: 'physical-assessment-protocol-bioimpedance',
+            label: 'Bioimpedanciometria',
+            path: '/protocolo-avaliacao-fisica/bioimpedanciometria',
+          },
+          {
+            id: 'physical-assessment-protocol-ultrasound',
+            label: 'Ultrassonografia',
+            path: '/protocolo-avaliacao-fisica/ultrassonografia',
+          },
+        ],
+      },
+      { id: 'plans', icon: Calendar, label: shellCopy.menu.planos, path: '/plans' },
+      { id: 'agenda', icon: Calendar, label: shellCopy.menu.agenda, path: '/agenda' },
+      { id: 'library', icon: BookOpen, label: shellCopy.menu.biblioteca, path: '/library' },
+      { id: 'executions', icon: Activity, label: shellCopy.menu.execucoes, path: '/executions' },
+      { id: 'reports', icon: BarChart3, label: shellCopy.menu.relatorios, path: '/reports' },
+      {
+        id: 'settings',
+        icon: Settings,
+        label: shellCopy.menu.configuracoes,
+        path: '/settings',
+        children: [
+          { id: 'settings-contract', label: shellCopy.menu.contrato, path: '/settings/contract' },
+          { id: 'settings-parameters', label: shellCopy.menu.parametros, path: '/settings/parameters' },
+          { id: 'settings-assessment-types', label: shellCopy.menu.avaliacoes, path: '/settings/assessment-types' },
+          ...(canManageProfessores
+            ? [
+                {
+                  id: 'settings-collaborator-functions',
+                  label: shellCopy.menu.funcoesColaboradores,
+                  path: '/settings/collaborator-functions',
+                },
+              ]
+            : []),
+          { id: 'settings-psr-pse', label: 'PSR e PSE', path: '/settings/psr-pse' },
+          {
+            id: 'settings-professor-manual',
+            label: shellCopy.menu.manualProfessor,
+            path: '/settings/professor-manual',
+          },
+          { id: 'settings-reference-table', label: shellCopy.menu.tabelaReferencia, path: '/settings/reference-table' },
+          ...(canAccessAlunoSettings
+            ? [{ id: 'settings-aluno-access', label: shellCopy.menu.cadastroAlunos, path: '/settings/aluno-access' }]
+            : []),
+        ],
+      },
     ],
-    [canManageProfessores]
+    [canAccessAlunoSettings, canManageProfessores]
   );
 
   return (
