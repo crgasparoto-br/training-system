@@ -1,4 +1,5 @@
-﻿import jwt from 'jsonwebtoken';
+﻿import '../../bootstrap-env.js';
+import jwt from 'jsonwebtoken';
 import bcryptjs from 'bcryptjs';
 import { PrismaClient } from '@prisma/client';
 import type { JwtPayload, LoginRequest, RegisterRequest, AuthResponse } from '@corrida/types';

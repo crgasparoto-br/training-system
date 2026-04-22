@@ -13,10 +13,10 @@ type ManualSeedItem = {
   content: string;
   format: ProfessorManualFormat;
   context: ProfessorManualContext;
-  audience?: string;
-  sourceSection?: string;
-  sourceItem?: string;
-  sourceExcerpt?: string;
+  servicoContratado?: string;
+  setor?: string;
+  item?: string;
+  frase?: string;
   productArea: string;
   productMoment?: string;
   linkLabel?: string;
@@ -24,7 +24,7 @@ type ManualSeedItem = {
   order: number;
 };
 
-const DEFAULT_MANUAL_ITEMS: ManualSeedItem[] = [
+const LEGACY_DEFAULT_MANUAL_ITEMS: ManualSeedItem[] = [
   {
     code: 'AVALIACAO_DICA_PRONTIDAO',
     title: 'Comece pela prontidao do aluno',
@@ -32,10 +32,10 @@ const DEFAULT_MANUAL_ITEMS: ManualSeedItem[] = [
       'Antes de registrar ou interpretar a avaliacao, confirme como o aluno esta se sentindo e se houve dor, fadiga acumulada ou queixa recente.',
     format: 'dica_rapida',
     context: 'avaliacao_fisica',
-    audience: 'Todos',
-    sourceSection: 'Todos',
-    sourceItem: 'Atendimento',
-    sourceExcerpt:
+    servicoContratado: 'Todos',
+    setor: 'Todos',
+    item: 'Atendimento',
+    frase:
       'Questione frequentemente sobre como o aluno esta se sentindo (carga, dores na execucao e bem estar geral).',
     productArea: 'aluno_avaliacoes_upload',
     productMoment: 'antes de selecionar o protocolo',
@@ -50,10 +50,10 @@ const DEFAULT_MANUAL_ITEMS: ManualSeedItem[] = [
       'Nao ignore expressoes de dor ou insatisfacao. Se algo mudou no atendimento, a avaliacao precisa carregar esse contexto antes de virar referencia do treino.',
     format: 'alerta',
     context: 'avaliacao_fisica',
-    audience: 'Todos',
-    sourceSection: 'Todos',
-    sourceItem: 'Atendimento',
-    sourceExcerpt:
+    servicoContratado: 'Todos',
+    setor: 'Todos',
+    item: 'Atendimento',
+    frase:
       'Demonstre atencao e cuidado com o aluno (Interprete expressoes de dor ou insatisfacao).',
     productArea: 'aluno_avaliacoes_upload',
     productMoment: 'na leitura do historico e da coleta',
@@ -68,10 +68,10 @@ const DEFAULT_MANUAL_ITEMS: ManualSeedItem[] = [
       'Se o aluno relata desconforto e queda de bem-estar, use o registro para explicar o proximo ajuste do plano em vez de tratar a coleta como dado isolado.',
     format: 'exemplo',
     context: 'avaliacao_fisica',
-    audience: 'Todos',
-    sourceSection: 'Todos',
-    sourceItem: 'Atendimento',
-    sourceExcerpt: 'Leve em consideracao as demandas do aluno (nao e frescura dele).',
+    servicoContratado: 'Todos',
+    setor: 'Todos',
+    item: 'Atendimento',
+    frase: 'Leve em consideracao as demandas do aluno (nao e frescura dele).',
     productArea: 'aluno_avaliacoes_historico',
     productMoment: 'ao relacionar avaliacao e plano',
     linkLabel: 'Ver base no manual',
@@ -85,10 +85,10 @@ const DEFAULT_MANUAL_ITEMS: ManualSeedItem[] = [
       'Conscientize o aluno: a avaliacao deve ajudar a explicar os motivos dos elementos da sessao e da decisao de progressao.',
     format: 'lembrete_metodo',
     context: 'avaliacao_fisica',
-    audience: 'Todos',
-    sourceSection: 'Todos',
-    sourceItem: 'Atendimento',
-    sourceExcerpt:
+    servicoContratado: 'Todos',
+    setor: 'Todos',
+    item: 'Atendimento',
+    frase:
       'Conscientize seu aluno (explique os motivos dos elementos da sessao de treino).',
     productArea: 'aluno_avaliacoes_upload',
     productMoment: 'depois da interpretacao da coleta',
@@ -103,10 +103,10 @@ const DEFAULT_MANUAL_ITEMS: ManualSeedItem[] = [
       'Trechos-base do manual: interpretar sinais do aluno, questionar dores e bem-estar, e transformar a coleta em decisao clara para o proximo atendimento.',
     format: 'saiba_mais',
     context: 'avaliacao_fisica',
-    audience: 'Todos',
-    sourceSection: 'Todos',
-    sourceItem: 'Atendimento | Sessao',
-    sourceExcerpt:
+    servicoContratado: 'Todos',
+    setor: 'Todos',
+    item: 'Atendimento | Sessao',
+    frase:
       'Demonstre atencao, questione frequentemente como o aluno esta se sentindo e aproveite o momento para investigar queixas passadas.',
     productArea: 'aluno_avaliacoes_historico',
     productMoment: 'quando houver duvida sobre criterio',
@@ -121,10 +121,10 @@ const DEFAULT_MANUAL_ITEMS: ManualSeedItem[] = [
       'Ao montar a semana, deixe claro o objetivo do periodo antes de preencher sessoes e exercicios. O treino precisa responder ao bloco, nao so ocupar a grade.',
     format: 'dica_rapida',
     context: 'montagem_treino',
-    audience: 'Personal|Consultoria',
-    sourceSection: 'Personal|Consultoria',
-    sourceItem: 'Planejamento',
-    sourceExcerpt: 'Deixar claro os objetivos do periodo.',
+    servicoContratado: 'Personal|Consultoria',
+    setor: 'Personal|Consultoria',
+    item: 'Planejamento',
+    frase: 'Deixar claro os objetivos do periodo.',
     productArea: 'workout_builder_planejamento',
     productMoment: 'antes de distribuir a semana',
     linkLabel: 'Ver base no manual',
@@ -138,10 +138,10 @@ const DEFAULT_MANUAL_ITEMS: ManualSeedItem[] = [
       'As sessoes devem ser preparadas com antecedencia. Se a logica da semana so faz sentido na sua cabeca, o sistema ainda nao esta claro o bastante.',
     format: 'alerta',
     context: 'montagem_treino',
-    audience: 'Personal|Consultoria',
-    sourceSection: 'Personal|Consultoria',
-    sourceItem: 'Montagem',
-    sourceExcerpt: 'Montar as sessoes de treino com antecedencia (uma semana na frente).',
+    servicoContratado: 'Personal|Consultoria',
+    setor: 'Personal|Consultoria',
+    item: 'Montagem',
+    frase: 'Montar as sessoes de treino com antecedencia (uma semana na frente).',
     productArea: 'workout_builder_planejamento',
     productMoment: 'antes de salvar ou copiar a semana',
     linkLabel: 'Ver base no manual',
@@ -155,10 +155,10 @@ const DEFAULT_MANUAL_ITEMS: ManualSeedItem[] = [
       'Ao trocar o foco do periodo, registre a mudanca com base em setpoints e na evolucao observada para que a progressao fique coerente no historico.',
     format: 'exemplo',
     context: 'montagem_treino',
-    audience: 'Personal|Consultoria',
-    sourceSection: 'Personal|Consultoria',
-    sourceItem: 'Planejamento',
-    sourceExcerpt: 'Usar setpoints para justificar as mudancas.',
+    servicoContratado: 'Personal|Consultoria',
+    setor: 'Personal|Consultoria',
+    item: 'Planejamento',
+    frase: 'Usar setpoints para justificar as mudancas.',
     productArea: 'workout_builder_planejamento',
     productMoment: 'ao ajustar objetivo e progressao',
     linkLabel: 'Ver base no manual',
@@ -172,10 +172,10 @@ const DEFAULT_MANUAL_ITEMS: ManualSeedItem[] = [
       'Considere enfoque principal, componente neurossensorial, profilaxia, flexibilidade e outras capacidades relevantes da sessao.',
     format: 'lembrete_metodo',
     context: 'montagem_treino',
-    audience: 'Personal|Consultoria',
-    sourceSection: 'Personal|Consultoria',
-    sourceItem: 'Montagem',
-    sourceExcerpt:
+    servicoContratado: 'Personal|Consultoria',
+    setor: 'Personal|Consultoria',
+    item: 'Montagem',
+    frase:
       'Levar em consideracao Enfoque principal, Neurossensorial, Profilatico, Flexibilidade e outras capacidades relevantes.',
     productArea: 'workout_builder_planejamento',
     productMoment: 'durante a composicao da sessao',
@@ -190,10 +190,10 @@ const DEFAULT_MANUAL_ITEMS: ManualSeedItem[] = [
       'Trechos-base do manual: apresentar o planejamento do macro, deixar objetivos do periodo claros e sinalizar as mudancas entre blocos.',
     format: 'saiba_mais',
     context: 'montagem_treino',
-    audience: 'Personal|Consultoria',
-    sourceSection: 'Personal|Consultoria',
-    sourceItem: 'Planejamento',
-    sourceExcerpt:
+    servicoContratado: 'Personal|Consultoria',
+    setor: 'Personal|Consultoria',
+    item: 'Planejamento',
+    frase:
       'Realizar e apresentar o planejamento do Macro; deixar claro os objetivos do periodo; deixar claro a mudanca dos periodos.',
     productArea: 'workout_builder_planejamento',
     productMoment: 'quando a semana perder coerencia',
@@ -208,10 +208,10 @@ const DEFAULT_MANUAL_ITEMS: ManualSeedItem[] = [
       'Use queixas, feedback final e demandas do aluno para interpretar historicos, pendencias e o que precisa aparecer na proxima sessao.',
     format: 'dica_rapida',
     context: 'uso_sistema',
-    audience: 'Todos',
-    sourceSection: 'Todos',
-    sourceItem: 'Atendimento | Sessao',
-    sourceExcerpt:
+    servicoContratado: 'Todos',
+    setor: 'Todos',
+    item: 'Atendimento | Sessao',
+    frase:
       'Ao final do treino, questione como o aluno esta se sentindo e leve em consideracao as demandas dele.',
     productArea: 'workout_builder_historico',
     productMoment: 'antes de revisar ou copiar a semana',
@@ -226,10 +226,10 @@ const DEFAULT_MANUAL_ITEMS: ManualSeedItem[] = [
       'Antes de liberar o treino, confirme se o sistema deixa claros objetivo, mudanca de periodo e instrucoes suficientes para outro professor continuar o atendimento.',
     format: 'alerta',
     context: 'uso_sistema',
-    audience: 'Personal|Consultoria',
-    sourceSection: 'Personal',
-    sourceItem: 'Ferias e faltas - professor',
-    sourceExcerpt:
+    servicoContratado: 'Personal|Consultoria',
+    setor: 'Personal',
+    item: 'Ferias e faltas - professor',
+    frase:
       'Envie a planilha junto com um resumo das caracteristicas importantes do aluno (preferencias, dores, queixas e assuntos de interesse).',
     productArea: 'workout_builder_liberacao',
     productMoment: 'antes de liberar a semana',
@@ -244,10 +244,10 @@ const DEFAULT_MANUAL_ITEMS: ManualSeedItem[] = [
       'Se houver troca de professor, o resumo precisa mostrar preferencias, dores, queixas e pontos de atencao do aluno sem depender de explicacao verbal.',
     format: 'exemplo',
     context: 'uso_sistema',
-    audience: 'Personal',
-    sourceSection: 'Personal',
-    sourceItem: 'Ferias e faltas - professor',
-    sourceExcerpt:
+    servicoContratado: 'Personal',
+    setor: 'Personal',
+    item: 'Ferias e faltas - professor',
+    frase:
       'Providencie as aulas com antecedencia e reveja a execucao dos exercicios com o professor substituto.',
     productArea: 'workout_builder_historico',
     productMoment: 'ao preencher observacoes e liberacao',
@@ -262,10 +262,10 @@ const DEFAULT_MANUAL_ITEMS: ManualSeedItem[] = [
       'Sempre que fizer sentido, registre ou dispare mensagens que reforcem condutas e recolham feedback para manter o acompanhamento vivo fora da sessao.',
     format: 'lembrete_metodo',
     context: 'uso_sistema',
-    audience: 'Personal|Consultoria',
-    sourceSection: 'Personal|Consultoria',
-    sourceItem: 'Conduta externa',
-    sourceExcerpt:
+    servicoContratado: 'Personal|Consultoria',
+    setor: 'Personal|Consultoria',
+    item: 'Conduta externa',
+    frase:
       'Sempre que possivel, e cabivel, envie mensagens para reforcar condutas ou receber feedback.',
     productArea: 'workout_builder_liberacao',
     productMoment: 'apos liberar ou concluir a semana',
@@ -280,10 +280,10 @@ const DEFAULT_MANUAL_ITEMS: ManualSeedItem[] = [
       'Trechos-base do manual: antecedencia nas aulas, resumo para substituicao e uso de feedback final para manter continuidade entre professores e semanas.',
     format: 'saiba_mais',
     context: 'uso_sistema',
-    audience: 'Personal|Consultoria',
-    sourceSection: 'Personal|Consultoria',
-    sourceItem: 'Ferias e faltas | Sessao',
-    sourceExcerpt:
+    servicoContratado: 'Personal|Consultoria',
+    setor: 'Personal|Consultoria',
+    item: 'Ferias e faltas | Sessao',
+    frase:
       'Envie resumo das caracteristicas importantes do aluno e use o feedback da aula para orientar a proxima decisao.',
     productArea: 'workout_builder_historico',
     productMoment: 'quando houver duvida sobre liberacao',
@@ -293,6 +293,158 @@ const DEFAULT_MANUAL_ITEMS: ManualSeedItem[] = [
   },
 ];
 
+const PT_BR_REPLACEMENTS: Array<readonly [RegExp, string]> = [
+  [/\bAvaliacao\b/g, 'Avaliação'],
+  [/\bavaliacao\b/g, 'avaliação'],
+  [/\bfisica\b/g, 'física'],
+  [/\bprontidao\b/g, 'prontidão'],
+  [/\bNao e\b/g, 'Não é'],
+  [/\bnao e\b/g, 'não é'],
+  [/\besta\b/g, 'está'],
+  [/\bNao\b/g, 'Não'],
+  [/\bnao\b/g, 'não'],
+  [/\bexpressoes\b/g, 'expressões'],
+  [/\binsatisfacao\b/g, 'insatisfação'],
+  [/\batencao\b/g, 'atenção'],
+  [/\bhistorico\b/g, 'histórico'],
+  [/\bhistoricos\b/g, 'históricos'],
+  [/\bproximo\b/g, 'próximo'],
+  [/\bproxima\b/g, 'próxima'],
+  [/\bdecisao\b/g, 'decisão'],
+  [/\binterpretacao\b/g, 'interpretação'],
+  [/\bconsideracao\b/g, 'consideração'],
+  [/\bporque\b/g, 'porquê'],
+  [/\breferencia\b/g, 'referência'],
+  [/\bpendencias\b/g, 'pendências'],
+  [/\bcoerencia\b/g, 'coerência'],
+  [/\bsessao\b/g, 'sessão'],
+  [/\bSessao\b/g, 'Sessão'],
+  [/\bsessoes\b/g, 'sessões'],
+  [/\bperiodo\b/g, 'período'],
+  [/\bperiodos\b/g, 'períodos'],
+  [/\bso\b/g, 'só'],
+  [/\bexercicios\b/g, 'exercícios'],
+  [/\bexercicio\b/g, 'exercício'],
+  [/\blogica\b/g, 'lógica'],
+  [/\bcabeca\b/g, 'cabeça'],
+  [/\bmudanca\b/g, 'mudança'],
+  [/\bmudancas\b/g, 'mudanças'],
+  [/\bevolucao\b/g, 'evolução'],
+  [/\bprogressao\b/g, 'progressão'],
+  [/\balem\b/g, 'além'],
+  [/\bduvida\b/g, 'dúvida'],
+  [/\bcriterio\b/g, 'critério'],
+  [/\bconteudo\b/g, 'conteúdo'],
+  [/\breutilizavel\b/g, 'reutilizável'],
+  [/\borientacao\b/g, 'orientação'],
+  [/\borientacoes\b/g, 'orientações'],
+  [/\bcomposicao\b/g, 'composição'],
+  [/\bexecucao\b/g, 'execução'],
+  [/\bProfilatico\b/g, 'Profilático'],
+  [/\bantecedencia\b/g, 'antecedência'],
+  [/\bliberacao\b/g, 'liberação'],
+  [/\binstrucoes\b/g, 'instruções'],
+  [/\bFerias\b/g, 'Férias'],
+  [/\bcaracteristicas\b/g, 'características'],
+  [/\bpreferencias\b/g, 'preferências'],
+  [/\butil\b/g, 'útil'],
+  [/\bexplicacao\b/g, 'explicação'],
+  [/\bobservacoes\b/g, 'observações'],
+  [/\btambem\b/g, 'também'],
+  [/\bpossivel\b/g, 'possível'],
+  [/\be cabivel\b/g, 'é cabível'],
+  [/\bcabivel\b/g, 'cabível'],
+  [/\breforcar\b/g, 'reforçar'],
+  [/\bapos\b/g, 'após'],
+  [/\bsubstituicao\b/g, 'substituição'],
+  [/\bbem estar\b/g, 'bem-estar'],
+];
+
+function normalizeLegacyManualText(value?: string | null) {
+  if (!value) {
+    return value ?? undefined;
+  }
+
+  return PT_BR_REPLACEMENTS.reduce(
+    (text, [pattern, replacement]) => text.replace(pattern, replacement),
+    value
+  );
+}
+
+function toPtBrManualItem(item: ManualSeedItem): ManualSeedItem {
+  return {
+    ...item,
+    title: normalizeLegacyManualText(item.title) ?? item.title,
+    content: normalizeLegacyManualText(item.content) ?? item.content,
+    servicoContratado: normalizeLegacyManualText(item.servicoContratado),
+    setor: normalizeLegacyManualText(item.setor),
+    item: normalizeLegacyManualText(item.item),
+    frase: normalizeLegacyManualText(item.frase),
+    productMoment: normalizeLegacyManualText(item.productMoment),
+    linkLabel: normalizeLegacyManualText(item.linkLabel),
+  };
+}
+
+const DEFAULT_MANUAL_ITEMS = LEGACY_DEFAULT_MANUAL_ITEMS.map(toPtBrManualItem);
+const defaultManualItemsByCode = new Map(DEFAULT_MANUAL_ITEMS.map((item) => [item.code, item]));
+const legacyManualItemsByCode = new Map(LEGACY_DEFAULT_MANUAL_ITEMS.map((item) => [item.code, item]));
+const SYNCABLE_STRING_FIELDS = [
+  'title',
+  'content',
+  'servicoContratado',
+  'setor',
+  'item',
+  'frase',
+  'productMoment',
+  'linkLabel',
+] as const;
+
+type SyncableStringField = (typeof SYNCABLE_STRING_FIELDS)[number];
+
+async function normalizeProfessorManualDefaults(
+  tx: Prisma.TransactionClient,
+  contractId: string
+) {
+  const existingItems = await tx.professorManualItem.findMany({
+    where: {
+      contractId,
+      code: { in: DEFAULT_MANUAL_ITEMS.map((item) => item.code) },
+    },
+  });
+
+  for (const item of existingItems) {
+    const nextDefault = defaultManualItemsByCode.get(item.code);
+    const legacyDefault = legacyManualItemsByCode.get(item.code);
+
+    if (!nextDefault || !legacyDefault) {
+      continue;
+    }
+
+    const data: Partial<Record<SyncableStringField | 'order', string | number | null>> = {};
+
+    for (const field of SYNCABLE_STRING_FIELDS) {
+      const currentValue = (item[field] ?? null) as string | null;
+      const legacyValue = (legacyDefault[field] ?? null) as string | null;
+      const nextValue = (nextDefault[field] ?? null) as string | null;
+
+      if (currentValue === legacyValue && currentValue !== nextValue) {
+        data[field] = nextValue;
+      }
+    }
+
+    if (item.order === legacyDefault.order && item.order !== nextDefault.order) {
+      data.order = nextDefault.order;
+    }
+
+    if (Object.keys(data).length > 0) {
+      await tx.professorManualItem.update({
+        where: { id: item.id },
+        data: data as Prisma.ProfessorManualItemUpdateInput,
+      });
+    }
+  }
+}
+
 export async function ensureDefaultProfessorManual(
   tx: Prisma.TransactionClient,
   contractId: string
@@ -301,25 +453,25 @@ export async function ensureDefaultProfessorManual(
     where: { contractId },
   });
 
-  if (existing > 0) {
-    return;
+  if (existing === 0) {
+    await tx.professorManualItem.createMany({
+      data: DEFAULT_MANUAL_ITEMS.map((item) => ({
+        contractId,
+        ...item,
+        servicoContratado: item.servicoContratado ?? null,
+        setor: item.setor ?? null,
+        item: item.item ?? null,
+        frase: item.frase ?? null,
+        productMoment: item.productMoment ?? null,
+        linkLabel: item.linkLabel ?? null,
+        linkHref: item.linkHref ?? null,
+        isActive: true,
+      })),
+      skipDuplicates: true,
+    });
   }
 
-  await tx.professorManualItem.createMany({
-    data: DEFAULT_MANUAL_ITEMS.map((item) => ({
-      contractId,
-      ...item,
-      audience: item.audience ?? null,
-      sourceSection: item.sourceSection ?? null,
-      sourceItem: item.sourceItem ?? null,
-      sourceExcerpt: item.sourceExcerpt ?? null,
-      productMoment: item.productMoment ?? null,
-      linkLabel: item.linkLabel ?? null,
-      linkHref: item.linkHref ?? null,
-      isActive: true,
-    })),
-    skipDuplicates: true,
-  });
+  await normalizeProfessorManualDefaults(tx, contractId);
 }
 
 export async function ensureDefaultProfessorManualForContract(contractId: string) {
@@ -341,10 +493,10 @@ type CreateManualItemInput = {
   content: string;
   format: ProfessorManualFormat;
   context: ProfessorManualContext;
-  audience?: string | null;
-  sourceSection?: string | null;
-  sourceItem?: string | null;
-  sourceExcerpt?: string | null;
+  servicoContratado?: string | null;
+  setor?: string | null;
+  item?: string | null;
+  frase?: string | null;
   productArea: string;
   productMoment?: string | null;
   linkLabel?: string | null;

@@ -1750,7 +1750,7 @@ export function AlunoDetails() {
 
             <ProfessorManualContextPanel
               title="Manual do Professor para este momento"
-              description="Trechos curtos do manual que ajudam no envio, na leitura do historico e na conexao da avaliacao com o treino."
+              description="Trechos curtos do manual que ajudam no envio, na leitura do histórico e na conexão da avaliação com o treino."
               contexts={['avaliacao_fisica']}
               limit={5}
               className="mt-4"

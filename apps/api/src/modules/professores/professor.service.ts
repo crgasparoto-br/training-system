@@ -67,16 +67,10 @@ function normalizeInstagramHandle(instagramHandle?: string | null) {
   return normalizedValue.replace(/^@+/, '');
 }
 
-interface HourlyRateBandInput {
-  bronze?: number | null;
-  silver?: number | null;
-  gold?: number | null;
-}
-
 interface HourlyRatesInput {
-  personal: HourlyRateBandInput;
-  consulting: HourlyRateBandInput;
-  evaluation: HourlyRateBandInput;
+  personal?: number | null;
+  consulting?: number | null;
+  evaluation?: number | null;
 }
 
 function normalizeOperationalRoleIds(roleIds?: string[] | null) {
@@ -107,26 +101,12 @@ function normalizeHourlyRates(hourlyRates?: HourlyRatesInput | null): Prisma.Jso
   }
 
   const normalized = {
-    personal: {
-      bronze: normalizeHourlyRateValue(hourlyRates.personal?.bronze),
-      silver: normalizeHourlyRateValue(hourlyRates.personal?.silver),
-      gold: normalizeHourlyRateValue(hourlyRates.personal?.gold),
-    },
-    consulting: {
-      bronze: normalizeHourlyRateValue(hourlyRates.consulting?.bronze),
-      silver: normalizeHourlyRateValue(hourlyRates.consulting?.silver),
-      gold: normalizeHourlyRateValue(hourlyRates.consulting?.gold),
-    },
-    evaluation: {
-      bronze: normalizeHourlyRateValue(hourlyRates.evaluation?.bronze),
-      silver: normalizeHourlyRateValue(hourlyRates.evaluation?.silver),
-      gold: normalizeHourlyRateValue(hourlyRates.evaluation?.gold),
-    },
+    personal: normalizeHourlyRateValue(hourlyRates.personal),
+    consulting: normalizeHourlyRateValue(hourlyRates.consulting),
+    evaluation: normalizeHourlyRateValue(hourlyRates.evaluation),
   } satisfies Prisma.JsonObject;
 
-  const hasValue = Object.values(normalized).some((band) =>
-    Object.values(band).some((value) => typeof value === 'number')
-  );
+  const hasValue = Object.values(normalized).some((value) => typeof value === 'number');
 
   return hasValue ? normalized : null;
 }
@@ -160,6 +140,7 @@ export interface CreateProfessorDTO {
   operationalRoleIds?: string[];
   hourlyRates?: HourlyRatesInput;
   hasSignedContract?: boolean;
+  signedContractDocumentUrl?: string;
   collaboratorFunctionId: string;
   responsibleManagerId?: string;
   actorProfessorId?: string;
@@ -193,6 +174,7 @@ export interface UpdateProfessorDTO {
   operationalRoleIds?: string[];
   hourlyRates?: HourlyRatesInput;
   hasSignedContract?: boolean;
+  signedContractDocumentUrl?: string | null;
   collaboratorFunctionId?: string;
   responsibleManagerId?: string;
   actorProfessorId?: string;
@@ -366,6 +348,7 @@ export const professorService = {
     const normalizedPixKey = normalizeOptionalText(data.pixKey);
     const normalizedAvatar = normalizeOptionalText(data.avatar);
     const normalizedCurrentStatus = normalizeOptionalText(data.currentStatus);
+    const normalizedSignedContractDocumentUrl = normalizeOptionalText(data.signedContractDocumentUrl);
     const normalizedHourlyRates = normalizeHourlyRates(data.hourlyRates);
     const legalFinancialFilled =
       !!data.actorProfessorId &&
@@ -440,6 +423,10 @@ export const professorService = {
     );
     await ensureOperationalRolesAvailable(contract.id, operationalRoleIds);
 
+    if (data.hasSignedContract && !normalizedSignedContractDocumentUrl) {
+      throw new Error('Envie o PDF do contrato assinado');
+    }
+
     return prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
@@ -496,6 +483,9 @@ export const professorService = {
           operationalRoleIds,
           ...(normalizedHourlyRates ? { hourlyRates: normalizedHourlyRates } : {}),
           hasSignedContract: data.hasSignedContract ?? false,
+          ...(data.hasSignedContract && normalizedSignedContractDocumentUrl
+            ? { signedContractDocumentUrl: normalizedSignedContractDocumentUrl }
+            : {}),
         },
         include: professorProfileInclude,
       });
@@ -635,6 +625,10 @@ export const professorService = {
     const normalizedCpf = data.cpf === undefined ? undefined : normalizeCpf(data.cpf);
     const normalizedCurrentStatus =
       data.currentStatus === undefined ? undefined : normalizeOptionalText(data.currentStatus);
+    const normalizedSignedContractDocumentUrl =
+      data.signedContractDocumentUrl === undefined
+        ? undefined
+        : normalizeOptionalText(data.signedContractDocumentUrl);
     const normalizedCompanyDocument =
       data.companyDocument === undefined ? undefined : normalizeCompanyDocument(data.companyDocument);
 
@@ -824,6 +818,22 @@ export const professorService = {
 
     if (data.hasSignedContract !== undefined) {
       updateProfessorData.hasSignedContract = data.hasSignedContract;
+    }
+
+    const nextHasSignedContract = data.hasSignedContract ?? professor.hasSignedContract;
+    const nextSignedContractDocumentUrl =
+      data.hasSignedContract === false
+        ? null
+        : data.signedContractDocumentUrl === undefined
+          ? professor.signedContractDocumentUrl
+          : normalizedSignedContractDocumentUrl ?? null;
+
+    if (nextHasSignedContract && !nextSignedContractDocumentUrl) {
+      throw new Error('Envie o PDF do contrato assinado');
+    }
+
+    if (data.signedContractDocumentUrl !== undefined || data.hasSignedContract === false) {
+      updateProfessorData.signedContractDocumentUrl = nextSignedContractDocumentUrl;
     }
 
     if (data.operationalRoleIds !== undefined || data.collaboratorFunctionId !== undefined) {

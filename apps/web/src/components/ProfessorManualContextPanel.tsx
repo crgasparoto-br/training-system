@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  professorManualContextLabels,
+  professorManualFormatLabels,
+} from '../constants/professorManual';
+import {
   professorManualService,
   type ProfessorManualContext,
   type ProfessorManualFormat,
@@ -12,36 +16,30 @@ const formatMeta: Record<
   { label: string; badgeClassName: string; cardClassName: string }
 > = {
   dica_rapida: {
-    label: 'Dica rapida',
+    label: professorManualFormatLabels.dica_rapida,
     badgeClassName: 'bg-sky-100 text-sky-700',
     cardClassName: 'border-sky-200 bg-sky-50/60',
   },
   alerta: {
-    label: 'Alerta',
+    label: professorManualFormatLabels.alerta,
     badgeClassName: 'bg-amber-100 text-amber-700',
     cardClassName: 'border-amber-200 bg-amber-50/70',
   },
   exemplo: {
-    label: 'Exemplo',
+    label: professorManualFormatLabels.exemplo,
     badgeClassName: 'bg-emerald-100 text-emerald-700',
     cardClassName: 'border-emerald-200 bg-emerald-50/70',
   },
   lembrete_metodo: {
-    label: 'Lembrete de metodo',
+    label: professorManualFormatLabels.lembrete_metodo,
     badgeClassName: 'bg-violet-100 text-violet-700',
     cardClassName: 'border-violet-200 bg-violet-50/70',
   },
   saiba_mais: {
-    label: 'Saiba mais',
+    label: professorManualFormatLabels.saiba_mais,
     badgeClassName: 'bg-slate-200 text-slate-700',
     cardClassName: 'border-slate-200 bg-slate-50',
   },
-};
-
-const contextLabelMap: Record<ProfessorManualContext, string> = {
-  avaliacao_fisica: 'Avaliacao fisica',
-  montagem_treino: 'Montagem de treino',
-  uso_sistema: 'Uso do sistema',
 };
 
 type ProfessorManualContextPanelProps = {
@@ -57,7 +55,7 @@ export function ProfessorManualContextPanel({
   contexts,
   title,
   description,
-  emptyState = 'Nenhuma orientacao contextual cadastrada para este momento.',
+  emptyState = 'Nenhuma orientação contextual cadastrada para este momento.',
   className,
   limit,
 }: ProfessorManualContextPanelProps) {
@@ -93,7 +91,7 @@ export function ProfessorManualContextPanel({
         <div className="flex flex-wrap items-center gap-2">
           <h3 className="text-base font-semibold text-slate-900">{title}</h3>
           <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
-            {contexts.map((context) => contextLabelMap[context]).join(' + ')}
+            {contexts.map((context) => professorManualContextLabels[context]).join(' + ')}
           </span>
         </div>
         {description ? <p className="text-sm text-slate-600">{description}</p> : null}
@@ -101,7 +99,7 @@ export function ProfessorManualContextPanel({
 
       {loading ? (
         <div className="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
-          Carregando orientacoes...
+          Carregando orientações...
         </div>
       ) : error ? (
         <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -136,18 +134,18 @@ export function ProfessorManualContextPanel({
                   </p>
                 ) : null}
 
-                {item.sourceExcerpt ? (
+                {item.frase ? (
                   <div className="mt-3 rounded-lg border border-white/80 bg-white/80 p-3">
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                       Trecho-base do manual
                     </p>
-                    <p className="mt-1 text-xs leading-5 text-slate-600">{item.sourceExcerpt}</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-600">{item.frase}</p>
                   </div>
                 ) : null}
 
-                {(item.sourceItem || item.audience) ? (
+                {(item.item || item.servicoContratado) ? (
                   <p className="mt-3 text-xs text-slate-500">
-                    {[item.sourceItem, item.audience].filter(Boolean).join(' | ')}
+                    {[item.item, item.servicoContratado].filter(Boolean).join(' | ')}
                   </p>
                 ) : null}
 
@@ -156,7 +154,7 @@ export function ProfessorManualContextPanel({
                     href={item.linkHref}
                     className="mt-3 inline-flex text-xs font-semibold text-slate-700 underline underline-offset-2"
                   >
-                    {item.linkLabel || 'Abrir referencia'}
+                    {item.linkLabel || 'Abrir referência'}
                   </a>
                 ) : null}
               </article>

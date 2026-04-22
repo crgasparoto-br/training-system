@@ -1431,8 +1431,8 @@ export default function WorkoutBuilder2() {
                     {workoutBuilderGuideCopy.manualDescription}
                   </p>
                   <ProfessorManualContextPanel
-                    title="Orientacoes conectadas ao fluxo"
-                    description="Conteudo do Manual do Professor convertido em apoio rapido para planejamento, leitura do historico e momento de liberacao."
+                    title="Orientações conectadas ao fluxo"
+                    description="Conteúdo do Manual do Professor convertido em apoio rápido para planejamento, leitura do histórico e momento de liberação."
                     contexts={['montagem_treino', 'uso_sistema']}
                     limit={6}
                     className="border-white/80 bg-white/80 shadow-none"

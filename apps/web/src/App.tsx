@@ -15,6 +15,7 @@ import SettingsParameters from './pages/Settings/Parameters';
 import ContractSettings from './pages/Settings/Contract';
 import SettingsAssessmentTypes from './pages/Settings/AssessmentTypes';
 import SettingsCollaboratorFunctions from './pages/Settings/CollaboratorFunctions';
+import SettingsHourlyRateLevels from './pages/Settings/HourlyRateLevels';
 import SettingsSubjectiveScales from './pages/Settings/SubjectiveScales';
 import SettingsAlunoAccess from './pages/Settings/AlunoAccess';
 import SettingsProfessorManual from './pages/Settings/ProfessorManual';
@@ -63,6 +64,7 @@ function App() {
           <Route path="settings/contract" element={<ContractSettings />} />
           <Route path="settings/assessment-types" element={<SettingsAssessmentTypes />} />
           <Route path="settings/collaborator-functions" element={<SettingsCollaboratorFunctions />} />
+          <Route path="settings/hourly-rate-levels" element={<SettingsHourlyRateLevels />} />
           <Route path="settings/psr-pse" element={<SettingsSubjectiveScales />} />
           <Route path="settings/professor-manual" element={<SettingsProfessorManual />} />
           <Route path="settings/aluno-access" element={<SettingsAlunoAccess />} />

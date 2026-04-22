@@ -179,28 +179,16 @@ const maritalStatusSchema = z.enum([
   'other',
 ]);
 
-const hourlyRateBandSchema = z.object({
-  bronze: optionalNonNegativeNumberSchema,
-  silver: optionalNonNegativeNumberSchema,
-  gold: optionalNonNegativeNumberSchema,
-});
-
-const hourlyRateBandNullableSchema = z.object({
-  bronze: optionalNullableNonNegativeNumberSchema,
-  silver: optionalNullableNonNegativeNumberSchema,
-  gold: optionalNullableNonNegativeNumberSchema,
-});
-
 const professorHourlyRatesSchema = z.object({
-  personal: hourlyRateBandSchema,
-  consulting: hourlyRateBandSchema,
-  evaluation: hourlyRateBandSchema,
+  personal: optionalNonNegativeNumberSchema,
+  consulting: optionalNonNegativeNumberSchema,
+  evaluation: optionalNonNegativeNumberSchema,
 });
 
 const professorHourlyRatesNullableSchema = z.object({
-  personal: hourlyRateBandNullableSchema,
-  consulting: hourlyRateBandNullableSchema,
-  evaluation: hourlyRateBandNullableSchema,
+  personal: optionalNullableNonNegativeNumberSchema,
+  consulting: optionalNullableNonNegativeNumberSchema,
+  evaluation: optionalNullableNonNegativeNumberSchema,
 });
 
 // ============================================================================
@@ -251,11 +239,20 @@ export const CreateProfessorSchema = z.object({
   operationalRoleIds: z.array(z.string().trim().min(1, 'Cargo invalido')).optional(),
   hourlyRates: professorHourlyRatesSchema.optional(),
   hasSignedContract: z.boolean().optional(),
+  signedContractDocumentUrl: optionalUrlSchema,
   collaboratorFunctionId: z.string().trim().min(1, 'Funcao do colaborador invalida'),
   responsibleManagerId: z.preprocess(
     emptyStringToUndefined,
     z.string().trim().min(1, 'Gestor responsavel invalido').optional()
   ),
+}).superRefine((data, ctx) => {
+  if (data.hasSignedContract && !data.signedContractDocumentUrl) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['signedContractDocumentUrl'],
+      message: 'Envie o PDF do contrato assinado',
+    });
+  }
 });
 
 export const UpdateProfessorSchema = z.object({
@@ -295,6 +292,7 @@ export const UpdateProfessorSchema = z.object({
   operationalRoleIds: z.array(z.string().trim().min(1, 'Cargo invalido')).optional(),
   hourlyRates: professorHourlyRatesNullableSchema.optional(),
   hasSignedContract: z.boolean().optional(),
+  signedContractDocumentUrl: optionalNullableUrlSchema,
   collaboratorFunctionId: z.preprocess(
     emptyStringToUndefined,
     z.string().trim().min(1, 'Funcao do colaborador invalida').optional()
@@ -303,6 +301,14 @@ export const UpdateProfessorSchema = z.object({
     emptyStringToUndefined,
     z.string().trim().min(1, 'Gestor responsavel invalido').optional()
   ),
+}).superRefine((data, ctx) => {
+  if (data.hasSignedContract && !data.signedContractDocumentUrl) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['signedContractDocumentUrl'],
+      message: 'Envie o PDF do contrato assinado',
+    });
+  }
 });
 
 export const CreateCollaboratorFunctionSchema = z.object({
