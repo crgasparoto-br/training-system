@@ -1,0 +1,115 @@
+name: Deploy Staging – API
+
+# Triggers on every push to main (staging surface)
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/api/**'
+      - 'packages/**'
+      - 'prisma/**'
+      - '.github/workflows/deploy-staging-api.yml'
+
+jobs:
+  deploy:
+    name: Build & Deploy API
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      # -----------------------------------------------------------------------
+      # 1. Checkout
+      # -----------------------------------------------------------------------
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # -----------------------------------------------------------------------
+      # 2. Setup Node + pnpm
+      # -----------------------------------------------------------------------
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      # -----------------------------------------------------------------------
+      # 3. Install dependencies
+      # -----------------------------------------------------------------------
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # -----------------------------------------------------------------------
+      # 4. Type-check & build
+      # -----------------------------------------------------------------------
+      - name: Type-check API
+        run: pnpm --filter @corrida/api type-check
+
+      - name: Build API
+        run: pnpm --filter @corrida/api build
+
+      # -----------------------------------------------------------------------
+      # 5. Run database migrations
+      #
+      #    Requires the following GitHub secret to be set:
+      #      DATABASE_URL  — connection string for the STAGING database
+      #                      (must be a separate DB, never production)
+      # -----------------------------------------------------------------------
+      - name: Run database migrations
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+        run: pnpm --filter @corrida/api db:migrate:prod
+
+      # -----------------------------------------------------------------------
+      # 6. Deploy
+      #
+      #    Choose ONE of the options below and remove the others.
+      #
+      #    OPTION A – Railway (recommended for quick setup)
+      #    Requires secrets: RAILWAY_TOKEN, RAILWAY_SERVICE_ID
+      #
+      #    OPTION B – Render
+      #    Requires secrets: RENDER_API_DEPLOY_HOOK_URL
+      #
+      #    OPTION C – SSH / VPS
+      #    Requires secrets: SSH_PRIVATE_KEY, SSH_HOST, SSH_USER
+      # -----------------------------------------------------------------------
+
+      # --- OPTION A: Railway ---------------------------------------------------
+      # Uncomment and remove the other options when using Railway.
+      #
+      # - name: Deploy to Railway
+      #   uses: bervProject/railway-deploy@v1.0.0
+      #   with:
+      #     railway_token: ${{ secrets.RAILWAY_TOKEN }}
+      #     service: ${{ secrets.RAILWAY_SERVICE_ID }}
+
+      # --- OPTION B: Render ----------------------------------------------------
+      # Uncomment and remove the other options when using Render.
+      # The deploy hook URL is found in the Render dashboard → Settings → Deploy Hook.
+      #
+      # - name: Trigger Render deploy
+      #   run: curl -X POST "${{ secrets.RENDER_API_DEPLOY_HOOK_URL }}"
+
+      # --- OPTION C: SSH / VPS -------------------------------------------------
+      # Uncomment and remove the other options when using a VPS.
+      # Add the private key as a GitHub secret named SSH_PRIVATE_KEY.
+      #
+      # - name: Deploy via SSH
+      #   uses: appleboy/ssh-action@v1.0.3
+      #   with:
+      #     host: ${{ secrets.SSH_HOST }}
+      #     username: ${{ secrets.SSH_USER }}
+      #     key: ${{ secrets.SSH_PRIVATE_KEY }}
+      #     script: |
+      #       cd /srv/staging/training-system
+      #       git pull origin main
+      #       pnpm install --frozen-lockfile
+      #       pnpm --filter @corrida/api build
+      #       pm2 restart staging-api
