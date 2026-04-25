@@ -45,6 +45,9 @@ export interface CreateProfessorRequest {
   maritalStatus?: ProfessorMaritalStatus;
   addressStreet?: string;
   addressNumber?: string;
+  addressNeighborhood?: string;
+  addressCity?: string;
+  addressState?: string;
   addressComplement?: string;
   addressZipCode?: string;
   instagramHandle?: string;
@@ -58,6 +61,7 @@ export interface CreateProfessorRequest {
   pixKey?: string;
   avatar?: string;
   admissionDate?: string;
+  dismissalDate?: string;
   currentStatus?: string;
   operationalRoleIds?: string[];
   hourlyRates?: ProfessorHourlyRates;
@@ -78,6 +82,9 @@ export interface UpdateProfessorRequest {
   maritalStatus?: ProfessorMaritalStatus | null;
   addressStreet?: string | null;
   addressNumber?: string | null;
+  addressNeighborhood?: string | null;
+  addressCity?: string | null;
+  addressState?: string | null;
   addressComplement?: string | null;
   addressZipCode?: string | null;
   instagramHandle?: string | null;
@@ -91,6 +98,7 @@ export interface UpdateProfessorRequest {
   pixKey?: string | null;
   avatar?: string | null;
   admissionDate?: string | null;
+  dismissalDate?: string | null;
   currentStatus?: string | null;
   operationalRoleIds?: string[];
   hourlyRates?: ProfessorHourlyRates;
@@ -106,6 +114,7 @@ export interface ProfessorSummary {
   collaboratorFunction: CollaboratorFunctionInfo;
   responsibleManager?: ProfessorManagerInfo | null;
   admissionDate?: string | null;
+  dismissalDate?: string | null;
   currentStatus?: string | null;
   operationalRoleIds: string[];
   hourlyRates?: ProfessorHourlyRates | null;
@@ -126,6 +135,9 @@ export interface ProfessorSummary {
       maritalStatus?: ProfessorMaritalStatus | null;
       addressStreet?: string | null;
       addressNumber?: string | null;
+      addressNeighborhood?: string | null;
+      addressCity?: string | null;
+      addressState?: string | null;
       addressComplement?: string | null;
       addressZipCode?: string | null;
       instagramHandle?: string | null;

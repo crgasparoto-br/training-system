@@ -15,6 +15,7 @@ import ContractSettings from './pages/Settings/Contract';
 import SettingsAssessmentTypes from './pages/Settings/AssessmentTypes';
 import SettingsCollaboratorFunctions from './pages/Settings/CollaboratorFunctions';
 import SettingsHourlyRateLevels from './pages/Settings/HourlyRateLevels';
+import SettingsServices from './pages/Settings/Services';
 import SettingsSubjectiveScales from './pages/Settings/SubjectiveScales';
 import SettingsAlunoAccess from './pages/Settings/AlunoAccess';
 import SettingsProfessorManual from './pages/Settings/ProfessorManual';
@@ -45,7 +46,7 @@ function App() {
         >
           <Route index element={<Navigate to="/alunos" replace />} />
           <Route path="professores" element={<Professores />} />
-          <Route path="alunos" element={<Alunos />} />
+          <Route path="alunos" element={<AlunoForm />} />
           <Route path="alunos/new" element={<AlunoForm />} />
           <Route path="alunos/:id" element={<AlunoDetails />} />
           <Route path="alunos/:id/edit" element={<AlunoForm />} />
@@ -61,6 +62,9 @@ function App() {
           <Route path="protocolo-avaliacao-fisica/adipometria" element={<PhysicalAssessmentProtocol />} />
           <Route path="protocolo-avaliacao-fisica/bioimpedanciometria" element={<PhysicalAssessmentProtocol />} />
           <Route path="protocolo-avaliacao-fisica/ultrassonografia" element={<PhysicalAssessmentProtocol />} />
+          <Route path="consultas" element={<Navigate to="/consultas/alunos" replace />} />
+          <Route path="consultas/alunos" element={<Alunos />} />
+          <Route path="consultas/colaboradores" element={<Professores mode="consult" />} />
           <Route path="plans" element={<Plans />} />
           <Route path="plans/new" element={<PlanForm />} />
           <Route path="plans/:id" element={<PlanDetails />} />
@@ -74,6 +78,7 @@ function App() {
           <Route path="settings/parameters" element={<SettingsParameters />} />
           <Route path="settings/contract" element={<ContractSettings />} />
           <Route path="settings/assessment-types" element={<SettingsAssessmentTypes />} />
+          <Route path="settings/services" element={<SettingsServices />} />
           <Route path="settings/collaborator-functions" element={<SettingsCollaboratorFunctions />} />
           <Route path="settings/hourly-rate-levels" element={<SettingsHourlyRateLevels />} />
           <Route path="settings/psr-pse" element={<SettingsSubjectiveScales />} />

@@ -1,6 +1,7 @@
-﻿import { PrismaClient } from '@prisma/client';
+﻿import { PrismaClient, type Prisma } from '@prisma/client';
 import bcryptjs from 'bcryptjs';
 import crypto from 'crypto';
+import { getServiceForContract } from '../services/service.service';
 
 const prisma = new PrismaClient();
 
@@ -9,6 +10,7 @@ export interface CreateAlunoDTO {
   email: string;
   phone?: string;
   professorId: string;
+  serviceId?: string;
   schedulePlan: 'free' | 'fixed';
   birthDate?: Date;
   gender?: 'male' | 'female' | 'other';
@@ -45,10 +47,12 @@ export interface CreateAlunoDTO {
       q6: boolean;
       q7: boolean;
     };
+    formResponses?: Record<string, unknown>;
   };
 }
 
 export interface UpdateAlunoDTO {
+  serviceId?: string;
   schedulePlan?: 'free' | 'fixed';
   birthDate?: Date;
   gender?: 'male' | 'female' | 'other';
@@ -85,6 +89,7 @@ export interface UpdateAlunoDTO {
       q6: boolean;
       q7: boolean;
     };
+    formResponses?: Record<string, unknown>;
   };
 }
 
@@ -101,6 +106,9 @@ const hasAnyValue = (payload: Record<string, unknown>) =>
     }
     return true;
   });
+
+const toInputJson = (value?: Record<string, unknown>): Prisma.InputJsonValue | undefined =>
+  value as Prisma.InputJsonValue | undefined;
 
 export const alunoService = {
   /**
@@ -119,6 +127,23 @@ export const alunoService = {
     const passwordHash = await bcryptjs.hash(tempPassword, 10);
 
     const aluno = await prisma.$transaction(async (tx) => {
+      let serviceId: string | undefined;
+
+      if (data.serviceId) {
+        const professor = await tx.professor.findUniqueOrThrow({
+          where: { id: data.professorId },
+          select: { contractId: true },
+        });
+
+        const service = await getServiceForContract(professor.contractId, data.serviceId, tx);
+
+        if (!service.isActive) {
+          throw new Error('Serviço selecionado está inativo');
+        }
+
+        serviceId = service.id;
+      }
+
       const user = await tx.user.create({
         data: {
           email: data.email,
@@ -138,10 +163,11 @@ export const alunoService = {
         },
       });
 
-      return tx.aluno.create({
+      const aluno = await tx.aluno.create({
         data: {
           userId: user.id,
           professorId: data.professorId,
+          serviceId,
           schedulePlan: data.schedulePlan,
           age: data.age,
           weight: data.weight,
@@ -169,6 +195,7 @@ export const alunoService = {
               },
             },
           },
+          service: true,
           macronutrients: true,
           intakeForm: true,
         },
@@ -198,6 +225,7 @@ export const alunoService = {
             trainingBackground: data.intakeForm.trainingBackground,
             observations: data.intakeForm.observations,
             parqResponses: data.intakeForm.parqResponses,
+            formResponses: toInputJson(data.intakeForm.formResponses),
           },
         });
       }
@@ -232,6 +260,7 @@ export const alunoService = {
               },
             },
           },
+          service: true,
           macronutrients: true,
           intakeForm: true,
         },
@@ -275,6 +304,7 @@ export const alunoService = {
               },
             },
           },
+          service: true,
           macronutrients: true,
         },
         orderBy: {
@@ -341,6 +371,7 @@ export const alunoService = {
               },
             },
           },
+          service: true,
           macronutrients: true,
         },
         orderBy: {
@@ -386,6 +417,7 @@ export const alunoService = {
             },
           },
         },
+        service: true,
         macronutrients: true,
         intakeForm: true,
         trainingPlans: {
@@ -417,6 +449,31 @@ export const alunoService = {
     } = data;
 
     return await prisma.$transaction(async (tx) => {
+      const currentAluno = await tx.aluno.findUniqueOrThrow({
+        where: { id },
+        include: {
+          professor: {
+            select: {
+              contractId: true,
+            },
+          },
+        },
+      });
+
+      if (data.serviceId !== undefined) {
+        if (!data.serviceId) {
+          alunoData.serviceId = null as never;
+        } else {
+          const service = await getServiceForContract(currentAluno.professor.contractId, data.serviceId, tx);
+
+          if (!service.isActive) {
+            throw new Error('Serviço selecionado está inativo');
+          }
+
+          alunoData.serviceId = service.id as never;
+        }
+      }
+
       const aluno = await tx.aluno.update({
         where: { id },
         data: alunoData,
@@ -467,6 +524,7 @@ export const alunoService = {
               trainingBackground: intakeForm.trainingBackground,
               observations: intakeForm.observations,
               parqResponses: intakeForm.parqResponses,
+              formResponses: toInputJson(intakeForm.formResponses),
             },
             update: {
               assessmentDate: intakeForm.assessmentDate,
@@ -477,6 +535,7 @@ export const alunoService = {
               trainingBackground: intakeForm.trainingBackground,
               observations: intakeForm.observations,
               parqResponses: intakeForm.parqResponses,
+              formResponses: toInputJson(intakeForm.formResponses),
             },
           });
         }
@@ -490,6 +549,16 @@ export const alunoService = {
               profile: true,
             },
           },
+          professor: {
+            include: {
+              user: {
+                include: {
+                  profile: true,
+                },
+              },
+            },
+          },
+          service: true,
           macronutrients: true,
           intakeForm: true,
         },

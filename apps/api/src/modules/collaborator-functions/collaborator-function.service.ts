@@ -7,7 +7,8 @@ const DEFAULT_COLLABORATOR_FUNCTIONS = [
   { code: 'intern', name: 'Estagiário' },
   { code: 'manager', name: 'Gestor' },
   { code: 'administrative', name: 'Administrativo' },
-  { code: 'cleaning_services', name: 'Limpeza e Serviços' },
+  { code: 'cleaning', name: 'Limpeza' },
+  { code: 'services', name: 'Serviços' },
 ] as const;
 
 type DbClient = PrismaClient | Prisma.TransactionClient;
@@ -81,6 +82,18 @@ export async function ensureDefaultCollaboratorFunctionsForContract(
   contractId: string,
   client: DbClient = prisma
 ) {
+  await client.collaboratorFunctionOption.updateMany({
+    where: {
+      contractId,
+      code: 'cleaning_services',
+      isSystem: true,
+      isActive: true,
+    },
+    data: {
+      isActive: false,
+    },
+  });
+
   const existing = await client.collaboratorFunctionOption.findMany({
     where: { contractId },
     select: { code: true },
