@@ -2,6 +2,7 @@
   id: string;
   userId: string;
   professorId: string;
+  serviceId?: string;
   schedulePlan: 'free' | 'fixed';
   birthDate?: Date;
   gender?: 'male' | 'female' | 'other';
@@ -48,12 +49,14 @@ export interface AlunoIntakeForm {
     q6: boolean;
     q7: boolean;
   };
+  formResponses?: Record<string, unknown>;
 }
 
 export interface CreateAlunoRequest {
   name: string;
   email: string;
   phone?: string;
+  serviceId?: string;
   schedulePlan: 'free' | 'fixed';
   birthDate?: Date;
   gender?: 'male' | 'female' | 'other';
@@ -72,6 +75,7 @@ export interface CreateAlunoRequest {
 }
 
 export interface UpdateAlunoRequest {
+  serviceId?: string;
   schedulePlan?: 'free' | 'fixed';
   birthDate?: Date;
   gender?: 'male' | 'female' | 'other';

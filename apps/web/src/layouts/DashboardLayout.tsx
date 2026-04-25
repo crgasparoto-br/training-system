@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Activity, BarChart3, BookOpen, Calendar, FileText, LogOut, Menu, Settings, Users, X } from 'lucide-react';
+import { Activity, BarChart3, BookOpen, Calendar, FileText, LogOut, Menu, Search, Settings, Users, X } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { useAuthStore } from '../stores/useAuthStore';
 import { Button } from '../components/ui/Button';
@@ -29,8 +29,17 @@ export function DashboardLayout() {
 
   const menuItems = useMemo<SidebarNavItem[]>(
     () => [
-      ...(canManageProfessores ? [{ id: 'professores', icon: Users, label: shellCopy.menu.professores, path: '/professores' }] : []),
-      { id: 'alunos', icon: Users, label: shellCopy.menu.alunos, path: '/alunos' },
+      {
+        id: 'cadastros',
+        icon: Users,
+        label: shellCopy.menu.cadastros,
+        children: [
+          { id: 'alunos', label: shellCopy.menu.cadastroAluno, path: '/alunos' },
+          ...(canManageProfessores
+            ? [{ id: 'professores', label: shellCopy.menu.cadastroColaborador, path: '/professores' }]
+            : []),
+        ],
+      },
       {
         id: 'physical-assessment-protocol',
         icon: FileText,
@@ -64,6 +73,24 @@ export function DashboardLayout() {
           },
         ],
       },
+      {
+        id: 'consultas',
+        icon: Search,
+        label: shellCopy.menu.consultas,
+        path: '/consultas',
+        children: [
+          { id: 'consultas-alunos', label: shellCopy.menu.consultaAlunos, path: '/consultas/alunos' },
+          ...(canManageProfessores
+            ? [
+                {
+                  id: 'consultas-colaboradores',
+                  label: shellCopy.menu.consultaColaboradores,
+                  path: '/consultas/colaboradores',
+                },
+              ]
+            : []),
+        ],
+      },
       { id: 'plans', icon: Calendar, label: shellCopy.menu.planos, path: '/plans' },
       { id: 'agenda', icon: Calendar, label: shellCopy.menu.agenda, path: '/agenda' },
       { id: 'library', icon: BookOpen, label: shellCopy.menu.biblioteca, path: '/library' },
@@ -78,6 +105,9 @@ export function DashboardLayout() {
           { id: 'settings-contract', label: shellCopy.menu.contrato, path: '/settings/contract' },
           { id: 'settings-parameters', label: shellCopy.menu.parametros, path: '/settings/parameters' },
           { id: 'settings-assessment-types', label: shellCopy.menu.avaliacoes, path: '/settings/assessment-types' },
+          ...(canAccessAlunoSettings
+            ? [{ id: 'settings-services', label: shellCopy.menu.servicos, path: '/settings/services' }]
+            : []),
           ...(canManageProfessores
             ? [
                 {

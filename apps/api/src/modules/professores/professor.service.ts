@@ -123,6 +123,9 @@ export interface CreateProfessorDTO {
   maritalStatus?: 'single' | 'married' | 'stable_union' | 'divorced' | 'separated' | 'widowed' | 'other';
   addressStreet?: string;
   addressNumber?: string;
+  addressNeighborhood?: string;
+  addressCity?: string;
+  addressState?: string;
   addressComplement?: string;
   addressZipCode?: string;
   instagramHandle?: string;
@@ -136,6 +139,7 @@ export interface CreateProfessorDTO {
   pixKey?: string;
   avatar?: string;
   admissionDate?: Date;
+  dismissalDate?: Date;
   currentStatus?: string;
   operationalRoleIds?: string[];
   hourlyRates?: HourlyRatesInput;
@@ -157,6 +161,9 @@ export interface UpdateProfessorDTO {
   maritalStatus?: 'single' | 'married' | 'stable_union' | 'divorced' | 'separated' | 'widowed' | 'other' | null;
   addressStreet?: string | null;
   addressNumber?: string | null;
+  addressNeighborhood?: string | null;
+  addressCity?: string | null;
+  addressState?: string | null;
   addressComplement?: string | null;
   addressZipCode?: string | null;
   instagramHandle?: string | null;
@@ -170,6 +177,7 @@ export interface UpdateProfessorDTO {
   pixKey?: string | null;
   avatar?: string | null;
   admissionDate?: Date | null;
+  dismissalDate?: Date | null;
   currentStatus?: string | null;
   operationalRoleIds?: string[];
   hourlyRates?: HourlyRatesInput;
@@ -335,6 +343,9 @@ export const professorService = {
     const normalizedRg = normalizeOptionalText(data.rg);
     const normalizedAddressStreet = normalizeOptionalText(data.addressStreet);
     const normalizedAddressNumber = normalizeOptionalText(data.addressNumber);
+    const normalizedAddressNeighborhood = normalizeOptionalText(data.addressNeighborhood);
+    const normalizedAddressCity = normalizeOptionalText(data.addressCity);
+    const normalizedAddressState = normalizeOptionalText(data.addressState);
     const normalizedAddressComplement = normalizeOptionalText(data.addressComplement);
     const normalizedAddressZipCode = normalizeZipCode(data.addressZipCode);
     const normalizedInstagramHandle = normalizeInstagramHandle(data.instagramHandle);
@@ -443,6 +454,9 @@ export const professorService = {
               ...(data.maritalStatus ? { maritalStatus: data.maritalStatus } : {}),
               ...(normalizedAddressStreet ? { addressStreet: normalizedAddressStreet } : {}),
               ...(normalizedAddressNumber ? { addressNumber: normalizedAddressNumber } : {}),
+              ...(normalizedAddressNeighborhood ? { addressNeighborhood: normalizedAddressNeighborhood } : {}),
+              ...(normalizedAddressCity ? { addressCity: normalizedAddressCity } : {}),
+              ...(normalizedAddressState ? { addressState: normalizedAddressState } : {}),
               ...(normalizedAddressComplement ? { addressComplement: normalizedAddressComplement } : {}),
               ...(normalizedAddressZipCode ? { addressZipCode: normalizedAddressZipCode } : {}),
               ...(normalizedInstagramHandle ? { instagramHandle: normalizedInstagramHandle } : {}),
@@ -479,6 +493,7 @@ export const professorService = {
           collaboratorFunctionId: collaboratorFunction.id,
           responsibleManagerId,
           ...(data.admissionDate ? { admissionDate: data.admissionDate } : {}),
+          ...(data.dismissalDate ? { dismissalDate: data.dismissalDate } : {}),
           ...(normalizedCurrentStatus ? { currentStatus: normalizedCurrentStatus } : {}),
           operationalRoleIds,
           ...(normalizedHourlyRates ? { hourlyRates: normalizedHourlyRates } : {}),
@@ -693,6 +708,21 @@ export const professorService = {
         data.addressNumber === null ? null : normalizeOptionalText(data.addressNumber) ?? null;
     }
 
+    if (data.addressNeighborhood !== undefined) {
+      updateProfileData.addressNeighborhood =
+        data.addressNeighborhood === null ? null : normalizeOptionalText(data.addressNeighborhood) ?? null;
+    }
+
+    if (data.addressCity !== undefined) {
+      updateProfileData.addressCity =
+        data.addressCity === null ? null : normalizeOptionalText(data.addressCity) ?? null;
+    }
+
+    if (data.addressState !== undefined) {
+      updateProfileData.addressState =
+        data.addressState === null ? null : normalizeOptionalText(data.addressState) ?? null;
+    }
+
     if (data.addressComplement !== undefined) {
       updateProfileData.addressComplement =
         data.addressComplement === null ? null : normalizeOptionalText(data.addressComplement) ?? null;
@@ -806,6 +836,10 @@ export const professorService = {
 
     if (data.admissionDate !== undefined) {
       updateProfessorData.admissionDate = data.admissionDate;
+    }
+
+    if (data.dismissalDate !== undefined) {
+      updateProfessorData.dismissalDate = data.dismissalDate;
     }
 
     if (data.currentStatus !== undefined) {

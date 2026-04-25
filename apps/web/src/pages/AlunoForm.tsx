@@ -1,13 +1,15 @@
 ﻿import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useForm } from 'react-hook-form';
+import { useForm, type FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { alunoService, type AlunoAssessmentPrefill } from '../services/aluno.service';
+import type { ServiceOption } from '@corrida/types';
+import { alunoService, type AlunoAssessmentPrefill, type CreateAlunoDTO, type UpdateAlunoDTO } from '../services/aluno.service';
+import { serviceCatalogService } from '../services/service.service';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, ClipboardList, FileText, HeartPulse, Upload, User, X } from 'lucide-react';
 import { alunoFormCopy } from '../i18n/ptBR';
 
 const numberOrUndefined = (value: unknown) =>
@@ -16,10 +18,27 @@ const numberOrUndefined = (value: unknown) =>
 const optionalNumberSchema = (schema: z.ZodNumber) =>
   z.preprocess(numberOrUndefined, schema.optional());
 
+const identificationSchema = z.object({
+  cpf: z.string().optional(),
+  rg: z.string().optional(),
+  address: z.string().optional(),
+  addressNumber: z.string().optional(),
+  addressComplement: z.string().optional(),
+  neighborhood: z.string().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  zipCode: z.string().optional(),
+  maritalStatus: z.string().optional(),
+  instagram: z.string().optional(),
+});
+
+const ahaResponseSchema = z.union([z.literal(''), z.enum(['yes', 'no', 'unknown'])]);
+
 const alunoSchema = z.object({
   name: z.string().min(3, 'Nome deve ter no minimo 3 caracteres'),
   email: z.string().email('E-mail inválido'),
   phone: z.string().optional(),
+  serviceId: z.string().min(1, 'Selecione o serviço de interesse'),
   birthDate: z.string().optional(),
   gender: z.enum(['male', 'female', 'other']).optional(),
   schedulePlan: z.enum(['free', 'fixed']),
@@ -47,6 +66,7 @@ const alunoSchema = z.object({
     injuriesHistory: z.string().optional(),
     trainingBackground: z.string().optional(),
     observations: z.string().optional(),
+    personalInfo: identificationSchema,
     parqResponses: z.object({
       q1: z.boolean(),
       q2: z.boolean(),
@@ -55,7 +75,9 @@ const alunoSchema = z.object({
       q5: z.boolean(),
       q6: z.boolean(),
       q7: z.boolean(),
+      q8: z.boolean(),
     }),
+    ahaResponses: z.record(ahaResponseSchema),
   }),
 });
 
@@ -64,18 +86,128 @@ type AlunoFormData = z.infer<typeof alunoSchema>;
 const selectClassName =
   'flex h-12 w-full rounded-xl border border-[#cbd5e1] bg-background px-4 py-3 text-base ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3b82f6] focus-visible:ring-offset-2 focus-visible:shadow-[0_0_0_6px_rgba(59,130,246,0.15)]';
 
+const compactSelectClassName =
+  'flex h-10 w-full rounded-lg border border-[#cbd5e1] bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3b82f6] focus-visible:ring-offset-2 focus-visible:shadow-[0_0_0_4px_rgba(59,130,246,0.12)]';
+
 const textareaClassName =
   'flex min-h-[120px] w-full rounded-xl border border-[#cbd5e1] bg-background px-4 py-3 text-base ring-offset-background placeholder:text-[#94a3b8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3b82f6] focus-visible:ring-offset-2 focus-visible:shadow-[0_0_0_6px_rgba(59,130,246,0.15)]';
 
 const parqQuestions = [
-  { key: 'q1', label: 'Sente dor no peito durante atividade fisica?' },
-  { key: 'q2', label: 'Perde equilíbrio por tontura ou já perdeu a consciência?' },
-  { key: 'q3', label: 'Possui problema osseo ou articular que pode piorar com exercicio?' },
-  { key: 'q4', label: 'Usa medicação para pressão arterial ou condição cardíaca?' },
-  { key: 'q5', label: 'Tem restricao medica atual para praticar exercicios?' },
-  { key: 'q6', label: 'Teve lesões recentes que limitam treino ou avaliação?' },
-  { key: 'q7', label: 'Existe outro motivo para evitar atividade fisica neste momento?' },
+  {
+    key: 'q1',
+    label:
+      '1. Algum médico já disse que você possui algum problema de coração e que só deveria realizar atividade física recomendada por um médico?',
+  },
+  { key: 'q2', label: '2. Você sente dor no tórax quando pratica uma atividade física?' },
+  {
+    key: 'q3',
+    label:
+      '3. No último mês, você sentiu dor no tórax quando não estava praticando atividade física?',
+  },
+  {
+    key: 'q4',
+    label: '4. Você perde o equilíbrio por causa de tontura ou já perdeu a consciência?',
+  },
+  {
+    key: 'q5',
+    label:
+      '5. Você tem algum problema ósseo ou articular que poderia piorar por uma mudança na sua atividade física?',
+  },
+  {
+    key: 'q6',
+    label:
+      '6. Algum médico está prescrevendo medicamento para sua pressão arterial ou condição cardíaca?',
+  },
+  {
+    key: 'q7',
+    label:
+      '7. Você sabe de qualquer outro motivo pelo qual não deveria praticar atividade física?',
+  },
 ] as const;
+
+const ahaQuestionGroups = [
+  {
+    title: 'Fatores de Risco (FR)',
+    questions: [
+      {
+        key: 'fr1',
+        label:
+          'FR1. Algum dos seus pais ou irmãos teve ataque cardíaco, cirurgia de safena, angioplastia ou morte (antes dos 55 anos para homens e 65 anos para mulheres)?',
+      },
+      { key: 'fr2', label: 'FR2. Tem fumado cigarro nos últimos 6 meses?' },
+      {
+        key: 'fr3',
+        label:
+          'FR3. Sua pressão arterial usual é maior ou igual a 140/90 mmHg? Você toma medicamento para pressão alta?',
+      },
+      {
+        key: 'fr4',
+        label:
+          'FR4. O seu nível de LDL colesterol (ruim) é maior que 130 mg/dl? Ou seu nível de colesterol total é maior que 200 mg/dl ou seu nível de colesterol HDL (bom) é menor que 35 mg/dl?',
+      },
+      { key: 'fr5', label: 'FR5. O seu nível de glicose é maior ou igual a 110 mg/dl?' },
+      { key: 'fr6', label: 'FR6. O seu índice de massa corporal (peso kg : altura m) é igual ou maior que 30 kg/m²?' },
+      { key: 'fr7', label: 'FR7. O perímetro da cintura é maior que 100 cm?' },
+      {
+        key: 'fr8',
+        label:
+          'FR8. Você não realiza pelo menos 30 minutos de atividade física de intensidade moderada na maioria dos dias da semana?',
+      },
+    ],
+  },
+  {
+    title: 'Sinais e Sintomas (SR)',
+    questions: [
+      { key: 'sr1', label: 'SR1. Você alguma vez teve dor ou desconforto no peito ou áreas próximas (isquemia)?' },
+      { key: 'sr2', label: 'SR2. Você sente falta de ar em repouso ou com esforço?' },
+      { key: 'sr3', label: 'SR3. Você alguma vez sentiu tontura ou vertigem (não considerar após levantar-se da cama)?' },
+      { key: 'sr4', label: 'SR4. Você sente dificuldade para respirar quando deitado ou dormindo?' },
+      { key: 'sr5', label: 'SR5. Seus tornozelos sempre estão inchados (não considerar após longos períodos em pé)?' },
+      { key: 'sr6', label: 'SR6. Você já teve palpitações ou períodos de aceleração da frequência cardíaca sem motivo?' },
+      { key: 'sr7', label: 'SR7. Você sente dor nas pernas (claudicação intermitente)?' },
+      { key: 'sr8a', label: 'SR8a. O médico já lhe disse que você tem sopro no coração?' },
+      { key: 'sr8b', label: 'SR8b. Está liberado para prática de exercícios?' },
+      { key: 'sr9', label: 'SR9. Você sente fadiga ou dificuldade para respirar em atividades usuais?' },
+    ],
+  },
+  {
+    title: 'Outros (OT)',
+    questions: [
+      { key: 'ot1', label: 'OT1. Você é homem com mais de 45 anos ou mulher com mais de 55 anos?' },
+      {
+        key: 'ot2',
+        label:
+          'OT2. Você tem alguma doença — cardíaca, vascular periférica, vascular cerebral, pulmonar obstrutiva crônica, asma, doença intersticial pulmonar, fibrose cística, diabetes mellitus, desordens de tireoide, doença renal ou hepática?',
+      },
+      { key: 'ot3', label: 'OT3. Você tem qualquer problema ósseo ou articular como artrite ou lesão que pode piorar com o exercício?' },
+      { key: 'ot4', label: 'OT4. Você está com um resfriado ou qualquer outra infecção?' },
+      { key: 'ot5', label: 'OT5. Você está grávida?' },
+      { key: 'ot6', label: 'OT6. Você tem qualquer outro problema que possa dificultar o exercício extenuante?' },
+    ],
+  },
+] as const;
+
+const defaultAhaResponses = Object.fromEntries(
+  ahaQuestionGroups.flatMap((group) => group.questions.map((question) => [question.key, '']))
+) as Record<string, z.infer<typeof ahaResponseSchema>>;
+
+const ahaAnswerOptions = [
+  { value: '', label: '' },
+  { value: 'yes', label: 'Sim' },
+  { value: 'no', label: 'Não' },
+  { value: 'unknown', label: 'Não sei' },
+] as const;
+
+type AlunoFormTab = 'anamneseInicial' | 'identificacao' | 'parq' | 'aha';
+
+type AlunoFormResponses = {
+  identification?: Partial<AlunoFormData['intakeForm']['personalInfo']>;
+  parqResponses?: Partial<AlunoFormData['intakeForm']['parqResponses']>;
+  ahaResponses?: Record<string, unknown>;
+};
+
+const readFormResponses = (value?: Record<string, unknown>): AlunoFormResponses =>
+  value && typeof value === 'object' ? (value as AlunoFormResponses) : {};
 
 const formatDateForInput = (value?: string | null) => {
   if (!value) return '';
@@ -93,6 +225,11 @@ export function AlunoForm() {
   const [prefillLoading, setPrefillLoading] = useState(false);
   const [prefillFile, setPrefillFile] = useState<File | null>(null);
   const [prefillSummary, setPrefillSummary] = useState<string>('');
+  const [isPrefillModalOpen, setIsPrefillModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<AlunoFormTab>('anamneseInicial');
+  const [serviceOptions, setServiceOptions] = useState<ServiceOption[]>([]);
+  const [servicesLoading, setServicesLoading] = useState(true);
+  const [servicesError, setServicesError] = useState<string | null>(null);
 
   const {
     register,
@@ -103,6 +240,7 @@ export function AlunoForm() {
   } = useForm<AlunoFormData>({
     resolver: zodResolver(alunoSchema),
     defaultValues: {
+      serviceId: '',
       schedulePlan: 'free',
       gender: 'male',
       macronutrients: {
@@ -119,6 +257,19 @@ export function AlunoForm() {
         injuriesHistory: '',
         trainingBackground: '',
         observations: '',
+        personalInfo: {
+          cpf: '',
+          rg: '',
+          address: '',
+          addressNumber: '',
+          addressComplement: '',
+          neighborhood: '',
+          city: '',
+          state: '',
+          zipCode: '',
+          maritalStatus: '',
+          instagram: '',
+        },
         parqResponses: {
           q1: false,
           q2: false,
@@ -127,13 +278,16 @@ export function AlunoForm() {
           q5: false,
           q6: false,
           q7: false,
+          q8: false,
         },
+        ahaResponses: defaultAhaResponses,
       },
     },
   });
 
   const weight = watch('weight');
   const height = watch('height');
+  const parqDeclarationAccepted = watch('intakeForm.parqResponses.q8');
   const bmi = weight && height ? alunoService.calculateBMI(weight, height) : 0;
   const bmiClass = bmi ? alunoService.getBMIClassification(bmi) : '';
 
@@ -224,10 +378,28 @@ export function AlunoForm() {
   };
 
   useEffect(() => {
+    loadServiceOptions();
+  }, []);
+
+  useEffect(() => {
     if (isEditMode && id) {
       loadAlunoData(id);
     }
   }, [id, isEditMode]);
+
+  const loadServiceOptions = async () => {
+    setServicesLoading(true);
+    setServicesError(null);
+    try {
+      const data = await serviceCatalogService.list();
+      setServiceOptions(data.filter((item) => item.isActive));
+    } catch (error: any) {
+      console.error('Erro ao carregar serviços:', error);
+      setServicesError(error.response?.data?.error || 'Erro ao carregar serviços');
+    } finally {
+      setServicesLoading(false);
+    }
+  };
 
   const loadAlunoData = async (alunoId: string) => {
     setLoadingData(true);
@@ -236,6 +408,7 @@ export function AlunoForm() {
       setValue('name', aluno.user.profile.name);
       setValue('email', aluno.user.email);
       setValue('phone', aluno.user.profile.phone || '');
+      setValue('serviceId', aluno.service?.id || '');
       setValue('birthDate', formatDateForInput(aluno.user.profile.birthDate));
       setValue('gender', aluno.user.profile.gender || 'male');
       setValue('schedulePlan', aluno.schedulePlan);
@@ -260,6 +433,19 @@ export function AlunoForm() {
       setValue('intakeForm.injuriesHistory', aluno.intakeForm?.injuriesHistory || '');
       setValue('intakeForm.trainingBackground', aluno.intakeForm?.trainingBackground || '');
       setValue('intakeForm.observations', aluno.intakeForm?.observations || '');
+      const formResponses = readFormResponses(aluno.intakeForm?.formResponses);
+      const identification = formResponses.identification ?? {};
+      setValue('intakeForm.personalInfo.cpf', identification.cpf || '');
+      setValue('intakeForm.personalInfo.rg', identification.rg || '');
+      setValue('intakeForm.personalInfo.address', identification.address || '');
+      setValue('intakeForm.personalInfo.addressNumber', identification.addressNumber || '');
+      setValue('intakeForm.personalInfo.addressComplement', identification.addressComplement || '');
+      setValue('intakeForm.personalInfo.neighborhood', identification.neighborhood || '');
+      setValue('intakeForm.personalInfo.city', identification.city || '');
+      setValue('intakeForm.personalInfo.state', identification.state || '');
+      setValue('intakeForm.personalInfo.zipCode', identification.zipCode || '');
+      setValue('intakeForm.personalInfo.maritalStatus', identification.maritalStatus || '');
+      setValue('intakeForm.personalInfo.instagram', identification.instagram || '');
       setValue('intakeForm.parqResponses.q1', aluno.intakeForm?.parqResponses?.q1 ?? false);
       setValue('intakeForm.parqResponses.q2', aluno.intakeForm?.parqResponses?.q2 ?? false);
       setValue('intakeForm.parqResponses.q3', aluno.intakeForm?.parqResponses?.q3 ?? false);
@@ -267,6 +453,21 @@ export function AlunoForm() {
       setValue('intakeForm.parqResponses.q5', aluno.intakeForm?.parqResponses?.q5 ?? false);
       setValue('intakeForm.parqResponses.q6', aluno.intakeForm?.parqResponses?.q6 ?? false);
       setValue('intakeForm.parqResponses.q7', aluno.intakeForm?.parqResponses?.q7 ?? false);
+      setValue('intakeForm.parqResponses.q8', aluno.intakeForm?.parqResponses?.q8 ?? false);
+      Object.keys(defaultAhaResponses).forEach((key) => {
+        setValue(
+          `intakeForm.ahaResponses.${key}` as `intakeForm.ahaResponses.${string}`,
+          formResponses.ahaResponses?.[key] === true
+            ? 'yes'
+            : formResponses.ahaResponses?.[key] === false
+              ? 'no'
+              : formResponses.ahaResponses?.[key] === 'yes' ||
+                  formResponses.ahaResponses?.[key] === 'no' ||
+                  formResponses.ahaResponses?.[key] === 'unknown'
+                ? (formResponses.ahaResponses[key] as z.infer<typeof ahaResponseSchema>)
+                : ''
+        );
+      });
     } catch (error) {
       console.error('Erro ao carregar aluno:', error);
       alert(alunoFormCopy.loadError);
@@ -279,7 +480,24 @@ export function AlunoForm() {
   const onSubmit = async (data: AlunoFormData) => {
     setLoading(true);
     try {
-      const basePayload = {
+      const parqResponses = {
+        q1: data.intakeForm.parqResponses.q1,
+        q2: data.intakeForm.parqResponses.q2,
+        q3: data.intakeForm.parqResponses.q3,
+        q4: data.intakeForm.parqResponses.q4,
+        q5: data.intakeForm.parqResponses.q5,
+        q6: data.intakeForm.parqResponses.q6,
+        q7: data.intakeForm.parqResponses.q7,
+        q8: data.intakeForm.parqResponses.q8,
+      };
+      const formResponses = {
+        identification: data.intakeForm.personalInfo,
+        parqResponses,
+        ahaResponses: data.intakeForm.ahaResponses,
+      };
+
+      const updatePayload: UpdateAlunoDTO = {
+        serviceId: data.serviceId,
         birthDate: data.birthDate || undefined,
         gender: data.gender,
         schedulePlan: data.schedulePlan,
@@ -302,23 +520,73 @@ export function AlunoForm() {
           injuriesHistory: data.intakeForm.injuriesHistory || undefined,
           trainingBackground: data.intakeForm.trainingBackground || undefined,
           observations: data.intakeForm.observations || undefined,
-          parqResponses: data.intakeForm.parqResponses,
+          parqResponses,
+          formResponses,
         },
       };
 
       if (isEditMode && id) {
-        await alunoService.update(id, basePayload);
+        await alunoService.update(id, updatePayload);
         alert(alunoFormCopy.updateSuccess);
         navigate(`/alunos/${id}`);
         return;
       }
 
-      const createdAluno = await alunoService.create({
+      const {
+        weight,
+        height,
+        vo2Max,
+        anaerobicThreshold,
+        maxHeartRate,
+        restingHeartRate,
+      } = data;
+
+      if (
+        weight === undefined ||
+        height === undefined ||
+        vo2Max === undefined ||
+        anaerobicThreshold === undefined ||
+        maxHeartRate === undefined ||
+        restingHeartRate === undefined
+      ) {
+        setIsPrefillModalOpen(true);
+        alert('Use o ícone de upload para ler o PDF da avaliação antes de criar o aluno.');
+        return;
+      }
+
+      const createPayload: CreateAlunoDTO = {
         name: data.name,
         email: data.email,
         phone: data.phone,
-        ...basePayload,
-      });
+        serviceId: data.serviceId,
+        birthDate: data.birthDate || undefined,
+        gender: data.gender,
+        schedulePlan: data.schedulePlan,
+        age: data.age,
+        weight,
+        height,
+        bodyFatPercentage: data.bodyFatPercentage,
+        vo2Max,
+        anaerobicThreshold,
+        maxHeartRate,
+        restingHeartRate,
+        systolicPressure: data.systolicPressure,
+        diastolicPressure: data.diastolicPressure,
+        macronutrients: data.macronutrients,
+        intakeForm: {
+          assessmentDate: data.intakeForm.assessmentDate || undefined,
+          mainGoal: data.intakeForm.mainGoal || undefined,
+          medicalHistory: data.intakeForm.medicalHistory || undefined,
+          currentMedications: data.intakeForm.currentMedications || undefined,
+          injuriesHistory: data.intakeForm.injuriesHistory || undefined,
+          trainingBackground: data.intakeForm.trainingBackground || undefined,
+          observations: data.intakeForm.observations || undefined,
+          parqResponses,
+          formResponses,
+        },
+      };
+
+      const createdAluno = await alunoService.create(createPayload);
       navigate(`/alunos/${createdAluno.aluno.id}`, {
         state: { tempPassword: createdAluno.tempPassword },
       });
@@ -327,6 +595,64 @@ export function AlunoForm() {
       alert(error.response?.data?.error || alunoFormCopy.saveError);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleInvalidSubmit = (formErrors: FieldErrors<AlunoFormData>) => {
+    if (
+      formErrors.name ||
+      formErrors.email ||
+      formErrors.phone ||
+      formErrors.serviceId ||
+      formErrors.birthDate ||
+      formErrors.gender ||
+      formErrors.schedulePlan ||
+      formErrors.age ||
+      formErrors.weight ||
+      formErrors.height ||
+      formErrors.bodyFatPercentage ||
+      formErrors.vo2Max ||
+      formErrors.anaerobicThreshold ||
+      formErrors.maxHeartRate ||
+      formErrors.restingHeartRate ||
+      formErrors.systolicPressure ||
+      formErrors.diastolicPressure ||
+      formErrors.macronutrients ||
+      formErrors.intakeForm?.assessmentDate
+    ) {
+      setActiveTab('anamneseInicial');
+      return;
+    }
+
+    if (
+      formErrors.weight ||
+      formErrors.height ||
+      formErrors.bodyFatPercentage ||
+      formErrors.vo2Max ||
+      formErrors.anaerobicThreshold ||
+      formErrors.maxHeartRate ||
+      formErrors.restingHeartRate ||
+      formErrors.systolicPressure ||
+      formErrors.diastolicPressure ||
+      formErrors.macronutrients ||
+      formErrors.intakeForm?.assessmentDate
+    ) {
+      setActiveTab('identificacao');
+      return;
+    }
+
+    if (formErrors.intakeForm?.personalInfo) {
+      setActiveTab('anamneseInicial');
+      return;
+    }
+
+    if (formErrors.intakeForm?.parqResponses) {
+      setActiveTab('parq');
+      return;
+    }
+
+    if (formErrors.intakeForm) {
+      setActiveTab('aha');
     }
   };
 
@@ -357,213 +683,435 @@ export function AlunoForm() {
         </div>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>{alunoFormCopy.scopeTitle}</CardTitle>
-            <CardDescription>
-              {alunoFormCopy.scopeDescription}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="rounded-lg border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
-              {alunoFormCopy.scopeHint}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>{alunoFormCopy.pdfTitle}</CardTitle>
-            <CardDescription>
-              {alunoFormCopy.pdfDescription}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_auto] md:items-end">
-              <div>
-                <label className="mb-2 block text-sm font-medium text-foreground">{alunoFormCopy.pdfFileLabel}</label>
-                <input
-                  type="file"
-                  accept="application/pdf"
-                  title={alunoFormCopy.pdfFileTitle}
-                  className="flex h-12 w-full rounded-xl border border-[#cbd5e1] bg-background px-4 py-3 text-base"
-                  onChange={(event) => setPrefillFile(event.target.files?.[0] || null)}
-                />
+      <form onSubmit={handleSubmit(onSubmit, handleInvalidSubmit)} className="space-y-6">
+        <Card className="overflow-hidden">
+          <CardHeader className="space-y-0 border-b border-border p-0">
+            <div className="flex flex-col gap-4 p-6 md:flex-row md:items-start md:justify-between">
+              <div className="space-y-1.5">
+                <CardTitle>Cadastro do aluno</CardTitle>
+                <CardDescription>Organize a identificação e os questionários clínicos por guia.</CardDescription>
               </div>
-              <Button type="button" onClick={handleAssessmentPrefill} isLoading={prefillLoading}>
-                {alunoFormCopy.applyPrefill}
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => setIsPrefillModalOpen(true)}
+                className="shrink-0 text-muted-foreground hover:text-foreground"
+                aria-label={alunoFormCopy.pdfTitle}
+                title={alunoFormCopy.pdfTitle}
+              >
+                <Upload size={18} />
               </Button>
             </div>
-            <div className="rounded-lg border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
-              {alunoFormCopy.pdfHint}
+
+            <div className="overflow-x-auto bg-muted/30 px-4 py-2">
+              <div role="tablist" aria-label="Guias do cadastro do aluno" className="flex min-w-max gap-2">
+                <button
+                  type="button"
+                  role="tab"
+                  id="aluno-tab-anamnese-inicial"
+                  aria-controls="aluno-panel-anamnese-inicial"
+                  onClick={() => setActiveTab('anamneseInicial')}
+                  className={`inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-medium transition-colors ${
+                    activeTab === 'anamneseInicial'
+                      ? 'bg-card text-primary shadow-sm ring-1 ring-border'
+                      : 'text-muted-foreground hover:bg-card/70 hover:text-foreground'
+                  }`}
+                >
+                  <User size={16} />
+                  Identificação
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  id="aluno-tab-parq"
+                  aria-controls="aluno-panel-parq"
+                  onClick={() => setActiveTab('parq')}
+                  className={`inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-medium transition-colors ${
+                    activeTab === 'parq'
+                      ? 'bg-card text-primary shadow-sm ring-1 ring-border'
+                      : 'text-muted-foreground hover:bg-card/70 hover:text-foreground'
+                  }`}
+                >
+                  <ClipboardList size={16} />
+                  Questionário "PARQ"
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  id="aluno-tab-aha"
+                  aria-controls="aluno-panel-aha"
+                  onClick={() => setActiveTab('aha')}
+                  className={`inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-medium transition-colors ${
+                    activeTab === 'aha'
+                      ? 'bg-card text-primary shadow-sm ring-1 ring-border'
+                      : 'text-muted-foreground hover:bg-card/70 hover:text-foreground'
+                  }`}
+                >
+                  <HeartPulse size={16} />
+                  Questionário American Heart Association
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  id="aluno-tab-identificacao"
+                  aria-controls="aluno-panel-identificacao"
+                  onClick={() => setActiveTab('identificacao')}
+                  className={`inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-medium transition-colors ${
+                    activeTab === 'identificacao'
+                      ? 'bg-card text-primary shadow-sm ring-1 ring-border'
+                      : 'text-muted-foreground hover:bg-card/70 hover:text-foreground'
+                  }`}
+                >
+                  <FileText size={16} />
+                  Anamnese Inicial
+                </button>
+              </div>
             </div>
-            {prefillSummary && (
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                {prefillSummary}
+          </CardHeader>
+
+          <CardContent className="p-6">
+            {activeTab === 'anamneseInicial' && (
+              <div
+                id="aluno-panel-anamnese-inicial"
+                role="tabpanel"
+                aria-labelledby="aluno-tab-anamnese-inicial"
+                className="space-y-8"
+              >
+                <section className="space-y-4">
+                  <div>
+                    <h2 className="text-lg font-semibold text-foreground">Identificação</h2>
+                    <p className="text-sm text-muted-foreground">Dados fixos do aluno que devem permanecer no cadastro principal.</p>
+                  </div>
+
+                  <div className="grid gap-4 xl:grid-cols-[1.3fr_0.9fr]">
+                    <div className="space-y-4 rounded-xl border border-border bg-muted/20 p-5">
+                      <div>
+                        <h3 className="text-sm font-semibold text-foreground">Dados principais</h3>
+                        <p className="mt-1 text-sm text-muted-foreground">Informações centrais para identificar e contatar o aluno.</p>
+                      </div>
+
+                      <Input label="Nome completo" placeholder="João Silva" error={errors.name?.message} disabled={isEditMode} {...register('name')} />
+
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <Input label="E-mail" type="email" placeholder="joao@email.com" error={errors.email?.message} disabled={isEditMode} {...register('email')} />
+                        <Input
+                          label="Telefone"
+                          type="tel"
+                          placeholder="(11) 99999-9999"
+                          error={errors.phone?.message}
+                          disabled={isEditMode}
+                          {...register('phone', {
+                            onChange: (event) => {
+                              const formatted = formatPhone(event.target.value);
+                              setValue('phone', formatted, { shouldValidate: true });
+                            },
+                          })}
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                        <Input label="Data de Nascimento" type="date" error={errors.birthDate?.message} {...register('birthDate')} />
+                        <div>
+                          <label className="mb-2 block text-sm font-medium text-foreground">Gênero</label>
+                          <select className={selectClassName} {...register('gender')}>
+                            <option value="male">Masculino</option>
+                            <option value="female">Feminino</option>
+                            <option value="other">Outro</option>
+                          </select>
+                        </div>
+                        <Input label="Idade" type="number" placeholder="30" error={errors.age?.message} {...register('age', { valueAsNumber: true })} />
+                      </div>
+                    </div>
+
+                    <div className="space-y-4 rounded-xl border border-border bg-card p-5">
+                      <div>
+                        <h3 className="text-sm font-semibold text-foreground">Interesse e agenda</h3>
+                        <p className="mt-1 text-sm text-muted-foreground">Defina o serviço de entrada e o modelo de agenda do aluno.</p>
+                      </div>
+
+                      <div className="space-y-3">
+                        <div>
+                          <label className="block text-sm font-medium text-foreground">
+                            Serviço de Interesse <span className="ml-1 text-destructive">*</span>
+                          </label>
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            Selecione o serviço que motivou o cadastro inicial do aluno.
+                          </p>
+                        </div>
+
+                        {servicesLoading ? (
+                          <p className="text-sm text-muted-foreground">Carregando serviços...</p>
+                        ) : servicesError ? (
+                          <p className="text-sm text-destructive">{servicesError}</p>
+                        ) : serviceOptions.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">Nenhum serviço ativo cadastrado em Configurações &gt; Serviços.</p>
+                        ) : (
+                          <div>
+                            <select className={selectClassName} {...register('serviceId')}>
+                              <option value="">Selecione um serviço</option>
+                              {serviceOptions.map((service) => (
+                                <option key={service.id} value={service.id}>
+                                  {service.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+
+                        {errors.serviceId?.message && (
+                          <p className="text-sm text-destructive">{errors.serviceId.message}</p>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-foreground">Plano de agenda do aluno</label>
+                        <select className={selectClassName} {...register('schedulePlan')}>
+                          <option value="free">Livre</option>
+                          <option value="fixed">Fixo</option>
+                        </select>
+                        <p className="mt-2 text-sm text-muted-foreground">Use plano fixo para alunos com rotina recorrente de agenda e reposições vinculadas.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 rounded-xl border border-border bg-muted/20 p-5">
+                    <div>
+                      <h3 className="text-sm font-semibold text-foreground">Documentação e contato social</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">Agrupe documentos civis e o principal canal social em um mesmo bloco.</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+                      <Input label="CPF" placeholder="000.000.000-00" {...register('intakeForm.personalInfo.cpf')} />
+                      <Input label="RG" placeholder="00.000.000-0" {...register('intakeForm.personalInfo.rg')} />
+                      <Input label="Estado civil" placeholder="Solteiro(a), casado(a)..." {...register('intakeForm.personalInfo.maritalStatus')} />
+                      <Input label="Instagram" placeholder="@usuario" {...register('intakeForm.personalInfo.instagram')} />
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 rounded-xl border border-border bg-muted/20 p-5">
+                    <div>
+                      <h3 className="text-sm font-semibold text-foreground">Endereço</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">Organize os dados residenciais em uma leitura mais compacta.</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-[1.4fr_160px]">
+                      <Input label="Endereço" placeholder="Rua, avenida, rodovia..." {...register('intakeForm.personalInfo.address')} />
+                      <Input label="Número" placeholder="123" {...register('intakeForm.personalInfo.addressNumber')} />
+                    </div>
+
+                    <Input label="Bairro" placeholder="Centro" {...register('intakeForm.personalInfo.neighborhood')} />
+
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-[1.2fr_180px]">
+                      <Input label="Cidade" placeholder="São Paulo" {...register('intakeForm.personalInfo.city')} />
+                      <Input label="Estado" placeholder="SP" {...register('intakeForm.personalInfo.state')} />
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_220px]">
+                      <Input label="Complemento" placeholder="Bloco, apartamento, referência..." {...register('intakeForm.personalInfo.addressComplement')} />
+                      <Input label="CEP" placeholder="00000-000" {...register('intakeForm.personalInfo.zipCode')} />
+                    </div>
+                  </div>
+                </section>
               </div>
             )}
-          </CardContent>
-        </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Identificação e cadastro</CardTitle>
-            <CardDescription>Dados fixos do aluno que devem permanecer no cadastro principal</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Input label="Nome completo" placeholder="João Silva" error={errors.name?.message} disabled={isEditMode} {...register('name')} />
+            {activeTab === 'identificacao' && (
+              <div
+                id="aluno-panel-identificacao"
+                role="tabpanel"
+                aria-labelledby="aluno-tab-identificacao"
+                className="space-y-8"
+              >
+                <section className="space-y-4">
+                  <div>
+                    <h2 className="text-lg font-semibold text-foreground">Anamnese Inicial</h2>
+                    <p className="text-sm text-muted-foreground">Objetivos, histórico, medicações, lesões e observações gerais da seção inicial.</p>
+                  </div>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <Input label="E-mail" type="email" placeholder="joao@email.com" error={errors.email?.message} disabled={isEditMode} {...register('email')} />
-              <Input
-                label="Telefone"
-                type="tel"
-                placeholder="(11) 99999-9999"
-                error={errors.phone?.message}
-                disabled={isEditMode}
-                {...register('phone', {
-                  onChange: (event) => {
-                    const formatted = formatPhone(event.target.value);
-                    setValue('phone', formatted, { shouldValidate: true });
-                  },
-                })}
-              />
-            </div>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-foreground">Objetivo principal</label>
+                      <textarea className={textareaClassName} placeholder="Ex.: melhorar performance, reduzir gordura, retornar ao treino" {...register('intakeForm.mainGoal')} />
+                    </div>
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-foreground">Histórico de treino e atividade física</label>
+                      <textarea className={textareaClassName} placeholder="Descreva frequência, modalidades e experiência prévia" {...register('intakeForm.trainingBackground')} />
+                    </div>
+                  </div>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              <Input label="Data de Nascimento" type="date" error={errors.birthDate?.message} {...register('birthDate')} />
-              <div>
-                <label className="mb-2 block text-sm font-medium text-foreground">Gênero</label>
-                <select className={selectClassName} {...register('gender')}>
-                  <option value="male">Masculino</option>
-                  <option value="female">Feminino</option>
-                  <option value="other">Outro</option>
-                </select>
-              </div>
-              <Input label="Idade" type="number" placeholder="30" error={errors.age?.message} {...register('age', { valueAsNumber: true })} />
-            </div>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-foreground">Histórico médico</label>
+                      <textarea className={textareaClassName} placeholder="Condições clínicas relevantes, cirurgias ou observações" {...register('intakeForm.medicalHistory')} />
+                    </div>
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-foreground">Medicações em uso</label>
+                      <textarea className={textareaClassName} placeholder="Medicações contínuas ou recentes" {...register('intakeForm.currentMedications')} />
+                    </div>
+                  </div>
 
-            <div>
-              <label className="mb-2 block text-sm font-medium text-foreground">Plano de agenda do aluno</label>
-              <select className={selectClassName} {...register('schedulePlan')}>
-                <option value="free">Livre</option>
-                <option value="fixed">Fixo</option>
-              </select>
-              <p className="mt-2 text-sm text-muted-foreground">Use plano fixo para alunos com rotina recorrente de agenda e reposições vinculadas.</p>
-            </div>
-          </CardContent>
-        </Card>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-foreground">Lesões e restrições</label>
+                      <textarea className={textareaClassName} placeholder="Lesões anteriores, dores recorrentes e limitações" {...register('intakeForm.injuriesHistory')} />
+                    </div>
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-foreground">Observações do profissional</label>
+                      <textarea className={textareaClassName} placeholder="Observações complementares da avaliação inicial" {...register('intakeForm.observations')} />
+                    </div>
+                  </div>
+                </section>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Antropometria e composição corporal</CardTitle>
-            <CardDescription>Campos iniciais do formulário físico usados no acompanhamento do aluno</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              <Input label="Peso (kg)" type="number" step="0.1" placeholder="70.5" error={errors.weight?.message} {...register('weight', { valueAsNumber: true })} />
-              <Input label="Altura (cm)" type="number" step="0.1" placeholder="175" error={errors.height?.message} {...register('height', { valueAsNumber: true })} />
-              <Input label="% Gordura Corporal" type="number" step="0.1" placeholder="15.5" error={errors.bodyFatPercentage?.message} {...register('bodyFatPercentage', { valueAsNumber: true })} />
-            </div>
+                <section className="space-y-4 border-t border-border pt-6">
+                  <div>
+                    <h2 className="text-lg font-semibold text-foreground">Antropometria e composição corporal</h2>
+                    <p className="text-sm text-muted-foreground">Campos iniciais do formulário físico usados no acompanhamento do aluno.</p>
+                  </div>
 
-            {bmi > 0 && (
-              <div className="rounded-lg bg-muted p-4">
-                <p className="text-sm font-medium">IMC Calculado</p>
-                <p className="text-2xl font-bold">{bmi.toFixed(1)}</p>
-                <p className="text-sm text-muted-foreground">{bmiClass}</p>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                    <Input label="Peso (kg)" type="number" step="0.1" placeholder="70.5" error={errors.weight?.message} {...register('weight', { valueAsNumber: true })} />
+                    <Input label="Altura (cm)" type="number" step="0.1" placeholder="175" error={errors.height?.message} {...register('height', { valueAsNumber: true })} />
+                    <Input label="% Gordura Corporal" type="number" step="0.1" placeholder="15.5" error={errors.bodyFatPercentage?.message} {...register('bodyFatPercentage', { valueAsNumber: true })} />
+                  </div>
+
+                  {bmi > 0 && (
+                    <div className="rounded-lg border border-border bg-muted/40 p-4">
+                      <p className="text-sm font-medium">IMC Calculado</p>
+                      <p className="text-2xl font-bold">{bmi.toFixed(1)}</p>
+                      <p className="text-sm text-muted-foreground">{bmiClass}</p>
+                    </div>
+                  )}
+                </section>
+
+                <section className="space-y-4 border-t border-border pt-6">
+                  <div>
+                    <h2 className="text-lg font-semibold text-foreground">Avaliação metabólica e cardiovascular</h2>
+                    <p className="text-sm text-muted-foreground">Dados principais para prescrição e leitura inicial do aluno.</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <Input label="VO2 Max (ml/kg/min)" type="number" step="0.1" placeholder="55.0" error={errors.vo2Max?.message} {...register('vo2Max', { valueAsNumber: true })} />
+                    <Input label="Limiar anaeróbico (km/h)" type="number" step="0.1" placeholder="15.0" error={errors.anaerobicThreshold?.message} {...register('anaerobicThreshold', { valueAsNumber: true })} />
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <Input label="FC máxima (bpm)" type="number" placeholder="190" error={errors.maxHeartRate?.message} {...register('maxHeartRate', { valueAsNumber: true })} />
+                    <Input label="FC Repouso (bpm)" type="number" placeholder="60" error={errors.restingHeartRate?.message} {...register('restingHeartRate', { valueAsNumber: true })} />
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                    <Input label="Data da avaliação inicial" type="date" error={errors.intakeForm?.assessmentDate?.message} {...register('intakeForm.assessmentDate')} />
+                    <Input label="Pressão sistólica (mmHg)" type="number" placeholder="120" error={errors.systolicPressure?.message} {...register('systolicPressure', { valueAsNumber: true })} />
+                    <Input label="Pressão diastólica (mmHg)" type="number" placeholder="80" error={errors.diastolicPressure?.message} {...register('diastolicPressure', { valueAsNumber: true })} />
+                  </div>
+                </section>
+
+                <section className="space-y-4 border-t border-border pt-6">
+                  <div>
+                    <h2 className="text-lg font-semibold text-foreground">Aporte energético e macronutrientes</h2>
+                    <p className="text-sm text-muted-foreground">Resumo nutricional do formulário inicial quando disponível.</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+                    <Input label="Carboidratos (%)" type="number" step="0.1" placeholder="55" error={errors.macronutrients?.carbohydratesPercentage?.message} {...register('macronutrients.carbohydratesPercentage', { valueAsNumber: true })} />
+                    <Input label="Proteínas (%)" type="number" step="0.1" placeholder="25" error={errors.macronutrients?.proteinsPercentage?.message} {...register('macronutrients.proteinsPercentage', { valueAsNumber: true })} />
+                    <Input label="Lipídios (%)" type="number" step="0.1" placeholder="20" error={errors.macronutrients?.lipidsPercentage?.message} {...register('macronutrients.lipidsPercentage', { valueAsNumber: true })} />
+                    <Input label="Kcal por dia" type="number" placeholder="2200" error={errors.macronutrients?.dailyCalories?.message} {...register('macronutrients.dailyCalories', { valueAsNumber: true })} />
+                  </div>
+                </section>
               </div>
             )}
-          </CardContent>
-        </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Avaliação metabólica e cardiovascular</CardTitle>
-            <CardDescription>Dados principais para prescrição e leitura inicial do aluno</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <Input label="VO2 Max (ml/kg/min)" type="number" step="0.1" placeholder="55.0" error={errors.vo2Max?.message} {...register('vo2Max', { valueAsNumber: true })} />
-              <Input label="Limiar anaeróbico (km/h)" type="number" step="0.1" placeholder="15.0" error={errors.anaerobicThreshold?.message} {...register('anaerobicThreshold', { valueAsNumber: true })} />
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <Input label="FC máxima (bpm)" type="number" placeholder="190" error={errors.maxHeartRate?.message} {...register('maxHeartRate', { valueAsNumber: true })} />
-              <Input label="FC Repouso (bpm)" type="number" placeholder="60" error={errors.restingHeartRate?.message} {...register('restingHeartRate', { valueAsNumber: true })} />
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              <Input label="Data da avaliação inicial" type="date" error={errors.intakeForm?.assessmentDate?.message} {...register('intakeForm.assessmentDate')} />
-              <Input label="Pressão sistólica (mmHg)" type="number" placeholder="120" error={errors.systolicPressure?.message} {...register('systolicPressure', { valueAsNumber: true })} />
-              <Input label="Pressão diastólica (mmHg)" type="number" placeholder="80" error={errors.diastolicPressure?.message} {...register('diastolicPressure', { valueAsNumber: true })} />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Aporte energético e macronutrientes</CardTitle>
-            <CardDescription>Resumo nutricional do formulário inicial quando disponível</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-              <Input label="Carboidratos (%)" type="number" step="0.1" placeholder="55" error={errors.macronutrients?.carbohydratesPercentage?.message} {...register('macronutrients.carbohydratesPercentage', { valueAsNumber: true })} />
-              <Input label="Proteínas (%)" type="number" step="0.1" placeholder="25" error={errors.macronutrients?.proteinsPercentage?.message} {...register('macronutrients.proteinsPercentage', { valueAsNumber: true })} />
-              <Input label="Lipídios (%)" type="number" step="0.1" placeholder="20" error={errors.macronutrients?.lipidsPercentage?.message} {...register('macronutrients.lipidsPercentage', { valueAsNumber: true })} />
-              <Input label="Kcal por dia" type="number" placeholder="2200" error={errors.macronutrients?.dailyCalories?.message} {...register('macronutrients.dailyCalories', { valueAsNumber: true })} />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Avaliação inicial complementar</CardTitle>
-            <CardDescription>Objetivos, histórico, lesões e contexto inicial do aluno</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <label className="mb-2 block text-sm font-medium text-foreground">Objetivo principal</label>
-              <textarea className={textareaClassName} placeholder="Ex.: melhorar performance, reduzir gordura, retornar ao treino" {...register('intakeForm.mainGoal')} />
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-medium text-foreground">Histórico de treino e atividade física</label>
-              <textarea className={textareaClassName} placeholder="Descreva frequência, modalidades e experiência prévia" {...register('intakeForm.trainingBackground')} />
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-medium text-foreground">Histórico médico</label>
-              <textarea className={textareaClassName} placeholder="Condições clínicas relevantes, cirurgias ou observações" {...register('intakeForm.medicalHistory')} />
-            </div>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div>
-                <label className="mb-2 block text-sm font-medium text-foreground">Medicações em uso</label>
-                <textarea className={textareaClassName} placeholder="Medicações contínuas ou recentes" {...register('intakeForm.currentMedications')} />
+            {activeTab === 'parq' && (
+              <div
+                id="aluno-panel-parq"
+                role="tabpanel"
+                aria-labelledby="aluno-tab-parq"
+                className="space-y-4"
+              >
+                <div>
+                  <h2 className="text-lg font-semibold text-foreground">Questionário "PARQ"</h2>
+                  <p className="text-sm text-muted-foreground">Questionário de prontidão para atividade física registrado junto ao cadastro.</p>
+                </div>
+                <div className="space-y-3">
+                  {parqQuestions.map((question) => (
+                    <label key={question.key} className="flex items-start gap-3 rounded-xl border border-[#e2e8f0] px-4 py-3 text-sm">
+                      <input type="checkbox" className="mt-1 h-4 w-4" {...register(`intakeForm.parqResponses.${question.key}` as const)} />
+                      <span>{question.label}</span>
+                    </label>
+                  ))}
+                </div>
+                <div className="rounded-xl border border-[#e2e8f0] px-4 py-4">
+                  <p className="text-sm leading-6 text-foreground">
+                    <span className="font-semibold">DECLARAÇÃO DE RESPONSABILIDADE:</span> Assumo a veracidade das informações prestadas no questionário &quot;PAR-Q&quot;.
+                  </p>
+                  <div className="mt-5 flex flex-wrap items-center gap-6">
+                    <label className="flex items-center gap-3 text-sm text-foreground">
+                      <input
+                        type="radio"
+                        name="parq-declaration"
+                        className="h-4 w-4"
+                        checked={parqDeclarationAccepted === true}
+                        onChange={() => setValue('intakeForm.parqResponses.q8', true, { shouldDirty: true, shouldTouch: true })}
+                      />
+                      <span>Sim</span>
+                    </label>
+                    <label className="flex items-center gap-3 text-sm text-foreground">
+                      <input
+                        type="radio"
+                        name="parq-declaration"
+                        className="h-4 w-4"
+                        checked={parqDeclarationAccepted === false}
+                        onChange={() => setValue('intakeForm.parqResponses.q8', false, { shouldDirty: true, shouldTouch: true })}
+                      />
+                      <span>Não</span>
+                    </label>
+                  </div>
+                </div>
+                <p className="text-sm text-muted-foreground">Marque as respostas positivas. Se todas permanecerem desmarcadas, o aluno não sinalizou restrições no PAR-Q.</p>
               </div>
-              <div>
-                <label className="mb-2 block text-sm font-medium text-foreground">Lesões e restrições</label>
-                <textarea className={textareaClassName} placeholder="Lesões anteriores, dores recorrentes e limitações" {...register('intakeForm.injuriesHistory')} />
-              </div>
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-medium text-foreground">Observações do profissional</label>
-              <textarea className={textareaClassName} placeholder="Observações complementares da avaliação inicial" {...register('intakeForm.observations')} />
-            </div>
-          </CardContent>
-        </Card>
+            )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>PAR-Q</CardTitle>
-            <CardDescription>Questionário de prontidão para atividade física registrado junto ao cadastro</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {parqQuestions.map((question) => (
-              <label key={question.key} className="flex items-start gap-3 rounded-xl border border-[#e2e8f0] px-4 py-3 text-sm">
-                <input type="checkbox" className="mt-1 h-4 w-4" {...register(`intakeForm.parqResponses.${question.key}` as const)} />
-                <span>{question.label}</span>
-              </label>
-            ))}
-            <p className="text-sm text-muted-foreground">Marque as respostas positivas. Se todas permanecerem desmarcadas, o aluno não sinalizou restrições no PAR-Q.</p>
+            {activeTab === 'aha' && (
+              <div
+                id="aluno-panel-aha"
+                role="tabpanel"
+                aria-labelledby="aluno-tab-aha"
+                className="space-y-4"
+              >
+                <div>
+                  <h2 className="text-lg font-semibold text-foreground">Questionário American Heart Association</h2>
+                  <p className="text-sm text-muted-foreground">Selecione a resposta de cada pergunta usando as opções Sim, Não ou Não sei.</p>
+                </div>
+
+                <div className="space-y-5">
+                  {ahaQuestionGroups.map((group) => (
+                    <section key={group.title} className="space-y-3">
+                      <h3 className="text-sm font-semibold text-foreground">{group.title}</h3>
+                      <div className="space-y-3">
+                        {group.questions.map((question) => (
+                          <div key={question.key} className="grid gap-3 rounded-xl border border-[#e2e8f0] px-4 py-3 text-sm md:grid-cols-[minmax(0,1fr)_140px] md:items-center md:gap-4">
+                            <label className="pr-2 text-sm leading-6 text-foreground">{question.label}</label>
+                            <select
+                              className={compactSelectClassName}
+                              defaultValue=""
+                              {...register(`intakeForm.ahaResponses.${question.key}` as `intakeForm.ahaResponses.${string}`)}
+                            >
+                              {ahaAnswerOptions.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  ))}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -576,6 +1124,61 @@ export function AlunoForm() {
           </Button>
         </div>
       </form>
+
+      {isPrefillModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setIsPrefillModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border border-border bg-card text-card-foreground shadow-[var(--shadow-card)]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-border p-6">
+              <div className="space-y-1.5">
+                <h2 className="text-2xl font-semibold leading-tight tracking-tight">{alunoFormCopy.pdfTitle}</h2>
+                <p className="text-sm text-muted-foreground">{alunoFormCopy.pdfDescription}</p>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsPrefillModalOpen(false)}
+                className="shrink-0 text-muted-foreground hover:text-foreground"
+                aria-label="Fechar leitura de PDF"
+              >
+                <X size={18} />
+              </Button>
+            </div>
+
+            <div className="space-y-4 p-6">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_auto] md:items-end">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-foreground">{alunoFormCopy.pdfFileLabel}</label>
+                  <input
+                    type="file"
+                    accept="application/pdf"
+                    title={alunoFormCopy.pdfFileTitle}
+                    className="flex h-12 w-full rounded-xl border border-[#cbd5e1] bg-background px-4 py-3 text-base"
+                    onChange={(event) => setPrefillFile(event.target.files?.[0] || null)}
+                  />
+                </div>
+                <Button type="button" onClick={handleAssessmentPrefill} isLoading={prefillLoading}>
+                  {alunoFormCopy.applyPrefill}
+                </Button>
+              </div>
+              <div className="rounded-lg border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
+                {alunoFormCopy.pdfHint}
+              </div>
+              {prefillSummary && (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                  {prefillSummary}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

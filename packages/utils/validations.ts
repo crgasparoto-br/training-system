@@ -324,6 +324,19 @@ export const UpdateCollaboratorFunctionSchema = z.object({
   isActive: z.boolean().optional(),
 });
 
+export const CreateServiceSchema = z.object({
+  name: z.string().trim().min(2, 'Nome do servico deve ter no minimo 2 caracteres'),
+  isActive: z.boolean().optional(),
+});
+
+export const UpdateServiceSchema = z.object({
+  name: z.preprocess(
+    emptyStringToUndefined,
+    z.string().trim().min(2, 'Nome do servico deve ter no minimo 2 caracteres').optional()
+  ),
+  isActive: z.boolean().optional(),
+});
+
 // ============================================================================
 // ALUNOS
 // ============================================================================
@@ -332,6 +345,7 @@ export const CreateAlunoSchema = z.object({
   name: z.string().trim().min(3, 'Nome deve ter no minimo 3 caracteres'),
   email: z.string().trim().toLowerCase().email('Email invalido'),
   phone: z.preprocess(emptyStringToUndefined, z.string().trim().optional()),
+  serviceId: z.preprocess(emptyStringToUndefined, z.string().trim().optional()),
   birthDate: optionalDateSchema,
   gender: z.enum(['male', 'female', 'other']).optional(),
   schedulePlan: z.enum(['free', 'fixed'], {
@@ -390,11 +404,13 @@ export const CreateAlunoSchema = z.object({
           q7: z.boolean(),
         })
         .optional(),
+      formResponses: z.record(z.unknown()).optional(),
     })
     .optional(),
 });
 
 export const UpdateAlunoSchema = z.object({
+  serviceId: z.preprocess(emptyStringToUndefined, z.string().trim().optional()),
   schedulePlan: z.enum(['free', 'fixed']).optional(),
   birthDate: optionalDateSchema,
   gender: z.enum(['male', 'female', 'other']).optional(),
@@ -453,6 +469,7 @@ export const UpdateAlunoSchema = z.object({
           q7: z.boolean(),
         })
         .optional(),
+      formResponses: z.record(z.unknown()).optional(),
     })
     .optional(),
 });

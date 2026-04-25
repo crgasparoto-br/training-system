@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,74 +7,951 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ============================================================================
-// AUTENTICAÃ‡ÃƒO E USUÃRIOS
-// ============================================================================
-
 model User {
-  id           String    @id @default(cuid())
-  email        String    @unique
-  passwordHash String
-  type         UserType
-  isActive     Boolean   @default(true)
-  lastLoginAt  DateTime?
-  profile      Profile?
-
-  // Relacionamentos
-  professor               Professor?
+  id                      String                   @id @default(cuid())
+  email                   String                   @unique
+  passwordHash            String
+  type                    UserType
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  isActive                Boolean                  @default(true)
+  lastLoginAt             DateTime?
   aluno                   Aluno?
   notifications           Notification[]
   notificationPreferences NotificationPreferences?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  professor               Professor?
+  profile                 Profile?
 
   @@index([email])
+}
+
+model Profile {
+  id                                   String         @id @default(cuid())
+  userId                               String         @unique
+  name                                 String
+  avatar                               String?
+  phone                                String?
+  createdAt                            DateTime       @default(now())
+  updatedAt                            DateTime       @updatedAt
+  birthDate                            DateTime?
+  gender                               Gender?
+  cpf                                  String?        @unique
+  rg                                   String?
+  maritalStatus                        MaritalStatus?
+  addressStreet                        String?
+  addressNumber                        String?
+  addressComplement                    String?
+  addressZipCode                       String?
+  instagramHandle                      String?
+  cref                                 String?
+  professionalSummary                  String?
+  lattesUrl                            String?
+  companyDocument                      String?
+  bankName                             String?
+  bankBranch                           String?
+  bankAccount                          String?
+  pixKey                               String?
+  legalFinancialProvidedAt             DateTime?
+  legalFinancialProvidedByProfessorId  String?
+  legalFinancialValidatedAt            DateTime?
+  legalFinancialValidatedByProfessorId String?
+  addressNeighborhood                  String?
+  addressCity                          String?
+  addressState                         String?
+  legalFinancialProvidedByProfessor    Professor?     @relation("ProfileLegalFinancialProvidedBy", fields: [legalFinancialProvidedByProfessorId], references: [id])
+  legalFinancialValidatedByProfessor   Professor?     @relation("ProfileLegalFinancialValidatedBy", fields: [legalFinancialValidatedByProfessorId], references: [id])
+  user                                 User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([legalFinancialProvidedByProfessorId])
+  @@index([legalFinancialValidatedByProfessorId])
+}
+
+model Contract {
+  id                    String                       @id @default(cuid())
+  type                  ContractType
+  document              String                       @unique
+  name                  String?
+  createdAt             DateTime                     @default(now())
+  updatedAt             DateTime                     @updatedAt
+  agendaBookings        AgendaBooking[]
+  assessmentTypes       AssessmentType[]
+  collaboratorFunctions CollaboratorFunctionOption[]
+  cloneLogsAsSource     ContractDataCloneLog[]       @relation("ContractCloneSource")
+  cloneLogsAsTarget     ContractDataCloneLog[]       @relation("ContractCloneTarget")
+  exerciseLibrary       ExerciseLibrary[]
+  hourlyRateLevels      HourlyRateLevel[]
+  professores           Professor[]
+  professorManualItems  ProfessorManualItem[]
+  services              ServiceOption[]
+  subjectiveScaleItems  SubjectiveScaleItem[]
+  trainingParameters    TrainingParameter[]
+  trainingSpaces        TrainingSpace[]
+
+  @@index([type])
+}
+
+model CollaboratorFunctionOption {
+  id          String      @id @default(cuid())
+  contractId  String
+  name        String
+  code        String
+  isActive    Boolean     @default(true)
+  isSystem    Boolean     @default(false)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @default(now()) @updatedAt
+  contract    Contract    @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  professores Professor[]
+
+  @@unique([contractId, code])
+  @@index([contractId])
+}
+
+model Professor {
+  id                              String                     @id(map: "Educator_pkey") @default(cuid())
+  userId                          String                     @unique(map: "Educator_userId_key")
+  createdAt                       DateTime                   @default(now())
+  updatedAt                       DateTime                   @updatedAt
+  contractId                      String
+  role                            ProfessorRole              @default(professor)
+  collaboratorFunctionId          String
+  responsibleManagerId            String?
+  admissionDate                   DateTime?
+  currentStatus                   String?
+  operationalRoleIds              String[]                   @default([])
+  hourlyRates                     Json?
+  hasSignedContract               Boolean                    @default(false)
+  signedContractDocumentUrl       String?
+  dismissalDate                   DateTime?
+  agendaBookings                  AgendaBooking[]
+  alunos                          Aluno[]
+  assessmentAuditLogs             AssessmentAuditLog[]
+  cloneLogs                       ContractDataCloneLog[]
+  fixedSlots                      FixedScheduleSlot[]
+  contract                        Contract                   @relation(fields: [contractId], references: [id], onDelete: Cascade, map: "Educator_contractId_fkey")
+  user                            User                       @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Educator_userId_fkey")
+  collaboratorFunction            CollaboratorFunctionOption @relation(fields: [collaboratorFunctionId], references: [id])
+  responsibleManager              Professor?                 @relation("ProfessorResponsibleManager", fields: [responsibleManagerId], references: [id])
+  managedCollaborators            Professor[]                @relation("ProfessorResponsibleManager")
+  availabilities                  ProfessorAvailability[]
+  providedLegalFinancialProfiles  Profile[]                  @relation("ProfileLegalFinancialProvidedBy")
+  validatedLegalFinancialProfiles Profile[]                  @relation("ProfileLegalFinancialValidatedBy")
+  subscription                    Subscription?
+  library                         TrainingLibrary[]
+  plans                           TrainingPlan[]
+
+  @@index([collaboratorFunctionId])
+  @@index([responsibleManagerId])
+  @@index([contractId], map: "Educator_contractId_idx")
+}
+
+model ContractDataCloneLog {
+  id                     String     @id @default(cuid())
+  sourceContractId       String
+  targetContractId       String
+  professorId            String?
+  parametersCreated      Int
+  parametersSkipped      Int
+  exercisesCreated       Int
+  exercisesSkipped       Int
+  createdAt              DateTime   @default(now())
+  assessmentTypesCreated Int        @default(0)
+  assessmentTypesSkipped Int        @default(0)
+  professor              Professor? @relation(fields: [professorId], references: [id], map: "ContractDataCloneLog_educatorId_fkey")
+  sourceContract         Contract   @relation("ContractCloneSource", fields: [sourceContractId], references: [id], onDelete: Cascade)
+  targetContract         Contract   @relation("ContractCloneTarget", fields: [targetContractId], references: [id], onDelete: Cascade)
+
+  @@index([sourceContractId])
+  @@index([targetContractId])
+  @@index([professorId], map: "ContractDataCloneLog_educatorId_idx")
+}
+
+model Aluno {
+  id                  String                  @id(map: "Athlete_pkey") @default(cuid())
+  userId              String                  @unique(map: "Athlete_userId_key")
+  professorId         String
+  age                 Int
+  weight              Float
+  height              Float
+  bodyFatPercentage   Float?
+  vo2Max              Float
+  anaerobicThreshold  Float
+  maxHeartRate        Int
+  restingHeartRate    Int
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+  lastPasswordResetAt DateTime?
+  schedulePlan        AlunoSchedulePlan       @default(free)
+  systolicPressure    Int?
+  diastolicPressure   Int?
+  serviceId           String?
+  agendaBookings      AgendaBooking[]
+  service             ServiceOption?          @relation(fields: [serviceId], references: [id])
+  professor           Professor               @relation(fields: [professorId], references: [id], onDelete: Cascade, map: "Athlete_educatorId_fkey")
+  user                User                    @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Athlete_userId_fkey")
+  exerciseProgress    AlunoExerciseProgress[]
+  intakeForm          AlunoIntakeForm?
+  assessments         Assessment[]
+  fixedSlots          FixedScheduleSlot[]
+  integrations        Integration[]
+  macronutrients      Macronutrients?
+  nutritionPlans      NutritionPlan[]
+  progressMetrics     ProgressMetric[]
+  executions          TrainingExecution[]
+  trainingPlans       TrainingPlan[]
+  workoutExecutions   WorkoutExecution[]
+
+  @@index([serviceId])
+  @@index([professorId], map: "Athlete_educatorId_idx")
+}
+
+model ServiceOption {
+  id         String   @id @default(cuid())
+  contractId String
+  name       String
+  code       String
+  isActive   Boolean  @default(true)
+  isSystem   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now()) @updatedAt
+  alunos     Aluno[]
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@unique([contractId, code])
+  @@index([contractId])
+}
+
+model AlunoIntakeForm {
+  id                 String    @id @default(cuid())
+  alunoId            String    @unique
+  assessmentDate     DateTime?
+  mainGoal           String?
+  medicalHistory     String?
+  currentMedications String?
+  injuriesHistory    String?
+  trainingBackground String?
+  observations       String?
+  parqResponses      Json?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  formResponses      Json?
+  aluno              Aluno     @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+
+  @@index([assessmentDate])
+}
+
+model TrainingSpace {
+  id         String              @id @default(cuid())
+  contractId String
+  name       String
+  capacity   Int                 @default(1)
+  isActive   Boolean             @default(true)
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+  bookings   AgendaBooking[]
+  fixedSlots FixedScheduleSlot[]
+  contract   Contract            @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@unique([contractId, name])
+  @@index([contractId])
+}
+
+model ProfessorAvailability {
+  id          String    @id(map: "EducatorAvailability_pkey") @default(cuid())
+  professorId String
+  dayOfWeek   Int
+  startTime   String
+  endTime     String
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  professor   Professor @relation(fields: [professorId], references: [id], onDelete: Cascade, map: "EducatorAvailability_educatorId_fkey")
+
+  @@unique([professorId, dayOfWeek, startTime, endTime], map: "EducatorAvailability_educatorId_dayOfWeek_startTime_endTime_key")
+  @@index([professorId, dayOfWeek], map: "EducatorAvailability_educatorId_dayOfWeek_idx")
+}
+
+model FixedScheduleSlot {
+  id          String          @id @default(cuid())
+  alunoId     String
+  professorId String
+  spaceId     String?
+  dayOfWeek   Int
+  startTime   String
+  endTime     String
+  isActive    Boolean         @default(true)
+  notes       String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  bookings    AgendaBooking[]
+  aluno       Aluno           @relation(fields: [alunoId], references: [id], onDelete: Cascade, map: "FixedScheduleSlot_athleteId_fkey")
+  professor   Professor       @relation(fields: [professorId], references: [id], onDelete: Cascade, map: "FixedScheduleSlot_educatorId_fkey")
+  space       TrainingSpace?  @relation(fields: [spaceId], references: [id])
+
+  @@index([spaceId, dayOfWeek, isActive])
+  @@index([alunoId, isActive], map: "FixedScheduleSlot_athleteId_isActive_idx")
+  @@index([professorId, dayOfWeek, isActive], map: "FixedScheduleSlot_educatorId_dayOfWeek_isActive_idx")
+}
+
+model AgendaBooking {
+  id             String              @id @default(cuid())
+  contractId     String
+  alunoId        String
+  professorId    String
+  spaceId        String?
+  fixedSlotId    String?
+  bookingType    AgendaBookingType
+  status         AgendaBookingStatus @default(scheduled)
+  bookingDate    DateTime
+  startTime      String
+  endTime        String
+  notes          String?
+  canceledReason String?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  aluno          Aluno               @relation(fields: [alunoId], references: [id], onDelete: Cascade, map: "AgendaBooking_athleteId_fkey")
+  contract       Contract            @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  professor      Professor           @relation(fields: [professorId], references: [id], onDelete: Cascade, map: "AgendaBooking_educatorId_fkey")
+  fixedSlot      FixedScheduleSlot?  @relation(fields: [fixedSlotId], references: [id])
+  space          TrainingSpace?      @relation(fields: [spaceId], references: [id])
+
+  @@index([contractId, bookingDate])
+  @@index([spaceId, bookingDate])
+  @@index([fixedSlotId])
+  @@index([alunoId, bookingDate], map: "AgendaBooking_athleteId_bookingDate_idx")
+  @@index([professorId, bookingDate], map: "AgendaBooking_educatorId_bookingDate_idx")
+}
+
+model AssessmentType {
+  id             String                 @id @default(cuid())
+  contractId     String
+  name           String
+  code           String
+  description    String?
+  scheduleType   AssessmentScheduleType
+  intervalMonths Int?
+  afterTypeId    String?
+  offsetMonths   Int?
+  isActive       Boolean                @default(true)
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  assessments    Assessment[]
+  afterType      AssessmentType?        @relation("AssessmentTypeDependencies", fields: [afterTypeId], references: [id])
+  dependents     AssessmentType[]       @relation("AssessmentTypeDependencies")
+  contract       Contract               @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@unique([contractId, code])
+  @@index([contractId])
+}
+
+model Assessment {
+  id               String               @id @default(cuid())
+  alunoId          String
+  typeId           String
+  assessmentDate   DateTime
+  filePath         String
+  originalFileName String
+  mimeType         String
+  fileSize         Int
+  extractedData    Json?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  aluno            Aluno                @relation(fields: [alunoId], references: [id], onDelete: Cascade, map: "Assessment_athleteId_fkey")
+  type             AssessmentType       @relation(fields: [typeId], references: [id], onDelete: Cascade)
+  auditLogs        AssessmentAuditLog[]
+
+  @@index([typeId])
+  @@index([assessmentDate])
+  @@index([alunoId], map: "Assessment_athleteId_idx")
+}
+
+model AssessmentAuditLog {
+  id           String                @id @default(cuid())
+  assessmentId String
+  professorId  String
+  action       AssessmentAuditAction
+  beforeData   Json?
+  afterData    Json?
+  createdAt    DateTime              @default(now())
+  assessment   Assessment            @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  professor    Professor             @relation(fields: [professorId], references: [id], onDelete: Cascade, map: "AssessmentAuditLog_educatorId_fkey")
+
+  @@index([assessmentId])
+  @@index([professorId], map: "AssessmentAuditLog_educatorId_idx")
+}
+
+model TrainingPlan {
+  id               String               @id @default(cuid())
+  professorId      String
+  alunoId          String
+  name             String
+  description      String?
+  startDate        DateTime
+  endDate          DateTime
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  macrocycles      Macrocycle[]
+  periodization    PeriodizationMatrix?
+  aluno            Aluno                @relation(fields: [alunoId], references: [id], onDelete: Cascade, map: "TrainingPlan_athleteId_fkey")
+  professor        Professor            @relation(fields: [professorId], references: [id], onDelete: Cascade, map: "TrainingPlan_educatorId_fkey")
+  workoutTemplates WorkoutTemplate[]
+
+  @@index([alunoId], map: "TrainingPlan_athleteId_idx")
+  @@index([professorId], map: "TrainingPlan_educatorId_idx")
+}
+
+model Macrocycle {
+  id         String        @id @default(cuid())
+  planId     String
+  name       String
+  phase      TrainingPhase
+  weekStart  Int
+  weekEnd    Int
+  focusAreas String[]
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  plan       TrainingPlan  @relation(fields: [planId], references: [id], onDelete: Cascade)
+  mesocycles Mesocycle[]
+
+  @@index([planId])
+}
+
+model Mesocycle {
+  id           String       @id @default(cuid())
+  macrocycleId String
+  weekNumber   Int
+  startDate    DateTime
+  endDate      DateTime
+  focus        String?
+  volumeTarget Float?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  macrocycle   Macrocycle   @relation(fields: [macrocycleId], references: [id], onDelete: Cascade)
+  microcycles  Microcycle[]
+
+  @@index([macrocycleId])
+}
+
+model Microcycle {
+  id                  String              @id @default(cuid())
+  mesocycleId         String
+  dayOfWeek           Int
+  sessionType         SessionType
+  durationMinutes     Int
+  distanceKm          Float?
+  intensityPercentage Float
+  paceMinPerKm        Float?
+  heartRateZone       Int?
+  instructions        String?
+  notes               String?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  mesocycle           Mesocycle           @relation(fields: [mesocycleId], references: [id], onDelete: Cascade)
+  executions          TrainingExecution[]
+
+  @@index([mesocycleId])
+}
+
+model TrainingExecution {
+  id               String     @id @default(cuid())
+  microcycleId     String
+  alunoId          String
+  plannedDate      DateTime
+  executedDate     DateTime?
+  completed        Boolean    @default(false)
+  durationActual   Int?
+  distanceActual   Float?
+  heartRateAvg     Int?
+  heartRateMax     Int?
+  pace             Float?
+  pse              Int?
+  psr              Int?
+  notes            String?
+  garminActivityId String?
+  stravaActivityId String?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  aluno            Aluno      @relation(fields: [alunoId], references: [id], onDelete: Cascade, map: "TrainingExecution_athleteId_fkey")
+  microcycle       Microcycle @relation(fields: [microcycleId], references: [id], onDelete: Cascade)
+
+  @@index([microcycleId])
+  @@index([alunoId], map: "TrainingExecution_athleteId_idx")
+}
+
+model Macronutrients {
+  id                      String   @id @default(cuid())
+  alunoId                 String   @unique(map: "Macronutrients_athleteId_key")
+  carbohydratesPercentage Float
+  proteinsPercentage      Float
+  lipidsPercentage        Float
+  dailyCalories           Int?
+  updatedAt               DateTime @updatedAt
+  aluno                   Aluno    @relation(fields: [alunoId], references: [id], onDelete: Cascade, map: "Macronutrients_athleteId_fkey")
+}
+
+model NutritionPlan {
+  id          String   @id @default(cuid())
+  alunoId     String
+  plan        Json
+  source      String
+  rawResponse String?
+  validFrom   DateTime
+  validUntil  DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  aluno       Aluno    @relation(fields: [alunoId], references: [id], onDelete: Cascade, map: "NutritionPlan_athleteId_fkey")
+
+  @@index([alunoId], map: "NutritionPlan_athleteId_idx")
+}
+
+model ProgressMetric {
+  id                String   @id @default(cuid())
+  alunoId           String
+  date              DateTime
+  weight            Float?
+  bodyFatPercentage Float?
+  vo2MaxEstimated   Float?
+  notes             String?
+  createdAt         DateTime @default(now())
+  aluno             Aluno    @relation(fields: [alunoId], references: [id], onDelete: Cascade, map: "ProgressMetric_athleteId_fkey")
+
+  @@index([alunoId], map: "ProgressMetric_athleteId_idx")
+}
+
+model TrainingLibrary {
+  id                  String      @id @default(cuid())
+  professorId         String
+  name                String
+  description         String?
+  sessionType         SessionType
+  durationMinutes     Int
+  intensityPercentage Float
+  instructions        String?
+  isTemplate          Boolean     @default(true)
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+  professor           Professor   @relation(fields: [professorId], references: [id], onDelete: Cascade, map: "TrainingLibrary_educatorId_fkey")
+
+  @@index([professorId], map: "TrainingLibrary_educatorId_idx")
+}
+
+model Integration {
+  id           String          @id @default(cuid())
+  alunoId      String
+  type         IntegrationType
+  accessToken  String?
+  refreshToken String?
+  expiresAt    DateTime?
+  lastSync     DateTime?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  aluno        Aluno           @relation(fields: [alunoId], references: [id], onDelete: Cascade, map: "Integration_athleteId_fkey")
+
+  @@unique([alunoId, type], map: "Integration_athleteId_type_key")
+  @@index([alunoId], map: "Integration_athleteId_idx")
+}
+
+model Subscription {
+  id                 String    @id @default(cuid())
+  professorId        String    @unique(map: "Subscription_educatorId_key")
+  plan               Plan
+  status             String
+  stripeCustomerId   String?
+  stripeSubId        String?   @unique
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  canceledAt         DateTime?
+  cancelReason       String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  professor          Professor @relation(fields: [professorId], references: [id], onDelete: Cascade, map: "Subscription_educatorId_fkey")
+}
+
+model Payment {
+  id          String   @id @default(cuid())
+  professorId String
+  stripeId    String   @unique
+  amount      Float
+  currency    String
+  status      String
+  createdAt   DateTime @default(now())
+
+  @@index([professorId], map: "Payment_educatorId_idx")
+}
+
+model Notification {
+  id            String           @id @default(cuid())
+  userId        String
+  type          NotificationType
+  title         String
+  message       String
+  data          Json?
+  emailSent     Boolean          @default(false)
+  smsSent       Boolean          @default(false)
+  whatsappSent  Boolean          @default(false)
+  emailError    String?
+  smsError      String?
+  whatsappError String?
+  createdAt     DateTime         @default(now())
+  sentAt        DateTime?
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model NotificationPreferences {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  emailEnabled      Boolean  @default(true)
+  smsEnabled        Boolean  @default(true)
+  whatsappEnabled   Boolean  @default(true)
+  emailFrequency    String
+  smsFrequency      String
+  whatsappFrequency String
+  updatedAt         DateTime @updatedAt
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model TrainingParameter {
+  id          String   @id @default(cuid())
+  category    String
+  code        String
+  description String
+  order       Int
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  contractId  String
+  contract    Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@unique([contractId, category, code])
+  @@index([contractId, category])
+}
+
+model HourlyRateLevel {
+  id         String   @id @default(cuid())
+  contractId String
+  code       String
+  label      String
+  minValue   Decimal? @db.Decimal(10, 2)
+  maxValue   Decimal? @db.Decimal(10, 2)
+  order      Int
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@unique([contractId, code])
+  @@index([contractId, order])
+}
+
+model SubjectiveScaleItem {
+  id         String              @id @default(cuid())
+  contractId String
+  type       SubjectiveScaleType
+  value      Int
+  label      String?
+  order      Int
+  isActive   Boolean             @default(true)
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+  contract   Contract            @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@unique([contractId, type, value])
+  @@index([contractId, type])
+}
+
+model ProfessorManualItem {
+  id                String                 @id @default(cuid())
+  contractId        String
+  code              String
+  title             String
+  content           String
+  format            ProfessorManualFormat
+  context           ProfessorManualContext
+  servicoContratado String?
+  setor             String?
+  item              String?
+  frase             String?
+  productArea       String
+  productMoment     String?
+  linkLabel         String?
+  linkHref          String?
+  order             Int                    @default(0)
+  isActive          Boolean                @default(true)
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @default(now()) @updatedAt
+  contract          Contract               @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@unique([contractId, code])
+  @@index([contractId, context, isActive])
+  @@index([contractId, productArea, isActive])
+}
+
+model PeriodizationMatrix {
+  id                String             @id @default(cuid())
+  planId            String             @unique
+  totalMesocycles   Int
+  weeksPerMesocycle Int
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  cyclicStimulus    CyclicStimulus[]
+  nutrition         NutritionWeekly[]
+  plan              TrainingPlan       @relation(fields: [planId], references: [id], onDelete: Cascade)
+  resistedStimulus  ResistedStimulus[]
+}
+
+model ResistedStimulus {
+  id               String              @id @default(cuid())
+  matrixId         String
+  mesocycleNumber  Int
+  weekNumber       Int
+  loadCycle        String?
+  repZone          Int?
+  loadPercentage   Float?
+  seriesReference  Int?
+  seriesLowerBody  Int?
+  seriesUpperBody  Int?
+  seriesCore       Int?
+  repReserve       Int?
+  assembly         String?
+  method           String?
+  trainingDivision String?
+  weeklyFrequency  Int?
+  observations     String?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  objective        String?
+  matrix           PeriodizationMatrix @relation(fields: [matrixId], references: [id], onDelete: Cascade)
+
+  @@unique([matrixId, mesocycleNumber, weekNumber])
+  @@index([matrixId])
+}
+
+model CyclicStimulus {
+  id                 String              @id @default(cuid())
+  matrixId           String
+  mesocycleNumber    Int
+  weekNumber         Int
+  totalVolumeMinutes Float?
+  totalVolumeKm      Float?
+  runningVolumeKm    Float?
+  countZ1            Int?
+  countZ2            Int?
+  countZ3            Int?
+  countZ4            Int?
+  countZ5            Int?
+  minutesZ1          Float?
+  minutesZ2          Float?
+  minutesZ3          Float?
+  minutesZ4          Float?
+  minutesZ5          Float?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  matrix             PeriodizationMatrix @relation(fields: [matrixId], references: [id], onDelete: Cascade)
+
+  @@unique([matrixId, mesocycleNumber, weekNumber])
+  @@index([matrixId])
+}
+
+model NutritionWeekly {
+  id              String              @id @default(cuid())
+  matrixId        String
+  mesocycleNumber Int
+  weekNumber      Int
+  dailyCalories   Float?
+  carbohydratesG  Float?
+  proteinsG       Float?
+  lipidsG         Float?
+  hydrationLiters Float?
+  supplements     String?
+  notes           String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  matrix          PeriodizationMatrix @relation(fields: [matrixId], references: [id], onDelete: Cascade)
+
+  @@unique([matrixId, mesocycleNumber, weekNumber])
+  @@index([matrixId])
+}
+
+model PeriodizationTemplate {
+  id                String   @id @default(cuid())
+  professorId       String?
+  name              String
+  description       String?
+  category          String
+  totalMesocycles   Int
+  weeksPerMesocycle Int
+  templateData      Json
+  isPublic          Boolean  @default(false)
+  usageCount        Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([category])
+  @@index([professorId], map: "PeriodizationTemplate_educatorId_idx")
+}
+
+model ExerciseLibrary {
+  id               String                  @id @default(cuid())
+  name             String
+  videoUrl         String?
+  loadType         LoadType?
+  movementType     MovementType?
+  countingType     CountingType?
+  category         String?
+  muscleGroup      String?
+  notes            String?
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+  contractId       String
+  alunoProgress    AlunoExerciseProgress[]
+  contract         Contract                @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  workoutExercises WorkoutExercise[]
+
+  @@index([contractId])
+  @@index([contractId, name])
+  @@index([contractId, category])
+}
+
+model AlunoExerciseProgress {
+  id          String          @id(map: "StudentExerciseProgress_pkey") @default(cuid())
+  alunoId     String
+  exerciseId  String
+  lastLoad    Float?
+  maxLoad     Float?
+  lastUpdated DateTime        @default(now())
+  aluno       Aluno           @relation(fields: [alunoId], references: [id], onDelete: Cascade, map: "StudentExerciseProgress_athleteId_fkey")
+  exercise    ExerciseLibrary @relation(fields: [exerciseId], references: [id], onDelete: Cascade, map: "StudentExerciseProgress_exerciseId_fkey")
+
+  @@unique([alunoId, exerciseId], map: "StudentExerciseProgress_athleteId_exerciseId_key")
+  @@index([alunoId], map: "StudentExerciseProgress_athleteId_idx")
+  @@index([exerciseId], map: "StudentExerciseProgress_exerciseId_idx")
+}
+
+model WorkoutTemplate {
+  id                  String       @id @default(cuid())
+  planId              String
+  mesocycleNumber     Int
+  weekNumber          Int
+  weekStartDate       DateTime
+  cyclicFrequency     Int?
+  totalVolumeMin      Int?
+  totalVolumeKm       Float?
+  resistanceFrequency Int?
+  loadPercentage      Float?
+  repZone             Int?
+  repReserve          Int?
+  trainingMethod      String?
+  trainingDivision    String?
+  studentGoal         String?
+  coachGoal           String?
+  observation1        String?
+  observation2        String?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+  released            Boolean      @default(false)
+  releasedAt          DateTime?
+  workoutDays         WorkoutDay[]
+  plan                TrainingPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, mesocycleNumber, weekNumber])
+  @@index([planId])
+  @@index([planId, mesocycleNumber, weekNumber])
+}
+
+model WorkoutDay {
+  id                  String            @id @default(cuid())
+  templateId          String
+  dayOfWeek           Int
+  workoutDate         DateTime
+  sessionDurationMin  Int?
+  stimulusDurationMin Int?
+  location            String?
+  method              String?
+  numSessions         Int?
+  numSets             Int?
+  sessionTime         Int?
+  restTime            Int?
+  vo2maxIntervalPct   Float?
+  iextIintTime        Float?
+  vo2maxPct           Float?
+  targetHrMin         String?
+  targetHrMax         String?
+  targetSpeedMin      String?
+  targetSpeedMax      String?
+  detailNotes         String?
+  complementNotes     String?
+  generalGuidelines   String?
+  psrQuestion         String?           @default("Hoje recuperado você está se sentindo (PSR)?")
+  psrResponse         Int?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  cyclicTimeMin       Int?
+  paceMax             Float?
+  paceMin             Float?
+  resistanceTimeMin   Int?
+  intensity1          Float?
+  intensity2          Float?
+  finishedAt          DateTime?
+  pseResponse         Int?
+  startedAt           DateTime?
+  status              WorkoutDayStatus  @default(planned)
+  template            WorkoutTemplate   @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  exercises           WorkoutExercise[]
+
+  @@unique([templateId, dayOfWeek])
+  @@index([templateId])
+  @@index([workoutDate])
+}
+
+model WorkoutExercise {
+  id            String             @id @default(cuid())
+  workoutDayId  String
+  exerciseId    String
+  section       String
+  exerciseOrder Int
+  system        String?
+  sets          Int?
+  reps          Int?
+  intervalSec   Int?
+  cParam        Int?
+  eParam        Int?
+  load          Float?
+  exerciseNotes String?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  executions    WorkoutExecution[]
+  exercise      ExerciseLibrary    @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  workoutDay    WorkoutDay         @relation(fields: [workoutDayId], references: [id], onDelete: Cascade)
+
+  @@index([workoutDayId])
+  @@index([workoutDayId, section, exerciseOrder])
+}
+
+model WorkoutExecution {
+  id                String          @id @default(cuid())
+  workoutExerciseId String
+  alunoId           String
+  executionDate     DateTime
+  setsCompleted     Int?
+  repsCompleted     Int?
+  loadUsed          Float?
+  difficultyRating  Int?
+  repsInReserve     Int?
+  notes             String?
+  createdAt         DateTime        @default(now())
+  setNumber         Int?
+  aluno             Aluno           @relation(fields: [alunoId], references: [id], onDelete: Cascade, map: "WorkoutExecution_athleteId_fkey")
+  workoutExercise   WorkoutExercise @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)
+
+  @@index([workoutExerciseId])
+  @@index([executionDate])
+  @@index([alunoId], map: "WorkoutExecution_athleteId_idx")
 }
 
 enum UserType {
   professor
   aluno
-}
-
-model Profile {
-  id     String @id @default(cuid())
-  userId String @unique
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  name              String
-  avatar            String?
-  phone             String?
-  birthDate         DateTime?
-  gender            Gender?
-  cpf               String?       @unique
-  rg                String?
-  maritalStatus     MaritalStatus?
-  addressStreet     String?
-  addressNumber     String?
-  addressComplement String?
-  addressZipCode    String?
-  instagramHandle   String?
-  cref              String?
-  professionalSummary String? @db.Text
-  lattesUrl           String?
-  companyDocument     String?
-  bankName            String?
-  bankBranch          String?
-  bankAccount         String?
-  pixKey              String?
-  legalFinancialProvidedAt DateTime?
-  legalFinancialProvidedByProfessorId String?
-  legalFinancialProvidedByProfessor   Professor? @relation("ProfileLegalFinancialProvidedBy", fields: [legalFinancialProvidedByProfessorId], references: [id], onDelete: SetNull)
-  legalFinancialValidatedAt DateTime?
-  legalFinancialValidatedByProfessorId String?
-  legalFinancialValidatedByProfessor   Professor? @relation("ProfileLegalFinancialValidatedBy", fields: [legalFinancialValidatedByProfessorId], references: [id], onDelete: SetNull)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([legalFinancialProvidedByProfessorId])
-  @@index([legalFinancialValidatedByProfessorId])
 }
 
 enum Gender {
@@ -96,267 +970,19 @@ enum MaritalStatus {
   other
 }
 
-// ============================================================================
-// CONTRATOS
-// ============================================================================
-
-model Contract {
-  id       String       @id @default(cuid())
-  type     ContractType
-  document String       @unique
-  name     String?
-
-  professores          Professor[]
-  collaboratorFunctions CollaboratorFunctionOption[]
-  hourlyRateLevels     HourlyRateLevel[]
-  trainingParameters   TrainingParameter[]
-  exerciseLibrary      ExerciseLibrary[]
-  assessmentTypes      AssessmentType[]
-  subjectiveScaleItems SubjectiveScaleItem[]
-  professorManualItems ProfessorManualItem[]
-  trainingSpaces       TrainingSpace[]
-  agendaBookings       AgendaBooking[]
-  cloneLogsAsSource    ContractDataCloneLog[] @relation("ContractCloneSource")
-  cloneLogsAsTarget    ContractDataCloneLog[] @relation("ContractCloneTarget")
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([type])
-}
-
 enum ContractType {
   academy
   personal
 }
-
-// ============================================================================
-// PROFESSORES
-// ============================================================================
 
 enum ProfessorRole {
   master
   professor
 }
 
-model CollaboratorFunctionOption {
-  id         String   @id @default(cuid())
-  contractId String
-  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
-
-  name     String
-  code     String
-  isActive Boolean @default(true)
-  isSystem Boolean @default(false)
-
-  professores Professor[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([contractId, code])
-  @@index([contractId])
-}
-
-model Professor {
-  id         String        @id @default(cuid())
-  userId     String        @unique
-  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  contractId String
-  contract   Contract      @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  role       ProfessorRole @default(professor)
-  collaboratorFunctionId String
-  collaboratorFunction CollaboratorFunctionOption @relation(fields: [collaboratorFunctionId], references: [id], onDelete: Restrict)
-  responsibleManagerId String?
-  responsibleManager   Professor? @relation("ProfessorResponsibleManager", fields: [responsibleManagerId], references: [id], onDelete: SetNull)
-  admissionDate        DateTime?
-  currentStatus        String?
-  operationalRoleIds   String[]      @default([])
-  hourlyRates          Json?
-  hasSignedContract    Boolean       @default(false)
-  signedContractDocumentUrl String?
-
-  // Relacionamentos
-  managedCollaborators Professor[] @relation("ProfessorResponsibleManager")
-  alunos              Aluno[]
-  plans               TrainingPlan[]
-  library             TrainingLibrary[]
-  subscription        Subscription?
-  cloneLogs           ContractDataCloneLog[]
-  assessmentAuditLogs AssessmentAuditLog[]
-  availabilities      ProfessorAvailability[]
-  fixedSlots          FixedScheduleSlot[]
-  agendaBookings      AgendaBooking[]
-  providedLegalFinancialProfiles Profile[] @relation("ProfileLegalFinancialProvidedBy")
-  validatedLegalFinancialProfiles Profile[] @relation("ProfileLegalFinancialValidatedBy")
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([contractId])
-  @@index([collaboratorFunctionId])
-  @@index([responsibleManagerId])
-}
-
-model ContractDataCloneLog {
-  id               String     @id @default(cuid())
-  sourceContractId String
-  sourceContract   Contract   @relation("ContractCloneSource", fields: [sourceContractId], references: [id], onDelete: Cascade)
-  targetContractId String
-  targetContract   Contract   @relation("ContractCloneTarget", fields: [targetContractId], references: [id], onDelete: Cascade)
-  professorId      String?
-  professor        Professor? @relation(fields: [professorId], references: [id], onDelete: SetNull)
-
-  parametersCreated      Int
-  parametersSkipped      Int
-  exercisesCreated       Int
-  exercisesSkipped       Int
-  assessmentTypesCreated Int @default(0)
-  assessmentTypesSkipped Int @default(0)
-
-  createdAt DateTime @default(now())
-
-  @@index([sourceContractId])
-  @@index([targetContractId])
-  @@index([professorId])
-}
-
-// ============================================================================
-// ALUNOS
-// ============================================================================
-
-model Aluno {
-  id          String    @id @default(cuid())
-  userId      String    @unique
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  professorId String
-  professor   Professor @relation(fields: [professorId], references: [id], onDelete: Cascade)
-
-  // Dados AntropomÃ©tricos
-  age               Int
-  weight            Float // kg
-  height            Float // cm
-  bodyFatPercentage Float? // %
-
-  // Performance
-  vo2Max             Float // ml/kg/min
-  anaerobicThreshold Float // km/h
-  maxHeartRate       Int // bpm
-  restingHeartRate   Int // bpm
-  systolicPressure   Int?
-  diastolicPressure  Int?
-  schedulePlan       AlunoSchedulePlan @default(free)
-
-  // Relacionamentos
-  trainingPlans     TrainingPlan[]
-  executions        TrainingExecution[]
-  progressMetrics   ProgressMetric[]
-  macronutrients    Macronutrients?
-  intakeForm        AlunoIntakeForm?
-  integrations      Integration[]
-  nutritionPlans    NutritionPlan[]
-  exerciseProgress  AlunoExerciseProgress[]
-  workoutExecutions WorkoutExecution[]
-  assessments       Assessment[]
-  fixedSlots        FixedScheduleSlot[]
-  agendaBookings    AgendaBooking[]
-
-  lastPasswordResetAt DateTime?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([professorId])
-}
-
 enum AlunoSchedulePlan {
   free
   fixed
-}
-
-model AlunoIntakeForm {
-  id      String @id @default(cuid())
-  alunoId String @unique
-  aluno   Aluno  @relation(fields: [alunoId], references: [id], onDelete: Cascade)
-
-  assessmentDate     DateTime?
-  mainGoal           String? @db.Text
-  medicalHistory     String? @db.Text
-  currentMedications String? @db.Text
-  injuriesHistory    String? @db.Text
-  trainingBackground String? @db.Text
-  observations       String? @db.Text
-  parqResponses      Json?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([assessmentDate])
-}
-
-// ============================================================================
-// AGENDA E DISPONIBILIDADES
-// ============================================================================
-
-model TrainingSpace {
-  id         String   @id @default(cuid())
-  contractId String
-  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
-
-  name     String
-  capacity Int     @default(1)
-  isActive Boolean @default(true)
-
-  fixedSlots FixedScheduleSlot[]
-  bookings   AgendaBooking[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([contractId, name])
-  @@index([contractId])
-}
-
-model ProfessorAvailability {
-  id          String    @id @default(cuid())
-  professorId String
-  professor   Professor @relation(fields: [professorId], references: [id], onDelete: Cascade)
-
-  dayOfWeek Int // 1=Segunda, 7=Domingo
-  startTime String // HH:mm
-  endTime   String // HH:mm
-  isActive  Boolean @default(true)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([professorId, dayOfWeek, startTime, endTime])
-  @@index([professorId, dayOfWeek])
-}
-
-model FixedScheduleSlot {
-  id          String         @id @default(cuid())
-  alunoId     String
-  aluno       Aluno          @relation(fields: [alunoId], references: [id], onDelete: Cascade)
-  professorId String
-  professor   Professor      @relation(fields: [professorId], references: [id], onDelete: Cascade)
-  spaceId     String?
-  space       TrainingSpace? @relation(fields: [spaceId], references: [id], onDelete: SetNull)
-
-  dayOfWeek Int // 1=Segunda, 7=Domingo
-  startTime String // HH:mm
-  endTime   String // HH:mm
-  isActive  Boolean @default(true)
-  notes     String? @db.Text
-
-  bookings AgendaBooking[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([alunoId, isActive])
-  @@index([professorId, dayOfWeek, isActive])
-  @@index([spaceId, dayOfWeek, isActive])
 }
 
 enum AgendaBookingType {
@@ -370,41 +996,6 @@ enum AgendaBookingStatus {
   canceled
   no_show
 }
-
-model AgendaBooking {
-  id          String             @id @default(cuid())
-  contractId  String
-  contract    Contract           @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  alunoId     String
-  aluno       Aluno              @relation(fields: [alunoId], references: [id], onDelete: Cascade)
-  professorId String
-  professor   Professor          @relation(fields: [professorId], references: [id], onDelete: Cascade)
-  spaceId     String?
-  space       TrainingSpace?     @relation(fields: [spaceId], references: [id], onDelete: SetNull)
-  fixedSlotId String?
-  fixedSlot   FixedScheduleSlot? @relation(fields: [fixedSlotId], references: [id], onDelete: SetNull)
-
-  bookingType    AgendaBookingType
-  status         AgendaBookingStatus @default(scheduled)
-  bookingDate    DateTime
-  startTime      String // HH:mm
-  endTime        String // HH:mm
-  notes          String?             @db.Text
-  canceledReason String?             @db.Text
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([contractId, bookingDate])
-  @@index([alunoId, bookingDate])
-  @@index([professorId, bookingDate])
-  @@index([spaceId, bookingDate])
-  @@index([fixedSlotId])
-}
-
-// ============================================================================
-// AVALIACOES FISICAS
-// ============================================================================
 
 enum AssessmentScheduleType {
   fixed_interval
@@ -435,169 +1026,12 @@ enum AssessmentAuditAction {
   delete
 }
 
-model AssessmentType {
-  id         String   @id @default(cuid())
-  contractId String
-  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
-
-  name           String
-  code           String
-  description    String?
-  scheduleType   AssessmentScheduleType
-  intervalMonths Int?
-  afterTypeId    String?
-  afterType      AssessmentType?        @relation("AssessmentTypeDependencies", fields: [afterTypeId], references: [id], onDelete: SetNull)
-  offsetMonths   Int?
-  isActive       Boolean                @default(true)
-
-  assessments Assessment[]
-  dependents  AssessmentType[] @relation("AssessmentTypeDependencies")
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([contractId, code])
-  @@index([contractId])
-}
-
-model Assessment {
-  id      String         @id @default(cuid())
-  alunoId String
-  aluno   Aluno          @relation(fields: [alunoId], references: [id], onDelete: Cascade)
-  typeId  String
-  type    AssessmentType @relation(fields: [typeId], references: [id], onDelete: Cascade)
-
-  assessmentDate DateTime
-
-  filePath         String
-  originalFileName String
-  mimeType         String
-  fileSize         Int
-  extractedData    Json?
-  auditLogs        AssessmentAuditLog[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([alunoId])
-  @@index([typeId])
-  @@index([assessmentDate])
-}
-
-model AssessmentAuditLog {
-  id           String                @id @default(cuid())
-  assessmentId String
-  assessment   Assessment            @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
-  professorId  String
-  professor    Professor             @relation(fields: [professorId], references: [id], onDelete: Cascade)
-  action       AssessmentAuditAction
-  beforeData   Json?
-  afterData    Json?
-  createdAt    DateTime              @default(now())
-
-  @@index([assessmentId])
-  @@index([professorId])
-}
-
-// ============================================================================
-// PLANOS DE TREINO
-// ============================================================================
-
-model TrainingPlan {
-  id          String    @id @default(cuid())
-  professorId String
-  professor   Professor @relation(fields: [professorId], references: [id], onDelete: Cascade)
-  alunoId     String
-  aluno       Aluno     @relation(fields: [alunoId], references: [id], onDelete: Cascade)
-
-  name        String
-  description String?
-  startDate   DateTime
-  endDate     DateTime
-
-  macrocycles      Macrocycle[]
-  periodization    PeriodizationMatrix?
-  workoutTemplates WorkoutTemplate[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([professorId])
-  @@index([alunoId])
-}
-
-model Macrocycle {
-  id     String       @id @default(cuid())
-  planId String
-  plan   TrainingPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
-
-  name       String
-  phase      TrainingPhase
-  weekStart  Int
-  weekEnd    Int
-  focusAreas String[] // JSON array
-
-  mesocycles Mesocycle[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([planId])
-}
-
 enum TrainingPhase {
   base
   build
   peak
   recovery
   taper
-}
-
-model Mesocycle {
-  id           String     @id @default(cuid())
-  macrocycleId String
-  macrocycle   Macrocycle @relation(fields: [macrocycleId], references: [id], onDelete: Cascade)
-
-  weekNumber   Int
-  startDate    DateTime
-  endDate      DateTime
-  focus        String?
-  volumeTarget Float? // km
-
-  microcycles Microcycle[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([macrocycleId])
-}
-
-model Microcycle {
-  id          String    @id @default(cuid())
-  mesocycleId String
-  mesocycle   Mesocycle @relation(fields: [mesocycleId], references: [id], onDelete: Cascade)
-
-  dayOfWeek   Int // 0-6 (segunda a domingo)
-  sessionType SessionType
-
-  // Planejamento
-  durationMinutes     Int
-  distanceKm          Float?
-  intensityPercentage Float // 50-100%
-  paceMinPerKm        Float? // minutos por km
-  heartRateZone       Int? // 1-5
-
-  // InstruÃ§Ãµes
-  instructions String?
-  notes        String?
-
-  // Relacionamentos
-  executions TrainingExecution[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([mesocycleId])
 }
 
 enum SessionType {
@@ -612,179 +1046,11 @@ enum SessionType {
   cross_training
 }
 
-// ============================================================================
-// EXECUÃ‡ÃƒO DE TREINOS
-// ============================================================================
-
-model TrainingExecution {
-  id           String     @id @default(cuid())
-  microcycleId String
-  microcycle   Microcycle @relation(fields: [microcycleId], references: [id], onDelete: Cascade)
-  alunoId      String
-  aluno        Aluno      @relation(fields: [alunoId], references: [id], onDelete: Cascade)
-
-  plannedDate  DateTime
-  executedDate DateTime?
-  completed    Boolean   @default(false)
-
-  // Dados Executados
-  durationActual Int? // minutos
-  distanceActual Float? // km
-  heartRateAvg   Int? // bpm
-  heartRateMax   Int? // bpm
-  pace           Float? // min/km
-
-  // PercepÃ§Ãµes
-  pse Int? // Perceived Exertion Scale (1-10)
-  psr Int? // Perceived Recovery Scale (1-10)
-
-  // Notas
-  notes String?
-
-  // IntegraÃ§Ãµes
-  garminActivityId String?
-  stravaActivityId String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([microcycleId])
-  @@index([alunoId])
-}
-
-// ============================================================================
-// NUTRIÃ‡ÃƒO
-// ============================================================================
-
-model Macronutrients {
-  id      String @id @default(cuid())
-  alunoId String @unique
-  aluno   Aluno  @relation(fields: [alunoId], references: [id], onDelete: Cascade)
-
-  carbohydratesPercentage Float // 56.8%
-  proteinsPercentage      Float // 25.6%
-  lipidsPercentage        Float // 17.6%
-
-  dailyCalories Int?
-
-  updatedAt DateTime @updatedAt
-}
-
-model NutritionPlan {
-  id      String @id @default(cuid())
-  alunoId String
-  aluno   Aluno  @relation(fields: [alunoId], references: [id], onDelete: Cascade)
-
-  plan        Json // Plano estruturado
-  source      String // dieta_ia, manual, etc
-  rawResponse String? // Resposta bruta
-
-  validFrom  DateTime
-  validUntil DateTime
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([alunoId])
-}
-
-// ============================================================================
-// PROGRESSO
-// ============================================================================
-
-model ProgressMetric {
-  id      String @id @default(cuid())
-  alunoId String
-  aluno   Aluno  @relation(fields: [alunoId], references: [id], onDelete: Cascade)
-
-  date              DateTime
-  weight            Float? // kg
-  bodyFatPercentage Float? // %
-  vo2MaxEstimated   Float? // ml/kg/min
-  notes             String?
-
-  createdAt DateTime @default(now())
-
-  @@index([alunoId])
-}
-
-// ============================================================================
-// BIBLIOTECA DE TREINOS
-// ============================================================================
-
-model TrainingLibrary {
-  id          String    @id @default(cuid())
-  professorId String
-  professor   Professor @relation(fields: [professorId], references: [id], onDelete: Cascade)
-
-  name                String
-  description         String?
-  sessionType         SessionType
-  durationMinutes     Int
-  intensityPercentage Float
-  instructions        String?
-
-  isTemplate Boolean @default(true)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([professorId])
-}
-
-// ============================================================================
-// INTEGRAÃ‡Ã•ES
-// ============================================================================
-
-model Integration {
-  id      String @id @default(cuid())
-  alunoId String
-  aluno   Aluno  @relation(fields: [alunoId], references: [id], onDelete: Cascade)
-
-  type         IntegrationType
-  accessToken  String? // Criptografado
-  refreshToken String? // Criptografado
-  expiresAt    DateTime?
-
-  lastSync DateTime?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([alunoId, type])
-  @@index([alunoId])
-}
-
 enum IntegrationType {
   garmin
   strava
   apple_health
   dieta_ia
-}
-
-// ============================================================================
-// PAGAMENTOS
-// ============================================================================
-
-model Subscription {
-  id          String    @id @default(cuid())
-  professorId String    @unique
-  professor   Professor @relation(fields: [professorId], references: [id], onDelete: Cascade)
-
-  plan   Plan
-  status String // active, canceled, past_due
-
-  stripeCustomerId String?
-  stripeSubId      String? @unique
-
-  currentPeriodStart DateTime
-  currentPeriodEnd   DateTime
-
-  canceledAt   DateTime?
-  cancelReason String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 }
 
 enum Plan {
@@ -793,569 +1059,41 @@ enum Plan {
   enterprise
 }
 
-model Payment {
-  id          String @id @default(cuid())
-  professorId String
-
-  stripeId String @unique
-  amount   Float
-  currency String // BRL
-  status   String // pending, succeeded, failed
-
-  createdAt DateTime @default(now())
-
-  @@index([professorId])
-}
-
-// ============================================================================
-// NOTIFICAÃ‡Ã•ES
-// ============================================================================
-
-model Notification {
-  id     String @id @default(cuid())
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  type    NotificationType
-  title   String
-  message String
-  data    Json?
-
-  emailSent    Boolean @default(false)
-  smsSent      Boolean @default(false)
-  whatsappSent Boolean @default(false)
-
-  emailError    String?
-  smsError      String?
-  whatsappError String?
-
-  createdAt DateTime  @default(now())
-  sentAt    DateTime?
-
-  @@index([userId])
-}
-
 enum NotificationType {
-  new_aluno
+  new_athlete
   training_completed
   training_missed
   payment_received
   plan_expiring
   new_training
   training_reminder
-  professor_feedback
+  educator_feedback
   progress_achieved
 }
 
-model NotificationPreferences {
-  id     String @id @default(cuid())
-  userId String @unique
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  emailEnabled    Boolean @default(true)
-  smsEnabled      Boolean @default(true)
-  whatsappEnabled Boolean @default(true)
-
-  emailFrequency    String // immediate, daily, weekly
-  smsFrequency      String // immediate, daily
-  whatsappFrequency String // immediate, daily
-
-  updatedAt DateTime @updatedAt
-}
-
-// ============================================================================
-// PERIODIZAÃ‡ÃƒO MACROCICLO
-// ============================================================================
-
-// Tabela de ParÃ¢metros ConfigurÃ¡veis
-model TrainingParameter {
-  id          String   @id @default(cuid())
-  contractId  String
-  contract    Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  category    String // "montagem", "metodo", "divisao_treino", "carga_microciclo", "objetivo"
-  code        String // "AS", "SER", "FB", "ADP", etc
-  description String // DescriÃ§Ã£o completa
-  order       Int // Ordem de exibiÃ§Ã£o
-  active      Boolean  @default(true)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([contractId, category, code])
-  @@index([contractId, category])
-}
-
-model HourlyRateLevel {
-  id         String   @id @default(cuid())
-  contractId String
-  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  code       String
-  label      String
-  minValue   Decimal? @db.Decimal(10, 2)
-  maxValue   Decimal? @db.Decimal(10, 2)
-  order      Int
-  isActive   Boolean  @default(true)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([contractId, code])
-  @@index([contractId, order])
-}
-
-model SubjectiveScaleItem {
-  id         String              @id @default(cuid())
-  contractId String
-  contract   Contract            @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  type       SubjectiveScaleType
-  value      Int
-  label      String?
-  order      Int
-  isActive   Boolean             @default(true)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([contractId, type, value])
-  @@index([contractId, type])
-}
-
-model ProfessorManualItem {
-  id         String                 @id @default(cuid())
-  contractId String
-  contract   Contract               @relation(fields: [contractId], references: [id], onDelete: Cascade)
-
-  code          String
-  title         String
-  content       String               @db.Text
-  format        ProfessorManualFormat
-  context       ProfessorManualContext
-  servicoContratado String?
-  setor             String?
-  item              String?
-  frase             String?          @db.Text
-  productArea   String
-  productMoment String?
-  linkLabel     String?
-  linkHref      String?
-  order         Int                  @default(0)
-  isActive      Boolean              @default(true)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([contractId, code])
-  @@index([contractId, context, isActive])
-  @@index([contractId, productArea, isActive])
-}
-
-// Matriz de PeriodizaÃ§Ã£o
-model PeriodizationMatrix {
-  id     String       @id @default(cuid())
-  planId String       @unique
-  plan   TrainingPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
-
-  totalMesocycles   Int // Ex: 5
-  weeksPerMesocycle Int // Ex: 4
-
-  // Relacionamentos
-  resistedStimulus ResistedStimulus[]
-  cyclicStimulus   CyclicStimulus[]
-  nutrition        NutritionWeekly[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-// EstÃ­mulo Resistido (Treino de ForÃ§a)
-model ResistedStimulus {
-  id       String              @id @default(cuid())
-  matrixId String
-  matrix   PeriodizationMatrix @relation(fields: [matrixId], references: [id], onDelete: Cascade)
-
-  mesocycleNumber Int // 1, 2, 3, 4, 5
-  weekNumber      Int // 1-20 (ou quantas semanas tiver)
-
-  // Carga Microciclo (ADP, ORD, CHO, REG)
-  loadCycle String? // ReferÃªncia ao TrainingParameter
-
-  // Objetivo
-  objective String? // ReferÃªncia ao TrainingParameter
-
-  // ParÃ¢metros de Treino Resistido
-  repZone        Int? // Zona de RepetiÃ§Ãµes (ex: 4, 6, 8, 10, 12, 14)
-  loadPercentage Float? // % Carga TR (calculado automaticamente baseado em repZone)
-
-  // ReferÃªncia para cÃ¡lculo de sÃ©ries
-  seriesReference Int? // REF - valor de referÃªncia
-
-  // SÃ©ries calculadas
-  seriesLowerBody Int? // SÃ©ries Membros Inferiores (calculado)
-  seriesUpperBody Int? // SÃ©ries Membros Superiores
-  seriesCore      Int? // SÃ©ries Core/EstabilizaÃ§Ã£o
-
-  // Rep Reserva (calculado automaticamente)
-  repReserve Int? // Calculado baseado em loadCycle
-
-  // Montagem (AS, A/AN, CA, CGM, MIS)
-  assembly String? // ReferÃªncia ao TrainingParameter
-
-  // MÃ©todo (SER, BS, TS, SS, CIR, CS, PC, PD, DS, RP, SN, FST-7)
-  method String? // ReferÃªncia ao TrainingParameter
-
-  // DivisÃ£o do Treino (FB, AB, ABC, ABCD, ABCDE)
-  trainingDivision String? // ReferÃªncia ao TrainingParameter
-
-  // FrequÃªncia Semanal
-  weeklyFrequency Int? // Ex: 3, 4, 5
-
-  // ObservaÃ§Ãµes
-  observations String? @db.Text
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([matrixId, mesocycleNumber, weekNumber])
-  @@index([matrixId])
-}
-
-// EstÃ­mulo CÃ­clico (Corrida/Cardio)
-model CyclicStimulus {
-  id       String              @id @default(cuid())
-  matrixId String
-  matrix   PeriodizationMatrix @relation(fields: [matrixId], references: [id], onDelete: Cascade)
-
-  mesocycleNumber Int
-  weekNumber      Int
-
-  // Volume
-  totalVolumeMinutes Float? // Volume Geral em Minutos
-  totalVolumeKm      Float? // Volume Geral em KM
-  runningVolumeKm    Float? // Volume Corrida em KM
-
-  // NÃºmero de Treinos por Zona
-  countZ1 Int? // NÃºmero de treinos Zona 1
-  countZ2 Int?
-  countZ3 Int?
-  countZ4 Int?
-  countZ5 Int?
-
-  // Minutos por Zona
-  minutesZ1 Float? // Minutos na Zona 1
-  minutesZ2 Float?
-  minutesZ3 Float?
-  minutesZ4 Float?
-  minutesZ5 Float?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([matrixId, mesocycleNumber, weekNumber])
-  @@index([matrixId])
-}
-
-// NutriÃ§Ã£o Semanal
-model NutritionWeekly {
-  id       String              @id @default(cuid())
-  matrixId String
-  matrix   PeriodizationMatrix @relation(fields: [matrixId], references: [id], onDelete: Cascade)
-
-  mesocycleNumber Int
-  weekNumber      Int
-
-  // Calorias e Macronutrientes
-  dailyCalories  Float? // Calorias diÃ¡rias
-  carbohydratesG Float? // Carboidratos em gramas
-  proteinsG      Float? // ProteÃ­nas em gramas
-  lipidsG        Float? // LipÃ­dios em gramas
-
-  // HidrataÃ§Ã£o
-  hydrationLiters Float? // HidrataÃ§Ã£o em litros/dia
-
-  // Suplementos
-  supplements String? @db.Text
-
-  // ObservaÃ§Ãµes
-  notes String? @db.Text
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([matrixId, mesocycleNumber, weekNumber])
-  @@index([matrixId])
-}
-
-// ============================================================================
-// TEMPLATES DE PERIODIZAÃ‡ÃƒO
-// ============================================================================
-
-model PeriodizationTemplate {
-  id          String  @id @default(cuid())
-  professorId String? // null = template global
-
-  name        String // "PreparaÃ§Ã£o para Maratona", "Base AerÃ³bica"
-  description String? @db.Text
-  category    String // "marathon", "base", "peak", etc
-
-  totalMesocycles   Int
-  weeksPerMesocycle Int
-
-  // Dados do template (JSON)
-  templateData Json // Estrutura completa da matriz
-
-  isPublic   Boolean @default(false)
-  usageCount Int     @default(0)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([professorId])
-  @@index([category])
-}
-
-// ============================================================================
-// BIBLIOTECA DE EXERCÃCIOS
-// ============================================================================
-
-model ExerciseLibrary {
-  id         String   @id @default(cuid())
-  contractId String
-  contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
-
-  name         String // Nome do exercÃ­cio
-  videoUrl     String?       @db.Text // Link do vÃ­deo do YouTube
-  loadType     LoadType? // H, C, E, A, P, O
-  movementType MovementType? // U, I, O
-  countingType CountingType? // I, T, R
-  category     String? // MOBILIDADE, RESISTIDO, CICLICO
-  muscleGroup  String? // Abdominal, QuadrÃ­ceps, etc
-  notes        String?       @db.Text
-
-  // Relacionamentos
-  workoutExercises WorkoutExercise[]
-  alunoProgress    AlunoExerciseProgress[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([contractId])
-  @@index([contractId, name])
-  @@index([contractId, category])
-}
-
 enum LoadType {
-  H // Halteres
-  C // Corporal
-  E // ElÃ¡sticos
-  A // AerÃ³bicos
-  P // P.S. (observaÃ§Ãµes)
-  O // Outros
+  H
+  C
+  E
+  A
+  P
+  O
 }
 
 enum MovementType {
-  U // Unilateral
-  I // Isolado
-  O // Outros (Bilateral)
+  U
+  I
+  O
 }
 
 enum CountingType {
-  I // Isometria
-  T // por Tempo (RepetiÃ§Ãµes)
-  R // RepetiÃ§Ãµes
-}
-
-// ============================================================================
-// PROGRESSO DO ALUNO POR EXERCÃCIO
-// ============================================================================
-
-model AlunoExerciseProgress {
-  id         String          @id @default(cuid())
-  alunoId    String
-  aluno      Aluno           @relation(fields: [alunoId], references: [id], onDelete: Cascade)
-  exerciseId String
-  exercise   ExerciseLibrary @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
-
-  lastLoad Float? // Carga anterior (Ãºltima executada)
-  maxLoad  Float? // Carga mÃ¡xima jÃ¡ levantada
-
-  lastUpdated DateTime @default(now())
-
-  @@unique([alunoId, exerciseId])
-  @@index([alunoId])
-  @@index([exerciseId])
-}
-
-// ============================================================================
-// MONTAGEM DE TREINOS
-// ============================================================================
-
-model WorkoutTemplate {
-  id              String       @id @default(cuid())
-  planId          String
-  plan            TrainingPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
-  mesocycleNumber Int // Meso (compartilhado entre cÃ­clico e resistido)
-  weekNumber      Int // Micro (compartilhado entre cÃ­clico e resistido)
-  weekStartDate   DateTime
-
-  // Dados do CÃ­clico
-  cyclicFrequency Int? // FrequÃªncia semanal de treinos cÃ­clicos
-  totalVolumeMin  Int?
-  totalVolumeKm   Float?
-
-  // Dados do Resistido
-  resistanceFrequency Int? // FrequÃªncia semanal de treinos de forÃ§a
-  loadPercentage      Float?
-  repZone             Int?
-  repReserve          Int?
-  trainingMethod      String?
-  trainingDivision    String?
-
-  // ObservaÃ§Ãµes
-  alunoGoal    String? @db.Text
-  coachGoal    String? @db.Text
-  observation1 String? @db.Text
-  observation2 String? @db.Text
-
-  // Status de LiberaÃ§Ã£o
-  released   Boolean   @default(false) // Se true, o treino estÃ¡ disponÃ­vel para o aluno
-  releasedAt DateTime? // Data/hora em que foi liberado
-
-  // Relacionamentos
-  workoutDays WorkoutDay[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([planId, mesocycleNumber, weekNumber])
-  @@index([planId])
-  @@index([planId, mesocycleNumber, weekNumber])
-}
-
-model WorkoutDay {
-  id          String           @id @default(cuid())
-  templateId  String
-  template    WorkoutTemplate  @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  dayOfWeek   Int // 1=Segunda, 7=Domingo
-  workoutDate DateTime
-  status      WorkoutDayStatus @default(planned)
-  startedAt   DateTime?
-  finishedAt  DateTime?
-
-  // Planejamento do Dia - Geral
-  sessionDurationMin Int? // Tempo total da sessÃ£o
-  cyclicTimeMin      Int? // Tempo de treino cÃ­clico
-  resistanceTimeMin  Int? // Tempo de treino resistido
-
-  // Planejamento do Dia - CÃ­clico
-  stimulusDurationMin Int? // Tempo do estÃ­mulo
-  location            String? // Esteira, Bicicleta, Pista, Corrida
-  method              String? // CEXT, CINT, IEXT, IINT
-
-  // Intensidades
-  intensity1        Float? // Intensidade 1 (porcentagem)
-  intensity2        Float? // Intensidade 2 (porcentagem)
-  numSessions       Int? // NÃºmero de sessÃµes
-  numSets           Int? // NÃºmero de sÃ©ries
-  sessionTime       Int? // Tempo intenso (segundos)
-  restTime          Int? // Tempo repouso (segundos)
-  vo2maxIntervalPct Float? // %VO2MÃ¡x intervalo
-  iextIintTime      Float? // Tempo IEXT IINT
-  vo2maxPct         Float? // %VO2MÃ¡x
-  targetHrMin       String? @db.Text // FC alvo (bpm)
-  targetHrMax       String? @db.Text // FC alvo mÃ¡ximo (bpm)
-  targetSpeedMin    String? @db.Text // Velocidade (km/h)
-  targetSpeedMax    String? @db.Text // Velocidade mÃ¡xima (km/h)
-  paceMin           Float? // Pace mÃ­nimo (min/km)
-  paceMax           Float? // Pace mÃ¡ximo (min/km)
-
-  // Detalhamento e Complemento
-  detailNotes     String? @db.Text
-  complementNotes String? @db.Text
-
-  // OrientaÃ§Ãµes Gerais
-  generalGuidelines String? @db.Text
-
-  // PSR (PercepÃ§Ã£o Subjetiva de RecuperaÃ§Ã£o)
-  psrQuestion String? @default("Hoje recuperado vocÃª estÃ¡ se sentindo (PSR)?")
-  psrResponse Int? // Resposta do aluno (1-10)
-  pseResponse Int? // Percep????o de esfor??o ap??s o treino (1-10)
-
-  // Relacionamentos
-  exercises WorkoutExercise[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([templateId, dayOfWeek])
-  @@index([templateId])
-  @@index([workoutDate])
+  I
+  T
+  R
 }
 
 enum WorkoutDayStatus {
   planned
   in_progress
   completed
-}
-
-model WorkoutExercise {
-  id           String          @id @default(cuid())
-  workoutDayId String
-  workoutDay   WorkoutDay      @relation(fields: [workoutDayId], references: [id], onDelete: Cascade)
-  exerciseId   String
-  exercise     ExerciseLibrary @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
-
-  // SeÃ§Ã£o do Treino
-  section       String // MOBILIDADE, AQUECIMENTO, ATIVACAO, TECNICO, SESSAO
-  exerciseOrder Int // Ordem dentro da seÃ§Ã£o
-
-  // ParÃ¢metros do ExercÃ­cio
-  system      String? // BI-SET, TRI-SET, CIRCUITO
-  sets        Int?
-  reps        Int?
-  intervalSec Int? // Intervalo entre sÃ©ries
-  cParam      Int? // ParÃ¢metro C (especÃ­fico do treino)
-  eParam      Int? // ParÃ¢metro E (especÃ­fico do treino)
-  load        Float? // Carga sugerida
-
-  // ObservaÃ§Ãµes
-  exerciseNotes String? @db.Text
-
-  // Relacionamentos
-  executions WorkoutExecution[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([workoutDayId])
-  @@index([workoutDayId, section, exerciseOrder])
-}
-
-// ============================================================================
-// EXECUÃ‡ÃƒO REAL DO TREINO
-// ============================================================================
-
-model WorkoutExecution {
-  id                String          @id @default(cuid())
-  workoutExerciseId String
-  workoutExercise   WorkoutExercise @relation(fields: [workoutExerciseId], references: [id], onDelete: Cascade)
-  alunoId           String
-  aluno             Aluno           @relation(fields: [alunoId], references: [id], onDelete: Cascade)
-  executionDate     DateTime
-  setNumber         Int?
-
-  // Dados Executados
-  setsCompleted Int?
-  repsCompleted Int?
-  loadUsed      Float?
-
-  // Feedback
-  difficultyRating Int? // 1-10
-  repsInReserve    Int? // RepetiÃ§Ãµes em reserva
-  notes            String? @db.Text
-
-  createdAt DateTime @default(now())
-
-  @@index([workoutExerciseId])
-  @@index([alunoId])
-  @@index([executionDate])
 }
