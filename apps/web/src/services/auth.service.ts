@@ -1,5 +1,13 @@
 import api from './api';
-import type { LoginRequest, RegisterRequest, AuthResponse } from '@corrida/types';
+import type {
+  LoginRequest,
+  RegisterRequest,
+  AuthResponse,
+  ForgotPasswordRequest,
+  ForgotPasswordResponse,
+  ResetPasswordRequest,
+  ResetPasswordResponse,
+} from '@corrida/types';
 
 export const authService = {
   /**
@@ -15,6 +23,28 @@ export const authService = {
    */
   async register(data: RegisterRequest): Promise<AuthResponse> {
     const response = await api.post<{ success: boolean; data: AuthResponse }>('/auth/register', data);
+    return response.data.data;
+  },
+
+  /**
+   * Solicitar recuperação de senha
+   */
+  async forgotPassword(data: ForgotPasswordRequest): Promise<ForgotPasswordResponse> {
+    const response = await api.post<{ success: boolean; data: ForgotPasswordResponse }>(
+      '/auth/forgot-password',
+      data
+    );
+    return response.data.data;
+  },
+
+  /**
+   * Redefinir senha com token
+   */
+  async resetPassword(data: ResetPasswordRequest): Promise<ResetPasswordResponse> {
+    const response = await api.post<{ success: boolean; data: ResetPasswordResponse }>(
+      '/auth/reset-password',
+      data
+    );
     return response.data.data;
   },
 

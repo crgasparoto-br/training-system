@@ -205,6 +205,15 @@ export const LoginSchema = z.object({
   password: z.string().min(6, 'Senha deve ter no minimo 6 caracteres'),
 });
 
+export const ForgotPasswordSchema = z.object({
+  email: z.string().trim().toLowerCase().email('Email invalido'),
+});
+
+export const ResetPasswordSchema = z.object({
+  token: z.string().trim().min(1, 'Token invalido'),
+  password: z.string().min(8, 'Senha deve ter no minimo 8 caracteres'),
+});
+
 export const RegisterSchema = z.object({
   email: z.string().email('Email invalido'),
   password: z.string().min(8, 'Senha deve ter no minimo 8 caracteres'),

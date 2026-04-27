@@ -66,6 +66,25 @@ export interface LoginRequest {
   password: string;
 }
 
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+export interface ForgotPasswordResponse {
+  message: string;
+  resetToken?: string;
+  resetUrl?: string;
+}
+
+export interface ResetPasswordRequest {
+  token: string;
+  password: string;
+}
+
+export interface ResetPasswordResponse {
+  message: string;
+}
+
 export interface RegisterRequest {
   email: string;
   password: string;
