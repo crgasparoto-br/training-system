@@ -57,7 +57,7 @@ export function AppSidebar({
 
   return (
     <SidebarShell collapsible collapsed={collapsed} mobileOpen={mobileOpen}>
-      <div className="flex h-full flex-col">
+      <div className="flex h-full min-h-0 flex-col">
         <div className={cn('flex flex-col border-b border-white/10 px-4 py-4', collapsed && 'items-center')}>
           <img
             src={logoSrc}
@@ -86,7 +86,7 @@ export function AppSidebar({
           </Button>
         </div>
 
-        <nav className="flex flex-col gap-1 px-3 pb-3">
+        <nav className="flex-1 overflow-y-auto px-3 pb-3 pt-3">
           {items.map((item) => (
             <SidebarMenuItem
               key={item.id}

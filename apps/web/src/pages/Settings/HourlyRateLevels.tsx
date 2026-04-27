@@ -1,31 +1,56 @@
 import { useEffect, useState } from 'react';
-import type { HourlyRateLevel, HourlyRateLevelCode } from '@corrida/types';
+import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
+import type { HourlyRateLevel } from '@corrida/types';
 import { Button } from '../../components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { settingsHourlyRateLevelsCopy } from '../../i18n/ptBR';
 import { hourlyRateLevelService } from '../../services/hourly-rate-level.service';
+import { getHourlyRateLevelBadgeClassName } from '../../utils/hourlyRateLevelTone';
 
-type FormState = Record<HourlyRateLevelCode, { minValue: string; maxValue: string }>;
-
-const defaultFormState: FormState = {
-  bronze: { minValue: '', maxValue: '' },
-  silver: { minValue: '', maxValue: '' },
-  gold: { minValue: '', maxValue: '' },
+type EditableLevel = HourlyRateLevel & {
+  minValueInput: string;
+  maxValueInput: string;
 };
 
-function getFormState(levels: HourlyRateLevel[]): FormState {
-  return levels.reduce<FormState>((accumulator, level) => {
-    accumulator[level.code] = {
-      minValue: level.minValue?.toString() ?? '',
-      maxValue: level.maxValue?.toString() ?? '',
-    };
-    return accumulator;
-  }, { ...defaultFormState });
+function formatValue(value?: number | null) {
+  if (typeof value !== 'number') {
+    return '';
+  }
+
+  return value.toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+function getFormState(levels: HourlyRateLevel[]): EditableLevel[] {
+  return levels.map((level) => ({
+    ...level,
+    minValueInput: formatValue(level.minValue),
+    maxValueInput: formatValue(level.maxValue),
+  }));
+}
+
+function normalizePtBrMoneyInput(value: string) {
+  const sanitizedValue = value.replace(/[^\d,.-]/g, '').replace(/\./g, ',');
+  const isNegative = sanitizedValue.startsWith('-');
+  const unsignedValue = sanitizedValue.replace(/-/g, '');
+  const [integerPartRaw = '', ...decimalParts] = unsignedValue.split(',');
+  const integerPart = integerPartRaw.replace(/\D/g, '');
+  const decimalPart = decimalParts.join('').replace(/\D/g, '').slice(0, 2);
+
+  const prefix = isNegative ? '-' : '';
+
+  if (unsignedValue.includes(',')) {
+    return `${prefix}${integerPart},${decimalPart}`;
+  }
+
+  return `${prefix}${integerPart}`;
 }
 
 function parseValue(value: string) {
-  const normalizedValue = value.trim().replace(',', '.');
+  const normalizedValue = value.trim().replace(/\./g, '').replace(',', '.');
   if (!normalizedValue) {
     return null;
   }
@@ -34,11 +59,23 @@ function parseValue(value: string) {
   return Number.isNaN(parsedValue) ? null : parsedValue;
 }
 
+function reorderLevels(levels: EditableLevel[], fromIndex: number, toIndex: number) {
+  if (toIndex < 0 || toIndex >= levels.length) {
+    return levels;
+  }
+
+  const nextLevels = [...levels];
+  const [movedLevel] = nextLevels.splice(fromIndex, 1);
+  nextLevels.splice(toIndex, 0, movedLevel);
+  return nextLevels;
+}
+
 export default function SettingsHourlyRateLevels() {
-  const [levels, setLevels] = useState<HourlyRateLevel[]>([]);
-  const [form, setForm] = useState<FormState>(defaultFormState);
+  const [levels, setLevels] = useState<EditableLevel[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const loadLevels = async () => {
@@ -47,8 +84,7 @@ export default function SettingsHourlyRateLevels() {
 
     try {
       const data = await hourlyRateLevelService.list();
-      setLevels(data);
-      setForm(getFormState(data));
+      setLevels(getFormState(data));
     } catch (err: any) {
       setError(err?.response?.data?.error || settingsHourlyRateLevelsCopy.loadError);
     } finally {
@@ -67,20 +103,97 @@ export default function SettingsHourlyRateLevels() {
 
     try {
       const updatedLevels = await hourlyRateLevelService.update(
-        levels.map((level) => ({
+        levels.map((level, index) => ({
+          id: level.id,
+          label: level.label,
           code: level.code,
-          minValue: parseValue(form[level.code].minValue),
-          maxValue: parseValue(form[level.code].maxValue),
+          order: index + 1,
+          minValue: parseValue(level.minValueInput),
+          maxValue: parseValue(level.maxValueInput),
         }))
       );
 
-      setLevels(updatedLevels);
-      setForm(getFormState(updatedLevels));
+      setLevels(getFormState(updatedLevels));
     } catch (err: any) {
       setError(err?.response?.data?.error || settingsHourlyRateLevelsCopy.saveError);
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleCreateLevel = async () => {
+    setCreating(true);
+    setError(null);
+
+    try {
+      const updatedLevels = await hourlyRateLevelService.create();
+      setLevels(getFormState(updatedLevels));
+    } catch (err: any) {
+      setError(err?.response?.data?.error || settingsHourlyRateLevelsCopy.createError);
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleDeleteLevel = async (levelId: string) => {
+    if (!window.confirm(settingsHourlyRateLevelsCopy.deleteConfirm)) {
+      return;
+    }
+
+    setDeletingId(levelId);
+    setError(null);
+
+    try {
+      const updatedLevels = await hourlyRateLevelService.remove(levelId);
+      setLevels(getFormState(updatedLevels));
+    } catch (err: any) {
+      setError(err?.response?.data?.error || settingsHourlyRateLevelsCopy.deleteError);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const updateLevelField = (levelId: string, field: 'label' | 'minValueInput' | 'maxValueInput', value: string) => {
+    setLevels((current) =>
+      current.map((level) =>
+        level.id === levelId
+          ? {
+              ...level,
+              [field]: value,
+            }
+          : level
+      )
+    );
+  };
+
+  const handleMoneyBlur = (levelId: string, field: 'minValueInput' | 'maxValueInput') => {
+    setLevels((current) =>
+      current.map((level) => {
+        if (level.id !== levelId) {
+          return level;
+        }
+
+        const parsedValue = parseValue(level[field]);
+
+        return {
+          ...level,
+          [field]: parsedValue === null ? '' : formatValue(parsedValue),
+        };
+      })
+    );
+  };
+
+  const handleMoveLevel = (levelId: string, direction: 'up' | 'down') => {
+    setLevels((current) => {
+      const currentIndex = current.findIndex((level) => level.id === levelId);
+
+      if (currentIndex === -1) {
+        return current;
+      }
+
+      const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+      return reorderLevels(current, currentIndex, targetIndex);
+    });
   };
 
   return (
@@ -90,9 +203,15 @@ export default function SettingsHourlyRateLevels() {
           <h1 className="text-2xl font-bold text-foreground">{settingsHourlyRateLevelsCopy.title}</h1>
           <p className="text-sm text-muted-foreground">{settingsHourlyRateLevelsCopy.description}</p>
         </div>
-        <Button type="button" variant="outline" onClick={loadLevels} disabled={loading || saving}>
-          {settingsHourlyRateLevelsCopy.refresh}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="outline" onClick={loadLevels} disabled={loading || saving || creating || !!deletingId}>
+            {settingsHourlyRateLevelsCopy.refresh}
+          </Button>
+          <Button type="button" variant="secondary" onClick={handleCreateLevel} disabled={loading || saving || creating || !!deletingId}>
+            <Plus size={16} />
+            {settingsHourlyRateLevelsCopy.addLevel}
+          </Button>
+        </div>
       </div>
 
       {error && (
@@ -112,62 +231,66 @@ export default function SettingsHourlyRateLevels() {
               <table className="min-w-full text-sm">
                 <thead>
                   <tr className="border-b text-left text-xs uppercase text-muted-foreground">
-                    <th className="px-3 py-2">{settingsHourlyRateLevelsCopy.levelColumn}</th>
+                    <th className="px-3 py-2">{settingsHourlyRateLevelsCopy.levelNameColumn}</th>
                     <th className="px-3 py-2">{settingsHourlyRateLevelsCopy.minValueColumn}</th>
                     <th className="px-3 py-2">{settingsHourlyRateLevelsCopy.maxValueColumn}</th>
                     <th className="px-3 py-2">{settingsHourlyRateLevelsCopy.statusColumn}</th>
+                    <th className="px-3 py-2 text-right">{settingsHourlyRateLevelsCopy.actionsColumn}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={4} className="px-3 py-6 text-center text-muted-foreground">
+                      <td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">
                         Carregando níveis...
                       </td>
                     </tr>
                   ) : (
                     levels.map((level) => {
-                      const isConfigured = !!form[level.code].minValue && !!form[level.code].maxValue;
+                      const levelIndex = levels.findIndex((item) => item.id === level.id);
+                      const isConfigured = !!level.minValueInput && !!level.maxValueInput;
 
                       return (
                         <tr key={level.id} className="border-b align-top">
-                          <td className="px-3 py-3 font-medium text-foreground">{level.label}</td>
                           <td className="px-3 py-3">
                             <Input
                               label=""
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={form[level.code].minValue}
+                              value={level.label}
+                              onChange={(event) => updateLevelField(level.id, 'label', event.target.value)}
+                              placeholder={settingsHourlyRateLevelsCopy.levelNamePlaceholder}
+                            />
+                            <div className="mt-2">
+                              <span
+                                className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${getHourlyRateLevelBadgeClassName(level.label)}`}
+                              >
+                                {level.label.trim() || settingsHourlyRateLevelsCopy.levelNamePlaceholder}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-3 py-3">
+                            <Input
+                              label=""
+                              type="text"
+                              inputMode="decimal"
+                              value={level.minValueInput}
                               onChange={(event) =>
-                                setForm((current) => ({
-                                  ...current,
-                                  [level.code]: {
-                                    ...current[level.code],
-                                    minValue: event.target.value,
-                                  },
-                                }))
+                                updateLevelField(level.id, 'minValueInput', normalizePtBrMoneyInput(event.target.value))
                               }
-                              placeholder="0,00"
+                              onBlur={() => handleMoneyBlur(level.id, 'minValueInput')}
+                              placeholder={settingsHourlyRateLevelsCopy.minValuePlaceholder}
                             />
                           </td>
                           <td className="px-3 py-3">
                             <Input
                               label=""
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              value={form[level.code].maxValue}
+                              type="text"
+                              inputMode="decimal"
+                              value={level.maxValueInput}
                               onChange={(event) =>
-                                setForm((current) => ({
-                                  ...current,
-                                  [level.code]: {
-                                    ...current[level.code],
-                                    maxValue: event.target.value,
-                                  },
-                                }))
+                                updateLevelField(level.id, 'maxValueInput', normalizePtBrMoneyInput(event.target.value))
                               }
-                              placeholder="0,00"
+                              onBlur={() => handleMoneyBlur(level.id, 'maxValueInput')}
+                              placeholder={settingsHourlyRateLevelsCopy.maxValuePlaceholder}
                             />
                           </td>
                           <td className="px-3 py-3">
@@ -182,6 +305,41 @@ export default function SettingsHourlyRateLevels() {
                                 ? settingsHourlyRateLevelsCopy.configuredStatus
                                 : settingsHourlyRateLevelsCopy.pendingStatus}
                             </span>
+                          </td>
+                          <td className="px-3 py-3 text-right">
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleMoveLevel(level.id, 'up')}
+                                disabled={saving || creating || !!deletingId || levelIndex === 0}
+                                aria-label={settingsHourlyRateLevelsCopy.moveUp}
+                                title={settingsHourlyRateLevelsCopy.moveUp}
+                              >
+                                <ArrowUp size={16} />
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleMoveLevel(level.id, 'down')}
+                                disabled={saving || creating || !!deletingId || levelIndex === levels.length - 1}
+                                aria-label={settingsHourlyRateLevelsCopy.moveDown}
+                                title={settingsHourlyRateLevelsCopy.moveDown}
+                              >
+                                <ArrowDown size={16} />
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                onClick={() => handleDeleteLevel(level.id)}
+                                disabled={saving || creating || deletingId === level.id}
+                              >
+                                <Trash2 size={16} />
+                                {settingsHourlyRateLevelsCopy.deleteLevel}
+                              </Button>
+                            </div>
                           </td>
                         </tr>
                       );

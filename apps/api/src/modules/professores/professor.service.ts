@@ -1,6 +1,7 @@
 ﻿import { PrismaClient } from '@prisma/client';
 import bcryptjs from 'bcryptjs';
 import { Prisma } from '@prisma/client';
+import { bankService } from '../banks/bank.service.js';
 import { getCollaboratorFunctionForContract } from '../collaborator-functions/index.js';
 
 const prisma = new PrismaClient();
@@ -123,6 +124,9 @@ export interface CreateProfessorDTO {
   maritalStatus?: 'single' | 'married' | 'stable_union' | 'divorced' | 'separated' | 'widowed' | 'other';
   addressStreet?: string;
   addressNumber?: string;
+  addressNeighborhood?: string;
+  addressCity?: string;
+  addressState?: string;
   addressComplement?: string;
   addressZipCode?: string;
   instagramHandle?: string;
@@ -130,12 +134,14 @@ export interface CreateProfessorDTO {
   professionalSummary?: string;
   lattesUrl?: string;
   companyDocument?: string;
+  bankCode?: string;
   bankName?: string;
   bankBranch?: string;
   bankAccount?: string;
   pixKey?: string;
   avatar?: string;
   admissionDate?: Date;
+  dismissalDate?: Date;
   currentStatus?: string;
   operationalRoleIds?: string[];
   hourlyRates?: HourlyRatesInput;
@@ -157,6 +163,9 @@ export interface UpdateProfessorDTO {
   maritalStatus?: 'single' | 'married' | 'stable_union' | 'divorced' | 'separated' | 'widowed' | 'other' | null;
   addressStreet?: string | null;
   addressNumber?: string | null;
+  addressNeighborhood?: string | null;
+  addressCity?: string | null;
+  addressState?: string | null;
   addressComplement?: string | null;
   addressZipCode?: string | null;
   instagramHandle?: string | null;
@@ -164,12 +173,14 @@ export interface UpdateProfessorDTO {
   professionalSummary?: string | null;
   lattesUrl?: string | null;
   companyDocument?: string | null;
+  bankCode?: string | null;
   bankName?: string | null;
   bankBranch?: string | null;
   bankAccount?: string | null;
   pixKey?: string | null;
   avatar?: string | null;
   admissionDate?: Date | null;
+  dismissalDate?: Date | null;
   currentStatus?: string | null;
   operationalRoleIds?: string[];
   hourlyRates?: HourlyRatesInput;
@@ -270,12 +281,13 @@ async function ensureOperationalRolesAvailable(contractId: string, operationalRo
 
 function hasAnyLegalFinancialValue(data: {
   companyDocument?: string | null;
+  bankCode?: string | null;
   bankName?: string | null;
   bankBranch?: string | null;
   bankAccount?: string | null;
   pixKey?: string | null;
 }) {
-  return [data.companyDocument, data.bankName, data.bankBranch, data.bankAccount, data.pixKey].some(
+  return [data.companyDocument, data.bankCode, data.bankName, data.bankBranch, data.bankAccount, data.pixKey].some(
     (value) => typeof value === 'string' && value.trim().length > 0
   );
 }
@@ -335,6 +347,9 @@ export const professorService = {
     const normalizedRg = normalizeOptionalText(data.rg);
     const normalizedAddressStreet = normalizeOptionalText(data.addressStreet);
     const normalizedAddressNumber = normalizeOptionalText(data.addressNumber);
+    const normalizedAddressNeighborhood = normalizeOptionalText(data.addressNeighborhood);
+    const normalizedAddressCity = normalizeOptionalText(data.addressCity);
+    const normalizedAddressState = normalizeOptionalText(data.addressState);
     const normalizedAddressComplement = normalizeOptionalText(data.addressComplement);
     const normalizedAddressZipCode = normalizeZipCode(data.addressZipCode);
     const normalizedInstagramHandle = normalizeInstagramHandle(data.instagramHandle);
@@ -342,7 +357,9 @@ export const professorService = {
     const normalizedProfessionalSummary = normalizeOptionalText(data.professionalSummary);
     const normalizedLattesUrl = normalizeOptionalText(data.lattesUrl);
     const normalizedCompanyDocument = normalizeCompanyDocument(data.companyDocument);
-    const normalizedBankName = normalizeOptionalText(data.bankName);
+    const normalizedBankCode = normalizeOptionalText(data.bankCode);
+    const bank = await bankService.findByCode(normalizedBankCode);
+    const normalizedBankName = bank?.description ?? normalizeOptionalText(data.bankName);
     const normalizedBankBranch = normalizeOptionalText(data.bankBranch);
     const normalizedBankAccount = normalizeOptionalText(data.bankAccount);
     const normalizedPixKey = normalizeOptionalText(data.pixKey);
@@ -354,6 +371,7 @@ export const professorService = {
       !!data.actorProfessorId &&
       hasAnyLegalFinancialValue({
         companyDocument: normalizedCompanyDocument,
+        bankCode: normalizedBankCode,
         bankName: normalizedBankName,
         bankBranch: normalizedBankBranch,
         bankAccount: normalizedBankAccount,
@@ -443,6 +461,9 @@ export const professorService = {
               ...(data.maritalStatus ? { maritalStatus: data.maritalStatus } : {}),
               ...(normalizedAddressStreet ? { addressStreet: normalizedAddressStreet } : {}),
               ...(normalizedAddressNumber ? { addressNumber: normalizedAddressNumber } : {}),
+              ...(normalizedAddressNeighborhood ? { addressNeighborhood: normalizedAddressNeighborhood } : {}),
+              ...(normalizedAddressCity ? { addressCity: normalizedAddressCity } : {}),
+              ...(normalizedAddressState ? { addressState: normalizedAddressState } : {}),
               ...(normalizedAddressComplement ? { addressComplement: normalizedAddressComplement } : {}),
               ...(normalizedAddressZipCode ? { addressZipCode: normalizedAddressZipCode } : {}),
               ...(normalizedInstagramHandle ? { instagramHandle: normalizedInstagramHandle } : {}),
@@ -479,6 +500,7 @@ export const professorService = {
           collaboratorFunctionId: collaboratorFunction.id,
           responsibleManagerId,
           ...(data.admissionDate ? { admissionDate: data.admissionDate } : {}),
+          ...(data.dismissalDate ? { dismissalDate: data.dismissalDate } : {}),
           ...(normalizedCurrentStatus ? { currentStatus: normalizedCurrentStatus } : {}),
           operationalRoleIds,
           ...(normalizedHourlyRates ? { hourlyRates: normalizedHourlyRates } : {}),
@@ -631,6 +653,8 @@ export const professorService = {
         : normalizeOptionalText(data.signedContractDocumentUrl);
     const normalizedCompanyDocument =
       data.companyDocument === undefined ? undefined : normalizeCompanyDocument(data.companyDocument);
+    const normalizedBankCode = data.bankCode === undefined ? undefined : normalizeOptionalText(data.bankCode);
+    const bank = normalizedBankCode ? await bankService.findByCode(normalizedBankCode) : null;
 
     if (normalizedEmail && normalizedEmail !== professor.user.email) {
       const existingUser = await prisma.user.findUnique({
@@ -693,6 +717,21 @@ export const professorService = {
         data.addressNumber === null ? null : normalizeOptionalText(data.addressNumber) ?? null;
     }
 
+    if (data.addressNeighborhood !== undefined) {
+      updateProfileData.addressNeighborhood =
+        data.addressNeighborhood === null ? null : normalizeOptionalText(data.addressNeighborhood) ?? null;
+    }
+
+    if (data.addressCity !== undefined) {
+      updateProfileData.addressCity =
+        data.addressCity === null ? null : normalizeOptionalText(data.addressCity) ?? null;
+    }
+
+    if (data.addressState !== undefined) {
+      updateProfileData.addressState =
+        data.addressState === null ? null : normalizeOptionalText(data.addressState) ?? null;
+    }
+
     if (data.addressComplement !== undefined) {
       updateProfileData.addressComplement =
         data.addressComplement === null ? null : normalizeOptionalText(data.addressComplement) ?? null;
@@ -722,14 +761,25 @@ export const professorService = {
         data.lattesUrl === null ? null : normalizeOptionalText(data.lattesUrl) ?? null;
     }
 
+    if (data.avatar !== undefined) {
+      updateProfileData.avatar =
+        data.avatar === null ? null : normalizeOptionalText(data.avatar) ?? null;
+    }
+
     if (data.companyDocument !== undefined) {
       updateProfileData.companyDocument =
         data.companyDocument === null ? null : normalizedCompanyDocument ?? null;
     }
 
-    if (data.bankName !== undefined) {
+    if (data.bankCode !== undefined) {
+      updateProfileData.bankCode = data.bankCode === null ? null : normalizedBankCode ?? null;
+    }
+
+    if (data.bankCode !== undefined || data.bankName !== undefined) {
       updateProfileData.bankName =
-        data.bankName === null ? null : normalizeOptionalText(data.bankName) ?? null;
+        data.bankCode === null
+          ? null
+          : bank?.description ?? (data.bankName === null ? null : normalizeOptionalText(data.bankName) ?? null);
     }
 
     if (data.bankBranch !== undefined) {
@@ -748,6 +798,7 @@ export const professorService = {
 
     const changedLegalFinancialFields = [
       'companyDocument',
+      'bankCode',
       'bankName',
       'bankBranch',
       'bankAccount',
@@ -760,6 +811,10 @@ export const professorService = {
           updateProfileData.companyDocument !== undefined
             ? updateProfileData.companyDocument
             : professor.user.profile?.companyDocument ?? null,
+        bankCode:
+          updateProfileData.bankCode !== undefined
+            ? updateProfileData.bankCode
+            : professor.user.profile?.bankCode ?? null,
         bankName:
           updateProfileData.bankName !== undefined
             ? updateProfileData.bankName
@@ -806,6 +861,10 @@ export const professorService = {
 
     if (data.admissionDate !== undefined) {
       updateProfessorData.admissionDate = data.admissionDate;
+    }
+
+    if (data.dismissalDate !== undefined) {
+      updateProfessorData.dismissalDate = data.dismissalDate;
     }
 
     if (data.currentStatus !== undefined) {

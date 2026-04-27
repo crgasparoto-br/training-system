@@ -4,6 +4,7 @@ export interface Aluno {
   id: string;
   userId: string;
   professorId: string;
+  serviceId?: string;
   schedulePlan: 'free' | 'fixed';
   systolicPressure?: number;
   diastolicPressure?: number;
@@ -34,6 +35,12 @@ export interface Aluno {
       };
     };
   };
+  service?: {
+    id: string;
+    name: string;
+    code: string;
+    isActive: boolean;
+  };
   macronutrients?: {
     carbohydratesPercentage: number;
     proteinsPercentage: number;
@@ -57,6 +64,7 @@ export interface Aluno {
       q6: boolean;
       q7: boolean;
     };
+    formResponses?: Record<string, unknown>;
   };
   lastPasswordResetAt?: string | null;
   createdAt: string;
@@ -104,6 +112,7 @@ export interface CreateAlunoDTO {
   name: string;
   email: string;
   phone?: string;
+  serviceId?: string;
   schedulePlan: 'free' | 'fixed';
   birthDate?: string;
   gender?: 'male' | 'female' | 'other';
@@ -140,10 +149,12 @@ export interface CreateAlunoDTO {
       q6: boolean;
       q7: boolean;
     };
+    formResponses?: Record<string, unknown>;
   };
 }
 
 export interface UpdateAlunoDTO {
+  serviceId?: string;
   schedulePlan?: 'free' | 'fixed';
   birthDate?: string;
   gender?: 'male' | 'female' | 'other';
@@ -180,6 +191,7 @@ export interface UpdateAlunoDTO {
       q6: boolean;
       q7: boolean;
     };
+    formResponses?: Record<string, unknown>;
   };
 }
 
