@@ -5,7 +5,7 @@ import { Button } from '../../components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { settingsCollaboratorFunctionsCopy } from '../../i18n/ptBR';
-
+ 
 const defaultForm = {
   name: '',
   isActive: true,
