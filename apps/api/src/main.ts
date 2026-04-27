@@ -13,7 +13,7 @@ import { professorRoutes } from './modules/professores/index.js';
 import { serviceRoutes } from './modules/services/index.js';
 
 const app: express.Express = express();
-const PORT = process.env.API_PORT || 3000;
+const PORT = Number(process.env.PORT || process.env.API_PORT || 3000);
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
 function parseCorsOrigins(value?: string) {

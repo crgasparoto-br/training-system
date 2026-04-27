@@ -37,6 +37,14 @@ cp .env.example .env.local
 VITE_API_URL=http://localhost:3000
 ```
 
+Em producao no Vercel, defina `VITE_API_URL` apontando para a URL publica da API, por exemplo:
+
+```env
+VITE_API_URL=https://api.seudominio.com
+```
+
+Sem essa variavel, o frontend usa `/api/v1` no mesmo dominio do Vercel e as chamadas nao chegam na API que acessa o banco.
+
 ## 🏃 Executar
 
 ```bash

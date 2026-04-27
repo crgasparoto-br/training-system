@@ -1,6 +1,6 @@
-name: Deploy Staging – API
+name: Deploy Production - API
 
-# Triggers on every push to main (staging surface)
+# Executa em todo push na branch principal de producao.
 on:
   push:
     branches:
@@ -57,59 +57,26 @@ jobs:
       # -----------------------------------------------------------------------
       # 5. Run database migrations
       #
-      #    Requires the following GitHub secret to be set:
-      #      DATABASE_URL  — connection string for the STAGING database
-      #                      (must be a separate DB, never production)
+      #    Requer o secret abaixo:
+      #      PRODUCTION_DATABASE_URL  - string de conexao do banco de producao
       # -----------------------------------------------------------------------
       - name: Run database migrations
         env:
-          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
         run: pnpm --filter @corrida/api db:migrate:prod
 
       # -----------------------------------------------------------------------
       # 6. Deploy
       #
-      #    Choose ONE of the options below and remove the others.
-      #
-      #    OPTION A – Railway (recommended for quick setup)
-      #    Requires secrets: RAILWAY_TOKEN, RAILWAY_SERVICE_ID
-      #
-      #    OPTION B – Render
-      #    Requires secrets: RENDER_API_DEPLOY_HOOK_URL
-      #
-      #    OPTION C – SSH / VPS
-      #    Requires secrets: SSH_PRIVATE_KEY, SSH_HOST, SSH_USER
+      #    Provedor escolhido: Render
+      #    Requer o secret: RENDER_API_DEPLOY_HOOK_URL
       # -----------------------------------------------------------------------
+      # O servico de API em producao tambem precisa destas variaveis no provedor:
+      #   DATABASE_URL=<mesmo valor do banco de producao>
+      #   NODE_ENV=production
+      #   FRONTEND_URL=https://sistema-acesso.solveritconsultoria.com.br
+      #   CORS_ORIGINS=https://sistema-acesso.solveritconsultoria.com.br
+      #   JWT_SECRET=<segredo forte de producao>
 
-      # --- OPTION A: Railway ---------------------------------------------------
-      # Uncomment and remove the other options when using Railway.
-      #
-      # - name: Deploy to Railway
-      #   uses: bervProject/railway-deploy@v1.0.0
-      #   with:
-      #     railway_token: ${{ secrets.RAILWAY_TOKEN }}
-      #     service: ${{ secrets.RAILWAY_SERVICE_ID }}
-
-      # --- OPTION B: Render ----------------------------------------------------
-      # Uncomment and remove the other options when using Render.
-      # The deploy hook URL is found in the Render dashboard → Settings → Deploy Hook.
-      #
-      # - name: Trigger Render deploy
-      #   run: curl -X POST "${{ secrets.RENDER_API_DEPLOY_HOOK_URL }}"
-
-      # --- OPTION C: SSH / VPS -------------------------------------------------
-      # Uncomment and remove the other options when using a VPS.
-      # Add the private key as a GitHub secret named SSH_PRIVATE_KEY.
-      #
-      # - name: Deploy via SSH
-      #   uses: appleboy/ssh-action@v1.0.3
-      #   with:
-      #     host: ${{ secrets.SSH_HOST }}
-      #     username: ${{ secrets.SSH_USER }}
-      #     key: ${{ secrets.SSH_PRIVATE_KEY }}
-      #     script: |
-      #       cd /srv/staging/training-system
-      #       git pull origin main
-      #       pnpm install --frozen-lockfile
-      #       pnpm --filter @corrida/api build
-      #       pm2 restart staging-api
+      - name: Trigger Render deploy
+        run: curl -fsSL -X POST "${{ secrets.RENDER_API_DEPLOY_HOOK_URL }}"
