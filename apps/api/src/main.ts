@@ -6,19 +6,7 @@ import 'express-async-errors';
 import path from 'path';
 import { authRoutes } from './modules/auth/index.js';
 import { alunoRoutes } from './modules/alunos/index.js';
-import { planRoutes } from './modules/plans/index.js';
-import { periodizationRoutes } from './modules/periodization/index.js';
 import { professorRoutes } from './modules/professores/index.js';
-import { collaboratorFunctionRoutes } from './modules/collaborator-functions/index.js';
-import { hourlyRateLevelRoutes } from './modules/hourly-rate-levels/index.js';
-import { contractRoutes } from './modules/contracts/index.js';
-import { agendaRoutes } from './modules/agenda/index.js';
-import { assessmentTypeRoutes, subjectiveScaleRoutes } from './modules/assessments/index.js';
-import { professorManualRoutes } from './modules/professor-manual/index.js';
-import { jiraRoutes } from './modules/jira/index.js';
-import libraryRoutes from './routes/library.routes.js';
-import workoutRoutes from './routes/workout.routes.js';
-import executionsRoutes from './routes/executions.routes.js';
 
 const app: express.Express = express();
 const PORT = process.env.API_PORT || 3000;
@@ -103,25 +91,11 @@ app.get('/api/v1', (req, res) => {
       auth: '/api/v1/auth',
       alunos: '/api/v1/alunos',
       professores: '/api/v1/professores',
-      collaboratorFunctions: '/api/v1/collaborator-functions',
-      hourlyRateLevels: '/api/v1/hourly-rate-levels',
-      contracts: '/api/v1/contracts',
-      plans: '/api/v1/plans',
-      periodization: '/api/v1/periodization',
-      assessmentTypes: '/api/v1/assessment-types',
-      subjectiveScales: '/api/v1/subjective-scales',
-      professorManual: '/api/v1/professor-manual',
-      agenda: '/api/v1/agenda',
-      jira: '/api/v1/jira',
-      library: '/api/v1/library',
-      workout: '/api/v1/workout',
-      sessions: '/api/v1/sessions',
-      executions: '/api/v1/executions',
     },
   });
 });
 
-// Rotas de AutenticaÃ§Ã£o
+// Rotas de Autenticação
 app.use('/api/v1/auth', authRoutes);
 
 // Rotas de Alunos
@@ -129,35 +103,6 @@ app.use('/api/v1/alunos', alunoRoutes);
 
 // Rotas de Professores
 app.use('/api/v1/professores', professorRoutes);
-
-// Rotas de Funções de Colaboradores
-app.use('/api/v1/collaborator-functions', collaboratorFunctionRoutes);
-
-// Rotas de Níveis de Valor/Hora
-app.use('/api/v1/hourly-rate-levels', hourlyRateLevelRoutes);
-
-// Rotas de Contratos
-app.use('/api/v1/contracts', contractRoutes);
-
-// Rotas de Planos de Treino
-app.use('/api/v1/plans', planRoutes);
-
-// Rotas de PeriodizaÃ§Ã£o
-app.use('/api/v1/periodization', periodizationRoutes);
-
-// Rotas de Tipos de AvaliaÃƒÂ§ÃƒÂ£o
-app.use('/api/v1/assessment-types', assessmentTypeRoutes);
-app.use('/api/v1/subjective-scales', subjectiveScaleRoutes);
-app.use('/api/v1/professor-manual', professorManualRoutes);
-app.use('/api/v1/agenda', agendaRoutes);
-app.use('/api/v1/jira', jiraRoutes);
-
-// Rotas de Biblioteca de ExercÃ­cios
-app.use('/api/v1/library', libraryRoutes);
-
-// Rotas de Montagem de Treinos
-app.use('/api/v1/workout', workoutRoutes);
-app.use('/api/v1/executions', executionsRoutes);
 
 // ============================================================================
 // ERROR HANDLING
