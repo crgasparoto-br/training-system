@@ -221,6 +221,38 @@ pnpm db:studio        # Abre Prisma Studio
 # Documentação em docs/deployment.md
 ```
 
+### Produção Atual
+
+O frontend publicado no Vercel nao acessa o banco diretamente. O fluxo correto em producao e:
+
+- Vercel (frontend) -> API publica
+- API publica -> banco PostgreSQL via Prisma (`DATABASE_URL`)
+
+Variaveis minimas para producao:
+
+- Vercel: `VITE_API_URL=https://sistema-acesso-api.onrender.com`
+- API: `DATABASE_URL=<string do PostgreSQL de producao>`
+- API: `NODE_ENV=production`
+- API: `PORT=<automatico do Render>`
+- API: `FRONTEND_URL=https://sistema-acesso.solveritconsultoria.com.br`
+- API: `CORS_ORIGINS=https://sistema-acesso.solveritconsultoria.com.br`
+- API: `JWT_SECRET=<segredo forte de producao>`
+
+Se `VITE_API_URL` nao estiver configurada no Vercel, o web faz fallback para `/api/v1`, e o frontend passa a tentar chamar a propria URL do Vercel em vez da API publicada.
+
+Configuracao objetiva para o cenario atual:
+
+- Frontend Vercel: `VITE_API_URL=https://sistema-acesso-api.onrender.com`
+- Render API: `DATABASE_URL=<PostgreSQL de producao>`
+- Render API: `NODE_ENV=production`
+- Render API: `FRONTEND_URL=https://sistema-acesso.solveritconsultoria.com.br`
+- Render API: `CORS_ORIGINS=https://sistema-acesso.solveritconsultoria.com.br`
+- Render API: `JWT_SECRET=<segredo forte de producao>`
+- Render API: usa `PORT` automaticamente; o backend agora aceita `PORT` e `API_PORT`
+- GitHub Actions secret: `PRODUCTION_DATABASE_URL=<PostgreSQL de producao>`
+- GitHub Actions secret: `RENDER_API_DEPLOY_HOOK_URL=<deploy hook do Render>`
+- GitHub Actions secrets do Vercel: `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `PRODUCTION_VITE_API_URL`
+
 ## 💰 Modelo de Negócio
 
 | Plano | Alunos | Preço |

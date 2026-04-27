@@ -1,6 +1,6 @@
-name: Deploy Staging – Web
+name: Deploy Production - Web
 
-# Triggers on every push to main (staging surface)
+# Executa em todo push na branch principal de producao.
 on:
   push:
     branches:
@@ -47,80 +47,32 @@ jobs:
       # -----------------------------------------------------------------------
       # 4. Type-check & build
       #
-      #    Requires the following GitHub secret to be set:
-      #      STAGING_VITE_API_URL  — URL of the staging API
-      #                              e.g. https://api.beta.seudominio.com
+      #    Requer o secret abaixo:
+      #      PRODUCTION_VITE_API_URL  - URL publica da API em producao
+      #                                 ex: https://api.seudominio.com
       # -----------------------------------------------------------------------
       - name: Type-check Web
         run: pnpm --filter @corrida/web type-check
 
       - name: Build Web
         env:
-          VITE_API_URL: ${{ secrets.STAGING_VITE_API_URL }}
+          VITE_API_URL: ${{ secrets.PRODUCTION_VITE_API_URL }}
         run: pnpm --filter @corrida/web build
 
       # -----------------------------------------------------------------------
       # 5. Deploy
       #
-      #    Choose ONE of the options below and remove the others.
-      #
-      #    OPTION A – Vercel (recommended for Vite/React)
-      #    Requires secrets: VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID
-      #
-      #    OPTION B – Netlify
-      #    Requires secrets: NETLIFY_AUTH_TOKEN, NETLIFY_SITE_ID
-      #
-      #    OPTION C – SSH / VPS (serve the dist/ folder via nginx)
-      #    Requires secrets: SSH_PRIVATE_KEY, SSH_HOST, SSH_USER
+      #    Provedor escolhido: Vercel
+      #    Requer secrets: VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID
       # -----------------------------------------------------------------------
+      # No Vercel, configure tambem a env VITE_API_URL com o mesmo valor da API
+      # de producao para evitar fallback para /api/v1 no dominio do frontend.
 
-      # --- OPTION A: Vercel ----------------------------------------------------
-      # Uncomment and remove the other options when using Vercel.
-      # Get the token/IDs from the Vercel dashboard or `vercel link`.
-      #
-      # - name: Deploy to Vercel
-      #   uses: amondnet/vercel-action@v25
-      #   with:
-      #     vercel-token: ${{ secrets.VERCEL_TOKEN }}
-      #     vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-      #     vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
-      #     vercel-args: '--prod'
-      #     working-directory: apps/web
-
-      # --- OPTION B: Netlify ---------------------------------------------------
-      # Uncomment and remove the other options when using Netlify.
-      #
-      # - name: Deploy to Netlify
-      #   uses: nwtgck/actions-netlify@v3
-      #   with:
-      #     publish-dir: apps/web/dist
-      #     production-branch: main
-      #     github-token: ${{ secrets.GITHUB_TOKEN }}
-      #     deploy-message: 'Staging deploy from ${{ github.sha }}'
-      #   env:
-      #     NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-      #     NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
-
-      # --- OPTION C: SSH / VPS -------------------------------------------------
-      # Uncomment and remove the other options when using a VPS.
-      # The built files in apps/web/dist are copied and served by nginx.
-      #
-      # - name: Deploy via SSH
-      #   uses: appleboy/ssh-action@v1.0.3
-      #   with:
-      #     host: ${{ secrets.SSH_HOST }}
-      #     username: ${{ secrets.SSH_USER }}
-      #     key: ${{ secrets.SSH_PRIVATE_KEY }}
-      #     script: |
-      #       rm -rf /var/www/beta/html
-      #       mkdir -p /var/www/beta/html
-      #
-      # - name: Copy dist to server
-      #   uses: appleboy/scp-action@v0.1.7
-      #   with:
-      #     host: ${{ secrets.SSH_HOST }}
-      #     username: ${{ secrets.SSH_USER }}
-      #     key: ${{ secrets.SSH_PRIVATE_KEY }}
-      #     source: 'apps/web/dist/*'
-      #     target: '/var/www/beta/html'
-      #     strip_components: 3
+      - name: Deploy to Vercel
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          vercel-args: '--prod'
+          working-directory: apps/web
