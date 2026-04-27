@@ -2,8 +2,17 @@
 import jwt from 'jsonwebtoken';
 import bcryptjs from 'bcryptjs';
 import { PrismaClient } from '@prisma/client';
-import type { JwtPayload, LoginRequest, RegisterRequest, AuthResponse } from '@corrida/types';
+import type {
+  JwtPayload,
+  LoginRequest,
+  RegisterRequest,
+  AuthResponse,
+  ForgotPasswordResponse,
+  ResetPasswordRequest,
+  ResetPasswordResponse,
+} from '@corrida/types';
 import type { SignOptions } from 'jsonwebtoken';
+import { sendPasswordResetEmail } from './password-reset-mail.service.js';
 import { ensureDefaultAssessmentTypesForContract } from '../assessments/assessment-type.service';
 import { ensureDefaultSubjectiveScalesForContract } from '../assessments/subjective-scale.service';
 import { getDefaultCollaboratorFunctionByCode } from '../collaborator-functions/index.js';
@@ -17,6 +26,8 @@ const prisma = new PrismaClient();
 export class AuthService {
   private readonly jwtSecret = process.env.JWT_SECRET || 'dev-secret';
   private readonly jwtExpiresIn = (process.env.JWT_EXPIRES_IN || '7d') as SignOptions['expiresIn'];
+  private readonly passwordResetSecret = process.env.PASSWORD_RESET_SECRET || this.jwtSecret;
+  private readonly passwordResetExpiresIn = (process.env.PASSWORD_RESET_EXPIRES_IN || '1h') as SignOptions['expiresIn'];
 
   private normalizeDocument(document: string): string {
     return document.replace(/\D/g, '');
@@ -321,6 +332,90 @@ export class AuthService {
     };
   }
 
+  async requestPasswordReset(email: string): Promise<ForgotPasswordResponse> {
+    const normalizedEmail = email.trim().toLowerCase();
+    const genericMessage =
+      'Se existir uma conta com este e-mail, você receberá as instruções para redefinir a senha.';
+
+    const user = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+    });
+
+    if (!user || !user.isActive) {
+      return {
+        message: genericMessage,
+      };
+    }
+
+    const resetToken = jwt.sign(
+      {
+        userId: user.id,
+        email: user.email,
+        type: user.type,
+        purpose: 'password-reset',
+      },
+      this.buildPasswordResetSecret(user.passwordHash),
+      {
+        expiresIn: this.passwordResetExpiresIn,
+      }
+    );
+
+    const frontendBaseUrl = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
+    const resetUrl = `${frontendBaseUrl}/forgot-password?token=${encodeURIComponent(resetToken)}`;
+
+    await sendPasswordResetEmail(user.email, resetUrl);
+
+    return {
+      message: genericMessage,
+    };
+  }
+
+  async resetPassword(data: ResetPasswordRequest): Promise<ResetPasswordResponse> {
+    const decoded = jwt.decode(data.token) as
+      | {
+          userId?: string;
+          purpose?: string;
+        }
+      | null;
+
+    if (!decoded?.userId || decoded.purpose !== 'password-reset') {
+      throw new Error('Token de recuperação inválido ou expirado');
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId },
+    });
+
+    if (!user || !user.isActive) {
+      throw new Error('Token de recuperação inválido ou expirado');
+    }
+
+    try {
+      jwt.verify(data.token, this.buildPasswordResetSecret(user.passwordHash));
+    } catch (error) {
+      throw new Error('Token de recuperação inválido ou expirado');
+    }
+
+    const samePassword = await bcryptjs.compare(data.password, user.passwordHash);
+
+    if (samePassword) {
+      throw new Error('Informe uma senha diferente da senha atual');
+    }
+
+    const passwordHash = await bcryptjs.hash(data.password, 10);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash,
+      },
+    });
+
+    return {
+      message: 'Senha redefinida com sucesso',
+    };
+  }
+
   /**
    * Verificar token
    */
@@ -346,6 +441,10 @@ export class AuthService {
     return jwt.sign(payload, this.jwtSecret, {
       expiresIn: this.jwtExpiresIn,
     });
+  }
+
+  private buildPasswordResetSecret(passwordHash: string): string {
+    return `${this.passwordResetSecret}:${passwordHash}`;
   }
 
   /**
