@@ -2,7 +2,11 @@ import { Router, type Request, type Response } from 'express';
 import {
   collaboratorFunctionService,
 } from './collaborator-function.service';
-import { academyMasterMiddleware, authMiddleware } from '../auth/auth.middleware';
+import {
+  academyMasterMiddleware,
+  authMiddleware,
+  professorMiddleware,
+} from '../auth/auth.middleware';
 import {
   CreateCollaboratorFunctionSchema,
   UpdateCollaboratorFunctionSchema,
@@ -13,9 +17,8 @@ import {
 const router: Router = Router();
 
 router.use(authMiddleware);
-router.use(academyMasterMiddleware);
 
-router.get('/', async (req: Request, res: Response) => {
+router.get('/', professorMiddleware, async (req: Request, res: Response) => {
   try {
     const contractId = (req as any).user.contractId;
 
@@ -30,7 +33,7 @@ router.get('/', async (req: Request, res: Response) => {
   }
 });
 
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', academyMasterMiddleware, async (req: Request, res: Response) => {
   try {
     const contractId = (req as any).user.contractId;
     const validation = CreateCollaboratorFunctionSchema.safeParse(req.body);
@@ -51,7 +54,7 @@ router.post('/', async (req: Request, res: Response) => {
   }
 });
 
-router.put('/:id', async (req: Request, res: Response) => {
+router.put('/:id', academyMasterMiddleware, async (req: Request, res: Response) => {
   try {
     const contractId = (req as any).user.contractId;
     const { id } = req.params;

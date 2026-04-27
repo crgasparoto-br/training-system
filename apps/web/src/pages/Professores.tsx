@@ -3,10 +3,12 @@ import { useForm, type FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Briefcase, Camera, ExternalLink, FileText, Upload, UserRound } from 'lucide-react';
+import { bankService } from '../services/bank.service';
 import { collaboratorFunctionService } from '../services/collaborator-function.service';
 import { hourlyRateLevelService } from '../services/hourly-rate-level.service';
 import { professorService } from '../services/professor.service';
 import type {
+  BankOption,
   CollaboratorFunctionOption,
   HourlyRateLevel,
   ProfessorHourlyRates,
@@ -14,10 +16,26 @@ import type {
   ProfessorSummary,
 } from '@corrida/types';
 import { useAuthStore } from '../stores/useAuthStore';
+import { canAccessBlock, canAccessScreen } from '../access/access-control';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
 import { commonCopy, professoresCopy } from '../i18n/ptBR';
+import { getHourlyRateLevelBadgeClassName } from '../utils/hourlyRateLevelTone';
+import { cn } from '@/utils/cn';
+
+const optionalUrlField = (message: string) =>
+  z.preprocess(
+    (value) => {
+      if (typeof value !== 'string') {
+        return value;
+      }
+
+      const trimmedValue = value.trim();
+      return trimmedValue.length === 0 ? undefined : trimmedValue;
+    },
+    z.string().trim().url(message).optional()
+  );
 
 const createProfessorSchema = z.object({
   name: z.string().trim().min(3, 'O nome deve ter no mínimo 3 caracteres'),
@@ -38,17 +56,17 @@ const createProfessorSchema = z.object({
   instagramHandle: z.string().optional(),
   cref: z.string().optional(),
   professionalSummary: z.string().optional(),
-  lattesUrl: z.string().optional(),
+  lattesUrl: optionalUrlField('URL do curriculo inválida'),
   companyDocument: z.string().optional(),
-  bankName: z.string().optional(),
+  bankCode: z.string().optional(),
   bankBranch: z.string().optional(),
   bankAccount: z.string().optional(),
   pixKey: z.string().optional(),
-  avatar: z.string().trim().url('URL da foto inválida').optional(),
+  avatar: optionalUrlField('URL da foto inválida'),
   admissionDate: z.string().optional(),
   dismissalDate: z.string().optional(),
   currentStatus: z.string().optional(),
-  signedContractDocumentUrl: z.string().trim().url('URL do contrato inválida').optional(),
+  signedContractDocumentUrl: optionalUrlField('URL do contrato inválida'),
   operationalRoleIds: z.array(z.string()).optional(),
   hourlyRates: z.object({
     personal: z.string().optional(),
@@ -93,17 +111,17 @@ const editProfessorSchema = z.object({
   instagramHandle: z.string().optional(),
   cref: z.string().optional(),
   professionalSummary: z.string().optional(),
-  lattesUrl: z.string().optional(),
+  lattesUrl: optionalUrlField('URL do curriculo inválida'),
   companyDocument: z.string().optional(),
-  bankName: z.string().optional(),
+  bankCode: z.string().optional(),
   bankBranch: z.string().optional(),
   bankAccount: z.string().optional(),
   pixKey: z.string().optional(),
-  avatar: z.string().trim().url('URL da foto inválida').optional(),
+  avatar: optionalUrlField('URL da foto inválida'),
   admissionDate: z.string().optional(),
   dismissalDate: z.string().optional(),
   currentStatus: z.string().optional(),
-  signedContractDocumentUrl: z.string().trim().url('URL do contrato inválida').optional(),
+  signedContractDocumentUrl: optionalUrlField('URL do contrato inválida'),
   operationalRoleIds: z.array(z.string()).optional(),
   hourlyRates: z.object({
     personal: z.string().optional(),
@@ -515,7 +533,7 @@ const collaboratorTabFields = [
   'professionalSummary',
   'lattesUrl',
   'companyDocument',
-  'bankName',
+  'bankCode',
   'bankBranch',
   'bankAccount',
   'pixKey',
@@ -563,7 +581,41 @@ function RegistrationTabButton({
 }
 
 function hasConfiguredHourlyRateLevels(levels: HourlyRateLevel[]) {
-  return levels.length > 0 && levels.every((level) => typeof level.minValue === 'number' && typeof level.maxValue === 'number');
+  return levels.some(
+    (level) =>
+      level.isActive !== false &&
+      typeof level.minValue === 'number' &&
+      typeof level.maxValue === 'number'
+  );
+}
+
+function normalizePtBrHourlyRateInput(value: string) {
+  const sanitizedValue = value.replace(/[^\d,.-]/g, '').replace(/\./g, ',');
+  const isNegative = sanitizedValue.startsWith('-');
+  const unsignedValue = sanitizedValue.replace(/-/g, '');
+  const [integerPartRaw = '', ...decimalParts] = unsignedValue.split(',');
+  const integerPart = integerPartRaw.replace(/\D/g, '');
+  const decimalPart = decimalParts.join('').replace(/\D/g, '').slice(0, 2);
+  const prefix = isNegative ? '-' : '';
+
+  if (unsignedValue.includes(',')) {
+    return `${prefix}${integerPart},${decimalPart}`;
+  }
+
+  return `${prefix}${integerPart}`;
+}
+
+function formatPtBrHourlyRateValue(value?: string) {
+  const parsedValue = parseHourlyRateValue(value);
+
+  if (parsedValue === null) {
+    return value?.trim() ? value : '';
+  }
+
+  return parsedValue.toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 }
 
 function getHourlyRateLevelLabel(value: string | undefined, levels: HourlyRateLevel[]) {
@@ -577,13 +629,18 @@ function getHourlyRateLevelLabel(value: string | undefined, levels: HourlyRateLe
     return professoresCopy.hourlyRateLevelPendingConfig;
   }
 
-  const matchingLevel = levels.find(
-    (level) =>
+  const configuredLevels = levels.filter(
+    (level): level is HourlyRateLevel & { minValue: number; maxValue: number } =>
+      level.isActive !== false &&
       typeof level.minValue === 'number' &&
-      typeof level.maxValue === 'number' &&
-      parsedValue >= level.minValue &&
-      parsedValue <= level.maxValue
+      typeof level.maxValue === 'number'
   );
+
+  const matchingLevel = configuredLevels
+    .sort((first, second) => first.order - second.order)
+    .find(
+      (level) => parsedValue >= level.minValue && parsedValue <= level.maxValue
+    );
 
   return matchingLevel?.label ?? professoresCopy.hourlyRateLevelUnclassified;
 }
@@ -591,11 +648,15 @@ function getHourlyRateLevelLabel(value: string | undefined, levels: HourlyRateLe
 function HourlyRatesMatrix({
   errors,
   getInputProps,
+  onValueChange,
+  onValueBlur,
   values,
   levels,
 }: {
   errors?: HourlyRateErrors;
   getInputProps: (sectionKey: HourlyRateSectionKey) => Record<string, unknown>;
+  onValueChange: (sectionKey: HourlyRateSectionKey, value: string) => void;
+  onValueBlur: (sectionKey: HourlyRateSectionKey) => void;
   values?: HourlyRatesForm;
   levels: HourlyRateLevel[];
 }) {
@@ -623,22 +684,47 @@ function HourlyRatesMatrix({
                 {`Valor/hora ${section.label.toLowerCase()}`}
               </div>
               <div className="bg-white px-3 py-3">
+                {(() => {
+                  const inputProps = getInputProps(section.key) as {
+                    name?: string;
+                    onBlur?: (event: React.FocusEvent<HTMLInputElement>) => void;
+                    ref?: React.Ref<HTMLInputElement>;
+                  };
+
+                  return (
                 <input
-                  type="number"
-                  min="0"
-                  step="0.01"
+                  type="text"
                   inputMode="decimal"
                   className={hourlyRateInputClassName}
-                  {...getInputProps(section.key)}
+                  name={inputProps.name}
+                  ref={inputProps.ref}
+                  value={values?.[section.key] ?? ''}
+                  aria-label={`Valor/hora ${section.label.toLowerCase()}`}
+                  placeholder="0,00"
+                  onChange={(event) => onValueChange(section.key, normalizePtBrHourlyRateInput(event.target.value))}
+                  onBlur={(event) => {
+                    onValueBlur(section.key);
+                    inputProps.onBlur?.(event);
+                  }}
                 />
+                  );
+                })()}
                 {errors?.[section.key] && (
                   <p className="mt-1 text-xs text-destructive">{errors[section.key]}</p>
                 )}
               </div>
               <div className="flex items-center justify-center bg-white px-3 py-3">
-                <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-                  {getHourlyRateLevelLabel(values?.[section.key], levels)}
-                </span>
+                {(() => {
+                  const levelLabel = getHourlyRateLevelLabel(values?.[section.key], levels);
+
+                  return (
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-medium ring-1 ${getHourlyRateLevelBadgeClassName(levelLabel)}`}
+                    >
+                      {levelLabel}
+                    </span>
+                  );
+                })()}
               </div>
             </div>
           ))}
@@ -661,6 +747,231 @@ function sanitizeBaseProfessorPayload<T extends { name: string; email: string }>
     name: data.name.trim(),
     email: data.email.trim().toLowerCase(),
   };
+}
+
+function getBankSelectValue(bankCode?: string | null, bankName?: string | null, banks: BankOption[] = []) {
+  if (bankCode?.trim()) {
+    return bankCode.trim();
+  }
+
+  if (!bankName?.trim()) {
+    return '';
+  }
+
+  const matchingBank = banks.find((bank) => bank.description === bankName.trim());
+  return matchingBank?.code ?? '';
+}
+
+function normalizeBankSearchTerm(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+function formatBankOptionLabel(bank: BankOption) {
+  return `${bank.code} - ${bank.description}`;
+}
+
+function BankSelectField({
+  id,
+  label,
+  error,
+  value,
+  banks,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  error?: string;
+  value?: string;
+  banks: BankOption[];
+  onChange: (value: string) => void;
+}) {
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const [search, setSearch] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
+
+  const selectedBank = banks.find((bank) => bank.code === value);
+
+  useEffect(() => {
+    setSearch(selectedBank ? formatBankOptionLabel(selectedBank) : '');
+  }, [selectedBank]);
+
+  useEffect(() => {
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!wrapperRef.current?.contains(event.target as Node)) {
+        setIsOpen(false);
+        setSearch(selectedBank ? formatBankOptionLabel(selectedBank) : '');
+      }
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    return () => document.removeEventListener('mousedown', handlePointerDown);
+  }, [selectedBank]);
+
+  const normalizedSearch = normalizeBankSearchTerm(search);
+  const filteredBanks = normalizedSearch
+    ? banks.filter((bank) => {
+        const optionLabel = formatBankOptionLabel(bank);
+        return (
+          normalizeBankSearchTerm(bank.code).includes(normalizedSearch) ||
+          normalizeBankSearchTerm(bank.description).includes(normalizedSearch) ||
+          normalizeBankSearchTerm(optionLabel).includes(normalizedSearch)
+        );
+      })
+    : banks;
+  const visibleBanks =
+    selectedBank && !filteredBanks.some((bank) => bank.code === selectedBank.code)
+      ? [selectedBank, ...filteredBanks]
+      : filteredBanks;
+
+  useEffect(() => {
+    setHighlightedIndex(visibleBanks.length === 0 ? -1 : 0);
+  }, [search, visibleBanks.length]);
+
+  const handleSelectBank = (bankCode: string) => {
+    onChange(bankCode);
+    setIsOpen(false);
+  };
+
+  const handleInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!isOpen && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
+      event.preventDefault();
+      setIsOpen(true);
+      setHighlightedIndex(visibleBanks.length === 0 ? -1 : 0);
+      return;
+    }
+
+    if (!isOpen) {
+      return;
+    }
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setHighlightedIndex((current) => {
+        if (visibleBanks.length === 0) return -1;
+        if (current < 0) return 0;
+        return (current + 1) % visibleBanks.length;
+      });
+      return;
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setHighlightedIndex((current) => {
+        if (visibleBanks.length === 0) return -1;
+        if (current < 0) return visibleBanks.length - 1;
+        return current === 0 ? visibleBanks.length - 1 : current - 1;
+      });
+      return;
+    }
+
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      const bank = highlightedIndex >= 0 ? visibleBanks[highlightedIndex] : undefined;
+      if (bank) {
+        handleSelectBank(bank.code);
+      }
+      return;
+    }
+
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      setIsOpen(false);
+      setSearch(selectedBank ? formatBankOptionLabel(selectedBank) : '');
+    }
+  };
+
+  return (
+    <div ref={wrapperRef} className="w-full space-y-2">
+      <label className="text-sm font-medium text-foreground" htmlFor={id}>
+        {label}
+      </label>
+      <div className="relative">
+        <Input
+          id={id}
+          label=""
+          role="combobox"
+          aria-label={label}
+          title={label}
+          aria-expanded={isOpen}
+          aria-controls={`${id}-listbox`}
+          aria-autocomplete="list"
+          aria-activedescendant={highlightedIndex >= 0 ? `${id}-option-${highlightedIndex}` : undefined}
+          value={search}
+          onFocus={() => setIsOpen(true)}
+          onChange={(event) => {
+            setSearch(event.target.value);
+            setIsOpen(true);
+          }}
+          onKeyDown={handleInputKeyDown}
+          placeholder="Pesquise por código ou nome do banco"
+          autoComplete="off"
+        />
+
+        {isOpen ? (
+          <div
+            id={`${id}-listbox`}
+            role="listbox"
+            aria-label={`${label} disponíveis`}
+            title={`${label} disponíveis`}
+            className="absolute z-30 mt-2 max-h-64 w-full overflow-auto rounded-xl border border-border bg-popover p-2 shadow-lg"
+          >
+            <div
+              id={`${id}-option-empty`}
+              role="option"
+              className={cn(
+                'flex cursor-pointer rounded-lg px-3 py-2 text-left text-sm transition hover:bg-muted',
+                !value && 'bg-muted text-foreground'
+              )}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => {
+                onChange('');
+                setSearch('');
+                setIsOpen(false);
+              }}
+            >
+              Selecionar depois
+            </div>
+
+            {visibleBanks.length === 0 ? (
+              <div className="px-3 py-2 text-sm text-muted-foreground">Nenhum banco encontrado.</div>
+            ) : (
+              visibleBanks.map((bank, index) => {
+                const isHighlighted = index === highlightedIndex;
+                const isSelected = bank.code === value;
+
+                return (
+                  <div
+                    key={bank.code}
+                    id={`${id}-option-${index}`}
+                    role="option"
+                    className={cn(
+                      'mt-1 flex cursor-pointer items-start rounded-lg px-3 py-2 text-left text-sm transition first:mt-2',
+                      isHighlighted && 'bg-primary/10 text-primary',
+                      isSelected && 'font-medium'
+                    )}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onMouseEnter={() => setHighlightedIndex(index)}
+                    onClick={() => handleSelectBank(bank.code)}
+                  >
+                    <span className="block">
+                      <span className="block font-medium">{bank.code}</span>
+                      <span className="block text-muted-foreground">{bank.description}</span>
+                    </span>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        ) : null}
+      </div>
+      {error ? <p className="text-xs text-destructive">{error}</p> : null}
+    </div>
+  );
 }
 
 function formatDateForInput(value?: string | null) {
@@ -695,6 +1006,25 @@ function formatCpf(value: string) {
     .replace(/\.(\d{3})(\d)/, '.$1-$2');
 }
 
+function formatRg(value: string) {
+  const normalized = value.toUpperCase().replace(/[^0-9X]/g, '').slice(0, 9);
+
+  return normalized
+    .replace(/^(\d{2})(\d)/, '$1.$2')
+    .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+    .replace(/\.(\d{3})([0-9X])$/, '.$1-$2');
+}
+
+function formatBankAccount(value: string) {
+  const normalized = value.toUpperCase().replace(/[^0-9X]/g, '').slice(0, 20);
+
+  if (normalized.length <= 1) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, -1)}-${normalized.slice(-1)}`;
+}
+
 function formatCnpj(value: string) {
   const digits = value.replace(/\D/g, '').slice(0, 14);
 
@@ -725,7 +1055,7 @@ function parseHourlyRateValue(value?: string) {
     return null;
   }
 
-  const normalizedValue = Number(value.replace(',', '.'));
+  const normalizedValue = Number(value.replace(/\./g, '').replace(',', '.'));
   if (Number.isNaN(normalizedValue) || normalizedValue < 0) {
     return null;
   }
@@ -751,9 +1081,18 @@ function sanitizeHourlyRates(hourlyRates?: HourlyRatesForm): ProfessorHourlyRate
 
 function getHourlyRatesFormValue(hourlyRates?: ProfessorSummary['hourlyRates']): HourlyRatesForm {
   return {
-    personal: hourlyRates?.personal?.toString() ?? '',
-    consulting: hourlyRates?.consulting?.toString() ?? '',
-    evaluation: hourlyRates?.evaluation?.toString() ?? '',
+    personal:
+      typeof hourlyRates?.personal === 'number'
+        ? hourlyRates.personal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        : '',
+    consulting:
+      typeof hourlyRates?.consulting === 'number'
+        ? hourlyRates.consulting.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        : '',
+    evaluation:
+      typeof hourlyRates?.evaluation === 'number'
+        ? hourlyRates.evaluation.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        : '',
   };
 }
 
@@ -853,7 +1192,7 @@ function sanitizeCreateProfessorPayload(data: CreateProfessorForm) {
   const professionalSummary = data.professionalSummary?.trim();
   const lattesUrl = data.lattesUrl?.trim();
   const companyDocument = data.companyDocument?.trim();
-  const bankName = data.bankName?.trim();
+  const bankCode = data.bankCode?.trim();
   const bankBranch = data.bankBranch?.trim();
   const bankAccount = data.bankAccount?.trim();
   const pixKey = data.pixKey?.trim();
@@ -886,7 +1225,7 @@ function sanitizeCreateProfessorPayload(data: CreateProfessorForm) {
     ...(professionalSummary ? { professionalSummary } : {}),
     ...(lattesUrl ? { lattesUrl } : {}),
     ...(companyDocument ? { companyDocument } : {}),
-    ...(bankName ? { bankName } : {}),
+    ...(bankCode ? { bankCode } : {}),
     ...(bankBranch ? { bankBranch } : {}),
     ...(bankAccount ? { bankAccount } : {}),
     ...(pixKey ? { pixKey } : {}),
@@ -922,7 +1261,7 @@ function sanitizeUpdateProfessorPayload(data: EditProfessorForm) {
   const professionalSummary = data.professionalSummary?.trim();
   const lattesUrl = data.lattesUrl?.trim();
   const companyDocument = data.companyDocument?.trim();
-  const bankName = data.bankName?.trim();
+  const bankCode = data.bankCode?.trim();
   const bankBranch = data.bankBranch?.trim();
   const bankAccount = data.bankAccount?.trim();
   const pixKey = data.pixKey?.trim();
@@ -954,7 +1293,7 @@ function sanitizeUpdateProfessorPayload(data: EditProfessorForm) {
     professionalSummary: professionalSummary || null,
     lattesUrl: lattesUrl || null,
     companyDocument: companyDocument || null,
-    bankName: bankName || null,
+    bankCode: bankCode || null,
     bankBranch: bankBranch || null,
     bankAccount: bankAccount || null,
     pixKey: pixKey || null,
@@ -975,6 +1314,7 @@ function sanitizeUpdateProfessorPayload(data: EditProfessorForm) {
 export function Professores({ mode = 'manage' }: ProfessoresProps) {
   const { user } = useAuthStore();
   const [professores, setProfessores] = useState<ProfessorSummary[]>([]);
+  const [banks, setBanks] = useState<BankOption[]>([]);
   const [collaboratorFunctions, setCollaboratorFunctions] = useState<CollaboratorFunctionOption[]>([]);
   const [responsibleManagers, setResponsibleManagers] = useState<ProfessorSummary[]>([]);
   const [hourlyRateLevels, setHourlyRateLevels] = useState<HourlyRateLevel[]>([]);
@@ -1025,7 +1365,7 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
       professionalSummary: '',
       lattesUrl: '',
       companyDocument: '',
-      bankName: '',
+      bankCode: '',
       bankBranch: '',
       bankAccount: '',
       pixKey: '',
@@ -1057,18 +1397,54 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
   useEffect(() => {
     register('collaboratorFunctionId');
     register('responsibleManagerId');
+    register('bankCode');
+    register('hourlyRates.personal');
+    register('hourlyRates.consulting');
+    register('hourlyRates.evaluation');
   }, [register]);
 
   useEffect(() => {
     registerEdit('collaboratorFunctionId');
     registerEdit('responsibleManagerId');
+    registerEdit('bankCode');
+    registerEdit('hourlyRates.personal');
+    registerEdit('hourlyRates.consulting');
+    registerEdit('hourlyRates.evaluation');
   }, [registerEdit]);
 
-  const canManageProfessores =
-    user?.type === 'professor' &&
-    user?.professor?.role === 'master' &&
-    user?.professor?.contract?.type === 'academy';
   const isConsultMode = mode === 'consult';
+  const canManageProfessores = canAccessScreen(
+    user,
+    isConsultMode ? 'collaborators.consultation' : 'collaborators.registration'
+  );
+  const canViewCollaboratorRegistrationBlock = canAccessBlock(
+    user,
+    'collaborators.registration.collaborator'
+  );
+  const canViewManagerRegistrationBlock = canAccessBlock(
+    user,
+    'collaborators.registration.manager'
+  );
+
+  const getAllowedRegistrationTab = (preferredTab: CollaboratorRegistrationTab) => {
+    if (preferredTab === 'manager' && canViewManagerRegistrationBlock) {
+      return 'manager';
+    }
+
+    if (preferredTab === 'collaborator' && canViewCollaboratorRegistrationBlock) {
+      return 'collaborator';
+    }
+
+    if (canViewCollaboratorRegistrationBlock) {
+      return 'collaborator';
+    }
+
+    if (canViewManagerRegistrationBlock) {
+      return 'manager';
+    }
+
+    return preferredTab;
+  };
 
   const createCollaboratorFunctionId = watch('collaboratorFunctionId');
   const editCollaboratorFunctionId = watchEdit('collaboratorFunctionId');
@@ -1080,6 +1456,8 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
   const editHasSignedContract = watchEdit('hasSignedContract');
   const createSignedContractDocumentUrl = watch('signedContractDocumentUrl');
   const editSignedContractDocumentUrl = watchEdit('signedContractDocumentUrl');
+  const createBankCode = watch('bankCode');
+  const editBankCode = watchEdit('bankCode');
   const createHourlyRates = watch('hourlyRates');
   const editHourlyRates = watchEdit('hourlyRates');
   const createResponsibleManagerId = watch('responsibleManagerId');
@@ -1109,19 +1487,29 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
     }
   }, [editCurrentStatus, setEditValue]);
 
+  useEffect(() => {
+    setCreateActiveTab((current) => getAllowedRegistrationTab(current));
+  }, [canViewCollaboratorRegistrationBlock, canViewManagerRegistrationBlock]);
+
+  useEffect(() => {
+    setEditActiveTab((current) => getAllowedRegistrationTab(current));
+  }, [canViewCollaboratorRegistrationBlock, canViewManagerRegistrationBlock]);
+
   const loadData = async (status: 'active' | 'inactive' | 'all' = statusFilter) => {
     setLoading(true);
     setError(null);
     try {
-      const [professorResult, activeProfessorResult, functionResult, hourlyRateLevelResult] = await Promise.all([
+      const [professorResult, activeProfessorResult, functionResult, hourlyRateLevelResult, bankResult] = await Promise.all([
         professorService.list(status === 'all' ? undefined : status),
         professorService.list('active'),
         collaboratorFunctionService.list(),
         hourlyRateLevelService.list(),
+        bankService.list(),
       ]);
       const managerOptions = getResponsibleManagerOptions(activeProfessorResult);
 
       setProfessores(professorResult);
+      setBanks(bankResult);
       setCollaboratorFunctions(functionResult);
       setResponsibleManagers(managerOptions);
       setHourlyRateLevels(hourlyRateLevelResult);
@@ -1185,7 +1573,7 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
     setError(null);
     try {
       await professorService.create(sanitizeCreateProfessorPayload(data));
-      setCreateActiveTab('collaborator');
+      setCreateActiveTab(getAllowedRegistrationTab('collaborator'));
       reset({
         phone: '',
         birthDate: '',
@@ -1204,7 +1592,7 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
         professionalSummary: '',
         lattesUrl: '',
         companyDocument: '',
-        bankName: '',
+        bankCode: '',
         bankBranch: '',
         bankAccount: '',
         pixKey: '',
@@ -1228,22 +1616,22 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
   };
 
   const onInvalidSubmit = (formErrors: FieldErrors<CreateProfessorForm>) => {
-    setCreateActiveTab(getRegistrationTabFromErrors(formErrors));
+    setCreateActiveTab(getAllowedRegistrationTab(getRegistrationTabFromErrors(formErrors)));
   };
 
   const startEdit = (professor: ProfessorSummary) => {
     const operationalRoleIds = professor.operationalRoleIds ?? [];
 
     setEditingId(professor.id);
-    setEditActiveTab('collaborator');
+    setEditActiveTab(getAllowedRegistrationTab('collaborator'));
     resetEdit({
       name: professor.user.profile.name,
       email: professor.user.email,
       password: '',
       phone: professor.user.profile.phone ?? '',
       birthDate: formatDateForInput(professor.user.profile.birthDate),
-      cpf: professor.user.profile.cpf ?? '',
-      rg: professor.user.profile.rg ?? '',
+      cpf: formatCpf(professor.user.profile.cpf ?? ''),
+      rg: formatRg(professor.user.profile.rg ?? ''),
       maritalStatus: professor.user.profile.maritalStatus ?? '',
       addressStreet: professor.user.profile.addressStreet ?? '',
       addressNumber: professor.user.profile.addressNumber ?? '',
@@ -1257,9 +1645,9 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
       professionalSummary: professor.user.profile.professionalSummary ?? '',
       lattesUrl: professor.user.profile.lattesUrl ?? '',
       companyDocument: professor.user.profile.companyDocument ?? '',
-      bankName: professor.user.profile.bankName ?? '',
+      bankCode: getBankSelectValue(professor.user.profile.bankCode, professor.user.profile.bankName, banks),
       bankBranch: professor.user.profile.bankBranch ?? '',
-      bankAccount: professor.user.profile.bankAccount ?? '',
+      bankAccount: formatBankAccount(professor.user.profile.bankAccount ?? ''),
       pixKey: professor.user.profile.pixKey ?? '',
       avatar: professor.user.profile.avatar ?? '',
       admissionDate: formatDateForInput(professor.admissionDate),
@@ -1280,7 +1668,7 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
 
   const cancelEdit = () => {
     setEditingId(null);
-    setEditActiveTab('collaborator');
+    setEditActiveTab(getAllowedRegistrationTab('collaborator'));
     resetEdit({
       name: '',
       email: '',
@@ -1302,7 +1690,7 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
       professionalSummary: '',
       lattesUrl: '',
       companyDocument: '',
-      bankName: '',
+      bankCode: '',
       bankBranch: '',
       bankAccount: '',
       pixKey: '',
@@ -1327,7 +1715,7 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
       await professorService.update(editingId, sanitizeUpdateProfessorPayload(data));
       await loadData();
       setEditingId(null);
-      setEditActiveTab('collaborator');
+      setEditActiveTab(getAllowedRegistrationTab('collaborator'));
     } catch (err: any) {
       setError(err.response?.data?.error || professoresCopy.updateError);
     } finally {
@@ -1336,7 +1724,7 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
   };
 
   const onInvalidSubmitEdit = (formErrors: FieldErrors<EditProfessorForm>) => {
-    setEditActiveTab(getRegistrationTabFromErrors(formErrors));
+    setEditActiveTab(getAllowedRegistrationTab(getRegistrationTabFromErrors(formErrors)));
   };
 
   const handleAvatarUpload = async (file: File, mode: 'create' | 'edit') => {
@@ -1599,25 +1987,35 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
             <div className="overflow-hidden rounded-2xl border border-border bg-card">
               <div className="overflow-x-auto bg-muted/30 px-4 py-2">
                 <div role="tablist" aria-label={professoresCopy.registrationTabsAriaLabel} className="flex min-w-max gap-2">
-                  <RegistrationTabButton
-                    id="create-collaborator-tab"
-                    isActive={createActiveTab === 'collaborator'}
-                    label={professoresCopy.collaboratorTabLabel}
-                    icon={UserRound}
-                    onClick={() => setCreateActiveTab('collaborator')}
-                  />
-                  <RegistrationTabButton
-                    id="create-manager-tab"
-                    isActive={createActiveTab === 'manager'}
-                    label={professoresCopy.managerTabLabel}
-                    icon={Briefcase}
-                    onClick={() => setCreateActiveTab('manager')}
-                  />
+                  {canViewCollaboratorRegistrationBlock && (
+                    <RegistrationTabButton
+                      id="create-collaborator-tab"
+                      isActive={createActiveTab === 'collaborator'}
+                      label={professoresCopy.collaboratorTabLabel}
+                      icon={UserRound}
+                      onClick={() => setCreateActiveTab('collaborator')}
+                    />
+                  )}
+                  {canViewManagerRegistrationBlock && (
+                    <RegistrationTabButton
+                      id="create-manager-tab"
+                      isActive={createActiveTab === 'manager'}
+                      label={professoresCopy.managerTabLabel}
+                      icon={Briefcase}
+                      onClick={() => setCreateActiveTab('manager')}
+                    />
+                  )}
                 </div>
               </div>
 
               <div className="p-6">
-                {createActiveTab === 'collaborator' && (
+                {!canViewCollaboratorRegistrationBlock && !canViewManagerRegistrationBlock && (
+                  <div className="rounded-lg border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
+                    Seu perfil não tem permissão para visualizar os blocos internos desta tela.
+                  </div>
+                )}
+
+                {createActiveTab === 'collaborator' && canViewCollaboratorRegistrationBlock && (
                   <div
                     id="create-collaborator-panel"
                     role="tabpanel"
@@ -1683,7 +2081,13 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
                           label={professoresCopy.rgLabel}
                           placeholder="12.345.678-9"
                           error={errors.rg?.message}
-                          {...register('rg')}
+                          {...register('rg', {
+                            onChange: (event) => {
+                              setValue('rg', formatRg(event.target.value), {
+                                shouldValidate: true,
+                              });
+                            },
+                          })}
                         />
                         <Input
                           label={professoresCopy.birthDateLabel}
@@ -1731,7 +2135,14 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
                           {...register('cref')}
                         />
                       </div>
-                      <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_300px]">
+                      <div className="mt-3 space-y-3">
+                        <Input
+                          label={professoresCopy.lattesLabel}
+                          type="url"
+                          placeholder={professoresCopy.lattesPlaceholder}
+                          error={errors.lattesUrl?.message}
+                          {...register('lattesUrl')}
+                        />
                         <div>
                           <label className="mb-2 block text-sm font-medium text-foreground">
                             {professoresCopy.professionalSummaryLabel}
@@ -1747,13 +2158,6 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
                             </p>
                           )}
                         </div>
-                        <Input
-                          label={professoresCopy.lattesLabel}
-                          type="url"
-                          placeholder={professoresCopy.lattesPlaceholder}
-                          error={errors.lattesUrl?.message}
-                          {...register('lattesUrl')}
-                        />
                       </div>
                     </div>
                     <div className="rounded-lg border border-border bg-muted/20 p-4">
@@ -1825,9 +2229,6 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
                       <p className="mt-1 text-sm text-muted-foreground">
                         {professoresCopy.legalFinancialSectionDescription}
                       </p>
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        {professoresCopy.legalFinancialValidationHint}
-                      </p>
                       <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
                         <Input
                           label={professoresCopy.companyDocumentLabel}
@@ -1841,11 +2242,13 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
                             },
                           })}
                         />
-                        <Input
+                        <BankSelectField
+                          id="create-bank-code"
                           label={professoresCopy.bankNameLabel}
-                          placeholder="Banco do Brasil"
-                          error={errors.bankName?.message}
-                          {...register('bankName')}
+                          error={errors.bankCode?.message}
+                          value={createBankCode}
+                          banks={banks}
+                          onChange={(value) => setValue('bankCode', value, { shouldDirty: true, shouldValidate: true })}
                         />
                         <Input
                           label={professoresCopy.pixKeyLabel}
@@ -1865,14 +2268,20 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
                           label={professoresCopy.bankAccountLabel}
                           placeholder="12345-6"
                           error={errors.bankAccount?.message}
-                          {...register('bankAccount')}
+                          {...register('bankAccount', {
+                            onChange: (event) => {
+                              setValue('bankAccount', formatBankAccount(event.target.value), {
+                                shouldValidate: true,
+                              });
+                            },
+                          })}
                         />
                       </div>
                     </div>
                   </div>
                 )}
 
-                {createActiveTab === 'manager' && (
+                {createActiveTab === 'manager' && canViewManagerRegistrationBlock && (
                   <div
                     id="create-manager-panel"
                     role="tabpanel"
@@ -2068,6 +2477,18 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
                                     evaluation: errors.hourlyRates?.evaluation?.message,
                                   }}
                                   getInputProps={(sectionKey) => register(`hourlyRates.${sectionKey}` as const)}
+                                  onValueChange={(sectionKey, value) =>
+                                    setValue(`hourlyRates.${sectionKey}`, value, {
+                                      shouldDirty: true,
+                                      shouldValidate: true,
+                                    })
+                                  }
+                                  onValueBlur={(sectionKey) =>
+                                    setValue(`hourlyRates.${sectionKey}`, formatPtBrHourlyRateValue(createHourlyRates?.[sectionKey]), {
+                                      shouldDirty: true,
+                                      shouldValidate: true,
+                                    })
+                                  }
                                   values={createHourlyRates}
                                   levels={hourlyRateLevels}
                                 />
@@ -2242,25 +2663,35 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
                       <div className="overflow-hidden rounded-2xl border border-border bg-background">
                         <div className="overflow-x-auto bg-muted/30 px-4 py-2">
                           <div role="tablist" aria-label={professoresCopy.registrationTabsAriaLabel} className="flex min-w-max gap-2">
-                            <RegistrationTabButton
-                              id={`edit-collaborator-tab-${professor.id}`}
-                              isActive={editActiveTab === 'collaborator'}
-                              label={professoresCopy.collaboratorTabLabel}
-                              icon={UserRound}
-                              onClick={() => setEditActiveTab('collaborator')}
-                            />
-                            <RegistrationTabButton
-                              id={`edit-manager-tab-${professor.id}`}
-                              isActive={editActiveTab === 'manager'}
-                              label={professoresCopy.managerTabLabel}
-                              icon={Briefcase}
-                              onClick={() => setEditActiveTab('manager')}
-                            />
+                            {canViewCollaboratorRegistrationBlock && (
+                              <RegistrationTabButton
+                                id={`edit-collaborator-tab-${professor.id}`}
+                                isActive={editActiveTab === 'collaborator'}
+                                label={professoresCopy.collaboratorTabLabel}
+                                icon={UserRound}
+                                onClick={() => setEditActiveTab('collaborator')}
+                              />
+                            )}
+                            {canViewManagerRegistrationBlock && (
+                              <RegistrationTabButton
+                                id={`edit-manager-tab-${professor.id}`}
+                                isActive={editActiveTab === 'manager'}
+                                label={professoresCopy.managerTabLabel}
+                                icon={Briefcase}
+                                onClick={() => setEditActiveTab('manager')}
+                              />
+                            )}
                           </div>
                         </div>
 
                         <div className="p-4">
-                          {editActiveTab === 'collaborator' && (
+                          {!canViewCollaboratorRegistrationBlock && !canViewManagerRegistrationBlock && (
+                            <div className="rounded-lg border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
+                              Seu perfil não tem permissão para visualizar os blocos internos desta tela.
+                            </div>
+                          )}
+
+                          {editActiveTab === 'collaborator' && canViewCollaboratorRegistrationBlock && (
                             <div
                               id={`edit-collaborator-panel-${professor.id}`}
                               role="tabpanel"
@@ -2324,7 +2755,13 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
                                     label={professoresCopy.rgLabel}
                                     placeholder="12.345.678-9"
                                     error={editErrors.rg?.message}
-                                    {...registerEdit('rg')}
+                                    {...registerEdit('rg', {
+                                      onChange: (event) => {
+                                        setEditValue('rg', formatRg(event.target.value), {
+                                          shouldValidate: true,
+                                        });
+                                      },
+                                    })}
                                   />
                                   <Input
                                     label={professoresCopy.birthDateLabel}
@@ -2372,7 +2809,14 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
                                     {...registerEdit('cref')}
                                   />
                                 </div>
-                                <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_300px]">
+                                <div className="mt-3 space-y-3">
+                                  <Input
+                                    label={professoresCopy.lattesLabel}
+                                    type="url"
+                                    placeholder={professoresCopy.lattesPlaceholder}
+                                    error={editErrors.lattesUrl?.message}
+                                    {...registerEdit('lattesUrl')}
+                                  />
                                   <div>
                                     <label className="mb-2 block text-sm font-medium text-foreground">
                                       {professoresCopy.professionalSummaryLabel}
@@ -2388,13 +2832,6 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
                                       </p>
                                     )}
                                   </div>
-                                  <Input
-                                    label={professoresCopy.lattesLabel}
-                                    type="url"
-                                    placeholder={professoresCopy.lattesPlaceholder}
-                                    error={editErrors.lattesUrl?.message}
-                                    {...registerEdit('lattesUrl')}
-                                  />
                                 </div>
                               </div>
                               <div className="rounded-lg border border-border bg-muted/20 p-4">
@@ -2462,7 +2899,6 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
                               <div className="rounded-lg border border-border p-4">
                                 <p className="text-sm font-medium text-foreground">{professoresCopy.legalFinancialSectionTitle}</p>
                                 <p className="mt-1 text-sm text-muted-foreground">{professoresCopy.legalFinancialSectionDescription}</p>
-                                <p className="mt-2 text-xs text-muted-foreground">{professoresCopy.legalFinancialValidationHint}</p>
                                 <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
                                   <Input
                                     label={professoresCopy.companyDocumentLabel}
@@ -2476,11 +2912,13 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
                                       },
                                     })}
                                   />
-                                  <Input
+                                  <BankSelectField
+                                    id={`edit-bank-code-${professor.id}`}
                                     label={professoresCopy.bankNameLabel}
-                                    placeholder="Banco do Brasil"
-                                    error={editErrors.bankName?.message}
-                                    {...registerEdit('bankName')}
+                                    error={editErrors.bankCode?.message}
+                                    value={editBankCode}
+                                    banks={banks}
+                                    onChange={(value) => setEditValue('bankCode', value, { shouldDirty: true, shouldValidate: true })}
                                   />
                                   <Input
                                     label={professoresCopy.pixKeyLabel}
@@ -2500,14 +2938,20 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
                                     label={professoresCopy.bankAccountLabel}
                                     placeholder="12345-6"
                                     error={editErrors.bankAccount?.message}
-                                    {...registerEdit('bankAccount')}
+                                    {...registerEdit('bankAccount', {
+                                      onChange: (event) => {
+                                        setEditValue('bankAccount', formatBankAccount(event.target.value), {
+                                          shouldValidate: true,
+                                        });
+                                      },
+                                    })}
                                   />
                                 </div>
                               </div>
                             </div>
                           )}
 
-                          {editActiveTab === 'manager' && (
+                          {editActiveTab === 'manager' && canViewManagerRegistrationBlock && (
                             <div
                               id={`edit-manager-panel-${professor.id}`}
                               role="tabpanel"
@@ -2709,6 +3153,18 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
                                               evaluation: editErrors.hourlyRates?.evaluation?.message,
                                             }}
                                             getInputProps={(sectionKey) => registerEdit(`hourlyRates.${sectionKey}` as const)}
+                                            onValueChange={(sectionKey, value) =>
+                                              setEditValue(`hourlyRates.${sectionKey}`, value, {
+                                                shouldDirty: true,
+                                                shouldValidate: true,
+                                              })
+                                            }
+                                            onValueBlur={(sectionKey) =>
+                                              setEditValue(`hourlyRates.${sectionKey}`, formatPtBrHourlyRateValue(editHourlyRates?.[sectionKey]), {
+                                                shouldDirty: true,
+                                                shouldValidate: true,
+                                              })
+                                            }
                                             values={editHourlyRates}
                                             levels={hourlyRateLevels}
                                           />

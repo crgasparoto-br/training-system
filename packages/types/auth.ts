@@ -9,12 +9,26 @@
 export type ContractType = 'academy' | 'personal';
 export type ProfessorRole = 'master' | 'professor';
 
+export interface UserAccessPermission {
+  id?: string;
+  collaboratorFunctionId?: string;
+  screenKey: string;
+  blockKey?: string | null;
+  canView: boolean;
+}
+
+export interface UserAccessControl {
+  isMaster: boolean;
+  permissions: UserAccessPermission[];
+}
+
 export interface CollaboratorFunctionInfo {
   id: string;
   name: string;
   code: string;
   isActive: boolean;
   isSystem?: boolean;
+  accessPermissions?: UserAccessPermission[];
 }
 
 export interface ProfessorManagerInfo {
@@ -69,6 +83,7 @@ export interface AuthResponse {
     name: string;
     type: 'professor' | 'aluno';
     professor?: ProfessorInfo | null;
+    accessControl?: UserAccessControl;
   };
 }
 

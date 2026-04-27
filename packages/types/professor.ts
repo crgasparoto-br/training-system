@@ -14,7 +14,7 @@ export type ProfessorMaritalStatus =
   | 'widowed'
   | 'other';
 
-export type HourlyRateLevelCode = 'bronze' | 'silver' | 'gold';
+export type HourlyRateLevelCode = string;
 
 export interface HourlyRateLevel {
   id: string;
@@ -55,6 +55,7 @@ export interface CreateProfessorRequest {
   professionalSummary?: string;
   lattesUrl?: string;
   companyDocument?: string;
+  bankCode?: string;
   bankName?: string;
   bankBranch?: string;
   bankAccount?: string;
@@ -92,6 +93,7 @@ export interface UpdateProfessorRequest {
   professionalSummary?: string | null;
   lattesUrl?: string | null;
   companyDocument?: string | null;
+  bankCode?: string | null;
   bankName?: string | null;
   bankBranch?: string | null;
   bankAccount?: string | null;
@@ -145,6 +147,7 @@ export interface ProfessorSummary {
       professionalSummary?: string | null;
       lattesUrl?: string | null;
       companyDocument?: string | null;
+      bankCode?: string | null;
       bankName?: string | null;
       bankBranch?: string | null;
       bankAccount?: string | null;

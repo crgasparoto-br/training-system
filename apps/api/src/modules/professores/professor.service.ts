@@ -1,6 +1,7 @@
 ﻿import { PrismaClient } from '@prisma/client';
 import bcryptjs from 'bcryptjs';
 import { Prisma } from '@prisma/client';
+import { bankService } from '../banks/bank.service.js';
 import { getCollaboratorFunctionForContract } from '../collaborator-functions/index.js';
 
 const prisma = new PrismaClient();
@@ -133,6 +134,7 @@ export interface CreateProfessorDTO {
   professionalSummary?: string;
   lattesUrl?: string;
   companyDocument?: string;
+  bankCode?: string;
   bankName?: string;
   bankBranch?: string;
   bankAccount?: string;
@@ -171,6 +173,7 @@ export interface UpdateProfessorDTO {
   professionalSummary?: string | null;
   lattesUrl?: string | null;
   companyDocument?: string | null;
+  bankCode?: string | null;
   bankName?: string | null;
   bankBranch?: string | null;
   bankAccount?: string | null;
@@ -278,12 +281,13 @@ async function ensureOperationalRolesAvailable(contractId: string, operationalRo
 
 function hasAnyLegalFinancialValue(data: {
   companyDocument?: string | null;
+  bankCode?: string | null;
   bankName?: string | null;
   bankBranch?: string | null;
   bankAccount?: string | null;
   pixKey?: string | null;
 }) {
-  return [data.companyDocument, data.bankName, data.bankBranch, data.bankAccount, data.pixKey].some(
+  return [data.companyDocument, data.bankCode, data.bankName, data.bankBranch, data.bankAccount, data.pixKey].some(
     (value) => typeof value === 'string' && value.trim().length > 0
   );
 }
@@ -353,7 +357,9 @@ export const professorService = {
     const normalizedProfessionalSummary = normalizeOptionalText(data.professionalSummary);
     const normalizedLattesUrl = normalizeOptionalText(data.lattesUrl);
     const normalizedCompanyDocument = normalizeCompanyDocument(data.companyDocument);
-    const normalizedBankName = normalizeOptionalText(data.bankName);
+    const normalizedBankCode = normalizeOptionalText(data.bankCode);
+    const bank = await bankService.findByCode(normalizedBankCode);
+    const normalizedBankName = bank?.description ?? normalizeOptionalText(data.bankName);
     const normalizedBankBranch = normalizeOptionalText(data.bankBranch);
     const normalizedBankAccount = normalizeOptionalText(data.bankAccount);
     const normalizedPixKey = normalizeOptionalText(data.pixKey);
@@ -365,6 +371,7 @@ export const professorService = {
       !!data.actorProfessorId &&
       hasAnyLegalFinancialValue({
         companyDocument: normalizedCompanyDocument,
+        bankCode: normalizedBankCode,
         bankName: normalizedBankName,
         bankBranch: normalizedBankBranch,
         bankAccount: normalizedBankAccount,
@@ -646,6 +653,8 @@ export const professorService = {
         : normalizeOptionalText(data.signedContractDocumentUrl);
     const normalizedCompanyDocument =
       data.companyDocument === undefined ? undefined : normalizeCompanyDocument(data.companyDocument);
+    const normalizedBankCode = data.bankCode === undefined ? undefined : normalizeOptionalText(data.bankCode);
+    const bank = normalizedBankCode ? await bankService.findByCode(normalizedBankCode) : null;
 
     if (normalizedEmail && normalizedEmail !== professor.user.email) {
       const existingUser = await prisma.user.findUnique({
@@ -752,14 +761,25 @@ export const professorService = {
         data.lattesUrl === null ? null : normalizeOptionalText(data.lattesUrl) ?? null;
     }
 
+    if (data.avatar !== undefined) {
+      updateProfileData.avatar =
+        data.avatar === null ? null : normalizeOptionalText(data.avatar) ?? null;
+    }
+
     if (data.companyDocument !== undefined) {
       updateProfileData.companyDocument =
         data.companyDocument === null ? null : normalizedCompanyDocument ?? null;
     }
 
-    if (data.bankName !== undefined) {
+    if (data.bankCode !== undefined) {
+      updateProfileData.bankCode = data.bankCode === null ? null : normalizedBankCode ?? null;
+    }
+
+    if (data.bankCode !== undefined || data.bankName !== undefined) {
       updateProfileData.bankName =
-        data.bankName === null ? null : normalizeOptionalText(data.bankName) ?? null;
+        data.bankCode === null
+          ? null
+          : bank?.description ?? (data.bankName === null ? null : normalizeOptionalText(data.bankName) ?? null);
     }
 
     if (data.bankBranch !== undefined) {
@@ -778,6 +798,7 @@ export const professorService = {
 
     const changedLegalFinancialFields = [
       'companyDocument',
+      'bankCode',
       'bankName',
       'bankBranch',
       'bankAccount',
@@ -790,6 +811,10 @@ export const professorService = {
           updateProfileData.companyDocument !== undefined
             ? updateProfileData.companyDocument
             : professor.user.profile?.companyDocument ?? null,
+        bankCode:
+          updateProfileData.bankCode !== undefined
+            ? updateProfileData.bankCode
+            : professor.user.profile?.bankCode ?? null,
         bankName:
           updateProfileData.bankName !== undefined
             ? updateProfileData.bankName

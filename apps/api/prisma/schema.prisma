@@ -47,6 +47,7 @@ model Profile {
   professionalSummary                  String?
   lattesUrl                            String?
   companyDocument                      String?
+  bankCode                             String?
   bankName                             String?
   bankBranch                           String?
   bankAccount                          String?
@@ -64,6 +65,18 @@ model Profile {
 
   @@index([legalFinancialProvidedByProfessorId])
   @@index([legalFinancialValidatedByProfessorId])
+  @@index([bankCode])
+}
+
+model Bank {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  description String
+  ispb        String?  @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([description])
 }
 
 model Contract {
@@ -91,19 +104,35 @@ model Contract {
 }
 
 model CollaboratorFunctionOption {
-  id          String      @id @default(cuid())
-  contractId  String
-  name        String
-  code        String
-  isActive    Boolean     @default(true)
-  isSystem    Boolean     @default(false)
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @default(now()) @updatedAt
-  contract    Contract    @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  professores Professor[]
+  id                String             @id @default(cuid())
+  contractId        String
+  name              String
+  code              String
+  isActive          Boolean            @default(true)
+  isSystem          Boolean            @default(false)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @default(now()) @updatedAt
+  accessPermissions AccessPermission[]
+  contract          Contract           @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  professores       Professor[]
 
   @@unique([contractId, code])
   @@index([contractId])
+}
+
+model AccessPermission {
+  id                     String                     @id @default(cuid())
+  collaboratorFunctionId String
+  screenKey              String
+  blockKey               String                     @default("")
+  canView                Boolean                    @default(true)
+  createdAt              DateTime                   @default(now())
+  updatedAt              DateTime                   @default(now()) @updatedAt
+  collaboratorFunction   CollaboratorFunctionOption @relation(fields: [collaboratorFunctionId], references: [id], onDelete: Cascade)
+
+  @@unique([collaboratorFunctionId, screenKey, blockKey])
+  @@index([collaboratorFunctionId])
+  @@index([screenKey])
 }
 
 model Professor {
