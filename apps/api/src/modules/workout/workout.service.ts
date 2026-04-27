@@ -1,5 +1,7 @@
 ﻿import { PrismaClient } from '@prisma/client';
 
+import type { Prisma } from '@prisma/client';
+
 const prisma = new PrismaClient();
 
 export interface CreateWorkoutTemplateDTO {
@@ -20,6 +22,39 @@ export interface CreateWorkoutTemplateDTO {
   coachGoal?: string;
   observation1?: string;
   observation2?: string;
+}
+
+function normalizeWorkoutTemplateCreateData(
+  data: CreateWorkoutTemplateDTO
+): Prisma.WorkoutTemplateUncheckedCreateInput {
+  const { alunoGoal, ...rest } = data;
+
+  return {
+    ...rest,
+    ...(alunoGoal !== undefined ? { studentGoal: alunoGoal } : {}),
+  };
+}
+
+function normalizeWorkoutTemplateUpdateData(
+  data: Partial<CreateWorkoutTemplateDTO>
+): Prisma.WorkoutTemplateUncheckedUpdateInput {
+  const { alunoGoal, ...rest } = data;
+
+  return {
+    ...rest,
+    ...(alunoGoal !== undefined ? { studentGoal: alunoGoal } : {}),
+  };
+}
+
+function serializeWorkoutTemplate<T extends { studentGoal?: string | null } | null>(template: T) {
+  if (!template) {
+    return template;
+  }
+
+  return {
+    ...template,
+    alunoGoal: template.studentGoal,
+  };
 }
 
 export interface CreateWorkoutDayDTO {
@@ -163,7 +198,7 @@ export const workoutService = {
           }
         });
 
-        return await prisma.workoutTemplate.findUnique({
+        const updatedTemplate = await prisma.workoutTemplate.findUnique({
           where: {
             planId_mesocycleNumber_weekNumber: {
               planId: data.planId,
@@ -189,9 +224,11 @@ export const workoutService = {
             },
           },
         });
+
+        return serializeWorkoutTemplate(updatedTemplate);
       }
 
-      return existing;
+      return serializeWorkoutTemplate(existing);
     }
 
     return await this.createTemplate(data);
@@ -201,20 +238,22 @@ export const workoutService = {
    * Criar template semanal de treino
    */
   async createTemplate(data: CreateWorkoutTemplateDTO) {
-    return await prisma.workoutTemplate.create({
-      data,
+    const template = await prisma.workoutTemplate.create({
+      data: normalizeWorkoutTemplateCreateData(data),
       include: {
         plan: true,
         workoutDays: true,
       },
     });
+
+    return serializeWorkoutTemplate(template);
   },
 
   /**
    * Obter template por plano, mesociclo e semana
    */
   async getTemplate(planId: string, mesocycleNumber: number, weekNumber: number) {
-    return await prisma.workoutTemplate.findUnique({
+    const template = await prisma.workoutTemplate.findUnique({
       where: {
         planId_mesocycleNumber_weekNumber: {
           planId,
@@ -240,13 +279,15 @@ export const workoutService = {
         },
       },
     });
+
+    return serializeWorkoutTemplate(template);
   },
 
   /**
    * Listar todos os templates de um plano
    */
   async listTemplatesByPlan(planId: string) {
-    return await prisma.workoutTemplate.findMany({
+    const templates = await prisma.workoutTemplate.findMany({
       where: { planId },
       include: {
         workoutDays: {
@@ -264,16 +305,20 @@ export const workoutService = {
         { weekNumber: 'asc' },
       ],
     });
+
+    return templates.map(serializeWorkoutTemplate);
   },
 
   /**
    * Atualizar template
    */
   async updateTemplate(id: string, data: Partial<CreateWorkoutTemplateDTO>) {
-    return await prisma.workoutTemplate.update({
+    const template = await prisma.workoutTemplate.update({
       where: { id },
-      data,
+      data: normalizeWorkoutTemplateUpdateData(data),
     });
+
+    return serializeWorkoutTemplate(template);
   },
 
   /**
@@ -289,7 +334,7 @@ export const workoutService = {
    * Obter template por ID
    */
   async getTemplateById(id: string) {
-    return await prisma.workoutTemplate.findUnique({
+    const template = await prisma.workoutTemplate.findUnique({
       where: { id },
       include: {
         plan: true,
@@ -309,19 +354,23 @@ export const workoutService = {
         },
       },
     });
+
+    return serializeWorkoutTemplate(template);
   },
 
   /**
    * Liberar template para o aluno
    */
   async releaseTemplate(id: string) {
-    return await prisma.workoutTemplate.update({
+    const template = await prisma.workoutTemplate.update({
       where: { id },
       data: {
         released: true,
         releasedAt: new Date(),
       },
     });
+
+    return serializeWorkoutTemplate(template);
   },
 
   /**
@@ -597,7 +646,7 @@ export const workoutService = {
         repReserve: source.repReserve,
         trainingMethod: source.trainingMethod,
         trainingDivision: source.trainingDivision,
-        alunoGoal: source.alunoGoal,
+        studentGoal: source.studentGoal,
         coachGoal: source.coachGoal,
         observation1: source.observation1,
         observation2: source.observation2,
@@ -656,7 +705,7 @@ export const workoutService = {
       }
     }
 
-    return await prisma.workoutTemplate.findUnique({
+    const copiedTemplate = await prisma.workoutTemplate.findUnique({
       where: { id: newTemplate.id },
       include: {
         plan: true,
@@ -676,6 +725,8 @@ export const workoutService = {
         },
       },
     });
+
+    return serializeWorkoutTemplate(copiedTemplate);
   },
 
   async getWorkoutDaysByRange(

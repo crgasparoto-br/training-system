@@ -46,6 +46,7 @@ export interface CreateAlunoDTO {
       q5: boolean;
       q6: boolean;
       q7: boolean;
+      q8: boolean;
     };
     formResponses?: Record<string, unknown>;
   };
@@ -88,6 +89,7 @@ export interface UpdateAlunoDTO {
       q5: boolean;
       q6: boolean;
       q7: boolean;
+      q8: boolean;
     };
     formResponses?: Record<string, unknown>;
   };

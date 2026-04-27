@@ -48,6 +48,7 @@ export interface AlunoIntakeForm {
     q5: boolean;
     q6: boolean;
     q7: boolean;
+    q8: boolean;
   };
   formResponses?: Record<string, unknown>;
 }

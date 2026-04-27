@@ -411,6 +411,7 @@ export const CreateAlunoSchema = z.object({
           q5: z.boolean(),
           q6: z.boolean(),
           q7: z.boolean(),
+          q8: z.boolean(),
         })
         .optional(),
       formResponses: z.record(z.unknown()).optional(),
@@ -476,6 +477,7 @@ export const UpdateAlunoSchema = z.object({
           q5: z.boolean(),
           q6: z.boolean(),
           q7: z.boolean(),
+          q8: z.boolean(),
         })
         .optional(),
       formResponses: z.record(z.unknown()).optional(),
