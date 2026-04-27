@@ -14,7 +14,7 @@ export type ProfessorMaritalStatus =
   | 'widowed'
   | 'other';
 
-export type HourlyRateLevelCode = 'bronze' | 'silver' | 'gold';
+export type HourlyRateLevelCode = string;
 
 export interface HourlyRateLevel {
   id: string;
@@ -45,6 +45,9 @@ export interface CreateProfessorRequest {
   maritalStatus?: ProfessorMaritalStatus;
   addressStreet?: string;
   addressNumber?: string;
+  addressNeighborhood?: string;
+  addressCity?: string;
+  addressState?: string;
   addressComplement?: string;
   addressZipCode?: string;
   instagramHandle?: string;
@@ -52,12 +55,14 @@ export interface CreateProfessorRequest {
   professionalSummary?: string;
   lattesUrl?: string;
   companyDocument?: string;
+  bankCode?: string;
   bankName?: string;
   bankBranch?: string;
   bankAccount?: string;
   pixKey?: string;
   avatar?: string;
   admissionDate?: string;
+  dismissalDate?: string;
   currentStatus?: string;
   operationalRoleIds?: string[];
   hourlyRates?: ProfessorHourlyRates;
@@ -78,6 +83,9 @@ export interface UpdateProfessorRequest {
   maritalStatus?: ProfessorMaritalStatus | null;
   addressStreet?: string | null;
   addressNumber?: string | null;
+  addressNeighborhood?: string | null;
+  addressCity?: string | null;
+  addressState?: string | null;
   addressComplement?: string | null;
   addressZipCode?: string | null;
   instagramHandle?: string | null;
@@ -85,12 +93,14 @@ export interface UpdateProfessorRequest {
   professionalSummary?: string | null;
   lattesUrl?: string | null;
   companyDocument?: string | null;
+  bankCode?: string | null;
   bankName?: string | null;
   bankBranch?: string | null;
   bankAccount?: string | null;
   pixKey?: string | null;
   avatar?: string | null;
   admissionDate?: string | null;
+  dismissalDate?: string | null;
   currentStatus?: string | null;
   operationalRoleIds?: string[];
   hourlyRates?: ProfessorHourlyRates;
@@ -106,6 +116,7 @@ export interface ProfessorSummary {
   collaboratorFunction: CollaboratorFunctionInfo;
   responsibleManager?: ProfessorManagerInfo | null;
   admissionDate?: string | null;
+  dismissalDate?: string | null;
   currentStatus?: string | null;
   operationalRoleIds: string[];
   hourlyRates?: ProfessorHourlyRates | null;
@@ -126,6 +137,9 @@ export interface ProfessorSummary {
       maritalStatus?: ProfessorMaritalStatus | null;
       addressStreet?: string | null;
       addressNumber?: string | null;
+      addressNeighborhood?: string | null;
+      addressCity?: string | null;
+      addressState?: string | null;
       addressComplement?: string | null;
       addressZipCode?: string | null;
       instagramHandle?: string | null;
@@ -133,6 +147,7 @@ export interface ProfessorSummary {
       professionalSummary?: string | null;
       lattesUrl?: string | null;
       companyDocument?: string | null;
+      bankCode?: string | null;
       bankName?: string | null;
       bankBranch?: string | null;
       bankAccount?: string | null;

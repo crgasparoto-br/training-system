@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Activity, BarChart3, BookOpen, Calendar, FileText, LogOut, Menu, Settings, Users, X } from 'lucide-react';
+import { Activity, BarChart3, BookOpen, Calendar, FileText, LogOut, Menu, Search, Settings, Users, X } from 'lucide-react';
 import { cn } from '@/utils/cn';
+import { filterSidebarItemsByAccess } from '../access/access-control';
 import { useAuthStore } from '../stores/useAuthStore';
 import { Button } from '../components/ui/Button';
 import { AppSidebar, type SidebarNavItem } from '../components/sidebar';
@@ -19,87 +20,128 @@ export function DashboardLayout() {
     navigate('/login');
   };
 
-  const canManageProfessores =
-    user?.type === 'professor' &&
-    user?.professor?.role === 'master' &&
-    user?.professor?.contract?.type === 'academy';
-
-  const canAccessAlunoSettings = user?.type === 'professor' && user?.professor?.role === 'master';
-
   const menuItems = useMemo<SidebarNavItem[]>(
     () => [
-      ...(canManageProfessores ? [{ id: 'professores', icon: Users, label: shellCopy.menu.professores, path: '/professores' }] : []),
-      { id: 'alunos', icon: Users, label: shellCopy.menu.alunos, path: '/alunos' },
+      {
+        id: 'cadastros',
+        icon: Users,
+        label: shellCopy.menu.cadastros,
+        children: [
+          { id: 'alunos', label: shellCopy.menu.cadastroAluno, path: '/alunos', screenKey: 'students.registration' },
+          {
+            id: 'professores',
+            label: shellCopy.menu.cadastroColaborador,
+            path: '/professores',
+            screenKey: 'collaborators.registration',
+          },
+          {
+            id: 'hourly-rate-levels',
+            label: shellCopy.menu.cadastroValoresHoraAula,
+            path: '/cadastros/valores-hora-aula',
+            screenKey: 'hourlyRateLevels.registration',
+          },
+        ],
+      },
       {
         id: 'physical-assessment-protocol',
         icon: FileText,
         label: 'Protocolo de Avaliação Física',
         path: '/protocolo-avaliacao-fisica',
+        screenKey: 'physicalAssessment.protocol',
         children: [
           {
             id: 'physical-assessment-protocol-anthropometry',
             label: 'Antropometria',
             path: '/protocolo-avaliacao-fisica/antropometria',
+            screenKey: 'physicalAssessment.protocol',
           },
           {
             id: 'physical-assessment-protocol-interview',
             label: 'Prontuário de entrevista e acompanhamento',
             path: '/protocolo-avaliacao-fisica/prontuario-entrevista-acompanhamento',
+            screenKey: 'physicalAssessment.protocol',
           },
           {
             id: 'physical-assessment-protocol-adipometry',
             label: 'Adipometria',
             path: '/protocolo-avaliacao-fisica/adipometria',
+            screenKey: 'physicalAssessment.protocol',
           },
           {
             id: 'physical-assessment-protocol-bioimpedance',
             label: 'Bioimpedanciometria',
             path: '/protocolo-avaliacao-fisica/bioimpedanciometria',
+            screenKey: 'physicalAssessment.protocol',
           },
           {
             id: 'physical-assessment-protocol-ultrasound',
             label: 'Ultrassonografia',
             path: '/protocolo-avaliacao-fisica/ultrassonografia',
+            screenKey: 'physicalAssessment.protocol',
           },
         ],
       },
-      { id: 'plans', icon: Calendar, label: shellCopy.menu.planos, path: '/plans' },
-      { id: 'agenda', icon: Calendar, label: shellCopy.menu.agenda, path: '/agenda' },
-      { id: 'library', icon: BookOpen, label: shellCopy.menu.biblioteca, path: '/library' },
-      { id: 'executions', icon: Activity, label: shellCopy.menu.execucoes, path: '/executions' },
-      { id: 'reports', icon: BarChart3, label: shellCopy.menu.relatorios, path: '/reports' },
+      {
+        id: 'consultas',
+        icon: Search,
+        label: shellCopy.menu.consultas,
+        path: '/consultas',
+        children: [
+          {
+            id: 'consultas-alunos',
+            label: shellCopy.menu.consultaAlunos,
+            path: '/consultas/alunos',
+            screenKey: 'students.consultation',
+          },
+          {
+            id: 'consultas-colaboradores',
+            label: shellCopy.menu.consultaColaboradores,
+            path: '/consultas/colaboradores',
+            screenKey: 'collaborators.consultation',
+          },
+        ],
+      },
+      { id: 'plans', icon: Calendar, label: shellCopy.menu.planos, path: '/plans', screenKey: 'plans' },
+      { id: 'agenda', icon: Calendar, label: shellCopy.menu.agenda, path: '/agenda', screenKey: 'agenda' },
+      { id: 'library', icon: BookOpen, label: shellCopy.menu.biblioteca, path: '/library', screenKey: 'library' },
+      { id: 'executions', icon: Activity, label: shellCopy.menu.execucoes, path: '/executions', screenKey: 'executions' },
+      { id: 'reports', icon: BarChart3, label: shellCopy.menu.relatorios, path: '/reports', screenKey: 'reports' },
       {
         id: 'settings',
         icon: Settings,
         label: shellCopy.menu.configuracoes,
         path: '/settings',
+        screenKey: 'settings.home',
         children: [
-          { id: 'settings-contract', label: shellCopy.menu.contrato, path: '/settings/contract' },
-          { id: 'settings-parameters', label: shellCopy.menu.parametros, path: '/settings/parameters' },
-          { id: 'settings-assessment-types', label: shellCopy.menu.avaliacoes, path: '/settings/assessment-types' },
-          ...(canManageProfessores
-            ? [
-                {
-                  id: 'settings-collaborator-functions',
-                  label: shellCopy.menu.funcoesColaboradores,
-                  path: '/settings/collaborator-functions',
-                },
-              ]
-            : []),
-          { id: 'settings-psr-pse', label: 'PSR e PSE', path: '/settings/psr-pse' },
+          { id: 'settings-contract', label: shellCopy.menu.contrato, path: '/settings/contract', screenKey: 'settings.contract' },
+          { id: 'settings-parameters', label: shellCopy.menu.parametros, path: '/settings/parameters', screenKey: 'settings.parameters' },
+          { id: 'settings-assessment-types', label: shellCopy.menu.avaliacoes, path: '/settings/assessment-types', screenKey: 'settings.assessmentTypes' },
+          { id: 'settings-services', label: shellCopy.menu.servicos, path: '/settings/services', screenKey: 'settings.services' },
+          { id: 'settings-banks', label: shellCopy.menu.bancos, path: '/settings/banks', screenKey: 'settings.banks' },
+          {
+            id: 'settings-collaborator-functions',
+            label: shellCopy.menu.funcoesColaboradores,
+            path: '/settings/collaborator-functions',
+            screenKey: 'settings.collaboratorFunctions',
+          },
+          { id: 'settings-psr-pse', label: 'PSR e PSE', path: '/settings/psr-pse', screenKey: 'settings.subjectiveScales' },
           {
             id: 'settings-professor-manual',
             label: shellCopy.menu.manualProfessor,
             path: '/settings/professor-manual',
+            screenKey: 'settings.professorManual',
           },
-          { id: 'settings-reference-table', label: shellCopy.menu.tabelaReferencia, path: '/settings/reference-table' },
-          ...(canAccessAlunoSettings
-            ? [{ id: 'settings-aluno-access', label: shellCopy.menu.cadastroAlunos, path: '/settings/aluno-access' }]
-            : []),
+          { id: 'settings-reference-table', label: shellCopy.menu.tabelaReferencia, path: '/settings/reference-table', screenKey: 'settings.referenceTable' },
+          { id: 'settings-aluno-access', label: shellCopy.menu.cadastroAlunos, path: '/settings/aluno-access', screenKey: 'settings.alunoAccess' },
         ],
       },
     ],
-    [canAccessAlunoSettings, canManageProfessores]
+    []
+  );
+
+  const visibleMenuItems = useMemo(
+    () => filterSidebarItemsByAccess(menuItems, user),
+    [menuItems, user]
   );
 
   return (
@@ -124,7 +166,7 @@ export function DashboardLayout() {
                 {user?.type === 'professor'
                   ? user.professor?.role === 'master'
                     ? 'Professor Master'
-                    : 'Professor'
+                    : user.professor?.collaboratorFunction?.name || 'Professor'
                   : 'Aluno'}
               </span>
             </div>
@@ -141,7 +183,7 @@ export function DashboardLayout() {
 
       <div className="ts-container flex max-w-full">
         <AppSidebar
-          items={menuItems}
+          items={visibleMenuItems}
           currentPath={location.pathname}
           collapsed={isSidebarCollapsed}
           mobileOpen={isSidebarOpen}

@@ -9,7 +9,6 @@ export default function Settings() {
     user?.type === 'professor' &&
     user?.professor?.role === 'master' &&
     user?.professor?.contract?.type === 'academy';
-  const canManageHourlyRateLevels = canManageCollaboratorFunctions;
   return (
     <div className="space-y-6">
       <div>
@@ -44,6 +43,20 @@ export default function Settings() {
             Acessar par&acirc;metros &rarr;
           </div>
         </Link>
+        {canAccessAlunoSettings && (
+          <Link
+            to="/settings/services"
+            className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm transition hover:border-blue-300 hover:shadow"
+          >
+            <h2 className="text-lg font-semibold text-gray-900">Serviços</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Cadastro dos serviços exibidos no campo Serviço de Interesse do aluno.
+            </p>
+            <div className="mt-4 inline-flex items-center text-sm font-medium text-blue-600">
+              Acessar serviços &rarr;
+            </div>
+          </Link>
+        )}
         <Link
           to="/settings/assessment-types"
           className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm transition hover:border-blue-300 hover:shadow"
@@ -58,6 +71,20 @@ export default function Settings() {
         </Link>
         {canManageCollaboratorFunctions && (
           <Link
+            to="/settings/banks"
+            className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm transition hover:border-blue-300 hover:shadow"
+          >
+            <h2 className="text-lg font-semibold text-gray-900">Bancos</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Sincronize manualmente a base local de bancos usada no bloco de dados jur&iacute;dicos do colaborador.
+            </p>
+            <div className="mt-4 inline-flex items-center text-sm font-medium text-blue-600">
+              Acessar bancos &rarr;
+            </div>
+          </Link>
+        )}
+        {canManageCollaboratorFunctions && (
+          <Link
             to="/settings/collaborator-functions"
             className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm transition hover:border-blue-300 hover:shadow"
           >
@@ -67,20 +94,6 @@ export default function Settings() {
             </p>
             <div className="mt-4 inline-flex items-center text-sm font-medium text-blue-600">
               Acessar fun&ccedil;&otilde;es &rarr;
-            </div>
-          </Link>
-        )}
-        {canManageHourlyRateLevels && (
-          <Link
-            to="/settings/hourly-rate-levels"
-            className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm transition hover:border-blue-300 hover:shadow"
-          >
-            <h2 className="text-lg font-semibold text-gray-900">Níveis de Valor/Hora</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Configure as faixas usadas para classificar o nível do valor/hora dos colaboradores.
-            </p>
-            <div className="mt-4 inline-flex items-center text-sm font-medium text-blue-600">
-              Acessar níveis &rarr;
             </div>
           </Link>
         )}

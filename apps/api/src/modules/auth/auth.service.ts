@@ -7,6 +7,10 @@ import type { SignOptions } from 'jsonwebtoken';
 import { ensureDefaultAssessmentTypesForContract } from '../assessments/assessment-type.service';
 import { ensureDefaultSubjectiveScalesForContract } from '../assessments/subjective-scale.service';
 import { getDefaultCollaboratorFunctionByCode } from '../collaborator-functions/index.js';
+import {
+  getEffectiveAccessPermissionsForProfessor,
+  serializeAccessPermission,
+} from '../access-control/index.js';
 
 const prisma = new PrismaClient();
 
@@ -24,6 +28,13 @@ export class AuthService {
     code: string;
     isActive: boolean;
     isSystem: boolean;
+    accessPermissions?: Array<{
+      id: string;
+      collaboratorFunctionId: string;
+      screenKey: string;
+      blockKey: string;
+      canView: boolean;
+    }>;
   }) {
     return {
       id: collaboratorFunction.id,
@@ -31,6 +42,7 @@ export class AuthService {
       code: collaboratorFunction.code,
       isActive: collaboratorFunction.isActive,
       isSystem: collaboratorFunction.isSystem,
+      accessPermissions: collaboratorFunction.accessPermissions?.map(serializeAccessPermission),
     };
   }
 
@@ -147,7 +159,11 @@ export class AuthService {
           collaboratorFunctionId: managerFunction.id,
         },
         include: {
-          collaboratorFunction: true,
+          collaboratorFunction: {
+            include: {
+              accessPermissions: true,
+            },
+          },
           contract: true,
           responsibleManager: {
             include: {
@@ -156,7 +172,11 @@ export class AuthService {
                   profile: true,
                 },
               },
-              collaboratorFunction: true,
+              collaboratorFunction: {
+                include: {
+                  accessPermissions: true,
+                },
+              },
             },
           },
         },
@@ -171,6 +191,13 @@ export class AuthService {
 
     await ensureDefaultSubjectiveScalesForContract(contractId);
 
+    const accessControl = professor
+      ? {
+          isMaster: professor.role === 'master',
+          permissions: await getEffectiveAccessPermissionsForProfessor(professor),
+        }
+      : undefined;
+
     // Gerar token
     const token = this.generateToken(user.id, user.email, user.type);
 
@@ -181,6 +208,7 @@ export class AuthService {
         email: user.email,
         name: user.profile?.name || '',
         type: user.type,
+        accessControl,
         professor: professor
           ? {
               id: professor.id,
@@ -212,7 +240,11 @@ export class AuthService {
         profile: true,
         professor: {
           include: {
-            collaboratorFunction: true,
+            collaboratorFunction: {
+              include: {
+                accessPermissions: true,
+              },
+            },
             contract: true,
             responsibleManager: {
               include: {
@@ -221,7 +253,11 @@ export class AuthService {
                     profile: true,
                   },
                 },
-                collaboratorFunction: true,
+                collaboratorFunction: {
+                  include: {
+                    accessPermissions: true,
+                  },
+                },
               },
             },
           },
@@ -250,6 +286,12 @@ export class AuthService {
 
     // Gerar token
     const token = this.generateToken(user.id, user.email, user.type);
+    const accessControl = user.professor
+      ? {
+          isMaster: user.professor.role === 'master',
+          permissions: await getEffectiveAccessPermissionsForProfessor(user.professor),
+        }
+      : undefined;
 
     return {
       token,
@@ -258,6 +300,7 @@ export class AuthService {
         email: user.email,
         name: user.profile?.name || '',
         type: user.type,
+        accessControl,
         professor: user.professor
           ? {
               id: user.professor.id,
@@ -325,7 +368,11 @@ export class AuthService {
         profile: true,
         professor: {
           include: {
-            collaboratorFunction: true,
+            collaboratorFunction: {
+              include: {
+                accessPermissions: true,
+              },
+            },
             contract: true,
             responsibleManager: {
               include: {
@@ -334,7 +381,11 @@ export class AuthService {
                     profile: true,
                   },
                 },
-                collaboratorFunction: true,
+                collaboratorFunction: {
+                  include: {
+                    accessPermissions: true,
+                  },
+                },
               },
             },
           },
@@ -344,12 +395,56 @@ export class AuthService {
     });
   }
 
+  async getAuthenticatedUserById(userId: string) {
+    const user = await this.getUserById(userId);
+
+    if (!user) {
+      return null;
+    }
+
+    const accessControl = user.professor
+      ? {
+          isMaster: user.professor.role === 'master',
+          permissions: await getEffectiveAccessPermissionsForProfessor(user.professor),
+        }
+      : undefined;
+
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.profile?.name || '',
+      type: user.type,
+      profile: user.profile,
+      aluno: user.aluno,
+      accessControl,
+      professor: user.professor
+        ? {
+            id: user.professor.id,
+            role: user.professor.role,
+            collaboratorFunction: this.serializeCollaboratorFunction(
+              user.professor.collaboratorFunction
+            ),
+            responsibleManager: this.serializeResponsibleManager(
+              user.professor.responsibleManager
+            ),
+            contract: {
+              id: user.professor.contract.id,
+              type: user.professor.contract.type,
+              document: user.professor.contract.document,
+              name: user.professor.contract.name,
+            },
+          }
+        : null,
+    };
+  }
+
   async getProfessorByUserId(userId: string) {
     return prisma.professor.findUnique({
       where: { userId },
       select: {
         id: true,
         contractId: true,
+        collaboratorFunctionId: true,
         role: true,
         contract: {
           select: {

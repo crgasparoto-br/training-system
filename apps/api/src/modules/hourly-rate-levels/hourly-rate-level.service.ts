@@ -11,10 +11,61 @@ const DEFAULT_HOURLY_RATE_LEVELS = [
 type HourlyRateLevelCode = (typeof DEFAULT_HOURLY_RATE_LEVELS)[number]['code'];
 
 type HourlyRateLevelInput = {
-  code: HourlyRateLevelCode;
+  id: string;
+  label: string;
+  code: string;
+  order: number;
   minValue: number | null;
   maxValue: number | null;
 };
+
+function normalizeLabel(label?: string | null) {
+  if (typeof label !== 'string') {
+    throw new Error('Informe o nome do nível');
+  }
+
+  const normalizedLabel = label.trim();
+
+  if (!normalizedLabel) {
+    throw new Error('Informe o nome do nível');
+  }
+
+  return normalizedLabel;
+}
+
+function normalizeCode(value: string) {
+  const normalizedValue = value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+  return normalizedValue || 'nivel';
+}
+
+async function generateUniqueCode(contractId: string, label: string) {
+  const baseCode = normalizeCode(label);
+  let nextCode = baseCode;
+  let suffix = 2;
+
+  while (
+    await prisma.hourlyRateLevel.findUnique({
+      where: {
+        contractId_code: {
+          contractId,
+          code: nextCode,
+        },
+      },
+      select: { id: true },
+    })
+  ) {
+    nextCode = `${baseCode}-${suffix}`;
+    suffix += 1;
+  }
+
+  return nextCode;
+}
 
 function normalizeMoneyValue(value: number | null | undefined) {
   if (value === null || value === undefined) {
@@ -32,10 +83,23 @@ function validateRanges(levels: HourlyRateLevelInput[]) {
   const normalizedLevels = levels
     .map((level) => ({
       ...level,
+      label: normalizeLabel(level.label),
       minValue: normalizeMoneyValue(level.minValue),
       maxValue: normalizeMoneyValue(level.maxValue),
     }))
-    .sort((first, second) => (first.minValue ?? 0) - (second.minValue ?? 0));
+    .sort((first, second) => first.order - second.order);
+
+  const labels = new Set<string>();
+
+  for (const level of normalizedLevels) {
+    const comparableLabel = level.label.toLocaleLowerCase('pt-BR');
+
+    if (labels.has(comparableLabel)) {
+      throw new Error('Os níveis não podem ter nomes repetidos');
+    }
+
+    labels.add(comparableLabel);
+  }
 
   for (const level of normalizedLevels) {
     if (level.minValue === null || level.maxValue === null) {
@@ -60,21 +124,16 @@ function validateRanges(levels: HourlyRateLevelInput[]) {
 }
 
 export async function ensureDefaultHourlyRateLevelsForContract(contractId: string) {
+  const existingLevels = await prisma.hourlyRateLevel.count({ where: { contractId } });
+
+  if (existingLevels > 0) {
+    return;
+  }
+
   await Promise.all(
     DEFAULT_HOURLY_RATE_LEVELS.map((level) =>
-      prisma.hourlyRateLevel.upsert({
-        where: {
-          contractId_code: {
-            contractId,
-            code: level.code,
-          },
-        },
-        update: {
-          label: level.label,
-          order: level.order,
-          isActive: true,
-        },
-        create: {
+      prisma.hourlyRateLevel.create({
+        data: {
           contractId,
           code: level.code,
           label: level.label,
@@ -96,41 +155,109 @@ export const hourlyRateLevelService = {
     });
   },
 
+  async createByContract(contractId: string) {
+    await ensureDefaultHourlyRateLevelsForContract(contractId);
+
+    const levels = await prisma.hourlyRateLevel.findMany({
+      where: { contractId },
+      orderBy: { order: 'asc' },
+      select: { order: true, label: true },
+    });
+
+    const nextOrder = (levels.at(-1)?.order ?? 0) + 1;
+    const nextLabel = `Novo nível ${nextOrder}`;
+    const nextCode = await generateUniqueCode(contractId, nextLabel);
+
+    await prisma.hourlyRateLevel.create({
+      data: {
+        contractId,
+        code: nextCode,
+        label: nextLabel,
+        order: nextOrder,
+        isActive: true,
+      },
+    });
+
+    return this.listByContract(contractId);
+  },
+
+  async deleteByContract(contractId: string, levelId: string) {
+    await ensureDefaultHourlyRateLevelsForContract(contractId);
+
+    const existingLevel = await prisma.hourlyRateLevel.findFirst({
+      where: { id: levelId, contractId },
+      select: { id: true },
+    });
+
+    if (!existingLevel) {
+      throw new Error('Nível de valor/hora não encontrado');
+    }
+
+    const totalLevels = await prisma.hourlyRateLevel.count({ where: { contractId } });
+
+    if (totalLevels <= 1) {
+      throw new Error('Mantenha pelo menos um nível cadastrado');
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.hourlyRateLevel.delete({
+        where: { id: levelId },
+      });
+
+      const remainingLevels = await tx.hourlyRateLevel.findMany({
+        where: { contractId },
+        orderBy: { order: 'asc' },
+        select: { id: true },
+      });
+
+      await Promise.all(
+        remainingLevels.map((level, index) =>
+          tx.hourlyRateLevel.update({
+            where: { id: level.id },
+            data: { order: index + 1 },
+          })
+        )
+      );
+    });
+
+    return this.listByContract(contractId);
+  },
+
   async updateByContract(contractId: string, levels: HourlyRateLevelInput[]) {
     await ensureDefaultHourlyRateLevelsForContract(contractId);
 
-    const nextLevels = DEFAULT_HOURLY_RATE_LEVELS.map((defaultLevel) => {
-      const payloadLevel = levels.find((level) => level.code === defaultLevel.code);
+    if (levels.length === 0) {
+      throw new Error('Cadastre ao menos um nível de valor/hora');
+    }
 
-      if (!payloadLevel) {
-        throw new Error('Envie as três faixas de nível: Bronze, Prata e Ouro');
-      }
-
-      return payloadLevel;
+    const existingLevels = await prisma.hourlyRateLevel.findMany({
+      where: { contractId },
+      select: { id: true, code: true },
     });
 
-    const validatedLevels = validateRanges(nextLevels);
+    const existingLevelIds = new Set(existingLevels.map((level) => level.id));
+
+    for (const level of levels) {
+      if (!existingLevelIds.has(level.id)) {
+        throw new Error('Envie apenas níveis existentes deste contrato');
+      }
+    }
+
+    const validatedLevels = validateRanges(levels);
 
     await prisma.$transaction(
-      validatedLevels.map((level) => {
-        const defaults = DEFAULT_HOURLY_RATE_LEVELS.find((item) => item.code === level.code)!;
-
-        return prisma.hourlyRateLevel.update({
-          where: {
-            contractId_code: {
-              contractId,
-              code: level.code,
-            },
-          },
+      validatedLevels.map((level) =>
+        prisma.hourlyRateLevel.update({
+          where: { id: level.id },
           data: {
-            label: defaults.label,
+            label: level.label,
             minValue: level.minValue,
             maxValue: level.maxValue,
-            order: defaults.order,
+            order: level.order,
             isActive: true,
           },
-        });
-      })
+        })
+      )
     );
 
     return this.listByContract(contractId);

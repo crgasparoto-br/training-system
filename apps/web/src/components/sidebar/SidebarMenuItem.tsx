@@ -50,7 +50,7 @@ export function SidebarMenuItem({
   const triggerClassName = useMemo(
     () =>
       cn(
-        'flex w-full items-center rounded-md px-3 py-2 text-sm font-medium transition-colors',
+        'flex w-full items-center rounded-md px-3 py-2 text-left text-sm font-medium transition-colors',
         collapsed ? 'justify-center' : 'gap-3',
         active || activeChild
           ? 'bg-sidebar-accent text-sidebar-accent-foreground font-semibold'
@@ -83,9 +83,9 @@ export function SidebarMenuItem({
         className={triggerClassName}
         title={collapsed ? item.label : undefined}
       >
-        <div className={cn('flex items-center', !collapsed && 'gap-3')}>
+        <div className={cn('flex min-w-0 items-center', !collapsed && 'gap-3')}>
           {Icon ? <Icon size={18} className="shrink-0" /> : null}
-          {!collapsed && <span>{item.label}</span>}
+          {!collapsed && <span className="text-left">{item.label}</span>}
         </div>
         {!collapsed && (
           <ChevronDown

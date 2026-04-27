@@ -6,7 +6,11 @@ import 'express-async-errors';
 import path from 'path';
 import { authRoutes } from './modules/auth/index.js';
 import { alunoRoutes } from './modules/alunos/index.js';
+import { bankRoutes } from './modules/banks/index.js';
+import { collaboratorFunctionRoutes } from './modules/collaborator-functions/index.js';
+import { hourlyRateLevelRoutes } from './modules/hourly-rate-levels/index.js';
 import { professorRoutes } from './modules/professores/index.js';
+import { serviceRoutes } from './modules/services/index.js';
 
 const app: express.Express = express();
 const PORT = process.env.API_PORT || 3000;
@@ -90,7 +94,11 @@ app.get('/api/v1', (req, res) => {
     endpoints: {
       auth: '/api/v1/auth',
       alunos: '/api/v1/alunos',
+      banks: '/api/v1/banks',
+      collaboratorFunctions: '/api/v1/collaborator-functions',
+      hourlyRateLevels: '/api/v1/hourly-rate-levels',
       professores: '/api/v1/professores',
+      services: '/api/v1/services',
     },
   });
 });
@@ -101,8 +109,20 @@ app.use('/api/v1/auth', authRoutes);
 // Rotas de Alunos
 app.use('/api/v1/alunos', alunoRoutes);
 
+// Rotas de Bancos
+app.use('/api/v1/banks', bankRoutes);
+
+// Rotas de Funções de Colaboradores
+app.use('/api/v1/collaborator-functions', collaboratorFunctionRoutes);
+
+// Rotas de Níveis de Valor/Hora
+app.use('/api/v1/hourly-rate-levels', hourlyRateLevelRoutes);
+
 // Rotas de Professores
 app.use('/api/v1/professores', professorRoutes);
+
+// Rotas de Serviços
+app.use('/api/v1/services', serviceRoutes);
 
 // ============================================================================
 // ERROR HANDLING

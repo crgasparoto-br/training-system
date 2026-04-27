@@ -1,4 +1,4 @@
-import type { ContractInfo } from './auth';
+import type { ContractInfo, UserAccessPermission } from './auth';
 
 export interface CollaboratorFunctionOption {
   id: string;
@@ -8,6 +8,7 @@ export interface CollaboratorFunctionOption {
   isActive: boolean;
   isSystem: boolean;
   contract?: ContractInfo;
+  accessPermissions?: UserAccessPermission[];
   createdAt: string;
   updatedAt: string;
 }
@@ -15,9 +16,17 @@ export interface CollaboratorFunctionOption {
 export interface CreateCollaboratorFunctionRequest {
   name: string;
   isActive?: boolean;
+  permissions?: {
+    screens: string[];
+    blocks: string[];
+  };
 }
 
 export interface UpdateCollaboratorFunctionRequest {
   name?: string;
   isActive?: boolean;
+  permissions?: {
+    screens: string[];
+    blocks: string[];
+  };
 }

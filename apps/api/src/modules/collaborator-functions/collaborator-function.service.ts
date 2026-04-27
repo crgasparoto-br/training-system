@@ -1,4 +1,10 @@
 import { PrismaClient, type Prisma } from '@prisma/client';
+import type { AccessPermissionSelection } from '@corrida/types';
+import {
+  replaceAccessPermissionsForFunction,
+  syncAccessPermissionsForContract,
+  syncAccessPermissionsForFunction,
+} from '../access-control/index.js';
 
 const prisma = new PrismaClient();
 
@@ -7,7 +13,8 @@ const DEFAULT_COLLABORATOR_FUNCTIONS = [
   { code: 'intern', name: 'Estagiário' },
   { code: 'manager', name: 'Gestor' },
   { code: 'administrative', name: 'Administrativo' },
-  { code: 'cleaning_services', name: 'Limpeza e Serviços' },
+  { code: 'cleaning', name: 'Limpeza' },
+  { code: 'services', name: 'Serviços' },
 ] as const;
 
 type DbClient = PrismaClient | Prisma.TransactionClient;
@@ -77,10 +84,28 @@ async function assertNameAvailable(
   }
 }
 
+const accessPermissionsInclude = {
+  accessPermissions: {
+    orderBy: [{ screenKey: 'asc' }, { blockKey: 'asc' }],
+  },
+} satisfies Prisma.CollaboratorFunctionOptionInclude;
+
 export async function ensureDefaultCollaboratorFunctionsForContract(
   contractId: string,
   client: DbClient = prisma
 ) {
+  await client.collaboratorFunctionOption.updateMany({
+    where: {
+      contractId,
+      code: 'cleaning_services',
+      isSystem: true,
+      isActive: true,
+    },
+    data: {
+      isActive: false,
+    },
+  });
+
   const existing = await client.collaboratorFunctionOption.findMany({
     where: { contractId },
     select: { code: true },
@@ -103,8 +128,11 @@ export async function ensureDefaultCollaboratorFunctionsForContract(
     });
   }
 
+  await syncAccessPermissionsForContract(contractId, client);
+
   return client.collaboratorFunctionOption.findMany({
     where: { contractId },
+    include: accessPermissionsInclude,
     orderBy: [{ isSystem: 'desc' }, { name: 'asc' }],
   });
 }
@@ -150,14 +178,17 @@ export const collaboratorFunctionService = {
     return ensureDefaultCollaboratorFunctionsForContract(contractId);
   },
 
-  async create(contractId: string, data: { name: string; isActive?: boolean }) {
+  async create(
+    contractId: string,
+    data: { name: string; isActive?: boolean; permissions?: AccessPermissionSelection }
+  ) {
     const normalizedName = normalizeName(data.name);
 
     await assertNameAvailable(contractId, normalizedName, prisma);
 
     const code = await buildUniqueCode(contractId, normalizedName, prisma);
 
-    return prisma.collaboratorFunctionOption.create({
+    const collaboratorFunction = await prisma.collaboratorFunctionOption.create({
       data: {
         contractId,
         name: normalizedName,
@@ -166,12 +197,27 @@ export const collaboratorFunctionService = {
         isSystem: false,
       },
     });
+
+    if (data.permissions) {
+      await replaceAccessPermissionsForFunction(
+        collaboratorFunction.id,
+        collaboratorFunction.code,
+        data.permissions
+      );
+    } else {
+      await syncAccessPermissionsForFunction(collaboratorFunction.id, collaboratorFunction.code);
+    }
+
+    return prisma.collaboratorFunctionOption.findUniqueOrThrow({
+      where: { id: collaboratorFunction.id },
+      include: accessPermissionsInclude,
+    });
   },
 
   async update(
     contractId: string,
     collaboratorFunctionId: string,
-    data: { name?: string; isActive?: boolean }
+    data: { name?: string; isActive?: boolean; permissions?: AccessPermissionSelection }
   ) {
     const existing = await getCollaboratorFunctionForContract(contractId, collaboratorFunctionId);
     const updateData: Prisma.CollaboratorFunctionOptionUpdateInput = {};
@@ -187,13 +233,30 @@ export const collaboratorFunctionService = {
       updateData.isActive = data.isActive;
     }
 
-    if (Object.keys(updateData).length === 0) {
-      return existing;
+    const collaboratorFunction =
+      Object.keys(updateData).length === 0
+        ? existing
+        : await prisma.collaboratorFunctionOption.update({
+            where: { id: collaboratorFunctionId },
+            data: updateData,
+          });
+
+    if (data.permissions) {
+      await replaceAccessPermissionsForFunction(
+        collaboratorFunction.id,
+        collaboratorFunction.code,
+        data.permissions
+      );
+    } else {
+      await syncAccessPermissionsForFunction(
+        collaboratorFunction.id,
+        collaboratorFunction.code
+      );
     }
 
-    return prisma.collaboratorFunctionOption.update({
+    return prisma.collaboratorFunctionOption.findUniqueOrThrow({
       where: { id: collaboratorFunctionId },
-      data: updateData,
+      include: accessPermissionsInclude,
     });
   },
 };

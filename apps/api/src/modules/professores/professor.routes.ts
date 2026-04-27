@@ -1,6 +1,7 @@
 ﻿import { Router, Request, Response } from 'express';
 import { professorService } from './professor.service';
-import { academyMasterMiddleware, authMiddleware } from '../auth/auth.middleware';
+import { authMiddleware } from '../auth/auth.middleware';
+import { screenAccessMiddleware } from '../access-control/index.js';
 import { CreateProfessorSchema, UpdateProfessorSchema } from '@corrida/utils';
 import { sendSuccess, sendError } from '@corrida/utils';
 import multer from 'multer';
@@ -84,9 +85,12 @@ const uploadSignedContractFile = (req: Request, res: Response, next: any) => {
 };
 
 router.use(authMiddleware);
-router.use(academyMasterMiddleware);
 
-router.post('/avatar-upload', uploadAvatarFile, async (req: Request, res: Response) => {
+router.post(
+  '/avatar-upload',
+  screenAccessMiddleware('collaborators.registration'),
+  uploadAvatarFile,
+  async (req: Request, res: Response) => {
   try {
     if (!req.file) {
       return sendError(res, 'Selecione uma imagem para upload', 400);
@@ -103,9 +107,14 @@ router.post('/avatar-upload', uploadAvatarFile, async (req: Request, res: Respon
   } catch (error: any) {
     return sendError(res, error.message || 'Erro ao enviar foto', 400);
   }
-});
+  }
+);
 
-router.post('/signed-contract-upload', uploadSignedContractFile, async (req: Request, res: Response) => {
+router.post(
+  '/signed-contract-upload',
+  screenAccessMiddleware('collaborators.registration'),
+  uploadSignedContractFile,
+  async (req: Request, res: Response) => {
   try {
     if (!req.file) {
       return sendError(res, 'Selecione um PDF para upload', 400);
@@ -122,13 +131,17 @@ router.post('/signed-contract-upload', uploadSignedContractFile, async (req: Req
   } catch (error: any) {
     return sendError(res, error.message || 'Erro ao enviar contrato', 400);
   }
-});
+  }
+);
 
 /**
  * GET /api/v1/professores
  * Listar professores do contrato
  */
-router.get('/', async (req: Request, res: Response) => {
+router.get(
+  '/',
+  screenAccessMiddleware(['collaborators.registration', 'collaborators.consultation']),
+  async (req: Request, res: Response) => {
   try {
     const contractId = (req as any).user.contractId;
     const rawStatus = req.query.status as string | undefined;
@@ -145,13 +158,14 @@ router.get('/', async (req: Request, res: Response) => {
     console.error('Erro ao listar professores:', error);
     return sendError(res, 'Erro ao listar professores', 500);
   }
-});
+  }
+);
 
 /**
  * POST /api/v1/professores
  * Criar novo professor (apenas master de academia)
  */
-router.post('/', async (req: Request, res: Response) => {
+router.post('/', screenAccessMiddleware('collaborators.registration'), async (req: Request, res: Response) => {
   try {
     const validation = CreateProfessorSchema.safeParse(req.body);
 
@@ -183,7 +197,7 @@ router.post('/', async (req: Request, res: Response) => {
  * PUT /api/v1/professores/:id
  * Atualizar professor
  */
-router.put('/:id', async (req: Request, res: Response) => {
+router.put('/:id', screenAccessMiddleware('collaborators.registration'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const contractId = (req as any).user.contractId;
@@ -211,7 +225,7 @@ router.put('/:id', async (req: Request, res: Response) => {
  * POST /api/v1/professores/:id/legal-financial/validate
  * Validar bloco juridico e financeiro do colaborador
  */
-router.post('/:id/legal-financial/validate', async (req: Request, res: Response) => {
+router.post('/:id/legal-financial/validate', screenAccessMiddleware('collaborators.registration'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const contractId = (req as any).user.contractId;
@@ -237,7 +251,7 @@ router.post('/:id/legal-financial/validate', async (req: Request, res: Response)
  * POST /api/v1/professores/:id/deactivate
  * Desativar professor
  */
-router.post('/:id/deactivate', async (req: Request, res: Response) => {
+router.post('/:id/deactivate', screenAccessMiddleware('collaborators.registration'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const contractId = (req as any).user.contractId;
@@ -254,7 +268,7 @@ router.post('/:id/deactivate', async (req: Request, res: Response) => {
  * POST /api/v1/professores/:id/activate
  * Reativar professor
  */
-router.post('/:id/activate', async (req: Request, res: Response) => {
+router.post('/:id/activate', screenAccessMiddleware('collaborators.registration'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const contractId = (req as any).user.contractId;
@@ -271,7 +285,7 @@ router.post('/:id/activate', async (req: Request, res: Response) => {
  * POST /api/v1/professores/:id/reset-password
  * Reset rÃ¡pido de senha do professor
  */
-router.post('/:id/reset-password', async (req: Request, res: Response) => {
+router.post('/:id/reset-password', screenAccessMiddleware('collaborators.registration'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const contractId = (req as any).user.contractId;
@@ -289,4 +303,3 @@ router.post('/:id/reset-password', async (req: Request, res: Response) => {
 });
 
 export default router;
-
