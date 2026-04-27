@@ -1,24 +1,8 @@
 ﻿import { create } from 'zustand';
 import { authService } from '../services/auth.service';
-import type { CollaboratorFunctionInfo, LoginRequest, RegisterRequest } from '@corrida/types';
+import type { AuthResponse, LoginRequest, RegisterRequest } from '@corrida/types';
 
-interface User {
-  id: string;
-  email: string;
-  name: string;
-  type: 'professor' | 'aluno';
-  professor?: {
-    id: string;
-    role: 'master' | 'professor';
-    collaboratorFunction: CollaboratorFunctionInfo;
-    contract: {
-      id: string;
-      type: 'academy' | 'personal';
-      document: string;
-      name?: string | null;
-    };
-  } | null;
-}
+type User = AuthResponse['user'];
 
 interface AuthState {
   user: User | null;

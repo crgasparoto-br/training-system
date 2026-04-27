@@ -148,7 +148,6 @@ export default function SettingsServices() {
                 <thead>
                   <tr className="border-b text-left text-xs uppercase text-muted-foreground">
                     <th className="px-3 py-2">{settingsServicesCopy.tableName}</th>
-                    <th className="px-3 py-2">{settingsServicesCopy.tableCode}</th>
                     <th className="px-3 py-2 text-center">{settingsServicesCopy.tableStatus}</th>
                     <th className="px-3 py-2 text-center">{settingsServicesCopy.tableOrigin}</th>
                     <th className="px-3 py-2 text-right">{settingsServicesCopy.tableActions}</th>
@@ -157,13 +156,13 @@ export default function SettingsServices() {
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">
+                      <td colSpan={4} className="px-3 py-6 text-center text-muted-foreground">
                         {settingsServicesCopy.loading}
                       </td>
                     </tr>
                   ) : items.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">
+                      <td colSpan={4} className="px-3 py-6 text-center text-muted-foreground">
                         {settingsServicesCopy.empty}
                       </td>
                     </tr>
@@ -171,7 +170,6 @@ export default function SettingsServices() {
                     items.map((item) => (
                       <tr key={item.id} className="border-b">
                         <td className="px-3 py-2 font-medium text-foreground">{item.name}</td>
-                        <td className="px-3 py-2 text-muted-foreground">{item.code}</td>
                         <td className="px-3 py-2 text-center">
                           <span
                             className={`rounded-full px-2 py-1 text-xs font-medium ${

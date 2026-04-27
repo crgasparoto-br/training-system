@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react';
 import { collaboratorFunctionService } from '../../services/collaborator-function.service';
-import type { CollaboratorFunctionOption } from '@corrida/types';
+import {
+  ACCESS_BLOCK_CATALOG,
+  ACCESS_SCREEN_CATALOG,
+  DEFAULT_ACCESS_BY_PROFILE_CODE,
+  FALLBACK_ACCESS_PROFILE_CODE,
+  type CollaboratorFunctionOption,
+} from '@corrida/types';
 import { Button } from '../../components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
@@ -11,6 +17,33 @@ const defaultForm = {
   isActive: true,
 };
 
+type PermissionSelection = {
+  screens: string[];
+  blocks: string[];
+};
+
+const fallbackPermissions = DEFAULT_ACCESS_BY_PROFILE_CODE[FALLBACK_ACCESS_PROFILE_CODE];
+
+const defaultPermissionSelection: PermissionSelection = {
+  screens: [...fallbackPermissions.screens],
+  blocks: [...fallbackPermissions.blocks],
+};
+
+function getPermissionSelection(item?: CollaboratorFunctionOption | null): PermissionSelection {
+  if (!item?.accessPermissions?.length) {
+    return defaultPermissionSelection;
+  }
+
+  return {
+    screens: item.accessPermissions
+      .filter((permission) => permission.canView && !permission.blockKey)
+      .map((permission) => permission.screenKey),
+    blocks: item.accessPermissions
+      .filter((permission) => permission.canView && permission.blockKey)
+      .map((permission) => permission.blockKey as string),
+  };
+}
+
 export default function SettingsCollaboratorFunctions() {
   const [items, setItems] = useState<CollaboratorFunctionOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -18,6 +51,7 @@ export default function SettingsCollaboratorFunctions() {
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(defaultForm);
+  const [permissions, setPermissions] = useState(defaultPermissionSelection);
 
   const loadItems = async () => {
     setLoading(true);
@@ -39,6 +73,7 @@ export default function SettingsCollaboratorFunctions() {
   const resetForm = () => {
     setEditingId(null);
     setForm(defaultForm);
+    setPermissions(defaultPermissionSelection);
   };
 
   const handleEdit = (item: CollaboratorFunctionOption) => {
@@ -47,6 +82,35 @@ export default function SettingsCollaboratorFunctions() {
       name: item.name,
       isActive: item.isActive,
     });
+    setPermissions(getPermissionSelection(item));
+  };
+
+  const toggleScreenPermission = (screenKey: string, checked: boolean) => {
+    setPermissions((current) => {
+      const screenBlocks: string[] = ACCESS_BLOCK_CATALOG
+        .filter((block) => block.screenKey === screenKey)
+        .map((block) => block.key);
+
+      return {
+        screens: checked
+          ? Array.from(new Set([...current.screens, screenKey]))
+          : current.screens.filter((key) => key !== screenKey),
+        blocks: checked
+          ? current.blocks
+          : current.blocks.filter((key) => !screenBlocks.includes(key)),
+      };
+    });
+  };
+
+  const toggleBlockPermission = (screenKey: string, blockKey: string, checked: boolean) => {
+    setPermissions((current) => ({
+      screens: checked
+        ? Array.from(new Set([...current.screens, screenKey]))
+        : current.screens,
+      blocks: checked
+        ? Array.from(new Set([...current.blocks, blockKey]))
+        : current.blocks.filter((key) => key !== blockKey),
+    }));
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -59,11 +123,13 @@ export default function SettingsCollaboratorFunctions() {
         await collaboratorFunctionService.update(editingId, {
           name: form.name,
           isActive: form.isActive,
+          permissions,
         });
       } else {
         await collaboratorFunctionService.create({
           name: form.name,
           isActive: form.isActive,
+          permissions,
         });
       }
 
@@ -125,6 +191,66 @@ export default function SettingsCollaboratorFunctions() {
                 {settingsCollaboratorFunctionsCopy.activeLabel}
               </label>
 
+              <div className="space-y-3 rounded-lg border border-border bg-muted/20 p-4">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Permissões de acesso</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Defina quais telas e blocos internos ficam visíveis para este perfil.
+                  </p>
+                </div>
+
+                <div className="max-h-[360px] space-y-3 overflow-y-auto pr-1">
+                  {ACCESS_SCREEN_CATALOG.map((screen) => {
+                    const screenChecked = permissions.screens.includes(screen.key);
+                    const blocks = ACCESS_BLOCK_CATALOG.filter(
+                      (block) => block.screenKey === screen.key
+                    );
+
+                    return (
+                      <div key={screen.key} className="rounded-md border border-border bg-background p-3">
+                        <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+                          <input
+                            type="checkbox"
+                            checked={screenChecked}
+                            onChange={(event) =>
+                              toggleScreenPermission(screen.key, event.target.checked)
+                            }
+                            className="h-4 w-4"
+                          />
+                          {screen.label}
+                        </label>
+
+                        {blocks.length > 0 && (
+                          <div className="mt-3 space-y-2 border-l border-border pl-4">
+                            {blocks.map((block) => (
+                              <label
+                                key={block.key}
+                                className="flex items-center gap-2 text-xs text-muted-foreground"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={permissions.blocks.includes(block.key)}
+                                  disabled={!screenChecked}
+                                  onChange={(event) =>
+                                    toggleBlockPermission(
+                                      screen.key,
+                                      block.key,
+                                      event.target.checked
+                                    )
+                                  }
+                                  className="h-4 w-4"
+                                />
+                                {block.label}
+                              </label>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
               <div className="flex items-center gap-2">
                 <Button type="submit" isLoading={saving}>
                   {editingId
@@ -152,7 +278,6 @@ export default function SettingsCollaboratorFunctions() {
                 <thead>
                   <tr className="border-b text-left text-xs uppercase text-muted-foreground">
                     <th className="px-3 py-2">{settingsCollaboratorFunctionsCopy.tableName}</th>
-                    <th className="px-3 py-2">{settingsCollaboratorFunctionsCopy.tableCode}</th>
                     <th className="px-3 py-2 text-center">{settingsCollaboratorFunctionsCopy.tableStatus}</th>
                     <th className="px-3 py-2 text-center">{settingsCollaboratorFunctionsCopy.tableOrigin}</th>
                     <th className="px-3 py-2 text-right">{settingsCollaboratorFunctionsCopy.tableActions}</th>
@@ -161,13 +286,13 @@ export default function SettingsCollaboratorFunctions() {
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">
+                      <td colSpan={4} className="px-3 py-6 text-center text-muted-foreground">
                         {settingsCollaboratorFunctionsCopy.loading}
                       </td>
                     </tr>
                   ) : items.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">
+                      <td colSpan={4} className="px-3 py-6 text-center text-muted-foreground">
                         {settingsCollaboratorFunctionsCopy.empty}
                       </td>
                     </tr>
@@ -175,7 +300,6 @@ export default function SettingsCollaboratorFunctions() {
                     items.map((item) => (
                       <tr key={item.id} className="border-b">
                         <td className="px-3 py-2 font-medium text-foreground">{item.name}</td>
-                        <td className="px-3 py-2 text-muted-foreground">{item.code}</td>
                         <td className="px-3 py-2 text-center">
                           <span
                             className={`rounded-full px-2 py-1 text-xs font-medium ${

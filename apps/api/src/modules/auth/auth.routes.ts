@@ -62,21 +62,13 @@ router.get('/me', authMiddleware, async (req: Request, res: Response) => {
       return sendError(res, 'NÃ£o autenticado', 401);
     }
 
-    const user = await authService.getUserById(req.user.userId);
+    const user = await authService.getAuthenticatedUserById(req.user.userId);
 
     if (!user) {
       return sendError(res, 'UsuÃ¡rio nÃ£o encontrado', 404);
     }
 
-    return sendSuccess(res, {
-      id: user.id,
-      email: user.email,
-      name: user.profile?.name,
-      type: user.type,
-      profile: user.profile,
-      professor: user.professor,
-      aluno: user.aluno,
-    });
+    return sendSuccess(res, user);
   } catch (error: any) {
     return sendError(res, error.message, 500);
   }

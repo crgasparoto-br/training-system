@@ -191,6 +191,11 @@ const professorHourlyRatesNullableSchema = z.object({
   evaluation: optionalNullableNonNegativeNumberSchema,
 });
 
+const accessPermissionSelectionSchema = z.object({
+  screens: z.array(z.string().trim().min(1, 'Tela invalida')),
+  blocks: z.array(z.string().trim().min(1, 'Bloco invalido')),
+});
+
 // ============================================================================
 // AUTENTICACAO
 // ============================================================================
@@ -229,6 +234,7 @@ export const CreateProfessorSchema = z.object({
   professionalSummary: optionalTextSchema,
   lattesUrl: optionalUrlSchema,
   companyDocument: optionalCnpjSchema,
+  bankCode: optionalTextSchema,
   bankName: optionalTextSchema,
   bankBranch: optionalTextSchema,
   bankAccount: optionalTextSchema,
@@ -282,6 +288,7 @@ export const UpdateProfessorSchema = z.object({
   professionalSummary: optionalNullableTextSchema,
   lattesUrl: optionalNullableUrlSchema,
   companyDocument: optionalNullableCnpjSchema,
+  bankCode: optionalNullableTextSchema,
   bankName: optionalNullableTextSchema,
   bankBranch: optionalNullableTextSchema,
   bankAccount: optionalNullableTextSchema,
@@ -314,6 +321,7 @@ export const UpdateProfessorSchema = z.object({
 export const CreateCollaboratorFunctionSchema = z.object({
   name: z.string().trim().min(2, 'Nome da funcao deve ter no minimo 2 caracteres'),
   isActive: z.boolean().optional(),
+  permissions: accessPermissionSelectionSchema.optional(),
 });
 
 export const UpdateCollaboratorFunctionSchema = z.object({
@@ -322,6 +330,7 @@ export const UpdateCollaboratorFunctionSchema = z.object({
     z.string().trim().min(2, 'Nome da funcao deve ter no minimo 2 caracteres').optional()
   ),
   isActive: z.boolean().optional(),
+  permissions: accessPermissionSelectionSchema.optional(),
 });
 
 export const CreateServiceSchema = z.object({
