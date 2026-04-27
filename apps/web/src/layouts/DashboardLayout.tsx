@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Activity, BarChart3, BookOpen, Calendar, FileText, Home, LogOut, Menu, Settings, Users, X } from 'lucide-react';
+import { Activity, BarChart3, BookOpen, Calendar, FileText, LogOut, Menu, Settings, Users, X } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { useAuthStore } from '../stores/useAuthStore';
 import { Button } from '../components/ui/Button';
@@ -28,7 +28,6 @@ export function DashboardLayout() {
 
   const menuItems = useMemo<SidebarNavItem[]>(
     () => [
-      { id: 'dashboard', icon: Home, label: shellCopy.menu.dashboard, path: '/dashboard' },
       ...(canManageProfessores ? [{ id: 'professores', icon: Users, label: shellCopy.menu.professores, path: '/professores' }] : []),
       { id: 'alunos', icon: Users, label: shellCopy.menu.alunos, path: '/alunos' },
       {

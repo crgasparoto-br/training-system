@@ -1,7 +1,6 @@
 ﻿import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
-import { Dashboard } from './pages/Dashboard';
 import { Professores } from './pages/Professores';
 import { Alunos } from './pages/Alunos';
 import { AlunoForm } from './pages/AlunoForm';
@@ -44,8 +43,7 @@ function App() {
             </ProtectedRoute>
           }
         >
-          <Route index element={<Navigate to="/dashboard" replace />} />
-          <Route path="dashboard" element={<Dashboard />} />
+          <Route index element={<Navigate to="/alunos" replace />} />
           <Route path="professores" element={<Professores />} />
           <Route path="alunos" element={<Alunos />} />
           <Route path="alunos/new" element={<AlunoForm />} />
@@ -85,7 +83,7 @@ function App() {
         </Route>
 
         {/* 404 */}
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        <Route path="*" element={<Navigate to="/alunos" replace />} />
       </Routes>
     </BrowserRouter>
   );
