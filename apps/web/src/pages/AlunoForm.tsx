@@ -40,10 +40,17 @@ const financialSchema = z.object({
   currentService: z.string().optional(),
   specialCondition: z.string().optional(),
   monthlyValue: z.string().optional(),
+  discountPercentage: z.string().optional(),
   responsibleProfessorId: z.string().optional(),
   responsibleProfessorName: z.string().optional(),
   paymentDay: z.string().optional(),
+  contractStartDate: z.string().optional(),
+  contractDurationUnit: z.enum(['', 'days', 'months', 'years']).optional(),
+  contractDurationQuantity: z.string().optional(),
+  contractDueDate: z.string().optional(),
   contract: z.string().optional(),
+  cameFromReferral: z.enum(['', 'yes', 'no']).optional(),
+  referralPerson: z.string().optional(),
   otherObservations: z.string().optional(),
 });
 
@@ -387,10 +394,17 @@ export function AlunoForm() {
           currentService: '',
           specialCondition: '',
           monthlyValue: '',
+          discountPercentage: '',
           responsibleProfessorId: '',
           responsibleProfessorName: '',
           paymentDay: '',
+          contractStartDate: '',
+          contractDurationUnit: '',
+          contractDurationQuantity: '',
+          contractDueDate: '',
           contract: '',
+          cameFromReferral: '',
+          referralPerson: '',
           otherObservations: '',
         },
         preferencesInfo: {
@@ -429,6 +443,7 @@ export function AlunoForm() {
   const birthDate = watch('birthDate');
   const avatar = watch('avatar');
   const studentName = watch('name');
+  const cameFromReferral = watch('intakeForm.financialInfo.cameFromReferral');
   const calculatedAge = calculateAgeFromBirthDate(birthDate);
   const parqDeclarationAccepted = watch('intakeForm.parqResponses.q8');
   const bmi = weight && height ? alunoService.calculateBMI(weight, height) : 0;
@@ -459,6 +474,92 @@ export function AlunoForm() {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     });
+
+  const formatPercentageInput = (value: string) => {
+    const sanitized = value.replace(/[^\d,]/g, '');
+    const [integerPart, decimalPart] = sanitized.split(',');
+    const limitedInteger = (integerPart || '').slice(0, 3);
+    const limitedDecimal = (decimalPart || '').slice(0, 2);
+    const normalized = limitedDecimal ? `${limitedInteger},${limitedDecimal}` : limitedInteger;
+
+    if (!normalized) return '';
+
+    const numericValue = Number(normalized.replace(',', '.'));
+    if (!Number.isFinite(numericValue)) return '';
+    if (numericValue < 0) return '0';
+    if (numericValue > 100) return '100';
+
+    return normalized;
+  };
+
+  const parseCurrencyInput = (value?: string) => {
+    if (!value) return undefined;
+
+    const normalized = value.replace(/\./g, '').replace(',', '.');
+    const numericValue = Number(normalized);
+
+    return Number.isFinite(numericValue) ? numericValue : undefined;
+  };
+
+  const normalizeDurationQuantity = (value: string) => value.replace(/\D/g, '').slice(0, 3);
+
+  const formatInputDateFromParts = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+
+    return `${year}-${month}-${day}`;
+  };
+
+  const addMonthsPreservingDay = (baseDate: Date, quantity: number) => {
+    const originalDay = baseDate.getDate();
+    const targetMonthIndex = baseDate.getMonth() + quantity;
+    const targetYear = baseDate.getFullYear() + Math.floor(targetMonthIndex / 12);
+    const normalizedMonth = ((targetMonthIndex % 12) + 12) % 12;
+    const lastDayOfTargetMonth = new Date(targetYear, normalizedMonth + 1, 0).getDate();
+
+    return new Date(targetYear, normalizedMonth, Math.min(originalDay, lastDayOfTargetMonth));
+  };
+
+  const calculateContractDueDate = (startDate?: string, unit?: string, quantity?: string) => {
+    if (!startDate || !unit || !quantity) {
+      return '';
+    }
+
+    const numericQuantity = Number(quantity);
+    if (!Number.isInteger(numericQuantity) || numericQuantity <= 0) {
+      return '';
+    }
+
+    const [year, month, day] = startDate.split('-').map(Number);
+    const baseDate = new Date(year, (month || 1) - 1, day || 1);
+    if (Number.isNaN(baseDate.getTime())) {
+      return '';
+    }
+
+    let dueDate = new Date(baseDate);
+
+    if (unit === 'days') {
+      dueDate.setDate(dueDate.getDate() + numericQuantity);
+    } else if (unit === 'months') {
+      dueDate = addMonthsPreservingDay(baseDate, numericQuantity);
+    } else if (unit === 'years') {
+      dueDate = addMonthsPreservingDay(baseDate, numericQuantity * 12);
+    } else {
+      return '';
+    }
+
+    return formatInputDateFromParts(dueDate);
+  };
+
+  const calculateDiscountedMonthlyValue = (referenceValue: number, discount?: string) => {
+    const numericDiscount = Number((discount || '').replace(',', '.'));
+    const safeDiscount = Number.isFinite(numericDiscount)
+      ? Math.min(Math.max(numericDiscount, 0), 100)
+      : 0;
+
+    return formatCurrencyValue(referenceValue * (1 - safeDiscount / 100));
+  };
 
   const normalizePaymentDay = (value: string) => {
     const digits = value.replace(/\D/g, '').slice(0, 2);
@@ -590,6 +691,17 @@ export function AlunoForm() {
     });
   }, [calculatedAge, setValue]);
 
+  useEffect(() => {
+    if (cameFromReferral === 'yes') {
+      return;
+    }
+
+    setValue('intakeForm.financialInfo.referralPerson', '', {
+      shouldDirty: false,
+      shouldValidate: true,
+    });
+  }, [cameFromReferral, setValue]);
+
   const loadServiceOptions = async () => {
     setServicesLoading(true);
     setServicesError(null);
@@ -621,9 +733,28 @@ export function AlunoForm() {
   const interestServiceOptions = serviceOptions.filter((item) => !item.parentServiceId);
   const financialServiceOptions = serviceOptions.filter((item) => item.parentServiceId);
   const selectedFinancialServiceName = watch('intakeForm.financialInfo.currentService');
+  const monthlyValue = watch('intakeForm.financialInfo.monthlyValue');
+  const discountPercentage = watch('intakeForm.financialInfo.discountPercentage');
   const selectedFinancialService = financialServiceOptions.find(
     (item) => item.name === selectedFinancialServiceName
   );
+  const contractStartDate = watch('intakeForm.financialInfo.contractStartDate');
+  const contractDurationUnit = watch('intakeForm.financialInfo.contractDurationUnit');
+  const contractDurationQuantity = watch('intakeForm.financialInfo.contractDurationQuantity');
+  const currentContractDueDate = watch('intakeForm.financialInfo.contractDueDate');
+  const discountedMonthlyValue = (() => {
+    const numericMonthlyValue = parseCurrencyInput(monthlyValue);
+
+    if (numericMonthlyValue === undefined) {
+      return '';
+    }
+
+    return calculateDiscountedMonthlyValue(numericMonthlyValue, discountPercentage);
+  })();
+  const calculatedContractDueDate =
+    calculateContractDueDate(contractStartDate, contractDurationUnit, contractDurationQuantity) ||
+    currentContractDueDate ||
+    '';
 
   const loadAlunoData = async (alunoId: string) => {
     setLoadingData(true);
@@ -679,10 +810,17 @@ export function AlunoForm() {
       setValue('intakeForm.financialInfo.currentService', financial.currentService || '');
       setValue('intakeForm.financialInfo.specialCondition', financial.specialCondition || '');
       setValue('intakeForm.financialInfo.monthlyValue', financial.monthlyValue || '');
+      setValue('intakeForm.financialInfo.discountPercentage', financial.discountPercentage || '');
       setValue('intakeForm.financialInfo.responsibleProfessorId', financial.responsibleProfessorId || '');
       setValue('intakeForm.financialInfo.responsibleProfessorName', financial.responsibleProfessorName || '');
       setValue('intakeForm.financialInfo.paymentDay', financial.paymentDay || '');
+      setValue('intakeForm.financialInfo.contractStartDate', financial.contractStartDate || '');
+      setValue('intakeForm.financialInfo.contractDurationUnit', financial.contractDurationUnit || '');
+      setValue('intakeForm.financialInfo.contractDurationQuantity', financial.contractDurationQuantity || '');
+      setValue('intakeForm.financialInfo.contractDueDate', financial.contractDueDate || '');
       setValue('intakeForm.financialInfo.contract', financial.contract || '');
+      setValue('intakeForm.financialInfo.cameFromReferral', financial.cameFromReferral || '');
+      setValue('intakeForm.financialInfo.referralPerson', financial.referralPerson || '');
       setValue('intakeForm.financialInfo.otherObservations', financial.otherObservations || '');
       setValue('intakeForm.preferencesInfo.hasChildren', preferences.hasChildren || '');
       setValue('intakeForm.preferencesInfo.childrenCount', preferences.childrenCount || '');
@@ -747,7 +885,15 @@ export function AlunoForm() {
       };
       const formResponses = {
         identification: data.intakeForm.personalInfo,
-        financial: data.intakeForm.financialInfo,
+        financial: {
+          ...data.intakeForm.financialInfo,
+          contractDueDate:
+            calculateContractDueDate(
+              data.intakeForm.financialInfo.contractStartDate,
+              data.intakeForm.financialInfo.contractDurationUnit,
+              data.intakeForm.financialInfo.contractDurationQuantity
+            ) || data.intakeForm.financialInfo.contractDueDate,
+        },
         preferences: data.intakeForm.preferencesInfo,
         parqResponses,
         ahaResponses: data.intakeForm.ahaResponses,
@@ -1281,137 +1427,236 @@ export function AlunoForm() {
                     <p className="text-sm text-muted-foreground">Centralize condições comerciais, vínculo atual e notas administrativas do aluno.</p>
                   </div>
 
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div className="space-y-4 rounded-xl border border-border bg-muted/20 p-5">
                     <div>
-                      <label className="mb-2 block text-sm font-medium text-foreground">Serviço Vigente</label>
-                      {servicesLoading ? (
-                        <p className="text-sm text-muted-foreground">Carregando serviços...</p>
-                      ) : servicesError ? (
-                        <p className="text-sm text-destructive">{servicesError}</p>
-                      ) : financialServiceOptions.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">Nenhuma oferta financeira ativa cadastrada em Configurações &gt; Serviços.</p>
-                      ) : (
-                        <>
+                      <h3 className="text-sm font-semibold text-foreground">Oferta e vínculo comercial</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">Defina o serviço vigente, registre exceções comerciais e mantenha a referência contratual do aluno.</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.4fr_0.9fr]">
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-foreground">Serviço Vigente</label>
+                        {servicesLoading ? (
+                          <p className="text-sm text-muted-foreground">Carregando serviços...</p>
+                        ) : servicesError ? (
+                          <p className="text-sm text-destructive">{servicesError}</p>
+                        ) : financialServiceOptions.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">Nenhuma oferta financeira ativa cadastrada em Configurações &gt; Serviços.</p>
+                        ) : (
+                          <>
+                            <select
+                              className={selectClassName}
+                              {...register('intakeForm.financialInfo.currentService', {
+                                onChange: (event) => {
+                                  const selectedService = financialServiceOptions.find(
+                                    (service) => service.name === event.target.value
+                                  );
+
+                                  if (selectedService?.monthlyPrice !== null && selectedService?.monthlyPrice !== undefined) {
+                                    setValue(
+                                      'intakeForm.financialInfo.monthlyValue',
+                                      formatCurrencyValue(selectedService.monthlyPrice),
+                                      { shouldValidate: true }
+                                    );
+                                  }
+                                },
+                              })}
+                            >
+                              <option value="">Selecione uma oferta financeira</option>
+                              {financialServiceOptions.map((service) => (
+                                <option key={service.id} value={service.name}>
+                                  {service.parentService?.name ? `${service.parentService.name} • ${service.name}` : service.name}
+                                </option>
+                              ))}
+                            </select>
+
+                            {selectedFinancialService && (
+                              <div className="mt-3 rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
+                                <p>
+                                  {selectedFinancialService.parentService?.name
+                                    ? `Serviço base: ${selectedFinancialService.parentService.name}. `
+                                    : ''}
+                                  {selectedFinancialService.monthlyPrice !== null && selectedFinancialService.monthlyPrice !== undefined
+                                    ? `Valor de referência: R$ ${formatCurrencyValue(selectedFinancialService.monthlyPrice)}. `
+                                    : ''}
+                                  {selectedFinancialService.validFrom || selectedFinancialService.validUntil
+                                    ? `Vigência: ${selectedFinancialService.validFrom ? formatDateLabel(selectedFinancialService.validFrom) : 'início não informado'}${selectedFinancialService.validUntil ? ` até ${formatDateLabel(selectedFinancialService.validUntil)}` : ''}.`
+                                    : ''}
+                                </p>
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+
+                      <div className="space-y-4">
+                        <Input
+                          label="Condição Especial"
+                          placeholder="Ex.: bolsa parcial, desconto familiar, cortesia"
+                          {...register('intakeForm.financialInfo.specialCondition')}
+                        />
+                        <Input
+                          label="Contrato"
+                          placeholder="Ex.: contrato anual, mensal recorrente, pacote promocional"
+                          {...register('intakeForm.financialInfo.contract')}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 rounded-xl border border-border bg-card p-5">
+                    <div>
+                      <h3 className="text-sm font-semibold text-foreground">Cobrança</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">Organize valores, desconto, datas e responsável financeiro em uma única leitura operacional.</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                      <Input
+                        label="Valor Mensal"
+                        type="text"
+                        inputMode="decimal"
+                        placeholder="0,00"
+                        {...register('intakeForm.financialInfo.monthlyValue', {
+                          onChange: (event) => {
+                            const formatted = formatCurrencyInput(event.target.value);
+                            setValue('intakeForm.financialInfo.monthlyValue', formatted, { shouldValidate: true });
+                          },
+                        })}
+                      />
+                      <Input
+                        label="Desconto (%)"
+                        type="text"
+                        inputMode="decimal"
+                        placeholder="0"
+                        {...register('intakeForm.financialInfo.discountPercentage', {
+                          onChange: (event) => {
+                            const formatted = formatPercentageInput(event.target.value);
+                            setValue('intakeForm.financialInfo.discountPercentage', formatted, { shouldValidate: true });
+                          },
+                        })}
+                      />
+                      <Input
+                        label="Valor com Desconto"
+                        type="text"
+                        value={discountedMonthlyValue}
+                        readOnly
+                        disabled
+                      />
+                      <Input
+                        label="Data de Início do Contrato"
+                        type="date"
+                        {...register('intakeForm.financialInfo.contractStartDate')}
+                      />
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-foreground">Duração do contrato</label>
+                        <select className={selectClassName} {...register('intakeForm.financialInfo.contractDurationUnit')}>
+                          <option value="">Selecione</option>
+                          <option value="days">Dias</option>
+                          <option value="months">Meses</option>
+                          <option value="years">Anos</option>
+                        </select>
+                      </div>
+                      <Input
+                        label="Quantidade"
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="Ex.: 6"
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            event.preventDefault();
+                          }
+                        }}
+                        {...register('intakeForm.financialInfo.contractDurationQuantity', {
+                          onChange: (event) => {
+                            const normalized = normalizeDurationQuantity(event.target.value);
+                            setValue('intakeForm.financialInfo.contractDurationQuantity', normalized, { shouldValidate: true });
+                          },
+                        })}
+                      />
+                      <Input
+                        label="Vencimento do Contrato"
+                        type="date"
+                        value={calculatedContractDueDate}
+                        readOnly
+                        disabled
+                      />
+                      <Input
+                        label="Dia de pagamento"
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="10"
+                        {...register('intakeForm.financialInfo.paymentDay', {
+                          onChange: (event) => {
+                            const normalized = normalizePaymentDay(event.target.value);
+                            setValue('intakeForm.financialInfo.paymentDay', normalized, { shouldValidate: true });
+                          },
+                        })}
+                      />
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-foreground">Professor Responsável</label>
+                        {professorsLoading ? (
+                          <p className="text-sm text-muted-foreground">Carregando professores...</p>
+                        ) : professorsError ? (
+                          <p className="text-sm text-destructive">{professorsError}</p>
+                        ) : (
                           <select
                             className={selectClassName}
-                            {...register('intakeForm.financialInfo.currentService', {
+                            {...register('intakeForm.financialInfo.responsibleProfessorId', {
                               onChange: (event) => {
-                                const selectedService = financialServiceOptions.find(
-                                  (service) => service.name === event.target.value
+                                const selectedProfessor = professorOptions.find(
+                                  (professor) => professor.id === event.target.value
                                 );
-
-                                if (selectedService?.monthlyPrice !== null && selectedService?.monthlyPrice !== undefined) {
-                                  setValue(
-                                    'intakeForm.financialInfo.monthlyValue',
-                                    formatCurrencyValue(selectedService.monthlyPrice),
-                                    { shouldValidate: true }
-                                  );
-                                }
+                                setValue(
+                                  'intakeForm.financialInfo.responsibleProfessorName',
+                                  selectedProfessor?.user.profile.name || '',
+                                  { shouldValidate: true }
+                                );
                               },
                             })}
                           >
-                            <option value="">Selecione uma oferta financeira</option>
-                            {financialServiceOptions.map((service) => (
-                              <option key={service.id} value={service.name}>
-                                {service.parentService?.name ? `${service.parentService.name} • ${service.name}` : service.name}
+                            <option value="">Selecione um professor</option>
+                            {professorOptions.map((professor) => (
+                              <option key={professor.id} value={professor.id}>
+                                {professor.user.profile.name}
                               </option>
                             ))}
                           </select>
-
-                          {selectedFinancialService && (
-                            <p className="mt-2 text-sm text-muted-foreground">
-                              {selectedFinancialService.parentService?.name
-                                ? `Serviço base: ${selectedFinancialService.parentService.name}. `
-                                : ''}
-                              {selectedFinancialService.monthlyPrice !== null && selectedFinancialService.monthlyPrice !== undefined
-                                ? `Valor de referência: R$ ${formatCurrencyValue(selectedFinancialService.monthlyPrice)}. `
-                                : ''}
-                              {selectedFinancialService.validFrom || selectedFinancialService.validUntil
-                                ? `Vigência: ${selectedFinancialService.validFrom ? formatDateLabel(selectedFinancialService.validFrom) : 'início não informado'}${selectedFinancialService.validUntil ? ` até ${formatDateLabel(selectedFinancialService.validUntil)}` : ''}.`
-                                : ''}
-                            </p>
-                          )}
-                        </>
-                      )}
+                        )}
+                      </div>
                     </div>
-                    <Input
-                      label="Condição Especial"
-                      placeholder="Ex.: bolsa parcial, desconto familiar, cortesia"
-                      {...register('intakeForm.financialInfo.specialCondition')}
-                    />
                   </div>
 
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                    <Input
-                      label="Valor Mensal"
-                      type="text"
-                      inputMode="decimal"
-                      placeholder="0,00"
-                      {...register('intakeForm.financialInfo.monthlyValue', {
-                        onChange: (event) => {
-                          const formatted = formatCurrencyInput(event.target.value);
-                          setValue('intakeForm.financialInfo.monthlyValue', formatted, { shouldValidate: true });
-                        },
-                      })}
-                    />
+                  <div className="space-y-4 rounded-xl border border-border bg-muted/20 p-5">
                     <div>
-                      <label className="mb-2 block text-sm font-medium text-foreground">Professor Responsável</label>
-                      {professorsLoading ? (
-                        <p className="text-sm text-muted-foreground">Carregando professores...</p>
-                      ) : professorsError ? (
-                        <p className="text-sm text-destructive">{professorsError}</p>
-                      ) : (
-                        <select
-                          className={selectClassName}
-                          {...register('intakeForm.financialInfo.responsibleProfessorId', {
-                            onChange: (event) => {
-                              const selectedProfessor = professorOptions.find(
-                                (professor) => professor.id === event.target.value
-                              );
-                              setValue(
-                                'intakeForm.financialInfo.responsibleProfessorName',
-                                selectedProfessor?.user.profile.name || '',
-                                { shouldValidate: true }
-                              );
-                            },
-                          })}
-                        >
-                          <option value="">Selecione um professor</option>
-                          {professorOptions.map((professor) => (
-                            <option key={professor.id} value={professor.id}>
-                              {professor.user.profile.name}
-                            </option>
-                          ))}
-                        </select>
-                      )}
+                      <h3 className="text-sm font-semibold text-foreground">Origem e observações</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">Registre a origem comercial do aluno e mantenha o contexto administrativo associado ao cadastro.</p>
                     </div>
-                    <Input
-                      label="Dia de pagamento"
-                      type="text"
-                      inputMode="numeric"
-                      placeholder="10"
-                      {...register('intakeForm.financialInfo.paymentDay', {
-                        onChange: (event) => {
-                          const normalized = normalizePaymentDay(event.target.value);
-                          setValue('intakeForm.financialInfo.paymentDay', normalized, { shouldValidate: true });
-                        },
-                      })}
-                    />
-                  </div>
 
-                  <Input
-                    label="Contrato"
-                    placeholder="Ex.: contrato anual, mensal recorrente, pacote promocional"
-                    {...register('intakeForm.financialInfo.contract')}
-                  />
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-foreground">Veio por alguma indicação?</label>
+                        <select className={selectClassName} {...register('intakeForm.financialInfo.cameFromReferral')}>
+                          <option value="">Não informar</option>
+                          <option value="yes">Sim</option>
+                          <option value="no">Não</option>
+                        </select>
+                      </div>
+                      <Input
+                        label="Quem indicou?"
+                        placeholder="Nome de quem indicou o aluno"
+                        disabled={cameFromReferral !== 'yes'}
+                        {...register('intakeForm.financialInfo.referralPerson')}
+                      />
+                    </div>
 
-                  <div>
-                    <label className="mb-2 block text-sm font-medium text-foreground">Outras observações</label>
-                    <textarea
-                      className={textareaClassName}
-                      placeholder="Registre regras de cobrança, exceções combinadas ou contexto administrativo relevante"
-                      {...register('intakeForm.financialInfo.otherObservations')}
-                    />
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-foreground">Outras observações</label>
+                      <textarea
+                        className={textareaClassName}
+                        placeholder="Registre regras de cobrança, exceções combinadas ou contexto administrativo relevante"
+                        {...register('intakeForm.financialInfo.otherObservations')}
+                      />
+                    </div>
                   </div>
                 </section>
               </div>

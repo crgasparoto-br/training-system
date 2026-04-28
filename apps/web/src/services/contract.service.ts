@@ -5,6 +5,7 @@ export interface Contract {
   type: 'academy' | 'personal';
   document: string;
   name?: string | null;
+  tradeName?: string | null;
   cref?: string | null;
   addressStreet?: string | null;
   addressNumber?: string | null;
@@ -27,6 +28,7 @@ export const contractService = {
   async updateMe(data: {
     name?: string;
     document?: string;
+    tradeName?: string | null;
     cref?: string | null;
     addressStreet?: string | null;
     addressNumber?: string | null;

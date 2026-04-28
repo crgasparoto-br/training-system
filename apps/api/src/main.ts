@@ -9,6 +9,7 @@ import { authRoutes } from './modules/auth/index.js';
 import { alunoRoutes } from './modules/alunos/index.js';
 import { bankRoutes } from './modules/banks/index.js';
 import { collaboratorFunctionRoutes } from './modules/collaborator-functions/index.js';
+import { contractRoutes } from './modules/contracts/index.js';
 import { hourlyRateLevelRoutes } from './modules/hourly-rate-levels/index.js';
 import { planRoutes } from './modules/plans/index.js';
 import { professorRoutes } from './modules/professores/index.js';
@@ -99,6 +100,7 @@ app.get('/api/v1', (req, res) => {
       alunos: '/api/v1/alunos',
       banks: '/api/v1/banks',
       collaboratorFunctions: '/api/v1/collaborator-functions',
+      contracts: '/api/v1/contracts',
       hourlyRateLevels: '/api/v1/hourly-rate-levels',
       plans: '/api/v1/plans',
       professores: '/api/v1/professores',
@@ -121,6 +123,9 @@ app.use('/api/v1/banks', bankRoutes);
 
 // Rotas de Funções de Colaboradores
 app.use('/api/v1/collaborator-functions', collaboratorFunctionRoutes);
+
+// Rotas de Contratos
+app.use('/api/v1/contracts', contractRoutes);
 
 // Rotas de Níveis de Valor/Hora
 app.use('/api/v1/hourly-rate-levels', hourlyRateLevelRoutes);
