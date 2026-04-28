@@ -44,14 +44,6 @@ export function AppSidebar({
     || user?.professor?.contract?.name?.trim()
     || 'Sistema Acesso';
 
-  const logoSrc = user?.professor?.contract?.logoUrl?.trim()
-    ? user.professor.contract.logoUrl.startsWith('http://') || user.professor.contract.logoUrl.startsWith('https://')
-      ? user.professor.contract.logoUrl
-      : user.professor.contract.logoUrl.startsWith('/')
-        ? user.professor.contract.logoUrl
-        : `/${user.professor.contract.logoUrl}`
-    : '/brand/acesso-logo.jpg';
-
   const defaultOpenMap = useMemo(() => {
     const opened = new Set<string>();
     collectParentIdsWithActiveChild(items, currentPath, opened);
@@ -72,14 +64,6 @@ export function AppSidebar({
     <SidebarShell collapsible collapsed={collapsed} mobileOpen={mobileOpen}>
       <div className="flex h-full min-h-0 flex-col">
         <div className={cn('flex flex-col border-b border-white/10 px-4 py-4', collapsed && 'items-center')}>
-          <img
-            src={logoSrc}
-            alt={companyDisplayName}
-            className={cn('h-10 w-auto rounded bg-white p-2 object-contain', collapsed && 'mx-auto')}
-            onError={(event) => {
-              event.currentTarget.style.display = 'none';
-            }}
-          />
           {!collapsed && (
             <span className="mt-3 text-sm font-semibold tracking-tight text-sidebar-foreground">{companyDisplayName}</span>
           )}

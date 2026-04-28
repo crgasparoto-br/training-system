@@ -23,6 +23,56 @@ export const ACCESS_SCREEN_CATALOG = [
   { key: 'settings.referenceTable', label: 'Tabela de referencia' },
 ] as const;
 
+export type AccessScreenKey = (typeof ACCESS_SCREEN_CATALOG)[number]['key'];
+
+export const ACCESS_PERMISSION_GROUPS = [
+  {
+    key: 'registrations',
+    label: 'Cadastros',
+    screenKeys: [
+      'students.registration',
+      'collaborators.registration',
+      'hourlyRateLevels.registration',
+    ],
+  },
+  {
+    key: 'physicalAssessment',
+    label: 'Avaliacao fisica',
+    screenKeys: ['physicalAssessment.protocol'],
+  },
+  {
+    key: 'consultations',
+    label: 'Consultas',
+    screenKeys: ['students.consultation', 'collaborators.consultation'],
+  },
+  {
+    key: 'operation',
+    label: 'Operacao',
+    screenKeys: ['plans', 'agenda', 'library', 'executions', 'reports'],
+  },
+  {
+    key: 'settings',
+    label: 'Configuracoes',
+    screenKeys: [
+      'settings.home',
+      'settings.contract',
+      'settings.parameters',
+      'settings.assessmentTypes',
+      'settings.services',
+      'settings.banks',
+      'settings.collaboratorFunctions',
+      'settings.subjectiveScales',
+      'settings.professorManual',
+      'settings.alunoAccess',
+      'settings.referenceTable',
+    ],
+  },
+] as const satisfies readonly {
+  key: string;
+  label: string;
+  screenKeys: readonly AccessScreenKey[];
+}[];
+
 export const ACCESS_BLOCK_CATALOG = [
   {
     key: 'collaborators.registration.collaborator',
@@ -36,7 +86,6 @@ export const ACCESS_BLOCK_CATALOG = [
   },
 ] as const;
 
-export type AccessScreenKey = (typeof ACCESS_SCREEN_CATALOG)[number]['key'];
 export type AccessBlockKey = (typeof ACCESS_BLOCK_CATALOG)[number]['key'];
 
 export interface AccessPermission {
