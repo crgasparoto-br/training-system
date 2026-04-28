@@ -1,8 +1,8 @@
 ﻿import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { sendError, sendSuccess } from '@corrida/utils';
-import { authMiddleware, professorMiddleware } from '../auth/auth.middleware';
-import { jiraService } from './jira.service';
+import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js';
+import { jiraService } from './jira.service.js';
 
 const router: Router = Router();
 
@@ -66,4 +66,3 @@ router.post('/issues', async (req: Request, res: Response) => {
 });
 
 export default router;
-

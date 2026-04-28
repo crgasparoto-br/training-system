@@ -1,6 +1,6 @@
 ﻿import { Router } from 'express';
-import { libraryService } from '../modules/library/library.service';
-import { authMiddleware, professorMiddleware } from '../modules/auth/auth.middleware';
+import { libraryService } from '../modules/library/library.service.js';
+import { authMiddleware, professorMiddleware } from '../modules/auth/auth.middleware.js';
 
 const router: Router = Router();
 

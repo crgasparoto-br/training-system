@@ -1,4 +1,4 @@
-import { assessmentVariableLabels, ParsedAssessmentData } from './assessment-parser';
+import { assessmentVariableLabels, ParsedAssessmentData } from './assessment-parser.js';
 import { fetch, FormData, File } from 'undici';
 
 type AiAssessmentResult = {

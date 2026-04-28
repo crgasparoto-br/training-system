@@ -1,4 +1,4 @@
-import type { ContractInfo } from './auth';
+import type { ContractInfo } from './auth.js';
 
 export interface ServiceOption {
   id: string;

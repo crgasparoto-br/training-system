@@ -1,8 +1,8 @@
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { CreateServiceSchema, UpdateServiceSchema, sendError, sendSuccess } from '@corrida/utils';
-import { authMiddleware, masterMiddleware, professorMiddleware } from '../auth/auth.middleware';
-import { serviceCatalogService } from './service.service';
+import { authMiddleware, masterMiddleware, professorMiddleware } from '../auth/auth.middleware.js';
+import { serviceCatalogService } from './service.service.js';
 
 const router: Router = Router();
 
