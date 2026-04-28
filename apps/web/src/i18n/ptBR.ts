@@ -412,6 +412,7 @@ export const contractCopy = {
   infoTitle: 'Dados cadastrais',
   infoDescription: 'Mantenha a identificação jurídica e profissional da empresa sempre atualizada.',
   contractName: 'Razão social',
+  tradeName: 'Nome fantasia',
   documentLabel: 'CNPJ',
   crefLabel: 'CREF',
   logoTitle: 'Logotipo da empresa',

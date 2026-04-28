@@ -51,6 +51,7 @@ export interface ContractInfo {
   type: ContractType;
   document: string;
   name?: string | null;
+  tradeName?: string | null;
   cref?: string | null;
   addressStreet?: string | null;
   addressNumber?: string | null;

@@ -84,6 +84,7 @@ model Contract {
   type                  ContractType
   document              String                       @unique
   name                  String?
+  tradeName             String?
   cref                  String?
   addressStreet         String?
   addressNumber         String?

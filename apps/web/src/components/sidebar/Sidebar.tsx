@@ -5,6 +5,7 @@ import { Button } from '../ui/Button';
 import { Sidebar as SidebarShell } from '../ui/Sidebar';
 import { SidebarMenuItem } from './SidebarMenuItem';
 import type { SidebarNavItem } from './types';
+import { useAuthStore } from '../../stores/useAuthStore';
 
 interface AppSidebarProps {
   items: SidebarNavItem[];
@@ -37,7 +38,19 @@ export function AppSidebar({
   onToggleCollapsed,
   onNavigate,
 }: AppSidebarProps) {
-  const logoSrc = '/brand/acesso-logo.jpg';
+  const { user } = useAuthStore();
+
+  const companyDisplayName = user?.professor?.contract?.tradeName?.trim()
+    || user?.professor?.contract?.name?.trim()
+    || 'Sistema Acesso';
+
+  const logoSrc = user?.professor?.contract?.logoUrl?.trim()
+    ? user.professor.contract.logoUrl.startsWith('http://') || user.professor.contract.logoUrl.startsWith('https://')
+      ? user.professor.contract.logoUrl
+      : user.professor.contract.logoUrl.startsWith('/')
+        ? user.professor.contract.logoUrl
+        : `/${user.professor.contract.logoUrl}`
+    : '/brand/acesso-logo.jpg';
 
   const defaultOpenMap = useMemo(() => {
     const opened = new Set<string>();
@@ -61,14 +74,14 @@ export function AppSidebar({
         <div className={cn('flex flex-col border-b border-white/10 px-4 py-4', collapsed && 'items-center')}>
           <img
             src={logoSrc}
-            alt="Logo Sistema Acesso"
+            alt={companyDisplayName}
             className={cn('h-10 w-auto rounded bg-white p-2 object-contain', collapsed && 'mx-auto')}
             onError={(event) => {
               event.currentTarget.style.display = 'none';
             }}
           />
           {!collapsed && (
-            <span className="mt-3 text-sm font-semibold tracking-tight text-sidebar-foreground">Sistema Acesso</span>
+            <span className="mt-3 text-sm font-semibold tracking-tight text-sidebar-foreground">{companyDisplayName}</span>
           )}
         </div>
 
