@@ -51,6 +51,15 @@ export interface ContractInfo {
   type: ContractType;
   document: string;
   name?: string | null;
+  cref?: string | null;
+  addressStreet?: string | null;
+  addressNumber?: string | null;
+  addressNeighborhood?: string | null;
+  addressCity?: string | null;
+  addressState?: string | null;
+  addressComplement?: string | null;
+  addressZipCode?: string | null;
+  logoUrl?: string | null;
 }
 
 export interface ProfessorInfo {
