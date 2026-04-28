@@ -1,7 +1,7 @@
 ﻿import { Router, Request, Response } from 'express';
 import { contractService } from './contract.service.js';
 import { cloneContractData } from './contract-data.service.js';
-import { authMiddleware, masterMiddleware } from '../auth/auth.middleware.js';
+import { authMiddleware, professorMiddleware, masterMiddleware } from '../auth/auth.middleware.js';
 import { sendSuccess, sendError } from '@corrida/utils';
 import multer from 'multer';
 import path from 'path';
@@ -11,6 +11,7 @@ const router: Router = Router();
 const logoUploadRoot = path.resolve(process.cwd(), 'uploads', 'contracts', 'logos');
 
 router.use(authMiddleware);
+router.use(professorMiddleware);
 
 const normalizeDocument = (document: string) => document.replace(/\D/g, '');
 const trimOptional = (value: unknown) =>
@@ -102,6 +103,7 @@ router.put('/me', async (req: Request, res: Response) => {
     const {
       name,
       document,
+      tradeName,
       cref,
       addressStreet,
       addressNumber,
@@ -114,6 +116,7 @@ router.put('/me', async (req: Request, res: Response) => {
     } = req.body as {
       name?: string;
       document?: string;
+      tradeName?: string | null;
       cref?: string | null;
       addressStreet?: string | null;
       addressNumber?: string | null;
@@ -127,6 +130,7 @@ router.put('/me', async (req: Request, res: Response) => {
     const updateData: {
       name?: string;
       document?: string;
+      tradeName?: string | null;
       cref?: string | null;
       addressStreet?: string | null;
       addressNumber?: string | null;
@@ -140,6 +144,10 @@ router.put('/me', async (req: Request, res: Response) => {
 
     if (typeof name === 'string' && name.trim().length > 0) {
       updateData.name = name.trim();
+    }
+
+    if (tradeName !== undefined) {
+      updateData.tradeName = trimOptional(tradeName);
     }
 
     if (typeof document === 'string' && document.trim().length > 0) {

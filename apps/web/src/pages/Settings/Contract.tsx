@@ -14,6 +14,7 @@ import type { Contract } from '../../services/contract.service';
 
 const contractSchema = z.object({
   name: z.string().trim().min(1, contractCopy.companyNameRequired),
+  tradeName: z.string().optional(),
   document: z.string().refine((value) => value.replace(/\D/g, '').length === 14, contractCopy.invalidDocument),
   cref: z.string().optional(),
   addressStreet: z.string().optional(),
@@ -80,6 +81,7 @@ export default function ContractSettings() {
     resolver: zodResolver(contractSchema),
     defaultValues: {
       name: '',
+      tradeName: '',
       document: '',
       cref: '',
       addressStreet: '',
@@ -105,6 +107,7 @@ export default function ContractSettings() {
         const applyContract = (contract: Contract | NonNullable<NonNullable<typeof user>['professor']>['contract']) => {
           reset({
             name: contract?.name || '',
+            tradeName: contract?.tradeName || '',
             document: formatCnpj(contract?.document || ''),
             cref: contract?.cref || '',
             addressStreet: contract?.addressStreet || '',
@@ -154,6 +157,7 @@ export default function ContractSettings() {
       }
       const updated = await contractService.updateMe({
         name: data.name.trim(),
+        tradeName: data.tradeName?.trim() || null,
         document: data.document,
         cref: data.cref?.trim() || null,
         addressStreet: data.addressStreet?.trim() || null,
@@ -167,6 +171,7 @@ export default function ContractSettings() {
       });
       reset({
         name: updated.name || '',
+        tradeName: updated.tradeName || '',
         document: formatCnpj(updated.document),
         cref: updated.cref || '',
         addressStreet: updated.addressStreet || '',
@@ -326,8 +331,8 @@ export default function ContractSettings() {
             </div>
           </div>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-              <div className="lg:col-span-2">
+            <div className="grid grid-cols-1 gap-4">
+              <div>
                 {canEdit ? (
                   <Input
                     label={contractCopy.contractName}
@@ -345,6 +350,21 @@ export default function ContractSettings() {
               <div>
                 {canEdit ? (
                   <Input
+                    label={contractCopy.tradeName}
+                    placeholder="Empresa Exemplo"
+                    error={errors.tradeName?.message}
+                    {...register('tradeName')}
+                  />
+                ) : (
+                  <ReadOnlyField label={contractCopy.tradeName} value={user?.professor?.contract?.tradeName} />
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.9fr)]">
+              <div>
+                {canEdit ? (
+                  <Input
                     label={contractCopy.crefLabel}
                     placeholder="12345-G/SP"
                     error={errors.cref?.message}
@@ -354,26 +374,27 @@ export default function ContractSettings() {
                   <ReadOnlyField label={contractCopy.crefLabel} value={user?.professor?.contract?.cref} />
                 )}
               </div>
+              <div>
+                {canEdit ? (
+                  <Input
+                    label={contractCopy.documentLabel}
+                    placeholder="00.000.000/0000-00"
+                    error={errors.document?.message}
+                    {...register('document', {
+                      onChange: (event) => {
+                        const formatted = formatCnpj(event.target.value);
+                        setValue('document', formatted, { shouldValidate: true });
+                      },
+                    })}
+                  />
+                ) : (
+                  <ReadOnlyField
+                    label={contractCopy.documentLabel}
+                    value={formatCnpj(user?.professor?.contract?.document || '')}
+                  />
+                )}
+              </div>
             </div>
-
-            {canEdit ? (
-              <Input
-                label={contractCopy.documentLabel}
-                placeholder="00.000.000/0000-00"
-                error={errors.document?.message}
-                {...register('document', {
-                  onChange: (event) => {
-                    const formatted = formatCnpj(event.target.value);
-                    setValue('document', formatted, { shouldValidate: true });
-                  },
-                })}
-              />
-            ) : (
-              <ReadOnlyField
-                label={contractCopy.documentLabel}
-                value={formatCnpj(user?.professor?.contract?.document || '')}
-              />
-            )}
 
             <div className="rounded-lg border border-border bg-muted/20 p-4">
               <div className="mb-4 flex items-start gap-3">
@@ -385,15 +406,21 @@ export default function ContractSettings() {
                   <p className="mt-1 text-sm text-muted-foreground">{contractCopy.addressDescription}</p>
                 </div>
               </div>
-              <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.4fr)_140px_180px]">
+              <div className="grid grid-cols-1 gap-3">
+                {canEdit ? (
+                  <Input
+                    label={professoresCopy.addressStreetLabel}
+                    placeholder="Rua Exemplo"
+                    error={errors.addressStreet?.message}
+                    {...register('addressStreet')}
+                  />
+                ) : (
+                  <ReadOnlyField label={professoresCopy.addressStreetLabel} value={user?.professor?.contract?.addressStreet} />
+                )}
+              </div>
+              <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-[140px_180px]">
                 {canEdit ? (
                   <>
-                    <Input
-                      label={professoresCopy.addressStreetLabel}
-                      placeholder="Rua Exemplo"
-                      error={errors.addressStreet?.message}
-                      {...register('addressStreet')}
-                    />
                     <Input
                       label={professoresCopy.addressNumberLabel}
                       placeholder="123"
@@ -415,13 +442,12 @@ export default function ContractSettings() {
                   </>
                 ) : (
                   <>
-                    <ReadOnlyField label={professoresCopy.addressStreetLabel} value={user?.professor?.contract?.addressStreet} />
                     <ReadOnlyField label={professoresCopy.addressNumberLabel} value={user?.professor?.contract?.addressNumber} />
                     <ReadOnlyField label={professoresCopy.addressZipCodeLabel} value={user?.professor?.contract?.addressZipCode} />
                   </>
                 )}
               </div>
-              <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+              <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_120px]">
                 {canEdit ? (
                   <>
                     <Input
