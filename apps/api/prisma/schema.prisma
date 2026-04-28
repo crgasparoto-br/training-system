@@ -199,13 +199,13 @@ model Aluno {
   userId              String                  @unique(map: "Athlete_userId_key")
   professorId         String
   age                 Int
-  weight              Float
-  height              Float
+  weight              Float?
+  height              Float?
   bodyFatPercentage   Float?
-  vo2Max              Float
-  anaerobicThreshold  Float
-  maxHeartRate        Int
-  restingHeartRate    Int
+  vo2Max              Float?
+  anaerobicThreshold  Float?
+  maxHeartRate        Int?
+  restingHeartRate    Int?
   createdAt           DateTime                @default(now())
   updatedAt           DateTime                @updatedAt
   lastPasswordResetAt DateTime?

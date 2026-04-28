@@ -9,13 +9,13 @@ export interface Aluno {
   systolicPressure?: number;
   diastolicPressure?: number;
   age: number;
-  weight: number;
-  height: number;
-  bodyFatPercentage?: number;
-  vo2Max: number;
-  anaerobicThreshold: number;
-  maxHeartRate: number;
-  restingHeartRate: number;
+  weight?: number | null;
+  height?: number | null;
+  bodyFatPercentage?: number | null;
+  vo2Max?: number | null;
+  anaerobicThreshold?: number | null;
+  maxHeartRate?: number | null;
+  restingHeartRate?: number | null;
   user: {
     email: string;
     isActive?: boolean;
@@ -112,19 +112,20 @@ export interface AlunoAssessmentPrefill {
 export interface CreateAlunoDTO {
   name: string;
   email: string;
+  avatar?: string;
   phone?: string;
   serviceId?: string;
   schedulePlan: 'free' | 'fixed';
   birthDate?: string;
   gender?: 'male' | 'female' | 'other';
   age: number;
-  weight: number;
-  height: number;
+  weight?: number;
+  height?: number;
   bodyFatPercentage?: number;
-  vo2Max: number;
-  anaerobicThreshold: number;
-  maxHeartRate: number;
-  restingHeartRate: number;
+  vo2Max?: number;
+  anaerobicThreshold?: number;
+  maxHeartRate?: number;
+  restingHeartRate?: number;
   systolicPressure?: number;
   diastolicPressure?: number;
   macronutrients?: {
@@ -156,6 +157,7 @@ export interface CreateAlunoDTO {
 }
 
 export interface UpdateAlunoDTO {
+  avatar?: string;
   serviceId?: string;
   schedulePlan?: 'free' | 'fixed';
   birthDate?: string;
@@ -270,6 +272,23 @@ export const alunoService = {
   async getById(id: string): Promise<Aluno> {
     const response = await api.get<{ success: boolean; data: Aluno }>(`/alunos/${id}`);
     return response.data.data;
+  },
+
+  async uploadAvatar(file: File): Promise<string> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await api.post<{ success: boolean; data: { url: string } }>(
+      '/alunos/avatar-upload',
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    );
+
+    return response.data.data.url;
   },
 
   /**
