@@ -1,30 +1,72 @@
-﻿import { useEffect, useState } from 'react';
+﻿import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { Building2, ImagePlus, MapPin, Upload, X } from 'lucide-react';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { contractService } from '../../services/contract.service';
 import api from '../../services/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
-import { commonCopy, contractCopy } from '../../i18n/ptBR';
+import { commonCopy, contractCopy, professoresCopy } from '../../i18n/ptBR';
+import type { Contract } from '../../services/contract.service';
 
 const contractSchema = z.object({
-  name: z.string().optional(),
-  document: z.string().min(11, contractCopy.invalidDocument),
+  name: z.string().trim().min(1, contractCopy.companyNameRequired),
+  document: z.string().refine((value) => value.replace(/\D/g, '').length === 14, contractCopy.invalidDocument),
+  cref: z.string().optional(),
+  addressStreet: z.string().optional(),
+  addressNumber: z.string().optional(),
+  addressNeighborhood: z.string().optional(),
+  addressCity: z.string().optional(),
+  addressState: z.string().optional(),
+  addressComplement: z.string().optional(),
+  addressZipCode: z.string().optional(),
+  logoUrl: z.string().optional(),
 });
 
 type ContractForm = z.infer<typeof contractSchema>;
+
+function formatCnpj(value: string) {
+  const digits = value.replace(/\D/g, '').slice(0, 14);
+  return digits
+    .replace(/^(\d{2})(\d)/, '$1.$2')
+    .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+    .replace(/\.(\d{3})(\d)/, '.$1/$2')
+    .replace(/(\d{4})(\d)/, '$1-$2');
+}
+
+function formatZipCode(value: string) {
+  const digits = value.replace(/\D/g, '').slice(0, 8);
+  return digits.replace(/^(\d{5})(\d)/, '$1-$2');
+}
+
+function resolveLogoUrl(logoUrl?: string | null) {
+  if (!logoUrl) {
+    return '';
+  }
+
+  if (logoUrl.startsWith('http://') || logoUrl.startsWith('https://')) {
+    return logoUrl;
+  }
+
+  return logoUrl.startsWith('/') ? logoUrl : `/${logoUrl}`;
+}
+
+function ReadOnlyField({ label, value }: { label: string; value?: string | null }) {
+  return <Input label={label} value={value || contractCopy.notInformed} readOnly disabled />;
+}
 
 export default function ContractSettings() {
   const { user } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
   const [cloning, setCloning] = useState(false);
   const [cloneResult, setCloneResult] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [contractType, setContractType] = useState<'academy' | 'personal'>('personal');
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const {
     register,
@@ -32,53 +74,61 @@ export default function ContractSettings() {
     reset,
     setError,
     setValue,
+    watch,
     formState: { errors },
   } = useForm<ContractForm>({
     resolver: zodResolver(contractSchema),
+    defaultValues: {
+      name: '',
+      document: '',
+      cref: '',
+      addressStreet: '',
+      addressNumber: '',
+      addressNeighborhood: '',
+      addressCity: '',
+      addressState: '',
+      addressComplement: '',
+      addressZipCode: '',
+      logoUrl: '',
+    },
   });
 
   const canEdit = user?.type === 'professor' && user?.professor?.role === 'master';
-  const formatDocument = (value: string, type: 'academy' | 'personal' = contractType) => {
-    const digits = value.replace(/\D/g, '');
-    if (type === 'academy') {
-      const limited = digits.slice(0, 14);
-      return limited
-        .replace(/^(\d{2})(\d)/, '$1.$2')
-        .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
-        .replace(/\.(\d{3})(\d)/, '.$1/$2')
-        .replace(/(\d{4})(\d)/, '$1-$2');
-    }
-    const limited = digits.slice(0, 11);
-    return limited
-      .replace(/^(\d{3})(\d)/, '$1.$2')
-      .replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3')
-      .replace(/\.(\d{3})(\d)/, '.$1-$2');
-  };
+  const logoUrl = watch('logoUrl');
+  const resolvedLogoUrl = resolveLogoUrl(logoUrl || user?.professor?.contract?.logoUrl || '');
 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
       setErrorMessage(null);
       try {
+        const applyContract = (contract: Contract | NonNullable<NonNullable<typeof user>['professor']>['contract']) => {
+          reset({
+            name: contract?.name || '',
+            document: formatCnpj(contract?.document || ''),
+            cref: contract?.cref || '',
+            addressStreet: contract?.addressStreet || '',
+            addressNumber: contract?.addressNumber || '',
+            addressNeighborhood: contract?.addressNeighborhood || '',
+            addressCity: contract?.addressCity || '',
+            addressState: contract?.addressState || '',
+            addressComplement: contract?.addressComplement || '',
+            addressZipCode: contract?.addressZipCode || '',
+            logoUrl: contract?.logoUrl || '',
+          });
+        };
+
         if (!canEdit) {
           const contract = user?.professor?.contract;
           if (contract) {
-            setContractType(contract.type);
-            reset({
-              name: contract.name || '',
-              document: formatDocument(contract.document, contract.type),
-            });
+            applyContract(contract);
           }
           setLoading(false);
           return;
         }
 
         const contract = await contractService.getMe();
-        setContractType(contract.type);
-        reset({
-          name: contract.name || '',
-          document: formatDocument(contract.document, contract.type),
-        });
+        applyContract(contract);
       } catch (err: any) {
         setErrorMessage(err.response?.data?.error || contractCopy.loadError);
       } finally {
@@ -95,26 +145,67 @@ export default function ContractSettings() {
     setErrorMessage(null);
     try {
       const normalized = data.document.replace(/\D/g, '');
-      const expected = contractType === 'academy' ? 14 : 11;
-      if (normalized.length !== expected) {
+      if (normalized.length !== 14) {
         setError('document', {
-          message: contractType === 'academy' ? contractCopy.invalidCnpj : contractCopy.invalidCpf,
+          message: contractCopy.invalidCnpj,
         });
         setSaving(false);
         return;
       }
       const updated = await contractService.updateMe({
-        name: data.name?.trim() || undefined,
+        name: data.name.trim(),
         document: data.document,
+        cref: data.cref?.trim() || null,
+        addressStreet: data.addressStreet?.trim() || null,
+        addressNumber: data.addressNumber?.trim() || null,
+        addressNeighborhood: data.addressNeighborhood?.trim() || null,
+        addressCity: data.addressCity?.trim() || null,
+        addressState: data.addressState?.trim() || null,
+        addressComplement: data.addressComplement?.trim() || null,
+        addressZipCode: data.addressZipCode?.trim() || null,
+        logoUrl: data.logoUrl?.trim() || null,
       });
       reset({
         name: updated.name || '',
-        document: formatDocument(updated.document, updated.type),
+        document: formatCnpj(updated.document),
+        cref: updated.cref || '',
+        addressStreet: updated.addressStreet || '',
+        addressNumber: updated.addressNumber || '',
+        addressNeighborhood: updated.addressNeighborhood || '',
+        addressCity: updated.addressCity || '',
+        addressState: updated.addressState || '',
+        addressComplement: updated.addressComplement || '',
+        addressZipCode: updated.addressZipCode || '',
+        logoUrl: updated.logoUrl || '',
       });
     } catch (err: any) {
       setErrorMessage(err.response?.data?.error || contractCopy.updateError);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+
+    if (!file || !canEdit) {
+      return;
+    }
+
+    setUploadingLogo(true);
+    setErrorMessage(null);
+    try {
+      const uploadedUrl = await contractService.uploadLogo(file);
+      setValue('logoUrl', uploadedUrl, {
+        shouldDirty: true,
+        shouldTouch: true,
+        shouldValidate: true,
+      });
+    } catch (err: any) {
+      setErrorMessage(err.response?.data?.error || contractCopy.uploadError);
+    } finally {
+      setUploadingLogo(false);
     }
   };
 
@@ -149,8 +240,6 @@ export default function ContractSettings() {
     return <div className="text-muted-foreground">{commonCopy.loading}</div>;
   }
 
-  const documentLabel = contractType === 'academy' ? 'CNPJ' : 'CPF';
-
   return (
     <div className="space-y-6">
       <div>
@@ -165,7 +254,7 @@ export default function ContractSettings() {
           <CardTitle>{contractCopy.infoTitle}</CardTitle>
           <CardDescription>{contractCopy.infoDescription}</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-6">
           {errorMessage && (
             <div className="bg-destructive/10 text-destructive text-sm p-3 rounded-md border border-destructive/20 mb-4">
               {errorMessage}
@@ -176,54 +265,209 @@ export default function ContractSettings() {
               {contractCopy.masterOnly}
             </div>
           )}
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            {canEdit ? (
-              <Input
-                label={contractCopy.contractName}
-                placeholder="Academia Exemplo"
-                error={errors.name?.message}
-                {...register('name')}
-              />
-            ) : (
+          <div className="rounded-lg border border-border bg-muted/20 p-4">
+            <div className="flex items-start gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Building2 size={20} />
+              </div>
               <div>
-                <label className="block text-sm font-medium mb-2">
-                  {contractCopy.contractName}
-                </label>
-                <div className="h-10 w-full rounded-md border border-input bg-muted px-3 py-2 text-sm text-muted-foreground">
-                  {user?.professor?.contract?.name || contractCopy.notInformed}
+                <p className="text-sm font-semibold text-foreground">{contractCopy.logoTitle}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{contractCopy.logoDescription}</p>
+              </div>
+            </div>
+            <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex items-center gap-4">
+                <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-2xl border border-border bg-card">
+                  {resolvedLogoUrl ? (
+                    <img src={resolvedLogoUrl} alt={contractCopy.contractName} className="h-full w-full object-contain p-2" />
+                  ) : (
+                    <ImagePlus size={28} className="text-muted-foreground" />
+                  )}
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-foreground">
+                    {resolvedLogoUrl ? contractCopy.logoReplace : contractCopy.logoEmpty}
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">{contractCopy.logoHint}</p>
                 </div>
               </div>
-            )}
+              {canEdit && (
+                <div className="flex flex-wrap gap-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    aria-label={contractCopy.logoTitle}
+                    title={contractCopy.logoTitle}
+                    onChange={handleLogoUpload}
+                  />
+                  <input type="hidden" {...register('logoUrl')} />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => fileInputRef.current?.click()}
+                    isLoading={uploadingLogo}
+                  >
+                    <Upload size={16} className="mr-2" />
+                    {resolvedLogoUrl ? contractCopy.logoReplace : contractCopy.logoUpload}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setValue('logoUrl', '', { shouldDirty: true, shouldValidate: true })}
+                    disabled={!logoUrl || uploadingLogo}
+                  >
+                    <X size={16} className="mr-2" />
+                    {contractCopy.logoRemove}
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+              <div className="lg:col-span-2">
+                {canEdit ? (
+                  <Input
+                    label={contractCopy.contractName}
+                    placeholder="Empresa Exemplo Ltda"
+                    error={errors.name?.message}
+                    {...register('name')}
+                  />
+                ) : (
+                  <ReadOnlyField
+                    label={contractCopy.contractName}
+                    value={user?.professor?.contract?.name}
+                  />
+                )}
+              </div>
+              <div>
+                {canEdit ? (
+                  <Input
+                    label={contractCopy.crefLabel}
+                    placeholder="12345-G/SP"
+                    error={errors.cref?.message}
+                    {...register('cref')}
+                  />
+                ) : (
+                  <ReadOnlyField label={contractCopy.crefLabel} value={user?.professor?.contract?.cref} />
+                )}
+              </div>
+            </div>
+
             {canEdit ? (
               <Input
-                label={documentLabel}
-                placeholder={
-                  documentLabel === 'CNPJ' ? '00.000.000/0000-00' : '000.000.000-00'
-                }
+                label={contractCopy.documentLabel}
+                placeholder="00.000.000/0000-00"
                 error={errors.document?.message}
                 {...register('document', {
                   onChange: (event) => {
-                    const formatted = formatDocument(event.target.value);
+                    const formatted = formatCnpj(event.target.value);
                     setValue('document', formatted, { shouldValidate: true });
                   },
                 })}
               />
             ) : (
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  {documentLabel}
-                </label>
-                <div className="h-10 w-full rounded-md border border-input bg-muted px-3 py-2 text-sm text-muted-foreground">
-                  {formatDocument(
-                    user?.professor?.contract?.document || ''
-                  )}
+              <ReadOnlyField
+                label={contractCopy.documentLabel}
+                value={formatCnpj(user?.professor?.contract?.document || '')}
+              />
+            )}
+
+            <div className="rounded-lg border border-border bg-muted/20 p-4">
+              <div className="mb-4 flex items-start gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <MapPin size={18} />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">{contractCopy.addressTitle}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{contractCopy.addressDescription}</p>
                 </div>
               </div>
-            )}
+              <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.4fr)_140px_180px]">
+                {canEdit ? (
+                  <>
+                    <Input
+                      label={professoresCopy.addressStreetLabel}
+                      placeholder="Rua Exemplo"
+                      error={errors.addressStreet?.message}
+                      {...register('addressStreet')}
+                    />
+                    <Input
+                      label={professoresCopy.addressNumberLabel}
+                      placeholder="123"
+                      error={errors.addressNumber?.message}
+                      {...register('addressNumber')}
+                    />
+                    <Input
+                      label={professoresCopy.addressZipCodeLabel}
+                      placeholder="00000-000"
+                      error={errors.addressZipCode?.message}
+                      {...register('addressZipCode', {
+                        onChange: (event) => {
+                          setValue('addressZipCode', formatZipCode(event.target.value), {
+                            shouldValidate: true,
+                          });
+                        },
+                      })}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <ReadOnlyField label={professoresCopy.addressStreetLabel} value={user?.professor?.contract?.addressStreet} />
+                    <ReadOnlyField label={professoresCopy.addressNumberLabel} value={user?.professor?.contract?.addressNumber} />
+                    <ReadOnlyField label={professoresCopy.addressZipCodeLabel} value={user?.professor?.contract?.addressZipCode} />
+                  </>
+                )}
+              </div>
+              <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+                {canEdit ? (
+                  <>
+                    <Input
+                      label={professoresCopy.addressNeighborhoodLabel}
+                      placeholder="Centro"
+                      error={errors.addressNeighborhood?.message}
+                      {...register('addressNeighborhood')}
+                    />
+                    <Input
+                      label={professoresCopy.addressCityLabel}
+                      placeholder="São Paulo"
+                      error={errors.addressCity?.message}
+                      {...register('addressCity')}
+                    />
+                    <Input
+                      label={professoresCopy.addressStateLabel}
+                      placeholder="SP"
+                      error={errors.addressState?.message}
+                      {...register('addressState')}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <ReadOnlyField label={professoresCopy.addressNeighborhoodLabel} value={user?.professor?.contract?.addressNeighborhood} />
+                    <ReadOnlyField label={professoresCopy.addressCityLabel} value={user?.professor?.contract?.addressCity} />
+                    <ReadOnlyField label={professoresCopy.addressStateLabel} value={user?.professor?.contract?.addressState} />
+                  </>
+                )}
+              </div>
+              <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)]">
+                {canEdit ? (
+                  <Input
+                    label={professoresCopy.addressComplementLabel}
+                    placeholder="Sala 4, bloco B"
+                    error={errors.addressComplement?.message}
+                    {...register('addressComplement')}
+                  />
+                ) : (
+                  <ReadOnlyField label={professoresCopy.addressComplementLabel} value={user?.professor?.contract?.addressComplement} />
+                )}
+              </div>
+            </div>
             {canEdit && (
               <div className="flex justify-end">
                 <Button type="submit" isLoading={saving}>
-                  Salvar
+                  {commonCopy.save}
                 </Button>
               </div>
             )}
