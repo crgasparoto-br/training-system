@@ -1,7 +1,7 @@
 ﻿import { Router, Request, Response } from 'express';
 import { authService } from './auth.service';
 import { authMiddleware } from './auth.middleware';
-import { LoginSchema, RegisterSchema } from '@corrida/utils';
+import { ForgotPasswordSchema, LoginSchema, RegisterSchema, ResetPasswordSchema } from '@corrida/utils';
 import { sendSuccess, sendError } from '@corrida/utils';
 
 const router: Router = Router();
@@ -49,6 +49,48 @@ router.post('/login', async (req: Request, res: Response) => {
     return sendSuccess(res, result, 'Login realizado com sucesso');
   } catch (error: any) {
     return sendError(res, error.message, 401);
+  }
+});
+
+/**
+ * POST /api/v1/auth/forgot-password
+ * Solicitar recuperação de senha
+ */
+router.post('/forgot-password', async (req: Request, res: Response) => {
+  try {
+    const validation = ForgotPasswordSchema.safeParse(req.body);
+
+    if (!validation.success) {
+      const errors = validation.error.errors.map((e) => e.message).join(', ');
+      return sendError(res, errors, 400);
+    }
+
+    const result = await authService.requestPasswordReset(validation.data.email);
+
+    return sendSuccess(res, result, result.message);
+  } catch (error: any) {
+    return sendError(res, error.message, 400);
+  }
+});
+
+/**
+ * POST /api/v1/auth/reset-password
+ * Redefinir senha com token
+ */
+router.post('/reset-password', async (req: Request, res: Response) => {
+  try {
+    const validation = ResetPasswordSchema.safeParse(req.body);
+
+    if (!validation.success) {
+      const errors = validation.error.errors.map((e) => e.message).join(', ');
+      return sendError(res, errors, 400);
+    }
+
+    const result = await authService.resetPassword(validation.data);
+
+    return sendSuccess(res, result, result.message);
+  } catch (error: any) {
+    return sendError(res, error.message, 400);
   }
 });
 
