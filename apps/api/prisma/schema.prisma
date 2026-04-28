@@ -238,15 +238,23 @@ model ServiceOption {
   contractId String
   name       String
   code       String
+  description String?
+  parentServiceId String?
+  monthlyPrice Float?
+  validFrom DateTime?
+  validUntil DateTime?
   isActive   Boolean  @default(true)
   isSystem   Boolean  @default(false)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @default(now()) @updatedAt
   alunos     Aluno[]
   contract   Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  parentService ServiceOption? @relation("ServiceOptionOffers", fields: [parentServiceId], references: [id], onDelete: SetNull)
+  financialOffers ServiceOption[] @relation("ServiceOptionOffers")
 
   @@unique([contractId, code])
   @@index([contractId])
+  @@index([parentServiceId])
 }
 
 model AlunoIntakeForm {

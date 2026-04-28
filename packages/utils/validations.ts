@@ -344,6 +344,11 @@ export const UpdateCollaboratorFunctionSchema = z.object({
 
 export const CreateServiceSchema = z.object({
   name: z.string().trim().min(2, 'Nome do servico deve ter no minimo 2 caracteres'),
+  description: optionalTextSchema,
+  parentServiceId: optionalTextSchema,
+  monthlyPrice: optionalNonNegativeNumberSchema,
+  validFrom: optionalDateSchema,
+  validUntil: optionalDateSchema,
   isActive: z.boolean().optional(),
 });
 
@@ -352,6 +357,11 @@ export const UpdateServiceSchema = z.object({
     emptyStringToUndefined,
     z.string().trim().min(2, 'Nome do servico deve ter no minimo 2 caracteres').optional()
   ),
+  description: optionalNullableTextSchema,
+  parentServiceId: optionalNullableTextSchema,
+  monthlyPrice: optionalNullableNonNegativeNumberSchema,
+  validFrom: optionalNullableDateSchema,
+  validUntil: optionalNullableDateSchema,
   isActive: z.boolean().optional(),
 });
 
