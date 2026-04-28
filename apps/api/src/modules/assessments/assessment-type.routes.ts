@@ -1,8 +1,8 @@
 ﻿import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { sendError, sendSuccess } from '@corrida/utils';
-import { authMiddleware, professorMiddleware } from '../auth/auth.middleware';
-import { assessmentTypeService, ensureDefaultAssessmentTypesForContract } from './assessment-type.service';
+import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js';
+import { assessmentTypeService, ensureDefaultAssessmentTypesForContract } from './assessment-type.service.js';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();

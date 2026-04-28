@@ -1,6 +1,6 @@
 ﻿import { Router, Request, Response } from 'express';
-import { alunoService } from './aluno.service';
-import { authMiddleware, professorMiddleware } from '../auth/auth.middleware';
+import { alunoService } from './aluno.service.js';
+import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js';
 import {
   sendSuccess,
   sendError,
@@ -13,9 +13,9 @@ import path from 'path';
 import fs from 'fs';
 import pdfParse from 'pdf-parse';
 import { PrismaClient } from '@prisma/client';
-import { assessmentService } from '../assessments/assessment.service';
-import { parseAssessmentPdf } from '../assessments/assessment-parser';
-import { fillAssessmentWithAi } from '../assessments/assessment-ai';
+import { assessmentService } from '../assessments/assessment.service.js';
+import { parseAssessmentPdf } from '../assessments/assessment-parser.js';
+import { fillAssessmentWithAi } from '../assessments/assessment-ai.js';
 
 const router: Router = Router();
 const prisma = new PrismaClient();

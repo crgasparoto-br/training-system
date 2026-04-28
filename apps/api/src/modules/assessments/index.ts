@@ -1,2 +1,2 @@
-export { default as assessmentTypeRoutes } from './assessment-type.routes';
-export { default as subjectiveScaleRoutes } from './subjective-scale.routes';
+export { default as assessmentTypeRoutes } from './assessment-type.routes.js';
+export { default as subjectiveScaleRoutes } from './subjective-scale.routes.js';

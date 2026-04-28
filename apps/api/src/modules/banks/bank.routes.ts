@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from 'express';
-import { academyMasterMiddleware, authMiddleware } from '../auth/auth.middleware';
+import { academyMasterMiddleware, authMiddleware } from '../auth/auth.middleware.js';
 import { sendError, sendSuccess } from '@corrida/utils';
 import { bankService } from './bank.service.js';
 

@@ -1,7 +1,7 @@
 ﻿import { Router, Request, Response } from 'express';
-import { contractService } from './contract.service';
-import { cloneContractData } from './contract-data.service';
-import { authMiddleware, masterMiddleware } from '../auth/auth.middleware';
+import { contractService } from './contract.service.js';
+import { cloneContractData } from './contract-data.service.js';
+import { authMiddleware, masterMiddleware } from '../auth/auth.middleware.js';
 import { sendSuccess, sendError } from '@corrida/utils';
 
 const router: Router = Router();

@@ -1,8 +1,8 @@
 ﻿import { Router, Request, Response } from 'express';
-import { planService } from './plan.service';
-import { periodizationService } from '../periodization/periodization.service';
-import { alunoService } from '../alunos/aluno.service';
-import { authMiddleware, professorMiddleware } from '../auth/auth.middleware';
+import { planService } from './plan.service.js';
+import { periodizationService } from '../periodization/periodization.service.js';
+import { alunoService } from '../alunos/aluno.service.js';
+import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js';
 import { sendSuccess, sendError } from '@corrida/utils';
 import { z } from 'zod';
 
@@ -103,7 +103,7 @@ router.get('/', async (req: Request, res: Response) => {
     let result;
     if (user.type === 'professor') {
       // Buscar professorId do banco
-      const { authService } = await import('../auth/auth.service');
+      const { authService } = await import('../auth/auth.service.js');
       const userWithProfessor = await authService.getUserById(user.userId);
       
       if (!userWithProfessor?.professor) {
@@ -157,7 +157,7 @@ router.get('/', async (req: Request, res: Response) => {
     } else {
 
       // Buscar alunoId do banco
-      const { authService } = await import('../auth/auth.service');
+      const { authService } = await import('../auth/auth.service.js');
       const userWithAluno = await authService.getUserById(user.userId);
       
       if (!userWithAluno?.aluno) {

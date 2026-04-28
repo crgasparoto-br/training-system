@@ -1,7 +1,7 @@
 ﻿import { PrismaClient, type Prisma } from '@prisma/client';
 import bcryptjs from 'bcryptjs';
 import crypto from 'crypto';
-import { getServiceForContract } from '../services/service.service';
+import { getServiceForContract } from '../services/service.service.js';
 
 const prisma = new PrismaClient();
 

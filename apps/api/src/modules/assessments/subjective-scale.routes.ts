@@ -2,11 +2,11 @@
 import { z } from 'zod';
 import { sendError, sendSuccess } from '@corrida/utils';
 import { PrismaClient } from '@prisma/client';
-import { authMiddleware } from '../auth/auth.middleware';
+import { authMiddleware } from '../auth/auth.middleware.js';
 import {
   ensureDefaultSubjectiveScalesForContract,
   subjectiveScaleService,
-} from './subjective-scale.service';
+} from './subjective-scale.service.js';
 
 const router: Router = Router();
 const prisma = new PrismaClient();

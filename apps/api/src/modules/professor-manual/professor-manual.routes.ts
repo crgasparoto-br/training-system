@@ -4,8 +4,8 @@ import { sendError, sendSuccess } from '@corrida/utils';
 import {
   ensureDefaultProfessorManualForContract,
   professorManualService,
-} from './professor-manual.service';
-import { authMiddleware, professorMiddleware } from '../auth/auth.middleware';
+} from './professor-manual.service.js';
+import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js';
 
 const router: Router = Router();
 

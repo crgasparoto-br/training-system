@@ -1,2 +1,2 @@
-export { default as serviceRoutes } from './service.routes';
-export { serviceCatalogService } from './service.service';
+export { default as serviceRoutes } from './service.routes.js';
+export { serviceCatalogService } from './service.service.js';

@@ -1,6 +1,6 @@
 ﻿import { Router, Request, Response } from 'express';
-import { professorService } from './professor.service';
-import { authMiddleware } from '../auth/auth.middleware';
+import { professorService } from './professor.service.js';
+import { authMiddleware } from '../auth/auth.middleware.js';
 import { screenAccessMiddleware } from '../access-control/index.js';
 import { CreateProfessorSchema, UpdateProfessorSchema } from '@corrida/utils';
 import { sendSuccess, sendError } from '@corrida/utils';

@@ -1,5 +1,5 @@
 ﻿import { Request, Response, NextFunction } from 'express';
-import { authService } from './auth.service';
+import { authService } from './auth.service.js';
 import type { JwtPayload } from '@corrida/types';
 
 // Estender tipo Request para incluir user
