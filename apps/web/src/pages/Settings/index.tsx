@@ -23,12 +23,12 @@ export default function Settings() {
           to="/settings/contract"
           className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm transition hover:border-blue-300 hover:shadow"
         >
-          <h2 className="text-lg font-semibold text-gray-900">Contrato</h2>
+          <h2 className="text-lg font-semibold text-gray-900">Empresa / prestador</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Dados fiscais e identifica&ccedil;&atilde;o do contrato.
+            Dados cadastrais, endere&ccedil;o e identidade visual da empresa respons&aacute;vel.
           </p>
           <div className="mt-4 inline-flex items-center text-sm font-medium text-blue-600">
-            Acessar contrato &rarr;
+            Acessar cadastro &rarr;
           </div>
         </Link>
         <Link
