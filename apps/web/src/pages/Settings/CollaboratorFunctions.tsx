@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
+import { ChevronDown } from 'lucide-react';
 import { collaboratorFunctionService } from '../../services/collaborator-function.service';
 import {
   ACCESS_BLOCK_CATALOG,
+  ACCESS_PERMISSION_GROUPS,
   ACCESS_SCREEN_CATALOG,
   DEFAULT_ACCESS_BY_PROFILE_CODE,
   FALLBACK_ACCESS_PROFILE_CODE,
@@ -34,14 +36,58 @@ function getPermissionSelection(item?: CollaboratorFunctionOption | null): Permi
     return defaultPermissionSelection;
   }
 
+  const screens = item.accessPermissions
+    .filter((permission) => permission.canView && !permission.blockKey)
+    .map((permission) => permission.screenKey);
+
   return {
-    screens: item.accessPermissions
-      .filter((permission) => permission.canView && !permission.blockKey)
-      .map((permission) => permission.screenKey),
+    screens,
     blocks: item.accessPermissions
-      .filter((permission) => permission.canView && permission.blockKey)
+      .filter(
+        (permission) =>
+          permission.canView &&
+          permission.blockKey &&
+          screens.includes(permission.screenKey)
+      )
       .map((permission) => permission.blockKey as string),
   };
+}
+
+const screenCatalogByKey = new Map(
+  ACCESS_SCREEN_CATALOG.map((screen) => [screen.key, screen])
+);
+
+const groupedScreenKeys = new Set(
+  ACCESS_PERMISSION_GROUPS.flatMap((group) => [...group.screenKeys])
+);
+
+const permissionGroups = [
+  ...ACCESS_PERMISSION_GROUPS.map((group) => ({
+    key: group.key,
+    label: group.label,
+    screens: group.screenKeys
+      .map((screenKey) => screenCatalogByKey.get(screenKey))
+      .filter((screen): screen is (typeof ACCESS_SCREEN_CATALOG)[number] => Boolean(screen)),
+  })).filter((group) => group.screens.length > 0),
+  {
+    key: 'other',
+    label: 'Outras telas',
+    screens: ACCESS_SCREEN_CATALOG.filter((screen) => !groupedScreenKeys.has(screen.key)),
+  },
+].filter((group) => group.screens.length > 0);
+
+function createOpenGroupState() {
+  return Object.fromEntries(permissionGroups.map((group) => [group.key, true]));
+}
+
+function createOpenScreenState() {
+  return Object.fromEntries(
+    permissionGroups.flatMap((group) =>
+      group.screens
+        .filter((screen) => ACCESS_BLOCK_CATALOG.some((block) => block.screenKey === screen.key))
+        .map((screen) => [screen.key, true])
+    )
+  );
 }
 
 export default function SettingsCollaboratorFunctions() {
@@ -52,6 +98,8 @@ export default function SettingsCollaboratorFunctions() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(defaultForm);
   const [permissions, setPermissions] = useState(defaultPermissionSelection);
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(createOpenGroupState);
+  const [openScreens, setOpenScreens] = useState<Record<string, boolean>>(createOpenScreenState);
 
   const loadItems = async () => {
     setLoading(true);
@@ -111,6 +159,42 @@ export default function SettingsCollaboratorFunctions() {
         ? Array.from(new Set([...current.blocks, blockKey]))
         : current.blocks.filter((key) => key !== blockKey),
     }));
+  };
+
+  const toggleGroup = (groupKey: string) => {
+    setOpenGroups((current) => ({ ...current, [groupKey]: !current[groupKey] }));
+  };
+
+  const toggleScreen = (screenKey: string) => {
+    setOpenScreens((current) => ({ ...current, [screenKey]: !current[screenKey] }));
+  };
+
+  const expandPermissionTree = () => {
+    setOpenGroups(createOpenGroupState());
+    setOpenScreens(createOpenScreenState());
+  };
+
+  const collapsePermissionTree = () => {
+    setOpenGroups(
+      Object.fromEntries(permissionGroups.map((group) => [group.key, false]))
+    );
+    setOpenScreens(
+      Object.fromEntries(Object.keys(createOpenScreenState()).map((screenKey) => [screenKey, false]))
+    );
+  };
+
+  const selectAllPermissions = () => {
+    setPermissions({
+      screens: ACCESS_SCREEN_CATALOG.map((screen) => screen.key),
+      blocks: ACCESS_BLOCK_CATALOG.map((block) => block.key),
+    });
+  };
+
+  const clearAllPermissions = () => {
+    setPermissions({
+      screens: [],
+      blocks: [],
+    });
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -199,55 +283,108 @@ export default function SettingsCollaboratorFunctions() {
                   </p>
                 </div>
 
-                <div className="max-h-[360px] space-y-3 overflow-y-auto pr-1">
-                  {ACCESS_SCREEN_CATALOG.map((screen) => {
-                    const screenChecked = permissions.screens.includes(screen.key);
-                    const blocks = ACCESS_BLOCK_CATALOG.filter(
-                      (block) => block.screenKey === screen.key
-                    );
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={selectAllPermissions}>
+                    Marcar tudo
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" onClick={clearAllPermissions}>
+                    Desmarcar tudo
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" onClick={expandPermissionTree}>
+                    Expandir tudo
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" onClick={collapsePermissionTree}>
+                    Recolher tudo
+                  </Button>
+                </div>
 
-                    return (
-                      <div key={screen.key} className="rounded-md border border-border bg-background p-3">
-                        <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-                          <input
-                            type="checkbox"
-                            checked={screenChecked}
-                            onChange={(event) =>
-                              toggleScreenPermission(screen.key, event.target.checked)
-                            }
-                            className="h-4 w-4"
-                          />
-                          {screen.label}
-                        </label>
+                <div className="max-h-[420px] space-y-4 overflow-y-auto pr-1">
+                  {permissionGroups.map((group) => (
+                    <section key={group.key} className="space-y-2">
+                      <button
+                        type="button"
+                        aria-expanded={openGroups[group.key]}
+                        onClick={() => toggleGroup(group.key)}
+                        className="flex w-full items-center justify-between rounded-md bg-muted px-3 py-2 text-left text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground transition hover:bg-muted/80"
+                      >
+                        <span>{group.label}</span>
+                        <ChevronDown
+                          size={16}
+                          className={`shrink-0 transition-transform ${openGroups[group.key] ? 'rotate-180' : ''}`}
+                        />
+                      </button>
 
-                        {blocks.length > 0 && (
-                          <div className="mt-3 space-y-2 border-l border-border pl-4">
-                            {blocks.map((block) => (
-                              <label
-                                key={block.key}
-                                className="flex items-center gap-2 text-xs text-muted-foreground"
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={permissions.blocks.includes(block.key)}
-                                  disabled={!screenChecked}
-                                  onChange={(event) =>
-                                    toggleBlockPermission(
-                                      screen.key,
-                                      block.key,
-                                      event.target.checked
-                                    )
-                                  }
-                                  className="h-4 w-4"
-                                />
-                                {block.label}
-                              </label>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                      {openGroups[group.key] && <div className="space-y-2 border-l border-border pl-3">
+                        {group.screens.map((screen) => {
+                          const screenChecked = permissions.screens.includes(screen.key);
+                          const blocks = ACCESS_BLOCK_CATALOG.filter(
+                            (block) => block.screenKey === screen.key
+                          );
+                          const hasBlocks = blocks.length > 0;
+                          const screenOpen = openScreens[screen.key] ?? true;
+
+                          return (
+                            <div key={screen.key} className="space-y-2 rounded-md border border-border bg-background p-3">
+                              <div className="flex items-center justify-between gap-2">
+                                <label className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
+                                  <input
+                                    type="checkbox"
+                                    checked={screenChecked}
+                                    onChange={(event) =>
+                                      toggleScreenPermission(screen.key, event.target.checked)
+                                    }
+                                    className="h-4 w-4"
+                                  />
+                                  <span className="truncate">{screen.label}</span>
+                                </label>
+
+                                {hasBlocks && (
+                                  <button
+                                    type="button"
+                                    aria-expanded={screenOpen}
+                                    aria-label={`${screenOpen ? 'Recolher' : 'Expandir'} ${screen.label}`}
+                                    onClick={() => toggleScreen(screen.key)}
+                                    className="rounded-md p-1 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                                  >
+                                    <ChevronDown
+                                      size={16}
+                                      className={`transition-transform ${screenOpen ? 'rotate-180' : ''}`}
+                                    />
+                                  </button>
+                                )}
+                              </div>
+
+                              {hasBlocks && screenOpen && (
+                                <div className="ml-6 space-y-2 border-l border-border pl-4">
+                                  {blocks.map((block) => (
+                                    <label
+                                      key={block.key}
+                                      className="flex items-center gap-2 text-xs text-muted-foreground"
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={screenChecked && permissions.blocks.includes(block.key)}
+                                        disabled={!screenChecked}
+                                        onChange={(event) =>
+                                          toggleBlockPermission(
+                                            screen.key,
+                                            block.key,
+                                            event.target.checked
+                                          )
+                                        }
+                                        className="h-4 w-4"
+                                      />
+                                      {block.label}
+                                    </label>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>}
+                    </section>
+                  ))}
                 </div>
               </div>
 
