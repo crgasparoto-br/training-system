@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { Activity, BarChart3, BookOpen, Calendar, FileText, LogOut, Menu, Search, Settings, Users, X } from 'lucide-react';
 import { cn } from '@/utils/cn';
@@ -11,9 +11,33 @@ import { shellCopy } from '../i18n/ptBR';
 export function DashboardLayout() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout } = useAuthStore();
+  const { user, logout, loadUser } = useAuthStore();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
+  const companyDisplayName = user?.professor?.contract?.tradeName?.trim()
+    || user?.professor?.contract?.name?.trim()
+    || shellCopy.productName;
+
+  const companyLogoUrl = user?.professor?.contract?.logoUrl?.trim()
+    ? user.professor.contract.logoUrl.startsWith('http://') || user.professor.contract.logoUrl.startsWith('https://')
+      ? user.professor.contract.logoUrl
+      : user.professor.contract.logoUrl.startsWith('/')
+        ? user.professor.contract.logoUrl
+        : `/${user.professor.contract.logoUrl}`
+    : null;
+
+  useEffect(() => {
+    void loadUser();
+  }, [loadUser]);
+
+  useEffect(() => {
+    document.title = companyDisplayName;
+
+    return () => {
+      document.title = shellCopy.productName;
+    };
+  }, [companyDisplayName]);
 
   const handleLogout = async () => {
     await logout();
@@ -22,6 +46,26 @@ export function DashboardLayout() {
 
   const menuItems = useMemo<SidebarNavItem[]>(
     () => [
+      {
+        id: 'consultas',
+        icon: Search,
+        label: shellCopy.menu.consultas,
+        path: '/consultas',
+        children: [
+          {
+            id: 'consultas-alunos',
+            label: shellCopy.menu.consultaAlunos,
+            path: '/consultas/alunos',
+            screenKey: 'students.consultation',
+          },
+          {
+            id: 'consultas-colaboradores',
+            label: shellCopy.menu.consultaColaboradores,
+            path: '/consultas/colaboradores',
+            screenKey: 'collaborators.consultation',
+          },
+        ],
+      },
       {
         id: 'cadastros',
         icon: Users,
@@ -81,26 +125,6 @@ export function DashboardLayout() {
           },
         ],
       },
-      {
-        id: 'consultas',
-        icon: Search,
-        label: shellCopy.menu.consultas,
-        path: '/consultas',
-        children: [
-          {
-            id: 'consultas-alunos',
-            label: shellCopy.menu.consultaAlunos,
-            path: '/consultas/alunos',
-            screenKey: 'students.consultation',
-          },
-          {
-            id: 'consultas-colaboradores',
-            label: shellCopy.menu.consultaColaboradores,
-            path: '/consultas/colaboradores',
-            screenKey: 'collaborators.consultation',
-          },
-        ],
-      },
       { id: 'plans', icon: Calendar, label: shellCopy.menu.planos, path: '/plans', screenKey: 'plans' },
       { id: 'agenda', icon: Calendar, label: shellCopy.menu.agenda, path: '/agenda', screenKey: 'agenda' },
       { id: 'library', icon: BookOpen, label: shellCopy.menu.biblioteca, path: '/library', screenKey: 'library' },
@@ -156,7 +180,16 @@ export function DashboardLayout() {
             >
               {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
-            <h1 className="text-lg font-semibold">{shellCopy.productName}</h1>
+            <div className="flex items-center gap-3 min-w-0">
+              {companyLogoUrl ? (
+                <img
+                  src={companyLogoUrl}
+                  alt={companyDisplayName}
+                  className="h-10 w-auto max-w-[120px] rounded-md border border-border bg-white p-1.5 object-contain"
+                />
+              ) : null}
+              <h1 className="truncate text-lg font-semibold">{companyDisplayName}</h1>
+            </div>
           </div>
 
           <div className="flex items-center gap-4">

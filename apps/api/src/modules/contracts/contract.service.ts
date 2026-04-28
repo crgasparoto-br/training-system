@@ -5,6 +5,7 @@ const prisma = new PrismaClient();
 export interface UpdateContractDTO {
   name?: string;
   document?: string;
+  tradeName?: string | null;
   cref?: string | null;
   addressStreet?: string | null;
   addressNumber?: string | null;
