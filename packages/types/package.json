@@ -5,6 +5,18 @@
   "type": "module",
   "main": "index.ts",
   "types": "index.ts",
-  "files": ["*.ts"],
+  "exports": {
+    ".": {
+      "types": "./index.ts",
+      "browser": "./index.ts",
+      "development": "./index.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["*.ts", "dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
   "private": true
 }

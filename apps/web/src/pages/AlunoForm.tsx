@@ -1,15 +1,16 @@
-﻿import { useState, useEffect } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useForm, type FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import type { ServiceOption } from '@corrida/types';
+import type { ProfessorSummary, ServiceOption } from '@corrida/types';
 import { alunoService, type AlunoAssessmentPrefill, type CreateAlunoDTO, type UpdateAlunoDTO } from '../services/aluno.service';
+import { professorService } from '../services/professor.service';
 import { serviceCatalogService } from '../services/service.service';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
-import { ArrowLeft, ClipboardList, FileText, HeartPulse, Upload, User, X } from 'lucide-react';
+import { ArrowLeft, ClipboardList, FileText, HeartPulse, Sparkles, Upload, User, Wallet, X } from 'lucide-react';
 import { alunoFormCopy } from '../i18n/ptBR';
 
 const numberOrUndefined = (value: unknown) =>
@@ -30,26 +31,64 @@ const identificationSchema = z.object({
   zipCode: z.string().optional(),
   maritalStatus: z.string().optional(),
   instagram: z.string().optional(),
+  emergencyContactName: z.string().optional(),
+  emergencyContactPhone: z.string().optional(),
+  emergencyContactRelationship: z.string().optional(),
+});
+
+const financialSchema = z.object({
+  currentService: z.string().optional(),
+  specialCondition: z.string().optional(),
+  monthlyValue: z.string().optional(),
+  responsibleProfessorId: z.string().optional(),
+  responsibleProfessorName: z.string().optional(),
+  paymentDay: z.string().optional(),
+  contract: z.string().optional(),
+  otherObservations: z.string().optional(),
+});
+
+const preferencesSchema = z.object({
+  hasChildren: z.enum(['', 'yes', 'no']).optional(),
+  childrenCount: z.string().optional(),
+  marketingConsent: z.enum(['', 'yes', 'no']).optional(),
+  servicePackagesConsent: z.enum(['', 'yes', 'no']).optional(),
+  serviceFeedbackConsent: z.enum(['', 'yes', 'no']).optional(),
+  promotionsConsent: z.enum(['', 'yes', 'no']).optional(),
+  campaignsConsent: z.enum(['', 'yes', 'no']).optional(),
+  shirtModel: z.enum(['', 'traditional', 'babylook']).optional(),
+  shirtSize: z.string().optional(),
+  clothingSize: z.string().optional(),
+  shoeSize: z.string().optional(),
+  favoriteMusicGenre: z.string().optional(),
+  favoriteChocolate: z.string().optional(),
+  preferredNickname: z.string().optional(),
 });
 
 const ahaResponseSchema = z.union([z.literal(''), z.enum(['yes', 'no', 'unknown'])]);
 
+const requiredNumber = (message: string) =>
+  z.number({
+    required_error: message,
+    invalid_type_error: message,
+  });
+
 const alunoSchema = z.object({
-  name: z.string().min(3, 'Nome deve ter no minimo 3 caracteres'),
+  name: z.string().min(3, 'Nome deve ter no mínimo 3 caracteres'),
   email: z.string().email('E-mail inválido'),
+  avatar: z.string().optional(),
   phone: z.string().optional(),
   serviceId: z.string().min(1, 'Selecione o serviço de interesse'),
   birthDate: z.string().optional(),
   gender: z.enum(['male', 'female', 'other']).optional(),
   schedulePlan: z.enum(['free', 'fixed']),
-  age: z.number().int().min(10, 'Idade minima: 10 anos').max(100, 'Idade maxima: 100 anos'),
-  weight: z.number().positive('Peso deve ser positivo'),
-  height: z.number().positive('Altura deve ser positiva'),
+  age: requiredNumber('Idade é obrigatória').int().min(10, 'Idade mínima: 10 anos').max(100, 'Idade máxima: 100 anos'),
+  weight: optionalNumberSchema(z.number().positive('Peso deve ser positivo')),
+  height: optionalNumberSchema(z.number().positive('Altura deve ser positiva')),
   bodyFatPercentage: optionalNumberSchema(z.number().min(0).max(100)),
-  vo2Max: z.number().positive('VO2 Max deve ser positivo'),
-  anaerobicThreshold: z.number().positive('Limiar anaerobico deve ser positivo'),
-  maxHeartRate: z.number().int().min(100, 'FC maxima minima: 100 bpm').max(220, 'FC maxima maxima: 220 bpm'),
-  restingHeartRate: z.number().int().min(30, 'FC repouso minima: 30 bpm').max(100, 'FC repouso maxima: 100 bpm'),
+  vo2Max: optionalNumberSchema(z.number().positive('VO2 Max deve ser positivo')),
+  anaerobicThreshold: optionalNumberSchema(z.number().positive('Limiar anaeróbico deve ser positivo')),
+  maxHeartRate: optionalNumberSchema(z.number().int().min(100, 'FC máxima mínima: 100 bpm').max(220, 'FC máxima máxima: 220 bpm')),
+  restingHeartRate: optionalNumberSchema(z.number().int().min(30, 'FC de repouso mínima: 30 bpm').max(100, 'FC de repouso máxima: 100 bpm')),
   systolicPressure: optionalNumberSchema(z.number().int().min(80).max(240)),
   diastolicPressure: optionalNumberSchema(z.number().int().min(40).max(160)),
   macronutrients: z.object({
@@ -67,6 +106,8 @@ const alunoSchema = z.object({
     trainingBackground: z.string().optional(),
     observations: z.string().optional(),
     personalInfo: identificationSchema,
+    financialInfo: financialSchema,
+    preferencesInfo: preferencesSchema,
     parqResponses: z.object({
       q1: z.boolean(),
       q2: z.boolean(),
@@ -82,6 +123,34 @@ const alunoSchema = z.object({
 });
 
 type AlunoFormData = z.infer<typeof alunoSchema>;
+
+const baseUrl = import.meta.env.VITE_API_URL || '';
+
+const getAvatarInitials = (name?: string) => {
+  const parts = (name || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2);
+
+  if (parts.length === 0) {
+    return 'AL';
+  }
+
+  return parts.map((part) => part.charAt(0).toUpperCase()).join('');
+};
+
+const resolveAvatarUrl = (avatar?: string | null) => {
+  if (!avatar) {
+    return '';
+  }
+
+  if (/^(https?:|data:|blob:)/i.test(avatar)) {
+    return avatar;
+  }
+
+  return `${baseUrl}/${avatar}`;
+};
 
 const selectClassName =
   'flex h-12 w-full rounded-xl border border-[#cbd5e1] bg-background px-4 py-3 text-base ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3b82f6] focus-visible:ring-offset-2 focus-visible:shadow-[0_0_0_6px_rgba(59,130,246,0.15)]';
@@ -198,10 +267,12 @@ const ahaAnswerOptions = [
   { value: 'unknown', label: 'Não sei' },
 ] as const;
 
-type AlunoFormTab = 'anamneseInicial' | 'identificacao' | 'parq' | 'aha';
+type AlunoFormTab = 'anamneseInicial' | 'identificacao' | 'financeiro' | 'preferencias' | 'parq' | 'aha';
 
 type AlunoFormResponses = {
   identification?: Partial<AlunoFormData['intakeForm']['personalInfo']>;
+  financial?: Partial<AlunoFormData['intakeForm']['financialInfo']>;
+  preferences?: Partial<AlunoFormData['intakeForm']['preferencesInfo']>;
   parqResponses?: Partial<AlunoFormData['intakeForm']['parqResponses']>;
   ahaResponses?: Record<string, unknown>;
 };
@@ -216,6 +287,25 @@ const formatDateForInput = (value?: string | null) => {
   return date.toISOString().slice(0, 10);
 };
 
+const calculateAgeFromBirthDate = (value?: string) => {
+  if (!value) return undefined;
+
+  const birthDate = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(birthDate.getTime())) return undefined;
+
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const hasHadBirthdayThisYear =
+    today.getMonth() > birthDate.getMonth() ||
+    (today.getMonth() === birthDate.getMonth() && today.getDate() >= birthDate.getDate());
+
+  if (!hasHadBirthdayThisYear) {
+    age -= 1;
+  }
+
+  return age >= 0 ? age : undefined;
+};
+
 export function AlunoForm() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -227,9 +317,14 @@ export function AlunoForm() {
   const [prefillSummary, setPrefillSummary] = useState<string>('');
   const [isPrefillModalOpen, setIsPrefillModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<AlunoFormTab>('anamneseInicial');
+  const [avatarUploading, setAvatarUploading] = useState(false);
   const [serviceOptions, setServiceOptions] = useState<ServiceOption[]>([]);
   const [servicesLoading, setServicesLoading] = useState(true);
   const [servicesError, setServicesError] = useState<string | null>(null);
+  const [professorOptions, setProfessorOptions] = useState<ProfessorSummary[]>([]);
+  const [professorsLoading, setProfessorsLoading] = useState(true);
+  const [professorsError, setProfessorsError] = useState<string | null>(null);
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
 
   const {
     register,
@@ -240,6 +335,7 @@ export function AlunoForm() {
   } = useForm<AlunoFormData>({
     resolver: zodResolver(alunoSchema),
     defaultValues: {
+      avatar: '',
       serviceId: '',
       schedulePlan: 'free',
       gender: 'male',
@@ -269,6 +365,35 @@ export function AlunoForm() {
           zipCode: '',
           maritalStatus: '',
           instagram: '',
+          emergencyContactName: '',
+          emergencyContactPhone: '',
+          emergencyContactRelationship: '',
+        },
+        financialInfo: {
+          currentService: '',
+          specialCondition: '',
+          monthlyValue: '',
+          responsibleProfessorId: '',
+          responsibleProfessorName: '',
+          paymentDay: '',
+          contract: '',
+          otherObservations: '',
+        },
+        preferencesInfo: {
+          hasChildren: '',
+          childrenCount: '',
+          marketingConsent: '',
+          servicePackagesConsent: '',
+          serviceFeedbackConsent: '',
+          promotionsConsent: '',
+          campaignsConsent: '',
+          shirtModel: '',
+          shirtSize: '',
+          clothingSize: '',
+          shoeSize: '',
+          favoriteMusicGenre: '',
+          favoriteChocolate: '',
+          preferredNickname: '',
         },
         parqResponses: {
           q1: false,
@@ -287,9 +412,14 @@ export function AlunoForm() {
 
   const weight = watch('weight');
   const height = watch('height');
+  const birthDate = watch('birthDate');
+  const avatar = watch('avatar');
+  const studentName = watch('name');
+  const calculatedAge = calculateAgeFromBirthDate(birthDate);
   const parqDeclarationAccepted = watch('intakeForm.parqResponses.q8');
   const bmi = weight && height ? alunoService.calculateBMI(weight, height) : 0;
   const bmiClass = bmi ? alunoService.getBMIClassification(bmi) : '';
+  const resolvedAvatar = resolveAvatarUrl(avatar);
 
   const formatPhone = (value: string) => {
     const digits = value.replace(/\D/g, '').slice(0, 11);
@@ -297,6 +427,47 @@ export function AlunoForm() {
       return digits.replace(/^(\d{2})(\d)/, '($1) $2').replace(/(\d{4})(\d)/, '$1-$2');
     }
     return digits.replace(/^(\d{2})(\d)/, '($1) $2').replace(/(\d{5})(\d)/, '$1-$2');
+  };
+
+  const formatCurrencyInput = (value: string) => {
+    const digits = value.replace(/\D/g, '');
+    if (!digits) return '';
+
+    const amount = Number(digits) / 100;
+    return amount.toLocaleString('pt-BR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  };
+
+  const normalizePaymentDay = (value: string) => {
+    const digits = value.replace(/\D/g, '').slice(0, 2);
+    if (!digits) return '';
+
+    const day = Number(digits);
+    if (!Number.isFinite(day)) return '';
+    if (day <= 0) return '1';
+    if (day > 31) return '31';
+    return String(day);
+  };
+
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    setAvatarUploading(true);
+    try {
+      const uploadedAvatar = await alunoService.uploadAvatar(file);
+      setValue('avatar', uploadedAvatar, { shouldDirty: true, shouldTouch: true, shouldValidate: true });
+    } catch (error: any) {
+      console.error('Erro ao enviar foto do aluno:', error);
+      alert(error.response?.data?.error || 'Erro ao enviar foto do aluno');
+    } finally {
+      setAvatarUploading(false);
+      event.target.value = '';
+    }
   };
 
   const applyAssessmentPrefill = (prefill: AlunoAssessmentPrefill) => {
@@ -379,6 +550,7 @@ export function AlunoForm() {
 
   useEffect(() => {
     loadServiceOptions();
+    loadProfessorOptions();
   }, []);
 
   useEffect(() => {
@@ -386,6 +558,17 @@ export function AlunoForm() {
       loadAlunoData(id);
     }
   }, [id, isEditMode]);
+
+  useEffect(() => {
+    if (calculatedAge === undefined) {
+      return;
+    }
+
+    setValue('age', calculatedAge, {
+      shouldDirty: false,
+      shouldValidate: true,
+    });
+  }, [calculatedAge, setValue]);
 
   const loadServiceOptions = async () => {
     setServicesLoading(true);
@@ -401,25 +584,40 @@ export function AlunoForm() {
     }
   };
 
+  const loadProfessorOptions = async () => {
+    setProfessorsLoading(true);
+    setProfessorsError(null);
+    try {
+      const data = await professorService.list('active');
+      setProfessorOptions(data);
+    } catch (error: any) {
+      console.error('Erro ao carregar professores:', error);
+      setProfessorsError(error.response?.data?.error || 'Erro ao carregar professores');
+    } finally {
+      setProfessorsLoading(false);
+    }
+  };
+
   const loadAlunoData = async (alunoId: string) => {
     setLoadingData(true);
     try {
       const aluno = await alunoService.getById(alunoId);
       setValue('name', aluno.user.profile.name);
       setValue('email', aluno.user.email);
+      setValue('avatar', aluno.user.profile.avatar || '');
       setValue('phone', aluno.user.profile.phone || '');
       setValue('serviceId', aluno.service?.id || '');
       setValue('birthDate', formatDateForInput(aluno.user.profile.birthDate));
       setValue('gender', aluno.user.profile.gender || 'male');
       setValue('schedulePlan', aluno.schedulePlan);
       setValue('age', aluno.age);
-      setValue('weight', aluno.weight);
-      setValue('height', aluno.height);
-      setValue('bodyFatPercentage', aluno.bodyFatPercentage);
-      setValue('vo2Max', aluno.vo2Max);
-      setValue('anaerobicThreshold', aluno.anaerobicThreshold);
-      setValue('maxHeartRate', aluno.maxHeartRate);
-      setValue('restingHeartRate', aluno.restingHeartRate);
+      setValue('weight', aluno.weight ?? undefined);
+      setValue('height', aluno.height ?? undefined);
+      setValue('bodyFatPercentage', aluno.bodyFatPercentage ?? undefined);
+      setValue('vo2Max', aluno.vo2Max ?? undefined);
+      setValue('anaerobicThreshold', aluno.anaerobicThreshold ?? undefined);
+      setValue('maxHeartRate', aluno.maxHeartRate ?? undefined);
+      setValue('restingHeartRate', aluno.restingHeartRate ?? undefined);
       setValue('systolicPressure', aluno.systolicPressure);
       setValue('diastolicPressure', aluno.diastolicPressure);
       setValue('macronutrients.carbohydratesPercentage', aluno.macronutrients?.carbohydratesPercentage);
@@ -435,6 +633,8 @@ export function AlunoForm() {
       setValue('intakeForm.observations', aluno.intakeForm?.observations || '');
       const formResponses = readFormResponses(aluno.intakeForm?.formResponses);
       const identification = formResponses.identification ?? {};
+      const financial = formResponses.financial ?? {};
+      const preferences = formResponses.preferences ?? {};
       setValue('intakeForm.personalInfo.cpf', identification.cpf || '');
       setValue('intakeForm.personalInfo.rg', identification.rg || '');
       setValue('intakeForm.personalInfo.address', identification.address || '');
@@ -446,6 +646,32 @@ export function AlunoForm() {
       setValue('intakeForm.personalInfo.zipCode', identification.zipCode || '');
       setValue('intakeForm.personalInfo.maritalStatus', identification.maritalStatus || '');
       setValue('intakeForm.personalInfo.instagram', identification.instagram || '');
+      setValue('intakeForm.personalInfo.emergencyContactName', identification.emergencyContactName || '');
+      setValue('intakeForm.personalInfo.emergencyContactPhone', identification.emergencyContactPhone || '');
+      setValue('intakeForm.personalInfo.emergencyContactRelationship', identification.emergencyContactRelationship || '');
+      setValue('intakeForm.financialInfo.currentService', financial.currentService || '');
+      setValue('intakeForm.financialInfo.specialCondition', financial.specialCondition || '');
+      setValue('intakeForm.financialInfo.monthlyValue', financial.monthlyValue || '');
+      setValue('intakeForm.financialInfo.responsibleProfessorId', financial.responsibleProfessorId || '');
+      setValue('intakeForm.financialInfo.responsibleProfessorName', financial.responsibleProfessorName || '');
+      setValue('intakeForm.financialInfo.paymentDay', financial.paymentDay || '');
+      setValue('intakeForm.financialInfo.contract', financial.contract || '');
+      setValue('intakeForm.financialInfo.otherObservations', financial.otherObservations || '');
+      setValue('intakeForm.preferencesInfo.hasChildren', preferences.hasChildren || '');
+      setValue('intakeForm.preferencesInfo.childrenCount', preferences.childrenCount || '');
+      const legacyMarketingConsent = preferences.marketingConsent || '';
+      setValue('intakeForm.preferencesInfo.marketingConsent', legacyMarketingConsent);
+      setValue('intakeForm.preferencesInfo.servicePackagesConsent', preferences.servicePackagesConsent || legacyMarketingConsent);
+      setValue('intakeForm.preferencesInfo.serviceFeedbackConsent', preferences.serviceFeedbackConsent || legacyMarketingConsent);
+      setValue('intakeForm.preferencesInfo.promotionsConsent', preferences.promotionsConsent || legacyMarketingConsent);
+      setValue('intakeForm.preferencesInfo.campaignsConsent', preferences.campaignsConsent || legacyMarketingConsent);
+      setValue('intakeForm.preferencesInfo.shirtModel', preferences.shirtModel || '');
+      setValue('intakeForm.preferencesInfo.shirtSize', preferences.shirtSize || '');
+      setValue('intakeForm.preferencesInfo.clothingSize', preferences.clothingSize || '');
+      setValue('intakeForm.preferencesInfo.shoeSize', preferences.shoeSize || '');
+      setValue('intakeForm.preferencesInfo.favoriteMusicGenre', preferences.favoriteMusicGenre || '');
+      setValue('intakeForm.preferencesInfo.favoriteChocolate', preferences.favoriteChocolate || '');
+      setValue('intakeForm.preferencesInfo.preferredNickname', preferences.preferredNickname || '');
       setValue('intakeForm.parqResponses.q1', aluno.intakeForm?.parqResponses?.q1 ?? false);
       setValue('intakeForm.parqResponses.q2', aluno.intakeForm?.parqResponses?.q2 ?? false);
       setValue('intakeForm.parqResponses.q3', aluno.intakeForm?.parqResponses?.q3 ?? false);
@@ -480,6 +706,8 @@ export function AlunoForm() {
   const onSubmit = async (data: AlunoFormData) => {
     setLoading(true);
     try {
+      const resolvedAge = calculateAgeFromBirthDate(data.birthDate) ?? data.age;
+
       const parqResponses = {
         q1: data.intakeForm.parqResponses.q1,
         q2: data.intakeForm.parqResponses.q2,
@@ -492,16 +720,19 @@ export function AlunoForm() {
       };
       const formResponses = {
         identification: data.intakeForm.personalInfo,
+        financial: data.intakeForm.financialInfo,
+        preferences: data.intakeForm.preferencesInfo,
         parqResponses,
         ahaResponses: data.intakeForm.ahaResponses,
       };
 
       const updatePayload: UpdateAlunoDTO = {
+        avatar: data.avatar || undefined,
         serviceId: data.serviceId,
         birthDate: data.birthDate || undefined,
         gender: data.gender,
         schedulePlan: data.schedulePlan,
-        age: data.age,
+        age: resolvedAge,
         weight: data.weight,
         height: data.height,
         bodyFatPercentage: data.bodyFatPercentage,
@@ -532,44 +763,23 @@ export function AlunoForm() {
         return;
       }
 
-      const {
-        weight,
-        height,
-        vo2Max,
-        anaerobicThreshold,
-        maxHeartRate,
-        restingHeartRate,
-      } = data;
-
-      if (
-        weight === undefined ||
-        height === undefined ||
-        vo2Max === undefined ||
-        anaerobicThreshold === undefined ||
-        maxHeartRate === undefined ||
-        restingHeartRate === undefined
-      ) {
-        setIsPrefillModalOpen(true);
-        alert('Use o ícone de upload para ler o PDF da avaliação antes de criar o aluno.');
-        return;
-      }
-
       const createPayload: CreateAlunoDTO = {
         name: data.name,
         email: data.email,
+        avatar: data.avatar || undefined,
         phone: data.phone,
         serviceId: data.serviceId,
         birthDate: data.birthDate || undefined,
         gender: data.gender,
         schedulePlan: data.schedulePlan,
-        age: data.age,
-        weight,
-        height,
+        age: resolvedAge,
+        weight: data.weight,
+        height: data.height,
         bodyFatPercentage: data.bodyFatPercentage,
-        vo2Max,
-        anaerobicThreshold,
-        maxHeartRate,
-        restingHeartRate,
+        vo2Max: data.vo2Max,
+        anaerobicThreshold: data.anaerobicThreshold,
+        maxHeartRate: data.maxHeartRate,
+        restingHeartRate: data.restingHeartRate,
         systolicPressure: data.systolicPressure,
         diastolicPressure: data.diastolicPressure,
         macronutrients: data.macronutrients,
@@ -599,50 +809,50 @@ export function AlunoForm() {
   };
 
   const handleInvalidSubmit = (formErrors: FieldErrors<AlunoFormData>) => {
+    const hasIdentificationTabErrors =
+      !!formErrors.name ||
+      !!formErrors.email ||
+      !!formErrors.avatar ||
+      !!formErrors.phone ||
+      !!formErrors.serviceId ||
+      !!formErrors.birthDate ||
+      !!formErrors.gender ||
+      !!formErrors.schedulePlan ||
+      !!formErrors.age;
+
+    const hasAssessmentTabErrors =
+      !!formErrors.weight ||
+      !!formErrors.height ||
+      !!formErrors.bodyFatPercentage ||
+      !!formErrors.vo2Max ||
+      !!formErrors.anaerobicThreshold ||
+      !!formErrors.maxHeartRate ||
+      !!formErrors.restingHeartRate ||
+      !!formErrors.systolicPressure ||
+      !!formErrors.diastolicPressure ||
+      !!formErrors.macronutrients ||
+      !!formErrors.intakeForm?.assessmentDate;
+
     if (
-      formErrors.name ||
-      formErrors.email ||
-      formErrors.phone ||
-      formErrors.serviceId ||
-      formErrors.birthDate ||
-      formErrors.gender ||
-      formErrors.schedulePlan ||
-      formErrors.age ||
-      formErrors.weight ||
-      formErrors.height ||
-      formErrors.bodyFatPercentage ||
-      formErrors.vo2Max ||
-      formErrors.anaerobicThreshold ||
-      formErrors.maxHeartRate ||
-      formErrors.restingHeartRate ||
-      formErrors.systolicPressure ||
-      formErrors.diastolicPressure ||
-      formErrors.macronutrients ||
-      formErrors.intakeForm?.assessmentDate
+      hasIdentificationTabErrors ||
+      formErrors.intakeForm?.personalInfo
     ) {
       setActiveTab('anamneseInicial');
       return;
     }
 
-    if (
-      formErrors.weight ||
-      formErrors.height ||
-      formErrors.bodyFatPercentage ||
-      formErrors.vo2Max ||
-      formErrors.anaerobicThreshold ||
-      formErrors.maxHeartRate ||
-      formErrors.restingHeartRate ||
-      formErrors.systolicPressure ||
-      formErrors.diastolicPressure ||
-      formErrors.macronutrients ||
-      formErrors.intakeForm?.assessmentDate
-    ) {
+    if (hasAssessmentTabErrors) {
       setActiveTab('identificacao');
       return;
     }
 
-    if (formErrors.intakeForm?.personalInfo) {
-      setActiveTab('anamneseInicial');
+    if (formErrors.intakeForm?.financialInfo) {
+      setActiveTab('financeiro');
+      return;
+    }
+
+    if (formErrors.intakeForm?.preferencesInfo) {
+      setActiveTab('preferencias');
       return;
     }
 
@@ -754,6 +964,36 @@ export function AlunoForm() {
                 <button
                   type="button"
                   role="tab"
+                  id="aluno-tab-financeiro"
+                  aria-controls="aluno-panel-financeiro"
+                  onClick={() => setActiveTab('financeiro')}
+                  className={`inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-medium transition-colors ${
+                    activeTab === 'financeiro'
+                      ? 'bg-card text-primary shadow-sm ring-1 ring-border'
+                      : 'text-muted-foreground hover:bg-card/70 hover:text-foreground'
+                  }`}
+                >
+                  <Wallet size={16} />
+                  Financeiro
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  id="aluno-tab-preferencias"
+                  aria-controls="aluno-panel-preferencias"
+                  onClick={() => setActiveTab('preferencias')}
+                  className={`inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-medium transition-colors ${
+                    activeTab === 'preferencias'
+                      ? 'bg-card text-primary shadow-sm ring-1 ring-border'
+                      : 'text-muted-foreground hover:bg-card/70 hover:text-foreground'
+                  }`}
+                >
+                  <Sparkles size={16} />
+                  Preferências
+                </button>
+                <button
+                  type="button"
+                  role="tab"
                   id="aluno-tab-identificacao"
                   aria-controls="aluno-panel-identificacao"
                   onClick={() => setActiveTab('identificacao')}
@@ -820,57 +1060,110 @@ export function AlunoForm() {
                             <option value="other">Outro</option>
                           </select>
                         </div>
-                        <Input label="Idade" type="number" placeholder="30" error={errors.age?.message} {...register('age', { valueAsNumber: true })} />
+                        <Input
+                          label="Idade"
+                          type="number"
+                          placeholder="30"
+                          error={errors.age?.message}
+                          readOnly={calculatedAge !== undefined}
+                          className={calculatedAge !== undefined ? 'bg-muted' : undefined}
+                          {...register('age', { valueAsNumber: true })}
+                        />
                       </div>
                     </div>
 
-                    <div className="space-y-4 rounded-xl border border-border bg-card p-5">
-                      <div>
-                        <h3 className="text-sm font-semibold text-foreground">Interesse e agenda</h3>
-                        <p className="mt-1 text-sm text-muted-foreground">Defina o serviço de entrada e o modelo de agenda do aluno.</p>
+                    <div className="space-y-4">
+                      <div className="rounded-xl border border-border bg-card p-5">
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+                          <div className="mx-auto flex h-36 w-36 shrink-0 items-center justify-center overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-primary/10 via-background to-secondary/20 text-3xl font-semibold text-foreground">
+                            {resolvedAvatar ? (
+                              <img src={resolvedAvatar} alt={studentName || 'Aluno'} className="h-full w-full object-cover" />
+                            ) : (
+                              <span>{getAvatarInitials(studentName)}</span>
+                            )}
+                          </div>
+                          <div className="flex-1 space-y-3">
+                            <div>
+                              <h3 className="text-sm font-semibold text-foreground">Foto do aluno</h3>
+                              <p className="mt-1 text-sm text-muted-foreground">
+                                Envie uma imagem para facilitar a identificação visual no cadastro e nas consultas.
+                              </p>
+                            </div>
+                            <input
+                              ref={avatarInputRef}
+                              type="file"
+                              accept="image/*"
+                              aria-label="Selecionar foto do aluno"
+                              title="Selecionar foto do aluno"
+                              className="hidden"
+                              onChange={handleAvatarUpload}
+                            />
+                            <div className="flex flex-wrap gap-3">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => avatarInputRef.current?.click()}
+                                disabled={avatarUploading}
+                              >
+                                <Upload size={16} />
+                                {avatarUploading ? 'Enviando foto...' : resolvedAvatar ? 'Trocar foto' : 'Enviar foto'}
+                              </Button>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              Formatos de imagem comuns são aceitos, com limite de até 5 MB.
+                            </p>
+                          </div>
+                        </div>
                       </div>
 
-                      <div className="space-y-3">
+                      <div className="space-y-4 rounded-xl border border-border bg-card p-5">
                         <div>
-                          <label className="block text-sm font-medium text-foreground">
-                            Serviço de Interesse <span className="ml-1 text-destructive">*</span>
-                          </label>
-                          <p className="mt-1 text-sm text-muted-foreground">
-                            Selecione o serviço que motivou o cadastro inicial do aluno.
-                          </p>
+                          <h3 className="text-sm font-semibold text-foreground">Interesse e agenda</h3>
+                          <p className="mt-1 text-sm text-muted-foreground">Defina o serviço de entrada e o modelo de agenda do aluno.</p>
                         </div>
 
-                        {servicesLoading ? (
-                          <p className="text-sm text-muted-foreground">Carregando serviços...</p>
-                        ) : servicesError ? (
-                          <p className="text-sm text-destructive">{servicesError}</p>
-                        ) : serviceOptions.length === 0 ? (
-                          <p className="text-sm text-muted-foreground">Nenhum serviço ativo cadastrado em Configurações &gt; Serviços.</p>
-                        ) : (
+                        <div className="space-y-3">
                           <div>
-                            <select className={selectClassName} {...register('serviceId')}>
-                              <option value="">Selecione um serviço</option>
-                              {serviceOptions.map((service) => (
-                                <option key={service.id} value={service.id}>
-                                  {service.name}
-                                </option>
-                              ))}
-                            </select>
+                            <label className="block text-sm font-medium text-foreground">
+                              Serviço de Interesse <span className="ml-1 text-destructive">*</span>
+                            </label>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                              Selecione o serviço que motivou o cadastro inicial do aluno.
+                            </p>
                           </div>
-                        )}
 
-                        {errors.serviceId?.message && (
-                          <p className="text-sm text-destructive">{errors.serviceId.message}</p>
-                        )}
-                      </div>
+                          {servicesLoading ? (
+                            <p className="text-sm text-muted-foreground">Carregando serviços...</p>
+                          ) : servicesError ? (
+                            <p className="text-sm text-destructive">{servicesError}</p>
+                          ) : serviceOptions.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">Nenhum serviço ativo cadastrado em Configurações &gt; Serviços.</p>
+                          ) : (
+                            <div>
+                              <select className={selectClassName} {...register('serviceId')}>
+                                <option value="">Selecione um serviço</option>
+                                {serviceOptions.map((service) => (
+                                  <option key={service.id} value={service.id}>
+                                    {service.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
 
-                      <div>
-                        <label className="mb-2 block text-sm font-medium text-foreground">Plano de agenda do aluno</label>
-                        <select className={selectClassName} {...register('schedulePlan')}>
-                          <option value="free">Livre</option>
-                          <option value="fixed">Fixo</option>
-                        </select>
-                        <p className="mt-2 text-sm text-muted-foreground">Use plano fixo para alunos com rotina recorrente de agenda e reposições vinculadas.</p>
+                          {errors.serviceId?.message && (
+                            <p className="text-sm text-destructive">{errors.serviceId.message}</p>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="mb-2 block text-sm font-medium text-foreground">Plano de agenda do aluno</label>
+                          <select className={selectClassName} {...register('schedulePlan')}>
+                            <option value="free">Livre</option>
+                            <option value="fixed">Fixo</option>
+                          </select>
+                          <p className="mt-2 text-sm text-muted-foreground">Use plano fixo para alunos com rotina recorrente de agenda e reposições vinculadas.</p>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -885,7 +1178,7 @@ export function AlunoForm() {
                       <Input label="CPF" placeholder="000.000.000-00" {...register('intakeForm.personalInfo.cpf')} />
                       <Input label="RG" placeholder="00.000.000-0" {...register('intakeForm.personalInfo.rg')} />
                       <Input label="Estado civil" placeholder="Solteiro(a), casado(a)..." {...register('intakeForm.personalInfo.maritalStatus')} />
-                      <Input label="Instagram" placeholder="@usuario" {...register('intakeForm.personalInfo.instagram')} />
+                      <Input label="Rede social" placeholder="Ex.: @usuario, Instagram, TikTok" {...register('intakeForm.personalInfo.instagram')} />
                     </div>
                   </div>
 
@@ -911,6 +1204,298 @@ export function AlunoForm() {
                       <Input label="Complemento" placeholder="Bloco, apartamento, referência..." {...register('intakeForm.personalInfo.addressComplement')} />
                       <Input label="CEP" placeholder="00000-000" {...register('intakeForm.personalInfo.zipCode')} />
                     </div>
+                  </div>
+
+                  <div className="space-y-4 rounded-xl border border-border bg-muted/20 p-5">
+                    <div>
+                      <h3 className="text-sm font-semibold text-foreground">Contato de emergência</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">Mantenha uma referência rápida de quem deve ser acionado em caso de necessidade.</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                      <Input
+                        label="Nome completo do contato de emergência"
+                        placeholder="Nome e sobrenome"
+                        {...register('intakeForm.personalInfo.emergencyContactName')}
+                      />
+                      <Input
+                        label="Telefone do contato de emergência"
+                        type="tel"
+                        placeholder="(11) 99999-9999"
+                        {...register('intakeForm.personalInfo.emergencyContactPhone', {
+                          onChange: (event) => {
+                            const formatted = formatPhone(event.target.value);
+                            setValue('intakeForm.personalInfo.emergencyContactPhone', formatted, { shouldValidate: true });
+                          },
+                        })}
+                      />
+                    </div>
+
+                    <Input
+                      label="Relação com o paciente do contato de emergência"
+                      placeholder="Mãe, pai, cônjuge, irmão, responsável..."
+                      {...register('intakeForm.personalInfo.emergencyContactRelationship')}
+                    />
+                  </div>
+                </section>
+              </div>
+            )}
+
+            {activeTab === 'financeiro' && (
+              <div
+                id="aluno-panel-financeiro"
+                role="tabpanel"
+                aria-labelledby="aluno-tab-financeiro"
+                className="space-y-8"
+              >
+                <section className="space-y-4">
+                  <div>
+                    <h2 className="text-lg font-semibold text-foreground">Financeiro</h2>
+                    <p className="text-sm text-muted-foreground">Centralize condições comerciais, vínculo atual e notas administrativas do aluno.</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-foreground">Serviço Vigente</label>
+                      <select className={selectClassName} {...register('intakeForm.financialInfo.currentService')}>
+                        <option value="">Selecione um serviço</option>
+                        {serviceOptions.map((service) => (
+                          <option key={service.id} value={service.name}>
+                            {service.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <Input
+                      label="Condição Especial"
+                      placeholder="Ex.: bolsa parcial, desconto familiar, cortesia"
+                      {...register('intakeForm.financialInfo.specialCondition')}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                    <Input
+                      label="Valor Mensal"
+                      type="text"
+                      inputMode="decimal"
+                      placeholder="0,00"
+                      {...register('intakeForm.financialInfo.monthlyValue', {
+                        onChange: (event) => {
+                          const formatted = formatCurrencyInput(event.target.value);
+                          setValue('intakeForm.financialInfo.monthlyValue', formatted, { shouldValidate: true });
+                        },
+                      })}
+                    />
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-foreground">Professor Responsável</label>
+                      {professorsLoading ? (
+                        <p className="text-sm text-muted-foreground">Carregando professores...</p>
+                      ) : professorsError ? (
+                        <p className="text-sm text-destructive">{professorsError}</p>
+                      ) : (
+                        <select
+                          className={selectClassName}
+                          {...register('intakeForm.financialInfo.responsibleProfessorId', {
+                            onChange: (event) => {
+                              const selectedProfessor = professorOptions.find(
+                                (professor) => professor.id === event.target.value
+                              );
+                              setValue(
+                                'intakeForm.financialInfo.responsibleProfessorName',
+                                selectedProfessor?.user.profile.name || '',
+                                { shouldValidate: true }
+                              );
+                            },
+                          })}
+                        >
+                          <option value="">Selecione um professor</option>
+                          {professorOptions.map((professor) => (
+                            <option key={professor.id} value={professor.id}>
+                              {professor.user.profile.name}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                    <Input
+                      label="Dia de pagamento"
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="10"
+                      {...register('intakeForm.financialInfo.paymentDay', {
+                        onChange: (event) => {
+                          const normalized = normalizePaymentDay(event.target.value);
+                          setValue('intakeForm.financialInfo.paymentDay', normalized, { shouldValidate: true });
+                        },
+                      })}
+                    />
+                  </div>
+
+                  <Input
+                    label="Contrato"
+                    placeholder="Ex.: contrato anual, mensal recorrente, pacote promocional"
+                    {...register('intakeForm.financialInfo.contract')}
+                  />
+
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-foreground">Outras observações</label>
+                    <textarea
+                      className={textareaClassName}
+                      placeholder="Registre regras de cobrança, exceções combinadas ou contexto administrativo relevante"
+                      {...register('intakeForm.financialInfo.otherObservations')}
+                    />
+                  </div>
+                </section>
+              </div>
+            )}
+
+            {activeTab === 'preferencias' && (
+              <div
+                id="aluno-panel-preferencias"
+                role="tabpanel"
+                aria-labelledby="aluno-tab-preferencias"
+                className="space-y-8"
+              >
+                <section className="space-y-4">
+                  <div>
+                    <h2 className="text-lg font-semibold text-foreground">Preferências</h2>
+                    <p className="text-sm text-muted-foreground">Informações opcionais de perfil, comunicação e personalização do aluno.</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-foreground">Tem filhos?</label>
+                      <select className={selectClassName} {...register('intakeForm.preferencesInfo.hasChildren')}>
+                        <option value="">Não informar</option>
+                        <option value="yes">Sim</option>
+                        <option value="no">Não</option>
+                      </select>
+                    </div>
+                    <Input
+                      label="Quantos filhos?"
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="Ex.: 2"
+                      {...register('intakeForm.preferencesInfo.childrenCount')}
+                    />
+                  </div>
+
+                  <div className="space-y-4 rounded-xl border border-border bg-muted/20 p-5">
+                    <div>
+                      <h3 className="text-sm font-semibold text-foreground">Comunicação da Acesso</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">Permita respostas diferentes para cada tipo de contato.</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-foreground">
+                          Gostaria de receber mensagens sobre pacotes de serviços?
+                        </label>
+                        <select className={selectClassName} {...register('intakeForm.preferencesInfo.servicePackagesConsent')}>
+                          <option value="">Não informar</option>
+                          <option value="yes">Sim</option>
+                          <option value="no">Não</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-foreground">
+                          Gostaria de receber mensagens sobre feedback de serviços?
+                        </label>
+                        <select className={selectClassName} {...register('intakeForm.preferencesInfo.serviceFeedbackConsent')}>
+                          <option value="">Não informar</option>
+                          <option value="yes">Sim</option>
+                          <option value="no">Não</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-foreground">
+                          Gostaria de receber mensagens sobre promoções?
+                        </label>
+                        <select className={selectClassName} {...register('intakeForm.preferencesInfo.promotionsConsent')}>
+                          <option value="">Não informar</option>
+                          <option value="yes">Sim</option>
+                          <option value="no">Não</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-foreground">
+                          Gostaria de receber mensagens sobre campanhas?
+                        </label>
+                        <select className={selectClassName} {...register('intakeForm.preferencesInfo.campaignsConsent')}>
+                          <option value="">Não informar</option>
+                          <option value="yes">Sim</option>
+                          <option value="no">Não</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 rounded-xl border border-border bg-muted/20 p-5">
+                    <div>
+                      <h3 className="text-sm font-semibold text-foreground">Camiseta</h3>
+                      <p className="mt-1 text-sm text-muted-foreground">Separe o modelo da peça do tamanho para evitar ambiguidades no cadastro.</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-foreground">Modelo da camiseta</label>
+                        <select className={selectClassName} {...register('intakeForm.preferencesInfo.shirtModel')}>
+                          <option value="">Não informar</option>
+                          <option value="traditional">Camiseta tradicional</option>
+                          <option value="babylook">Baby Look</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-foreground">Tamanho da camiseta</label>
+                        <select className={selectClassName} {...register('intakeForm.preferencesInfo.shirtSize')}>
+                          <option value="">Não informar</option>
+                          <option value="PP">PP</option>
+                          <option value="P">P</option>
+                          <option value="M">M</option>
+                          <option value="G">G</option>
+                          <option value="GG">GG</option>
+                          <option value="XGG">XGG</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <Input
+                      label="Qual tamanho de calça, bermuda ou shorts você usa?"
+                      placeholder="Ex.: 40, M, G"
+                      {...register('intakeForm.preferencesInfo.clothingSize')}
+                    />
+                    <Input
+                      label="Qual tamanho de calçado você usa?"
+                      placeholder="Ex.: 38"
+                      {...register('intakeForm.preferencesInfo.shoeSize')}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <Input
+                      label="Qual gênero de música é o seu favorito para treinar?"
+                      placeholder="Ex.: pop, rock, eletrônico, gospel"
+                      {...register('intakeForm.preferencesInfo.favoriteMusicGenre')}
+                    />
+                    <Input
+                      label="Qual o seu tipo de chocolate favorito?"
+                      placeholder="Ex.: ao leite, meio amargo, branco"
+                      {...register('intakeForm.preferencesInfo.favoriteChocolate')}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <Input
+                      label="Nome ou apelido desejado para personalização de brindes e produtos"
+                      placeholder="Ex.: Ju, João Silva, JS"
+                      {...register('intakeForm.preferencesInfo.preferredNickname')}
+                    />
                   </div>
                 </section>
               </div>

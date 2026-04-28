@@ -1,6 +1,6 @@
 ﻿import { Router, Request, Response } from 'express';
-import { alunoService } from './aluno.service';
-import { authMiddleware, professorMiddleware } from '../auth/auth.middleware';
+import { alunoService } from './aluno.service.js';
+import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js';
 import {
   sendSuccess,
   sendError,
@@ -13,19 +13,43 @@ import path from 'path';
 import fs from 'fs';
 import pdfParse from 'pdf-parse';
 import { PrismaClient } from '@prisma/client';
-import { assessmentService } from '../assessments/assessment.service';
-import { parseAssessmentPdf } from '../assessments/assessment-parser';
-import { fillAssessmentWithAi } from '../assessments/assessment-ai';
+import { assessmentService } from '../assessments/assessment.service.js';
+import { parseAssessmentPdf } from '../assessments/assessment-parser.js';
+import { fillAssessmentWithAi } from '../assessments/assessment-ai.js';
 
 const router: Router = Router();
 const prisma = new PrismaClient();
 
 const uploadRoot = path.resolve(process.cwd(), 'uploads', 'assessments');
+const avatarUploadRoot = path.resolve(process.cwd(), 'uploads', 'alunos');
 const ensureDir = (dirPath: string) => {
   if (!fs.existsSync(dirPath)) {
     fs.mkdirSync(dirPath, { recursive: true });
   }
 };
+
+const avatarStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    ensureDir(avatarUploadRoot);
+    cb(null, avatarUploadRoot);
+  },
+  filename: (_req, file, cb) => {
+    const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]+/g, '_');
+    cb(null, `${Date.now()}-${safeName}`);
+  },
+});
+
+const avatarUpload = multer({
+  storage: avatarStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (!file.mimetype.startsWith('image/')) {
+      return cb(new Error('Envie um arquivo de imagem válido'));
+    }
+
+    cb(null, true);
+  },
+});
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -60,6 +84,16 @@ const uploadAssessmentFile = (req: Request, res: Response, next: any) => {
   });
 };
 
+const uploadAvatarFile = (req: Request, res: Response, next: any) => {
+  avatarUpload.single('file')(req, res, (err: any) => {
+    if (err) {
+      return sendError(res, err.message || 'Erro ao fazer upload da foto', 400);
+    }
+
+    next();
+  });
+};
+
 const prefillUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
@@ -83,6 +117,25 @@ const uploadAssessmentPrefillFile = (req: Request, res: Response, next: any) => 
 // Aplicar autenticaÃ§Ã£o em todas as rotas
 router.use(authMiddleware);
 router.use(professorMiddleware); // Apenas professores podem gerenciar alunos
+
+router.post('/avatar-upload', uploadAvatarFile, async (req: Request, res: Response) => {
+  try {
+    if (!req.file) {
+      return sendError(res, 'Selecione uma imagem para upload', 400);
+    }
+
+    const host = req.get('host');
+    if (!host) {
+      return sendError(res, 'Não foi possível montar a URL da foto enviada', 500);
+    }
+
+    const fileUrl = `${req.protocol}://${host}/uploads/alunos/${req.file.filename}`;
+
+    return sendSuccess(res, { url: fileUrl }, 'Foto enviada com sucesso');
+  } catch (error: any) {
+    return sendError(res, error.message || 'Erro ao enviar foto', 400);
+  }
+});
 
 const getProfessorContext = (req: Request) => ({
   professorId: (req as any).user.professorId as string | undefined,
@@ -427,11 +480,15 @@ router.get('/:id', async (req: Request, res: Response) => {
     }
 
     // Calcular dados adicionais
-    const bmi = alunoService.calculateBMI(aluno.weight, aluno.height);
-    const hrZones = alunoService.calculateHeartRateZones(
-      aluno.maxHeartRate,
-      aluno.restingHeartRate
-    );
+    const bmi = aluno.weight !== null && aluno.height !== null
+      ? alunoService.calculateBMI(aluno.weight, aluno.height)
+      : null;
+    const hrZones = aluno.maxHeartRate !== null && aluno.restingHeartRate !== null
+      ? alunoService.calculateHeartRateZones(
+          aluno.maxHeartRate,
+          aluno.restingHeartRate
+        )
+      : null;
 
     return sendSuccess(
       res,

@@ -293,7 +293,9 @@ export function Alunos() {
       ) : viewMode === 'cards' ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {alunos.map((aluno) => {
-            const bmi = alunoService.calculateBMI(aluno.weight, aluno.height);
+            const weight = typeof aluno.weight === 'number' ? aluno.weight : undefined;
+            const height = typeof aluno.height === 'number' ? aluno.height : undefined;
+            const bmi = weight !== undefined && height !== undefined ? alunoService.calculateBMI(weight, height) : null;
 
             return (
               <Card key={aluno.id} className="transition-shadow hover:shadow-[var(--shadow-card)]">
@@ -327,19 +329,19 @@ export function Alunos() {
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <div>
                       <span className="text-muted-foreground">Peso:</span>
-                      <p className="font-medium">{aluno.weight} kg</p>
+                      <p className="font-medium">{weight !== undefined ? `${weight} kg` : 'Não informado'}</p>
                     </div>
                     <div>
                       <span className="text-muted-foreground">Altura:</span>
-                      <p className="font-medium">{aluno.height} cm</p>
+                      <p className="font-medium">{height !== undefined ? `${height} cm` : 'Não informado'}</p>
                     </div>
                     <div>
                       <span className="text-muted-foreground">IMC:</span>
-                      <p className="font-medium">{bmi.toFixed(1)}</p>
+                      <p className="font-medium">{bmi !== null ? bmi.toFixed(1) : 'Não informado'}</p>
                     </div>
                     <div>
                       <span className="text-muted-foreground">VO2 Max:</span>
-                      <p className="font-medium">{aluno.vo2Max}</p>
+                      <p className="font-medium">{typeof aluno.vo2Max === 'number' ? aluno.vo2Max : 'Não informado'}</p>
                     </div>
                   </div>
 
@@ -392,7 +394,9 @@ export function Alunos() {
             </div>
             <div className="divide-y">
               {alunos.map((aluno) => {
-                const bmi = alunoService.calculateBMI(aluno.weight, aluno.height);
+                const weight = typeof aluno.weight === 'number' ? aluno.weight : undefined;
+                const height = typeof aluno.height === 'number' ? aluno.height : undefined;
+                const bmi = weight !== undefined && height !== undefined ? alunoService.calculateBMI(weight, height) : null;
                 const professorName = aluno.professor?.user?.profile?.name;
 
                 return (
@@ -419,10 +423,10 @@ export function Alunos() {
                         </p>
                       </div>
                     </div>
-                    <div className="col-span-2 text-sm">{aluno.weight} kg</div>
-                    <div className="col-span-2 text-sm">{aluno.height} cm</div>
-                    <div className="col-span-1 text-sm">{bmi.toFixed(1)}</div>
-                    <div className="col-span-1 text-sm">{aluno.vo2Max}</div>
+                    <div className="col-span-2 text-sm">{weight !== undefined ? `${weight} kg` : 'Não informado'}</div>
+                    <div className="col-span-2 text-sm">{height !== undefined ? `${height} cm` : 'Não informado'}</div>
+                    <div className="col-span-1 text-sm">{bmi !== null ? bmi.toFixed(1) : '—'}</div>
+                    <div className="col-span-1 text-sm">{typeof aluno.vo2Max === 'number' ? aluno.vo2Max : '—'}</div>
                     <div className="col-span-2 flex justify-end gap-2">
                       <Link to={`/alunos/${aluno.id}`}>
                         <Button variant="outline" size="sm">

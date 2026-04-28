@@ -1,7 +1,7 @@
 ﻿import { Router, Request, Response } from 'express';
-import { periodizationService } from './periodization.service';
-import { authMiddleware, professorMiddleware } from '../auth/auth.middleware';
-import { sendSuccess, sendError } from '../../common/response';
+import { periodizationService } from './periodization.service.js';
+import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js';
+import { sendSuccess, sendError } from '../../common/response.js';
 
 const router: Router = Router();
 
