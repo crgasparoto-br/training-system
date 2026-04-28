@@ -114,6 +114,16 @@ const hasAnyValue = (payload: Record<string, unknown>) =>
 const toInputJson = (value?: Record<string, unknown>): Prisma.InputJsonValue | undefined =>
   value as Prisma.InputJsonValue | undefined;
 
+const assertBaseServiceIsSelectable = (service: { isActive: boolean; parentServiceId: string | null }) => {
+  if (!service.isActive) {
+    throw new Error('Serviço selecionado está inativo');
+  }
+
+  if (service.parentServiceId) {
+    throw new Error('Selecione um serviço base no campo Serviço de Interesse');
+  }
+};
+
 export const alunoService = {
   /**
    * Criar novo aluno
@@ -140,10 +150,7 @@ export const alunoService = {
         });
 
         const service = await getServiceForContract(professor.contractId, data.serviceId, tx);
-
-        if (!service.isActive) {
-          throw new Error('Serviço selecionado está inativo');
-        }
+        assertBaseServiceIsSelectable(service);
 
         serviceId = service.id;
       }
@@ -471,10 +478,7 @@ export const alunoService = {
           alunoData.serviceId = null as never;
         } else {
           const service = await getServiceForContract(currentAluno.professor.contractId, data.serviceId, tx);
-
-          if (!service.isActive) {
-            throw new Error('Serviço selecionado está inativo');
-          }
+          assertBaseServiceIsSelectable(service);
 
           alunoData.serviceId = service.id as never;
         }

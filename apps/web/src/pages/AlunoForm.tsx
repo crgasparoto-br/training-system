@@ -287,6 +287,20 @@ const formatDateForInput = (value?: string | null) => {
   return date.toISOString().slice(0, 10);
 };
 
+const formatDateLabel = (value?: string | null) => {
+  if (!value) return '';
+
+  const isoMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) {
+    const [, year, month, day] = isoMatch;
+    return `${day}/${month}/${year}`;
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString('pt-BR');
+};
+
 const calculateAgeFromBirthDate = (value?: string) => {
   if (!value) return undefined;
 
@@ -439,6 +453,12 @@ export function AlunoForm() {
       maximumFractionDigits: 2,
     });
   };
+
+  const formatCurrencyValue = (value: number) =>
+    value.toLocaleString('pt-BR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
 
   const normalizePaymentDay = (value: string) => {
     const digits = value.replace(/\D/g, '').slice(0, 2);
@@ -597,6 +617,13 @@ export function AlunoForm() {
       setProfessorsLoading(false);
     }
   };
+
+  const interestServiceOptions = serviceOptions.filter((item) => !item.parentServiceId);
+  const financialServiceOptions = serviceOptions.filter((item) => item.parentServiceId);
+  const selectedFinancialServiceName = watch('intakeForm.financialInfo.currentService');
+  const selectedFinancialService = financialServiceOptions.find(
+    (item) => item.name === selectedFinancialServiceName
+  );
 
   const loadAlunoData = async (alunoId: string) => {
     setLoadingData(true);
@@ -1136,13 +1163,13 @@ export function AlunoForm() {
                             <p className="text-sm text-muted-foreground">Carregando serviços...</p>
                           ) : servicesError ? (
                             <p className="text-sm text-destructive">{servicesError}</p>
-                          ) : serviceOptions.length === 0 ? (
+                          ) : interestServiceOptions.length === 0 ? (
                             <p className="text-sm text-muted-foreground">Nenhum serviço ativo cadastrado em Configurações &gt; Serviços.</p>
                           ) : (
                             <div>
                               <select className={selectClassName} {...register('serviceId')}>
                                 <option value="">Selecione um serviço</option>
-                                {serviceOptions.map((service) => (
+                                {interestServiceOptions.map((service) => (
                                   <option key={service.id} value={service.id}>
                                     {service.name}
                                   </option>
@@ -1257,14 +1284,55 @@ export function AlunoForm() {
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div>
                       <label className="mb-2 block text-sm font-medium text-foreground">Serviço Vigente</label>
-                      <select className={selectClassName} {...register('intakeForm.financialInfo.currentService')}>
-                        <option value="">Selecione um serviço</option>
-                        {serviceOptions.map((service) => (
-                          <option key={service.id} value={service.name}>
-                            {service.name}
-                          </option>
-                        ))}
-                      </select>
+                      {servicesLoading ? (
+                        <p className="text-sm text-muted-foreground">Carregando serviços...</p>
+                      ) : servicesError ? (
+                        <p className="text-sm text-destructive">{servicesError}</p>
+                      ) : financialServiceOptions.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">Nenhuma oferta financeira ativa cadastrada em Configurações &gt; Serviços.</p>
+                      ) : (
+                        <>
+                          <select
+                            className={selectClassName}
+                            {...register('intakeForm.financialInfo.currentService', {
+                              onChange: (event) => {
+                                const selectedService = financialServiceOptions.find(
+                                  (service) => service.name === event.target.value
+                                );
+
+                                if (selectedService?.monthlyPrice !== null && selectedService?.monthlyPrice !== undefined) {
+                                  setValue(
+                                    'intakeForm.financialInfo.monthlyValue',
+                                    formatCurrencyValue(selectedService.monthlyPrice),
+                                    { shouldValidate: true }
+                                  );
+                                }
+                              },
+                            })}
+                          >
+                            <option value="">Selecione uma oferta financeira</option>
+                            {financialServiceOptions.map((service) => (
+                              <option key={service.id} value={service.name}>
+                                {service.parentService?.name ? `${service.parentService.name} • ${service.name}` : service.name}
+                              </option>
+                            ))}
+                          </select>
+
+                          {selectedFinancialService && (
+                            <p className="mt-2 text-sm text-muted-foreground">
+                              {selectedFinancialService.parentService?.name
+                                ? `Serviço base: ${selectedFinancialService.parentService.name}. `
+                                : ''}
+                              {selectedFinancialService.monthlyPrice !== null && selectedFinancialService.monthlyPrice !== undefined
+                                ? `Valor de referência: R$ ${formatCurrencyValue(selectedFinancialService.monthlyPrice)}. `
+                                : ''}
+                              {selectedFinancialService.validFrom || selectedFinancialService.validUntil
+                                ? `Vigência: ${selectedFinancialService.validFrom ? formatDateLabel(selectedFinancialService.validFrom) : 'início não informado'}${selectedFinancialService.validUntil ? ` até ${formatDateLabel(selectedFinancialService.validUntil)}` : ''}.`
+                                : ''}
+                            </p>
+                          )}
+                        </>
+                      )}
                     </div>
                     <Input
                       label="Condição Especial"
