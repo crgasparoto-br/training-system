@@ -1,6 +1,7 @@
 ﻿import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Login } from './pages/Login';
 import type { ReactElement } from 'react';
+import { ForgotPassword } from './pages/ForgotPassword';
 import { Register } from './pages/Register';
 import { Professores } from './pages/Professores';
 import { Alunos } from './pages/Alunos';
@@ -39,6 +40,7 @@ function App() {
       <Routes>
         {/* Public Routes */}
         <Route path="/login" element={<Login />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/register" element={<Register />} />
 
         {/* Protected Routes */}

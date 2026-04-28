@@ -60,6 +60,36 @@ export const authCopy = {
       minPassword: 'A senha deve ter no mínimo 6 caracteres',
     },
   },
+  forgotPassword: {
+    title: 'Recuperar senha',
+    description: 'Informe seu e-mail para gerar um link de redefinição de senha.',
+    emailLabel: 'E-mail da conta',
+    emailPlaceholder: 'voce@exemplo.com',
+    submit: 'Gerar link de redefinição',
+    successTitle: 'Solicitação enviada',
+    successHint:
+      'Se existir uma conta com este e-mail, enviaremos as instruções de redefinição para a caixa de entrada.',
+    backToLogin: 'Voltar para o login',
+    validation: {
+      invalidEmail: 'E-mail inválido',
+    },
+  },
+  resetPassword: {
+    title: 'Definir nova senha',
+    description: 'Escolha uma nova senha para concluir a recuperação do acesso.',
+    passwordLabel: 'Nova senha',
+    passwordPlaceholder: 'Digite a nova senha',
+    confirmPasswordLabel: 'Confirmar nova senha',
+    confirmPasswordPlaceholder: 'Repita a nova senha',
+    submit: 'Salvar nova senha',
+    successTitle: 'Senha redefinida com sucesso',
+    successDescription: 'Seu acesso já pode ser feito com a nova senha.',
+    validation: {
+      minPassword: 'A senha deve ter no mínimo 8 caracteres',
+      passwordMismatch: 'As senhas não coincidem',
+      missingToken: 'Token de recuperação não informado',
+    },
+  },
   register: {
     title: 'Criar conta',
     description: 'Preencha os dados para criar um novo acesso.',
