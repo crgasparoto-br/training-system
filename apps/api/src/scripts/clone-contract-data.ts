@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import { cloneContractData } from '../modules/contracts/contract-data.service';
+import { cloneContractData } from '../modules/contracts/contract-data.service.js';
 
 const prisma = new PrismaClient();
 

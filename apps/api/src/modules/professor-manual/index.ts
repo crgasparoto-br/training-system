@@ -1,1 +1,1 @@
-export { default as professorManualRoutes } from './professor-manual.routes';
+export { default as professorManualRoutes } from './professor-manual.routes.js';

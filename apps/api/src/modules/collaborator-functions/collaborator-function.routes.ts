@@ -1,12 +1,12 @@
 import { Router, type Request, type Response } from 'express';
 import {
   collaboratorFunctionService,
-} from './collaborator-function.service';
+} from './collaborator-function.service.js';
 import {
   academyMasterMiddleware,
   authMiddleware,
   professorMiddleware,
-} from '../auth/auth.middleware';
+} from '../auth/auth.middleware.js';
 import {
   CreateCollaboratorFunctionSchema,
   UpdateCollaboratorFunctionSchema,

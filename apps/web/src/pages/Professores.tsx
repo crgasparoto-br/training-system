@@ -1,8 +1,26 @@
-﻿import { useEffect, useRef, useState, type ChangeEvent } from 'react';
+﻿import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { useForm, type FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Briefcase, Camera, ExternalLink, FileText, Upload, UserRound } from 'lucide-react';
+import {
+  Briefcase,
+  Camera,
+  Edit3,
+  ExternalLink,
+  FileText,
+  Filter,
+  KeyRound,
+  Mail,
+  Phone,
+  RotateCcw,
+  Search,
+  ShieldCheck,
+  Upload,
+  UserCheck,
+  UserRound,
+  UserX,
+  X,
+} from 'lucide-react';
 import { bankService } from '../services/bank.service';
 import { collaboratorFunctionService } from '../services/collaborator-function.service';
 import { hourlyRateLevelService } from '../services/hourly-rate-level.service';
@@ -148,6 +166,10 @@ interface ProfessoresProps {
   mode?: 'manage' | 'consult';
 }
 
+type ConsultContractFilter = 'all' | 'signed' | 'pending';
+type ConsultLegalFinancialFilter = 'all' | 'validated' | 'pending' | 'not_provided';
+type ConsultBadgeTone = 'neutral' | 'success' | 'warning' | 'danger' | 'info';
+
 const maritalStatusOptions: Array<{
   value: ProfessorMaritalStatus;
   label: string;
@@ -171,6 +193,19 @@ const hourlyRateSections = [
   { key: 'consulting', label: professoresCopy.hourlyRateConsultingLabel },
   { key: 'evaluation', label: professoresCopy.hourlyRateEvaluationLabel },
 ] as const;
+
+const consultContractFilterOptions: Array<{ value: ConsultContractFilter; label: string }> = [
+  { value: 'all', label: 'Todos' },
+  { value: 'signed', label: 'Contrato assinado' },
+  { value: 'pending', label: 'Contrato pendente' },
+];
+
+const consultLegalFinancialFilterOptions: Array<{ value: ConsultLegalFinancialFilter; label: string }> = [
+  { value: 'all', label: 'Todos' },
+  { value: 'validated', label: professoresCopy.legalFinancialValidated },
+  { value: 'pending', label: professoresCopy.legalFinancialPending },
+  { value: 'not_provided', label: professoresCopy.legalFinancialNotProvided },
+];
 
 const baseUrl = import.meta.env.VITE_API_URL || '';
 
@@ -1096,30 +1131,11 @@ function getHourlyRatesFormValue(hourlyRates?: ProfessorSummary['hourlyRates']):
   };
 }
 
-function formatCurrencyValue(value?: number | null) {
-  if (typeof value !== 'number') {
-    return professoresCopy.hourlyRatesNotConfigured;
-  }
-
-  return value.toLocaleString('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  });
-}
-
-function formatHourlyRateSummary(value: number | null | undefined, levels: HourlyRateLevel[]) {
-  const currencyValue = formatCurrencyValue(value);
-  const levelLabel = getHourlyRateLevelLabel(
-    typeof value === 'number' ? value.toString() : undefined,
-    levels
-  );
-
-  return `${currencyValue} | ${professoresCopy.hourlyRateLevelColumnLabel}: ${levelLabel}`;
-}
-
-function getLegalFinancialStatus(profile: ProfessorSummary['user']['profile']) {
+function getLegalFinancialStatusKey(
+  profile: ProfessorSummary['user']['profile']
+): Exclude<ConsultLegalFinancialFilter, 'all'> {
   if (profile.legalFinancialValidatedAt) {
-    return professoresCopy.legalFinancialValidated;
+    return 'validated';
   }
 
   if (
@@ -1129,10 +1145,83 @@ function getLegalFinancialStatus(profile: ProfessorSummary['user']['profile']) {
     profile.bankAccount ||
     profile.pixKey
   ) {
+    return 'pending';
+  }
+
+  return 'not_provided';
+}
+
+function getLegalFinancialStatus(profile: ProfessorSummary['user']['profile']) {
+  const status = getLegalFinancialStatusKey(profile);
+
+  if (status === 'validated') {
+    return professoresCopy.legalFinancialValidated;
+  }
+
+  if (status === 'pending') {
     return professoresCopy.legalFinancialPending;
   }
 
   return professoresCopy.legalFinancialNotProvided;
+}
+
+function normalizeConsultFilterValue(value?: string | null) {
+  return (value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function formatConsultDate(value?: string | null) {
+  if (!value) {
+    return commonCopy.notInformed;
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return commonCopy.notInformed;
+  }
+
+  return date.toLocaleDateString('pt-BR');
+}
+
+function formatConsultDateTime(value?: string | null) {
+  if (!value) {
+    return professoresCopy.neverAccessed;
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return professoresCopy.neverAccessed;
+  }
+
+  return date.toLocaleString('pt-BR');
+}
+
+function getConsultBadgeClassName(tone: ConsultBadgeTone) {
+  const toneClassNames: Record<ConsultBadgeTone, string> = {
+    neutral: 'border-border bg-muted/70 text-muted-foreground',
+    success: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    warning: 'border-amber-200 bg-amber-50 text-amber-700',
+    danger: 'border-red-200 bg-red-50 text-red-700',
+    info: 'border-sky-200 bg-sky-50 text-sky-700',
+  };
+
+  return cn(
+    'inline-flex h-7 items-center rounded-full border px-2.5 text-xs font-medium',
+    toneClassNames[tone]
+  );
+}
+
+function ConsultBadge({
+  tone = 'neutral',
+  children,
+}: {
+  tone?: ConsultBadgeTone;
+  children: string;
+}) {
+  return <span className={getConsultBadgeClassName(tone)}>{children}</span>;
 }
 
 function canValidateLegalFinancial(profile: ProfessorSummary['user']['profile']) {
@@ -1321,6 +1410,10 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<'active' | 'inactive' | 'all'>('all');
+  const [consultSearch, setConsultSearch] = useState('');
+  const [collaboratorFunctionFilter, setCollaboratorFunctionFilter] = useState('all');
+  const [contractFilter, setContractFilter] = useState<ConsultContractFilter>('all');
+  const [legalFinancialFilter, setLegalFinancialFilter] = useState<ConsultLegalFinancialFilter>('all');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadingCreateAvatar, setUploadingCreateAvatar] = useState(false);
   const [uploadingEditAvatar, setUploadingEditAvatar] = useState(false);
@@ -1567,6 +1660,66 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
     responsibleManagers.find((m) => m.id === createResponsibleManagerId)?.user?.profile?.name ?? null;
   const editResponsibleManagerName =
     responsibleManagers.find((m) => m.id === editResponsibleManagerId)?.user?.profile?.name ?? null;
+  const filteredProfessores = useMemo(() => {
+    const searchTerm = normalizeConsultFilterValue(consultSearch);
+
+    return professores.filter((professor) => {
+      const profile = professor.user.profile;
+      const legalFinancialStatus = getLegalFinancialStatusKey(profile);
+      const searchableValues = [
+        profile.name,
+        professor.user.email,
+        profile.phone,
+        profile.cpf,
+        profile.cref,
+        profile.instagramHandle,
+        professor.collaboratorFunction.name,
+        professor.currentStatus,
+        professor.responsibleManager?.user?.profile?.name,
+      ];
+
+      const matchesSearch =
+        !searchTerm ||
+        searchableValues.some((value) => normalizeConsultFilterValue(value).includes(searchTerm));
+      const matchesFunction =
+        collaboratorFunctionFilter === 'all' ||
+        professor.collaboratorFunction.id === collaboratorFunctionFilter;
+      const matchesContract =
+        contractFilter === 'all' ||
+        (contractFilter === 'signed' && professor.hasSignedContract) ||
+        (contractFilter === 'pending' && !professor.hasSignedContract);
+      const matchesLegalFinancial =
+        legalFinancialFilter === 'all' || legalFinancialStatus === legalFinancialFilter;
+
+      return matchesSearch && matchesFunction && matchesContract && matchesLegalFinancial;
+    });
+  }, [collaboratorFunctionFilter, consultSearch, contractFilter, legalFinancialFilter, professores]);
+
+  const consultMetrics = useMemo(() => {
+    return {
+      total: professores.length,
+      active: professores.filter((professor) => professor.user?.isActive !== false).length,
+      pendingContracts: professores.filter((professor) => !professor.hasSignedContract).length,
+      pendingLegalFinancial: professores.filter(
+        (professor) => getLegalFinancialStatusKey(professor.user.profile) !== 'validated'
+      ).length,
+    };
+  }, [professores]);
+
+  const hasActiveConsultFilters =
+    consultSearch.trim().length > 0 ||
+    statusFilter !== 'all' ||
+    collaboratorFunctionFilter !== 'all' ||
+    contractFilter !== 'all' ||
+    legalFinancialFilter !== 'all';
+
+  const clearConsultFilters = () => {
+    setConsultSearch('');
+    setStatusFilter('all');
+    setCollaboratorFunctionFilter('all');
+    setContractFilter('all');
+    setLegalFinancialFilter('all');
+  };
 
   const onSubmit = async (data: CreateProfessorForm) => {
     setIsSubmitting(true);
@@ -1927,6 +2080,153 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const renderConsultProfessorSummary = (professor: ProfessorSummary) => {
+    const profile = professor.user.profile;
+    const isInactive = professor.user?.isActive === false;
+    const legalFinancialStatusKey = getLegalFinancialStatusKey(profile);
+    const legalFinancialStatus = getLegalFinancialStatus(profile);
+    const legalFinancialTone: ConsultBadgeTone =
+      legalFinancialStatusKey === 'validated'
+        ? 'success'
+        : legalFinancialStatusKey === 'pending'
+          ? 'warning'
+          : 'neutral';
+
+    return (
+      <div className="grid gap-4 lg:grid-cols-[minmax(260px,1.3fr)_minmax(180px,0.8fr)_minmax(220px,1fr)_auto] lg:items-center">
+        <div className="flex min-w-0 items-start gap-4">
+          <CollaboratorAvatar name={profile.name} avatar={profile.avatar} />
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="truncate text-base font-semibold text-foreground">
+                {profile.name || professoresCopy.noName}
+              </p>
+              <ConsultBadge tone={isInactive ? 'danger' : 'success'}>
+                {isInactive ? professoresCopy.deactivated : 'Ativo'}
+              </ConsultBadge>
+              <ConsultBadge tone={professor.role === 'master' ? 'info' : 'neutral'}>
+                {professor.role === 'master' ? professoresCopy.masterRole : professoresCopy.professorRole}
+              </ConsultBadge>
+            </div>
+            <div className="mt-2 space-y-1 text-sm text-muted-foreground">
+              <div className="flex min-w-0 items-center gap-2">
+                <Mail className="h-4 w-4 shrink-0" />
+                <span className="truncate">{professor.user.email}</span>
+              </div>
+              <div className="flex min-w-0 items-center gap-2">
+                <Phone className="h-4 w-4 shrink-0" />
+                <span className="truncate">{profile.phone || commonCopy.notInformed}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-1 text-sm">
+          <p className="font-medium text-foreground">{professor.collaboratorFunction.name}</p>
+          <p className="text-muted-foreground">
+            {professoresCopy.responsibleManagerLabel}:{' '}
+            {professor.responsibleManager?.user?.profile?.name || professoresCopy.noResponsibleManager}
+          </p>
+          <p className="text-muted-foreground">
+            {professoresCopy.crefLabel}: {profile.cref || commonCopy.notInformed}
+          </p>
+        </div>
+
+        <div className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-1">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              {professoresCopy.admissionDateLabel}
+            </p>
+            <p className="font-medium text-foreground">{formatConsultDate(professor.admissionDate)}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <ConsultBadge tone={professor.hasSignedContract ? 'success' : 'warning'}>
+              {professor.hasSignedContract
+                ? professoresCopy.signedContractYes
+                : professoresCopy.signedContractNo}
+            </ConsultBadge>
+            <ConsultBadge tone={legalFinancialTone}>{legalFinancialStatus}</ConsultBadge>
+          </div>
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              {professoresCopy.lastAccess}
+            </p>
+            <p className="text-muted-foreground">{formatConsultDateTime(professor.user.lastLoginAt)}</p>
+          </div>
+          {professor.signedContractDocumentUrl && (
+            <a
+              href={professor.signedContractDocumentUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 text-sm font-medium text-primary underline-offset-4 hover:underline"
+            >
+              {professoresCopy.signedContractDocumentView}
+              <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          )}
+        </div>
+
+        <div className="flex flex-wrap justify-start gap-2 lg:justify-end">
+          {professor.role !== 'master' && (
+            <>
+              {isInactive ? (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => handleActivate(professor.id)}
+                  isLoading={isSubmitting}
+                >
+                  <UserCheck className="h-4 w-4" />
+                  {professoresCopy.activate}
+                </Button>
+              ) : (
+                <>
+                  <Button variant="outline" size="sm" onClick={() => startEdit(professor)}>
+                    <Edit3 className="h-4 w-4" />
+                    {professoresCopy.edit}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleValidateLegalFinancial(professor.id)}
+                    isLoading={isSubmitting}
+                    disabled={!canValidateLegalFinancial(profile)}
+                  >
+                    <ShieldCheck className="h-4 w-4" />
+                    Validar
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleResetPassword(professor.id)}
+                    isLoading={isSubmitting}
+                  >
+                    <KeyRound className="h-4 w-4" />
+                    Senha
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => handleDeactivate(professor.id)}
+                    isLoading={isSubmitting}
+                  >
+                    <UserX className="h-4 w-4" />
+                    {professoresCopy.deactivate}
+                  </Button>
+                </>
+              )}
+            </>
+          )}
+          {resetTarget === professor.id && resetPassword && (
+            <div className="w-full rounded-lg border border-emerald-200 bg-emerald-50 p-2 text-xs text-emerald-700 lg:text-right">
+              {professoresCopy.temporaryPassword}: <span className="font-mono">{resetPassword}</span>
+            </div>
+          )}
+        </div>
+      </div>
+    );
   };
 
   if (!canManageProfessores) {
@@ -2600,40 +2900,180 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
         </div>
       )}
 
-      {isConsultMode && <Card>
-        <CardHeader>
-          <CardTitle>{professoresCopy.listTitle}</CardTitle>
-          <CardDescription>{professoresCopy.listDescription}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="mb-4 w-full md:max-w-52">
-            <label htmlFor="professores-status-filter" className="mb-2 block text-sm font-medium">
-              {professoresCopy.statusLabel}
-            </label>
-            <select
-              id="professores-status-filter"
-              value={statusFilter}
-              onChange={(e) =>
-                setStatusFilter(e.target.value as 'active' | 'inactive' | 'all')
-              }
-              className="ts-form-control"
-              disabled={loading || isSubmitting}
-            >
-              <option value="active">{professoresCopy.statusActive}</option>
-              <option value="inactive">{professoresCopy.statusInactive}</option>
-              <option value="all">{professoresCopy.statusAll}</option>
-            </select>
-          </div>
+      {isConsultMode && (
+        <Card className="overflow-hidden">
+          <CardHeader className="border-b border-border bg-muted/20">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+              <div>
+                <CardTitle>{professoresCopy.listTitle}</CardTitle>
+                <CardDescription>{professoresCopy.listDescription}</CardDescription>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                {[
+                  { label: 'Exibidos', value: filteredProfessores.length },
+                  { label: 'Na base', value: consultMetrics.total },
+                  { label: 'Ativos', value: consultMetrics.active },
+                  { label: 'Pendências', value: consultMetrics.pendingContracts + consultMetrics.pendingLegalFinancial },
+                ].map((metric) => (
+                  <div
+                    key={metric.label}
+                    className="rounded-lg border border-border bg-card px-3 py-2 text-right shadow-sm"
+                  >
+                    <p className="text-xs font-medium text-muted-foreground">{metric.label}</p>
+                    <p className="text-xl font-semibold text-foreground">{metric.value}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-3 xl:grid-cols-[minmax(240px,1.3fr)_180px_220px_190px_220px_auto] xl:items-end">
+              <div>
+                <label htmlFor="professores-search-filter" className="mb-2 block text-sm font-medium">
+                  Buscar
+                </label>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    id="professores-search-filter"
+                    value={consultSearch}
+                    onChange={(event) => setConsultSearch(event.target.value)}
+                    placeholder="Nome, e-mail, telefone, CREF ou gestor"
+                    className="ts-form-control pl-9"
+                    disabled={loading || isSubmitting}
+                  />
+                  {consultSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setConsultSearch('')}
+                      className="absolute right-2 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                      aria-label="Limpar busca"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="professores-status-filter" className="mb-2 block text-sm font-medium">
+                  {professoresCopy.statusLabel}
+                </label>
+                <select
+                  id="professores-status-filter"
+                  value={statusFilter}
+                  onChange={(e) =>
+                    setStatusFilter(e.target.value as 'active' | 'inactive' | 'all')
+                  }
+                  className="ts-form-control"
+                  disabled={loading || isSubmitting}
+                >
+                  <option value="all">{professoresCopy.statusAll}</option>
+                  <option value="active">{professoresCopy.statusActive}</option>
+                  <option value="inactive">{professoresCopy.statusInactive}</option>
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="professores-function-filter" className="mb-2 block text-sm font-medium">
+                  {professoresCopy.collaboratorFunctionLabel}
+                </label>
+                <select
+                  id="professores-function-filter"
+                  value={collaboratorFunctionFilter}
+                  onChange={(event) => setCollaboratorFunctionFilter(event.target.value)}
+                  className="ts-form-control"
+                  disabled={loading || isSubmitting}
+                >
+                  <option value="all">Todas</option>
+                  {collaboratorFunctions.map((collaboratorFunction) => (
+                    <option key={collaboratorFunction.id} value={collaboratorFunction.id}>
+                      {collaboratorFunction.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="professores-contract-filter" className="mb-2 block text-sm font-medium">
+                  Contrato
+                </label>
+                <select
+                  id="professores-contract-filter"
+                  value={contractFilter}
+                  onChange={(event) => setContractFilter(event.target.value as ConsultContractFilter)}
+                  className="ts-form-control"
+                  disabled={loading || isSubmitting}
+                >
+                  {consultContractFilterOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="professores-legal-filter" className="mb-2 block text-sm font-medium">
+                  Financeiro
+                </label>
+                <select
+                  id="professores-legal-filter"
+                  value={legalFinancialFilter}
+                  onChange={(event) =>
+                    setLegalFinancialFilter(event.target.value as ConsultLegalFinancialFilter)
+                  }
+                  className="ts-form-control"
+                  disabled={loading || isSubmitting}
+                >
+                  {consultLegalFinancialFilterOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <Button
+                type="button"
+                variant={hasActiveConsultFilters ? 'outline' : 'ghost'}
+                onClick={clearConsultFilters}
+                disabled={!hasActiveConsultFilters || loading || isSubmitting}
+                className="w-full xl:w-auto"
+              >
+                <RotateCcw className="h-4 w-4" />
+                Limpar
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
           {loading ? (
-            <div className="text-muted-foreground">{professoresCopy.loading}</div>
+            <div className="flex items-center justify-center gap-3 px-6 py-12 text-muted-foreground">
+              <Filter className="h-5 w-5 animate-pulse" />
+              {professoresCopy.loading}
+            </div>
           ) : professores.length === 0 ? (
-            <div className="text-muted-foreground">{professoresCopy.empty}</div>
+            <div className="px-6 py-12 text-center text-muted-foreground">{professoresCopy.empty}</div>
+          ) : filteredProfessores.length === 0 ? (
+            <div className="px-6 py-12 text-center">
+              <Search className="mx-auto h-10 w-10 text-muted-foreground/60" />
+              <p className="mt-3 font-medium text-foreground">Nenhum colaborador encontrado</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Ajuste os filtros para ampliar a consulta.
+              </p>
+              <Button type="button" variant="outline" className="mt-4" onClick={clearConsultFilters}>
+                <RotateCcw className="h-4 w-4" />
+                Limpar filtros
+              </Button>
+            </div>
           ) : (
-            <div className="space-y-3">
-              {professores.map((professor) => (
+            <div className="divide-y divide-border">
+              {filteredProfessores.map((professor) => (
                 <div
                   key={professor.id}
-                  className="flex items-center justify-between rounded-lg border p-3"
+                  className={cn(
+                    'px-5 py-4 transition',
+                    editingId === professor.id ? 'bg-background' : 'bg-card hover:bg-muted/25'
+                  )}
                 >
                   {editingId === professor.id ? (
                     <form
@@ -3188,211 +3628,15 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
                       </div>
                     </form>
                   ) : (
-                    <>
-                      <div className="flex items-start gap-4">
-                        <CollaboratorAvatar
-                          name={professor.user?.profile?.name}
-                          avatar={professor.user?.profile?.avatar}
-                        />
-                        <div>
-                          <p className="font-medium">
-                            {professor.user?.profile?.name || professoresCopy.noName}
-                          </p>
-                          <p className="text-sm text-muted-foreground">{professor.user?.email}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {professoresCopy.phoneLabel}:{' '}
-                          {professor.user?.profile?.phone || commonCopy.notInformed}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {professoresCopy.birthDateLabel}:{' '}
-                          {professor.user?.profile?.birthDate
-                            ? new Date(professor.user.profile.birthDate).toLocaleDateString('pt-BR')
-                            : commonCopy.notInformed}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {professoresCopy.cpfLabel}:{' '}
-                          {professor.user?.profile?.cpf || commonCopy.notInformed}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {professoresCopy.crefLabel}:{' '}
-                          {professor.user?.profile?.cref || commonCopy.notInformed}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {professoresCopy.instagramLabel}:{' '}
-                          {professor.user?.profile?.instagramHandle
-                            ? normalizeInstagramHandle(professor.user.profile.instagramHandle)
-                            : commonCopy.notInformed}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {professoresCopy.lattesLabel}:{' '}
-                          {professor.user?.profile?.lattesUrl || commonCopy.notInformed}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {professoresCopy.professionalSummaryLabel}:{' '}
-                          {professor.user?.profile?.professionalSummary || commonCopy.notInformed}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {professoresCopy.companyDocumentLabel}:{' '}
-                          {professor.user?.profile?.companyDocument || commonCopy.notInformed}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {professoresCopy.bankNameLabel}:{' '}
-                          {professor.user?.profile?.bankName || commonCopy.notInformed}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {professoresCopy.bankBranchLabel}/{professoresCopy.bankAccountLabel}:{' '}
-                          {professor.user?.profile?.bankBranch || commonCopy.notInformed} /{' '}
-                          {professor.user?.profile?.bankAccount || commonCopy.notInformed}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {professoresCopy.pixKeyLabel}:{' '}
-                          {professor.user?.profile?.pixKey || commonCopy.notInformed}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {professoresCopy.legalFinancialSectionTitle}:{' '}
-                          {getLegalFinancialStatus(professor.user.profile)}
-                        </p>
-                        {professor.user?.profile?.legalFinancialProvidedAt && (
-                          <p className="text-xs text-muted-foreground">
-                            Preenchido em{' '}
-                            {new Date(professor.user.profile.legalFinancialProvidedAt).toLocaleString('pt-BR')}
-                            {professor.user.profile.legalFinancialProvidedByProfessor?.user?.profile?.name
-                              ? ` por ${professor.user.profile.legalFinancialProvidedByProfessor.user.profile.name}`
-                              : ''}
-                          </p>
-                        )}
-                        {professor.user?.profile?.legalFinancialValidatedAt && (
-                          <p className="text-xs text-muted-foreground">
-                            Validado em{' '}
-                            {new Date(professor.user.profile.legalFinancialValidatedAt).toLocaleString('pt-BR')}
-                            {professor.user.profile.legalFinancialValidatedByProfessor?.user?.profile?.name
-                              ? ` por ${professor.user.profile.legalFinancialValidatedByProfessor.user.profile.name}`
-                              : ''}
-                          </p>
-                        )}
-                        <p className="text-xs text-muted-foreground">
-                          {professoresCopy.collaboratorFunctionLabel}:{' '}
-                          {professor.collaboratorFunction.name}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {professoresCopy.admissionDateLabel}:{' '}
-                          {professor.admissionDate
-                            ? new Date(professor.admissionDate).toLocaleDateString('pt-BR')
-                            : commonCopy.notInformed}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {professoresCopy.currentStatusLabel}:{' '}
-                          {professor.currentStatus || commonCopy.notInformed}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {professoresCopy.hasSignedContractLabel}:{' '}
-                          {professor.hasSignedContract
-                            ? professoresCopy.signedContractYes
-                            : professoresCopy.signedContractNo}
-                        </p>
-                        {professor.signedContractDocumentUrl && (
-                          <p className="text-xs text-muted-foreground">
-                            <a
-                              href={professor.signedContractDocumentUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="font-medium text-primary underline-offset-4 hover:underline"
-                            >
-                              {professoresCopy.signedContractDocumentView}
-                            </a>
-                          </p>
-                        )}
-                        <p className="text-xs text-muted-foreground">
-                          {professoresCopy.hourlyRatePersonalLabel}:{' '}
-                          {formatHourlyRateSummary(professor.hourlyRates?.personal, hourlyRateLevels)}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {professoresCopy.hourlyRateConsultingLabel}:{' '}
-                          {formatHourlyRateSummary(professor.hourlyRates?.consulting, hourlyRateLevels)}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {professoresCopy.hourlyRateEvaluationLabel}:{' '}
-                          {formatHourlyRateSummary(professor.hourlyRates?.evaluation, hourlyRateLevels)}
-                        </p>
-                        {(professor.responsibleManager || professor.collaboratorFunction.code !== 'manager') && (
-                          <p className="text-xs text-muted-foreground">
-                            {professoresCopy.responsibleManagerLabel}:{' '}
-                            {professor.responsibleManager?.user?.profile?.name ||
-                              professoresCopy.noResponsibleManager}
-                          </p>
-                        )}
-                        <p className="text-xs text-muted-foreground">
-                          {professoresCopy.lastAccess}:{' '}
-                          {professor.user.lastLoginAt
-                            ? new Date(professor.user.lastLoginAt).toLocaleString()
-                            : professoresCopy.neverAccessed}
-                        </p>
-                        {resetTarget === professor.id && resetPassword && (
-                          <div className="mt-2 text-xs text-green-700 bg-green-50 border border-green-200 rounded-md p-2">
-                            {professoresCopy.temporaryPassword}: <span className="font-mono">{resetPassword}</span>
-                          </div>
-                        )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-xs rounded-full px-2 py-1 bg-muted">
-                          {professor.role === 'master' ? professoresCopy.masterRole : professoresCopy.professorRole}
-                        </span>
-                        {professor.user?.isActive === false && (
-                          <span className="text-xs rounded-full px-2 py-1 bg-red-100 text-red-700">
-                            {professoresCopy.deactivated}
-                          </span>
-                        )}
-                        {professor.role !== 'master' && (
-                          <>
-                            {professor.user?.isActive === false ? (
-                              <Button
-                                variant="secondary"
-                                onClick={() => handleActivate(professor.id)}
-                                isLoading={isSubmitting}
-                              >
-                                {professoresCopy.activate}
-                              </Button>
-                            ) : (
-                              <>
-                                <Button variant="outline" onClick={() => startEdit(professor)}>
-                                  {professoresCopy.edit}
-                                </Button>
-                                <Button
-                                  variant="outline"
-                                  onClick={() => handleValidateLegalFinancial(professor.id)}
-                                  isLoading={isSubmitting}
-                                  disabled={!canValidateLegalFinancial(professor.user.profile)}
-                                >
-                                  {professoresCopy.legalFinancialValidateAction}
-                                </Button>
-                                <Button
-                                  variant="outline"
-                                  onClick={() => handleResetPassword(professor.id)}
-                                  isLoading={isSubmitting}
-                                >
-                                  {professoresCopy.resetPassword}
-                                </Button>
-                                <Button
-                                  variant="destructive"
-                                  onClick={() => handleDeactivate(professor.id)}
-                                  isLoading={isSubmitting}
-                                >
-                                  {professoresCopy.deactivate}
-                                </Button>
-                              </>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    </>
+                    renderConsultProfessorSummary(professor)
                   )}
                 </div>
               ))}
             </div>
           )}
         </CardContent>
-      </Card>}
+      </Card>
+      )}
     </div>
   );
 }

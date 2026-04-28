@@ -5,8 +5,20 @@
   "type": "module",
   "main": "index.ts",
   "types": "index.ts",
-  "files": ["*.ts"],
+  "exports": {
+    ".": {
+      "types": "./index.ts",
+      "browser": "./index.ts",
+      "development": "./index.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["*.ts", "dist"],
   "private": true,
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
   "dependencies": {
     "express": "^4.18.2",
     "zod": "^3.22.4"

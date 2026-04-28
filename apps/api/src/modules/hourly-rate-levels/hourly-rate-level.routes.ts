@@ -3,7 +3,7 @@ import {
   academyMasterMiddleware,
   authMiddleware,
   professorMiddleware,
-} from '../auth/auth.middleware';
+} from '../auth/auth.middleware.js';
 import { sendError, sendSuccess } from '@corrida/utils';
 import { hourlyRateLevelService } from './hourly-rate-level.service.js';
 

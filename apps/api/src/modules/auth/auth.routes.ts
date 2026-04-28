@@ -1,6 +1,6 @@
 ﻿import { Router, Request, Response } from 'express';
-import { authService } from './auth.service';
-import { authMiddleware } from './auth.middleware';
+import { authService } from './auth.service.js';
+import { authMiddleware } from './auth.middleware.js';
 import { ForgotPasswordSchema, LoginSchema, RegisterSchema, ResetPasswordSchema } from '@corrida/utils';
 import { sendSuccess, sendError } from '@corrida/utils';
 

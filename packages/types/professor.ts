@@ -3,7 +3,7 @@ import type {
   ContractInfo,
   ProfessorManagerInfo,
   ProfessorRole,
-} from './auth';
+} from './auth.js';
 
 export type ProfessorMaritalStatus =
   | 'single'

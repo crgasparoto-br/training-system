@@ -4,11 +4,13 @@ import cors from 'cors';
 import helmet from 'helmet';
 import 'express-async-errors';
 import path from 'path';
+import { assessmentTypeRoutes } from './modules/assessments/index.js';
 import { authRoutes } from './modules/auth/index.js';
 import { alunoRoutes } from './modules/alunos/index.js';
 import { bankRoutes } from './modules/banks/index.js';
 import { collaboratorFunctionRoutes } from './modules/collaborator-functions/index.js';
 import { hourlyRateLevelRoutes } from './modules/hourly-rate-levels/index.js';
+import { planRoutes } from './modules/plans/index.js';
 import { professorRoutes } from './modules/professores/index.js';
 import { serviceRoutes } from './modules/services/index.js';
 
@@ -92,11 +94,13 @@ app.get('/api/v1', (req, res) => {
     message: 'Sistema Acesso Saúde e Performance API',
     version: '0.1.0',
     endpoints: {
+      assessmentTypes: '/api/v1/assessment-types',
       auth: '/api/v1/auth',
       alunos: '/api/v1/alunos',
       banks: '/api/v1/banks',
       collaboratorFunctions: '/api/v1/collaborator-functions',
       hourlyRateLevels: '/api/v1/hourly-rate-levels',
+      plans: '/api/v1/plans',
       professores: '/api/v1/professores',
       services: '/api/v1/services',
     },
@@ -105,6 +109,9 @@ app.get('/api/v1', (req, res) => {
 
 // Rotas de Autenticação
 app.use('/api/v1/auth', authRoutes);
+
+// Rotas de Tipos de Avaliação
+app.use('/api/v1/assessment-types', assessmentTypeRoutes);
 
 // Rotas de Alunos
 app.use('/api/v1/alunos', alunoRoutes);
@@ -117,6 +124,9 @@ app.use('/api/v1/collaborator-functions', collaboratorFunctionRoutes);
 
 // Rotas de Níveis de Valor/Hora
 app.use('/api/v1/hourly-rate-levels', hourlyRateLevelRoutes);
+
+// Rotas de Planos
+app.use('/api/v1/plans', planRoutes);
 
 // Rotas de Professores
 app.use('/api/v1/professores', professorRoutes);

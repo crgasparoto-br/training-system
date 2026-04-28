@@ -1,4 +1,4 @@
-import type { ContractInfo, UserAccessPermission } from './auth';
+import type { ContractInfo, UserAccessPermission } from './auth.js';
 
 export interface CollaboratorFunctionOption {
   id: string;

@@ -13,8 +13,8 @@ import type {
 } from '@corrida/types';
 import type { SignOptions } from 'jsonwebtoken';
 import { sendPasswordResetEmail } from './password-reset-mail.service.js';
-import { ensureDefaultAssessmentTypesForContract } from '../assessments/assessment-type.service';
-import { ensureDefaultSubjectiveScalesForContract } from '../assessments/subjective-scale.service';
+import { ensureDefaultAssessmentTypesForContract } from '../assessments/assessment-type.service.js';
+import { ensureDefaultSubjectiveScalesForContract } from '../assessments/subjective-scale.service.js';
 import { getDefaultCollaboratorFunctionByCode } from '../collaborator-functions/index.js';
 import {
   getEffectiveAccessPermissionsForProfessor,

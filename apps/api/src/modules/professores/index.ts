@@ -1,2 +1,2 @@
-﻿export { default as professorRoutes } from './professor.routes';
+export { default as professorRoutes } from './professor.routes.js';
 

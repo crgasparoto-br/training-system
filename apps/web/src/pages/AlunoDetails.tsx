@@ -25,6 +25,55 @@ import {
   Sparkles,
 } from 'lucide-react';
 
+type AlunoDetailsFormResponses = {
+  identification?: {
+    instagram?: string;
+  };
+  financial?: {
+    currentService?: string;
+    specialCondition?: string;
+    monthlyValue?: string;
+    responsibleProfessorId?: string;
+    responsibleProfessorName?: string;
+    paymentDay?: string;
+    contract?: string;
+    otherObservations?: string;
+  };
+  preferences?: {
+    hasChildren?: string;
+    childrenCount?: string;
+    marketingConsent?: string;
+    servicePackagesConsent?: string;
+    serviceFeedbackConsent?: string;
+    promotionsConsent?: string;
+    campaignsConsent?: string;
+    shirtModel?: string;
+    shirtSize?: string;
+    clothingSize?: string;
+    shoeSize?: string;
+    favoriteMusicGenre?: string;
+    favoriteChocolate?: string;
+    preferredNickname?: string;
+  };
+};
+
+const readAlunoFormResponses = (value?: Record<string, unknown>): AlunoDetailsFormResponses =>
+  value && typeof value === 'object' ? (value as AlunoDetailsFormResponses) : {};
+
+const formatShirtPreference = (shirtModel?: string, shirtSize?: string) => {
+  const modelLabel = shirtModel === 'babylook'
+    ? 'Baby Look'
+    : shirtModel === 'traditional'
+      ? 'Camiseta tradicional'
+      : '';
+
+  if (modelLabel && shirtSize) {
+    return `${modelLabel} - ${shirtSize}`;
+  }
+
+  return modelLabel || shirtSize || 'Não informado';
+};
+
 const ASSESSMENT_GUIDE_STORAGE_PREFIX = 'assessment-first-use-banner';
 
 type AssessmentProtocolGuidance = {
@@ -766,6 +815,10 @@ export function AlunoDetails() {
   };
   const schedulePlanLabel = aluno?.schedulePlan === 'fixed' ? 'Fixo' : 'Livre';
   const parqPositiveCount = Object.values(aluno?.intakeForm?.parqResponses || {}).filter(Boolean).length;
+  const identificationInfo = readAlunoFormResponses(aluno?.intakeForm?.formResponses).identification ?? {};
+  const financialInfo = readAlunoFormResponses(aluno?.intakeForm?.formResponses).financial ?? {};
+  const preferencesInfo = readAlunoFormResponses(aluno?.intakeForm?.formResponses).preferences ?? {};
+  const legacyMarketingConsent = preferencesInfo.marketingConsent;
 
   const getHistoryValue = (assessment: Assessment, variable: string) => {
     const source =
@@ -1055,6 +1108,12 @@ export function AlunoDetails() {
                         : 'Não informada'}
                     </div>
                   </div>
+                  <div className="rounded-lg border border-gray-200 p-4">
+                    <div className="text-xs text-muted-foreground">Rede social</div>
+                    <div className="mt-1 text-sm font-semibold text-gray-900">
+                      {identificationInfo.instagram || 'Não informada'}
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -1100,6 +1159,142 @@ export function AlunoDetails() {
               </CardContent>
             </Card>
           </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Financeiro</CardTitle>
+              <CardDescription>Condições comerciais e observações administrativas registradas no cadastro.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <div className="rounded-lg border border-gray-200 p-4">
+                  <div className="text-xs text-muted-foreground">Serviço vigente</div>
+                  <div className="mt-1 text-sm font-semibold text-gray-900">
+                    {financialInfo.currentService || 'Não informado'}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-gray-200 p-4">
+                  <div className="text-xs text-muted-foreground">Condição especial</div>
+                  <div className="mt-1 text-sm font-semibold text-gray-900">
+                    {financialInfo.specialCondition || 'Não informada'}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-gray-200 p-4">
+                  <div className="text-xs text-muted-foreground">Valor mensal</div>
+                  <div className="mt-1 text-sm font-semibold text-gray-900">
+                    {financialInfo.monthlyValue ? `R$ ${financialInfo.monthlyValue}` : 'Não informado'}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-gray-200 p-4">
+                  <div className="text-xs text-muted-foreground">Professor responsável</div>
+                  <div className="mt-1 text-sm font-semibold text-gray-900">
+                    {financialInfo.responsibleProfessorName || 'Não informado'}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-gray-200 p-4">
+                  <div className="text-xs text-muted-foreground">Dia de pagamento</div>
+                  <div className="mt-1 text-sm font-semibold text-gray-900">
+                    {financialInfo.paymentDay || 'Não informado'}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-gray-200 p-4">
+                  <div className="text-xs text-muted-foreground">Contrato</div>
+                  <div className="mt-1 text-sm font-semibold text-gray-900">
+                    {financialInfo.contract || 'Não informado'}
+                  </div>
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">Outras observações</div>
+                <div className="mt-1 text-sm text-gray-900">
+                  {financialInfo.otherObservations || 'Não informadas'}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Preferências</CardTitle>
+              <CardDescription>Informações opcionais de perfil, comunicação e personalização registradas no cadastro.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <div className="rounded-lg border border-gray-200 p-4">
+                  <div className="text-xs text-muted-foreground">Tem filhos</div>
+                  <div className="mt-1 text-sm font-semibold text-gray-900">
+                    {preferencesInfo.hasChildren === 'yes' ? 'Sim' : preferencesInfo.hasChildren === 'no' ? 'Não' : 'Não informado'}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-gray-200 p-4">
+                  <div className="text-xs text-muted-foreground">Quantos filhos</div>
+                  <div className="mt-1 text-sm font-semibold text-gray-900">
+                    {preferencesInfo.childrenCount || 'Não informado'}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-gray-200 p-4">
+                  <div className="text-xs text-muted-foreground">Mensagens sobre pacotes de serviços</div>
+                  <div className="mt-1 text-sm font-semibold text-gray-900">
+                    {(preferencesInfo.servicePackagesConsent || legacyMarketingConsent) === 'yes' ? 'Sim' : (preferencesInfo.servicePackagesConsent || legacyMarketingConsent) === 'no' ? 'Não' : 'Não informado'}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-gray-200 p-4">
+                  <div className="text-xs text-muted-foreground">Mensagens sobre feedback de serviços</div>
+                  <div className="mt-1 text-sm font-semibold text-gray-900">
+                    {(preferencesInfo.serviceFeedbackConsent || legacyMarketingConsent) === 'yes' ? 'Sim' : (preferencesInfo.serviceFeedbackConsent || legacyMarketingConsent) === 'no' ? 'Não' : 'Não informado'}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-gray-200 p-4">
+                  <div className="text-xs text-muted-foreground">Mensagens sobre promoções</div>
+                  <div className="mt-1 text-sm font-semibold text-gray-900">
+                    {(preferencesInfo.promotionsConsent || legacyMarketingConsent) === 'yes' ? 'Sim' : (preferencesInfo.promotionsConsent || legacyMarketingConsent) === 'no' ? 'Não' : 'Não informado'}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-gray-200 p-4">
+                  <div className="text-xs text-muted-foreground">Mensagens sobre campanhas</div>
+                  <div className="mt-1 text-sm font-semibold text-gray-900">
+                    {(preferencesInfo.campaignsConsent || legacyMarketingConsent) === 'yes' ? 'Sim' : (preferencesInfo.campaignsConsent || legacyMarketingConsent) === 'no' ? 'Não' : 'Não informado'}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-gray-200 p-4">
+                  <div className="text-xs text-muted-foreground">Camiseta</div>
+                  <div className="mt-1 text-sm font-semibold text-gray-900">
+                    {formatShirtPreference(preferencesInfo.shirtModel, preferencesInfo.shirtSize)}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-gray-200 p-4">
+                  <div className="text-xs text-muted-foreground">Tamanho de calça, bermuda ou shorts</div>
+                  <div className="mt-1 text-sm font-semibold text-gray-900">
+                    {preferencesInfo.clothingSize || 'Não informado'}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-gray-200 p-4">
+                  <div className="text-xs text-muted-foreground">Tamanho de calçado</div>
+                  <div className="mt-1 text-sm font-semibold text-gray-900">
+                    {preferencesInfo.shoeSize || 'Não informado'}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-gray-200 p-4">
+                  <div className="text-xs text-muted-foreground">Gênero musical favorito para treinar</div>
+                  <div className="mt-1 text-sm font-semibold text-gray-900">
+                    {preferencesInfo.favoriteMusicGenre || 'Não informado'}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-gray-200 p-4">
+                  <div className="text-xs text-muted-foreground">Chocolate favorito</div>
+                  <div className="mt-1 text-sm font-semibold text-gray-900">
+                    {preferencesInfo.favoriteChocolate || 'Não informado'}
+                  </div>
+                </div>
+                <div className="rounded-lg border border-gray-200 p-4">
+                  <div className="text-xs text-muted-foreground">Nome ou apelido para personalização</div>
+                  <div className="mt-1 text-sm font-semibold text-gray-900">
+                    {preferencesInfo.preferredNickname || 'Não informado'}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
           <Card>
             <CardHeader>

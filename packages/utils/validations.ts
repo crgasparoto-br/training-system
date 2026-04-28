@@ -362,6 +362,7 @@ export const UpdateServiceSchema = z.object({
 export const CreateAlunoSchema = z.object({
   name: z.string().trim().min(3, 'Nome deve ter no minimo 3 caracteres'),
   email: z.string().trim().toLowerCase().email('Email invalido'),
+  avatar: z.preprocess(emptyStringToUndefined, z.string().trim().optional()),
   phone: z.preprocess(emptyStringToUndefined, z.string().trim().optional()),
   serviceId: z.preprocess(emptyStringToUndefined, z.string().trim().optional()),
   birthDate: optionalDateSchema,
@@ -370,20 +371,24 @@ export const CreateAlunoSchema = z.object({
     errorMap: () => ({ message: 'Plano de agenda deve ser free ou fixed' }),
   }),
   age: z.number().int().min(10, 'Idade minima: 10 anos').max(100, 'Idade maxima: 100 anos'),
-  weight: z.number().positive('Peso deve ser positivo'),
-  height: z.number().positive('Altura deve ser positiva'),
-  vo2Max: z.number().positive('VO2 Max deve ser positivo'),
-  anaerobicThreshold: z.number().positive('Limiar anaerobico deve ser positivo'),
-  maxHeartRate: z
-    .number()
-    .int()
-    .min(100, 'FC maxima minima: 100 bpm')
-    .max(220, 'FC maxima maxima: 220 bpm'),
-  restingHeartRate: z
-    .number()
-    .int()
-    .min(30, 'FC repouso minima: 30 bpm')
-    .max(100, 'FC repouso maxima: 100 bpm'),
+  weight: optionalNumberSchema(z.number().positive('Peso deve ser positivo')),
+  height: optionalNumberSchema(z.number().positive('Altura deve ser positiva')),
+  vo2Max: optionalNumberSchema(z.number().positive('VO2 Max deve ser positivo')),
+  anaerobicThreshold: optionalNumberSchema(z.number().positive('Limiar anaerobico deve ser positivo')),
+  maxHeartRate: optionalNumberSchema(
+    z
+      .number()
+      .int()
+      .min(100, 'FC maxima minima: 100 bpm')
+      .max(220, 'FC maxima maxima: 220 bpm')
+  ),
+  restingHeartRate: optionalNumberSchema(
+    z
+      .number()
+      .int()
+      .min(30, 'FC repouso minima: 30 bpm')
+      .max(100, 'FC repouso maxima: 100 bpm')
+  ),
   bodyFatPercentage: z.preprocess(
     emptyStringOrNaNToUndefined,
     z.number().min(0).max(100).optional()
@@ -429,6 +434,7 @@ export const CreateAlunoSchema = z.object({
 });
 
 export const UpdateAlunoSchema = z.object({
+  avatar: z.preprocess(emptyStringToUndefined, z.string().trim().optional()),
   serviceId: z.preprocess(emptyStringToUndefined, z.string().trim().optional()),
   schedulePlan: z.enum(['free', 'fixed']).optional(),
   birthDate: optionalDateSchema,
