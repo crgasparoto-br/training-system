@@ -8,6 +8,7 @@ const prisma = new PrismaClient();
 export interface CreateAlunoDTO {
   name: string;
   email: string;
+  avatar?: string;
   phone?: string;
   professorId: string;
   serviceId?: string;
@@ -15,13 +16,13 @@ export interface CreateAlunoDTO {
   birthDate?: Date;
   gender?: 'male' | 'female' | 'other';
   age: number;
-  weight: number;
-  height: number;
+  weight?: number;
+  height?: number;
   bodyFatPercentage?: number;
-  vo2Max: number;
-  anaerobicThreshold: number;
-  maxHeartRate: number;
-  restingHeartRate: number;
+  vo2Max?: number;
+  anaerobicThreshold?: number;
+  maxHeartRate?: number;
+  restingHeartRate?: number;
   systolicPressure?: number;
   diastolicPressure?: number;
   macronutrients?: {
@@ -53,6 +54,7 @@ export interface CreateAlunoDTO {
 }
 
 export interface UpdateAlunoDTO {
+  avatar?: string;
   serviceId?: string;
   schedulePlan?: 'free' | 'fixed';
   birthDate?: Date;
@@ -154,6 +156,7 @@ export const alunoService = {
           profile: {
             create: {
               name: data.name,
+              avatar: data.avatar,
               phone: data.phone,
               birthDate: data.birthDate,
               gender: data.gender,
@@ -443,6 +446,7 @@ export const alunoService = {
    */
   async update(id: string, data: UpdateAlunoDTO) {
     const {
+      avatar,
       birthDate,
       gender,
       macronutrients,
@@ -481,10 +485,11 @@ export const alunoService = {
         data: alunoData,
       });
 
-      if (birthDate !== undefined || gender !== undefined) {
+      if (avatar !== undefined || birthDate !== undefined || gender !== undefined) {
         await tx.profile.update({
           where: { userId: aluno.userId },
           data: {
+            ...(avatar !== undefined ? { avatar } : {}),
             ...(birthDate !== undefined ? { birthDate } : {}),
             ...(gender !== undefined ? { gender } : {}),
           },
