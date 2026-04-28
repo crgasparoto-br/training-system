@@ -84,6 +84,15 @@ model Contract {
   type                  ContractType
   document              String                       @unique
   name                  String?
+  cref                  String?
+  addressStreet         String?
+  addressNumber         String?
+  addressNeighborhood   String?
+  addressCity           String?
+  addressState          String?
+  addressComplement     String?
+  addressZipCode        String?
+  logoUrl               String?
   createdAt             DateTime                     @default(now())
   updatedAt             DateTime                     @updatedAt
   agendaBookings        AgendaBooking[]
