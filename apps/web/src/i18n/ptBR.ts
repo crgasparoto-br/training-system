@@ -660,7 +660,6 @@ export const alunoFormCopy = {
   prefillValidation: 'Selecione um PDF de avaliação para pré-preencher o cadastro.',
   prefillReadError: 'Erro ao ler PDF de avaliação',
   prefillSummaryFallback: 'Campos compatíveis foram pré-preenchidos a partir do PDF.',
-  updateSuccess: 'Aluno atualizado com sucesso!',
   saveError: 'Erro ao salvar aluno',
   loading: 'Carregando dados...',
   editTitle: 'Editar Aluno',
@@ -674,7 +673,7 @@ export const alunoFormCopy = {
   applyPrefill: 'Aplicar pré-preenchimento',
   pdfHint: 'O PDF pode preencher nome, antropometria, variáveis cardiovasculares, data da avaliação e parte do resumo nutricional.',
   cancel: 'Cancelar',
-  updateAluno: 'Atualizar Aluno',
+  updateAluno: 'Salvar',
   createAluno: 'Criar Aluno',
 } as const;
 
