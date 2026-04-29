@@ -931,8 +931,7 @@ export function AlunoForm() {
 
       if (isEditMode && id) {
         await alunoService.update(id, updatePayload);
-        alert(alunoFormCopy.updateSuccess);
-        navigate(`/alunos/${id}`);
+        navigate('/consultas/alunos');
         return;
       }
 
