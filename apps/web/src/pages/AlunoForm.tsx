@@ -931,7 +931,6 @@ export function AlunoForm() {
 
       if (isEditMode && id) {
         await alunoService.update(id, updatePayload);
-        navigate('/consultas/alunos');
         return;
       }
 
@@ -2017,7 +2016,7 @@ export function AlunoForm() {
             {alunoFormCopy.cancel}
           </Button>
           <Button type="submit" isLoading={loading}>
-            {isEditMode ? alunoFormCopy.updateAluno : alunoFormCopy.createAluno}
+            {loading && isEditMode ? 'Salvando' : isEditMode ? alunoFormCopy.updateAluno : alunoFormCopy.createAluno}
           </Button>
         </div>
       </form>
