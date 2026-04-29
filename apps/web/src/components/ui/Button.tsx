@@ -6,10 +6,11 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   variant?: 'default' | 'destructive' | 'success' | 'outline' | 'secondary' | 'ghost' | 'link' | 'info' | 'warning';
   size?: 'default' | 'sm' | 'lg' | 'icon';
   isLoading?: boolean;
+  loadingText?: string;
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant = 'default', size = 'default', isLoading, children, disabled, ...props }, ref) => {
+  ({ className, variant = 'default', size = 'default', isLoading, loadingText, children, disabled, ...props }, ref) => {
     const variantStyles = {
       default: 'bg-primary text-primary-foreground hover:bg-primary-hover shadow-sm',
       destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive-hover shadow-sm',
@@ -63,7 +64,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
                 d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
               />
             </svg>
-            {commonCopy.loading}
+            {loadingText ?? commonCopy.loading}
           </>
         ) : (
           children
