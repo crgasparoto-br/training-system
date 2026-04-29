@@ -2015,8 +2015,8 @@ export function AlunoForm() {
           <Button type="button" variant="outline" onClick={() => navigate('/alunos')}>
             {alunoFormCopy.cancel}
           </Button>
-          <Button type="submit" isLoading={loading} loadingText={isEditMode ? 'Salvando' : undefined}>
-            {isEditMode ? alunoFormCopy.updateAluno : alunoFormCopy.createAluno}
+          <Button type="submit" isLoading={loading}>
+            {loading && isEditMode ? 'Salvando' : isEditMode ? alunoFormCopy.updateAluno : alunoFormCopy.createAluno}
           </Button>
         </div>
       </form>
