@@ -1,4 +1,4 @@
-Ôªøimport { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import bcryptjs from 'bcryptjs';
 import { Prisma } from '@prisma/client';
 import { bankService } from '../banks/bank.service.js';
@@ -225,11 +225,11 @@ async function getResponsibleManagerForContract(
   });
 
   if (!responsibleManager) {
-    throw new Error('Gestor respons√°vel n√£o encontrado');
+    throw new Error('Gestor respons·vel n„o encontrado');
   }
 
   if (!canLeadCollaborators(responsibleManager)) {
-    throw new Error('O colaborador selecionado n√£o pode ser definido como gestor respons√°vel');
+    throw new Error('O colaborador selecionado n„o pode ser definido como gestor respons·vel');
   }
 
   return responsibleManager;
@@ -251,7 +251,7 @@ async function ensureCpfAvailable(cpf: string, currentUserId?: string) {
   });
 
   if (existingProfile && existingProfile.userId !== currentUserId) {
-    throw new Error('CPF j√° est√° registrado');
+    throw new Error('CPF j· est· registrado');
   }
 }
 
@@ -273,7 +273,7 @@ async function ensureOperationalRolesAvailable(contractId: string, operationalRo
   });
 
   if (availableRoles.length !== operationalRoleIds.length) {
-    throw new Error('Um ou mais cargos operacionais s√£o inv√°lidos para este contrato');
+    throw new Error('Um ou mais cargos operacionais s„o inv·lidos para este contrato');
   }
 
   return availableRoles.map((role) => role.id);
@@ -378,16 +378,16 @@ export const professorService = {
         pixKey: normalizedPixKey,
       });
 
-    const contract = await prisma.contract.findUnique({
+    const contract = await prisma.companyContract.findUnique({
       where: { id: data.contractId },
     });
 
     if (!contract) {
-      throw new Error('Contrato n√£o encontrado');
+      throw new Error('Contrato n„o encontrado');
     }
 
     if (contract.type !== 'academy') {
-      throw new Error('Contrato personal n√É¬£o permite cadastrar professores');
+      throw new Error('Contrato personal n√£o permite cadastrar professores');
     }
 
     const existingUser = await prisma.user.findUnique({
@@ -395,7 +395,7 @@ export const professorService = {
     });
 
     if (existingUser) {
-      throw new Error('E-mail j√° est√° registrado');
+      throw new Error('E-mail j· est· registrado');
     }
 
     if (normalizedCpf) {
@@ -414,12 +414,12 @@ export const professorService = {
     let responsibleManagerId: string | undefined;
 
     if (!collaboratorFunction.isActive) {
-      throw new Error('A fun√ß√£o selecionada est√° inativa');
+      throw new Error('A funÁ„o selecionada est· inativa');
     }
 
     if (shouldRequireResponsibleManager) {
       if (!data.responsibleManagerId) {
-        throw new Error('Selecione um gestor respons√°vel para este colaborador');
+        throw new Error('Selecione um gestor respons·vel para este colaborador');
       }
 
       const responsibleManager = await getResponsibleManagerForContract(
@@ -549,10 +549,10 @@ export const professorService = {
     });
 
     if (!professor) {
-      throw new Error('Professor n√£o encontrado');
+      throw new Error('Professor n„o encontrado');
     }
     if (professor.role === 'master') {
-      throw new Error('N√É¬£o √É¬© poss√É¬≠vel desativar o professor master');
+      throw new Error('N√£o √© poss√≠vel desativar o professor master');
     }
 
     const managedCollaboratorsCount = await countManagedCollaborators(professor.id);
@@ -576,10 +576,10 @@ export const professorService = {
     });
 
     if (!professor) {
-      throw new Error('Professor n√£o encontrado');
+      throw new Error('Professor n„o encontrado');
     }
     if (professor.role === 'master') {
-      throw new Error('N√£o √© poss√≠vel reativar o professor master por esta tela');
+      throw new Error('N„o È possÌvel reativar o professor master por esta tela');
     }
 
     return prisma.user.update({
@@ -589,7 +589,7 @@ export const professorService = {
   },
 
   /**
-   * Reset r√É¬°pido de senha do professor
+   * Reset r√°pido de senha do professor
    */
   async resetPassword(contractId: string, professorId: string) {
     const professor = await prisma.professor.findFirst({
@@ -598,10 +598,10 @@ export const professorService = {
     });
 
     if (!professor?.user) {
-      throw new Error('Professor n√£o encontrado');
+      throw new Error('Professor n„o encontrado');
     }
     if (professor.role === 'master') {
-      throw new Error('N√É¬£o √É¬© poss√É¬≠vel resetar a senha do professor master');
+      throw new Error('N√£o √© poss√≠vel resetar a senha do professor master');
     }
 
     const tempPassword = `temp-${Date.now().toString().slice(-6)}`;
@@ -632,7 +632,7 @@ export const professorService = {
     });
 
     if (!professor) {
-      throw new Error('Professor n√£o encontrado');
+      throw new Error('Professor n„o encontrado');
     }
 
     const normalizedEmail =
@@ -662,7 +662,7 @@ export const professorService = {
       });
 
       if (existingUser && existingUser.id !== professor.user.id) {
-        throw new Error('E-mail j√° est√° registrado');
+        throw new Error('E-mail j· est· registrado');
       }
     }
 
@@ -852,7 +852,7 @@ export const professorService = {
       );
 
       if (!collaboratorFunction.isActive && collaboratorFunction.id !== professor.collaboratorFunctionId) {
-        throw new Error('A fun√ß√£o selecionada est√° inativa');
+        throw new Error('A funÁ„o selecionada est· inativa');
       }
 
       updateProfessorData.collaboratorFunctionId = collaboratorFunction.id;
@@ -923,7 +923,7 @@ export const professorService = {
       })
     ) {
       throw new Error(
-        'Reatribua os colaboradores vinculados antes de remover a fun√ß√£o de gestor deste colaborador'
+        'Reatribua os colaboradores vinculados antes de remover a funÁ„o de gestor deste colaborador'
       );
     }
 
@@ -932,11 +932,11 @@ export const professorService = {
         data.responsibleManagerId ?? professor.responsibleManagerId;
 
       if (!desiredResponsibleManagerId) {
-        throw new Error('Selecione um gestor respons√°vel para este colaborador');
+        throw new Error('Selecione um gestor respons·vel para este colaborador');
       }
 
       if (desiredResponsibleManagerId === professorId) {
-        throw new Error('Um colaborador n√£o pode ser o pr√≥prio gestor respons√°vel');
+        throw new Error('Um colaborador n„o pode ser o prÛprio gestor respons·vel');
       }
 
       const responsibleManager = await getResponsibleManagerForContract(
@@ -991,7 +991,7 @@ export const professorService = {
     });
 
     if (!professor?.user?.profile) {
-      throw new Error('Professor n√£o encontrado');
+      throw new Error('Professor n„o encontrado');
     }
 
     if (
@@ -1020,4 +1020,5 @@ export const professorService = {
     });
   },
 };
+
 
