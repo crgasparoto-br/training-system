@@ -19,22 +19,23 @@ export interface UpdateContractDTO {
 
 export const contractService = {
   async getById(contractId: string) {
-    return prisma.contract.findUnique({
+    return prisma.companyContract.findUnique({
       where: { id: contractId },
     });
   },
 
   async getFirstSourceContract(excludeId: string) {
-    return prisma.contract.findFirst({
+    return prisma.companyContract.findFirst({
       where: { id: { not: excludeId } },
       orderBy: { createdAt: 'asc' },
     });
   },
 
   async update(contractId: string, data: UpdateContractDTO) {
-    return prisma.contract.update({
+    return prisma.companyContract.update({
       where: { id: contractId },
       data,
     });
   },
 };
+

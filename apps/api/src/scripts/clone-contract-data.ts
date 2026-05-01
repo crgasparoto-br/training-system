@@ -12,7 +12,7 @@ async function getSourceContractId() {
   if (process.env.SOURCE_CONTRACT_ID) {
     return process.env.SOURCE_CONTRACT_ID;
   }
-  const first = await prisma.contract.findFirst({
+  const first = await prisma.companyContract.findFirst({
     orderBy: { createdAt: 'asc' },
     select: { id: true },
   });
@@ -23,7 +23,7 @@ async function getTargetContractIds(sourceContractId: string) {
   if (process.env.TARGET_CONTRACT_ID) {
     return [process.env.TARGET_CONTRACT_ID];
   }
-  const contracts = await prisma.contract.findMany({
+  const contracts = await prisma.companyContract.findMany({
     where: { id: { not: sourceContractId } },
     select: { id: true },
   });
@@ -76,3 +76,4 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
+

@@ -14,6 +14,7 @@ import { Agenda } from './pages/Agenda';
 import Settings from './pages/Settings';
 import SettingsParameters from './pages/Settings/Parameters';
 import ContractSettings from './pages/Settings/Contract';
+import ContractTemplates from './pages/Settings/ContractTemplates';
 import SettingsAssessmentTypes from './pages/Settings/AssessmentTypes';
 import SettingsCollaboratorFunctions from './pages/Settings/CollaboratorFunctions';
 import SettingsHourlyRateLevels from './pages/Settings/HourlyRateLevels';
@@ -27,6 +28,8 @@ import Library from './pages/Library';
 import PhysicalAssessmentProtocol from './pages/PhysicalAssessmentProtocol';
 import WorkoutBuilder2 from './pages/WorkoutBuilder2';
 import Executions from './pages/Executions';
+import AlunoContracts from './pages/AlunoContracts';
+import PublicContractSignature from './pages/PublicContractSignature';
 import { DashboardLayout } from './layouts/DashboardLayout';
 import { ProtectedRoute } from './components/ProtectedRoute';
 
@@ -42,6 +45,7 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/assinatura/contrato/:token" element={<PublicContractSignature />} />
 
         {/* Protected Routes */}
         <Route
@@ -57,6 +61,7 @@ function App() {
           <Route path="alunos" element={withAccess('students.registration', <AlunoForm />)} />
           <Route path="alunos/new" element={withAccess('students.registration', <AlunoForm />)} />
           <Route path="alunos/:id" element={withAccess('students.registration', <AlunoDetails />)} />
+          <Route path="alunos/:id/contracts" element={withAccess('students.registration', <AlunoContracts />)} />
           <Route path="alunos/:id/edit" element={withAccess('students.registration', <AlunoForm />)} />
           <Route
             path="protocolo-avaliacao-fisica"
@@ -85,6 +90,7 @@ function App() {
           <Route path="settings" element={withAccess('settings.home', <Settings />)} />
           <Route path="settings/parameters" element={withAccess('settings.parameters', <SettingsParameters />)} />
           <Route path="settings/contract" element={withAccess('settings.contract', <ContractSettings />)} />
+          <Route path="settings/contract-templates" element={withAccess('settings.contract', <ContractTemplates />)} />
           <Route path="settings/assessment-types" element={withAccess('settings.assessmentTypes', <SettingsAssessmentTypes />)} />
           <Route path="settings/services" element={withAccess('settings.services', <SettingsServices />)} />
           <Route path="settings/banks" element={withAccess('settings.banks', <SettingsBanks />)} />
