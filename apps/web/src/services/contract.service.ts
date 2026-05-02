@@ -50,6 +50,33 @@ export interface GeneratedContract {
   createdAt: string;
 }
 
+export const CONTRACT_VARIABLES = [
+  'aluno.nome',
+  'aluno.cpf',
+  'aluno.rg',
+  'aluno.enderecoCompleto',
+  'responsavel.nome',
+  'responsavel.cpf',
+  'responsavel.email',
+  'empresa.razaoSocial',
+  'empresa.cnpj',
+  'empresa.cref',
+  'empresa.endereco',
+  'servico.nome',
+  'servico.valor',
+  'servico.duracaoSessao',
+  'servico.quantidadeSemanal',
+  'contrato.valorMensal',
+  'contrato.valorMensalExtenso',
+  'contrato.diaVencimento',
+  'contrato.horarios',
+  'contrato.dataInicio',
+  'contrato.dataAssinatura',
+].map((key) => ({
+  key,
+  token: `{{${key}}}`,
+}));
+
 export const contractService = {
   async getMe(): Promise<Contract> {
     const response = await api.get<{ success: boolean; data: Contract }>('/contracts/me');
@@ -95,8 +122,12 @@ export const contractService = {
   },
 
   async listVariables(): Promise<Array<{ key: string; token: string }>> {
-    const response = await api.get<{ success: boolean; data: Array<{ key: string; token: string }> }>('/contracts/variables');
-    return response.data.data;
+    try {
+      const response = await api.get<{ success: boolean; data: Array<{ key: string; token: string }> }>('/contracts/variables');
+      return response.data.data?.length ? response.data.data : CONTRACT_VARIABLES;
+    } catch (error) {
+      return CONTRACT_VARIABLES;
+    }
   },
 
   async listTemplates(): Promise<ContractTemplate[]> {
