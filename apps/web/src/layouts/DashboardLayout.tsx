@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Activity, BarChart3, BookOpen, Calendar, FileText, LogOut, Menu, Search, Settings, Users, X } from 'lucide-react';
+import { Activity, BarChart3, Briefcase, FileText, LogOut, Menu, Search, Settings, X } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { filterSidebarItemsByAccess } from '../access/access-control';
 import { useAuthStore } from '../stores/useAuthStore';
@@ -47,116 +47,114 @@ export function DashboardLayout() {
   const menuItems = useMemo<SidebarNavItem[]>(
     () => [
       {
-        id: 'consultas',
+        id: 'atendimento',
         icon: Search,
-        label: shellCopy.menu.consultas,
-        path: '/consultas',
+        label: 'Atendimento',
+        description: 'Alunos e colaboradores',
         children: [
           {
-            id: 'consultas-alunos',
-            label: shellCopy.menu.consultaAlunos,
-            path: '/consultas/alunos',
-            screenKey: 'students.consultation',
+            id: 'atendimento-alunos',
+            label: 'Alunos',
+            children: [
+              { id: 'consultas-alunos', label: 'Consultar alunos', path: '/consultas/alunos', screenKey: 'students.consultation' },
+              { id: 'alunos', label: 'Novo aluno', path: '/alunos', screenKey: 'students.registration' },
+              { id: 'settings-aluno-access', label: 'Acesso dos alunos', path: '/settings/aluno-access', screenKey: 'settings.alunoAccess' },
+            ],
           },
           {
-            id: 'consultas-colaboradores',
-            label: shellCopy.menu.consultaColaboradores,
-            path: '/consultas/colaboradores',
-            screenKey: 'collaborators.consultation',
+            id: 'atendimento-colaboradores',
+            label: 'Colaboradores',
+            children: [
+              { id: 'consultas-colaboradores', label: 'Consultar colaboradores', path: '/consultas/colaboradores', screenKey: 'collaborators.consultation' },
+              { id: 'professores', label: 'Novo colaborador', path: '/professores', screenKey: 'collaborators.registration' },
+            ],
           },
         ],
       },
       {
-        id: 'cadastros',
-        icon: Users,
-        label: shellCopy.menu.cadastros,
+        id: 'treinamento',
+        icon: Activity,
+        label: 'Treinamento',
+        description: 'Planejamento e execução',
         children: [
-          { id: 'alunos', label: shellCopy.menu.cadastroAluno, path: '/alunos', screenKey: 'students.registration' },
+          { id: 'plans', label: 'Planos de treino', path: '/plans', screenKey: 'plans' },
+          { id: 'agenda', label: 'Agenda', path: '/agenda', screenKey: 'agenda' },
+          { id: 'library', label: 'Biblioteca de exercícios', path: '/library', screenKey: 'library' },
+          { id: 'executions', label: 'Execuções dos alunos', path: '/executions', screenKey: 'executions' },
+        ],
+      },
+      {
+        id: 'gestao',
+        icon: Briefcase,
+        label: 'Gestão',
+        description: 'Comercial e documentos',
+        children: [
           {
-            id: 'professores',
-            label: shellCopy.menu.cadastroColaborador,
-            path: '/professores',
-            screenKey: 'collaborators.registration',
+            id: 'gestao-contratos',
+            label: 'Contratos',
+            children: [
+              { id: 'settings-contract-templates', label: 'Modelos de contrato', path: '/settings/contract-templates', screenKey: 'settings.contract' },
+              { id: 'settings-contract', label: 'Empresa / prestador', path: '/settings/contract', screenKey: 'settings.contract' },
+            ],
           },
           {
-            id: 'hourly-rate-levels',
-            label: shellCopy.menu.cadastroValoresHoraAula,
-            path: '/cadastros/valores-hora-aula',
-            screenKey: 'hourlyRateLevels.registration',
+            id: 'gestao-comercial',
+            label: 'Comercial',
+            children: [
+              { id: 'settings-services', label: 'Serviços e planos', path: '/settings/services', screenKey: 'settings.services' },
+              { id: 'hourly-rate-levels', label: 'Valores de hora/aula', path: '/cadastros/valores-hora-aula', screenKey: 'hourlyRateLevels.registration' },
+            ],
+          },
+          {
+            id: 'gestao-administrativo',
+            label: 'Administrativo',
+            children: [
+              { id: 'settings-banks', label: 'Bancos', path: '/settings/banks', screenKey: 'settings.banks' },
+              { id: 'settings-collaborator-functions', label: 'Funções de colaboradores', path: '/settings/collaborator-functions', screenKey: 'settings.collaboratorFunctions' },
+            ],
           },
         ],
       },
       {
         id: 'physical-assessment-protocol',
         icon: FileText,
-        label: 'Protocolo de Avaliação Física',
-        path: '/protocolo-avaliacao-fisica',
+        label: 'Avaliação física',
+        description: 'Protocolos e medidas',
         screenKey: 'physicalAssessment.protocol',
         children: [
-          {
-            id: 'physical-assessment-protocol-anthropometry',
-            label: 'Antropometria',
-            path: '/protocolo-avaliacao-fisica/antropometria',
-            screenKey: 'physicalAssessment.protocol',
-          },
-          {
-            id: 'physical-assessment-protocol-interview',
-            label: 'Prontuário de entrevista e acompanhamento',
-            path: '/protocolo-avaliacao-fisica/prontuario-entrevista-acompanhamento',
-            screenKey: 'physicalAssessment.protocol',
-          },
-          {
-            id: 'physical-assessment-protocol-adipometry',
-            label: 'Adipometria',
-            path: '/protocolo-avaliacao-fisica/adipometria',
-            screenKey: 'physicalAssessment.protocol',
-          },
-          {
-            id: 'physical-assessment-protocol-bioimpedance',
-            label: 'Bioimpedanciometria',
-            path: '/protocolo-avaliacao-fisica/bioimpedanciometria',
-            screenKey: 'physicalAssessment.protocol',
-          },
-          {
-            id: 'physical-assessment-protocol-ultrasound',
-            label: 'Ultrassonografia',
-            path: '/protocolo-avaliacao-fisica/ultrassonografia',
-            screenKey: 'physicalAssessment.protocol',
-          },
+          { id: 'physical-assessment-protocol-anthropometry', label: 'Antropometria', path: '/protocolo-avaliacao-fisica/antropometria', screenKey: 'physicalAssessment.protocol' },
+          { id: 'physical-assessment-protocol-interview', label: 'Prontuário e acompanhamento', path: '/protocolo-avaliacao-fisica/prontuario-entrevista-acompanhamento', screenKey: 'physicalAssessment.protocol' },
+          { id: 'physical-assessment-protocol-adipometry', label: 'Adipometria', path: '/protocolo-avaliacao-fisica/adipometria', screenKey: 'physicalAssessment.protocol' },
+          { id: 'physical-assessment-protocol-bioimpedance', label: 'Bioimpedanciometria', path: '/protocolo-avaliacao-fisica/bioimpedanciometria', screenKey: 'physicalAssessment.protocol' },
+          { id: 'physical-assessment-protocol-ultrasound', label: 'Ultrassonografia', path: '/protocolo-avaliacao-fisica/ultrassonografia', screenKey: 'physicalAssessment.protocol' },
         ],
       },
-      { id: 'plans', icon: Calendar, label: shellCopy.menu.planos, path: '/plans', screenKey: 'plans' },
-      { id: 'agenda', icon: Calendar, label: shellCopy.menu.agenda, path: '/agenda', screenKey: 'agenda' },
-      { id: 'library', icon: BookOpen, label: shellCopy.menu.biblioteca, path: '/library', screenKey: 'library' },
-      { id: 'executions', icon: Activity, label: shellCopy.menu.execucoes, path: '/executions', screenKey: 'executions' },
-      { id: 'reports', icon: BarChart3, label: shellCopy.menu.relatorios, path: '/reports', screenKey: 'reports' },
+      { id: 'reports', icon: BarChart3, label: 'Relatórios', path: '/reports', screenKey: 'reports' },
       {
         id: 'settings',
         icon: Settings,
-        label: shellCopy.menu.configuracoes,
+        label: 'Configurações',
+        description: 'Parâmetros do sistema',
         path: '/settings',
         screenKey: 'settings.home',
         children: [
-          { id: 'settings-contract', label: shellCopy.menu.contrato, path: '/settings/contract', screenKey: 'settings.contract' },
-          { id: 'settings-parameters', label: shellCopy.menu.parametros, path: '/settings/parameters', screenKey: 'settings.parameters' },
-          { id: 'settings-assessment-types', label: shellCopy.menu.avaliacoes, path: '/settings/assessment-types', screenKey: 'settings.assessmentTypes' },
-          { id: 'settings-services', label: shellCopy.menu.servicos, path: '/settings/services', screenKey: 'settings.services' },
-          { id: 'settings-banks', label: shellCopy.menu.bancos, path: '/settings/banks', screenKey: 'settings.banks' },
           {
-            id: 'settings-collaborator-functions',
-            label: shellCopy.menu.funcoesColaboradores,
-            path: '/settings/collaborator-functions',
-            screenKey: 'settings.collaboratorFunctions',
+            id: 'settings-system',
+            label: 'Sistema',
+            children: [
+              { id: 'settings-parameters', label: 'Parâmetros de treino', path: '/settings/parameters', screenKey: 'settings.parameters' },
+              { id: 'settings-psr-pse', label: 'Escalas PSR e PSE', path: '/settings/psr-pse', screenKey: 'settings.subjectiveScales' },
+              { id: 'settings-professor-manual', label: 'Manual do professor', path: '/settings/professor-manual', screenKey: 'settings.professorManual' },
+              { id: 'settings-reference-table', label: 'Tabela de referência', path: '/settings/reference-table', screenKey: 'settings.referenceTable' },
+            ],
           },
-          { id: 'settings-psr-pse', label: 'PSR e PSE', path: '/settings/psr-pse', screenKey: 'settings.subjectiveScales' },
           {
-            id: 'settings-professor-manual',
-            label: shellCopy.menu.manualProfessor,
-            path: '/settings/professor-manual',
-            screenKey: 'settings.professorManual',
+            id: 'settings-assessments',
+            label: 'Avaliações',
+            children: [
+              { id: 'settings-assessment-types', label: 'Tipos de avaliação', path: '/settings/assessment-types', screenKey: 'settings.assessmentTypes' },
+            ],
           },
-          { id: 'settings-reference-table', label: shellCopy.menu.tabelaReferencia, path: '/settings/reference-table', screenKey: 'settings.referenceTable' },
-          { id: 'settings-aluno-access', label: shellCopy.menu.cadastroAlunos, path: '/settings/aluno-access', screenKey: 'settings.alunoAccess' },
         ],
       },
     ],

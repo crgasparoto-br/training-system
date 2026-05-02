@@ -1,17 +1,19 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Copy, Eye, FileText, Plus, Save } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
-import { contractService, type ContractTemplate } from '../../services/contract.service';
+import { CONTRACT_VARIABLES, contractService, type ContractTemplate } from '../../services/contract.service';
+
+type VariableItem = { key: string; token: string };
 
 const emptyTemplate: Partial<ContractTemplate> = {
   name: '',
   description: '',
   version: 1,
   status: 'DRAFT',
-  headerHtml: '',
-  footerHtml: '',
+  headerHtml: '<p><strong>{{empresa.razaoSocial}}</strong></p><p>{{empresa.endereco}}</p>',
+  footerHtml: '<p>Documento gerado em {{contrato.dataAssinatura}}.</p>',
   clauses: [
     {
       order: 1,
@@ -23,9 +25,108 @@ const emptyTemplate: Partial<ContractTemplate> = {
   ],
 };
 
+function RichTextEditor({
+  label,
+  value,
+  onChange,
+  variables,
+  minHeight = 140,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  variables: VariableItem[];
+  minHeight?: number;
+}) {
+  const editorRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (editorRef.current && editorRef.current.innerHTML !== value) {
+      editorRef.current.innerHTML = value || '<p></p>';
+    }
+  }, [value]);
+
+  const sync = () => {
+    onChange(editorRef.current?.innerHTML || '');
+  };
+
+  const run = (command: string, argument?: string) => {
+    editorRef.current?.focus();
+    document.execCommand(command, false, argument);
+    sync();
+  };
+
+  const insertVariable = (token: string) => {
+    if (!token) return;
+    editorRef.current?.focus();
+    document.execCommand('insertText', false, token);
+    sync();
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-col gap-1">
+        <span className="text-sm font-medium text-foreground">{label}</span>
+        <span className="text-xs text-muted-foreground">
+          Escreva normalmente e use os botões para formatar. As variáveis serão preenchidas ao gerar o contrato.
+        </span>
+      </div>
+      <div className="overflow-hidden rounded-md border border-input bg-white">
+        <div className="flex flex-wrap items-center gap-1 border-b border-border bg-muted/30 p-2">
+          <Button type="button" size="sm" variant="ghost" className="h-8 px-2 font-bold" onClick={() => run('bold')}>
+            B
+          </Button>
+          <Button type="button" size="sm" variant="ghost" className="h-8 px-2 italic" onClick={() => run('italic')}>
+            I
+          </Button>
+          <Button type="button" size="sm" variant="ghost" className="h-8 px-2" onClick={() => run('formatBlock', 'H2')}>
+            Título
+          </Button>
+          <Button type="button" size="sm" variant="ghost" className="h-8 px-2" onClick={() => run('formatBlock', 'P')}>
+            Texto
+          </Button>
+          <Button type="button" size="sm" variant="ghost" className="h-8 px-2" onClick={() => run('insertUnorderedList')}>
+            Lista
+          </Button>
+          <select
+            className="ml-auto h-8 min-w-[180px] rounded-md border border-input bg-background px-2 text-xs"
+            aria-label="Inserir variável"
+            defaultValue=""
+            onChange={(event) => {
+              insertVariable(event.target.value);
+              event.target.value = '';
+            }}
+          >
+            <option value="">Inserir variável</option>
+            {variables.map((variable) => (
+              <option key={variable.key} value={variable.token}>
+                {variable.key}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div
+          ref={editorRef}
+          contentEditable
+          className="prose prose-sm max-w-none overflow-auto p-3 text-sm outline-none focus:bg-blue-50/20"
+          style={{ minHeight }}
+          onInput={sync}
+          onBlur={sync}
+          onPaste={(event) => {
+            event.preventDefault();
+            const text = event.clipboardData.getData('text/plain');
+            document.execCommand('insertText', false, text);
+            sync();
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
 export default function ContractTemplates() {
   const [templates, setTemplates] = useState<ContractTemplate[]>([]);
-  const [variables, setVariables] = useState<Array<{ key: string; token: string }>>([]);
+  const [variables, setVariables] = useState<VariableItem[]>(CONTRACT_VARIABLES);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Partial<ContractTemplate>>(emptyTemplate);
   const [previewHtml, setPreviewHtml] = useState('');
@@ -67,7 +168,7 @@ export default function ContractTemplates() {
     }
   }, [selected]);
 
-  const updateClause = (index: number, field: string, value: string | boolean) => {
+  const updateClause = (index: number, field: string, value: string | number | boolean) => {
     const clauses = [...(draft.clauses || [])];
     clauses[index] = { ...clauses[index], [field]: value };
     setDraft({ ...draft, clauses });
@@ -108,7 +209,7 @@ export default function ContractTemplates() {
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Modelos de contrato</h1>
-          <p className="text-sm text-muted-foreground">Edite cabeçalho, rodapé, cláusulas e variáveis dinâmicas.</p>
+          <p className="text-sm text-muted-foreground">Edite cabeçalho, rodapé, cláusulas e variáveis dinâmicas sem escrever HTML.</p>
         </div>
         <Button onClick={() => { setSelectedId(null); setDraft(emptyTemplate); }}>
           <Plus size={16} className="mr-2" />
@@ -140,7 +241,7 @@ export default function ContractTemplates() {
         <Card>
           <CardHeader>
             <CardTitle>Editor</CardTitle>
-            <CardDescription>Use tokens como {'{{aluno.nome}}'} diretamente no HTML.</CardDescription>
+            <CardDescription>Os textos abaixo serão usados na prévia, no PDF e na versão assinada.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_120px_160px]">
@@ -160,22 +261,37 @@ export default function ContractTemplates() {
               </label>
             </div>
             <Input label="Descrição" value={draft.description || ''} onChange={(event) => setDraft({ ...draft, description: event.target.value })} />
-            <label className="block text-sm font-medium">
-              Cabeçalho HTML
-              <textarea className="mt-1 min-h-24 w-full rounded-md border border-input p-3 font-mono text-sm" value={draft.headerHtml || ''} onChange={(event) => setDraft({ ...draft, headerHtml: event.target.value })} />
-            </label>
-            <label className="block text-sm font-medium">
-              Rodapé HTML
-              <textarea className="mt-1 min-h-24 w-full rounded-md border border-input p-3 font-mono text-sm" value={draft.footerHtml || ''} onChange={(event) => setDraft({ ...draft, footerHtml: event.target.value })} />
-            </label>
+
+            <RichTextEditor
+              label="Cabeçalho"
+              value={draft.headerHtml || ''}
+              variables={variables}
+              minHeight={110}
+              onChange={(value) => setDraft({ ...draft, headerHtml: value })}
+            />
+            <RichTextEditor
+              label="Rodapé"
+              value={draft.footerHtml || ''}
+              variables={variables}
+              minHeight={110}
+              onChange={(value) => setDraft({ ...draft, footerHtml: value })}
+            />
+
             <div className="space-y-3">
               {(draft.clauses || []).map((clause, index) => (
                 <div key={index} className="rounded-md border border-border p-3">
                   <div className="grid gap-3 md:grid-cols-[80px_minmax(0,1fr)]">
-                    <Input label="Ordem" type="number" value={clause.order} onChange={(event) => updateClause(index, 'order', Number(event.target.value) as never)} />
+                    <Input label="Ordem" type="number" value={clause.order} onChange={(event) => updateClause(index, 'order', Number(event.target.value))} />
                     <Input label="Título" value={clause.title} onChange={(event) => updateClause(index, 'title', event.target.value)} />
                   </div>
-                  <textarea className="mt-3 min-h-32 w-full rounded-md border border-input p-3 font-mono text-sm" value={clause.bodyHtml} onChange={(event) => updateClause(index, 'bodyHtml', event.target.value)} />
+                  <div className="mt-3">
+                    <RichTextEditor
+                      label="Texto da cláusula"
+                      value={clause.bodyHtml}
+                      variables={variables}
+                      onChange={(value) => updateClause(index, 'bodyHtml', value)}
+                    />
+                  </div>
                 </div>
               ))}
               <Button variant="outline" onClick={() => setDraft({ ...draft, clauses: [...(draft.clauses || []), { order: (draft.clauses?.length || 0) + 1, title: 'Nova cláusula', bodyHtml: '<p></p>', required: true, editable: true }] })}>
@@ -205,10 +321,18 @@ export default function ContractTemplates() {
         <Card>
           <CardHeader>
             <CardTitle>Variáveis</CardTitle>
+            <CardDescription>Também estão disponíveis no seletor de cada editor.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
             {variables.map((variable) => (
-              <code key={variable.key} className="block rounded bg-muted px-2 py-1 text-xs">{variable.token}</code>
+              <button
+                key={variable.key}
+                type="button"
+                className="block w-full rounded bg-muted px-2 py-1 text-left text-xs transition hover:bg-muted/70"
+                onClick={() => navigator.clipboard?.writeText(variable.token)}
+              >
+                {variable.key}
+              </button>
             ))}
           </CardContent>
         </Card>

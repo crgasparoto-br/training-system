@@ -16,18 +16,28 @@ interface AppSidebarProps {
   onNavigate?: () => void;
 }
 
-function collectParentIdsWithActiveChild(items: SidebarNavItem[], currentPath: string, acc: Set<string>) {
+function itemMatchesPath(item: SidebarNavItem, currentPath: string) {
+  if (!item.path) return false;
+  return item.children?.length ? currentPath === item.path : currentPath === item.path || currentPath.startsWith(`${item.path}/`);
+}
+
+function collectParentIdsWithActiveChild(items: SidebarNavItem[], currentPath: string, acc: Set<string>): boolean {
+  let foundActive = false;
+
   for (const item of items) {
-    const hasDirectActiveChild = (item.children || []).some((child) =>
-      child.path ? currentPath === child.path || currentPath.startsWith(`${child.path}/`) : false
-    );
+    const hasActiveDescendant = collectParentIdsWithActiveChild(item.children || [], currentPath, acc);
+    const isActive = itemMatchesPath(item, currentPath);
 
-    if (hasDirectActiveChild) acc.add(item.id);
+    if (hasActiveDescendant) {
+      acc.add(item.id);
+    }
 
-    if (item.children?.length) {
-      collectParentIdsWithActiveChild(item.children, currentPath, acc);
+    if (isActive || hasActiveDescendant) {
+      foundActive = true;
     }
   }
+
+  return foundActive;
 }
 
 export function AppSidebar({
@@ -91,8 +101,10 @@ export function AppSidebar({
               currentPath={currentPath}
               collapsed={collapsed}
               isOpen={!!openMap[item.id]}
+              openMap={openMap}
               onToggle={handleToggle}
               onNavigate={onNavigate}
+              level={0}
             />
           ))}
         </nav>
