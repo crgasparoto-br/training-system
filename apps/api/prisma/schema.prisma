@@ -97,6 +97,8 @@ model CompanyContract {
   createdAt             DateTime                     @default(now())
   updatedAt             DateTime                     @updatedAt
   agendaBookings        AgendaBooking[]
+  anthropometryAssessments AnthropometryAssessment[]
+  anthropometrySegments AnthropometrySegment[]
   assessmentTypes       AssessmentType[]
   collaboratorFunctions CollaboratorFunctionOption[]
   cloneLogsAsSource     ContractDataCloneLog[]       @relation("ContractCloneSource")
@@ -276,6 +278,7 @@ model Professor {
   dismissalDate                   DateTime?
   agendaBookings                  AgendaBooking[]
   alunos                          Aluno[]
+  anthropometryAssessments        AnthropometryAssessment[]
   assessmentAuditLogs             AssessmentAuditLog[]
   cloneLogs                       ContractDataCloneLog[]
   generatedContracts              Contract[]
@@ -338,6 +341,7 @@ model Aluno {
   diastolicPressure   Int?
   serviceId           String?
   agendaBookings      AgendaBooking[]
+  anthropometryAssessments AnthropometryAssessment[]
   service             ServiceOption?          @relation(fields: [serviceId], references: [id])
   professor           Professor               @relation(fields: [professorId], references: [id], onDelete: Cascade, map: "Athlete_educatorId_fkey")
   user                User                    @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Athlete_userId_fkey")
@@ -541,6 +545,85 @@ model AssessmentAuditLog {
 
   @@index([assessmentId])
   @@index([professorId], map: "AssessmentAuditLog_educatorId_idx")
+}
+
+model AnthropometrySegment {
+  id                         String                         @id @default(cuid())
+  contractId                 String
+  name                       String
+  description                String?
+  technicalDescription       String?
+  sexApplicability           AnthropometrySexApplicability  @default(ambos)
+  type                       AnthropometrySegmentType       @default(principal)
+  order                      Int                            @default(0)
+  active                     Boolean                        @default(true)
+  importByDefault            Boolean                        @default(true)
+  importObservationByDefault Boolean                        @default(false)
+  femaleImageUrl             String?
+  maleImageUrl               String?
+  tutorialVideoUrl           String?
+  formulaHint                String?
+  createdAt                  DateTime                       @default(now())
+  updatedAt                  DateTime                       @updatedAt
+  contract                   CompanyContract                @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  values                     AnthropometryAssessmentValue[]
+  observations               AnthropometryObservation[]
+
+  @@unique([contractId, name])
+  @@index([contractId, active, order])
+  @@index([contractId, type])
+}
+
+model AnthropometryAssessment {
+  id             String                         @id @default(cuid())
+  contractId     String
+  alunoId        String
+  professorId    String?
+  code           String
+  assessmentDate DateTime
+  notes          String?
+  createdAt      DateTime                       @default(now())
+  updatedAt      DateTime                       @updatedAt
+  contract       CompanyContract                @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  aluno          Aluno                          @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  professor      Professor?                     @relation(fields: [professorId], references: [id], onDelete: SetNull)
+  values         AnthropometryAssessmentValue[]
+  observations   AnthropometryObservation[]
+
+  @@unique([contractId, alunoId, code])
+  @@index([contractId, alunoId, assessmentDate])
+  @@index([professorId])
+}
+
+model AnthropometryAssessmentValue {
+  id           String                  @id @default(cuid())
+  assessmentId String
+  segmentId    String
+  value        String?
+  unit         String                  @default("cm")
+  observation  String?
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+  assessment   AnthropometryAssessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  segment      AnthropometrySegment    @relation(fields: [segmentId], references: [id], onDelete: Cascade)
+
+  @@unique([assessmentId, segmentId])
+  @@index([segmentId])
+}
+
+model AnthropometryObservation {
+  id           String                   @id @default(cuid())
+  assessmentId String
+  segmentId    String?
+  text         String
+  importable   Boolean                  @default(false)
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
+  assessment   AnthropometryAssessment  @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  segment      AnthropometrySegment?    @relation(fields: [segmentId], references: [id], onDelete: SetNull)
+
+  @@index([assessmentId])
+  @@index([segmentId])
 }
 
 model TrainingPlan {
@@ -1217,6 +1300,18 @@ enum ProfessorManualContext {
 enum AssessmentAuditAction {
   update
   delete
+}
+
+enum AnthropometrySegmentType {
+  principal
+  opcional
+  personalizado
+}
+
+enum AnthropometrySexApplicability {
+  masculino
+  feminino
+  ambos
 }
 
 enum TrainingPhase {
