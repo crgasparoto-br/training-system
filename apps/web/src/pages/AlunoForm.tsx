@@ -10,8 +10,10 @@ import { serviceCatalogService } from '../services/service.service';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
-import { ArrowLeft, ClipboardList, FileText, HeartPulse, Sparkles, Upload, User, Wallet, X } from 'lucide-react';
+import { Activity, ArrowLeft, ClipboardList, FileText, HeartPulse, Sparkles, Upload, User, Wallet, X } from 'lucide-react';
 import { alunoFormCopy } from '../i18n/ptBR';
+import { BodyDiscomfortMap } from '../components/BodyDiscomfortMap';
+import { BODY_REGIONS, type BodyDiscomfortEntry } from '../constants/bodyRegions';
 
 const numberOrUndefined = (value: unknown) =>
   typeof value === 'number' && Number.isNaN(value) ? undefined : value;
@@ -73,6 +75,16 @@ const preferencesSchema = z.object({
 
 const ahaResponseSchema = z.union([z.literal(''), z.enum(['yes', 'no', 'unknown'])]);
 
+const discomfortTypeSchema = z.enum(['peso', 'formigamento', 'agulhada', 'dor']);
+
+const bodyDiscomfortSchema = z.object({
+  regionId: z.string().min(1),
+  regionName: z.string().min(1),
+  discomfortTypes: z.array(discomfortTypeSchema).min(1, 'Selecione pelo menos um tipo de desconforto'),
+  intensity: z.number().int().min(1, 'Intensidade mínima: 1').max(10, 'Intensidade máxima: 10'),
+  notes: z.string().optional(),
+});
+
 const requiredNumber = (message: string) =>
   z.number({
     required_error: message,
@@ -126,6 +138,7 @@ const alunoSchema = z.object({
       q8: z.boolean(),
     }),
     ahaResponses: z.record(ahaResponseSchema),
+    bodyDiscomforts: z.array(bodyDiscomfortSchema),
   }),
 });
 
@@ -274,7 +287,7 @@ const ahaAnswerOptions = [
   { value: 'unknown', label: 'Não sei' },
 ] as const;
 
-type AlunoFormTab = 'anamneseInicial' | 'identificacao' | 'financeiro' | 'preferencias' | 'parq' | 'aha';
+type AlunoFormTab = 'anamneseInicial' | 'identificacao' | 'financeiro' | 'preferencias' | 'parq' | 'aha' | 'desconfortos';
 
 type AlunoFormResponses = {
   identification?: Partial<AlunoFormData['intakeForm']['personalInfo']>;
@@ -282,10 +295,26 @@ type AlunoFormResponses = {
   preferences?: Partial<AlunoFormData['intakeForm']['preferencesInfo']>;
   parqResponses?: Partial<AlunoFormData['intakeForm']['parqResponses']>;
   ahaResponses?: Record<string, unknown>;
+  bodyDiscomforts?: unknown;
 };
 
 const readFormResponses = (value?: Record<string, unknown>): AlunoFormResponses =>
   value && typeof value === 'object' ? (value as AlunoFormResponses) : {};
+
+const readBodyDiscomforts = (value: unknown): BodyDiscomfortEntry[] => {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((item) => bodyDiscomfortSchema.safeParse(item))
+    .filter((result): result is z.SafeParseSuccess<BodyDiscomfortEntry> => result.success)
+    .map((result) => {
+      const region = BODY_REGIONS.find((item) => item.id === result.data.regionId);
+      return {
+        ...result.data,
+        regionName: region?.name || result.data.regionName,
+      };
+    });
+};
 
 const formatDateForInput = (value?: string | null) => {
   if (!value) return '';
@@ -434,6 +463,7 @@ export function AlunoForm() {
           q8: false,
         },
         ahaResponses: defaultAhaResponses,
+        bodyDiscomforts: [],
       },
     },
   });
@@ -446,6 +476,7 @@ export function AlunoForm() {
   const cameFromReferral = watch('intakeForm.financialInfo.cameFromReferral');
   const calculatedAge = calculateAgeFromBirthDate(birthDate);
   const parqDeclarationAccepted = watch('intakeForm.parqResponses.q8');
+  const bodyDiscomforts = watch('intakeForm.bodyDiscomforts');
   const bmi = weight && height ? alunoService.calculateBMI(weight, height) : 0;
   const bmiClass = bmi ? alunoService.getBMIClassification(bmi) : '';
   const resolvedAvatar = resolveAvatarUrl(avatar);
@@ -859,6 +890,7 @@ export function AlunoForm() {
                 : ''
         );
       });
+      setValue('intakeForm.bodyDiscomforts', readBodyDiscomforts(formResponses.bodyDiscomforts));
     } catch (error) {
       console.error('Erro ao carregar aluno:', error);
       alert(alunoFormCopy.loadError);
@@ -897,6 +929,7 @@ export function AlunoForm() {
         preferences: data.intakeForm.preferencesInfo,
         parqResponses,
         ahaResponses: data.intakeForm.ahaResponses,
+        bodyDiscomforts: data.intakeForm.bodyDiscomforts,
       };
 
       const updatePayload: UpdateAlunoDTO = {
@@ -1027,6 +1060,11 @@ export function AlunoForm() {
       return;
     }
 
+    if (formErrors.intakeForm?.bodyDiscomforts) {
+      setActiveTab('desconfortos');
+      return;
+    }
+
     if (formErrors.intakeForm?.parqResponses) {
       setActiveTab('parq');
       return;
@@ -1131,6 +1169,21 @@ export function AlunoForm() {
                 >
                   <HeartPulse size={16} />
                   Questionário American Heart Association
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  id="aluno-tab-desconfortos"
+                  aria-controls="aluno-panel-desconfortos"
+                  onClick={() => setActiveTab('desconfortos')}
+                  className={`inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-medium transition-colors ${
+                    activeTab === 'desconfortos'
+                      ? 'bg-card text-primary shadow-sm ring-1 ring-border'
+                      : 'text-muted-foreground hover:bg-card/70 hover:text-foreground'
+                  }`}
+                >
+                  <Activity size={16} />
+                  Desconfortos
                 </button>
                 <button
                   type="button"
@@ -1966,6 +2019,37 @@ export function AlunoForm() {
                   </div>
                 </div>
                 <p className="text-sm text-muted-foreground">Marque as respostas positivas. Se todas permanecerem desmarcadas, o aluno não sinalizou restrições no PAR-Q.</p>
+              </div>
+            )}
+
+            {activeTab === 'desconfortos' && (
+              <div
+                id="aluno-panel-desconfortos"
+                role="tabpanel"
+                aria-labelledby="aluno-tab-desconfortos"
+                className="space-y-5"
+              >
+                <div>
+                  <h2 className="text-lg font-semibold text-foreground">Desconfortos corporais</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Registre regiões com dor, peso, formigamento ou agulhada para acompanhar a evolução do aluno.
+                  </p>
+                </div>
+                <BodyDiscomfortMap
+                  value={bodyDiscomforts}
+                  onChange={(nextValue) =>
+                    setValue('intakeForm.bodyDiscomforts', nextValue, {
+                      shouldDirty: true,
+                      shouldTouch: true,
+                      shouldValidate: true,
+                    })
+                  }
+                />
+                {errors.intakeForm?.bodyDiscomforts && (
+                  <p className="text-sm font-medium text-destructive">
+                    Revise os desconfortos marcados: informe pelo menos um tipo e intensidade entre 1 e 10.
+                  </p>
+                )}
               </div>
             )}
 
