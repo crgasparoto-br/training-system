@@ -19,6 +19,7 @@ export interface CreateCollaboratorFunctionRequest {
   permissions?: {
     screens: string[];
     blocks: string[];
+    dataScopes?: Record<string, 'self' | 'managed' | 'contract' | null>;
   };
 }
 
@@ -28,5 +29,6 @@ export interface UpdateCollaboratorFunctionRequest {
   permissions?: {
     screens: string[];
     blocks: string[];
+    dataScopes?: Record<string, 'self' | 'managed' | 'contract' | null>;
   };
 }

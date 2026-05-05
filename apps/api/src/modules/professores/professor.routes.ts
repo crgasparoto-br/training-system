@@ -1,7 +1,11 @@
 ﻿import { Router, Request, Response } from 'express';
 import { professorService } from './professor.service.js';
 import { authMiddleware } from '../auth/auth.middleware.js';
-import { screenAccessMiddleware } from '../access-control/index.js';
+import {
+  getEffectiveDataScopeForProfessor,
+  getMostPermissiveDataScopeForProfessor,
+  screenAccessMiddleware,
+} from '../access-control/index.js';
 import { CreateProfessorSchema, UpdateProfessorSchema } from '@corrida/utils';
 import { sendSuccess, sendError } from '@corrida/utils';
 import multer from 'multer';
@@ -64,6 +68,20 @@ const signedContractUpload = multer({
   },
 });
 
+function getActorProfessor(req: Request) {
+  return {
+    role: (req as any).user.professorRole,
+    collaboratorFunction: {
+      id: (req as any).user.collaboratorFunctionId,
+      code: (req as any).user.collaboratorFunctionCode,
+    },
+  };
+}
+
+function sendScopedError(res: Response, error: any, fallback: string) {
+  return sendError(res, error.message || fallback, error.statusCode || 400);
+}
+
 const uploadAvatarFile = (req: Request, res: Response, next: any) => {
   avatarUpload.single('file')(req, res, (err: any) => {
     if (err) {
@@ -116,6 +134,15 @@ router.post(
   uploadSignedContractFile,
   async (req: Request, res: Response) => {
   try {
+    const dataScope = await getEffectiveDataScopeForProfessor(
+      getActorProfessor(req),
+      'collaborators.registration'
+    );
+
+    if (dataScope !== 'contract') {
+      return sendError(res, 'Você não tem permissão para executar esta ação administrativa.', 403);
+    }
+
     if (!req.file) {
       return sendError(res, 'Selecione um PDF para upload', 400);
     }
@@ -148,10 +175,24 @@ router.get(
     const status = rawStatus === 'active' || rawStatus === 'inactive' ? rawStatus : 'all';
 
     if (!contractId) {
-      return sendError(res, 'Contrato nÃ£o encontrado', 404);
+      return sendError(res, 'Contrato não encontrado', 404);
     }
 
-    const professores = await professorService.listByContract(contractId, status);
+    const dataScope = await getMostPermissiveDataScopeForProfessor(getActorProfessor(req), [
+      'collaborators.consultation',
+      'collaborators.registration',
+    ]);
+
+    if (!dataScope) {
+      return sendError(res, 'Você não tem permissão para acessar este colaborador.', 403);
+    }
+
+    const professores = await professorService.listByAccessScope(
+      contractId,
+      (req as any).user.professorId,
+      dataScope,
+      status
+    );
 
     return sendSuccess(res, professores, 'Professores recuperados com sucesso');
   } catch (error: any) {
@@ -178,18 +219,24 @@ router.post('/', screenAccessMiddleware('collaborators.registration'), async (re
     const actorProfessorId = (req as any).user.professorId;
 
     if (!contractId) {
-      return sendError(res, 'Contrato nÃ£o encontrado', 404);
+      return sendError(res, 'Contrato não encontrado', 404);
     }
+
+    const dataScope = await getEffectiveDataScopeForProfessor(
+      getActorProfessor(req),
+      'collaborators.registration'
+    );
 
     const professor = await professorService.create({
       contractId,
       actorProfessorId,
+      dataScope: dataScope ?? undefined,
       ...validation.data,
     });
 
     return sendSuccess(res, professor, 'Professor criado com sucesso', 201);
   } catch (error: any) {
-    return sendError(res, error.message || 'Erro ao criar professor', 400);
+    return sendScopedError(res, error, 'Erro ao criar professor');
   }
 });
 
@@ -212,12 +259,17 @@ router.put('/:id', screenAccessMiddleware('collaborators.registration'), async (
 
     const professor = await professorService.update(contractId, id, {
       actorProfessorId,
+      dataScope:
+        (await getEffectiveDataScopeForProfessor(
+          getActorProfessor(req),
+          'collaborators.registration'
+        )) ?? undefined,
       ...validation.data,
     });
 
     return sendSuccess(res, professor, 'Professor atualizado com sucesso');
   } catch (error: any) {
-    return sendError(res, error.message || 'Erro ao atualizar professor', 400);
+    return sendScopedError(res, error, 'Erro ao atualizar professor');
   }
 });
 
@@ -234,16 +286,16 @@ router.post('/:id/legal-financial/validate', screenAccessMiddleware('collaborato
     const professor = await professorService.validateLegalFinancial(
       contractId,
       id,
-      validatorProfessorId
+      validatorProfessorId,
+      (await getEffectiveDataScopeForProfessor(
+        getActorProfessor(req),
+        'collaborators.registration'
+      )) ?? undefined
     );
 
     return sendSuccess(res, professor, 'Dados juridicos e financeiros validados com sucesso');
   } catch (error: any) {
-    return sendError(
-      res,
-      error.message || 'Erro ao validar dados juridicos e financeiros',
-      400
-    );
+    return sendScopedError(res, error, 'Erro ao validar dados juridicos e financeiros');
   }
 });
 
@@ -256,11 +308,18 @@ router.post('/:id/deactivate', screenAccessMiddleware('collaborators.registratio
     const { id } = req.params;
     const contractId = (req as any).user.contractId;
 
-    await professorService.deactivate(contractId, id);
+    await professorService.deactivate(
+      contractId,
+      id,
+      (await getEffectiveDataScopeForProfessor(
+        getActorProfessor(req),
+        'collaborators.registration'
+      )) ?? undefined
+    );
 
     return sendSuccess(res, null, 'Professor desativado com sucesso');
   } catch (error: any) {
-    return sendError(res, error.message || 'Erro ao desativar professor', 400);
+    return sendScopedError(res, error, 'Erro ao desativar professor');
   }
 });
 
@@ -273,32 +332,46 @@ router.post('/:id/activate', screenAccessMiddleware('collaborators.registration'
     const { id } = req.params;
     const contractId = (req as any).user.contractId;
 
-    await professorService.activate(contractId, id);
+    await professorService.activate(
+      contractId,
+      id,
+      (await getEffectiveDataScopeForProfessor(
+        getActorProfessor(req),
+        'collaborators.registration'
+      )) ?? undefined
+    );
 
     return sendSuccess(res, null, 'Professor reativado com sucesso');
   } catch (error: any) {
-    return sendError(res, error.message || 'Erro ao reativar professor', 400);
+    return sendScopedError(res, error, 'Erro ao reativar professor');
   }
 });
 
 /**
  * POST /api/v1/professores/:id/reset-password
- * Reset rÃ¡pido de senha do professor
+ * Reset rápido de senha do professor
  */
 router.post('/:id/reset-password', screenAccessMiddleware('collaborators.registration'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const contractId = (req as any).user.contractId;
 
-    const tempPassword = await professorService.resetPassword(contractId, id);
+    const tempPassword = await professorService.resetPassword(
+      contractId,
+      id,
+      (await getEffectiveDataScopeForProfessor(
+        getActorProfessor(req),
+        'collaborators.registration'
+      )) ?? undefined
+    );
 
     return sendSuccess(
       res,
       { tempPassword },
-      'Senha temporÃ¡ria gerada com sucesso'
+      'Senha temporária gerada com sucesso'
     );
   } catch (error: any) {
-    return sendError(res, error.message || 'Erro ao resetar senha', 400);
+    return sendScopedError(res, error, 'Erro ao resetar senha');
   }
 });
 

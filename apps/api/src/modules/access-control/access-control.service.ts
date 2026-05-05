@@ -1,9 +1,11 @@
 import { PrismaClient, type Prisma } from '@prisma/client';
 import {
   ACCESS_BLOCK_CATALOG,
+  ACCESS_DATA_SCOPE_SCREEN_KEYS,
   ALL_ACCESS_SCREEN_KEYS,
   DEFAULT_ACCESS_BY_PROFILE_CODE,
   FALLBACK_ACCESS_PROFILE_CODE,
+  type AccessDataScope,
   type AccessPermissionSelection,
   type AccessScreenKey,
 } from '@corrida/types';
@@ -19,19 +21,49 @@ type AccessPermissionRow = {
   screenKey: string;
   blockKey: string;
   canView: boolean;
+  dataScope?: string | null;
 };
 
 type AccessProfileDefaults = {
   screens: readonly string[];
   blocks: readonly string[];
+  dataScopes?: Partial<Record<string, AccessDataScope>>;
 };
 
 const defaultAccessByCode = DEFAULT_ACCESS_BY_PROFILE_CODE as Record<string, AccessProfileDefaults>;
 
 const knownBlockKeys = ACCESS_BLOCK_CATALOG.map((item) => item.key);
+const scopedScreenKeys = new Set<string>(ACCESS_DATA_SCOPE_SCREEN_KEYS);
+const scopeRank: Record<AccessDataScope, number> = {
+  self: 1,
+  managed: 2,
+  contract: 3,
+};
 
 function getDefaultAccessForProfile(profileCode: string): AccessProfileDefaults {
   return defaultAccessByCode[profileCode] || defaultAccessByCode[FALLBACK_ACCESS_PROFILE_CODE];
+}
+
+function isAccessDataScope(value: unknown): value is AccessDataScope {
+  return value === 'self' || value === 'managed' || value === 'contract';
+}
+
+function getDefaultDataScope(profileCode: string, screenKey: string) {
+  return getDefaultAccessForProfile(profileCode).dataScopes?.[screenKey] ?? null;
+}
+
+function getSelectedDataScope(
+  profileCode: string,
+  screenKey: string,
+  selection?: AccessPermissionSelection
+) {
+  const selectedScope = selection?.dataScopes?.[screenKey];
+
+  if (isAccessDataScope(selectedScope)) {
+    return selectedScope;
+  }
+
+  return getDefaultDataScope(profileCode, screenKey);
 }
 
 function buildPermissionMatrix(
@@ -48,6 +80,9 @@ function buildPermissionMatrix(
     screenKey,
     blockKey: SCREEN_LEVEL_BLOCK_KEY,
     canView: selectedScreens.has(screenKey),
+    dataScope: scopedScreenKeys.has(screenKey)
+      ? getSelectedDataScope(profileCode, screenKey, selection)
+      : null,
   }));
 
   const blockRows = ACCESS_BLOCK_CATALOG.map((block) => ({
@@ -55,6 +90,7 @@ function buildPermissionMatrix(
     screenKey: block.screenKey,
     blockKey: block.key,
     canView: selectedBlocks.has(block.key),
+    dataScope: null,
   }));
 
   return [...screenRows, ...blockRows];
@@ -71,6 +107,7 @@ export function serializeAccessPermission(permission: AccessPermissionRow) {
     screenKey: permission.screenKey,
     blockKey: permission.blockKey || null,
     canView: permission.canView,
+    dataScope: isAccessDataScope(permission.dataScope) ? permission.dataScope : null,
   };
 }
 
@@ -81,6 +118,7 @@ export function buildFullAccessPermissions() {
       screenKey,
       blockKey: SCREEN_LEVEL_BLOCK_KEY,
       canView: true,
+      dataScope: scopedScreenKeys.has(screenKey) ? 'contract' : null,
     })
   );
 
@@ -90,6 +128,7 @@ export function buildFullAccessPermissions() {
       screenKey: block.screenKey,
       blockKey: block.key,
       canView: true,
+      dataScope: null,
     })
   );
 
@@ -153,6 +192,12 @@ export async function replaceAccessPermissionsForFunction(
   const sanitizedSelection: AccessPermissionSelection = {
     screens: selection.screens.filter((screenKey) => knownScreens.has(screenKey)),
     blocks: selection.blocks.filter((blockKey) => knownBlocks.has(blockKey)),
+    dataScopes: Object.fromEntries(
+      Object.entries(selection.dataScopes ?? {}).filter(
+        ([screenKey, dataScope]) =>
+          scopedScreenKeys.has(screenKey) && isAccessDataScope(dataScope)
+      )
+    ),
   };
   const permissions = buildPermissionMatrix(
     collaboratorFunctionId,
@@ -197,6 +242,104 @@ export async function getEffectiveAccessPermissionsForProfessor(professor: {
         );
 
   return permissions.map(serializeAccessPermission);
+}
+
+export async function getEffectiveDataScopeForProfessor(
+  professor: {
+    role: 'master' | 'professor';
+    collaboratorFunction: {
+      id: string;
+      code: string;
+    };
+  },
+  screenKey: AccessScreenKey | string
+): Promise<AccessDataScope | null> {
+  if (professor.role === 'master') {
+    return 'contract';
+  }
+
+  if (!scopedScreenKeys.has(screenKey)) {
+    return null;
+  }
+
+  const permissions = await syncAccessPermissionsForFunction(
+    professor.collaboratorFunction.id,
+    professor.collaboratorFunction.code
+  );
+
+  const permission = permissions.find(
+    (item) =>
+      item.screenKey === screenKey &&
+      item.blockKey === SCREEN_LEVEL_BLOCK_KEY &&
+      item.canView
+  );
+
+  if (!permission) {
+    return null;
+  }
+
+  if (isAccessDataScope(permission.dataScope)) {
+    return permission.dataScope;
+  }
+
+  return getDefaultDataScope(professor.collaboratorFunction.code, screenKey);
+}
+
+export async function getMostPermissiveDataScopeForProfessor(
+  professor: {
+    role: 'master' | 'professor';
+    collaboratorFunction: {
+      id: string;
+      code: string;
+    };
+  },
+  screenKeys: Array<AccessScreenKey | string>
+): Promise<AccessDataScope | null> {
+  const scopes = await Promise.all(
+    screenKeys.map((screenKey) => getEffectiveDataScopeForProfessor(professor, screenKey))
+  );
+
+  return scopes.reduce<AccessDataScope | null>((bestScope, scope) => {
+    if (!scope) {
+      return bestScope;
+    }
+
+    if (!bestScope || scopeRank[scope] > scopeRank[bestScope]) {
+      return scope;
+    }
+
+    return bestScope;
+  }, null);
+}
+
+export function buildProfessorDataScopeWhere(
+  contractId: string,
+  actorProfessorId: string | undefined,
+  scope: AccessDataScope
+): Prisma.ProfessorWhereInput {
+  if (scope === 'contract') {
+    return { contractId };
+  }
+
+  if (!actorProfessorId) {
+    return { contractId, id: '__no_actor_professor__' };
+  }
+
+  if (scope === 'managed') {
+    return {
+      contractId,
+      OR: [{ id: actorProfessorId }, { responsibleManagerId: actorProfessorId }],
+    };
+  }
+
+  return {
+    contractId,
+    id: actorProfessorId,
+  };
+}
+
+export function canAccessOwnData(targetProfessorId: string, actorProfessorId?: string) {
+  return Boolean(actorProfessorId && targetProfessorId === actorProfessorId);
 }
 
 export async function canProfessorAccessScreen(

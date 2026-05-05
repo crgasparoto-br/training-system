@@ -88,17 +88,35 @@ export const ACCESS_BLOCK_CATALOG = [
 
 export type AccessBlockKey = (typeof ACCESS_BLOCK_CATALOG)[number]['key'];
 
+export type AccessDataScope = 'self' | 'managed' | 'contract';
+
+export const ACCESS_DATA_SCOPE_SCREEN_KEYS = [
+  'collaborators.registration',
+  'collaborators.consultation',
+] as const satisfies readonly AccessScreenKey[];
+
+export const ACCESS_DATA_SCOPE_OPTIONS = [
+  { value: 'self', label: 'Somente próprio cadastro' },
+  { value: 'managed', label: 'Próprio cadastro e liderados' },
+  { value: 'contract', label: 'Todos os colaboradores do contrato' },
+] as const satisfies readonly {
+  value: AccessDataScope;
+  label: string;
+}[];
+
 export interface AccessPermission {
   id?: string;
   collaboratorFunctionId?: string;
   screenKey: AccessScreenKey | string;
   blockKey?: AccessBlockKey | string | null;
   canView: boolean;
+  dataScope?: AccessDataScope | null;
 }
 
 export interface AccessPermissionSelection {
   screens: Array<AccessScreenKey | string>;
   blocks: Array<AccessBlockKey | string>;
+  dataScopes?: Partial<Record<AccessScreenKey | string, AccessDataScope | null>>;
 }
 
 export interface AccessControlPayload {
@@ -131,6 +149,10 @@ export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
   professor: {
     screens: [...commonProfessorScreens, 'collaborators.registration'],
     blocks: ['collaborators.registration.collaborator'],
+    dataScopes: {
+      'collaborators.registration': 'self',
+      'collaborators.consultation': 'self',
+    },
   },
   manager: {
     screens: [
@@ -142,28 +164,49 @@ export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
       'collaborators.registration.collaborator',
       'collaborators.registration.manager',
     ],
+    dataScopes: {
+      'collaborators.registration': 'contract',
+      'collaborators.consultation': 'contract',
+    },
   },
   intern: {
     screens: commonProfessorScreens,
     blocks: [],
+    dataScopes: {
+      'collaborators.registration': 'self',
+      'collaborators.consultation': 'self',
+    },
   },
   administrative: {
     screens: commonProfessorScreens,
     blocks: [],
+    dataScopes: {
+      'collaborators.registration': 'self',
+      'collaborators.consultation': 'self',
+    },
   },
   cleaning: {
     screens: commonProfessorScreens,
     blocks: [],
+    dataScopes: {
+      'collaborators.registration': 'self',
+      'collaborators.consultation': 'self',
+    },
   },
   services: {
     screens: commonProfessorScreens,
     blocks: [],
+    dataScopes: {
+      'collaborators.registration': 'self',
+      'collaborators.consultation': 'self',
+    },
   },
 } as const satisfies Record<
   string,
   {
     screens: readonly AccessScreenKey[];
     blocks: readonly AccessBlockKey[];
+    dataScopes?: Partial<Record<AccessScreenKey, AccessDataScope>>;
   }
 >;
 

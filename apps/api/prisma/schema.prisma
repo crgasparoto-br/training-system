@@ -251,6 +251,7 @@ model AccessPermission {
   screenKey              String
   blockKey               String                     @default("")
   canView                Boolean                    @default(true)
+  dataScope              String?
   createdAt              DateTime                   @default(now())
   updatedAt              DateTime                   @default(now()) @updatedAt
   collaboratorFunction   CollaboratorFunctionOption @relation(fields: [collaboratorFunctionId], references: [id], onDelete: Cascade)
@@ -1385,4 +1386,3 @@ enum WorkoutDayStatus {
   in_progress
   completed
 }
-
