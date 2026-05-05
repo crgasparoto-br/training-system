@@ -1,8 +1,10 @@
 import { PrismaClient } from '@prisma/client';
 import bcryptjs from 'bcryptjs';
 import { Prisma } from '@prisma/client';
+import type { AccessDataScope } from '@corrida/types';
 import { bankService } from '../banks/bank.service.js';
 import { getCollaboratorFunctionForContract } from '../collaborator-functions/index.js';
+import { buildProfessorDataScopeWhere } from '../access-control/index.js';
 
 const prisma = new PrismaClient();
 
@@ -150,6 +152,7 @@ export interface CreateProfessorDTO {
   collaboratorFunctionId: string;
   responsibleManagerId?: string;
   actorProfessorId?: string;
+  dataScope?: AccessDataScope;
 }
 
 export interface UpdateProfessorDTO {
@@ -189,6 +192,83 @@ export interface UpdateProfessorDTO {
   collaboratorFunctionId?: string;
   responsibleManagerId?: string;
   actorProfessorId?: string;
+  dataScope?: AccessDataScope;
+}
+
+const PROFESSOR_SCOPE_DENIED_MESSAGE = 'Voc√™ n√£o tem permiss√£o para acessar este colaborador.';
+
+function forbidden(message = PROFESSOR_SCOPE_DENIED_MESSAGE) {
+  const error = new Error(message) as Error & { statusCode?: number };
+  error.statusCode = 403;
+  return error;
+}
+
+function assertContractScope(scope?: AccessDataScope) {
+  if (scope !== 'contract') {
+    throw forbidden('Voc√™ n√£o tem permiss√£o para executar esta a√ß√£o administrativa.');
+  }
+}
+
+const selfServiceAllowedFields = new Set<keyof UpdateProfessorDTO>([
+  'name',
+  'email',
+  'password',
+  'phone',
+  'birthDate',
+  'cpf',
+  'rg',
+  'maritalStatus',
+  'addressStreet',
+  'addressNumber',
+  'addressNeighborhood',
+  'addressCity',
+  'addressState',
+  'addressComplement',
+  'addressZipCode',
+  'instagramHandle',
+  'cref',
+  'professionalSummary',
+  'lattesUrl',
+  'companyDocument',
+  'bankCode',
+  'bankName',
+  'bankBranch',
+  'bankAccount',
+  'pixKey',
+  'avatar',
+  'actorProfessorId',
+  'dataScope',
+]);
+
+function assertSelfServicePayload(data: UpdateProfessorDTO) {
+  const blockedField = Object.keys(data).find(
+    (field) => !selfServiceAllowedFields.has(field as keyof UpdateProfessorDTO)
+  );
+
+  if (blockedField) {
+    throw forbidden('Seu perfil n√£o permite alterar campos administrativos deste colaborador.');
+  }
+}
+
+async function assertProfessorWithinScope(
+  contractId: string,
+  targetProfessorId: string,
+  actorProfessorId: string | undefined,
+  scope: AccessDataScope
+) {
+  const target = await prisma.professor.findFirst({
+    where: {
+      AND: [
+        { id: targetProfessorId },
+        buildProfessorDataScopeWhere(contractId, actorProfessorId, scope),
+      ],
+    },
+    select: { id: true },
+  });
+
+  if (!target) {
+    throw forbidden();
+  }
 }
 
 function canLeadCollaborators(professor: {
@@ -225,11 +305,11 @@ async function getResponsibleManagerForContract(
   });
 
   if (!responsibleManager) {
-    throw new Error('Gestor respons·vel n„o encontrado');
+    throw new Error('Gestor respons√°vel n√£o encontrado');
   }
 
   if (!canLeadCollaborators(responsibleManager)) {
-    throw new Error('O colaborador selecionado n„o pode ser definido como gestor respons·vel');
+    throw new Error('O colaborador selecionado n√£o pode ser definido como gestor respons√°vel');
   }
 
   return responsibleManager;
@@ -251,7 +331,7 @@ async function ensureCpfAvailable(cpf: string, currentUserId?: string) {
   });
 
   if (existingProfile && existingProfile.userId !== currentUserId) {
-    throw new Error('CPF j· est· registrado');
+    throw new Error('CPF j√° est√° registrado');
   }
 }
 
@@ -273,7 +353,7 @@ async function ensureOperationalRolesAvailable(contractId: string, operationalRo
   });
 
   if (availableRoles.length !== operationalRoleIds.length) {
-    throw new Error('Um ou mais cargos operacionais s„o inv·lidos para este contrato');
+    throw new Error('Um ou mais cargos operacionais s√£o inv√°lidos para este contrato');
   }
 
   return availableRoles.map((role) => role.id);
@@ -340,6 +420,8 @@ export const professorService = {
    * Criar professor vinculado ao contrato (somente academia)
    */
   async create(data: CreateProfessorDTO) {
+    assertContractScope(data.dataScope);
+
     const normalizedEmail = normalizeEmail(data.email);
     const normalizedName = normalizeName(data.name);
     const normalizedPhone = normalizePhone(data.phone);
@@ -383,7 +465,7 @@ export const professorService = {
     });
 
     if (!contract) {
-      throw new Error('Contrato n„o encontrado');
+      throw new Error('Contrato n√£o encontrado');
     }
 
     if (contract.type !== 'academy') {
@@ -395,7 +477,7 @@ export const professorService = {
     });
 
     if (existingUser) {
-      throw new Error('E-mail j· est· registrado');
+      throw new Error('E-mail j√° est√° registrado');
     }
 
     if (normalizedCpf) {
@@ -414,12 +496,12 @@ export const professorService = {
     let responsibleManagerId: string | undefined;
 
     if (!collaboratorFunction.isActive) {
-      throw new Error('A funÁ„o selecionada est· inativa');
+      throw new Error('A fun√ß√£o selecionada est√° inativa');
     }
 
     if (shouldRequireResponsibleManager) {
       if (!data.responsibleManagerId) {
-        throw new Error('Selecione um gestor respons·vel para este colaborador');
+        throw new Error('Selecione um gestor respons√°vel para este colaborador');
       }
 
       const responsibleManager = await getResponsibleManagerForContract(
@@ -540,16 +622,44 @@ export const professorService = {
     });
   },
 
+  async listByAccessScope(
+    contractId: string,
+    actorProfessorId: string | undefined,
+    scope: AccessDataScope,
+    status: 'active' | 'inactive' | 'all' = 'all'
+  ) {
+    const scopedWhere = buildProfessorDataScopeWhere(contractId, actorProfessorId, scope);
+    const where =
+      status === 'all'
+        ? scopedWhere
+        : {
+            ...scopedWhere,
+            user: {
+              isActive: status === 'active',
+            },
+          };
+
+    return prisma.professor.findMany({
+      where,
+      include: professorProfileInclude,
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+  },
+
   /**
    * Desativar professor
    */
-  async deactivate(contractId: string, professorId: string) {
+  async deactivate(contractId: string, professorId: string, dataScope?: AccessDataScope) {
+    assertContractScope(dataScope);
+
     const professor = await prisma.professor.findFirst({
       where: { id: professorId, contractId },
     });
 
     if (!professor) {
-      throw new Error('Professor n„o encontrado');
+      throw new Error('Professor n√£o encontrado');
     }
     if (professor.role === 'master') {
       throw new Error('N√£o √© poss√≠vel desativar o professor master');
@@ -570,16 +680,18 @@ export const professorService = {
   /**
    * Reativar professor
    */
-  async activate(contractId: string, professorId: string) {
+  async activate(contractId: string, professorId: string, dataScope?: AccessDataScope) {
+    assertContractScope(dataScope);
+
     const professor = await prisma.professor.findFirst({
       where: { id: professorId, contractId },
     });
 
     if (!professor) {
-      throw new Error('Professor n„o encontrado');
+      throw new Error('Professor n√£o encontrado');
     }
     if (professor.role === 'master') {
-      throw new Error('N„o È possÌvel reativar o professor master por esta tela');
+      throw new Error('N√£o √© poss√≠vel reativar o professor master por esta tela');
     }
 
     return prisma.user.update({
@@ -591,14 +703,16 @@ export const professorService = {
   /**
    * Reset r√°pido de senha do professor
    */
-  async resetPassword(contractId: string, professorId: string) {
+  async resetPassword(contractId: string, professorId: string, dataScope?: AccessDataScope) {
+    assertContractScope(dataScope);
+
     const professor = await prisma.professor.findFirst({
       where: { id: professorId, contractId },
       include: { user: true },
     });
 
     if (!professor?.user) {
-      throw new Error('Professor n„o encontrado');
+      throw new Error('Professor n√£o encontrado');
     }
     if (professor.role === 'master') {
       throw new Error('N√£o √© poss√≠vel resetar a senha do professor master');
@@ -619,6 +733,19 @@ export const professorService = {
    * Atualizar professor do contrato
    */
   async update(contractId: string, professorId: string, data: UpdateProfessorDTO) {
+    const scope = data.dataScope ?? 'contract';
+
+    await assertProfessorWithinScope(
+      contractId,
+      professorId,
+      data.actorProfessorId,
+      scope
+    );
+
+    if (scope === 'self' || professorId === data.actorProfessorId) {
+      assertSelfServicePayload(data);
+    }
+
     const professor = await prisma.professor.findFirst({
       where: { id: professorId, contractId },
       include: {
@@ -632,7 +759,7 @@ export const professorService = {
     });
 
     if (!professor) {
-      throw new Error('Professor n„o encontrado');
+      throw new Error('Professor n√£o encontrado');
     }
 
     const normalizedEmail =
@@ -662,7 +789,7 @@ export const professorService = {
       });
 
       if (existingUser && existingUser.id !== professor.user.id) {
-        throw new Error('E-mail j· est· registrado');
+        throw new Error('E-mail j√° est√° registrado');
       }
     }
 
@@ -852,7 +979,7 @@ export const professorService = {
       );
 
       if (!collaboratorFunction.isActive && collaboratorFunction.id !== professor.collaboratorFunctionId) {
-        throw new Error('A funÁ„o selecionada est· inativa');
+        throw new Error('A fun√ß√£o selecionada est√° inativa');
       }
 
       updateProfessorData.collaboratorFunctionId = collaboratorFunction.id;
@@ -923,7 +1050,7 @@ export const professorService = {
       })
     ) {
       throw new Error(
-        'Reatribua os colaboradores vinculados antes de remover a funÁ„o de gestor deste colaborador'
+        'Reatribua os colaboradores vinculados antes de remover a fun√ß√£o de gestor deste colaborador'
       );
     }
 
@@ -932,11 +1059,11 @@ export const professorService = {
         data.responsibleManagerId ?? professor.responsibleManagerId;
 
       if (!desiredResponsibleManagerId) {
-        throw new Error('Selecione um gestor respons·vel para este colaborador');
+        throw new Error('Selecione um gestor respons√°vel para este colaborador');
       }
 
       if (desiredResponsibleManagerId === professorId) {
-        throw new Error('Um colaborador n„o pode ser o prÛprio gestor respons·vel');
+        throw new Error('Um colaborador n√£o pode ser o pr√≥prio gestor respons√°vel');
       }
 
       const responsibleManager = await getResponsibleManagerForContract(
@@ -978,7 +1105,14 @@ export const professorService = {
     });
   },
 
-  async validateLegalFinancial(contractId: string, professorId: string, validatorProfessorId: string) {
+  async validateLegalFinancial(
+    contractId: string,
+    professorId: string,
+    validatorProfessorId: string,
+    dataScope?: AccessDataScope
+  ) {
+    assertContractScope(dataScope);
+
     const professor = await prisma.professor.findFirst({
       where: { id: professorId, contractId },
       include: {
@@ -991,7 +1125,7 @@ export const professorService = {
     });
 
     if (!professor?.user?.profile) {
-      throw new Error('Professor n„o encontrado');
+      throw new Error('Professor n√£o encontrado');
     }
 
     if (
@@ -1020,5 +1154,3 @@ export const professorService = {
     });
   },
 };
-
-

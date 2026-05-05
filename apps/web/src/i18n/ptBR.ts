@@ -323,6 +323,13 @@ export const settingsCollaboratorFunctionsCopy = {
   systemOrigin: 'Padrão',
   customOrigin: 'Personalizada',
   editButton: 'Editar',
+  dataScopeLabel: 'Escopo dos dados',
+  dataScopeOptions: {
+    self: 'Somente próprio cadastro',
+    managed: 'Próprio cadastro e liderados',
+    contract: 'Todos os colaboradores do contrato',
+  },
+  dataScopeHelp: 'Define quais registros esta função pode visualizar ou alterar dentro da tela selecionada.',
   loadError: 'Erro ao carregar funções',
   saveError: 'Erro ao salvar função',
 } as const;

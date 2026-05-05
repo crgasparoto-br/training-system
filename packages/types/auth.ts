@@ -15,6 +15,7 @@ export interface UserAccessPermission {
   screenKey: string;
   blockKey?: string | null;
   canView: boolean;
+  dataScope?: 'self' | 'managed' | 'contract' | null;
 }
 
 export interface UserAccessControl {
@@ -124,4 +125,3 @@ export interface RefreshTokenResponse {
   token: string;
   refreshToken: string;
 }
-

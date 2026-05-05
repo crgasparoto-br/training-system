@@ -3,10 +3,13 @@ import { ChevronDown } from 'lucide-react';
 import { collaboratorFunctionService } from '../../services/collaborator-function.service';
 import {
   ACCESS_BLOCK_CATALOG,
+  ACCESS_DATA_SCOPE_OPTIONS,
+  ACCESS_DATA_SCOPE_SCREEN_KEYS,
   ACCESS_PERMISSION_GROUPS,
   ACCESS_SCREEN_CATALOG,
   DEFAULT_ACCESS_BY_PROFILE_CODE,
   FALLBACK_ACCESS_PROFILE_CODE,
+  type AccessDataScope,
   type CollaboratorFunctionOption,
 } from '@corrida/types';
 import { Button } from '../../components/ui/Button';
@@ -22,6 +25,7 @@ const defaultForm = {
 type PermissionSelection = {
   screens: string[];
   blocks: string[];
+  dataScopes: Record<string, AccessDataScope>;
 };
 
 const fallbackPermissions = DEFAULT_ACCESS_BY_PROFILE_CODE[FALLBACK_ACCESS_PROFILE_CODE];
@@ -29,16 +33,35 @@ const fallbackPermissions = DEFAULT_ACCESS_BY_PROFILE_CODE[FALLBACK_ACCESS_PROFI
 const defaultPermissionSelection: PermissionSelection = {
   screens: [...fallbackPermissions.screens],
   blocks: [...fallbackPermissions.blocks],
+  dataScopes: { ...(fallbackPermissions.dataScopes ?? {}) },
 };
+
+const scopedScreenKeys = new Set<string>(ACCESS_DATA_SCOPE_SCREEN_KEYS);
+
+function getDefaultDataScopes(profileCode?: string) {
+  const profileDefaults =
+    (profileCode && DEFAULT_ACCESS_BY_PROFILE_CODE[profileCode as keyof typeof DEFAULT_ACCESS_BY_PROFILE_CODE]) ||
+    fallbackPermissions;
+
+  return { ...(profileDefaults.dataScopes ?? fallbackPermissions.dataScopes ?? {}) };
+}
+
+function isAccessDataScope(value: unknown): value is AccessDataScope {
+  return value === 'self' || value === 'managed' || value === 'contract';
+}
 
 function getPermissionSelection(item?: CollaboratorFunctionOption | null): PermissionSelection {
   if (!item?.accessPermissions?.length) {
-    return defaultPermissionSelection;
+    return {
+      ...defaultPermissionSelection,
+      dataScopes: getDefaultDataScopes(item?.code),
+    };
   }
 
   const screens = item.accessPermissions
     .filter((permission) => permission.canView && !permission.blockKey)
     .map((permission) => permission.screenKey);
+  const defaults = getDefaultDataScopes(item.code);
 
   return {
     screens,
@@ -50,6 +73,18 @@ function getPermissionSelection(item?: CollaboratorFunctionOption | null): Permi
           screens.includes(permission.screenKey)
       )
       .map((permission) => permission.blockKey as string),
+    dataScopes: Object.fromEntries(
+      ACCESS_DATA_SCOPE_SCREEN_KEYS.map((screenKey) => {
+        const permission = item.accessPermissions?.find(
+          (entry) => entry.screenKey === screenKey && !entry.blockKey
+        );
+        const dataScope = isAccessDataScope(permission?.dataScope)
+          ? permission.dataScope
+          : defaults[screenKey];
+
+        return [screenKey, dataScope ?? 'self'];
+      })
+    ),
   };
 }
 
@@ -146,8 +181,25 @@ export default function SettingsCollaboratorFunctions() {
         blocks: checked
           ? current.blocks
           : current.blocks.filter((key) => !screenBlocks.includes(key)),
+        dataScopes: {
+          ...current.dataScopes,
+          ...(checked && scopedScreenKeys.has(screenKey)
+            ? { [screenKey]: current.dataScopes[screenKey] ?? 'self' }
+            : {}),
+        },
       };
     });
+  };
+
+  const setDataScope = (screenKey: string, dataScope: AccessDataScope) => {
+    setPermissions((current) => ({
+      ...current,
+      screens: Array.from(new Set([...current.screens, screenKey])),
+      dataScopes: {
+        ...current.dataScopes,
+        [screenKey]: dataScope,
+      },
+    }));
   };
 
   const toggleBlockPermission = (screenKey: string, blockKey: string, checked: boolean) => {
@@ -158,6 +210,7 @@ export default function SettingsCollaboratorFunctions() {
       blocks: checked
         ? Array.from(new Set([...current.blocks, blockKey]))
         : current.blocks.filter((key) => key !== blockKey),
+      dataScopes: current.dataScopes,
     }));
   };
 
@@ -187,6 +240,9 @@ export default function SettingsCollaboratorFunctions() {
     setPermissions({
       screens: ACCESS_SCREEN_CATALOG.map((screen) => screen.key),
       blocks: ACCESS_BLOCK_CATALOG.map((block) => block.key),
+      dataScopes: Object.fromEntries(
+        ACCESS_DATA_SCOPE_SCREEN_KEYS.map((screenKey) => [screenKey, 'contract'])
+      ) as Record<string, AccessDataScope>,
     });
   };
 
@@ -194,6 +250,7 @@ export default function SettingsCollaboratorFunctions() {
     setPermissions({
       screens: [],
       blocks: [],
+      dataScopes: {},
     });
   };
 
@@ -377,6 +434,30 @@ export default function SettingsCollaboratorFunctions() {
                                       {block.label}
                                     </label>
                                   ))}
+                                </div>
+                              )}
+
+                              {scopedScreenKeys.has(screen.key) && screenChecked && (
+                                <div className="ml-6 space-y-2 border-l border-border pl-4">
+                                  <label className="block text-xs font-medium text-foreground">
+                                    {settingsCollaboratorFunctionsCopy.dataScopeLabel}
+                                    <select
+                                      value={permissions.dataScopes[screen.key] ?? 'self'}
+                                      onChange={(event) =>
+                                        setDataScope(screen.key, event.target.value as AccessDataScope)
+                                      }
+                                      className="mt-1 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground"
+                                    >
+                                      {ACCESS_DATA_SCOPE_OPTIONS.map((option) => (
+                                        <option key={option.value} value={option.value}>
+                                          {settingsCollaboratorFunctionsCopy.dataScopeOptions[option.value]}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </label>
+                                  <p className="text-xs text-muted-foreground">
+                                    {settingsCollaboratorFunctionsCopy.dataScopeHelp}
+                                  </p>
                                 </div>
                               )}
                             </div>

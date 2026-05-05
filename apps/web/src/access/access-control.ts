@@ -3,6 +3,7 @@ import {
   ACCESS_SCREEN_CATALOG,
   DEFAULT_ACCESS_BY_PROFILE_CODE,
   FALLBACK_ACCESS_PROFILE_CODE,
+  type AccessDataScope,
   type AccessBlockKey,
   type AccessScreenKey,
   type AuthResponse,
@@ -13,6 +14,7 @@ type CurrentUser = AuthResponse['user'] | null | undefined;
 type AccessProfileDefaults = {
   screens: readonly string[];
   blocks: readonly string[];
+  dataScopes?: Partial<Record<string, AccessDataScope>>;
 };
 
 const defaultAccessByCode = DEFAULT_ACCESS_BY_PROFILE_CODE as Record<string, AccessProfileDefaults>;
@@ -28,11 +30,13 @@ function buildDefaultPermissions(user: CurrentUser) {
       screenKey: screen.key,
       blockKey: null,
       canView: defaultScreens.has(screen.key),
+      dataScope: defaults.dataScopes?.[screen.key] ?? null,
     })),
     ...ACCESS_BLOCK_CATALOG.map((block) => ({
       screenKey: block.screenKey,
       blockKey: block.key,
       canView: defaultBlocks.has(block.key),
+      dataScope: null,
     })),
   ];
 }
@@ -98,6 +102,35 @@ export function canAccessBlock(user: CurrentUser, blockKey: AccessBlockKey | str
       permission.blockKey === blockKey &&
       permission.canView
   );
+}
+
+export function getDataScopeForScreen(
+  user: CurrentUser,
+  screenKey: AccessScreenKey | string
+): AccessDataScope | null {
+  if (!canAccessScreen(user, screenKey)) {
+    return null;
+  }
+
+  if (isMaster(user)) {
+    return 'contract';
+  }
+
+  const permission = getPermissions(user).find(
+    (item) => item.screenKey === screenKey && normalizeBlockKey(item.blockKey) === null
+  );
+
+  if (
+    permission?.dataScope === 'self' ||
+    permission?.dataScope === 'managed' ||
+    permission?.dataScope === 'contract'
+  ) {
+    return permission.dataScope;
+  }
+
+  const profileCode = user?.professor?.collaboratorFunction?.code || FALLBACK_ACCESS_PROFILE_CODE;
+  const defaults = defaultAccessByCode[profileCode] || defaultAccessByCode[FALLBACK_ACCESS_PROFILE_CODE];
+  return defaults.dataScopes?.[screenKey] ?? null;
 }
 
 export function filterSidebarItemsByAccess(

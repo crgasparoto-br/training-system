@@ -34,7 +34,7 @@ import type {
   ProfessorSummary,
 } from '@corrida/types';
 import { useAuthStore } from '../stores/useAuthStore';
-import { canAccessBlock, canAccessScreen } from '../access/access-control';
+import { canAccessBlock, canAccessScreen, getDataScopeForScreen } from '../access/access-control';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
@@ -1400,6 +1400,23 @@ function sanitizeUpdateProfessorPayload(data: EditProfessorForm) {
   };
 }
 
+function sanitizeSelfServiceUpdateProfessorPayload(data: EditProfessorForm) {
+  const {
+    admissionDate,
+    dismissalDate,
+    currentStatus,
+    signedContractDocumentUrl,
+    operationalRoleIds,
+    hourlyRates,
+    hasSignedContract,
+    collaboratorFunctionId,
+    responsibleManagerId,
+    ...payload
+  } = sanitizeUpdateProfessorPayload(data);
+
+  return payload;
+}
+
 export function Professores({ mode = 'manage' }: ProfessoresProps) {
   const { user } = useAuthStore();
   const [professores, setProfessores] = useState<ProfessorSummary[]>([]);
@@ -1518,6 +1535,12 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
     user,
     'collaborators.registration.manager'
   );
+  const currentDataScope = getDataScopeForScreen(
+    user,
+    isConsultMode ? 'collaborators.consultation' : 'collaborators.registration'
+  );
+  const canPerformAdministrativeActions = currentDataScope === 'contract';
+  const currentProfessorId = user?.professor?.id;
 
   const getAllowedRegistrationTab = (preferredTab: CollaboratorRegistrationTab) => {
     if (preferredTab === 'manager' && canViewManagerRegistrationBlock) {
@@ -1865,7 +1888,12 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
     setIsSubmitting(true);
     setError(null);
     try {
-      await professorService.update(editingId, sanitizeUpdateProfessorPayload(data));
+      await professorService.update(
+        editingId,
+        canPerformAdministrativeActions
+          ? sanitizeUpdateProfessorPayload(data)
+          : sanitizeSelfServiceUpdateProfessorPayload(data)
+      );
       await loadData();
       setEditingId(null);
       setEditActiveTab(getAllowedRegistrationTab('collaborator'));
@@ -2085,6 +2113,8 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
   const renderConsultProfessorSummary = (professor: ProfessorSummary) => {
     const profile = professor.user.profile;
     const isInactive = professor.user?.isActive === false;
+    const isOwnRecord = professor.id === currentProfessorId;
+    const canEditRecord = canPerformAdministrativeActions || isOwnRecord;
     const legalFinancialStatusKey = getLegalFinancialStatusKey(profile);
     const legalFinancialStatus = getLegalFinancialStatus(profile);
     const legalFinancialTone: ConsultBadgeTone =
@@ -2172,49 +2202,57 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
           {professor.role !== 'master' && (
             <>
               {isInactive ? (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => handleActivate(professor.id)}
-                  isLoading={isSubmitting}
-                >
-                  <UserCheck className="h-4 w-4" />
-                  {professoresCopy.activate}
-                </Button>
+                canPerformAdministrativeActions && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => handleActivate(professor.id)}
+                    isLoading={isSubmitting}
+                  >
+                    <UserCheck className="h-4 w-4" />
+                    {professoresCopy.activate}
+                  </Button>
+                )
               ) : (
                 <>
-                  <Button variant="outline" size="sm" onClick={() => startEdit(professor)}>
-                    <Edit3 className="h-4 w-4" />
-                    {professoresCopy.edit}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleValidateLegalFinancial(professor.id)}
-                    isLoading={isSubmitting}
-                    disabled={!canValidateLegalFinancial(profile)}
-                  >
-                    <ShieldCheck className="h-4 w-4" />
-                    Validar
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleResetPassword(professor.id)}
-                    isLoading={isSubmitting}
-                  >
-                    <KeyRound className="h-4 w-4" />
-                    Senha
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => handleDeactivate(professor.id)}
-                    isLoading={isSubmitting}
-                  >
-                    <UserX className="h-4 w-4" />
-                    {professoresCopy.deactivate}
-                  </Button>
+                  {canEditRecord && (
+                    <Button variant="outline" size="sm" onClick={() => startEdit(professor)}>
+                      <Edit3 className="h-4 w-4" />
+                      {professoresCopy.edit}
+                    </Button>
+                  )}
+                  {canPerformAdministrativeActions && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleValidateLegalFinancial(professor.id)}
+                        isLoading={isSubmitting}
+                        disabled={!canValidateLegalFinancial(profile)}
+                      >
+                        <ShieldCheck className="h-4 w-4" />
+                        Validar
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleResetPassword(professor.id)}
+                        isLoading={isSubmitting}
+                      >
+                        <KeyRound className="h-4 w-4" />
+                        Senha
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => handleDeactivate(professor.id)}
+                        isLoading={isSubmitting}
+                      >
+                        <UserX className="h-4 w-4" />
+                        {professoresCopy.deactivate}
+                      </Button>
+                    </>
+                  )}
                 </>
               )}
             </>
@@ -2246,13 +2284,13 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
         </p>
       </div>
 
-      {!isConsultMode && activeCollaboratorFunctions.length === 0 && (
+      {!isConsultMode && canPerformAdministrativeActions && activeCollaboratorFunctions.length === 0 && (
         <div className="rounded-lg border border-warning/20 bg-warning/10 px-4 py-3 text-sm text-warning">
           {professoresCopy.noFunctionsAvailable}
         </div>
       )}
 
-      {!isConsultMode && <Card>
+      {!isConsultMode && canPerformAdministrativeActions && <Card>
         <CardHeader>
           <CardTitle>{professoresCopy.newProfessorTitle}</CardTitle>
           <CardDescription>{professoresCopy.newProfessorDescription}</CardDescription>

@@ -61,6 +61,7 @@ export function screenAccessMiddleware(screenKey: AccessScreenKey | string | Arr
       (req as any).user.contractId = professor.contractId;
       (req as any).user.professorRole = professor.role;
       (req as any).user.collaboratorFunctionId = professor.collaboratorFunctionId;
+      (req as any).user.collaboratorFunctionCode = professor.collaboratorFunction.code;
       (req as any).user.contractType = professor.contract.type;
 
       next();

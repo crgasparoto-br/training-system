@@ -1380,14 +1380,6 @@ export function AlunoForm() {
                           )}
                         </div>
 
-                        <div>
-                          <label className="mb-2 block text-sm font-medium text-foreground">Plano de agenda do aluno</label>
-                          <select className={selectClassName} {...register('schedulePlan')}>
-                            <option value="free">Livre</option>
-                            <option value="fixed">Fixo</option>
-                          </select>
-                          <p className="mt-2 text-sm text-muted-foreground">Use plano fixo para alunos com rotina recorrente de agenda e reposições vinculadas.</p>
-                        </div>
                       </div>
                     </div>
                   </div>
@@ -1552,6 +1544,15 @@ export function AlunoForm() {
                           {...register('intakeForm.financialInfo.contract')}
                         />
                       </div>
+                    </div>
+
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-foreground">Plano de agenda do aluno</label>
+                      <select className={selectClassName} {...register('schedulePlan')}>
+                        <option value="free">Livre</option>
+                        <option value="fixed">Fixo</option>
+                      </select>
+                      <p className="mt-2 text-sm text-muted-foreground">Use plano fixo para alunos com rotina recorrente de agenda e reposições vinculadas.</p>
                     </div>
                   </div>
 
