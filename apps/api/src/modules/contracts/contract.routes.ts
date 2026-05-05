@@ -4,11 +4,14 @@ import { cloneContractData } from './contract-data.service.js';
 import { contractDocumentService } from './contract-document.service.js';
 import { authMiddleware, professorMiddleware, masterMiddleware } from '../auth/auth.middleware.js';
 import { sendSuccess, sendError } from '@corrida/utils';
+import { PrismaClient, type ContractStatus } from '@prisma/client';
+import { screenAccessMiddleware } from '../access-control/access-control.middleware.js';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 
 const router: Router = Router();
+const prisma = new PrismaClient();
 const logoUploadRoot = path.resolve(process.cwd(), 'uploads', 'contracts', 'logos');
 
 
@@ -87,6 +90,91 @@ router.post('/public/:token/sign', async (req: Request, res: Response) => {
 
 router.use(authMiddleware);
 router.use(professorMiddleware);
+
+router.get(
+  '/available-for-student',
+  screenAccessMiddleware(['students.contracts.manage', 'students.contracts.renew']),
+  async (req: Request, res: Response) => {
+    try {
+      const companyContractId = (req as any).user.contractId as string | undefined;
+
+      if (!companyContractId) {
+        return sendError(res, 'Contrato não encontrado', 404);
+      }
+
+      const serviceId = typeof req.query.serviceId === 'string' ? req.query.serviceId : undefined;
+      const alunoId = typeof req.query.alunoId === 'string' ? req.query.alunoId : undefined;
+      const onlyUnlinked = req.query.onlyUnlinked !== 'false';
+
+      const parsedStatuses =
+        typeof req.query.status === 'string' && req.query.status.trim().length > 0
+          ? req.query.status
+              .split(',')
+              .map((item) => item.trim().toUpperCase())
+              .filter((item): item is ContractStatus =>
+                ['DRAFT', 'GENERATED', 'SENT', 'VIEWED', 'SIGNED', 'CANCELLED', 'EXPIRED'].includes(item)
+              )
+          : [];
+
+      const statusFilter: ContractStatus[] =
+        parsedStatuses.length > 0 ? parsedStatuses : ['GENERATED', 'SENT', 'VIEWED', 'SIGNED'];
+
+      const contracts = await prisma.contract.findMany({
+        where: {
+          companyContractId,
+          status: {
+            in: statusFilter,
+          },
+          ...(serviceId ? { serviceId } : {}),
+          ...(alunoId ? { alunoId } : {}),
+          ...(onlyUnlinked
+            ? {
+                studentContracts: {
+                  none: {},
+                },
+              }
+            : {}),
+        },
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          alunoId: true,
+          serviceId: true,
+          createdAt: true,
+          signedAt: true,
+          cancelledAt: true,
+          service: {
+            select: {
+              id: true,
+              name: true,
+              code: true,
+              description: true,
+              monthlyPrice: true,
+              isActive: true,
+            },
+          },
+          studentContracts: {
+            select: {
+              id: true,
+              alunoId: true,
+              status: true,
+            },
+            take: 1,
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+      });
+
+      return sendSuccess(res, contracts, 'Contratos disponíveis para vínculo recuperados com sucesso');
+    } catch (error: any) {
+      console.error('Erro ao listar contratos disponíveis para aluno:', error);
+      return sendError(res, error?.message || 'Erro ao listar contratos disponíveis', 500);
+    }
+  }
+);
 
 router.get('/variables', async (_req: Request, res: Response) => {
   return sendSuccess(res, contractDocumentService.listVariables(), 'Variáveis recuperadas com sucesso');

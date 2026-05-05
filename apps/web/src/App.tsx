@@ -37,6 +37,10 @@ function withAccess(screenKey: string, element: ReactElement) {
   return <ProtectedRoute screenKey={screenKey}>{element}</ProtectedRoute>;
 }
 
+function withAnyAccess(screenKeys: string[], element: ReactElement) {
+  return <ProtectedRoute screenKeys={screenKeys}>{element}</ProtectedRoute>;
+}
+
 function App() {
   return (
     <BrowserRouter>
@@ -60,7 +64,10 @@ function App() {
           <Route path="professores" element={withAccess('collaborators.registration', <Professores />)} />
           <Route path="alunos" element={withAccess('students.registration', <AlunoForm />)} />
           <Route path="alunos/new" element={withAccess('students.registration', <AlunoForm />)} />
-          <Route path="alunos/:id" element={withAccess('students.registration', <AlunoDetails />)} />
+          <Route
+            path="alunos/:id"
+            element={withAnyAccess(['students.registration', 'students.consultation'], <AlunoDetails />)}
+          />
           <Route path="alunos/:id/contracts" element={withAccess('students.registration', <AlunoContracts />)} />
           <Route path="alunos/:id/edit" element={withAccess('students.registration', <AlunoForm />)} />
           <Route
@@ -99,7 +106,10 @@ function App() {
           <Route path="settings/hourly-rate-levels" element={<Navigate to="/cadastros/valores-hora-aula" replace />} />
           <Route path="settings/psr-pse" element={withAccess('settings.subjectiveScales', <SettingsSubjectiveScales />)} />
           <Route path="settings/professor-manual" element={withAccess('settings.professorManual', <SettingsProfessorManual />)} />
-          <Route path="settings/aluno-access" element={withAccess('settings.alunoAccess', <SettingsAlunoAccess />)} />
+          <Route
+            path="settings/aluno-access"
+            element={withAnyAccess(['settings.alunoAccess', 'studentApp.access'], <SettingsAlunoAccess />)}
+          />
           <Route path="settings/reference-table" element={withAccess('settings.referenceTable', <SettingsReferenceTable />)} />
         </Route>
 
