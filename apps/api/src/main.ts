@@ -15,6 +15,8 @@ import { hourlyRateLevelRoutes } from './modules/hourly-rate-levels/index.js';
 import { planRoutes } from './modules/plans/index.js';
 import { professorRoutes } from './modules/professores/index.js';
 import { serviceRoutes } from './modules/services/index.js';
+import { startProfileReviewScheduler } from './modules/alunos/profile-review.scheduler.js';
+import studentRoutes from './routes/student.routes.js';
 
 const app: express.Express = express();
 const PORT = process.env.API_PORT || 3000;
@@ -107,6 +109,7 @@ app.get('/api/v1', (req, res) => {
       plans: '/api/v1/plans',
       professores: '/api/v1/professores',
       services: '/api/v1/services',
+      student: '/api/v1/student',
     },
   });
 });
@@ -143,6 +146,9 @@ app.use('/api/v1/professores', professorRoutes);
 
 // Rotas de Serviços
 app.use('/api/v1/services', serviceRoutes);
+
+// Rotas do aluno autenticado
+app.use('/api/v1/student', studentRoutes);
 
 // ============================================================================
 // ERROR HANDLING
@@ -191,6 +197,8 @@ app.listen(PORT, () => {
 â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   `);
 });
+
+startProfileReviewScheduler();
 
 export default app;
 

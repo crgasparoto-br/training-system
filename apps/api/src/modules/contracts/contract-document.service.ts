@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import fs from 'fs/promises';
 import path from 'path';
 import puppeteer from 'puppeteer';
+import { studentContractService } from '../student-contracts/student-contract.service.js';
 
 const prisma = new PrismaClient();
 
@@ -53,6 +54,12 @@ type GenerateContractInput = {
   dataInicio?: string | Date;
   dataAssinatura?: string | Date;
 };
+
+function toOptionalDate(value?: string | Date) {
+  if (!value) return null;
+  const parsed = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
 
 const currency = new Intl.NumberFormat('pt-BR', {
   style: 'currency',
@@ -406,6 +413,18 @@ export const contractDocumentService = {
         documentHash: documentHash(renderedHtml),
       },
     });
+
+    await studentContractService.createOrUpdateDraft({
+      alunoId: input.alunoId,
+      contractId: created.id,
+      serviceId: input.serviceId ?? null,
+      status: 'draft',
+      startDate: toOptionalDate(input.dataInicio),
+      amount: input.valorMensal ?? null,
+      paymentDay: input.diaVencimento ?? null,
+      notes: input.horarios ?? null,
+    });
+
     await audit(created.id, 'GENERATED', actor, { templateId: template.id });
     return created;
   },
@@ -460,6 +479,7 @@ export const contractDocumentService = {
         publicTokenExpiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30),
       },
     });
+    await studentContractService.setStatusByGeneratedContractId(contract.id, 'pending_signature');
     await audit(contract.id, 'SENT', actor);
     return { contract: updated, token };
   },
@@ -471,6 +491,9 @@ export const contractDocumentService = {
     });
     if (contract.publicTokenExpiresAt && contract.publicTokenExpiresAt < new Date()) {
       await prisma.contract.update({ where: { id: contract.id }, data: { status: 'EXPIRED' } });
+      await studentContractService.setStatusByGeneratedContractId(contract.id, 'expired', {
+        endDate: new Date(),
+      });
       throw new Error('Link expirado');
     }
     if (contract.status === 'SENT') {
@@ -511,6 +534,13 @@ export const contractDocumentService = {
       });
       return created;
     });
+    await studentContractService.setStatusByGeneratedContractId(contract.id, 'active', {
+      signedAt: new Date(),
+      startDate: contract.signedAt ?? new Date(),
+      canceledAt: null,
+      cancellationReason: null,
+      endDate: null,
+    });
     await audit(contract.id, 'SIGNED', actor, { signatureId: signature.id });
     return signature;
   },
@@ -523,6 +553,11 @@ export const contractDocumentService = {
     const updated = await prisma.contract.update({
       where: { id: contract.id },
       data: { status: 'CANCELLED', cancelledAt: new Date() },
+    });
+    await studentContractService.setStatusByGeneratedContractId(contract.id, 'canceled', {
+      canceledAt: new Date(),
+      endDate: new Date(),
+      cancellationReason: 'Cancelado pela rotina de contratos',
     });
     await audit(contract.id, 'CANCELLED', actor);
     return updated;

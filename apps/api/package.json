@@ -16,6 +16,9 @@
     "db:migrate:prod": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
     "db:clone-contract-data": "tsx src/scripts/clone-contract-data.ts",
+    "job:backfill-student-contract-links": "tsx src/scripts/backfill-student-contract-links.ts",
+    "job:dispatch-profile-reviews": "tsx src/scripts/dispatch-profile-reviews.ts",
+    "job:backfill-profile-review-settings": "tsx src/scripts/backfill-profile-review-settings.ts",
     "db:studio": "prisma studio",
     "import-exercises": "tsx src/scripts/import-exercises.ts"
   },

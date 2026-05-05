@@ -50,6 +50,30 @@ export interface GeneratedContract {
   createdAt: string;
 }
 
+export interface AvailableStudentContract {
+  id: string;
+  title: string;
+  status: 'DRAFT' | 'GENERATED' | 'SENT' | 'VIEWED' | 'SIGNED' | 'CANCELLED' | 'EXPIRED';
+  alunoId: string;
+  serviceId?: string | null;
+  createdAt: string;
+  signedAt?: string | null;
+  cancelledAt?: string | null;
+  service?: {
+    id: string;
+    name: string;
+    code?: string | null;
+    description?: string | null;
+    monthlyPrice?: number | null;
+    isActive?: boolean;
+  } | null;
+  studentContracts?: Array<{
+    id: string;
+    alunoId: string;
+    status: 'draft' | 'pending_signature' | 'active' | 'expired' | 'canceled' | 'terminated';
+  }>;
+}
+
 export const CONTRACT_VARIABLES = [
   'aluno.nome',
   'aluno.cpf',
@@ -167,6 +191,38 @@ export const contractService = {
 
   async listAlunoContracts(alunoId: string): Promise<GeneratedContract[]> {
     const response = await api.get<{ success: boolean; data: GeneratedContract[] }>(`/contracts/alunos/${alunoId}`);
+    return response.data.data;
+  },
+
+  async listAvailableForStudent(filters?: {
+    alunoId?: string;
+    serviceId?: string;
+    onlyUnlinked?: boolean;
+    status?: string[];
+  }): Promise<AvailableStudentContract[]> {
+    const params = new URLSearchParams();
+
+    if (filters?.alunoId) {
+      params.set('alunoId', filters.alunoId);
+    }
+
+    if (filters?.serviceId) {
+      params.set('serviceId', filters.serviceId);
+    }
+
+    if (filters?.onlyUnlinked !== undefined) {
+      params.set('onlyUnlinked', String(filters.onlyUnlinked));
+    }
+
+    if (filters?.status?.length) {
+      params.set('status', filters.status.join(','));
+    }
+
+    const query = params.toString();
+    const response = await api.get<{ success: boolean; data: AvailableStudentContract[] }>(
+      query ? `/contracts/available-for-student?${query}` : '/contracts/available-for-student'
+    );
+
     return response.data.data;
   },
 

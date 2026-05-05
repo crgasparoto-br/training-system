@@ -4,9 +4,17 @@ import { useForm, type FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import type { ProfessorSummary, ServiceOption } from '@corrida/types';
-import { alunoService, type AlunoAssessmentPrefill, type CreateAlunoDTO, type UpdateAlunoDTO } from '../services/aluno.service';
+import {
+  alunoService,
+  type AlunoAssessmentPrefill,
+  type AlunoContractsResponse,
+  type CreateAlunoDTO,
+  type StudentContractLink,
+  type UpdateAlunoDTO,
+} from '../services/aluno.service';
 import { professorService } from '../services/professor.service';
 import { serviceCatalogService } from '../services/service.service';
+import { contractService, type AvailableStudentContract } from '../services/contract.service';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
@@ -14,6 +22,7 @@ import { Activity, ArrowLeft, ClipboardList, FileText, HeartPulse, Sparkles, Upl
 import { alunoFormCopy } from '../i18n/ptBR';
 import { BodyDiscomfortMap } from '../components/BodyDiscomfortMap';
 import { BODY_REGIONS, type BodyDiscomfortEntry } from '../constants/bodyRegions';
+import { useAuthStore } from '../stores/useAuthStore';
 
 const numberOrUndefined = (value: unknown) =>
   typeof value === 'number' && Number.isNaN(value) ? undefined : value;
@@ -39,6 +48,7 @@ const identificationSchema = z.object({
 });
 
 const financialSchema = z.object({
+  selectedContractId: z.string().optional(),
   currentService: z.string().optional(),
   specialCondition: z.string().optional(),
   monthlyValue: z.string().optional(),
@@ -337,6 +347,31 @@ const formatDateLabel = (value?: string | null) => {
   return date.toLocaleDateString('pt-BR');
 };
 
+const contractStatusLabel: Record<string, string> = {
+  DRAFT: 'Rascunho',
+  GENERATED: 'Gerado',
+  SENT: 'Enviado',
+  VIEWED: 'Visualizado',
+  SIGNED: 'Assinado',
+  CANCELLED: 'Cancelado',
+  EXPIRED: 'Expirado',
+};
+
+const studentContractStatusLabel: Record<string, string> = {
+  draft: 'Rascunho',
+  pending_signature: 'Pendente de assinatura',
+  active: 'Ativo',
+  expired: 'Expirado',
+  canceled: 'Cancelado',
+  terminated: 'Encerrado',
+};
+
+const isInactiveGeneratedContract = (contract: AvailableStudentContract) => {
+  const statusInactive = contract.status === 'CANCELLED' || contract.status === 'EXPIRED';
+  const serviceInactive = contract.service?.isActive === false;
+  return statusInactive || serviceInactive;
+};
+
 const calculateAgeFromBirthDate = (value?: string) => {
   if (!value) return undefined;
 
@@ -359,6 +394,7 @@ const calculateAgeFromBirthDate = (value?: string) => {
 export function AlunoForm() {
   const navigate = useNavigate();
   const { id } = useParams();
+  const { user } = useAuthStore();
   const isEditMode = !!id;
   const [loading, setLoading] = useState(false);
   const [loadingData, setLoadingData] = useState(isEditMode);
@@ -374,6 +410,10 @@ export function AlunoForm() {
   const [professorOptions, setProfessorOptions] = useState<ProfessorSummary[]>([]);
   const [professorsLoading, setProfessorsLoading] = useState(true);
   const [professorsError, setProfessorsError] = useState<string | null>(null);
+  const [availableContracts, setAvailableContracts] = useState<AvailableStudentContract[]>([]);
+  const [availableContractsLoading, setAvailableContractsLoading] = useState(false);
+  const [availableContractsError, setAvailableContractsError] = useState<string | null>(null);
+  const [activeStudentContract, setActiveStudentContract] = useState<StudentContractLink | null>(null);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
 
   const {
@@ -422,6 +462,7 @@ export function AlunoForm() {
         financialInfo: {
           currentService: '',
           specialCondition: '',
+          selectedContractId: '',
           monthlyValue: '',
           discountPercentage: '',
           responsibleProfessorId: '',
@@ -471,15 +512,21 @@ export function AlunoForm() {
   const weight = watch('weight');
   const height = watch('height');
   const birthDate = watch('birthDate');
+  const selectedServiceId = watch('serviceId');
   const avatar = watch('avatar');
   const studentName = watch('name');
   const cameFromReferral = watch('intakeForm.financialInfo.cameFromReferral');
+  const selectedContractId = watch('intakeForm.financialInfo.selectedContractId');
   const calculatedAge = calculateAgeFromBirthDate(birthDate);
   const parqDeclarationAccepted = watch('intakeForm.parqResponses.q8');
   const bodyDiscomforts = watch('intakeForm.bodyDiscomforts');
   const bmi = weight && height ? alunoService.calculateBMI(weight, height) : 0;
   const bmiClass = bmi ? alunoService.getBMIClassification(bmi) : '';
   const resolvedAvatar = resolveAvatarUrl(avatar);
+  const canSelectInactiveContract =
+    user?.professor?.role === 'master' ||
+    user?.professor?.collaboratorFunction?.code === 'manager' ||
+    user?.professor?.collaboratorFunction?.code === 'administrative';
 
   const formatPhone = (value: string) => {
     const digits = value.replace(/\D/g, '').slice(0, 11);
@@ -712,6 +759,10 @@ export function AlunoForm() {
   }, [id, isEditMode]);
 
   useEffect(() => {
+    loadAvailableContracts();
+  }, [id, isEditMode, selectedServiceId, canSelectInactiveContract]);
+
+  useEffect(() => {
     if (calculatedAge === undefined) {
       return;
     }
@@ -761,6 +812,110 @@ export function AlunoForm() {
     }
   };
 
+  const loadStudentContracts = async (alunoId: string) => {
+    try {
+      const data = await alunoService.listStudentContracts(alunoId);
+      setActiveStudentContract(data.activeContract);
+      return data;
+    } catch (error) {
+      console.error('Erro ao carregar vínculos de contrato do aluno:', error);
+      setActiveStudentContract(null);
+      return { alunoId, activeContract: null, contracts: [] } as AlunoContractsResponse;
+    }
+  };
+
+  const loadAvailableContracts = async () => {
+    setAvailableContractsLoading(true);
+    setAvailableContractsError(null);
+
+    try {
+      const statuses = canSelectInactiveContract
+        ? ['DRAFT', 'GENERATED', 'SENT', 'VIEWED', 'SIGNED', 'CANCELLED', 'EXPIRED']
+        : undefined;
+
+      const contracts = await contractService.listAvailableForStudent({
+        alunoId: isEditMode ? id : undefined,
+        serviceId: selectedServiceId || undefined,
+        onlyUnlinked: !isEditMode,
+        status: statuses,
+      });
+
+      setAvailableContracts(
+        contracts.filter((contract) => canSelectInactiveContract || !isInactiveGeneratedContract(contract))
+      );
+    } catch (error: any) {
+      console.error('Erro ao carregar contratos disponíveis:', error);
+      setAvailableContractsError(error.response?.data?.error || 'Erro ao carregar contratos disponíveis');
+      setAvailableContracts([]);
+    } finally {
+      setAvailableContractsLoading(false);
+    }
+  };
+
+  const parseOptionalPaymentDay = (value?: string) => {
+    const parsed = Number((value || '').trim());
+    if (!Number.isInteger(parsed) || parsed < 1 || parsed > 31) {
+      return null;
+    }
+    return parsed;
+  };
+
+  const syncStudentContractLink = async (alunoId: string, data: AlunoFormData) => {
+    const selectedGeneratedContractId = data.intakeForm.financialInfo.selectedContractId?.trim();
+    if (!selectedGeneratedContractId) {
+      return;
+    }
+
+    const currentLinks = await alunoService.listStudentContracts(alunoId);
+    const currentActive = currentLinks.activeContract;
+    const selectedLink = currentLinks.contracts.find(
+      (item) => item.contractId === selectedGeneratedContractId
+    );
+
+    if (currentActive && currentActive.contractId !== selectedGeneratedContractId) {
+      const confirmed = window.confirm(
+        'Este aluno já possui um contrato ativo. Ao ativar um novo contrato, o anterior será encerrado.'
+      );
+
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    const paymentDay = parseOptionalPaymentDay(data.intakeForm.financialInfo.paymentDay);
+    const amount = parseCurrencyInput(data.intakeForm.financialInfo.monthlyValue);
+    const payload = {
+      serviceId: data.serviceId || undefined,
+      startDate: data.intakeForm.financialInfo.contractStartDate || null,
+      paymentDay,
+      amount: amount ?? null,
+      notes: data.intakeForm.financialInfo.otherObservations || null,
+    };
+
+    let linkId = selectedLink?.id;
+
+    if (selectedLink) {
+      await alunoService.updateStudentContract(alunoId, selectedLink.id, payload);
+    } else {
+      const created = await alunoService.linkStudentContract(alunoId, {
+        contractId: selectedGeneratedContractId,
+        serviceId: payload.serviceId,
+        startDate: payload.startDate,
+        paymentDay: payload.paymentDay,
+        amount: payload.amount,
+        notes: payload.notes,
+      });
+
+      linkId = created.id;
+    }
+
+    if (linkId && (!currentActive || currentActive.contractId !== selectedGeneratedContractId)) {
+      await alunoService.activateStudentContract(alunoId, linkId);
+    }
+
+    await loadStudentContracts(alunoId);
+  };
+
   const interestServiceOptions = serviceOptions.filter((item) => !item.parentServiceId);
   const financialServiceOptions = serviceOptions.filter((item) => item.parentServiceId);
   const selectedFinancialServiceName = watch('intakeForm.financialInfo.currentService');
@@ -773,6 +928,11 @@ export function AlunoForm() {
   const contractDurationUnit = watch('intakeForm.financialInfo.contractDurationUnit');
   const contractDurationQuantity = watch('intakeForm.financialInfo.contractDurationQuantity');
   const currentContractDueDate = watch('intakeForm.financialInfo.contractDueDate');
+  const selectedAvailableContract = availableContracts.find((contract) => contract.id === selectedContractId);
+  const shouldWarnContractReplacement =
+    !!selectedContractId &&
+    !!activeStudentContract &&
+    activeStudentContract.contractId !== selectedContractId;
   const discountedMonthlyValue = (() => {
     const numericMonthlyValue = parseCurrencyInput(monthlyValue);
 
@@ -790,7 +950,10 @@ export function AlunoForm() {
   const loadAlunoData = async (alunoId: string) => {
     setLoadingData(true);
     try {
-      const aluno = await alunoService.getById(alunoId);
+      const [aluno, contractLinks] = await Promise.all([
+        alunoService.getById(alunoId),
+        loadStudentContracts(alunoId),
+      ]);
       setValue('name', aluno.user.profile.name);
       setValue('email', aluno.user.email);
       setValue('avatar', aluno.user.profile.avatar || '');
@@ -849,7 +1012,21 @@ export function AlunoForm() {
       setValue('intakeForm.financialInfo.contractDurationUnit', financial.contractDurationUnit || '');
       setValue('intakeForm.financialInfo.contractDurationQuantity', financial.contractDurationQuantity || '');
       setValue('intakeForm.financialInfo.contractDueDate', financial.contractDueDate || '');
-      setValue('intakeForm.financialInfo.contract', financial.contract || '');
+      const activeContract = contractLinks.activeContract;
+      setValue('intakeForm.financialInfo.selectedContractId', activeContract?.contractId || '');
+      setValue(
+        'intakeForm.financialInfo.contract',
+        activeContract?.contract?.title || financial.contract || ''
+      );
+      if (activeContract?.paymentDay) {
+        setValue('intakeForm.financialInfo.paymentDay', String(activeContract.paymentDay));
+      }
+      if (activeContract?.startDate) {
+        setValue('intakeForm.financialInfo.contractStartDate', formatDateForInput(activeContract.startDate));
+      }
+      if (activeContract?.amount !== null && activeContract?.amount !== undefined) {
+        setValue('intakeForm.financialInfo.monthlyValue', formatCurrencyValue(Number(activeContract.amount)));
+      }
       setValue('intakeForm.financialInfo.cameFromReferral', financial.cameFromReferral || '');
       setValue('intakeForm.financialInfo.referralPerson', financial.referralPerson || '');
       setValue('intakeForm.financialInfo.otherObservations', financial.otherObservations || '');
@@ -904,6 +1081,11 @@ export function AlunoForm() {
     setLoading(true);
     try {
       const resolvedAge = calculateAgeFromBirthDate(data.birthDate) ?? data.age;
+      const selectedGeneratedContract = availableContracts.find(
+        (contract) => contract.id === data.intakeForm.financialInfo.selectedContractId
+      );
+      const legacyContractLabel =
+        selectedGeneratedContract?.title || data.intakeForm.financialInfo.contract;
 
       const parqResponses = {
         q1: data.intakeForm.parqResponses.q1,
@@ -919,6 +1101,7 @@ export function AlunoForm() {
         identification: data.intakeForm.personalInfo,
         financial: {
           ...data.intakeForm.financialInfo,
+          contract: legacyContractLabel,
           contractDueDate:
             calculateContractDueDate(
               data.intakeForm.financialInfo.contractStartDate,
@@ -964,6 +1147,7 @@ export function AlunoForm() {
 
       if (isEditMode && id) {
         await alunoService.update(id, updatePayload);
+        await syncStudentContractLink(id, data);
         return;
       }
 
@@ -1001,6 +1185,7 @@ export function AlunoForm() {
       };
 
       const createdAluno = await alunoService.create(createPayload);
+      await syncStudentContractLink(createdAluno.aluno.id, data);
       navigate(`/alunos/${createdAluno.aluno.id}`, {
         state: { tempPassword: createdAluno.tempPassword },
       });
@@ -1538,13 +1723,107 @@ export function AlunoForm() {
                           placeholder="Ex.: bolsa parcial, desconto familiar, cortesia"
                           {...register('intakeForm.financialInfo.specialCondition')}
                         />
+
+                        <div>
+                          <label className="mb-2 block text-sm font-medium text-foreground">Contrato</label>
+                          {availableContractsLoading ? (
+                            <p className="text-sm text-muted-foreground">Carregando contratos disponíveis...</p>
+                          ) : availableContractsError ? (
+                            <p className="text-sm text-destructive">{availableContractsError}</p>
+                          ) : (
+                            <select
+                              className={selectClassName}
+                              {...register('intakeForm.financialInfo.selectedContractId', {
+                                onChange: (event) => {
+                                  const selected = availableContracts.find((contract) => contract.id === event.target.value);
+                                  if (!selected) {
+                                    setValue('intakeForm.financialInfo.contract', '', { shouldValidate: true });
+                                    return;
+                                  }
+
+                                  setValue('intakeForm.financialInfo.contract', selected.title, { shouldValidate: true });
+                                  if (selected.service?.name) {
+                                    setValue('intakeForm.financialInfo.currentService', selected.service.name, { shouldValidate: true });
+                                  }
+                                  if (selected.service?.monthlyPrice !== null && selected.service?.monthlyPrice !== undefined) {
+                                    setValue(
+                                      'intakeForm.financialInfo.monthlyValue',
+                                      formatCurrencyValue(selected.service.monthlyPrice),
+                                      { shouldValidate: true }
+                                    );
+                                  }
+                                },
+                              })}
+                            >
+                              <option value="">Selecione um contrato existente</option>
+                              {availableContracts.map((contract) => {
+                                const inactive = isInactiveGeneratedContract(contract);
+                                const serviceName = contract.service?.name ? ` • ${contract.service.name}` : '';
+                                const amountLabel =
+                                  contract.service?.monthlyPrice !== null && contract.service?.monthlyPrice !== undefined
+                                    ? ` • R$ ${formatCurrencyValue(contract.service.monthlyPrice)}`
+                                    : '';
+                                return (
+                                  <option
+                                    key={contract.id}
+                                    value={contract.id}
+                                    disabled={inactive && !canSelectInactiveContract}
+                                  >
+                                    {`${contract.title}${serviceName}${amountLabel} • ${contractStatusLabel[contract.status] || contract.status}`}
+                                  </option>
+                                );
+                              })}
+                            </select>
+                          )}
+
+                          {!canSelectInactiveContract && (
+                            <p className="mt-2 text-xs text-muted-foreground">
+                              Contratos inativos não podem ser selecionados sem permissão administrativa.
+                            </p>
+                          )}
+
+                          {selectedAvailableContract && (
+                            <div className="mt-3 rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
+                              <p>
+                                Status: {contractStatusLabel[selectedAvailableContract.status] || selectedAvailableContract.status}.
+                                {selectedAvailableContract.service?.name ? ` Serviço: ${selectedAvailableContract.service.name}.` : ''}
+                                {selectedAvailableContract.service?.monthlyPrice !== null &&
+                                selectedAvailableContract.service?.monthlyPrice !== undefined
+                                  ? ` Valor: R$ ${formatCurrencyValue(selectedAvailableContract.service.monthlyPrice)}.`
+                                  : ''}
+                                {selectedAvailableContract.signedAt
+                                  ? ` Assinado em ${formatDateLabel(selectedAvailableContract.signedAt)}.`
+                                  : ''}
+                                {selectedAvailableContract.cancelledAt
+                                  ? ` Cancelado em ${formatDateLabel(selectedAvailableContract.cancelledAt)}.`
+                                  : ''}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+
                         <Input
-                          label="Contrato"
-                          placeholder="Ex.: contrato anual, mensal recorrente, pacote promocional"
+                          label="Contrato (legado/observação)"
+                          placeholder="Compatibilidade com registros anteriores"
                           {...register('intakeForm.financialInfo.contract')}
                         />
                       </div>
                     </div>
+
+                    {activeStudentContract && (
+                      <div className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
+                        <p>
+                          Contrato ativo atual: <strong className="text-foreground">{activeStudentContract.contract.title}</strong>{' '}
+                          ({studentContractStatusLabel[activeStudentContract.status] || activeStudentContract.status}).
+                        </p>
+                      </div>
+                    )}
+
+                    {shouldWarnContractReplacement && (
+                      <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                        Este aluno já possui um contrato ativo. Ao ativar um novo contrato, o anterior será encerrado.
+                      </div>
+                    )}
 
                     <div>
                       <label className="mb-2 block text-sm font-medium text-foreground">Plano de agenda do aluno</label>

@@ -1,5 +1,12 @@
 export const ACCESS_SCREEN_CATALOG = [
   { key: 'students.registration', label: 'Cadastro de alunos' },
+  { key: 'students.assessmentPlan', label: 'Plano de avaliacoes do aluno' },
+  { key: 'students.profileReview', label: 'Revisao cadastral do aluno' },
+  { key: 'students.financialData', label: 'Dados financeiros do aluno' },
+  { key: 'students.contracts.view', label: 'Visualizar contratos do aluno' },
+  { key: 'students.contracts.manage', label: 'Gerenciar contratos do aluno' },
+  { key: 'students.contracts.cancel', label: 'Cancelar contratos do aluno' },
+  { key: 'students.contracts.renew', label: 'Renovar contratos do aluno' },
   { key: 'collaborators.registration', label: 'Cadastro de colaboradores' },
   { key: 'hourlyRateLevels.registration', label: 'Valores de hora/aula' },
   { key: 'physicalAssessment.protocol', label: 'Protocolo de avaliacao fisica' },
@@ -20,6 +27,7 @@ export const ACCESS_SCREEN_CATALOG = [
   { key: 'settings.subjectiveScales', label: 'PSR e PSE' },
   { key: 'settings.professorManual', label: 'Manual do professor' },
   { key: 'settings.alunoAccess', label: 'Cadastro de alunos' },
+  { key: 'studentApp.access', label: 'Acesso do aluno ao app' },
   { key: 'settings.referenceTable', label: 'Tabela de referencia' },
 ] as const;
 
@@ -31,6 +39,13 @@ export const ACCESS_PERMISSION_GROUPS = [
     label: 'Cadastros',
     screenKeys: [
       'students.registration',
+      'students.assessmentPlan',
+      'students.profileReview',
+      'students.financialData',
+      'students.contracts.view',
+      'students.contracts.manage',
+      'students.contracts.cancel',
+      'students.contracts.renew',
       'collaborators.registration',
       'hourlyRateLevels.registration',
     ],
@@ -64,6 +79,7 @@ export const ACCESS_PERMISSION_GROUPS = [
       'settings.subjectiveScales',
       'settings.professorManual',
       'settings.alunoAccess',
+      'studentApp.access',
       'settings.referenceTable',
     ],
   },
@@ -129,8 +145,10 @@ export const ALL_ACCESS_BLOCK_KEYS = ACCESS_BLOCK_CATALOG.map((item) => item.key
 
 const commonProfessorScreens = [
   'students.registration',
-  'physicalAssessment.protocol',
   'students.consultation',
+  'students.contracts.view',
+  'students.assessmentPlan',
+  'students.profileReview',
   'plans',
   'agenda',
   'library',
@@ -145,9 +163,21 @@ const commonProfessorScreens = [
   'settings.referenceTable',
 ] as const satisfies readonly AccessScreenKey[];
 
+const commonReadOnlyStudentScreens = [
+  'students.consultation',
+  'students.assessmentPlan',
+  'students.profileReview',
+] as const satisfies readonly AccessScreenKey[];
+
 export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
   professor: {
-    screens: [...commonProfessorScreens, 'collaborators.registration'],
+    screens: [
+      ...commonProfessorScreens,
+      'physicalAssessment.protocol',
+      'collaborators.registration',
+      'settings.alunoAccess',
+      'studentApp.access',
+    ],
     blocks: ['collaborators.registration.collaborator'],
     dataScopes: {
       'collaborators.registration': 'self',
@@ -157,8 +187,16 @@ export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
   manager: {
     screens: [
       ...commonProfessorScreens,
+      'physicalAssessment.protocol',
+      'students.financialData',
+      'students.contracts.view',
+      'students.contracts.manage',
+      'students.contracts.cancel',
+      'students.contracts.renew',
       'collaborators.registration',
       'collaborators.consultation',
+      'settings.alunoAccess',
+      'studentApp.access',
     ],
     blocks: [
       'collaborators.registration.collaborator',
@@ -170,7 +208,7 @@ export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
     },
   },
   intern: {
-    screens: commonProfessorScreens,
+    screens: commonReadOnlyStudentScreens,
     blocks: [],
     dataScopes: {
       'collaborators.registration': 'self',
@@ -178,7 +216,16 @@ export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
     },
   },
   administrative: {
-    screens: commonProfessorScreens,
+    screens: [
+      ...commonReadOnlyStudentScreens,
+      'students.financialData',
+      'students.contracts.view',
+      'students.contracts.manage',
+      'students.contracts.cancel',
+      'students.contracts.renew',
+      'settings.alunoAccess',
+      'studentApp.access',
+    ],
     blocks: [],
     dataScopes: {
       'collaborators.registration': 'self',
@@ -186,7 +233,7 @@ export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
     },
   },
   cleaning: {
-    screens: commonProfessorScreens,
+    screens: commonReadOnlyStudentScreens,
     blocks: [],
     dataScopes: {
       'collaborators.registration': 'self',
@@ -194,7 +241,7 @@ export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
     },
   },
   services: {
-    screens: commonProfessorScreens,
+    screens: commonReadOnlyStudentScreens,
     blocks: [],
     dataScopes: {
       'collaborators.registration': 'self',
