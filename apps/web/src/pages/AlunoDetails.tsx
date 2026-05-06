@@ -1208,7 +1208,7 @@ export function AlunoDetails() {
 
       <AlunoDetailsTabs activeTab={activeTab} onChange={setActiveTab} visibleTabs={visibleTabs} />
 
-      {activeTab === 'resumo' && (
+      {visibleTabs.includes('resumo') && activeTab === 'resumo' && (
         <AlunoResumoHubTab
           aluno={aluno}
           assessments={assessments}
@@ -1218,7 +1218,7 @@ export function AlunoDetails() {
         />
       )}
 
-      {activeTab === 'cadastro' && (
+      {visibleTabs.includes('cadastro') && activeTab === 'cadastro' && (
         <AlunoCadastroTab
           aluno={aluno}
           schedulePlanLabel={schedulePlanLabel}
@@ -1229,11 +1229,11 @@ export function AlunoDetails() {
         />
       )}
 
-      {activeTab === 'saude-anamnese' && (
+      {visibleTabs.includes('saude-anamnese') && activeTab === 'saude-anamnese' && (
         <AlunoSaudeAnamneseTab aluno={aluno} parqPositiveCount={parqPositiveCount} />
       )}
 
-      {activeTab === 'financeiro' && (
+      {visibleTabs.includes('financeiro') && activeTab === 'financeiro' && (
         <AlunoFinanceiroTab
           aluno={aluno}
           alunoId={id ?? ''}
@@ -1245,7 +1245,7 @@ export function AlunoDetails() {
         />
       )}
 
-      {activeTab === 'plano-avaliacoes' && (
+      {visibleTabs.includes('plano-avaliacoes') && activeTab === 'plano-avaliacoes' && (
         <AlunoPlanoAvaliacoesTab
           alunoId={id ?? ''}
           assessmentTypes={assessmentTypes}
@@ -1253,7 +1253,7 @@ export function AlunoDetails() {
         />
       )}
 
-      {activeTab === 'avaliacoes-fisicas' && (
+      {visibleTabs.includes('avaliacoes-fisicas') && activeTab === 'avaliacoes-fisicas' && (
         <>
           <Card>
             <CardHeader>
@@ -2019,7 +2019,7 @@ export function AlunoDetails() {
         </>
       )}
 
-      {activeTab === 'revisoes-cadastrais' && id && (
+      {visibleTabs.includes('revisoes-cadastrais') && activeTab === 'revisoes-cadastrais' && id && (
         <AlunoRevisoesCadastraisTab
           alunoId={id}
           onToast={showToast}
@@ -2027,7 +2027,7 @@ export function AlunoDetails() {
         />
       )}
 
-      {activeTab === 'treinos' && (
+      {visibleTabs.includes('treinos') && activeTab === 'treinos' && (
         <Card>
           <CardHeader>
             <CardTitle>Treinos / Planos</CardTitle>
@@ -2041,7 +2041,7 @@ export function AlunoDetails() {
         </Card>
       )}
 
-      {activeTab === 'auditoria' && (
+      {visibleTabs.includes('auditoria') && activeTab === 'auditoria' && (
         <Card>
           <CardHeader>
             <CardTitle>Histórico / Auditoria</CardTitle>

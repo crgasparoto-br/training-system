@@ -32,6 +32,9 @@ import AlunoContracts from './pages/AlunoContracts';
 import PublicContractSignature from './pages/PublicContractSignature';
 import { DashboardLayout } from './layouts/DashboardLayout';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { useAuthStore } from './stores/useAuthStore';
+import { canAccessScreen } from './access/access-control';
+import { AppErrorBoundary } from './components/AppErrorBoundary';
 
 function withAccess(screenKey: string, element: ReactElement) {
   return <ProtectedRoute screenKey={screenKey}>{element}</ProtectedRoute>;
@@ -41,10 +44,35 @@ function withAnyAccess(screenKeys: string[], element: ReactElement) {
   return <ProtectedRoute screenKeys={screenKeys}>{element}</ProtectedRoute>;
 }
 
+const DEFAULT_HOME_CANDIDATES: Array<{ path: string; screenKey: string }> = [
+  { path: '/consultas/alunos', screenKey: 'students.consultation' },
+  { path: '/alunos', screenKey: 'students.registration' },
+  { path: '/plans', screenKey: 'plans' },
+  { path: '/agenda', screenKey: 'agenda' },
+  { path: '/executions', screenKey: 'executions' },
+  { path: '/library', screenKey: 'library' },
+  { path: '/settings', screenKey: 'settings.home' },
+];
+
+function DefaultAuthorizedRoute() {
+  const { isAuthenticated, user } = useAuthStore();
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  const firstAllowed = DEFAULT_HOME_CANDIDATES.find((candidate) =>
+    canAccessScreen(user, candidate.screenKey)
+  );
+
+  return <Navigate to={firstAllowed?.path || '/login'} replace />;
+}
+
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
+    <AppErrorBoundary>
+      <BrowserRouter>
+        <Routes>
         {/* Public Routes */}
         <Route path="/login" element={<Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -60,7 +88,7 @@ function App() {
             </ProtectedRoute>
           }
         >
-          <Route index element={<Navigate to="/alunos" replace />} />
+          <Route index element={<DefaultAuthorizedRoute />} />
           <Route path="professores" element={withAccess('collaborators.registration', <Professores />)} />
           <Route path="alunos" element={withAccess('students.registration', <AlunoForm />)} />
           <Route path="alunos/new" element={withAccess('students.registration', <AlunoForm />)} />
@@ -114,9 +142,10 @@ function App() {
         </Route>
 
         {/* 404 */}
-        <Route path="*" element={<Navigate to="/alunos" replace />} />
-      </Routes>
-    </BrowserRouter>
+        <Route path="*" element={<DefaultAuthorizedRoute />} />
+        </Routes>
+      </BrowserRouter>
+    </AppErrorBoundary>
   );
 }
 

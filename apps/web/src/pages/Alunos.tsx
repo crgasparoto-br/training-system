@@ -98,14 +98,30 @@ export function Alunos() {
     }
   }, [canManageProfessores]);
 
+  useEffect(() => {
+    if (!canManageProfessores && professorFilter) {
+      setProfessorFilter('');
+      setPage(1);
+    }
+  }, [canManageProfessores, professorFilter]);
+
   const loadAlunos = async () => {
     setLoading(true);
     try {
-      const data = await alunoService.list(page, 10, professorFilter || undefined, statusFilter);
-      setAlunos(data.alunos);
-      setTotalPages(data.pagination.totalPages);
+      const scopedProfessorFilter = canManageProfessores ? professorFilter || undefined : undefined;
+      const data = await alunoService.list(page, 10, scopedProfessorFilter, statusFilter);
+      const nextAlunos = Array.isArray(data?.alunos) ? data.alunos : [];
+      const nextTotalPages =
+        typeof data?.pagination?.totalPages === 'number' && data.pagination.totalPages > 0
+          ? data.pagination.totalPages
+          : 1;
+
+      setAlunos(nextAlunos);
+      setTotalPages(nextTotalPages);
     } catch (error) {
       console.error('Erro ao carregar alunos:', error);
+      setAlunos([]);
+      setTotalPages(1);
     } finally {
       setLoading(false);
     }
@@ -119,18 +135,22 @@ export function Alunos() {
 
     setLoading(true);
     try {
+      const scopedProfessorFilter = canManageProfessores ? professorFilter || undefined : undefined;
       const data = await alunoService.search(
         searchQuery,
-        professorFilter || undefined,
+        scopedProfessorFilter,
         statusFilter
       );
-      setAlunos(data);
+      setAlunos(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Erro ao buscar alunos:', error);
+      setAlunos([]);
     } finally {
       setLoading(false);
     }
   };
+
+  const visibleAlunos = Array.isArray(alunos) ? alunos : [];
 
   const loadProfessores = async () => {
     setLoadingProfessores(true);
@@ -272,7 +292,7 @@ export function Alunos() {
             <p className="mt-4 text-muted-foreground">{alunosCopy.loading}</p>
           </CardContent>
         </Card>
-      ) : alunos.length === 0 ? (
+      ) : visibleAlunos.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
             <User className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
@@ -292,10 +312,12 @@ export function Alunos() {
         </Card>
       ) : viewMode === 'cards' ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {alunos.map((aluno) => {
+          {visibleAlunos.map((aluno) => {
             const weight = typeof aluno.weight === 'number' ? aluno.weight : undefined;
             const height = typeof aluno.height === 'number' ? aluno.height : undefined;
             const bmi = weight !== undefined && height !== undefined ? alunoService.calculateBMI(weight, height) : null;
+            const alunoName = aluno.user?.profile?.name || 'Aluno sem nome';
+            const alunoActive = aluno.user?.isActive !== false;
 
             return (
               <Card key={aluno.id} className="transition-shadow hover:shadow-[var(--shadow-card)]">
@@ -306,7 +328,7 @@ export function Alunos() {
                         <User className="h-6 w-6 text-primary" />
                       </div>
                       <div>
-                        <CardTitle className="text-lg">{aluno.user.profile.name}</CardTitle>
+                        <CardTitle className="text-lg">{alunoName}</CardTitle>
                         <CardDescription className="flex flex-wrap items-center gap-2">
                           {aluno.age} {alunosCopy.ageYears}
                           {canManageProfessores && (
@@ -315,7 +337,7 @@ export function Alunos() {
                               • {aluno.professor?.user?.profile?.name || alunosCopy.professorLabel}
                             </>
                           )}
-                          {aluno.user.isActive === false && (
+                          {!alunoActive && (
                             <span className="ts-badge-danger">
                               {alunosCopy.inactive}
                             </span>
@@ -358,7 +380,7 @@ export function Alunos() {
                         {alunosCopy.edit}
                       </Button>
                     </Link>
-                    {aluno.user.isActive === false ? (
+                    {!alunoActive ? (
                       <Button
                         variant="secondary"
                         size="sm"
@@ -393,11 +415,13 @@ export function Alunos() {
               <div className="col-span-2 text-right">{alunosCopy.actions}</div>
             </div>
             <div className="divide-y">
-              {alunos.map((aluno) => {
+              {visibleAlunos.map((aluno) => {
                 const weight = typeof aluno.weight === 'number' ? aluno.weight : undefined;
                 const height = typeof aluno.height === 'number' ? aluno.height : undefined;
                 const bmi = weight !== undefined && height !== undefined ? alunoService.calculateBMI(weight, height) : null;
                 const professorName = aluno.professor?.user?.profile?.name;
+                const alunoName = aluno.user?.profile?.name || 'Aluno sem nome';
+                const alunoActive = aluno.user?.isActive !== false;
 
                 return (
                   <div key={aluno.id} className="grid grid-cols-12 gap-2 py-3 items-center">
@@ -406,7 +430,7 @@ export function Alunos() {
                         <User className="h-5 w-5 text-primary" />
                       </div>
                       <div>
-                        <p className="font-medium">{aluno.user.profile.name}</p>
+                        <p className="font-medium">{alunoName}</p>
                         <p className="text-xs text-muted-foreground">
                           {aluno.age} {alunosCopy.ageYears}
                           {canManageProfessores && (
@@ -415,7 +439,7 @@ export function Alunos() {
                               • {professorName || alunosCopy.professorLabel}
                             </>
                           )}
-                          {aluno.user.isActive === false && (
+                          {!alunoActive && (
                             <span className="ts-badge-danger ml-2">
                               {alunosCopy.inactive}
                             </span>
@@ -438,7 +462,7 @@ export function Alunos() {
                           <Edit size={16} />
                         </Button>
                       </Link>
-                      {aluno.user.isActive === false ? (
+                      {!alunoActive ? (
                         <Button
                           variant="secondary"
                           size="sm"
