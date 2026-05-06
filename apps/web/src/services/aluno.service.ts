@@ -210,6 +210,213 @@ export interface AlunosResponse {
   };
 }
 
+export type ProfileReviewStatus =
+  | 'pending'
+  | 'completed_no_changes'
+  | 'completed_with_changes'
+  | 'expired'
+  | 'canceled';
+
+export interface ProfileReviewChangedField {
+  path: string;
+  before: unknown;
+  after: unknown;
+  requiresApproval: boolean;
+  status: 'applied' | 'pending_approval' | 'approved' | 'rejected';
+}
+
+export interface ProfileReviewApproval {
+  requiresApproval: boolean;
+  hasPendingApproval: boolean;
+  approvedAt?: string | null;
+  approvedByUserId?: string | null;
+  rejectedAt?: string | null;
+  rejectedByUserId?: string | null;
+  rejectionReason?: string | null;
+}
+
+export interface AlunoProfileReview {
+  id: string;
+  status: ProfileReviewStatus;
+  requestedAt: string;
+  dueAt?: string | null;
+  completedAt?: string | null;
+  changedFields: ProfileReviewChangedField[];
+  approval: ProfileReviewApproval;
+}
+
+export interface AlunoProfileReviewSettings {
+  id: string;
+  alunoId: string;
+  reviewPeriodMonths?: number | null;
+  nextReviewAt?: string | null;
+  isReviewRequired: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AlunoProfileReviewPolicy {
+  id: string;
+  contractId: string;
+  defaultReviewPeriodMonths: number;
+  sections: string[];
+  reminderBeforeDays?: number | null;
+  reminderAfterDays?: number | null;
+  isActive: boolean;
+}
+
+export interface AlunoProfileReviewSettingsResponse {
+  alunoId: string;
+  settings: AlunoProfileReviewSettings | null;
+  policy: AlunoProfileReviewPolicy | null;
+  effective: {
+    reviewPeriodMonths: number;
+    nextReviewAt?: string | null;
+    isReviewRequired: boolean;
+    sectionsRequested: string[];
+  };
+}
+
+export interface CreateProfileReviewDTO {
+  dueAt?: string;
+  sectionsRequested?: string[];
+}
+
+export interface UpdateProfileReviewSettingsDTO {
+  reviewPeriodMonths?: number | null;
+  nextReviewAt?: string | null;
+  isReviewRequired?: boolean;
+}
+
+export type AlunoAssessmentPlanStatus =
+  | 'em_dia'
+  | 'pendente'
+  | 'vencida'
+  | 'sem_planejamento';
+
+export interface AlunoAssessmentPlanType {
+  id: string;
+  name: string;
+  code: string;
+  scheduleType: 'fixed_interval' | 'after_type';
+  intervalMonths?: number | null;
+  afterTypeId?: string | null;
+  offsetMonths?: number | null;
+}
+
+export interface AlunoAssessmentPlanItem {
+  id: string | null;
+  alunoId: string;
+  assessmentTypeId: string;
+  isActive: boolean;
+  isRequired: boolean;
+  cadenceMonths: number | null;
+  effectiveCadenceMonths: number | null;
+  startDate: string | null;
+  nextDueDate: string | null;
+  notes: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+  assessmentType: AlunoAssessmentPlanType;
+  summary: {
+    lastAssessmentDate: string | null;
+    nextDueDate: string | null;
+    status: AlunoAssessmentPlanStatus;
+  };
+}
+
+export interface AlunoAssessmentPlan {
+  alunoId: string;
+  generatedAt: string;
+  items: AlunoAssessmentPlanItem[];
+}
+
+export interface SaveAlunoAssessmentPlanDTO {
+  items: Array<{
+    assessmentTypeId: string;
+    isActive: boolean;
+    isRequired?: boolean;
+    cadenceMonths?: number | null;
+    startDate?: string | null;
+    nextDueDate?: string | null;
+    notes?: string | null;
+  }>;
+}
+
+export type StudentContractStatus =
+  | 'draft'
+  | 'pending_signature'
+  | 'active'
+  | 'expired'
+  | 'canceled'
+  | 'terminated';
+
+export interface StudentContractLink {
+  id: string;
+  alunoId: string;
+  contractId: string;
+  serviceId?: string | null;
+  status: StudentContractStatus;
+  startDate?: string | null;
+  endDate?: string | null;
+  signedAt?: string | null;
+  canceledAt?: string | null;
+  cancellationReason?: string | null;
+  amount?: number | null;
+  paymentDay?: number | null;
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  contract: {
+    id: string;
+    title: string;
+    status: string;
+    createdAt: string;
+    signedAt?: string | null;
+    cancelledAt?: string | null;
+    companyContractId: string;
+    serviceId?: string | null;
+  };
+  service?: {
+    id: string;
+    name: string;
+    code?: string | null;
+    description?: string | null;
+    monthlyPrice?: number | null;
+    isActive?: boolean;
+  } | null;
+}
+
+export interface AlunoContractsResponse {
+  alunoId: string;
+  activeContract: StudentContractLink | null;
+  contracts: StudentContractLink[];
+}
+
+export interface LinkStudentContractDTO {
+  contractId: string;
+  serviceId?: string | null;
+  status?: StudentContractStatus;
+  startDate?: string | null;
+  endDate?: string | null;
+  amount?: number | null;
+  paymentDay?: number | null;
+  notes?: string | null;
+}
+
+export interface UpdateStudentContractDTO {
+  serviceId?: string | null;
+  status?: StudentContractStatus;
+  startDate?: string | null;
+  endDate?: string | null;
+  signedAt?: string | null;
+  canceledAt?: string | null;
+  cancellationReason?: string | null;
+  amount?: number | null;
+  paymentDay?: number | null;
+  notes?: string | null;
+}
+
 export const alunoService = {
   /**
    * Criar novo aluno
@@ -353,6 +560,132 @@ export const alunoService = {
       }
     );
 
+    return response.data.data;
+  },
+
+  async listProfileReviews(alunoId: string): Promise<AlunoProfileReview[]> {
+    const response = await api.get<{ success: boolean; data: AlunoProfileReview[] }>(
+      `/alunos/${alunoId}/profile-reviews`
+    );
+    return response.data.data;
+  },
+
+  async requestProfileReview(alunoId: string, data: CreateProfileReviewDTO = {}): Promise<AlunoProfileReview> {
+    const response = await api.post<{ success: boolean; data: AlunoProfileReview }>(
+      `/alunos/${alunoId}/profile-reviews`,
+      data
+    );
+    return response.data.data;
+  },
+
+  async getProfileReviewSettings(alunoId: string): Promise<AlunoProfileReviewSettingsResponse> {
+    const response = await api.get<{ success: boolean; data: AlunoProfileReviewSettingsResponse }>(
+      `/alunos/${alunoId}/profile-review-settings`
+    );
+    return response.data.data;
+  },
+
+  async updateProfileReviewSettings(
+    alunoId: string,
+    data: UpdateProfileReviewSettingsDTO
+  ): Promise<AlunoProfileReviewSettings> {
+    const response = await api.put<{ success: boolean; data: AlunoProfileReviewSettings }>(
+      `/alunos/${alunoId}/profile-review-settings`,
+      data
+    );
+    return response.data.data;
+  },
+
+  async approveProfileReview(alunoId: string, reviewId: string): Promise<AlunoProfileReview> {
+    const response = await api.post<{ success: boolean; data: AlunoProfileReview }>(
+      `/alunos/${alunoId}/profile-reviews/${reviewId}/approve`
+    );
+    return response.data.data;
+  },
+
+  async rejectProfileReview(
+    alunoId: string,
+    reviewId: string,
+    reason: string
+  ): Promise<AlunoProfileReview> {
+    const response = await api.post<{ success: boolean; data: AlunoProfileReview }>(
+      `/alunos/${alunoId}/profile-reviews/${reviewId}/reject`,
+      { reason }
+    );
+    return response.data.data;
+  },
+
+  async getAssessmentPlan(alunoId: string): Promise<AlunoAssessmentPlan> {
+    const response = await api.get<{ success: boolean; data: AlunoAssessmentPlan }>(
+      `/alunos/${alunoId}/assessment-plan`
+    );
+    return response.data.data;
+  },
+
+  async saveAssessmentPlan(
+    alunoId: string,
+    data: SaveAlunoAssessmentPlanDTO
+  ): Promise<AlunoAssessmentPlan> {
+    const response = await api.put<{ success: boolean; data: AlunoAssessmentPlan }>(
+      `/alunos/${alunoId}/assessment-plan`,
+      data
+    );
+    return response.data.data;
+  },
+
+  async recalculateAssessmentPlan(alunoId: string): Promise<AlunoAssessmentPlan> {
+    const response = await api.post<{ success: boolean; data: AlunoAssessmentPlan }>(
+      `/alunos/${alunoId}/assessment-plan/recalculate`
+    );
+    return response.data.data;
+  },
+
+  async listStudentContracts(alunoId: string): Promise<AlunoContractsResponse> {
+    const response = await api.get<{ success: boolean; data: AlunoContractsResponse }>(
+      `/alunos/${alunoId}/contracts`
+    );
+    return response.data.data;
+  },
+
+  async linkStudentContract(
+    alunoId: string,
+    data: LinkStudentContractDTO
+  ): Promise<StudentContractLink> {
+    const response = await api.post<{ success: boolean; data: StudentContractLink }>(
+      `/alunos/${alunoId}/contracts`,
+      data
+    );
+    return response.data.data;
+  },
+
+  async updateStudentContract(
+    alunoId: string,
+    studentContractId: string,
+    data: UpdateStudentContractDTO
+  ): Promise<StudentContractLink> {
+    const response = await api.patch<{ success: boolean; data: StudentContractLink }>(
+      `/alunos/${alunoId}/contracts/${studentContractId}`,
+      data
+    );
+    return response.data.data;
+  },
+
+  async activateStudentContract(alunoId: string, studentContractId: string): Promise<StudentContractLink> {
+    const response = await api.post<{ success: boolean; data: StudentContractLink }>(
+      `/alunos/${alunoId}/contracts/${studentContractId}/activate`
+    );
+    return response.data.data;
+  },
+
+  async cancelStudentContract(
+    alunoId: string,
+    studentContractId: string,
+    reason: string
+  ): Promise<StudentContractLink> {
+    const response = await api.post<{ success: boolean; data: StudentContractLink }>(
+      `/alunos/${alunoId}/contracts/${studentContractId}/cancel`,
+      { reason }
+    );
     return response.data.data;
   },
 

@@ -144,7 +144,7 @@ async function importExercises(filePath: string) {
 
   const contractId =
     process.env.CONTRACT_ID ||
-    (await prisma.contract.findFirst({
+    (await prisma.companyContract.findFirst({
       orderBy: { createdAt: 'asc' },
       select: { id: true },
     }))?.id;
@@ -259,3 +259,4 @@ async function main() {
 
 // Executar
 main();
+

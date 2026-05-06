@@ -1,7 +1,7 @@
-﻿import { useState, useEffect, Fragment } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link, useLocation } from 'react-router-dom';
 import { useMemo, useRef } from 'react';
-import { alunoService, type Aluno } from '../services/aluno.service';
+import { alunoService, type Aluno, type StudentContractLink } from '../services/aluno.service';
 import { planService, type TrainingPlan } from '../services/plan.service';
 import { assessmentService, type Assessment, type AssessmentSummary, type AssessmentAuditLog } from '../services/assessment.service';
 import { assessmentTypeService, type AssessmentType } from '../services/assessment-type.service';
@@ -11,8 +11,16 @@ import { formatDateBR, isDateWithinRange } from '../utils/date';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../components/ui/Accordion';
 import { ProfessorManualContextPanel } from '../components/ProfessorManualContextPanel';
+import { AlunoDetailsTabs, getTabBlockKey, type AlunoDetailsTab } from '../components/alunos/AlunoDetailsTabs';
+import { AlunoResumoHubTab } from '../components/alunos/AlunoResumoHubTab';
+import { AlunoCadastroTab } from '../components/alunos/AlunoCadastroTab';
+import { AlunoSaudeAnamneseTab } from '../components/alunos/AlunoSaudeAnamneseTab';
+import { AlunoFinanceiroTab } from '../components/alunos/AlunoFinanceiroTab';
+import { AlunoPlanoAvaliacoesTab } from '../components/alunos/AlunoPlanoAvaliacoesTab';
+import { AlunoRevisoesCadastraisTab } from '../components/alunos/AlunoRevisoesCadastraisTab';
 import { alunoDetailsCopy } from '../i18n/ptBR';
 import { useAuthStore } from '../stores/useAuthStore';
+import { canAccessScreen, canAccessBlock } from '../access/access-control';
 import {
   ArrowLeft,
   Edit,
@@ -25,9 +33,29 @@ import {
   Sparkles,
 } from 'lucide-react';
 
+type AlunoAssessmentPlanSnapshot = {
+  items: Array<{
+    assessmentTypeId: string;
+    isActive: boolean;
+  }>;
+};
+
 type AlunoDetailsFormResponses = {
   identification?: {
+    cpf?: string;
+    rg?: string;
+    address?: string;
+    addressNumber?: string;
+    addressComplement?: string;
+    neighborhood?: string;
+    city?: string;
+    state?: string;
+    zipCode?: string;
+    maritalStatus?: string;
     instagram?: string;
+    emergencyContactName?: string;
+    emergencyContactPhone?: string;
+    emergencyContactRelationship?: string;
   };
   financial?: {
     currentService?: string;
@@ -186,6 +214,23 @@ export function AlunoDetails() {
   const location = useLocation();
   const { id } = useParams<{ id: string }>();
   const { user } = useAuthStore();
+  const canEditStudent = canAccessScreen(user, 'students.registration');
+  const canManageAssessmentPlan = canAccessScreen(user, 'students.assessmentPlan');
+  const canEditProfileAction = canAccessBlock(user, 'students.actions.editProfile');
+  const canDeleteStudentAction = canAccessBlock(user, 'students.actions.deleteStudent');
+  const canResetPasswordAction = canAccessBlock(user, 'students.actions.resetPassword');
+  const canManageAssessmentsAction = canAccessBlock(user, 'students.actions.manageAssessments');
+  const canManageFinancialContractAction = canAccessBlock(user, 'students.actions.manageFinancialContract');
+  const canManageProfileReviewsAction = canAccessBlock(user, 'students.actions.manageProfileReviews');
+  const canManageAssessmentPlanAction = canAccessBlock(user, 'students.actions.manageAssessmentPlan');
+  const canManageFinancialContracts = canAccessScreen(user, 'students.contracts.manage');
+  const canCancelFinancialContracts = canAccessScreen(user, 'students.contracts.cancel');
+  const canRenewFinancialContracts = canAccessScreen(user, 'students.contracts.renew');
+  const canViewFinancialData =
+    canAccessScreen(user, 'students.contracts.view') ||
+    canManageFinancialContracts ||
+    canCancelFinancialContracts ||
+    canRenewFinancialContracts;
   const initialTempPassword =
     (location.state as { tempPassword?: string | null } | null)?.tempPassword ?? null;
   const [aluno, setAluno] = useState<Aluno | null>(null);
@@ -197,6 +242,8 @@ export function AlunoDetails() {
   const [countryCode, setCountryCode] = useState('55');
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [assessmentSummary, setAssessmentSummary] = useState<AssessmentSummary[]>([]);
+  const [activeStudentContract, setActiveStudentContract] = useState<StudentContractLink | null>(null);
+  const [assessmentPlanActiveTypeIds, setAssessmentPlanActiveTypeIds] = useState<string[]>([]);
   const [assessmentTypes, setAssessmentTypes] = useState<AssessmentType[]>([]);
   const [uploadingAssessment, setUploadingAssessment] = useState(false);
   const [assessmentForm, setAssessmentForm] = useState({
@@ -209,7 +256,7 @@ export function AlunoDetails() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewName, setPreviewName] = useState<string>('');
   const [previewLoading, setPreviewLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'summary' | 'history'>('summary');
+  const [activeTab, setActiveTab] = useState<AlunoDetailsTab>('resumo');
   const [editingAssessment, setEditingAssessment] = useState<Assessment | null>(null);
   const [editForm, setEditForm] = useState({
     typeId: '',
@@ -218,7 +265,6 @@ export function AlunoDetails() {
   const [auditLogs, setAuditLogs] = useState<AssessmentAuditLog[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
-  const [historyFilterTitle, setHistoryFilterTitle] = useState('all');
   const [historyEditOpen, setHistoryEditOpen] = useState(false);
   const [historyEditSectionTitle, setHistoryEditSectionTitle] = useState('');
   const [historyEditAssessmentId, setHistoryEditAssessmentId] = useState('');
@@ -278,7 +324,7 @@ export function AlunoDetails() {
     return `${ASSESSMENT_GUIDE_STORAGE_PREFIX}:${user.professor.id}`;
   }, [user]);
   const shouldOfferAssessmentGuide =
-    user?.type === 'professor' && assessments.length === 0;
+    user?.type === 'professor' && assessments.length === 0 && canManageAssessmentsAction;
   const assessmentGuideSteps = useMemo(
     () => [
       {
@@ -378,11 +424,14 @@ export function AlunoDetails() {
     (item) => !item.complete
   ).length;
 
+  const canUseAssessmentPlanForMutations =
+    canManageAssessmentPlan && canManageAssessmentPlanAction && canManageAssessmentsAction;
+
   useEffect(() => {
     if (id) {
       loadAluno(id);
     }
-  }, [id]);
+  }, [id, canUseAssessmentPlanForMutations, canViewFinancialData]);
 
   useEffect(() => {
     if (!shouldOfferAssessmentGuide || !assessmentGuideStorageKey) {
@@ -414,12 +463,26 @@ export function AlunoDetails() {
   const loadAluno = async (alunoId: string) => {
     setLoading(true);
     try {
-      const [data, assessmentsData, summaryData, typesData, plansData] = await Promise.all([
+      const [
+        data,
+        assessmentsData,
+        summaryData,
+        typesData,
+        plansData,
+        assessmentPlanData,
+        contractsData,
+      ] = await Promise.all([
         alunoService.getById(alunoId),
         assessmentService.listByAluno(alunoId),
         assessmentService.getSummary(alunoId),
         assessmentTypeService.list(),
         planService.listByAluno(alunoId),
+        canUseAssessmentPlanForMutations
+          ? (alunoService.getAssessmentPlan(alunoId) as Promise<AlunoAssessmentPlanSnapshot>)
+          : Promise.resolve({ items: [] as AlunoAssessmentPlanSnapshot['items'] }),
+        canViewFinancialData
+          ? alunoService.listStudentContracts(alunoId)
+          : Promise.resolve({ alunoId, activeContract: null, contracts: [] }),
       ]);
 
       setAluno(data);
@@ -427,6 +490,12 @@ export function AlunoDetails() {
       setAssessmentSummary(summaryData);
       setAssessmentTypes(typesData);
       setPlans(plansData.plans);
+      setActiveStudentContract(contractsData.activeContract);
+      setAssessmentPlanActiveTypeIds(
+        assessmentPlanData.items
+          .filter((item) => item.isActive)
+          .map((item) => item.assessmentTypeId)
+      );
 
     } catch (error) {
       console.error('Erro ao carregar aluno:', error);
@@ -437,7 +506,29 @@ export function AlunoDetails() {
     }
   };
 
+  const refreshAssessmentData = async (alunoId: string) => {
+    const [assessmentsData, summaryData, assessmentPlanData] = await Promise.all([
+      assessmentService.listByAluno(alunoId),
+      assessmentService.getSummary(alunoId),
+      canUseAssessmentPlanForMutations
+        ? (alunoService.getAssessmentPlan(alunoId) as Promise<AlunoAssessmentPlanSnapshot>)
+        : Promise.resolve({ items: [] as AlunoAssessmentPlanSnapshot['items'] }),
+    ]);
+
+    setAssessments(assessmentsData);
+    setAssessmentSummary(summaryData);
+    setAssessmentPlanActiveTypeIds(
+      assessmentPlanData.items
+        .filter((item) => item.isActive)
+        .map((item) => item.assessmentTypeId)
+    );
+  };
+
   const handleDelete = async () => {
+    if (!canDeleteStudentAction) {
+      showToast('Você não possui permissão para excluir aluno.', 'error');
+      return;
+    }
     if (!id || !confirm(alunoDetailsCopy.deleteConfirm)) {
       return;
     }
@@ -453,6 +544,10 @@ export function AlunoDetails() {
   };
 
   const handleResetPassword = async () => {
+    if (!canResetPasswordAction) {
+      showToast('Você não possui permissão para redefinir senha.', 'error');
+      return;
+    }
     if (!id) return;
     if (!confirm(alunoDetailsCopy.resetPasswordConfirm)) {
       return;
@@ -529,10 +624,25 @@ export function AlunoDetails() {
   };
 
   const handleAssessmentUpload = async () => {
+    if (!canManageAssessmentsAction) {
+      showToast('Você não possui permissão para registrar avaliação física.', 'error');
+      return;
+    }
     if (!id) return;
     if (!assessmentForm.typeId || !assessmentForm.file) {
       alert(alunoDetailsCopy.uploadAssessmentValidation);
       return;
+    }
+
+    if (canUseAssessmentPlanForMutations && !assessmentPlanActiveTypeIds.includes(assessmentForm.typeId)) {
+      const shouldOpenAssessmentPlan = window.confirm(
+        'Este tipo ainda não está no plano de avaliações do aluno. Deseja adicioná-lo?'
+      );
+
+      if (shouldOpenAssessmentPlan) {
+        setActiveTab('plano-avaliacoes');
+        return;
+      }
     }
 
     setUploadingAssessment(true);
@@ -546,12 +656,7 @@ export function AlunoDetails() {
         assessmentDate: assessmentForm.assessmentDate || undefined,
         file: assessmentForm.file,
       });
-      const [assessmentsData, summaryData] = await Promise.all([
-        assessmentService.listByAluno(id),
-        assessmentService.getSummary(id),
-      ]);
-      setAssessments(assessmentsData);
-      setAssessmentSummary(summaryData);
+      await refreshAssessmentData(id);
       setAssessmentForm({ typeId: '', assessmentDate: '', file: null });
       setAssessmentGuideActive(false);
       setShowAssessmentGuideBanner(false);
@@ -658,6 +763,10 @@ export function AlunoDetails() {
   };
 
   const openEditAssessment = (assessment: Assessment) => {
+    if (!canManageAssessmentsAction) {
+      showToast('Você não possui permissão para editar avaliação física.', 'error');
+      return;
+    }
     if (assessment.extractedData?.parseOk === false) {
       showToast(alunoDetailsCopy.corruptedPdf, 'error');
       return;
@@ -678,18 +787,34 @@ export function AlunoDetails() {
   };
 
   const handleUpdateAssessment = async () => {
+    if (!canManageAssessmentsAction) {
+      showToast('Você não possui permissão para editar avaliação física.', 'error');
+      return;
+    }
     if (!id || !editingAssessment) return;
+
+    if (
+      editForm.typeId &&
+      editForm.typeId !== editingAssessment.typeId &&
+      canUseAssessmentPlanForMutations &&
+      !assessmentPlanActiveTypeIds.includes(editForm.typeId)
+    ) {
+      const shouldOpenAssessmentPlan = window.confirm(
+        'Este tipo ainda não está no plano de avaliações do aluno. Deseja adicioná-lo?'
+      );
+
+      if (shouldOpenAssessmentPlan) {
+        setActiveTab('plano-avaliacoes');
+        return;
+      }
+    }
+
     try {
       await assessmentService.updateAssessment(id, editingAssessment.id, {
         typeId: editForm.typeId,
         assessmentDate: editForm.assessmentDate || undefined,
       });
-      const [assessmentsData, summaryData] = await Promise.all([
-        assessmentService.listByAluno(id),
-        assessmentService.getSummary(id),
-      ]);
-      setAssessments(assessmentsData);
-      setAssessmentSummary(summaryData);
+      await refreshAssessmentData(id);
       setEditingAssessment(null);
       showToast(alunoDetailsCopy.updateAssessmentSuccess, 'success');
     } catch (error: any) {
@@ -698,16 +823,15 @@ export function AlunoDetails() {
   };
 
   const handleDeleteAssessment = async (assessment: Assessment) => {
+    if (!canManageAssessmentsAction) {
+      showToast('Você não possui permissão para excluir avaliação física.', 'error');
+      return;
+    }
     if (!id) return;
     if (!confirm(alunoDetailsCopy.deleteAssessmentConfirm)) return;
     try {
       await assessmentService.deleteAssessment(id, assessment.id);
-      const [assessmentsData, summaryData] = await Promise.all([
-        assessmentService.listByAluno(id),
-        assessmentService.getSummary(id),
-      ]);
-      setAssessments(assessmentsData);
-      setAssessmentSummary(summaryData);
+      await refreshAssessmentData(id);
       showToast(alunoDetailsCopy.deleteAssessmentSuccess, 'success');
     } catch (error: any) {
       showToast(error.response?.data?.error || alunoDetailsCopy.deleteAssessmentError, 'error');
@@ -715,15 +839,14 @@ export function AlunoDetails() {
   };
 
   const handleReprocessAssessment = async (assessment: Assessment) => {
+    if (!canManageAssessmentsAction) {
+      showToast('Você não possui permissão para reprocessar avaliação física.', 'error');
+      return;
+    }
     if (!id) return;
     try {
       await assessmentService.reprocessAssessment(id, assessment.id);
-      const [assessmentsData, summaryData] = await Promise.all([
-        assessmentService.listByAluno(id),
-        assessmentService.getSummary(id),
-      ]);
-      setAssessments(assessmentsData);
-      setAssessmentSummary(summaryData);
+      await refreshAssessmentData(id);
       showToast(alunoDetailsCopy.reprocessAssessmentSuccess, 'success');
     } catch (error: any) {
       showToast(error.response?.data?.error || alunoDetailsCopy.reprocessAssessmentError, 'error');
@@ -818,7 +941,34 @@ export function AlunoDetails() {
   const identificationInfo = readAlunoFormResponses(aluno?.intakeForm?.formResponses).identification ?? {};
   const financialInfo = readAlunoFormResponses(aluno?.intakeForm?.formResponses).financial ?? {};
   const preferencesInfo = readAlunoFormResponses(aluno?.intakeForm?.formResponses).preferences ?? {};
-  const legacyMarketingConsent = preferencesInfo.marketingConsent;
+
+  const visibleTabs = useMemo<AlunoDetailsTab[]>(() => {
+    const allPossibleTabs: AlunoDetailsTab[] = [
+      'resumo',
+      'cadastro',
+      'saude-anamnese',
+      'financeiro',
+      'plano-avaliacoes',
+      'avaliacoes-fisicas',
+      'revisoes-cadastrais',
+      'treinos',
+      'auditoria',
+    ];
+
+    return allPossibleTabs.filter((tab) => {
+      const blockKey = getTabBlockKey(tab);
+      return blockKey ? canAccessBlock(user, blockKey) : true;
+    });
+  }, [user]);
+
+  useEffect(() => {
+    if (!visibleTabs.includes(activeTab)) {
+      setActiveTab(visibleTabs[0] ?? 'resumo');
+    }
+  }, [activeTab, visibleTabs]);
+
+  // Show access denied message if no tabs are visible
+  const hasAnyAccessibleTab = visibleTabs.length > 0;
 
   const getHistoryValue = (assessment: Assessment, variable: string) => {
     const source =
@@ -840,10 +990,6 @@ export function AlunoDetails() {
   const historyTitles = Array.from(
     new Set(assessmentHistorySections.map((section) => section.title))
   );
-  const filteredHistorySections = assessmentHistorySections.filter(
-    (section) => historyFilterTitle === 'all' || section.title === historyFilterTitle
-  );
-  const historyColumnCount = 2 + sortedAssessments.length * 2;
 
   const buildHistoryEditValues = (sectionTitle: string, assessmentId: string) => {
     const sectionVariables = assessmentHistorySections
@@ -856,23 +1002,6 @@ export function AlunoDetails() {
       values[variable] = currentValue === null || currentValue === undefined ? '' : String(currentValue);
     });
     return values;
-  };
-
-  const openHistoryEdit = (sectionTitle?: string) => {
-    const latestAssessment = sortedAssessments[sortedAssessments.length - 1];
-    const selectedSection =
-      sectionTitle ||
-      (historyFilterTitle !== 'all' ? historyFilterTitle : historyTitles[0]) ||
-      '';
-    const selectedAssessmentId = latestAssessment?.id || '';
-    setHistoryEditSectionTitle(selectedSection);
-    setHistoryEditAssessmentId(selectedAssessmentId);
-    if (selectedSection && selectedAssessmentId) {
-      setHistoryEditValues(buildHistoryEditValues(selectedSection, selectedAssessmentId));
-    } else {
-      setHistoryEditValues({});
-    }
-    setHistoryEditOpen(true);
   };
 
   const handleSaveHistoryEdit = async () => {
@@ -937,6 +1066,26 @@ export function AlunoDetails() {
     );
   }
 
+  if (!hasAnyAccessibleTab) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh]">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle>Acesso Negado</CardTitle>
+            <CardDescription>
+              Você não tem permissão para visualizar nenhuma aba desta tela.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button variant="outline" onClick={() => navigate('/alunos')}>
+              Voltar à Listagem
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -955,21 +1104,29 @@ export function AlunoDetails() {
             </div>
           </div>
         </div>
-        <div className="flex gap-2">
-          <Link to={`/alunos/${id}/edit`}>
-            <Button variant="outline">
-              <Edit size={20} />
-              {alunoDetailsCopy.edit}
-            </Button>
-          </Link>
-          <Button variant="outline" onClick={handleResetPassword} isLoading={isResetting}>
-            {alunoDetailsCopy.resetPassword}
-          </Button>
-          <Button variant="destructive" onClick={handleDelete}>
-            <Trash2 size={20} />
-            {alunoDetailsCopy.delete}
-          </Button>
-        </div>
+        {(canEditStudent && canEditProfileAction) || canResetPasswordAction || canDeleteStudentAction ? (
+          <div className="flex gap-2">
+            {canEditStudent && canEditProfileAction && (
+              <Link to={`/alunos/${id}/edit`}>
+                <Button variant="outline">
+                  <Edit size={20} />
+                  {alunoDetailsCopy.edit}
+                </Button>
+              </Link>
+            )}
+            {canResetPasswordAction && (
+              <Button variant="outline" onClick={handleResetPassword} isLoading={isResetting}>
+                {alunoDetailsCopy.resetPassword}
+              </Button>
+            )}
+            {canDeleteStudentAction && (
+              <Button variant="destructive" onClick={handleDelete}>
+                <Trash2 size={20} />
+                {alunoDetailsCopy.delete}
+              </Button>
+            )}
+          </div>
+        ) : null}
       </div>
 
       {/* Contact Info */}
@@ -1049,253 +1206,55 @@ export function AlunoDetails() {
         </CardContent>
       </Card>
 
-      <div className="flex gap-2 border-b">
-        <button
-          type="button"
-          onClick={() => setActiveTab('summary')}
-          className={`px-4 py-2 text-sm font-medium ${
-            activeTab === 'summary'
-              ? 'border-b-2 border-primary text-primary'
-              : 'text-muted-foreground'
-          }`}
-        >
-          {alunoDetailsCopy.summaryTab}
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab('history')}
-          className={`px-4 py-2 text-sm font-medium ${
-            activeTab === 'history'
-              ? 'border-b-2 border-primary text-primary'
-              : 'text-muted-foreground'
-          }`}
-        >
-          {alunoDetailsCopy.historyTab}
-        </button>
-      </div>
+      <AlunoDetailsTabs activeTab={activeTab} onChange={setActiveTab} visibleTabs={visibleTabs} />
 
-      {activeTab === 'summary' && (
+      {activeTab === 'resumo' && (
+        <AlunoResumoHubTab
+          aluno={aluno}
+          assessments={assessments}
+          assessmentSummary={assessmentSummary}
+          plans={plans}
+          activeStudentContract={activeStudentContract}
+        />
+      )}
+
+      {activeTab === 'cadastro' && (
+        <AlunoCadastroTab
+          aluno={aluno}
+          schedulePlanLabel={schedulePlanLabel}
+          formatGender={formatGender}
+          identificationInfo={identificationInfo}
+          preferencesInfo={preferencesInfo}
+          formatShirtPreference={formatShirtPreference}
+        />
+      )}
+
+      {activeTab === 'saude-anamnese' && (
+        <AlunoSaudeAnamneseTab aluno={aluno} parqPositiveCount={parqPositiveCount} />
+      )}
+
+      {activeTab === 'financeiro' && (
+        <AlunoFinanceiroTab
+          aluno={aluno}
+          alunoId={id ?? ''}
+          financialInfo={financialInfo}
+          activeStudentContract={activeStudentContract}
+          canManageContracts={canManageFinancialContracts && canManageFinancialContractAction}
+          canCancelContracts={canCancelFinancialContracts && canManageFinancialContractAction}
+          canRenewContracts={canRenewFinancialContracts && canManageFinancialContractAction}
+        />
+      )}
+
+      {activeTab === 'plano-avaliacoes' && (
+        <AlunoPlanoAvaliacoesTab
+          alunoId={id ?? ''}
+          assessmentTypes={assessmentTypes}
+          canManageActions={canManageAssessmentPlanAction}
+        />
+      )}
+
+      {activeTab === 'avaliacoes-fisicas' && (
         <>
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Cadastro Inicial</CardTitle>
-                <CardDescription>Dados principais persistidos no cadastro do aluno.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="rounded-lg border border-gray-200 p-4">
-                    <div className="text-xs text-muted-foreground">Data de nascimento</div>
-                    <div className="mt-1 text-sm font-semibold text-gray-900">
-                      {aluno.user.profile.birthDate ? formatDateBR(aluno.user.profile.birthDate) : 'Não informada'}
-                    </div>
-                  </div>
-                  <div className="rounded-lg border border-gray-200 p-4">
-                    <div className="text-xs text-muted-foreground">Gênero</div>
-                    <div className="mt-1 text-sm font-semibold text-gray-900">
-                      {formatGender(aluno.user.profile.gender)}
-                    </div>
-                  </div>
-                  <div className="rounded-lg border border-gray-200 p-4">
-                    <div className="text-xs text-muted-foreground">Plano de agenda</div>
-                    <div className="mt-1 text-sm font-semibold text-gray-900">{schedulePlanLabel}</div>
-                  </div>
-                  <div className="rounded-lg border border-gray-200 p-4">
-                    <div className="text-xs text-muted-foreground">Pressão arterial</div>
-                    <div className="mt-1 text-sm font-semibold text-gray-900">
-                      {aluno.systolicPressure && aluno.diastolicPressure
-                        ? `${aluno.systolicPressure}/${aluno.diastolicPressure} mmHg`
-                        : 'Não informada'}
-                    </div>
-                  </div>
-                  <div className="rounded-lg border border-gray-200 p-4">
-                    <div className="text-xs text-muted-foreground">Rede social</div>
-                    <div className="mt-1 text-sm font-semibold text-gray-900">
-                      {identificationInfo.instagram || 'Não informada'}
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Avaliação inicial complementar</CardTitle>
-                <CardDescription>Resumo clínico e operacional preenchido no intake.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="rounded-lg border border-gray-200 p-4">
-                    <div className="text-xs text-muted-foreground">Data da avaliação inicial</div>
-                    <div className="mt-1 text-sm font-semibold text-gray-900">
-                      {aluno.intakeForm?.assessmentDate ? formatDateBR(aluno.intakeForm.assessmentDate) : 'Não informada'}
-                    </div>
-                  </div>
-                  <div className="rounded-lg border border-gray-200 p-4">
-                    <div className="text-xs text-muted-foreground">Respostas positivas no PAR-Q</div>
-                    <div className="mt-1 text-sm font-semibold text-gray-900">{parqPositiveCount}</div>
-                  </div>
-                </div>
-                <div className="space-y-3 text-sm">
-                  <div>
-                    <div className="text-xs text-muted-foreground">Objetivo principal</div>
-                    <div className="mt-1 text-gray-900">{aluno.intakeForm?.mainGoal || 'Não informado'}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-muted-foreground">Histórico de treino</div>
-                    <div className="mt-1 text-gray-900">{aluno.intakeForm?.trainingBackground || 'Não informado'}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-muted-foreground">Histórico médico e restrições</div>
-                    <div className="mt-1 text-gray-900">
-                      {aluno.intakeForm?.medicalHistory || aluno.intakeForm?.injuriesHistory || 'Não informado'}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-muted-foreground">Observações</div>
-                    <div className="mt-1 text-gray-900">{aluno.intakeForm?.observations || 'Não informado'}</div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Financeiro</CardTitle>
-              <CardDescription>Condições comerciais e observações administrativas registradas no cadastro.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                <div className="rounded-lg border border-gray-200 p-4">
-                  <div className="text-xs text-muted-foreground">Serviço vigente</div>
-                  <div className="mt-1 text-sm font-semibold text-gray-900">
-                    {financialInfo.currentService || 'Não informado'}
-                  </div>
-                </div>
-                <div className="rounded-lg border border-gray-200 p-4">
-                  <div className="text-xs text-muted-foreground">Condição especial</div>
-                  <div className="mt-1 text-sm font-semibold text-gray-900">
-                    {financialInfo.specialCondition || 'Não informada'}
-                  </div>
-                </div>
-                <div className="rounded-lg border border-gray-200 p-4">
-                  <div className="text-xs text-muted-foreground">Valor mensal</div>
-                  <div className="mt-1 text-sm font-semibold text-gray-900">
-                    {financialInfo.monthlyValue ? `R$ ${financialInfo.monthlyValue}` : 'Não informado'}
-                  </div>
-                </div>
-                <div className="rounded-lg border border-gray-200 p-4">
-                  <div className="text-xs text-muted-foreground">Professor responsável</div>
-                  <div className="mt-1 text-sm font-semibold text-gray-900">
-                    {financialInfo.responsibleProfessorName || 'Não informado'}
-                  </div>
-                </div>
-                <div className="rounded-lg border border-gray-200 p-4">
-                  <div className="text-xs text-muted-foreground">Dia de pagamento</div>
-                  <div className="mt-1 text-sm font-semibold text-gray-900">
-                    {financialInfo.paymentDay || 'Não informado'}
-                  </div>
-                </div>
-                <div className="rounded-lg border border-gray-200 p-4">
-                  <div className="text-xs text-muted-foreground">Contrato</div>
-                  <div className="mt-1 text-sm font-semibold text-gray-900">
-                    {financialInfo.contract || 'Não informado'}
-                  </div>
-                </div>
-              </div>
-              <div>
-                <div className="text-xs text-muted-foreground">Outras observações</div>
-                <div className="mt-1 text-sm text-gray-900">
-                  {financialInfo.otherObservations || 'Não informadas'}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Preferências</CardTitle>
-              <CardDescription>Informações opcionais de perfil, comunicação e personalização registradas no cadastro.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                <div className="rounded-lg border border-gray-200 p-4">
-                  <div className="text-xs text-muted-foreground">Tem filhos</div>
-                  <div className="mt-1 text-sm font-semibold text-gray-900">
-                    {preferencesInfo.hasChildren === 'yes' ? 'Sim' : preferencesInfo.hasChildren === 'no' ? 'Não' : 'Não informado'}
-                  </div>
-                </div>
-                <div className="rounded-lg border border-gray-200 p-4">
-                  <div className="text-xs text-muted-foreground">Quantos filhos</div>
-                  <div className="mt-1 text-sm font-semibold text-gray-900">
-                    {preferencesInfo.childrenCount || 'Não informado'}
-                  </div>
-                </div>
-                <div className="rounded-lg border border-gray-200 p-4">
-                  <div className="text-xs text-muted-foreground">Mensagens sobre pacotes de serviços</div>
-                  <div className="mt-1 text-sm font-semibold text-gray-900">
-                    {(preferencesInfo.servicePackagesConsent || legacyMarketingConsent) === 'yes' ? 'Sim' : (preferencesInfo.servicePackagesConsent || legacyMarketingConsent) === 'no' ? 'Não' : 'Não informado'}
-                  </div>
-                </div>
-                <div className="rounded-lg border border-gray-200 p-4">
-                  <div className="text-xs text-muted-foreground">Mensagens sobre feedback de serviços</div>
-                  <div className="mt-1 text-sm font-semibold text-gray-900">
-                    {(preferencesInfo.serviceFeedbackConsent || legacyMarketingConsent) === 'yes' ? 'Sim' : (preferencesInfo.serviceFeedbackConsent || legacyMarketingConsent) === 'no' ? 'Não' : 'Não informado'}
-                  </div>
-                </div>
-                <div className="rounded-lg border border-gray-200 p-4">
-                  <div className="text-xs text-muted-foreground">Mensagens sobre promoções</div>
-                  <div className="mt-1 text-sm font-semibold text-gray-900">
-                    {(preferencesInfo.promotionsConsent || legacyMarketingConsent) === 'yes' ? 'Sim' : (preferencesInfo.promotionsConsent || legacyMarketingConsent) === 'no' ? 'Não' : 'Não informado'}
-                  </div>
-                </div>
-                <div className="rounded-lg border border-gray-200 p-4">
-                  <div className="text-xs text-muted-foreground">Mensagens sobre campanhas</div>
-                  <div className="mt-1 text-sm font-semibold text-gray-900">
-                    {(preferencesInfo.campaignsConsent || legacyMarketingConsent) === 'yes' ? 'Sim' : (preferencesInfo.campaignsConsent || legacyMarketingConsent) === 'no' ? 'Não' : 'Não informado'}
-                  </div>
-                </div>
-                <div className="rounded-lg border border-gray-200 p-4">
-                  <div className="text-xs text-muted-foreground">Camiseta</div>
-                  <div className="mt-1 text-sm font-semibold text-gray-900">
-                    {formatShirtPreference(preferencesInfo.shirtModel, preferencesInfo.shirtSize)}
-                  </div>
-                </div>
-                <div className="rounded-lg border border-gray-200 p-4">
-                  <div className="text-xs text-muted-foreground">Tamanho de calça, bermuda ou shorts</div>
-                  <div className="mt-1 text-sm font-semibold text-gray-900">
-                    {preferencesInfo.clothingSize || 'Não informado'}
-                  </div>
-                </div>
-                <div className="rounded-lg border border-gray-200 p-4">
-                  <div className="text-xs text-muted-foreground">Tamanho de calçado</div>
-                  <div className="mt-1 text-sm font-semibold text-gray-900">
-                    {preferencesInfo.shoeSize || 'Não informado'}
-                  </div>
-                </div>
-                <div className="rounded-lg border border-gray-200 p-4">
-                  <div className="text-xs text-muted-foreground">Gênero musical favorito para treinar</div>
-                  <div className="mt-1 text-sm font-semibold text-gray-900">
-                    {preferencesInfo.favoriteMusicGenre || 'Não informado'}
-                  </div>
-                </div>
-                <div className="rounded-lg border border-gray-200 p-4">
-                  <div className="text-xs text-muted-foreground">Chocolate favorito</div>
-                  <div className="mt-1 text-sm font-semibold text-gray-900">
-                    {preferencesInfo.favoriteChocolate || 'Não informado'}
-                  </div>
-                </div>
-                <div className="rounded-lg border border-gray-200 p-4">
-                  <div className="text-xs text-muted-foreground">Nome ou apelido para personalização</div>
-                  <div className="mt-1 text-sm font-semibold text-gray-900">
-                    {preferencesInfo.preferredNickname || 'Não informado'}
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
           <Card>
             <CardHeader>
               <CardTitle>Resumo da Avaliação</CardTitle>
@@ -1416,43 +1375,6 @@ export function AlunoDetails() {
             </CardContent>
           </Card>
 
-      {/* Macronutrientes */}
-      {aluno.macronutrients && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Distribuição de Macronutrientes</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="text-center p-4 bg-info/10 rounded-lg">
-                <p className="text-sm text-muted-foreground">Carboidratos</p>
-                <p className="text-2xl font-bold text-info">
-                  {aluno.macronutrients.carbohydratesPercentage}%
-                </p>
-              </div>
-              <div className="text-center p-4 bg-success/10 rounded-lg">
-                <p className="text-sm text-muted-foreground">Proteínas</p>
-                <p className="text-2xl font-bold text-success">
-                  {aluno.macronutrients.proteinsPercentage}%
-                </p>
-              </div>
-              <div className="text-center p-4 bg-warning/10 rounded-lg">
-                <p className="text-sm text-muted-foreground">Lipídios</p>
-                <p className="text-2xl font-bold text-warning">
-                  {aluno.macronutrients.lipidsPercentage}%
-                </p>
-              </div>
-            </div>
-            {aluno.macronutrients.dailyCalories && (
-              <div className="mt-4 text-center">
-                <p className="text-sm text-muted-foreground">Calorias Diárias</p>
-                <p className="text-2xl font-bold">{aluno.macronutrients.dailyCalories} kcal</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
       {/* Planos de Treino e Estatísticas */}
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
@@ -1562,7 +1484,7 @@ export function AlunoDetails() {
               <CardTitle>{alunoDetailsCopy.assessmentsTitle}</CardTitle>
               <CardDescription>{alunoDetailsCopy.assessmentsDescription}</CardDescription>
             </div>
-            {user?.type === 'professor' && (
+            {user?.type === 'professor' && canManageAssessmentsAction && (
               <Button type="button" variant="outline" size="sm" onClick={handleStartAssessmentGuide}>
                 <Sparkles className="h-4 w-4" />
                 {alunoDetailsCopy.assessmentGuideReopen}
@@ -1644,6 +1566,11 @@ export function AlunoDetails() {
             }`}
           >
             <h3 className="text-sm font-semibold text-gray-900">Nova Avaliação</h3>
+            {!canManageAssessmentsAction && (
+              <p className="mt-2 text-sm text-muted-foreground">
+                Você possui acesso de visualização. Registrar, editar, excluir e reprocessar avaliações exige permissão específica.
+              </p>
+            )}
             {assessmentGuideActive && (
               <div className="mt-3 rounded-xl border border-info/20 bg-background p-4">
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -1716,6 +1643,7 @@ export function AlunoDetails() {
                 <select
                   className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                   value={assessmentForm.typeId}
+                  disabled={!canManageAssessmentsAction}
                   onChange={(event) =>
                     setAssessmentForm({ ...assessmentForm, typeId: event.target.value })
                   }
@@ -1740,6 +1668,7 @@ export function AlunoDetails() {
                   type="date"
                   className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                   value={assessmentForm.assessmentDate}
+                  disabled={!canManageAssessmentsAction}
                   onChange={(event) =>
                     setAssessmentForm({ ...assessmentForm, assessmentDate: event.target.value })
                   }
@@ -1756,6 +1685,7 @@ export function AlunoDetails() {
                 <input
                   type="file"
                   className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  disabled={!canManageAssessmentsAction}
                   onChange={(event) =>
                     setAssessmentForm({
                       ...assessmentForm,
@@ -1776,6 +1706,7 @@ export function AlunoDetails() {
                   type="button"
                   onClick={handleAssessmentUpload}
                   isLoading={uploadingAssessment}
+                  disabled={!canManageAssessmentsAction}
                   className="w-full"
                 >
                   Enviar
@@ -1975,7 +1906,7 @@ export function AlunoDetails() {
                       size="sm"
                       variant="outline"
                       onClick={() => {
-                        setActiveTab('history');
+                        setActiveTab('revisoes-cadastrais');
                         window.requestAnimationFrame(() => {
                           assessmentSummaryRef.current?.scrollIntoView({
                             behavior: 'smooth',
@@ -2047,29 +1978,34 @@ export function AlunoDetails() {
                 <button
                   type="button"
                   onClick={() => handleReprocessAssessment(assessment)}
+                  disabled={!canManageAssessmentsAction}
                   className="rounded-lg border border-gray-200 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
                 >
                   Reprocessar
                 </button>
-                <button
-                  type="button"
-                  onClick={() => openEditAssessment(assessment)}
-                  disabled={assessment.extractedData?.parseOk === false}
-                  className={`rounded-lg border px-3 py-1 text-xs font-medium ${
-                    assessment.extractedData?.parseOk === false
-                      ? 'border-gray-200 text-gray-400 cursor-not-allowed'
-                      : 'border-gray-200 text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  {assessment.extractedData?.parseOk === false ? 'PDF inválido' : 'Editar'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDeleteAssessment(assessment)}
-                  className="rounded-lg border border-destructive/20 px-3 py-1 text-xs font-medium text-destructive hover:bg-destructive/10"
-                >
-                  Excluir
-                </button>
+                {canManageAssessmentsAction && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => openEditAssessment(assessment)}
+                      disabled={assessment.extractedData?.parseOk === false}
+                      className={`rounded-lg border px-3 py-1 text-xs font-medium ${
+                        assessment.extractedData?.parseOk === false
+                          ? 'border-gray-200 text-gray-400 cursor-not-allowed'
+                          : 'border-gray-200 text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      {assessment.extractedData?.parseOk === false ? 'PDF inválido' : 'Editar'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteAssessment(assessment)}
+                      className="rounded-lg border border-destructive/20 px-3 py-1 text-xs font-medium text-destructive hover:bg-destructive/10"
+                    >
+                      Excluir
+                    </button>
+                  </>
+                )}
               </div>
             </td>
           </tr>
@@ -2083,174 +2019,38 @@ export function AlunoDetails() {
         </>
       )}
 
-      {activeTab === 'history' && (
+      {activeTab === 'revisoes-cadastrais' && id && (
+        <AlunoRevisoesCadastraisTab
+          alunoId={id}
+          onToast={showToast}
+          canManageActions={canManageProfileReviewsAction}
+        />
+      )}
+
+      {activeTab === 'treinos' && (
         <Card>
           <CardHeader>
-            <CardTitle>Histórico de Avaliações</CardTitle>
+            <CardTitle>Treinos / Planos</CardTitle>
             <CardDescription>
-              Comparativo das avaliações ao longo do tempo.
+              Visualize e gerencie os planos de treino do aluno.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {sortedAssessments.length === 0 ? (
-              <div className="text-sm text-muted-foreground">
-                Nenhuma avaliação registrada para exibir histórico.
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">Filtrar por título</span>
-                    <select
-                      className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-                      value={historyFilterTitle}
-                      onChange={(event) => setHistoryFilterTitle(event.target.value)}
-                    >
-                      <option value="all">Todos</option>
-                      {historyTitles.map((title) => (
-                        <option key={title} value={title}>
-                          {title}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <Button variant="outline" onClick={() => openHistoryEdit()}>
-                    Editar dados
-                  </Button>
-                </div>
-                <div className="overflow-x-auto rounded-lg border border-gray-200 max-h-[70vh] overflow-y-auto">
-                  <table className="min-w-full text-sm table-fixed">
-                    <colgroup>
-                      <col className={historyVariableColumnWidthClass} />
-                      {sortedAssessments.map((assessment) => (
-                        <Fragment key={assessment.id}>
-                          <col className="w-24" />
-                          <col className="w-24" />
-                        </Fragment>
-                      ))}
-                      <col className="w-24" />
-                    </colgroup>
-                    <thead className="sticky top-0 z-10">
-                      <tr className="bg-muted text-center text-xs uppercase text-gray-500">
-                        <th className={`px-3 py-2 ${historyVariableColumnWidthClass} text-left`}>
-                          Variável
-                        </th>
-                        {sortedAssessments.map((assessment) => (
-                          <th
-                            key={assessment.id}
-                            className="px-3 py-2 text-center border-l border-gray-200/60"
-                            colSpan={2}
-                          >
-                            {new Date(assessment.assessmentDate).toLocaleDateString()}
-                          </th>
-                        ))}
-                        <th className="px-3 py-2 text-center w-24 border-l border-gray-200/60">
-                          Δ% Total
-                        </th>
-                      </tr>
-                      <tr className="border-b text-center text-xs uppercase text-gray-400 bg-muted">
-                        <th className="px-3 py-2 text-left"></th>
-                        {sortedAssessments.map((assessment) => (
-                          <Fragment key={assessment.id}>
-                            <th className="px-3 py-2 border-l border-gray-200/60">Valor</th>
-                            <th className="px-3 py-2">Δ%</th>
-                          </Fragment>
-                        ))}
-                        <th className="px-3 py-2"></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredHistorySections.map((section) => (
-                        <Fragment key={`${section.title}-${section.subtitle || 'main'}`}>
-                          <tr className="bg-gray-50">
-                            <td colSpan={historyColumnCount} className="px-3 py-2">
-                              <div className="flex items-center gap-2">
-                                <div className="text-sm font-semibold text-gray-900">
-                                  {section.title}
-                                </div>
-                                {section.subtitle && (
-                                  <div className="text-xs text-muted-foreground">
-                                    • {section.subtitle}
-                                  </div>
-                                )}
-                                <button
-                                  type="button"
-                                  onClick={() => openHistoryEdit(section.title)}
-                                  className="ml-auto rounded-md border border-gray-200 px-2 py-1 text-[10px] font-medium text-gray-700 hover:bg-gray-50"
-                                >
-                                  Editar dados
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                          {section.variables.map((variable) => {
-                            const rawValues = sortedAssessments.map((assessment) =>
-                              getHistoryValue(assessment, variable)
-                            );
-                            const numericValues = rawValues.map((value) => toNumber(value));
-                            const firstValue = numericValues.find(
-                              (value) => value !== null && value !== undefined
-                            );
-                            const lastValue = [...numericValues]
-                              .reverse()
-                              .find((value) => value !== null && value !== undefined);
-                            const totalDelta =
-                              firstValue !== null &&
-                              firstValue !== undefined &&
-                              lastValue !== null &&
-                              lastValue !== undefined
-                                ? ((lastValue - firstValue) / firstValue) * 100
-                                : null;
+            <p className="text-muted-foreground">Aba de Treinos / Planos em desenvolvimento</p>
+          </CardContent>
+        </Card>
+      )}
 
-                            return (
-                              <tr key={variable} className="border-b text-center">
-                                <td
-                                  className={`px-3 py-2 font-medium text-gray-700 whitespace-nowrap ${historyVariableColumnWidthClass} text-left`}
-                                >
-                                  {formatHistoryVariableLabel(variable)}
-                                </td>
-                                {rawValues.map((value, index) => {
-                                  const prev = index > 0 ? numericValues[index - 1] : null;
-                                  const currentNumeric = numericValues[index];
-                                  const delta =
-                                    prev !== null &&
-                                    prev !== undefined &&
-                                    currentNumeric !== null &&
-                                    currentNumeric !== undefined
-                                      ? ((currentNumeric - prev) / prev) * 100
-                                      : null;
-                                  return (
-                                    <Fragment key={`${variable}-${index}`}>
-                                      <td className="px-3 py-2 text-center border-l border-gray-200/60">
-                                        {value === null || value === undefined
-                                          ? '—'
-                                          : typeof value === 'string'
-                                            ? value
-                                            : formatValue(value)}
-                                      </td>
-                                      <td className="px-3 py-2 text-xs text-muted-foreground text-center">
-                                        {delta === null || !Number.isFinite(delta)
-                                          ? '—'
-                                          : `${delta > 0 ? '+' : ''}${delta.toFixed(1)}%`}
-                                      </td>
-                                    </Fragment>
-                                  );
-                                })}
-                                <td className="px-3 py-2 text-xs text-muted-foreground text-center w-24 border-l border-gray-200/60">
-                                  {totalDelta === null || !Number.isFinite(totalDelta)
-                                    ? '—'
-                                    : `${totalDelta > 0 ? '+' : ''}${totalDelta.toFixed(1)}%`}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </Fragment>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
+      {activeTab === 'auditoria' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Histórico / Auditoria</CardTitle>
+            <CardDescription>
+              Registros de todas as alterações e ações realizadas neste cadastro.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground">Aba de Histórico / Auditoria em desenvolvimento</p>
           </CardContent>
         </Card>
       )}

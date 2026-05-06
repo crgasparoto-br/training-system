@@ -1,4 +1,4 @@
-Ôªøimport '../../bootstrap-env.js';
+import '../../bootstrap-env.js';
 import jwt from 'jsonwebtoken';
 import bcryptjs from 'bcryptjs';
 import { PrismaClient } from '@prisma/client';
@@ -100,7 +100,7 @@ export class AuthService {
   }
 
   /**
-   * Registrar novo usu√É¬°rio
+   * Registrar novo usu√°rio
    */
   async register(data: RegisterRequest): Promise<AuthResponse> {
     const existingUser = await prisma.user.findUnique({
@@ -108,7 +108,7 @@ export class AuthService {
     });
 
     if (existingUser) {
-      throw new Error('E-mail j√° est√° registrado');
+      throw new Error('E-mail j· est· registrado');
     }
 
     if (data.type !== 'professor') {
@@ -119,21 +119,21 @@ export class AuthService {
     const expectedLength = data.contractType === 'academy' ? 14 : 11;
 
     if (document.length !== expectedLength) {
-      throw new Error(data.contractType === 'academy' ? 'CNPJ inv√°lido' : 'CPF inv√°lido');
+      throw new Error(data.contractType === 'academy' ? 'CNPJ inv·lido' : 'CPF inv·lido');
     }
 
-    const existingContract = await prisma.contract.findUnique({
+    const existingContract = await prisma.companyContract.findUnique({
       where: { document },
     });
 
     if (existingContract) {
-      throw new Error('Documento j√° est√° registrado');
+      throw new Error('Documento j· est· registrado');
     }
 
     const passwordHash = await bcryptjs.hash(data.password, 10);
 
     const { user, professor, contractId } = await prisma.$transaction(async (tx) => {
-      const contract = await tx.contract.create({
+      const contract = await tx.companyContract.create({
         data: {
           type: data.contractType,
           document,
@@ -143,7 +143,7 @@ export class AuthService {
       const managerFunction = await getDefaultCollaboratorFunctionByCode(contract.id, 'manager', tx);
 
       if (!managerFunction) {
-        throw new Error('N√£o foi poss√≠vel preparar as fun√ß√µes padr√£o do contrato');
+        throw new Error('N„o foi possÌvel preparar as funÁıes padr„o do contrato');
       }
 
       const createdUser = await tx.user.create({
@@ -254,7 +254,7 @@ export class AuthService {
    * Fazer login
    */
   async login(data: LoginRequest): Promise<AuthResponse> {
-    // Buscar usu√É¬°rio
+    // Buscar usu√°rio
     const user = await prisma.user.findUnique({
       where: { email: data.email },
       include: {
@@ -290,7 +290,7 @@ export class AuthService {
       throw new Error('E-mail ou senha incorretos');
     }
     if (!user.isActive) {
-      throw new Error('Usu√°rio desativado');
+      throw new Error('Usu·rio desativado');
     }
 
     // Verificar senha
@@ -355,7 +355,7 @@ export class AuthService {
   async requestPasswordReset(email: string): Promise<ForgotPasswordResponse> {
     const normalizedEmail = email.trim().toLowerCase();
     const genericMessage =
-      'Se existir uma conta com este e-mail, voc√™ receber√° as instru√ß√µes para redefinir a senha.';
+      'Se existir uma conta com este e-mail, vocÍ receber· as instruÁıes para redefinir a senha.';
 
     const user = await prisma.user.findUnique({
       where: { email: normalizedEmail },
@@ -399,7 +399,7 @@ export class AuthService {
       | null;
 
     if (!decoded?.userId || decoded.purpose !== 'password-reset') {
-      throw new Error('Token de recupera√ß√£o inv√°lido ou expirado');
+      throw new Error('Token de recuperaÁ„o inv·lido ou expirado');
     }
 
     const user = await prisma.user.findUnique({
@@ -407,13 +407,13 @@ export class AuthService {
     });
 
     if (!user || !user.isActive) {
-      throw new Error('Token de recupera√ß√£o inv√°lido ou expirado');
+      throw new Error('Token de recuperaÁ„o inv·lido ou expirado');
     }
 
     try {
       jwt.verify(data.token, this.buildPasswordResetSecret(user.passwordHash));
     } catch (error) {
-      throw new Error('Token de recupera√ß√£o inv√°lido ou expirado');
+      throw new Error('Token de recuperaÁ„o inv·lido ou expirado');
     }
 
     const samePassword = await bcryptjs.compare(data.password, user.passwordHash);
@@ -444,7 +444,7 @@ export class AuthService {
       const decoded = jwt.verify(token, this.jwtSecret) as JwtPayload;
       return decoded;
     } catch (error) {
-      throw new Error('Token inv√É¬°lido ou expirado');
+      throw new Error('Token inv√°lido ou expirado');
     }
   }
 
@@ -478,7 +478,7 @@ export class AuthService {
   }
 
   /**
-   * Obter usu√É¬°rio por ID
+   * Obter usu√°rio por ID
    */
   async getUserById(userId: string) {
     return prisma.user.findUnique({
@@ -599,4 +599,5 @@ export class AuthService {
 }
 
 export const authService = new AuthService();
+
 

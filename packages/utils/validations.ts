@@ -194,6 +194,9 @@ const professorHourlyRatesNullableSchema = z.object({
 const accessPermissionSelectionSchema = z.object({
   screens: z.array(z.string().trim().min(1, 'Tela invalida')),
   blocks: z.array(z.string().trim().min(1, 'Bloco invalido')),
+  dataScopes: z
+    .record(z.enum(['self', 'managed', 'contract']).nullable())
+    .optional(),
 });
 
 // ============================================================================

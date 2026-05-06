@@ -90,7 +90,7 @@ export function Register() {
         contractType: data.contractType,
         document: data.document,
       });
-      navigate('/dashboard');
+      navigate('/');
     } finally {
       setIsLoading(false);
     }

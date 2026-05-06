@@ -35,7 +35,7 @@ export function Login() {
 
     try {
       await login(data);
-      navigate('/dashboard');
+      navigate('/');
     } finally {
       setIsLoading(false);
     }

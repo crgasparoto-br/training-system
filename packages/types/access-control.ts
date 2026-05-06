@@ -1,5 +1,13 @@
 export const ACCESS_SCREEN_CATALOG = [
   { key: 'students.registration', label: 'Cadastro de alunos' },
+  { key: 'students.details', label: 'Detalhes do aluno' },
+  { key: 'students.assessmentPlan', label: 'Plano de avaliacoes do aluno' },
+  { key: 'students.profileReview', label: 'Revisao cadastral do aluno' },
+  { key: 'students.financialData', label: 'Dados financeiros do aluno' },
+  { key: 'students.contracts.view', label: 'Visualizar contratos do aluno' },
+  { key: 'students.contracts.manage', label: 'Gerenciar contratos do aluno' },
+  { key: 'students.contracts.cancel', label: 'Cancelar contratos do aluno' },
+  { key: 'students.contracts.renew', label: 'Renovar contratos do aluno' },
   { key: 'collaborators.registration', label: 'Cadastro de colaboradores' },
   { key: 'hourlyRateLevels.registration', label: 'Valores de hora/aula' },
   { key: 'physicalAssessment.protocol', label: 'Protocolo de avaliacao fisica' },
@@ -20,6 +28,7 @@ export const ACCESS_SCREEN_CATALOG = [
   { key: 'settings.subjectiveScales', label: 'PSR e PSE' },
   { key: 'settings.professorManual', label: 'Manual do professor' },
   { key: 'settings.alunoAccess', label: 'Cadastro de alunos' },
+  { key: 'studentApp.access', label: 'Acesso do aluno ao app' },
   { key: 'settings.referenceTable', label: 'Tabela de referencia' },
 ] as const;
 
@@ -31,6 +40,13 @@ export const ACCESS_PERMISSION_GROUPS = [
     label: 'Cadastros',
     screenKeys: [
       'students.registration',
+      'students.assessmentPlan',
+      'students.profileReview',
+      'students.financialData',
+      'students.contracts.view',
+      'students.contracts.manage',
+      'students.contracts.cancel',
+      'students.contracts.renew',
       'collaborators.registration',
       'hourlyRateLevels.registration',
     ],
@@ -43,7 +59,11 @@ export const ACCESS_PERMISSION_GROUPS = [
   {
     key: 'consultations',
     label: 'Consultas',
-    screenKeys: ['students.consultation', 'collaborators.consultation'],
+    screenKeys: [
+      'students.consultation',
+      'students.details',
+      'collaborators.consultation',
+    ],
   },
   {
     key: 'operation',
@@ -64,6 +84,7 @@ export const ACCESS_PERMISSION_GROUPS = [
       'settings.subjectiveScales',
       'settings.professorManual',
       'settings.alunoAccess',
+      'studentApp.access',
       'settings.referenceTable',
     ],
   },
@@ -74,6 +95,86 @@ export const ACCESS_PERMISSION_GROUPS = [
 }[];
 
 export const ACCESS_BLOCK_CATALOG = [
+  {
+    key: 'students.details.summary',
+    screenKey: 'students.details',
+    label: 'Aba Resumo',
+  },
+  {
+    key: 'students.details.profile',
+    screenKey: 'students.details',
+    label: 'Aba Cadastro',
+  },
+  {
+    key: 'students.details.health',
+    screenKey: 'students.details',
+    label: 'Aba Saude / Anamnese',
+  },
+  {
+    key: 'students.details.financialContract',
+    screenKey: 'students.details',
+    label: 'Aba Financeiro / Contrato',
+  },
+  {
+    key: 'students.details.assessmentPlan',
+    screenKey: 'students.details',
+    label: 'Aba Plano de Avaliacoes',
+  },
+  {
+    key: 'students.details.assessments',
+    screenKey: 'students.details',
+    label: 'Aba Avaliacoes Fisicas',
+  },
+  {
+    key: 'students.details.profileReviews',
+    screenKey: 'students.details',
+    label: 'Aba Revisoes Cadastrais',
+  },
+  {
+    key: 'students.details.trainingPlans',
+    screenKey: 'students.details',
+    label: 'Aba Treinos / Planos',
+  },
+  {
+    key: 'students.details.audit',
+    screenKey: 'students.details',
+    label: 'Historico / Auditoria',
+  },
+  {
+    key: 'students.actions.editProfile',
+    screenKey: 'students.details',
+    label: 'Acao: Editar cadastro do aluno',
+  },
+  {
+    key: 'students.actions.deleteStudent',
+    screenKey: 'students.details',
+    label: 'Acao: Excluir aluno',
+  },
+  {
+    key: 'students.actions.resetPassword',
+    screenKey: 'students.details',
+    label: 'Acao: Redefinir senha do aluno',
+  },
+  {
+    key: 'students.actions.manageAssessments',
+    screenKey: 'students.details',
+    label: 'Acao: Gerenciar avaliacoes fisicas',
+  },
+  {
+    key: 'students.actions.manageFinancialContract',
+    screenKey: 'students.details',
+    label: 'Acao: Gerenciar financeiro/contrato',
+  },
+  {
+    key: 'students.actions.manageProfileReviews',
+    screenKey: 'students.details',
+    label: 'Acao: Gerenciar revisoes cadastrais',
+  },
+  {
+    key: 'students.actions.manageAssessmentPlan',
+    screenKey: 'students.details',
+    label: 'Acao: Gerenciar plano de avaliacoes',
+  },
   {
     key: 'collaborators.registration.collaborator',
     screenKey: 'collaborators.registration',
@@ -88,17 +189,35 @@ export const ACCESS_BLOCK_CATALOG = [
 
 export type AccessBlockKey = (typeof ACCESS_BLOCK_CATALOG)[number]['key'];
 
+export type AccessDataScope = 'self' | 'managed' | 'contract';
+
+export const ACCESS_DATA_SCOPE_SCREEN_KEYS = [
+  'collaborators.registration',
+  'collaborators.consultation',
+] as const satisfies readonly AccessScreenKey[];
+
+export const ACCESS_DATA_SCOPE_OPTIONS = [
+  { value: 'self', label: 'Somente próprio cadastro' },
+  { value: 'managed', label: 'Próprio cadastro e liderados' },
+  { value: 'contract', label: 'Todos os colaboradores do contrato' },
+] as const satisfies readonly {
+  value: AccessDataScope;
+  label: string;
+}[];
+
 export interface AccessPermission {
   id?: string;
   collaboratorFunctionId?: string;
   screenKey: AccessScreenKey | string;
   blockKey?: AccessBlockKey | string | null;
   canView: boolean;
+  dataScope?: AccessDataScope | null;
 }
 
 export interface AccessPermissionSelection {
   screens: Array<AccessScreenKey | string>;
   blocks: Array<AccessBlockKey | string>;
+  dataScopes?: Partial<Record<AccessScreenKey | string, AccessDataScope | null>>;
 }
 
 export interface AccessControlPayload {
@@ -111,8 +230,11 @@ export const ALL_ACCESS_BLOCK_KEYS = ACCESS_BLOCK_CATALOG.map((item) => item.key
 
 const commonProfessorScreens = [
   'students.registration',
-  'physicalAssessment.protocol',
   'students.consultation',
+  'students.details',
+  'students.contracts.view',
+  'students.assessmentPlan',
+  'students.profileReview',
   'plans',
   'agenda',
   'library',
@@ -127,43 +249,133 @@ const commonProfessorScreens = [
   'settings.referenceTable',
 ] as const satisfies readonly AccessScreenKey[];
 
+const commonReadOnlyStudentScreens = [
+  'students.consultation',
+  'students.details',
+  'students.assessmentPlan',
+  'students.profileReview',
+] as const satisfies readonly AccessScreenKey[];
+
 export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
   professor: {
-    screens: [...commonProfessorScreens, 'collaborators.registration'],
-    blocks: ['collaborators.registration.collaborator'],
+    screens: [
+      ...commonProfessorScreens,
+      'physicalAssessment.protocol',
+      'collaborators.registration',
+      'settings.alunoAccess',
+      'studentApp.access',
+    ],
+    blocks: [
+      'students.details.summary',
+      'students.details.profile',
+      'students.details.health',
+      'students.details.assessmentPlan',
+      'students.details.assessments',
+      'students.details.trainingPlans',
+      'students.actions.editProfile',
+      'students.actions.resetPassword',
+      'students.actions.manageAssessments',
+      'students.actions.manageAssessmentPlan',
+      'collaborators.registration.collaborator',
+    ],
+    dataScopes: {
+      'collaborators.registration': 'self',
+      'collaborators.consultation': 'self',
+    },
   },
   manager: {
     screens: [
       ...commonProfessorScreens,
+      'physicalAssessment.protocol',
+      'students.financialData',
+      'students.contracts.view',
+      'students.contracts.manage',
+      'students.contracts.cancel',
+      'students.contracts.renew',
       'collaborators.registration',
       'collaborators.consultation',
+      'settings.alunoAccess',
+      'studentApp.access',
     ],
     blocks: [
+      'students.details.summary',
+      'students.details.profile',
+      'students.details.health',
+      'students.details.financialContract',
+      'students.details.assessmentPlan',
+      'students.details.assessments',
+      'students.details.profileReviews',
+      'students.details.trainingPlans',
+      'students.details.audit',
+      'students.actions.editProfile',
+      'students.actions.deleteStudent',
+      'students.actions.resetPassword',
+      'students.actions.manageAssessments',
+      'students.actions.manageFinancialContract',
+      'students.actions.manageProfileReviews',
+      'students.actions.manageAssessmentPlan',
       'collaborators.registration.collaborator',
       'collaborators.registration.manager',
     ],
+    dataScopes: {
+      'collaborators.registration': 'contract',
+      'collaborators.consultation': 'contract',
+    },
   },
   intern: {
-    screens: commonProfessorScreens,
-    blocks: [],
+    screens: commonReadOnlyStudentScreens,
+    blocks: ['students.details.summary'],
+    dataScopes: {
+      'collaborators.registration': 'self',
+      'collaborators.consultation': 'self',
+    },
   },
   administrative: {
-    screens: commonProfessorScreens,
-    blocks: [],
+    screens: [
+      ...commonReadOnlyStudentScreens,
+      'students.financialData',
+      'students.contracts.view',
+      'students.contracts.manage',
+      'students.contracts.cancel',
+      'students.contracts.renew',
+      'settings.alunoAccess',
+      'studentApp.access',
+    ],
+    blocks: [
+      'students.details.summary',
+      'students.details.profile',
+      'students.details.financialContract',
+      'students.details.profileReviews',
+      'students.actions.manageFinancialContract',
+      'students.actions.manageProfileReviews',
+    ],
+    dataScopes: {
+      'collaborators.registration': 'self',
+      'collaborators.consultation': 'self',
+    },
   },
   cleaning: {
-    screens: commonProfessorScreens,
+    screens: commonReadOnlyStudentScreens,
     blocks: [],
+    dataScopes: {
+      'collaborators.registration': 'self',
+      'collaborators.consultation': 'self',
+    },
   },
   services: {
-    screens: commonProfessorScreens,
+    screens: commonReadOnlyStudentScreens,
     blocks: [],
+    dataScopes: {
+      'collaborators.registration': 'self',
+      'collaborators.consultation': 'self',
+    },
   },
 } as const satisfies Record<
   string,
   {
     screens: readonly AccessScreenKey[];
     blocks: readonly AccessBlockKey[];
+    dataScopes?: Partial<Record<AccessScreenKey, AccessDataScope>>;
   }
 >;
 
