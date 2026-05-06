@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Activity, BarChart3, Briefcase, FileText, LogOut, Menu, Search, Settings, X } from 'lucide-react';
+import { LogOut, Menu, X } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { filterSidebarItemsByAccess } from '../access/access-control';
 import { useAuthStore } from '../stores/useAuthStore';
 import { Button } from '../components/ui/Button';
-import { AppSidebar, type SidebarNavItem } from '../components/sidebar';
+import { AppSidebar } from '../components/sidebar';
+import { sidebarMenuItems } from '../navigation/sidebarMenu';
 import { shellCopy } from '../i18n/ptBR';
 
 export function DashboardLayout() {
@@ -44,126 +45,11 @@ export function DashboardLayout() {
     navigate('/login');
   };
 
-  const menuItems = useMemo<SidebarNavItem[]>(
-    () => [
-      {
-        id: 'atendimento',
-        icon: Search,
-        label: 'Atendimento',
-        description: 'Alunos e colaboradores',
-        children: [
-          {
-            id: 'atendimento-alunos',
-            label: 'Alunos',
-            children: [
-              { id: 'consultas-alunos', label: 'Consultar alunos', path: '/consultas/alunos', screenKey: 'students.consultation' },
-              { id: 'alunos', label: 'Novo aluno', path: '/alunos', screenKey: 'students.registration' },
-              { id: 'settings-aluno-access', label: 'Acesso dos alunos', path: '/settings/aluno-access', screenKey: 'settings.alunoAccess' },
-            ],
-          },
-          {
-            id: 'atendimento-colaboradores',
-            label: 'Colaboradores',
-            children: [
-              { id: 'consultas-colaboradores', label: 'Consultar colaboradores', path: '/consultas/colaboradores', screenKey: 'collaborators.consultation' },
-              { id: 'professores', label: 'Novo colaborador', path: '/professores', screenKey: 'collaborators.registration' },
-            ],
-          },
-        ],
-      },
-      {
-        id: 'treinamento',
-        icon: Activity,
-        label: 'Treinamento',
-        description: 'Planejamento e execução',
-        children: [
-          { id: 'plans', label: 'Planos de treino', path: '/plans', screenKey: 'plans' },
-          { id: 'agenda', label: 'Agenda', path: '/agenda', screenKey: 'agenda' },
-          { id: 'library', label: 'Biblioteca de exercícios', path: '/library', screenKey: 'library' },
-          { id: 'executions', label: 'Execuções dos alunos', path: '/executions', screenKey: 'executions' },
-        ],
-      },
-      {
-        id: 'gestao',
-        icon: Briefcase,
-        label: 'Gestão',
-        description: 'Comercial e documentos',
-        children: [
-          {
-            id: 'gestao-contratos',
-            label: 'Contratos',
-            children: [
-              { id: 'settings-contract-templates', label: 'Modelos de contrato', path: '/settings/contract-templates', screenKey: 'settings.contract' },
-              { id: 'settings-contract', label: 'Empresa / prestador', path: '/settings/contract', screenKey: 'settings.contract' },
-            ],
-          },
-          {
-            id: 'gestao-comercial',
-            label: 'Comercial',
-            children: [
-              { id: 'settings-services', label: 'Serviços e planos', path: '/settings/services', screenKey: 'settings.services' },
-              { id: 'hourly-rate-levels', label: 'Valores de hora/aula', path: '/cadastros/valores-hora-aula', screenKey: 'hourlyRateLevels.registration' },
-            ],
-          },
-          {
-            id: 'gestao-administrativo',
-            label: 'Administrativo',
-            children: [
-              { id: 'settings-banks', label: 'Bancos', path: '/settings/banks', screenKey: 'settings.banks' },
-              { id: 'settings-collaborator-functions', label: 'Funções de colaboradores', path: '/settings/collaborator-functions', screenKey: 'settings.collaboratorFunctions' },
-            ],
-          },
-        ],
-      },
-      {
-        id: 'physical-assessment-protocol',
-        icon: FileText,
-        label: 'Avaliação física',
-        description: 'Protocolos e medidas',
-        screenKey: 'physicalAssessment.protocol',
-        children: [
-          { id: 'physical-assessment-protocol-anthropometry', label: 'Antropometria', path: '/protocolo-avaliacao-fisica/antropometria', screenKey: 'physicalAssessment.protocol' },
-          { id: 'physical-assessment-protocol-interview', label: 'Prontuário e acompanhamento', path: '/protocolo-avaliacao-fisica/prontuario-entrevista-acompanhamento', screenKey: 'physicalAssessment.protocol' },
-          { id: 'physical-assessment-protocol-adipometry', label: 'Adipometria', path: '/protocolo-avaliacao-fisica/adipometria', screenKey: 'physicalAssessment.protocol' },
-          { id: 'physical-assessment-protocol-bioimpedance', label: 'Bioimpedanciometria', path: '/protocolo-avaliacao-fisica/bioimpedanciometria', screenKey: 'physicalAssessment.protocol' },
-          { id: 'physical-assessment-protocol-ultrasound', label: 'Ultrassonografia', path: '/protocolo-avaliacao-fisica/ultrassonografia', screenKey: 'physicalAssessment.protocol' },
-        ],
-      },
-      { id: 'reports', icon: BarChart3, label: 'Relatórios', path: '/reports', screenKey: 'reports' },
-      {
-        id: 'settings',
-        icon: Settings,
-        label: 'Configurações',
-        description: 'Parâmetros do sistema',
-        path: '/settings',
-        screenKey: 'settings.home',
-        children: [
-          {
-            id: 'settings-system',
-            label: 'Sistema',
-            children: [
-              { id: 'settings-parameters', label: 'Parâmetros de treino', path: '/settings/parameters', screenKey: 'settings.parameters' },
-              { id: 'settings-psr-pse', label: 'Escalas PSR e PSE', path: '/settings/psr-pse', screenKey: 'settings.subjectiveScales' },
-              { id: 'settings-professor-manual', label: 'Manual do professor', path: '/settings/professor-manual', screenKey: 'settings.professorManual' },
-              { id: 'settings-reference-table', label: 'Tabela de referência', path: '/settings/reference-table', screenKey: 'settings.referenceTable' },
-            ],
-          },
-          {
-            id: 'settings-assessments',
-            label: 'Avaliações',
-            children: [
-              { id: 'settings-assessment-types', label: 'Tipos de avaliação', path: '/settings/assessment-types', screenKey: 'settings.assessmentTypes' },
-            ],
-          },
-        ],
-      },
-    ],
-    []
-  );
+
 
   const visibleMenuItems = useMemo(
-    () => filterSidebarItemsByAccess(menuItems, user),
-    [menuItems, user]
+    () => filterSidebarItemsByAccess(sidebarMenuItems, user),
+    [user]
   );
 
   return (

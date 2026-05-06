@@ -14,6 +14,7 @@ import { formatDateBR } from '../../utils/date';
 type AlunoPlanoAvaliacoesTabProps = {
   alunoId: string;
   assessmentTypes: AssessmentType[];
+  canManageActions: boolean;
 };
 
 type PlanFormItem = {
@@ -79,7 +80,11 @@ const inferStatus = (item: PlanFormItem): AlunoAssessmentPlanStatus => {
   return dueAtStart < todayAtStart ? 'vencida' : 'em_dia';
 };
 
-export function AlunoPlanoAvaliacoesTab({ alunoId, assessmentTypes }: AlunoPlanoAvaliacoesTabProps) {
+export function AlunoPlanoAvaliacoesTab({
+  alunoId,
+  assessmentTypes,
+  canManageActions,
+}: AlunoPlanoAvaliacoesTabProps) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [recalculating, setRecalculating] = useState(false);
@@ -215,7 +220,7 @@ export function AlunoPlanoAvaliacoesTab({ alunoId, assessmentTypes }: AlunoPlano
               type="button"
               variant="outline"
               onClick={handleRecalculate}
-              disabled={recalculating || saving || items.length === 0}
+              disabled={!canManageActions || recalculating || saving || items.length === 0}
               className="w-full sm:w-auto"
             >
               {recalculating ? 'Recalculando...' : 'Recalcular próximas datas'}
@@ -223,7 +228,7 @@ export function AlunoPlanoAvaliacoesTab({ alunoId, assessmentTypes }: AlunoPlano
             <Button
               type="button"
               onClick={handleSave}
-              disabled={saving || recalculating || items.length === 0}
+              disabled={!canManageActions || saving || recalculating || items.length === 0}
               className="w-full sm:w-auto"
             >
               {saving ? 'Salvando...' : 'Salvar plano'}
@@ -233,6 +238,12 @@ export function AlunoPlanoAvaliacoesTab({ alunoId, assessmentTypes }: AlunoPlano
       </CardHeader>
 
       <CardContent className="space-y-4">
+        {!canManageActions && (
+          <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            Você possui acesso de visualização. A edição do plano de avaliações exige permissão específica.
+          </div>
+        )}
+
         {feedback && (
           <div
             className={`rounded-md border px-3 py-2 text-sm ${
@@ -273,6 +284,7 @@ export function AlunoPlanoAvaliacoesTab({ alunoId, assessmentTypes }: AlunoPlano
                       <input
                         type="checkbox"
                         checked={item.isActive}
+                        disabled={!canManageActions}
                         onChange={(event) =>
                           updateItem(item.assessmentTypeId, {
                             isActive: event.target.checked,
@@ -286,7 +298,7 @@ export function AlunoPlanoAvaliacoesTab({ alunoId, assessmentTypes }: AlunoPlano
                       <input
                         type="checkbox"
                         checked={item.isRequired}
-                        disabled={!item.isActive}
+                        disabled={!canManageActions || !item.isActive}
                         onChange={(event) =>
                           updateItem(item.assessmentTypeId, {
                             isRequired: event.target.checked,
@@ -300,7 +312,7 @@ export function AlunoPlanoAvaliacoesTab({ alunoId, assessmentTypes }: AlunoPlano
                       type="number"
                       min={1}
                       max={36}
-                      disabled={!item.isActive}
+                      disabled={!canManageActions || !item.isActive}
                       label="Periodicidade em meses"
                       value={item.cadenceMonths}
                       onChange={(event) =>
@@ -312,7 +324,7 @@ export function AlunoPlanoAvaliacoesTab({ alunoId, assessmentTypes }: AlunoPlano
 
                     <Input
                       type="date"
-                      disabled={!item.isActive}
+                      disabled={!canManageActions || !item.isActive}
                       label="Data de início"
                       value={item.startDate}
                       onChange={(event) =>
@@ -324,7 +336,7 @@ export function AlunoPlanoAvaliacoesTab({ alunoId, assessmentTypes }: AlunoPlano
 
                     <Input
                       type="date"
-                      disabled={!item.isActive}
+                      disabled={!canManageActions || !item.isActive}
                       label="Próxima prevista"
                       value={item.nextDueDate}
                       onChange={(event) =>
@@ -348,7 +360,7 @@ export function AlunoPlanoAvaliacoesTab({ alunoId, assessmentTypes }: AlunoPlano
                     Observações
                     <textarea
                       rows={3}
-                      disabled={!item.isActive}
+                      disabled={!canManageActions || !item.isActive}
                       className="mt-2 w-full rounded-lg border border-input bg-card px-4 py-2.5 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:border-border disabled:bg-muted disabled:text-muted-foreground"
                       placeholder="Ex.: prioridade para avaliação inicial completa e revisão a cada 2 meses."
                       value={item.notes}

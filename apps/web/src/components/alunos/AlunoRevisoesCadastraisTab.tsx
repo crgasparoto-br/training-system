@@ -14,6 +14,7 @@ type ToastType = 'success' | 'error';
 type AlunoRevisoesCadastraisTabProps = {
   alunoId: string;
   onToast: (message: string, type?: ToastType) => void;
+  canManageActions: boolean;
 };
 
 type CurrentStatus = 'em-dia' | 'pendente' | 'vencida';
@@ -115,7 +116,11 @@ const getCurrentStatus = (
 
 const getChangedFieldLabel = (path: string) => changedFieldLabelMap[path] || path;
 
-export function AlunoRevisoesCadastraisTab({ alunoId, onToast }: AlunoRevisoesCadastraisTabProps) {
+export function AlunoRevisoesCadastraisTab({
+  alunoId,
+  onToast,
+  canManageActions,
+}: AlunoRevisoesCadastraisTabProps) {
   const [loading, setLoading] = useState(true);
   const [requestingNow, setRequestingNow] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
@@ -283,12 +288,17 @@ export function AlunoRevisoesCadastraisTab({ alunoId, onToast }: AlunoRevisoesCa
                 Acompanhe pendências, histórico e próximas janelas de revisão do aluno.
               </CardDescription>
             </div>
-            <Button onClick={handleRequestNow} isLoading={requestingNow}>
+            <Button onClick={handleRequestNow} isLoading={requestingNow} disabled={!canManageActions}>
               Solicitar revisão agora
             </Button>
           </div>
         </CardHeader>
         <CardContent>
+          {!canManageActions && (
+            <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              Você possui acesso de visualização. Solicitar revisão e aprovar/rejeitar alterações exige permissão específica.
+            </div>
+          )}
           <div className="grid gap-4 md:grid-cols-3">
             <div className="rounded-lg border border-gray-200 p-4">
               <div className="text-xs text-muted-foreground">Última revisão</div>
@@ -331,6 +341,7 @@ export function AlunoRevisoesCadastraisTab({ alunoId, onToast }: AlunoRevisoesCa
               <input
                 type="checkbox"
                 checked={isReviewRequired}
+                disabled={!canManageActions}
                 onChange={(event) => setIsReviewRequired(event.target.checked)}
               />
               Revisão obrigatória
@@ -343,12 +354,14 @@ export function AlunoRevisoesCadastraisTab({ alunoId, onToast }: AlunoRevisoesCa
               placeholder="Ex.: 4"
               value={reviewPeriodMonths}
               onChange={(event) => setReviewPeriodMonths(event.target.value)}
+              disabled={!canManageActions}
             />
             <Input
               type="date"
               label="Próxima revisão"
               value={nextReviewAtInput}
               onChange={(event) => setNextReviewAtInput(event.target.value)}
+              disabled={!canManageActions}
             />
           </div>
 
@@ -359,7 +372,7 @@ export function AlunoRevisoesCadastraisTab({ alunoId, onToast }: AlunoRevisoesCa
           </div>
 
           <div className="flex justify-end">
-            <Button onClick={handleSaveSettings} isLoading={savingSettings}>
+            <Button onClick={handleSaveSettings} isLoading={savingSettings} disabled={!canManageActions}>
               Salvar configuração
             </Button>
           </div>
@@ -419,6 +432,7 @@ export function AlunoRevisoesCadastraisTab({ alunoId, onToast }: AlunoRevisoesCa
                         className="h-10 rounded-md border border-input bg-background px-3 text-sm"
                         placeholder="Motivo da rejeição (obrigatório para rejeitar)"
                         value={rejectionReasonByReviewId[review.id] || ''}
+                        disabled={!canManageActions}
                         onChange={(event) =>
                           setRejectionReasonByReviewId((current) => ({
                             ...current,
@@ -429,6 +443,7 @@ export function AlunoRevisoesCadastraisTab({ alunoId, onToast }: AlunoRevisoesCa
                       <Button
                         variant="success"
                         onClick={() => handleApprove(review.id)}
+                        disabled={!canManageActions}
                         isLoading={approvingByReviewId[review.id] === true}
                       >
                         Aprovar
@@ -436,6 +451,7 @@ export function AlunoRevisoesCadastraisTab({ alunoId, onToast }: AlunoRevisoesCa
                       <Button
                         variant="destructive"
                         onClick={() => handleReject(review.id)}
+                        disabled={!canManageActions}
                         isLoading={rejectingByReviewId[review.id] === true}
                       >
                         Rejeitar

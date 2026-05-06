@@ -39,7 +39,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         isLoading: false,
       });
     } catch (error: any) {
-      const errorMessage = error.response?.data?.error || 'Erro ao fazer login';
+      const errorMessage = error.response?.data?.error || error.message || 'Erro ao fazer login';
       set({ error: errorMessage, isLoading: false });
       throw error;
     }
@@ -58,7 +58,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         isLoading: false,
       });
     } catch (error: any) {
-      const errorMessage = error.response?.data?.error || 'Erro ao registrar';
+      const errorMessage = error.response?.data?.error || error.message || 'Erro ao registrar';
       set({ error: errorMessage, isLoading: false });
       throw error;
     }
@@ -98,13 +98,19 @@ export const useAuthStore = create<AuthState>((set) => ({
       const user = await authService.me();
       authService.setUser(user);
       set({ user, isLoading: false });
-    } catch (error) {
-      set({
-        user: null,
-        token: null,
-        isAuthenticated: false,
-        isLoading: false,
-      });
+    } catch (error: any) {
+      // Só derruba sessão quando o token realmente é inválido/expirado.
+      if (error?.response?.status === 401) {
+        set({
+          user: null,
+          token: null,
+          isAuthenticated: false,
+          isLoading: false,
+        });
+        return;
+      }
+
+      set({ isLoading: false });
     }
   },
 
