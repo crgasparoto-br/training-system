@@ -413,23 +413,30 @@ export default function SettingsCollaboratorFunctions() {
     setError(null);
     setSaveSuccess(false);
     try {
+      let result;
       if (editingId) {
-        await collaboratorFunctionService.update(editingId, {
+        result = await collaboratorFunctionService.update(editingId, {
           name: form.name,
           isActive: form.isActive,
           permissions,
         });
       } else {
-        await collaboratorFunctionService.create({
+        result = await collaboratorFunctionService.create({
           name: form.name,
           isActive: form.isActive,
           permissions,
         });
       }
+      
+      // Re-fetch all items to ensure we have latest data from server
       await loadItems();
       await loadUser();
+      
+      // Use the server response to update savedPermissions instead of local state
+      const serverPermissions = getPermissionSelection(result);
+      setSavedPermissions(serverPermissions);
+      
       localStorage.setItem(ACCESS_REFRESH_SIGNAL_KEY, String(Date.now()));
-      setSavedPermissions(permissions);
       setSaveSuccess(true);
       setIsCreating(false);
       setTimeout(() => setSaveSuccess(false), 3000);

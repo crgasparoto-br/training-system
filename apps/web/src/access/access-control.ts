@@ -44,7 +44,7 @@ function buildDefaultPermissions(user: CurrentUser) {
 function getPermissions(user: CurrentUser) {
   const permissions =
     user?.accessControl?.permissions ||
-    user?.professor?.collaboratorFunction.accessPermissions ||
+    user?.professor?.collaboratorFunction?.accessPermissions ||
     [];
 
   return permissions.length > 0 ? permissions : buildDefaultPermissions(user);
