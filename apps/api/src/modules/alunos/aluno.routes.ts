@@ -150,6 +150,18 @@ const getProfessorContext = (req: Request) => ({
   contractId: (req as any).user.contractId as string | undefined,
 });
 
+const getManagedProfessorIds = async (contractId: string, actorProfessorId: string) => {
+  const rows = await prisma.professor.findMany({
+    where: {
+      contractId,
+      OR: [{ id: actorProfessorId }, { responsibleManagerId: actorProfessorId }],
+    },
+    select: { id: true },
+  });
+
+  return rows.map((item) => item.id);
+};
+
 const ensureAlunoAccess = async (req: Request, res: Response, alunoId: string) => {
   const { professorId, professorRole, contractId } = getProfessorContext(req);
 
@@ -954,7 +966,28 @@ router.get('/', async (req: Request, res: Response) => {
             filterProfessorId,
             status
           )
-        : await alunoService.findByProfessor(professorId, page, limit, status);
+        : (() => {
+            return prisma.professor
+              .findUnique({
+                where: { id: professorId },
+                select: {
+                  collaboratorFunction: {
+                    select: { code: true },
+                  },
+                },
+              })
+              .then(async (actorProfessor) => {
+                const canViewManagedStudents =
+                  actorProfessor?.collaboratorFunction?.code === 'manager';
+
+                if (canViewManagedStudents && contractId) {
+                  const accessibleProfessorIds = await getManagedProfessorIds(contractId, professorId);
+                  return alunoService.findByProfessorIds(accessibleProfessorIds, page, limit, status);
+                }
+
+                return alunoService.findByProfessor(professorId, page, limit, status);
+              });
+          })();
 
     return sendSuccess(res, result, 'Alunos recuperados com sucesso');
   } catch (error) {
@@ -997,7 +1030,29 @@ router.get('/search', async (req: Request, res: Response) => {
             professorId: filterProfessorId,
             status,
           })
-        : await alunoService.search({ query, professorId, status });
+        : await prisma.professor
+            .findUnique({
+              where: { id: professorId },
+              select: {
+                collaboratorFunction: {
+                  select: { code: true },
+                },
+              },
+            })
+            .then(async (actorProfessor) => {
+              const canViewManagedStudents = actorProfessor?.collaboratorFunction?.code === 'manager';
+
+              if (canViewManagedStudents && contractId) {
+                const accessibleProfessorIds = await getManagedProfessorIds(contractId, professorId);
+                return alunoService.search({
+                  query,
+                  professorIds: accessibleProfessorIds,
+                  status,
+                });
+              }
+
+              return alunoService.search({ query, professorId, status });
+            });
 
     return sendSuccess(res, alunos, 'Busca realizada com sucesso');
   } catch (error) {
