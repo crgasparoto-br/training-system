@@ -341,6 +341,76 @@ export const alunoService = {
     };
   },
 
+  async findByProfessorIds(
+    professorIds: string[],
+    page: number = 1,
+    limit: number = 10,
+    status: 'active' | 'inactive' | 'all' = 'active'
+  ) {
+    if (professorIds.length === 0) {
+      return {
+        alunos: [],
+        pagination: {
+          page,
+          limit,
+          total: 0,
+          totalPages: 0,
+        },
+      };
+    }
+
+    const skip = (page - 1) * limit;
+    const statusFilter =
+      status === 'all' ? {} : { user: { isActive: status === 'active' } };
+
+    const where = {
+      professorId: { in: professorIds },
+      ...statusFilter,
+    };
+
+    const [alunos, total] = await Promise.all([
+      prisma.aluno.findMany({
+        where,
+        include: {
+          user: {
+            include: {
+              profile: true,
+            },
+          },
+          professor: {
+            include: {
+              user: {
+                include: {
+                  profile: true,
+                },
+              },
+            },
+          },
+          service: true,
+          macronutrients: true,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+        skip,
+        take: limit,
+      }),
+      prisma.aluno.count({
+        where,
+      }),
+    ]);
+
+    return {
+      alunos,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  },
+
   /**
    * Listar alunos por contrato (opcionalmente filtrando por professor)
    */
@@ -654,10 +724,11 @@ export const alunoService = {
   async search(params: {
     query: string;
     professorId?: string;
+    professorIds?: string[];
     contractId?: string;
     status?: 'active' | 'inactive' | 'all';
   }) {
-    const { query, professorId, contractId, status = 'active' } = params;
+    const { query, professorId, professorIds, contractId, status = 'active' } = params;
     const where: any = {
       user: {
         profile: {
@@ -678,6 +749,10 @@ export const alunoService = {
 
     if (professorId) {
       where.professorId = professorId;
+    }
+
+    if (professorIds && professorIds.length > 0) {
+      where.professorId = { in: professorIds };
     }
 
     if (contractId) {
