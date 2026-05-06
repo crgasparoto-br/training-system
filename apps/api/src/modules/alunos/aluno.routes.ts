@@ -14,8 +14,15 @@ import fs from 'fs';
 import pdfParse from 'pdf-parse';
 import { PrismaClient } from '@prisma/client';
 import { assessmentService } from '../assessments/assessment.service.js';
+import { alunoAssessmentPlanService } from './aluno-assessment-plan.service.js';
+import { upsertAlunoAssessmentPlanSchema } from './aluno-assessment-plan.schemas.js';
 import { parseAssessmentPdf } from '../assessments/assessment-parser.js';
 import { fillAssessmentWithAi } from '../assessments/assessment-ai.js';
+import { profileReviewService } from './profile-review.service.js';
+import { profileAuditService } from './profile-audit.service.js';
+import { assessmentPlanNotificationService } from './assessment-plan-notification.service.js';
+import { screenAccessMiddleware, blockAccessMiddleware } from '../access-control/access-control.middleware.js';
+import { studentContractService } from '../student-contracts/student-contract.service.js';
 
 const router: Router = Router();
 const prisma = new PrismaClient();
@@ -164,6 +171,536 @@ const ensureAlunoAccess = async (req: Request, res: Response, alunoId: string) =
   return true;
 };
 
+const parseOptionalIsoDate = (value: string | undefined | null) => {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value === null || value.trim() === '') {
+    return null;
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error('Data inválida');
+  }
+
+  return parsed;
+};
+
+const createProfileReviewSchema = z.object({
+  dueAt: z.string().optional(),
+  sectionsRequested: z.array(z.string().min(1)).optional(),
+});
+
+const updateProfileReviewSettingsSchema = z.object({
+  reviewPeriodMonths: z.number().int().min(1).max(24).nullable().optional(),
+  nextReviewAt: z.string().nullable().optional(),
+  isReviewRequired: z.boolean().optional(),
+});
+
+const rejectProfileReviewSchema = z.object({
+  reason: z.string().trim().min(3).max(500),
+});
+
+const createStudentContractSchema = z.object({
+  contractId: z.string().min(1),
+  serviceId: z.string().nullable().optional(),
+  status: z
+    .enum(['draft', 'pending_signature', 'active', 'expired', 'canceled', 'terminated'])
+    .optional(),
+  startDate: z.string().nullable().optional(),
+  endDate: z.string().nullable().optional(),
+  amount: z.coerce.number().nonnegative().nullable().optional(),
+  paymentDay: z.coerce.number().int().min(1).max(31).nullable().optional(),
+  notes: z.string().max(2000).nullable().optional(),
+});
+
+const updateStudentContractSchema = z
+  .object({
+    serviceId: z.string().nullable().optional(),
+    status: z
+      .enum(['draft', 'pending_signature', 'active', 'expired', 'canceled', 'terminated'])
+      .optional(),
+    startDate: z.string().nullable().optional(),
+    endDate: z.string().nullable().optional(),
+    signedAt: z.string().nullable().optional(),
+    canceledAt: z.string().nullable().optional(),
+    cancellationReason: z.string().max(500).nullable().optional(),
+    amount: z.coerce.number().nonnegative().nullable().optional(),
+    paymentDay: z.coerce.number().int().min(1).max(31).nullable().optional(),
+    notes: z.string().max(2000).nullable().optional(),
+  })
+  .refine((payload) => Object.keys(payload).length > 0, {
+    message: 'Informe ao menos um campo para atualização',
+  });
+
+const cancelStudentContractSchema = z.object({
+  reason: z.string().trim().min(3).max(500),
+});
+
+/**
+ * GET /api/v1/alunos/:id/profile-reviews
+ * Listar revisões cadastrais do aluno
+ */
+router.get('/:id/profile-reviews', blockAccessMiddleware('students.details.profileReviews'), async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    if (!(await ensureAlunoAccess(req, res, id))) {
+      return;
+    }
+
+    const reviews = await profileReviewService.listByAluno(id);
+    return sendSuccess(res, reviews, 'Revisões cadastrais recuperadas com sucesso');
+  } catch (error) {
+    console.error('Erro ao listar revisões cadastrais:', error);
+    return sendError(res, 'Erro ao listar revisões cadastrais', 500);
+  }
+});
+
+/**
+ * POST /api/v1/alunos/:id/profile-reviews
+ * Criar solicitação manual de revisão cadastral
+ */
+router.post('/:id/profile-reviews', blockAccessMiddleware('students.actions.manageProfileReviews'), async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    if (!(await ensureAlunoAccess(req, res, id))) {
+      return;
+    }
+
+    const validated = createProfileReviewSchema.parse(req.body);
+    const dueAt = parseOptionalIsoDate(validated.dueAt);
+
+    const requestedByUserId = (req as any).user.userId as string;
+    const created = await profileReviewService.createManualReview({
+      alunoId: id,
+      requestedByUserId,
+      dueAt: dueAt ?? undefined,
+      sectionsRequested: validated.sectionsRequested,
+    });
+
+    return sendSuccess(res, created, 'Solicitação de revisão cadastral criada com sucesso', 201);
+  } catch (error: any) {
+    if (error instanceof z.ZodError) {
+      return sendError(res, 'Dados inválidos', 400, error.errors);
+    }
+    if (error?.message === 'Data inválida') {
+      return sendError(res, error.message, 400);
+    }
+    console.error('Erro ao criar revisão cadastral:', error);
+    return sendError(res, 'Erro ao criar revisão cadastral', 500);
+  }
+});
+
+/**
+ * GET /api/v1/alunos/:id/profile-review-settings
+ * Retornar configuração individual de revisão cadastral
+ */
+router.get('/:id/profile-review-settings', blockAccessMiddleware('students.details.profileReviews'), async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    if (!(await ensureAlunoAccess(req, res, id))) {
+      return;
+    }
+
+    const settings = await profileReviewService.getEffectiveSettings(id);
+    return sendSuccess(res, settings, 'Configuração de revisão cadastral recuperada com sucesso');
+  } catch (error: any) {
+    if (error?.message === 'Aluno não encontrado') {
+      return sendError(res, error.message, 404);
+    }
+    console.error('Erro ao obter configuração de revisão cadastral:', error);
+    return sendError(res, 'Erro ao obter configuração de revisão cadastral', 500);
+  }
+});
+
+/**
+ * PUT /api/v1/alunos/:id/profile-review-settings
+ * Atualizar configuração individual de revisão cadastral
+ */
+router.put('/:id/profile-review-settings', blockAccessMiddleware('students.actions.manageProfileReviews'), async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    if (!(await ensureAlunoAccess(req, res, id))) {
+      return;
+    }
+
+    const validated = updateProfileReviewSettingsSchema.parse(req.body);
+    const nextReviewAt = parseOptionalIsoDate(validated.nextReviewAt);
+
+    const updated = await profileReviewService.updateSettings({
+      alunoId: id,
+      reviewPeriodMonths: validated.reviewPeriodMonths,
+      nextReviewAt,
+      isReviewRequired: validated.isReviewRequired,
+    });
+
+    return sendSuccess(res, updated, 'Configuração de revisão cadastral atualizada com sucesso');
+  } catch (error: any) {
+    if (error instanceof z.ZodError) {
+      return sendError(res, 'Dados inválidos', 400, error.errors);
+    }
+    if (error?.message === 'Data inválida') {
+      return sendError(res, error.message, 400);
+    }
+    console.error('Erro ao atualizar configuração de revisão cadastral:', error);
+    return sendError(res, 'Erro ao atualizar configuração de revisão cadastral', 500);
+  }
+});
+
+/**
+ * POST /api/v1/alunos/:id/profile-reviews/:reviewId/approve
+ * Aprovar alterações sensíveis da revisão cadastral
+ */
+router.post('/:id/profile-reviews/:reviewId/approve', blockAccessMiddleware('students.actions.manageProfileReviews'), async (req: Request, res: Response) => {
+  try {
+    const { id, reviewId } = req.params;
+    if (!(await ensureAlunoAccess(req, res, id))) {
+      return;
+    }
+
+    const approvedByUserId = (req as any).user.userId as string;
+    const approved = await profileReviewService.approveReview(id, reviewId, approvedByUserId);
+
+    return sendSuccess(res, approved, 'Alterações sensíveis aprovadas com sucesso');
+  } catch (error: any) {
+    if (error?.message?.includes('não encontrada')) {
+      return sendError(res, error.message, 404);
+    }
+    if (error?.message?.includes('pendentes')) {
+      return sendError(res, error.message, 400);
+    }
+    console.error('Erro ao aprovar revisão cadastral:', error);
+    return sendError(res, 'Erro ao aprovar revisão cadastral', 500);
+  }
+});
+
+/**
+ * POST /api/v1/alunos/:id/profile-reviews/:reviewId/reject
+ * Rejeitar alterações sensíveis da revisão cadastral
+ */
+router.post('/:id/profile-reviews/:reviewId/reject', blockAccessMiddleware('students.actions.manageProfileReviews'), async (req: Request, res: Response) => {
+  try {
+    const { id, reviewId } = req.params;
+    if (!(await ensureAlunoAccess(req, res, id))) {
+      return;
+    }
+
+    const validated = rejectProfileReviewSchema.parse(req.body);
+    const rejectedByUserId = (req as any).user.userId as string;
+
+    const rejected = await profileReviewService.rejectReview(
+      id,
+      reviewId,
+      rejectedByUserId,
+      validated.reason
+    );
+
+    return sendSuccess(res, rejected, 'Alterações sensíveis rejeitadas com sucesso');
+  } catch (error: any) {
+    if (error instanceof z.ZodError) {
+      return sendError(res, 'Dados inválidos', 400, error.errors);
+    }
+    if (error?.message?.includes('não encontrada')) {
+      return sendError(res, error.message, 404);
+    }
+    if (error?.message?.includes('pendentes')) {
+      return sendError(res, error.message, 400);
+    }
+    console.error('Erro ao rejeitar revisão cadastral:', error);
+    return sendError(res, 'Erro ao rejeitar revisão cadastral', 500);
+  }
+});
+
+/**
+ * GET /api/v1/alunos/:id/profile-audit-logs
+ * Lista o log de auditoria de alterações cadastrais do aluno.
+ */
+const profileAuditLogsQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).optional().default(1),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(20),
+});
+
+router.get(
+  '/:id/profile-audit-logs',
+  screenAccessMiddleware('students.profileReview'),
+  async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const query = profileAuditLogsQuerySchema.parse(req.query);
+      const result = await profileAuditService.listByAluno(id, {
+        page: query.page,
+        limit: query.limit,
+      });
+      return sendSuccess(res, result);
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return sendError(res, 'Parâmetros inválidos', 400, error.errors);
+      }
+      console.error('Erro ao buscar logs de auditoria cadastral:', error);
+      return sendError(res, 'Erro ao buscar logs de auditoria', 500);
+    }
+  }
+);
+
+/**
+ * GET /api/v1/alunos/:id/contracts
+ * Listar histórico de contratos vinculados ao aluno
+ */
+router.get(
+  '/:id/contracts',
+  screenAccessMiddleware('students.contracts.view'),
+  async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { contractId } = getProfessorContext(req);
+
+      if (!contractId) {
+        return sendError(res, 'Contrato não encontrado', 404);
+      }
+
+      if (!(await ensureAlunoAccess(req, res, id))) {
+        return;
+      }
+
+      const contracts = await studentContractService.listByAluno(id, {
+        companyContractId: contractId,
+      });
+
+      const activeContract = contracts.find((item) => item.status === 'active') ?? null;
+
+      return sendSuccess(
+        res,
+        {
+          alunoId: id,
+          activeContract,
+          contracts,
+        },
+        'Contratos vinculados ao aluno recuperados com sucesso'
+      );
+    } catch (error: any) {
+      console.error('Erro ao listar contratos do aluno:', error);
+      return sendError(res, error?.message || 'Erro ao listar contratos do aluno', 500);
+    }
+  }
+);
+
+/**
+ * POST /api/v1/alunos/:id/contracts
+ * Vincular contrato existente ao aluno
+ */
+router.post(
+  '/:id/contracts',
+  blockAccessMiddleware('students.actions.manageFinancialContract'),
+  async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { contractId } = getProfessorContext(req);
+
+      if (!contractId) {
+        return sendError(res, 'Contrato não encontrado', 404);
+      }
+
+      if (!(await ensureAlunoAccess(req, res, id))) {
+        return;
+      }
+
+      const validated = createStudentContractSchema.parse(req.body);
+
+      const created = await studentContractService.linkExistingContract(
+        {
+          alunoId: id,
+          contractId: validated.contractId,
+          serviceId: validated.serviceId,
+          status: validated.status,
+          startDate: parseOptionalDate(validated.startDate, 'startDate'),
+          endDate: parseOptionalDate(validated.endDate, 'endDate'),
+          amount: validated.amount,
+          paymentDay: validated.paymentDay,
+          notes: validated.notes,
+        },
+        {
+          companyContractId: contractId,
+        }
+      );
+
+      return sendSuccess(res, created, 'Contrato vinculado ao aluno com sucesso', 201);
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return sendError(res, 'Dados inválidos', 400, error.errors);
+      }
+      if (error?.message?.startsWith('Campo ')) {
+        return sendError(res, error.message, 400);
+      }
+      if (
+        error?.message?.includes('não pertence') ||
+        error?.message?.includes('já está vinculado') ||
+        error?.message?.includes('já possui contrato ativo')
+      ) {
+        return sendError(res, error.message, 400);
+      }
+      if (error?.message?.includes('não encontrado')) {
+        return sendError(res, error.message, 404);
+      }
+      console.error('Erro ao vincular contrato ao aluno:', error);
+      return sendError(res, 'Erro ao vincular contrato ao aluno', 500);
+    }
+  }
+);
+
+/**
+ * PATCH /api/v1/alunos/:id/contracts/:studentContractId
+ * Atualizar vínculo de contrato do aluno
+ */
+router.patch(
+  '/:id/contracts/:studentContractId',
+  blockAccessMiddleware('students.actions.manageFinancialContract'),
+  async (req: Request, res: Response) => {
+    try {
+      const { id, studentContractId } = req.params;
+      const { contractId } = getProfessorContext(req);
+
+      if (!contractId) {
+        return sendError(res, 'Contrato não encontrado', 404);
+      }
+
+      if (!(await ensureAlunoAccess(req, res, id))) {
+        return;
+      }
+
+      const validated = updateStudentContractSchema.parse(req.body);
+
+      const updated = await studentContractService.update(
+        id,
+        studentContractId,
+        {
+          serviceId: validated.serviceId,
+          status: validated.status,
+          startDate: parseOptionalDate(validated.startDate, 'startDate'),
+          endDate: parseOptionalDate(validated.endDate, 'endDate'),
+          signedAt: parseOptionalDate(validated.signedAt, 'signedAt'),
+          canceledAt: parseOptionalDate(validated.canceledAt, 'canceledAt'),
+          cancellationReason: validated.cancellationReason,
+          amount: validated.amount,
+          paymentDay: validated.paymentDay,
+          notes: validated.notes,
+        },
+        {
+          companyContractId: contractId,
+        }
+      );
+
+      return sendSuccess(res, updated, 'Vínculo de contrato atualizado com sucesso');
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return sendError(res, 'Dados inválidos', 400, error.errors);
+      }
+      if (error?.message?.startsWith('Campo ')) {
+        return sendError(res, error.message, 400);
+      }
+      if (
+        error?.message?.includes('não encontrado') ||
+        error?.message?.includes('não possui') ||
+        error?.message?.includes('fora do escopo')
+      ) {
+        return sendError(res, error.message, 404);
+      }
+      if (error?.message?.includes('já possui contrato ativo')) {
+        return sendError(res, error.message, 400);
+      }
+      console.error('Erro ao atualizar vínculo de contrato:', error);
+      return sendError(res, 'Erro ao atualizar vínculo de contrato', 500);
+    }
+  }
+);
+
+/**
+ * POST /api/v1/alunos/:id/contracts/:studentContractId/activate
+ * Ativar vínculo de contrato do aluno
+ */
+router.post(
+  '/:id/contracts/:studentContractId/activate',
+  blockAccessMiddleware('students.actions.manageFinancialContract'),
+  async (req: Request, res: Response) => {
+    try {
+      const { id, studentContractId } = req.params;
+      const { contractId } = getProfessorContext(req);
+
+      if (!contractId) {
+        return sendError(res, 'Contrato não encontrado', 404);
+      }
+
+      if (!(await ensureAlunoAccess(req, res, id))) {
+        return;
+      }
+
+      const activated = await studentContractService.activate(id, studentContractId, {
+        companyContractId: contractId,
+      });
+
+      return sendSuccess(res, activated, 'Contrato ativado com sucesso');
+    } catch (error: any) {
+      if (
+        error?.message?.includes('não encontrado') ||
+        error?.message?.includes('fora do escopo')
+      ) {
+        return sendError(res, error.message, 404);
+      }
+      console.error('Erro ao ativar contrato do aluno:', error);
+      return sendError(res, error?.message || 'Erro ao ativar contrato do aluno', 500);
+    }
+  }
+);
+
+/**
+ * POST /api/v1/alunos/:id/contracts/:studentContractId/cancel
+ * Cancelar vínculo de contrato do aluno
+ */
+router.post(
+  '/:id/contracts/:studentContractId/cancel',
+  blockAccessMiddleware('students.actions.manageFinancialContract'),
+  async (req: Request, res: Response) => {
+    try {
+      const { id, studentContractId } = req.params;
+      const { contractId } = getProfessorContext(req);
+
+      if (!contractId) {
+        return sendError(res, 'Contrato não encontrado', 404);
+      }
+
+      if (!(await ensureAlunoAccess(req, res, id))) {
+        return;
+      }
+
+      const validated = cancelStudentContractSchema.parse(req.body);
+
+      const canceled = await studentContractService.cancel(
+        id,
+        studentContractId,
+        validated.reason,
+        {
+          companyContractId: contractId,
+        }
+      );
+
+      return sendSuccess(res, canceled, 'Contrato cancelado com sucesso');
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return sendError(res, 'Dados inválidos', 400, error.errors);
+      }
+      if (
+        error?.message?.includes('não encontrado') ||
+        error?.message?.includes('fora do escopo')
+      ) {
+        return sendError(res, error.message, 404);
+      }
+      console.error('Erro ao cancelar contrato do aluno:', error);
+      return sendError(res, error?.message || 'Erro ao cancelar contrato do aluno', 500);
+    }
+  }
+);
+
 // Schemas de validaÃ§Ã£o
 /**
  * POST /api/v1/alunos
@@ -259,6 +796,37 @@ const parseBrDateToIso = (value?: string | null) => {
 
   const [, day, month, year] = match;
   return `${year}-${month}-${day}`;
+};
+
+const parseOptionalDate = (value: string | null | undefined, fieldName: string) => {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (value === null || value.trim() === '') {
+    return null;
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error(`Campo ${fieldName} inválido`);
+  }
+
+  return parsed;
+};
+
+const recalculateAssessmentPlanAfterMutation = async (
+  alunoId: string,
+  contractId: string
+) => {
+  await alunoAssessmentPlanService.recalculateByAluno({
+    alunoId,
+    contractId,
+  });
+
+  await assessmentPlanNotificationService.dispatchForAluno(alunoId, contractId, {
+    upcomingWindowDays: 7,
+  });
 };
 
 const extractNamedValue = (text: string, labels: string[]) => {
@@ -511,7 +1079,7 @@ router.get('/:id', async (req: Request, res: Response) => {
  * PUT /api/v1/alunos/:id
  * Atualizar aluno
  */
-router.put('/:id', async (req: Request, res: Response) => {
+router.put('/:id', blockAccessMiddleware('students.actions.editProfile'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     if (!(await ensureAlunoAccess(req, res, id))) {
@@ -535,7 +1103,7 @@ router.put('/:id', async (req: Request, res: Response) => {
  * DELETE /api/v1/alunos/:id
  * Deletar aluno
  */
-router.delete('/:id', async (req: Request, res: Response) => {
+router.delete('/:id', blockAccessMiddleware('students.actions.deleteStudent'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     if (!(await ensureAlunoAccess(req, res, id))) {
@@ -556,7 +1124,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
  * POST /api/v1/alunos/:id/deactivate
  * Inativar aluno
  */
-router.post('/:id/deactivate', async (req: Request, res: Response) => {
+router.post('/:id/deactivate', blockAccessMiddleware('students.actions.deleteStudent'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const professorId = (req as any).user.professorId;
@@ -588,7 +1156,7 @@ router.post('/:id/deactivate', async (req: Request, res: Response) => {
  * POST /api/v1/alunos/:id/activate
  * Reativar aluno
  */
-router.post('/:id/activate', async (req: Request, res: Response) => {
+router.post('/:id/activate', blockAccessMiddleware('students.actions.editProfile'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const professorId = (req as any).user.professorId;
@@ -620,7 +1188,7 @@ router.post('/:id/activate', async (req: Request, res: Response) => {
  * POST /api/v1/alunos/:id/reset-password
  * Resetar senha do aluno (gera senha temporÃ¡ria)
  */
-router.post('/:id/reset-password', async (req: Request, res: Response) => {
+router.post('/:id/reset-password', blockAccessMiddleware('students.actions.resetPassword'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     if (!(await ensureAlunoAccess(req, res, id))) {
@@ -639,7 +1207,7 @@ router.post('/:id/reset-password', async (req: Request, res: Response) => {
  * GET /api/v1/alunos/:id/assessments
  * Listar avaliaÃƒÂ§ÃƒÂµes do aluno
  */
-router.get('/:id/assessments', async (req: Request, res: Response) => {
+router.get('/:id/assessments', blockAccessMiddleware('students.details.assessments'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     if (!(await ensureAlunoAccess(req, res, id))) {
@@ -667,7 +1235,7 @@ router.get('/:id/assessments', async (req: Request, res: Response) => {
  * GET /api/v1/alunos/:id/assessments/summary
  * Resumo da ÃƒÂºltima e prÃƒÂ³xima avaliaÃƒÂ§ÃƒÂ£o por tipo
  */
-router.get('/:id/assessments/summary', async (req: Request, res: Response) => {
+router.get('/:id/assessments/summary', blockAccessMiddleware('students.details.assessments'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { professorId, professorRole, contractId } = getProfessorContext(req);
@@ -693,10 +1261,125 @@ router.get('/:id/assessments/summary', async (req: Request, res: Response) => {
 });
 
 /**
- * POST /api/v1/alunos/:id/assessments
- * Upload de avaliaÃƒÂ§ÃƒÂ£o e criaÃƒÂ§ÃƒÂ£o de registro
+ * GET /api/v1/alunos/:id/assessment-plan
+ * Lista plano de avaliações do aluno (ativos e inativos)
  */
-router.post('/:id/assessments', uploadAssessmentFile, async (req: Request, res: Response) => {
+router.get('/:id/assessment-plan', screenAccessMiddleware('students.assessmentPlan'), async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { contractId } = getProfessorContext(req);
+
+    if (!contractId) {
+      return sendError(res, 'Contrato não encontrado', 404);
+    }
+
+    if (!(await ensureAlunoAccess(req, res, id))) {
+      return;
+    }
+
+    const plan = await alunoAssessmentPlanService.getByAluno(id, contractId);
+    return sendSuccess(res, plan, 'Plano de avaliações carregado com sucesso');
+  } catch (error) {
+    console.error('Erro ao carregar plano de avaliações:', error);
+    return sendError(res, 'Erro ao carregar plano de avaliações', 500);
+  }
+});
+
+/**
+ * PUT /api/v1/alunos/:id/assessment-plan
+ * Criar/atualizar itens do plano de avaliações do aluno
+ */
+router.put('/:id/assessment-plan', blockAccessMiddleware('students.actions.manageAssessmentPlan'), async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { contractId } = getProfessorContext(req);
+
+    if (!contractId) {
+      return sendError(res, 'Contrato não encontrado', 404);
+    }
+
+    if (!(await ensureAlunoAccess(req, res, id))) {
+      return;
+    }
+
+    const validated = upsertAlunoAssessmentPlanSchema.parse(req.body);
+    const items = validated.items.map((item) => ({
+      assessmentTypeId: item.assessmentTypeId,
+      isActive: item.isActive,
+      isRequired: item.isRequired,
+      cadenceMonths: item.cadenceMonths,
+      startDate: parseOptionalDate(item.startDate, 'startDate'),
+      nextDueDate: parseOptionalDate(item.nextDueDate, 'nextDueDate'),
+      notes: item.notes === undefined ? undefined : item.notes?.trim() || null,
+    }));
+
+    const plan = await alunoAssessmentPlanService.upsertByAluno({
+      alunoId: id,
+      contractId,
+      items,
+    });
+
+    await assessmentPlanNotificationService.dispatchForAluno(id, contractId, {
+      upcomingWindowDays: 7,
+    });
+
+    return sendSuccess(res, plan, 'Plano de avaliações salvo com sucesso');
+  } catch (error: any) {
+    if (error instanceof z.ZodError) {
+      return sendError(res, 'Dados inválidos', 400, error.errors);
+    }
+
+    if (error?.message?.startsWith('Campo ')) {
+      return sendError(res, error.message, 400);
+    }
+
+    if (error?.message?.includes('tipos de avaliação')) {
+      return sendError(res, error.message, 400);
+    }
+
+    console.error('Erro ao salvar plano de avaliações:', error);
+    return sendError(res, 'Erro ao salvar plano de avaliações', 500);
+  }
+});
+
+/**
+ * POST /api/v1/alunos/:id/assessment-plan/recalculate
+ * Recalcula próximas datas previstas do plano de avaliações
+ */
+router.post('/:id/assessment-plan/recalculate', blockAccessMiddleware('students.actions.manageAssessmentPlan'), async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { contractId } = getProfessorContext(req);
+
+    if (!contractId) {
+      return sendError(res, 'Contrato não encontrado', 404);
+    }
+
+    if (!(await ensureAlunoAccess(req, res, id))) {
+      return;
+    }
+
+    const plan = await alunoAssessmentPlanService.recalculateByAluno({
+      alunoId: id,
+      contractId,
+    });
+
+    await assessmentPlanNotificationService.dispatchForAluno(id, contractId, {
+      upcomingWindowDays: 7,
+    });
+
+    return sendSuccess(res, plan, 'Plano de avaliações recalculado com sucesso');
+  } catch (error) {
+    console.error('Erro ao recalcular plano de avaliações:', error);
+    return sendError(res, 'Erro ao recalcular plano de avaliações', 500);
+  }
+});
+
+/**
+ * POST /api/v1/alunos/:id/assessments
+ * Upload de avaliacao e criacao de registro
+ */
+router.post('/:id/assessments', blockAccessMiddleware('students.actions.manageAssessments'), uploadAssessmentFile, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { professorId, professorRole, contractId } = getProfessorContext(req);
@@ -773,6 +1456,8 @@ router.post('/:id/assessments', uploadAssessmentFile, async (req: Request, res: 
       extractedData,
     });
 
+    await recalculateAssessmentPlanAfterMutation(id, contractId);
+
     return sendSuccess(res, created, 'AvaliaÃƒÂ§ÃƒÂ£o cadastrada com sucesso', 201);
   } catch (error: any) {
     if (error instanceof z.ZodError) {
@@ -790,7 +1475,7 @@ router.post('/:id/assessments', uploadAssessmentFile, async (req: Request, res: 
  * GET /api/v1/alunos/:id/assessments/:assessmentId/file
  * Download do PDF da avaliaÃƒÂ§ÃƒÂ£o
  */
-router.get('/:id/assessments/:assessmentId/file', async (req: Request, res: Response) => {
+router.get('/:id/assessments/:assessmentId/file', blockAccessMiddleware('students.details.assessments'), async (req: Request, res: Response) => {
   try {
     const { id, assessmentId } = req.params;
     const professorId = (req as any).user.professorId;
@@ -825,7 +1510,7 @@ router.get('/:id/assessments/:assessmentId/file', async (req: Request, res: Resp
  * POST /api/v1/alunos/:id/assessments/:assessmentId/reprocess
  * Reprocessar PDF e atualizar extractedData
  */
-router.post('/:id/assessments/:assessmentId/reprocess', async (req: Request, res: Response) => {
+router.post('/:id/assessments/:assessmentId/reprocess', blockAccessMiddleware('students.actions.manageAssessments'), async (req: Request, res: Response) => {
   try {
     const { id, assessmentId } = req.params;
     const professorId = (req as any).user.professorId;
@@ -891,6 +1576,8 @@ router.post('/:id/assessments/:assessmentId/reprocess', async (req: Request, res
       },
     });
 
+    await recalculateAssessmentPlanAfterMutation(id, contractId);
+
     await prisma.assessmentAuditLog.create({
       data: {
         assessmentId,
@@ -918,13 +1605,14 @@ router.post('/:id/assessments/:assessmentId/reprocess', async (req: Request, res
  * GET /api/v1/alunos/:id/assessments/:assessmentId/logs
  * Histórico de alterações da avaliação
  */
-router.get('/:id/assessments/:assessmentId/logs', async (req: Request, res: Response) => {
+router.get('/:id/assessments/:assessmentId/logs', blockAccessMiddleware('students.actions.manageAssessments'), async (req: Request, res: Response) => {
   try {
     const { id, assessmentId } = req.params;
     const professorId = (req as any).user.professorId;
+    const contractId = (req as any).user.contractId;
 
-    if (!professorId) {
-      return sendError(res, 'Professor não encontrado', 404);
+    if (!professorId || !contractId) {
+      return sendError(res, 'Contrato ou professor não encontrado', 404);
     }
 
     const belongs = await alunoService.belongsToProfessor(id, professorId);
@@ -962,9 +1650,9 @@ router.get('/:id/assessments/:assessmentId/logs', async (req: Request, res: Resp
 
 /**
  * PUT /api/v1/alunos/:id/assessments/:assessmentId
- * Atualizar data/tipo da avaliação
+ * Atualizar data/tipo da avaliacao
  */
-router.put('/:id/assessments/:assessmentId', async (req: Request, res: Response) => {
+router.put('/:id/assessments/:assessmentId', blockAccessMiddleware('students.actions.manageAssessments'), async (req: Request, res: Response) => {
   try {
     const { id, assessmentId } = req.params;
     const professorId = (req as any).user.professorId;
@@ -1064,13 +1752,14 @@ router.put('/:id/assessments/:assessmentId', async (req: Request, res: Response)
  * DELETE /api/v1/alunos/:id/assessments/:assessmentId
  * Excluir avaliação e PDF
  */
-router.delete('/:id/assessments/:assessmentId', async (req: Request, res: Response) => {
+router.delete('/:id/assessments/:assessmentId', blockAccessMiddleware('students.actions.manageAssessments'), async (req: Request, res: Response) => {
   try {
     const { id, assessmentId } = req.params;
     const professorId = (req as any).user.professorId;
+    const contractId = (req as any).user.contractId;
 
-    if (!professorId) {
-      return sendError(res, 'Professor não encontrado', 404);
+    if (!professorId || !contractId) {
+      return sendError(res, 'Contrato ou professor não encontrado', 404);
     }
 
     const belongs = await alunoService.belongsToProfessor(id, professorId);
@@ -1102,6 +1791,7 @@ router.delete('/:id/assessments/:assessmentId', async (req: Request, res: Respon
     }
 
     await assessmentService.delete(assessmentId);
+    await recalculateAssessmentPlanAfterMutation(id, contractId);
     return sendSuccess(res, null, 'Avaliação excluída com sucesso');
   } catch (error) {
     console.error('Erro ao excluir avaliação:', error);

@@ -76,4 +76,19 @@ router.put('/:id', academyMasterMiddleware, async (req: Request, res: Response) 
   }
 });
 
+router.post('/sync-permissions', academyMasterMiddleware, async (req: Request, res: Response) => {
+  try {
+    const contractId = (req as any).user.contractId;
+
+    if (!contractId) {
+      return sendError(res, 'Contrato não encontrado', 404);
+    }
+
+    const result = await collaboratorFunctionService.syncPermissionsByContract(contractId);
+    return sendSuccess(res, result, 'Permissões sincronizadas com sucesso');
+  } catch (error: any) {
+    return sendError(res, error.message || 'Erro ao sincronizar permissões', 500);
+  }
+});
+
 export default router;

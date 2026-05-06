@@ -74,7 +74,7 @@ export const assessmentService = {
   },
 
   async getSummaryByAluno(alunoId: string, contractId: string) {
-    const [types, assessments] = await Promise.all([
+    const [types, assessments, planItems] = await Promise.all([
       prisma.assessmentType.findMany({
         where: { contractId, isActive: true },
         orderBy: { name: 'asc' },
@@ -84,6 +84,15 @@ export const assessmentService = {
         orderBy: { assessmentDate: 'desc' },
         include: { type: true },
       }),
+      prisma.alunoAssessmentPlanItem.findMany({
+        where: {
+          alunoId,
+          isActive: true,
+          assessmentType: {
+            contractId,
+          },
+        },
+      }),
     ]);
 
     const lastByType = new Map<string, Date>();
@@ -92,6 +101,16 @@ export const assessmentService = {
         lastByType.set(item.typeId, item.assessmentDate);
       }
     }
+
+    const activePlanByType = new Map(
+      planItems.map((item) => [item.assessmentTypeId, item])
+    );
+
+    const addMonths = (source: Date, months: number) => {
+      const date = new Date(source);
+      date.setMonth(date.getMonth() + months);
+      return date;
+    };
 
     const getNextDate = (typeId: string, typeSchedule: AssessmentScheduleType, intervalMonths?: number | null, afterTypeId?: string | null, offsetMonths?: number | null) => {
       if (typeSchedule === 'fixed_interval') {
@@ -117,13 +136,31 @@ export const assessmentService = {
 
     return types.map((type) => {
       const lastAssessmentDate = lastByType.get(type.id) ?? null;
-      const nextDueDate = getNextDate(
-        type.id,
-        type.scheduleType,
-        type.intervalMonths,
-        type.afterTypeId,
-        type.offsetMonths
-      );
+      const planItem = activePlanByType.get(type.id);
+
+      const nextDueDate = (() => {
+        if (!planItem) {
+          return getNextDate(
+            type.id,
+            type.scheduleType,
+            type.intervalMonths,
+            type.afterTypeId,
+            type.offsetMonths
+          );
+        }
+
+        const cadenceMonths = planItem.cadenceMonths ?? type.intervalMonths;
+
+        if (lastAssessmentDate && cadenceMonths && cadenceMonths > 0) {
+          return addMonths(lastAssessmentDate, cadenceMonths);
+        }
+
+        if (!lastAssessmentDate && planItem.startDate) {
+          return planItem.startDate;
+        }
+
+        return planItem.nextDueDate;
+      })();
 
       return {
         typeId: type.id,

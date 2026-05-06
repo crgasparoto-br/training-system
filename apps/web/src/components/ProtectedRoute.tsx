@@ -7,6 +7,7 @@ interface ProtectedRouteProps {
   children: React.ReactNode;
   requireProfessor?: boolean;
   screenKey?: AccessScreenKey | string;
+  screenKeys?: Array<AccessScreenKey | string>;
 }
 
 function AccessDenied() {
@@ -18,7 +19,7 @@ function AccessDenied() {
   );
 }
 
-export function ProtectedRoute({ children, requireProfessor = false, screenKey }: ProtectedRouteProps) {
+export function ProtectedRoute({ children, requireProfessor = false, screenKey, screenKeys }: ProtectedRouteProps) {
   const { isAuthenticated, user } = useAuthStore();
 
   if (!isAuthenticated) {
@@ -29,7 +30,13 @@ export function ProtectedRoute({ children, requireProfessor = false, screenKey }
     return <Navigate to="/dashboard" replace />;
   }
 
-  if (screenKey && !canAccessScreen(user, screenKey)) {
+  const requiredKeys = screenKeys && screenKeys.length > 0
+    ? screenKeys
+    : screenKey
+      ? [screenKey]
+      : [];
+
+  if (requiredKeys.length > 0 && !requiredKeys.some((key) => canAccessScreen(user, key))) {
     return <AccessDenied />;
   }
 

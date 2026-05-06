@@ -160,7 +160,27 @@ pnpm format           # Formata código
 pnpm db:migrate       # Executa migrations
 pnpm db:seed          # Popula dados de teste
 pnpm db:studio        # Abre Prisma Studio
+
+# Jobs (API)
+cd apps/api
+pnpm job:dispatch-profile-reviews           # Executa rotina de revisão cadastral
+pnpm job:dispatch-profile-reviews --dry-run # Simula sem gravar
 ```
+
+### Rotina automática de revisão cadastral
+
+No serviço da API, é possível habilitar o scheduler leve da revisão cadastral via variáveis de ambiente:
+
+```bash
+PROFILE_REVIEW_SCHEDULER_ENABLED=true
+PROFILE_REVIEW_SCHEDULER_INTERVAL_MINUTES=60
+PROFILE_REVIEW_UPCOMING_WINDOW_DAYS=7
+PROFILE_REVIEW_CREATE_OVERDUE_REMINDER=true
+```
+
+- A rotina cria `StudentProfileReview` com status `pending` para alunos elegíveis.
+- Não duplica revisão quando já existe pendência aberta (incluindo vencida).
+- Quando há pendência vencida, pode criar lembrete idempotente diário (opcional).
 
 ## 📚 Documentação
 

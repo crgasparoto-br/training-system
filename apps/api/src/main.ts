@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import 'express-async-errors';
 import path from 'path';
 import { assessmentTypeRoutes } from './modules/assessments/index.js';
+import { anthropometryRoutes } from './modules/anthropometry/index.js';
 import { authRoutes } from './modules/auth/index.js';
 import { alunoRoutes } from './modules/alunos/index.js';
 import { bankRoutes } from './modules/banks/index.js';
@@ -14,6 +15,8 @@ import { hourlyRateLevelRoutes } from './modules/hourly-rate-levels/index.js';
 import { planRoutes } from './modules/plans/index.js';
 import { professorRoutes } from './modules/professores/index.js';
 import { serviceRoutes } from './modules/services/index.js';
+import { startProfileReviewScheduler } from './modules/alunos/profile-review.scheduler.js';
+import studentRoutes from './routes/student.routes.js';
 
 const app: express.Express = express();
 const PORT = Number(process.env.PORT || process.env.API_PORT || 3000);
@@ -98,6 +101,7 @@ app.get('/api/v1', (req, res) => {
       assessmentTypes: '/api/v1/assessment-types',
       auth: '/api/v1/auth',
       alunos: '/api/v1/alunos',
+      anthropometry: '/api/v1/anthropometry',
       banks: '/api/v1/banks',
       collaboratorFunctions: '/api/v1/collaborator-functions',
       contracts: '/api/v1/contracts',
@@ -105,6 +109,7 @@ app.get('/api/v1', (req, res) => {
       plans: '/api/v1/plans',
       professores: '/api/v1/professores',
       services: '/api/v1/services',
+      student: '/api/v1/student',
     },
   });
 });
@@ -117,6 +122,9 @@ app.use('/api/v1/assessment-types', assessmentTypeRoutes);
 
 // Rotas de Alunos
 app.use('/api/v1/alunos', alunoRoutes);
+
+// Rotas de Avaliação Antropométrica
+app.use('/api/v1/anthropometry', anthropometryRoutes);
 
 // Rotas de Bancos
 app.use('/api/v1/banks', bankRoutes);
@@ -138,6 +146,9 @@ app.use('/api/v1/professores', professorRoutes);
 
 // Rotas de Serviços
 app.use('/api/v1/services', serviceRoutes);
+
+// Rotas do aluno autenticado
+app.use('/api/v1/student', studentRoutes);
 
 // ============================================================================
 // ERROR HANDLING
@@ -186,6 +197,8 @@ app.listen(PORT, () => {
 â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   `);
 });
+
+startProfileReviewScheduler();
 
 export default app;
 
