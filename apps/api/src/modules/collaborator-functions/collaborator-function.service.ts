@@ -259,4 +259,49 @@ export const collaboratorFunctionService = {
       include: accessPermissionsInclude,
     });
   },
+
+  async syncPermissionsByContract(contractId: string) {
+    return prisma.$transaction(async (tx) => {
+      const functions = await tx.collaboratorFunctionOption.findMany({
+        where: { contractId },
+        select: { id: true, code: true, name: true },
+        orderBy: { name: 'asc' },
+      });
+
+      let permissionsCreated = 0;
+      const items: Array<{
+        collaboratorFunctionId: string;
+        collaboratorFunctionName: string;
+        createdPermissions: number;
+      }> = [];
+
+      for (const collaboratorFunction of functions) {
+        const beforeCount = await tx.accessPermission.count({
+          where: { collaboratorFunctionId: collaboratorFunction.id },
+        });
+
+        const synced = await syncAccessPermissionsForFunction(
+          collaboratorFunction.id,
+          collaboratorFunction.code,
+          tx,
+        );
+
+        const createdForFunction = Math.max(0, synced.length - beforeCount);
+        permissionsCreated += createdForFunction;
+
+        items.push({
+          collaboratorFunctionId: collaboratorFunction.id,
+          collaboratorFunctionName: collaboratorFunction.name,
+          createdPermissions: createdForFunction,
+        });
+      }
+
+      return {
+        contractId,
+        functionsTotal: functions.length,
+        permissionsCreated,
+        items,
+      };
+    });
+  },
 };

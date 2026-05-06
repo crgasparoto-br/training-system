@@ -1,0 +1,156 @@
+jest.mock('@prisma/client', () => ({
+  PrismaClient: jest.fn(() => ({})),
+  Prisma: { JsonNull: null },
+}));
+
+import {
+  ACCESS_BLOCK_CATALOG,
+  ALL_ACCESS_SCREEN_KEYS,
+  DEFAULT_ACCESS_BY_PROFILE_CODE,
+} from '@corrida/types';
+import {
+  getEffectiveAccessPermissionsForProfessor,
+  replaceAccessPermissionsForFunction,
+  syncAccessPermissionsForFunction,
+} from '../src/modules/access-control/access-control.service';
+
+type Row = {
+  id?: string;
+  collaboratorFunctionId: string;
+  screenKey: string;
+  blockKey: string;
+  canView: boolean;
+  dataScope?: string | null;
+};
+
+function keyOf(row: Pick<Row, 'screenKey' | 'blockKey'>) {
+  return `${row.screenKey}:${row.blockKey || ''}`;
+}
+
+function createDb(seed: Row[] = []) {
+  let rows = [...seed];
+
+  const accessPermission = {
+    findMany: jest.fn(async ({ where }: { where: { collaboratorFunctionId: string } }) => {
+      return rows
+        .filter((row) => row.collaboratorFunctionId === where.collaboratorFunctionId)
+        .sort((a, b) => keyOf(a).localeCompare(keyOf(b)));
+    }),
+    createMany: jest.fn(async ({ data }: { data: Row[] }) => {
+      for (const row of data) {
+        const exists = rows.some(
+          (item) =>
+            item.collaboratorFunctionId === row.collaboratorFunctionId &&
+            item.screenKey === row.screenKey &&
+            item.blockKey === row.blockKey,
+        );
+
+        if (!exists) {
+          rows.push({ ...row });
+        }
+      }
+
+      return { count: data.length };
+    }),
+    deleteMany: jest.fn(async ({ where }: { where: { collaboratorFunctionId: string } }) => {
+      rows = rows.filter((row) => row.collaboratorFunctionId !== where.collaboratorFunctionId);
+      return { count: 0 };
+    }),
+  };
+
+  return {
+    accessPermission,
+    getRows: () => rows,
+  };
+}
+
+describe('access-control.service', () => {
+  it('syncAccessPermissionsForFunction cria linhas faltantes', async () => {
+    const db = createDb();
+
+    const result = await syncAccessPermissionsForFunction('fn-1', 'manager', db as never);
+
+    expect(result.length).toBe(ALL_ACCESS_SCREEN_KEYS.length + ACCESS_BLOCK_CATALOG.length);
+    expect(db.accessPermission.createMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('sincronizacao nao sobrescreve permissoes existentes', async () => {
+    const db = createDb([
+      {
+        collaboratorFunctionId: 'fn-2',
+        screenKey: 'students.registration',
+        blockKey: '',
+        canView: false,
+        dataScope: null,
+      },
+    ]);
+
+    const result = await syncAccessPermissionsForFunction('fn-2', 'professor', db as never);
+
+    const existing = result.find(
+      (row) => row.screenKey === 'students.registration' && row.blockKey === '',
+    );
+
+    expect(existing?.canView).toBe(false);
+  });
+
+  it('replaceAccessPermissionsForFunction ignora chaves invalidas', async () => {
+    const db = createDb();
+
+    const result = await replaceAccessPermissionsForFunction(
+      'fn-3',
+      'intern',
+      {
+        screens: ['students.details', 'invalid.screen'],
+        blocks: ['students.details.summary', 'invalid.block'],
+        dataScopes: {
+          'collaborators.registration': 'self',
+          'invalid.screen': 'contract',
+        },
+      },
+      db as never,
+    );
+
+    const detailsScreen = result.find(
+      (row) => row.screenKey === 'students.details' && row.blockKey === '',
+    );
+    const summaryBlock = result.find((row) => row.blockKey === 'students.details.summary');
+
+    expect(detailsScreen?.canView).toBe(true);
+    expect(summaryBlock?.canView).toBe(true);
+    expect(result.some((row) => row.screenKey === 'invalid.screen')).toBe(false);
+    expect(result.some((row) => row.blockKey === 'invalid.block')).toBe(false);
+  });
+
+  it('professor master recebe acesso total', async () => {
+    const result = await getEffectiveAccessPermissionsForProfessor({
+      role: 'master',
+      collaboratorFunction: {
+        id: 'fn-master',
+        code: 'professor',
+      },
+    });
+
+    expect(result.length).toBe(ALL_ACCESS_SCREEN_KEYS.length + ACCESS_BLOCK_CATALOG.length);
+    expect(result.every((permission) => permission.canView)).toBe(true);
+  });
+
+  it('perfil sem matriz recebe fallback/default via sync', async () => {
+    const db = createDb();
+
+    const result = await syncAccessPermissionsForFunction('fn-4', 'intern', db as never);
+
+    const summaryBlock = result.find((row) => row.blockKey === 'students.details.summary');
+    const financialBlock = result.find((row) => row.blockKey === 'students.details.financialContract');
+    const detailsScreen = result.find(
+      (row) => row.screenKey === 'students.details' && row.blockKey === '',
+    );
+
+    expect(detailsScreen?.canView).toBe(true);
+    expect(summaryBlock?.canView).toBe(true);
+    expect(financialBlock?.canView).toBe(false);
+
+    const defaults = DEFAULT_ACCESS_BY_PROFILE_CODE.intern;
+    expect(defaults.blocks.includes('students.details.summary')).toBe(true);
+  });
+});

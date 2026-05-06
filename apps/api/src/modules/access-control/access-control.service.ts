@@ -368,3 +368,41 @@ export async function canProfessorAccessScreen(
       permission.canView
   );
 }
+
+export async function canProfessorAccessBlock(
+  professor: {
+    role: 'master' | 'professor';
+    collaboratorFunction: {
+      id: string;
+      code: string;
+    };
+  },
+  blockKey: string
+) {
+  if (professor.role === 'master') {
+    return true;
+  }
+
+  const block = ACCESS_BLOCK_CATALOG.find((item) => item.key === blockKey);
+  if (!block) {
+    return false;
+  }
+
+  // First check if professor can access the parent screen
+  const hasScreenAccess = await canProfessorAccessScreen(professor, block.screenKey);
+  if (!hasScreenAccess) {
+    return false;
+  }
+
+  const permissions = await syncAccessPermissionsForFunction(
+    professor.collaboratorFunction.id,
+    professor.collaboratorFunction.code
+  );
+
+  return permissions.some(
+    (permission) =>
+      permission.screenKey === block.screenKey &&
+      permission.blockKey === blockKey &&
+      permission.canView
+  );
+}

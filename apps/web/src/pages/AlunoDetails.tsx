@@ -11,7 +11,7 @@ import { formatDateBR, isDateWithinRange } from '../utils/date';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../components/ui/Accordion';
 import { ProfessorManualContextPanel } from '../components/ProfessorManualContextPanel';
-import { AlunoDetailsTabs, type AlunoDetailsTab } from '../components/alunos/AlunoDetailsTabs';
+import { AlunoDetailsTabs, getTabBlockKey, type AlunoDetailsTab } from '../components/alunos/AlunoDetailsTabs';
 import { AlunoResumoHubTab } from '../components/alunos/AlunoResumoHubTab';
 import { AlunoCadastroTab } from '../components/alunos/AlunoCadastroTab';
 import { AlunoSaudeAnamneseTab } from '../components/alunos/AlunoSaudeAnamneseTab';
@@ -20,7 +20,7 @@ import { AlunoPlanoAvaliacoesTab } from '../components/alunos/AlunoPlanoAvaliaco
 import { AlunoRevisoesCadastraisTab } from '../components/alunos/AlunoRevisoesCadastraisTab';
 import { alunoDetailsCopy } from '../i18n/ptBR';
 import { useAuthStore } from '../stores/useAuthStore';
-import { canAccessScreen } from '../access/access-control';
+import { canAccessScreen, canAccessBlock } from '../access/access-control';
 import {
   ArrowLeft,
   Edit,
@@ -215,9 +215,14 @@ export function AlunoDetails() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuthStore();
   const canEditStudent = canAccessScreen(user, 'students.registration');
-  const canViewPhysicalAssessment = canAccessScreen(user, 'physicalAssessment.protocol');
   const canManageAssessmentPlan = canAccessScreen(user, 'students.assessmentPlan');
-  const canManageProfileReview = canAccessScreen(user, 'students.profileReview');
+  const canEditProfileAction = canAccessBlock(user, 'students.actions.editProfile');
+  const canDeleteStudentAction = canAccessBlock(user, 'students.actions.deleteStudent');
+  const canResetPasswordAction = canAccessBlock(user, 'students.actions.resetPassword');
+  const canManageAssessmentsAction = canAccessBlock(user, 'students.actions.manageAssessments');
+  const canManageFinancialContractAction = canAccessBlock(user, 'students.actions.manageFinancialContract');
+  const canManageProfileReviewsAction = canAccessBlock(user, 'students.actions.manageProfileReviews');
+  const canManageAssessmentPlanAction = canAccessBlock(user, 'students.actions.manageAssessmentPlan');
   const canManageFinancialContracts = canAccessScreen(user, 'students.contracts.manage');
   const canCancelFinancialContracts = canAccessScreen(user, 'students.contracts.cancel');
   const canRenewFinancialContracts = canAccessScreen(user, 'students.contracts.renew');
@@ -319,7 +324,7 @@ export function AlunoDetails() {
     return `${ASSESSMENT_GUIDE_STORAGE_PREFIX}:${user.professor.id}`;
   }, [user]);
   const shouldOfferAssessmentGuide =
-    user?.type === 'professor' && assessments.length === 0;
+    user?.type === 'professor' && assessments.length === 0 && canManageAssessmentsAction;
   const assessmentGuideSteps = useMemo(
     () => [
       {
@@ -419,11 +424,14 @@ export function AlunoDetails() {
     (item) => !item.complete
   ).length;
 
+  const canUseAssessmentPlanForMutations =
+    canManageAssessmentPlan && canManageAssessmentPlanAction && canManageAssessmentsAction;
+
   useEffect(() => {
     if (id) {
       loadAluno(id);
     }
-  }, [id, canManageAssessmentPlan, canViewFinancialData]);
+  }, [id, canUseAssessmentPlanForMutations, canViewFinancialData]);
 
   useEffect(() => {
     if (!shouldOfferAssessmentGuide || !assessmentGuideStorageKey) {
@@ -469,7 +477,7 @@ export function AlunoDetails() {
         assessmentService.getSummary(alunoId),
         assessmentTypeService.list(),
         planService.listByAluno(alunoId),
-        canManageAssessmentPlan
+        canUseAssessmentPlanForMutations
           ? (alunoService.getAssessmentPlan(alunoId) as Promise<AlunoAssessmentPlanSnapshot>)
           : Promise.resolve({ items: [] as AlunoAssessmentPlanSnapshot['items'] }),
         canViewFinancialData
@@ -502,7 +510,7 @@ export function AlunoDetails() {
     const [assessmentsData, summaryData, assessmentPlanData] = await Promise.all([
       assessmentService.listByAluno(alunoId),
       assessmentService.getSummary(alunoId),
-      canManageAssessmentPlan
+      canUseAssessmentPlanForMutations
         ? (alunoService.getAssessmentPlan(alunoId) as Promise<AlunoAssessmentPlanSnapshot>)
         : Promise.resolve({ items: [] as AlunoAssessmentPlanSnapshot['items'] }),
     ]);
@@ -517,6 +525,10 @@ export function AlunoDetails() {
   };
 
   const handleDelete = async () => {
+    if (!canDeleteStudentAction) {
+      showToast('Você não possui permissão para excluir aluno.', 'error');
+      return;
+    }
     if (!id || !confirm(alunoDetailsCopy.deleteConfirm)) {
       return;
     }
@@ -532,6 +544,10 @@ export function AlunoDetails() {
   };
 
   const handleResetPassword = async () => {
+    if (!canResetPasswordAction) {
+      showToast('Você não possui permissão para redefinir senha.', 'error');
+      return;
+    }
     if (!id) return;
     if (!confirm(alunoDetailsCopy.resetPasswordConfirm)) {
       return;
@@ -608,13 +624,17 @@ export function AlunoDetails() {
   };
 
   const handleAssessmentUpload = async () => {
+    if (!canManageAssessmentsAction) {
+      showToast('Você não possui permissão para registrar avaliação física.', 'error');
+      return;
+    }
     if (!id) return;
     if (!assessmentForm.typeId || !assessmentForm.file) {
       alert(alunoDetailsCopy.uploadAssessmentValidation);
       return;
     }
 
-    if (canManageAssessmentPlan && !assessmentPlanActiveTypeIds.includes(assessmentForm.typeId)) {
+    if (canUseAssessmentPlanForMutations && !assessmentPlanActiveTypeIds.includes(assessmentForm.typeId)) {
       const shouldOpenAssessmentPlan = window.confirm(
         'Este tipo ainda não está no plano de avaliações do aluno. Deseja adicioná-lo?'
       );
@@ -743,6 +763,10 @@ export function AlunoDetails() {
   };
 
   const openEditAssessment = (assessment: Assessment) => {
+    if (!canManageAssessmentsAction) {
+      showToast('Você não possui permissão para editar avaliação física.', 'error');
+      return;
+    }
     if (assessment.extractedData?.parseOk === false) {
       showToast(alunoDetailsCopy.corruptedPdf, 'error');
       return;
@@ -763,12 +787,16 @@ export function AlunoDetails() {
   };
 
   const handleUpdateAssessment = async () => {
+    if (!canManageAssessmentsAction) {
+      showToast('Você não possui permissão para editar avaliação física.', 'error');
+      return;
+    }
     if (!id || !editingAssessment) return;
 
     if (
       editForm.typeId &&
       editForm.typeId !== editingAssessment.typeId &&
-      canManageAssessmentPlan &&
+      canUseAssessmentPlanForMutations &&
       !assessmentPlanActiveTypeIds.includes(editForm.typeId)
     ) {
       const shouldOpenAssessmentPlan = window.confirm(
@@ -795,6 +823,10 @@ export function AlunoDetails() {
   };
 
   const handleDeleteAssessment = async (assessment: Assessment) => {
+    if (!canManageAssessmentsAction) {
+      showToast('Você não possui permissão para excluir avaliação física.', 'error');
+      return;
+    }
     if (!id) return;
     if (!confirm(alunoDetailsCopy.deleteAssessmentConfirm)) return;
     try {
@@ -807,6 +839,10 @@ export function AlunoDetails() {
   };
 
   const handleReprocessAssessment = async (assessment: Assessment) => {
+    if (!canManageAssessmentsAction) {
+      showToast('Você não possui permissão para reprocessar avaliação física.', 'error');
+      return;
+    }
     if (!id) return;
     try {
       await assessmentService.reprocessAssessment(id, assessment.id);
@@ -907,37 +943,32 @@ export function AlunoDetails() {
   const preferencesInfo = readAlunoFormResponses(aluno?.intakeForm?.formResponses).preferences ?? {};
 
   const visibleTabs = useMemo<AlunoDetailsTab[]>(() => {
-    const tabs: AlunoDetailsTab[] = ['resumo', 'cadastro', 'saude-anamnese'];
+    const allPossibleTabs: AlunoDetailsTab[] = [
+      'resumo',
+      'cadastro',
+      'saude-anamnese',
+      'financeiro',
+      'plano-avaliacoes',
+      'avaliacoes-fisicas',
+      'revisoes-cadastrais',
+      'treinos',
+      'auditoria',
+    ];
 
-    if (canViewFinancialData) {
-      tabs.push('financeiro');
-    }
-
-    if (canManageAssessmentPlan) {
-      tabs.push('plano-avaliacoes');
-    }
-
-    if (canViewPhysicalAssessment) {
-      tabs.push('avaliacoes-fisicas');
-    }
-
-    if (canManageProfileReview) {
-      tabs.push('revisoes-cadastrais');
-    }
-
-    return tabs;
-  }, [
-    canManageAssessmentPlan,
-    canManageProfileReview,
-    canViewFinancialData,
-    canViewPhysicalAssessment,
-  ]);
+    return allPossibleTabs.filter((tab) => {
+      const blockKey = getTabBlockKey(tab);
+      return blockKey ? canAccessBlock(user, blockKey) : true;
+    });
+  }, [user]);
 
   useEffect(() => {
     if (!visibleTabs.includes(activeTab)) {
       setActiveTab(visibleTabs[0] ?? 'resumo');
     }
   }, [activeTab, visibleTabs]);
+
+  // Show access denied message if no tabs are visible
+  const hasAnyAccessibleTab = visibleTabs.length > 0;
 
   const getHistoryValue = (assessment: Assessment, variable: string) => {
     const source =
@@ -1035,6 +1066,26 @@ export function AlunoDetails() {
     );
   }
 
+  if (!hasAnyAccessibleTab) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh]">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle>Acesso Negado</CardTitle>
+            <CardDescription>
+              Você não tem permissão para visualizar nenhuma aba desta tela.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button variant="outline" onClick={() => navigate('/alunos')}>
+              Voltar à Listagem
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -1053,23 +1104,29 @@ export function AlunoDetails() {
             </div>
           </div>
         </div>
-        {canEditStudent && (
+        {(canEditStudent && canEditProfileAction) || canResetPasswordAction || canDeleteStudentAction ? (
           <div className="flex gap-2">
-            <Link to={`/alunos/${id}/edit`}>
-              <Button variant="outline">
-                <Edit size={20} />
-                {alunoDetailsCopy.edit}
+            {canEditStudent && canEditProfileAction && (
+              <Link to={`/alunos/${id}/edit`}>
+                <Button variant="outline">
+                  <Edit size={20} />
+                  {alunoDetailsCopy.edit}
+                </Button>
+              </Link>
+            )}
+            {canResetPasswordAction && (
+              <Button variant="outline" onClick={handleResetPassword} isLoading={isResetting}>
+                {alunoDetailsCopy.resetPassword}
               </Button>
-            </Link>
-            <Button variant="outline" onClick={handleResetPassword} isLoading={isResetting}>
-              {alunoDetailsCopy.resetPassword}
-            </Button>
-            <Button variant="destructive" onClick={handleDelete}>
-              <Trash2 size={20} />
-              {alunoDetailsCopy.delete}
-            </Button>
+            )}
+            {canDeleteStudentAction && (
+              <Button variant="destructive" onClick={handleDelete}>
+                <Trash2 size={20} />
+                {alunoDetailsCopy.delete}
+              </Button>
+            )}
           </div>
-        )}
+        ) : null}
       </div>
 
       {/* Contact Info */}
@@ -1176,26 +1233,27 @@ export function AlunoDetails() {
         <AlunoSaudeAnamneseTab aluno={aluno} parqPositiveCount={parqPositiveCount} />
       )}
 
-      {canViewFinancialData && activeTab === 'financeiro' && (
+      {activeTab === 'financeiro' && (
         <AlunoFinanceiroTab
           aluno={aluno}
           alunoId={id ?? ''}
           financialInfo={financialInfo}
           activeStudentContract={activeStudentContract}
-          canManageContracts={canManageFinancialContracts}
-          canCancelContracts={canCancelFinancialContracts}
-          canRenewContracts={canRenewFinancialContracts}
+          canManageContracts={canManageFinancialContracts && canManageFinancialContractAction}
+          canCancelContracts={canCancelFinancialContracts && canManageFinancialContractAction}
+          canRenewContracts={canRenewFinancialContracts && canManageFinancialContractAction}
         />
       )}
 
-      {canManageAssessmentPlan && activeTab === 'plano-avaliacoes' && (
+      {activeTab === 'plano-avaliacoes' && (
         <AlunoPlanoAvaliacoesTab
           alunoId={id ?? ''}
           assessmentTypes={assessmentTypes}
+          canManageActions={canManageAssessmentPlanAction}
         />
       )}
 
-      {canViewPhysicalAssessment && activeTab === 'avaliacoes-fisicas' && (
+      {activeTab === 'avaliacoes-fisicas' && (
         <>
           <Card>
             <CardHeader>
@@ -1426,7 +1484,7 @@ export function AlunoDetails() {
               <CardTitle>{alunoDetailsCopy.assessmentsTitle}</CardTitle>
               <CardDescription>{alunoDetailsCopy.assessmentsDescription}</CardDescription>
             </div>
-            {user?.type === 'professor' && (
+            {user?.type === 'professor' && canManageAssessmentsAction && (
               <Button type="button" variant="outline" size="sm" onClick={handleStartAssessmentGuide}>
                 <Sparkles className="h-4 w-4" />
                 {alunoDetailsCopy.assessmentGuideReopen}
@@ -1508,6 +1566,11 @@ export function AlunoDetails() {
             }`}
           >
             <h3 className="text-sm font-semibold text-gray-900">Nova Avaliação</h3>
+            {!canManageAssessmentsAction && (
+              <p className="mt-2 text-sm text-muted-foreground">
+                Você possui acesso de visualização. Registrar, editar, excluir e reprocessar avaliações exige permissão específica.
+              </p>
+            )}
             {assessmentGuideActive && (
               <div className="mt-3 rounded-xl border border-info/20 bg-background p-4">
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -1580,6 +1643,7 @@ export function AlunoDetails() {
                 <select
                   className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                   value={assessmentForm.typeId}
+                  disabled={!canManageAssessmentsAction}
                   onChange={(event) =>
                     setAssessmentForm({ ...assessmentForm, typeId: event.target.value })
                   }
@@ -1604,6 +1668,7 @@ export function AlunoDetails() {
                   type="date"
                   className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                   value={assessmentForm.assessmentDate}
+                  disabled={!canManageAssessmentsAction}
                   onChange={(event) =>
                     setAssessmentForm({ ...assessmentForm, assessmentDate: event.target.value })
                   }
@@ -1620,6 +1685,7 @@ export function AlunoDetails() {
                 <input
                   type="file"
                   className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  disabled={!canManageAssessmentsAction}
                   onChange={(event) =>
                     setAssessmentForm({
                       ...assessmentForm,
@@ -1640,6 +1706,7 @@ export function AlunoDetails() {
                   type="button"
                   onClick={handleAssessmentUpload}
                   isLoading={uploadingAssessment}
+                  disabled={!canManageAssessmentsAction}
                   className="w-full"
                 >
                   Enviar
@@ -1911,29 +1978,34 @@ export function AlunoDetails() {
                 <button
                   type="button"
                   onClick={() => handleReprocessAssessment(assessment)}
+                  disabled={!canManageAssessmentsAction}
                   className="rounded-lg border border-gray-200 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
                 >
                   Reprocessar
                 </button>
-                <button
-                  type="button"
-                  onClick={() => openEditAssessment(assessment)}
-                  disabled={assessment.extractedData?.parseOk === false}
-                  className={`rounded-lg border px-3 py-1 text-xs font-medium ${
-                    assessment.extractedData?.parseOk === false
-                      ? 'border-gray-200 text-gray-400 cursor-not-allowed'
-                      : 'border-gray-200 text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  {assessment.extractedData?.parseOk === false ? 'PDF inválido' : 'Editar'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDeleteAssessment(assessment)}
-                  className="rounded-lg border border-destructive/20 px-3 py-1 text-xs font-medium text-destructive hover:bg-destructive/10"
-                >
-                  Excluir
-                </button>
+                {canManageAssessmentsAction && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => openEditAssessment(assessment)}
+                      disabled={assessment.extractedData?.parseOk === false}
+                      className={`rounded-lg border px-3 py-1 text-xs font-medium ${
+                        assessment.extractedData?.parseOk === false
+                          ? 'border-gray-200 text-gray-400 cursor-not-allowed'
+                          : 'border-gray-200 text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      {assessment.extractedData?.parseOk === false ? 'PDF inválido' : 'Editar'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteAssessment(assessment)}
+                      className="rounded-lg border border-destructive/20 px-3 py-1 text-xs font-medium text-destructive hover:bg-destructive/10"
+                    >
+                      Excluir
+                    </button>
+                  </>
+                )}
               </div>
             </td>
           </tr>
@@ -1947,8 +2019,40 @@ export function AlunoDetails() {
         </>
       )}
 
-      {canManageProfileReview && activeTab === 'revisoes-cadastrais' && id && (
-        <AlunoRevisoesCadastraisTab alunoId={id} onToast={showToast} />
+      {activeTab === 'revisoes-cadastrais' && id && (
+        <AlunoRevisoesCadastraisTab
+          alunoId={id}
+          onToast={showToast}
+          canManageActions={canManageProfileReviewsAction}
+        />
+      )}
+
+      {activeTab === 'treinos' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Treinos / Planos</CardTitle>
+            <CardDescription>
+              Visualize e gerencie os planos de treino do aluno.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground">Aba de Treinos / Planos em desenvolvimento</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {activeTab === 'auditoria' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Histórico / Auditoria</CardTitle>
+            <CardDescription>
+              Registros de todas as alterações e ações realizadas neste cadastro.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground">Aba de Histórico / Auditoria em desenvolvimento</p>
+          </CardContent>
+        </Card>
       )}
 
       {previewOpen && (

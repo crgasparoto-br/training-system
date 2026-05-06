@@ -21,7 +21,7 @@ import { fillAssessmentWithAi } from '../assessments/assessment-ai.js';
 import { profileReviewService } from './profile-review.service.js';
 import { profileAuditService } from './profile-audit.service.js';
 import { assessmentPlanNotificationService } from './assessment-plan-notification.service.js';
-import { screenAccessMiddleware } from '../access-control/access-control.middleware.js';
+import { screenAccessMiddleware, blockAccessMiddleware } from '../access-control/access-control.middleware.js';
 import { studentContractService } from '../student-contracts/student-contract.service.js';
 
 const router: Router = Router();
@@ -243,7 +243,7 @@ const cancelStudentContractSchema = z.object({
  * GET /api/v1/alunos/:id/profile-reviews
  * Listar revisões cadastrais do aluno
  */
-router.get('/:id/profile-reviews', screenAccessMiddleware('students.profileReview'), async (req: Request, res: Response) => {
+router.get('/:id/profile-reviews', blockAccessMiddleware('students.details.profileReviews'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     if (!(await ensureAlunoAccess(req, res, id))) {
@@ -262,7 +262,7 @@ router.get('/:id/profile-reviews', screenAccessMiddleware('students.profileRevie
  * POST /api/v1/alunos/:id/profile-reviews
  * Criar solicitação manual de revisão cadastral
  */
-router.post('/:id/profile-reviews', screenAccessMiddleware('students.profileReview'), async (req: Request, res: Response) => {
+router.post('/:id/profile-reviews', blockAccessMiddleware('students.actions.manageProfileReviews'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     if (!(await ensureAlunoAccess(req, res, id))) {
@@ -297,7 +297,7 @@ router.post('/:id/profile-reviews', screenAccessMiddleware('students.profileRevi
  * GET /api/v1/alunos/:id/profile-review-settings
  * Retornar configuração individual de revisão cadastral
  */
-router.get('/:id/profile-review-settings', screenAccessMiddleware('students.profileReview'), async (req: Request, res: Response) => {
+router.get('/:id/profile-review-settings', blockAccessMiddleware('students.details.profileReviews'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     if (!(await ensureAlunoAccess(req, res, id))) {
@@ -319,7 +319,7 @@ router.get('/:id/profile-review-settings', screenAccessMiddleware('students.prof
  * PUT /api/v1/alunos/:id/profile-review-settings
  * Atualizar configuração individual de revisão cadastral
  */
-router.put('/:id/profile-review-settings', screenAccessMiddleware('students.profileReview'), async (req: Request, res: Response) => {
+router.put('/:id/profile-review-settings', blockAccessMiddleware('students.actions.manageProfileReviews'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     if (!(await ensureAlunoAccess(req, res, id))) {
@@ -353,7 +353,7 @@ router.put('/:id/profile-review-settings', screenAccessMiddleware('students.prof
  * POST /api/v1/alunos/:id/profile-reviews/:reviewId/approve
  * Aprovar alterações sensíveis da revisão cadastral
  */
-router.post('/:id/profile-reviews/:reviewId/approve', screenAccessMiddleware('students.profileReview'), async (req: Request, res: Response) => {
+router.post('/:id/profile-reviews/:reviewId/approve', blockAccessMiddleware('students.actions.manageProfileReviews'), async (req: Request, res: Response) => {
   try {
     const { id, reviewId } = req.params;
     if (!(await ensureAlunoAccess(req, res, id))) {
@@ -380,7 +380,7 @@ router.post('/:id/profile-reviews/:reviewId/approve', screenAccessMiddleware('st
  * POST /api/v1/alunos/:id/profile-reviews/:reviewId/reject
  * Rejeitar alterações sensíveis da revisão cadastral
  */
-router.post('/:id/profile-reviews/:reviewId/reject', screenAccessMiddleware('students.profileReview'), async (req: Request, res: Response) => {
+router.post('/:id/profile-reviews/:reviewId/reject', blockAccessMiddleware('students.actions.manageProfileReviews'), async (req: Request, res: Response) => {
   try {
     const { id, reviewId } = req.params;
     if (!(await ensureAlunoAccess(req, res, id))) {
@@ -492,7 +492,7 @@ router.get(
  */
 router.post(
   '/:id/contracts',
-  screenAccessMiddleware('students.contracts.manage'),
+  blockAccessMiddleware('students.actions.manageFinancialContract'),
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
@@ -555,7 +555,7 @@ router.post(
  */
 router.patch(
   '/:id/contracts/:studentContractId',
-  screenAccessMiddleware('students.contracts.manage'),
+  blockAccessMiddleware('students.actions.manageFinancialContract'),
   async (req: Request, res: Response) => {
     try {
       const { id, studentContractId } = req.params;
@@ -621,7 +621,7 @@ router.patch(
  */
 router.post(
   '/:id/contracts/:studentContractId/activate',
-  screenAccessMiddleware(['students.contracts.manage', 'students.contracts.renew']),
+  blockAccessMiddleware('students.actions.manageFinancialContract'),
   async (req: Request, res: Response) => {
     try {
       const { id, studentContractId } = req.params;
@@ -659,7 +659,7 @@ router.post(
  */
 router.post(
   '/:id/contracts/:studentContractId/cancel',
-  screenAccessMiddleware('students.contracts.cancel'),
+  blockAccessMiddleware('students.actions.manageFinancialContract'),
   async (req: Request, res: Response) => {
     try {
       const { id, studentContractId } = req.params;
@@ -1079,7 +1079,7 @@ router.get('/:id', async (req: Request, res: Response) => {
  * PUT /api/v1/alunos/:id
  * Atualizar aluno
  */
-router.put('/:id', async (req: Request, res: Response) => {
+router.put('/:id', blockAccessMiddleware('students.actions.editProfile'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     if (!(await ensureAlunoAccess(req, res, id))) {
@@ -1103,7 +1103,7 @@ router.put('/:id', async (req: Request, res: Response) => {
  * DELETE /api/v1/alunos/:id
  * Deletar aluno
  */
-router.delete('/:id', async (req: Request, res: Response) => {
+router.delete('/:id', blockAccessMiddleware('students.actions.deleteStudent'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     if (!(await ensureAlunoAccess(req, res, id))) {
@@ -1124,7 +1124,7 @@ router.delete('/:id', async (req: Request, res: Response) => {
  * POST /api/v1/alunos/:id/deactivate
  * Inativar aluno
  */
-router.post('/:id/deactivate', async (req: Request, res: Response) => {
+router.post('/:id/deactivate', blockAccessMiddleware('students.actions.deleteStudent'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const professorId = (req as any).user.professorId;
@@ -1156,7 +1156,7 @@ router.post('/:id/deactivate', async (req: Request, res: Response) => {
  * POST /api/v1/alunos/:id/activate
  * Reativar aluno
  */
-router.post('/:id/activate', async (req: Request, res: Response) => {
+router.post('/:id/activate', blockAccessMiddleware('students.actions.editProfile'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const professorId = (req as any).user.professorId;
@@ -1188,7 +1188,7 @@ router.post('/:id/activate', async (req: Request, res: Response) => {
  * POST /api/v1/alunos/:id/reset-password
  * Resetar senha do aluno (gera senha temporÃ¡ria)
  */
-router.post('/:id/reset-password', async (req: Request, res: Response) => {
+router.post('/:id/reset-password', blockAccessMiddleware('students.actions.resetPassword'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     if (!(await ensureAlunoAccess(req, res, id))) {
@@ -1207,7 +1207,7 @@ router.post('/:id/reset-password', async (req: Request, res: Response) => {
  * GET /api/v1/alunos/:id/assessments
  * Listar avaliaÃƒÂ§ÃƒÂµes do aluno
  */
-router.get('/:id/assessments', async (req: Request, res: Response) => {
+router.get('/:id/assessments', blockAccessMiddleware('students.details.assessments'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     if (!(await ensureAlunoAccess(req, res, id))) {
@@ -1235,7 +1235,7 @@ router.get('/:id/assessments', async (req: Request, res: Response) => {
  * GET /api/v1/alunos/:id/assessments/summary
  * Resumo da ÃƒÂºltima e prÃƒÂ³xima avaliaÃƒÂ§ÃƒÂ£o por tipo
  */
-router.get('/:id/assessments/summary', async (req: Request, res: Response) => {
+router.get('/:id/assessments/summary', blockAccessMiddleware('students.details.assessments'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { professorId, professorRole, contractId } = getProfessorContext(req);
@@ -1289,7 +1289,7 @@ router.get('/:id/assessment-plan', screenAccessMiddleware('students.assessmentPl
  * PUT /api/v1/alunos/:id/assessment-plan
  * Criar/atualizar itens do plano de avaliações do aluno
  */
-router.put('/:id/assessment-plan', screenAccessMiddleware('students.assessmentPlan'), async (req: Request, res: Response) => {
+router.put('/:id/assessment-plan', blockAccessMiddleware('students.actions.manageAssessmentPlan'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { contractId } = getProfessorContext(req);
@@ -1346,7 +1346,7 @@ router.put('/:id/assessment-plan', screenAccessMiddleware('students.assessmentPl
  * POST /api/v1/alunos/:id/assessment-plan/recalculate
  * Recalcula próximas datas previstas do plano de avaliações
  */
-router.post('/:id/assessment-plan/recalculate', screenAccessMiddleware('students.assessmentPlan'), async (req: Request, res: Response) => {
+router.post('/:id/assessment-plan/recalculate', blockAccessMiddleware('students.actions.manageAssessmentPlan'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { contractId } = getProfessorContext(req);
@@ -1377,9 +1377,9 @@ router.post('/:id/assessment-plan/recalculate', screenAccessMiddleware('students
 
 /**
  * POST /api/v1/alunos/:id/assessments
- * Upload de avaliaÃƒÂ§ÃƒÂ£o e criaÃƒÂ§ÃƒÂ£o de registro
+ * Upload de avaliacao e criacao de registro
  */
-router.post('/:id/assessments', uploadAssessmentFile, async (req: Request, res: Response) => {
+router.post('/:id/assessments', blockAccessMiddleware('students.actions.manageAssessments'), uploadAssessmentFile, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { professorId, professorRole, contractId } = getProfessorContext(req);
@@ -1475,7 +1475,7 @@ router.post('/:id/assessments', uploadAssessmentFile, async (req: Request, res: 
  * GET /api/v1/alunos/:id/assessments/:assessmentId/file
  * Download do PDF da avaliaÃƒÂ§ÃƒÂ£o
  */
-router.get('/:id/assessments/:assessmentId/file', async (req: Request, res: Response) => {
+router.get('/:id/assessments/:assessmentId/file', blockAccessMiddleware('students.details.assessments'), async (req: Request, res: Response) => {
   try {
     const { id, assessmentId } = req.params;
     const professorId = (req as any).user.professorId;
@@ -1510,7 +1510,7 @@ router.get('/:id/assessments/:assessmentId/file', async (req: Request, res: Resp
  * POST /api/v1/alunos/:id/assessments/:assessmentId/reprocess
  * Reprocessar PDF e atualizar extractedData
  */
-router.post('/:id/assessments/:assessmentId/reprocess', async (req: Request, res: Response) => {
+router.post('/:id/assessments/:assessmentId/reprocess', blockAccessMiddleware('students.actions.manageAssessments'), async (req: Request, res: Response) => {
   try {
     const { id, assessmentId } = req.params;
     const professorId = (req as any).user.professorId;
@@ -1605,7 +1605,7 @@ router.post('/:id/assessments/:assessmentId/reprocess', async (req: Request, res
  * GET /api/v1/alunos/:id/assessments/:assessmentId/logs
  * Histórico de alterações da avaliação
  */
-router.get('/:id/assessments/:assessmentId/logs', async (req: Request, res: Response) => {
+router.get('/:id/assessments/:assessmentId/logs', blockAccessMiddleware('students.actions.manageAssessments'), async (req: Request, res: Response) => {
   try {
     const { id, assessmentId } = req.params;
     const professorId = (req as any).user.professorId;
@@ -1650,9 +1650,9 @@ router.get('/:id/assessments/:assessmentId/logs', async (req: Request, res: Resp
 
 /**
  * PUT /api/v1/alunos/:id/assessments/:assessmentId
- * Atualizar data/tipo da avaliação
+ * Atualizar data/tipo da avaliacao
  */
-router.put('/:id/assessments/:assessmentId', async (req: Request, res: Response) => {
+router.put('/:id/assessments/:assessmentId', blockAccessMiddleware('students.actions.manageAssessments'), async (req: Request, res: Response) => {
   try {
     const { id, assessmentId } = req.params;
     const professorId = (req as any).user.professorId;
@@ -1752,7 +1752,7 @@ router.put('/:id/assessments/:assessmentId', async (req: Request, res: Response)
  * DELETE /api/v1/alunos/:id/assessments/:assessmentId
  * Excluir avaliação e PDF
  */
-router.delete('/:id/assessments/:assessmentId', async (req: Request, res: Response) => {
+router.delete('/:id/assessments/:assessmentId', blockAccessMiddleware('students.actions.manageAssessments'), async (req: Request, res: Response) => {
   try {
     const { id, assessmentId } = req.params;
     const professorId = (req as any).user.professorId;

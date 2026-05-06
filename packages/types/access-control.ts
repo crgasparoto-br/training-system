@@ -1,5 +1,6 @@
 export const ACCESS_SCREEN_CATALOG = [
   { key: 'students.registration', label: 'Cadastro de alunos' },
+  { key: 'students.details', label: 'Detalhes do aluno' },
   { key: 'students.assessmentPlan', label: 'Plano de avaliacoes do aluno' },
   { key: 'students.profileReview', label: 'Revisao cadastral do aluno' },
   { key: 'students.financialData', label: 'Dados financeiros do aluno' },
@@ -58,7 +59,11 @@ export const ACCESS_PERMISSION_GROUPS = [
   {
     key: 'consultations',
     label: 'Consultas',
-    screenKeys: ['students.consultation', 'collaborators.consultation'],
+    screenKeys: [
+      'students.consultation',
+      'students.details',
+      'collaborators.consultation',
+    ],
   },
   {
     key: 'operation',
@@ -90,6 +95,86 @@ export const ACCESS_PERMISSION_GROUPS = [
 }[];
 
 export const ACCESS_BLOCK_CATALOG = [
+  {
+    key: 'students.details.summary',
+    screenKey: 'students.details',
+    label: 'Aba Resumo',
+  },
+  {
+    key: 'students.details.profile',
+    screenKey: 'students.details',
+    label: 'Aba Cadastro',
+  },
+  {
+    key: 'students.details.health',
+    screenKey: 'students.details',
+    label: 'Aba Saude / Anamnese',
+  },
+  {
+    key: 'students.details.financialContract',
+    screenKey: 'students.details',
+    label: 'Aba Financeiro / Contrato',
+  },
+  {
+    key: 'students.details.assessmentPlan',
+    screenKey: 'students.details',
+    label: 'Aba Plano de Avaliacoes',
+  },
+  {
+    key: 'students.details.assessments',
+    screenKey: 'students.details',
+    label: 'Aba Avaliacoes Fisicas',
+  },
+  {
+    key: 'students.details.profileReviews',
+    screenKey: 'students.details',
+    label: 'Aba Revisoes Cadastrais',
+  },
+  {
+    key: 'students.details.trainingPlans',
+    screenKey: 'students.details',
+    label: 'Aba Treinos / Planos',
+  },
+  {
+    key: 'students.details.audit',
+    screenKey: 'students.details',
+    label: 'Historico / Auditoria',
+  },
+  {
+    key: 'students.actions.editProfile',
+    screenKey: 'students.details',
+    label: 'Acao: Editar cadastro do aluno',
+  },
+  {
+    key: 'students.actions.deleteStudent',
+    screenKey: 'students.details',
+    label: 'Acao: Excluir aluno',
+  },
+  {
+    key: 'students.actions.resetPassword',
+    screenKey: 'students.details',
+    label: 'Acao: Redefinir senha do aluno',
+  },
+  {
+    key: 'students.actions.manageAssessments',
+    screenKey: 'students.details',
+    label: 'Acao: Gerenciar avaliacoes fisicas',
+  },
+  {
+    key: 'students.actions.manageFinancialContract',
+    screenKey: 'students.details',
+    label: 'Acao: Gerenciar financeiro/contrato',
+  },
+  {
+    key: 'students.actions.manageProfileReviews',
+    screenKey: 'students.details',
+    label: 'Acao: Gerenciar revisoes cadastrais',
+  },
+  {
+    key: 'students.actions.manageAssessmentPlan',
+    screenKey: 'students.details',
+    label: 'Acao: Gerenciar plano de avaliacoes',
+  },
   {
     key: 'collaborators.registration.collaborator',
     screenKey: 'collaborators.registration',
@@ -146,6 +231,7 @@ export const ALL_ACCESS_BLOCK_KEYS = ACCESS_BLOCK_CATALOG.map((item) => item.key
 const commonProfessorScreens = [
   'students.registration',
   'students.consultation',
+  'students.details',
   'students.contracts.view',
   'students.assessmentPlan',
   'students.profileReview',
@@ -165,6 +251,7 @@ const commonProfessorScreens = [
 
 const commonReadOnlyStudentScreens = [
   'students.consultation',
+  'students.details',
   'students.assessmentPlan',
   'students.profileReview',
 ] as const satisfies readonly AccessScreenKey[];
@@ -178,7 +265,19 @@ export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
       'settings.alunoAccess',
       'studentApp.access',
     ],
-    blocks: ['collaborators.registration.collaborator'],
+    blocks: [
+      'students.details.summary',
+      'students.details.profile',
+      'students.details.health',
+      'students.details.assessmentPlan',
+      'students.details.assessments',
+      'students.details.trainingPlans',
+      'students.actions.editProfile',
+      'students.actions.resetPassword',
+      'students.actions.manageAssessments',
+      'students.actions.manageAssessmentPlan',
+      'collaborators.registration.collaborator',
+    ],
     dataScopes: {
       'collaborators.registration': 'self',
       'collaborators.consultation': 'self',
@@ -199,6 +298,22 @@ export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
       'studentApp.access',
     ],
     blocks: [
+      'students.details.summary',
+      'students.details.profile',
+      'students.details.health',
+      'students.details.financialContract',
+      'students.details.assessmentPlan',
+      'students.details.assessments',
+      'students.details.profileReviews',
+      'students.details.trainingPlans',
+      'students.details.audit',
+      'students.actions.editProfile',
+      'students.actions.deleteStudent',
+      'students.actions.resetPassword',
+      'students.actions.manageAssessments',
+      'students.actions.manageFinancialContract',
+      'students.actions.manageProfileReviews',
+      'students.actions.manageAssessmentPlan',
       'collaborators.registration.collaborator',
       'collaborators.registration.manager',
     ],
@@ -209,7 +324,7 @@ export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
   },
   intern: {
     screens: commonReadOnlyStudentScreens,
-    blocks: [],
+    blocks: ['students.details.summary'],
     dataScopes: {
       'collaborators.registration': 'self',
       'collaborators.consultation': 'self',
@@ -226,7 +341,14 @@ export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
       'settings.alunoAccess',
       'studentApp.access',
     ],
-    blocks: [],
+    blocks: [
+      'students.details.summary',
+      'students.details.profile',
+      'students.details.financialContract',
+      'students.details.profileReviews',
+      'students.actions.manageFinancialContract',
+      'students.actions.manageProfileReviews',
+    ],
     dataScopes: {
       'collaborators.registration': 'self',
       'collaborators.consultation': 'self',
