@@ -96,6 +96,41 @@ export const ACCESS_PERMISSION_GROUPS = [
 
 export const ACCESS_BLOCK_CATALOG = [
   {
+    key: 'students.registration.identification',
+    screenKey: 'students.registration',
+    label: 'Aba Identificação',
+  },
+  {
+    key: 'students.registration.parq',
+    screenKey: 'students.registration',
+    label: 'Aba Questionário PAR-Q',
+  },
+  {
+    key: 'students.registration.aha',
+    screenKey: 'students.registration',
+    label: 'Aba Questionário American Heart Association',
+  },
+  {
+    key: 'students.registration.discomforts',
+    screenKey: 'students.registration',
+    label: 'Aba Desconfortos',
+  },
+  {
+    key: 'students.registration.financial',
+    screenKey: 'students.registration',
+    label: 'Aba Financeiro',
+  },
+  {
+    key: 'students.registration.preferences',
+    screenKey: 'students.registration',
+    label: 'Aba Preferências',
+  },
+  {
+    key: 'students.registration.initialAnamnesis',
+    screenKey: 'students.registration',
+    label: 'Aba Anamnese Inicial',
+  },
+  {
     key: 'students.details.summary',
     screenKey: 'students.details',
     label: 'Aba Resumo',
@@ -266,6 +301,13 @@ export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
       'studentApp.access',
     ],
     blocks: [
+      'students.registration.identification',
+      'students.registration.parq',
+      'students.registration.aha',
+      'students.registration.discomforts',
+      'students.registration.financial',
+      'students.registration.preferences',
+      'students.registration.initialAnamnesis',
       'students.details.summary',
       'students.details.profile',
       'students.details.health',
@@ -298,6 +340,13 @@ export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
       'studentApp.access',
     ],
     blocks: [
+      'students.registration.identification',
+      'students.registration.parq',
+      'students.registration.aha',
+      'students.registration.discomforts',
+      'students.registration.financial',
+      'students.registration.preferences',
+      'students.registration.initialAnamnesis',
       'students.details.summary',
       'students.details.profile',
       'students.details.health',
