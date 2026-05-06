@@ -2301,7 +2301,9 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
               {error}
             </div>
           )}
-          <form onSubmit={handleSubmit(onSubmit, onInvalidSubmit)} className="space-y-5">
+          <form onSubmit={handleSubmit(onSubmit, onInvalidSubmit)} className="space-y-5" autoComplete="off">
+            <input type="text" name="fake-username" autoComplete="username" className="hidden" tabIndex={-1} />
+            <input type="password" name="fake-password" autoComplete="current-password" className="hidden" tabIndex={-1} />
             <input type="hidden" {...register('avatar')} />
             <input type="hidden" {...register('signedContractDocumentUrl')} />
             <input
@@ -2378,6 +2380,7 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
                           label={commonCopy.emailLabel}
                           type="email"
                           placeholder="maria@academia.com"
+                          autoComplete="off"
                           error={errors.email?.message}
                           {...register('email')}
                         />
@@ -2385,6 +2388,7 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
                           label={professoresCopy.passwordLabel}
                           type="password"
                           placeholder="********"
+                          autoComplete="new-password"
                           error={errors.password?.message}
                           {...register('password')}
                         />
@@ -3117,7 +3121,10 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
                     <form
                       onSubmit={handleSubmitEdit(onSubmitEdit, onInvalidSubmitEdit)}
                       className="flex-1 space-y-3"
+                      autoComplete="off"
                     >
+                      <input type="text" name="fake-edit-username" autoComplete="username" className="hidden" tabIndex={-1} />
+                      <input type="password" name="fake-edit-password" autoComplete="current-password" className="hidden" tabIndex={-1} />
                       <input type="hidden" {...registerEdit('avatar')} />
                       <input type="hidden" {...registerEdit('signedContractDocumentUrl')} />
                       <input
@@ -3192,6 +3199,7 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
                                   <Input
                                     label={commonCopy.emailLabel}
                                     type="email"
+                                    autoComplete="off"
                                     error={editErrors.email?.message}
                                     {...registerEdit('email')}
                                   />
@@ -3199,6 +3207,7 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
                                     label={professoresCopy.newPasswordLabel}
                                     type="password"
                                     placeholder={professoresCopy.keepCurrentPassword}
+                                    autoComplete="new-password"
                                     error={editErrors.password?.message}
                                     {...registerEdit('password')}
                                   />

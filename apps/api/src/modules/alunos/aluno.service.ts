@@ -55,6 +55,7 @@ export interface CreateAlunoDTO {
 
 export interface UpdateAlunoDTO {
   avatar?: string;
+  professorId?: string;
   serviceId?: string;
   schedulePlan?: 'free' | 'fixed';
   birthDate?: Date;
@@ -113,6 +114,21 @@ const hasAnyValue = (payload: Record<string, unknown>) =>
 
 const toInputJson = (value?: Record<string, unknown>): Prisma.InputJsonValue | undefined =>
   value as Prisma.InputJsonValue | undefined;
+
+const getResponsibleProfessorIdFromFormResponses = (
+  formResponses?: Record<string, unknown>
+) => {
+  if (!formResponses) return undefined;
+
+  const financial = formResponses.financial;
+  if (!financial || typeof financial !== 'object') return undefined;
+
+  const responsibleProfessorId = (financial as Record<string, unknown>).responsibleProfessorId;
+  if (typeof responsibleProfessorId !== 'string') return undefined;
+
+  const normalized = responsibleProfessorId.trim();
+  return normalized.length > 0 ? normalized : undefined;
+};
 
 const assertBaseServiceIsSelectable = (service: { isActive: boolean; parentServiceId: string | null }) => {
   if (!service.isActive) {
@@ -524,12 +540,14 @@ export const alunoService = {
   async update(id: string, data: UpdateAlunoDTO) {
     const {
       avatar,
+      professorId,
       birthDate,
       gender,
       macronutrients,
       intakeForm,
-      ...alunoData
+      ...alunoPatch
     } = data;
+    const alunoData: Prisma.AlunoUncheckedUpdateInput = { ...alunoPatch };
 
     return await prisma.$transaction(async (tx) => {
       const currentAluno = await tx.aluno.findUniqueOrThrow({
@@ -552,6 +570,25 @@ export const alunoService = {
 
           alunoData.serviceId = service.id as never;
         }
+      }
+
+      const desiredProfessorId =
+        professorId || getResponsibleProfessorIdFromFormResponses(intakeForm?.formResponses);
+
+      if (desiredProfessorId && desiredProfessorId !== currentAluno.professorId) {
+        const targetProfessor = await tx.professor.findFirst({
+          where: {
+            id: desiredProfessorId,
+            contractId: currentAluno.professor.contractId,
+          },
+          select: { id: true },
+        });
+
+        if (!targetProfessor) {
+          throw new Error('Professor responsavel invalido para este contrato');
+        }
+
+        alunoData.professorId = targetProfessor.id as never;
       }
 
       const aluno = await tx.aluno.update({
