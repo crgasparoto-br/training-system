@@ -45,9 +45,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Generate Prisma Client (api)
+        working-directory: apps/api
+        run: pnpm exec prisma generate
+  
       - name: Generate Prisma Client
         run: pnpm --filter @corrida/api prisma generate
-        
+       
       # -----------------------------------------------------------------------
       # 4. Type-check & build
       # -----------------------------------------------------------------------
