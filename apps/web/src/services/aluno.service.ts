@@ -172,6 +172,7 @@ export interface UpdateAlunoDTO {
   restingHeartRate?: number;
   systolicPressure?: number;
   diastolicPressure?: number;
+  professorId?: string;
   macronutrients?: {
     carbohydratesPercentage?: number;
     proteinsPercentage?: number;

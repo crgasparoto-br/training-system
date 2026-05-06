@@ -34,7 +34,7 @@ export function getTabBlockKey(tab: AlunoDetailsTab): AccessBlockKey | undefined
 }
 
 export function AlunoDetailsTabs({ activeTab, onChange, visibleTabs }: AlunoDetailsTabsProps) {
-  const tabsToRender = visibleTabs && visibleTabs.length > 0
+  const tabsToRender = visibleTabs
     ? tabs.filter((tab) => visibleTabs.includes(tab.id))
     : tabs;
 

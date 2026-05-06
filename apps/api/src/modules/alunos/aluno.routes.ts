@@ -966,28 +966,17 @@ router.get('/', async (req: Request, res: Response) => {
             filterProfessorId,
             status
           )
-        : (() => {
-            return prisma.professor
-              .findUnique({
-                where: { id: professorId },
-                select: {
-                  collaboratorFunction: {
-                    select: { code: true },
-                  },
-                },
-              })
-              .then(async (actorProfessor) => {
-                const canViewManagedStudents =
-                  actorProfessor?.collaboratorFunction?.code === 'manager';
+        : contractId
+          ? await (async () => {
+              const accessibleProfessorIds = await getManagedProfessorIds(contractId, professorId);
 
-                if (canViewManagedStudents && contractId) {
-                  const accessibleProfessorIds = await getManagedProfessorIds(contractId, professorId);
-                  return alunoService.findByProfessorIds(accessibleProfessorIds, page, limit, status);
-                }
+              if (accessibleProfessorIds.length > 1) {
+                return alunoService.findByProfessorIds(accessibleProfessorIds, page, limit, status);
+              }
 
-                return alunoService.findByProfessor(professorId, page, limit, status);
-              });
-          })();
+              return alunoService.findByProfessor(professorId, page, limit, status);
+            })()
+          : await alunoService.findByProfessor(professorId, page, limit, status);
 
     return sendSuccess(res, result, 'Alunos recuperados com sucesso');
   } catch (error) {
@@ -1030,20 +1019,11 @@ router.get('/search', async (req: Request, res: Response) => {
             professorId: filterProfessorId,
             status,
           })
-        : await prisma.professor
-            .findUnique({
-              where: { id: professorId },
-              select: {
-                collaboratorFunction: {
-                  select: { code: true },
-                },
-              },
-            })
-            .then(async (actorProfessor) => {
-              const canViewManagedStudents = actorProfessor?.collaboratorFunction?.code === 'manager';
+        : contractId
+          ? await (async () => {
+              const accessibleProfessorIds = await getManagedProfessorIds(contractId, professorId);
 
-              if (canViewManagedStudents && contractId) {
-                const accessibleProfessorIds = await getManagedProfessorIds(contractId, professorId);
+              if (accessibleProfessorIds.length > 1) {
                 return alunoService.search({
                   query,
                   professorIds: accessibleProfessorIds,
@@ -1052,7 +1032,8 @@ router.get('/search', async (req: Request, res: Response) => {
               }
 
               return alunoService.search({ query, professorId, status });
-            });
+            })()
+          : await alunoService.search({ query, professorId, status });
 
     return sendSuccess(res, alunos, 'Busca realizada com sucesso');
   } catch (error) {

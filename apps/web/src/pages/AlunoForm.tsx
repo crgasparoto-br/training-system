@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from 'react';
+﻿import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useForm, type FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -23,6 +23,7 @@ import { alunoFormCopy } from '../i18n/ptBR';
 import { BodyDiscomfortMap } from '../components/BodyDiscomfortMap';
 import { BODY_REGIONS, type BodyDiscomfortEntry } from '../constants/bodyRegions';
 import { useAuthStore } from '../stores/useAuthStore';
+import { canAccessScreen } from '../access/access-control';
 
 const numberOrUndefined = (value: unknown) =>
   typeof value === 'number' && Number.isNaN(value) ? undefined : value;
@@ -372,6 +373,20 @@ const isInactiveGeneratedContract = (contract: AvailableStudentContract) => {
   return statusInactive || serviceInactive;
 };
 
+// Map tabs to their corresponding permission blocks
+const getBlockKeyForTab = (tab: AlunoFormTab): string => {
+  const blockMap: Record<AlunoFormTab, string> = {
+    anamneseInicial: 'students.registration.initialAnamnesis',
+    identificacao: 'students.registration.identification',
+    parq: 'students.registration.parq',
+    aha: 'students.registration.aha',
+    desconfortos: 'students.registration.discomforts',
+    financeiro: 'students.registration.financial',
+    preferencias: 'students.registration.preferences',
+  };
+  return blockMap[tab];
+};
+
 const calculateAgeFromBirthDate = (value?: string) => {
   if (!value) return undefined;
 
@@ -414,6 +429,8 @@ export function AlunoForm() {
   const [availableContractsLoading, setAvailableContractsLoading] = useState(false);
   const [availableContractsError, setAvailableContractsError] = useState<string | null>(null);
   const [activeStudentContract, setActiveStudentContract] = useState<StudentContractLink | null>(null);
+  const [saveNotice, setSaveNotice] = useState<string | null>(null);
+  const [originalResponsibleProfessorId, setOriginalResponsibleProfessorId] = useState('');
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
 
   const {
@@ -527,6 +544,19 @@ export function AlunoForm() {
     user?.professor?.role === 'master' ||
     user?.professor?.collaboratorFunction?.code === 'manager' ||
     user?.professor?.collaboratorFunction?.code === 'administrative';
+
+  const accessibleTabs = useMemo(() => {
+    const tabs: AlunoFormTab[] = [
+      'anamneseInicial',
+      'identificacao',
+      'financeiro',
+      'preferencias',
+      'parq',
+      'aha',
+      'desconfortos',
+    ];
+    return tabs.filter((tab) => canAccessScreen(user, getBlockKeyForTab(tab)));
+  }, [user]);
 
   const formatPhone = (value: string) => {
     const digits = value.replace(/\D/g, '').slice(0, 11);
@@ -751,6 +781,17 @@ export function AlunoForm() {
     loadServiceOptions();
     loadProfessorOptions();
   }, []);
+
+  // Redirect to first accessible tab if current tab is not permitted
+  useEffect(() => {
+    if (accessibleTabs.length === 0) {
+      return;
+    }
+
+    if (!accessibleTabs.includes(activeTab)) {
+      setActiveTab(accessibleTabs[0]);
+    }
+  }, [accessibleTabs, activeTab]);
 
   useEffect(() => {
     if (isEditMode && id) {
@@ -1005,14 +1046,21 @@ export function AlunoForm() {
       setValue('intakeForm.financialInfo.specialCondition', financial.specialCondition || '');
       setValue('intakeForm.financialInfo.monthlyValue', financial.monthlyValue || '');
       setValue('intakeForm.financialInfo.discountPercentage', financial.discountPercentage || '');
-      setValue('intakeForm.financialInfo.responsibleProfessorId', financial.responsibleProfessorId || '');
-      setValue('intakeForm.financialInfo.responsibleProfessorName', financial.responsibleProfessorName || '');
+      setValue(
+        'intakeForm.financialInfo.responsibleProfessorId',
+        financial.responsibleProfessorId || aluno.professor?.id || ''
+      );
+      setValue(
+        'intakeForm.financialInfo.responsibleProfessorName',
+        financial.responsibleProfessorName || aluno.professor?.user?.profile?.name || ''
+      );
       setValue('intakeForm.financialInfo.paymentDay', financial.paymentDay || '');
       setValue('intakeForm.financialInfo.contractStartDate', financial.contractStartDate || '');
       setValue('intakeForm.financialInfo.contractDurationUnit', financial.contractDurationUnit || '');
       setValue('intakeForm.financialInfo.contractDurationQuantity', financial.contractDurationQuantity || '');
       setValue('intakeForm.financialInfo.contractDueDate', financial.contractDueDate || '');
       const activeContract = contractLinks.activeContract;
+      setOriginalResponsibleProfessorId(aluno.professor?.id || '');
       setValue('intakeForm.financialInfo.selectedContractId', activeContract?.contractId || '');
       setValue(
         'intakeForm.financialInfo.contract',
@@ -1078,6 +1126,7 @@ export function AlunoForm() {
   };
 
   const onSubmit = async (data: AlunoFormData) => {
+    setSaveNotice(null);
     setLoading(true);
     try {
       const resolvedAge = calculateAgeFromBirthDate(data.birthDate) ?? data.age;
@@ -1117,6 +1166,7 @@ export function AlunoForm() {
 
       const updatePayload: UpdateAlunoDTO = {
         avatar: data.avatar || undefined,
+        professorId: data.intakeForm.financialInfo.responsibleProfessorId || undefined,
         serviceId: data.serviceId,
         birthDate: data.birthDate || undefined,
         gender: data.gender,
@@ -1146,8 +1196,26 @@ export function AlunoForm() {
       };
 
       if (isEditMode && id) {
+        const selectedResponsibleProfessorId = data.intakeForm.financialInfo.responsibleProfessorId || '';
+        const hasResponsibleProfessorChanged =
+          !!selectedResponsibleProfessorId &&
+          !!originalResponsibleProfessorId &&
+          selectedResponsibleProfessorId !== originalResponsibleProfessorId;
+
         await alunoService.update(id, updatePayload);
         await syncStudentContractLink(id, data);
+
+        if (hasResponsibleProfessorChanged) {
+          const selectedProfessor = professorOptions.find(
+            (professor) => professor.id === selectedResponsibleProfessorId
+          );
+          const selectedProfessorName = selectedProfessor?.user?.profile?.name || 'novo responsável';
+          setSaveNotice(`Professor responsável atualizado com sucesso para ${selectedProfessorName}.`);
+          setOriginalResponsibleProfessorId(selectedResponsibleProfessorId);
+        } else {
+          setSaveNotice('Dados do aluno atualizados com sucesso.');
+        }
+
         return;
       }
 
@@ -1287,6 +1355,12 @@ export function AlunoForm() {
         </div>
       </div>
 
+      {saveNotice && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          {saveNotice}
+        </div>
+      )}
+
       <form onSubmit={handleSubmit(onSubmit, handleInvalidSubmit)} className="space-y-6">
         <Card className="overflow-hidden">
           <CardHeader className="space-y-0 border-b border-border p-0">
@@ -1310,117 +1384,83 @@ export function AlunoForm() {
 
             <div className="overflow-x-auto bg-muted/30 px-4 py-2">
               <div role="tablist" aria-label="Guias do cadastro do aluno" className="flex min-w-max gap-2">
-                <button
-                  type="button"
-                  role="tab"
-                  id="aluno-tab-anamnese-inicial"
-                  aria-controls="aluno-panel-anamnese-inicial"
-                  onClick={() => setActiveTab('anamneseInicial')}
-                  className={`inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-medium transition-colors ${
-                    activeTab === 'anamneseInicial'
-                      ? 'bg-card text-primary shadow-sm ring-1 ring-border'
-                      : 'text-muted-foreground hover:bg-card/70 hover:text-foreground'
-                  }`}
-                >
-                  <User size={16} />
-                  Identificação
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  id="aluno-tab-parq"
-                  aria-controls="aluno-panel-parq"
-                  onClick={() => setActiveTab('parq')}
-                  className={`inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-medium transition-colors ${
-                    activeTab === 'parq'
-                      ? 'bg-card text-primary shadow-sm ring-1 ring-border'
-                      : 'text-muted-foreground hover:bg-card/70 hover:text-foreground'
-                  }`}
-                >
-                  <ClipboardList size={16} />
-                  Questionário "PARQ"
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  id="aluno-tab-aha"
-                  aria-controls="aluno-panel-aha"
-                  onClick={() => setActiveTab('aha')}
-                  className={`inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-medium transition-colors ${
-                    activeTab === 'aha'
-                      ? 'bg-card text-primary shadow-sm ring-1 ring-border'
-                      : 'text-muted-foreground hover:bg-card/70 hover:text-foreground'
-                  }`}
-                >
-                  <HeartPulse size={16} />
-                  Questionário American Heart Association
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  id="aluno-tab-desconfortos"
-                  aria-controls="aluno-panel-desconfortos"
-                  onClick={() => setActiveTab('desconfortos')}
-                  className={`inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-medium transition-colors ${
-                    activeTab === 'desconfortos'
-                      ? 'bg-card text-primary shadow-sm ring-1 ring-border'
-                      : 'text-muted-foreground hover:bg-card/70 hover:text-foreground'
-                  }`}
-                >
-                  <Activity size={16} />
-                  Desconfortos
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  id="aluno-tab-financeiro"
-                  aria-controls="aluno-panel-financeiro"
-                  onClick={() => setActiveTab('financeiro')}
-                  className={`inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-medium transition-colors ${
-                    activeTab === 'financeiro'
-                      ? 'bg-card text-primary shadow-sm ring-1 ring-border'
-                      : 'text-muted-foreground hover:bg-card/70 hover:text-foreground'
-                  }`}
-                >
-                  <Wallet size={16} />
-                  Financeiro
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  id="aluno-tab-preferencias"
-                  aria-controls="aluno-panel-preferencias"
-                  onClick={() => setActiveTab('preferencias')}
-                  className={`inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-medium transition-colors ${
-                    activeTab === 'preferencias'
-                      ? 'bg-card text-primary shadow-sm ring-1 ring-border'
-                      : 'text-muted-foreground hover:bg-card/70 hover:text-foreground'
-                  }`}
-                >
-                  <Sparkles size={16} />
-                  Preferências
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  id="aluno-tab-identificacao"
-                  aria-controls="aluno-panel-identificacao"
-                  onClick={() => setActiveTab('identificacao')}
-                  className={`inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-medium transition-colors ${
-                    activeTab === 'identificacao'
-                      ? 'bg-card text-primary shadow-sm ring-1 ring-border'
-                      : 'text-muted-foreground hover:bg-card/70 hover:text-foreground'
-                  }`}
-                >
-                  <FileText size={16} />
-                  Anamnese Inicial
-                </button>
+                {[
+                  {
+                    key: 'anamneseInicial' as AlunoFormTab,
+                    tabId: 'aluno-tab-anamnese-inicial',
+                    panelId: 'aluno-panel-anamnese-inicial',
+                    label: 'Anamnese Inicial',
+                    Icon: FileText,
+                  },
+                  {
+                    key: 'identificacao' as AlunoFormTab,
+                    tabId: 'aluno-tab-identificacao',
+                    panelId: 'aluno-panel-identificacao',
+                    label: 'Identificação',
+                    Icon: User,
+                  },
+                  {
+                    key: 'parq' as AlunoFormTab,
+                    tabId: 'aluno-tab-parq',
+                    panelId: 'aluno-panel-parq',
+                    label: 'Questionário "PARQ"',
+                    Icon: ClipboardList,
+                  },
+                  {
+                    key: 'aha' as AlunoFormTab,
+                    tabId: 'aluno-tab-aha',
+                    panelId: 'aluno-panel-aha',
+                    label: 'Questionário American Heart Association',
+                    Icon: HeartPulse,
+                  },
+                  {
+                    key: 'desconfortos' as AlunoFormTab,
+                    tabId: 'aluno-tab-desconfortos',
+                    panelId: 'aluno-panel-desconfortos',
+                    label: 'Desconfortos',
+                    Icon: Activity,
+                  },
+                  {
+                    key: 'financeiro' as AlunoFormTab,
+                    tabId: 'aluno-tab-financeiro',
+                    panelId: 'aluno-panel-financeiro',
+                    label: 'Financeiro',
+                    Icon: Wallet,
+                  },
+                  {
+                    key: 'preferencias' as AlunoFormTab,
+                    tabId: 'aluno-tab-preferencias',
+                    panelId: 'aluno-panel-preferencias',
+                    label: 'Preferências',
+                    Icon: Sparkles,
+                  },
+                ]
+                  .filter((tab) => accessibleTabs.includes(tab.key))
+                  .map((tab) => (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      role="tab"
+                      id={tab.tabId}
+                      aria-controls={tab.panelId}
+                      aria-selected={activeTab === tab.key}
+                      onClick={() => setActiveTab(tab.key)}
+                      className={`inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-medium transition-colors ${
+                        activeTab === tab.key
+                          ? 'bg-card text-primary shadow-sm ring-1 ring-border'
+                          : 'text-muted-foreground hover:bg-card/70 hover:text-foreground'
+                      }`}
+                    >
+                      <tab.Icon size={16} />
+                      {tab.label}
+                    </button>
+                  ))}
               </div>
             </div>
           </CardHeader>
 
           <CardContent className="p-6">
-            {activeTab === 'anamneseInicial' && (
+            {accessibleTabs.includes('anamneseInicial') && activeTab === 'anamneseInicial' && (
               <div
                 id="aluno-panel-anamnese-inicial"
                 role="tabpanel"
@@ -1642,7 +1682,7 @@ export function AlunoForm() {
               </div>
             )}
 
-            {activeTab === 'financeiro' && (
+            {accessibleTabs.includes('financeiro') && activeTab === 'financeiro' && (
               <div
                 id="aluno-panel-financeiro"
                 role="tabpanel"
@@ -1993,7 +2033,7 @@ export function AlunoForm() {
               </div>
             )}
 
-            {activeTab === 'preferencias' && (
+            {accessibleTabs.includes('preferencias') && activeTab === 'preferencias' && (
               <div
                 id="aluno-panel-preferencias"
                 role="tabpanel"
@@ -2145,7 +2185,7 @@ export function AlunoForm() {
               </div>
             )}
 
-            {activeTab === 'identificacao' && (
+            {accessibleTabs.includes('identificacao') && activeTab === 'identificacao' && (
               <div
                 id="aluno-panel-identificacao"
                 role="tabpanel"
@@ -2252,7 +2292,7 @@ export function AlunoForm() {
               </div>
             )}
 
-            {activeTab === 'parq' && (
+            {accessibleTabs.includes('parq') && activeTab === 'parq' && (
               <div
                 id="aluno-panel-parq"
                 role="tabpanel"
@@ -2302,7 +2342,7 @@ export function AlunoForm() {
               </div>
             )}
 
-            {activeTab === 'desconfortos' && (
+            {accessibleTabs.includes('desconfortos') && activeTab === 'desconfortos' && (
               <div
                 id="aluno-panel-desconfortos"
                 role="tabpanel"
@@ -2333,7 +2373,7 @@ export function AlunoForm() {
               </div>
             )}
 
-            {activeTab === 'aha' && (
+            {accessibleTabs.includes('aha') && activeTab === 'aha' && (
               <div
                 id="aluno-panel-aha"
                 role="tabpanel"

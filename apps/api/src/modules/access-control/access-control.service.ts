@@ -199,25 +199,36 @@ export async function replaceAccessPermissionsForFunction(
       )
     ),
   };
+
   const permissions = buildPermissionMatrix(
     collaboratorFunctionId,
     profileCode,
     sanitizedSelection
   );
 
-  await client.accessPermission.deleteMany({
-    where: { collaboratorFunctionId },
-  });
+  const executeReplace = async (txClient: DbClient) => {
+    await txClient.accessPermission.deleteMany({
+      where: { collaboratorFunctionId },
+    });
 
-  await client.accessPermission.createMany({
-    data: permissions,
-    skipDuplicates: true,
-  });
+    await txClient.accessPermission.createMany({
+      data: permissions,
+      skipDuplicates: true,
+    });
 
-  return client.accessPermission.findMany({
-    where: { collaboratorFunctionId },
-    orderBy: [{ screenKey: 'asc' }, { blockKey: 'asc' }],
-  });
+    return txClient.accessPermission.findMany({
+      where: { collaboratorFunctionId },
+      orderBy: [{ screenKey: 'asc' }, { blockKey: 'asc' }],
+    });
+  };
+
+  // If called with prisma (not in transaction), wrap in transaction for atomicity
+  if (client === prisma) {
+    return prisma.$transaction(executeReplace);
+  }
+  
+  // Already in a transaction, execute directly
+  return executeReplace(client);
 }
 
 export async function getEffectiveAccessPermissionsForProfessor(professor: {

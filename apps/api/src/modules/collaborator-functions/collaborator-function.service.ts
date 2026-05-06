@@ -219,44 +219,59 @@ export const collaboratorFunctionService = {
     collaboratorFunctionId: string,
     data: { name?: string; isActive?: boolean; permissions?: AccessPermissionSelection }
   ) {
-    const existing = await getCollaboratorFunctionForContract(contractId, collaboratorFunctionId);
-    const updateData: Prisma.CollaboratorFunctionOptionUpdateInput = {};
+    return prisma.$transaction(async (tx) => {
+      // Verify function exists and belongs to contract
+      const existing = await tx.collaboratorFunctionOption.findFirst({
+        where: {
+          id: collaboratorFunctionId,
+          contractId,
+        },
+      });
 
-    if (typeof data.name === 'string' && data.name.trim().length > 0) {
-      const normalizedName = normalizeName(data.name);
-      await assertNameAvailable(contractId, normalizedName, prisma, collaboratorFunctionId);
-      updateData.name = normalizedName;
-      updateData.code = await buildUniqueCode(contractId, normalizedName, prisma, collaboratorFunctionId);
-    }
+      if (!existing) {
+        throw new Error('Função do colaborador não encontrada');
+      }
 
-    if (typeof data.isActive === 'boolean') {
-      updateData.isActive = data.isActive;
-    }
+      const updateData: Prisma.CollaboratorFunctionOptionUpdateInput = {};
 
-    const collaboratorFunction =
-      Object.keys(updateData).length === 0
-        ? existing
-        : await prisma.collaboratorFunctionOption.update({
-            where: { id: collaboratorFunctionId },
-            data: updateData,
-          });
+      if (typeof data.name === 'string' && data.name.trim().length > 0) {
+        const normalizedName = normalizeName(data.name);
+        await assertNameAvailable(contractId, normalizedName, tx, collaboratorFunctionId);
+        updateData.name = normalizedName;
+        updateData.code = await buildUniqueCode(contractId, normalizedName, tx, collaboratorFunctionId);
+      }
 
-    if (data.permissions) {
-      await replaceAccessPermissionsForFunction(
-        collaboratorFunction.id,
-        collaboratorFunction.code,
-        data.permissions
-      );
-    } else {
-      await syncAccessPermissionsForFunction(
-        collaboratorFunction.id,
-        collaboratorFunction.code
-      );
-    }
+      if (typeof data.isActive === 'boolean') {
+        updateData.isActive = data.isActive;
+      }
 
-    return prisma.collaboratorFunctionOption.findUniqueOrThrow({
-      where: { id: collaboratorFunctionId },
-      include: accessPermissionsInclude,
+      const collaboratorFunction =
+        Object.keys(updateData).length === 0
+          ? existing
+          : await tx.collaboratorFunctionOption.update({
+              where: { id: collaboratorFunctionId },
+              data: updateData,
+            });
+
+      if (data.permissions) {
+        await replaceAccessPermissionsForFunction(
+          collaboratorFunction.id,
+          collaboratorFunction.code,
+          data.permissions,
+          tx
+        );
+      } else {
+        await syncAccessPermissionsForFunction(
+          collaboratorFunction.id,
+          collaboratorFunction.code,
+          tx
+        );
+      }
+
+      return tx.collaboratorFunctionOption.findUniqueOrThrow({
+        where: { id: collaboratorFunctionId },
+        include: accessPermissionsInclude,
+      });
     });
   },
 

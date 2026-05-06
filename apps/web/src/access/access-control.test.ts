@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canAccessBlock } from './access-control';
+import { canAccessBlock, canAccessScreen } from './access-control';
 import type { AuthResponse } from '@corrida/types';
 
 type User = AuthResponse['user'];
@@ -30,6 +30,26 @@ function makeProfessorUser(permissions: Array<{ screenKey: string; blockKey?: st
 }
 
 describe('controle de acesso de abas e acoes sensiveis do aluno', () => {
+  it('nao quebra quando professor nao possui collaboratorFunction carregada', () => {
+    const user = {
+      id: 'u-2',
+      email: 'prof-sem-funcao@test.com',
+      name: 'Professor sem funcao',
+      type: 'professor',
+      professor: {
+        id: 'p-2',
+        role: 'professor',
+        contract: {
+          id: 'c-1',
+          type: 'academy',
+          document: '00',
+        },
+      },
+    } as unknown as User;
+
+    expect(() => canAccessScreen(user, 'students.consultation')).not.toThrow();
+  });
+
   it('usuario sem permissao nao acessa aba financeira, avaliacoes e acoes sensiveis', () => {
     const user = makeProfessorUser([
       { screenKey: 'students.details', blockKey: null, canView: true },

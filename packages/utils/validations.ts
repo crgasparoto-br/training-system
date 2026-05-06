@@ -195,7 +195,7 @@ const accessPermissionSelectionSchema = z.object({
   screens: z.array(z.string().trim().min(1, 'Tela invalida')),
   blocks: z.array(z.string().trim().min(1, 'Bloco invalido')),
   dataScopes: z
-    .record(z.enum(['self', 'managed', 'contract']).nullable())
+    .record(z.enum(['self', 'managed', 'contract']))
     .optional(),
 });
 
@@ -448,6 +448,7 @@ export const CreateAlunoSchema = z.object({
 
 export const UpdateAlunoSchema = z.object({
   avatar: z.preprocess(emptyStringToUndefined, z.string().trim().optional()),
+  professorId: z.preprocess(emptyStringToUndefined, z.string().trim().optional()),
   serviceId: z.preprocess(emptyStringToUndefined, z.string().trim().optional()),
   schedulePlan: z.enum(['free', 'fixed']).optional(),
   birthDate: optionalDateSchema,
