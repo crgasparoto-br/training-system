@@ -47,9 +47,6 @@ jobs:
 
       - name: Generate Prisma Client
         run: pnpm --filter @corrida/api prisma generate
-
-      - name: Type-check API
-        run: pnpm --filter @corrida/api type-check
         
       # -----------------------------------------------------------------------
       # 4. Type-check & build
