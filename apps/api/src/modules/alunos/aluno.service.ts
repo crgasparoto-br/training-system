@@ -663,7 +663,14 @@ export const alunoService = {
     const aluno = await prisma.aluno.findFirst({
       where: {
         id: alunoId,
-        professorId,
+        OR: [
+          { professorId },
+          {
+            professor: {
+              responsibleManagerId: professorId,
+            },
+          },
+        ],
       },
     });
     return !!aluno;
