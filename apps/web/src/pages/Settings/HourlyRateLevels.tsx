@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
 import type { HourlyRateLevel } from '@corrida/types';
 import { Button } from '../../components/ui/Button';
@@ -11,6 +11,13 @@ import { getHourlyRateLevelBadgeClassName } from '../../utils/hourlyRateLevelTon
 type EditableLevel = HourlyRateLevel & {
   minValueInput: string;
   maxValueInput: string;
+};
+
+type LevelFieldErrors = {
+  label?: string;
+  minValueInput?: string;
+  maxValueInput?: string;
+  range?: string;
 };
 
 function formatValue(value?: number | null) {
@@ -70,6 +77,57 @@ function reorderLevels(levels: EditableLevel[], fromIndex: number, toIndex: numb
   return nextLevels;
 }
 
+function getLevelFieldErrors(level: EditableLevel): LevelFieldErrors {
+  const minValue = parseValue(level.minValueInput);
+  const maxValue = parseValue(level.maxValueInput);
+  const hasMin = minValue !== null;
+  const hasMax = maxValue !== null;
+
+  const errors: LevelFieldErrors = {};
+
+  if (!level.label.trim()) {
+    errors.label = settingsHourlyRateLevelsCopy.labelRequired;
+  }
+
+  if (hasMin !== hasMax) {
+    errors.minValueInput = settingsHourlyRateLevelsCopy.minMaxPairRequired;
+    errors.maxValueInput = settingsHourlyRateLevelsCopy.minMaxPairRequired;
+  }
+
+  if (hasMin && hasMax && typeof minValue === 'number' && typeof maxValue === 'number' && minValue > maxValue) {
+    errors.range = settingsHourlyRateLevelsCopy.invalidRange;
+  }
+
+  return errors;
+}
+
+function hasAnyLevelError(levelErrors: LevelFieldErrors[]) {
+  return levelErrors.some((errors) =>
+    Boolean(errors.label || errors.minValueInput || errors.maxValueInput || errors.range)
+  );
+}
+
+function hasOverlappingRanges(levels: EditableLevel[]) {
+  let previousMax: number | null = null;
+
+  for (const level of levels) {
+    const minValue = parseValue(level.minValueInput);
+    const maxValue = parseValue(level.maxValueInput);
+
+    if (minValue === null || maxValue === null) {
+      continue;
+    }
+
+    if (previousMax !== null && minValue <= previousMax) {
+      return true;
+    }
+
+    previousMax = maxValue;
+  }
+
+  return false;
+}
+
 export default function SettingsHourlyRateLevels() {
   const [levels, setLevels] = useState<EditableLevel[]>([]);
   const [loading, setLoading] = useState(true);
@@ -77,6 +135,21 @@ export default function SettingsHourlyRateLevels() {
   const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const isBusy = loading || saving || creating || !!deletingId;
+
+  const levelErrors = useMemo(() => levels.map(getLevelFieldErrors), [levels]);
+  const hasFieldErrors = useMemo(() => hasAnyLevelError(levelErrors), [levelErrors]);
+  const hasRangeOverlap = useMemo(() => hasOverlappingRanges(levels), [levels]);
+
+  const configuredCount = useMemo(
+    () =>
+      levels.filter(
+        (level) => parseValue(level.minValueInput) !== null && parseValue(level.maxValueInput) !== null
+      ).length,
+    [levels]
+  );
+  const pendingCount = levels.length - configuredCount;
 
   const loadLevels = async () => {
     setLoading(true);
@@ -98,6 +171,17 @@ export default function SettingsHourlyRateLevels() {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+
+    if (hasFieldErrors) {
+      setError(settingsHourlyRateLevelsCopy.saveInvalid);
+      return;
+    }
+
+    if (hasRangeOverlap) {
+      setError(settingsHourlyRateLevelsCopy.overlapWarning);
+      return;
+    }
+
     setSaving(true);
     setError(null);
 
@@ -204,10 +288,10 @@ export default function SettingsHourlyRateLevels() {
           <p className="text-sm text-muted-foreground">{settingsHourlyRateLevelsCopy.description}</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" onClick={loadLevels} disabled={loading || saving || creating || !!deletingId}>
+          <Button type="button" variant="outline" onClick={loadLevels} disabled={isBusy}>
             {settingsHourlyRateLevelsCopy.refresh}
           </Button>
-          <Button type="button" variant="secondary" onClick={handleCreateLevel} disabled={loading || saving || creating || !!deletingId}>
+          <Button type="button" variant="secondary" onClick={handleCreateLevel} disabled={isBusy}>
             <Plus size={16} />
             {settingsHourlyRateLevelsCopy.addLevel}
           </Button>
@@ -220,6 +304,33 @@ export default function SettingsHourlyRateLevels() {
         </div>
       )}
 
+      {hasRangeOverlap && !error && (
+        <div className="rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">
+          {settingsHourlyRateLevelsCopy.overlapWarning}
+        </div>
+      )}
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Card className="border-primary/15 bg-primary/5">
+          <CardContent className="p-4">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">{settingsHourlyRateLevelsCopy.totalLevels}</p>
+            <p className="mt-1 text-2xl font-semibold text-foreground">{levels.length}</p>
+          </CardContent>
+        </Card>
+        <Card className="border-success/20 bg-success/10">
+          <CardContent className="p-4">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">{settingsHourlyRateLevelsCopy.configuredLevels}</p>
+            <p className="mt-1 text-2xl font-semibold text-success">{configuredCount}</p>
+          </CardContent>
+        </Card>
+        <Card className="border-warning/20 bg-warning/10">
+          <CardContent className="p-4">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">{settingsHourlyRateLevelsCopy.pendingLevels}</p>
+            <p className="mt-1 text-2xl font-semibold text-warning">{pendingCount}</p>
+          </CardContent>
+        </Card>
+      </div>
+
       <Card>
         <CardHeader>
           <CardTitle>{settingsHourlyRateLevelsCopy.cardTitle}</CardTitle>
@@ -227,10 +338,11 @@ export default function SettingsHourlyRateLevels() {
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={handleSubmit}>
-            <div className="overflow-x-auto">
+            <div className="hidden overflow-x-auto md:block">
               <table className="min-w-full text-sm">
                 <thead>
                   <tr className="border-b text-left text-xs uppercase text-muted-foreground">
+                    <th className="px-3 py-2">{settingsHourlyRateLevelsCopy.orderLabel}</th>
                     <th className="px-3 py-2">{settingsHourlyRateLevelsCopy.levelNameColumn}</th>
                     <th className="px-3 py-2">{settingsHourlyRateLevelsCopy.minValueColumn}</th>
                     <th className="px-3 py-2">{settingsHourlyRateLevelsCopy.maxValueColumn}</th>
@@ -241,21 +353,28 @@ export default function SettingsHourlyRateLevels() {
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">
-                        Carregando níveis...
+                      <td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">
+                        {settingsHourlyRateLevelsCopy.loadingLevels}
                       </td>
                     </tr>
                   ) : (
-                    levels.map((level) => {
-                      const levelIndex = levels.findIndex((item) => item.id === level.id);
-                      const isConfigured = !!level.minValueInput && !!level.maxValueInput;
+                    levels.map((level, levelIndex) => {
+                      const isConfigured =
+                        parseValue(level.minValueInput) !== null && parseValue(level.maxValueInput) !== null;
+                      const rowErrors = levelErrors[levelIndex];
 
                       return (
                         <tr key={level.id} className="border-b align-top">
                           <td className="px-3 py-3">
+                            <span className="inline-flex rounded-md bg-muted px-2 py-1 text-xs font-semibold text-muted-foreground">
+                              {levelIndex + 1}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3">
                             <Input
                               label=""
                               value={level.label}
+                              error={rowErrors?.label}
                               onChange={(event) => updateLevelField(level.id, 'label', event.target.value)}
                               placeholder={settingsHourlyRateLevelsCopy.levelNamePlaceholder}
                             />
@@ -273,6 +392,7 @@ export default function SettingsHourlyRateLevels() {
                               type="text"
                               inputMode="decimal"
                               value={level.minValueInput}
+                              error={rowErrors?.minValueInput || rowErrors?.range}
                               onChange={(event) =>
                                 updateLevelField(level.id, 'minValueInput', normalizePtBrMoneyInput(event.target.value))
                               }
@@ -286,6 +406,7 @@ export default function SettingsHourlyRateLevels() {
                               type="text"
                               inputMode="decimal"
                               value={level.maxValueInput}
+                              error={rowErrors?.maxValueInput || rowErrors?.range}
                               onChange={(event) =>
                                 updateLevelField(level.id, 'maxValueInput', normalizePtBrMoneyInput(event.target.value))
                               }
@@ -313,7 +434,7 @@ export default function SettingsHourlyRateLevels() {
                                 variant="ghost"
                                 size="icon"
                                 onClick={() => handleMoveLevel(level.id, 'up')}
-                                disabled={saving || creating || !!deletingId || levelIndex === 0}
+                                disabled={isBusy || levelIndex === 0}
                                 aria-label={settingsHourlyRateLevelsCopy.moveUp}
                                 title={settingsHourlyRateLevelsCopy.moveUp}
                               >
@@ -324,7 +445,7 @@ export default function SettingsHourlyRateLevels() {
                                 variant="ghost"
                                 size="icon"
                                 onClick={() => handleMoveLevel(level.id, 'down')}
-                                disabled={saving || creating || !!deletingId || levelIndex === levels.length - 1}
+                                disabled={isBusy || levelIndex === levels.length - 1}
                                 aria-label={settingsHourlyRateLevelsCopy.moveDown}
                                 title={settingsHourlyRateLevelsCopy.moveDown}
                               >
@@ -334,10 +455,10 @@ export default function SettingsHourlyRateLevels() {
                                 type="button"
                                 variant="ghost"
                                 onClick={() => handleDeleteLevel(level.id)}
-                                disabled={saving || creating || deletingId === level.id}
+                                disabled={isBusy || deletingId === level.id}
                               >
                                 <Trash2 size={16} />
-                                {settingsHourlyRateLevelsCopy.deleteLevel}
+                                <span className="hidden lg:inline">{settingsHourlyRateLevelsCopy.deleteLevel}</span>
                               </Button>
                             </div>
                           </td>
@@ -349,12 +470,131 @@ export default function SettingsHourlyRateLevels() {
               </table>
             </div>
 
+            <div className="space-y-4 md:hidden">
+              {loading ? (
+                <div className="rounded-lg border border-border bg-muted/30 px-4 py-6 text-center text-sm text-muted-foreground">
+                  {settingsHourlyRateLevelsCopy.loadingLevels}
+                </div>
+              ) : (
+                levels.map((level, levelIndex) => {
+                  const isConfigured =
+                    parseValue(level.minValueInput) !== null && parseValue(level.maxValueInput) !== null;
+                  const rowErrors = levelErrors[levelIndex];
+
+                  return (
+                    <div key={level.id} className="rounded-xl border border-border bg-card p-4 shadow-sm">
+                      <div className="mb-3 flex items-center justify-between gap-2">
+                        <div>
+                          <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                            {settingsHourlyRateLevelsCopy.orderLabel} {levelIndex + 1}
+                          </p>
+                          <p className="text-sm font-semibold text-foreground">{settingsHourlyRateLevelsCopy.levelCardTitle}</p>
+                        </div>
+                        <span
+                          className={`rounded-full px-2 py-1 text-xs font-medium ${
+                            isConfigured ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'
+                          }`}
+                        >
+                          {isConfigured
+                            ? settingsHourlyRateLevelsCopy.configuredStatus
+                            : settingsHourlyRateLevelsCopy.pendingStatus}
+                        </span>
+                      </div>
+
+                      <div className="space-y-3">
+                        <Input
+                          label={settingsHourlyRateLevelsCopy.levelNameColumn}
+                          value={level.label}
+                          error={rowErrors?.label}
+                          onChange={(event) => updateLevelField(level.id, 'label', event.target.value)}
+                          placeholder={settingsHourlyRateLevelsCopy.levelNamePlaceholder}
+                        />
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <Input
+                            label={settingsHourlyRateLevelsCopy.minValueColumn}
+                            type="text"
+                            inputMode="decimal"
+                            value={level.minValueInput}
+                            error={rowErrors?.minValueInput || rowErrors?.range}
+                            onChange={(event) =>
+                              updateLevelField(level.id, 'minValueInput', normalizePtBrMoneyInput(event.target.value))
+                            }
+                            onBlur={() => handleMoneyBlur(level.id, 'minValueInput')}
+                            placeholder={settingsHourlyRateLevelsCopy.minValuePlaceholder}
+                          />
+                          <Input
+                            label={settingsHourlyRateLevelsCopy.maxValueColumn}
+                            type="text"
+                            inputMode="decimal"
+                            value={level.maxValueInput}
+                            error={rowErrors?.maxValueInput || rowErrors?.range}
+                            onChange={(event) =>
+                              updateLevelField(level.id, 'maxValueInput', normalizePtBrMoneyInput(event.target.value))
+                            }
+                            onBlur={() => handleMoneyBlur(level.id, 'maxValueInput')}
+                            placeholder={settingsHourlyRateLevelsCopy.maxValuePlaceholder}
+                          />
+                        </div>
+
+                        <div>
+                          <span
+                            className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${getHourlyRateLevelBadgeClassName(level.label)}`}
+                          >
+                            {level.label.trim() || settingsHourlyRateLevelsCopy.levelNamePlaceholder}
+                          </span>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            onClick={() => handleMoveLevel(level.id, 'up')}
+                            disabled={isBusy || levelIndex === 0}
+                            aria-label={settingsHourlyRateLevelsCopy.moveUp}
+                            title={settingsHourlyRateLevelsCopy.moveUp}
+                          >
+                            <ArrowUp size={16} />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            onClick={() => handleMoveLevel(level.id, 'down')}
+                            disabled={isBusy || levelIndex === levels.length - 1}
+                            aria-label={settingsHourlyRateLevelsCopy.moveDown}
+                            title={settingsHourlyRateLevelsCopy.moveDown}
+                          >
+                            <ArrowDown size={16} />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={() => handleDeleteLevel(level.id)}
+                            disabled={isBusy || deletingId === level.id}
+                            className="ml-auto text-destructive hover:text-destructive"
+                          >
+                            <Trash2 size={16} />
+                            {settingsHourlyRateLevelsCopy.deleteLevel}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
             <p className="text-xs text-muted-foreground">{settingsHourlyRateLevelsCopy.hint}</p>
 
-            <div className="flex justify-end">
-              <Button type="submit" isLoading={saving} disabled={loading}>
-                {settingsHourlyRateLevelsCopy.save}
-              </Button>
+            <div className="sticky bottom-3 z-10 rounded-xl border border-border bg-card/95 p-3 backdrop-blur-sm">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-xs text-muted-foreground">{settingsHourlyRateLevelsCopy.summaryTitle}</p>
+                <Button type="submit" isLoading={saving} disabled={loading || hasFieldErrors || hasRangeOverlap}>
+                  {settingsHourlyRateLevelsCopy.save}
+                </Button>
+              </div>
             </div>
           </form>
         </CardContent>

@@ -9,6 +9,8 @@ import { AppSidebar } from '../components/sidebar';
 import { sidebarMenuItems } from '../navigation/sidebarMenu';
 import { shellCopy } from '../i18n/ptBR';
 
+const ACCESS_REFRESH_SIGNAL_KEY = 'auth-permissions-updated-at';
+
 export function DashboardLayout() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -30,6 +32,34 @@ export function DashboardLayout() {
 
   useEffect(() => {
     void loadUser();
+  }, [loadUser]);
+
+  useEffect(() => {
+    const refreshUser = () => {
+      void loadUser();
+    };
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === ACCESS_REFRESH_SIGNAL_KEY) {
+        refreshUser();
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refreshUser();
+      }
+    };
+
+    window.addEventListener('storage', handleStorage);
+    window.addEventListener('focus', refreshUser);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('focus', refreshUser);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [loadUser]);
 
   useEffect(() => {
