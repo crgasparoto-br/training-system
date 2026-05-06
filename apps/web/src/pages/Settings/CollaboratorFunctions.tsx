@@ -14,6 +14,7 @@ import {
 import { Button } from '../../components/ui/Button';
 import { Card, CardContent } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
+import { useAuthStore } from '../../stores/useAuthStore';
 import {
   permissionTreeGroups,
   type PermissionTreeGroup as PermTreeGroup,
@@ -40,6 +41,8 @@ const defaultPermissionSelection: PermissionSelection = {
   blocks: [...fallbackPermissions.blocks],
   dataScopes: { ...(fallbackPermissions.dataScopes ?? {}) },
 };
+
+const ACCESS_REFRESH_SIGNAL_KEY = 'auth-permissions-updated-at';
 
 const scopedScreenKeys = new Set<string>(ACCESS_DATA_SCOPE_SCREEN_KEYS);
 const screenCatalogByKey = new Map<string, {
@@ -188,6 +191,7 @@ function EmptyEditor() {
 // \u2500\u2500\u2500 Main Component \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 
 export default function SettingsCollaboratorFunctions() {
+  const loadUser = useAuthStore((state) => state.loadUser);
   const [items, setItems] = useState<CollaboratorFunctionOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -423,6 +427,8 @@ export default function SettingsCollaboratorFunctions() {
         });
       }
       await loadItems();
+      await loadUser();
+      localStorage.setItem(ACCESS_REFRESH_SIGNAL_KEY, String(Date.now()));
       setSavedPermissions(permissions);
       setSaveSuccess(true);
       setIsCreating(false);
