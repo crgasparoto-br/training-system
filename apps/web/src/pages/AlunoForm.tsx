@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef, useMemo } from 'react';
+﻿import { useState, useEffect, useRef, useMemo, type ChangeEvent, type FocusEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useForm, type FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -15,6 +15,7 @@ import {
 import { professorService } from '../services/professor.service';
 import { serviceCatalogService } from '../services/service.service';
 import { contractService, type AvailableStudentContract } from '../services/contract.service';
+import { formatCep, getCepLookupFeedbackMessage, lookupCep, onlyCepDigits } from '../services/cep.service';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
@@ -430,6 +431,7 @@ export function AlunoForm() {
   const [availableContractsError, setAvailableContractsError] = useState<string | null>(null);
   const [activeStudentContract, setActiveStudentContract] = useState<StudentContractLink | null>(null);
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
+  const [cepError, setCepError] = useState<string | null>(null);
   const [originalResponsibleProfessorId, setOriginalResponsibleProfessorId] = useState('');
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -987,6 +989,54 @@ export function AlunoForm() {
     calculateContractDueDate(contractStartDate, contractDurationUnit, contractDurationQuantity) ||
     currentContractDueDate ||
     '';
+  const zipCodeField = register('intakeForm.personalInfo.zipCode');
+
+  const handleZipCodeChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setCepError(null);
+    setValue('intakeForm.personalInfo.zipCode', formatCep(event.target.value), {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+  };
+
+  const handleZipCodeBlur = async (event: FocusEvent<HTMLInputElement>) => {
+    zipCodeField.onBlur(event);
+
+    const cep = onlyCepDigits(event.target.value);
+
+    if (cep.length < 8) {
+      return;
+    }
+
+    setCepError(null);
+
+    try {
+      const address = await lookupCep(cep);
+
+      if (!address) {
+        return;
+      }
+
+      setValue('intakeForm.personalInfo.address', address.street, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+      setValue('intakeForm.personalInfo.neighborhood', address.neighborhood, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+      setValue('intakeForm.personalInfo.city', address.city, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+      setValue('intakeForm.personalInfo.state', address.state, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+    } catch (error) {
+      setCepError(getCepLookupFeedbackMessage(error));
+    }
+  };
 
   const loadAlunoData = async (alunoId: string) => {
     setLoadingData(true);
@@ -1036,7 +1086,7 @@ export function AlunoForm() {
       setValue('intakeForm.personalInfo.neighborhood', identification.neighborhood || '');
       setValue('intakeForm.personalInfo.city', identification.city || '');
       setValue('intakeForm.personalInfo.state', identification.state || '');
-      setValue('intakeForm.personalInfo.zipCode', identification.zipCode || '');
+      setValue('intakeForm.personalInfo.zipCode', formatCep(identification.zipCode || ''));
       setValue('intakeForm.personalInfo.maritalStatus', identification.maritalStatus || '');
       setValue('intakeForm.personalInfo.instagram', identification.instagram || '');
       setValue('intakeForm.personalInfo.emergencyContactName', identification.emergencyContactName || '');
@@ -1629,7 +1679,15 @@ export function AlunoForm() {
                       <p className="mt-1 text-sm text-muted-foreground">Organize os dados residenciais em uma leitura mais compacta.</p>
                     </div>
 
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-[1.4fr_160px]">
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-[220px_1fr_160px]">
+                      <Input
+                        label="CEP"
+                        placeholder="00000-000"
+                        error={cepError || undefined}
+                        {...zipCodeField}
+                        onChange={handleZipCodeChange}
+                        onBlur={handleZipCodeBlur}
+                      />
                       <Input label="Endereço" placeholder="Rua, avenida, rodovia..." {...register('intakeForm.personalInfo.address')} />
                       <Input label="Número" placeholder="123" {...register('intakeForm.personalInfo.addressNumber')} />
                     </div>
@@ -1641,9 +1699,8 @@ export function AlunoForm() {
                       <Input label="Estado" placeholder="SP" {...register('intakeForm.personalInfo.state')} />
                     </div>
 
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_220px]">
+                    <div className="grid grid-cols-1 gap-4">
                       <Input label="Complemento" placeholder="Bloco, apartamento, referência..." {...register('intakeForm.personalInfo.addressComplement')} />
-                      <Input label="CEP" placeholder="00000-000" {...register('intakeForm.personalInfo.zipCode')} />
                     </div>
                   </div>
 
@@ -2482,4 +2539,3 @@ export function AlunoForm() {
     </div>
   );
 }
-

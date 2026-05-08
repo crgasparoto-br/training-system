@@ -1,9 +1,10 @@
-﻿import { useEffect, useRef, useState } from 'react';
+﻿import { useEffect, useRef, useState, type ChangeEvent, type FocusEvent } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Building2, ImagePlus, MapPin, Upload, X } from 'lucide-react';
 import { useAuthStore } from '../../stores/useAuthStore';
+import { formatCep, getCepLookupFeedbackMessage, lookupCep, onlyCepDigits } from '../../services/cep.service';
 import { contractService } from '../../services/contract.service';
 import api from '../../services/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/Card';
@@ -11,6 +12,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { commonCopy, contractCopy, professoresCopy } from '../../i18n/ptBR';
 import type { Contract } from '../../services/contract.service';
+import { resolveAssetUrl } from '../../utils/assetUrl';
 
 const contractSchema = z.object({
   name: z.string().trim().min(1, contractCopy.companyNameRequired),
@@ -38,23 +40,6 @@ function formatCnpj(value: string) {
     .replace(/(\d{4})(\d)/, '$1-$2');
 }
 
-function formatZipCode(value: string) {
-  const digits = value.replace(/\D/g, '').slice(0, 8);
-  return digits.replace(/^(\d{5})(\d)/, '$1-$2');
-}
-
-function resolveLogoUrl(logoUrl?: string | null) {
-  if (!logoUrl) {
-    return '';
-  }
-
-  if (logoUrl.startsWith('http://') || logoUrl.startsWith('https://')) {
-    return logoUrl;
-  }
-
-  return logoUrl.startsWith('/') ? logoUrl : `/${logoUrl}`;
-}
-
 function ReadOnlyField({ label, value }: { label: string; value?: string | null }) {
   return <Input label={label} value={value || contractCopy.notInformed} readOnly disabled />;
 }
@@ -67,6 +52,7 @@ export default function ContractSettings() {
   const [cloning, setCloning] = useState(false);
   const [cloneResult, setCloneResult] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [cepError, setCepError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const {
@@ -97,7 +83,43 @@ export default function ContractSettings() {
 
   const canEdit = user?.type === 'professor' && user?.professor?.role === 'master';
   const logoUrl = watch('logoUrl');
-  const resolvedLogoUrl = resolveLogoUrl(logoUrl || user?.professor?.contract?.logoUrl || '');
+  const resolvedLogoUrl = resolveAssetUrl(logoUrl || user?.professor?.contract?.logoUrl || '');
+  const zipCodeField = register('addressZipCode');
+
+  const handleZipCodeChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setCepError(null);
+    setValue('addressZipCode', formatCep(event.target.value), {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+  };
+
+  const handleZipCodeBlur = async (event: FocusEvent<HTMLInputElement>) => {
+    zipCodeField.onBlur(event);
+
+    const cep = onlyCepDigits(event.target.value);
+
+    if (cep.length < 8) {
+      return;
+    }
+
+    setCepError(null);
+
+    try {
+      const address = await lookupCep(cep);
+
+      if (!address) {
+        return;
+      }
+
+      setValue('addressStreet', address.street, { shouldDirty: true, shouldValidate: true });
+      setValue('addressNeighborhood', address.neighborhood, { shouldDirty: true, shouldValidate: true });
+      setValue('addressCity', address.city, { shouldDirty: true, shouldValidate: true });
+      setValue('addressState', address.state, { shouldDirty: true, shouldValidate: true });
+    } catch (error) {
+      setCepError(getCepLookupFeedbackMessage(error));
+    }
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -116,9 +138,10 @@ export default function ContractSettings() {
             addressCity: contract?.addressCity || '',
             addressState: contract?.addressState || '',
             addressComplement: contract?.addressComplement || '',
-            addressZipCode: contract?.addressZipCode || '',
+            addressZipCode: formatCep(contract?.addressZipCode || ''),
             logoUrl: contract?.logoUrl || '',
           });
+          setCepError(null);
         };
 
         if (!canEdit) {
@@ -180,9 +203,10 @@ export default function ContractSettings() {
         addressCity: updated.addressCity || '',
         addressState: updated.addressState || '',
         addressComplement: updated.addressComplement || '',
-        addressZipCode: updated.addressZipCode || '',
+        addressZipCode: formatCep(updated.addressZipCode || ''),
         logoUrl: updated.logoUrl || '',
       });
+      setCepError(null);
     } catch (err: any) {
       setErrorMessage(err.response?.data?.error || contractCopy.updateError);
     } finally {
@@ -406,44 +430,35 @@ export default function ContractSettings() {
                   <p className="mt-1 text-sm text-muted-foreground">{contractCopy.addressDescription}</p>
                 </div>
               </div>
-              <div className="grid grid-cols-1 gap-3">
-                {canEdit ? (
-                  <Input
-                    label={professoresCopy.addressStreetLabel}
-                    placeholder="Rua Exemplo"
-                    error={errors.addressStreet?.message}
-                    {...register('addressStreet')}
-                  />
-                ) : (
-                  <ReadOnlyField label={professoresCopy.addressStreetLabel} value={user?.professor?.contract?.addressStreet} />
-                )}
-              </div>
-              <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-[140px_180px]">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-[180px_minmax(0,1fr)_140px]">
                 {canEdit ? (
                   <>
+                    <Input
+                      label={professoresCopy.addressZipCodeLabel}
+                      placeholder="00000-000"
+                      error={cepError || errors.addressZipCode?.message}
+                      {...zipCodeField}
+                      onChange={handleZipCodeChange}
+                      onBlur={handleZipCodeBlur}
+                    />
+                    <Input
+                      label={professoresCopy.addressStreetLabel}
+                      placeholder="Rua Exemplo"
+                      error={errors.addressStreet?.message}
+                      {...register('addressStreet')}
+                    />
                     <Input
                       label={professoresCopy.addressNumberLabel}
                       placeholder="123"
                       error={errors.addressNumber?.message}
                       {...register('addressNumber')}
                     />
-                    <Input
-                      label={professoresCopy.addressZipCodeLabel}
-                      placeholder="00000-000"
-                      error={errors.addressZipCode?.message}
-                      {...register('addressZipCode', {
-                        onChange: (event) => {
-                          setValue('addressZipCode', formatZipCode(event.target.value), {
-                            shouldValidate: true,
-                          });
-                        },
-                      })}
-                    />
                   </>
                 ) : (
                   <>
+                    <ReadOnlyField label={professoresCopy.addressZipCodeLabel} value={formatCep(user?.professor?.contract?.addressZipCode || '')} />
+                    <ReadOnlyField label={professoresCopy.addressStreetLabel} value={user?.professor?.contract?.addressStreet} />
                     <ReadOnlyField label={professoresCopy.addressNumberLabel} value={user?.professor?.contract?.addressNumber} />
-                    <ReadOnlyField label={professoresCopy.addressZipCodeLabel} value={user?.professor?.contract?.addressZipCode} />
                   </>
                 )}
               </div>
@@ -527,4 +542,3 @@ export default function ContractSettings() {
     </div>
   );
 }
-
