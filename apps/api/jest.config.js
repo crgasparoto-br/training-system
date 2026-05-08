@@ -7,7 +7,7 @@ export default {
   moduleNameMapper: {
     '^\\.\\./\\.\\./bootstrap-env\\.js$': '<rootDir>/tests/bootstrap-env.mock.ts',
      '^@corrida/types$': '<rootDir>/../../packages/types/index.ts',
-     '^@corrida/utils$': '<rootDir>/../../packages/utils/src/index.ts',
+     '^@corrida/utils$': '<rootDir>/../../packages/utils/index.ts',
     '^(\\.{1,2}/.*)\\.js$': '$1',
   },
   collectCoverageFrom: [
