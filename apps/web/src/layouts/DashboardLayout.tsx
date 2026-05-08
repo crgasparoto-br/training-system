@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { LogOut, Menu, X } from 'lucide-react';
+import { LogOut, Menu, User, X } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { filterSidebarItemsByAccess } from '../access/access-control';
 import { useAuthStore } from '../stores/useAuthStore';
@@ -8,6 +8,7 @@ import { Button } from '../components/ui/Button';
 import { AppSidebar } from '../components/sidebar';
 import { sidebarMenuItems } from '../navigation/sidebarMenu';
 import { shellCopy } from '../i18n/ptBR';
+import { resolveAssetUrl } from '../utils/assetUrl';
 
 const ACCESS_REFRESH_SIGNAL_KEY = 'auth-permissions-updated-at';
 
@@ -22,13 +23,8 @@ export function DashboardLayout() {
     || user?.professor?.contract?.name?.trim()
     || shellCopy.productName;
 
-  const companyLogoUrl = user?.professor?.contract?.logoUrl?.trim()
-    ? user.professor.contract.logoUrl.startsWith('http://') || user.professor.contract.logoUrl.startsWith('https://')
-      ? user.professor.contract.logoUrl
-      : user.professor.contract.logoUrl.startsWith('/')
-        ? user.professor.contract.logoUrl
-        : `/${user.professor.contract.logoUrl}`
-    : null;
+  const companyLogoUrl = resolveAssetUrl(user?.professor?.contract?.logoUrl);
+  const userAvatarUrl = resolveAssetUrl((user as { profile?: { avatar?: string | null } } | null)?.profile?.avatar);
 
   useEffect(() => {
     void loadUser();
@@ -116,6 +112,13 @@ export function DashboardLayout() {
                     : user.professor?.collaboratorFunction?.name || 'Professor'
                   : 'Aluno'}
               </span>
+            </div>
+            <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-border bg-muted text-muted-foreground">
+              {userAvatarUrl ? (
+                <img src={userAvatarUrl} alt={user?.name || 'Usuário'} className="h-full w-full object-cover" />
+              ) : (
+                <User size={18} aria-hidden="true" />
+              )}
             </div>
             <Button variant="ghost" size="icon" onClick={handleLogout} className="text-muted-foreground hover:text-foreground">
               <LogOut size={18} />

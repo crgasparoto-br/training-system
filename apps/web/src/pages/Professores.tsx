@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
+﻿import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FocusEvent } from 'react';
 import { useForm, type FieldErrors } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { bankService } from '../services/bank.service';
 import { collaboratorFunctionService } from '../services/collaborator-function.service';
+import { formatCep, getCepLookupFeedbackMessage, lookupCep, onlyCepDigits } from '../services/cep.service';
 import { hourlyRateLevelService } from '../services/hourly-rate-level.service';
 import { professorService } from '../services/professor.service';
 import type {
@@ -40,6 +41,7 @@ import { Input } from '../components/ui/Input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
 import { commonCopy, professoresCopy } from '../i18n/ptBR';
 import { getHourlyRateLevelBadgeClassName } from '../utils/hourlyRateLevelTone';
+import { resolveAssetUrl } from '../utils/assetUrl';
 import { cn } from '@/utils/cn';
 
 const optionalUrlField = (message: string) =>
@@ -207,8 +209,6 @@ const consultLegalFinancialFilterOptions: Array<{ value: ConsultLegalFinancialFi
   { value: 'not_provided', label: professoresCopy.legalFinancialNotProvided },
 ];
 
-const baseUrl = import.meta.env.VITE_API_URL || '';
-
 function getAvatarInitials(name?: string | null) {
   const parts = (name || '')
     .trim()
@@ -224,15 +224,7 @@ function getAvatarInitials(name?: string | null) {
 }
 
 function resolveAvatarUrl(avatar?: string | null) {
-  if (!avatar) {
-    return '';
-  }
-
-  if (/^(https?:|data:|blob:)/i.test(avatar)) {
-    return avatar;
-  }
-
-  return `${baseUrl}/${avatar}`;
+  return resolveAssetUrl(avatar);
 }
 
 function AvatarUploadField({
@@ -1070,12 +1062,6 @@ function formatCnpj(value: string) {
     .replace(/(\d{4})(\d)/, '$1-$2');
 }
 
-function formatZipCode(value: string) {
-  const digits = value.replace(/\D/g, '').slice(0, 8);
-
-  return digits.replace(/^(\d{5})(\d)/, '$1-$2');
-}
-
 function normalizeInstagramHandle(value?: string | null) {
   if (!value) return '';
 
@@ -1440,6 +1426,8 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [createActiveTab, setCreateActiveTab] = useState<CollaboratorRegistrationTab>('collaborator');
   const [editActiveTab, setEditActiveTab] = useState<CollaboratorRegistrationTab>('collaborator');
+  const [createCepError, setCreateCepError] = useState<string | null>(null);
+  const [editCepError, setEditCepError] = useState<string | null>(null);
   const [resetPassword, setResetPassword] = useState<string | null>(null);
   const [resetTarget, setResetTarget] = useState<string | null>(null);
   const createAvatarInputRef = useRef<HTMLInputElement | null>(null);
@@ -1503,6 +1491,79 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
   } = useForm<EditProfessorForm>({
     resolver: zodResolver(editProfessorSchema),
   });
+
+  const createZipCodeField = register('addressZipCode');
+  const editZipCodeField = registerEdit('addressZipCode');
+
+  const handleCreateZipCodeChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setCreateCepError(null);
+    setValue('addressZipCode', formatCep(event.target.value), {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+  };
+
+  const handleEditZipCodeChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setEditCepError(null);
+    setEditValue('addressZipCode', formatCep(event.target.value), {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+  };
+
+  const handleCreateZipCodeBlur = async (event: FocusEvent<HTMLInputElement>) => {
+    createZipCodeField.onBlur(event);
+
+    const cep = onlyCepDigits(event.target.value);
+
+    if (cep.length < 8) {
+      return;
+    }
+
+    setCreateCepError(null);
+
+    try {
+      const address = await lookupCep(cep);
+
+      if (!address) {
+        return;
+      }
+
+      setValue('addressStreet', address.street, { shouldDirty: true, shouldValidate: true });
+      setValue('addressNeighborhood', address.neighborhood, { shouldDirty: true, shouldValidate: true });
+      setValue('addressCity', address.city, { shouldDirty: true, shouldValidate: true });
+      setValue('addressState', address.state, { shouldDirty: true, shouldValidate: true });
+    } catch (error) {
+      setCreateCepError(getCepLookupFeedbackMessage(error));
+    }
+  };
+
+  const handleEditZipCodeBlur = async (event: FocusEvent<HTMLInputElement>) => {
+    editZipCodeField.onBlur(event);
+
+    const cep = onlyCepDigits(event.target.value);
+
+    if (cep.length < 8) {
+      return;
+    }
+
+    setEditCepError(null);
+
+    try {
+      const address = await lookupCep(cep);
+
+      if (!address) {
+        return;
+      }
+
+      setEditValue('addressStreet', address.street, { shouldDirty: true, shouldValidate: true });
+      setEditValue('addressNeighborhood', address.neighborhood, { shouldDirty: true, shouldValidate: true });
+      setEditValue('addressCity', address.city, { shouldDirty: true, shouldValidate: true });
+      setEditValue('addressState', address.state, { shouldDirty: true, shouldValidate: true });
+    } catch (error) {
+      setEditCepError(getCepLookupFeedbackMessage(error));
+    }
+  };
 
   useEffect(() => {
     register('collaboratorFunctionId');
@@ -1750,6 +1811,7 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
     try {
       await professorService.create(sanitizeCreateProfessorPayload(data));
       setCreateActiveTab(getAllowedRegistrationTab('collaborator'));
+      setCreateCepError(null);
       reset({
         phone: '',
         birthDate: '',
@@ -1800,6 +1862,7 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
 
     setEditingId(professor.id);
     setEditActiveTab(getAllowedRegistrationTab('collaborator'));
+    setEditCepError(null);
     resetEdit({
       name: professor.user.profile.name,
       email: professor.user.email,
@@ -1815,7 +1878,7 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
       addressCity: professor.user.profile.addressCity ?? '',
       addressState: professor.user.profile.addressState ?? '',
       addressComplement: professor.user.profile.addressComplement ?? '',
-      addressZipCode: professor.user.profile.addressZipCode ?? '',
+      addressZipCode: formatCep(professor.user.profile.addressZipCode ?? ''),
       instagramHandle: normalizeInstagramHandle(professor.user.profile.instagramHandle),
       cref: professor.user.profile.cref ?? '',
       professionalSummary: professor.user.profile.professionalSummary ?? '',
@@ -1845,6 +1908,7 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
   const cancelEdit = () => {
     setEditingId(null);
     setEditActiveTab(getAllowedRegistrationTab('collaborator'));
+    setEditCepError(null);
     resetEdit({
       name: '',
       email: '',
@@ -1897,6 +1961,7 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
       await loadData();
       setEditingId(null);
       setEditActiveTab(getAllowedRegistrationTab('collaborator'));
+      setEditCepError(null);
     } catch (err: any) {
       setError(err.response?.data?.error || professoresCopy.updateError);
     } finally {
@@ -2509,7 +2574,15 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
                           Distribuição mais compacta para acelerar o preenchimento do endereço.
                         </p>
                       </div>
-                      <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.4fr)_140px_180px]">
+                      <div className="grid grid-cols-1 gap-3 xl:grid-cols-[180px_minmax(0,1.4fr)_140px]">
+                        <Input
+                          label={professoresCopy.addressZipCodeLabel}
+                          placeholder="00000-000"
+                          error={createCepError || errors.addressZipCode?.message}
+                          {...createZipCodeField}
+                          onChange={handleCreateZipCodeChange}
+                          onBlur={handleCreateZipCodeBlur}
+                        />
                         <Input
                           label={professoresCopy.addressStreetLabel}
                           placeholder="Rua Exemplo"
@@ -2521,18 +2594,6 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
                           placeholder="123"
                           error={errors.addressNumber?.message}
                           {...register('addressNumber')}
-                        />
-                        <Input
-                          label={professoresCopy.addressZipCodeLabel}
-                          placeholder="00000-000"
-                          error={errors.addressZipCode?.message}
-                          {...register('addressZipCode', {
-                            onChange: (event) => {
-                              setValue('addressZipCode', formatZipCode(event.target.value), {
-                                shouldValidate: true,
-                              });
-                            },
-                          })}
                         />
                       </div>
                       <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -3328,7 +3389,15 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
                                     Campos agrupados para reduzir saltos visuais durante a edição.
                                   </p>
                                 </div>
-                                <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.4fr)_140px_180px]">
+                                <div className="grid grid-cols-1 gap-3 xl:grid-cols-[180px_minmax(0,1.4fr)_140px]">
+                                  <Input
+                                    label={professoresCopy.addressZipCodeLabel}
+                                    placeholder="00000-000"
+                                    error={editCepError || editErrors.addressZipCode?.message}
+                                    {...editZipCodeField}
+                                    onChange={handleEditZipCodeChange}
+                                    onBlur={handleEditZipCodeBlur}
+                                  />
                                   <Input
                                     label={professoresCopy.addressStreetLabel}
                                     placeholder="Rua Exemplo, 123"
@@ -3340,18 +3409,6 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
                                     placeholder="123"
                                     error={editErrors.addressNumber?.message}
                                     {...registerEdit('addressNumber')}
-                                  />
-                                  <Input
-                                    label={professoresCopy.addressZipCodeLabel}
-                                    placeholder="00000-000"
-                                    error={editErrors.addressZipCode?.message}
-                                    {...registerEdit('addressZipCode', {
-                                      onChange: (event) => {
-                                        setEditValue('addressZipCode', formatZipCode(event.target.value), {
-                                          shouldValidate: true,
-                                        });
-                                      },
-                                    })}
                                   />
                                 </div>
                                 <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">

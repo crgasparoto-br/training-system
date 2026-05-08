@@ -112,6 +112,11 @@ export interface AuthResponse {
     email: string;
     name: string;
     type: 'professor' | 'aluno';
+    profile?: {
+      name: string;
+      avatar?: string | null;
+      phone?: string | null;
+    } | null;
     professor?: ProfessorInfo | null;
     accessControl?: UserAccessControl;
   };
