@@ -14,6 +14,15 @@ const router: Router = Router();
 const prisma = new PrismaClient();
 const logoUploadRoot = path.resolve(process.cwd(), 'uploads', 'contracts', 'logos');
 
+const buildUploadUrl = (req: Request, uploadPath: string) => {
+  const host = req.get('host');
+
+  if (!host) {
+    return null;
+  }
+
+  return `${req.protocol}://${host}${uploadPath}`;
+};
 
 const normalizeDocument = (document: string) => document.replace(/\D/g, '');
 const trimOptional = (value: unknown) =>
@@ -619,6 +628,5 @@ router.post('/clone-data', async (req: Request, res: Response) => {
 });
 
 export default router;
-
 
 
