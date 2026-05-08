@@ -41,6 +41,7 @@ import { Input } from '../components/ui/Input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
 import { commonCopy, professoresCopy } from '../i18n/ptBR';
 import { getHourlyRateLevelBadgeClassName } from '../utils/hourlyRateLevelTone';
+import { resolveAssetUrl } from '../utils/assetUrl';
 import { cn } from '@/utils/cn';
 
 const optionalUrlField = (message: string) =>
@@ -208,8 +209,6 @@ const consultLegalFinancialFilterOptions: Array<{ value: ConsultLegalFinancialFi
   { value: 'not_provided', label: professoresCopy.legalFinancialNotProvided },
 ];
 
-const baseUrl = import.meta.env.VITE_API_URL || '';
-
 function getAvatarInitials(name?: string | null) {
   const parts = (name || '')
     .trim()
@@ -225,15 +224,7 @@ function getAvatarInitials(name?: string | null) {
 }
 
 function resolveAvatarUrl(avatar?: string | null) {
-  if (!avatar) {
-    return '';
-  }
-
-  if (/^(https?:|data:|blob:)/i.test(avatar)) {
-    return avatar;
-  }
-
-  return `${baseUrl}/${avatar}`;
+  return resolveAssetUrl(avatar);
 }
 
 function AvatarUploadField({

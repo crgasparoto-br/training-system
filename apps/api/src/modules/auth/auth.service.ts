@@ -108,7 +108,7 @@ export class AuthService {
     });
 
     if (existingUser) {
-      throw new Error('E-mail já está registrado');
+      throw new Error('E-mail jï¿½ estï¿½ registrado');
     }
 
     if (data.type !== 'professor') {
@@ -119,7 +119,7 @@ export class AuthService {
     const expectedLength = data.contractType === 'academy' ? 14 : 11;
 
     if (document.length !== expectedLength) {
-      throw new Error(data.contractType === 'academy' ? 'CNPJ inválido' : 'CPF inválido');
+      throw new Error(data.contractType === 'academy' ? 'CNPJ invï¿½lido' : 'CPF invï¿½lido');
     }
 
     const existingContract = await prisma.companyContract.findUnique({
@@ -127,7 +127,7 @@ export class AuthService {
     });
 
     if (existingContract) {
-      throw new Error('Documento já está registrado');
+      throw new Error('Documento jï¿½ estï¿½ registrado');
     }
 
     const passwordHash = await bcryptjs.hash(data.password, 10);
@@ -143,7 +143,7 @@ export class AuthService {
       const managerFunction = await getDefaultCollaboratorFunctionByCode(contract.id, 'manager', tx);
 
       if (!managerFunction) {
-        throw new Error('Não foi possível preparar as funções padrão do contrato');
+        throw new Error('Nï¿½o foi possï¿½vel preparar as funï¿½ï¿½es padrï¿½o do contrato');
       }
 
       const createdUser = await tx.user.create({
@@ -219,6 +219,11 @@ export class AuthService {
         email: user.email,
         name: user.profile?.name || '',
         type: user.type,
+        profile: user.profile ? {
+          name: user.profile.name || '',
+          avatar: user.profile.avatar || null,
+          phone: user.profile.phone || null,
+        } : null,
         accessControl,
         professor: professor
           ? {
@@ -290,7 +295,7 @@ export class AuthService {
       throw new Error('E-mail ou senha incorretos');
     }
     if (!user.isActive) {
-      throw new Error('Usuário desativado');
+      throw new Error('Usuï¿½rio desativado');
     }
 
     // Verificar senha
@@ -321,6 +326,11 @@ export class AuthService {
         email: user.email,
         name: user.profile?.name || '',
         type: user.type,
+        profile: user.profile ? {
+          name: user.profile.name || '',
+          avatar: user.profile.avatar || null,
+          phone: user.profile.phone || null,
+        } : null,
         accessControl,
         professor: user.professor
           ? {
@@ -355,7 +365,7 @@ export class AuthService {
   async requestPasswordReset(email: string): Promise<ForgotPasswordResponse> {
     const normalizedEmail = email.trim().toLowerCase();
     const genericMessage =
-      'Se existir uma conta com este e-mail, você receberá as instruções para redefinir a senha.';
+      'Se existir uma conta com este e-mail, vocï¿½ receberï¿½ as instruï¿½ï¿½es para redefinir a senha.';
 
     const user = await prisma.user.findUnique({
       where: { email: normalizedEmail },
@@ -399,7 +409,7 @@ export class AuthService {
       | null;
 
     if (!decoded?.userId || decoded.purpose !== 'password-reset') {
-      throw new Error('Token de recuperação inválido ou expirado');
+      throw new Error('Token de recuperaï¿½ï¿½o invï¿½lido ou expirado');
     }
 
     const user = await prisma.user.findUnique({
@@ -407,13 +417,13 @@ export class AuthService {
     });
 
     if (!user || !user.isActive) {
-      throw new Error('Token de recuperação inválido ou expirado');
+      throw new Error('Token de recuperaï¿½ï¿½o invï¿½lido ou expirado');
     }
 
     try {
       jwt.verify(data.token, this.buildPasswordResetSecret(user.passwordHash));
     } catch (error) {
-      throw new Error('Token de recuperação inválido ou expirado');
+      throw new Error('Token de recuperaï¿½ï¿½o invï¿½lido ou expirado');
     }
 
     const samePassword = await bcryptjs.compare(data.password, user.passwordHash);

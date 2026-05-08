@@ -9,20 +9,11 @@ import { screenAccessMiddleware } from '../access-control/access-control.middlew
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import { buildPublicUploadUrl } from '../../common/public-upload-url.js';
 
 const router: Router = Router();
 const prisma = new PrismaClient();
 const logoUploadRoot = path.resolve(process.cwd(), 'uploads', 'contracts', 'logos');
-
-const buildUploadUrl = (req: Request, uploadPath: string) => {
-  const host = req.get('host');
-
-  if (!host) {
-    return null;
-  }
-
-  return `${req.protocol}://${host}${uploadPath}`;
-};
 
 const normalizeDocument = (document: string) => document.replace(/\D/g, '');
 const trimOptional = (value: unknown) =>
@@ -547,12 +538,11 @@ router.post('/logo-upload', async (req: Request, res: Response) => {
           return sendError(res, 'Selecione uma imagem para upload', 400);
         }
 
-        const host = req.get('host');
-        if (!host) {
+        const fileUrl = buildPublicUploadUrl(req, `/uploads/contracts/logos/${req.file.filename}`);
+
+        if (!fileUrl) {
           return sendError(res, 'Não foi possível montar a URL do logotipo', 500);
         }
-
-        const fileUrl = `${req.protocol}://${host}/uploads/contracts/logos/${req.file.filename}`;
 
         return sendSuccess(res, { url: fileUrl }, 'Logotipo enviado com sucesso');
       } catch (error: any) {
@@ -628,5 +618,4 @@ router.post('/clone-data', async (req: Request, res: Response) => {
 });
 
 export default router;
-
 
