@@ -11,6 +11,7 @@ import { sendSuccess, sendError } from '@corrida/utils';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import { buildPublicUploadUrl } from '../../common/public-upload-url.js';
 
 const router: Router = Router();
 const avatarUploadRoot = path.resolve(process.cwd(), 'uploads', 'professores');
@@ -114,12 +115,11 @@ router.post(
       return sendError(res, 'Selecione uma imagem para upload', 400);
     }
 
-    const host = req.get('host');
-    if (!host) {
+    const fileUrl = buildPublicUploadUrl(req, `/uploads/professores/${req.file.filename}`);
+
+    if (!fileUrl) {
       return sendError(res, 'Não foi possível montar a URL da foto enviada', 500);
     }
-
-    const fileUrl = `${req.protocol}://${host}/uploads/professores/${req.file.filename}`;
 
     return sendSuccess(res, { url: fileUrl }, 'Foto enviada com sucesso');
   } catch (error: any) {
@@ -147,12 +147,11 @@ router.post(
       return sendError(res, 'Selecione um PDF para upload', 400);
     }
 
-    const host = req.get('host');
-    if (!host) {
+    const fileUrl = buildPublicUploadUrl(req, `/uploads/professores/contracts/${req.file.filename}`);
+
+    if (!fileUrl) {
       return sendError(res, 'Não foi possível montar a URL do contrato enviado', 500);
     }
-
-    const fileUrl = `${req.protocol}://${host}/uploads/professores/contracts/${req.file.filename}`;
 
     return sendSuccess(res, { url: fileUrl }, 'Contrato enviado com sucesso');
   } catch (error: any) {

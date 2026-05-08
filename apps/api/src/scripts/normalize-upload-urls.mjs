@@ -1,0 +1,125 @@
+#!/usr/bin/env node
+
+import '../bootstrap-env.js';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
+
+function extractUploadsPath(url) {
+  if (!url || typeof url !== 'string') {
+    return null;
+  }
+  const match = url.match(/\/uploads\/.+/i);
+  return match ? match[0] : null;
+}
+
+function normalizeUploadUrl(url) {
+  if (!url || typeof url !== 'string') {
+    return url;
+  }
+
+  const trimmed = url.trim();
+
+  if (/^(data:|blob:)/i.test(trimmed)) {
+    return trimmed;
+  }
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    const uploadsPath = extractUploadsPath(trimmed);
+    if (uploadsPath) {
+      return uploadsPath;
+    }
+    return trimmed;
+  }
+
+  if (/^\/?uploads\//i.test(trimmed)) {
+    return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  }
+
+  return trimmed;
+}
+
+async function normalizeCompanyContractLogos() {
+  console.log('Normalizando CompanyContract.logoUrl...');
+
+  const contracts = await prisma.companyContract.findMany({
+    where: {
+      logoUrl: {
+        not: null,
+      },
+    },
+    select: {
+      id: true,
+      logoUrl: true,
+    },
+  });
+
+  let updated = 0;
+  for (const contract of contracts) {
+    const normalized = normalizeUploadUrl(contract.logoUrl);
+    if (normalized !== contract.logoUrl) {
+      await prisma.companyContract.update({
+        where: { id: contract.id },
+        data: { logoUrl: normalized },
+      });
+      console.log(`  ✓ ${contract.id}: ${contract.logoUrl} → ${normalized}`);
+      updated++;
+    }
+  }
+
+  console.log(`Atualizados ${updated}/${contracts.length} registros de CompanyContract.logoUrl\n`);
+  return updated;
+}
+
+async function normalizeProfileAvatars() {
+  console.log('Normalizando Profile.avatar...');
+
+  const profiles = await prisma.profile.findMany({
+    where: {
+      avatar: {
+        not: null,
+      },
+    },
+    select: {
+      id: true,
+      avatar: true,
+    },
+  });
+
+  let updated = 0;
+  for (const profile of profiles) {
+    const normalized = normalizeUploadUrl(profile.avatar);
+    if (normalized !== profile.avatar) {
+      await prisma.profile.update({
+        where: { id: profile.id },
+        data: { avatar: normalized },
+      });
+      console.log(`  ✓ ${profile.id}: ${profile.avatar} → ${normalized}`);
+      updated++;
+    }
+  }
+
+  console.log(`Atualizados ${updated}/${profiles.length} registros de Profile.avatar\n`);
+  return updated;
+}
+
+async function main() {
+  try {
+    console.log('🔄 Iniciando normalização de URLs de upload...\n');
+
+    const contractsUpdated = await normalizeCompanyContractLogos();
+    const profilesUpdated = await normalizeProfileAvatars();
+
+    console.log(`✅ Normalização concluída!`);
+    console.log(`   Total atualizado: ${contractsUpdated + profilesUpdated} registros\n`);
+
+    process.exit(0);
+  } catch (error) {
+    console.error('❌ Erro durante normalização:', error);
+    process.exit(1);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+main();

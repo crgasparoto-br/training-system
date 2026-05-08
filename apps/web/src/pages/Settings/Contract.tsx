@@ -12,6 +12,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { commonCopy, contractCopy, professoresCopy } from '../../i18n/ptBR';
 import type { Contract } from '../../services/contract.service';
+import { resolveAssetUrl } from '../../utils/assetUrl';
 
 const contractSchema = z.object({
   name: z.string().trim().min(1, contractCopy.companyNameRequired),
@@ -37,18 +38,6 @@ function formatCnpj(value: string) {
     .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
     .replace(/\.(\d{3})(\d)/, '.$1/$2')
     .replace(/(\d{4})(\d)/, '$1-$2');
-}
-
-function resolveLogoUrl(logoUrl?: string | null) {
-  if (!logoUrl) {
-    return '';
-  }
-
-  if (logoUrl.startsWith('http://') || logoUrl.startsWith('https://')) {
-    return logoUrl;
-  }
-
-  return logoUrl.startsWith('/') ? logoUrl : `/${logoUrl}`;
 }
 
 function ReadOnlyField({ label, value }: { label: string; value?: string | null }) {
@@ -94,7 +83,7 @@ export default function ContractSettings() {
 
   const canEdit = user?.type === 'professor' && user?.professor?.role === 'master';
   const logoUrl = watch('logoUrl');
-  const resolvedLogoUrl = resolveLogoUrl(logoUrl || user?.professor?.contract?.logoUrl || '');
+  const resolvedLogoUrl = resolveAssetUrl(logoUrl || user?.professor?.contract?.logoUrl || '');
   const zipCodeField = register('addressZipCode');
 
   const handleZipCodeChange = (event: ChangeEvent<HTMLInputElement>) => {
