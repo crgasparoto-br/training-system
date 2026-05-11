@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState, type ChangeEvent, type FocusEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FocusEvent } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -13,6 +13,8 @@ import { Input } from '../../components/ui/Input';
 import { commonCopy, contractCopy, professoresCopy } from '../../i18n/ptBR';
 import type { Contract } from '../../services/contract.service';
 import { resolveAssetUrl } from '../../utils/assetUrl';
+
+const ACCESS_REFRESH_SIGNAL_KEY = 'auth-permissions-updated-at';
 
 const contractSchema = z.object({
   name: z.string().trim().min(1, contractCopy.companyNameRequired),
@@ -45,7 +47,7 @@ function ReadOnlyField({ label, value }: { label: string; value?: string | null 
 }
 
 export default function ContractSettings() {
-  const { user } = useAuthStore();
+  const { user, loadUser } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
@@ -85,6 +87,32 @@ export default function ContractSettings() {
   const logoUrl = watch('logoUrl');
   const resolvedLogoUrl = resolveAssetUrl(logoUrl || user?.professor?.contract?.logoUrl || '');
   const zipCodeField = register('addressZipCode');
+
+  const applyContractToForm = useCallback(
+    (contract: Contract | NonNullable<NonNullable<typeof user>['professor']>['contract']) => {
+      reset({
+        name: contract?.name || '',
+        tradeName: contract?.tradeName || '',
+        document: formatCnpj(contract?.document || ''),
+        cref: contract?.cref || '',
+        addressStreet: contract?.addressStreet || '',
+        addressNumber: contract?.addressNumber || '',
+        addressNeighborhood: contract?.addressNeighborhood || '',
+        addressCity: contract?.addressCity || '',
+        addressState: contract?.addressState || '',
+        addressComplement: contract?.addressComplement || '',
+        addressZipCode: formatCep(contract?.addressZipCode || ''),
+        logoUrl: contract?.logoUrl || '',
+      });
+      setCepError(null);
+    },
+    [reset]
+  );
+
+  const refreshAuthenticatedContract = useCallback(async () => {
+    await loadUser();
+    localStorage.setItem(ACCESS_REFRESH_SIGNAL_KEY, String(Date.now()));
+  }, [loadUser]);
 
   const handleZipCodeChange = (event: ChangeEvent<HTMLInputElement>) => {
     setCepError(null);
@@ -126,35 +154,17 @@ export default function ContractSettings() {
       setLoading(true);
       setErrorMessage(null);
       try {
-        const applyContract = (contract: Contract | NonNullable<NonNullable<typeof user>['professor']>['contract']) => {
-          reset({
-            name: contract?.name || '',
-            tradeName: contract?.tradeName || '',
-            document: formatCnpj(contract?.document || ''),
-            cref: contract?.cref || '',
-            addressStreet: contract?.addressStreet || '',
-            addressNumber: contract?.addressNumber || '',
-            addressNeighborhood: contract?.addressNeighborhood || '',
-            addressCity: contract?.addressCity || '',
-            addressState: contract?.addressState || '',
-            addressComplement: contract?.addressComplement || '',
-            addressZipCode: formatCep(contract?.addressZipCode || ''),
-            logoUrl: contract?.logoUrl || '',
-          });
-          setCepError(null);
-        };
-
         if (!canEdit) {
           const contract = user?.professor?.contract;
           if (contract) {
-            applyContract(contract);
+            applyContractToForm(contract);
           }
           setLoading(false);
           return;
         }
 
         const contract = await contractService.getMe();
-        applyContract(contract);
+        applyContractToForm(contract);
       } catch (err: any) {
         setErrorMessage(err.response?.data?.error || contractCopy.loadError);
       } finally {
@@ -163,7 +173,7 @@ export default function ContractSettings() {
     };
 
     load();
-  }, [canEdit, reset, user]);
+  }, [applyContractToForm, canEdit, user]);
 
   const onSubmit = async (data: ContractForm) => {
     if (!canEdit) return;
@@ -192,21 +202,8 @@ export default function ContractSettings() {
         addressZipCode: data.addressZipCode?.trim() || null,
         logoUrl: data.logoUrl?.trim() || null,
       });
-      reset({
-        name: updated.name || '',
-        tradeName: updated.tradeName || '',
-        document: formatCnpj(updated.document),
-        cref: updated.cref || '',
-        addressStreet: updated.addressStreet || '',
-        addressNumber: updated.addressNumber || '',
-        addressNeighborhood: updated.addressNeighborhood || '',
-        addressCity: updated.addressCity || '',
-        addressState: updated.addressState || '',
-        addressComplement: updated.addressComplement || '',
-        addressZipCode: formatCep(updated.addressZipCode || ''),
-        logoUrl: updated.logoUrl || '',
-      });
-      setCepError(null);
+      applyContractToForm(updated);
+      await refreshAuthenticatedContract();
     } catch (err: any) {
       setErrorMessage(err.response?.data?.error || contractCopy.updateError);
     } finally {
@@ -226,13 +223,27 @@ export default function ContractSettings() {
     setErrorMessage(null);
     try {
       const uploadedUrl = await contractService.uploadLogo(file);
-      setValue('logoUrl', uploadedUrl, {
-        shouldDirty: true,
-        shouldTouch: true,
-        shouldValidate: true,
-      });
+      const updated = await contractService.updateMe({ logoUrl: uploadedUrl });
+      applyContractToForm(updated);
+      await refreshAuthenticatedContract();
     } catch (err: any) {
       setErrorMessage(err.response?.data?.error || contractCopy.uploadError);
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
+  const handleLogoRemove = async () => {
+    if (!canEdit) return;
+
+    setUploadingLogo(true);
+    setErrorMessage(null);
+    try {
+      const updated = await contractService.updateMe({ logoUrl: null });
+      applyContractToForm(updated);
+      await refreshAuthenticatedContract();
+    } catch (err: any) {
+      setErrorMessage(err.response?.data?.error || contractCopy.updateError);
     } finally {
       setUploadingLogo(false);
     }
@@ -344,8 +355,8 @@ export default function ContractSettings() {
                   <Button
                     type="button"
                     variant="ghost"
-                    onClick={() => setValue('logoUrl', '', { shouldDirty: true, shouldValidate: true })}
-                    disabled={!logoUrl || uploadingLogo}
+                    onClick={handleLogoRemove}
+                    disabled={(!logoUrl && !user?.professor?.contract?.logoUrl) || uploadingLogo}
                   >
                     <X size={16} className="mr-2" />
                     {contractCopy.logoRemove}
