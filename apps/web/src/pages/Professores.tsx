@@ -44,6 +44,8 @@ import { getHourlyRateLevelBadgeClassName } from '../utils/hourlyRateLevelTone';
 import { resolveAssetUrl } from '../utils/assetUrl';
 import { cn } from '@/utils/cn';
 
+const ACCESS_REFRESH_SIGNAL_KEY = 'auth-permissions-updated-at';
+
 const optionalUrlField = (message: string) =>
   z.preprocess(
     (value) => {
@@ -1404,7 +1406,7 @@ function sanitizeSelfServiceUpdateProfessorPayload(data: EditProfessorForm) {
 }
 
 export function Professores({ mode = 'manage' }: ProfessoresProps) {
-  const { user } = useAuthStore();
+  const { user, loadUser } = useAuthStore();
   const [professores, setProfessores] = useState<ProfessorSummary[]>([]);
   const [banks, setBanks] = useState<BankOption[]>([]);
   const [collaboratorFunctions, setCollaboratorFunctions] = useState<CollaboratorFunctionOption[]>([]);
@@ -1990,7 +1992,20 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
       if (mode === 'create') {
         setValue('avatar', avatarUrl, { shouldDirty: true, shouldValidate: true });
       } else {
+        // Persistir no backend para edição
+        if (!editingId) return;
+        
+        await professorService.update(editingId, { avatar: avatarUrl });
         setEditValue('avatar', avatarUrl, { shouldDirty: true, shouldValidate: true });
+        
+        // Recarregar dados da tela
+        await loadData();
+        
+        // Se o professor editado for o usuário logado, atualizar perfil
+        if (editingId === currentProfessorId) {
+          await loadUser();
+          localStorage.setItem(ACCESS_REFRESH_SIGNAL_KEY, String(Date.now()));
+        }
       }
     } catch (err: any) {
       setError(err.response?.data?.error || 'Erro ao enviar foto do colaborador');
@@ -2082,6 +2097,32 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
     setEditValue('signedContractDocumentUrl', '', { shouldDirty: true, shouldValidate: true });
     setEditValue('hasSignedContract', false, { shouldDirty: true, shouldValidate: true });
     setActiveSignedContractModal(null);
+  };
+
+  const handleRemoveEditAvatar = async () => {
+    if (!editingId) return;
+
+    setUploadingEditAvatar(true);
+    setError(null);
+
+    try {
+      // Persistir remoção no backend
+      await professorService.update(editingId, { avatar: null });
+      setEditValue('avatar', '', { shouldDirty: true, shouldValidate: true });
+      
+      // Recarregar dados da tela
+      await loadData();
+      
+      // Se o professor editado for o usuário logado, atualizar perfil
+      if (editingId === currentProfessorId) {
+        await loadUser();
+        localStorage.setItem(ACCESS_REFRESH_SIGNAL_KEY, String(Date.now()));
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Erro ao remover foto do colaborador');
+    } finally {
+      setUploadingEditAvatar(false);
+    }
   };
 
   const handleCreateSignedContractToggle = (checked: boolean) => {
@@ -3552,9 +3593,7 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
                                       embedded
                                       isUploading={uploadingEditAvatar}
                                       onUploadClick={() => editAvatarInputRef.current?.click()}
-                                      onRemove={() =>
-                                        setEditValue('avatar', '', { shouldDirty: true, shouldValidate: true })
-                                      }
+                                      onRemove={handleRemoveEditAvatar}
                                     />
                                   </div>
                                 </div>
