@@ -18,9 +18,11 @@ export function resolveAssetUrl(value?: string | null) {
 
   if (/^https?:\/\//i.test(trimmedValue)) {
     const uploadsPath = extractUploadsPath(trimmedValue);
-    if (uploadsPath) {
-      return apiBaseUrl ? `${apiBaseUrl}${uploadsPath}` : uploadsPath;
+
+    if (uploadsPath && apiBaseUrl) {
+      return `${apiBaseUrl}${uploadsPath}`;
     }
+
     return trimmedValue;
   }
 
