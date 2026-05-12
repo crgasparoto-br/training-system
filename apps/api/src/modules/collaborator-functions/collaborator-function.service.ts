@@ -238,7 +238,15 @@ export const collaboratorFunctionService = {
         const normalizedName = normalizeName(data.name);
         await assertNameAvailable(contractId, normalizedName, tx, collaboratorFunctionId);
         updateData.name = normalizedName;
-        updateData.code = await buildUniqueCode(contractId, normalizedName, tx, collaboratorFunctionId);
+
+        if (!existing.isSystem) {
+          updateData.code = await buildUniqueCode(
+            contractId,
+            normalizedName,
+            tx,
+            collaboratorFunctionId
+          );
+        }
       }
 
       if (typeof data.isActive === 'boolean') {
