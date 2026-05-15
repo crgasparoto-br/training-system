@@ -19,7 +19,7 @@ import { startProfileReviewScheduler } from './modules/alunos/profile-review.sch
 import studentRoutes from './routes/student.routes.js';
 
 const app: express.Express = express();
-const PORT = process.env.API_PORT || 3000;
+const PORT = Number(process.env.PORT || process.env.API_PORT || 3000);
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
 app.set('trust proxy', 1);
