@@ -1,4 +1,4 @@
-﻿import { PrismaClient, LoadType, MovementType, CountingType } from '@prisma/client';
+import { PrismaClient, LoadType, MovementType, CountingType } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -25,11 +25,11 @@ export interface ExerciseFilters {
 }
 
 /**
- * Service de Biblioteca de ExercÃ­cios
+ * Service de Biblioteca de Exercicios
  */
 export const libraryService = {
   /**
-   * Criar novo exercÃ­cio
+   * Criar novo exercicio
    */
   async createExercise(contractId: string, data: CreateExerciseDTO) {
     return await prisma.exerciseLibrary.create({
@@ -41,7 +41,7 @@ export const libraryService = {
   },
 
   /**
-   * Listar exercÃ­cios com filtros
+   * Listar exercicios com filtros
    */
   async listExercises(contractId: string, filters: ExerciseFilters = {}) {
     const where: any = { contractId };
@@ -80,7 +80,7 @@ export const libraryService = {
   },
 
   /**
-   * Obter exercÃ­cio por ID
+   * Obter exercicio por ID
    */
   async getExerciseById(contractId: string, id: string) {
     return await prisma.exerciseLibrary.findFirst({
@@ -101,7 +101,7 @@ export const libraryService = {
   },
 
   /**
-   * Atualizar exercÃ­cio
+   * Atualizar exercicio
    */
   async updateExercise(contractId: string, id: string, data: UpdateExerciseDTO) {
     const existing = await prisma.exerciseLibrary.findFirst({
@@ -119,7 +119,7 @@ export const libraryService = {
   },
 
   /**
-   * Deletar exercÃ­cio
+   * Deletar exercicio
    */
   async deleteExercise(contractId: string, id: string) {
     const existing = await prisma.exerciseLibrary.findFirst({
@@ -136,7 +136,7 @@ export const libraryService = {
   },
 
   /**
-   * Obter progresso do aluno em um exercÃ­cio
+   * Obter progresso do aluno em um exercicio
    */
   async getAlunoProgress(contractId: string, alunoId: string, exerciseId: string) {
     const [exercise, aluno] = await Promise.all([
@@ -242,4 +242,3 @@ export const libraryService = {
     });
   },
 };
-
