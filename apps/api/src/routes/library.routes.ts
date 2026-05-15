@@ -1,6 +1,17 @@
-import { Router } from 'express';
+import { Router, type Request } from 'express';
+import type { JwtPayload } from '@corrida/types';
 import { libraryService } from '../modules/library/library.service.js';
 import { authMiddleware, professorMiddleware } from '../modules/auth/auth.middleware.js';
+
+type LibraryProfessorRequest = Request & {
+  user: JwtPayload & {
+    contractId: string;
+  };
+};
+
+function getLibraryProfessorRequest(req: Request): LibraryProfessorRequest {
+  return req as LibraryProfessorRequest;
+}
 
 const router: Router = Router();
 
@@ -13,7 +24,7 @@ router.use(professorMiddleware);
  */
 router.get('/exercises', async (req, res) => {
   try {
-    const contractId = (req as any).user.contractId;
+    const contractId = getLibraryProfessorRequest(req).user.contractId;
     const filters = {
       search: req.query.search as string,
       category: req.query.category as string,
@@ -37,7 +48,7 @@ router.get('/exercises', async (req, res) => {
  */
 router.get('/exercises/:id', async (req, res) => {
   try {
-    const contractId = (req as any).user.contractId;
+    const contractId = getLibraryProfessorRequest(req).user.contractId;
     const exercise = await libraryService.getExerciseById(contractId, req.params.id);
 
     if (!exercise) {
@@ -57,7 +68,7 @@ router.get('/exercises/:id', async (req, res) => {
  */
 router.post('/exercises', async (req, res) => {
   try {
-    const contractId = (req as any).user.contractId;
+    const contractId = getLibraryProfessorRequest(req).user.contractId;
     const exercise = await libraryService.createExercise(contractId, req.body);
     res.status(201).json(exercise);
   } catch (error) {
@@ -72,7 +83,7 @@ router.post('/exercises', async (req, res) => {
  */
 router.put('/exercises/:id', async (req, res) => {
   try {
-    const contractId = (req as any).user.contractId;
+    const contractId = getLibraryProfessorRequest(req).user.contractId;
     const exercise = await libraryService.updateExercise(contractId, req.params.id, req.body);
     res.json(exercise);
   } catch (error) {
@@ -87,7 +98,7 @@ router.put('/exercises/:id', async (req, res) => {
  */
 router.delete('/exercises/:id', async (req, res) => {
   try {
-    const contractId = (req as any).user.contractId;
+    const contractId = getLibraryProfessorRequest(req).user.contractId;
     await libraryService.deleteExercise(contractId, req.params.id);
     res.status(204).send();
   } catch (error) {
@@ -102,7 +113,7 @@ router.delete('/exercises/:id', async (req, res) => {
  */
 router.get('/progress/:alunoId/:exerciseId', async (req, res) => {
   try {
-    const contractId = (req as any).user.contractId;
+    const contractId = getLibraryProfessorRequest(req).user.contractId;
     const progress = await libraryService.getAlunoProgress(
       contractId,
       req.params.alunoId,
@@ -121,7 +132,7 @@ router.get('/progress/:alunoId/:exerciseId', async (req, res) => {
  */
 router.put('/progress/:alunoId/:exerciseId', async (req, res) => {
   try {
-    const contractId = (req as any).user.contractId;
+    const contractId = getLibraryProfessorRequest(req).user.contractId;
     const progress = await libraryService.updateAlunoProgress(
       contractId,
       req.params.alunoId,
@@ -141,7 +152,7 @@ router.put('/progress/:alunoId/:exerciseId', async (req, res) => {
  */
 router.get('/progress/:alunoId', async (req, res) => {
   try {
-    const contractId = (req as any).user.contractId;
+    const contractId = getLibraryProfessorRequest(req).user.contractId;
     const progress = await libraryService.listAlunoProgress(contractId, req.params.alunoId);
     res.json(progress);
   } catch (error) {
