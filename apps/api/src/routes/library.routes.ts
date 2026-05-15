@@ -1,6 +1,9 @@
 import { Router, type Request } from 'express';
 import type { JwtPayload } from '@corrida/types';
-import { libraryService } from '../modules/library/library.service.js';
+import {
+  libraryService,
+  type ExerciseFilters,
+} from '../modules/library/library.service.js';
 import { authMiddleware, professorMiddleware } from '../modules/auth/auth.middleware.js';
 
 type LibraryProfessorRequest = Request & {
@@ -11,6 +14,17 @@ type LibraryProfessorRequest = Request & {
 
 function getLibraryProfessorRequest(req: Request): LibraryProfessorRequest {
   return req as LibraryProfessorRequest;
+}
+
+function getExerciseFilters(req: Request): ExerciseFilters {
+  return {
+    search: req.query.search as string | undefined,
+    category: req.query.category as string | undefined,
+    loadType: req.query.loadType as ExerciseFilters['loadType'],
+    movementType: req.query.movementType as ExerciseFilters['movementType'],
+    countingType: req.query.countingType as ExerciseFilters['countingType'],
+    muscleGroup: req.query.muscleGroup as string | undefined,
+  };
 }
 
 const router: Router = Router();
@@ -25,14 +39,7 @@ router.use(professorMiddleware);
 router.get('/exercises', async (req, res) => {
   try {
     const contractId = getLibraryProfessorRequest(req).user.contractId;
-    const filters = {
-      search: req.query.search as string,
-      category: req.query.category as string,
-      loadType: req.query.loadType as any,
-      movementType: req.query.movementType as any,
-      countingType: req.query.countingType as any,
-      muscleGroup: req.query.muscleGroup as string,
-    };
+    const filters = getExerciseFilters(req);
 
     const exercises = await libraryService.listExercises(contractId, filters);
     res.json(exercises);
