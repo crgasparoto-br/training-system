@@ -1,5 +1,6 @@
 import { Router, type Request } from 'express';
 import type { JwtPayload } from '@corrida/types';
+import { z } from 'zod';
 import {
   libraryService,
   type ExerciseFilters,
@@ -12,18 +13,45 @@ type LibraryProfessorRequest = Request & {
   };
 };
 
+const exerciseFiltersSchema = z.object({
+  search: z.string().optional(),
+  category: z.string().optional(),
+  loadType: z.string().optional(),
+  movementType: z.string().optional(),
+  countingType: z.string().optional(),
+  muscleGroup: z.string().optional(),
+});
+
 function getLibraryProfessorRequest(req: Request): LibraryProfessorRequest {
   return req as LibraryProfessorRequest;
 }
 
-function getExerciseFilters(req: Request): ExerciseFilters {
+function parseExerciseFilters(req: Request):
+  | { success: true; data: ExerciseFilters }
+  | { success: false } {
+  const parsed = exerciseFiltersSchema.safeParse({
+    search: req.query.search,
+    category: req.query.category,
+    loadType: req.query.loadType,
+    movementType: req.query.movementType,
+    countingType: req.query.countingType,
+    muscleGroup: req.query.muscleGroup,
+  });
+
+  if (!parsed.success) {
+    return { success: false };
+  }
+
   return {
-    search: req.query.search as string | undefined,
-    category: req.query.category as string | undefined,
-    loadType: req.query.loadType as ExerciseFilters['loadType'],
-    movementType: req.query.movementType as ExerciseFilters['movementType'],
-    countingType: req.query.countingType as ExerciseFilters['countingType'],
-    muscleGroup: req.query.muscleGroup as string | undefined,
+    success: true,
+    data: {
+      search: parsed.data.search,
+      category: parsed.data.category,
+      loadType: parsed.data.loadType as ExerciseFilters['loadType'],
+      movementType: parsed.data.movementType as ExerciseFilters['movementType'],
+      countingType: parsed.data.countingType as ExerciseFilters['countingType'],
+      muscleGroup: parsed.data.muscleGroup,
+    },
   };
 }
 
@@ -39,9 +67,13 @@ router.use(professorMiddleware);
 router.get('/exercises', async (req, res) => {
   try {
     const contractId = getLibraryProfessorRequest(req).user.contractId;
-    const filters = getExerciseFilters(req);
+    const parsedFilters = parseExerciseFilters(req);
 
-    const exercises = await libraryService.listExercises(contractId, filters);
+    if (!parsedFilters.success) {
+      return res.status(400).json({ message: 'Filtros invalidos' });
+    }
+
+    const exercises = await libraryService.listExercises(contractId, parsedFilters.data);
     res.json(exercises);
   } catch (error) {
     console.error('Error listing exercises:', error);
