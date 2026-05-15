@@ -38,29 +38,33 @@ Resultado:
 
 Status: concluido.
 
-Arquivos removidos:
+Resultado:
 
-- `query_db.js`
-- `apps/api/query_db.ts`
-- `apps/api/query_db_list.ts`
-- `apps/api/query_db_gasparoto.ts`
-- `apps/api/list_contracts.ts`
-- `apps/api/update_user.js`
-- `apps/api/check_user_tmp.mjs`
-
-Tambem foi atualizado o `.gitignore` para evitar novos arquivos temporarios semelhantes.
+- Removidos scripts temporarios/avulsos de banco.
+- Atualizado `.gitignore` para evitar novos arquivos temporarios semelhantes.
 
 ### PR 3 - Consolidacao de documentacao
 
-Status: em andamento/concluido nesta branch.
+Status: concluido.
 
-Ajustes feitos:
+Resultado:
 
 - Criado `docs/README.md` como indice da documentacao.
 - Atualizado `README.md` para apontar para as fontes de verdade atuais.
 - Marcado `docs/ACCESS_CONTROL.md` como documento legado/complementar.
 - Preservado backup visual em `docs/archive/visual-guidelines.local-backup-20260420-165809.md`.
 - Removido backup local versionado da raiz de `docs/`.
+
+### PR 4 - Padronizacao de scripts operacionais
+
+Status: em andamento/concluido nesta branch.
+
+Resultado:
+
+- Criado `docs/operations/api-scripts.md` com scripts oficiais da API.
+- Documentados finalidade, comandos, variaveis, suporte a `--dry-run`, nivel de risco e recomendacoes.
+- Adicionado `docs/operations/` ao indice `docs/README.md`.
+- Adicionado `reports/` ao `.gitignore` para relatorios gerados localmente por scripts.
 
 ## Problemas restantes
 
@@ -74,16 +78,14 @@ Arquivos que podem precisar de consolidacao futura:
 
 Classificacao: risco baixo a medio.
 
-### 2. Scripts operacionais misturados ao runtime
+### 2. Melhorias futuras em scripts operacionais
 
-Arquivos em `apps/api/src/scripts/` parecem validos, mas precisam de padrao claro:
+Alguns scripts oficiais ainda podem ser melhorados em PRs futuros:
 
-- `apps/api/src/scripts/backfill-profile-review-settings.ts`
-- `apps/api/src/scripts/backfill-student-contract-links.ts`
-- `apps/api/src/scripts/clone-contract-data.ts`
-- `apps/api/src/scripts/dispatch-profile-reviews.ts`
-- `apps/api/src/scripts/import-exercises.ts`
-- `apps/api/src/scripts/normalize-upload-urls.mjs`
+- adicionar `--dry-run` em `db:clone-contract-data`;
+- adicionar `--dry-run` em `import-exercises`;
+- criar comando oficial para `normalize-upload-urls.mjs` se ele voltar a ser usado;
+- exigir confirmacao explicita para scripts destrutivos ou de alto impacto.
 
 Classificacao: risco medio.
 
@@ -102,20 +104,6 @@ Arquivos com sinais de TODO ou pendencias futuras:
 Classificacao: risco medio a alto.
 
 ## Proximos PRs recomendados
-
-### PR 4 - Padronizacao de scripts operacionais
-
-Escopo:
-
-- Documentar scripts reais de operacao.
-- Garantir que cada script tenha finalidade, pre-requisitos e comando oficial.
-- Evitar scripts destrutivos sem protecao.
-
-Criterios de aceite:
-
-- Scripts oficiais documentados.
-- Scripts perigosos exigem confirmacao ou ambiente explicito.
-- `pnpm validate` passa.
 
 ### PR 5 - Divida tecnica funcional por modulo
 
@@ -157,5 +145,5 @@ pnpm harness:validate-env
 - A faxina sera feita em PRs pequenos contra `develop`.
 - A `main` so recebe a faxina depois de estabilizada em `develop`.
 - Remocoes de arquivos com acesso a banco foram feitas somente apos busca de referencias.
-- Scripts operacionais oficiais ficam para PR proprio de documentacao/padronizacao.
+- Scripts operacionais oficiais ficam documentados em `docs/operations/api-scripts.md`.
 - Documentos antigos com valor historico devem ir para `docs/archive/` ou ser marcados como complementares/legados.
