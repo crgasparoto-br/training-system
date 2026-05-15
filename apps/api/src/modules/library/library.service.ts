@@ -24,6 +24,24 @@ export interface ExerciseFilters {
   muscleGroup?: string;
 }
 
+interface ExerciseSearchCondition {
+  contains: string;
+  mode: 'insensitive';
+}
+
+interface ExerciseLibraryListWhere {
+  contractId: string;
+  OR?: Array<
+    | { name: ExerciseSearchCondition }
+    | { muscleGroup: ExerciseSearchCondition }
+  >;
+  category?: string;
+  loadType?: LoadType;
+  movementType?: MovementType;
+  countingType?: CountingType;
+  muscleGroup?: string;
+}
+
 /**
  * Service de Biblioteca de Exercicios
  */
@@ -44,7 +62,7 @@ export const libraryService = {
    * Listar exercicios com filtros
    */
   async listExercises(contractId: string, filters: ExerciseFilters = {}) {
-    const where: any = { contractId };
+    const where: ExerciseLibraryListWhere = { contractId };
 
     if (filters.search) {
       where.OR = [
