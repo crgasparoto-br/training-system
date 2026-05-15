@@ -6,9 +6,7 @@ Organizar o `training-system` em uma sequencia de PRs pequenos, seguros e revisa
 
 ## Contexto
 
-O PR de harness engineering ja foi mergeado na `develop`, criando `AGENTS.md`, documentacao de arquitetura, scripts de validacao e workflow de PR. Este plano inicia a faxina usando esses trilhos.
-
-A primeira etapa foi diagnostica: listar problemas, classificar risco e definir a ordem de PRs. A segunda etapa remove scripts temporarios/avulsos de banco sem alterar comportamento funcional.
+O PR de harness engineering foi mergeado na `develop`, criando `AGENTS.md`, documentacao de arquitetura, scripts de validacao e workflow de PR. A faxina passa a usar esses trilhos.
 
 ## Fora de escopo deste plano
 
@@ -26,11 +24,21 @@ Foram encontrados sinais de sujeira tecnica em quatro grupos principais:
 3. Scripts operacionais misturados com codigo de aplicacao.
 4. Areas funcionais grandes que merecem refatoracao futura, mas nao devem ser tratadas como limpeza segura imediata.
 
-## Problemas encontrados
+## Progresso
 
-### 1. Arquivos temporarios e scripts avulsos de banco
+### PR 1 - Diagnostico da faxina
 
-Arquivos removidos no PR 2:
+Status: concluido.
+
+Resultado:
+
+- Criado o plano de limpeza em `docs/execution-plans/active/2026-05-repository-cleanup.md`.
+
+### PR 2 - Limpeza segura de arquivos temporarios
+
+Status: concluido.
+
+Arquivos removidos:
 
 - `query_db.js`
 - `apps/api/query_db.ts`
@@ -40,49 +48,33 @@ Arquivos removidos no PR 2:
 - `apps/api/update_user.js`
 - `apps/api/check_user_tmp.mjs`
 
-Observacoes:
+Tambem foi atualizado o `.gitignore` para evitar novos arquivos temporarios semelhantes.
 
-- Alguns arquivos usavam e-mail fixo de usuario real.
-- Alguns arquivos instanciavam Prisma ou cliente PostgreSQL diretamente.
-- Alguns pareciam ter sido criados para diagnostico pontual de producao/local.
-- Buscas por referencias diretas nao indicaram uso oficial por scripts, workflows ou codigo de runtime.
+### PR 3 - Consolidacao de documentacao
 
-Status: concluido no PR 2.
+Status: em andamento/concluido nesta branch.
 
-### 2. Backup local versionado
+Ajustes feitos:
 
-Arquivo candidato a revisao:
+- Criado `docs/README.md` como indice da documentacao.
+- Atualizado `README.md` para apontar para as fontes de verdade atuais.
+- Marcado `docs/ACCESS_CONTROL.md` como documento legado/complementar.
+- Preservado backup visual em `docs/archive/visual-guidelines.local-backup-20260420-165809.md`.
+- Removido backup local versionado da raiz de `docs/`.
 
-- `docs/visual-guidelines.local-backup-20260420-165809.md`
+## Problemas restantes
 
-Observacoes:
+### 1. Documentacao complementar ainda a revisar
 
-- O nome indica backup local versionado.
-- Pode estar duplicando uma versao oficial de diretrizes visuais.
-- Deve ser comparado com a documentacao visual atual antes de remover.
+Arquivos que podem precisar de consolidacao futura:
 
-Classificacao: risco baixo.
-
-### 3. Documentacao possivelmente sobreposta
-
-Arquivos que podem precisar de consolidacao ou novo indice:
-
-- `docs/ACCESS_CONTROL.md`
-- `docs/architecture/auth-and-access-control.md`
-- `docs/product/access-control.md`
-- `README.md`
 - `docs/internal-test-deploy.md`
 - `docs/BIBLIOTECA_MELHORIAS.md`
 - `docs/CHECKLIST_TESTES_BIBLIOTECA.md`
 
-Observacoes:
-
-- O PR de harness criou uma estrutura nova em `docs/architecture/` e `docs/product/`.
-- Documentos antigos podem continuar uteis, mas devem apontar para a nova fonte de verdade ou serem movidos para `docs/archive/`.
-
 Classificacao: risco baixo a medio.
 
-### 4. Scripts operacionais misturados ao runtime
+### 2. Scripts operacionais misturados ao runtime
 
 Arquivos em `apps/api/src/scripts/` parecem validos, mas precisam de padrao claro:
 
@@ -93,15 +85,9 @@ Arquivos em `apps/api/src/scripts/` parecem validos, mas precisam de padrao clar
 - `apps/api/src/scripts/import-exercises.ts`
 - `apps/api/src/scripts/normalize-upload-urls.mjs`
 
-Observacoes:
-
-- Esses arquivos provavelmente sao scripts reais, nao sujeira.
-- A faxina deve apenas documentar quando usar cada script e quais variaveis exigem.
-- Evitar mover sem necessidade para nao quebrar comandos do `apps/api/package.json`.
-
 Classificacao: risco medio.
 
-### 5. TODOs e pendencias em areas funcionais
+### 3. TODOs e pendencias em areas funcionais
 
 Arquivos com sinais de TODO ou pendencias futuras:
 
@@ -113,97 +99,9 @@ Arquivos com sinais de TODO ou pendencias futuras:
 - `apps/web/src/pages/WorkoutBuilder2/ResistanceDayTable.tsx`
 - `apps/api/prisma/schema_periodization.prisma`
 
-Observacoes:
-
-- Estes pontos nao devem ser limpos no primeiro PR funcional.
-- Alguns indicam divida tecnica real ou features incompletas.
-- Devem virar planos especificos ou issues, nao remocao automatica.
-
 Classificacao: risco medio a alto.
 
-### 6. Uso de logs em arquivos diversos
-
-A busca por `console.log` retornou scripts, testes, main e componentes. Logs em scripts podem ser aceitaveis; logs em runtime ou componentes devem ser avaliados.
-
-Classificacao: risco baixo a medio.
-
-## O que ja foi limpo sem alterar comportamento
-
-1. Removidos scripts temporarios/avulsos de banco.
-2. `.gitignore` atualizado para evitar novos arquivos temporarios semelhantes:
-   - `query_db.*`
-   - `check_user_tmp.*`
-   - `list_contracts.*`
-   - `update_user.*`
-   - `*_tmp.*`
-   - `*.bak`
-   - `*.backup`
-   - `*.local-backup.*`
-   - `*.tmp.*`
-
-## O que exige cuidado ou testes adicionais
-
-1. Scripts em `apps/api/src/scripts/` chamados por `apps/api/package.json`.
-2. Refatoracao de telas grandes como:
-   - `apps/web/src/pages/AlunoDetails.tsx`
-   - `apps/web/src/pages/WorkoutBuilder/index.tsx`
-   - `apps/web/src/pages/WorkoutBuilder2/ResistanceDayTable.tsx`
-3. Qualquer ajuste em permissoes, `screenKey`, `blockKey` ou `dataScope`.
-
-## Ordem recomendada de PRs pequenos
-
-### PR 1 - Diagnostico da faxina
-
-Status: concluido.
-
-Escopo:
-
-- Criar este plano.
-- Nao alterar comportamento.
-
-Validacao:
-
-```bash
-pnpm docs:check
-```
-
-### PR 2 - Limpeza segura de arquivos temporarios
-
-Status: em andamento/concluido nesta branch.
-
-Escopo:
-
-- Buscar referencias aos arquivos candidatos.
-- Remover arquivos temporarios sem uso confirmado.
-- Atualizar `.gitignore` para evitar reincidencia.
-
-Criterios de aceite:
-
-- Nenhum script oficial quebra.
-- Nenhuma referencia pendente aos arquivos removidos.
-- `pnpm validate` passa no CI ou localmente.
-
-### PR 3 - Consolidacao de documentacao
-
-Escopo:
-
-- Comparar docs antigas com a nova estrutura.
-- Mover documentos historicos para `docs/archive/` ou atualizar links.
-- Definir fonte de verdade para acesso, deploy, biblioteca e visual.
-
-Candidatos iniciais:
-
-- `docs/ACCESS_CONTROL.md`
-- `docs/internal-test-deploy.md`
-- `docs/BIBLIOTECA_MELHORIAS.md`
-- `docs/CHECKLIST_TESTES_BIBLIOTECA.md`
-- `docs/visual-guidelines.local-backup-20260420-165809.md`
-
-Criterios de aceite:
-
-- README aponta para a documentacao nova.
-- Docs antigas relevantes nao somem sem substituto.
-- `pnpm docs:check` passa.
+## Proximos PRs recomendados
 
 ### PR 4 - Padronizacao de scripts operacionais
 
@@ -212,15 +110,6 @@ Escopo:
 - Documentar scripts reais de operacao.
 - Garantir que cada script tenha finalidade, pre-requisitos e comando oficial.
 - Evitar scripts destrutivos sem protecao.
-
-Candidatos iniciais:
-
-- `apps/api/src/scripts/backfill-profile-review-settings.ts`
-- `apps/api/src/scripts/backfill-student-contract-links.ts`
-- `apps/api/src/scripts/clone-contract-data.ts`
-- `apps/api/src/scripts/dispatch-profile-reviews.ts`
-- `apps/api/src/scripts/import-exercises.ts`
-- `apps/api/src/scripts/normalize-upload-urls.mjs`
 
 Criterios de aceite:
 
@@ -269,9 +158,4 @@ pnpm harness:validate-env
 - A `main` so recebe a faxina depois de estabilizada em `develop`.
 - Remocoes de arquivos com acesso a banco foram feitas somente apos busca de referencias.
 - Scripts operacionais oficiais ficam para PR proprio de documentacao/padronizacao.
-
-## Pendencias para o proximo PR
-
-- Consolidar documentacao antiga e backup local versionado.
-- Criar ou atualizar `docs/archive/` se necessario.
-- Atualizar README para apontar para as novas fontes de verdade.
+- Documentos antigos com valor historico devem ir para `docs/archive/` ou ser marcados como complementares/legados.
