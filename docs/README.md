@@ -22,6 +22,10 @@ Este diretorio concentra a documentacao versionada do projeto.
 
 - [`product/access-control.md`](product/access-control.md): regras de produto para controle de acesso.
 
+### Operacao
+
+- [`operations/api-scripts.md`](operations/api-scripts.md): scripts oficiais de manutencao/operacao da API.
+
 ### Planos de execucao
 
 - [`execution-plans/TEMPLATE.md`](execution-plans/TEMPLATE.md): template para tarefas grandes.
@@ -36,7 +40,7 @@ Documentos antigos que ainda possuem valor historico devem ser movidos para [`ar
 
 Ao adicionar nova documentacao:
 
-1. Prefira criar em `architecture/`, `product/`, `quality/` ou `execution-plans/`.
+1. Prefira criar em `architecture/`, `product/`, `quality`, `operations/` ou `execution-plans/`.
 2. Evite duplicar conteudo ja existente.
 3. Atualize este indice quando o documento for uma fonte de verdade.
 4. Arquivos de backup local nao devem ser versionados na raiz de `docs/`.
