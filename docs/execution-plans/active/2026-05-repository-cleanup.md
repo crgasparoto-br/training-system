@@ -57,7 +57,7 @@ Resultado:
 
 ### PR 4 - Padronizacao de scripts operacionais
 
-Status: em andamento/concluido nesta branch.
+Status: concluido.
 
 Resultado:
 
@@ -65,6 +65,17 @@ Resultado:
 - Documentados finalidade, comandos, variaveis, suporte a `--dry-run`, nivel de risco e recomendacoes.
 - Adicionado `docs/operations/` ao indice `docs/README.md`.
 - Adicionado `reports/` ao `.gitignore` para relatorios gerados localmente por scripts.
+
+### PR 5 - Divida tecnica funcional por modulo
+
+Status: em andamento/concluido nesta branch.
+
+Resultado:
+
+- Criado `docs/execution-plans/active/2026-05-workout-builder-debt.md`.
+- Criado `docs/execution-plans/active/2026-05-aluno-details-debt.md`.
+- Criado `docs/execution-plans/active/2026-05-library-module-debt.md`.
+- Criado `docs/execution-plans/active/2026-05-periodization-schema-debt.md`.
 
 ## Problemas restantes
 
@@ -89,34 +100,36 @@ Alguns scripts oficiais ainda podem ser melhorados em PRs futuros:
 
 Classificacao: risco medio.
 
-### 3. TODOs e pendencias em areas funcionais
+### 3. Dividas funcionais planejadas
 
-Arquivos com sinais de TODO ou pendencias futuras:
+Planos especificos foram criados para:
 
-- `apps/api/prisma/seed.ts`
-- `apps/web/src/pages/WorkoutBuilder/index.tsx`
-- `apps/api/src/routes/library.routes.ts`
-- `apps/api/src/modules/library/library.service.ts`
-- `apps/web/src/pages/AlunoDetails.tsx`
-- `apps/web/src/pages/WorkoutBuilder2/ResistanceDayTable.tsx`
-- `apps/api/prisma/schema_periodization.prisma`
+- `WorkoutBuilder`: remocao de mocks/TODOs e integracao real.
+- `AlunoDetails`: reducao de complexidade e separacao de responsabilidades.
+- `library`: tipagem, encoding, validacao e permissoes.
+- periodizacao/schema: regularizacao de schema auxiliar e fonte de verdade Prisma.
 
 Classificacao: risco medio a alto.
 
 ## Proximos PRs recomendados
 
-### PR 5 - Divida tecnica funcional por modulo
+### PR 6 - Escolher primeira divida funcional de baixo risco
 
-Escopo:
+Opcao recomendada: `library` PR A.
 
-- Tratar TODOs e componentes grandes por modulo, sem misturar dominios.
-- Criar planos especificos para `WorkoutBuilder`, `AlunoDetails`, biblioteca e periodizacao.
+Escopo sugerido:
 
-Criterios de aceite:
+- Corrigir encoding de comentarios/mensagens em `library.routes.ts` e `library.service.ts`.
+- Nao alterar logica.
+- Preparar PR seguinte para tipagem e validacao.
 
-- Cada modulo tem plano proprio.
-- Nao ha refatoracao estrutural sem testes.
-- Alteracoes de UI incluem validacao manual.
+### PR 7 - Tipagem/validacao do modulo escolhido
+
+Escopo sugerido:
+
+- Remover `any` desnecessario.
+- Adicionar validacao de payload/query.
+- Preservar `contractId`.
 
 ## Validacao geral recomendada
 
@@ -147,3 +160,4 @@ pnpm harness:validate-env
 - Remocoes de arquivos com acesso a banco foram feitas somente apos busca de referencias.
 - Scripts operacionais oficiais ficam documentados em `docs/operations/api-scripts.md`.
 - Documentos antigos com valor historico devem ir para `docs/archive/` ou ser marcados como complementares/legados.
+- Refatoracoes funcionais so devem ocorrer depois de plano especifico por modulo.
