@@ -8,13 +8,11 @@ Organizar o `training-system` em uma sequencia de PRs pequenos, seguros e revisa
 
 O PR de harness engineering ja foi mergeado na `develop`, criando `AGENTS.md`, documentacao de arquitetura, scripts de validacao e workflow de PR. Este plano inicia a faxina usando esses trilhos.
 
-A primeira etapa e diagnostica: listar problemas, classificar risco e definir a ordem de PRs. Nenhuma remocao ou refatoracao funcional deve ser feita neste PR.
+A primeira etapa foi diagnostica: listar problemas, classificar risco e definir a ordem de PRs. A segunda etapa remove scripts temporarios/avulsos de banco sem alterar comportamento funcional.
 
-## Fora de escopo deste PR
+## Fora de escopo deste plano
 
-- Remover arquivos.
-- Reorganizar pastas.
-- Alterar codigo de runtime.
+- Alterar codigo de runtime sem necessidade.
 - Alterar schema Prisma.
 - Alterar permissoes, telas, rotas ou comportamento de usuario.
 - Corrigir todos os problemas encontrados de uma vez.
@@ -32,7 +30,7 @@ Foram encontrados sinais de sujeira tecnica em quatro grupos principais:
 
 ### 1. Arquivos temporarios e scripts avulsos de banco
 
-Arquivos candidatos a remocao, consolidacao ou movimentacao para `scripts/`:
+Arquivos removidos no PR 2:
 
 - `query_db.js`
 - `apps/api/query_db.ts`
@@ -44,14 +42,12 @@ Arquivos candidatos a remocao, consolidacao ou movimentacao para `scripts/`:
 
 Observacoes:
 
-- Alguns arquivos usam e-mail fixo de usuario real.
-- Alguns arquivos instanciam Prisma ou cliente PostgreSQL diretamente.
-- Alguns parecem ter sido criados para diagnostico pontual de producao/local.
-- Antes de remover, confirmar se nenhum workflow, README ou script oficial referencia esses arquivos.
+- Alguns arquivos usavam e-mail fixo de usuario real.
+- Alguns arquivos instanciavam Prisma ou cliente PostgreSQL diretamente.
+- Alguns pareciam ter sido criados para diagnostico pontual de producao/local.
+- Buscas por referencias diretas nao indicaram uso oficial por scripts, workflows ou codigo de runtime.
 
-Classificacao: risco baixo a medio.
-
-Motivo: parecem avulsos, mas podem ter sido usados manualmente para suporte. A remocao e segura apenas apos busca de referencias e validacao local.
+Status: concluido no PR 2.
 
 ### 2. Backup local versionado
 
@@ -131,54 +127,39 @@ A busca por `console.log` retornou scripts, testes, main e componentes. Logs em 
 
 Classificacao: risco baixo a medio.
 
-## O que pode ser limpo sem alterar comportamento
+## O que ja foi limpo sem alterar comportamento
 
-Candidatos para PR seguro apos validacao:
-
-1. Remover ou arquivar arquivos explicitamente temporarios:
-   - `apps/api/check_user_tmp.mjs`
-   - scripts de query avulsos sem referencia externa.
-
-2. Remover backup local versionado se houver documento oficial equivalente:
-   - `docs/visual-guidelines.local-backup-20260420-165809.md`
-
-3. Criar `docs/archive/` para documentos antigos que ainda possam ter valor historico.
-
-4. Atualizar README ou docs antigas para apontar para as novas fontes:
-   - `docs/architecture/*`
-   - `docs/product/*`
-   - `docs/quality/validation.md`
+1. Removidos scripts temporarios/avulsos de banco.
+2. `.gitignore` atualizado para evitar novos arquivos temporarios semelhantes:
+   - `query_db.*`
+   - `check_user_tmp.*`
+   - `list_contracts.*`
+   - `update_user.*`
+   - `*_tmp.*`
+   - `*.bak`
+   - `*.backup`
+   - `*.local-backup.*`
+   - `*.tmp.*`
 
 ## O que exige cuidado ou testes adicionais
 
-1. Qualquer arquivo que altere banco ou usuarios:
-   - `apps/api/update_user.js`
-   - `query_db.js`
-   - `apps/api/query_db*.ts`
-   - `apps/api/list_contracts.ts`
-
-2. Scripts em `apps/api/src/scripts/` chamados por `apps/api/package.json`.
-
-3. Refatoracao de telas grandes como:
+1. Scripts em `apps/api/src/scripts/` chamados por `apps/api/package.json`.
+2. Refatoracao de telas grandes como:
    - `apps/web/src/pages/AlunoDetails.tsx`
    - `apps/web/src/pages/WorkoutBuilder/index.tsx`
    - `apps/web/src/pages/WorkoutBuilder2/ResistanceDayTable.tsx`
-
-4. Qualquer ajuste em permissoes, `screenKey`, `blockKey` ou `dataScope`.
+3. Qualquer ajuste em permissoes, `screenKey`, `blockKey` ou `dataScope`.
 
 ## Ordem recomendada de PRs pequenos
 
 ### PR 1 - Diagnostico da faxina
 
+Status: concluido.
+
 Escopo:
 
 - Criar este plano.
 - Nao alterar comportamento.
-
-Criterios de aceite:
-
-- Plano versionado em `docs/execution-plans/active/`.
-- Proximos PRs descritos com risco e validacao.
 
 Validacao:
 
@@ -188,27 +169,19 @@ pnpm docs:check
 
 ### PR 2 - Limpeza segura de arquivos temporarios
 
+Status: em andamento/concluido nesta branch.
+
 Escopo:
 
 - Buscar referencias aos arquivos candidatos.
 - Remover arquivos temporarios sem uso confirmado.
-- Se algum script ainda for util, mover para `scripts/manual/` ou documentar em `docs/quality/validation.md`.
-
-Candidatos iniciais:
-
-- `apps/api/check_user_tmp.mjs`
-- `query_db.js`
-- `apps/api/query_db.ts`
-- `apps/api/query_db_list.ts`
-- `apps/api/query_db_gasparoto.ts`
-- `apps/api/list_contracts.ts`
-- `apps/api/update_user.js`
+- Atualizar `.gitignore` para evitar reincidencia.
 
 Criterios de aceite:
 
 - Nenhum script oficial quebra.
 - Nenhuma referencia pendente aos arquivos removidos.
-- `pnpm validate` passa.
+- `pnpm validate` passa no CI ou localmente.
 
 ### PR 3 - Consolidacao de documentacao
 
@@ -294,11 +267,11 @@ pnpm harness:validate-env
 
 - A faxina sera feita em PRs pequenos contra `develop`.
 - A `main` so recebe a faxina depois de estabilizada em `develop`.
-- O primeiro PR e apenas diagnostico e planejamento.
-- Remocoes de arquivos com acesso a banco devem ser feitas somente apos busca de referencias.
+- Remocoes de arquivos com acesso a banco foram feitas somente apos busca de referencias.
+- Scripts operacionais oficiais ficam para PR proprio de documentacao/padronizacao.
 
 ## Pendencias para o proximo PR
 
-- Confirmar referencias aos arquivos temporarios.
-- Remover ou arquivar os arquivos sem uso.
-- Atualizar `.gitignore` caso existam padroes de backup/tmp que nao deveriam ser versionados.
+- Consolidar documentacao antiga e backup local versionado.
+- Criar ou atualizar `docs/archive/` se necessario.
+- Atualizar README para apontar para as novas fontes de verdade.
