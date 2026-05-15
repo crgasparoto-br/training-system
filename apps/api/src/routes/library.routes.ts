@@ -1,4 +1,4 @@
-﻿import { Router } from 'express';
+import { Router } from 'express';
 import { libraryService } from '../modules/library/library.service.js';
 import { authMiddleware, professorMiddleware } from '../modules/auth/auth.middleware.js';
 
@@ -9,7 +9,7 @@ router.use(professorMiddleware);
 
 /**
  * GET /api/library/exercises
- * Listar exercÃ­cios com filtros
+ * Listar exercicios com filtros
  */
 router.get('/exercises', async (req, res) => {
   try {
@@ -33,13 +33,13 @@ router.get('/exercises', async (req, res) => {
 
 /**
  * GET /api/library/exercises/:id
- * Obter exercÃ­cio por ID
+ * Obter exercicio por ID
  */
 router.get('/exercises/:id', async (req, res) => {
   try {
     const contractId = (req as any).user.contractId;
     const exercise = await libraryService.getExerciseById(contractId, req.params.id);
-    
+
     if (!exercise) {
       return res.status(404).json({ message: 'ExercÃ­cio nÃ£o encontrado' });
     }
@@ -53,7 +53,7 @@ router.get('/exercises/:id', async (req, res) => {
 
 /**
  * POST /api/library/exercises
- * Criar novo exercÃ­cio
+ * Criar novo exercicio
  */
 router.post('/exercises', async (req, res) => {
   try {
@@ -68,7 +68,7 @@ router.post('/exercises', async (req, res) => {
 
 /**
  * PUT /api/library/exercises/:id
- * Atualizar exercÃ­cio
+ * Atualizar exercicio
  */
 router.put('/exercises/:id', async (req, res) => {
   try {
@@ -83,7 +83,7 @@ router.put('/exercises/:id', async (req, res) => {
 
 /**
  * DELETE /api/library/exercises/:id
- * Deletar exercÃ­cio
+ * Deletar exercicio
  */
 router.delete('/exercises/:id', async (req, res) => {
   try {
@@ -98,7 +98,7 @@ router.delete('/exercises/:id', async (req, res) => {
 
 /**
  * GET /api/library/progress/:alunoId/:exerciseId
- * Obter progresso do aluno em um exercÃ­cio
+ * Obter progresso do aluno em um exercicio
  */
 router.get('/progress/:alunoId/:exerciseId', async (req, res) => {
   try {
@@ -151,4 +151,3 @@ router.get('/progress/:alunoId', async (req, res) => {
 });
 
 export default router;
-
