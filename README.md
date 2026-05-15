@@ -1,175 +1,159 @@
 # Sistema Acesso Saúde e Performance
 
-Sistema SaaS completo para gestão de treinos de corrida com suporte a educadores e alunos.
+Sistema SaaS para gestão de alunos, professores, treinos, agenda, avaliações, contratos, controle financeiro e operação de assessorias/estúdios.
 
-## 📋 Visão Geral
+## Visão geral
 
-- **Educadores**: Criam e gerenciam planos de treino personalizados
-- **Alunos**: Visualizam, executam e acompanham treinos
-- **Integrações**: Garmin, Strava, Apple Health, Dieta.ia, Spotify
-- **Notificações**: Email, SMS, WhatsApp
-- **Pagamentos**: Stripe (cartão, PIX, boleto)
+- Educadores e gestores: criam e gerenciam alunos, colaboradores, treinos, avaliações, agenda e contratos.
+- Alunos: visualizam e acompanham informações do seu relacionamento com a empresa.
+- Operação: controle de permissões por função, telas, blocos internos e escopo de dados.
+- Publicação: frontend web em Vercel e API em Render no cenário atual.
 
-## 🏗️ Arquitetura
+## Arquitetura
 
-```
+```text
 apps/
-├── api/          # Backend Node.js + Express
-├── web/          # Frontend React (Educador)
-└── mobile/       # Frontend React Native (Aluno)
+├── api/          # Backend Node.js + Express + Prisma
+├── web/          # Frontend React/Vite
+└── mobile/       # App mobile, quando aplicável
 
 packages/
-├── types/        # Types compartilhados
-├── utils/        # Utilitários
-└── constants/    # Constantes
+├── types/        # Tipos compartilhados
+├── utils/        # Utilitários compartilhados
+└── constants/    # Constantes compartilhadas
+
+docs/             # Documentação versionada
+scripts/          # Validações, harness local e automações
 ```
 
-## 🚀 Quick Start
+## Documentação principal
+
+Use [`docs/README.md`](./docs/README.md) como índice da documentação.
+
+Fontes de verdade atuais:
+
+- [`AGENTS.md`](./AGENTS.md): mapa curto para humanos e agentes.
+- [`docs/architecture/overview.md`](./docs/architecture/overview.md): visão geral da arquitetura.
+- [`docs/architecture/api.md`](./docs/architecture/api.md): padrões da API.
+- [`docs/architecture/web.md`](./docs/architecture/web.md): padrões do frontend web.
+- [`docs/architecture/database.md`](./docs/architecture/database.md): banco, Prisma e multi-tenant.
+- [`docs/architecture/auth-and-access-control.md`](./docs/architecture/auth-and-access-control.md): autenticação, autorização e escopo de dados.
+- [`docs/architecture/deployment.md`](./docs/architecture/deployment.md): deploy, variáveis e ambientes.
+- [`docs/product/access-control.md`](./docs/product/access-control.md): regras de produto para controle de acesso.
+- [`docs/visual-guidelines.md`](./docs/visual-guidelines.md): diretrizes visuais.
+- [`docs/quality/validation.md`](./docs/quality/validation.md): comandos de validação.
+
+## Quick start
 
 ### Pré-requisitos
 
-- Node.js 18+
-- pnpm 8+
-- Docker & Docker Compose
+- Node.js 20+
+- pnpm 9+
+- Docker e Docker Compose
 
-### Setup do Ambiente
+### Setup local
 
 ```bash
-# 1. Clone o repositório
-git clone <repo-url>
-cd training_system
-
-# 2. Instale dependências
 pnpm install
-
-# 3. Configure variáveis de ambiente
-cp .env.example .env.local
-
-# 4. Inicie os serviços (PostgreSQL, Redis)
-docker-compose up -d
-
-# 5. Execute migrations
-cd apps/api
-pnpm prisma migrate dev
-
-# 6. Inicie o desenvolvimento
-pnpm dev
+pnpm dev:up
 ```
 
-### Acessar Serviços
-
-- **API**: http://localhost:3000
-- **Frontend Web**: http://localhost:5173
-- **pgAdmin**: http://localhost:5050
-- **Redis Commander**: http://localhost:8081
-
-### IntegraÃ§Ã£o Jira
-
-Configure as variÃ¡veis abaixo no arquivo `.env` para habilitar a integraÃ§Ã£o com o Jira Cloud no projeto `SDT`:
+Alternativa manual:
 
 ```bash
-JIRA_BASE_URL="https://sua-organizacao.atlassian.net"
-JIRA_USER_EMAIL="seu-email@empresa.com"
-JIRA_API_TOKEN="seu-token-atlassian"
-JIRA_PROJECT_KEY="SDT"
+cp .env.example .env.local
+docker-compose up -d
+cd apps/api
+pnpm db:migrate
+pnpm db:seed
+cd ../..
+pnpm dev:local
 ```
 
-Endpoints disponÃ­veis na API:
+### Acessos locais
 
-- `GET /api/v1/jira/status`: valida conexÃ£o e acesso ao projeto configurado
-- `GET /api/v1/jira/metadata`: retorna projeto, tipos de issue e prioridades
-- `GET /api/v1/jira/issues/:issueKey`: consulta uma issue especÃ­fica
-- `POST /api/v1/jira/issues`: cria issue no Jira
+- API: `http://localhost:3000` ou porta definida no `.env`.
+- Frontend web: `http://localhost:5173`.
+- pgAdmin: `http://localhost:5050`, quando habilitado pelo Docker Compose.
+- Redis Commander: `http://localhost:8081`, quando habilitado pelo Docker Compose.
 
-## 📦 Estrutura de Pastas
-
-```
-training_system/
-├── apps/
-│   ├── api/
-│   │   ├── src/
-│   │   │   ├── modules/
-│   │   │   │   ├── auth/
-│   │   │   │   ├── athletes/
-│   │   │   │   ├── plans/
-│   │   │   │   ├── sessions/
-│   │   │   │   ├── executions/
-│   │   │   │   ├── integrations/
-│   │   │   │   └── nutrition/
-│   │   │   ├── common/
-│   │   │   ├── middleware/
-│   │   │   ├── config/
-│   │   │   └── main.ts
-│   │   ├── prisma/
-│   │   ├── tests/
-│   │   └── package.json
-│   │
-│   ├── web/
-│   │   ├── src/
-│   │   │   ├── pages/
-│   │   │   ├── components/
-│   │   │   ├── hooks/
-│   │   │   ├── services/
-│   │   │   └── App.tsx
-│   │   └── package.json
-│   │
-│   └── mobile/
-│       ├── src/
-│       │   ├── screens/
-│       │   ├── components/
-│       │   ├── hooks/
-│       │   ├── services/
-│       │   └── App.tsx
-│       └── package.json
-│
-├── packages/
-│   ├── types/
-│   ├── utils/
-│   └── constants/
-│
-├── docs/
-├── docker-compose.yml
-├── .env.example
-└── README.md
-```
-
-## 🔧 Desenvolvimento
-
-### Comandos Disponíveis
+## Comandos principais
 
 ```bash
 # Desenvolvimento
-pnpm dev              # Inicia todos os apps em modo dev
-pnpm dev:api          # Apenas API
-pnpm dev:web          # Apenas Web
-pnpm dev:mobile       # Apenas Mobile
+pnpm dev
+pnpm dev:api
+pnpm dev:web
+pnpm dev:local
+pnpm dev:up
+pnpm dev:down
+
+# Qualidade
+pnpm validate
+pnpm type-check
+pnpm lint
+pnpm test
+pnpm arch:check
+pnpm access:check
+pnpm docs:check
+
+# Harness local
+pnpm harness:reset-db
+pnpm harness:seed-demo
+pnpm harness:smoke-api
+pnpm harness:validate-env
 
 # Build
-pnpm build            # Build de todos os apps
-pnpm build:api        # Build apenas API
-
-# Testes
-pnpm test             # Executa testes
-pnpm test:watch       # Modo watch
-
-# Linting
-pnpm lint             # Verifica linting
-pnpm format           # Formata código
-
-# Database
-pnpm db:migrate       # Executa migrations
-pnpm db:seed          # Popula dados de teste
-pnpm db:studio        # Abre Prisma Studio
-
-# Jobs (API)
-cd apps/api
-pnpm job:dispatch-profile-reviews           # Executa rotina de revisão cadastral
-pnpm job:dispatch-profile-reviews --dry-run # Simula sem gravar
+pnpm build
 ```
 
-### Rotina automática de revisão cadastral
+## Banco de dados
 
-No serviço da API, é possível habilitar o scheduler leve da revisão cadastral via variáveis de ambiente:
+Comandos da API:
+
+```bash
+cd apps/api
+pnpm db:migrate
+pnpm db:migrate:prod
+pnpm db:seed
+pnpm db:studio
+```
+
+## Controle de acesso
+
+O controle de acesso usa três camadas principais:
+
+- `screenKey`: acesso a telas ou capacidades principais.
+- `blockKey`: acesso a abas, blocos internos e ações sensíveis.
+- `dataScope`: escopo de dados (`self`, `managed`, `contract`).
+
+Documentação:
+
+- [`docs/architecture/auth-and-access-control.md`](./docs/architecture/auth-and-access-control.md)
+- [`docs/product/access-control.md`](./docs/product/access-control.md)
+
+## Deploy atual
+
+Cenário atual recomendado:
+
+- Frontend: Vercel.
+- API: Render.
+- Banco: PostgreSQL acessado pela API via Prisma.
+
+Variáveis principais:
+
+- Frontend Vercel: `VITE_API_URL=https://sistema-acesso-api.onrender.com`
+- Render API: `DATABASE_URL`
+- Render API: `NODE_ENV=production`
+- Render API: `FRONTEND_URL=https://sistema-acesso.solveritconsultoria.com.br`
+- Render API: `CORS_ORIGINS=https://sistema-acesso.solveritconsultoria.com.br`
+- Render API: `JWT_SECRET`
+
+Mais detalhes em [`docs/architecture/deployment.md`](./docs/architecture/deployment.md).
+
+## Rotina automática de revisão cadastral
+
+A API pode habilitar o scheduler leve de revisão cadastral via variáveis de ambiente:
 
 ```bash
 PROFILE_REVIEW_SCHEDULER_ENABLED=true
@@ -178,125 +162,40 @@ PROFILE_REVIEW_UPCOMING_WINDOW_DAYS=7
 PROFILE_REVIEW_CREATE_OVERDUE_REMINDER=true
 ```
 
-- A rotina cria `StudentProfileReview` com status `pending` para alunos elegíveis.
-- Não duplica revisão quando já existe pendência aberta (incluindo vencida).
-- Quando há pendência vencida, pode criar lembrete idempotente diário (opcional).
+A rotina cria `StudentProfileReview` com status `pending` para alunos elegíveis, sem duplicar revisão quando já existe pendência aberta.
 
-## 📚 Documentação
+## Integração Jira
 
-- [API Documentation](./docs/api.md)
-- [Database Schema](./docs/database.md)
-- [Architecture](./docs/architecture.md)
-- [Deployment](./docs/deployment.md)
-
-## 🔐 Segurança
-
-- Autenticação JWT
-- Validação com Zod
-- CORS configurado
-- Rate limiting
-- Proteção contra SQL injection
-- Criptografia de senhas (bcrypt)
-
-## 📊 Stack Tecnológico
-
-### Backend
-- Node.js + Express
-- TypeScript
-- Prisma ORM
-- PostgreSQL
-- Redis
-- Jest (testes)
-
-### Frontend Web
-- React 18
-- TypeScript
-- TailwindCSS
-- shadcn/ui
-- React Hook Form
-- TanStack Query
-- Vite
-
-### Frontend Mobile
-- React Native
-- Expo
-- TypeScript
-- NativeWind
-- React Navigation
-
-## 🚢 Deploy
-
-### Railway (Recomendado)
+Configure as variáveis abaixo no `.env` para habilitar integração com Jira Cloud:
 
 ```bash
-# 1. Criar conta em railway.app
-# 2. Conectar repositório Git
-# 3. Configurar variáveis de ambiente
-# 4. Deploy automático
+JIRA_BASE_URL="https://sua-organizacao.atlassian.net"
+JIRA_USER_EMAIL="seu-email@empresa.com"
+JIRA_API_TOKEN="seu-token-atlassian"
+JIRA_PROJECT_KEY="SDT"
 ```
 
-### DigitalOcean (Backup)
+Endpoints principais:
 
-```bash
-# Documentação em docs/deployment.md
-```
+- `GET /api/v1/jira/status`
+- `GET /api/v1/jira/metadata`
+- `GET /api/v1/jira/issues/:issueKey`
+- `POST /api/v1/jira/issues`
 
-### Produção Atual
+## Fluxo de branch recomendado
 
-O frontend publicado no Vercel nao acessa o banco diretamente. O fluxo correto em producao e:
+1. Desenvolvimento em branches a partir de `develop`.
+2. PRs pequenos para `develop`.
+3. Validação com `pnpm validate` e GitHub Actions.
+4. Depois de estabilizado, PR de `develop` para `main`.
+5. Publicação de produção a partir da `main`.
 
-- Vercel (frontend) -> API publica
-- API publica -> banco PostgreSQL via Prisma (`DATABASE_URL`)
+## Suporte e manutenção
 
-Variaveis minimas para producao:
+- Issues: GitHub Issues.
+- Documentação: [`docs/README.md`](./docs/README.md).
+- Planos ativos: [`docs/execution-plans/active/`](./docs/execution-plans/active/).
 
-- Vercel: `VITE_API_URL=https://sistema-acesso-api.onrender.com`
-- API: `DATABASE_URL=<string do PostgreSQL de producao>`
-- API: `NODE_ENV=production`
-- API: `PORT=<automatico do Render>`
-- API: `FRONTEND_URL=https://sistema-acesso.solveritconsultoria.com.br`
-- API: `CORS_ORIGINS=https://sistema-acesso.solveritconsultoria.com.br`
-- API: `JWT_SECRET=<segredo forte de producao>`
+## Licença
 
-Se `VITE_API_URL` nao estiver configurada no Vercel, o web faz fallback para `/api/v1`, e o frontend passa a tentar chamar a propria URL do Vercel em vez da API publicada.
-
-Configuracao objetiva para o cenario atual:
-
-- Frontend Vercel: `VITE_API_URL=https://sistema-acesso-api.onrender.com`
-- Render API: `DATABASE_URL=<PostgreSQL de producao>`
-- Render API: `NODE_ENV=production`
-- Render API: `FRONTEND_URL=https://sistema-acesso.solveritconsultoria.com.br`
-- Render API: `CORS_ORIGINS=https://sistema-acesso.solveritconsultoria.com.br`
-- Render API: `JWT_SECRET=<segredo forte de producao>`
-- Render API: usa `PORT` automaticamente; o backend agora aceita `PORT` e `API_PORT`
-- GitHub Actions secret: `PRODUCTION_DATABASE_URL=<PostgreSQL de producao>`
-- GitHub Actions secret: `RENDER_API_DEPLOY_HOOK_URL=<deploy hook do Render>`
-- GitHub Actions secrets do Vercel: `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `PRODUCTION_VITE_API_URL`
-
-## 💰 Modelo de Negócio
-
-| Plano | Alunos | Preço |
-|-------|--------|-------|
-| Free | 3 | Gratuito |
-| Pro | 20 | R$ 149/mês |
-| Enterprise | Ilimitado | R$ 499/mês |
-
-## 📞 Suporte
-
-- Issues: GitHub Issues
-- Documentação: `/docs`
-- Email: support@corrida.local
-
-## 📄 Licença
-
-Proprietary - Todos os direitos reservados
-
-## 👨‍💻 Desenvolvimento
-
-Desenvolvido por: Claudinei Rogério Gasparoto
-Versão: 0.1.0
-Data: Janeiro 2026
-
----
-
-**Pronto para começar? Veja [GETTING_STARTED.md](./docs/GETTING_STARTED.md)**
+Proprietary - Todos os direitos reservados.
