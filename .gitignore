@@ -43,6 +43,17 @@ Thumbs.db
 tmp/
 temp/
 *.tmp
+*.bak
+*.backup
+*.local-backup.*
+*_tmp.*
+*.tmp.*
+
+# Local/manual database diagnostics
+query_db.*
+check_user_tmp.*
+list_contracts.*
+update_user.*
 
 # Database
 *.sqlite
