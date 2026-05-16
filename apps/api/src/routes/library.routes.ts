@@ -1,5 +1,6 @@
 import { Router, type Request } from 'express';
 import type { JwtPayload } from '@corrida/types';
+import { CountingType, LoadType, MovementType } from '@prisma/client';
 import { z } from 'zod';
 import {
   libraryService,
@@ -16,9 +17,9 @@ type LibraryProfessorRequest = Request & {
 const exerciseFiltersSchema = z.object({
   search: z.string().optional(),
   category: z.string().optional(),
-  loadType: z.string().optional(),
-  movementType: z.string().optional(),
-  countingType: z.string().optional(),
+  loadType: z.nativeEnum(LoadType).optional(),
+  movementType: z.nativeEnum(MovementType).optional(),
+  countingType: z.nativeEnum(CountingType).optional(),
   muscleGroup: z.string().optional(),
 });
 
@@ -47,9 +48,9 @@ function parseExerciseFilters(req: Request):
     data: {
       search: parsed.data.search,
       category: parsed.data.category,
-      loadType: parsed.data.loadType as ExerciseFilters['loadType'],
-      movementType: parsed.data.movementType as ExerciseFilters['movementType'],
-      countingType: parsed.data.countingType as ExerciseFilters['countingType'],
+      loadType: parsed.data.loadType,
+      movementType: parsed.data.movementType,
+      countingType: parsed.data.countingType,
       muscleGroup: parsed.data.muscleGroup,
     },
   };
