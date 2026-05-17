@@ -127,7 +127,7 @@ export const libraryService = {
     });
 
     if (!existing) {
-      throw new Error('ExercÃ­cio nÃ£o encontrado');
+      throw new Error('Exercicio nao encontrado');
     }
 
     return await prisma.exerciseLibrary.update({
@@ -145,7 +145,7 @@ export const libraryService = {
     });
 
     if (!existing) {
-      throw new Error('ExercÃ­cio nÃ£o encontrado');
+      throw new Error('Exercicio nao encontrado');
     }
 
     return await prisma.exerciseLibrary.delete({
@@ -212,7 +212,7 @@ export const libraryService = {
     ]);
 
     if (!exercise || !aluno) {
-      throw new Error('Progresso nÃ£o encontrado');
+      throw new Error('Progresso nao encontrado');
     }
 
     return await prisma.alunoExerciseProgress.upsert({
