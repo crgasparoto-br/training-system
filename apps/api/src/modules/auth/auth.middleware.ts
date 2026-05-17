@@ -1,4 +1,4 @@
-﻿import { Request, Response, NextFunction } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { authService } from './auth.service.js';
 import type { JwtPayload } from '@corrida/types';
 
@@ -62,7 +62,8 @@ export async function professorMiddleware(req: Request, res: Response, next: Nex
   }
 
   try {
-    const professor = await authService.getProfessorByUserId(req.user.userId);
+    const user = req.user;
+    const professor = await authService.getProfessorByUserId(user.userId);
 
     if (!professor) {
       return res.status(404).json({
@@ -72,9 +73,9 @@ export async function professorMiddleware(req: Request, res: Response, next: Nex
     }
 
     // Adicionar professorId ao request
-    (req as any).user.professorId = professor.id;
-    (req as any).user.contractId = professor.contractId;
-    (req as any).user.professorRole = professor.role;
+    user.professorId = professor.id;
+    user.contractId = professor.contractId;
+    user.professorRole = professor.role;
 
     next();
   } catch (error) {
@@ -105,7 +106,8 @@ export async function masterMiddleware(req: Request, res: Response, next: NextFu
   }
 
   try {
-    const professor = await authService.getProfessorByUserId(req.user.userId);
+    const user = req.user;
+    const professor = await authService.getProfessorByUserId(user.userId);
 
     if (!professor) {
       return res.status(404).json({
@@ -121,9 +123,9 @@ export async function masterMiddleware(req: Request, res: Response, next: NextFu
       });
     }
 
-    (req as any).user.professorId = professor.id;
-    (req as any).user.contractId = professor.contractId;
-    (req as any).user.professorRole = professor.role;
+    user.professorId = professor.id;
+    user.contractId = professor.contractId;
+    user.professorRole = professor.role;
 
     next();
   } catch (error) {
@@ -154,7 +156,8 @@ export async function academyMasterMiddleware(req: Request, res: Response, next:
   }
 
   try {
-    const professor = await authService.getProfessorByUserId(req.user.userId);
+    const user = req.user;
+    const professor = await authService.getProfessorByUserId(user.userId);
 
     if (!professor) {
       return res.status(404).json({
@@ -177,9 +180,9 @@ export async function academyMasterMiddleware(req: Request, res: Response, next:
       });
     }
 
-    (req as any).user.professorId = professor.id;
-    (req as any).user.contractId = professor.contractId;
-    (req as any).user.professorRole = professor.role;
+    user.professorId = professor.id;
+    user.contractId = professor.contractId;
+    user.professorRole = professor.role;
 
     next();
   } catch (error) {
