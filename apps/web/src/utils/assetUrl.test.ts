@@ -1,91 +1,58 @@
+import { describe, expect, it } from 'vitest';
 import { resolveAssetUrl } from './assetUrl';
 
-// Casos de teste
-const testCases = [
-  // URLs antigas com host incorreto
-  {
-    input: 'http://old-host.com/uploads/contracts/logos/1234-image.png',
-    description: 'URL antiga com host incorreto (http)',
-    expectedContains: '/uploads/contracts/logos/1234-image.png'
-  },
-  {
-    input: 'https://staging-api.com/uploads/professores/5678-avatar.jpg',
-    description: 'URL antiga com host incorreto (https)',
-    expectedContains: '/uploads/professores/5678-avatar.jpg'
-  },
-  // URLs modernas
-  {
-    input: '/uploads/contracts/logos/1234-image.png',
-    description: 'URL com /uploads absoluto',
-    expectedContains: '/uploads/contracts/logos/1234-image.png'
-  },
-  {
-    input: 'uploads/contracts/logos/1234-image.png',
-    description: 'URL com uploads relativo',
-    expectedContains: '/uploads/contracts/logos/1234-image.png'
-  },
-  // URLs externas intactas
-  {
-    input: 'https://external.com/image.png',
-    description: 'URL externa sem /uploads',
-    expectedEquals: 'https://external.com/image.png'
-  },
-  {
-    input: 'data:image/png;base64,iVBORw0KG...',
-    description: 'Data URL',
-    expectedEquals: 'data:image/png;base64,iVBORw0KG...'
-  },
-  {
-    input: 'blob:http://localhost:5173/123456',
-    description: 'Blob URL',
-    expectedEquals: 'blob:http://localhost:5173/123456'
-  },
-  // Casos vazios
-  {
-    input: null,
-    description: 'null',
-    expectedEquals: ''
-  },
-  {
-    input: undefined,
-    description: 'undefined',
-    expectedEquals: ''
-  },
-  {
-    input: '   ',
-    description: 'Whitespace only',
-    expectedEquals: ''
-  },
-];
+describe('resolveAssetUrl', () => {
+  it('normaliza URL antiga com host incorreto em http', () => {
+    const result = resolveAssetUrl('http://old-host.com/uploads/contracts/logos/1234-image.png');
 
-console.log('🧪 Testando resolveAssetUrl...\n');
+    expect(result).toContain('/uploads/contracts/logos/1234-image.png');
+  });
 
-let passed = 0;
-let failed = 0;
+  it('normaliza URL antiga com host incorreto em https', () => {
+    const result = resolveAssetUrl('https://staging-api.com/uploads/professores/5678-avatar.jpg');
 
-for (const test of testCases) {
-  const result = resolveAssetUrl(test.input);
-  let success = false;
+    expect(result).toContain('/uploads/professores/5678-avatar.jpg');
+  });
 
-  if (test.expectedEquals !== undefined) {
-    success = result === test.expectedEquals;
-  } else if (test.expectedContains !== undefined) {
-    success = result.includes(test.expectedContains);
-  }
+  it('preserva URL com /uploads absoluto', () => {
+    expect(resolveAssetUrl('/uploads/contracts/logos/1234-image.png')).toContain(
+      '/uploads/contracts/logos/1234-image.png'
+    );
+  });
 
-  if (success) {
-    console.log(`✅ ${test.description}`);
-    console.log(`   Input:  ${test.input}`);
-    console.log(`   Output: ${result}\n`);
-    passed++;
-  } else {
-    console.log(`❌ ${test.description}`);
-    console.log(`   Input:    ${test.input}`);
-    console.log(`   Output:   ${result}`);
-    console.log(`   Expected: ${test.expectedEquals || `contains ${test.expectedContains}`}\n`);
-    failed++;
-  }
-}
+  it('normaliza URL com uploads relativo', () => {
+    expect(resolveAssetUrl('uploads/contracts/logos/1234-image.png')).toContain(
+      '/uploads/contracts/logos/1234-image.png'
+    );
+  });
 
-console.log(`\n📊 Resultados: ${passed} passed, ${failed} failed`);
-process.exit(failed > 0 ? 1 : 0);
+  it('mantem URL externa sem /uploads', () => {
+    expect(resolveAssetUrl('https://external.com/image.png')).toBe(
+      'https://external.com/image.png'
+    );
+  });
+
+  it('mantem data URL', () => {
+    expect(resolveAssetUrl('data:image/png;base64,iVBORw0KG...')).toBe(
+      'data:image/png;base64,iVBORw0KG...'
+    );
+  });
+
+  it('mantem blob URL', () => {
+    expect(resolveAssetUrl('blob:http://localhost:5173/123456')).toBe(
+      'blob:http://localhost:5173/123456'
+    );
+  });
+
+  it('retorna vazio para null', () => {
+    expect(resolveAssetUrl(null)).toBe('');
+  });
+
+  it('retorna vazio para undefined', () => {
+    expect(resolveAssetUrl(undefined)).toBe('');
+  });
+
+  it('retorna vazio para whitespace only', () => {
+    expect(resolveAssetUrl('   ')).toBe('');
+  });
+});
