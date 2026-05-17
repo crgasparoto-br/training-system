@@ -78,7 +78,7 @@ router.get('/exercises', async (req, res) => {
     res.json(exercises);
   } catch (error) {
     console.error('Error listing exercises:', error);
-    res.status(500).json({ message: 'Erro ao listar exercÃ­cios' });
+    res.status(500).json({ message: 'Erro ao listar exercicios' });
   }
 });
 
@@ -92,13 +92,13 @@ router.get('/exercises/:id', async (req, res) => {
     const exercise = await libraryService.getExerciseById(contractId, req.params.id);
 
     if (!exercise) {
-      return res.status(404).json({ message: 'ExercÃ­cio nÃ£o encontrado' });
+      return res.status(404).json({ message: 'Exercicio nao encontrado' });
     }
 
     res.json(exercise);
   } catch (error) {
     console.error('Error getting exercise:', error);
-    res.status(500).json({ message: 'Erro ao buscar exercÃ­cio' });
+    res.status(500).json({ message: 'Erro ao buscar exercicio' });
   }
 });
 
@@ -113,7 +113,7 @@ router.post('/exercises', async (req, res) => {
     res.status(201).json(exercise);
   } catch (error) {
     console.error('Error creating exercise:', error);
-    res.status(500).json({ message: 'Erro ao criar exercÃ­cio' });
+    res.status(500).json({ message: 'Erro ao criar exercicio' });
   }
 });
 
@@ -128,7 +128,7 @@ router.put('/exercises/:id', async (req, res) => {
     res.json(exercise);
   } catch (error) {
     console.error('Error updating exercise:', error);
-    res.status(500).json({ message: 'Erro ao atualizar exercÃ­cio' });
+    res.status(500).json({ message: 'Erro ao atualizar exercicio' });
   }
 });
 
@@ -143,7 +143,7 @@ router.delete('/exercises/:id', async (req, res) => {
     res.status(204).send();
   } catch (error) {
     console.error('Error deleting exercise:', error);
-    res.status(500).json({ message: 'Erro ao deletar exercÃ­cio' });
+    res.status(500).json({ message: 'Erro ao deletar exercicio' });
   }
 });
 
