@@ -36,6 +36,12 @@ Este diretorio concentra a documentacao versionada do projeto.
 
 Documentos antigos que ainda possuem valor historico devem ser movidos para [`archive/`](archive/) ou atualizados para apontar para as fontes de verdade acima.
 
+Documentos complementares atualmente mantidos na raiz de `docs/`:
+
+- [`internal-test-deploy.md`](internal-test-deploy.md): orientacao complementar para publicacao de testes internos; conferir sempre `architecture/deployment.md` e `quality/validation.md`.
+- [`BIBLIOTECA_MELHORIAS.md`](BIBLIOTECA_MELHORIAS.md): registro historico de melhorias da tela de Biblioteca; conferir `execution-plans/active/2026-05-library-module-debt.md`.
+- [`CHECKLIST_TESTES_BIBLIOTECA.md`](CHECKLIST_TESTES_BIBLIOTECA.md): checklist manual complementar da tela de Biblioteca; conferir `quality/validation.md` e o plano do modulo.
+
 ## Regra de manutencao
 
 Ao adicionar nova documentacao:

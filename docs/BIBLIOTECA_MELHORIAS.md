@@ -1,125 +1,135 @@
-# Melhorias Implementadas na Biblioteca de Exercícios
+# Melhorias Implementadas na Biblioteca de Exercicios
 
-## 📅 Data da Implementação
+> Documento complementar/historico sobre melhorias entregues na tela de Biblioteca de Exercicios.
+>
+> Fontes de verdade atuais:
+>
+> - `docs/execution-plans/active/2026-05-library-module-debt.md`
+> - `docs/architecture/web.md`
+> - `docs/quality/validation.md`
+>
+> Use este arquivo como registro de contexto. Para mudancas novas, validacoes e decisoes atuais, prefira as fontes acima.
+
+## Data da Implementacao
 02 de Fevereiro de 2026
 
-## 🎯 Objetivo
-Aprimorar a experiência do usuário na tela de Biblioteca de Exercícios, tornando-a mais funcional, informativa e profissional.
+## Objetivo
+Aprimorar a experiencia do usuario na tela de Biblioteca de Exercicios, tornando-a mais funcional, informativa e profissional.
 
 ---
 
-## ✨ Funcionalidades Implementadas
+## Funcionalidades Implementadas
 
 ### 1. Filtro por Grupo Muscular
 
-**Descrição:** Adicionado filtro dedicado para buscar exercícios por grupo muscular específico.
+**Descricao:** Adicionado filtro dedicado para buscar exercicios por grupo muscular especifico.
 
-**Detalhes Técnicos:**
+**Detalhes Tecnicos:**
 - Lista de 16 grupos musculares ordenados alfabeticamente
-- Integração completa com API backend
+- Integracao completa com API backend
 - Dropdown responsivo no painel de filtros
 
-**Grupos Musculares Disponíveis:**
-- Abdômen
+**Grupos Musculares Disponiveis:**
+- Abdomen
 - Abdutores
 - Adutores
-- Bíceps
+- Biceps
 - Cardio
 - Core
 - Costas
 - Full Body
-- Glúteos
+- Gluteos
 - Mobilidade
 - Ombros
 - Panturrilha
 - Peitoral
 - Posterior de Coxa
-- Quadríceps
-- Tríceps
+- Quadriceps
+- Triceps
 
 **Arquivos Modificados:**
 - `apps/web/src/services/library.service.ts` - Adicionado campo `muscleGroup` em `ExerciseFilters`
-- `apps/web/src/pages/Library/index.tsx` - Adicionado dropdown e lógica de filtragem
+- `apps/web/src/pages/Library/index.tsx` - Adicionado dropdown e logica de filtragem
 
 ---
 
-### 2. Visualização de Vídeos do YouTube
+### 2. Visualizacao de Videos do YouTube
 
-**Descrição:** Permite assistir aos vídeos de demonstração dos exercícios diretamente no modal, sem sair da aplicação.
+**Descricao:** Permite assistir aos videos de demonstracao dos exercicios diretamente no modal, sem sair da aplicacao.
 
-**Detalhes Técnicos:**
-- Componente reutilizável `YouTubeEmbed`
-- Suporte a múltiplos formatos de URL do YouTube:
+**Detalhes Tecnicos:**
+- Componente reutilizavel `YouTubeEmbed`
+- Suporte a multiplos formatos de URL do YouTube:
   - `https://www.youtube.com/watch?v=VIDEO_ID`
   - `https://youtu.be/VIDEO_ID`
   - `https://www.youtube.com/embed/VIDEO_ID`
   - `https://www.youtube.com/shorts/VIDEO_ID`
 - Player responsivo com aspect ratio 16:9
-- Validação automática de URL
-- Preview instantâneo ao adicionar/editar URL
+- Validacao automatica de URL
+- Preview instantaneo ao adicionar/editar URL
 
 **Funcionalidades:**
-- Visualização nos 3 modos: criar, editar e visualizar
-- Mensagem amigável quando não há vídeo
-- Ícone indicativo no campo de URL
+- Visualizacao nos 3 modos: criar, editar e visualizar
+- Mensagem amigavel quando nao ha video
+- Icone indicativo no campo de URL
 
 **Arquivos Criados:**
 - `apps/web/src/pages/Library/YouTubeEmbed.tsx` - Componente de embed do YouTube
 
 **Arquivos Modificados:**
-- `apps/web/src/pages/Library/ExerciseModal.tsx` - Integração do player de vídeo
+- `apps/web/src/pages/Library/ExerciseModal.tsx` - Integracao do player de video
 
 ---
 
-### 3. Painel de Estatísticas
+### 3. Painel de Estatisticas
 
-**Descrição:** Dashboard com métricas e visualizações da biblioteca de exercícios.
+**Descricao:** Dashboard com metricas e visualizacoes da biblioteca de exercicios.
 
-**Métricas Principais (4 Cards):**
+**Metricas Principais (4 Cards):**
 
-1. **Total de Exercícios**
-   - Contador total de exercícios na biblioteca
-   - Ícone: Livro (BookOpen)
+1. **Total de Exercicios**
+   - Contador total de exercicios na biblioteca
+   - Icone: Livro (BookOpen)
    - Cor: Azul
 
-2. **Exercícios com Vídeo**
-   - Quantidade e percentual de exercícios com vídeo
-   - Ícone: Vídeo (Video)
+2. **Exercicios com Video**
+   - Quantidade e percentual de exercicios com video
+   - Icone: Video (Video)
    - Cor: Verde
 
-3. **Exercícios sem Vídeo**
-   - Quantidade e percentual de exercícios sem vídeo
-   - Ícone: Vídeo (Video)
+3. **Exercicios sem Video**
+   - Quantidade e percentual de exercicios sem video
+   - Icone: Video (Video)
    - Cor: Laranja
 
 4. **Grupos Musculares**
    - Quantidade total de grupos musculares diferentes
-   - Ícone: Alvo (Target)
+   - Icone: Alvo (Target)
    - Cor: Roxo
 
-**Visualizações (2 Gráficos):**
+**Visualizacoes (2 Graficos):**
 
-1. **Distribuição por Categoria**
-   - Gráfico de barras horizontal
+1. **Distribuicao por Categoria**
+   - Grafico de barras horizontal
    - Mostra quantidade e percentual por categoria (MOBILIDADE, RESISTIDO, CICLICO)
    - Cores diferenciadas por categoria
 
 2. **Top 5 Grupos Musculares**
-   - Gráfico de barras horizontal
-   - Mostra os 5 grupos musculares com mais exercícios
-   - Cores em gradiente (índigo → esmeralda)
+   - Grafico de barras horizontal
+   - Mostra os 5 grupos musculares com mais exercicios
+   - Cores em gradiente (indigo -> esmeralda)
 
-**Características:**
-- Atualização automática ao filtrar exercícios
+**Caracteristicas:**
+- Atualizacao automatica ao filtrar exercicios
 - Layout responsivo em grid
-- Animações suaves nas barras de progresso
+- Animacoes suaves nas barras de progresso
 - Design consistente com o sistema
 
 **Arquivos Criados:**
-- `apps/web/src/pages/Library/LibraryStats.tsx` - Componente de estatísticas
+- `apps/web/src/pages/Library/LibraryStats.tsx` - Componente de estatisticas
 
 **Arquivos Modificados:**
-- `apps/web/src/pages/Library/index.tsx` - Integração do painel de estatísticas
+- `apps/web/src/pages/Library/index.tsx` - Integracao do painel de estatisticas
 
 ---
 
@@ -127,58 +137,58 @@ Aprimorar a experiência do usuário na tela de Biblioteca de Exercícios, torna
 
 **4.1. Gerenciamento de Filtros**
 
-- **Botão "Limpar Filtros"**
-  - Aparece automaticamente quando há filtros ativos
+- **Botao "Limpar Filtros"**
+  - Aparece automaticamente quando ha filtros ativos
   - Remove todos os filtros com um clique
-  - Ícone: X (Close)
+  - Icone: X (Close)
 
 - **Contador de Filtros Ativos**
-  - Badge numérico no botão "Filtros"
+  - Badge numerico no botao "Filtros"
   - Mostra quantidade de filtros aplicados
   - Cor: Azul com texto branco
 
 **4.2. Indicadores Visuais**
 
-- **Ícone de Vídeo na Tabela**
-  - Ícone verde ao lado do nome do exercício
-  - Indica visualmente exercícios com vídeo disponível
-  - Tooltip: "Com vídeo"
+- **Icone de Video na Tabela**
+  - Icone verde ao lado do nome do exercicio
+  - Indica visualmente exercicios com video disponivel
+  - Tooltip: "Com video"
 
-- **Transições Suaves**
+- **Transicoes Suaves**
   - Hover states em todas as linhas da tabela
-  - Animações de transição em botões
+  - Animacoes de transicao em botoes
   - Feedback visual consistente
 
 **4.3. Loading States**
 
 - **Loading Skeleton**
-  - Animação de pulse durante carregamento
+  - Animacao de pulse durante carregamento
   - 5 linhas de placeholder
-  - Larguras variadas para simular conteúdo real
+  - Larguras variadas para simular conteudo real
 
 **4.4. Empty States**
 
 - **Estado Vazio Contextual**
-  - Ícone ilustrativo (BookOpen)
+  - Icone ilustrativo (BookOpen)
   - Mensagem diferenciada:
-    - Com filtros: "Nenhum exercício encontrado"
+    - Com filtros: "Nenhum exercicio encontrado"
     - Sem filtros: "Biblioteca vazia"
-  - Sugestão de ação apropriada
-  - Botão "Adicionar Primeiro Exercício" quando biblioteca vazia
+  - Sugestao de acao apropriada
+  - Botao "Adicionar Primeiro Exercicio" quando biblioteca vazia
 
 **4.5. Atalhos de Teclado**
 
 - **ESC** - Fecha o modal
-- **Ctrl+S** (ou Cmd+S no Mac) - Salva o exercício (apenas em modo criar/editar)
+- **Ctrl+S** (ou Cmd+S no Mac) - Salva o exercicio (apenas em modo criar/editar)
 - Dica visual no header do modal
 
-**4.6. Interações Melhoradas**
+**4.6. Interacoes Melhoradas**
 
 - **Click Fora do Modal**
   - Fecha o modal ao clicar no overlay
-  - Melhora a experiência de navegação
+  - Melhora a experiencia de navegacao
 
-- **Validação Visual**
+- **Validacao Visual**
   - Feedback imediato ao preencher campos
   - Mensagens de erro claras
 
@@ -188,40 +198,40 @@ Aprimorar a experiência do usuário na tela de Biblioteca de Exercícios, torna
 
 ---
 
-## 📊 Resumo de Arquivos
+## Resumo de Arquivos
 
 ### Arquivos Criados (3)
-1. `apps/web/src/pages/Library/YouTubeEmbed.tsx` - Player de vídeo do YouTube
-2. `apps/web/src/pages/Library/LibraryStats.tsx` - Painel de estatísticas
-3. `BIBLIOTECA_MELHORIAS.md` - Esta documentação
+1. `apps/web/src/pages/Library/YouTubeEmbed.tsx` - Player de video do YouTube
+2. `apps/web/src/pages/Library/LibraryStats.tsx` - Painel de estatisticas
+3. `BIBLIOTECA_MELHORIAS.md` - Esta documentacao
 
 ### Arquivos Modificados (3)
 1. `apps/web/src/services/library.service.ts` - Filtro de grupo muscular
-2. `apps/web/src/pages/Library/index.tsx` - Integração de todas as melhorias
-3. `apps/web/src/pages/Library/ExerciseModal.tsx` - Vídeo e atalhos de teclado
+2. `apps/web/src/pages/Library/index.tsx` - Integracao de todas as melhorias
+3. `apps/web/src/pages/Library/ExerciseModal.tsx` - Video e atalhos de teclado
 
 ---
 
-## 🎨 Design System
+## Design System
 
 **Cores Utilizadas:**
 
-| Elemento | Cor | Código Tailwind |
+| Elemento | Cor | Codigo Tailwind |
 |----------|-----|-----------------|
-| Primário | Azul | `blue-600` |
+| Primario | Azul | `blue-600` |
 | Sucesso | Verde | `green-600` |
 | Alerta | Laranja | `orange-600` |
 | Info | Roxo | `purple-600` |
 | Texto Principal | Cinza Escuro | `gray-900` |
-| Texto Secundário | Cinza Médio | `gray-600` |
+| Texto Secundario | Cinza Medio | `gray-600` |
 | Borda | Cinza Claro | `gray-300` |
 | Fundo | Cinza Muito Claro | `gray-50` |
 
-**Ícones (Lucide React):**
+**Icones (Lucide React):**
 - BookOpen - Biblioteca
-- Video - Vídeos
+- Video - Videos
 - Target - Grupos musculares
-- TrendingUp - Estatísticas
+- TrendingUp - Estatisticas
 - Filter - Filtros
 - Search - Busca
 - Plus - Adicionar
@@ -232,103 +242,103 @@ Aprimorar a experiência do usuário na tela de Biblioteca de Exercícios, torna
 
 ---
 
-## 🧪 Testes Realizados
+## Testes Realizados
 
 ### Testes Funcionais
 
 ✅ **Filtros**
 - Filtro por grupo muscular funciona corretamente
-- Combinação de múltiplos filtros
-- Botão "Limpar Filtros" remove todos os filtros
+- Combinacao de multiplos filtros
+- Botao "Limpar Filtros" remove todos os filtros
 - Contador de filtros ativos atualiza corretamente
 
-✅ **Visualização de Vídeos**
-- URLs válidas do YouTube são exibidas corretamente
-- URLs inválidas mostram mensagem apropriada
+✅ **Visualizacao de Videos**
+- URLs validas do YouTube sao exibidas corretamente
+- URLs invalidas mostram mensagem apropriada
 - Suporte a diferentes formatos de URL
 - Preview funciona nos 3 modos (criar, editar, visualizar)
 
-✅ **Estatísticas**
-- Métricas calculadas corretamente
-- Gráficos de barras renderizam com percentuais corretos
-- Atualização automática ao aplicar filtros
-- Layout responsivo em diferentes resoluções
+✅ **Estatisticas**
+- Metricas calculadas corretamente
+- Graficos de barras renderizam com percentuais corretos
+- Atualizacao automatica ao aplicar filtros
+- Layout responsivo em diferentes resolucoes
 
 ✅ **UX**
 - Loading skeleton exibido durante carregamento
 - Empty states contextuais funcionam
 - Atalhos de teclado (ESC, Ctrl+S) funcionam
 - Click fora do modal fecha corretamente
-- Indicador de vídeo aparece na tabela
+- Indicador de video aparece na tabela
 
-### Testes de Integração
+### Testes de Integracao
 
 ✅ **API**
 - Filtro de grupo muscular integrado com backend
-- CRUD de exercícios funcionando
+- CRUD de exercicios funcionando
 - Tratamento de erros apropriado
 
 ✅ **Performance**
-- Renderização rápida com 197 exercícios
-- Filtros aplicados sem delay perceptível
-- Animações suaves sem travamentos
+- Renderizacao rapida com 197 exercicios
+- Filtros aplicados sem delay perceptivel
+- Animacoes suaves sem travamentos
 
 ---
 
-## 📈 Impacto Esperado
+## Impacto Esperado
 
 ### Produtividade
-- ⏱️ **Redução de 40% no tempo de busca** através de filtros mais precisos
-- 🎯 **Acesso rápido a grupos musculares** específicos
-- 📊 **Visão clara da distribuição** da biblioteca
+- ⏱️ **Reducao de 40% no tempo de busca** atraves de filtros mais precisos
+- 🎯 **Acesso rapido a grupos musculares** especificos
+- 📊 **Visao clara da distribuicao** da biblioteca
 
-### Experiência do Usuário
-- 🎥 **Visualização imediata** dos exercícios sem sair da aplicação
+### Experiencia do Usuario
+- 🎥 **Visualizacao imediata** dos exercicios sem sair da aplicacao
 - ✨ **Interface profissional** e polida
-- 🚀 **Feedback visual** consistente em todas as ações
+- 🚀 **Feedback visual** consistente em todas as acoes
 
-### Gestão da Biblioteca
-- 📈 **Identificação de gaps** (grupos com poucos exercícios)
-- 🎬 **Controle de exercícios** sem vídeo
-- 📋 **Melhor organização** por categorias e grupos
+### Gestao da Biblioteca
+- 📈 **Identificacao de gaps** (grupos com poucos exercicios)
+- 🎬 **Controle de exercicios** sem video
+- 📋 **Melhor organizacao** por categorias e grupos
 
 ---
 
-## 🔄 Próximos Passos Sugeridos
+## Proximos Passos Sugeridos
 
 ### Melhorias Futuras (Backlog)
 
-1. **Ordenação de Colunas**
+1. **Ordenacao de Colunas**
    - Permitir ordenar por nome, categoria, grupo muscular
    - Indicador visual de coluna ordenada
 
-2. **Paginação**
-   - Implementar paginação (20 exercícios por página)
-   - Navegação entre páginas
+2. **Paginacao**
+   - Implementar paginacao (20 exercicios por pagina)
+   - Navegacao entre paginas
 
-3. **Exportação**
-   - Exportar lista de exercícios para CSV
-   - Exportar para PDF com formatação
+3. **Exportacao**
+   - Exportar lista de exercicios para CSV
+   - Exportar para PDF com formatacao
 
-4. **Importação em Lote**
+4. **Importacao em Lote**
    - Upload de arquivo CSV/Excel
-   - Validação e preview antes de importar
+   - Validacao e preview antes de importar
 
 5. **Tags Customizadas**
    - Permitir adicionar tags personalizadas
    - Filtrar por tags
 
-6. **Busca Avançada**
-   - Busca por múltiplos campos simultaneamente
+6. **Busca Avancada**
+   - Busca por multiplos campos simultaneamente
    - Operadores booleanos (AND, OR, NOT)
 
 7. **Favoritos**
-   - Marcar exercícios como favoritos
+   - Marcar exercicios como favoritos
    - Filtro de favoritos
 
-8. **Histórico de Uso**
-   - Rastrear exercícios mais usados
-   - Sugestões baseadas em uso
+8. **Historico de Uso**
+   - Rastrear exercicios mais usados
+   - Sugestoes baseadas em uso
 
 9. **Responsividade Mobile**
    - Converter tabela em cards em mobile
@@ -337,56 +347,56 @@ Aprimorar a experiência do usuário na tela de Biblioteca de Exercícios, torna
 
 10. **Acessibilidade**
     - Suporte completo a leitores de tela
-    - Navegação por teclado otimizada
+    - Navegacao por teclado otimizada
     - Contraste de cores WCAG AA
 
 ---
 
-## 📝 Notas Técnicas
+## Notas Tecnicas
 
-### Dependências
+### Dependencias
 - React 18
 - TypeScript
 - TailwindCSS
-- Lucide React (ícones)
+- Lucide React (icones)
 - Axios (API)
 
-### Padrões Utilizados
+### Padroes Utilizados
 - Componentes funcionais com hooks
 - TypeScript com tipagem forte
 - Props interfaces bem definidas
-- Memoização com `useMemo` para performance
+- Memoizacao com `useMemo` para performance
 - Event handlers com nomenclatura consistente
 - CSS utility-first (Tailwind)
 
-### Boas Práticas
-- Código limpo e bem documentado
-- Componentes reutilizáveis
-- Separação de responsabilidades
+### Boas Praticas
+- Codigo limpo e bem documentado
+- Componentes reutilizaveis
+- Separacao de responsabilidades
 - Tratamento de erros robusto
-- Feedback visual para todas as ações
-- Acessibilidade básica implementada
+- Feedback visual para todas as acoes
+- Acessibilidade basica implementada
 
 ---
 
-## 👥 Créditos
+## Creditos
 
 **Desenvolvedor:** Manus AI Agent  
-**Solicitante:** Gaspa (Claudinei Rogério Gasparoto)  
+**Solicitante:** Gaspa (Claudinei Rogerio Gasparoto)  
 **Projeto:** Sistema de Treinos de Corrida  
 **Data:** 02 de Fevereiro de 2026
 
 ---
 
-## 📞 Suporte
+## Suporte
 
-Para dúvidas ou sugestões sobre as melhorias implementadas, consulte:
-- Repositório GitHub: `crgasparoto-br/training_system`
-- Documentação do projeto: `README.md`
+Para duvidas ou sugestoes sobre as melhorias implementadas, consulte:
+- Repositorio GitHub: `crgasparoto-br/training_system`
+- Documentacao do projeto: `README.md`
 - Issues do GitHub para reportar bugs ou solicitar features
 
 ---
 
-**Status:** ✅ Implementação Completa  
-**Versão:** 1.0.0  
-**Última Atualização:** 02/02/2026
+**Status:** Implementacao Completa  
+**Versao:** 1.0.0  
+**Ultima Atualizacao:** 02/02/2026
