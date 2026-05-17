@@ -40,14 +40,14 @@ const createExerciseSchema = z.object({
   category: z.string().optional(),
   muscleGroup: z.string().optional(),
   notes: z.string().optional(),
-});
+}).strict();
 
 const updateExerciseSchema = createExerciseSchema.partial();
 
 const alunoProgressUpdateSchema = z.object({
   lastLoad: z.number().optional(),
   maxLoad: z.number().optional(),
-});
+}).strict();
 
 function getContractId(req: Request): string {
   const contractId = req.user?.contractId;
