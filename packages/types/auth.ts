@@ -1,4 +1,4 @@
-﻿export interface JwtPayload {
+export interface JwtPayload {
   userId: string;
   email: string;
   type: 'professor' | 'aluno';
@@ -8,6 +8,12 @@
 
 export type ContractType = 'academy' | 'personal';
 export type ProfessorRole = 'master' | 'professor';
+
+export interface AuthenticatedUserPayload extends JwtPayload {
+  professorId?: string;
+  contractId?: string;
+  professorRole?: ProfessorRole;
+}
 
 export interface UserAccessPermission {
   id?: string;
