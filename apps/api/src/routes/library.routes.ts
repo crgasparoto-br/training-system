@@ -1,5 +1,4 @@
 import { Router, type Request } from 'express';
-import type { JwtPayload } from '@corrida/types';
 import { CountingType, LoadType, MovementType } from '@prisma/client';
 import { z } from 'zod';
 import {
@@ -7,12 +6,6 @@ import {
   type ExerciseFilters,
 } from '../modules/library/library.service.js';
 import { authMiddleware, professorMiddleware } from '../modules/auth/auth.middleware.js';
-
-type LibraryProfessorRequest = Request & {
-  user: JwtPayload & {
-    contractId: string;
-  };
-};
 
 const exerciseFiltersSchema = z.object({
   search: z.string().optional(),
@@ -23,8 +16,14 @@ const exerciseFiltersSchema = z.object({
   muscleGroup: z.string().optional(),
 });
 
-function getLibraryProfessorRequest(req: Request): LibraryProfessorRequest {
-  return req as LibraryProfessorRequest;
+function getContractId(req: Request): string {
+  const contractId = req.user?.contractId;
+
+  if (!contractId) {
+    throw new Error('ContractId not available');
+  }
+
+  return contractId;
 }
 
 function parseExerciseFilters(req: Request):
@@ -67,7 +66,7 @@ router.use(professorMiddleware);
  */
 router.get('/exercises', async (req, res) => {
   try {
-    const contractId = getLibraryProfessorRequest(req).user.contractId;
+    const contractId = getContractId(req);
     const parsedFilters = parseExerciseFilters(req);
 
     if (!parsedFilters.success) {
@@ -88,7 +87,7 @@ router.get('/exercises', async (req, res) => {
  */
 router.get('/exercises/:id', async (req, res) => {
   try {
-    const contractId = getLibraryProfessorRequest(req).user.contractId;
+    const contractId = getContractId(req);
     const exercise = await libraryService.getExerciseById(contractId, req.params.id);
 
     if (!exercise) {
@@ -108,7 +107,7 @@ router.get('/exercises/:id', async (req, res) => {
  */
 router.post('/exercises', async (req, res) => {
   try {
-    const contractId = getLibraryProfessorRequest(req).user.contractId;
+    const contractId = getContractId(req);
     const exercise = await libraryService.createExercise(contractId, req.body);
     res.status(201).json(exercise);
   } catch (error) {
@@ -123,7 +122,7 @@ router.post('/exercises', async (req, res) => {
  */
 router.put('/exercises/:id', async (req, res) => {
   try {
-    const contractId = getLibraryProfessorRequest(req).user.contractId;
+    const contractId = getContractId(req);
     const exercise = await libraryService.updateExercise(contractId, req.params.id, req.body);
     res.json(exercise);
   } catch (error) {
@@ -138,7 +137,7 @@ router.put('/exercises/:id', async (req, res) => {
  */
 router.delete('/exercises/:id', async (req, res) => {
   try {
-    const contractId = getLibraryProfessorRequest(req).user.contractId;
+    const contractId = getContractId(req);
     await libraryService.deleteExercise(contractId, req.params.id);
     res.status(204).send();
   } catch (error) {
@@ -153,7 +152,7 @@ router.delete('/exercises/:id', async (req, res) => {
  */
 router.get('/progress/:alunoId/:exerciseId', async (req, res) => {
   try {
-    const contractId = getLibraryProfessorRequest(req).user.contractId;
+    const contractId = getContractId(req);
     const progress = await libraryService.getAlunoProgress(
       contractId,
       req.params.alunoId,
@@ -172,7 +171,7 @@ router.get('/progress/:alunoId/:exerciseId', async (req, res) => {
  */
 router.put('/progress/:alunoId/:exerciseId', async (req, res) => {
   try {
-    const contractId = getLibraryProfessorRequest(req).user.contractId;
+    const contractId = getContractId(req);
     const progress = await libraryService.updateAlunoProgress(
       contractId,
       req.params.alunoId,
@@ -192,7 +191,7 @@ router.put('/progress/:alunoId/:exerciseId', async (req, res) => {
  */
 router.get('/progress/:alunoId', async (req, res) => {
   try {
-    const contractId = getLibraryProfessorRequest(req).user.contractId;
+    const contractId = getContractId(req);
     const progress = await libraryService.listAlunoProgress(contractId, req.params.alunoId);
     res.json(progress);
   } catch (error) {
