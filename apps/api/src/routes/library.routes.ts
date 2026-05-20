@@ -25,6 +25,42 @@ const exerciseFiltersSchema = z.object({
   muscleGroup: z.string().optional(),
 });
 
+const exerciseIdParamsSchema = z.object({
+  id: z.string().min(1),
+});
+
+const alunoParamsSchema = z.object({
+  alunoId: z.string().min(1),
+});
+
+const progressParamsSchema = z.object({
+  alunoId: z.string().min(1),
+  exerciseId: z.string().min(1),
+});
+
+const createExerciseSchema = z.object({
+  name: z.string().min(1),
+  videoUrl: z.string().optional(),
+  loadType: z.nativeEnum(LoadType).optional(),
+  movementType: z.nativeEnum(MovementType).optional(),
+  countingType: z.nativeEnum(CountingType).optional(),
+  category: z.string().optional(),
+  muscleGroup: z.string().optional(),
+  notes: z.string().optional(),
+}).strict();
+
+const updateExerciseSchema = createExerciseSchema.partial().strict();
+
+const alunoProgressUpdateSchema = z
+  .object({
+    lastLoad: z.number().optional(),
+    maxLoad: z.number().optional(),
+  })
+  .strict()
+  .refine((data) => data.lastLoad !== undefined || data.maxLoad !== undefined, {
+    message: 'Pelo menos um campo deve ser informado',
+  });
+
 function getLibraryProfessorRequest(req: Request): LibraryProfessorRequest {
   return req as LibraryProfessorRequest;
 }
@@ -162,8 +198,13 @@ router.get('/exercises', async (req, res) => {
  */
 router.get('/exercises/:id', async (req, res) => {
   try {
+    const parsedParams = parseExerciseIdParams(req);
+    if (!parsedParams.success) {
+      return res.status(400).json({ message: 'Parametros invalidos' });
+    }
+
     const contractId = getLibraryProfessorRequest(req).user.contractId;
-    const exercise = await libraryService.getExerciseById(contractId, req.params.id);
+    const exercise = await libraryService.getExerciseById(contractId, parsedParams.data.id);
 
     if (!exercise) {
       return res.status(404).json({ message: 'Exercicio nao encontrado' });
@@ -182,8 +223,13 @@ router.get('/exercises/:id', async (req, res) => {
  */
 router.post('/exercises', async (req, res) => {
   try {
+    const parsedBody = parseCreateExerciseBody(req);
+    if (!parsedBody.success) {
+      return res.status(400).json({ message: 'Payload invalido' });
+    }
+
     const contractId = getLibraryProfessorRequest(req).user.contractId;
-    const exercise = await libraryService.createExercise(contractId, req.body);
+    const exercise = await libraryService.createExercise(contractId, parsedBody.data);
     res.status(201).json(exercise);
   } catch (error) {
     console.error('Error creating exercise:', error);
@@ -197,8 +243,22 @@ router.post('/exercises', async (req, res) => {
  */
 router.put('/exercises/:id', async (req, res) => {
   try {
+    const parsedParams = parseExerciseIdParams(req);
+    if (!parsedParams.success) {
+      return res.status(400).json({ message: 'Parametros invalidos' });
+    }
+
+    const parsedBody = parseUpdateExerciseBody(req);
+    if (!parsedBody.success) {
+      return res.status(400).json({ message: 'Payload invalido' });
+    }
+
     const contractId = getLibraryProfessorRequest(req).user.contractId;
-    const exercise = await libraryService.updateExercise(contractId, req.params.id, req.body);
+    const exercise = await libraryService.updateExercise(
+      contractId,
+      parsedParams.data.id,
+      parsedBody.data
+    );
     res.json(exercise);
   } catch (error) {
     console.error('Error updating exercise:', error);
@@ -212,8 +272,13 @@ router.put('/exercises/:id', async (req, res) => {
  */
 router.delete('/exercises/:id', async (req, res) => {
   try {
+    const parsedParams = parseExerciseIdParams(req);
+    if (!parsedParams.success) {
+      return res.status(400).json({ message: 'Parametros invalidos' });
+    }
+
     const contractId = getLibraryProfessorRequest(req).user.contractId;
-    await libraryService.deleteExercise(contractId, req.params.id);
+    await libraryService.deleteExercise(contractId, parsedParams.data.id);
     res.status(204).send();
   } catch (error) {
     console.error('Error deleting exercise:', error);
@@ -227,6 +292,11 @@ router.delete('/exercises/:id', async (req, res) => {
  */
 router.get('/progress/:alunoId/:exerciseId', async (req, res) => {
   try {
+    const parsedParams = parseProgressParams(req);
+    if (!parsedParams.success) {
+      return res.status(400).json({ message: 'Parametros invalidos' });
+    }
+
     const contractId = getLibraryProfessorRequest(req).user.contractId;
     const progress = await libraryService.getAlunoProgress(
       contractId,
@@ -246,6 +316,16 @@ router.get('/progress/:alunoId/:exerciseId', async (req, res) => {
  */
 router.put('/progress/:alunoId/:exerciseId', async (req, res) => {
   try {
+    const parsedParams = parseProgressParams(req);
+    if (!parsedParams.success) {
+      return res.status(400).json({ message: 'Parametros invalidos' });
+    }
+
+    const parsedBody = parseAlunoProgressUpdateBody(req);
+    if (!parsedBody.success) {
+      return res.status(400).json({ message: 'Payload invalido' });
+    }
+
     const contractId = getLibraryProfessorRequest(req).user.contractId;
     const progress = await libraryService.updateAlunoProgress(
       contractId,
@@ -266,8 +346,13 @@ router.put('/progress/:alunoId/:exerciseId', async (req, res) => {
  */
 router.get('/progress/:alunoId', async (req, res) => {
   try {
+    const parsedParams = parseAlunoParams(req);
+    if (!parsedParams.success) {
+      return res.status(400).json({ message: 'Parametros invalidos' });
+    }
+
     const contractId = getLibraryProfessorRequest(req).user.contractId;
-    const progress = await libraryService.listAlunoProgress(contractId, req.params.alunoId);
+    const progress = await libraryService.listAlunoProgress(contractId, parsedParams.data.alunoId);
     res.json(progress);
   } catch (error) {
     console.error('Error listing progress:', error);

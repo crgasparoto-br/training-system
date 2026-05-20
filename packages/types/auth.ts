@@ -12,8 +12,7 @@ export interface JwtPayload {
   exp?: number;
 }
 
-export type ContractType = 'academy' | 'personal';
-export type ProfessorRole = 'master' | 'professor';
+export type AuthenticatedUserPayload = JwtPayload;
 
 export interface UserAccessPermission {
   id?: string;
