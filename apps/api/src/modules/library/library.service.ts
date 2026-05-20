@@ -43,11 +43,11 @@ interface ExerciseLibraryListWhere {
 }
 
 /**
- * Service de Biblioteca de Exercicios
+ * Service de Biblioteca de Exercícios
  */
 export const libraryService = {
   /**
-   * Criar novo exercicio
+   * Criar novo exercício
    */
   async createExercise(contractId: string, data: CreateExerciseDTO) {
     return await prisma.exerciseLibrary.create({
@@ -59,7 +59,7 @@ export const libraryService = {
   },
 
   /**
-   * Listar exercicios com filtros
+   * Listar exercícios com filtros
    */
   async listExercises(contractId: string, filters: ExerciseFilters = {}) {
     const where: ExerciseLibraryListWhere = { contractId };
@@ -98,7 +98,7 @@ export const libraryService = {
   },
 
   /**
-   * Obter exercicio por ID
+   * Obter exercício por ID
    */
   async getExerciseById(contractId: string, id: string) {
     return await prisma.exerciseLibrary.findFirst({
@@ -119,7 +119,7 @@ export const libraryService = {
   },
 
   /**
-   * Atualizar exercicio
+   * Atualizar exercício
    */
   async updateExercise(contractId: string, id: string, data: UpdateExerciseDTO) {
     const existing = await prisma.exerciseLibrary.findFirst({
@@ -127,7 +127,7 @@ export const libraryService = {
     });
 
     if (!existing) {
-      throw new Error('Exercicio nao encontrado');
+      throw new Error('Exercício não encontrado');
     }
 
     return await prisma.exerciseLibrary.update({
@@ -137,7 +137,7 @@ export const libraryService = {
   },
 
   /**
-   * Deletar exercicio
+   * Excluir exercício
    */
   async deleteExercise(contractId: string, id: string) {
     const existing = await prisma.exerciseLibrary.findFirst({
@@ -145,7 +145,7 @@ export const libraryService = {
     });
 
     if (!existing) {
-      throw new Error('Exercicio nao encontrado');
+      throw new Error('Exercício não encontrado');
     }
 
     return await prisma.exerciseLibrary.delete({
@@ -154,7 +154,7 @@ export const libraryService = {
   },
 
   /**
-   * Obter progresso do aluno em um exercicio
+   * Obter progresso do aluno em um exercício
    */
   async getAlunoProgress(contractId: string, alunoId: string, exerciseId: string) {
     const [exercise, aluno] = await Promise.all([
@@ -212,7 +212,7 @@ export const libraryService = {
     ]);
 
     if (!exercise || !aluno) {
-      throw new Error('Progresso nao encontrado');
+      throw new Error('Progresso não encontrado');
     }
 
     return await prisma.alunoExerciseProgress.upsert({
