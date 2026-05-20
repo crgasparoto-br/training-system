@@ -9,6 +9,8 @@ import {
   DEFAULT_ACCESS_BY_PROFILE_CODE,
 } from '@corrida/types';
 import {
+  buildProfessorDataScopeWhere,
+  canAccessOwnData,
   getEffectiveAccessPermissionsForProfessor,
   replaceAccessPermissionsForFunction,
   syncAccessPermissionsForFunction,
@@ -152,5 +154,43 @@ describe('access-control.service', () => {
 
     const defaults = DEFAULT_ACCESS_BY_PROFILE_CODE.intern;
     expect(defaults.blocks.includes('students.details.summary')).toBe(true);
+  });
+
+  it('buildProfessorDataScopeWhere aplica escopo contract', () => {
+    expect(buildProfessorDataScopeWhere('contract-1', 'prof-1', 'contract')).toEqual({
+      contractId: 'contract-1',
+    });
+  });
+
+  it('buildProfessorDataScopeWhere aplica escopo managed', () => {
+    expect(buildProfessorDataScopeWhere('contract-1', 'prof-1', 'managed')).toEqual({
+      contractId: 'contract-1',
+      OR: [{ id: 'prof-1' }, { responsibleManagerId: 'prof-1' }],
+    });
+  });
+
+  it('buildProfessorDataScopeWhere aplica escopo self', () => {
+    expect(buildProfessorDataScopeWhere('contract-1', 'prof-1', 'self')).toEqual({
+      contractId: 'contract-1',
+      id: 'prof-1',
+    });
+  });
+
+  it('buildProfessorDataScopeWhere bloqueia consulta quando nao existe professor ator', () => {
+    expect(buildProfessorDataScopeWhere('contract-1', undefined, 'self')).toEqual({
+      contractId: 'contract-1',
+      id: '__no_actor_professor__',
+    });
+
+    expect(buildProfessorDataScopeWhere('contract-1', undefined, 'managed')).toEqual({
+      contractId: 'contract-1',
+      id: '__no_actor_professor__',
+    });
+  });
+
+  it('canAccessOwnData permite apenas o proprio professor', () => {
+    expect(canAccessOwnData('prof-1', 'prof-1')).toBe(true);
+    expect(canAccessOwnData('prof-2', 'prof-1')).toBe(false);
+    expect(canAccessOwnData('prof-1')).toBe(false);
   });
 });

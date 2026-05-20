@@ -1,4 +1,4 @@
-﻿import { PrismaClient, LoadType, MovementType, CountingType } from '@prisma/client';
+import { PrismaClient, LoadType, MovementType, CountingType } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -24,12 +24,30 @@ export interface ExerciseFilters {
   muscleGroup?: string;
 }
 
+interface ExerciseSearchCondition {
+  contains: string;
+  mode: 'insensitive';
+}
+
+interface ExerciseLibraryListWhere {
+  contractId: string;
+  OR?: Array<
+    | { name: ExerciseSearchCondition }
+    | { muscleGroup: ExerciseSearchCondition }
+  >;
+  category?: string;
+  loadType?: LoadType;
+  movementType?: MovementType;
+  countingType?: CountingType;
+  muscleGroup?: string;
+}
+
 /**
- * Service de Biblioteca de ExercÃ­cios
+ * Service de Biblioteca de Exercicios
  */
 export const libraryService = {
   /**
-   * Criar novo exercÃ­cio
+   * Criar novo exercicio
    */
   async createExercise(contractId: string, data: CreateExerciseDTO) {
     return await prisma.exerciseLibrary.create({
@@ -41,10 +59,10 @@ export const libraryService = {
   },
 
   /**
-   * Listar exercÃ­cios com filtros
+   * Listar exercicios com filtros
    */
   async listExercises(contractId: string, filters: ExerciseFilters = {}) {
-    const where: any = { contractId };
+    const where: ExerciseLibraryListWhere = { contractId };
 
     if (filters.search) {
       where.OR = [
@@ -80,7 +98,7 @@ export const libraryService = {
   },
 
   /**
-   * Obter exercÃ­cio por ID
+   * Obter exercicio por ID
    */
   async getExerciseById(contractId: string, id: string) {
     return await prisma.exerciseLibrary.findFirst({
@@ -101,7 +119,7 @@ export const libraryService = {
   },
 
   /**
-   * Atualizar exercÃ­cio
+   * Atualizar exercicio
    */
   async updateExercise(contractId: string, id: string, data: UpdateExerciseDTO) {
     const existing = await prisma.exerciseLibrary.findFirst({
@@ -109,7 +127,7 @@ export const libraryService = {
     });
 
     if (!existing) {
-      throw new Error('ExercÃ­cio nÃ£o encontrado');
+      throw new Error('Exercicio nao encontrado');
     }
 
     return await prisma.exerciseLibrary.update({
@@ -119,7 +137,7 @@ export const libraryService = {
   },
 
   /**
-   * Deletar exercÃ­cio
+   * Deletar exercicio
    */
   async deleteExercise(contractId: string, id: string) {
     const existing = await prisma.exerciseLibrary.findFirst({
@@ -127,7 +145,7 @@ export const libraryService = {
     });
 
     if (!existing) {
-      throw new Error('ExercÃ­cio nÃ£o encontrado');
+      throw new Error('Exercicio nao encontrado');
     }
 
     return await prisma.exerciseLibrary.delete({
@@ -136,7 +154,7 @@ export const libraryService = {
   },
 
   /**
-   * Obter progresso do aluno em um exercÃ­cio
+   * Obter progresso do aluno em um exercicio
    */
   async getAlunoProgress(contractId: string, alunoId: string, exerciseId: string) {
     const [exercise, aluno] = await Promise.all([
@@ -194,7 +212,7 @@ export const libraryService = {
     ]);
 
     if (!exercise || !aluno) {
-      throw new Error('Progresso nÃ£o encontrado');
+      throw new Error('Progresso nao encontrado');
     }
 
     return await prisma.alunoExerciseProgress.upsert({
@@ -242,4 +260,3 @@ export const libraryService = {
     });
   },
 };
-
