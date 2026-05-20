@@ -39,22 +39,28 @@ export function AlunoDetailsTabs({ activeTab, onChange, visibleTabs }: AlunoDeta
     : tabs;
 
   return (
-    <div className="overflow-x-auto border-b">
-      <div className="flex min-w-max gap-2 px-1">
-        {tabsToRender.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => onChange(tab.id)}
-            className={`px-3 py-2 text-sm font-medium whitespace-nowrap ${
-              activeTab === tab.id
-                ? 'border-b-2 border-primary text-primary'
-                : 'text-muted-foreground'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+    <div className="overflow-x-auto">
+      <div role="tablist" aria-label="Guias dos detalhes do aluno" className="ts-tabs-bar">
+        {tabsToRender.map((tab) => {
+          const selected = activeTab === tab.id;
+          const tabId = `aluno-details-tab-${tab.id}`;
+          const panelId = `aluno-details-panel-${tab.id}`;
+
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              id={tabId}
+              aria-controls={panelId}
+              aria-selected={selected}
+              onClick={() => onChange(tab.id)}
+              className={`ts-tab-button ${selected ? 'ts-tab-button-active' : 'ts-tab-button-inactive'}`}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
