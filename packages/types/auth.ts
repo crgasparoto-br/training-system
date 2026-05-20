@@ -1,15 +1,18 @@
-export type ContractType = 'academy' | 'personal';
-export type ProfessorRole = 'master' | 'professor';
-
 export interface JwtPayload {
   userId: string;
   email: string;
   type: 'professor' | 'aluno';
+  iat?: number;
+  exp?: number;
+}
+
+export type ContractType = 'academy' | 'personal';
+export type ProfessorRole = 'master' | 'professor';
+
+export interface AuthenticatedUserPayload extends JwtPayload {
   professorId?: string;
   contractId?: string;
   professorRole?: ProfessorRole;
-  iat?: number;
-  exp?: number;
 }
 
 export interface UserAccessPermission {

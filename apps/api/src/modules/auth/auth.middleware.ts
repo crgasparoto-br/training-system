@@ -1,12 +1,12 @@
 import { Request, Response, NextFunction } from 'express';
 import { authService } from './auth.service.js';
-import type { JwtPayload } from '@corrida/types';
+import type { AuthenticatedUserPayload } from '@corrida/types';
 
 // Estender tipo Request para incluir user
 declare global {
   namespace Express {
     interface Request {
-      user?: JwtPayload;
+      user?: AuthenticatedUserPayload;
     }
   }
 }
@@ -73,9 +73,9 @@ export async function professorMiddleware(req: Request, res: Response, next: Nex
     }
 
     // Adicionar professorId ao request
-    user.professorId = professor.id;
-    user.contractId = professor.contractId;
-    user.professorRole = professor.role;
+    req.user.professorId = professor.id;
+    req.user.contractId = professor.contractId;
+    req.user.professorRole = professor.role;
 
     next();
   } catch (error) {
@@ -123,9 +123,9 @@ export async function masterMiddleware(req: Request, res: Response, next: NextFu
       });
     }
 
-    user.professorId = professor.id;
-    user.contractId = professor.contractId;
-    user.professorRole = professor.role;
+    req.user.professorId = professor.id;
+    req.user.contractId = professor.contractId;
+    req.user.professorRole = professor.role;
 
     next();
   } catch (error) {
@@ -180,9 +180,9 @@ export async function academyMasterMiddleware(req: Request, res: Response, next:
       });
     }
 
-    user.professorId = professor.id;
-    user.contractId = professor.contractId;
-    user.professorRole = professor.role;
+    req.user.professorId = professor.id;
+    req.user.contractId = professor.contractId;
+    req.user.professorRole = professor.role;
 
     next();
   } catch (error) {
