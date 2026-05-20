@@ -1,15 +1,17 @@
 import { Router, type Request } from 'express';
-import type { AuthenticatedUserPayload } from '@corrida/types';
+import type { JwtPayload } from '@corrida/types';
 import { CountingType, LoadType, MovementType } from '@prisma/client';
 import { z } from 'zod';
 import {
   libraryService,
+  type CreateExerciseDTO,
   type ExerciseFilters,
+  type UpdateExerciseDTO,
 } from '../modules/library/library.service.js';
 import { authMiddleware, professorMiddleware } from '../modules/auth/auth.middleware.js';
 
 type LibraryProfessorRequest = Request & {
-  user: AuthenticatedUserPayload & {
+  user: JwtPayload & {
     contractId: string;
   };
 };
@@ -23,10 +25,8 @@ const exerciseFiltersSchema = z.object({
   muscleGroup: z.string().optional(),
 });
 
-function assertLibraryProfessorRequest(req: Request): asserts req is LibraryProfessorRequest {
-  if (!req.user?.contractId) {
-    throw new Error('Professor contractId missing on request');
-  }
+function getLibraryProfessorRequest(req: Request): LibraryProfessorRequest {
+  return req as LibraryProfessorRequest;
 }
 
 function parseExerciseFilters(req: Request):
@@ -58,6 +58,78 @@ function parseExerciseFilters(req: Request):
   };
 }
 
+function parseExerciseIdParams(req: Request):
+  | { success: true; data: { id: string } }
+  | { success: false } {
+  const parsed = exerciseIdParamsSchema.safeParse(req.params);
+
+  if (!parsed.success) {
+    return { success: false };
+  }
+
+  return { success: true, data: parsed.data };
+}
+
+function parseAlunoParams(req: Request):
+  | { success: true; data: { alunoId: string } }
+  | { success: false } {
+  const parsed = alunoParamsSchema.safeParse(req.params);
+
+  if (!parsed.success) {
+    return { success: false };
+  }
+
+  return { success: true, data: parsed.data };
+}
+
+function parseProgressParams(req: Request):
+  | { success: true; data: { alunoId: string; exerciseId: string } }
+  | { success: false } {
+  const parsed = progressParamsSchema.safeParse(req.params);
+
+  if (!parsed.success) {
+    return { success: false };
+  }
+
+  return { success: true, data: parsed.data };
+}
+
+function parseCreateExerciseBody(req: Request):
+  | { success: true; data: CreateExerciseDTO }
+  | { success: false } {
+  const parsed = createExerciseSchema.safeParse(req.body);
+
+  if (!parsed.success) {
+    return { success: false };
+  }
+
+  return { success: true, data: parsed.data };
+}
+
+function parseUpdateExerciseBody(req: Request):
+  | { success: true; data: UpdateExerciseDTO }
+  | { success: false } {
+  const parsed = updateExerciseSchema.safeParse(req.body);
+
+  if (!parsed.success) {
+    return { success: false };
+  }
+
+  return { success: true, data: parsed.data };
+}
+
+function parseAlunoProgressUpdateBody(req: Request):
+  | { success: true; data: { lastLoad?: number; maxLoad?: number } }
+  | { success: false } {
+  const parsed = alunoProgressUpdateSchema.safeParse(req.body);
+
+  if (!parsed.success) {
+    return { success: false };
+  }
+
+  return { success: true, data: parsed.data };
+}
+
 const router: Router = Router();
 
 router.use(authMiddleware);
@@ -69,8 +141,7 @@ router.use(professorMiddleware);
  */
 router.get('/exercises', async (req, res) => {
   try {
-    assertLibraryProfessorRequest(req);
-    const contractId = req.user.contractId;
+    const contractId = getLibraryProfessorRequest(req).user.contractId;
     const parsedFilters = parseExerciseFilters(req);
 
     if (!parsedFilters.success) {
@@ -81,7 +152,7 @@ router.get('/exercises', async (req, res) => {
     res.json(exercises);
   } catch (error) {
     console.error('Error listing exercises:', error);
-    res.status(500).json({ message: 'Erro ao listar exercÃ­cios' });
+    res.status(500).json({ message: 'Erro ao listar exercicios' });
   }
 });
 
@@ -91,18 +162,17 @@ router.get('/exercises', async (req, res) => {
  */
 router.get('/exercises/:id', async (req, res) => {
   try {
-    assertLibraryProfessorRequest(req);
-    const contractId = req.user.contractId;
+    const contractId = getLibraryProfessorRequest(req).user.contractId;
     const exercise = await libraryService.getExerciseById(contractId, req.params.id);
 
     if (!exercise) {
-      return res.status(404).json({ message: 'ExercÃ­cio nÃ£o encontrado' });
+      return res.status(404).json({ message: 'Exercicio nao encontrado' });
     }
 
     res.json(exercise);
   } catch (error) {
     console.error('Error getting exercise:', error);
-    res.status(500).json({ message: 'Erro ao buscar exercÃ­cio' });
+    res.status(500).json({ message: 'Erro ao buscar exercicio' });
   }
 });
 
@@ -112,13 +182,12 @@ router.get('/exercises/:id', async (req, res) => {
  */
 router.post('/exercises', async (req, res) => {
   try {
-    assertLibraryProfessorRequest(req);
-    const contractId = req.user.contractId;
+    const contractId = getLibraryProfessorRequest(req).user.contractId;
     const exercise = await libraryService.createExercise(contractId, req.body);
     res.status(201).json(exercise);
   } catch (error) {
     console.error('Error creating exercise:', error);
-    res.status(500).json({ message: 'Erro ao criar exercÃ­cio' });
+    res.status(500).json({ message: 'Erro ao criar exercicio' });
   }
 });
 
@@ -128,13 +197,12 @@ router.post('/exercises', async (req, res) => {
  */
 router.put('/exercises/:id', async (req, res) => {
   try {
-    assertLibraryProfessorRequest(req);
-    const contractId = req.user.contractId;
+    const contractId = getLibraryProfessorRequest(req).user.contractId;
     const exercise = await libraryService.updateExercise(contractId, req.params.id, req.body);
     res.json(exercise);
   } catch (error) {
     console.error('Error updating exercise:', error);
-    res.status(500).json({ message: 'Erro ao atualizar exercÃ­cio' });
+    res.status(500).json({ message: 'Erro ao atualizar exercicio' });
   }
 });
 
@@ -144,13 +212,12 @@ router.put('/exercises/:id', async (req, res) => {
  */
 router.delete('/exercises/:id', async (req, res) => {
   try {
-    assertLibraryProfessorRequest(req);
-    const contractId = req.user.contractId;
+    const contractId = getLibraryProfessorRequest(req).user.contractId;
     await libraryService.deleteExercise(contractId, req.params.id);
     res.status(204).send();
   } catch (error) {
     console.error('Error deleting exercise:', error);
-    res.status(500).json({ message: 'Erro ao deletar exercÃ­cio' });
+    res.status(500).json({ message: 'Erro ao deletar exercicio' });
   }
 });
 
@@ -160,12 +227,11 @@ router.delete('/exercises/:id', async (req, res) => {
  */
 router.get('/progress/:alunoId/:exerciseId', async (req, res) => {
   try {
-    assertLibraryProfessorRequest(req);
-    const contractId = req.user.contractId;
+    const contractId = getLibraryProfessorRequest(req).user.contractId;
     const progress = await libraryService.getAlunoProgress(
       contractId,
-      req.params.alunoId,
-      req.params.exerciseId
+      parsedParams.data.alunoId,
+      parsedParams.data.exerciseId
     );
     res.json(progress);
   } catch (error) {
@@ -180,13 +246,12 @@ router.get('/progress/:alunoId/:exerciseId', async (req, res) => {
  */
 router.put('/progress/:alunoId/:exerciseId', async (req, res) => {
   try {
-    assertLibraryProfessorRequest(req);
-    const contractId = req.user.contractId;
+    const contractId = getLibraryProfessorRequest(req).user.contractId;
     const progress = await libraryService.updateAlunoProgress(
       contractId,
-      req.params.alunoId,
-      req.params.exerciseId,
-      req.body
+      parsedParams.data.alunoId,
+      parsedParams.data.exerciseId,
+      parsedBody.data
     );
     res.json(progress);
   } catch (error) {
@@ -201,8 +266,7 @@ router.put('/progress/:alunoId/:exerciseId', async (req, res) => {
  */
 router.get('/progress/:alunoId', async (req, res) => {
   try {
-    assertLibraryProfessorRequest(req);
-    const contractId = req.user.contractId;
+    const contractId = getLibraryProfessorRequest(req).user.contractId;
     const progress = await libraryService.listAlunoProgress(contractId, req.params.alunoId);
     res.json(progress);
   } catch (error) {
