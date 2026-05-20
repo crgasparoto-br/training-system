@@ -1,5 +1,5 @@
 import { Router, type Request } from 'express';
-import type { JwtPayload } from '@corrida/types';
+import type { AuthenticatedUserPayload } from '@corrida/types';
 import { CountingType, LoadType, MovementType } from '@prisma/client';
 import { z } from 'zod';
 import {
@@ -11,7 +11,7 @@ import {
 import { authMiddleware, professorMiddleware } from '../modules/auth/auth.middleware.js';
 
 type LibraryProfessorRequest = Request & {
-  user: JwtPayload & {
+  user: AuthenticatedUserPayload & {
     contractId: string;
   };
 };
@@ -25,8 +25,45 @@ const exerciseFiltersSchema = z.object({
   muscleGroup: z.string().optional(),
 });
 
-function getLibraryProfessorRequest(req: Request): LibraryProfessorRequest {
-  return req as LibraryProfessorRequest;
+const exerciseIdParamsSchema = z.object({
+  id: z.string().min(1),
+});
+
+const alunoParamsSchema = z.object({
+  alunoId: z.string().min(1),
+});
+
+const progressParamsSchema = z.object({
+  alunoId: z.string().min(1),
+  exerciseId: z.string().min(1),
+});
+
+const createExerciseSchema = z
+  .object({
+    name: z.string().min(1),
+    videoUrl: z.string().optional(),
+    loadType: z.nativeEnum(LoadType).optional(),
+    movementType: z.nativeEnum(MovementType).optional(),
+    countingType: z.nativeEnum(CountingType).optional(),
+    category: z.string().optional(),
+    muscleGroup: z.string().optional(),
+    notes: z.string().optional(),
+  })
+  .strict();
+
+const updateExerciseSchema = createExerciseSchema.partial().strict();
+
+const alunoProgressUpdateSchema = z
+  .object({
+    lastLoad: z.number().optional(),
+    maxLoad: z.number().optional(),
+  })
+  .strict();
+
+function assertLibraryProfessorRequest(req: Request): asserts req is LibraryProfessorRequest {
+  if (!req.user?.contractId) {
+    throw new Error('Professor contractId missing on request');
+  }
 }
 
 function parseExerciseFilters(req: Request):
@@ -141,7 +178,8 @@ router.use(professorMiddleware);
  */
 router.get('/exercises', async (req, res) => {
   try {
-    const contractId = getLibraryProfessorRequest(req).user.contractId;
+    assertLibraryProfessorRequest(req);
+    const contractId = req.user.contractId;
     const parsedFilters = parseExerciseFilters(req);
 
     if (!parsedFilters.success) {
@@ -152,7 +190,7 @@ router.get('/exercises', async (req, res) => {
     res.json(exercises);
   } catch (error) {
     console.error('Error listing exercises:', error);
-    res.status(500).json({ message: 'Erro ao listar exercicios' });
+    res.status(500).json({ message: 'Erro ao listar exercÃ­cios' });
   }
 });
 
@@ -162,17 +200,24 @@ router.get('/exercises', async (req, res) => {
  */
 router.get('/exercises/:id', async (req, res) => {
   try {
-    const contractId = getLibraryProfessorRequest(req).user.contractId;
-    const exercise = await libraryService.getExerciseById(contractId, req.params.id);
+    assertLibraryProfessorRequest(req);
+    const contractId = req.user.contractId;
+    const parsedParams = parseExerciseIdParams(req);
+
+    if (!parsedParams.success) {
+      return res.status(400).json({ message: 'Parametros invalidos' });
+    }
+
+    const exercise = await libraryService.getExerciseById(contractId, parsedParams.data.id);
 
     if (!exercise) {
-      return res.status(404).json({ message: 'Exercicio nao encontrado' });
+      return res.status(404).json({ message: 'ExercÃ­cio nÃ£o encontrado' });
     }
 
     res.json(exercise);
   } catch (error) {
     console.error('Error getting exercise:', error);
-    res.status(500).json({ message: 'Erro ao buscar exercicio' });
+    res.status(500).json({ message: 'Erro ao buscar exercÃ­cio' });
   }
 });
 
@@ -182,12 +227,19 @@ router.get('/exercises/:id', async (req, res) => {
  */
 router.post('/exercises', async (req, res) => {
   try {
-    const contractId = getLibraryProfessorRequest(req).user.contractId;
-    const exercise = await libraryService.createExercise(contractId, req.body);
+    assertLibraryProfessorRequest(req);
+    const contractId = req.user.contractId;
+    const parsedBody = parseCreateExerciseBody(req);
+
+    if (!parsedBody.success) {
+      return res.status(400).json({ message: 'Payload invalido' });
+    }
+
+    const exercise = await libraryService.createExercise(contractId, parsedBody.data);
     res.status(201).json(exercise);
   } catch (error) {
     console.error('Error creating exercise:', error);
-    res.status(500).json({ message: 'Erro ao criar exercicio' });
+    res.status(500).json({ message: 'Erro ao criar exercÃ­cio' });
   }
 });
 
@@ -197,12 +249,24 @@ router.post('/exercises', async (req, res) => {
  */
 router.put('/exercises/:id', async (req, res) => {
   try {
-    const contractId = getLibraryProfessorRequest(req).user.contractId;
-    const exercise = await libraryService.updateExercise(contractId, req.params.id, req.body);
+    assertLibraryProfessorRequest(req);
+    const contractId = req.user.contractId;
+    const parsedParams = parseExerciseIdParams(req);
+    const parsedBody = parseUpdateExerciseBody(req);
+
+    if (!parsedParams.success) {
+      return res.status(400).json({ message: 'Parametros invalidos' });
+    }
+
+    if (!parsedBody.success) {
+      return res.status(400).json({ message: 'Payload invalido' });
+    }
+
+    const exercise = await libraryService.updateExercise(contractId, parsedParams.data.id, parsedBody.data);
     res.json(exercise);
   } catch (error) {
     console.error('Error updating exercise:', error);
-    res.status(500).json({ message: 'Erro ao atualizar exercicio' });
+    res.status(500).json({ message: 'Erro ao atualizar exercÃ­cio' });
   }
 });
 
@@ -212,12 +276,19 @@ router.put('/exercises/:id', async (req, res) => {
  */
 router.delete('/exercises/:id', async (req, res) => {
   try {
-    const contractId = getLibraryProfessorRequest(req).user.contractId;
-    await libraryService.deleteExercise(contractId, req.params.id);
+    assertLibraryProfessorRequest(req);
+    const contractId = req.user.contractId;
+    const parsedParams = parseExerciseIdParams(req);
+
+    if (!parsedParams.success) {
+      return res.status(400).json({ message: 'Parametros invalidos' });
+    }
+
+    await libraryService.deleteExercise(contractId, parsedParams.data.id);
     res.status(204).send();
   } catch (error) {
     console.error('Error deleting exercise:', error);
-    res.status(500).json({ message: 'Erro ao deletar exercicio' });
+    res.status(500).json({ message: 'Erro ao deletar exercÃ­cio' });
   }
 });
 
@@ -227,7 +298,14 @@ router.delete('/exercises/:id', async (req, res) => {
  */
 router.get('/progress/:alunoId/:exerciseId', async (req, res) => {
   try {
-    const contractId = getLibraryProfessorRequest(req).user.contractId;
+    assertLibraryProfessorRequest(req);
+    const contractId = req.user.contractId;
+    const parsedParams = parseProgressParams(req);
+
+    if (!parsedParams.success) {
+      return res.status(400).json({ message: 'Parametros invalidos' });
+    }
+
     const progress = await libraryService.getAlunoProgress(
       contractId,
       parsedParams.data.alunoId,
@@ -246,7 +324,19 @@ router.get('/progress/:alunoId/:exerciseId', async (req, res) => {
  */
 router.put('/progress/:alunoId/:exerciseId', async (req, res) => {
   try {
-    const contractId = getLibraryProfessorRequest(req).user.contractId;
+    assertLibraryProfessorRequest(req);
+    const contractId = req.user.contractId;
+    const parsedParams = parseProgressParams(req);
+    const parsedBody = parseAlunoProgressUpdateBody(req);
+
+    if (!parsedParams.success) {
+      return res.status(400).json({ message: 'Parametros invalidos' });
+    }
+
+    if (!parsedBody.success) {
+      return res.status(400).json({ message: 'Payload invalido' });
+    }
+
     const progress = await libraryService.updateAlunoProgress(
       contractId,
       parsedParams.data.alunoId,
@@ -266,8 +356,15 @@ router.put('/progress/:alunoId/:exerciseId', async (req, res) => {
  */
 router.get('/progress/:alunoId', async (req, res) => {
   try {
-    const contractId = getLibraryProfessorRequest(req).user.contractId;
-    const progress = await libraryService.listAlunoProgress(contractId, req.params.alunoId);
+    assertLibraryProfessorRequest(req);
+    const contractId = req.user.contractId;
+    const parsedParams = parseAlunoParams(req);
+
+    if (!parsedParams.success) {
+      return res.status(400).json({ message: 'Parametros invalidos' });
+    }
+
+    const progress = await libraryService.listAlunoProgress(contractId, parsedParams.data.alunoId);
     res.json(progress);
   } catch (error) {
     console.error('Error listing progress:', error);
