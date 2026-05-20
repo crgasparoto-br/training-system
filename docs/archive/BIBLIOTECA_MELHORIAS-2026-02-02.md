@@ -360,9 +360,9 @@ Aprimorar a experiencia do usuario na tela de Biblioteca de Exercicios, tornando
    - Modal em tela cheia
 
 10. **Acessibilidade**
-   - Suporte completo a leitores de tela
-   - Navegacao por teclado otimizada
-   - Contraste de cores WCAG AA
+    - Suporte completo a leitores de tela
+    - Navegacao por teclado otimizada
+    - Contraste de cores WCAG AA
 
 ---
 

@@ -38,13 +38,12 @@ Documentos antigos que ainda possuem valor historico devem ser movidos para [`ar
 
 ### Complementares ainda mantidos na raiz de `docs/`
 
-- [`internal-test-deploy.md`](internal-test-deploy.md): apontador estavel para a nota historica de publicacao para testes internos; conferir `archive/internal-test-deploy-legacy.md`, `architecture/deployment.md`, `quality/validation.md` e `operations/api-scripts.md`.
+- [`internal-test-deploy.md`](internal-test-deploy.md): orientacao complementar para publicacao de testes internos; conferir sempre `architecture/deployment.md`, `quality/validation.md` e `operations/api-scripts.md`.
 - [`BIBLIOTECA_MELHORIAS.md`](BIBLIOTECA_MELHORIAS.md): apontador estavel para o registro historico arquivado da Biblioteca; conferir `archive/BIBLIOTECA_MELHORIAS-2026-02-02.md` e `execution-plans/active/2026-05-library-module-debt.md`.
 - [`CHECKLIST_TESTES_BIBLIOTECA.md`](CHECKLIST_TESTES_BIBLIOTECA.md): apontador estavel para o checklist manual historico da Biblioteca; conferir `archive/CHECKLIST_TESTES_BIBLIOTECA-2026-02-02.md`, `quality/validation.md` e o plano do modulo.
 
 ### Arquivos historicos arquivados
 
-- [`archive/internal-test-deploy-legacy.md`](archive/internal-test-deploy-legacy.md): orientacao operacional historica para publicacao rapida em testes internos.
 - [`archive/BIBLIOTECA_MELHORIAS-2026-02-02.md`](archive/BIBLIOTECA_MELHORIAS-2026-02-02.md): registro detalhado da entrega historica de 02/02/2026 da tela de Biblioteca.
 - [`archive/CHECKLIST_TESTES_BIBLIOTECA-2026-02-02.md`](archive/CHECKLIST_TESTES_BIBLIOTECA-2026-02-02.md): checklist manual historico associado a essa entrega.
 - [`archive/visual-guidelines.local-backup-20260420-165809.md`](archive/visual-guidelines.local-backup-20260420-165809.md): backup visual local mantido apenas para consulta historica.
