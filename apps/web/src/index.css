@@ -144,6 +144,107 @@
     @apply h-10 w-full rounded-lg border border-input bg-card px-3 text-sm text-foreground outline-none transition focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground;
   }
 
+  .ts-tabs-bar {
+    @apply flex min-w-max gap-2 overflow-x-auto pb-1;
+  }
+
+  .ts-tab-button {
+    @apply inline-flex h-10 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-input bg-card px-4 py-2 text-sm font-medium text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  .ts-tab-button:hover {
+    @apply bg-accent text-accent-foreground;
+  }
+
+  .ts-tab-button-active {
+    @apply border-primary bg-primary text-primary-foreground;
+  }
+
+  .ts-tab-button-active:hover {
+    @apply bg-primary-hover text-primary-foreground;
+  }
+
+  .ts-tab-button-inactive {
+    @apply border-input bg-card text-foreground;
+  }
+
+  [role='tablist'] {
+    @apply flex min-w-max gap-2 overflow-x-auto pb-1;
+  }
+
+  [role='tablist'] > [role='tab'] {
+    @apply inline-flex h-10 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-input bg-card px-4 py-2 text-sm font-medium text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50;
+  }
+
+  [role='tablist'] > [role='tab']:hover {
+    @apply bg-accent text-accent-foreground;
+  }
+
+  [role='tablist'] > [role='tab'][aria-selected='true'] {
+    @apply border-primary bg-primary text-primary-foreground;
+  }
+
+  [role='tablist'] > [role='tab'][aria-selected='true']:hover {
+    @apply bg-primary-hover text-primary-foreground;
+  }
+
+  [role='tablist'] > [role='tab'][aria-selected='false'] {
+    @apply border-input bg-card text-foreground;
+  }
+
+  nav.\-mb-px.flex.space-x-8 {
+    @apply flex min-w-max gap-2 overflow-x-auto pb-1;
+  }
+
+  nav.\-mb-px.flex.space-x-8 > :not([hidden]) ~ :not([hidden]) {
+    margin-left: 0;
+  }
+
+  nav.\-mb-px.flex.space-x-8 > button {
+    @apply inline-flex h-10 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-input bg-card px-4 py-2 text-sm font-medium text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2;
+  }
+
+  nav.\-mb-px.flex.space-x-8 > button:hover {
+    @apply bg-accent text-accent-foreground;
+  }
+
+  nav.\-mb-px.flex.space-x-8 > button.border-blue-500 {
+    @apply border-primary bg-primary text-primary-foreground;
+  }
+
+  nav.\-mb-px.flex.space-x-8 > button.border-blue-500:hover {
+    @apply bg-primary-hover text-primary-foreground;
+  }
+
+  nav.\-mb-px.flex.space-x-8 > button.border-transparent {
+    @apply border-input bg-card text-foreground;
+  }
+
+  .rounded-2xl.border-b.border-gray-200 > button {
+    @apply inline-flex h-10 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-input bg-card px-4 py-2 text-sm font-medium text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2;
+    position: static;
+  }
+
+  .rounded-2xl.border-b.border-gray-200 > button:hover {
+    @apply bg-accent text-accent-foreground;
+  }
+
+  .rounded-2xl.border-b.border-gray-200 > button.text-blue-600 {
+    @apply border-primary bg-primary text-primary-foreground;
+  }
+
+  .rounded-2xl.border-b.border-gray-200 > button.text-blue-600:hover {
+    @apply bg-primary-hover text-primary-foreground;
+  }
+
+  .rounded-2xl.border-b.border-gray-200 > button.text-gray-600 {
+    @apply border-input bg-card text-foreground;
+  }
+
+  .rounded-2xl.border-b.border-gray-200 > button > .absolute.bottom-0 {
+    @apply hidden;
+  }
+
   .ts-textarea {
     @apply w-full rounded-lg border border-input bg-card px-3 py-2 text-sm text-foreground outline-none transition focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground;
   }
