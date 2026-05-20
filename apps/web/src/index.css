@@ -192,6 +192,58 @@
     @apply border-input bg-card text-foreground;
   }
 
+  [role='tablist'] > [role='tab'],
+  button.inline-flex.h-10.items-center.gap-2.rounded-lg.px-4.text-sm.font-medium.transition-colors {
+    display: inline-flex !important;
+    height: 2.5rem !important;
+    flex-shrink: 0 !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 0.5rem !important;
+    white-space: nowrap !important;
+    border-radius: 0.5rem !important;
+    border-width: 1px !important;
+    border-style: solid !important;
+    border-color: hsl(var(--input)) !important;
+    background-color: hsl(var(--card)) !important;
+    padding: 0.5rem 1rem !important;
+    color: hsl(var(--foreground)) !important;
+    font-size: 0.875rem !important;
+    font-weight: 500 !important;
+    line-height: 1.25rem !important;
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05) !important;
+    transition-property: color, background-color, border-color, text-decoration-color, fill, stroke !important;
+    transition-duration: 150ms !important;
+  }
+
+  [role='tablist'] > [role='tab']:hover,
+  button.inline-flex.h-10.items-center.gap-2.rounded-lg.px-4.text-sm.font-medium.transition-colors:hover {
+    background-color: hsl(var(--accent)) !important;
+    color: hsl(var(--accent-foreground)) !important;
+  }
+
+  [role='tablist'] > [role='tab'][aria-selected='true'],
+  button.inline-flex.h-10.items-center.gap-2.rounded-lg.px-4.text-sm.font-medium.transition-colors.text-primary {
+    border-color: hsl(var(--primary)) !important;
+    background-color: hsl(var(--primary)) !important;
+    color: hsl(var(--primary-foreground)) !important;
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05) !important;
+  }
+
+  [role='tablist'] > [role='tab'][aria-selected='true']:hover,
+  button.inline-flex.h-10.items-center.gap-2.rounded-lg.px-4.text-sm.font-medium.transition-colors.text-primary:hover {
+    border-color: hsl(var(--primary-hover)) !important;
+    background-color: hsl(var(--primary-hover)) !important;
+    color: hsl(var(--primary-foreground)) !important;
+  }
+
+  [role='tablist'] > [role='tab'][aria-selected='false'],
+  button.inline-flex.h-10.items-center.gap-2.rounded-lg.px-4.text-sm.font-medium.transition-colors.text-muted-foreground {
+    border-color: hsl(var(--input)) !important;
+    background-color: hsl(var(--card)) !important;
+    color: hsl(var(--foreground)) !important;
+  }
+
   nav.\-mb-px.flex.space-x-8 {
     @apply flex min-w-max gap-2 overflow-x-auto pb-1;
   }
