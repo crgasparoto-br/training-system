@@ -1,4 +1,5 @@
 import { Router, type Request } from 'express';
+import type { JwtPayload } from '@corrida/types';
 import { CountingType, LoadType, MovementType } from '@prisma/client';
 import { z } from 'zod';
 import {
@@ -9,6 +10,12 @@ import {
 } from '../modules/library/library.service.js';
 import { authMiddleware, professorMiddleware } from '../modules/auth/auth.middleware.js';
 
+type LibraryProfessorRequest = Request & {
+  user: JwtPayload & {
+    contractId: string;
+  };
+};
+
 const exerciseFiltersSchema = z.object({
   search: z.string().optional(),
   category: z.string().optional(),
@@ -18,45 +25,8 @@ const exerciseFiltersSchema = z.object({
   muscleGroup: z.string().optional(),
 });
 
-const exerciseIdParamsSchema = z.object({
-  id: z.string().min(1),
-});
-
-const alunoParamsSchema = z.object({
-  alunoId: z.string().min(1),
-});
-
-const progressParamsSchema = z.object({
-  alunoId: z.string().min(1),
-  exerciseId: z.string().min(1),
-});
-
-const createExerciseSchema = z.object({
-  name: z.string().min(1),
-  videoUrl: z.string().optional(),
-  loadType: z.nativeEnum(LoadType).optional(),
-  movementType: z.nativeEnum(MovementType).optional(),
-  countingType: z.nativeEnum(CountingType).optional(),
-  category: z.string().optional(),
-  muscleGroup: z.string().optional(),
-  notes: z.string().optional(),
-}).strict();
-
-const updateExerciseSchema = createExerciseSchema.partial();
-
-const alunoProgressUpdateSchema = z.object({
-  lastLoad: z.number().optional(),
-  maxLoad: z.number().optional(),
-}).strict();
-
-function getContractId(req: Request): string {
-  const contractId = req.user?.contractId;
-
-  if (!contractId) {
-    throw new Error('ContractId not available');
-  }
-
-  return contractId;
+function getLibraryProfessorRequest(req: Request): LibraryProfessorRequest {
+  return req as LibraryProfessorRequest;
 }
 
 function parseExerciseFilters(req: Request):
@@ -171,7 +141,7 @@ router.use(professorMiddleware);
  */
 router.get('/exercises', async (req, res) => {
   try {
-    const contractId = getContractId(req);
+    const contractId = getLibraryProfessorRequest(req).user.contractId;
     const parsedFilters = parseExerciseFilters(req);
 
     if (!parsedFilters.success) {
@@ -192,14 +162,8 @@ router.get('/exercises', async (req, res) => {
  */
 router.get('/exercises/:id', async (req, res) => {
   try {
-    const contractId = getContractId(req);
-    const parsedParams = parseExerciseIdParams(req);
-
-    if (!parsedParams.success) {
-      return res.status(400).json({ message: 'Parametros invalidos' });
-    }
-
-    const exercise = await libraryService.getExerciseById(contractId, parsedParams.data.id);
+    const contractId = getLibraryProfessorRequest(req).user.contractId;
+    const exercise = await libraryService.getExerciseById(contractId, req.params.id);
 
     if (!exercise) {
       return res.status(404).json({ message: 'Exercicio nao encontrado' });
@@ -218,14 +182,8 @@ router.get('/exercises/:id', async (req, res) => {
  */
 router.post('/exercises', async (req, res) => {
   try {
-    const contractId = getContractId(req);
-    const parsedBody = parseCreateExerciseBody(req);
-
-    if (!parsedBody.success) {
-      return res.status(400).json({ message: 'Payload invalido' });
-    }
-
-    const exercise = await libraryService.createExercise(contractId, parsedBody.data);
+    const contractId = getLibraryProfessorRequest(req).user.contractId;
+    const exercise = await libraryService.createExercise(contractId, req.body);
     res.status(201).json(exercise);
   } catch (error) {
     console.error('Error creating exercise:', error);
@@ -239,23 +197,8 @@ router.post('/exercises', async (req, res) => {
  */
 router.put('/exercises/:id', async (req, res) => {
   try {
-    const contractId = getContractId(req);
-    const parsedParams = parseExerciseIdParams(req);
-    const parsedBody = parseUpdateExerciseBody(req);
-
-    if (!parsedParams.success) {
-      return res.status(400).json({ message: 'Parametros invalidos' });
-    }
-
-    if (!parsedBody.success) {
-      return res.status(400).json({ message: 'Payload invalido' });
-    }
-
-    const exercise = await libraryService.updateExercise(
-      contractId,
-      parsedParams.data.id,
-      parsedBody.data
-    );
+    const contractId = getLibraryProfessorRequest(req).user.contractId;
+    const exercise = await libraryService.updateExercise(contractId, req.params.id, req.body);
     res.json(exercise);
   } catch (error) {
     console.error('Error updating exercise:', error);
@@ -269,14 +212,8 @@ router.put('/exercises/:id', async (req, res) => {
  */
 router.delete('/exercises/:id', async (req, res) => {
   try {
-    const contractId = getContractId(req);
-    const parsedParams = parseExerciseIdParams(req);
-
-    if (!parsedParams.success) {
-      return res.status(400).json({ message: 'Parametros invalidos' });
-    }
-
-    await libraryService.deleteExercise(contractId, parsedParams.data.id);
+    const contractId = getLibraryProfessorRequest(req).user.contractId;
+    await libraryService.deleteExercise(contractId, req.params.id);
     res.status(204).send();
   } catch (error) {
     console.error('Error deleting exercise:', error);
@@ -290,13 +227,7 @@ router.delete('/exercises/:id', async (req, res) => {
  */
 router.get('/progress/:alunoId/:exerciseId', async (req, res) => {
   try {
-    const contractId = getContractId(req);
-    const parsedParams = parseProgressParams(req);
-
-    if (!parsedParams.success) {
-      return res.status(400).json({ message: 'Parametros invalidos' });
-    }
-
+    const contractId = getLibraryProfessorRequest(req).user.contractId;
     const progress = await libraryService.getAlunoProgress(
       contractId,
       parsedParams.data.alunoId,
@@ -315,18 +246,7 @@ router.get('/progress/:alunoId/:exerciseId', async (req, res) => {
  */
 router.put('/progress/:alunoId/:exerciseId', async (req, res) => {
   try {
-    const contractId = getContractId(req);
-    const parsedParams = parseProgressParams(req);
-    const parsedBody = parseAlunoProgressUpdateBody(req);
-
-    if (!parsedParams.success) {
-      return res.status(400).json({ message: 'Parametros invalidos' });
-    }
-
-    if (!parsedBody.success) {
-      return res.status(400).json({ message: 'Payload invalido' });
-    }
-
+    const contractId = getLibraryProfessorRequest(req).user.contractId;
     const progress = await libraryService.updateAlunoProgress(
       contractId,
       parsedParams.data.alunoId,
@@ -346,14 +266,8 @@ router.put('/progress/:alunoId/:exerciseId', async (req, res) => {
  */
 router.get('/progress/:alunoId', async (req, res) => {
   try {
-    const contractId = getContractId(req);
-    const parsedParams = parseAlunoParams(req);
-
-    if (!parsedParams.success) {
-      return res.status(400).json({ message: 'Parametros invalidos' });
-    }
-
-    const progress = await libraryService.listAlunoProgress(contractId, parsedParams.data.alunoId);
+    const contractId = getLibraryProfessorRequest(req).user.contractId;
+    const progress = await libraryService.listAlunoProgress(contractId, req.params.alunoId);
     res.json(progress);
   } catch (error) {
     console.error('Error listing progress:', error);

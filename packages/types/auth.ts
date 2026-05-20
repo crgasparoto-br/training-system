@@ -12,6 +12,9 @@ export interface JwtPayload {
   exp?: number;
 }
 
+export type ContractType = 'academy' | 'personal';
+export type ProfessorRole = 'master' | 'professor';
+
 export interface UserAccessPermission {
   id?: string;
   collaboratorFunctionId?: string;
