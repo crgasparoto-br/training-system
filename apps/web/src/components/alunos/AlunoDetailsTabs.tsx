@@ -43,16 +43,13 @@ export function AlunoDetailsTabs({ activeTab, onChange, visibleTabs }: AlunoDeta
       <div role="tablist" aria-label="Guias dos detalhes do aluno" className="ts-tabs-bar">
         {tabsToRender.map((tab) => {
           const selected = activeTab === tab.id;
-          const tabId = `aluno-details-tab-${tab.id}`;
-          const panelId = `aluno-details-panel-${tab.id}`;
 
           return (
             <button
               key={tab.id}
               type="button"
               role="tab"
-              id={tabId}
-              aria-controls={panelId}
+              id={`aluno-details-tab-${tab.id}`}
               aria-selected={selected}
               onClick={() => onChange(tab.id)}
               className={`ts-tab-button ${selected ? 'ts-tab-button-active' : 'ts-tab-button-inactive'}`}
