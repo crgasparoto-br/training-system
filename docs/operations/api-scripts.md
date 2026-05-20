@@ -36,7 +36,7 @@ Antes de executar scripts que alteram dados:
 | `job:backfill-student-contract-links` | `src/scripts/backfill-student-contract-links.ts` | Alto | Sim | Migra dados financeiros/contratuais legados para vinculos `StudentContract`. |
 | `job:dispatch-profile-reviews` | `src/scripts/dispatch-profile-reviews.ts` | Medio | Sim | Dispara rotina de revisao cadastral pendente/vencida. |
 | `job:backfill-profile-review-settings` | `src/scripts/backfill-profile-review-settings.ts` | Medio | Sim | Cria politicas/configuracoes padrao de revisao cadastral quando ausentes. |
-| `import-exercises` | `src/scripts/import-exercises.ts` | Medio | Nao | Importa exercicios a partir de JSON. |
+| `import-exercises` | `src/scripts/import-exercises.ts` | Medio | Sim | Importa exercicios a partir de JSON. |
 | `job:normalize-upload-urls` | `src/scripts/normalize-upload-urls.mjs` | Medio | Sim | Normaliza URLs de upload em `CompanyContract.logoUrl` e `Profile.avatar`. |
 
 ## `db:clone-contract-data`
@@ -147,6 +147,16 @@ Comando:
 pnpm --filter @corrida/api import-exercises -- caminho/do/arquivo.json
 ```
 
+Flags suportadas:
+
+- `--dry-run`: simula a importacao sem gravar no banco.
+
+Exemplo seguro:
+
+```bash
+CONTRACT_ID=<id-contrato> pnpm --filter @corrida/api import-exercises -- --dry-run caminho/do/arquivo.json
+```
+
 Formato esperado:
 
 ```json
@@ -169,13 +179,13 @@ Variaveis suportadas:
 
 Risco:
 
-- Medio. Cria exercicios em biblioteca do contrato.
+- Medio. Cria exercicios em biblioteca do contrato quando executado sem `--dry-run`.
 
 Recomendacao:
 
 - Sempre informar `CONTRACT_ID`.
+- Executar primeiro com `--dry-run` e revisar o resumo retornado.
 - Validar o JSON em ambiente local/staging.
-- Adicionar `--dry-run` em PR futuro.
 
 ## `job:normalize-upload-urls`
 

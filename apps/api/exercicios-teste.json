@@ -1,0 +1,26 @@
+[
+  {
+    "name": "agachamento livre",
+    "videoUrl": "https://youtube.com/watch?v=example1",
+    "loadType": "C",
+    "movementType": "O",
+    "countingType": "R",
+    "notes": "Exercício básico de quadríceps"
+  },
+  {
+    "name": "supino com haltere",
+    "videoUrl": "https://youtube.com/watch?v=example2",
+    "loadType": "L",
+    "movementType": "O",
+    "countingType": "R",
+    "notes": "Exercício para peitoral"
+  },
+  {
+    "name": "rosca direta",
+    "videoUrl": "https://youtube.com/watch?v=example3",
+    "loadType": "L",
+    "movementType": "A",
+    "countingType": "R",
+    "notes": "Exercício para bíceps"
+  }
+]
