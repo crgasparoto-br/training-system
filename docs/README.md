@@ -36,11 +36,17 @@ Este diretorio concentra a documentacao versionada do projeto.
 
 Documentos antigos que ainda possuem valor historico devem ser movidos para [`archive/`](archive/) ou atualizados para apontar para as fontes de verdade acima.
 
-Documentos complementares atualmente mantidos na raiz de `docs/`:
+### Complementares ainda mantidos na raiz de `docs/`
 
-- [`internal-test-deploy.md`](internal-test-deploy.md): orientacao complementar para publicacao de testes internos; conferir sempre `architecture/deployment.md` e `quality/validation.md`.
-- [`BIBLIOTECA_MELHORIAS.md`](BIBLIOTECA_MELHORIAS.md): registro historico de melhorias da tela de Biblioteca; conferir `execution-plans/active/2026-05-library-module-debt.md`.
-- [`CHECKLIST_TESTES_BIBLIOTECA.md`](CHECKLIST_TESTES_BIBLIOTECA.md): checklist manual complementar da tela de Biblioteca; conferir `quality/validation.md` e o plano do modulo.
+- [`internal-test-deploy.md`](internal-test-deploy.md): orientacao complementar para publicacao de testes internos; conferir sempre `architecture/deployment.md`, `quality/validation.md` e `operations/api-scripts.md`.
+- [`BIBLIOTECA_MELHORIAS.md`](BIBLIOTECA_MELHORIAS.md): apontador estavel para o registro historico arquivado da Biblioteca; conferir `archive/BIBLIOTECA_MELHORIAS-2026-02-02.md` e `execution-plans/active/2026-05-library-module-debt.md`.
+- [`CHECKLIST_TESTES_BIBLIOTECA.md`](CHECKLIST_TESTES_BIBLIOTECA.md): apontador estavel para o checklist manual historico da Biblioteca; conferir `archive/CHECKLIST_TESTES_BIBLIOTECA-2026-02-02.md`, `quality/validation.md` e o plano do modulo.
+
+### Arquivos historicos arquivados
+
+- [`archive/BIBLIOTECA_MELHORIAS-2026-02-02.md`](archive/BIBLIOTECA_MELHORIAS-2026-02-02.md): registro detalhado da entrega historica de 02/02/2026 da tela de Biblioteca.
+- [`archive/CHECKLIST_TESTES_BIBLIOTECA-2026-02-02.md`](archive/CHECKLIST_TESTES_BIBLIOTECA-2026-02-02.md): checklist manual historico associado a essa entrega.
+- [`archive/visual-guidelines.local-backup-20260420-165809.md`](archive/visual-guidelines.local-backup-20260420-165809.md): backup visual local mantido apenas para consulta historica.
 
 ## Regra de manutencao
 
@@ -50,3 +56,4 @@ Ao adicionar nova documentacao:
 2. Evite duplicar conteudo ja existente.
 3. Atualize este indice quando o documento for uma fonte de verdade.
 4. Arquivos de backup local nao devem ser versionados na raiz de `docs/`.
+5. Quando um documento antigo precisar ser preservado apenas por historico, mova o conteudo para `archive/` e deixe um apontador curto no caminho antigo somente se isso ajudar a manter links estaveis.

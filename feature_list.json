@@ -1,0 +1,76 @@
+{
+  "features": [
+    {
+      "id": "FA001",
+      "name": "Cadastro de usuários (alunos, professores, nutricionistas, administradores)",
+      "status": "not-started",
+      "tests": null
+    },
+    {
+      "id": "FA002",
+      "name": "Modelos de avaliação física (anamnese, antropometria, neuromotora, cardiorrespiratória, postural, nutricional)",
+      "status": "not-started",
+      "tests": null
+    },
+    {
+      "id": "FA003",
+      "name": "Biblioteca de exercícios e vídeos de demonstração",
+      "status": "not-started",
+      "tests": null
+    },
+    {
+      "id": "FA004",
+      "name": "Prescrição de treinos personalizados (fichas e programas)",
+      "status": "not-started",
+      "tests": null
+    },
+    {
+      "id": "FA005",
+      "name": "Histórico de execução de treinos e acompanhamento de progresso",
+      "status": "not-started",
+      "tests": null
+    },
+    {
+      "id": "FA006",
+      "name": "Integração com agenda_profissional para reservas e agenda de professores",
+      "status": "not-started",
+      "tests": null
+    },
+    {
+      "id": "FA007",
+      "name": "Controle de recursos (salas, equipamentos, capacidade)",
+      "status": "not-started",
+      "tests": null
+    },
+    {
+      "id": "FA008",
+      "name": "Integração com controle_calorias para metas e diário alimentar",
+      "status": "not-started",
+      "tests": null
+    },
+    {
+      "id": "FA009",
+      "name": "Gestão financeira (planos, cobranças, fluxo de caixa e indicadores)",
+      "status": "not-started",
+      "tests": null
+    },
+    {
+      "id": "FA010",
+      "name": "App mobile de execução de exercícios com métricas em tempo real",
+      "status": "not-started",
+      "tests": null
+    },
+    {
+      "id": "FA011",
+      "name": "Integração com Strava, Garmin e wearables (OAuth e webhooks)",
+      "status": "not-started",
+      "tests": null
+    },
+    {
+      "id": "FA012",
+      "name": "Relatórios e BI (dashboards e exportação de dados)",
+      "status": "not-started",
+      "tests": null
+    }
+  ]
+}

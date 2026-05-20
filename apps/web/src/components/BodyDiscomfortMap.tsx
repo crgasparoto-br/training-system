@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { BODY_REGIONS, DISCOMFORT_TYPE_OPTIONS, type BodyDiscomfortEntry, type BodyRegion, type DiscomfortType } from '../constants/bodyRegions';
+import { BODY_REGIONS_FRONT, BODY_REGIONS_BACK, DISCOMFORT_TYPE_OPTIONS, type BodyDiscomfortEntry, type BodyRegion, type DiscomfortType } from '../constants/bodyRegions';
 import { Button } from './ui/Button';
 
 type BodyDiscomfortMapProps = {
@@ -19,12 +19,20 @@ const emptyDraft: DraftEntry = {
   notes: '',
 };
 
-const getIntensityClassName = (intensity?: number) => {
-  if (!intensity) return 'fill-slate-200/60 stroke-slate-400/70';
-  if (intensity <= 2) return 'fill-yellow-200 stroke-yellow-500';
-  if (intensity <= 5) return 'fill-orange-400 stroke-orange-600';
-  if (intensity <= 8) return 'fill-red-500 stroke-red-700';
-  return 'fill-red-900 stroke-red-950';
+const getIntensityFill = (intensity?: number): string => {
+  if (!intensity) return 'transparent';
+  if (intensity <= 2) return 'rgba(253, 224, 71, 0.45)';
+  if (intensity <= 5) return 'rgba(251, 146, 60, 0.50)';
+  if (intensity <= 8) return 'rgba(239, 68, 68, 0.55)';
+  return 'rgba(127, 29, 29, 0.65)';
+};
+
+const getIntensityStroke = (intensity?: number): string => {
+  if (!intensity) return 'rgba(100,116,139,0.0)';
+  if (intensity <= 2) return 'rgba(202,138,4,0.8)';
+  if (intensity <= 5) return 'rgba(234,88,12,0.85)';
+  if (intensity <= 8) return 'rgba(185,28,28,0.9)';
+  return 'rgba(69,10,10,0.95)';
 };
 
 const getIntensityLabel = (intensity: number) => {
@@ -44,30 +52,43 @@ const getIntensityAccentColor = (intensity: number) => {
 const getRegionPathLabel = (region: BodyRegion, entry?: BodyDiscomfortEntry) =>
   `${region.number} ${region.name}. ${entry ? `Selecionado, intensidade ${entry.intensity} ${getIntensityLabel(entry.intensity)}.` : 'Não selecionado.'}`;
 
-const renderRegionShape = (region: BodyRegion, className: string) => {
+const renderRegionShape = (region: BodyRegion, fill: string, stroke: string, extraClass: string) => {
+  const commonProps = {
+    fill,
+    stroke,
+    strokeWidth: 2,
+    className: extraClass,
+  };
+
   if (region.shape.kind === 'ellipse') {
-    return <ellipse cx={region.shape.cx} cy={region.shape.cy} rx={region.shape.rx} ry={region.shape.ry} className={className} />;
+    return <ellipse cx={region.shape.cx} cy={region.shape.cy} rx={region.shape.rx} ry={region.shape.ry} {...commonProps} />;
   }
 
   if (region.shape.kind === 'rect') {
-    return <rect x={region.shape.x} y={region.shape.y} width={region.shape.width} height={region.shape.height} rx={region.shape.rx} className={className} />;
+    return <rect x={region.shape.x} y={region.shape.y} width={region.shape.width} height={region.shape.height} rx={region.shape.rx} {...commonProps} />;
   }
 
-  return <path d={region.shape.d} className={className} />;
+  return <path d={region.shape.d} {...commonProps} />;
 };
+
+// All body regions for lookup
+const ALL_BODY_REGIONS = [...BODY_REGIONS_FRONT, ...BODY_REGIONS_BACK];
 
 export function BodyDiscomfortMap({ value, onChange }: BodyDiscomfortMapProps) {
   const [activeRegionId, setActiveRegionId] = useState<string | null>(null);
   const [draft, setDraft] = useState<DraftEntry>(emptyDraft);
   const [error, setError] = useState<string | null>(null);
+  const [view, setView] = useState<'front' | 'back'>('front');
 
   const entriesByRegionId = useMemo(
     () => new Map(value.map((entry) => [entry.regionId, entry])),
     [value]
   );
 
-  const activeRegion = BODY_REGIONS.find((region) => region.id === activeRegionId);
+  const activeRegion = ALL_BODY_REGIONS.find((region) => region.id === activeRegionId);
   const activeEntry = activeRegionId ? entriesByRegionId.get(activeRegionId) : undefined;
+
+  const currentRegions = view === 'front' ? BODY_REGIONS_FRONT : BODY_REGIONS_BACK;
 
   const openRegion = (region: BodyRegion) => {
     const currentEntry = entriesByRegionId.get(region.id);
@@ -115,7 +136,7 @@ export function BodyDiscomfortMap({ value, onChange }: BodyDiscomfortMapProps) {
     onChange([
       ...value.filter((entry) => entry.regionId !== activeRegion.id),
       nextEntry,
-    ].sort((a, b) => BODY_REGIONS.findIndex((region) => region.id === a.regionId) - BODY_REGIONS.findIndex((region) => region.id === b.regionId)));
+    ].sort((a, b) => ALL_BODY_REGIONS.findIndex((region) => region.id === a.regionId) - ALL_BODY_REGIONS.findIndex((region) => region.id === b.regionId)));
     setActiveRegionId(null);
     setError(null);
   };
@@ -127,66 +148,175 @@ export function BodyDiscomfortMap({ value, onChange }: BodyDiscomfortMapProps) {
     setError(null);
   };
 
+  const switchView = (nextView: 'front' | 'back') => {
+    setView(nextView);
+    setActiveRegionId(null);
+    setError(null);
+  };
+
+  const frontCount = value.filter((e) => BODY_REGIONS_FRONT.some((r) => r.id === e.regionId)).length;
+  const backCount = value.filter((e) => BODY_REGIONS_BACK.some((r) => r.id === e.regionId)).length;
+
   return (
     <div className="space-y-5">
-      <div className="grid gap-5 xl:grid-cols-[minmax(320px,440px)_minmax(280px,1fr)]">
-        <div className="rounded-xl border border-border bg-card p-4">
-          <svg
-            viewBox="0 0 300 620"
-            role="img"
-            aria-label="Mapa corporal interativo para marcar desconfortos"
-            className="mx-auto h-auto w-full max-w-[420px]"
-          >
-            <path
-              d="M150 18 C166 18 178 31 177 48 C176 63 165 75 150 75 C135 75 124 63 123 48 C122 31 134 18 150 18 Z M116 92 H184 C205 105 218 138 218 181 V248 C218 274 201 291 176 292 H124 C99 291 82 274 82 248 V181 C82 138 95 105 116 92 Z M110 289 H145 V544 H104 V430 C104 406 96 393 96 362 V314 C96 299 101 292 110 289 Z M155 289 H190 C199 292 204 299 204 314 V362 C204 393 196 406 196 430 V544 H155 Z"
-              className="fill-slate-50 stroke-slate-300 stroke-[1.5]"
-            />
+      <div className="grid gap-5 xl:grid-cols-[minmax(320px,480px)_minmax(280px,1fr)]">
+        {/* Body map panel */}
+        <div className="rounded-xl border border-border bg-white p-4">
+          {/* View toggle */}
+          <div className="mb-3 flex items-center justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => switchView('front')}
+              className={`flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-sm font-medium transition-colors ${
+                view === 'front'
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+              }`}
+            >
+              Frente
+              {frontCount > 0 && (
+                <span className={`rounded-full px-1.5 py-0.5 text-xs font-bold ${view === 'front' ? 'bg-white/20 text-white' : 'bg-orange-100 text-orange-700'}`}>
+                  {frontCount}
+                </span>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => switchView('back')}
+              className={`flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-sm font-medium transition-colors ${
+                view === 'back'
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+              }`}
+            >
+              Costas
+              {backCount > 0 && (
+                <span className={`rounded-full px-1.5 py-0.5 text-xs font-bold ${view === 'back' ? 'bg-white/20 text-white' : 'bg-orange-100 text-orange-700'}`}>
+                  {backCount}
+                </span>
+              )}
+            </button>
+          </div>
 
-            {BODY_REGIONS.map((region) => {
-              const entry = entriesByRegionId.get(region.id);
-              const className = `${getIntensityClassName(entry?.intensity)} cursor-pointer stroke-2 opacity-90 outline-none transition-opacity hover:opacity-100 focus-visible:stroke-sky-700 focus-visible:stroke-[4]`;
+          {/* SVG with realistic body image */}
+          <div className="relative mx-auto" style={{ maxWidth: 320 }}>
+            <svg
+              viewBox="0 0 400 600"
+              role="img"
+              aria-label={`Mapa corporal interativo – vista ${view === 'front' ? 'frontal' : 'posterior'}`}
+              className="mx-auto h-auto w-full"
+            >
+              {/* Realistic body image as background */}
+              <image
+                href={view === 'front' ? '/body-front.png' : '/body-back.png'}
+                x="0"
+                y="0"
+                width="400"
+                height="600"
+                preserveAspectRatio="xMidYMid meet"
+              />
 
-              return (
-                <g key={region.id}>
-                  <g
-                    id={`body-region-${region.id}`}
-                    role="button"
-                    tabIndex={0}
-                    aria-label={getRegionPathLabel(region, entry)}
-                    onClick={() => openRegion(region)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault();
-                        openRegion(region);
-                      }
-                    }}
-                  >
-                    <title>{`${region.number} - ${region.name}`}</title>
-                    {renderRegionShape(region, className)}
+              {/* Interactive regions overlay */}
+              {currentRegions.map((region) => {
+                const entry = entriesByRegionId.get(region.id);
+                const isActive = activeRegionId === region.id;
+                const fill = isActive
+                  ? 'rgba(59,130,246,0.35)'
+                  : getIntensityFill(entry?.intensity);
+                const stroke = isActive
+                  ? 'rgba(37,99,235,0.9)'
+                  : getIntensityStroke(entry?.intensity);
+
+                const hoverClass = 'cursor-pointer transition-all duration-150 hover:brightness-110';
+
+                return (
+                  <g key={region.id}>
+                    <g
+                      id={`body-region-${region.id}`}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={getRegionPathLabel(region, entry)}
+                      onClick={() => openRegion(region)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          openRegion(region);
+                        }
+                      }}
+                    >
+                      <title>{`${region.number} – ${region.name}`}</title>
+                      {renderRegionShape(region, fill, stroke, hoverClass)}
+                    </g>
+
+                    {/* Number label – only show when region has discomfort or is active */}
+                    {(entry || isActive) && (
+                      <text
+                        x={region.labelX}
+                        y={region.labelY}
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                        className="select-none text-[9px] font-extrabold"
+                        fill={isActive ? '#1d4ed8' : entry && entry.intensity >= 9 ? '#fff' : '#1e293b'}
+                        stroke={isActive ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.7)'}
+                        strokeWidth={3}
+                        paintOrder="stroke"
+                        pointerEvents="none"
+                      >
+                        {region.number}
+                      </text>
+                    )}
+
+                    {/* Subtle number hint on hover for unselected regions */}
+                    {!entry && !isActive && (
+                      <text
+                        x={region.labelX}
+                        y={region.labelY}
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                        className="select-none text-[8px] font-bold opacity-0 transition-opacity hover:opacity-100"
+                        fill="#334155"
+                        stroke="rgba(255,255,255,0.9)"
+                        strokeWidth={3}
+                        paintOrder="stroke"
+                        pointerEvents="none"
+                      >
+                        {region.number}
+                      </text>
+                    )}
                   </g>
-                  <text
-                    x={region.labelX}
-                    y={region.labelY}
-                    textAnchor="middle"
-                    dominantBaseline="middle"
-                    className="select-none fill-slate-900 text-[10px] font-bold"
-                    pointerEvents="visiblePainted"
-                  >
-                    <title>{`${region.number} - ${region.name}`}</title>
-                    {region.number}
-                  </text>
-                </g>
-              );
-            })}
-          </svg>
+                );
+              })}
+            </svg>
+
+            {/* Legend */}
+            <div className="mt-2 flex flex-wrap justify-center gap-2 text-xs">
+              <span className="flex items-center gap-1">
+                <span className="inline-block h-3 w-3 rounded-sm bg-yellow-300 ring-1 ring-yellow-500" />
+                <span className="text-muted-foreground">1-2 leve</span>
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="inline-block h-3 w-3 rounded-sm bg-orange-400 ring-1 ring-orange-600" />
+                <span className="text-muted-foreground">3-5 moderado</span>
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="inline-block h-3 w-3 rounded-sm bg-red-500 ring-1 ring-red-700" />
+                <span className="text-muted-foreground">6-8 forte</span>
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="inline-block h-3 w-3 rounded-sm bg-red-900 ring-1 ring-red-950" />
+                <span className="text-muted-foreground">9-10 insuportável</span>
+              </span>
+            </div>
+          </div>
         </div>
 
+        {/* Detail panel */}
         <div className="rounded-xl border border-border bg-muted/20 p-5">
           {activeRegion ? (
             <div className="space-y-5">
               <div>
                 <p className="text-sm text-muted-foreground">Região selecionada</p>
-                <h3 className="text-xl font-semibold text-foreground">{activeRegion.number} - {activeRegion.name}</h3>
+                <h3 className="text-xl font-semibold text-foreground">{activeRegion.number} – {activeRegion.name}</h3>
               </div>
 
               <fieldset className="space-y-3">
@@ -254,46 +384,49 @@ export function BodyDiscomfortMap({ value, onChange }: BodyDiscomfortMapProps) {
           ) : (
             <div className="flex min-h-[320px] flex-col justify-center gap-3 text-sm text-muted-foreground">
               <h3 className="text-lg font-semibold text-foreground">Mapa corporal</h3>
-              <p>Clique em uma região numerada para registrar tipo, intensidade e observações do desconforto.</p>
-              <div className="grid gap-2 pt-2 sm:grid-cols-2">
-                <span className="rounded-lg border border-border bg-yellow-100 px-3 py-2 text-yellow-900">1-2 leve</span>
-                <span className="rounded-lg border border-border bg-orange-200 px-3 py-2 text-orange-950">3-5 moderado</span>
-                <span className="rounded-lg border border-border bg-red-200 px-3 py-2 text-red-950">6-8 forte</span>
-                <span className="rounded-lg border border-border bg-red-900 px-3 py-2 text-white">9-10 insuportável</span>
-              </div>
+              <p>Clique em uma região do corpo para registrar tipo, intensidade e observações do desconforto.</p>
+              <p className="text-xs">Use os botões <strong>Frente</strong> e <strong>Costas</strong> para alternar a vista e acessar todas as regiões.</p>
             </div>
           )}
         </div>
       </div>
 
+      {/* Summary */}
       <div className="rounded-xl border border-border bg-card p-5">
         <h3 className="text-sm font-semibold text-foreground">Resumo das regiões marcadas</h3>
         {value.length === 0 ? (
           <p className="mt-2 text-sm text-muted-foreground">Nenhum desconforto registrado.</p>
         ) : (
           <div className="mt-4 grid gap-3 md:grid-cols-2">
-            {value.map((entry) => (
-              <button
-                key={entry.regionId}
-                type="button"
-                onClick={() => {
-                  const region = BODY_REGIONS.find((item) => item.id === entry.regionId);
-                  if (region) openRegion(region);
-                }}
-                className="rounded-lg border border-border bg-muted/30 p-4 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-medium text-foreground">{entry.regionId} - {entry.regionName}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">{entry.discomfortTypes.join(', ')}</p>
+            {value.map((entry) => {
+              const region = ALL_BODY_REGIONS.find((item) => item.id === entry.regionId);
+              const isBack = BODY_REGIONS_BACK.some((r) => r.id === entry.regionId);
+              return (
+                <button
+                  key={entry.regionId}
+                  type="button"
+                  onClick={() => {
+                    if (region) {
+                      switchView(isBack ? 'back' : 'front');
+                      setTimeout(() => openRegion(region), 0);
+                    }
+                  }}
+                  className="rounded-lg border border-border bg-muted/30 p-4 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-foreground">{entry.regionId} – {entry.regionName}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">{isBack ? 'Vista posterior' : 'Vista frontal'}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">{entry.discomfortTypes.join(', ')}</p>
+                    </div>
+                    <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${entry.intensity >= 9 ? 'bg-red-900 text-white' : entry.intensity >= 6 ? 'bg-red-100 text-red-900' : entry.intensity >= 3 ? 'bg-orange-100 text-orange-900' : 'bg-yellow-100 text-yellow-900'}`}>
+                      {entry.intensity}/10
+                    </span>
                   </div>
-                  <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${entry.intensity >= 9 ? 'bg-red-900 text-white' : entry.intensity >= 6 ? 'bg-red-100 text-red-900' : entry.intensity >= 3 ? 'bg-orange-100 text-orange-900' : 'bg-yellow-100 text-yellow-900'}`}>
-                    {entry.intensity}/10
-                  </span>
-                </div>
-                {entry.notes && <p className="mt-2 text-sm text-muted-foreground">{entry.notes}</p>}
-              </button>
-            ))}
+                  {entry.notes && <p className="mt-2 text-sm text-muted-foreground">{entry.notes}</p>}
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
