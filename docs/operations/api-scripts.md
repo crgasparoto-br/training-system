@@ -37,6 +37,7 @@ Antes de executar scripts que alteram dados:
 | `job:dispatch-profile-reviews` | `src/scripts/dispatch-profile-reviews.ts` | Medio | Sim | Dispara rotina de revisao cadastral pendente/vencida. |
 | `job:backfill-profile-review-settings` | `src/scripts/backfill-profile-review-settings.ts` | Medio | Sim | Cria politicas/configuracoes padrao de revisao cadastral quando ausentes. |
 | `import-exercises` | `src/scripts/import-exercises.ts` | Medio | Nao | Importa exercicios a partir de JSON. |
+| `job:normalize-upload-urls` | `src/scripts/normalize-upload-urls.mjs` | Medio | Sim | Normaliza URLs de upload em `CompanyContract.logoUrl` e `Profile.avatar`. |
 
 ## `db:clone-contract-data`
 
@@ -176,28 +177,37 @@ Recomendacao:
 - Validar o JSON em ambiente local/staging.
 - Adicionar `--dry-run` em PR futuro.
 
-## Script operacional ainda sem comando oficial
+## `job:normalize-upload-urls`
 
-### `src/scripts/normalize-upload-urls.mjs`
-
-Comando direto:
+Comando seguro:
 
 ```bash
-cd apps/api
-node src/scripts/normalize-upload-urls.mjs
+pnpm --filter @corrida/api job:normalize-upload-urls -- --dry-run
+```
+
+Comando com gravacao:
+
+```bash
+pnpm --filter @corrida/api job:normalize-upload-urls
 ```
 
 Finalidade:
 
 - Normaliza URLs de upload em `CompanyContract.logoUrl` e `Profile.avatar`.
 
+Flags suportadas:
+
+- `--dry-run`: simula as atualizacoes sem gravar no banco.
+
 Risco:
 
-- Medio. Atualiza registros no banco e nao possui `--dry-run`.
+- Medio. Atualiza registros no banco quando executado sem `--dry-run`.
 
 Recomendacao:
 
-- Antes de usar novamente, criar comando oficial em `apps/api/package.json` e adicionar suporte a `--dry-run`.
+- Confirmar `DATABASE_URL` e ambiente alvo antes da execucao.
+- Executar primeiro com `--dry-run`.
+- Registrar quantos registros seriam ajustados/foram ajustados e em qual ambiente.
 
 ## Saidas geradas
 
