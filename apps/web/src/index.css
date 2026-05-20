@@ -192,8 +192,10 @@
     @apply border-input bg-card text-foreground;
   }
 
-  [role='tablist'] > [role='tab'],
-  button.inline-flex.h-10.items-center.gap-2.rounded-lg.px-4.text-sm.font-medium.transition-colors {
+  #create-collaborator-tab,
+  #create-manager-tab,
+  [id^='edit-collaborator-tab-'],
+  [id^='edit-manager-tab-'] {
     display: inline-flex !important;
     height: 2.5rem !important;
     flex-shrink: 0 !important;
@@ -212,36 +214,32 @@
     font-weight: 500 !important;
     line-height: 1.25rem !important;
     box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05) !important;
-    transition-property: color, background-color, border-color, text-decoration-color, fill, stroke !important;
-    transition-duration: 150ms !important;
   }
 
-  [role='tablist'] > [role='tab']:hover,
-  button.inline-flex.h-10.items-center.gap-2.rounded-lg.px-4.text-sm.font-medium.transition-colors:hover {
+  #create-collaborator-tab:hover,
+  #create-manager-tab:hover,
+  [id^='edit-collaborator-tab-']:hover,
+  [id^='edit-manager-tab-']:hover {
     background-color: hsl(var(--accent)) !important;
     color: hsl(var(--accent-foreground)) !important;
   }
 
-  [role='tablist'] > [role='tab'][aria-selected='true'],
-  button.inline-flex.h-10.items-center.gap-2.rounded-lg.px-4.text-sm.font-medium.transition-colors.text-primary {
+  #create-collaborator-tab.text-primary,
+  #create-manager-tab.text-primary,
+  [id^='edit-collaborator-tab-'].text-primary,
+  [id^='edit-manager-tab-'].text-primary {
     border-color: hsl(var(--primary)) !important;
     background-color: hsl(var(--primary)) !important;
     color: hsl(var(--primary-foreground)) !important;
-    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05) !important;
   }
 
-  [role='tablist'] > [role='tab'][aria-selected='true']:hover,
-  button.inline-flex.h-10.items-center.gap-2.rounded-lg.px-4.text-sm.font-medium.transition-colors.text-primary:hover {
+  #create-collaborator-tab.text-primary:hover,
+  #create-manager-tab.text-primary:hover,
+  [id^='edit-collaborator-tab-'].text-primary:hover,
+  [id^='edit-manager-tab-'].text-primary:hover {
     border-color: hsl(var(--primary-hover)) !important;
     background-color: hsl(var(--primary-hover)) !important;
     color: hsl(var(--primary-foreground)) !important;
-  }
-
-  [role='tablist'] > [role='tab'][aria-selected='false'],
-  button.inline-flex.h-10.items-center.gap-2.rounded-lg.px-4.text-sm.font-medium.transition-colors.text-muted-foreground {
-    border-color: hsl(var(--input)) !important;
-    background-color: hsl(var(--card)) !important;
-    color: hsl(var(--foreground)) !important;
   }
 
   nav.\-mb-px.flex.space-x-8 {
