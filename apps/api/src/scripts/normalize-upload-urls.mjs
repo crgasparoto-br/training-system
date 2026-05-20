@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import '../bootstrap-env.js';
+import '../bootstrap-env.ts';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
