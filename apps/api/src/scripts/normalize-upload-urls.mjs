@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 
-import '../bootstrap-env.js';
+import '../bootstrap-env.ts';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
+const dryRun = process.argv.includes('--dry-run');
 
 function extractUploadsPath(url) {
   if (!url || typeof url !== 'string') {
@@ -58,16 +59,18 @@ async function normalizeCompanyContractLogos() {
   for (const contract of contracts) {
     const normalized = normalizeUploadUrl(contract.logoUrl);
     if (normalized !== contract.logoUrl) {
-      await prisma.companyContract.update({
-        where: { id: contract.id },
-        data: { logoUrl: normalized },
-      });
-      console.log(`  ✓ ${contract.id}: ${contract.logoUrl} → ${normalized}`);
+      if (!dryRun) {
+        await prisma.companyContract.update({
+          where: { id: contract.id },
+          data: { logoUrl: normalized },
+        });
+      }
+      console.log(`  ${dryRun ? '[dry-run] ' : '✓ '}${contract.id}: ${contract.logoUrl} → ${normalized}`);
       updated++;
     }
   }
 
-  console.log(`Atualizados ${updated}/${contracts.length} registros de CompanyContract.logoUrl\n`);
+  console.log(`Atualizados ${updated}/${contracts.length} registros de CompanyContract.logoUrl${dryRun ? ' (simulado)' : ''}\n`);
   return updated;
 }
 
@@ -90,28 +93,30 @@ async function normalizeProfileAvatars() {
   for (const profile of profiles) {
     const normalized = normalizeUploadUrl(profile.avatar);
     if (normalized !== profile.avatar) {
-      await prisma.profile.update({
-        where: { id: profile.id },
-        data: { avatar: normalized },
-      });
-      console.log(`  ✓ ${profile.id}: ${profile.avatar} → ${normalized}`);
+      if (!dryRun) {
+        await prisma.profile.update({
+          where: { id: profile.id },
+          data: { avatar: normalized },
+        });
+      }
+      console.log(`  ${dryRun ? '[dry-run] ' : '✓ '}${profile.id}: ${profile.avatar} → ${normalized}`);
       updated++;
     }
   }
 
-  console.log(`Atualizados ${updated}/${profiles.length} registros de Profile.avatar\n`);
+  console.log(`Atualizados ${updated}/${profiles.length} registros de Profile.avatar${dryRun ? ' (simulado)' : ''}\n`);
   return updated;
 }
 
 async function main() {
   try {
-    console.log('🔄 Iniciando normalização de URLs de upload...\n');
+    console.log(`🔄 Iniciando normalização de URLs de upload${dryRun ? ' em modo dry-run' : ''}...\n`);
 
     const contractsUpdated = await normalizeCompanyContractLogos();
     const profilesUpdated = await normalizeProfileAvatars();
 
-    console.log(`✅ Normalização concluída!`);
-    console.log(`   Total atualizado: ${contractsUpdated + profilesUpdated} registros\n`);
+    console.log(`✅ Normalização ${dryRun ? 'simulada' : 'concluída'}!`);
+    console.log(`   Total ${dryRun ? 'que seria atualizado' : 'atualizado'}: ${contractsUpdated + profilesUpdated} registros\n`);
 
     process.exit(0);
   } catch (error) {
