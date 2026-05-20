@@ -105,11 +105,11 @@ function normalizeCountingType(value?: string): CountingType | undefined {
  */
 function determineCategory(name: string): string {
   const lower = name.toLowerCase();
-  
+
   if (lower.includes('mobilidade') || lower.includes('alongamento')) {
     return 'MOBILIDADE';
   }
-  
+
   if (
     lower.includes('corrida') ||
     lower.includes('caminhada') ||
@@ -119,7 +119,7 @@ function determineCategory(name: string): string {
   ) {
     return 'CICLICO';
   }
-  
+
   return 'RESISTIDO';
 }
 
@@ -136,11 +136,42 @@ interface ExerciseRow {
   notes?: string;
 }
 
+interface CliOptions {
+  dryRun: boolean;
+  filePath: string;
+}
+
+function parseArgs(args: string[]): CliOptions {
+  const dryRun = args.includes('--dry-run');
+  const positionalArgs = args.filter((arg) => !arg.startsWith('--'));
+
+  if (positionalArgs.length === 0) {
+    console.log('❌ Uso: npm run import-exercises -- [--dry-run] <caminho-do-arquivo.json>\n');
+    console.log('Exemplo de formato JSON:');
+    console.log(JSON.stringify([
+      {
+        name: 'agachamento livre',
+        videoUrl: 'https://youtube.com/watch?v=...',
+        loadType: 'C',
+        movementType: 'O',
+        countingType: 'R',
+        notes: 'Exercício básico de quadríceps',
+      },
+    ], null, 2));
+    process.exit(1);
+  }
+
+  return {
+    dryRun,
+    filePath: path.resolve(positionalArgs[0]),
+  };
+}
+
 /**
  * Importa exercícios de um arquivo JSON
  */
-async function importExercises(filePath: string) {
-  console.log('🚀 Iniciando importação de exercícios...\n');
+async function importExercises(filePath: string, dryRun: boolean) {
+  console.log(`🚀 Iniciando importação de exercícios${dryRun ? ' (dry-run)' : ''}...\n`);
 
   const contractId =
     process.env.CONTRACT_ID ||
@@ -158,7 +189,8 @@ async function importExercises(filePath: string) {
   const fileContent = fs.readFileSync(filePath, 'utf-8');
   const rows: ExerciseRow[] = JSON.parse(fileContent);
 
-  console.log(`📄 Arquivo lido: ${rows.length} exercícios encontrados\n`);
+  console.log(`📄 Arquivo lido: ${rows.length} exercícios encontrados`);
+  console.log(`🏢 Contrato alvo: ${contractId}\n`);
 
   let imported = 0;
   let skipped = 0;
@@ -170,7 +202,7 @@ async function importExercises(filePath: string) {
       const normalizedName = normalizeName(row.name);
 
       if (!normalizedName) {
-        console.log(`⚠️  Pulando linha sem nome`);
+        console.log('⚠️  Pulando linha sem nome');
         skipped++;
         continue;
       }
@@ -199,6 +231,12 @@ async function importExercises(filePath: string) {
         notes: row.notes?.trim() || undefined,
       };
 
+      if (dryRun) {
+        console.log(`🧪 Dry-run: importaria "${normalizedName}"`);
+        imported++;
+        continue;
+      }
+
       // Criar exercício
       await prisma.exerciseLibrary.create({ data });
 
@@ -210,8 +248,8 @@ async function importExercises(filePath: string) {
     }
   }
 
-  console.log('\n📊 Resumo da Importação:');
-  console.log(`   ✅ Importados: ${imported}`);
+  console.log(`\n📊 Resumo da Importação${dryRun ? ' (dry-run)' : ''}:`);
+  console.log(`   ✅ ${dryRun ? 'Importáveis' : 'Importados'}: ${imported}`);
   console.log(`   ⏭️  Pulados: ${skipped}`);
   console.log(`   ❌ Erros: ${errors}`);
   console.log(`   📄 Total: ${rows.length}\n`);
@@ -221,34 +259,16 @@ async function importExercises(filePath: string) {
  * Exemplo de uso
  */
 async function main() {
-  const args = process.argv.slice(2);
-  
-  if (args.length === 0) {
-    console.log('❌ Uso: npm run import-exercises <caminho-do-arquivo.json>\n');
-    console.log('Exemplo de formato JSON:');
-    console.log(JSON.stringify([
-      {
-        name: 'agachamento livre',
-        videoUrl: 'https://youtube.com/watch?v=...',
-        loadType: 'C',
-        movementType: 'O',
-        countingType: 'R',
-        notes: 'Exercício básico de quadríceps',
-      },
-    ], null, 2));
-    process.exit(1);
-  }
+  const options = parseArgs(process.argv.slice(2));
 
-  const filePath = path.resolve(args[0]);
-
-  if (!fs.existsSync(filePath)) {
-    console.error(`❌ Arquivo não encontrado: ${filePath}`);
+  if (!fs.existsSync(options.filePath)) {
+    console.error(`❌ Arquivo não encontrado: ${options.filePath}`);
     process.exit(1);
   }
 
   try {
-    await importExercises(filePath);
-    console.log('✅ Importação concluída com sucesso!');
+    await importExercises(options.filePath, options.dryRun);
+    console.log(`✅ Importação ${options.dryRun ? 'simulada' : 'concluída'} com sucesso!`);
   } catch (error) {
     console.error('❌ Erro na importação:', error);
     process.exit(1);
@@ -259,4 +279,3 @@ async function main() {
 
 // Executar
 main();
-
