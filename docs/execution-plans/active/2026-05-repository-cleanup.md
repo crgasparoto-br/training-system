@@ -6,23 +6,18 @@ Organizar o `training-system` em uma sequencia de PRs pequenos, seguros e revisa
 
 ## Contexto
 
-O PR de harness engineering foi mergeado na `develop`, criando `AGENTS.md`, documentacao de arquitetura, scripts de validacao e workflow de PR. A faxina passa a usar esses trilhos.
+O PR de harness engineering foi mergeado na `develop`, criando `AGENTS.md`, documentacao de arquitetura, scripts de validacao e workflow de PR. A faxina passou a usar esses trilhos.
 
 ## Fora de escopo deste plano
 
 - Alterar codigo de runtime sem necessidade.
-- Alterar schema Prisma.
+- Alterar schema Prisma sem plano proprio.
 - Alterar permissoes, telas, rotas ou comportamento de usuario.
 - Corrigir todos os problemas encontrados de uma vez.
 
 ## Resumo da situacao atual
 
-Foram encontrados sinais de sujeira tecnica em quatro grupos principais:
-
-1. Arquivos temporarios ou scripts avulsos de diagnostico.
-2. Documentacao antiga, duplicada ou backup local versionado.
-3. Scripts operacionais misturados com codigo de aplicacao.
-4. Areas funcionais grandes que merecem refatoracao futura, mas nao devem ser tratadas como limpeza segura imediata.
+A faxina principal de baixo risco foi quase toda executada. O restante do trabalho agora esta concentrado em trilhas separadas de modulo ou de schema, com risco mais alto e necessidade de validacao mais cuidadosa.
 
 ## Progresso
 
@@ -68,7 +63,7 @@ Resultado:
 
 ### PR 5 - Divida tecnica funcional por modulo
 
-Status: em andamento/concluido nesta branch.
+Status: concluido.
 
 Resultado:
 
@@ -77,59 +72,79 @@ Resultado:
 - Criado `docs/execution-plans/active/2026-05-library-module-debt.md`.
 - Criado `docs/execution-plans/active/2026-05-periodization-schema-debt.md`.
 
+### Desdobramentos ja concluidos apos o plano inicial
+
+Status: concluido.
+
+Resultado:
+
+- Biblioteca PR A, B e C concluidas: encoding/mensagens, tipagem do request autenticado e validacao de entrada.
+- Documentacao historica da Biblioteca consolidada em `docs/archive/` com apontadores estaveis.
+- Guia historico de deploy interno consolidado em `docs/archive/` com apontador estavel.
+- Script `job:normalize-upload-urls` oficializado e com entrypoint corrigido.
+- Script `import-exercises` recebeu suporte a `--dry-run`.
+
 ## Problemas restantes
 
-### 1. Documentacao complementar ainda a revisar
+### 1. Scripts operacionais ainda com melhoria pendente
 
-Arquivos que podem precisar de consolidacao futura:
-
-- `docs/internal-test-deploy.md`
-- `docs/BIBLIOTECA_MELHORIAS.md`
-- `docs/CHECKLIST_TESTES_BIBLIOTECA.md`
-
-Classificacao: risco baixo a medio.
-
-### 2. Melhorias futuras em scripts operacionais
-
-Alguns scripts oficiais ainda podem ser melhorados em PRs futuros:
+Pendencias mais claras neste momento:
 
 - adicionar `--dry-run` em `db:clone-contract-data`;
-- adicionar `--dry-run` em `import-exercises`;
-- criar comando oficial para `normalize-upload-urls.mjs` se ele voltar a ser usado;
-- exigir confirmacao explicita para scripts destrutivos ou de alto impacto.
+- decidir se `normalize-upload-urls` deve ganhar `--dry-run` ou confirmacao explicita antes de escrita.
 
 Classificacao: risco medio.
 
-### 3. Dividas funcionais planejadas
+### 2. Biblioteca: permissoes e erros de dominio
 
-Planos especificos foram criados para:
+Ainda faltam os recortes de maior sensibilidade do plano da Biblioteca:
 
-- `WorkoutBuilder`: remocao de mocks/TODOs e integracao real.
-- `AlunoDetails`: reducao de complexidade e separacao de responsabilidades.
-- `library`: tipagem, encoding, validacao e permissoes.
-- periodizacao/schema: regularizacao de schema auxiliar e fonte de verdade Prisma.
+- revisar `screenKey` e `blockKey` para criacao, edicao e exclusao;
+- diferenciar 400, 403, 404 e 500 sem vazar dados de outro contrato.
+
+Classificacao: risco medio a alto.
+
+### 3. WorkoutBuilder e AlunoDetails
+
+As duas trilhas restantes ja se aproximam mais de refatoracao controlada do que de faxina leve:
+
+- `WorkoutBuilder`: remover mock, integrar persistencia e conectar com biblioteca;
+- `AlunoDetails`: separar responsabilidades sem relaxar acesso a dados pessoais, financeiros e de saude.
+
+Classificacao: risco alto.
+
+### 4. Periodizacao/schema Prisma
+
+A auditoria inicial desta frente comecou nesta rodada, mas ainda restam passos antes de qualquer integracao real:
+
+- confirmar se `schema_periodization.prisma` ficara apenas como referencia, sera integrado ou sera arquivado;
+- corrigir encoding do arquivo auxiliar se ele continuar relevante;
+- evitar qualquer migration antes de uma comparacao completa com `schema.prisma` e migrations existentes.
 
 Classificacao: risco medio a alto.
 
 ## Proximos PRs recomendados
 
-### PR 6 - Escolher primeira divida funcional de baixo risco
-
-Opcao recomendada: `library` PR A.
+### PR 6 - Auditoria documental de periodizacao/schema
 
 Escopo sugerido:
 
-- Corrigir encoding de comentarios/mensagens em `library.routes.ts` e `library.service.ts`.
-- Nao alterar logica.
-- Preparar PR seguinte para tipagem e validacao.
+- registrar que `schema.prisma` e a fonte ativa;
+- marcar `schema_periodization.prisma` como arquivo auxiliar de referencia;
+- atualizar o plano da trilha para refletir o status da auditoria.
 
-### PR 7 - Tipagem/validacao do modulo escolhido
+### PR 7 - Script operacional de menor risco restante
+
+Opcao recomendada:
+
+- adicionar `--dry-run` em `db:clone-contract-data` ou definir confirmacao explicita antes de operacoes destrutivas.
+
+### PR 8 - Biblioteca PR D
 
 Escopo sugerido:
 
-- Remover `any` desnecessario.
-- Adicionar validacao de payload/query.
-- Preservar `contractId`.
+- revisar `screenKey` e `blockKey` do modulo `library`;
+- proteger mutacoes e manter frontend coerente com as permissoes.
 
 ## Validacao geral recomendada
 
@@ -161,3 +176,4 @@ pnpm harness:validate-env
 - Scripts operacionais oficiais ficam documentados em `docs/operations/api-scripts.md`.
 - Documentos antigos com valor historico devem ir para `docs/archive/` ou ser marcados como complementares/legados.
 - Refatoracoes funcionais so devem ocorrer depois de plano especifico por modulo.
+- `apps/api/prisma/schema.prisma` segue como fonte de verdade ativa do Prisma ate nova decisao explicita.

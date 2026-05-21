@@ -4,6 +4,18 @@
 
 Regularizar a area de periodizacao, especialmente o arquivo separado `schema_periodization.prisma`, antes de novas implementacoes de montagem de treino e matriz de periodizacao.
 
+## Status atual
+
+PR A de auditoria documental em andamento nesta branch.
+
+Achados iniciais:
+
+- `apps/api/prisma/schema.prisma` segue como fonte de verdade ativa do Prisma.
+- `apps/api/prisma/schema_periodization.prisma` descreve modelos de periodizacao, mas ainda sem status explicito no proprio arquivo.
+- O arquivo auxiliar referencia `TrainingPlan`, entao qualquer integracao real precisa ser comparada contra o schema principal e migrations existentes antes de mudar banco.
+- As fontes de verdade atuais nao tratam `schema_periodization.prisma` como schema ativo.
+- O arquivo auxiliar ainda possui comentarios com encoding quebrado, mas essa correcao ampla fica para PR separada se o arquivo continuar relevante.
+
 ## Contexto
 
 Arquivo identificado:
@@ -15,7 +27,7 @@ Sinais encontrados:
 - Arquivo Prisma separado do schema principal.
 - Comentarios com encoding quebrado.
 - Modelos de periodizacao parecem relevantes, mas precisam ser confirmados contra o schema principal e migrations existentes.
-- Relações como `TrainingPlan` podem depender de modelos definidos em outro schema.
+- Relacoes como `TrainingPlan` podem depender de modelos definidos em outro schema.
 
 ## Fora de escopo
 
@@ -43,10 +55,13 @@ Sinais encontrados:
 
 ### PR A - Auditoria de schema
 
-- Comparar `schema_periodization.prisma` com `schema.prisma`.
-- Verificar se os modelos ja existem no schema principal.
-- Verificar migrations relacionadas.
-- Registrar decisao: integrar, arquivar ou remover.
+Status: concluido nesta branch, pendente de merge.
+
+Resultado desta rodada:
+
+- Registrado no arquivo auxiliar que ele nao faz parte do fluxo ativo de migrations.
+- Registrado em `docs/architecture/database.md` que `schema.prisma` e a fonte ativa.
+- Mantida a decisao de nao integrar modelos nem gerar migration nesta etapa.
 
 ### PR B - Corrigir encoding/documentacao
 

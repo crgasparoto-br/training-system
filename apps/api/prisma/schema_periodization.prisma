@@ -1,3 +1,8 @@
+// NOTE: Auxiliary reference schema for periodization ideas.
+// It is not the active Prisma source of truth or part of the migration flow.
+// Before using any model here, compare it with `apps/api/prisma/schema.prisma`
+// and the existing migrations. Do not generate migrations directly from this file.
+
 // ============================================================================
 // PERIODIZAÃ‡ÃƒO MACROCICLO
 // ============================================================================
@@ -181,4 +186,3 @@ model PeriodizationTemplate {
   @@index([professorId])
   @@index([category])
 }
-
