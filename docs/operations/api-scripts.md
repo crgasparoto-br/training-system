@@ -32,7 +32,7 @@ Antes de executar scripts que alteram dados:
 
 | Script | Arquivo | Risco | Dry-run | Finalidade |
 |---|---|---:|---:|---|
-| `db:clone-contract-data` | `src/scripts/clone-contract-data.ts` | Medio | Sim | Clona parametros e/ou exercicios de um contrato fonte para contratos destino. |
+| `db:clone-contract-data` | `src/scripts/clone-contract-data.ts` | Medio | Sim | Clona parametros, exercicios e/ou tipos de avaliacao de um contrato fonte para contratos destino. |
 | `job:backfill-student-contract-links` | `src/scripts/backfill-student-contract-links.ts` | Alto | Sim | Migra dados financeiros/contratuais legados para vinculos `StudentContract`. |
 | `job:dispatch-profile-reviews` | `src/scripts/dispatch-profile-reviews.ts` | Medio | Sim | Dispara rotina de revisao cadastral pendente/vencida. |
 | `job:backfill-profile-review-settings` | `src/scripts/backfill-profile-review-settings.ts` | Medio | Sim | Cria politicas/configuracoes padrao de revisao cadastral quando ausentes. |
@@ -59,6 +59,7 @@ Variaveis suportadas:
 - `TARGET_CONTRACT_ID`: contrato destino. Se ausente, usa todos os contratos exceto o fonte.
 - `COPY_PARAMETERS`: `true`/`false`; padrao `true`.
 - `COPY_EXERCISES`: `true`/`false`; padrao `true`.
+- `COPY_ASSESSMENT_TYPES`: `true`/`false`; padrao `true`.
 
 Flags suportadas:
 
@@ -67,7 +68,7 @@ Flags suportadas:
 Exemplo seguro:
 
 ```bash
-SOURCE_CONTRACT_ID=<id-fonte> TARGET_CONTRACT_ID=<id-destino> COPY_PARAMETERS=true COPY_EXERCISES=false pnpm --filter @corrida/api db:clone-contract-data -- --dry-run
+SOURCE_CONTRACT_ID=<id-fonte> TARGET_CONTRACT_ID=<id-destino> COPY_PARAMETERS=true COPY_EXERCISES=false COPY_ASSESSMENT_TYPES=false pnpm --filter @corrida/api db:clone-contract-data -- --dry-run
 ```
 
 Risco:
@@ -78,6 +79,7 @@ Risco:
 Recomendacao:
 
 - Sempre informar `SOURCE_CONTRACT_ID` e `TARGET_CONTRACT_ID`.
+- Declarar explicitamente quais grupos de dados devem ser copiados.
 - Executar primeiro com `--dry-run` e revisar o resumo retornado.
 - Evitar execucao em producao sem escopo bem definido por contrato.
 
