@@ -9,6 +9,7 @@ export interface CloneContractDataOptions {
   copyParameters?: boolean;
   copyExercises?: boolean;
   copyAssessmentTypes?: boolean;
+  dryRun?: boolean;
 }
 
 export interface CloneResult {
@@ -30,6 +31,7 @@ export async function cloneContractData(
     copyParameters = true,
     copyExercises = true,
     copyAssessmentTypes = true,
+    dryRun = false,
   } = options;
 
   if (sourceContractId === targetContractId) {
@@ -63,20 +65,40 @@ export async function cloneContractData(
     });
 
     if (parameters.length > 0) {
-      const created = await prisma.trainingParameter.createMany({
-        data: parameters.map((parameter) => ({
-          contractId: targetContractId,
-          category: parameter.category,
-          code: parameter.code,
-          description: parameter.description,
-          order: parameter.order,
-          active: parameter.active,
-        })),
-        skipDuplicates: true,
-      });
+      const existingParameters = new Set(
+        (
+          await prisma.trainingParameter.findMany({
+            where: { contractId: targetContractId },
+            select: { category: true, code: true },
+          })
+        ).map((parameter) => `${parameter.category}:${parameter.code}`)
+      );
 
-      parametersCreated = created.count;
-      parametersSkipped = parameters.length - created.count;
+      const toCreate = parameters.filter(
+        (parameter) => !existingParameters.has(`${parameter.category}:${parameter.code}`)
+      );
+
+      if (dryRun) {
+        parametersCreated = toCreate.length;
+        parametersSkipped = parameters.length - toCreate.length;
+      } else if (toCreate.length > 0) {
+        const created = await prisma.trainingParameter.createMany({
+          data: toCreate.map((parameter) => ({
+            contractId: targetContractId,
+            category: parameter.category,
+            code: parameter.code,
+            description: parameter.description,
+            order: parameter.order,
+            active: parameter.active,
+          })),
+          skipDuplicates: true,
+        });
+
+        parametersCreated = created.count;
+        parametersSkipped = parameters.length - created.count;
+      } else {
+        parametersSkipped = parameters.length;
+      }
     }
   }
 
@@ -107,7 +129,10 @@ export async function cloneContractData(
 
       const toCreate = exercises.filter((exercise) => !existingNames.has(exercise.name));
 
-      if (toCreate.length > 0) {
+      if (dryRun) {
+        exercisesCreated = toCreate.length;
+        exercisesSkipped = exercises.length - toCreate.length;
+      } else if (toCreate.length > 0) {
         const created = await prisma.exerciseLibrary.createMany({
           data: toCreate.map((exercise) => ({
             contractId: targetContractId,
@@ -153,64 +178,72 @@ export async function cloneContractData(
       });
 
       const targetByCode = new Map(targetTypes.map((type) => [type.code, type.id]));
-      const createdTypes = new Map<string, string>();
-
       const toCreate = sourceTypes.filter((type) => !targetByCode.has(type.code));
 
-      for (const item of toCreate) {
-        const created = await prisma.assessmentType.create({
-          data: {
-            contractId: targetContractId,
-            code: item.code,
-            name: item.name,
-            description: item.description,
-            scheduleType: item.scheduleType,
-            intervalMonths: item.scheduleType === 'fixed_interval' ? item.intervalMonths : null,
-            afterTypeId: null,
-            offsetMonths: item.scheduleType === 'after_type' ? item.offsetMonths ?? 0 : null,
-            isActive: item.isActive,
-          },
-        });
-        createdTypes.set(item.code, created.id);
-        targetByCode.set(item.code, created.id);
-        assessmentTypesCreated += 1;
+      if (dryRun) {
+        assessmentTypesCreated = toCreate.length;
+        assessmentTypesSkipped = sourceTypes.length - toCreate.length;
+      } else {
+        const createdTypes = new Map<string, string>();
+
+        for (const item of toCreate) {
+          const created = await prisma.assessmentType.create({
+            data: {
+              contractId: targetContractId,
+              code: item.code,
+              name: item.name,
+              description: item.description,
+              scheduleType: item.scheduleType,
+              intervalMonths:
+                item.scheduleType === 'fixed_interval' ? item.intervalMonths : null,
+              afterTypeId: null,
+              offsetMonths: item.scheduleType === 'after_type' ? item.offsetMonths ?? 0 : null,
+              isActive: item.isActive,
+            },
+          });
+          createdTypes.set(item.code, created.id);
+          targetByCode.set(item.code, created.id);
+          assessmentTypesCreated += 1;
+        }
+
+        for (const item of toCreate) {
+          if (!item.afterTypeId || item.scheduleType !== 'after_type') continue;
+          const sourceAfterType = sourceTypes.find((type) => type.id === item.afterTypeId);
+          if (!sourceAfterType) continue;
+          const targetAfterTypeId = targetByCode.get(sourceAfterType.code);
+          if (!targetAfterTypeId) continue;
+
+          const targetTypeId = targetByCode.get(item.code);
+          if (!targetTypeId) continue;
+
+          await prisma.assessmentType.update({
+            where: { id: targetTypeId, contractId: targetContractId },
+            data: {
+              afterTypeId: targetAfterTypeId,
+            },
+          });
+        }
+
+        assessmentTypesSkipped = sourceTypes.length - assessmentTypesCreated;
       }
-
-      for (const item of toCreate) {
-        if (!item.afterTypeId || item.scheduleType !== 'after_type') continue;
-        const sourceAfterType = sourceTypes.find((type) => type.id === item.afterTypeId);
-        if (!sourceAfterType) continue;
-        const targetAfterTypeId = targetByCode.get(sourceAfterType.code);
-        if (!targetAfterTypeId) continue;
-
-        const targetTypeId = targetByCode.get(item.code);
-        if (!targetTypeId) continue;
-
-        await prisma.assessmentType.update({
-          where: { id: targetTypeId, contractId: targetContractId },
-          data: {
-            afterTypeId: targetAfterTypeId,
-          },
-        });
-      }
-
-      assessmentTypesSkipped = sourceTypes.length - assessmentTypesCreated;
     }
   }
 
-  await prisma.contractDataCloneLog.create({
-    data: {
-      sourceContractId,
-      targetContractId,
-      professorId: professorId || null,
-      parametersCreated,
-      parametersSkipped,
-      exercisesCreated,
-      exercisesSkipped,
-      assessmentTypesCreated,
-      assessmentTypesSkipped,
-    },
-  });
+  if (!dryRun) {
+    await prisma.contractDataCloneLog.create({
+      data: {
+        sourceContractId,
+        targetContractId,
+        professorId: professorId || null,
+        parametersCreated,
+        parametersSkipped,
+        exercisesCreated,
+        exercisesSkipped,
+        assessmentTypesCreated,
+        assessmentTypesSkipped,
+      },
+    });
+  }
 
   return {
     parametersCreated,
@@ -221,4 +254,3 @@ export async function cloneContractData(
     assessmentTypesSkipped,
   };
 }
-
