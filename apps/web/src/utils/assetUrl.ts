@@ -1,4 +1,22 @@
-const apiBaseUrl = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
+function normalizeAssetBaseUrl(baseUrl: string) {
+  return baseUrl
+    .replace(/\/+$/, '')
+    .replace(/\/api\/v1$/i, '');
+}
+
+function getAssetBaseUrl() {
+  const configuredBaseUrl = import.meta.env.VITE_API_URL;
+
+  if (configuredBaseUrl) {
+    return normalizeAssetBaseUrl(configuredBaseUrl);
+  }
+
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return normalizeAssetBaseUrl(window.location.origin);
+  }
+
+  return '';
+}
 
 function extractUploadsPath(url: string): string | null {
   const match = url.match(/\/uploads\/.+/i);
@@ -16,11 +34,13 @@ export function resolveAssetUrl(value?: string | null) {
     return trimmedValue;
   }
 
+  const assetBaseUrl = getAssetBaseUrl();
+
   if (/^https?:\/\//i.test(trimmedValue)) {
     const uploadsPath = extractUploadsPath(trimmedValue);
 
-    if (uploadsPath && apiBaseUrl) {
-      return `${apiBaseUrl}${uploadsPath}`;
+    if (uploadsPath && assetBaseUrl) {
+      return `${assetBaseUrl}${uploadsPath}`;
     }
 
     return trimmedValue;
@@ -28,7 +48,7 @@ export function resolveAssetUrl(value?: string | null) {
 
   if (/^\/?uploads\//i.test(trimmedValue)) {
     const normalizedPath = trimmedValue.startsWith('/') ? trimmedValue : `/${trimmedValue}`;
-    return apiBaseUrl ? `${apiBaseUrl}${normalizedPath}` : normalizedPath;
+    return assetBaseUrl ? `${assetBaseUrl}${normalizedPath}` : normalizedPath;
   }
 
   return trimmedValue.startsWith('/') ? trimmedValue : `/${trimmedValue}`;
