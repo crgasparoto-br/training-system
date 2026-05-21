@@ -14,6 +14,30 @@ describe('resolveAssetUrl', () => {
     expect(result).toContain('/uploads/professores/5678-avatar.jpg');
   });
 
+  it('usa a origin atual quando VITE_API_URL nao estiver disponivel', () => {
+    const originalWindow = globalThis.window;
+
+    Object.defineProperty(globalThis, 'window', {
+      value: {
+        location: {
+          origin: 'https://app.sistemaacesso.com.br',
+        },
+      },
+      configurable: true,
+    });
+
+    try {
+      expect(resolveAssetUrl('/uploads/contracts/logos/1234-image.png')).toBe(
+        'https://app.sistemaacesso.com.br/uploads/contracts/logos/1234-image.png'
+      );
+    } finally {
+      Object.defineProperty(globalThis, 'window', {
+        value: originalWindow,
+        configurable: true,
+      });
+    }
+  });
+
   it('preserva URL com /uploads absoluto', () => {
     expect(resolveAssetUrl('/uploads/contracts/logos/1234-image.png')).toContain(
       '/uploads/contracts/logos/1234-image.png'
