@@ -32,7 +32,7 @@ Antes de executar scripts que alteram dados:
 
 | Script | Arquivo | Risco | Dry-run | Finalidade |
 |---|---|---:|---:|---|
-| `db:clone-contract-data` | `src/scripts/clone-contract-data.ts` | Medio | Nao | Clona parametros e/ou exercicios de um contrato fonte para contratos destino. |
+| `db:clone-contract-data` | `src/scripts/clone-contract-data.ts` | Medio | Sim | Clona parametros e/ou exercicios de um contrato fonte para contratos destino. |
 | `job:backfill-student-contract-links` | `src/scripts/backfill-student-contract-links.ts` | Alto | Sim | Migra dados financeiros/contratuais legados para vinculos `StudentContract`. |
 | `job:dispatch-profile-reviews` | `src/scripts/dispatch-profile-reviews.ts` | Medio | Sim | Dispara rotina de revisao cadastral pendente/vencida. |
 | `job:backfill-profile-review-settings` | `src/scripts/backfill-profile-review-settings.ts` | Medio | Sim | Cria politicas/configuracoes padrao de revisao cadastral quando ausentes. |
@@ -41,7 +41,13 @@ Antes de executar scripts que alteram dados:
 
 ## `db:clone-contract-data`
 
-Comando:
+Comando seguro:
+
+```bash
+pnpm --filter @corrida/api db:clone-contract-data -- --dry-run
+```
+
+Comando com gravacao:
 
 ```bash
 pnpm --filter @corrida/api db:clone-contract-data
@@ -54,21 +60,26 @@ Variaveis suportadas:
 - `COPY_PARAMETERS`: `true`/`false`; padrao `true`.
 - `COPY_EXERCISES`: `true`/`false`; padrao `true`.
 
+Flags suportadas:
+
+- `--dry-run`: simula a clonagem sem gravar no banco e sem registrar log operacional.
+
 Exemplo seguro:
 
 ```bash
-SOURCE_CONTRACT_ID=<id-fonte> TARGET_CONTRACT_ID=<id-destino> COPY_PARAMETERS=true COPY_EXERCISES=false pnpm --filter @corrida/api db:clone-contract-data
+SOURCE_CONTRACT_ID=<id-fonte> TARGET_CONTRACT_ID=<id-destino> COPY_PARAMETERS=true COPY_EXERCISES=false pnpm --filter @corrida/api db:clone-contract-data -- --dry-run
 ```
 
 Risco:
 
 - Pode criar dados em multiplos contratos se `TARGET_CONTRACT_ID` nao for informado.
-- Nao possui `--dry-run` atualmente.
+- Sem `--dry-run`, grava parametros, exercicios, tipos de avaliacao e log de clonagem.
 
 Recomendacao:
 
 - Sempre informar `SOURCE_CONTRACT_ID` e `TARGET_CONTRACT_ID`.
-- Adicionar `--dry-run` em PR futuro antes de usar em producao.
+- Executar primeiro com `--dry-run` e revisar o resumo retornado.
+- Evitar execucao em producao sem escopo bem definido por contrato.
 
 ## `job:backfill-student-contract-links`
 
