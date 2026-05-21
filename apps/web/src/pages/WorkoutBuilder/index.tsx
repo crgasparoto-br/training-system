@@ -254,23 +254,25 @@ export function WorkoutBuilder() {
           <CardTitle className="text-lg">📅 Dias da Semana</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-2 overflow-x-auto pb-2">
-            {DAYS_OF_WEEK.map(day => (
-              <button
-                key={day.value}
-                onClick={() => setSelectedDay(day.value)}
-                className={`
-                  flex-shrink-0 px-4 py-2 rounded-lg font-medium transition-colors
-                  ${selectedDay === day.value
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-secondary hover:bg-secondary/80'
-                  }
-                `}
-              >
-                <span className="hidden md:inline">{day.label}</span>
-                <span className="md:hidden">{day.short}</span>
-              </button>
-            ))}
+          <div role="tablist" aria-label="Dias da semana do treino" className="ts-tabs-bar">
+            {DAYS_OF_WEEK.map(day => {
+              const selected = selectedDay === day.value;
+
+              return (
+                <button
+                  key={day.value}
+                  type="button"
+                  role="tab"
+                  id={`workout-builder-day-tab-${day.value}`}
+                  aria-selected={selected}
+                  onClick={() => setSelectedDay(day.value)}
+                  className={`ts-tab-button ${selected ? 'ts-tab-button-active' : 'ts-tab-button-inactive'}`}
+                >
+                  <span className="hidden md:inline">{day.label}</span>
+                  <span className="md:hidden">{day.short}</span>
+                </button>
+              );
+            })}
           </div>
         </CardContent>
       </Card>
