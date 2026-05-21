@@ -4,12 +4,13 @@ Este arquivo e o mapa inicial para humanos e agentes que trabalham no `training-
 
 ## Antes de alterar codigo
 
-1. Leia `docs/architecture/overview.md`.
-2. Para API, leia `docs/architecture/api.md`.
-3. Para frontend web, leia `docs/architecture/web.md`.
-4. Para banco e Prisma, leia `docs/architecture/database.md`.
-5. Para autenticacao, funcoes, telas, blocos e escopo de dados, leia `docs/architecture/auth-and-access-control.md` e `docs/product/access-control.md`.
-6. Para deploy, leia `docs/architecture/deployment.md`.
+1. Leia `ARCHITECTURE.md` para entender invariantes, fronteiras e fluxo de validacao.
+2. Leia `docs/architecture/overview.md` para a visao geral complementar.
+3. Para API, leia `docs/architecture/api.md`.
+4. Para frontend web, leia `docs/architecture/web.md`.
+5. Para banco e Prisma, leia `docs/architecture/database.md`.
+6. Para autenticacao, funcoes, telas, blocos e escopo de dados, leia `docs/architecture/auth-and-access-control.md` e `docs/product/access-control.md`.
+7. Para deploy, leia `docs/architecture/deployment.md`.
 
 ## Tarefas grandes
 
