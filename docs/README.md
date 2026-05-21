@@ -7,6 +7,7 @@ Este diretorio concentra a documentacao versionada do projeto.
 ### Para agentes e desenvolvimento
 
 - [`../AGENTS.md`](../AGENTS.md): mapa curto para agentes e humanos.
+- [`../ARCHITECTURE.md`](../ARCHITECTURE.md): mapa raiz da arquitetura, invariantes e fronteiras principais.
 - [`architecture/overview.md`](architecture/overview.md): visao geral da arquitetura.
 - [`quality/validation.md`](quality/validation.md): comandos e criterios de validacao.
 
