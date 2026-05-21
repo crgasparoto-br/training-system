@@ -37,6 +37,7 @@ async function getTargetContractIds(sourceContractId: string) {
 async function main() {
   const copyParameters = parseBool(process.env.COPY_PARAMETERS, true);
   const copyExercises = parseBool(process.env.COPY_EXERCISES, true);
+  const copyAssessmentTypes = parseBool(process.env.COPY_ASSESSMENT_TYPES, true);
   const dryRun = hasDryRunFlag(process.argv.slice(2));
 
   const sourceContractId = await getSourceContractId();
@@ -63,6 +64,7 @@ async function main() {
       targetContractId,
       copyParameters,
       copyExercises,
+      copyAssessmentTypes,
       dryRun,
     });
 
