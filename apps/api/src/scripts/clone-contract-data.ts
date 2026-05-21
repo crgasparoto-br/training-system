@@ -8,6 +8,10 @@ function parseBool(value?: string, defaultValue = true) {
   return value.toLowerCase() === 'true' || value === '1';
 }
 
+function hasDryRunFlag(args: string[]) {
+  return args.includes('--dry-run');
+}
+
 async function getSourceContractId() {
   if (process.env.SOURCE_CONTRACT_ID) {
     return process.env.SOURCE_CONTRACT_ID;
@@ -33,6 +37,7 @@ async function getTargetContractIds(sourceContractId: string) {
 async function main() {
   const copyParameters = parseBool(process.env.COPY_PARAMETERS, true);
   const copyExercises = parseBool(process.env.COPY_EXERCISES, true);
+  const dryRun = hasDryRunFlag(process.argv.slice(2));
 
   const sourceContractId = await getSourceContractId();
   if (!sourceContractId) {
@@ -48,6 +53,7 @@ async function main() {
 
   console.log(`Source contract: ${sourceContractId}`);
   console.log(`Targets: ${targetContractIds.join(', ')}`);
+  console.log(`Dry-run: ${dryRun ? 'yes' : 'no'}`);
 
   for (const targetContractId of targetContractIds) {
     console.log(`\nCloning to contract: ${targetContractId}`);
@@ -57,6 +63,7 @@ async function main() {
       targetContractId,
       copyParameters,
       copyExercises,
+      dryRun,
     });
 
     console.log(
@@ -65,6 +72,13 @@ async function main() {
     console.log(
       `Exercises: created ${result.exercisesCreated}, skipped ${result.exercisesSkipped}`
     );
+    console.log(
+      `Assessment types: created ${result.assessmentTypesCreated}, skipped ${result.assessmentTypesSkipped}`
+    );
+  }
+
+  if (dryRun) {
+    console.log('\nDry-run finished. No data was written and no clone log was created.');
   }
 }
 
@@ -76,4 +90,3 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
-
