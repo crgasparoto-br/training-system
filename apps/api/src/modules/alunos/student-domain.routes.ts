@@ -1,10 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { sendError, sendSuccess } from '@corrida/utils';
 import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js';
-import {
-  blockAccessMiddleware,
-  screenAccessMiddleware,
-} from '../access-control/access-control.middleware.js';
+import { blockAccessMiddleware } from '../access-control/access-control.middleware.js';
 import { alunoService } from './aluno.service.js';
 import { studentDomainService } from './student-domain.service.js';
 
@@ -163,7 +160,7 @@ router.get(
 
 router.get(
   '/:id/integrations',
-  screenAccessMiddleware('students.details'),
+  blockAccessMiddleware('students.details.integrations'),
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
@@ -186,7 +183,7 @@ router.get(
 
 router.get(
   '/:id/activities',
-  screenAccessMiddleware('students.details'),
+  blockAccessMiddleware('students.details.integrations'),
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
