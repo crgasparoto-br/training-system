@@ -5,6 +5,9 @@ const prisma = new PrismaClient();
 type DbClient = PrismaClient | Prisma.TransactionClient;
 
 type StudentExternalActivitySourceType = 'integration' | 'system';
+type TrainingExecutionLinkSource =
+  | 'matched_by_provider_activity_id'
+  | 'backfill_training_execution_reference';
 
 export type UpsertStudentExternalActivityInput = {
   externalAccountId: string;
@@ -75,7 +78,7 @@ const isJsonObject = (value: Prisma.InputJsonValue | null | undefined): value is
 const mergeRawPayload = (
   payload: Prisma.InputJsonValue | null | undefined,
   linkedTrainingExecutionId: string | null,
-  linkSource: 'matched_by_provider_activity_id' | 'backfill_training_execution_reference'
+  linkSource: TrainingExecutionLinkSource
 ): Prisma.InputJsonValue | null => {
   if (!linkedTrainingExecutionId) {
     return payload ?? null;
@@ -151,11 +154,12 @@ export const studentExternalActivityService = {
             client
           );
 
-    const rawPayload = mergeRawPayload(
-      data.rawPayload,
-      linkedTrainingExecutionId ?? null,
-      'matched_by_provider_activity_id'
-    );
+    const linkSource: TrainingExecutionLinkSource =
+      data.sourceType === 'system' && linkedTrainingExecutionId
+        ? 'backfill_training_execution_reference'
+        : 'matched_by_provider_activity_id';
+
+    const rawPayload = mergeRawPayload(data.rawPayload, linkedTrainingExecutionId ?? null, linkSource);
 
     const createData: Prisma.StudentExternalActivityUncheckedCreateInput = {
       externalAccountId: data.externalAccountId,
@@ -265,13 +269,9 @@ export const studentExternalActivityService = {
         sourceType: 'system',
         sourceReference: data.trainingExecutionId,
         linkedTrainingExecutionId: data.trainingExecutionId,
-        rawPayload: mergeRawPayload(
-          {
-            backfilledFrom: 'training_execution_reference',
-          },
-          data.trainingExecutionId,
-          'backfill_training_execution_reference'
-        ),
+        rawPayload: {
+          backfilledFrom: 'training_execution_reference',
+        },
       },
       client
     );
