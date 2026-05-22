@@ -1,10 +1,11 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/Card';
 import { formatDateBR } from '../../utils/date';
-import type { Aluno } from '../../services/aluno.service';
+import type { Aluno, StudentSegmentedIntake } from '../../services/aluno.service';
 
 type AlunoSaudeAnamneseTabProps = {
   aluno: Aluno;
   parqPositiveCount: number;
+  segmentedIntake?: StudentSegmentedIntake | null;
 };
 
 const parqQuestionLabels: Record<string, string> = {
@@ -34,7 +35,7 @@ const countBodyDiscomforts = (value: unknown) => {
   return value.length;
 };
 
-const getRawFormResponses = (aluno: Aluno) => {
+const getLegacyRawFormResponses = (aluno: Aluno) => {
   const responses = aluno.intakeForm?.formResponses;
   if (!responses || typeof responses !== 'object') {
     return {} as Record<string, unknown>;
@@ -43,11 +44,50 @@ const getRawFormResponses = (aluno: Aluno) => {
   return responses as Record<string, unknown>;
 };
 
-export function AlunoSaudeAnamneseTab({ aluno, parqPositiveCount }: AlunoSaudeAnamneseTabProps) {
-  const parqResponses = aluno.intakeForm?.parqResponses || {};
-  const rawFormResponses = getRawFormResponses(aluno);
-  const ahaPositiveCount = countPositiveAhaAnswers(rawFormResponses.ahaResponses);
-  const bodyDiscomfortCount = countBodyDiscomforts(rawFormResponses.bodyDiscomforts);
+export function AlunoSaudeAnamneseTab({
+  aluno,
+  parqPositiveCount,
+  segmentedIntake,
+}: AlunoSaudeAnamneseTabProps) {
+  const parqResponses =
+    (segmentedIntake?.questionnaires.parq as Record<string, boolean | undefined> | undefined) ??
+    aluno.intakeForm?.parqResponses ??
+    {};
+  const rawFormResponses = segmentedIntake?.rawFormResponses ?? getLegacyRawFormResponses(aluno);
+  const ahaPositiveCount = countPositiveAhaAnswers(
+    segmentedIntake?.questionnaires.american ?? (rawFormResponses as Record<string, unknown>).ahaResponses
+  );
+  const bodyDiscomfortCount = countBodyDiscomforts(
+    (rawFormResponses as Record<string, unknown>).bodyDiscomforts
+  );
+  const clinicalHistory =
+    (segmentedIntake?.clinicalHistory as Record<string, unknown> | null | undefined) ?? null;
+  const medications =
+    (segmentedIntake?.medications as Record<string, unknown> | null | undefined) ?? null;
+  const injuries =
+    (segmentedIntake?.injuries as Record<string, unknown> | null | undefined) ?? null;
+  const objective =
+    (segmentedIntake?.rawFormResponses?.mainGoal as string | undefined) ??
+    aluno.intakeForm?.mainGoal ??
+    null;
+  const trainingBackground =
+    (clinicalHistory?.trainingBackground as string | undefined) ??
+    aluno.intakeForm?.trainingBackground ??
+    null;
+  const medicalHistory =
+    (clinicalHistory?.medicalHistory as string | undefined) ??
+    aluno.intakeForm?.medicalHistory ??
+    null;
+  const currentMedications =
+    (medications?.currentMedications as string | undefined) ??
+    aluno.intakeForm?.currentMedications ??
+    null;
+  const injuriesHistory =
+    (injuries?.injuriesHistory as string | undefined) ??
+    aluno.intakeForm?.injuriesHistory ??
+    null;
+  const observations = segmentedIntake?.observations ?? aluno.intakeForm?.observations ?? null;
+  const assessmentDate = segmentedIntake?.assessmentDate ?? aluno.intakeForm?.assessmentDate ?? null;
 
   return (
     <div className="space-y-4">
@@ -63,7 +103,7 @@ export function AlunoSaudeAnamneseTab({ aluno, parqPositiveCount }: AlunoSaudeAn
             <div className="rounded-lg border border-gray-200 p-4">
               <div className="text-xs text-muted-foreground">Data do intake inicial</div>
               <div className="mt-1 text-sm font-semibold text-gray-900">
-                {aluno.intakeForm?.assessmentDate ? formatDateBR(aluno.intakeForm.assessmentDate) : 'Não informada'}
+                {assessmentDate ? formatDateBR(assessmentDate) : 'Não informada'}
               </div>
             </div>
             <div className="rounded-lg border border-gray-200 p-4">
@@ -83,27 +123,27 @@ export function AlunoSaudeAnamneseTab({ aluno, parqPositiveCount }: AlunoSaudeAn
           <div className="grid gap-4 md:grid-cols-2">
             <div className="rounded-lg border border-gray-200 p-4 text-sm">
               <div className="text-xs text-muted-foreground">Objetivo principal declarado</div>
-              <div className="mt-1 text-gray-900">{aluno.intakeForm?.mainGoal || 'Não informado'}</div>
+              <div className="mt-1 text-gray-900">{objective || 'Não informado'}</div>
             </div>
             <div className="rounded-lg border border-gray-200 p-4 text-sm">
               <div className="text-xs text-muted-foreground">Histórico de treino informado</div>
-              <div className="mt-1 text-gray-900">{aluno.intakeForm?.trainingBackground || 'Não informado'}</div>
+              <div className="mt-1 text-gray-900">{trainingBackground || 'Não informado'}</div>
             </div>
             <div className="rounded-lg border border-gray-200 p-4 text-sm">
               <div className="text-xs text-muted-foreground">Histórico médico</div>
-              <div className="mt-1 text-gray-900">{aluno.intakeForm?.medicalHistory || 'Não informado'}</div>
+              <div className="mt-1 text-gray-900">{medicalHistory || 'Não informado'}</div>
             </div>
             <div className="rounded-lg border border-gray-200 p-4 text-sm">
               <div className="text-xs text-muted-foreground">Medicações em uso</div>
-              <div className="mt-1 text-gray-900">{aluno.intakeForm?.currentMedications || 'Não informado'}</div>
+              <div className="mt-1 text-gray-900">{currentMedications || 'Não informado'}</div>
             </div>
             <div className="rounded-lg border border-gray-200 p-4 text-sm md:col-span-2">
               <div className="text-xs text-muted-foreground">Lesões e restrições relatadas</div>
-              <div className="mt-1 text-gray-900">{aluno.intakeForm?.injuriesHistory || 'Não informado'}</div>
+              <div className="mt-1 text-gray-900">{injuriesHistory || 'Não informado'}</div>
             </div>
             <div className="rounded-lg border border-gray-200 p-4 text-sm md:col-span-2">
               <div className="text-xs text-muted-foreground">Observações do intake</div>
-              <div className="mt-1 text-gray-900">{aluno.intakeForm?.observations || 'Não informado'}</div>
+              <div className="mt-1 text-gray-900">{observations || 'Não informado'}</div>
             </div>
           </div>
         </CardContent>
