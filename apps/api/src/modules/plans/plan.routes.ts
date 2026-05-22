@@ -182,7 +182,8 @@ router.get('/', async (req: Request, res: Response) => {
 router.get('/aluno/:alunoId', professorMiddleware, async (req: Request, res: Response) => {
   try {
     const { alunoId } = req.params;
-    const professorId = (req as any).user.professorId;
+    const professorId = (req as any).user.professorId as string | undefined;
+    const contractId = (req as any).user.contractId as string | undefined;
     const rawQuery = typeof req.query.q === 'string' ? req.query.q.trim() : '';
     const query = rawQuery || undefined;
     const rawStatus = typeof req.query.status === 'string' ? req.query.status.trim() : '';
@@ -192,9 +193,29 @@ router.get('/aluno/:alunoId', professorMiddleware, async (req: Request, res: Res
       return sendError(res, 'Professor não encontrado', 404);
     }
 
-    const belongs = await alunoService.belongsToProfessor(alunoId, professorId);
+    const { authService } = await import('../auth/auth.service.js');
+    const userWithProfessor = await authService.getUserById((req as any).user.userId);
+
+    if (!userWithProfessor?.professor) {
+      return sendError(res, 'Professor não encontrado', 404);
+    }
+
+    const isMasterAcademy =
+      userWithProfessor.professor.role === 'master' &&
+      userWithProfessor.professor.contract?.type === 'academy';
+
+    const belongs = isMasterAcademy && contractId
+      ? await alunoService.belongsToContract(alunoId, contractId)
+      : await alunoService.belongsToProfessor(alunoId, professorId);
+
     if (!belongs) {
-      return sendError(res, 'Aluno não encontrado ou não pertence a você', 404);
+      return sendError(
+        res,
+        isMasterAcademy && contractId
+          ? 'Aluno não encontrado ou não pertence ao contrato'
+          : 'Aluno não encontrado ou não pertence a você',
+        404
+      );
     }
 
     const plans = await planService.findByAluno(alunoId, status, query);
