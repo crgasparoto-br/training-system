@@ -3,6 +3,10 @@ import { studentContractService } from '../student-contracts/student-contract.se
 
 const prisma = new PrismaClient();
 
+type StudentDomainQueryOptions = {
+  companyContractId?: string;
+};
+
 const toNumber = (value: unknown) => {
   if (value === null || value === undefined) {
     return null;
@@ -453,9 +457,7 @@ export const studentDomainService = {
     }
 
     const segmentedAssessments = aluno.studentAssessmentRecords.map(mapSegmentedAssessment);
-    const legacyAssessments = segmentedAssessments.length === 0
-      ? aluno.assessments.map(mapLegacyAssessment)
-      : [];
+    const legacyAssessments = aluno.assessments.map(mapLegacyAssessment);
     const items = [...segmentedAssessments, ...legacyAssessments].sort(
       (left, right) =>
         new Date(String(right.performedAt)).getTime() - new Date(String(left.performedAt)).getTime()
@@ -470,10 +472,12 @@ export const studentDomainService = {
     };
   },
 
-  async getFinancialProfile(alunoId: string) {
+  async getFinancialProfile(alunoId: string, options: StudentDomainQueryOptions = {}) {
     const [aluno, contracts] = await Promise.all([
       this.loadAlunoDomainSnapshot(alunoId),
-      studentContractService.listByAluno(alunoId),
+      studentContractService.listByAluno(alunoId, {
+        companyContractId: options.companyContractId,
+      }),
     ]);
 
     if (!aluno) {
@@ -546,14 +550,14 @@ export const studentDomainService = {
     };
   },
 
-  async getSummary(alunoId: string) {
+  async getSummary(alunoId: string, options: StudentDomainQueryOptions = {}) {
     const [aluno, profile, intake, assessments, financial, integrations, activities] =
       await Promise.all([
         this.loadAlunoDomainSnapshot(alunoId),
         this.getProfile(alunoId),
         this.getHealthIntake(alunoId),
         this.listAssessmentRecords(alunoId),
-        this.getFinancialProfile(alunoId),
+        this.getFinancialProfile(alunoId, options),
         this.getIntegrations(alunoId),
         this.listExternalActivities(alunoId),
       ]);
@@ -609,14 +613,14 @@ export const studentDomainService = {
     };
   },
 
-  async getTimeline(alunoId: string) {
+  async getTimeline(alunoId: string, options: StudentDomainQueryOptions = {}) {
     const [aluno, profile, intake, assessments, financial, integrations, activities] =
       await Promise.all([
         this.loadAlunoDomainSnapshot(alunoId),
         this.getProfile(alunoId),
         this.getHealthIntake(alunoId),
         this.listAssessmentRecords(alunoId),
-        this.getFinancialProfile(alunoId),
+        this.getFinancialProfile(alunoId, options),
         this.getIntegrations(alunoId),
         this.listExternalActivities(alunoId),
       ]);
