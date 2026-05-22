@@ -1,7 +1,4 @@
 import express from 'express';
-import segmentedAlunoRouter from '../src/modules/alunos/student-domain.routes';
-import { alunoService } from '../src/modules/alunos/aluno.service';
-import { studentDomainService } from '../src/modules/alunos/student-domain.service';
 
 const request = require('supertest');
 
@@ -55,6 +52,10 @@ jest.mock('../src/modules/alunos/student-domain.service', () => ({
     getTimeline: jest.fn(),
   },
 }));
+
+const segmentedAlunoRouter = require('../src/modules/alunos/student-domain.routes').default;
+const { alunoService } = require('../src/modules/alunos/aluno.service');
+const { studentDomainService } = require('../src/modules/alunos/student-domain.service');
 
 describe('segmented aluno routes', () => {
   const app = express();
