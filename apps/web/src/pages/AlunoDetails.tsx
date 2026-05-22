@@ -1,7 +1,13 @@
 ﻿import { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link, useLocation } from 'react-router-dom';
 import { useMemo, useRef } from 'react';
-import { alunoService, type Aluno, type StudentContractLink } from '../services/aluno.service';
+import {
+  alunoService,
+  type Aluno,
+  type StudentContractLink,
+  type StudentSegmentedProfile,
+  type StudentSegmentedSummary,
+} from '../services/aluno.service';
 import { planService, type TrainingPlan } from '../services/plan.service';
 import { assessmentService, type Assessment, type AssessmentSummary, type AssessmentAuditLog } from '../services/assessment.service';
 import { assessmentTypeService, type AssessmentType } from '../services/assessment-type.service';
@@ -234,6 +240,10 @@ export function AlunoDetails() {
   const initialTempPassword =
     (location.state as { tempPassword?: string | null } | null)?.tempPassword ?? null;
   const [aluno, setAluno] = useState<Aluno | null>(null);
+  const [segmentedSummary, setSegmentedSummary] =
+    useState<StudentSegmentedSummary | null>(null);
+  const [segmentedProfile, setSegmentedProfile] =
+    useState<StudentSegmentedProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [isResetting, setIsResetting] = useState(false);
   const [tempPassword, setTempPassword] = useState<string | null>(initialTempPassword);
@@ -471,6 +481,8 @@ export function AlunoDetails() {
         plansData,
         assessmentPlanData,
         contractsData,
+        segmentedSummaryData,
+        segmentedProfileData,
       ] = await Promise.all([
         alunoService.getById(alunoId),
         assessmentService.listByAluno(alunoId),
@@ -483,9 +495,13 @@ export function AlunoDetails() {
         canViewFinancialData
           ? alunoService.listStudentContracts(alunoId)
           : Promise.resolve({ alunoId, activeContract: null, contracts: [] }),
+        alunoService.getSegmentedSummary(alunoId).catch(() => null),
+        alunoService.getSegmentedProfile(alunoId).catch(() => null),
       ]);
 
       setAluno(data);
+      setSegmentedSummary(segmentedSummaryData);
+      setSegmentedProfile(segmentedProfileData);
       setAssessments(assessmentsData);
       setAssessmentSummary(summaryData);
       setAssessmentTypes(typesData);
@@ -1211,6 +1227,7 @@ export function AlunoDetails() {
       {visibleTabs.includes('resumo') && activeTab === 'resumo' && (
         <AlunoResumoHubTab
           aluno={aluno}
+          segmentedSummary={segmentedSummary}
           assessments={assessments}
           assessmentSummary={assessmentSummary}
           plans={plans}
@@ -1221,6 +1238,7 @@ export function AlunoDetails() {
       {visibleTabs.includes('cadastro') && activeTab === 'cadastro' && (
         <AlunoCadastroTab
           aluno={aluno}
+          segmentedProfile={segmentedProfile}
           schedulePlanLabel={schedulePlanLabel}
           formatGender={formatGender}
           identificationInfo={identificationInfo}
@@ -2290,7 +2308,6 @@ export function AlunoDetails() {
     </div>
   );
 }
-
 
 
 
