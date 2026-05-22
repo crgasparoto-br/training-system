@@ -46,11 +46,14 @@ router.get(
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
+      const { contractId } = getProfessorContext(req);
       if (!(await ensureAlunoAccess(req, res, id))) {
         return;
       }
 
-      const summary = await studentDomainService.getSummary(id);
+      const summary = await studentDomainService.getSummary(id, {
+        companyContractId: contractId,
+      });
       if (!summary) {
         return sendError(res, 'Aluno não encontrado', 404);
       }
@@ -138,11 +141,14 @@ router.get(
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
+      const { contractId } = getProfessorContext(req);
       if (!(await ensureAlunoAccess(req, res, id))) {
         return;
       }
 
-      const financial = await studentDomainService.getFinancialProfile(id);
+      const financial = await studentDomainService.getFinancialProfile(id, {
+        companyContractId: contractId,
+      });
       if (!financial) {
         return sendError(res, 'Aluno não encontrado', 404);
       }
@@ -203,15 +209,18 @@ router.get(
 
 router.get(
   '/:id/timeline',
-  screenAccessMiddleware('students.consultation'),
+  blockAccessMiddleware('students.details.audit'),
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
+      const { contractId } = getProfessorContext(req);
       if (!(await ensureAlunoAccess(req, res, id))) {
         return;
       }
 
-      const timeline = await studentDomainService.getTimeline(id);
+      const timeline = await studentDomainService.getTimeline(id, {
+        companyContractId: contractId,
+      });
       if (!timeline) {
         return sendError(res, 'Aluno não encontrado', 404);
       }
