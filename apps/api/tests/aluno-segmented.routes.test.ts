@@ -5,6 +5,13 @@ import { studentDomainService } from '../src/modules/alunos/student-domain.servi
 
 const request = require('supertest');
 
+const screenAccessMiddlewareMock = jest.fn(
+  () => (_req: express.Request, _res: express.Response, next: express.NextFunction) => next()
+);
+const blockAccessMiddlewareMock = jest.fn(
+  () => (_req: express.Request, _res: express.Response, next: express.NextFunction) => next()
+);
+
 jest.mock('../src/modules/auth/auth.middleware', () => ({
   authMiddleware: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
     req.user = {
@@ -25,10 +32,8 @@ jest.mock('../src/modules/auth/auth.middleware', () => ({
 }));
 
 jest.mock('../src/modules/access-control/access-control.middleware', () => ({
-  screenAccessMiddleware: () =>
-    (_req: express.Request, _res: express.Response, next: express.NextFunction) => next(),
-  blockAccessMiddleware: () =>
-    (_req: express.Request, _res: express.Response, next: express.NextFunction) => next(),
+  screenAccessMiddleware: screenAccessMiddlewareMock,
+  blockAccessMiddleware: blockAccessMiddlewareMock,
 }));
 
 jest.mock('../src/modules/alunos/aluno.service', () => ({
@@ -58,7 +63,16 @@ describe('segmented aluno routes', () => {
   app.use('/alunos', segmentedAlunoRouter);
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    (alunoService.belongsToContract as jest.Mock).mockReset();
+    (alunoService.belongsToProfessor as jest.Mock).mockReset();
+    (studentDomainService.getSummary as jest.Mock).mockReset();
+    (studentDomainService.getProfile as jest.Mock).mockReset();
+    (studentDomainService.getHealthIntake as jest.Mock).mockReset();
+    (studentDomainService.listAssessmentRecords as jest.Mock).mockReset();
+    (studentDomainService.getFinancialProfile as jest.Mock).mockReset();
+    (studentDomainService.getIntegrations as jest.Mock).mockReset();
+    (studentDomainService.listExternalActivities as jest.Mock).mockReset();
+    (studentDomainService.getTimeline as jest.Mock).mockReset();
     (alunoService.belongsToContract as jest.Mock).mockResolvedValue(true);
   });
 
@@ -75,7 +89,9 @@ describe('segmented aluno routes', () => {
       alunoId: 'aluno-1',
       overview: { name: 'Aluno Teste' },
     });
-    expect(studentDomainService.getSummary).toHaveBeenCalledWith('aluno-1');
+    expect(studentDomainService.getSummary).toHaveBeenCalledWith('aluno-1', {
+      companyContractId: 'contract-1',
+    });
   });
 
   it('blocks segmented profile when the professor does not have access to the aluno', async () => {
@@ -95,6 +111,24 @@ describe('segmented aluno routes', () => {
 
     expect(response.status).toBe(404);
     expect(response.body.error).toBe('Aluno não encontrado');
-    expect(studentDomainService.getFinancialProfile).toHaveBeenCalledWith('aluno-1');
+    expect(studentDomainService.getFinancialProfile).toHaveBeenCalledWith('aluno-1', {
+      companyContractId: 'contract-1',
+    });
+  });
+
+  it('protects the timeline with the audit block permission and contract scope', async () => {
+    (studentDomainService.getTimeline as jest.Mock).mockResolvedValue({
+      alunoId: 'aluno-1',
+      items: [],
+      total: 0,
+    });
+
+    const response = await request(app).get('/alunos/aluno-1/timeline');
+
+    expect(response.status).toBe(200);
+    expect(blockAccessMiddlewareMock).toHaveBeenCalledWith('students.details.audit');
+    expect(studentDomainService.getTimeline).toHaveBeenCalledWith('aluno-1', {
+      companyContractId: 'contract-1',
+    });
   });
 });
