@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link, useLocation } from 'react-router-dom';
 import { useMemo, useRef } from 'react';
 import {
@@ -1008,6 +1008,7 @@ export function AlunoDetails() {
       'plano-avaliacoes',
       'avaliacoes-fisicas',
       'revisoes-cadastrais',
+      'integracoes',
       'treinos',
       'auditoria',
     ];
@@ -2091,6 +2092,13 @@ export function AlunoDetails() {
         />
       )}
 
+      {visibleTabs.includes('integracoes') && activeTab === 'integracoes' && (
+        <AlunoIntegracoesTab
+          integrations={segmentedIntegrations}
+          activities={segmentedActivities}
+        />
+      )}
+
       {visibleTabs.includes('treinos') && activeTab === 'treinos' && (
         <div className="space-y-4">
           <Card>
@@ -2104,11 +2112,6 @@ export function AlunoDetails() {
               <p className="text-muted-foreground">Aba de Treinos / Planos em desenvolvimento</p>
             </CardContent>
           </Card>
-
-          <AlunoIntegracoesTab
-            integrations={segmentedIntegrations}
-            activities={segmentedActivities}
-          />
         </div>
       )}
 
