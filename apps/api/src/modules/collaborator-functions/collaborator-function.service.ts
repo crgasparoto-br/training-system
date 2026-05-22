@@ -2,7 +2,6 @@ import { PrismaClient, type Prisma } from '@prisma/client';
 import type { AccessPermissionSelection } from '@corrida/types';
 import {
   replaceAccessPermissionsForFunction,
-  syncAccessPermissionsForContract,
   syncAccessPermissionsForFunction,
 } from '../access-control/index.js';
 
@@ -90,17 +89,7 @@ const accessPermissionsInclude = {
   },
 } satisfies Prisma.CollaboratorFunctionOptionInclude;
 
-function logPermissionSyncWarning(contractId: string, error: unknown) {
-  console.warn(
-    '[collaborator-functions] failed to sync access permissions during list load',
-    {
-      contractId,
-      error: error instanceof Error ? error.message : error,
-    }
-  );
-}
-
-export async function ensureDefaultCollaboratorFunctionsForContract(
+async function seedDefaultCollaboratorFunctions(
   contractId: string,
   client: DbClient = prisma
 ) {
@@ -137,19 +126,26 @@ export async function ensureDefaultCollaboratorFunctionsForContract(
       })),
     });
   }
+}
 
-  try {
-    await syncAccessPermissionsForContract(contractId, client);
-  } catch (error) {
-    // Do not block the settings screen from loading when permission backfill hits legacy data.
-    logPermissionSyncWarning(contractId, error);
-  }
-
+async function listCollaboratorFunctionsByContract(
+  contractId: string,
+  client: DbClient = prisma
+) {
   return client.collaboratorFunctionOption.findMany({
     where: { contractId },
     include: accessPermissionsInclude,
     orderBy: [{ isSystem: 'desc' }, { name: 'asc' }],
   });
+}
+
+export async function ensureDefaultCollaboratorFunctionsForContract(
+  contractId: string,
+  client: DbClient = prisma
+) {
+  await seedDefaultCollaboratorFunctions(contractId, client);
+
+  return listCollaboratorFunctionsByContract(contractId, client);
 }
 
 export async function getDefaultCollaboratorFunctionByCode(
@@ -190,7 +186,7 @@ export async function getCollaboratorFunctionForContract(
 
 export const collaboratorFunctionService = {
   async listByContract(contractId: string) {
-    return ensureDefaultCollaboratorFunctionsForContract(contractId);
+    return listCollaboratorFunctionsByContract(contractId);
   },
 
   async create(
@@ -300,6 +296,8 @@ export const collaboratorFunctionService = {
 
   async syncPermissionsByContract(contractId: string) {
     return prisma.$transaction(async (tx) => {
+      await seedDefaultCollaboratorFunctions(contractId, tx);
+
       const functions = await tx.collaboratorFunctionOption.findMany({
         where: { contractId },
         select: { id: true, code: true, name: true },
