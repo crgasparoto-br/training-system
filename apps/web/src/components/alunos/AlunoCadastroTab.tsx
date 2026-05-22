@@ -65,8 +65,10 @@ export function AlunoCadastroTab({
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle>Cadastro Atual</CardTitle>
-          <CardDescription>Dados cadastrais vigentes do aluno, separados dos registros históricos.</CardDescription>
+          <CardTitle>Dados informados pelo aluno</CardTitle>
+          <CardDescription>
+            Esta aba concentra somente informações declaradas no cadastro, sem misturar avaliações profissionais ou integrações futuras.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -108,7 +110,10 @@ export function AlunoCadastroTab({
 
       <Card>
         <CardHeader>
-          <CardTitle>Documentação e Endereço</CardTitle>
+          <CardTitle>Documentação e endereço</CardTitle>
+          <CardDescription>
+            Identificação civil, endereço e contato de emergência fornecidos no cadastro.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -172,7 +177,10 @@ export function AlunoCadastroTab({
 
       <Card>
         <CardHeader>
-          <CardTitle>Preferências de Perfil</CardTitle>
+          <CardTitle>Preferências e consentimentos</CardTitle>
+          <CardDescription>
+            Preferências pessoais e autorizações declaradas pelo aluno durante o onboarding.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -204,6 +212,24 @@ export function AlunoCadastroTab({
               <div className="text-xs text-muted-foreground">Mensagens de campanhas</div>
               <div className="mt-1 text-sm font-semibold text-gray-900">
                 {consentLabel(preferencesInfo.campaignsConsent || fallbackMarketingConsent)}
+              </div>
+            </div>
+            <div className="rounded-lg border border-gray-200 p-4">
+              <div className="text-xs text-muted-foreground">Música favorita para treinar</div>
+              <div className="mt-1 text-sm font-semibold text-gray-900">
+                {preferencesInfo.favoriteMusicGenre || 'Não informada'}
+              </div>
+            </div>
+            <div className="rounded-lg border border-gray-200 p-4">
+              <div className="text-xs text-muted-foreground">Chocolate favorito</div>
+              <div className="mt-1 text-sm font-semibold text-gray-900">
+                {preferencesInfo.favoriteChocolate || 'Não informado'}
+              </div>
+            </div>
+            <div className="rounded-lg border border-gray-200 p-4">
+              <div className="text-xs text-muted-foreground">Nome para personalização</div>
+              <div className="mt-1 text-sm font-semibold text-gray-900">
+                {preferencesInfo.preferredNickname || 'Não informado'}
               </div>
             </div>
           </div>
