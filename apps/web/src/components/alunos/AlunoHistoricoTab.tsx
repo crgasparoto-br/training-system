@@ -8,11 +8,18 @@ type AlunoHistoricoTabProps = {
 
 const eventTypeLabel: Record<string, string> = {
   student_created: 'Cadastro criado',
+  profile_created: 'Cadastro registrado',
   profile_updated: 'Cadastro atualizado',
   intake_recorded: 'Intake registrado',
+  intake_updated: 'Intake atualizado',
   assessment_recorded: 'Avaliação registrada',
+  financial_contract_created: 'Contrato criado',
+  financial_contract_started: 'Contrato iniciado',
+  financial_contract_signed: 'Contrato assinado',
+  financial_contract_canceled: 'Contrato cancelado',
   financial_contract_active: 'Contrato ativo',
   integration_connected: 'Integração conectada',
+  integration_synchronized: 'Integração sincronizada',
   external_activity_imported: 'Atividade importada',
 };
 
@@ -52,6 +59,8 @@ export function AlunoHistoricoTab({ timeline }: AlunoHistoricoTabProps) {
                       <div className="mt-1 text-sm font-semibold text-gray-900">{item.title}</div>
                       <div className="mt-1 text-xs text-muted-foreground">
                         Origem: {sourceTypeLabel[item.source.type] || item.source.type}
+                        {item.source.reference ? ` • ref ${item.source.reference}` : ''}
+                        {item.source.recordedByUserId ? ` • usuário ${item.source.recordedByUserId}` : ''}
                       </div>
                     </div>
                     <div className="text-xs text-muted-foreground">
