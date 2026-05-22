@@ -6,12 +6,19 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 const dryRun = process.argv.includes('--dry-run');
 
+function normalizeUploadsPath(path) {
+  return path
+    .replace(/^\/?api\/v\d+\//i, '/')
+    .replace(/^\/?uploads\//i, '/uploads/');
+}
+
 function extractUploadsPath(url) {
   if (!url || typeof url !== 'string') {
     return null;
   }
-  const match = url.match(/\/uploads\/.+/i);
-  return match ? match[0] : null;
+
+  const match = url.match(/\/?(?:api\/v\d+\/)?uploads\/.+/i);
+  return match ? normalizeUploadsPath(match[0]) : null;
 }
 
 function normalizeUploadUrl(url) {
@@ -33,8 +40,8 @@ function normalizeUploadUrl(url) {
     return trimmed;
   }
 
-  if (/^\/?uploads\//i.test(trimmed)) {
-    return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  if (/^\/?(?:api\/v\d+\/)?uploads\//i.test(trimmed)) {
+    return normalizeUploadsPath(trimmed);
   }
 
   return trimmed;
