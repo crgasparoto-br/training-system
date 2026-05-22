@@ -2,7 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/Card';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
-import type { Aluno, StudentContractLink } from '../../services/aluno.service';
+import type {
+  Aluno,
+  StudentContractLink,
+  StudentSegmentedFinancialProfile,
+} from '../../services/aluno.service';
 import { alunoService } from '../../services/aluno.service';
 import { contractService, type AvailableStudentContract } from '../../services/contract.service';
 
@@ -25,6 +29,7 @@ type AlunoFinanceiroTabProps = {
   canManageContracts: boolean;
   canCancelContracts: boolean;
   canRenewContracts: boolean;
+  segmentedFinancialProfile?: StudentSegmentedFinancialProfile | null;
 };
 
 const studentContractStatusLabel: Record<string, string> = {
@@ -77,6 +82,7 @@ export function AlunoFinanceiroTab({
   canManageContracts,
   canCancelContracts,
   canRenewContracts,
+  segmentedFinancialProfile,
 }: AlunoFinanceiroTabProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -170,12 +176,31 @@ export function AlunoFinanceiroTab({
 
   const activeContractLabel = currentContract
     ? `${currentContract.contract.title} (${studentContractStatusLabel[currentContract.status] || currentContract.status})`
-    : financialInfo.contract || 'Não informado';
+    : segmentedFinancialProfile?.activeContract?.contract.title ||
+      financialInfo.contract ||
+      'Não informado';
 
   const activeContractService =
-    currentContract?.service?.name || currentContract?.contract?.serviceId || financialInfo.currentService;
+    segmentedFinancialProfile?.currentServiceName ||
+    currentContract?.service?.name ||
+    currentContract?.contract?.serviceId ||
+    financialInfo.currentService;
   const activeContractAmount =
-    currentContract?.amount ?? currentContract?.service?.monthlyPrice ?? parseCurrencyInput(financialInfo.monthlyValue || '');
+    segmentedFinancialProfile?.monthlyAmount ??
+    currentContract?.amount ??
+    currentContract?.service?.monthlyPrice ??
+    parseCurrencyInput(financialInfo.monthlyValue || '');
+  const activePaymentDay =
+    segmentedFinancialProfile?.paymentDay ??
+    currentContract?.paymentDay ??
+    parsePaymentDayInput(financialInfo.paymentDay || '') ??
+    null;
+  const activeContractStartDate =
+    segmentedFinancialProfile?.contractStartDate ?? currentContract?.startDate ?? null;
+  const activeContractEndDate =
+    segmentedFinancialProfile?.contractDueDate ?? currentContract?.endDate ?? null;
+  const activeNotes =
+    segmentedFinancialProfile?.notes ?? currentContract?.notes ?? financialInfo.otherObservations ?? null;
 
   const historyContracts = useMemo(
     () =>
@@ -337,9 +362,9 @@ export function AlunoFinanceiroTab({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Financeiro / Contrato</CardTitle>
+        <CardTitle>Financeiro e contratos</CardTitle>
         <CardDescription>
-          Hub de contrato ativo e histórico contratual do aluno.
+          Aqui ficam os dados financeiros do aluno e a operação contratual do relacionamento, separados do cadastro e das avaliações.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -369,7 +394,7 @@ export function AlunoFinanceiroTab({
           <>
             <div className="rounded-lg border border-gray-200 p-4">
               <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <h3 className="text-base font-semibold text-gray-900">Contrato atual</h3>
+                <h3 className="text-base font-semibold text-gray-900">Contrato ativo</h3>
                 {(canManageContracts || canCancelContracts || canRenewContracts) && currentContract && (
                   <div className="flex flex-wrap gap-2">
                     {canManageContracts && (
@@ -414,7 +439,9 @@ export function AlunoFinanceiroTab({
                   <div className="text-sm font-semibold text-gray-900">
                     {currentContract
                       ? studentContractStatusLabel[currentContract.status] || currentContract.status
-                      : 'Sem contrato ativo'}
+                      : segmentedFinancialProfile?.activeContract
+                        ? studentContractStatusLabel[segmentedFinancialProfile.activeContract.status] || segmentedFinancialProfile.activeContract.status
+                        : 'Sem contrato ativo'}
                   </div>
                 </div>
                 <div>
@@ -425,16 +452,16 @@ export function AlunoFinanceiroTab({
                 </div>
                 <div>
                   <div className="text-xs text-muted-foreground">Data de início</div>
-                  <div className="text-sm font-semibold text-gray-900">{formatDateLabel(currentContract?.startDate) || 'Não informada'}</div>
+                  <div className="text-sm font-semibold text-gray-900">{formatDateLabel(activeContractStartDate) || 'Não informada'}</div>
                 </div>
                 <div>
                   <div className="text-xs text-muted-foreground">Data de término</div>
-                  <div className="text-sm font-semibold text-gray-900">{formatDateLabel(currentContract?.endDate) || 'Não informada'}</div>
+                  <div className="text-sm font-semibold text-gray-900">{formatDateLabel(activeContractEndDate) || 'Não informada'}</div>
                 </div>
                 <div>
                   <div className="text-xs text-muted-foreground">Dia de pagamento</div>
                   <div className="text-sm font-semibold text-gray-900">
-                    {currentContract?.paymentDay || financialInfo.paymentDay || 'Não informado'}
+                    {activePaymentDay || 'Não informado'}
                   </div>
                 </div>
                 <div>
@@ -551,118 +578,118 @@ export function AlunoFinanceiroTab({
                 <div className="grid gap-4 xl:grid-cols-2">
                   {canManageContracts && (
                     <div className="rounded-lg border border-gray-200 p-3">
-                    <div className="mb-2 text-sm font-semibold text-gray-900">Vincular novo contrato</div>
-                    <select
-                      className="h-10 w-full rounded-md border border-input px-3 text-sm"
-                      value={selectedAvailableContractId}
-                      onChange={(event) => setSelectedAvailableContractId(event.target.value)}
-                    >
-                      <option value="">Selecione um contrato</option>
-                      {availableContracts.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.title} • {item.service?.name || 'Sem serviço'}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="mt-2 grid gap-2 md:grid-cols-2">
-                      <Input
-                        type="date"
-                        label="Data de início"
-                        value={startDateInput}
-                        onChange={(event) => setStartDateInput(event.target.value)}
-                      />
-                      <Input
-                        label="Dia de pagamento"
-                        value={paymentDayInput}
-                        onChange={(event) => setPaymentDayInput(event.target.value)}
-                        placeholder="1 a 31"
-                      />
-                    </div>
-                    <div className="mt-2">
-                      <label className="mb-2 block text-sm font-medium text-foreground">Observações financeiras/contratuais</label>
-                      <textarea
-                        className="min-h-[70px] w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
-                        value={notesInput}
-                        onChange={(event) => setNotesInput(event.target.value)}
-                      />
-                    </div>
-                    {selectedAvailableContract && (
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        Serviço: {selectedAvailableContract.service?.name || 'Não informado'} • Status: {selectedAvailableContract.status}
-                      </p>
-                    )}
-                    <div className="mt-3 flex justify-end">
-                      <Button onClick={handleLinkContract} disabled={busyAction !== null || !selectedAvailableContractId}>
-                        {busyAction === 'link' ? 'Vinculando...' : 'Vincular novo contrato'}
-                      </Button>
-                    </div>
+                      <div className="mb-2 text-sm font-semibold text-gray-900">Vincular novo contrato</div>
+                      <select
+                        className="h-10 w-full rounded-md border border-input px-3 text-sm"
+                        value={selectedAvailableContractId}
+                        onChange={(event) => setSelectedAvailableContractId(event.target.value)}
+                      >
+                        <option value="">Selecione um contrato</option>
+                        {availableContracts.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.title} • {item.service?.name || 'Sem serviço'}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="mt-2 grid gap-2 md:grid-cols-2">
+                        <Input
+                          type="date"
+                          label="Data de início"
+                          value={startDateInput}
+                          onChange={(event) => setStartDateInput(event.target.value)}
+                        />
+                        <Input
+                          label="Dia de pagamento"
+                          value={paymentDayInput}
+                          onChange={(event) => setPaymentDayInput(event.target.value)}
+                          placeholder="1 a 31"
+                        />
+                      </div>
+                      <div className="mt-2">
+                        <label className="mb-2 block text-sm font-medium text-foreground">Observações financeiras/contratuais</label>
+                        <textarea
+                          className="min-h-[70px] w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                          value={notesInput}
+                          onChange={(event) => setNotesInput(event.target.value)}
+                        />
+                      </div>
+                      {selectedAvailableContract && (
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          Serviço: {selectedAvailableContract.service?.name || 'Não informado'} • Status: {selectedAvailableContract.status}
+                        </p>
+                      )}
+                      <div className="mt-3 flex justify-end">
+                        <Button onClick={handleLinkContract} disabled={busyAction !== null || !selectedAvailableContractId}>
+                          {busyAction === 'link' ? 'Vinculando...' : 'Vincular novo contrato'}
+                        </Button>
+                      </div>
                     </div>
                   )}
 
                   {canManageContracts && (
                     <div className="rounded-lg border border-gray-200 p-3">
-                    <div className="mb-2 text-sm font-semibold text-gray-900">Ativar contrato</div>
-                    <select
-                      className="h-10 w-full rounded-md border border-input px-3 text-sm"
-                      value={selectedHistoryContractId}
-                      onChange={(event) => setSelectedHistoryContractId(event.target.value)}
-                    >
-                      <option value="">Selecione do histórico</option>
-                      {historyContracts.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.contract.title} • {studentContractStatusLabel[item.status] || item.status}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="mt-3 flex justify-end">
-                      <Button onClick={handleActivateContract} disabled={busyAction !== null || !selectedHistoryContractId}>
-                        {busyAction === 'activate' ? 'Ativando...' : 'Ativar contrato'}
-                      </Button>
-                    </div>
+                      <div className="mb-2 text-sm font-semibold text-gray-900">Ativar contrato</div>
+                      <select
+                        className="h-10 w-full rounded-md border border-input px-3 text-sm"
+                        value={selectedHistoryContractId}
+                        onChange={(event) => setSelectedHistoryContractId(event.target.value)}
+                      >
+                        <option value="">Selecione do histórico</option>
+                        {historyContracts.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.contract.title} • {studentContractStatusLabel[item.status] || item.status}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="mt-3 flex justify-end">
+                        <Button onClick={handleActivateContract} disabled={busyAction !== null || !selectedHistoryContractId}>
+                          {busyAction === 'activate' ? 'Ativando...' : 'Ativar contrato'}
+                        </Button>
+                      </div>
                     </div>
                   )}
 
                   {canCancelContracts && (
                     <div className="rounded-lg border border-gray-200 p-3">
-                    <div className="mb-2 text-sm font-semibold text-gray-900">Cancelar contrato</div>
-                    <Input
-                      label="Motivo do cancelamento"
-                      value={cancelReason}
-                      onChange={(event) => setCancelReason(event.target.value)}
-                      placeholder="Motivo obrigatório"
-                    />
-                    <div className="mt-3 flex justify-end">
-                      <Button
-                        variant="outline"
-                        onClick={handleCancelContract}
-                        disabled={busyAction !== null || !currentContract || cancelReason.trim().length < 3}
-                      >
-                        {busyAction === 'cancel' ? 'Cancelando...' : 'Cancelar contrato'}
-                      </Button>
-                    </div>
+                      <div className="mb-2 text-sm font-semibold text-gray-900">Cancelar contrato</div>
+                      <Input
+                        label="Motivo do cancelamento"
+                        value={cancelReason}
+                        onChange={(event) => setCancelReason(event.target.value)}
+                        placeholder="Motivo obrigatório"
+                      />
+                      <div className="mt-3 flex justify-end">
+                        <Button
+                          variant="outline"
+                          onClick={handleCancelContract}
+                          disabled={busyAction !== null || !currentContract || cancelReason.trim().length < 3}
+                        >
+                          {busyAction === 'cancel' ? 'Cancelando...' : 'Cancelar contrato'}
+                        </Button>
+                      </div>
                     </div>
                   )}
 
                   {canRenewContracts && (
                     <div className="rounded-lg border border-gray-200 p-3">
-                    <div className="mb-2 text-sm font-semibold text-gray-900">Renovar contrato</div>
-                    <select
-                      className="h-10 w-full rounded-md border border-input px-3 text-sm"
-                      value={renewContractId}
-                      onChange={(event) => setRenewContractId(event.target.value)}
-                    >
-                      <option value="">Selecione um contrato para renovar</option>
-                      {availableContracts.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.title} • {item.service?.name || 'Sem serviço'}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="mt-3 flex justify-end">
-                      <Button onClick={handleRenewContract} disabled={busyAction !== null || !renewContractId}>
-                        {busyAction === 'renew' ? 'Renovando...' : 'Renovar contrato'}
-                      </Button>
-                    </div>
+                      <div className="mb-2 text-sm font-semibold text-gray-900">Renovar contrato</div>
+                      <select
+                        className="h-10 w-full rounded-md border border-input px-3 text-sm"
+                        value={renewContractId}
+                        onChange={(event) => setRenewContractId(event.target.value)}
+                      >
+                        <option value="">Selecione um contrato para renovar</option>
+                        {availableContracts.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.title} • {item.service?.name || 'Sem serviço'}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="mt-3 flex justify-end">
+                        <Button onClick={handleRenewContract} disabled={busyAction !== null || !renewContractId}>
+                          {busyAction === 'renew' ? 'Renovando...' : 'Renovar contrato'}
+                        </Button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -675,19 +702,19 @@ export function AlunoFinanceiroTab({
           <div className="rounded-lg border border-gray-200 p-4">
             <div className="text-xs text-muted-foreground">Serviço vigente</div>
             <div className="mt-1 text-sm font-semibold text-gray-900">
-              {financialInfo.currentService || aluno.service?.name || 'Não informado'}
+              {activeContractService || 'Não informado'}
             </div>
           </div>
           <div className="rounded-lg border border-gray-200 p-4">
             <div className="text-xs text-muted-foreground">Condição especial</div>
             <div className="mt-1 text-sm font-semibold text-gray-900">
-              {financialInfo.specialCondition || 'Não informada'}
+              {segmentedFinancialProfile?.specialCondition || financialInfo.specialCondition || 'Não informada'}
             </div>
           </div>
           <div className="rounded-lg border border-gray-200 p-4">
-            <div className="text-xs text-muted-foreground">Valor mensal</div>
+            <div className="text-xs text-muted-foreground">Valor mensal informado</div>
             <div className="mt-1 text-sm font-semibold text-gray-900">
-              {financialInfo.monthlyValue ? `R$ ${financialInfo.monthlyValue}` : 'Não informado'}
+              {formatCurrency(activeContractAmount) ? `R$ ${formatCurrency(activeContractAmount)}` : 'Não informado'}
             </div>
           </div>
           <div className="rounded-lg border border-gray-200 p-4">
@@ -697,13 +724,13 @@ export function AlunoFinanceiroTab({
             </div>
           </div>
           <div className="rounded-lg border border-gray-200 p-4">
-            <div className="text-xs text-muted-foreground">Dia de pagamento</div>
+            <div className="text-xs text-muted-foreground">Dia de pagamento informado</div>
             <div className="mt-1 text-sm font-semibold text-gray-900">
-              {financialInfo.paymentDay || 'Não informado'}
+              {activePaymentDay || 'Não informado'}
             </div>
           </div>
           <div className="rounded-lg border border-gray-200 p-4">
-            <div className="text-xs text-muted-foreground">Contrato</div>
+            <div className="text-xs text-muted-foreground">Contrato informado</div>
             <div className="mt-1 text-sm font-semibold text-gray-900">
               {activeContractLabel}
             </div>
@@ -715,17 +742,17 @@ export function AlunoFinanceiroTab({
                 Valor: R$ {formatCurrency(activeContractAmount)}
               </div>
             )}
-            {currentContract?.startDate && (
+            {activeContractStartDate && (
               <div className="mt-1 text-xs text-muted-foreground">
-                Vigência: {formatDateLabel(currentContract.startDate)}
-                {currentContract.endDate ? ` até ${formatDateLabel(currentContract.endDate)}` : ''}
+                Vigência: {formatDateLabel(activeContractStartDate)}
+                {activeContractEndDate ? ` até ${formatDateLabel(activeContractEndDate)}` : ''}
               </div>
             )}
           </div>
         </div>
         <div>
           <div className="text-xs text-muted-foreground">Outras observações</div>
-          <div className="mt-1 text-sm text-gray-900">{financialInfo.otherObservations || 'Não informadas'}</div>
+          <div className="mt-1 text-sm text-gray-900">{activeNotes || 'Não informadas'}</div>
         </div>
       </CardContent>
     </Card>
