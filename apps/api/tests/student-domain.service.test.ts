@@ -53,6 +53,9 @@ const createAlunoSnapshot = () => ({
       id: 'acc-1',
       provider: 'garmin',
       externalUserId: 'garmin-user-1',
+      sourceType: 'integration',
+      sourceReference: 'oauth:garmin:connection-1',
+      recordedByUserId: 'user-prof-1',
       connectionStatus: 'connected',
       lastSyncAt: '2026-05-09T12:00:00.000Z',
       metadata: null,
@@ -65,6 +68,9 @@ const createAlunoSnapshot = () => ({
       id: 'act-1',
       provider: 'garmin',
       externalActivityId: 'garmin-activity-1',
+      sourceType: 'integration',
+      sourceReference: 'garmin-import-1',
+      recordedByUserId: null,
       activityType: 'run',
       startedAt: '2026-05-04T06:00:00.000Z',
       endedAt: '2026-05-04T06:30:00.000Z',
@@ -217,9 +223,21 @@ describe('studentDomainService', () => {
 
     const importedActivity = result?.items.find((item) => item.type === 'external_activity_imported');
     expect(importedActivity?.occurredAt).toBe('2026-05-08T07:00:00.000Z');
+    expect(importedActivity?.source).toEqual({
+      type: 'integration',
+      reference: 'garmin-import-1',
+      recordedByUserId: null,
+    });
     expect(importedActivity?.details).toMatchObject({
       provider: 'garmin',
       startedAt: '2026-05-04T06:00:00.000Z',
+    });
+
+    const connectedIntegration = result?.items.find((item) => item.type === 'integration_connected');
+    expect(connectedIntegration?.source).toEqual({
+      type: 'integration',
+      reference: 'oauth:garmin:connection-1',
+      recordedByUserId: 'user-prof-1',
     });
 
     const startedContract = result?.items.find((item) => item.type === 'financial_contract_started');
@@ -228,6 +246,59 @@ describe('studentDomainService', () => {
       serviceName: 'Premium',
     });
     expect(result?.items.some((item) => item.type === 'intake_recorded' || item.type === 'intake_updated')).toBe(false);
+  });
+
+  it('falls back to external ids when segmented source metadata is absent', async () => {
+    findUniqueMock.mockResolvedValue({
+      ...createAlunoSnapshot(),
+      studentExternalAccounts: [
+        {
+          id: 'acc-legacy-fallback',
+          provider: 'strava',
+          externalUserId: 'strava-user-1',
+          connectionStatus: 'connected',
+          lastSyncAt: null,
+          metadata: null,
+          createdAt: '2026-05-03T09:00:00.000Z',
+          updatedAt: '2026-05-03T09:00:00.000Z',
+        },
+      ],
+      studentExternalActivities: [
+        {
+          id: 'act-legacy-fallback',
+          provider: 'strava',
+          externalActivityId: 'strava-activity-1',
+          activityType: 'ride',
+          startedAt: '2026-05-03T06:00:00.000Z',
+          endedAt: null,
+          distanceMeters: 10000,
+          durationSeconds: 2400,
+          paceSecondsPerKm: null,
+          averageHeartRate: null,
+          maxHeartRate: null,
+          calories: null,
+          elevationGainMeters: null,
+          rawPayload: null,
+          importedAt: '2026-05-03T07:00:00.000Z',
+          createdAt: '2026-05-03T07:00:00.000Z',
+          updatedAt: '2026-05-03T07:00:00.000Z',
+        },
+      ],
+    });
+
+    const integrations = await studentDomainService.getIntegrations('aluno-1');
+    const activities = await studentDomainService.listExternalActivities('aluno-1');
+
+    expect(integrations?.accounts[0].source).toEqual({
+      type: 'integration',
+      reference: 'strava-user-1',
+      recordedByUserId: null,
+    });
+    expect(activities?.activities[0].source).toEqual({
+      type: 'integration',
+      reference: 'strava-activity-1',
+      recordedByUserId: null,
+    });
   });
 
   it('emits contract cancellation events with stable source traceability', async () => {
