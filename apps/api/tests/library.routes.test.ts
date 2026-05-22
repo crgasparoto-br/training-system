@@ -48,7 +48,7 @@ describe('library routes input validation', () => {
       });
 
     expect(response.status).toBe(400);
-    expect(response.body).toEqual({ message: 'Payload invalido' });
+    expect(response.body).toEqual({ message: 'Payload inválido' });
     expect(libraryService.createExercise).not.toHaveBeenCalled();
   });
 
@@ -60,7 +60,7 @@ describe('library routes input validation', () => {
       });
 
     expect(response.status).toBe(400);
-    expect(response.body).toEqual({ message: 'Payload invalido' });
+    expect(response.body).toEqual({ message: 'Payload inválido' });
     expect(libraryService.updateExercise).not.toHaveBeenCalled();
   });
 
@@ -72,7 +72,7 @@ describe('library routes input validation', () => {
       });
 
     expect(response.status).toBe(400);
-    expect(response.body).toEqual({ message: 'Payload invalido' });
+    expect(response.body).toEqual({ message: 'Payload inválido' });
     expect(libraryService.updateAlunoProgress).not.toHaveBeenCalled();
   });
 });

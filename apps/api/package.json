@@ -20,7 +20,8 @@
     "job:dispatch-profile-reviews": "tsx src/scripts/dispatch-profile-reviews.ts",
     "job:backfill-profile-review-settings": "tsx src/scripts/backfill-profile-review-settings.ts",
     "db:studio": "prisma studio",
-    "import-exercises": "tsx src/scripts/import-exercises.ts"
+    "import-exercises": "tsx src/scripts/import-exercises.ts",
+    "job:normalize-upload-urls": "tsx src/scripts/normalize-upload-urls.mjs"
   },
   "dependencies": {
     "@corrida/types": "workspace:*",

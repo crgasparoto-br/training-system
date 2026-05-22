@@ -1,4 +1,4 @@
-﻿import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Login } from './pages/Login';
 import type { ReactElement } from 'react';
 import { ForgotPassword } from './pages/ForgotPassword';
@@ -46,7 +46,7 @@ function withAnyAccess(screenKeys: string[], element: ReactElement) {
 
 const DEFAULT_HOME_CANDIDATES: Array<{ path: string; screenKey: string }> = [
   { path: '/consultas/alunos', screenKey: 'students.consultation' },
-  { path: '/alunos', screenKey: 'students.registration' },
+  { path: '/alunos/new', screenKey: 'students.registration' },
   { path: '/plans', screenKey: 'plans' },
   { path: '/agenda', screenKey: 'agenda' },
   { path: '/executions', screenKey: 'executions' },
@@ -89,8 +89,9 @@ function App() {
           }
         >
           <Route index element={<DefaultAuthorizedRoute />} />
-          <Route path="professores" element={withAccess('collaborators.registration', <Professores />)} />
-          <Route path="alunos" element={withAccess('students.registration', <AlunoForm />)} />
+          <Route path="professores" element={<Navigate to="/professores/new" replace />} />
+          <Route path="professores/new" element={withAccess('collaborators.registration', <Professores />)} />
+          <Route path="alunos" element={<Navigate to="/alunos/new" replace />} />
           <Route path="alunos/new" element={withAccess('students.registration', <AlunoForm />)} />
           <Route
             path="alunos/:id"
@@ -150,4 +151,3 @@ function App() {
 }
 
 export default App;
-
