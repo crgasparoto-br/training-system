@@ -47,48 +47,53 @@ export function AlunoResumoHubTab({
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle>Hub do Aluno</CardTitle>
-          <CardDescription>Separação entre cadastro, saúde, finanças e governança das revisões.</CardDescription>
+          <CardTitle>Visão geral do aluno</CardTitle>
+          <CardDescription>
+            Leitura rápida separando o que veio do cadastro, o que foi registrado por professores e o que está operando no acompanhamento.
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             <div className="rounded-lg border border-gray-200 p-4">
-              <div className="text-xs text-muted-foreground">Dados principais</div>
-              <div className="mt-1 text-sm font-semibold text-gray-900">{aluno.user.profile.name}</div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cadastro do aluno</div>
+              <div className="mt-2 text-sm font-semibold text-gray-900">{aluno.user.profile.name}</div>
               <div className="text-xs text-muted-foreground">{aluno.age} anos • {aluno.user.email}</div>
+              <div className="mt-3 text-xs text-muted-foreground">
+                Última atualização do cadastro: {formatDateBR(aluno.updatedAt)}
+              </div>
             </div>
+
             <div className="rounded-lg border border-gray-200 p-4">
-              <div className="text-xs text-muted-foreground">Último status cadastral</div>
-              <div className="mt-1 text-sm font-semibold text-gray-900">
-                Atualizado em {formatDateBR(aluno.updatedAt)}
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Avaliações profissionais</div>
+              <div className="mt-2 text-sm font-semibold text-gray-900">
+                {latestAssessment ? formatDateBR(latestAssessment.assessmentDate) : 'Nenhuma avaliação registrada'}
               </div>
               <div className="text-xs text-muted-foreground">
-                {aluno.user.isActive === false ? 'Cadastro inativo' : 'Cadastro ativo'}
+                {latestAssessment?.type?.name || 'Aguardando primeira avaliação'}
+              </div>
+              <div className="mt-3 text-xs text-muted-foreground">
+                Próxima prevista: {upcomingAssessment?.nextDueDate ? formatDateBR(upcomingAssessment.nextDueDate) : 'Sem previsão'}
               </div>
             </div>
+
             <div className="rounded-lg border border-gray-200 p-4">
-              <div className="text-xs text-muted-foreground">Última avaliação</div>
-              <div className="mt-1 text-sm font-semibold text-gray-900">
-                {latestAssessment ? formatDateBR(latestAssessment.assessmentDate) : 'Não registrada'}
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Contrato e financeiro</div>
+              <div className="mt-2 text-sm font-semibold text-gray-900">
+                {activeStudentContract?.contract.title || 'Sem contrato ativo'}
               </div>
               <div className="text-xs text-muted-foreground">
-                {latestAssessment?.type?.name || 'Sem tipo registrado'}
+                {activeStudentContract
+                  ? studentContractStatusLabel[activeStudentContract.status] || activeStudentContract.status
+                  : 'Verifique a aba Financeiro'}
+              </div>
+              <div className="mt-3 text-xs text-muted-foreground">
+                Serviço: {activeStudentContract?.service?.name || aluno.service?.name || 'Não informado'}
               </div>
             </div>
+
             <div className="rounded-lg border border-gray-200 p-4">
-              <div className="text-xs text-muted-foreground">Próximas avaliações</div>
-              <div className="mt-1 text-sm font-semibold text-gray-900">
-                {upcomingAssessment?.nextDueDate
-                  ? formatDateBR(upcomingAssessment.nextDueDate)
-                  : 'Sem próxima data'}
-              </div>
-              <div className="text-xs text-muted-foreground">
-                {upcomingAssessment?.typeName || 'Planejamento pendente'}
-              </div>
-            </div>
-            <div className="rounded-lg border border-gray-200 p-4">
-              <div className="text-xs text-muted-foreground">Plano ativo</div>
-              <div className="mt-1 text-sm font-semibold text-gray-900">
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Treino em andamento</div>
+              <div className="mt-2 text-sm font-semibold text-gray-900">
                 {activePlan?.name || 'Nenhum plano ativo'}
               </div>
               <div className="text-xs text-muted-foreground">
@@ -97,15 +102,22 @@ export function AlunoResumoHubTab({
                   : 'Cadastre ou ative um plano de treino'}
               </div>
             </div>
+
             <div className="rounded-lg border border-gray-200 p-4">
-              <div className="text-xs text-muted-foreground">Contrato ativo</div>
-              <div className="mt-1 text-sm font-semibold text-gray-900">
-                {activeStudentContract?.contract.title || 'Sem contrato ativo'}
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Saúde inicial</div>
+              <div className="mt-2 text-sm font-semibold text-gray-900">
+                {aluno.intakeForm?.assessmentDate ? formatDateBR(aluno.intakeForm.assessmentDate) : 'Sem intake inicial'}
               </div>
               <div className="text-xs text-muted-foreground">
-                {activeStudentContract
-                  ? studentContractStatusLabel[activeStudentContract.status] || activeStudentContract.status
-                  : 'Vincule um contrato na aba Financeiro / Contrato'}
+                Objetivo declarado: {aluno.intakeForm?.mainGoal || 'Não informado'}
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-dashed border-gray-300 p-4">
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Integrações e apps</div>
+              <div className="mt-2 text-sm font-semibold text-gray-900">Base preparada para dados externos</div>
+              <div className="text-xs text-muted-foreground">
+                Esta área passa a separar futuras sincronizações, como Strava, do cadastro e das avaliações.
               </div>
             </div>
           </div>
