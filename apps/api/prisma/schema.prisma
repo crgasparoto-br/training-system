@@ -580,32 +580,30 @@ model FixedScheduleSlot {
 }
 
 model AgendaBooking {
-  id             String              @id @default(cuid())
+  id             String                @id @default(cuid())
   contractId     String
   alunoId        String
   professorId    String
   spaceId        String?
   fixedSlotId    String?
-  bookingType    AgendaBookingType
-  status         AgendaBookingStatus @default(scheduled)
   bookingDate    DateTime
   startTime      String
   endTime        String
+  type           AgendaBookingType     @default(free)
+  status         AgendaBookingStatus   @default(scheduled)
   notes          String?
-  canceledReason String?
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
-  aluno          Aluno               @relation(fields: [alunoId], references: [id], onDelete: Cascade, map: "AgendaBooking_athleteId_fkey")
-  contract       CompanyContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  professor      Professor           @relation(fields: [professorId], references: [id], onDelete: Cascade, map: "AgendaBooking_educatorId_fkey")
-  fixedSlot      FixedScheduleSlot?  @relation(fields: [fixedSlotId], references: [id])
-  space          TrainingSpace?      @relation(fields: [spaceId], references: [id])
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  aluno          Aluno                 @relation(fields: [alunoId], references: [id], onDelete: Cascade, map: "AgendaBooking_athleteId_fkey")
+  contract       CompanyContract       @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  professor      Professor             @relation(fields: [professorId], references: [id], onDelete: Cascade, map: "AgendaBooking_educatorId_fkey")
+  fixedSlot      FixedScheduleSlot?    @relation(fields: [fixedSlotId], references: [id])
+  space          TrainingSpace?        @relation(fields: [spaceId], references: [id])
 
-  @@index([contractId, bookingDate])
   @@index([spaceId, bookingDate])
-  @@index([fixedSlotId])
   @@index([alunoId, bookingDate], map: "AgendaBooking_athleteId_bookingDate_idx")
   @@index([professorId, bookingDate], map: "AgendaBooking_educatorId_bookingDate_idx")
+  @@index([contractId, bookingDate])
 }
 
 model AssessmentType {
@@ -614,7 +612,7 @@ model AssessmentType {
   name           String
   code           String
   description    String?
-  scheduleType   AssessmentScheduleType
+  scheduleType   AssessmentScheduleType @default(fixed_interval)
   intervalMonths Int?
   afterTypeId    String?
   offsetMonths   Int?
@@ -622,85 +620,88 @@ model AssessmentType {
   createdAt      DateTime               @default(now())
   updatedAt      DateTime               @updatedAt
   assessments    Assessment[]
-  alunoAssessmentPlanItems AlunoAssessmentPlanItem[]
   afterType      AssessmentType?        @relation("AssessmentTypeDependencies", fields: [afterTypeId], references: [id])
   dependents     AssessmentType[]       @relation("AssessmentTypeDependencies")
   contract       CompanyContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
 
   @@unique([contractId, code])
   @@index([contractId])
+  @@index([afterTypeId])
 }
 
 model AlunoAssessmentPlanItem {
-  id               String         @id @default(cuid())
+  id               String   @id @default(cuid())
   alunoId          String
   assessmentTypeId String
-  isActive         Boolean        @default(true)
-  isRequired       Boolean        @default(true)
+  isActive         Boolean  @default(true)
+  isRequired       Boolean  @default(true)
   cadenceMonths    Int?
   startDate        DateTime?
   nextDueDate      DateTime?
+  lastAssessmentAt DateTime?
   notes            String?
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
-  aluno            Aluno          @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  aluno            Aluno    @relation(fields: [alunoId], references: [id], onDelete: Cascade)
   assessmentType   AssessmentType @relation(fields: [assessmentTypeId], references: [id], onDelete: Cascade)
 
   @@unique([alunoId, assessmentTypeId])
   @@index([alunoId, isActive])
+  @@index([assessmentTypeId])
   @@index([nextDueDate])
 }
 
 model Assessment {
-  id               String               @id @default(cuid())
+  id               String     @id @default(cuid())
   alunoId          String
+  professorId      String
   typeId           String
-  assessmentDate   DateTime
+  title            String?
   filePath         String
-  originalFileName String
-  mimeType         String
-  fileSize         Int
+  originalFileName String?
+  mimeType         String?
+  fileSize         Int?
+  assessmentDate   DateTime
   extractedData    Json?
-  createdAt        DateTime             @default(now())
-  updatedAt        DateTime             @updatedAt
-  aluno            Aluno                @relation(fields: [alunoId], references: [id], onDelete: Cascade, map: "Assessment_athleteId_fkey")
-  type             AssessmentType       @relation(fields: [typeId], references: [id], onDelete: Cascade)
+  uploadSource     String?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  aluno            Aluno      @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  professor        Professor  @relation(fields: [professorId], references: [id], onDelete: Cascade)
+  type             AssessmentType @relation(fields: [typeId], references: [id], onDelete: Cascade)
   auditLogs        AssessmentAuditLog[]
 
+  @@index([alunoId, assessmentDate])
+  @@index([professorId])
   @@index([typeId])
-  @@index([assessmentDate])
-  @@index([alunoId], map: "Assessment_athleteId_idx")
 }
 
 model AssessmentAuditLog {
-  id           String                @id @default(cuid())
-  assessmentId String
-  professorId  String
-  action       AssessmentAuditAction
-  beforeData   Json?
-  afterData    Json?
-  createdAt    DateTime              @default(now())
-  assessment   Assessment            @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
-  professor    Professor             @relation(fields: [professorId], references: [id], onDelete: Cascade, map: "AssessmentAuditLog_educatorId_fkey")
+  id            String               @id @default(cuid())
+  assessmentId  String
+  professorId   String
+  action        AssessmentAuditAction
+  createdAt     DateTime             @default(now())
+  diff          Json?
+  assessment    Assessment           @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  professor     Professor            @relation(fields: [professorId], references: [id], onDelete: Cascade)
 
-  @@index([assessmentId])
-  @@index([professorId], map: "AssessmentAuditLog_educatorId_idx")
+  @@index([assessmentId, createdAt])
+  @@index([professorId])
 }
 
 model StudentProfileAuditLog {
-  id               String             @id @default(cuid())
-  alunoId          String
-  changedByUserId  String?
-  source           ProfileAuditSource
-  action           ProfileAuditAction
-  beforeData       Json?
-  afterData        Json?
-  changedFields    Json?
-  createdAt        DateTime           @default(now())
-  aluno            Aluno              @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  id             String             @id @default(cuid())
+  alunoId        String
+  userId         String?
+  source         ProfileAuditSource
+  action         ProfileAuditAction
+  changedFields  Json?
+  createdAt      DateTime           @default(now())
+  aluno          Aluno              @relation(fields: [alunoId], references: [id], onDelete: Cascade)
 
-  @@index([alunoId])
-  @@index([createdAt])
+  @@index([alunoId, createdAt])
+  @@index([source])
 }
 
 model AnthropometrySegment {
@@ -1478,6 +1479,9 @@ model StudentExternalAccount {
   contractId       String
   provider         String
   externalUserId   String?
+  sourceType       StudentRecordSourceType        @default(integration)
+  sourceReference  String?
+  recordedByUserId String?
   connectionStatus StudentExternalConnectionStatus @default(pending)
   lastSyncAt       DateTime?
   metadata         Json?
@@ -1490,6 +1494,8 @@ model StudentExternalAccount {
   @@unique([alunoId, provider])
   @@index([contractId, provider])
   @@index([connectionStatus])
+  @@index([sourceType])
+  @@index([recordedByUserId])
 }
 
 model StudentExternalActivity {
@@ -1499,6 +1505,9 @@ model StudentExternalActivity {
   contractId          String
   provider            String
   externalActivityId  String
+  sourceType          StudentRecordSourceType @default(integration)
+  sourceReference     String?
+  recordedByUserId    String?
   activityType        String?
   startedAt           DateTime
   endedAt             DateTime?
@@ -1521,6 +1530,8 @@ model StudentExternalActivity {
   @@index([contractId, provider, startedAt])
   @@index([alunoId, startedAt])
   @@index([provider, externalActivityId])
+  @@index([sourceType])
+  @@index([recordedByUserId])
 }
 
 enum UserType {
