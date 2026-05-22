@@ -2,9 +2,6 @@ import express from 'express';
 
 const request = require('supertest');
 
-const mockScreenAccessMiddleware = jest.fn(
-  () => (_req: express.Request, _res: express.Response, next: express.NextFunction) => next()
-);
 const mockBlockAccessMiddleware = jest.fn(
   () => (_req: express.Request, _res: express.Response, next: express.NextFunction) => next()
 );
@@ -29,7 +26,6 @@ jest.mock('../src/modules/auth/auth.middleware', () => ({
 }));
 
 jest.mock('../src/modules/access-control/access-control.middleware', () => ({
-  screenAccessMiddleware: mockScreenAccessMiddleware,
   blockAccessMiddleware: mockBlockAccessMiddleware,
 }));
 
@@ -64,6 +60,7 @@ describe('segmented aluno routes', () => {
   app.use('/alunos', segmentedAlunoRouter);
 
   beforeEach(() => {
+    mockBlockAccessMiddleware.mockClear();
     (alunoService.belongsToContract as jest.Mock).mockReset();
     (alunoService.belongsToProfessor as jest.Mock).mockReset();
     (studentDomainService.getSummary as jest.Mock).mockReset();
@@ -115,6 +112,28 @@ describe('segmented aluno routes', () => {
     expect(studentDomainService.getFinancialProfile).toHaveBeenCalledWith('aluno-1', {
       companyContractId: 'contract-1',
     });
+  });
+
+  it('protects integrations and activities with the dedicated integrations block', async () => {
+    (studentDomainService.getIntegrations as jest.Mock).mockResolvedValue({
+      alunoId: 'aluno-1',
+      accounts: [],
+      total: 0,
+    });
+    (studentDomainService.listExternalActivities as jest.Mock).mockResolvedValue({
+      alunoId: 'aluno-1',
+      items: [],
+      total: 0,
+    });
+
+    const integrationsResponse = await request(app).get('/alunos/aluno-1/integrations');
+    const activitiesResponse = await request(app).get('/alunos/aluno-1/activities');
+
+    expect(integrationsResponse.status).toBe(200);
+    expect(activitiesResponse.status).toBe(200);
+    expect(mockBlockAccessMiddleware).toHaveBeenCalledWith('students.details.integrations');
+    expect(studentDomainService.getIntegrations).toHaveBeenCalledWith('aluno-1');
+    expect(studentDomainService.listExternalActivities).toHaveBeenCalledWith('aluno-1');
   });
 
   it('protects the timeline with the audit block permission and contract scope', async () => {
