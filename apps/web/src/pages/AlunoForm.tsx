@@ -377,8 +377,8 @@ const isInactiveGeneratedContract = (contract: AvailableStudentContract) => {
 // Map tabs to their corresponding permission blocks
 const getBlockKeyForTab = (tab: AlunoFormTab): string => {
   const blockMap: Record<AlunoFormTab, string> = {
-    anamneseInicial: 'students.registration.initialAnamnesis',
-    identificacao: 'students.registration.identification',
+    anamneseInicial: 'students.registration.identification',
+    identificacao: 'students.registration.initialAnamnesis',
     parq: 'students.registration.parq',
     aha: 'students.registration.aha',
     desconfortos: 'students.registration.discomforts',
@@ -1439,15 +1439,15 @@ export function AlunoForm() {
                     key: 'anamneseInicial' as AlunoFormTab,
                     tabId: 'aluno-tab-anamnese-inicial',
                     panelId: 'aluno-panel-anamnese-inicial',
-                    label: 'Anamnese Inicial',
-                    Icon: FileText,
+                    label: 'Identificação',
+                    Icon: User,
                   },
                   {
                     key: 'identificacao' as AlunoFormTab,
                     tabId: 'aluno-tab-identificacao',
                     panelId: 'aluno-panel-identificacao',
-                    label: 'Identificação',
-                    Icon: User,
+                    label: 'Anamnese Inicial',
+                    Icon: FileText,
                   },
                   {
                     key: 'parq' as AlunoFormTab,
