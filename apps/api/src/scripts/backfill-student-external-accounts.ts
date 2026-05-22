@@ -127,7 +127,11 @@ const run = async () => {
       );
     }
 
-    report.summary[operation] += 1;
+    if (operation === 'create') {
+      report.summary.created += 1;
+    } else {
+      report.summary.updated += 1;
+    }
     report.entries.push({
       integrationId: integration.id,
       alunoId: integration.alunoId,

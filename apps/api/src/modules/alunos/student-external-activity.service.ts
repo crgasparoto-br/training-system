@@ -1,4 +1,4 @@
-import { PrismaClient, type Prisma } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -8,6 +8,8 @@ type StudentExternalActivitySourceType = 'integration' | 'system';
 type TrainingExecutionLinkSource =
   | 'matched_by_provider_activity_id'
   | 'backfill_training_execution_reference';
+
+const toNullableJsonInput = (value: Prisma.InputJsonValue | null) => value ?? Prisma.JsonNull;
 
 export type UpsertStudentExternalActivityInput = {
   externalAccountId: string;
@@ -159,7 +161,9 @@ export const studentExternalActivityService = {
         ? 'backfill_training_execution_reference'
         : 'matched_by_provider_activity_id';
 
-    const rawPayload = mergeRawPayload(data.rawPayload, linkedTrainingExecutionId ?? null, linkSource);
+    const rawPayload = toNullableJsonInput(
+      mergeRawPayload(data.rawPayload, linkedTrainingExecutionId ?? null, linkSource)
+    );
 
     const createData: Prisma.StudentExternalActivityUncheckedCreateInput = {
       externalAccountId: data.externalAccountId,

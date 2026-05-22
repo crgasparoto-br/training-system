@@ -10,6 +10,9 @@ const mockPrisma = {
 };
 
 jest.mock('@prisma/client', () => ({
+  Prisma: {
+    JsonNull: null,
+  },
   PrismaClient: jest.fn(() => mockPrisma),
 }));
 

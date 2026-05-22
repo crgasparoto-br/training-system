@@ -1483,6 +1483,7 @@ router.post('/:id/assessments', blockAccessMiddleware('students.actions.manageAs
 
     const created = await assessmentService.create({
       alunoId: id,
+      professorId,
       typeId: validated.typeId,
       assessmentDate,
       filePath: storedPath,
@@ -1535,7 +1536,9 @@ router.get('/:id/assessments/:assessmentId/file', blockAccessMiddleware('student
       return sendError(res, 'Arquivo nÃƒÂ£o encontrado no servidor', 404);
     }
 
-    return res.download(filePath, assessment.originalFileName);
+    return assessment.originalFileName
+      ? res.download(filePath, assessment.originalFileName)
+      : res.download(filePath);
   } catch (error) {
     console.error('Erro ao baixar arquivo:', error);
     return sendError(res, 'Erro ao baixar arquivo', 500);
@@ -1836,4 +1839,3 @@ router.delete('/:id/assessments/:assessmentId', blockAccessMiddleware('students.
 });
 
 export default router;
-

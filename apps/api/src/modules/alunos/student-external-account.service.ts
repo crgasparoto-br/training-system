@@ -1,4 +1,4 @@
-import { PrismaClient, type Prisma, type StudentExternalConnectionStatus } from '@prisma/client';
+import { Prisma, PrismaClient, type StudentExternalConnectionStatus } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -65,6 +65,8 @@ const buildLegacyMetadata = (
   hasRefreshToken: Boolean(input.refreshToken),
 });
 
+const toNullableJsonInput = (value: Prisma.InputJsonValue | null) => value ?? Prisma.JsonNull;
+
 const buildUpsertPayload = (input: UpsertStudentExternalAccountInput) => {
   const provider = normalizeProvider(input.provider);
   const createData: Prisma.StudentExternalAccountUncheckedCreateInput = {
@@ -102,8 +104,8 @@ const buildUpsertPayload = (input: UpsertStudentExternalAccountInput) => {
   }
 
   if (input.metadata !== undefined) {
-    createData.metadata = input.metadata;
-    updateData.metadata = input.metadata;
+    createData.metadata = toNullableJsonInput(input.metadata);
+    updateData.metadata = toNullableJsonInput(input.metadata);
   }
 
   return {

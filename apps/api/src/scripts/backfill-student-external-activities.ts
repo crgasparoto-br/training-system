@@ -38,7 +38,51 @@ type Report = {
   entries: ReportEntry[];
 };
 
+type ExecutionWithExternalReferences = {
+  id: string;
+  alunoId: string;
+  plannedDate: Date;
+  executedDate: Date | null;
+  createdAt: Date;
+  garminActivityId: string | null;
+  stravaActivityId: string | null;
+  aluno: {
+    professor: {
+      contractId: string;
+    } | null;
+    studentExternalAccounts: Array<{
+      id: string;
+      provider: string;
+    }>;
+  };
+};
+
 const normalizeProvider = (provider: string) => provider.trim().toLowerCase();
+
+const writeReport = async (report: Report) => {
+  report.finishedAt = new Date().toISOString();
+
+  const outputPathArg = parseFlagValue('--output');
+  const defaultOutputPath = path.resolve(
+    process.cwd(),
+    'reports',
+    `student-external-activity-backfill-${report.startedAt.replace(/[:.]/g, '-')}.json`
+  );
+  const outputPath = outputPathArg ? path.resolve(process.cwd(), outputPathArg) : defaultOutputPath;
+
+  await fs.mkdir(path.dirname(outputPath), { recursive: true });
+  await fs.writeFile(outputPath, JSON.stringify(report, null, 2), 'utf8');
+
+  return outputPath;
+};
+
+const isDatabaseConnectionError = (error: unknown) => {
+  return (
+    error instanceof Error &&
+    (error.name === 'PrismaClientInitializationError' ||
+      error.message.includes("Can't reach database server"))
+  );
+};
 
 const run = async () => {
   const report: Report = {
@@ -55,36 +99,63 @@ const run = async () => {
 
   console.log('[student-external-activity-backfill] started', { dryRun });
 
-  const executions = await prisma.trainingExecution.findMany({
-    where: {
-      OR: [{ garminActivityId: { not: null } }, { stravaActivityId: { not: null } }],
-    },
-    select: {
-      id: true,
-      alunoId: true,
-      plannedDate: true,
-      executedDate: true,
-      createdAt: true,
-      garminActivityId: true,
-      stravaActivityId: true,
-      aluno: {
-        select: {
-          professor: {
-            select: {
-              contractId: true,
+  let executions: ExecutionWithExternalReferences[];
+
+  try {
+    executions = await prisma.trainingExecution.findMany({
+      where: {
+        OR: [{ garminActivityId: { not: null } }, { stravaActivityId: { not: null } }],
+      },
+      select: {
+        id: true,
+        alunoId: true,
+        plannedDate: true,
+        executedDate: true,
+        createdAt: true,
+        garminActivityId: true,
+        stravaActivityId: true,
+        aluno: {
+          select: {
+            professor: {
+              select: {
+                contractId: true,
+              },
             },
-          },
-          studentExternalAccounts: {
-            select: {
-              id: true,
-              provider: true,
+            studentExternalAccounts: {
+              select: {
+                id: true,
+                provider: true,
+              },
             },
           },
         },
       },
-    },
-    orderBy: [{ alunoId: 'asc' }, { createdAt: 'asc' }],
-  });
+      orderBy: [{ alunoId: 'asc' }, { createdAt: 'asc' }],
+    });
+  } catch (error) {
+    if (!dryRun || !isDatabaseConnectionError(error)) {
+      throw error;
+    }
+
+    report.summary.ignored += 1;
+    report.entries.push({
+      provider: 'unknown',
+      externalActivityId: 'unknown',
+      alunoId: 'unknown',
+      trainingExecutionId: 'unknown',
+      externalAccountId: null,
+      operation: 'ignore',
+      reason: 'database_unavailable',
+      dryRun,
+    });
+
+    const outputPath = await writeReport(report);
+    console.warn('[student-external-activity-backfill] dry-run skipped: database unavailable', {
+      outputPath,
+      summary: report.summary,
+    });
+    return;
+  }
 
   const references = executions.flatMap((execution) => {
     const items: Array<{
@@ -166,7 +237,11 @@ const run = async () => {
       );
     }
 
-    report.summary[operation] += 1;
+    if (operation === 'create') {
+      report.summary.created += 1;
+    } else {
+      report.summary.updated += 1;
+    }
     report.entries.push({
       provider: reference.provider,
       externalActivityId: reference.externalActivityId,
@@ -178,18 +253,7 @@ const run = async () => {
     });
   }
 
-  report.finishedAt = new Date().toISOString();
-
-  const outputPathArg = parseFlagValue('--output');
-  const defaultOutputPath = path.resolve(
-    process.cwd(),
-    'reports',
-    `student-external-activity-backfill-${report.startedAt.replace(/[:.]/g, '-')}.json`
-  );
-  const outputPath = outputPathArg ? path.resolve(process.cwd(), outputPathArg) : defaultOutputPath;
-
-  await fs.mkdir(path.dirname(outputPath), { recursive: true });
-  await fs.writeFile(outputPath, JSON.stringify(report, null, 2), 'utf8');
+  const outputPath = await writeReport(report);
 
   console.log('[student-external-activity-backfill] completed', {
     dryRun,
