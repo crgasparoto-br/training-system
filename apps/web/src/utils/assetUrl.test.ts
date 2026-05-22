@@ -14,6 +14,18 @@ describe('resolveAssetUrl', () => {
     expect(result).toContain('/uploads/professores/5678-avatar.jpg');
   });
 
+  it('normaliza URL antiga com prefixo /api/v1 antes de uploads', () => {
+    expect(resolveAssetUrl('/api/v1/uploads/alunos/1234-avatar.png')).toContain(
+      '/uploads/alunos/1234-avatar.png'
+    );
+  });
+
+  it('normaliza URL relativa com prefixo api/v1 antes de uploads', () => {
+    expect(resolveAssetUrl('api/v1/uploads/professores/5678-avatar.jpg')).toContain(
+      '/uploads/professores/5678-avatar.jpg'
+    );
+  });
+
   it('preserva URL com /uploads absoluto', () => {
     expect(resolveAssetUrl('/uploads/contracts/logos/1234-image.png')).toContain(
       '/uploads/contracts/logos/1234-image.png'
