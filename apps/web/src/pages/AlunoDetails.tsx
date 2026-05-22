@@ -1,7 +1,18 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link, useLocation } from 'react-router-dom';
 import { useMemo, useRef } from 'react';
-import { alunoService, type Aluno, type StudentContractLink } from '../services/aluno.service';
+import {
+  alunoService,
+  type Aluno,
+  type StudentContractLink,
+  type StudentSegmentedActivities,
+  type StudentSegmentedFinancialProfile,
+  type StudentSegmentedIntegrations,
+  type StudentSegmentedIntake,
+  type StudentSegmentedProfile,
+  type StudentSegmentedSummary,
+  type StudentSegmentedTimeline,
+} from '../services/aluno.service';
 import { planService, type TrainingPlan } from '../services/plan.service';
 import { assessmentService, type Assessment, type AssessmentSummary, type AssessmentAuditLog } from '../services/assessment.service';
 import { assessmentTypeService, type AssessmentType } from '../services/assessment-type.service';
@@ -16,6 +27,8 @@ import { AlunoResumoHubTab } from '../components/alunos/AlunoResumoHubTab';
 import { AlunoCadastroTab } from '../components/alunos/AlunoCadastroTab';
 import { AlunoSaudeAnamneseTab } from '../components/alunos/AlunoSaudeAnamneseTab';
 import { AlunoFinanceiroTab } from '../components/alunos/AlunoFinanceiroTab';
+import { AlunoHistoricoTab } from '../components/alunos/AlunoHistoricoTab';
+import { AlunoIntegracoesTab } from '../components/alunos/AlunoIntegracoesTab';
 import { AlunoPlanoAvaliacoesTab } from '../components/alunos/AlunoPlanoAvaliacoesTab';
 import { AlunoRevisoesCadastraisTab } from '../components/alunos/AlunoRevisoesCadastraisTab';
 import { alunoDetailsCopy } from '../i18n/ptBR';
@@ -234,6 +247,20 @@ export function AlunoDetails() {
   const initialTempPassword =
     (location.state as { tempPassword?: string | null } | null)?.tempPassword ?? null;
   const [aluno, setAluno] = useState<Aluno | null>(null);
+  const [segmentedSummary, setSegmentedSummary] =
+    useState<StudentSegmentedSummary | null>(null);
+  const [segmentedProfile, setSegmentedProfile] =
+    useState<StudentSegmentedProfile | null>(null);
+  const [segmentedIntake, setSegmentedIntake] =
+    useState<StudentSegmentedIntake | null>(null);
+  const [segmentedFinancialProfile, setSegmentedFinancialProfile] =
+    useState<StudentSegmentedFinancialProfile | null>(null);
+  const [segmentedIntegrations, setSegmentedIntegrations] =
+    useState<StudentSegmentedIntegrations | null>(null);
+  const [segmentedActivities, setSegmentedActivities] =
+    useState<StudentSegmentedActivities | null>(null);
+  const [segmentedTimeline, setSegmentedTimeline] =
+    useState<StudentSegmentedTimeline | null>(null);
   const [loading, setLoading] = useState(true);
   const [isResetting, setIsResetting] = useState(false);
   const [tempPassword, setTempPassword] = useState<string | null>(initialTempPassword);
@@ -471,6 +498,13 @@ export function AlunoDetails() {
         plansData,
         assessmentPlanData,
         contractsData,
+        segmentedSummaryData,
+        segmentedProfileData,
+        segmentedIntakeData,
+        segmentedFinancialProfileData,
+        segmentedIntegrationsData,
+        segmentedActivitiesData,
+        segmentedTimelineData,
       ] = await Promise.all([
         alunoService.getById(alunoId),
         assessmentService.listByAluno(alunoId),
@@ -483,9 +517,25 @@ export function AlunoDetails() {
         canViewFinancialData
           ? alunoService.listStudentContracts(alunoId)
           : Promise.resolve({ alunoId, activeContract: null, contracts: [] }),
+        alunoService.getSegmentedSummary(alunoId).catch(() => null),
+        alunoService.getSegmentedProfile(alunoId).catch(() => null),
+        alunoService.getSegmentedIntake(alunoId).catch(() => null),
+        canViewFinancialData
+          ? alunoService.getSegmentedFinancialProfile(alunoId).catch(() => null)
+          : Promise.resolve(null),
+        alunoService.getSegmentedIntegrations(alunoId).catch(() => null),
+        alunoService.listSegmentedActivities(alunoId).catch(() => null),
+        alunoService.getSegmentedTimeline(alunoId).catch(() => null),
       ]);
 
       setAluno(data);
+      setSegmentedSummary(segmentedSummaryData);
+      setSegmentedProfile(segmentedProfileData);
+      setSegmentedIntake(segmentedIntakeData);
+      setSegmentedFinancialProfile(segmentedFinancialProfileData);
+      setSegmentedIntegrations(segmentedIntegrationsData);
+      setSegmentedActivities(segmentedActivitiesData);
+      setSegmentedTimeline(segmentedTimelineData);
       setAssessments(assessmentsData);
       setAssessmentSummary(summaryData);
       setAssessmentTypes(typesData);
@@ -499,6 +549,13 @@ export function AlunoDetails() {
 
     } catch (error) {
       console.error('Erro ao carregar aluno:', error);
+      setSegmentedSummary(null);
+      setSegmentedProfile(null);
+      setSegmentedIntake(null);
+      setSegmentedFinancialProfile(null);
+      setSegmentedIntegrations(null);
+      setSegmentedActivities(null);
+      setSegmentedTimeline(null);
       alert(alunoDetailsCopy.loadError);
       navigate('/alunos');
     } finally {
@@ -951,6 +1008,7 @@ export function AlunoDetails() {
       'plano-avaliacoes',
       'avaliacoes-fisicas',
       'revisoes-cadastrais',
+      'integracoes',
       'treinos',
       'auditoria',
     ];
@@ -1211,6 +1269,7 @@ export function AlunoDetails() {
       {visibleTabs.includes('resumo') && activeTab === 'resumo' && (
         <AlunoResumoHubTab
           aluno={aluno}
+          segmentedSummary={segmentedSummary}
           assessments={assessments}
           assessmentSummary={assessmentSummary}
           plans={plans}
@@ -1221,6 +1280,7 @@ export function AlunoDetails() {
       {visibleTabs.includes('cadastro') && activeTab === 'cadastro' && (
         <AlunoCadastroTab
           aluno={aluno}
+          segmentedProfile={segmentedProfile}
           schedulePlanLabel={schedulePlanLabel}
           formatGender={formatGender}
           identificationInfo={identificationInfo}
@@ -1230,7 +1290,11 @@ export function AlunoDetails() {
       )}
 
       {visibleTabs.includes('saude-anamnese') && activeTab === 'saude-anamnese' && (
-        <AlunoSaudeAnamneseTab aluno={aluno} parqPositiveCount={parqPositiveCount} />
+        <AlunoSaudeAnamneseTab
+          aluno={aluno}
+          parqPositiveCount={parqPositiveCount}
+          segmentedIntake={segmentedIntake}
+        />
       )}
 
       {visibleTabs.includes('financeiro') && activeTab === 'financeiro' && (
@@ -1242,6 +1306,7 @@ export function AlunoDetails() {
           canManageContracts={canManageFinancialContracts && canManageFinancialContractAction}
           canCancelContracts={canCancelFinancialContracts && canManageFinancialContractAction}
           canRenewContracts={canRenewFinancialContracts && canManageFinancialContractAction}
+          segmentedFinancialProfile={segmentedFinancialProfile}
         />
       )}
 
@@ -2027,32 +2092,31 @@ export function AlunoDetails() {
         />
       )}
 
+      {visibleTabs.includes('integracoes') && activeTab === 'integracoes' && (
+        <AlunoIntegracoesTab
+          integrations={segmentedIntegrations}
+          activities={segmentedActivities}
+        />
+      )}
+
       {visibleTabs.includes('treinos') && activeTab === 'treinos' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Treinos / Planos</CardTitle>
-            <CardDescription>
-              Visualize e gerencie os planos de treino do aluno.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground">Aba de Treinos / Planos em desenvolvimento</p>
-          </CardContent>
-        </Card>
+        <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Treinos / Planos</CardTitle>
+              <CardDescription>
+                Visualize e gerencie os planos de treino do aluno.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground">Aba de Treinos / Planos em desenvolvimento</p>
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {visibleTabs.includes('auditoria') && activeTab === 'auditoria' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Histórico / Auditoria</CardTitle>
-            <CardDescription>
-              Registros de todas as alterações e ações realizadas neste cadastro.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground">Aba de Histórico / Auditoria em desenvolvimento</p>
-          </CardContent>
-        </Card>
+        <AlunoHistoricoTab timeline={segmentedTimeline} />
       )}
 
       {previewOpen && (
@@ -2290,10 +2354,5 @@ export function AlunoDetails() {
     </div>
   );
 }
-
-
-
-
-
 
 
