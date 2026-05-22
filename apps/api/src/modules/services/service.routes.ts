@@ -1,12 +1,17 @@
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { CreateServiceSchema, UpdateServiceSchema, sendError, sendSuccess } from '@corrida/utils';
-import { authMiddleware, masterMiddleware, professorMiddleware } from '../auth/auth.middleware.js';
+import { authMiddleware, masterMiddleware } from '../auth/auth.middleware.js';
+import { screenAccessMiddleware } from '../access-control/access-control.middleware.js';
 import { serviceCatalogService } from './service.service.js';
 
 const router: Router = Router();
 
-router.get('/', authMiddleware, professorMiddleware, async (req: Request, res: Response) => {
+router.get(
+  '/',
+  authMiddleware,
+  screenAccessMiddleware(['settings.services', 'students.registration']),
+  async (req: Request, res: Response) => {
   try {
     const contractId = (req as any).user.contractId as string | undefined;
     const includeInactive = req.query.includeInactive === 'true';
@@ -20,7 +25,8 @@ router.get('/', authMiddleware, professorMiddleware, async (req: Request, res: R
   } catch (error: any) {
     return sendError(res, error.message || 'Erro ao carregar serviços', 500);
   }
-});
+  }
+);
 
 router.post('/', authMiddleware, masterMiddleware, async (req: Request, res: Response) => {
   try {
