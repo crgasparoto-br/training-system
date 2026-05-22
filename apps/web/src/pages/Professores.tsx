@@ -1697,3 +1697,2089 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
       if (!currentCreateValue) {
         setValue('collaboratorFunctionId', getDefaultCollaboratorFunctionId(functionResult));
       }
+
+      const currentCreateResponsibleManagerId = getValues('responsibleManagerId');
+      if (!currentCreateResponsibleManagerId) {
+        setValue('responsibleManagerId', getDefaultResponsibleManagerId(managerOptions));
+      }
+
+      const currentEditValue = getEditValues('collaboratorFunctionId');
+      if (editingId && !currentEditValue) {
+        setEditValue('collaboratorFunctionId', getDefaultCollaboratorFunctionId(functionResult));
+      }
+
+      const currentEditResponsibleManagerId = getEditValues('responsibleManagerId');
+      if (editingId && !currentEditResponsibleManagerId) {
+        setEditValue('responsibleManagerId', getDefaultResponsibleManagerId(managerOptions));
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.error || professoresCopy.loadError);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (canManageProfessores) {
+      loadData();
+    } else {
+      setLoading(false);
+    }
+  }, [canManageProfessores, statusFilter]);
+
+  const activeCollaboratorFunctions = collaboratorFunctions.filter((item) => item.isActive);
+  const createCollaboratorFunctionName =
+    collaboratorFunctions.find((item) => item.id === createCollaboratorFunctionId)?.name ||
+    'Selecione uma função';
+  const editCollaboratorFunctionName =
+    collaboratorFunctions.find((item) => item.id === editCollaboratorFunctionId)?.name ||
+    'Selecione uma função';
+  const createRequiresResponsibleManager = requiresResponsibleManager(
+    createCollaboratorFunctionId,
+    collaboratorFunctions
+  );
+  const editRequiresResponsibleManager = requiresResponsibleManager(
+    editCollaboratorFunctionId,
+    collaboratorFunctions
+  );
+  const createResponsibleManagerName =
+    responsibleManagers.find((m) => m.id === createResponsibleManagerId)?.user?.profile?.name ?? null;
+  const editResponsibleManagerName =
+    responsibleManagers.find((m) => m.id === editResponsibleManagerId)?.user?.profile?.name ?? null;
+  const filteredProfessores = useMemo(() => {
+    const searchTerm = normalizeConsultFilterValue(consultSearch);
+
+    return professores.filter((professor) => {
+      const profile = professor.user.profile;
+      const legalFinancialStatus = getLegalFinancialStatusKey(profile);
+      const searchableValues = [
+        profile.name,
+        professor.user.email,
+        profile.phone,
+        profile.cpf,
+        profile.cref,
+        profile.instagramHandle,
+        professor.collaboratorFunction.name,
+        professor.currentStatus,
+        professor.responsibleManager?.user?.profile?.name,
+      ];
+
+      const matchesSearch =
+        !searchTerm ||
+        searchableValues.some((value) => normalizeConsultFilterValue(value).includes(searchTerm));
+      const matchesFunction =
+        collaboratorFunctionFilter === 'all' ||
+        professor.collaboratorFunction.id === collaboratorFunctionFilter;
+      const matchesContract =
+        contractFilter === 'all' ||
+        (contractFilter === 'signed' && professor.hasSignedContract) ||
+        (contractFilter === 'pending' && !professor.hasSignedContract);
+      const matchesLegalFinancial =
+        legalFinancialFilter === 'all' || legalFinancialStatus === legalFinancialFilter;
+
+      return matchesSearch && matchesFunction && matchesContract && matchesLegalFinancial;
+    });
+  }, [collaboratorFunctionFilter, consultSearch, contractFilter, legalFinancialFilter, professores]);
+
+  const consultMetrics = useMemo(() => {
+    return {
+      total: professores.length,
+      active: professores.filter((professor) => professor.user?.isActive !== false).length,
+      pendingContracts: professores.filter((professor) => !professor.hasSignedContract).length,
+      pendingLegalFinancial: professores.filter(
+        (professor) => getLegalFinancialStatusKey(professor.user.profile) !== 'validated'
+      ).length,
+    };
+  }, [professores]);
+
+  const hasActiveConsultFilters =
+    consultSearch.trim().length > 0 ||
+    statusFilter !== 'all' ||
+    collaboratorFunctionFilter !== 'all' ||
+    contractFilter !== 'all' ||
+    legalFinancialFilter !== 'all';
+
+  const clearConsultFilters = () => {
+    setConsultSearch('');
+    setStatusFilter('all');
+    setCollaboratorFunctionFilter('all');
+    setContractFilter('all');
+    setLegalFinancialFilter('all');
+  };
+
+  const onSubmit = async (data: CreateProfessorForm) => {
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      await professorService.create(sanitizeCreateProfessorPayload(data));
+      setCreateActiveTab(getAllowedRegistrationTab('collaborator'));
+      setCreateCepError(null);
+      reset({
+        phone: '',
+        birthDate: '',
+        cpf: '',
+        rg: '',
+        maritalStatus: '',
+        addressStreet: '',
+        addressNumber: '',
+        addressNeighborhood: '',
+        addressCity: '',
+        addressState: '',
+        addressComplement: '',
+        addressZipCode: '',
+        instagramHandle: '',
+        cref: '',
+        professionalSummary: '',
+        lattesUrl: '',
+        companyDocument: '',
+        bankCode: '',
+        bankBranch: '',
+        bankAccount: '',
+        pixKey: '',
+        avatar: '',
+        admissionDate: '',
+        dismissalDate: '',
+        currentStatus: '',
+        signedContractDocumentUrl: '',
+        operationalRoleIds: [],
+        hourlyRates: createDefaultHourlyRatesForm(),
+        hasSignedContract: false,
+        collaboratorFunctionId: getDefaultCollaboratorFunctionId(collaboratorFunctions),
+        responsibleManagerId: getDefaultResponsibleManagerId(responsibleManagers),
+      });
+      await loadData();
+    } catch (err: any) {
+      setError(err.response?.data?.error || professoresCopy.createError);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const onInvalidSubmit = (formErrors: FieldErrors<CreateProfessorForm>) => {
+    setCreateActiveTab(getAllowedRegistrationTab(getRegistrationTabFromErrors(formErrors)));
+  };
+
+  const startEdit = (professor: ProfessorSummary) => {
+    const operationalRoleIds = professor.operationalRoleIds ?? [];
+
+    setEditingId(professor.id);
+    setEditActiveTab(getAllowedRegistrationTab('collaborator'));
+    setEditCepError(null);
+    resetEdit({
+      name: professor.user.profile.name,
+      email: professor.user.email,
+      password: '',
+      phone: professor.user.profile.phone ?? '',
+      birthDate: formatDateForInput(professor.user.profile.birthDate),
+      cpf: formatCpf(professor.user.profile.cpf ?? ''),
+      rg: formatRg(professor.user.profile.rg ?? ''),
+      maritalStatus: professor.user.profile.maritalStatus ?? '',
+      addressStreet: professor.user.profile.addressStreet ?? '',
+      addressNumber: professor.user.profile.addressNumber ?? '',
+      addressNeighborhood: professor.user.profile.addressNeighborhood ?? '',
+      addressCity: professor.user.profile.addressCity ?? '',
+      addressState: professor.user.profile.addressState ?? '',
+      addressComplement: professor.user.profile.addressComplement ?? '',
+      addressZipCode: formatCep(professor.user.profile.addressZipCode ?? ''),
+      instagramHandle: normalizeInstagramHandle(professor.user.profile.instagramHandle),
+      cref: professor.user.profile.cref ?? '',
+      professionalSummary: professor.user.profile.professionalSummary ?? '',
+      lattesUrl: professor.user.profile.lattesUrl ?? '',
+      companyDocument: professor.user.profile.companyDocument ?? '',
+      bankCode: getBankSelectValue(professor.user.profile.bankCode, professor.user.profile.bankName, banks),
+      bankBranch: professor.user.profile.bankBranch ?? '',
+      bankAccount: formatBankAccount(professor.user.profile.bankAccount ?? ''),
+      pixKey: professor.user.profile.pixKey ?? '',
+      avatar: professor.user.profile.avatar ?? '',
+      admissionDate: formatDateForInput(professor.admissionDate),
+      dismissalDate: formatDateForInput(professor.dismissalDate),
+      currentStatus: professor.currentStatus ?? '',
+      signedContractDocumentUrl: professor.signedContractDocumentUrl ?? '',
+      operationalRoleIds:
+        operationalRoleIds.length > 0
+          ? operationalRoleIds
+          : [professor.collaboratorFunction.id],
+      hourlyRates: getHourlyRatesFormValue(professor.hourlyRates),
+      hasSignedContract: professor.hasSignedContract,
+      collaboratorFunctionId: professor.collaboratorFunction.id,
+      responsibleManagerId:
+        professor.responsibleManager?.id ?? getDefaultResponsibleManagerId(responsibleManagers),
+    });
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setEditActiveTab(getAllowedRegistrationTab('collaborator'));
+    setEditCepError(null);
+    resetEdit({
+      name: '',
+      email: '',
+      password: '',
+      phone: '',
+      birthDate: '',
+      cpf: '',
+      rg: '',
+      maritalStatus: '',
+      addressStreet: '',
+      addressNumber: '',
+      addressNeighborhood: '',
+      addressCity: '',
+      addressState: '',
+      addressComplement: '',
+      addressZipCode: '',
+      instagramHandle: '',
+      cref: '',
+      professionalSummary: '',
+      lattesUrl: '',
+      companyDocument: '',
+      bankCode: '',
+      bankBranch: '',
+      bankAccount: '',
+      pixKey: '',
+      avatar: '',
+      admissionDate: '',
+      dismissalDate: '',
+      currentStatus: '',
+      signedContractDocumentUrl: '',
+      operationalRoleIds: [],
+      hourlyRates: createDefaultHourlyRatesForm(),
+      hasSignedContract: false,
+      collaboratorFunctionId: getDefaultCollaboratorFunctionId(collaboratorFunctions),
+      responsibleManagerId: getDefaultResponsibleManagerId(responsibleManagers),
+    });
+  };
+
+  const onSubmitEdit = async (data: EditProfessorForm) => {
+    if (!editingId) return;
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      await professorService.update(
+        editingId,
+        canPerformAdministrativeActions
+          ? sanitizeUpdateProfessorPayload(data)
+          : sanitizeSelfServiceUpdateProfessorPayload(data)
+      );
+      await loadData();
+      setEditingId(null);
+      setEditActiveTab(getAllowedRegistrationTab('collaborator'));
+      setEditCepError(null);
+    } catch (err: any) {
+      setError(err.response?.data?.error || professoresCopy.updateError);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const onInvalidSubmitEdit = (formErrors: FieldErrors<EditProfessorForm>) => {
+    setEditActiveTab(getAllowedRegistrationTab(getRegistrationTabFromErrors(formErrors)));
+  };
+
+  const handleAvatarUpload = async (file: File, mode: 'create' | 'edit') => {
+    if (!file.type.startsWith('image/')) {
+      setError('Selecione um arquivo de imagem válido.');
+      return;
+    }
+
+    const setUploading = mode === 'create' ? setUploadingCreateAvatar : setUploadingEditAvatar;
+
+    setUploading(true);
+    setError(null);
+
+    try {
+      const avatarUrl = await professorService.uploadAvatar(file);
+
+      if (mode === 'create') {
+        setValue('avatar', avatarUrl, { shouldDirty: true, shouldValidate: true });
+      } else {
+        // Persistir no backend para edição
+        if (!editingId) return;
+        
+        await professorService.update(editingId, { avatar: avatarUrl });
+        setEditValue('avatar', avatarUrl, { shouldDirty: true, shouldValidate: true });
+        
+        // Recarregar dados da tela
+        await loadData();
+        
+        // Se o professor editado for o usuário logado, atualizar perfil
+        if (editingId === currentProfessorId) {
+          await loadUser();
+          localStorage.setItem(ACCESS_REFRESH_SIGNAL_KEY, String(Date.now()));
+        }
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Erro ao enviar foto do colaborador');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleSignedContractUpload = async (file: File, mode: 'create' | 'edit') => {
+    if (file.type !== 'application/pdf') {
+      setError(professoresCopy.signedContractDocumentFormatError);
+      return;
+    }
+
+    const setUploading =
+      mode === 'create' ? setUploadingCreateSignedContract : setUploadingEditSignedContract;
+
+    setUploading(true);
+    setError(null);
+
+    try {
+      const documentUrl = await professorService.uploadSignedContract(file);
+
+      if (mode === 'create') {
+        setValue('signedContractDocumentUrl', documentUrl, { shouldDirty: true, shouldValidate: true });
+        setValue('hasSignedContract', true, { shouldDirty: true, shouldValidate: true });
+      } else {
+        setEditValue('signedContractDocumentUrl', documentUrl, { shouldDirty: true, shouldValidate: true });
+        setEditValue('hasSignedContract', true, { shouldDirty: true, shouldValidate: true });
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.error || professoresCopy.signedContractDocumentMissing);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleCreateAvatarChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+
+    if (!file) {
+      return;
+    }
+
+    await handleAvatarUpload(file, 'create');
+  };
+
+  const handleCreateSignedContractChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+
+    if (!file) {
+      return;
+    }
+
+    await handleSignedContractUpload(file, 'create');
+  };
+
+  const handleEditAvatarChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+
+    if (!file) {
+      return;
+    }
+
+    await handleAvatarUpload(file, 'edit');
+  };
+
+  const handleEditSignedContractChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+
+    if (!file) {
+      return;
+    }
+
+    await handleSignedContractUpload(file, 'edit');
+  };
+
+  const handleRemoveCreateSignedContract = () => {
+    setValue('signedContractDocumentUrl', '', { shouldDirty: true, shouldValidate: true });
+    setValue('hasSignedContract', false, { shouldDirty: true, shouldValidate: true });
+    setActiveSignedContractModal(null);
+  };
+
+  const handleRemoveEditSignedContract = () => {
+    setEditValue('signedContractDocumentUrl', '', { shouldDirty: true, shouldValidate: true });
+    setEditValue('hasSignedContract', false, { shouldDirty: true, shouldValidate: true });
+    setActiveSignedContractModal(null);
+  };
+
+  const handleRemoveEditAvatar = async () => {
+    if (!editingId) return;
+
+    setUploadingEditAvatar(true);
+    setError(null);
+
+    try {
+      // Persistir remoção no backend
+      await professorService.update(editingId, { avatar: null });
+      setEditValue('avatar', '', { shouldDirty: true, shouldValidate: true });
+      
+      // Recarregar dados da tela
+      await loadData();
+      
+      // Se o professor editado for o usuário logado, atualizar perfil
+      if (editingId === currentProfessorId) {
+        await loadUser();
+        localStorage.setItem(ACCESS_REFRESH_SIGNAL_KEY, String(Date.now()));
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.error || 'Erro ao remover foto do colaborador');
+    } finally {
+      setUploadingEditAvatar(false);
+    }
+  };
+
+  const handleCreateSignedContractToggle = (checked: boolean) => {
+    if (checked) {
+      setValue('hasSignedContract', true, { shouldDirty: true, shouldValidate: true });
+      setActiveSignedContractModal('create');
+      return;
+    }
+
+    handleRemoveCreateSignedContract();
+  };
+
+  const handleEditSignedContractToggle = (checked: boolean) => {
+    if (checked) {
+      setEditValue('hasSignedContract', true, { shouldDirty: true, shouldValidate: true });
+      setActiveSignedContractModal('edit');
+      return;
+    }
+
+    handleRemoveEditSignedContract();
+  };
+
+  const handleCloseSignedContractModal = () => {
+    if (activeSignedContractModal === 'create' && !createSignedContractDocumentUrl) {
+      setValue('hasSignedContract', false, { shouldDirty: true, shouldValidate: true });
+    }
+
+    if (activeSignedContractModal === 'edit' && !editSignedContractDocumentUrl) {
+      setEditValue('hasSignedContract', false, { shouldDirty: true, shouldValidate: true });
+    }
+
+    setActiveSignedContractModal(null);
+  };
+
+  const handleValidateLegalFinancial = async (professorId: string) => {
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      await professorService.validateLegalFinancial(professorId);
+      await loadData();
+    } catch (err: any) {
+      setError(err.response?.data?.error || professoresCopy.legalFinancialValidateError);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleResetPassword = async (professorId: string) => {
+    if (!confirm(professoresCopy.resetPasswordConfirm)) {
+      return;
+    }
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      const result = await professorService.resetPassword(professorId);
+      setResetPassword(result.tempPassword);
+      setResetTarget(professorId);
+    } catch (err: any) {
+      setError(err.response?.data?.error || professoresCopy.resetPasswordError);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeactivate = async (professorId: string) => {
+    if (!confirm(professoresCopy.deactivateConfirm)) {
+      return;
+    }
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      await professorService.deactivate(professorId);
+      await loadData();
+    } catch (err: any) {
+      setError(err.response?.data?.error || professoresCopy.deactivateError);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleActivate = async (professorId: string) => {
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      await professorService.activate(professorId);
+      await loadData();
+    } catch (err: any) {
+      setError(err.response?.data?.error || professoresCopy.activateError);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const renderConsultProfessorSummary = (professor: ProfessorSummary) => {
+    const profile = professor.user.profile;
+    const isInactive = professor.user?.isActive === false;
+    const isOwnRecord = professor.id === currentProfessorId;
+    const canEditRecord = canPerformAdministrativeActions || isOwnRecord;
+    const legalFinancialStatusKey = getLegalFinancialStatusKey(profile);
+    const legalFinancialStatus = getLegalFinancialStatus(profile);
+    const legalFinancialTone: ConsultBadgeTone =
+      legalFinancialStatusKey === 'validated'
+        ? 'success'
+        : legalFinancialStatusKey === 'pending'
+          ? 'warning'
+          : 'neutral';
+
+    return (
+      <div className="grid gap-4 lg:grid-cols-[minmax(260px,1.3fr)_minmax(180px,0.8fr)_minmax(220px,1fr)_auto] lg:items-center">
+        <div className="flex min-w-0 items-start gap-4">
+          <CollaboratorAvatar name={profile.name} avatar={profile.avatar} />
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="truncate text-base font-semibold text-foreground">
+                {profile.name || professoresCopy.noName}
+              </p>
+              <ConsultBadge tone={isInactive ? 'danger' : 'success'}>
+                {isInactive ? professoresCopy.deactivated : 'Ativo'}
+              </ConsultBadge>
+              <ConsultBadge tone={professor.role === 'master' ? 'info' : 'neutral'}>
+                {professor.role === 'master' ? professoresCopy.masterRole : professoresCopy.professorRole}
+              </ConsultBadge>
+            </div>
+            <div className="mt-2 space-y-1 text-sm text-muted-foreground">
+              <div className="flex min-w-0 items-center gap-2">
+                <Mail className="h-4 w-4 shrink-0" />
+                <span className="truncate">{professor.user.email}</span>
+              </div>
+              <div className="flex min-w-0 items-center gap-2">
+                <Phone className="h-4 w-4 shrink-0" />
+                <span className="truncate">{profile.phone || commonCopy.notInformed}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-1 text-sm">
+          <p className="font-medium text-foreground">{professor.collaboratorFunction.name}</p>
+          <p className="text-muted-foreground">
+            {professoresCopy.responsibleManagerLabel}:{' '}
+            {professor.responsibleManager?.user?.profile?.name || professoresCopy.noResponsibleManager}
+          </p>
+          <p className="text-muted-foreground">
+            {professoresCopy.crefLabel}: {profile.cref || commonCopy.notInformed}
+          </p>
+        </div>
+
+        <div className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-1">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              {professoresCopy.admissionDateLabel}
+            </p>
+            <p className="font-medium text-foreground">{formatConsultDate(professor.admissionDate)}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <ConsultBadge tone={professor.hasSignedContract ? 'success' : 'warning'}>
+              {professor.hasSignedContract
+                ? professoresCopy.signedContractYes
+                : professoresCopy.signedContractNo}
+            </ConsultBadge>
+            <ConsultBadge tone={legalFinancialTone}>{legalFinancialStatus}</ConsultBadge>
+          </div>
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              {professoresCopy.lastAccess}
+            </p>
+            <p className="text-muted-foreground">{formatConsultDateTime(professor.user.lastLoginAt)}</p>
+          </div>
+          {professor.signedContractDocumentUrl && (
+            <a
+              href={professor.signedContractDocumentUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 text-sm font-medium text-primary underline-offset-4 hover:underline"
+            >
+              {professoresCopy.signedContractDocumentView}
+              <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          )}
+        </div>
+
+        <div className="flex flex-wrap justify-start gap-2 lg:justify-end">
+          {professor.role !== 'master' && (
+            <>
+              {isInactive ? (
+                canPerformAdministrativeActions && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => handleActivate(professor.id)}
+                    isLoading={isSubmitting}
+                  >
+                    <UserCheck className="h-4 w-4" />
+                    {professoresCopy.activate}
+                  </Button>
+                )
+              ) : (
+                <>
+                  {canEditRecord && (
+                    <Button variant="outline" size="sm" onClick={() => startEdit(professor)}>
+                      <Edit3 className="h-4 w-4" />
+                      {professoresCopy.edit}
+                    </Button>
+                  )}
+                  {canPerformAdministrativeActions && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleValidateLegalFinancial(professor.id)}
+                        isLoading={isSubmitting}
+                        disabled={!canValidateLegalFinancial(profile)}
+                      >
+                        <ShieldCheck className="h-4 w-4" />
+                        Validar
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleResetPassword(professor.id)}
+                        isLoading={isSubmitting}
+                      >
+                        <KeyRound className="h-4 w-4" />
+                        Senha
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => handleDeactivate(professor.id)}
+                        isLoading={isSubmitting}
+                      >
+                        <UserX className="h-4 w-4" />
+                        {professoresCopy.deactivate}
+                      </Button>
+                    </>
+                  )}
+                </>
+              )}
+            </>
+          )}
+          {resetTarget === professor.id && resetPassword && (
+            <div className="w-full rounded-lg border border-emerald-200 bg-emerald-50 p-2 text-xs text-emerald-700 lg:text-right">
+              {professoresCopy.temporaryPassword}: <span className="font-mono">{resetPassword}</span>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  if (!canManageProfessores) {
+    return (
+      <div className="text-center py-12 text-muted-foreground">
+        {professoresCopy.permissionError}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold">{isConsultMode ? professoresCopy.consultTitle : professoresCopy.title}</h1>
+        <p className="text-muted-foreground mt-2">
+          {isConsultMode ? professoresCopy.consultDescription : professoresCopy.description}
+        </p>
+      </div>
+
+      {!isConsultMode && canPerformAdministrativeActions && activeCollaboratorFunctions.length === 0 && (
+        <div className="rounded-lg border border-warning/20 bg-warning/10 px-4 py-3 text-sm text-warning">
+          {professoresCopy.noFunctionsAvailable}
+        </div>
+      )}
+
+      {!isConsultMode && canPerformAdministrativeActions && <Card>
+        <CardHeader>
+          <CardTitle>{professoresCopy.newProfessorTitle}</CardTitle>
+          <CardDescription>{professoresCopy.newProfessorDescription}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {error && (
+            <div className="bg-destructive/10 text-destructive text-sm p-3 rounded-md border border-destructive/20 mb-4">
+              {error}
+            </div>
+          )}
+          <form onSubmit={handleSubmit(onSubmit, onInvalidSubmit)} className="space-y-5" autoComplete="off">
+            <input type="text" name="fake-username" autoComplete="username" className="hidden" tabIndex={-1} />
+            <input type="password" name="fake-password" autoComplete="current-password" className="hidden" tabIndex={-1} />
+            <input type="hidden" {...register('avatar')} />
+            <input type="hidden" {...register('signedContractDocumentUrl')} />
+            <input
+              ref={createAvatarInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              aria-label="Upload da foto do colaborador"
+              title="Upload da foto do colaborador"
+              onChange={handleCreateAvatarChange}
+            />
+            <input
+              ref={createSignedContractInputRef}
+              type="file"
+              accept="application/pdf"
+              className="hidden"
+              aria-label="Upload do contrato assinado"
+              title="Upload do contrato assinado"
+              onChange={handleCreateSignedContractChange}
+            />
+            <div className="overflow-hidden rounded-2xl border border-border bg-card">
+              <div className="overflow-x-auto bg-muted/30 px-4 py-2">
+                <div role="tablist" aria-label={professoresCopy.registrationTabsAriaLabel} className="flex min-w-max gap-2">
+                  {canViewCollaboratorRegistrationBlock && (
+                    <RegistrationTabButton
+                      id="create-collaborator-tab"
+                      isActive={createActiveTab === 'collaborator'}
+                      label={professoresCopy.collaboratorTabLabel}
+                      icon={UserRound}
+                      onClick={() => setCreateActiveTab('collaborator')}
+                    />
+                  )}
+                  {canViewManagerRegistrationBlock && (
+                    <RegistrationTabButton
+                      id="create-manager-tab"
+                      isActive={createActiveTab === 'manager'}
+                      label={professoresCopy.managerTabLabel}
+                      icon={Briefcase}
+                      onClick={() => setCreateActiveTab('manager')}
+                    />
+                  )}
+                </div>
+              </div>
+
+              <div className="p-6">
+                {!canViewCollaboratorRegistrationBlock && !canViewManagerRegistrationBlock && (
+                  <div className="rounded-lg border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
+                    Seu perfil não tem permissão para visualizar os blocos internos desta tela.
+                  </div>
+                )}
+
+                {createActiveTab === 'collaborator' && canViewCollaboratorRegistrationBlock && (
+                  <div
+                    id="create-collaborator-panel"
+                    role="tabpanel"
+                    aria-labelledby="create-collaborator-tab"
+                    className="space-y-5"
+                  >
+                    <div className="rounded-lg border border-border bg-muted/20 p-4">
+                      <div className="mb-4">
+                        <p className="text-sm font-semibold text-foreground">Identificação e acesso</p>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          Dados essenciais para criar o acesso e identificar o colaborador.
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_280px]">
+                        <Input
+                          label={professoresCopy.nameLabel}
+                          placeholder="Maria Souza"
+                          error={errors.name?.message}
+                          {...register('name')}
+                        />
+                        <Input
+                          label={commonCopy.emailLabel}
+                          type="email"
+                          placeholder="maria@academia.com"
+                          autoComplete="off"
+                          error={errors.email?.message}
+                          {...register('email')}
+                        />
+                        <Input
+                          label={professoresCopy.passwordLabel}
+                          type="password"
+                          placeholder="********"
+                          autoComplete="new-password"
+                          error={errors.password?.message}
+                          {...register('password')}
+                        />
+                      </div>
+                      <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+                        <Input
+                          label={professoresCopy.phoneLabel}
+                          type="tel"
+                          placeholder="(11) 99999-9999"
+                          error={errors.phone?.message}
+                          {...register('phone', {
+                            onChange: (event) => {
+                              setValue('phone', formatPhone(event.target.value), {
+                                shouldValidate: true,
+                              });
+                            },
+                          })}
+                        />
+                        <Input
+                          label={professoresCopy.cpfLabel}
+                          placeholder="000.000.000-00"
+                          error={errors.cpf?.message}
+                          {...register('cpf', {
+                            onChange: (event) => {
+                              setValue('cpf', formatCpf(event.target.value), {
+                                shouldValidate: true,
+                              });
+                            },
+                          })}
+                        />
+                        <Input
+                          label={professoresCopy.rgLabel}
+                          placeholder="12.345.678-9"
+                          error={errors.rg?.message}
+                          {...register('rg', {
+                            onChange: (event) => {
+                              setValue('rg', formatRg(event.target.value), {
+                                shouldValidate: true,
+                              });
+                            },
+                          })}
+                        />
+                        <Input
+                          label={professoresCopy.birthDateLabel}
+                          type="date"
+                          error={errors.birthDate?.message}
+                          {...register('birthDate')}
+                        />
+                        <div>
+                          <label htmlFor="create-marital-status" className="mb-2 block text-sm font-medium">
+                            {professoresCopy.maritalStatusLabel}
+                          </label>
+                          <select
+                            id="create-marital-status"
+                            className="ts-form-control"
+                            {...register('maritalStatus')}
+                          >
+                            <option value="">{professoresCopy.maritalStatusPlaceholder}</option>
+                            {maritalStatusOptions.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="rounded-lg border border-border bg-background p-4">
+                      <div className="mb-4">
+                        <p className="text-sm font-semibold text-foreground">Perfil profissional e contato</p>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          Canal social, currículo resumido e dados de qualificação profissional.
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <Input
+                          label={professoresCopy.instagramLabel}
+                          placeholder="@maria.souza"
+                          error={errors.instagramHandle?.message}
+                          {...register('instagramHandle')}
+                        />
+                        <Input
+                          label={professoresCopy.crefLabel}
+                          placeholder="000000-G/SP"
+                          error={errors.cref?.message}
+                          {...register('cref')}
+                        />
+                      </div>
+                      <div className="mt-3 space-y-3">
+                        <Input
+                          label={professoresCopy.lattesLabel}
+                          type="url"
+                          placeholder={professoresCopy.lattesPlaceholder}
+                          error={errors.lattesUrl?.message}
+                          {...register('lattesUrl')}
+                        />
+                        <div>
+                          <label className="mb-2 block text-sm font-medium text-foreground">
+                            {professoresCopy.professionalSummaryLabel}
+                          </label>
+                          <textarea
+                            className={textareaClassName}
+                            placeholder={professoresCopy.professionalSummaryPlaceholder}
+                            {...register('professionalSummary')}
+                          />
+                          {errors.professionalSummary?.message && (
+                            <p className="mt-1 text-sm text-destructive">
+                              {errors.professionalSummary.message}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="rounded-lg border border-border bg-muted/20 p-4">
+                      <div className="mb-4">
+                        <p className="text-sm font-semibold text-foreground">Endereço</p>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          Distribuição mais compacta para acelerar o preenchimento do endereço.
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-1 gap-3 xl:grid-cols-[180px_minmax(0,1.4fr)_140px]">
+                        <Input
+                          label={professoresCopy.addressZipCodeLabel}
+                          placeholder="00000-000"
+                          error={createCepError || errors.addressZipCode?.message}
+                          {...createZipCodeField}
+                          onChange={handleCreateZipCodeChange}
+                          onBlur={handleCreateZipCodeBlur}
+                        />
+                        <Input
+                          label={professoresCopy.addressStreetLabel}
+                          placeholder="Rua Exemplo"
+                          error={errors.addressStreet?.message}
+                          {...register('addressStreet')}
+                        />
+                        <Input
+                          label={professoresCopy.addressNumberLabel}
+                          placeholder="123"
+                          error={errors.addressNumber?.message}
+                          {...register('addressNumber')}
+                        />
+                      </div>
+                      <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+                        <Input
+                          label={professoresCopy.addressNeighborhoodLabel}
+                          placeholder="Centro"
+                          error={errors.addressNeighborhood?.message}
+                          {...register('addressNeighborhood')}
+                        />
+                        <Input
+                          label={professoresCopy.addressCityLabel}
+                          placeholder="São Paulo"
+                          error={errors.addressCity?.message}
+                          {...register('addressCity')}
+                        />
+                        <Input
+                          label={professoresCopy.addressStateLabel}
+                          placeholder="SP"
+                          error={errors.addressState?.message}
+                          {...register('addressState')}
+                        />
+                      </div>
+                      <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_220px]">
+                        <Input
+                          label={professoresCopy.addressComplementLabel}
+                          placeholder="Apto 42, bloco B"
+                          error={errors.addressComplement?.message}
+                          {...register('addressComplement')}
+                        />
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-border p-4">
+                      <p className="text-sm font-medium text-foreground">
+                        {professoresCopy.legalFinancialSectionTitle}
+                      </p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {professoresCopy.legalFinancialSectionDescription}
+                      </p>
+                      <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+                        <Input
+                          label={professoresCopy.companyDocumentLabel}
+                          placeholder="00.000.000/0000-00"
+                          error={errors.companyDocument?.message}
+                          {...register('companyDocument', {
+                            onChange: (event) => {
+                              setValue('companyDocument', formatCnpj(event.target.value), {
+                                shouldValidate: true,
+                              });
+                            },
+                          })}
+                        />
+                        <BankSelectField
+                          id="create-bank-code"
+                          label={professoresCopy.bankNameLabel}
+                          error={errors.bankCode?.message}
+                          value={createBankCode}
+                          banks={banks}
+                          onChange={(value) => setValue('bankCode', value, { shouldDirty: true, shouldValidate: true })}
+                        />
+                        <Input
+                          label={professoresCopy.pixKeyLabel}
+                          placeholder="pix@empresa.com"
+                          error={errors.pixKey?.message}
+                          {...register('pixKey')}
+                        />
+                      </div>
+                      <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <Input
+                          label={professoresCopy.bankBranchLabel}
+                          placeholder="1234"
+                          error={errors.bankBranch?.message}
+                          {...register('bankBranch')}
+                        />
+                        <Input
+                          label={professoresCopy.bankAccountLabel}
+                          placeholder="12345-6"
+                          error={errors.bankAccount?.message}
+                          {...register('bankAccount', {
+                            onChange: (event) => {
+                              setValue('bankAccount', formatBankAccount(event.target.value), {
+                                shouldValidate: true,
+                              });
+                            },
+                          })}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {createActiveTab === 'manager' && canViewManagerRegistrationBlock && (
+                  <div
+                    id="create-manager-panel"
+                    role="tabpanel"
+                    aria-labelledby="create-manager-tab"
+                    className="space-y-5"
+                  >
+                    <div className="grid gap-5 xl:grid-cols-[340px_minmax(0,1fr)] xl:items-start">
+                      <div className="space-y-4 xl:sticky xl:top-4">
+                        <ManagerOverviewCard
+                          title="Panorama da gestão"
+                          description="Resumo rápido do enquadramento para organizar vínculo, situação e contrato antes de concluir o cadastro."
+                          items={[
+                            {
+                              label: 'Função',
+                              value: createCollaboratorFunctionName,
+                              tone: createCollaboratorFunctionId ? 'primary' : 'default',
+                            },
+                            {
+                              label: 'Situação',
+                              value: createCurrentStatus || 'Não definida',
+                              tone: createCurrentStatus === 'Ativo' ? 'success' : createCurrentStatus === 'Desligado' ? 'destructive' : 'default',
+                            },
+                            {
+                              label: 'Gestor responsável',
+                              value: !createRequiresResponsibleManager
+                                ? 'Não necessário'
+                                : createResponsibleManagerName
+                                  ? createResponsibleManagerName
+                                  : 'Pendente',
+                              tone: !createRequiresResponsibleManager
+                                ? 'default'
+                                : createResponsibleManagerName
+                                  ? 'success'
+                                  : 'warning',
+                            },
+                            {
+                              label: 'Contrato',
+                              value: createHasSignedContract ? professoresCopy.signedContractYes : professoresCopy.signedContractNo,
+                              tone: createHasSignedContract ? 'success' : 'warning',
+                            },
+                          ]}
+                        />
+
+                        <div className="rounded-lg border border-border bg-muted/20 p-4 shadow-[var(--shadow-card)]">
+                          <div className="mb-4">
+                            <p className="text-sm font-semibold text-foreground">Identificação visual</p>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                              Mantenha a foto ao lado do panorama para validar a identidade do colaborador no mesmo eixo de leitura.
+                            </p>
+                          </div>
+                          <AvatarUploadField
+                            name={watch('name')}
+                            avatar={createAvatarUrl}
+                            embedded
+                            isUploading={uploadingCreateAvatar}
+                            onUploadClick={() => createAvatarInputRef.current?.click()}
+                            onRemove={() => setValue('avatar', '', { shouldDirty: true, shouldValidate: true })}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-5">
+                        <div className="rounded-lg border border-border bg-background p-4 shadow-[var(--shadow-card)]">
+                          <div className="mb-4">
+                            <p className="text-sm font-semibold text-foreground">Status contratual</p>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                              Organize a linha do tempo do colaborador e o controle do contrato assinado no mesmo bloco.
+                            </p>
+                          </div>
+                          <div className="grid gap-4 lg:grid-cols-2">
+                            <Input
+                              label={professoresCopy.admissionDateLabel}
+                              type="date"
+                              error={errors.admissionDate?.message}
+                              {...register('admissionDate')}
+                            />
+                            <div>
+                              <label htmlFor="create-current-status" className="mb-2 block text-sm font-medium">
+                                {professoresCopy.currentStatusLabel}
+                              </label>
+                              <select
+                                id="create-current-status"
+                                className="ts-form-control"
+                                {...register('currentStatus')}
+                              >
+                                <option value="">{professoresCopy.currentStatusPlaceholder}</option>
+                                {currentStatusOptions.map((option) => (
+                                  <option key={option.value} value={option.value}>
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
+                              {errors.currentStatus?.message ? (
+                                <p className="mt-2 text-sm text-destructive">{errors.currentStatus.message}</p>
+                              ) : null}
+                            </div>
+                            <Input
+                              label={professoresCopy.dismissalDateLabel}
+                              type="date"
+                              disabled={createCurrentStatus !== 'Desligado'}
+                              error={errors.dismissalDate?.message}
+                              {...register('dismissalDate')}
+                            />
+                            <SignedContractToggleField
+                              inputId="create-has-signed-contract"
+                              checked={!!createHasSignedContract}
+                              onChange={handleCreateSignedContractToggle}
+                              documentUrl={createSignedContractDocumentUrl}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="rounded-lg border border-border bg-background p-4 shadow-[var(--shadow-card)]">
+                          <div className="mb-4">
+                            <p className="text-sm font-semibold text-foreground">Enquadramento operacional</p>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                              Defina a função principal, o gestor responsável e revise a matriz de valores por hora do colaborador.
+                            </p>
+                          </div>
+                          <div className="space-y-4">
+                            <div className="grid gap-4 xl:grid-cols-2 xl:items-start">
+                              <div className="rounded-lg border border-border bg-muted/20 p-4">
+                                <p className="text-sm font-medium text-foreground">
+                                  {professoresCopy.collaboratorFunctionLabel}
+                                </p>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  Selecione a função operacional cadastrada para este colaborador.
+                                </p>
+                                <div className="mt-3">
+                                  <select
+                                    id="create-collaborator-function"
+                                    className="ts-form-control"
+                                    {...register('collaboratorFunctionId')}
+                                    disabled={activeCollaboratorFunctions.length === 0}
+                                  >
+                                    <option value="">Selecione uma função</option>
+                                    {activeCollaboratorFunctions.map((option) => (
+                                      <option key={option.id} value={option.id}>
+                                        {option.name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  {errors.collaboratorFunctionId?.message && (
+                                    <p className="mt-1 text-sm text-destructive">
+                                      {errors.collaboratorFunctionId.message}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="rounded-lg border border-border bg-muted/20 p-4">
+                                <p className="text-sm font-medium text-foreground">Gestão responsável</p>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  Defina quem acompanha o colaborador quando a função exigir liderança ativa.
+                                </p>
+                                {createRequiresResponsibleManager ? (
+                                  <div className="mt-3">
+                                    <select
+                                      id="create-responsible-manager"
+                                      className="ts-form-control"
+                                      {...register('responsibleManagerId')}
+                                      disabled={responsibleManagers.length === 0}
+                                    >
+                                      <option value="">{professoresCopy.selectResponsibleManager}</option>
+                                      {responsibleManagers.map((manager) => (
+                                        <option key={manager.id} value={manager.id}>
+                                          {manager.user?.profile?.name || professoresCopy.noName}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    {responsibleManagers.length === 0 && (
+                                      <p className="mt-1 text-sm text-destructive">
+                                        {professoresCopy.noResponsibleManagersAvailable}
+                                      </p>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <p className="mt-3 text-sm text-muted-foreground">
+                                    Esta função não exige gestor responsável.
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                            <div className="rounded-lg border border-border bg-muted/20 p-4">
+                              <p className="text-sm font-medium text-foreground">Valores de hora</p>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                Revise personal, consultoria e avaliação dentro da mesma matriz operacional.
+                              </p>
+                              <div className="mt-4">
+                                <HourlyRatesMatrix
+                                  errors={{
+                                    personal: errors.hourlyRates?.personal?.message,
+                                    consulting: errors.hourlyRates?.consulting?.message,
+                                    evaluation: errors.hourlyRates?.evaluation?.message,
+                                  }}
+                                  getInputProps={(sectionKey) => register(`hourlyRates.${sectionKey}` as const)}
+                                  onValueChange={(sectionKey, value) =>
+                                    setValue(`hourlyRates.${sectionKey}`, value, {
+                                      shouldDirty: true,
+                                      shouldValidate: true,
+                                    })
+                                  }
+                                  onValueBlur={(sectionKey) =>
+                                    setValue(`hourlyRates.${sectionKey}`, formatPtBrHourlyRateValue(createHourlyRates?.[sectionKey]), {
+                                      shouldDirty: true,
+                                      shouldValidate: true,
+                                    })
+                                  }
+                                  values={createHourlyRates}
+                                  levels={hourlyRateLevels}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-1">
+              <Button
+                type="submit"
+                isLoading={isSubmitting}
+                disabled={
+                  activeCollaboratorFunctions.length === 0 ||
+                  (createRequiresResponsibleManager && responsibleManagers.length === 0)
+                }
+              >
+                {professoresCopy.createProfessor}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>}
+
+      {activeSignedContractModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
+          onClick={() => setActiveSignedContractModal(null)}
+        >
+          <div
+            className="w-full max-w-2xl rounded-lg border border-border bg-card p-5 shadow-[var(--shadow-card)]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div>
+                <p className="text-base font-semibold text-foreground">
+                  {professoresCopy.signedContractDocumentLabel}
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Envie ou revise o PDF do contrato assinado do colaborador.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleCloseSignedContractModal}
+                className="inline-flex h-9 items-center justify-center rounded-lg border border-border px-3 text-sm font-medium text-foreground transition hover:bg-muted"
+              >
+                Cancelar
+              </button>
+            </div>
+            <SignedContractUploadField
+              documentUrl={
+                activeSignedContractModal === 'create'
+                  ? createSignedContractDocumentUrl
+                  : editSignedContractDocumentUrl
+              }
+              onUploadClick={() =>
+                activeSignedContractModal === 'create'
+                  ? createSignedContractInputRef.current?.click()
+                  : editSignedContractInputRef.current?.click()
+              }
+              onRemove={() =>
+                activeSignedContractModal === 'create'
+                  ? handleRemoveCreateSignedContract()
+                  : handleRemoveEditSignedContract()
+              }
+              isUploading={
+                activeSignedContractModal === 'create'
+                  ? uploadingCreateSignedContract
+                  : uploadingEditSignedContract
+              }
+              error={
+                activeSignedContractModal === 'create'
+                  ? errors.signedContractDocumentUrl?.message
+                  : editErrors.signedContractDocumentUrl?.message
+              }
+              required={
+                activeSignedContractModal === 'create' ? createHasSignedContract : editHasSignedContract
+              }
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={handleCloseSignedContractModal}
+                className="inline-flex h-10 items-center justify-center rounded-lg border border-border px-4 text-sm font-medium text-foreground transition hover:bg-muted"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveSignedContractModal(null)}
+                disabled={
+                  (activeSignedContractModal === 'create'
+                    ? !createSignedContractDocumentUrl || uploadingCreateSignedContract
+                    : !editSignedContractDocumentUrl || uploadingEditSignedContract)
+                }
+                className="inline-flex h-10 items-center justify-center rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Confirmar upload
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isConsultMode && (
+        <Card className="overflow-hidden">
+          <CardHeader className="border-b border-border bg-muted/20">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+              <div>
+                <CardTitle>{professoresCopy.listTitle}</CardTitle>
+                <CardDescription>{professoresCopy.listDescription}</CardDescription>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                {[
+                  { label: 'Exibidos', value: filteredProfessores.length },
+                  { label: 'Na base', value: consultMetrics.total },
+                  { label: 'Ativos', value: consultMetrics.active },
+                  { label: 'Pendências', value: consultMetrics.pendingContracts + consultMetrics.pendingLegalFinancial },
+                ].map((metric) => (
+                  <div
+                    key={metric.label}
+                    className="rounded-lg border border-border bg-card px-3 py-2 text-right shadow-sm"
+                  >
+                    <p className="text-xs font-medium text-muted-foreground">{metric.label}</p>
+                    <p className="text-xl font-semibold text-foreground">{metric.value}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-3 xl:grid-cols-[minmax(240px,1.3fr)_180px_220px_190px_220px_auto] xl:items-end">
+              <div>
+                <label htmlFor="professores-search-filter" className="mb-2 block text-sm font-medium">
+                  Buscar
+                </label>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    id="professores-search-filter"
+                    value={consultSearch}
+                    onChange={(event) => setConsultSearch(event.target.value)}
+                    placeholder="Nome, e-mail, telefone, CREF ou gestor"
+                    className="ts-form-control pl-9"
+                    disabled={loading || isSubmitting}
+                  />
+                  {consultSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setConsultSearch('')}
+                      className="absolute right-2 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                      aria-label="Limpar busca"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="professores-status-filter" className="mb-2 block text-sm font-medium">
+                  {professoresCopy.statusLabel}
+                </label>
+                <select
+                  id="professores-status-filter"
+                  value={statusFilter}
+                  onChange={(e) =>
+                    setStatusFilter(e.target.value as 'active' | 'inactive' | 'all')
+                  }
+                  className="ts-form-control"
+                  disabled={loading || isSubmitting}
+                >
+                  <option value="all">{professoresCopy.statusAll}</option>
+                  <option value="active">{professoresCopy.statusActive}</option>
+                  <option value="inactive">{professoresCopy.statusInactive}</option>
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="professores-function-filter" className="mb-2 block text-sm font-medium">
+                  {professoresCopy.collaboratorFunctionLabel}
+                </label>
+                <select
+                  id="professores-function-filter"
+                  value={collaboratorFunctionFilter}
+                  onChange={(event) => setCollaboratorFunctionFilter(event.target.value)}
+                  className="ts-form-control"
+                  disabled={loading || isSubmitting}
+                >
+                  <option value="all">Todas</option>
+                  {collaboratorFunctions.map((collaboratorFunction) => (
+                    <option key={collaboratorFunction.id} value={collaboratorFunction.id}>
+                      {collaboratorFunction.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="professores-contract-filter" className="mb-2 block text-sm font-medium">
+                  Contrato
+                </label>
+                <select
+                  id="professores-contract-filter"
+                  value={contractFilter}
+                  onChange={(event) => setContractFilter(event.target.value as ConsultContractFilter)}
+                  className="ts-form-control"
+                  disabled={loading || isSubmitting}
+                >
+                  {consultContractFilterOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="professores-legal-filter" className="mb-2 block text-sm font-medium">
+                  Financeiro
+                </label>
+                <select
+                  id="professores-legal-filter"
+                  value={legalFinancialFilter}
+                  onChange={(event) =>
+                    setLegalFinancialFilter(event.target.value as ConsultLegalFinancialFilter)
+                  }
+                  className="ts-form-control"
+                  disabled={loading || isSubmitting}
+                >
+                  {consultLegalFinancialFilterOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <Button
+                type="button"
+                variant={hasActiveConsultFilters ? 'outline' : 'ghost'}
+                onClick={clearConsultFilters}
+                disabled={!hasActiveConsultFilters || loading || isSubmitting}
+                className="w-full xl:w-auto"
+              >
+                <RotateCcw className="h-4 w-4" />
+                Limpar
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+          {loading ? (
+            <div className="flex items-center justify-center gap-3 px-6 py-12 text-muted-foreground">
+              <Filter className="h-5 w-5 animate-pulse" />
+              {professoresCopy.loading}
+            </div>
+          ) : professores.length === 0 ? (
+            <div className="px-6 py-12 text-center text-muted-foreground">{professoresCopy.empty}</div>
+          ) : filteredProfessores.length === 0 ? (
+            <div className="px-6 py-12 text-center">
+              <Search className="mx-auto h-10 w-10 text-muted-foreground/60" />
+              <p className="mt-3 font-medium text-foreground">Nenhum colaborador encontrado</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Ajuste os filtros para ampliar a consulta.
+              </p>
+              <Button type="button" variant="outline" className="mt-4" onClick={clearConsultFilters}>
+                <RotateCcw className="h-4 w-4" />
+                Limpar filtros
+              </Button>
+            </div>
+          ) : (
+            <div className="divide-y divide-border">
+              {filteredProfessores.map((professor) => (
+                <div
+                  key={professor.id}
+                  className={cn(
+                    'px-5 py-4 transition',
+                    editingId === professor.id ? 'bg-background' : 'bg-card hover:bg-muted/25'
+                  )}
+                >
+                  {editingId === professor.id ? (
+                    <form
+                      onSubmit={handleSubmitEdit(onSubmitEdit, onInvalidSubmitEdit)}
+                      className="flex-1 space-y-3"
+                      autoComplete="off"
+                    >
+                      <input type="text" name="fake-edit-username" autoComplete="username" className="hidden" tabIndex={-1} />
+                      <input type="password" name="fake-edit-password" autoComplete="current-password" className="hidden" tabIndex={-1} />
+                      <input type="hidden" {...registerEdit('avatar')} />
+                      <input type="hidden" {...registerEdit('signedContractDocumentUrl')} />
+                      <input
+                        ref={editAvatarInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        aria-label="Upload da foto do colaborador"
+                        title="Upload da foto do colaborador"
+                        onChange={handleEditAvatarChange}
+                      />
+                      <input
+                        ref={editSignedContractInputRef}
+                        type="file"
+                        accept="application/pdf"
+                        className="hidden"
+                        aria-label="Upload do contrato assinado"
+                        title="Upload do contrato assinado"
+                        onChange={handleEditSignedContractChange}
+                      />
+                      <div className="overflow-hidden rounded-2xl border border-border bg-background">
+                        <div className="overflow-x-auto bg-muted/30 px-4 py-2">
+                          <div role="tablist" aria-label={professoresCopy.registrationTabsAriaLabel} className="flex min-w-max gap-2">
+                            {canViewCollaboratorRegistrationBlock && (
+                              <RegistrationTabButton
+                                id={`edit-collaborator-tab-${professor.id}`}
+                                isActive={editActiveTab === 'collaborator'}
+                                label={professoresCopy.collaboratorTabLabel}
+                                icon={UserRound}
+                                onClick={() => setEditActiveTab('collaborator')}
+                              />
+                            )}
+                            {canViewManagerRegistrationBlock && (
+                              <RegistrationTabButton
+                                id={`edit-manager-tab-${professor.id}`}
+                                isActive={editActiveTab === 'manager'}
+                                label={professoresCopy.managerTabLabel}
+                                icon={Briefcase}
+                                onClick={() => setEditActiveTab('manager')}
+                              />
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="p-4">
+                          {!canViewCollaboratorRegistrationBlock && !canViewManagerRegistrationBlock && (
+                            <div className="rounded-lg border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
+                              Seu perfil não tem permissão para visualizar os blocos internos desta tela.
+                            </div>
+                          )}
+
+                          {editActiveTab === 'collaborator' && canViewCollaboratorRegistrationBlock && (
+                            <div
+                              id={`edit-collaborator-panel-${professor.id}`}
+                              role="tabpanel"
+                              aria-labelledby={`edit-collaborator-tab-${professor.id}`}
+                              className="space-y-3"
+                            >
+                              <div className="rounded-lg border border-border bg-muted/20 p-4">
+                                <div className="mb-4">
+                                  <p className="text-sm font-semibold text-foreground">Identificação e acesso</p>
+                                  <p className="mt-1 text-sm text-muted-foreground">
+                                    Campos principais de cadastro, autenticação e documentação civil.
+                                  </p>
+                                </div>
+                                <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_280px]">
+                                  <Input
+                                    label={professoresCopy.nameLabel}
+                                    error={editErrors.name?.message}
+                                    {...registerEdit('name')}
+                                  />
+                                  <Input
+                                    label={commonCopy.emailLabel}
+                                    type="email"
+                                    autoComplete="off"
+                                    error={editErrors.email?.message}
+                                    {...registerEdit('email')}
+                                  />
+                                  <Input
+                                    label={professoresCopy.newPasswordLabel}
+                                    type="password"
+                                    placeholder={professoresCopy.keepCurrentPassword}
+                                    autoComplete="new-password"
+                                    error={editErrors.password?.message}
+                                    {...registerEdit('password')}
+                                  />
+                                </div>
+                                <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+                                  <Input
+                                    label={professoresCopy.phoneLabel}
+                                    type="tel"
+                                    placeholder="(11) 99999-9999"
+                                    error={editErrors.phone?.message}
+                                    {...registerEdit('phone', {
+                                      onChange: (event) => {
+                                        setEditValue('phone', formatPhone(event.target.value), {
+                                          shouldValidate: true,
+                                        });
+                                      },
+                                    })}
+                                  />
+                                  <Input
+                                    label={professoresCopy.cpfLabel}
+                                    placeholder="000.000.000-00"
+                                    error={editErrors.cpf?.message}
+                                    {...registerEdit('cpf', {
+                                      onChange: (event) => {
+                                        setEditValue('cpf', formatCpf(event.target.value), {
+                                          shouldValidate: true,
+                                        });
+                                      },
+                                    })}
+                                  />
+                                  <Input
+                                    label={professoresCopy.rgLabel}
+                                    placeholder="12.345.678-9"
+                                    error={editErrors.rg?.message}
+                                    {...registerEdit('rg', {
+                                      onChange: (event) => {
+                                        setEditValue('rg', formatRg(event.target.value), {
+                                          shouldValidate: true,
+                                        });
+                                      },
+                                    })}
+                                  />
+                                  <Input
+                                    label={professoresCopy.birthDateLabel}
+                                    type="date"
+                                    error={editErrors.birthDate?.message}
+                                    {...registerEdit('birthDate')}
+                                  />
+                                  <div>
+                                    <label htmlFor={`edit-marital-status-${professor.id}`} className="mb-2 block text-sm font-medium">
+                                      {professoresCopy.maritalStatusLabel}
+                                    </label>
+                                    <select
+                                      id={`edit-marital-status-${professor.id}`}
+                                      className="ts-form-control"
+                                      {...registerEdit('maritalStatus')}
+                                    >
+                                      <option value="">{professoresCopy.maritalStatusPlaceholder}</option>
+                                      {maritalStatusOptions.map((option) => (
+                                        <option key={option.value} value={option.value}>
+                                          {option.label}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="rounded-lg border border-border bg-background p-4">
+                                <div className="mb-4">
+                                  <p className="text-sm font-semibold text-foreground">Perfil profissional e contato</p>
+                                  <p className="mt-1 text-sm text-muted-foreground">
+                                    Contato social, currículo resumido e referências profissionais do colaborador.
+                                  </p>
+                                </div>
+                                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                  <Input
+                                    label={professoresCopy.instagramLabel}
+                                    placeholder="@maria.souza"
+                                    error={editErrors.instagramHandle?.message}
+                                    {...registerEdit('instagramHandle')}
+                                  />
+                                  <Input
+                                    label={professoresCopy.crefLabel}
+                                    placeholder="000000-G/SP"
+                                    error={editErrors.cref?.message}
+                                    {...registerEdit('cref')}
+                                  />
+                                </div>
+                                <div className="mt-3 space-y-3">
+                                  <Input
+                                    label={professoresCopy.lattesLabel}
+                                    type="url"
+                                    placeholder={professoresCopy.lattesPlaceholder}
+                                    error={editErrors.lattesUrl?.message}
+                                    {...registerEdit('lattesUrl')}
+                                  />
+                                  <div>
+                                    <label className="mb-2 block text-sm font-medium text-foreground">
+                                      {professoresCopy.professionalSummaryLabel}
+                                    </label>
+                                    <textarea
+                                      className={textareaClassName}
+                                      placeholder={professoresCopy.professionalSummaryPlaceholder}
+                                      {...registerEdit('professionalSummary')}
+                                    />
+                                    {editErrors.professionalSummary?.message && (
+                                      <p className="mt-1 text-sm text-destructive">
+                                        {editErrors.professionalSummary.message}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="rounded-lg border border-border bg-muted/20 p-4">
+                                <div className="mb-4">
+                                  <p className="text-sm font-semibold text-foreground">Endereço</p>
+                                  <p className="mt-1 text-sm text-muted-foreground">
+                                    Campos agrupados para reduzir saltos visuais durante a edição.
+                                  </p>
+                                </div>
+                                <div className="grid grid-cols-1 gap-3 xl:grid-cols-[180px_minmax(0,1.4fr)_140px]">
+                                  <Input
+                                    label={professoresCopy.addressZipCodeLabel}
+                                    placeholder="00000-000"
+                                    error={editCepError || editErrors.addressZipCode?.message}
+                                    {...editZipCodeField}
+                                    onChange={handleEditZipCodeChange}
+                                    onBlur={handleEditZipCodeBlur}
+                                  />
+                                  <Input
+                                    label={professoresCopy.addressStreetLabel}
+                                    placeholder="Rua Exemplo, 123"
+                                    error={editErrors.addressStreet?.message}
+                                    {...registerEdit('addressStreet')}
+                                  />
+                                  <Input
+                                    label={professoresCopy.addressNumberLabel}
+                                    placeholder="123"
+                                    error={editErrors.addressNumber?.message}
+                                    {...registerEdit('addressNumber')}
+                                  />
+                                </div>
+                                <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+                                  <Input
+                                    label={professoresCopy.addressNeighborhoodLabel}
+                                    placeholder="Centro"
+                                    error={editErrors.addressNeighborhood?.message}
+                                    {...registerEdit('addressNeighborhood')}
+                                  />
+                                  <Input
+                                    label={professoresCopy.addressCityLabel}
+                                    placeholder="São Paulo"
+                                    error={editErrors.addressCity?.message}
+                                    {...registerEdit('addressCity')}
+                                  />
+                                  <Input
+                                    label={professoresCopy.addressStateLabel}
+                                    placeholder="SP"
+                                    error={editErrors.addressState?.message}
+                                    {...registerEdit('addressState')}
+                                  />
+                                </div>
+                                <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_220px]">
+                                  <Input
+                                    label={professoresCopy.addressComplementLabel}
+                                    placeholder="Apto 42"
+                                    error={editErrors.addressComplement?.message}
+                                    {...registerEdit('addressComplement')}
+                                  />
+                                </div>
+                              </div>
+                              <div className="rounded-lg border border-border p-4">
+                                <p className="text-sm font-medium text-foreground">{professoresCopy.legalFinancialSectionTitle}</p>
+                                <p className="mt-1 text-sm text-muted-foreground">{professoresCopy.legalFinancialSectionDescription}</p>
+                                <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+                                  <Input
+                                    label={professoresCopy.companyDocumentLabel}
+                                    placeholder="00.000.000/0000-00"
+                                    error={editErrors.companyDocument?.message}
+                                    {...registerEdit('companyDocument', {
+                                      onChange: (event) => {
+                                        setEditValue('companyDocument', formatCnpj(event.target.value), {
+                                          shouldValidate: true,
+                                        });
+                                      },
+                                    })}
+                                  />
+                                  <BankSelectField
+                                    id={`edit-bank-code-${professor.id}`}
+                                    label={professoresCopy.bankNameLabel}
+                                    error={editErrors.bankCode?.message}
+                                    value={editBankCode}
+                                    banks={banks}
+                                    onChange={(value) => setEditValue('bankCode', value, { shouldDirty: true, shouldValidate: true })}
+                                  />
+                                  <Input
+                                    label={professoresCopy.pixKeyLabel}
+                                    placeholder="pix@empresa.com"
+                                    error={editErrors.pixKey?.message}
+                                    {...registerEdit('pixKey')}
+                                  />
+                                </div>
+                                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                                  <Input
+                                    label={professoresCopy.bankBranchLabel}
+                                    placeholder="1234"
+                                    error={editErrors.bankBranch?.message}
+                                    {...registerEdit('bankBranch')}
+                                  />
+                                  <Input
+                                    label={professoresCopy.bankAccountLabel}
+                                    placeholder="12345-6"
+                                    error={editErrors.bankAccount?.message}
+                                    {...registerEdit('bankAccount', {
+                                      onChange: (event) => {
+                                        setEditValue('bankAccount', formatBankAccount(event.target.value), {
+                                          shouldValidate: true,
+                                        });
+                                      },
+                                    })}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {editActiveTab === 'manager' && canViewManagerRegistrationBlock && (
+                            <div
+                              id={`edit-manager-panel-${professor.id}`}
+                              role="tabpanel"
+                              aria-labelledby={`edit-manager-tab-${professor.id}`}
+                              className="space-y-3"
+                            >
+                              <div className="grid gap-5 xl:grid-cols-[340px_minmax(0,1fr)] xl:items-start">
+                                <div className="space-y-4 xl:sticky xl:top-4">
+                                  <ManagerOverviewCard
+                                    title="Panorama da gestão"
+                                    description="Leitura rápida do enquadramento atual para revisar vínculo, situação e contrato antes de salvar a edição."
+                                    items={[
+                                      {
+                                        label: 'Função',
+                                        value: editCollaboratorFunctionName,
+                                        tone: editCollaboratorFunctionId ? 'primary' : 'default',
+                                      },
+                                      {
+                                        label: 'Situação',
+                                        value: editCurrentStatus || 'Não definida',
+                                        tone: editCurrentStatus === 'Ativo' ? 'success' : editCurrentStatus === 'Desligado' ? 'destructive' : 'default',
+                                      },
+                                      {
+                                        label: 'Gestor responsável',
+                                        value: !editRequiresResponsibleManager
+                                          ? 'Não necessário'
+                                          : editResponsibleManagerName
+                                            ? editResponsibleManagerName
+                                            : 'Pendente',
+                                        tone: !editRequiresResponsibleManager
+                                          ? 'default'
+                                          : editResponsibleManagerName
+                                            ? 'success'
+                                            : 'warning',
+                                      },
+                                      {
+                                        label: 'Contrato',
+                                        value: editHasSignedContract ? professoresCopy.signedContractYes : professoresCopy.signedContractNo,
+                                        tone: editHasSignedContract ? 'success' : 'warning',
+                                      },
+                                    ]}
+                                  />
+
+                                  <div className="rounded-lg border border-border bg-muted/20 p-4 shadow-[var(--shadow-card)]">
+                                    <div className="mb-4">
+                                      <p className="text-sm font-semibold text-foreground">Identificação visual</p>
+                                      <p className="mt-1 text-sm text-muted-foreground">
+                                        Mantenha a foto próxima ao panorama para revisar identidade, função e vínculo com mais rapidez.
+                                      </p>
+                                    </div>
+                                    <AvatarUploadField
+                                      name={watchEdit('name') || professor.user?.profile?.name}
+                                      avatar={editAvatarUrl}
+                                      embedded
+                                      isUploading={uploadingEditAvatar}
+                                      onUploadClick={() => editAvatarInputRef.current?.click()}
+                                      onRemove={handleRemoveEditAvatar}
+                                    />
+                                  </div>
+                                </div>
+
+                                <div className="space-y-5">
+                                  <div className="rounded-lg border border-border bg-background p-4 shadow-[var(--shadow-card)]">
+                                    <div className="mb-4">
+                                      <p className="text-sm font-semibold text-foreground">Status contratual</p>
+                                      <p className="mt-1 text-sm text-muted-foreground">
+                                        Revise situação, datas e contrato assinado em uma única faixa operacional.
+                                      </p>
+                                    </div>
+                                    <div className="grid gap-4 lg:grid-cols-2">
+                                      <Input
+                                        label={professoresCopy.admissionDateLabel}
+                                        type="date"
+                                        error={editErrors.admissionDate?.message}
+                                        {...registerEdit('admissionDate')}
+                                      />
+                                      <div>
+                                        <label htmlFor={`edit-current-status-${professor.id}`} className="mb-2 block text-sm font-medium">
+                                          {professoresCopy.currentStatusLabel}
+                                        </label>
+                                        <select
+                                          id={`edit-current-status-${professor.id}`}
+                                          className="ts-form-control"
+                                          {...registerEdit('currentStatus')}
+                                        >
+                                          <option value="">{professoresCopy.currentStatusPlaceholder}</option>
+                                          {currentStatusOptions.map((option) => (
+                                            <option key={option.value} value={option.value}>
+                                              {option.label}
+                                            </option>
+                                          ))}
+                                        </select>
+                                        {editErrors.currentStatus?.message ? (
+                                          <p className="mt-2 text-sm text-destructive">{editErrors.currentStatus.message}</p>
+                                        ) : null}
+                                      </div>
+                                      <Input
+                                        label={professoresCopy.dismissalDateLabel}
+                                        type="date"
+                                        disabled={editCurrentStatus !== 'Desligado'}
+                                        error={editErrors.dismissalDate?.message}
+                                        {...registerEdit('dismissalDate')}
+                                      />
+                                      <SignedContractToggleField
+                                        inputId={`edit-has-signed-contract-${professor.id}`}
+                                        checked={!!editHasSignedContract}
+                                        onChange={handleEditSignedContractToggle}
+                                        documentUrl={editSignedContractDocumentUrl}
+                                      />
+                                    </div>
+                                  </div>
+
+                                  <div className="rounded-lg border border-border bg-background p-4 shadow-[var(--shadow-card)]">
+                                    <div className="mb-4">
+                                      <p className="text-sm font-semibold text-foreground">Enquadramento operacional</p>
+                                      <p className="mt-1 text-sm text-muted-foreground">
+                                        Reforce a função principal, o gestor responsável e revise os valores por hora em um fluxo único de edição.
+                                      </p>
+                                    </div>
+                                    <div className="space-y-4">
+                                      <div className="grid gap-4 xl:grid-cols-2 xl:items-start">
+                                        <div className="rounded-lg border border-border bg-muted/20 p-4">
+                                          <p className="text-sm font-medium text-foreground">
+                                            {professoresCopy.collaboratorFunctionLabel}
+                                          </p>
+                                          <p className="mt-1 text-xs text-muted-foreground">
+                                            Selecione a função operacional cadastrada para este colaborador.
+                                          </p>
+                                          <div className="mt-3">
+                                            <select
+                                              id={`edit-management-collaborator-function-${professor.id}`}
+                                              className="ts-form-control"
+                                              {...registerEdit('collaboratorFunctionId')}
+                                            >
+                                              {collaboratorFunctions
+                                                .filter(
+                                                  (option) =>
+                                                    option.isActive || option.id === professor.collaboratorFunction.id
+                                                )
+                                                .map((option) => (
+                                                  <option key={option.id} value={option.id}>
+                                                    {option.name}
+                                                  </option>
+                                                ))}
+                                            </select>
+                                            {editErrors.collaboratorFunctionId?.message && (
+                                              <p className="mt-1 text-sm text-destructive">
+                                                {editErrors.collaboratorFunctionId.message}
+                                              </p>
+                                            )}
+                                          </div>
+                                        </div>
+                                        <div className="rounded-lg border border-border bg-muted/20 p-4">
+                                          <p className="text-sm font-medium text-foreground">Gestão responsável</p>
+                                          <p className="mt-1 text-xs text-muted-foreground">
+                                            Defina quem acompanha o colaborador quando a função exigir liderança ativa.
+                                          </p>
+                                          {editRequiresResponsibleManager ? (
+                                            <div className="mt-3">
+                                              <select
+                                                id={`edit-responsible-manager-${professor.id}`}
+                                                className="ts-form-control"
+                                                {...registerEdit('responsibleManagerId')}
+                                              >
+                                                <option value="">{professoresCopy.selectResponsibleManager}</option>
+                                                {responsibleManagers
+                                                  .filter((manager) => manager.id !== professor.id)
+                                                  .map((manager) => (
+                                                    <option key={manager.id} value={manager.id}>
+                                                      {manager.user?.profile?.name || professoresCopy.noName}
+                                                    </option>
+                                                  ))}
+                                              </select>
+                                              {responsibleManagers.length === 0 && (
+                                                <p className="mt-1 text-sm text-destructive">
+                                                  {professoresCopy.noResponsibleManagersAvailable}
+                                                </p>
+                                              )}
+                                            </div>
+                                          ) : (
+                                            <p className="mt-3 text-sm text-muted-foreground">
+                                              Esta função não exige gestor responsável.
+                                            </p>
+                                          )}
+                                        </div>
+                                      </div>
+                                      <div className="rounded-lg border border-border bg-muted/20 p-4">
+                                        <p className="text-sm font-medium text-foreground">Valores de hora</p>
+                                        <p className="mt-1 text-xs text-muted-foreground">
+                                          Ajuste personal, consultoria e avaliação no mesmo painel operacional.
+                                        </p>
+                                        <div className="mt-4">
+                                          <HourlyRatesMatrix
+                                            errors={{
+                                              personal: editErrors.hourlyRates?.personal?.message,
+                                              consulting: editErrors.hourlyRates?.consulting?.message,
+                                              evaluation: editErrors.hourlyRates?.evaluation?.message,
+                                            }}
+                                            getInputProps={(sectionKey) => registerEdit(`hourlyRates.${sectionKey}` as const)}
+                                            onValueChange={(sectionKey, value) =>
+                                              setEditValue(`hourlyRates.${sectionKey}`, value, {
+                                                shouldDirty: true,
+                                                shouldValidate: true,
+                                              })
+                                            }
+                                            onValueBlur={(sectionKey) =>
+                                              setEditValue(`hourlyRates.${sectionKey}`, formatPtBrHourlyRateValue(editHourlyRates?.[sectionKey]), {
+                                                shouldDirty: true,
+                                                shouldValidate: true,
+                                              })
+                                            }
+                                            values={editHourlyRates}
+                                            levels={hourlyRateLevels}
+                                          />
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex gap-2 justify-end">
+                        <Button type="button" variant="outline" onClick={cancelEdit}>
+                          {commonCopy.cancel}
+                        </Button>
+                        <Button type="submit" isLoading={isSubmitting}>
+                          {commonCopy.save}
+                        </Button>
+                      </div>
+                    </form>
+                  ) : (
+                    renderConsultProfessorSummary(professor)
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+      )}
+    </div>
+  );
+}
