@@ -216,7 +216,7 @@ const mapExternalAccount = (account: any) => ({
   metadata: account.metadata ?? null,
   createdAt: account.createdAt,
   updatedAt: account.updatedAt,
-  source: buildSource(null, 'integration', account.id),
+  source: buildSource(account, 'integration', account.externalUserId ?? account.id),
 });
 
 const mapLegacyIntegration = (integration: any) => ({
@@ -252,7 +252,7 @@ const mapExternalActivity = (activity: any) => ({
   importedAt: activity.importedAt,
   createdAt: activity.createdAt,
   updatedAt: activity.updatedAt,
-  source: buildSource(null, 'integration', activity.externalActivityId),
+  source: buildSource(activity, 'integration', activity.externalActivityId),
 });
 
 const buildContractTimelineEvents = (contracts: any[]) => {
