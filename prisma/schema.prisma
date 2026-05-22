@@ -80,58 +80,64 @@ model Bank {
 }
 
 model CompanyContract {
-  id                    String                       @id(map: "Contract_pkey") @default(cuid())
-  type                  ContractType
-  document              String                       @unique
-  name                  String?
-  tradeName             String?
-  cref                  String?
-  addressStreet         String?
-  addressNumber         String?
-  addressNeighborhood   String?
-  addressCity           String?
-  addressState          String?
-  addressComplement     String?
-  addressZipCode        String?
-  logoUrl               String?
-  createdAt             DateTime                     @default(now())
-  updatedAt             DateTime                     @updatedAt
-  agendaBookings        AgendaBooking[]
+  id                       String                       @id(map: "Contract_pkey") @default(cuid())
+  type                     ContractType
+  document                 String                       @unique
+  name                     String?
+  tradeName                String?
+  cref                     String?
+  addressStreet            String?
+  addressNumber            String?
+  addressNeighborhood      String?
+  addressCity              String?
+  addressState             String?
+  addressComplement        String?
+  addressZipCode           String?
+  logoUrl                  String?
+  createdAt                DateTime                     @default(now())
+  updatedAt                DateTime                     @updatedAt
+  agendaBookings           AgendaBooking[]
   anthropometryAssessments AnthropometryAssessment[]
-  anthropometrySegments AnthropometrySegment[]
-  assessmentTypes       AssessmentType[]
-  collaboratorFunctions CollaboratorFunctionOption[]
-  cloneLogsAsSource     ContractDataCloneLog[]       @relation("ContractCloneSource")
-  cloneLogsAsTarget     ContractDataCloneLog[]       @relation("ContractCloneTarget")
-  exerciseLibrary       ExerciseLibrary[]
-  hourlyRateLevels      HourlyRateLevel[]
-  professores           Professor[]
-  professorManualItems  ProfessorManualItem[]
-  services              ServiceOption[]
-  subjectiveScaleItems  SubjectiveScaleItem[]
-  trainingParameters    TrainingParameter[]
-  trainingSpaces        TrainingSpace[]
-  contractTemplates     ContractTemplate[]
-  generatedContracts    Contract[]
+  anthropometrySegments    AnthropometrySegment[]
+  assessmentTypes          AssessmentType[]
+  collaboratorFunctions    CollaboratorFunctionOption[]
+  cloneLogsAsSource        ContractDataCloneLog[]       @relation("ContractCloneSource")
+  cloneLogsAsTarget        ContractDataCloneLog[]       @relation("ContractCloneTarget")
+  exerciseLibrary          ExerciseLibrary[]
+  hourlyRateLevels         HourlyRateLevel[]
+  professores              Professor[]
+  professorManualItems     ProfessorManualItem[]
+  services                 ServiceOption[]
+  subjectiveScaleItems     SubjectiveScaleItem[]
+  trainingParameters       TrainingParameter[]
+  trainingSpaces           TrainingSpace[]
+  contractTemplates        ContractTemplate[]
+  generatedContracts       Contract[]
+  studentProfiles          StudentProfile[]
+  studentHealthIntakes     StudentHealthIntake[]
+  studentAssessmentRecords StudentAssessmentRecord[]
+  studentFinancialProfiles StudentFinancialProfile[]
+  studentExternalAccounts  StudentExternalAccount[]
+  studentExternalActivities StudentExternalActivity[]
 
   @@index([type])
   @@map("Contract")
 }
 
 model ContractTemplate {
-  id          String                   @id @default(cuid())
+  id          String                 @id @default(cuid())
   contractId  String
   name        String
   description String?
   serviceId   String?
-  version     Int                      @default(1)
-  status      ContractTemplateStatus   @default(DRAFT)
-  headerHtml  String                   @default("")
-  footerHtml  String                   @default("")
-  createdAt   DateTime                 @default(now())
-  updatedAt   DateTime                 @updatedAt
-  contract    CompanyContract          @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  service     ServiceOption?           @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  version     Int                    @default(1)
+  status      ContractTemplateStatus @default(DRAFT)
+  headerHtml  String                 @default("")
+  footerHtml  String                 @default("")
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+  contract    CompanyContract        @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  service     ServiceOption?         @relation(fields: [serviceId], references: [id], onDelete: SetNull)
   clauses     ContractTemplateClause[]
   contracts   Contract[]
 
@@ -156,37 +162,37 @@ model ContractTemplateClause {
 }
 
 model Contract {
-  id                String               @id(map: "GeneratedContract_pkey") @default(cuid())
-  companyContractId String
-  templateId        String
-  templateVersion   Int
-  alunoId           String
-  responsavelName   String?
-  responsavelCpf    String?
-  responsavelEmail  String?
-  serviceId         String?
-  professorId       String?
-  status            ContractStatus       @default(DRAFT)
-  title             String
-  renderedHtml      String
-  dataSnapshot      Json
-  pdfPath           String?
-  publicTokenHash   String?              @unique
+  id                   String          @id(map: "GeneratedContract_pkey") @default(cuid())
+  companyContractId    String
+  templateId           String
+  templateVersion      Int
+  alunoId              String
+  responsavelName      String?
+  responsavelCpf       String?
+  responsavelEmail     String?
+  serviceId            String?
+  professorId          String?
+  status               ContractStatus  @default(DRAFT)
+  title                String
+  renderedHtml         String
+  dataSnapshot         Json
+  pdfPath              String?
+  publicTokenHash      String?         @unique
   publicTokenExpiresAt DateTime?
-  externalProvider  String?
-  externalEnvelopeId String?
-  documentHash      String?
-  signedAt          DateTime?
-  cancelledAt       DateTime?
-  createdAt         DateTime             @default(now())
-  updatedAt         DateTime             @updatedAt
-  companyContract   CompanyContract      @relation(fields: [companyContractId], references: [id], onDelete: Cascade)
-  template          ContractTemplate     @relation(fields: [templateId], references: [id])
-  aluno             Aluno                @relation(fields: [alunoId], references: [id], onDelete: Cascade)
-  service           ServiceOption?       @relation(fields: [serviceId], references: [id], onDelete: SetNull)
-  professor         Professor?           @relation(fields: [professorId], references: [id], onDelete: SetNull)
-  signatures        ContractSignature[]
-  auditLogs         ContractAuditLog[]
+  externalProvider     String?
+  externalEnvelopeId   String?
+  documentHash         String?
+  signedAt             DateTime?
+  cancelledAt          DateTime?
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+  companyContract      CompanyContract @relation(fields: [companyContractId], references: [id], onDelete: Cascade)
+  template             ContractTemplate @relation(fields: [templateId], references: [id])
+  aluno                Aluno           @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  service              ServiceOption?  @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  professor            Professor?      @relation(fields: [professorId], references: [id], onDelete: SetNull)
+  signatures           ContractSignature[]
+  auditLogs            ContractAuditLog[]
 
   @@index([companyContractId, status])
   @@index([alunoId])
@@ -197,17 +203,17 @@ model Contract {
 }
 
 model ContractSignature {
-  id            String   @id @default(cuid())
-  contractId    String
-  signerName    String
-  signerCpf     String
-  signerEmail   String?
-  ipAddress     String?
-  userAgent     String?
-  acceptedAt    DateTime @default(now())
-  documentHash  String
-  method        String   @default("INTERNAL_ELECTRONIC_ACCEPTANCE")
-  contract      Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  id           String   @id @default(cuid())
+  contractId   String
+  signerName   String
+  signerCpf    String
+  signerEmail  String?
+  ipAddress    String?
+  userAgent    String?
+  acceptedAt   DateTime @default(now())
+  documentHash String
+  method       String   @default("INTERNAL_ELECTRONIC_ACCEPTANCE")
+  contract     Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
 
   @@index([contractId])
   @@index([signerCpf])
@@ -229,16 +235,16 @@ model ContractAuditLog {
 }
 
 model CollaboratorFunctionOption {
-  id                String             @id @default(cuid())
+  id                String                     @id @default(cuid())
   contractId        String
   name              String
   code              String
-  isActive          Boolean            @default(true)
-  isSystem          Boolean            @default(false)
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @default(now()) @updatedAt
+  isActive          Boolean                    @default(true)
+  isSystem          Boolean                    @default(false)
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @default(now()) @updatedAt
   accessPermissions AccessPermission[]
-  contract          CompanyContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  contract          CompanyContract            @relation(fields: [contractId], references: [id], onDelete: Cascade)
   professores       Professor[]
 
   @@unique([contractId, code])
@@ -284,7 +290,7 @@ model Professor {
   cloneLogs                       ContractDataCloneLog[]
   generatedContracts              Contract[]
   fixedSlots                      FixedScheduleSlot[]
-  contract                        CompanyContract @relation(fields: [contractId], references: [id], onDelete: Cascade, map: "Educator_contractId_fkey")
+  contract                        CompanyContract            @relation(fields: [contractId], references: [id], onDelete: Cascade, map: "Educator_contractId_fkey")
   user                            User                       @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Educator_userId_fkey")
   collaboratorFunction            CollaboratorFunctionOption @relation(fields: [collaboratorFunctionId], references: [id])
   responsibleManager              Professor?                 @relation("ProfessorResponsibleManager", fields: [responsibleManagerId], references: [id])
@@ -302,7 +308,7 @@ model Professor {
 }
 
 model ContractDataCloneLog {
-  id                     String     @id @default(cuid())
+  id                     String          @id @default(cuid())
   sourceContractId       String
   targetContractId       String
   professorId            String?
@@ -310,10 +316,10 @@ model ContractDataCloneLog {
   parametersSkipped      Int
   exercisesCreated       Int
   exercisesSkipped       Int
-  createdAt              DateTime   @default(now())
-  assessmentTypesCreated Int        @default(0)
-  assessmentTypesSkipped Int        @default(0)
-  professor              Professor? @relation(fields: [professorId], references: [id], map: "ContractDataCloneLog_educatorId_fkey")
+  createdAt              DateTime        @default(now())
+  assessmentTypesCreated Int             @default(0)
+  assessmentTypesSkipped Int             @default(0)
+  professor              Professor?      @relation(fields: [professorId], references: [id], map: "ContractDataCloneLog_educatorId_fkey")
   sourceContract         CompanyContract @relation("ContractCloneSource", fields: [sourceContractId], references: [id], onDelete: Cascade)
   targetContract         CompanyContract @relation("ContractCloneTarget", fields: [targetContractId], references: [id], onDelete: Cascade)
 
@@ -323,66 +329,72 @@ model ContractDataCloneLog {
 }
 
 model Aluno {
-  id                  String                  @id(map: "Athlete_pkey") @default(cuid())
-  userId              String                  @unique(map: "Athlete_userId_key")
-  professorId         String
-  age                 Int
-  weight              Float?
-  height              Float?
-  bodyFatPercentage   Float?
-  vo2Max              Float?
-  anaerobicThreshold  Float?
-  maxHeartRate        Int?
-  restingHeartRate    Int?
-  createdAt           DateTime                @default(now())
-  updatedAt           DateTime                @updatedAt
-  lastPasswordResetAt DateTime?
-  schedulePlan        AlunoSchedulePlan       @default(free)
-  systolicPressure    Int?
-  diastolicPressure   Int?
-  serviceId           String?
-  agendaBookings      AgendaBooking[]
+  id                       String                  @id(map: "Athlete_pkey") @default(cuid())
+  userId                   String                  @unique(map: "Athlete_userId_key")
+  professorId              String
+  age                      Int
+  weight                   Float?
+  height                   Float?
+  bodyFatPercentage        Float?
+  vo2Max                   Float?
+  anaerobicThreshold       Float?
+  maxHeartRate             Int?
+  restingHeartRate         Int?
+  createdAt                DateTime                @default(now())
+  updatedAt                DateTime                @updatedAt
+  lastPasswordResetAt      DateTime?
+  schedulePlan             AlunoSchedulePlan       @default(free)
+  systolicPressure         Int?
+  diastolicPressure        Int?
+  serviceId                String?
+  agendaBookings           AgendaBooking[]
   anthropometryAssessments AnthropometryAssessment[]
-  service             ServiceOption?          @relation(fields: [serviceId], references: [id])
-  professor           Professor               @relation(fields: [professorId], references: [id], onDelete: Cascade, map: "Athlete_educatorId_fkey")
-  user                User                    @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Athlete_userId_fkey")
-  exerciseProgress    AlunoExerciseProgress[]
-  intakeForm          AlunoIntakeForm?
-  assessments         Assessment[]
-  contracts           Contract[]
-  fixedSlots          FixedScheduleSlot[]
-  integrations        Integration[]
-  macronutrients      Macronutrients?
-  nutritionPlans      NutritionPlan[]
-  progressMetrics     ProgressMetric[]
-  executions          TrainingExecution[]
-  trainingPlans       TrainingPlan[]
-  workoutExecutions   WorkoutExecution[]
+  service                  ServiceOption?          @relation(fields: [serviceId], references: [id])
+  professor                Professor               @relation(fields: [professorId], references: [id], onDelete: Cascade, map: "Athlete_educatorId_fkey")
+  user                     User                    @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Athlete_userId_fkey")
+  exerciseProgress         AlunoExerciseProgress[]
+  intakeForm               AlunoIntakeForm?
+  assessments              Assessment[]
+  contracts                Contract[]
+  fixedSlots               FixedScheduleSlot[]
+  integrations             Integration[]
+  macronutrients           Macronutrients?
+  nutritionPlans           NutritionPlan[]
+  progressMetrics          ProgressMetric[]
+  executions               TrainingExecution[]
+  trainingPlans            TrainingPlan[]
+  workoutExecutions        WorkoutExecution[]
+  studentProfile           StudentProfile?
+  studentHealthIntake      StudentHealthIntake?
+  studentAssessmentRecords StudentAssessmentRecord[]
+  studentFinancialProfile  StudentFinancialProfile?
+  studentExternalAccounts  StudentExternalAccount[]
+  studentExternalActivities StudentExternalActivity[]
 
   @@index([serviceId])
   @@index([professorId], map: "Athlete_educatorId_idx")
 }
 
 model ServiceOption {
-  id         String   @id @default(cuid())
-  contractId String
-  name       String
-  code       String
-  description String?
-  parentServiceId String?
-  monthlyPrice Float?
-  validFrom DateTime?
-  validUntil DateTime?
-  isActive   Boolean  @default(true)
-  isSystem   Boolean  @default(false)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @default(now()) @updatedAt
-  alunos     Aluno[]
-  contractTemplates ContractTemplate[]
+  id                 String             @id @default(cuid())
+  contractId         String
+  name               String
+  code               String
+  description        String?
+  parentServiceId    String?
+  monthlyPrice       Float?
+  validFrom          DateTime?
+  validUntil         DateTime?
+  isActive           Boolean            @default(true)
+  isSystem           Boolean            @default(false)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @default(now()) @updatedAt
+  alunos             Aluno[]
+  contractTemplates  ContractTemplate[]
   generatedContracts Contract[]
-  contract   CompanyContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  parentService ServiceOption? @relation("ServiceOptionOffers", fields: [parentServiceId], references: [id], onDelete: SetNull)
-  financialOffers ServiceOption[] @relation("ServiceOptionOffers")
+  contract           CompanyContract    @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  parentService      ServiceOption?     @relation("ServiceOptionOffers", fields: [parentServiceId], references: [id], onDelete: SetNull)
+  financialOffers    ServiceOption[]    @relation("ServiceOptionOffers")
 
   @@unique([contractId, code])
   @@index([contractId])
@@ -390,8 +402,8 @@ model ServiceOption {
 }
 
 model AlunoIntakeForm {
-  id                 String    @id @default(cuid())
-  alunoId            String    @unique
+  id                 String   @id @default(cuid())
+  alunoId            String   @unique
   assessmentDate     DateTime?
   mainGoal           String?
   medicalHistory     String?
@@ -400,22 +412,22 @@ model AlunoIntakeForm {
   trainingBackground String?
   observations       String?
   parqResponses      Json?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
   formResponses      Json?
-  aluno              Aluno     @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  aluno              Aluno    @relation(fields: [alunoId], references: [id], onDelete: Cascade)
 
   @@index([assessmentDate])
 }
 
 model TrainingSpace {
-  id         String              @id @default(cuid())
+  id         String          @id @default(cuid())
   contractId String
   name       String
-  capacity   Int                 @default(1)
-  isActive   Boolean             @default(true)
-  createdAt  DateTime            @default(now())
-  updatedAt  DateTime            @updatedAt
+  capacity   Int             @default(1)
+  isActive   Boolean         @default(true)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
   bookings   AgendaBooking[]
   fixedSlots FixedScheduleSlot[]
   contract   CompanyContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
@@ -440,21 +452,21 @@ model ProfessorAvailability {
 }
 
 model FixedScheduleSlot {
-  id          String          @id @default(cuid())
+  id          String         @id @default(cuid())
   alunoId     String
   professorId String
   spaceId     String?
   dayOfWeek   Int
   startTime   String
   endTime     String
-  isActive    Boolean         @default(true)
+  isActive    Boolean        @default(true)
   notes       String?
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
   bookings    AgendaBooking[]
-  aluno       Aluno           @relation(fields: [alunoId], references: [id], onDelete: Cascade, map: "FixedScheduleSlot_athleteId_fkey")
-  professor   Professor       @relation(fields: [professorId], references: [id], onDelete: Cascade, map: "FixedScheduleSlot_educatorId_fkey")
-  space       TrainingSpace?  @relation(fields: [spaceId], references: [id])
+  aluno       Aluno          @relation(fields: [alunoId], references: [id], onDelete: Cascade, map: "FixedScheduleSlot_athleteId_fkey")
+  professor   Professor      @relation(fields: [professorId], references: [id], onDelete: Cascade, map: "FixedScheduleSlot_educatorId_fkey")
+  space       TrainingSpace? @relation(fields: [spaceId], references: [id])
 
   @@index([spaceId, dayOfWeek, isActive])
   @@index([alunoId, isActive], map: "FixedScheduleSlot_athleteId_isActive_idx")
@@ -478,7 +490,7 @@ model AgendaBooking {
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
   aluno          Aluno               @relation(fields: [alunoId], references: [id], onDelete: Cascade, map: "AgendaBooking_athleteId_fkey")
-  contract       CompanyContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  contract       CompanyContract     @relation(fields: [contractId], references: [id], onDelete: Cascade)
   professor      Professor           @relation(fields: [professorId], references: [id], onDelete: Cascade, map: "AgendaBooking_educatorId_fkey")
   fixedSlot      FixedScheduleSlot?  @relation(fields: [fixedSlotId], references: [id])
   space          TrainingSpace?      @relation(fields: [spaceId], references: [id])
@@ -491,7 +503,7 @@ model AgendaBooking {
 }
 
 model AssessmentType {
-  id             String                 @id @default(cuid())
+  id             String                  @id @default(cuid())
   contractId     String
   name           String
   code           String
@@ -500,13 +512,13 @@ model AssessmentType {
   intervalMonths Int?
   afterTypeId    String?
   offsetMonths   Int?
-  isActive       Boolean                @default(true)
-  createdAt      DateTime               @default(now())
-  updatedAt      DateTime               @updatedAt
+  isActive       Boolean                 @default(true)
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
   assessments    Assessment[]
-  afterType      AssessmentType?        @relation("AssessmentTypeDependencies", fields: [afterTypeId], references: [id])
-  dependents     AssessmentType[]       @relation("AssessmentTypeDependencies")
-  contract       CompanyContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  afterType      AssessmentType?         @relation("AssessmentTypeDependencies", fields: [afterTypeId], references: [id])
+  dependents     AssessmentType[]        @relation("AssessmentTypeDependencies")
+  contract       CompanyContract         @relation(fields: [contractId], references: [id], onDelete: Cascade)
 
   @@unique([contractId, code])
   @@index([contractId])
@@ -549,24 +561,24 @@ model AssessmentAuditLog {
 }
 
 model AnthropometrySegment {
-  id                         String                         @id @default(cuid())
+  id                         String                        @id @default(cuid())
   contractId                 String
   name                       String
   description                String?
   technicalDescription       String?
-  sexApplicability           AnthropometrySexApplicability  @default(ambos)
-  type                       AnthropometrySegmentType       @default(principal)
-  order                      Int                            @default(0)
-  active                     Boolean                        @default(true)
-  importByDefault            Boolean                        @default(true)
-  importObservationByDefault Boolean                        @default(false)
+  sexApplicability           AnthropometrySexApplicability @default(ambos)
+  type                       AnthropometrySegmentType      @default(principal)
+  order                      Int                           @default(0)
+  active                     Boolean                       @default(true)
+  importByDefault            Boolean                       @default(true)
+  importObservationByDefault Boolean                       @default(false)
   femaleImageUrl             String?
   maleImageUrl               String?
   tutorialVideoUrl           String?
   formulaHint                String?
-  createdAt                  DateTime                       @default(now())
-  updatedAt                  DateTime                       @updatedAt
-  contract                   CompanyContract                @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  createdAt                  DateTime                      @default(now())
+  updatedAt                  DateTime                      @updatedAt
+  contract                   CompanyContract               @relation(fields: [contractId], references: [id], onDelete: Cascade)
   values                     AnthropometryAssessmentValue[]
   observations               AnthropometryObservation[]
 
@@ -613,15 +625,15 @@ model AnthropometryAssessmentValue {
 }
 
 model AnthropometryObservation {
-  id           String                   @id @default(cuid())
+  id           String                  @id @default(cuid())
   assessmentId String
   segmentId    String?
   text         String
-  importable   Boolean                  @default(false)
-  createdAt    DateTime                 @default(now())
-  updatedAt    DateTime                 @updatedAt
-  assessment   AnthropometryAssessment  @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
-  segment      AnthropometrySegment?    @relation(fields: [segmentId], references: [id], onDelete: SetNull)
+  importable   Boolean                 @default(false)
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+  assessment   AnthropometryAssessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  segment      AnthropometrySegment?   @relation(fields: [segmentId], references: [id], onDelete: SetNull)
 
   @@index([assessmentId])
   @@index([segmentId])
@@ -860,14 +872,14 @@ model NotificationPreferences {
 }
 
 model TrainingParameter {
-  id          String   @id @default(cuid())
+  id          String          @id @default(cuid())
   category    String
   code        String
   description String
   order       Int
-  active      Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  active      Boolean         @default(true)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
   contractId  String
   contract    CompanyContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
 
@@ -876,16 +888,16 @@ model TrainingParameter {
 }
 
 model HourlyRateLevel {
-  id         String   @id @default(cuid())
+  id         String          @id @default(cuid())
   contractId String
   code       String
   label      String
-  minValue   Decimal? @db.Decimal(10, 2)
-  maxValue   Decimal? @db.Decimal(10, 2)
+  minValue   Decimal?        @db.Decimal(10, 2)
+  maxValue   Decimal?        @db.Decimal(10, 2)
   order      Int
-  isActive   Boolean  @default(true)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  isActive   Boolean         @default(true)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
   contract   CompanyContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
 
   @@unique([contractId, code])
@@ -902,14 +914,14 @@ model SubjectiveScaleItem {
   isActive   Boolean             @default(true)
   createdAt  DateTime            @default(now())
   updatedAt  DateTime            @updatedAt
-  contract   CompanyContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  contract   CompanyContract     @relation(fields: [contractId], references: [id], onDelete: Cascade)
 
   @@unique([contractId, type, value])
   @@index([contractId, type])
 }
 
 model ProfessorManualItem {
-  id                String                 @id @default(cuid())
+  id                String                @id @default(cuid())
   contractId        String
   code              String
   title             String
@@ -924,11 +936,11 @@ model ProfessorManualItem {
   productMoment     String?
   linkLabel         String?
   linkHref          String?
-  order             Int                    @default(0)
-  isActive          Boolean                @default(true)
-  createdAt         DateTime               @default(now())
-  updatedAt         DateTime               @default(now()) @updatedAt
-  contract          CompanyContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  order             Int                   @default(0)
+  isActive          Boolean               @default(true)
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @default(now()) @updatedAt
+  contract          CompanyContract       @relation(fields: [contractId], references: [id], onDelete: Cascade)
 
   @@unique([contractId, code])
   @@index([contractId, context, isActive])
@@ -1053,7 +1065,7 @@ model ExerciseLibrary {
   updatedAt        DateTime                @updatedAt
   contractId       String
   alunoProgress    AlunoExerciseProgress[]
-  contract         CompanyContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  contract         CompanyContract         @relation(fields: [contractId], references: [id], onDelete: Cascade)
   workoutExercises WorkoutExercise[]
 
   @@index([contractId])
@@ -1108,7 +1120,7 @@ model WorkoutTemplate {
 }
 
 model WorkoutDay {
-  id                  String            @id @default(cuid())
+  id                  String           @id @default(cuid())
   templateId          String
   dayOfWeek           Int
   workoutDate         DateTime
@@ -1130,10 +1142,10 @@ model WorkoutDay {
   detailNotes         String?
   complementNotes     String?
   generalGuidelines   String?
-  psrQuestion         String?           @default("Hoje recuperado você está se sentindo (PSR)?")
+  psrQuestion         String?          @default("Hoje recuperado você está se sentindo (PSR)?")
   psrResponse         Int?
-  createdAt           DateTime          @default(now())
-  updatedAt           DateTime          @updatedAt
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
   cyclicTimeMin       Int?
   paceMax             Float?
   paceMin             Float?
@@ -1143,8 +1155,8 @@ model WorkoutDay {
   finishedAt          DateTime?
   pseResponse         Int?
   startedAt           DateTime?
-  status              WorkoutDayStatus  @default(planned)
-  template            WorkoutTemplate   @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  status              WorkoutDayStatus @default(planned)
+  template            WorkoutTemplate  @relation(fields: [templateId], references: [id], onDelete: Cascade)
   exercises           WorkoutExercise[]
 
   @@unique([templateId, dayOfWeek])
@@ -1195,6 +1207,177 @@ model WorkoutExecution {
   @@index([workoutExerciseId])
   @@index([executionDate])
   @@index([alunoId], map: "WorkoutExecution_athleteId_idx")
+}
+
+model StudentProfile {
+  id                 String                  @id @default(cuid())
+  alunoId            String                  @unique
+  contractId         String
+  sourceType         StudentRecordSourceType @default(student)
+  sourceReference    String?
+  recordedByUserId   String?
+  identificationData Json?
+  preferenceData     Json?
+  objectiveData      Json?
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+  aluno              Aluno                   @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  contract           CompanyContract         @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([contractId])
+  @@index([sourceType])
+  @@index([recordedByUserId])
+}
+
+model StudentHealthIntake {
+  id                  String                  @id @default(cuid())
+  alunoId             String                  @unique
+  contractId          String
+  sourceType          StudentRecordSourceType @default(student)
+  sourceReference     String?
+  recordedByUserId    String?
+  assessmentDate      DateTime?
+  questionnaireParq   Json?
+  questionnaireAha    Json?
+  clinicalHistoryData Json?
+  medicationData      Json?
+  injuryData          Json?
+  allergyData         Json?
+  rawFormResponses    Json?
+  observations        String?
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+  aluno               Aluno                   @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  contract            CompanyContract         @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([contractId])
+  @@index([assessmentDate])
+  @@index([sourceType])
+}
+
+model StudentAssessmentRecord {
+  id                  String                        @id @default(cuid())
+  alunoId             String
+  contractId          String
+  assessmentCategory  String
+  assessmentCode      String?
+  title               String?
+  sourceType          StudentRecordSourceType      @default(professional)
+  sourceReference     String?
+  recordedByUserId    String?
+  performedByProfessorId String?
+  performedAt         DateTime
+  status              StudentAssessmentRecordStatus @default(completed)
+  summaryData         Json?
+  notes               String?
+  createdAt           DateTime                      @default(now())
+  updatedAt           DateTime                      @updatedAt
+  aluno               Aluno                         @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  contract            CompanyContract               @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  measurements        StudentAssessmentMeasurement[]
+
+  @@index([contractId, performedAt])
+  @@index([alunoId, performedAt])
+  @@index([status])
+  @@index([sourceType])
+}
+
+model StudentAssessmentMeasurement {
+  id                 String                     @id @default(cuid())
+  assessmentRecordId String
+  metricKey          String
+  metricLabel        String?
+  valueType          StudentMeasurementValueType @default(text)
+  valueText          String?
+  valueNumber        Decimal?                   @db.Decimal(12, 4)
+  valueBoolean       Boolean?
+  valueJson          Json?
+  unit               String?
+  notes              String?
+  sortOrder          Int                        @default(0)
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+  assessmentRecord   StudentAssessmentRecord    @relation(fields: [assessmentRecordId], references: [id], onDelete: Cascade)
+
+  @@index([assessmentRecordId, sortOrder])
+  @@index([assessmentRecordId, metricKey])
+}
+
+model StudentFinancialProfile {
+  id                 String                  @id @default(cuid())
+  alunoId            String                  @unique
+  contractId         String
+  sourceType         StudentRecordSourceType @default(student)
+  sourceReference    String?
+  recordedByUserId   String?
+  currentServiceName String?
+  specialCondition   String?
+  monthlyAmount      Decimal?                @db.Decimal(10, 2)
+  discountPercentage Decimal?                @db.Decimal(5, 2)
+  paymentDay         Int?
+  contractStartDate  DateTime?
+  contractDueDate    DateTime?
+  cameFromReferral   Boolean?
+  referralPerson     String?
+  notes              String?
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+  aluno              Aluno                   @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  contract           CompanyContract         @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([contractId])
+  @@index([sourceType])
+}
+
+model StudentExternalAccount {
+  id               String                          @id @default(cuid())
+  alunoId          String
+  contractId       String
+  provider         String
+  externalUserId   String?
+  connectionStatus StudentExternalConnectionStatus @default(pending)
+  lastSyncAt       DateTime?
+  metadata         Json?
+  createdAt        DateTime                        @default(now())
+  updatedAt        DateTime                        @updatedAt
+  aluno            Aluno                           @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  contract         CompanyContract                 @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  activities       StudentExternalActivity[]
+
+  @@unique([alunoId, provider])
+  @@index([contractId, provider])
+  @@index([connectionStatus])
+}
+
+model StudentExternalActivity {
+  id                  String                 @id @default(cuid())
+  externalAccountId   String
+  alunoId             String
+  contractId          String
+  provider            String
+  externalActivityId  String
+  activityType        String?
+  startedAt           DateTime
+  endedAt             DateTime?
+  distanceMeters      Decimal?               @db.Decimal(12, 2)
+  durationSeconds     Int?
+  paceSecondsPerKm    Decimal?               @db.Decimal(10, 2)
+  averageHeartRate    Int?
+  maxHeartRate        Int?
+  calories            Decimal?               @db.Decimal(10, 2)
+  elevationGainMeters Decimal?               @db.Decimal(10, 2)
+  rawPayload          Json?
+  importedAt          DateTime               @default(now())
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+  externalAccount     StudentExternalAccount @relation(fields: [externalAccountId], references: [id], onDelete: Cascade)
+  aluno               Aluno                  @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  contract            CompanyContract        @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@unique([externalAccountId, externalActivityId])
+  @@index([contractId, provider, startedAt])
+  @@index([alunoId, startedAt])
+  @@index([provider, externalActivityId])
 }
 
 enum UserType {
@@ -1385,4 +1568,32 @@ enum WorkoutDayStatus {
   planned
   in_progress
   completed
+}
+
+enum StudentRecordSourceType {
+  student
+  professional
+  integration
+  system
+}
+
+enum StudentAssessmentRecordStatus {
+  draft
+  completed
+  superseded
+  archived
+}
+
+enum StudentMeasurementValueType {
+  text
+  number
+  boolean
+  json
+}
+
+enum StudentExternalConnectionStatus {
+  pending
+  connected
+  error
+  revoked
 }

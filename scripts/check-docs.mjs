@@ -4,6 +4,7 @@ import { join } from 'node:path';
 const root = process.cwd();
 const requiredFiles = [
   'AGENTS.md',
+  'ARCHITECTURE.md',
   'docs/architecture/overview.md',
   'docs/architecture/api.md',
   'docs/architecture/web.md',

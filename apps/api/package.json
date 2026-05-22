@@ -17,6 +17,8 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:clone-contract-data": "tsx src/scripts/clone-contract-data.ts",
     "job:backfill-student-contract-links": "tsx src/scripts/backfill-student-contract-links.ts",
+    "job:backfill-student-external-accounts": "tsx src/scripts/backfill-student-external-accounts.ts",
+    "job:backfill-student-external-activities": "tsx src/scripts/backfill-student-external-activities.ts",
     "job:dispatch-profile-reviews": "tsx src/scripts/dispatch-profile-reviews.ts",
     "job:backfill-profile-review-settings": "tsx src/scripts/backfill-profile-review-settings.ts",
     "db:studio": "prisma studio",

@@ -57,7 +57,7 @@ export const sidebarMenuItems: SidebarNavItem[] = [
           {
             id: 'alunos',
             label: 'Novo aluno',
-            path: '/alunos',
+            path: '/alunos/new',
             screenKey: 'students.registration',
           },
           {
@@ -81,7 +81,7 @@ export const sidebarMenuItems: SidebarNavItem[] = [
           {
             id: 'professores',
             label: 'Novo colaborador',
-            path: '/professores',
+            path: '/professores/new',
             screenKey: 'collaborators.registration',
           },
         ],
