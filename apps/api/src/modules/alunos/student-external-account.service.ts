@@ -1,4 +1,4 @@
-import { PrismaClient, type Prisma, type StudentExternalConnectionStatus } from '@prisma/client';
+import { Prisma, PrismaClient, type StudentExternalConnectionStatus } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -102,8 +102,8 @@ const buildUpsertPayload = (input: UpsertStudentExternalAccountInput) => {
   }
 
   if (input.metadata !== undefined) {
-    createData.metadata = input.metadata;
-    updateData.metadata = input.metadata;
+    createData.metadata = input.metadata ?? Prisma.JsonNull;
+    updateData.metadata = input.metadata ?? Prisma.JsonNull;
   }
 
   return {
