@@ -2,7 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/Card';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
-import type { Aluno, StudentContractLink } from '../../services/aluno.service';
+import type {
+  Aluno,
+  StudentContractLink,
+  StudentSegmentedFinancialProfile,
+} from '../../services/aluno.service';
 import { alunoService } from '../../services/aluno.service';
 import { contractService, type AvailableStudentContract } from '../../services/contract.service';
 
@@ -25,6 +29,7 @@ type AlunoFinanceiroTabProps = {
   canManageContracts: boolean;
   canCancelContracts: boolean;
   canRenewContracts: boolean;
+  segmentedFinancialProfile?: StudentSegmentedFinancialProfile | null;
 };
 
 const studentContractStatusLabel: Record<string, string> = {
@@ -77,6 +82,7 @@ export function AlunoFinanceiroTab({
   canManageContracts,
   canCancelContracts,
   canRenewContracts,
+  segmentedFinancialProfile,
 }: AlunoFinanceiroTabProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -170,12 +176,31 @@ export function AlunoFinanceiroTab({
 
   const activeContractLabel = currentContract
     ? `${currentContract.contract.title} (${studentContractStatusLabel[currentContract.status] || currentContract.status})`
-    : financialInfo.contract || 'Não informado';
+    : segmentedFinancialProfile?.activeContract?.contract.title ||
+      financialInfo.contract ||
+      'Não informado';
 
   const activeContractService =
-    currentContract?.service?.name || currentContract?.contract?.serviceId || financialInfo.currentService;
+    segmentedFinancialProfile?.currentServiceName ||
+    currentContract?.service?.name ||
+    currentContract?.contract?.serviceId ||
+    financialInfo.currentService;
   const activeContractAmount =
-    currentContract?.amount ?? currentContract?.service?.monthlyPrice ?? parseCurrencyInput(financialInfo.monthlyValue || '');
+    segmentedFinancialProfile?.monthlyAmount ??
+    currentContract?.amount ??
+    currentContract?.service?.monthlyPrice ??
+    parseCurrencyInput(financialInfo.monthlyValue || '');
+  const activePaymentDay =
+    segmentedFinancialProfile?.paymentDay ??
+    currentContract?.paymentDay ??
+    parsePaymentDayInput(financialInfo.paymentDay || '') ??
+    null;
+  const activeContractStartDate =
+    segmentedFinancialProfile?.contractStartDate ?? currentContract?.startDate ?? null;
+  const activeContractEndDate =
+    segmentedFinancialProfile?.contractDueDate ?? currentContract?.endDate ?? null;
+  const activeNotes =
+    segmentedFinancialProfile?.notes ?? currentContract?.notes ?? financialInfo.otherObservations ?? null;
 
   const historyContracts = useMemo(
     () =>
@@ -414,7 +439,9 @@ export function AlunoFinanceiroTab({
                   <div className="text-sm font-semibold text-gray-900">
                     {currentContract
                       ? studentContractStatusLabel[currentContract.status] || currentContract.status
-                      : 'Sem contrato ativo'}
+                      : segmentedFinancialProfile?.activeContract
+                        ? studentContractStatusLabel[segmentedFinancialProfile.activeContract.status] || segmentedFinancialProfile.activeContract.status
+                        : 'Sem contrato ativo'}
                   </div>
                 </div>
                 <div>
@@ -425,16 +452,16 @@ export function AlunoFinanceiroTab({
                 </div>
                 <div>
                   <div className="text-xs text-muted-foreground">Data de início</div>
-                  <div className="text-sm font-semibold text-gray-900">{formatDateLabel(currentContract?.startDate) || 'Não informada'}</div>
+                  <div className="text-sm font-semibold text-gray-900">{formatDateLabel(activeContractStartDate) || 'Não informada'}</div>
                 </div>
                 <div>
                   <div className="text-xs text-muted-foreground">Data de término</div>
-                  <div className="text-sm font-semibold text-gray-900">{formatDateLabel(currentContract?.endDate) || 'Não informada'}</div>
+                  <div className="text-sm font-semibold text-gray-900">{formatDateLabel(activeContractEndDate) || 'Não informada'}</div>
                 </div>
                 <div>
                   <div className="text-xs text-muted-foreground">Dia de pagamento</div>
                   <div className="text-sm font-semibold text-gray-900">
-                    {currentContract?.paymentDay || financialInfo.paymentDay || 'Não informado'}
+                    {activePaymentDay || 'Não informado'}
                   </div>
                 </div>
                 <div>
@@ -675,19 +702,19 @@ export function AlunoFinanceiroTab({
           <div className="rounded-lg border border-gray-200 p-4">
             <div className="text-xs text-muted-foreground">Serviço vigente</div>
             <div className="mt-1 text-sm font-semibold text-gray-900">
-              {financialInfo.currentService || aluno.service?.name || 'Não informado'}
+              {activeContractService || 'Não informado'}
             </div>
           </div>
           <div className="rounded-lg border border-gray-200 p-4">
             <div className="text-xs text-muted-foreground">Condição especial</div>
             <div className="mt-1 text-sm font-semibold text-gray-900">
-              {financialInfo.specialCondition || 'Não informada'}
+              {segmentedFinancialProfile?.specialCondition || financialInfo.specialCondition || 'Não informada'}
             </div>
           </div>
           <div className="rounded-lg border border-gray-200 p-4">
             <div className="text-xs text-muted-foreground">Valor mensal informado</div>
             <div className="mt-1 text-sm font-semibold text-gray-900">
-              {financialInfo.monthlyValue ? `R$ ${financialInfo.monthlyValue}` : 'Não informado'}
+              {formatCurrency(activeContractAmount) ? `R$ ${formatCurrency(activeContractAmount)}` : 'Não informado'}
             </div>
           </div>
           <div className="rounded-lg border border-gray-200 p-4">
@@ -699,7 +726,7 @@ export function AlunoFinanceiroTab({
           <div className="rounded-lg border border-gray-200 p-4">
             <div className="text-xs text-muted-foreground">Dia de pagamento informado</div>
             <div className="mt-1 text-sm font-semibold text-gray-900">
-              {financialInfo.paymentDay || 'Não informado'}
+              {activePaymentDay || 'Não informado'}
             </div>
           </div>
           <div className="rounded-lg border border-gray-200 p-4">
@@ -715,17 +742,17 @@ export function AlunoFinanceiroTab({
                 Valor: R$ {formatCurrency(activeContractAmount)}
               </div>
             )}
-            {currentContract?.startDate && (
+            {activeContractStartDate && (
               <div className="mt-1 text-xs text-muted-foreground">
-                Vigência: {formatDateLabel(currentContract.startDate)}
-                {currentContract.endDate ? ` até ${formatDateLabel(currentContract.endDate)}` : ''}
+                Vigência: {formatDateLabel(activeContractStartDate)}
+                {activeContractEndDate ? ` até ${formatDateLabel(activeContractEndDate)}` : ''}
               </div>
             )}
           </div>
         </div>
         <div>
           <div className="text-xs text-muted-foreground">Outras observações</div>
-          <div className="mt-1 text-sm text-gray-900">{financialInfo.otherObservations || 'Não informadas'}</div>
+          <div className="mt-1 text-sm text-gray-900">{activeNotes || 'Não informadas'}</div>
         </div>
       </CardContent>
     </Card>
