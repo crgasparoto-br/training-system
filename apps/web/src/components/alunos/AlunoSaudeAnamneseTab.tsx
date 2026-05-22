@@ -15,23 +15,53 @@ const parqQuestionLabels: Record<string, string> = {
   q5: 'PAR-Q 5',
   q6: 'PAR-Q 6',
   q7: 'PAR-Q 7',
-  q8: 'PAR-Q 8',
+  q8: 'Declaração final',
+};
+
+const countPositiveAhaAnswers = (value: unknown) => {
+  if (!value || typeof value !== 'object') {
+    return 0;
+  }
+
+  return Object.values(value as Record<string, unknown>).filter((answer) => answer === 'yes').length;
+};
+
+const countBodyDiscomforts = (value: unknown) => {
+  if (!Array.isArray(value)) {
+    return 0;
+  }
+
+  return value.length;
+};
+
+const getRawFormResponses = (aluno: Aluno) => {
+  const responses = aluno.intakeForm?.formResponses;
+  if (!responses || typeof responses !== 'object') {
+    return {} as Record<string, unknown>;
+  }
+
+  return responses as Record<string, unknown>;
 };
 
 export function AlunoSaudeAnamneseTab({ aluno, parqPositiveCount }: AlunoSaudeAnamneseTabProps) {
   const parqResponses = aluno.intakeForm?.parqResponses || {};
+  const rawFormResponses = getRawFormResponses(aluno);
+  const ahaPositiveCount = countPositiveAhaAnswers(rawFormResponses.ahaResponses);
+  const bodyDiscomfortCount = countBodyDiscomforts(rawFormResponses.bodyDiscomforts);
 
   return (
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle>Saúde e Anamnese</CardTitle>
-          <CardDescription>Dados clínicos e operacionais do intake inicial do aluno.</CardDescription>
+          <CardTitle>Intake inicial e questionários</CardTitle>
+          <CardDescription>
+            Esta aba reúne a anamnese inicial, PAR-Q, AHA e desconfortos relatados no onboarding do aluno, sem misturar avaliações profissionais de evolução.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <div className="rounded-lg border border-gray-200 p-4">
-              <div className="text-xs text-muted-foreground">Data da avaliação inicial</div>
+              <div className="text-xs text-muted-foreground">Data do intake inicial</div>
               <div className="mt-1 text-sm font-semibold text-gray-900">
                 {aluno.intakeForm?.assessmentDate ? formatDateBR(aluno.intakeForm.assessmentDate) : 'Não informada'}
               </div>
@@ -41,22 +71,22 @@ export function AlunoSaudeAnamneseTab({ aluno, parqPositiveCount }: AlunoSaudeAn
               <div className="mt-1 text-sm font-semibold text-gray-900">{parqPositiveCount}</div>
             </div>
             <div className="rounded-lg border border-gray-200 p-4">
-              <div className="text-xs text-muted-foreground">Pressão arterial</div>
-              <div className="mt-1 text-sm font-semibold text-gray-900">
-                {aluno.systolicPressure && aluno.diastolicPressure
-                  ? `${aluno.systolicPressure}/${aluno.diastolicPressure} mmHg`
-                  : 'Não informada'}
-              </div>
+              <div className="text-xs text-muted-foreground">Respostas positivas no questionário AHA</div>
+              <div className="mt-1 text-sm font-semibold text-gray-900">{ahaPositiveCount}</div>
+            </div>
+            <div className="rounded-lg border border-gray-200 p-4">
+              <div className="text-xs text-muted-foreground">Desconfortos mapeados</div>
+              <div className="mt-1 text-sm font-semibold text-gray-900">{bodyDiscomfortCount}</div>
             </div>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
             <div className="rounded-lg border border-gray-200 p-4 text-sm">
-              <div className="text-xs text-muted-foreground">Objetivo principal</div>
+              <div className="text-xs text-muted-foreground">Objetivo principal declarado</div>
               <div className="mt-1 text-gray-900">{aluno.intakeForm?.mainGoal || 'Não informado'}</div>
             </div>
             <div className="rounded-lg border border-gray-200 p-4 text-sm">
-              <div className="text-xs text-muted-foreground">Histórico de treino</div>
+              <div className="text-xs text-muted-foreground">Histórico de treino informado</div>
               <div className="mt-1 text-gray-900">{aluno.intakeForm?.trainingBackground || 'Não informado'}</div>
             </div>
             <div className="rounded-lg border border-gray-200 p-4 text-sm">
@@ -64,15 +94,15 @@ export function AlunoSaudeAnamneseTab({ aluno, parqPositiveCount }: AlunoSaudeAn
               <div className="mt-1 text-gray-900">{aluno.intakeForm?.medicalHistory || 'Não informado'}</div>
             </div>
             <div className="rounded-lg border border-gray-200 p-4 text-sm">
-              <div className="text-xs text-muted-foreground">Medicamentos em uso</div>
+              <div className="text-xs text-muted-foreground">Medicações em uso</div>
               <div className="mt-1 text-gray-900">{aluno.intakeForm?.currentMedications || 'Não informado'}</div>
             </div>
             <div className="rounded-lg border border-gray-200 p-4 text-sm md:col-span-2">
-              <div className="text-xs text-muted-foreground">Lesões e restrições</div>
+              <div className="text-xs text-muted-foreground">Lesões e restrições relatadas</div>
               <div className="mt-1 text-gray-900">{aluno.intakeForm?.injuriesHistory || 'Não informado'}</div>
             </div>
             <div className="rounded-lg border border-gray-200 p-4 text-sm md:col-span-2">
-              <div className="text-xs text-muted-foreground">Observações</div>
+              <div className="text-xs text-muted-foreground">Observações do intake</div>
               <div className="mt-1 text-gray-900">{aluno.intakeForm?.observations || 'Não informado'}</div>
             </div>
           </div>
@@ -81,8 +111,10 @@ export function AlunoSaudeAnamneseTab({ aluno, parqPositiveCount }: AlunoSaudeAn
 
       <Card>
         <CardHeader>
-          <CardTitle>PAR-Q</CardTitle>
-          <CardDescription>Registro das respostas do questionário de prontidão para atividade física.</CardDescription>
+          <CardTitle>Questionário PAR-Q</CardTitle>
+          <CardDescription>
+            Registro das respostas de prontidão para atividade física preenchidas no cadastro inicial.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -99,10 +131,29 @@ export function AlunoSaudeAnamneseTab({ aluno, parqPositiveCount }: AlunoSaudeAn
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Questionário American Heart Association</CardTitle>
+          <CardDescription>
+            Síntese do questionário AHA trazido no onboarding para apoiar triagem e cuidado inicial.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="rounded-lg border border-gray-200 p-4 text-sm text-gray-900">
+            {ahaPositiveCount > 0
+              ? `${ahaPositiveCount} resposta(s) positiva(s) registradas no questionário AHA.`
+              : 'Nenhuma resposta positiva registrada no questionário AHA.'}
+          </div>
+        </CardContent>
+      </Card>
+
       {aluno.macronutrients && (
         <Card>
           <CardHeader>
-            <CardTitle>Distribuição de Macronutrientes</CardTitle>
+            <CardTitle>Referência nutricional inicial</CardTitle>
+            <CardDescription>
+              Distribuição registrada no intake inicial quando houver informação nutricional declarada.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -121,7 +172,7 @@ export function AlunoSaudeAnamneseTab({ aluno, parqPositiveCount }: AlunoSaudeAn
             </div>
             {aluno.macronutrients.dailyCalories && (
               <div className="mt-4 text-center">
-                <p className="text-sm text-muted-foreground">Calorias Diárias</p>
+                <p className="text-sm text-muted-foreground">Calorias diárias</p>
                 <p className="text-2xl font-bold">{aluno.macronutrients.dailyCalories} kcal</p>
               </div>
             )}
