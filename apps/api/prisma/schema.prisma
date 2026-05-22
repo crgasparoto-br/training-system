@@ -116,6 +116,12 @@ model CompanyContract {
   trainingSpaces        TrainingSpace[]
   contractTemplates     ContractTemplate[]
   generatedContracts    Contract[]
+  studentProfiles       StudentProfile[]
+  studentHealthIntakes  StudentHealthIntake[]
+  studentAssessmentRecords StudentAssessmentRecord[]
+  studentFinancialProfiles StudentFinancialProfile[]
+  studentExternalAccounts StudentExternalAccount[]
+  studentExternalActivities StudentExternalActivity[]
   profileReviewPolicies ProfileReviewPolicy[]
 
   @@index([type])
@@ -370,6 +376,12 @@ model Aluno {
   executions          TrainingExecution[]
   trainingPlans       TrainingPlan[]
   workoutExecutions   WorkoutExecution[]
+  studentProfile      StudentProfile?
+  studentHealthIntake StudentHealthIntake?
+  studentAssessmentRecords StudentAssessmentRecord[]
+  studentFinancialProfile StudentFinancialProfile?
+  studentExternalAccounts StudentExternalAccount[]
+  studentExternalActivities StudentExternalActivity[]
 
   @@index([serviceId])
   @@index([currentStudentContractId])
@@ -1340,6 +1352,177 @@ model WorkoutExecution {
   @@index([alunoId], map: "WorkoutExecution_athleteId_idx")
 }
 
+model StudentProfile {
+  id                 String                  @id @default(cuid())
+  alunoId            String                  @unique
+  contractId         String
+  sourceType         StudentRecordSourceType @default(student)
+  sourceReference    String?
+  recordedByUserId   String?
+  identificationData Json?
+  preferenceData     Json?
+  objectiveData      Json?
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+  aluno              Aluno                   @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  contract           CompanyContract         @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([contractId])
+  @@index([sourceType])
+  @@index([recordedByUserId])
+}
+
+model StudentHealthIntake {
+  id                  String                  @id @default(cuid())
+  alunoId             String                  @unique
+  contractId          String
+  sourceType          StudentRecordSourceType @default(student)
+  sourceReference     String?
+  recordedByUserId    String?
+  assessmentDate      DateTime?
+  questionnaireParq   Json?
+  questionnaireAha    Json?
+  clinicalHistoryData Json?
+  medicationData      Json?
+  injuryData          Json?
+  allergyData         Json?
+  rawFormResponses    Json?
+  observations        String?
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+  aluno               Aluno                   @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  contract            CompanyContract         @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([contractId])
+  @@index([assessmentDate])
+  @@index([sourceType])
+}
+
+model StudentAssessmentRecord {
+  id                    String                        @id @default(cuid())
+  alunoId               String
+  contractId            String
+  assessmentCategory    String
+  assessmentCode        String?
+  title                 String?
+  sourceType            StudentRecordSourceType      @default(professional)
+  sourceReference       String?
+  recordedByUserId      String?
+  performedByProfessorId String?
+  performedAt           DateTime
+  status                StudentAssessmentRecordStatus @default(completed)
+  summaryData           Json?
+  notes                 String?
+  createdAt             DateTime                      @default(now())
+  updatedAt             DateTime                      @updatedAt
+  aluno                 Aluno                         @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  contract              CompanyContract               @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  measurements          StudentAssessmentMeasurement[]
+
+  @@index([contractId, performedAt])
+  @@index([alunoId, performedAt])
+  @@index([status])
+  @@index([sourceType])
+}
+
+model StudentAssessmentMeasurement {
+  id                 String                     @id @default(cuid())
+  assessmentRecordId String
+  metricKey          String
+  metricLabel        String?
+  valueType          StudentMeasurementValueType @default(text)
+  valueText          String?
+  valueNumber        Decimal?                   @db.Decimal(12, 4)
+  valueBoolean       Boolean?
+  valueJson          Json?
+  unit               String?
+  notes              String?
+  sortOrder          Int                        @default(0)
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+  assessmentRecord   StudentAssessmentRecord    @relation(fields: [assessmentRecordId], references: [id], onDelete: Cascade)
+
+  @@index([assessmentRecordId, sortOrder])
+  @@index([assessmentRecordId, metricKey])
+}
+
+model StudentFinancialProfile {
+  id                 String                  @id @default(cuid())
+  alunoId            String                  @unique
+  contractId         String
+  sourceType         StudentRecordSourceType @default(student)
+  sourceReference    String?
+  recordedByUserId   String?
+  currentServiceName String?
+  specialCondition   String?
+  monthlyAmount      Decimal?                @db.Decimal(10, 2)
+  discountPercentage Decimal?                @db.Decimal(5, 2)
+  paymentDay         Int?
+  contractStartDate  DateTime?
+  contractDueDate    DateTime?
+  cameFromReferral   Boolean?
+  referralPerson     String?
+  notes              String?
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+  aluno              Aluno                   @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  contract           CompanyContract         @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([contractId])
+  @@index([sourceType])
+}
+
+model StudentExternalAccount {
+  id               String                          @id @default(cuid())
+  alunoId          String
+  contractId       String
+  provider         String
+  externalUserId   String?
+  connectionStatus StudentExternalConnectionStatus @default(pending)
+  lastSyncAt       DateTime?
+  metadata         Json?
+  createdAt        DateTime                        @default(now())
+  updatedAt        DateTime                        @updatedAt
+  aluno            Aluno                           @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  contract         CompanyContract                 @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  activities       StudentExternalActivity[]
+
+  @@unique([alunoId, provider])
+  @@index([contractId, provider])
+  @@index([connectionStatus])
+}
+
+model StudentExternalActivity {
+  id                  String                 @id @default(cuid())
+  externalAccountId   String
+  alunoId             String
+  contractId          String
+  provider            String
+  externalActivityId  String
+  activityType        String?
+  startedAt           DateTime
+  endedAt             DateTime?
+  distanceMeters      Decimal?               @db.Decimal(12, 2)
+  durationSeconds     Int?
+  paceSecondsPerKm    Decimal?               @db.Decimal(10, 2)
+  averageHeartRate    Int?
+  maxHeartRate        Int?
+  calories            Decimal?               @db.Decimal(10, 2)
+  elevationGainMeters Decimal?               @db.Decimal(10, 2)
+  rawPayload          Json?
+  importedAt          DateTime               @default(now())
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+  externalAccount     StudentExternalAccount @relation(fields: [externalAccountId], references: [id], onDelete: Cascade)
+  aluno               Aluno                  @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  contract            CompanyContract        @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@unique([externalAccountId, externalActivityId])
+  @@index([contractId, provider, startedAt])
+  @@index([alunoId, startedAt])
+  @@index([provider, externalActivityId])
+}
+
 enum UserType {
   professor
   aluno
@@ -1380,6 +1563,34 @@ enum ContractStatus {
   SIGNED
   CANCELLED
   EXPIRED
+}
+
+enum StudentRecordSourceType {
+  student
+  professional
+  integration
+  system
+}
+
+enum StudentAssessmentRecordStatus {
+  draft
+  completed
+  superseded
+  archived
+}
+
+enum StudentMeasurementValueType {
+  text
+  number
+  boolean
+  json
+}
+
+enum StudentExternalConnectionStatus {
+  pending
+  connected
+  error
+  revoked
 }
 
 enum ContractAuditAction {

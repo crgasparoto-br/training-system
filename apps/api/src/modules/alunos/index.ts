@@ -2,7 +2,7 @@ import { Router } from 'express';
 import legacyAlunoRoutes from './aluno.routes.js';
 import segmentedAlunoRoutes from './student-domain.routes.js';
 
-const alunoRoutes = Router();
+const alunoRoutes: Router = Router();
 
 alunoRoutes.use(segmentedAlunoRoutes);
 alunoRoutes.use(legacyAlunoRoutes);

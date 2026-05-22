@@ -84,7 +84,7 @@ describe('segmented aluno routes', () => {
     const response = await request(app).get('/alunos/aluno-1/profile');
 
     expect(response.status).toBe(404);
-    expect(response.body.message).toBe('Aluno não encontrado ou não pertence ao seu acesso');
+    expect(response.body.error).toBe('Aluno não encontrado ou não pertence ao seu acesso');
     expect(studentDomainService.getProfile).not.toHaveBeenCalled();
   });
 
@@ -94,7 +94,7 @@ describe('segmented aluno routes', () => {
     const response = await request(app).get('/alunos/aluno-1/financial');
 
     expect(response.status).toBe(404);
-    expect(response.body.message).toBe('Aluno não encontrado');
+    expect(response.body.error).toBe('Aluno não encontrado');
     expect(studentDomainService.getFinancialProfile).toHaveBeenCalledWith('aluno-1');
   });
 });

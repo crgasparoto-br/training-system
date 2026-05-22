@@ -8,7 +8,7 @@ import {
 import { alunoService } from './aluno.service.js';
 import { studentDomainService } from './student-domain.service.js';
 
-const router = Router();
+const router: Router = Router();
 
 router.use(authMiddleware);
 router.use(professorMiddleware);
