@@ -40,6 +40,7 @@ Executa uma verificacao simples contra a API local. Por padrao usa `http://local
 ### `pnpm harness:validate-env`
 
 Confere se variaveis esperadas para producao estao presentes no ambiente atual. Deve ser usado como checklist local, nao como substituto de segredo no provedor.
+Para validar segredos de deploy como erro bloqueante, execute com `HARNESS_VALIDATE_DEPLOY_SECRETS=1`.
 
 ## Em PRs
 

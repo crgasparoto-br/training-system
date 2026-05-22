@@ -1,8 +1,32 @@
-const apiBaseUrl = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
+function normalizeAssetBaseUrl(baseUrl: string) {
+  return baseUrl
+    .replace(/\/+$/, '')
+    .replace(/\/api\/v\d+$/i, '');
+}
+
+function getAssetBaseUrl() {
+  const configuredBaseUrl = import.meta.env.VITE_API_URL;
+
+  if (configuredBaseUrl) {
+    return normalizeAssetBaseUrl(configuredBaseUrl);
+  }
+
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return normalizeAssetBaseUrl(window.location.origin);
+  }
+
+  return '';
+}
+
+function normalizeUploadsPath(path: string) {
+  return path
+    .replace(/^\/?api\/v\d+\//i, '/')
+    .replace(/^\/?uploads\//i, '/uploads/');
+}
 
 function extractUploadsPath(url: string): string | null {
-  const match = url.match(/\/uploads\/.+/i);
-  return match ? match[0] : null;
+  const match = url.match(/\/?(?:api\/v\d+\/)?uploads\/.+/i);
+  return match ? normalizeUploadsPath(match[0]) : null;
 }
 
 export function resolveAssetUrl(value?: string | null) {
@@ -16,19 +40,21 @@ export function resolveAssetUrl(value?: string | null) {
     return trimmedValue;
   }
 
+  const assetBaseUrl = getAssetBaseUrl();
+
   if (/^https?:\/\//i.test(trimmedValue)) {
     const uploadsPath = extractUploadsPath(trimmedValue);
 
-    if (uploadsPath && apiBaseUrl) {
-      return `${apiBaseUrl}${uploadsPath}`;
+    if (uploadsPath && assetBaseUrl) {
+      return `${assetBaseUrl}${uploadsPath}`;
     }
 
-    return trimmedValue;
+    return uploadsPath || trimmedValue;
   }
 
-  if (/^\/?uploads\//i.test(trimmedValue)) {
-    const normalizedPath = trimmedValue.startsWith('/') ? trimmedValue : `/${trimmedValue}`;
-    return apiBaseUrl ? `${apiBaseUrl}${normalizedPath}` : normalizedPath;
+  if (/^\/?(?:api\/v\d+\/)?uploads\//i.test(trimmedValue)) {
+    const normalizedPath = normalizeUploadsPath(trimmedValue);
+    return assetBaseUrl ? `${assetBaseUrl}${normalizedPath}` : normalizedPath;
   }
 
   return trimmedValue.startsWith('/') ? trimmedValue : `/${trimmedValue}`;
