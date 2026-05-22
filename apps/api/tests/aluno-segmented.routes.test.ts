@@ -5,10 +5,10 @@ import { studentDomainService } from '../src/modules/alunos/student-domain.servi
 
 const request = require('supertest');
 
-const screenAccessMiddlewareMock = jest.fn(
+const mockScreenAccessMiddleware = jest.fn(
   () => (_req: express.Request, _res: express.Response, next: express.NextFunction) => next()
 );
-const blockAccessMiddlewareMock = jest.fn(
+const mockBlockAccessMiddleware = jest.fn(
   () => (_req: express.Request, _res: express.Response, next: express.NextFunction) => next()
 );
 
@@ -32,8 +32,8 @@ jest.mock('../src/modules/auth/auth.middleware', () => ({
 }));
 
 jest.mock('../src/modules/access-control/access-control.middleware', () => ({
-  screenAccessMiddleware: screenAccessMiddlewareMock,
-  blockAccessMiddleware: blockAccessMiddlewareMock,
+  screenAccessMiddleware: mockScreenAccessMiddleware,
+  blockAccessMiddleware: mockBlockAccessMiddleware,
 }));
 
 jest.mock('../src/modules/alunos/aluno.service', () => ({
@@ -126,7 +126,7 @@ describe('segmented aluno routes', () => {
     const response = await request(app).get('/alunos/aluno-1/timeline');
 
     expect(response.status).toBe(200);
-    expect(blockAccessMiddlewareMock).toHaveBeenCalledWith('students.details.audit');
+    expect(mockBlockAccessMiddleware).toHaveBeenCalledWith('students.details.audit');
     expect(studentDomainService.getTimeline).toHaveBeenCalledWith('aluno-1', {
       companyContractId: 'contract-1',
     });
