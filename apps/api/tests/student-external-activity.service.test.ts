@@ -117,7 +117,7 @@ describe('studentExternalActivityService', () => {
         rawPayload: {
           backfilledFrom: 'training_execution_reference',
           linkedTrainingExecutionId: 'execution-3',
-          trainingExecutionLinkSource: 'matched_by_provider_activity_id',
+          trainingExecutionLinkSource: 'backfill_training_execution_reference',
         },
       })
     );
