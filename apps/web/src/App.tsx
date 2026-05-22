@@ -95,7 +95,7 @@ function App() {
           <Route path="alunos/new" element={withAccess('students.registration', <AlunoForm />)} />
           <Route
             path="alunos/:id"
-            element={withAnyAccess(['students.registration', 'students.consultation'], <AlunoDetails />)}
+            element={withAnyAccess(['students.registration', 'students.consultation', 'students.details'], <AlunoDetails />)}
           />
           <Route path="alunos/:id/contracts" element={withAccess('students.registration', <AlunoContracts />)} />
           <Route path="alunos/:id/edit" element={withAccess('students.registration', <AlunoForm />)} />
