@@ -4,9 +4,9 @@ type AlunoDetailsTab =
   | 'resumo'
   | 'cadastro'
   | 'saude-anamnese'
+  | 'avaliacoes-fisicas'
   | 'financeiro'
   | 'plano-avaliacoes'
-  | 'avaliacoes-fisicas'
   | 'revisoes-cadastrais'
   | 'treinos'
   | 'auditoria';
@@ -18,15 +18,15 @@ type AlunoDetailsTabsProps = {
 };
 
 const tabs: Array<{ id: AlunoDetailsTab; label: string; blockKey?: AccessBlockKey }> = [
-  { id: 'resumo', label: 'Resumo', blockKey: 'students.details.summary' },
-  { id: 'cadastro', label: 'Cadastro', blockKey: 'students.details.profile' },
-  { id: 'saude-anamnese', label: 'Saúde / Anamnese', blockKey: 'students.details.health' },
-  { id: 'financeiro', label: 'Financeiro / Contrato', blockKey: 'students.details.financialContract' },
-  { id: 'plano-avaliacoes', label: 'Plano de Avaliações', blockKey: 'students.details.assessmentPlan' },
-  { id: 'avaliacoes-fisicas', label: 'Avaliações Físicas', blockKey: 'students.details.assessments' },
-  { id: 'revisoes-cadastrais', label: 'Revisões Cadastrais', blockKey: 'students.details.profileReviews' },
-  { id: 'treinos', label: 'Treinos / Planos', blockKey: 'students.details.trainingPlans' },
-  { id: 'auditoria', label: 'Histórico / Auditoria', blockKey: 'students.details.audit' },
+  { id: 'resumo', label: 'Visão geral', blockKey: 'students.details.summary' },
+  { id: 'cadastro', label: 'Dados do aluno', blockKey: 'students.details.profile' },
+  { id: 'saude-anamnese', label: 'Intake e questionários', blockKey: 'students.details.health' },
+  { id: 'avaliacoes-fisicas', label: 'Avaliações profissionais', blockKey: 'students.details.assessments' },
+  { id: 'financeiro', label: 'Financeiro', blockKey: 'students.details.financialContract' },
+  { id: 'plano-avaliacoes', label: 'Plano de avaliações', blockKey: 'students.details.assessmentPlan' },
+  { id: 'revisoes-cadastrais', label: 'Revisões cadastrais', blockKey: 'students.details.profileReviews' },
+  { id: 'treinos', label: 'Treinos e planos', blockKey: 'students.details.trainingPlans' },
+  { id: 'auditoria', label: 'Histórico', blockKey: 'students.details.audit' },
 ];
 
 export function getTabBlockKey(tab: AlunoDetailsTab): AccessBlockKey | undefined {
