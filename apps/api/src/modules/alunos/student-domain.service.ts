@@ -50,6 +50,51 @@ const buildSource = (
   recordedByUserId: value?.recordedByUserId ?? null,
 });
 
+const hasRecordContent = (value: unknown) => {
+  const record = toRecord(value);
+  if (!record) {
+    return false;
+  }
+
+  return Object.values(record).some((item) => {
+    if (item === null || item === undefined || item === '') {
+      return false;
+    }
+
+    if (typeof item === 'object') {
+      if (Array.isArray(item)) {
+        return item.length > 0;
+      }
+
+      return Object.keys(item as Record<string, unknown>).length > 0;
+    }
+
+    return true;
+  });
+};
+
+const areSameInstants = (left: unknown, right: unknown) => {
+  if (!left || !right) {
+    return false;
+  }
+
+  return new Date(String(left)).getTime() === new Date(String(right)).getTime();
+};
+
+const hasIntakeTimelineData = (intake: any) =>
+  Boolean(
+    intake?.legacyIntakeId ||
+      intake?.assessmentDate ||
+      intake?.observations ||
+      hasRecordContent(intake?.questionnaires?.parq) ||
+      hasRecordContent(intake?.questionnaires?.american) ||
+      hasRecordContent(intake?.clinicalHistory) ||
+      hasRecordContent(intake?.medications) ||
+      hasRecordContent(intake?.injuries) ||
+      hasRecordContent(intake?.allergies) ||
+      hasRecordContent(intake?.rawFormResponses)
+  );
+
 const buildProfileFallback = (aluno: any) => ({
   identification: {
     name: aluno.user?.profile?.name ?? null,
@@ -210,6 +255,71 @@ const mapExternalActivity = (activity: any) => ({
   source: buildSource(null, 'integration', activity.externalActivityId),
 });
 
+const buildContractTimelineEvents = (contracts: any[]) => {
+  const events: Array<Record<string, unknown>> = [];
+
+  for (const contract of contracts) {
+    const source = buildSource(null, 'system', contract.id);
+    const baseDetails = {
+      status: contract.status,
+      serviceName: contract.service?.name ?? null,
+      generatedContractId: contract.contract?.id ?? contract.contractId ?? null,
+    };
+
+    events.push({
+      id: `financial-contract-created-${contract.id}`,
+      type: 'financial_contract_created',
+      title: 'Contrato do aluno criado',
+      occurredAt: contract.createdAt,
+      source,
+      details: baseDetails,
+    });
+
+    if (contract.signedAt) {
+      events.push({
+        id: `financial-contract-signed-${contract.id}`,
+        type: 'financial_contract_signed',
+        title: 'Contrato do aluno assinado',
+        occurredAt: contract.signedAt,
+        source,
+        details: baseDetails,
+      });
+    }
+
+    const startedAt =
+      contract.startDate ??
+      (contract.status === 'active' ? contract.signedAt ?? contract.createdAt : null);
+
+    if (startedAt) {
+      events.push({
+        id: `financial-contract-started-${contract.id}`,
+        type: 'financial_contract_started',
+        title: 'Contrato do aluno iniciado',
+        occurredAt: startedAt,
+        source,
+        details: baseDetails,
+      });
+    }
+
+    const canceledAt = contract.canceledAt ?? contract.contract?.cancelledAt ?? null;
+    if (canceledAt) {
+      events.push({
+        id: `financial-contract-canceled-${contract.id}`,
+        type: 'financial_contract_canceled',
+        title: 'Contrato do aluno cancelado',
+        occurredAt: canceledAt,
+        source,
+        details: {
+          ...baseDetails,
+          cancellationReason: contract.cancellationReason ?? null,
+        },
+      });
+    }
+  }
+
+  return events;
+};
+
 const buildTimeline = ({
   aluno,
   profile,
@@ -237,22 +347,35 @@ const buildTimeline = ({
     source: buildSource(null, 'system', aluno.id),
   });
 
-  if (profile?.updatedAt) {
+  if (profile?.createdAt || profile?.updatedAt || profile?.legacyProfileId) {
+    const profileWasUpdated =
+      profile?.updatedAt && profile?.createdAt && !areSameInstants(profile.updatedAt, profile.createdAt);
+
     events.push({
-      id: `profile-updated-${aluno.id}`,
-      type: 'profile_updated',
-      title: 'Cadastro do aluno atualizado',
-      occurredAt: profile.updatedAt,
+      id: `${profileWasUpdated ? 'profile-updated' : 'profile-created'}-${aluno.id}`,
+      type: profileWasUpdated ? 'profile_updated' : 'profile_created',
+      title: profileWasUpdated ? 'Cadastro do aluno atualizado' : 'Cadastro do aluno registrado',
+      occurredAt: profileWasUpdated ? profile.updatedAt : profile.createdAt ?? profile.updatedAt,
       source: profile.source,
     });
   }
 
-  if (intake?.assessmentDate || intake?.updatedAt) {
+  if (hasIntakeTimelineData(intake)) {
+    const intakeWasUpdated =
+      intake?.updatedAt &&
+      intake?.createdAt &&
+      !areSameInstants(intake.updatedAt, intake.createdAt) &&
+      (!intake.assessmentDate ||
+        new Date(String(intake.updatedAt)).getTime() > new Date(String(intake.assessmentDate)).getTime());
+
     events.push({
       id: `intake-${aluno.id}`,
-      type: 'intake_recorded',
-      title: 'Anamnese inicial registrada',
-      occurredAt: intake.assessmentDate ?? intake.updatedAt,
+      type: intakeWasUpdated ? 'intake_updated' : 'intake_recorded',
+      title: intakeWasUpdated ? 'Anamnese inicial atualizada' : 'Anamnese inicial registrada',
+      occurredAt:
+        intakeWasUpdated
+          ? intake.updatedAt
+          : intake.assessmentDate ?? intake.createdAt ?? intake.updatedAt,
       source: intake.source,
     });
   }
@@ -271,31 +394,35 @@ const buildTimeline = ({
     });
   }
 
-  if (financial?.activeContract?.createdAt) {
-    events.push({
-      id: `financial-active-${financial.activeContract.id}`,
-      type: 'financial_contract_active',
-      title: 'Contrato ativo do aluno',
-      occurredAt: financial.activeContract.createdAt,
-      source: buildSource(null, 'system', financial.activeContract.id),
-      details: {
-        status: financial.activeContract.status,
-        serviceName: financial.activeContract.service?.name ?? null,
-      },
-    });
-  }
+  events.push(...buildContractTimelineEvents(financial?.contracts ?? []));
 
   for (const account of integrations.accounts.slice(0, 5)) {
     events.push({
-      id: `integration-${account.id}`,
+      id: `integration-connected-${account.id}`,
       type: 'integration_connected',
       title: `Integração ${account.provider} vinculada`,
-      occurredAt: account.lastSyncAt ?? account.createdAt,
+      occurredAt: account.createdAt,
       source: account.source,
       details: {
+        provider: account.provider,
         connectionStatus: account.connectionStatus,
+        externalUserId: account.externalUserId,
       },
     });
+
+    if (account.lastSyncAt && !areSameInstants(account.lastSyncAt, account.createdAt)) {
+      events.push({
+        id: `integration-synchronized-${account.id}`,
+        type: 'integration_synchronized',
+        title: `Integração ${account.provider} sincronizada`,
+        occurredAt: account.lastSyncAt,
+        source: account.source,
+        details: {
+          provider: account.provider,
+          connectionStatus: account.connectionStatus,
+        },
+      });
+    }
   }
 
   for (const activity of activities.activities.slice(0, 10)) {
@@ -303,10 +430,12 @@ const buildTimeline = ({
       id: `activity-${activity.id}`,
       type: 'external_activity_imported',
       title: `Atividade ${activity.provider} importada`,
-      occurredAt: activity.startedAt,
+      occurredAt: activity.importedAt ?? activity.createdAt ?? activity.startedAt,
       source: activity.source,
       details: {
+        provider: activity.provider,
         activityType: activity.activityType,
+        startedAt: activity.startedAt,
         distanceMeters: activity.distanceMeters,
         durationSeconds: activity.durationSeconds,
       },
@@ -517,9 +646,7 @@ export const studentDomainService = {
     }
 
     const segmentedAccounts = aluno.studentExternalAccounts.map(mapExternalAccount);
-    const legacyAccounts = segmentedAccounts.length === 0
-      ? aluno.integrations.map(mapLegacyIntegration)
-      : [];
+    const legacyAccounts = segmentedAccounts.length === 0 ? aluno.integrations.map(mapLegacyIntegration) : [];
     const accounts = [...segmentedAccounts, ...legacyAccounts];
 
     return {
@@ -530,7 +657,8 @@ export const studentDomainService = {
         accounts
           .map((account) => account.lastSyncAt)
           .filter(Boolean)
-          .sort((left, right) => new Date(String(right)).getTime() - new Date(String(left)).getTime())[0] ?? null,
+          .sort((left, right) => new Date(String(right)).getTime() - new Date(String(left)).getTime())[0] ??
+        null,
     };
   },
 
@@ -551,16 +679,15 @@ export const studentDomainService = {
   },
 
   async getSummary(alunoId: string, options: StudentDomainQueryOptions = {}) {
-    const [aluno, profile, intake, assessments, financial, integrations, activities] =
-      await Promise.all([
-        this.loadAlunoDomainSnapshot(alunoId),
-        this.getProfile(alunoId),
-        this.getHealthIntake(alunoId),
-        this.listAssessmentRecords(alunoId),
-        this.getFinancialProfile(alunoId, options),
-        this.getIntegrations(alunoId),
-        this.listExternalActivities(alunoId),
-      ]);
+    const [aluno, profile, intake, assessments, financial, integrations, activities] = await Promise.all([
+      this.loadAlunoDomainSnapshot(alunoId),
+      this.getProfile(alunoId),
+      this.getHealthIntake(alunoId),
+      this.listAssessmentRecords(alunoId),
+      this.getFinancialProfile(alunoId, options),
+      this.getIntegrations(alunoId),
+      this.listExternalActivities(alunoId),
+    ]);
 
     if (!aluno || !profile || !intake || !assessments || !financial || !integrations || !activities) {
       return null;
@@ -579,8 +706,7 @@ export const studentDomainService = {
         email: (profile.identification as Record<string, unknown>).email ?? null,
         phone: (profile.identification as Record<string, unknown>).phone ?? null,
         mainGoal:
-          ((profile.objectives as Record<string, unknown>)?.mainGoal as string | null | undefined) ??
-          null,
+          ((profile.objectives as Record<string, unknown>)?.mainGoal as string | null | undefined) ?? null,
         currentServiceName: financial.currentServiceName,
         professorResponsible: aluno.professor?.user?.profile?.name ?? null,
       },
@@ -609,21 +735,21 @@ export const studentDomainService = {
         activities.activities[0]?.updatedAt ?? activities.activities[0]?.startedAt ?? null,
       ]
         .filter(Boolean)
-        .sort((left, right) => new Date(String(right)).getTime() - new Date(String(left)).getTime())[0] ?? aluno.updatedAt,
+        .sort((left, right) => new Date(String(right)).getTime() - new Date(String(left)).getTime())[0] ??
+        aluno.updatedAt,
     };
   },
 
   async getTimeline(alunoId: string, options: StudentDomainQueryOptions = {}) {
-    const [aluno, profile, intake, assessments, financial, integrations, activities] =
-      await Promise.all([
-        this.loadAlunoDomainSnapshot(alunoId),
-        this.getProfile(alunoId),
-        this.getHealthIntake(alunoId),
-        this.listAssessmentRecords(alunoId),
-        this.getFinancialProfile(alunoId, options),
-        this.getIntegrations(alunoId),
-        this.listExternalActivities(alunoId),
-      ]);
+    const [aluno, profile, intake, assessments, financial, integrations, activities] = await Promise.all([
+      this.loadAlunoDomainSnapshot(alunoId),
+      this.getProfile(alunoId),
+      this.getHealthIntake(alunoId),
+      this.listAssessmentRecords(alunoId),
+      this.getFinancialProfile(alunoId, options),
+      this.getIntegrations(alunoId),
+      this.listExternalActivities(alunoId),
+    ]);
 
     if (!aluno || !profile || !intake || !assessments || !financial || !integrations || !activities) {
       return null;
