@@ -1,6 +1,10 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/Card';
 import { isDateWithinRange, formatDateBR } from '../../utils/date';
-import type { Aluno, StudentContractLink } from '../../services/aluno.service';
+import type {
+  Aluno,
+  StudentContractLink,
+  StudentSegmentedSummary,
+} from '../../services/aluno.service';
 import type { TrainingPlan } from '../../services/plan.service';
 import type { Assessment, AssessmentSummary } from '../../services/assessment.service';
 
@@ -10,6 +14,7 @@ type AlunoResumoHubTabProps = {
   assessmentSummary: AssessmentSummary[];
   plans: TrainingPlan[];
   activeStudentContract?: StudentContractLink | null;
+  segmentedSummary?: StudentSegmentedSummary | null;
 };
 
 const safeDate = (value?: string | null) => {
@@ -33,15 +38,35 @@ export function AlunoResumoHubTab({
   assessmentSummary,
   plans,
   activeStudentContract,
+  segmentedSummary,
 }: AlunoResumoHubTabProps) {
   const now = new Date();
   const activePlan = plans.find((plan) => isDateWithinRange(now, plan.startDate, plan.endDate));
-  const latestAssessment = assessments[0];
+  const latestAssessment = segmentedSummary?.assessments.latest
+    ? {
+        assessmentDate: segmentedSummary.assessments.latest.performedAt,
+        type: {
+          name: segmentedSummary.assessments.latest.title || 'Avaliação registrada',
+        },
+      }
+    : assessments[0];
   const upcomingAssessment = [...assessmentSummary]
     .filter((item) => item.nextDueDate)
     .map((item) => ({ ...item, nextDate: safeDate(item.nextDueDate) }))
     .filter((item) => item.nextDate)
     .sort((a, b) => (a.nextDate as Date).getTime() - (b.nextDate as Date).getTime())[0];
+  const contractForDisplay = segmentedSummary?.financial.activeContract ?? activeStudentContract;
+  const displayName = segmentedSummary?.overview.name ?? aluno.user.profile.name;
+  const displayEmail = segmentedSummary?.overview.email ?? aluno.user.email;
+  const displayPhone = segmentedSummary?.overview.phone ?? aluno.user.profile.phone ?? null;
+  const displayUpdatedAt = segmentedSummary?.updatedAt ?? aluno.updatedAt;
+  const displayMainGoal = segmentedSummary?.overview.mainGoal ?? aluno.intakeForm?.mainGoal ?? null;
+  const displayServiceName =
+    segmentedSummary?.overview.currentServiceName ??
+    contractForDisplay?.service?.name ??
+    aluno.service?.name ??
+    null;
+  const displayIntakeDate = segmentedSummary?.intake.assessmentDate ?? aluno.intakeForm?.assessmentDate ?? null;
 
   return (
     <div className="space-y-4">
@@ -56,10 +81,15 @@ export function AlunoResumoHubTab({
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             <div className="rounded-lg border border-gray-200 p-4">
               <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cadastro do aluno</div>
-              <div className="mt-2 text-sm font-semibold text-gray-900">{aluno.user.profile.name}</div>
-              <div className="text-xs text-muted-foreground">{aluno.age} anos • {aluno.user.email}</div>
+              <div className="mt-2 text-sm font-semibold text-gray-900">{displayName}</div>
+              <div className="text-xs text-muted-foreground">
+                {aluno.age} anos • {displayEmail}
+              </div>
+              {displayPhone && (
+                <div className="mt-1 text-xs text-muted-foreground">{displayPhone}</div>
+              )}
               <div className="mt-3 text-xs text-muted-foreground">
-                Última atualização do cadastro: {formatDateBR(aluno.updatedAt)}
+                Última atualização do cadastro: {formatDateBR(displayUpdatedAt)}
               </div>
             </div>
 
@@ -79,15 +109,15 @@ export function AlunoResumoHubTab({
             <div className="rounded-lg border border-gray-200 p-4">
               <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Contrato e financeiro</div>
               <div className="mt-2 text-sm font-semibold text-gray-900">
-                {activeStudentContract?.contract.title || 'Sem contrato ativo'}
+                {contractForDisplay?.contract.title || 'Sem contrato ativo'}
               </div>
               <div className="text-xs text-muted-foreground">
-                {activeStudentContract
-                  ? studentContractStatusLabel[activeStudentContract.status] || activeStudentContract.status
+                {contractForDisplay
+                  ? studentContractStatusLabel[contractForDisplay.status] || contractForDisplay.status
                   : 'Verifique a aba Financeiro'}
               </div>
               <div className="mt-3 text-xs text-muted-foreground">
-                Serviço: {activeStudentContract?.service?.name || aluno.service?.name || 'Não informado'}
+                Serviço: {displayServiceName || 'Não informado'}
               </div>
             </div>
 
@@ -106,18 +136,24 @@ export function AlunoResumoHubTab({
             <div className="rounded-lg border border-gray-200 p-4">
               <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Saúde inicial</div>
               <div className="mt-2 text-sm font-semibold text-gray-900">
-                {aluno.intakeForm?.assessmentDate ? formatDateBR(aluno.intakeForm.assessmentDate) : 'Sem intake inicial'}
+                {displayIntakeDate ? formatDateBR(displayIntakeDate) : 'Sem intake inicial'}
               </div>
               <div className="text-xs text-muted-foreground">
-                Objetivo declarado: {aluno.intakeForm?.mainGoal || 'Não informado'}
+                Objetivo declarado: {displayMainGoal || 'Não informado'}
               </div>
             </div>
 
             <div className="rounded-lg border border-dashed border-gray-300 p-4">
               <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Integrações e apps</div>
-              <div className="mt-2 text-sm font-semibold text-gray-900">Base preparada para dados externos</div>
+              <div className="mt-2 text-sm font-semibold text-gray-900">
+                {segmentedSummary?.integrations.totalAccounts
+                  ? `${segmentedSummary.integrations.totalAccounts} conta(s) conectada(s)`
+                  : 'Base preparada para dados externos'}
+              </div>
               <div className="text-xs text-muted-foreground">
-                Esta área passa a separar futuras sincronizações, como Strava, do cadastro e das avaliações.
+                {segmentedSummary?.integrations.lastSyncAt
+                  ? `Última sincronização em ${formatDateBR(segmentedSummary.integrations.lastSyncAt)}.`
+                  : 'Esta área passa a separar futuras sincronizações, como Strava, do cadastro e das avaliações.'}
               </div>
             </div>
           </div>
