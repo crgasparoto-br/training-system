@@ -8,6 +8,7 @@ type AlunoDetailsTab =
   | 'financeiro'
   | 'plano-avaliacoes'
   | 'revisoes-cadastrais'
+  | 'integracoes'
   | 'treinos'
   | 'auditoria';
 
@@ -25,6 +26,7 @@ const tabs: Array<{ id: AlunoDetailsTab; label: string; blockKey?: AccessBlockKe
   { id: 'financeiro', label: 'Financeiro', blockKey: 'students.details.financialContract' },
   { id: 'plano-avaliacoes', label: 'Plano de avaliações', blockKey: 'students.details.assessmentPlan' },
   { id: 'revisoes-cadastrais', label: 'Revisões cadastrais', blockKey: 'students.details.profileReviews' },
+  { id: 'integracoes', label: 'Integrações', blockKey: 'students.details.integrations' },
   { id: 'treinos', label: 'Treinos e planos', blockKey: 'students.details.trainingPlans' },
   { id: 'auditoria', label: 'Histórico', blockKey: 'students.details.audit' },
 ];
