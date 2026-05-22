@@ -11,3 +11,4 @@ export default alunoRoutes;
 export { alunoRoutes };
 export { alunoService } from './aluno.service.js';
 export { studentDomainService } from './student-domain.service.js';
+export { studentExternalActivityService } from './student-external-activity.service.js';
