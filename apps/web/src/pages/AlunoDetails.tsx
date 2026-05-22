@@ -261,6 +261,7 @@ export function AlunoDetails() {
     useState<StudentSegmentedActivities | null>(null);
   const [segmentedTimeline, setSegmentedTimeline] =
     useState<StudentSegmentedTimeline | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [isResetting, setIsResetting] = useState(false);
   const [tempPassword, setTempPassword] = useState<string | null>(initialTempPassword);
@@ -453,12 +454,34 @@ export function AlunoDetails() {
 
   const canUseAssessmentPlanForMutations =
     canManageAssessmentPlan && canManageAssessmentPlanAction && canManageAssessmentsAction;
+  const canViewSummaryTab = canAccessBlock(user, 'students.details.summary');
+  const canViewProfileTab = canAccessBlock(user, 'students.details.profile');
+  const canViewHealthTab = canAccessBlock(user, 'students.details.health');
+  const canViewFinancialContractTab = canAccessBlock(user, 'students.details.financialContract');
+  const canViewIntegrationsTab = canAccessBlock(user, 'students.details.integrations');
+  const canViewAuditTab = canAccessBlock(user, 'students.details.audit');
+  const canViewAssessmentsTab = canAccessBlock(user, 'students.details.assessments');
+  const canViewAssessmentPlanTab = canAccessBlock(user, 'students.details.assessmentPlan');
+  const canViewTrainingPlansTab = canAccessBlock(user, 'students.details.trainingPlans');
 
   useEffect(() => {
     if (id) {
       loadAluno(id);
     }
-  }, [id, canUseAssessmentPlanForMutations, canViewFinancialData]);
+  }, [
+    id,
+    canUseAssessmentPlanForMutations,
+    canViewFinancialData,
+    canViewSummaryTab,
+    canViewProfileTab,
+    canViewHealthTab,
+    canViewFinancialContractTab,
+    canViewIntegrationsTab,
+    canViewAuditTab,
+    canViewAssessmentsTab,
+    canViewAssessmentPlanTab,
+    canViewTrainingPlansTab,
+  ]);
 
   useEffect(() => {
     if (!shouldOfferAssessmentGuide || !assessmentGuideStorageKey) {
@@ -489,6 +512,7 @@ export function AlunoDetails() {
 
   const loadAluno = async (alunoId: string) => {
     setLoading(true);
+    setLoadError(null);
     try {
       const [
         data,
@@ -507,25 +531,49 @@ export function AlunoDetails() {
         segmentedTimelineData,
       ] = await Promise.all([
         alunoService.getById(alunoId),
-        assessmentService.listByAluno(alunoId),
-        assessmentService.getSummary(alunoId),
-        assessmentTypeService.list(),
-        planService.listByAluno(alunoId),
+        canViewAssessmentsTab
+          ? assessmentService.listByAluno(alunoId).catch(() => [])
+          : Promise.resolve([]),
+        canViewAssessmentsTab
+          ? assessmentService.getSummary(alunoId).catch(() => [])
+          : Promise.resolve([]),
+        canViewAssessmentsTab || canViewAssessmentPlanTab
+          ? assessmentTypeService.list().catch(() => [])
+          : Promise.resolve([]),
+        canViewTrainingPlansTab
+          ? planService.listByAluno(alunoId).catch(() => ({ plans: [] }))
+          : Promise.resolve({ plans: [] }),
         canUseAssessmentPlanForMutations
-          ? (alunoService.getAssessmentPlan(alunoId) as Promise<AlunoAssessmentPlanSnapshot>)
+          ? (alunoService.getAssessmentPlan(alunoId) as Promise<AlunoAssessmentPlanSnapshot>).catch(
+              () => ({ items: [] as AlunoAssessmentPlanSnapshot['items'] })
+            )
           : Promise.resolve({ items: [] as AlunoAssessmentPlanSnapshot['items'] }),
         canViewFinancialData
-          ? alunoService.listStudentContracts(alunoId)
+          ? alunoService
+              .listStudentContracts(alunoId)
+              .catch(() => ({ alunoId, activeContract: null, contracts: [] }))
           : Promise.resolve({ alunoId, activeContract: null, contracts: [] }),
-        alunoService.getSegmentedSummary(alunoId).catch(() => null),
-        alunoService.getSegmentedProfile(alunoId).catch(() => null),
-        alunoService.getSegmentedIntake(alunoId).catch(() => null),
-        canViewFinancialData
+        canViewSummaryTab
+          ? alunoService.getSegmentedSummary(alunoId).catch(() => null)
+          : Promise.resolve(null),
+        canViewProfileTab
+          ? alunoService.getSegmentedProfile(alunoId).catch(() => null)
+          : Promise.resolve(null),
+        canViewHealthTab
+          ? alunoService.getSegmentedIntake(alunoId).catch(() => null)
+          : Promise.resolve(null),
+        canViewFinancialContractTab
           ? alunoService.getSegmentedFinancialProfile(alunoId).catch(() => null)
           : Promise.resolve(null),
-        alunoService.getSegmentedIntegrations(alunoId).catch(() => null),
-        alunoService.listSegmentedActivities(alunoId).catch(() => null),
-        alunoService.getSegmentedTimeline(alunoId).catch(() => null),
+        canViewIntegrationsTab
+          ? alunoService.getSegmentedIntegrations(alunoId).catch(() => null)
+          : Promise.resolve(null),
+        canViewIntegrationsTab
+          ? alunoService.listSegmentedActivities(alunoId).catch(() => null)
+          : Promise.resolve(null),
+        canViewAuditTab
+          ? alunoService.getSegmentedTimeline(alunoId).catch(() => null)
+          : Promise.resolve(null),
       ]);
 
       setAluno(data);
@@ -549,6 +597,9 @@ export function AlunoDetails() {
 
     } catch (error) {
       console.error('Erro ao carregar aluno:', error);
+      const message = (error as any)?.response?.data?.error || alunoDetailsCopy.loadError;
+      setLoadError(message);
+      setAluno(null);
       setSegmentedSummary(null);
       setSegmentedProfile(null);
       setSegmentedIntake(null);
@@ -556,8 +607,7 @@ export function AlunoDetails() {
       setSegmentedIntegrations(null);
       setSegmentedActivities(null);
       setSegmentedTimeline(null);
-      alert(alunoDetailsCopy.loadError);
-      navigate('/alunos');
+      alert(message);
     } finally {
       setLoading(false);
     }
@@ -639,7 +689,7 @@ export function AlunoDetails() {
 
   const buildMessage = () => {
     if (!tempPassword || !aluno) return '';
-    return `Olá ${aluno.user.profile.name}, sua senha temporária é ${tempPassword}.`;
+    return `Olá ${alunoName}, sua senha temporária é ${tempPassword}.`;
   };
 
   const handleCopyMessage = async () => {
@@ -662,8 +712,7 @@ export function AlunoDetails() {
 
   const handleSendWhatsApp = () => {
     if (!aluno || !tempPassword) return;
-    const rawPhone = aluno.user.profile.phone || '';
-    const digits = rawPhone.replace(/\D/g, '');
+    const digits = alunoPhone.replace(/\D/g, '');
     if (!digits) {
       alert(alunoDetailsCopy.missingPhone);
       return;
@@ -998,6 +1047,8 @@ export function AlunoDetails() {
   const identificationInfo = readAlunoFormResponses(aluno?.intakeForm?.formResponses).identification ?? {};
   const financialInfo = readAlunoFormResponses(aluno?.intakeForm?.formResponses).financial ?? {};
   const preferencesInfo = readAlunoFormResponses(aluno?.intakeForm?.formResponses).preferences ?? {};
+  const alunoName = aluno?.user?.profile?.name || 'Aluno sem nome';
+  const alunoPhone = aluno?.user?.profile?.phone || '';
 
   const visibleTabs = useMemo<AlunoDetailsTab[]>(() => {
     const allPossibleTabs: AlunoDetailsTab[] = [
@@ -1116,7 +1167,7 @@ export function AlunoDetails() {
   if (!aluno) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground">{alunoDetailsCopy.notFound}</p>
+        <p className="text-muted-foreground">{loadError || alunoDetailsCopy.notFound}</p>
         <Button onClick={() => navigate('/alunos')} className="mt-4">
           {alunoDetailsCopy.backToAlunos}
         </Button>
@@ -1157,7 +1208,7 @@ export function AlunoDetails() {
               <User className="h-8 w-8 text-primary" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold">{aluno.user.profile.name}</h1>
+              <h1 className="text-3xl font-bold">{alunoName}</h1>
               <p className="text-muted-foreground">{aluno.age} anos</p>
             </div>
           </div>
@@ -1230,7 +1281,7 @@ export function AlunoDetails() {
                 <Button
                   variant="outline"
                   onClick={handleSendWhatsApp}
-                  disabled={!aluno.user.profile.phone}
+                  disabled={!alunoPhone}
                 >
                   {alunoDetailsCopy.sendByWhatsApp}
                 </Button>
@@ -1250,10 +1301,10 @@ export function AlunoDetails() {
             <Mail className="h-5 w-5 text-muted-foreground" />
             <span>{aluno.user.email}</span>
           </div>
-          {aluno.user.profile.phone && (
+          {alunoPhone && (
             <div className="flex items-center gap-3">
               <Phone className="h-5 w-5 text-muted-foreground" />
-              <span>{aluno.user.profile.phone}</span>
+              <span>{alunoPhone}</span>
             </div>
           )}
           {aluno.lastPasswordResetAt && (
@@ -2354,5 +2405,3 @@ export function AlunoDetails() {
     </div>
   );
 }
-
-
