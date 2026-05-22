@@ -110,6 +110,7 @@ const run = async () => {
       (account) => normalizeProvider(account.provider) === provider
     );
     const operation = existingAccount ? 'update' : 'create';
+    const summaryKey = existingAccount ? 'updated' : 'created';
 
     if (!dryRun) {
       await studentExternalAccountService.upsertFromLegacyIntegration(
@@ -127,7 +128,7 @@ const run = async () => {
       );
     }
 
-    report.summary[operation] += 1;
+    report.summary[summaryKey] += 1;
     report.entries.push({
       integrationId: integration.id,
       alunoId: integration.alunoId,
