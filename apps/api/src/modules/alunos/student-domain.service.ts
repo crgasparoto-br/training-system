@@ -74,7 +74,7 @@ const buildProfileFallback = (aluno: any) => ({
   objectives: {
     mainGoal: aluno.intakeForm?.mainGoal ?? null,
     serviceInterest: aluno.service
-n      ? {
+      ? {
           id: aluno.service.id,
           name: aluno.service.name,
           code: aluno.service.code,
