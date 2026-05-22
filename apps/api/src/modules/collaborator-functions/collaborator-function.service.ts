@@ -90,6 +90,16 @@ const accessPermissionsInclude = {
   },
 } satisfies Prisma.CollaboratorFunctionOptionInclude;
 
+function logPermissionSyncWarning(contractId: string, error: unknown) {
+  console.warn(
+    '[collaborator-functions] failed to sync access permissions during list load',
+    {
+      contractId,
+      error: error instanceof Error ? error.message : error,
+    }
+  );
+}
+
 export async function ensureDefaultCollaboratorFunctionsForContract(
   contractId: string,
   client: DbClient = prisma
@@ -128,7 +138,12 @@ export async function ensureDefaultCollaboratorFunctionsForContract(
     });
   }
 
-  await syncAccessPermissionsForContract(contractId, client);
+  try {
+    await syncAccessPermissionsForContract(contractId, client);
+  } catch (error) {
+    // Do not block the settings screen from loading when permission backfill hits legacy data.
+    logPermissionSyncWarning(contractId, error);
+  }
 
   return client.collaboratorFunctionOption.findMany({
     where: { contractId },
