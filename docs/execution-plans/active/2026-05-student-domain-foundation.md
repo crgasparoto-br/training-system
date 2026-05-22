@@ -11,12 +11,13 @@ Criar a base estrutural para separar no Sistema Acesso o que e cadastro declarad
 - O Prisma ativo do repositorio aponta para `prisma/schema.prisma`.
 - Existe um schema paralelo em `apps/api/prisma/schema.prisma`, mas ele nao e a fonte ativa configurada pelo `prisma.config.ts`.
 - A issue #80 usa esta fundacao para expor endpoints segmentados do aluno sem quebrar o contrato legado da tela atual.
+- A issue #81 reorganiza a leitura do frontend para deixar explicito o que vem do aluno, o que vem da equipe e o que vira de integracoes futuras.
 
 ## Fora de escopo
 
-- reorganizacao completa do frontend do aluno;
 - fluxo OAuth completo de provedores externos;
-- migracao total dos dados legados para os novos dominios nesta mesma entrega.
+- migracao total dos dados legados para os novos dominios nesta mesma entrega;
+- refatoracao total da pagina `AlunoDetails` em um unico passo.
 
 ## Arquivos e modulos principais
 
@@ -26,6 +27,12 @@ Criar a base estrutural para separar no Sistema Acesso o que e cadastro declarad
 - `apps/api/src/modules/alunos/student-domain.routes.ts`
 - `apps/api/src/modules/alunos/index.ts`
 - `apps/api/tests/aluno-segmented.routes.test.ts`
+- `apps/web/src/services/aluno.service.ts`
+- `apps/web/src/components/alunos/AlunoDetailsTabs.tsx`
+- `apps/web/src/components/alunos/AlunoResumoHubTab.tsx`
+- `apps/web/src/components/alunos/AlunoCadastroTab.tsx`
+- `apps/web/src/components/alunos/AlunoSaudeAnamneseTab.tsx`
+- `apps/web/src/components/alunos/AlunoFinanceiroTab.tsx`
 - `docs/execution-plans/active/2026-05-student-domain-foundation.md`
 
 ## Regras e restricoes
@@ -35,6 +42,7 @@ Criar a base estrutural para separar no Sistema Acesso o que e cadastro declarad
 - A base nova deve permitir rastrear origem do dado (`student`, `professional`, `integration`, `system`).
 - O schema ativo e `prisma/schema.prisma`; evitar propagar mudancas no schema paralelo ate haver plano especifico de consolidacao.
 - Os endpoints novos devem conviver com o modulo legado de alunos, usando fallback para dados que ainda nao migraram.
+- No frontend, a primeira entrega prioriza separacao semantica, ordem das abas e contratos de consumo da API segmentada, preservando o fluxo operacional atual.
 
 ## Passos de implementacao
 
@@ -46,6 +54,9 @@ Criar a base estrutural para separar no Sistema Acesso o que e cadastro declarad
 - [x] criar servico segmentado com fallback para profile, intake, assessments, financial e integrations
 - [x] expor rotas segmentadas e resumo consolidado sem remover o roteador legado
 - [x] adicionar cobertura basica de testes para as novas rotas
+- [x] adicionar bindings do frontend para os endpoints segmentados do aluno
+- [x] reorganizar a linguagem e a ordem das abas de detalhes por origem dos dados
+- [x] ajustar os componentes de resumo, cadastro, intake/questionarios e financeiro para refletir a nova divisao conceitual
 
 ## Criterios de aceite
 
@@ -61,13 +72,15 @@ Criar a base estrutural para separar no Sistema Acesso o que e cadastro declarad
 - revisar o schema gerado para confirmar que os novos modelos sao aditivos e nao removem o fluxo atual
 - revisar a migration para confirmar criacao de tabelas, enums, FKs e indices esperados
 - revisar as novas rotas segmentadas para confirmar que elas convivem com o roteador legado e reutilizam a mesma checagem de acesso do professor
-- na proxima etapa com ambiente local disponivel, rodar `pnpm validate` e validar as rotas novas com os testes da API
+- revisar o frontend para confirmar que as abas e descricoes deixam clara a origem de cada grupo de informacoes
+- na proxima etapa com ambiente local disponivel, rodar `pnpm validate` e validar as rotas novas com os testes da API e do web
 
 ## Decisoes e pendencias
 
 - Decisao: a fundacao sera aditiva, sem remover `AlunoIntakeForm`, `Integration` ou campos atuais de `Aluno` nesta etapa.
 - Decisao: o dominio novo sera criado no schema ativo `prisma/schema.prisma`.
 - Decisao: a issue #80 foi implementada com endpoints de leitura segmentados e resumo consolidado; as escritas permanecem no fluxo legado por enquanto.
+- Decisao: a primeira entrega da issue #81 reorganiza o frontend por semantica e contratos de dados, antes de uma refatoracao maior da pagina principal de detalhes.
 - Pendencia: decidir em PR proprio como consolidar ou aposentar o schema paralelo em `apps/api/prisma/schema.prisma`.
-- Pendencia: a issue #81 reorganizara a navegacao e as abas do frontend com base nessa fundacao.
+- Pendencia: conectar a pagina `AlunoDetails` inteira aos endpoints segmentados para integrar nativamente `integrations` e `timeline` em abas dedicadas.
 - Pendencia: a issue #82 passara a gravar provedores e atividades reais no dominio novo de integracoes.
