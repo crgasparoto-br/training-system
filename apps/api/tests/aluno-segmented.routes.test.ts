@@ -60,7 +60,6 @@ describe('segmented aluno routes', () => {
   app.use('/alunos', segmentedAlunoRouter);
 
   beforeEach(() => {
-    mockBlockAccessMiddleware.mockClear();
     (alunoService.belongsToContract as jest.Mock).mockReset();
     (alunoService.belongsToProfessor as jest.Mock).mockReset();
     (studentDomainService.getSummary as jest.Mock).mockReset();
