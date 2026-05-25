@@ -1,7 +1,7 @@
 function normalizeAssetBaseUrl(baseUrl: string) {
   return baseUrl
     .replace(/\/+$/, '')
-    .replace(/\/api\/v1$/i, '');
+    .replace(/\/api\/v\d+$/i, '');
 }
 
 function getAssetBaseUrl() {
@@ -18,9 +18,15 @@ function getAssetBaseUrl() {
   return '';
 }
 
+function normalizeUploadsPath(path: string) {
+  return path
+    .replace(/^\/?api\/v\d+\//i, '/')
+    .replace(/^\/?uploads\//i, '/uploads/');
+}
+
 function extractUploadsPath(url: string): string | null {
-  const match = url.match(/\/uploads\/.+/i);
-  return match ? match[0] : null;
+  const match = url.match(/\/?(?:api\/v\d+\/)?uploads\/.+/i);
+  return match ? normalizeUploadsPath(match[0]) : null;
 }
 
 export function resolveAssetUrl(value?: string | null) {
@@ -43,11 +49,11 @@ export function resolveAssetUrl(value?: string | null) {
       return `${assetBaseUrl}${uploadsPath}`;
     }
 
-    return trimmedValue;
+    return uploadsPath || trimmedValue;
   }
 
-  if (/^\/?uploads\//i.test(trimmedValue)) {
-    const normalizedPath = trimmedValue.startsWith('/') ? trimmedValue : `/${trimmedValue}`;
+  if (/^\/?(?:api\/v\d+\/)?uploads\//i.test(trimmedValue)) {
+    const normalizedPath = normalizeUploadsPath(trimmedValue);
     return assetBaseUrl ? `${assetBaseUrl}${normalizedPath}` : normalizedPath;
   }
 

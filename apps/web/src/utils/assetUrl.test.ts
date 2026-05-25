@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { resolveAssetUrl } from './assetUrl';
 
 describe('resolveAssetUrl', () => {
@@ -14,8 +14,21 @@ describe('resolveAssetUrl', () => {
     expect(result).toContain('/uploads/professores/5678-avatar.jpg');
   });
 
+  it('normaliza URL antiga com prefixo /api/v1 antes de uploads', () => {
+    expect(resolveAssetUrl('/api/v1/uploads/alunos/1234-avatar.png')).toContain(
+      '/uploads/alunos/1234-avatar.png'
+    );
+  });
+
+  it('normaliza URL relativa com prefixo api/v1 antes de uploads', () => {
+    expect(resolveAssetUrl('api/v1/uploads/professores/5678-avatar.jpg')).toContain(
+      '/uploads/professores/5678-avatar.jpg'
+    );
+  });
+
   it('usa a origin atual quando VITE_API_URL nao estiver disponivel', () => {
     const originalWindow = globalThis.window;
+    vi.stubEnv('VITE_API_URL', '');
 
     Object.defineProperty(globalThis, 'window', {
       value: {
@@ -31,6 +44,7 @@ describe('resolveAssetUrl', () => {
         'https://app.sistemaacesso.com.br/uploads/contracts/logos/1234-image.png'
       );
     } finally {
+      vi.unstubAllEnvs();
       Object.defineProperty(globalThis, 'window', {
         value: originalWindow,
         configurable: true,

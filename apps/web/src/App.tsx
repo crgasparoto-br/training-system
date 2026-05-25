@@ -91,11 +91,11 @@ function App() {
           <Route index element={<DefaultAuthorizedRoute />} />
           <Route path="professores" element={<Navigate to="/professores/new" replace />} />
           <Route path="professores/new" element={withAccess('collaborators.registration', <Professores />)} />
-          <Route path="alunos" element={<Navigate to="/alunos/new" replace />} />
+          <Route path="alunos" element={<Navigate to="/consultas/alunos" replace />} />
           <Route path="alunos/new" element={withAccess('students.registration', <AlunoForm />)} />
           <Route
             path="alunos/:id"
-            element={withAnyAccess(['students.registration', 'students.consultation'], <AlunoDetails />)}
+            element={withAnyAccess(['students.registration', 'students.consultation', 'students.details'], <AlunoDetails />)}
           />
           <Route path="alunos/:id/contracts" element={withAccess('students.registration', <AlunoContracts />)} />
           <Route path="alunos/:id/edit" element={withAccess('students.registration', <AlunoForm />)} />

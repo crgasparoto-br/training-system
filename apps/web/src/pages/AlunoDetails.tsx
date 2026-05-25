@@ -1,7 +1,18 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link, useLocation } from 'react-router-dom';
 import { useMemo, useRef } from 'react';
-import { alunoService, type Aluno, type StudentContractLink } from '../services/aluno.service';
+import {
+  alunoService,
+  type Aluno,
+  type StudentContractLink,
+  type StudentSegmentedActivities,
+  type StudentSegmentedFinancialProfile,
+  type StudentSegmentedIntegrations,
+  type StudentSegmentedIntake,
+  type StudentSegmentedProfile,
+  type StudentSegmentedSummary,
+  type StudentSegmentedTimeline,
+} from '../services/aluno.service';
 import { planService, type TrainingPlan } from '../services/plan.service';
 import { assessmentService, type Assessment, type AssessmentSummary, type AssessmentAuditLog } from '../services/assessment.service';
 import { assessmentTypeService, type AssessmentType } from '../services/assessment-type.service';
@@ -16,6 +27,8 @@ import { AlunoResumoHubTab } from '../components/alunos/AlunoResumoHubTab';
 import { AlunoCadastroTab } from '../components/alunos/AlunoCadastroTab';
 import { AlunoSaudeAnamneseTab } from '../components/alunos/AlunoSaudeAnamneseTab';
 import { AlunoFinanceiroTab } from '../components/alunos/AlunoFinanceiroTab';
+import { AlunoHistoricoTab } from '../components/alunos/AlunoHistoricoTab';
+import { AlunoIntegracoesTab } from '../components/alunos/AlunoIntegracoesTab';
 import { AlunoPlanoAvaliacoesTab } from '../components/alunos/AlunoPlanoAvaliacoesTab';
 import { AlunoRevisoesCadastraisTab } from '../components/alunos/AlunoRevisoesCadastraisTab';
 import { alunoDetailsCopy } from '../i18n/ptBR';
@@ -32,6 +45,20 @@ import {
   Mail,
   Sparkles,
 } from 'lucide-react';
+
+const baseUrl = import.meta.env.VITE_API_URL || '';
+
+const resolveAvatarUrl = (avatar?: string) => {
+  if (!avatar) {
+    return '';
+  }
+
+  if (/^(https?:|data:|blob:)/i.test(avatar)) {
+    return avatar;
+  }
+
+  return `${baseUrl}/${avatar}`;
+};
 
 type AlunoAssessmentPlanSnapshot = {
   items: Array<{
@@ -234,6 +261,21 @@ export function AlunoDetails() {
   const initialTempPassword =
     (location.state as { tempPassword?: string | null } | null)?.tempPassword ?? null;
   const [aluno, setAluno] = useState<Aluno | null>(null);
+  const [segmentedSummary, setSegmentedSummary] =
+    useState<StudentSegmentedSummary | null>(null);
+  const [segmentedProfile, setSegmentedProfile] =
+    useState<StudentSegmentedProfile | null>(null);
+  const [segmentedIntake, setSegmentedIntake] =
+    useState<StudentSegmentedIntake | null>(null);
+  const [segmentedFinancialProfile, setSegmentedFinancialProfile] =
+    useState<StudentSegmentedFinancialProfile | null>(null);
+  const [segmentedIntegrations, setSegmentedIntegrations] =
+    useState<StudentSegmentedIntegrations | null>(null);
+  const [segmentedActivities, setSegmentedActivities] =
+    useState<StudentSegmentedActivities | null>(null);
+  const [segmentedTimeline, setSegmentedTimeline] =
+    useState<StudentSegmentedTimeline | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [isResetting, setIsResetting] = useState(false);
   const [tempPassword, setTempPassword] = useState<string | null>(initialTempPassword);
@@ -426,12 +468,34 @@ export function AlunoDetails() {
 
   const canUseAssessmentPlanForMutations =
     canManageAssessmentPlan && canManageAssessmentPlanAction && canManageAssessmentsAction;
+  const canViewSummaryTab = canAccessBlock(user, 'students.details.summary');
+  const canViewProfileTab = canAccessBlock(user, 'students.details.profile');
+  const canViewHealthTab = canAccessBlock(user, 'students.details.health');
+  const canViewFinancialContractTab = canAccessBlock(user, 'students.details.financialContract');
+  const canViewIntegrationsTab = canAccessBlock(user, 'students.details.integrations');
+  const canViewAuditTab = canAccessBlock(user, 'students.details.audit');
+  const canViewAssessmentsTab = canAccessBlock(user, 'students.details.assessments');
+  const canViewAssessmentPlanTab = canAccessBlock(user, 'students.details.assessmentPlan');
+  const canViewTrainingPlansTab = canAccessBlock(user, 'students.details.trainingPlans');
 
   useEffect(() => {
     if (id) {
       loadAluno(id);
     }
-  }, [id, canUseAssessmentPlanForMutations, canViewFinancialData]);
+  }, [
+    id,
+    canUseAssessmentPlanForMutations,
+    canViewFinancialData,
+    canViewSummaryTab,
+    canViewProfileTab,
+    canViewHealthTab,
+    canViewFinancialContractTab,
+    canViewIntegrationsTab,
+    canViewAuditTab,
+    canViewAssessmentsTab,
+    canViewAssessmentPlanTab,
+    canViewTrainingPlansTab,
+  ]);
 
   useEffect(() => {
     if (!shouldOfferAssessmentGuide || !assessmentGuideStorageKey) {
@@ -462,6 +526,7 @@ export function AlunoDetails() {
 
   const loadAluno = async (alunoId: string) => {
     setLoading(true);
+    setLoadError(null);
     try {
       const [
         data,
@@ -471,21 +536,68 @@ export function AlunoDetails() {
         plansData,
         assessmentPlanData,
         contractsData,
+        segmentedSummaryData,
+        segmentedProfileData,
+        segmentedIntakeData,
+        segmentedFinancialProfileData,
+        segmentedIntegrationsData,
+        segmentedActivitiesData,
+        segmentedTimelineData,
       ] = await Promise.all([
         alunoService.getById(alunoId),
-        assessmentService.listByAluno(alunoId),
-        assessmentService.getSummary(alunoId),
-        assessmentTypeService.list(),
-        planService.listByAluno(alunoId),
+        canViewAssessmentsTab
+          ? assessmentService.listByAluno(alunoId).catch(() => [])
+          : Promise.resolve([]),
+        canViewAssessmentsTab
+          ? assessmentService.getSummary(alunoId).catch(() => [])
+          : Promise.resolve([]),
+        canViewAssessmentsTab || canViewAssessmentPlanTab
+          ? assessmentTypeService.list().catch(() => [])
+          : Promise.resolve([]),
+        canViewTrainingPlansTab
+          ? planService.listByAluno(alunoId).catch(() => ({ plans: [] }))
+          : Promise.resolve({ plans: [] }),
         canUseAssessmentPlanForMutations
-          ? (alunoService.getAssessmentPlan(alunoId) as Promise<AlunoAssessmentPlanSnapshot>)
+          ? (alunoService.getAssessmentPlan(alunoId) as Promise<AlunoAssessmentPlanSnapshot>).catch(
+              () => ({ items: [] as AlunoAssessmentPlanSnapshot['items'] })
+            )
           : Promise.resolve({ items: [] as AlunoAssessmentPlanSnapshot['items'] }),
         canViewFinancialData
-          ? alunoService.listStudentContracts(alunoId)
+          ? alunoService
+              .listStudentContracts(alunoId)
+              .catch(() => ({ alunoId, activeContract: null, contracts: [] }))
           : Promise.resolve({ alunoId, activeContract: null, contracts: [] }),
+        canViewSummaryTab
+          ? alunoService.getSegmentedSummary(alunoId).catch(() => null)
+          : Promise.resolve(null),
+        canViewProfileTab
+          ? alunoService.getSegmentedProfile(alunoId).catch(() => null)
+          : Promise.resolve(null),
+        canViewHealthTab
+          ? alunoService.getSegmentedIntake(alunoId).catch(() => null)
+          : Promise.resolve(null),
+        canViewFinancialContractTab
+          ? alunoService.getSegmentedFinancialProfile(alunoId).catch(() => null)
+          : Promise.resolve(null),
+        canViewIntegrationsTab
+          ? alunoService.getSegmentedIntegrations(alunoId).catch(() => null)
+          : Promise.resolve(null),
+        canViewIntegrationsTab
+          ? alunoService.listSegmentedActivities(alunoId).catch(() => null)
+          : Promise.resolve(null),
+        canViewAuditTab
+          ? alunoService.getSegmentedTimeline(alunoId).catch(() => null)
+          : Promise.resolve(null),
       ]);
 
       setAluno(data);
+      setSegmentedSummary(segmentedSummaryData);
+      setSegmentedProfile(segmentedProfileData);
+      setSegmentedIntake(segmentedIntakeData);
+      setSegmentedFinancialProfile(segmentedFinancialProfileData);
+      setSegmentedIntegrations(segmentedIntegrationsData);
+      setSegmentedActivities(segmentedActivitiesData);
+      setSegmentedTimeline(segmentedTimelineData);
       setAssessments(assessmentsData);
       setAssessmentSummary(summaryData);
       setAssessmentTypes(typesData);
@@ -499,8 +611,17 @@ export function AlunoDetails() {
 
     } catch (error) {
       console.error('Erro ao carregar aluno:', error);
-      alert(alunoDetailsCopy.loadError);
-      navigate('/alunos');
+      const message = (error as any)?.response?.data?.error || alunoDetailsCopy.loadError;
+      setLoadError(message);
+      setAluno(null);
+      setSegmentedSummary(null);
+      setSegmentedProfile(null);
+      setSegmentedIntake(null);
+      setSegmentedFinancialProfile(null);
+      setSegmentedIntegrations(null);
+      setSegmentedActivities(null);
+      setSegmentedTimeline(null);
+      alert(message);
     } finally {
       setLoading(false);
     }
@@ -582,7 +703,7 @@ export function AlunoDetails() {
 
   const buildMessage = () => {
     if (!tempPassword || !aluno) return '';
-    return `Olá ${aluno.user.profile.name}, sua senha temporária é ${tempPassword}.`;
+    return `Olá ${alunoName}, sua senha temporária é ${tempPassword}.`;
   };
 
   const handleCopyMessage = async () => {
@@ -605,8 +726,7 @@ export function AlunoDetails() {
 
   const handleSendWhatsApp = () => {
     if (!aluno || !tempPassword) return;
-    const rawPhone = aluno.user.profile.phone || '';
-    const digits = rawPhone.replace(/\D/g, '');
+    const digits = alunoPhone.replace(/\D/g, '');
     if (!digits) {
       alert(alunoDetailsCopy.missingPhone);
       return;
@@ -941,6 +1061,9 @@ export function AlunoDetails() {
   const identificationInfo = readAlunoFormResponses(aluno?.intakeForm?.formResponses).identification ?? {};
   const financialInfo = readAlunoFormResponses(aluno?.intakeForm?.formResponses).financial ?? {};
   const preferencesInfo = readAlunoFormResponses(aluno?.intakeForm?.formResponses).preferences ?? {};
+  const alunoName = aluno?.user?.profile?.name || 'Aluno sem nome';
+  const alunoPhone = aluno?.user?.profile?.phone || '';
+  const avatarUrl = resolveAvatarUrl(aluno?.user?.profile?.avatar);
 
   const visibleTabs = useMemo<AlunoDetailsTab[]>(() => {
     const allPossibleTabs: AlunoDetailsTab[] = [
@@ -951,6 +1074,7 @@ export function AlunoDetails() {
       'plano-avaliacoes',
       'avaliacoes-fisicas',
       'revisoes-cadastrais',
+      'integracoes',
       'treinos',
       'auditoria',
     ];
@@ -1058,7 +1182,7 @@ export function AlunoDetails() {
   if (!aluno) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground">{alunoDetailsCopy.notFound}</p>
+        <p className="text-muted-foreground">{loadError || alunoDetailsCopy.notFound}</p>
         <Button onClick={() => navigate('/alunos')} className="mt-4">
           {alunoDetailsCopy.backToAlunos}
         </Button>
@@ -1095,11 +1219,19 @@ export function AlunoDetails() {
             <ArrowLeft size={20} />
           </Button>
           <div className="flex items-center gap-4">
-            <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
-              <User className="h-8 w-8 text-primary" />
+            <div className="h-16 w-16 overflow-hidden rounded-full bg-primary/10 flex items-center justify-center">
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt={`Foto de ${alunoName}`}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <User className="h-8 w-8 text-primary" />
+              )}
             </div>
             <div>
-              <h1 className="text-3xl font-bold">{aluno.user.profile.name}</h1>
+              <h1 className="text-3xl font-bold">{alunoName}</h1>
               <p className="text-muted-foreground">{aluno.age} anos</p>
             </div>
           </div>
@@ -1172,7 +1304,7 @@ export function AlunoDetails() {
                 <Button
                   variant="outline"
                   onClick={handleSendWhatsApp}
-                  disabled={!aluno.user.profile.phone}
+                  disabled={!alunoPhone}
                 >
                   {alunoDetailsCopy.sendByWhatsApp}
                 </Button>
@@ -1192,10 +1324,10 @@ export function AlunoDetails() {
             <Mail className="h-5 w-5 text-muted-foreground" />
             <span>{aluno.user.email}</span>
           </div>
-          {aluno.user.profile.phone && (
+          {alunoPhone && (
             <div className="flex items-center gap-3">
               <Phone className="h-5 w-5 text-muted-foreground" />
-              <span>{aluno.user.profile.phone}</span>
+              <span>{alunoPhone}</span>
             </div>
           )}
           {aluno.lastPasswordResetAt && (
@@ -1211,6 +1343,7 @@ export function AlunoDetails() {
       {visibleTabs.includes('resumo') && activeTab === 'resumo' && (
         <AlunoResumoHubTab
           aluno={aluno}
+          segmentedSummary={segmentedSummary}
           assessments={assessments}
           assessmentSummary={assessmentSummary}
           plans={plans}
@@ -1221,6 +1354,7 @@ export function AlunoDetails() {
       {visibleTabs.includes('cadastro') && activeTab === 'cadastro' && (
         <AlunoCadastroTab
           aluno={aluno}
+          segmentedProfile={segmentedProfile}
           schedulePlanLabel={schedulePlanLabel}
           formatGender={formatGender}
           identificationInfo={identificationInfo}
@@ -1230,7 +1364,11 @@ export function AlunoDetails() {
       )}
 
       {visibleTabs.includes('saude-anamnese') && activeTab === 'saude-anamnese' && (
-        <AlunoSaudeAnamneseTab aluno={aluno} parqPositiveCount={parqPositiveCount} />
+        <AlunoSaudeAnamneseTab
+          aluno={aluno}
+          parqPositiveCount={parqPositiveCount}
+          segmentedIntake={segmentedIntake}
+        />
       )}
 
       {visibleTabs.includes('financeiro') && activeTab === 'financeiro' && (
@@ -1242,6 +1380,7 @@ export function AlunoDetails() {
           canManageContracts={canManageFinancialContracts && canManageFinancialContractAction}
           canCancelContracts={canCancelFinancialContracts && canManageFinancialContractAction}
           canRenewContracts={canRenewFinancialContracts && canManageFinancialContractAction}
+          segmentedFinancialProfile={segmentedFinancialProfile}
         />
       )}
 
@@ -2027,32 +2166,31 @@ export function AlunoDetails() {
         />
       )}
 
+      {visibleTabs.includes('integracoes') && activeTab === 'integracoes' && (
+        <AlunoIntegracoesTab
+          integrations={segmentedIntegrations}
+          activities={segmentedActivities}
+        />
+      )}
+
       {visibleTabs.includes('treinos') && activeTab === 'treinos' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Treinos / Planos</CardTitle>
-            <CardDescription>
-              Visualize e gerencie os planos de treino do aluno.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground">Aba de Treinos / Planos em desenvolvimento</p>
-          </CardContent>
-        </Card>
+        <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Treinos / Planos</CardTitle>
+              <CardDescription>
+                Visualize e gerencie os planos de treino do aluno.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground">Aba de Treinos / Planos em desenvolvimento</p>
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {visibleTabs.includes('auditoria') && activeTab === 'auditoria' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Histórico / Auditoria</CardTitle>
-            <CardDescription>
-              Registros de todas as alterações e ações realizadas neste cadastro.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground">Aba de Histórico / Auditoria em desenvolvimento</p>
-          </CardContent>
-        </Card>
+        <AlunoHistoricoTab timeline={segmentedTimeline} />
       )}
 
       {previewOpen && (
@@ -2290,10 +2428,3 @@ export function AlunoDetails() {
     </div>
   );
 }
-
-
-
-
-
-
-

@@ -1,6 +1,10 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/Card';
 import { isDateWithinRange, formatDateBR } from '../../utils/date';
-import type { Aluno, StudentContractLink } from '../../services/aluno.service';
+import type {
+  Aluno,
+  StudentContractLink,
+  StudentSegmentedSummary,
+} from '../../services/aluno.service';
 import type { TrainingPlan } from '../../services/plan.service';
 import type { Assessment, AssessmentSummary } from '../../services/assessment.service';
 
@@ -10,6 +14,7 @@ type AlunoResumoHubTabProps = {
   assessmentSummary: AssessmentSummary[];
   plans: TrainingPlan[];
   activeStudentContract?: StudentContractLink | null;
+  segmentedSummary?: StudentSegmentedSummary | null;
 };
 
 const safeDate = (value?: string | null) => {
@@ -33,62 +38,92 @@ export function AlunoResumoHubTab({
   assessmentSummary,
   plans,
   activeStudentContract,
+  segmentedSummary,
 }: AlunoResumoHubTabProps) {
   const now = new Date();
   const activePlan = plans.find((plan) => isDateWithinRange(now, plan.startDate, plan.endDate));
-  const latestAssessment = assessments[0];
+  const latestAssessment = segmentedSummary?.assessments.latest
+    ? {
+        assessmentDate: segmentedSummary.assessments.latest.performedAt,
+        type: {
+          name: segmentedSummary.assessments.latest.title || 'Avaliação registrada',
+        },
+      }
+    : assessments[0];
   const upcomingAssessment = [...assessmentSummary]
     .filter((item) => item.nextDueDate)
     .map((item) => ({ ...item, nextDate: safeDate(item.nextDueDate) }))
     .filter((item) => item.nextDate)
     .sort((a, b) => (a.nextDate as Date).getTime() - (b.nextDate as Date).getTime())[0];
+  const contractForDisplay = segmentedSummary?.financial.activeContract ?? activeStudentContract;
+  const displayName = segmentedSummary?.overview.name ?? aluno.user.profile.name;
+  const displayEmail = segmentedSummary?.overview.email ?? aluno.user.email;
+  const displayPhone = segmentedSummary?.overview.phone ?? aluno.user.profile.phone ?? null;
+  const displayUpdatedAt = segmentedSummary?.updatedAt ?? aluno.updatedAt;
+  const displayMainGoal = segmentedSummary?.overview.mainGoal ?? aluno.intakeForm?.mainGoal ?? null;
+  const displayServiceName =
+    segmentedSummary?.overview.currentServiceName ??
+    contractForDisplay?.service?.name ??
+    aluno.service?.name ??
+    null;
+  const displayIntakeDate = segmentedSummary?.intake.assessmentDate ?? aluno.intakeForm?.assessmentDate ?? null;
 
   return (
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle>Hub do Aluno</CardTitle>
-          <CardDescription>Separação entre cadastro, saúde, finanças e governança das revisões.</CardDescription>
+          <CardTitle>Visão geral do aluno</CardTitle>
+          <CardDescription>
+            Leitura rápida separando o que veio do cadastro, o que foi registrado por professores e o que está operando no acompanhamento.
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             <div className="rounded-lg border border-gray-200 p-4">
-              <div className="text-xs text-muted-foreground">Dados principais</div>
-              <div className="mt-1 text-sm font-semibold text-gray-900">{aluno.user.profile.name}</div>
-              <div className="text-xs text-muted-foreground">{aluno.age} anos • {aluno.user.email}</div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cadastro do aluno</div>
+              <div className="mt-2 text-sm font-semibold text-gray-900">{displayName}</div>
+              <div className="text-xs text-muted-foreground">
+                {aluno.age} anos • {displayEmail}
+              </div>
+              {displayPhone && (
+                <div className="mt-1 text-xs text-muted-foreground">{displayPhone}</div>
+              )}
+              <div className="mt-3 text-xs text-muted-foreground">
+                Última atualização do cadastro: {formatDateBR(displayUpdatedAt)}
+              </div>
             </div>
+
             <div className="rounded-lg border border-gray-200 p-4">
-              <div className="text-xs text-muted-foreground">Último status cadastral</div>
-              <div className="mt-1 text-sm font-semibold text-gray-900">
-                Atualizado em {formatDateBR(aluno.updatedAt)}
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Avaliações profissionais</div>
+              <div className="mt-2 text-sm font-semibold text-gray-900">
+                {latestAssessment ? formatDateBR(latestAssessment.assessmentDate) : 'Nenhuma avaliação registrada'}
               </div>
               <div className="text-xs text-muted-foreground">
-                {aluno.user.isActive === false ? 'Cadastro inativo' : 'Cadastro ativo'}
+                {latestAssessment?.type?.name || 'Aguardando primeira avaliação'}
+              </div>
+              <div className="mt-3 text-xs text-muted-foreground">
+                Próxima prevista: {upcomingAssessment?.nextDueDate ? formatDateBR(upcomingAssessment.nextDueDate) : 'Sem previsão'}
               </div>
             </div>
+
             <div className="rounded-lg border border-gray-200 p-4">
-              <div className="text-xs text-muted-foreground">Última avaliação</div>
-              <div className="mt-1 text-sm font-semibold text-gray-900">
-                {latestAssessment ? formatDateBR(latestAssessment.assessmentDate) : 'Não registrada'}
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Contrato e financeiro</div>
+              <div className="mt-2 text-sm font-semibold text-gray-900">
+                {contractForDisplay?.contract.title || 'Sem contrato ativo'}
               </div>
               <div className="text-xs text-muted-foreground">
-                {latestAssessment?.type?.name || 'Sem tipo registrado'}
+                {contractForDisplay
+                  ? studentContractStatusLabel[contractForDisplay.status] || contractForDisplay.status
+                  : 'Verifique a aba Financeiro'}
+              </div>
+              <div className="mt-3 text-xs text-muted-foreground">
+                Serviço: {displayServiceName || 'Não informado'}
               </div>
             </div>
+
             <div className="rounded-lg border border-gray-200 p-4">
-              <div className="text-xs text-muted-foreground">Próximas avaliações</div>
-              <div className="mt-1 text-sm font-semibold text-gray-900">
-                {upcomingAssessment?.nextDueDate
-                  ? formatDateBR(upcomingAssessment.nextDueDate)
-                  : 'Sem próxima data'}
-              </div>
-              <div className="text-xs text-muted-foreground">
-                {upcomingAssessment?.typeName || 'Planejamento pendente'}
-              </div>
-            </div>
-            <div className="rounded-lg border border-gray-200 p-4">
-              <div className="text-xs text-muted-foreground">Plano ativo</div>
-              <div className="mt-1 text-sm font-semibold text-gray-900">
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Treino em andamento</div>
+              <div className="mt-2 text-sm font-semibold text-gray-900">
                 {activePlan?.name || 'Nenhum plano ativo'}
               </div>
               <div className="text-xs text-muted-foreground">
@@ -97,15 +132,28 @@ export function AlunoResumoHubTab({
                   : 'Cadastre ou ative um plano de treino'}
               </div>
             </div>
+
             <div className="rounded-lg border border-gray-200 p-4">
-              <div className="text-xs text-muted-foreground">Contrato ativo</div>
-              <div className="mt-1 text-sm font-semibold text-gray-900">
-                {activeStudentContract?.contract.title || 'Sem contrato ativo'}
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Saúde inicial</div>
+              <div className="mt-2 text-sm font-semibold text-gray-900">
+                {displayIntakeDate ? formatDateBR(displayIntakeDate) : 'Sem intake inicial'}
               </div>
               <div className="text-xs text-muted-foreground">
-                {activeStudentContract
-                  ? studentContractStatusLabel[activeStudentContract.status] || activeStudentContract.status
-                  : 'Vincule um contrato na aba Financeiro / Contrato'}
+                Objetivo declarado: {displayMainGoal || 'Não informado'}
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-dashed border-gray-300 p-4">
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Integrações e apps</div>
+              <div className="mt-2 text-sm font-semibold text-gray-900">
+                {segmentedSummary?.integrations.totalAccounts
+                  ? `${segmentedSummary.integrations.totalAccounts} conta(s) conectada(s)`
+                  : 'Base preparada para dados externos'}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {segmentedSummary?.integrations.lastSyncAt
+                  ? `Última sincronização em ${formatDateBR(segmentedSummary.integrations.lastSyncAt)}.`
+                  : 'Esta área passa a separar futuras sincronizações, como Strava, do cadastro e das avaliações.'}
               </div>
             </div>
           </div>

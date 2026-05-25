@@ -418,6 +418,199 @@ export interface UpdateStudentContractDTO {
   notes?: string | null;
 }
 
+export type StudentDomainSourceType = 'student' | 'professional' | 'integration' | 'system';
+
+export interface StudentDomainSource {
+  type: StudentDomainSourceType;
+  reference?: string | null;
+  recordedByUserId?: string | null;
+}
+
+export interface StudentSegmentedProfile {
+  alunoId: string;
+  source: StudentDomainSource;
+  identification: Record<string, unknown>;
+  preferences: Record<string, unknown> | null;
+  objectives: Record<string, unknown> | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+  legacyProfileId?: string | null;
+}
+
+export interface StudentSegmentedIntake {
+  alunoId: string;
+  source: StudentDomainSource;
+  assessmentDate?: string | null;
+  questionnaires: {
+    parq?: Record<string, unknown> | null;
+    american?: Record<string, unknown> | null;
+  };
+  clinicalHistory?: Record<string, unknown> | null;
+  medications?: Record<string, unknown> | null;
+  injuries?: Record<string, unknown> | null;
+  allergies?: Record<string, unknown> | null;
+  rawFormResponses?: Record<string, unknown> | null;
+  observations?: string | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+  legacyIntakeId?: string | null;
+}
+
+export interface StudentAssessmentMeasurement {
+  id: string;
+  metricKey: string;
+  metricLabel?: string | null;
+  valueType: string;
+  valueText?: string | null;
+  valueNumber?: number | null;
+  valueBoolean?: boolean | null;
+  valueJson?: Record<string, unknown> | null;
+  unit?: string | null;
+  notes?: string | null;
+  sortOrder?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface StudentSegmentedAssessmentRecord {
+  id: string;
+  category: string;
+  code?: string | null;
+  title?: string | null;
+  performedAt: string;
+  status: string;
+  source: StudentDomainSource;
+  summary?: Record<string, unknown> | null;
+  notes?: string | null;
+  measurements: StudentAssessmentMeasurement[];
+  createdAt?: string;
+  updatedAt?: string;
+  legacyAssessmentId?: string;
+}
+
+export interface StudentSegmentedAssessmentResponse {
+  alunoId: string;
+  items: StudentSegmentedAssessmentRecord[];
+  total: number;
+  hasSegmentedRecords: boolean;
+  hasLegacyRecords: boolean;
+}
+
+export interface StudentSegmentedFinancialProfile {
+  alunoId: string;
+  source: StudentDomainSource;
+  currentServiceName?: string | null;
+  specialCondition?: string | null;
+  monthlyAmount?: number | null;
+  discountPercentage?: number | null;
+  paymentDay?: number | null;
+  contractStartDate?: string | null;
+  contractDueDate?: string | null;
+  cameFromReferral?: boolean | null;
+  referralPerson?: string | null;
+  notes?: string | null;
+  activeContract?: StudentContractLink | null;
+  contracts: StudentContractLink[];
+  rawFinancialForm?: Record<string, unknown> | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+
+export interface StudentSegmentedExternalAccount {
+  id: string;
+  provider: string;
+  externalUserId?: string | null;
+  connectionStatus: string;
+  lastSyncAt?: string | null;
+  metadata?: Record<string, unknown> | null;
+  createdAt?: string;
+  updatedAt?: string;
+  source: StudentDomainSource;
+}
+
+export interface StudentSegmentedIntegrations {
+  alunoId: string;
+  accounts: StudentSegmentedExternalAccount[];
+  total: number;
+  lastSyncAt?: string | null;
+}
+
+export interface StudentSegmentedActivity {
+  id: string;
+  provider: string;
+  externalActivityId: string;
+  activityType?: string | null;
+  startedAt: string;
+  endedAt?: string | null;
+  distanceMeters?: number | null;
+  durationSeconds?: number | null;
+  paceSecondsPerKm?: number | null;
+  averageHeartRate?: number | null;
+  maxHeartRate?: number | null;
+  calories?: number | null;
+  elevationGainMeters?: number | null;
+  rawPayload?: Record<string, unknown> | null;
+  importedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  source: StudentDomainSource;
+}
+
+export interface StudentSegmentedActivities {
+  alunoId: string;
+  activities: StudentSegmentedActivity[];
+  total: number;
+  hasImportedActivities: boolean;
+}
+
+export interface StudentSegmentedSummary {
+  alunoId: string;
+  status: {
+    isActive: boolean;
+    schedulePlan: 'free' | 'fixed';
+  };
+  overview: {
+    name?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    mainGoal?: string | null;
+    currentServiceName?: string | null;
+    professorResponsible?: string | null;
+  };
+  profile: StudentSegmentedProfile;
+  intake: StudentSegmentedIntake;
+  financial: StudentSegmentedFinancialProfile;
+  integrations: {
+    totalAccounts: number;
+    lastSyncAt?: string | null;
+    accounts: StudentSegmentedExternalAccount[];
+  };
+  assessments: {
+    total: number;
+    latest?: StudentSegmentedAssessmentRecord | null;
+  };
+  activities: {
+    total: number;
+    latest?: StudentSegmentedActivity | null;
+  };
+  updatedAt?: string | null;
+}
+
+export interface StudentTimelineEvent {
+  id: string;
+  type: string;
+  title: string;
+  occurredAt: string;
+  source: StudentDomainSource;
+  details?: Record<string, unknown> | null;
+}
+
+export interface StudentSegmentedTimeline {
+  alunoId: string;
+  items: StudentTimelineEvent[];
+  total: number;
+}
+
 export const alunoService = {
   /**
    * Criar novo aluno
@@ -690,6 +883,66 @@ export const alunoService = {
     return response.data.data;
   },
 
+  async getSegmentedSummary(alunoId: string): Promise<StudentSegmentedSummary> {
+    const response = await api.get<{ success: boolean; data: StudentSegmentedSummary }>(
+      `/alunos/${alunoId}/summary`
+    );
+    return response.data.data;
+  },
+
+  async getSegmentedProfile(alunoId: string): Promise<StudentSegmentedProfile> {
+    const response = await api.get<{ success: boolean; data: StudentSegmentedProfile }>(
+      `/alunos/${alunoId}/profile`
+    );
+    return response.data.data;
+  },
+
+  async getSegmentedIntake(alunoId: string): Promise<StudentSegmentedIntake> {
+    const response = await api.get<{ success: boolean; data: StudentSegmentedIntake }>(
+      `/alunos/${alunoId}/intake`
+    );
+    return response.data.data;
+  },
+
+  async listSegmentedAssessmentRecords(
+    alunoId: string
+  ): Promise<StudentSegmentedAssessmentResponse> {
+    const response = await api.get<{ success: boolean; data: StudentSegmentedAssessmentResponse }>(
+      `/alunos/${alunoId}/assessment-records`
+    );
+    return response.data.data;
+  },
+
+  async getSegmentedFinancialProfile(
+    alunoId: string
+  ): Promise<StudentSegmentedFinancialProfile> {
+    const response = await api.get<{ success: boolean; data: StudentSegmentedFinancialProfile }>(
+      `/alunos/${alunoId}/financial`
+    );
+    return response.data.data;
+  },
+
+  async getSegmentedIntegrations(alunoId: string): Promise<StudentSegmentedIntegrations> {
+    const response = await api.get<{ success: boolean; data: StudentSegmentedIntegrations }>(
+      `/alunos/${alunoId}/integrations`
+    );
+    return response.data.data;
+  },
+
+  async listSegmentedActivities(alunoId: string): Promise<StudentSegmentedActivities> {
+    const response = await api.get<{ success: boolean; data: StudentSegmentedActivities }>(
+      `/alunos/${alunoId}/activities`
+    );
+    return response.data.data;
+  },
+
+  async getSegmentedTimeline(alunoId: string): Promise<StudentSegmentedTimeline> {
+    const response = await api.get<{ success: boolean; data: StudentSegmentedTimeline }>(
+      `/alunos/${alunoId}/timeline`
+    );
+    return response.data.data;
+  },
+
   /**
    * Calcular IMC
    */
@@ -710,4 +963,3 @@ export const alunoService = {
     return 'Obesidade Grau III';
   },
 };
-
