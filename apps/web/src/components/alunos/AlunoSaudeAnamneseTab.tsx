@@ -93,15 +93,15 @@ export function AlunoSaudeAnamneseTab({
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle>Intake inicial e questionários</CardTitle>
+          <CardTitle>Anamnese inicial e questionários</CardTitle>
           <CardDescription>
-            Esta aba reúne a anamnese inicial, PAR-Q, AHA e desconfortos relatados no onboarding do aluno, sem misturar avaliações profissionais de evolução.
+            Esta aba reúne a anamnese inicial, PAR-Q, AHA e desconfortos relatados na entrada do aluno, sem misturar avaliações profissionais de evolução.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <div className="rounded-lg border border-gray-200 p-4">
-              <div className="text-xs text-muted-foreground">Data do intake inicial</div>
+              <div className="text-xs text-muted-foreground">Data da anamnese inicial</div>
               <div className="mt-1 text-sm font-semibold text-gray-900">
                 {assessmentDate ? formatDateBR(assessmentDate) : 'Não informada'}
               </div>
@@ -142,7 +142,7 @@ export function AlunoSaudeAnamneseTab({
               <div className="mt-1 text-gray-900">{injuriesHistory || 'Não informado'}</div>
             </div>
             <div className="rounded-lg border border-gray-200 p-4 text-sm md:col-span-2">
-              <div className="text-xs text-muted-foreground">Observações do intake</div>
+              <div className="text-xs text-muted-foreground">Observações da anamnese</div>
               <div className="mt-1 text-gray-900">{observations || 'Não informado'}</div>
             </div>
           </div>
@@ -175,7 +175,7 @@ export function AlunoSaudeAnamneseTab({
         <CardHeader>
           <CardTitle>Questionário American Heart Association</CardTitle>
           <CardDescription>
-            Síntese do questionário AHA trazido no onboarding para apoiar triagem e cuidado inicial.
+            Síntese do questionário AHA trazido na entrada do aluno para apoiar triagem e cuidado inicial.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -192,7 +192,7 @@ export function AlunoSaudeAnamneseTab({
           <CardHeader>
             <CardTitle>Referência nutricional inicial</CardTitle>
             <CardDescription>
-              Distribuição registrada no intake inicial quando houver informação nutricional declarada.
+              Distribuição registrada na anamnese inicial quando houver informação nutricional declarada.
             </CardDescription>
           </CardHeader>
           <CardContent>
