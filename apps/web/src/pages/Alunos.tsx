@@ -11,6 +11,19 @@ import { Plus, Search, Edit, Eye, User, LayoutGrid, List, UserX, UserCheck } fro
 import { alunosCopy } from '../i18n/ptBR';
 
 const VIEW_STATE_STORAGE_KEY = 'alunos.viewState';
+const baseUrl = import.meta.env.VITE_API_URL || '';
+
+const resolveAvatarUrl = (avatar?: string) => {
+  if (!avatar) {
+    return '';
+  }
+
+  if (/^(https?:|data:|blob:)/i.test(avatar)) {
+    return avatar;
+  }
+
+  return `${baseUrl}/${avatar}`;
+};
 
 export function Alunos() {
   const user = useAuthStore((state) => state.user);
@@ -318,14 +331,23 @@ export function Alunos() {
             const bmi = weight !== undefined && height !== undefined ? alunoService.calculateBMI(weight, height) : null;
             const alunoName = aluno.user?.profile?.name || 'Aluno sem nome';
             const alunoActive = aluno.user?.isActive !== false;
+            const avatarUrl = resolveAvatarUrl(aluno.user?.profile?.avatar);
 
             return (
               <Card key={aluno.id} className="transition-shadow hover:shadow-[var(--shadow-card)]">
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                        <User className="h-6 w-6 text-primary" />
+                      <div className="h-12 w-12 overflow-hidden rounded-full bg-primary/10 flex items-center justify-center">
+                        {avatarUrl ? (
+                          <img
+                            src={avatarUrl}
+                            alt={`Foto de ${alunoName}`}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <User className="h-6 w-6 text-primary" />
+                        )}
                       </div>
                       <div>
                         <CardTitle className="text-lg">{alunoName}</CardTitle>
@@ -422,12 +444,21 @@ export function Alunos() {
                 const professorName = aluno.professor?.user?.profile?.name;
                 const alunoName = aluno.user?.profile?.name || 'Aluno sem nome';
                 const alunoActive = aluno.user?.isActive !== false;
+                const avatarUrl = resolveAvatarUrl(aluno.user?.profile?.avatar);
 
                 return (
                   <div key={aluno.id} className="grid grid-cols-12 gap-2 py-3 items-center">
                     <div className="col-span-4 flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                        <User className="h-5 w-5 text-primary" />
+                      <div className="h-10 w-10 overflow-hidden rounded-full bg-primary/10 flex items-center justify-center">
+                        {avatarUrl ? (
+                          <img
+                            src={avatarUrl}
+                            alt={`Foto de ${alunoName}`}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <User className="h-5 w-5 text-primary" />
+                        )}
                       </div>
                       <div>
                         <p className="font-medium">{alunoName}</p>
