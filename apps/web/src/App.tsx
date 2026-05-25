@@ -91,7 +91,7 @@ function App() {
           <Route index element={<DefaultAuthorizedRoute />} />
           <Route path="professores" element={<Navigate to="/professores/new" replace />} />
           <Route path="professores/new" element={withAccess('collaborators.registration', <Professores />)} />
-          <Route path="alunos" element={<Navigate to="/alunos/new" replace />} />
+          <Route path="alunos" element={<Navigate to="/consultas/alunos" replace />} />
           <Route path="alunos/new" element={withAccess('students.registration', <AlunoForm />)} />
           <Route
             path="alunos/:id"
