@@ -46,6 +46,20 @@ import {
   Sparkles,
 } from 'lucide-react';
 
+const baseUrl = import.meta.env.VITE_API_URL || '';
+
+const resolveAvatarUrl = (avatar?: string) => {
+  if (!avatar) {
+    return '';
+  }
+
+  if (/^(https?:|data:|blob:)/i.test(avatar)) {
+    return avatar;
+  }
+
+  return `${baseUrl}/${avatar}`;
+};
+
 type AlunoAssessmentPlanSnapshot = {
   items: Array<{
     assessmentTypeId: string;
@@ -1049,6 +1063,7 @@ export function AlunoDetails() {
   const preferencesInfo = readAlunoFormResponses(aluno?.intakeForm?.formResponses).preferences ?? {};
   const alunoName = aluno?.user?.profile?.name || 'Aluno sem nome';
   const alunoPhone = aluno?.user?.profile?.phone || '';
+  const avatarUrl = resolveAvatarUrl(aluno?.user?.profile?.avatar);
 
   const visibleTabs = useMemo<AlunoDetailsTab[]>(() => {
     const allPossibleTabs: AlunoDetailsTab[] = [
@@ -1204,8 +1219,16 @@ export function AlunoDetails() {
             <ArrowLeft size={20} />
           </Button>
           <div className="flex items-center gap-4">
-            <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
-              <User className="h-8 w-8 text-primary" />
+            <div className="h-16 w-16 overflow-hidden rounded-full bg-primary/10 flex items-center justify-center">
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt={`Foto de ${alunoName}`}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <User className="h-8 w-8 text-primary" />
+              )}
             </div>
             <div>
               <h1 className="text-3xl font-bold">{alunoName}</h1>
