@@ -8,6 +8,7 @@ type AlunoDetailsTab =
   | 'plano-avaliacoes'
   | 'avaliacoes-fisicas'
   | 'revisoes-cadastrais'
+  | 'integracoes'
   | 'treinos'
   | 'auditoria';
 
@@ -56,6 +57,12 @@ const tabs: Array<{
     label: 'Avaliações Físicas',
     group: 'consultations',
     blockKey: 'students.details.assessments',
+  },
+  {
+    id: 'integracoes',
+    label: 'Integrações',
+    group: 'consultations',
+    blockKey: 'students.details.integrations',
   },
   { id: 'treinos', label: 'Treinos / Planos', group: 'consultations', blockKey: 'students.details.trainingPlans' },
   { id: 'auditoria', label: 'Histórico / Auditoria', group: 'consultations', blockKey: 'students.details.audit' },
