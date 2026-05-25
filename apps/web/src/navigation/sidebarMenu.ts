@@ -42,47 +42,71 @@ export const sidebarMenuItems: SidebarNavItem[] = [
     id: 'atendimento',
     icon: Search,
     label: 'Atendimento',
-    description: 'Alunos e colaboradores',
+    description: 'Cadastros e consultas',
     children: [
       {
-        id: 'atendimento-alunos',
-        label: 'Alunos',
+        id: 'atendimento-cadastros',
+        label: 'Cadastros',
         children: [
           {
-            id: 'consultas-alunos',
-            label: 'Consultar alunos',
-            path: '/consultas/alunos',
-            screenKey: 'students.consultation',
+            id: 'atendimento-cadastros-alunos',
+            label: 'Alunos',
+            children: [
+              {
+                id: 'alunos',
+                label: 'Novo aluno',
+                path: '/alunos/new',
+                screenKey: 'students.registration',
+              },
+              {
+                id: 'settings-aluno-access',
+                label: 'Acesso dos alunos',
+                path: '/settings/aluno-access',
+                screenKey: 'settings.alunoAccess',
+              },
+            ],
           },
           {
-            id: 'alunos',
-            label: 'Novo aluno',
-            path: '/alunos/new',
-            screenKey: 'students.registration',
-          },
-          {
-            id: 'settings-aluno-access',
-            label: 'Acesso dos alunos',
-            path: '/settings/aluno-access',
-            screenKey: 'settings.alunoAccess',
+            id: 'atendimento-cadastros-colaboradores',
+            label: 'Colaboradores',
+            children: [
+              {
+                id: 'professores',
+                label: 'Novo colaborador',
+                path: '/professores',
+                screenKey: 'collaborators.registration',
+              },
+            ],
           },
         ],
       },
       {
-        id: 'atendimento-colaboradores',
-        label: 'Colaboradores',
+        id: 'atendimento-consultas',
+        label: 'Consultas',
         children: [
           {
-            id: 'consultas-colaboradores',
-            label: 'Consultar colaboradores',
-            path: '/consultas/colaboradores',
-            screenKey: 'collaborators.consultation',
+            id: 'atendimento-consultas-alunos',
+            label: 'Alunos',
+            children: [
+              {
+                id: 'consultas-alunos',
+                label: 'Consultar alunos',
+                path: '/consultas/alunos',
+                screenKey: 'students.consultation',
+              },
+            ],
           },
           {
-            id: 'professores',
-            label: 'Novo colaborador',
-            path: '/professores/new',
-            screenKey: 'collaborators.registration',
+            id: 'atendimento-consultas-colaboradores',
+            label: 'Colaboradores',
+            children: [
+              {
+                id: 'consultas-colaboradores',
+                label: 'Consultar colaboradores',
+                path: '/consultas/colaboradores',
+                screenKey: 'collaborators.consultation',
+              },
+            ],
           },
         ],
       },

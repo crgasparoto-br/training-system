@@ -4,6 +4,7 @@ const prisma = new PrismaClient();
 
 export interface CreateAssessmentDTO {
   alunoId: string;
+  professorId: string;
   typeId: string;
   assessmentDate: Date;
   filePath: string;
@@ -40,6 +41,7 @@ export const assessmentService = {
     return prisma.assessment.create({
       data: {
         alunoId: data.alunoId,
+        professorId: data.professorId,
         typeId: data.typeId,
         assessmentDate: data.assessmentDate,
         filePath: data.filePath,
@@ -175,4 +177,3 @@ export const assessmentService = {
     });
   },
 };
-

@@ -171,6 +171,11 @@ export const ACCESS_BLOCK_CATALOG = [
     label: 'Aba Treinos / Planos',
   },
   {
+    key: 'students.details.integrations',
+    screenKey: 'students.details',
+    label: 'Aba Integracoes',
+  },
+  {
     key: 'students.details.audit',
     screenKey: 'students.details',
     label: 'Historico / Auditoria',
@@ -314,6 +319,7 @@ export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
       'students.details.assessmentPlan',
       'students.details.assessments',
       'students.details.trainingPlans',
+      'students.details.integrations',
       'students.actions.editProfile',
       'students.actions.resetPassword',
       'students.actions.manageAssessments',
@@ -355,6 +361,7 @@ export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
       'students.details.assessments',
       'students.details.profileReviews',
       'students.details.trainingPlans',
+      'students.details.integrations',
       'students.details.audit',
       'students.actions.editProfile',
       'students.actions.deleteStudent',
