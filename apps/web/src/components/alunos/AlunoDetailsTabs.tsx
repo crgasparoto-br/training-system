@@ -21,7 +21,7 @@ type AlunoDetailsTabsProps = {
 const tabs: Array<{ id: AlunoDetailsTab; label: string; blockKey?: AccessBlockKey }> = [
   { id: 'resumo', label: 'Visão geral', blockKey: 'students.details.summary' },
   { id: 'cadastro', label: 'Dados do aluno', blockKey: 'students.details.profile' },
-  { id: 'saude-anamnese', label: 'Intake e questionários', blockKey: 'students.details.health' },
+  { id: 'saude-anamnese', label: 'Anamnese e questionários', blockKey: 'students.details.health' },
   { id: 'avaliacoes-fisicas', label: 'Avaliações profissionais', blockKey: 'students.details.assessments' },
   { id: 'financeiro', label: 'Financeiro', blockKey: 'students.details.financialContract' },
   { id: 'plano-avaliacoes', label: 'Plano de avaliações', blockKey: 'students.details.assessmentPlan' },
