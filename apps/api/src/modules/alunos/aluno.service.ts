@@ -40,28 +40,6 @@ const normalizeParqResponses = (responses?: Partial<ParqResponseShape> | null): 
   };
 };
 
-const parqResponsesEqual = (
-  a?: Partial<ParqResponseShape> | null,
-  b?: Partial<ParqResponseShape> | null
-) => {
-  const normalizedA = normalizeParqResponses(a);
-  const normalizedB = normalizeParqResponses(b);
-
-  if (!normalizedA && !normalizedB) return true;
-  if (!normalizedA || !normalizedB) return false;
-
-  return (
-    normalizedA.q1 === normalizedB.q1 &&
-    normalizedA.q2 === normalizedB.q2 &&
-    normalizedA.q3 === normalizedB.q3 &&
-    normalizedA.q4 === normalizedB.q4 &&
-    normalizedA.q5 === normalizedB.q5 &&
-    normalizedA.q6 === normalizedB.q6 &&
-    normalizedA.q7 === normalizedB.q7 &&
-    normalizedA.q8 === normalizedB.q8
-  );
-};
-
 const positiveParqItems = (responses: ParqResponseShape) =>
   Object.entries(PARQ_LABELS)
     .filter(([key]) => responses[key as keyof ParqResponseShape] === true)
@@ -652,11 +630,6 @@ export const alunoService = {
               contractId: true,
             },
           },
-          intakeForm: {
-            select: {
-              parqResponses: true,
-            },
-          },
         },
       });
 
@@ -756,12 +729,7 @@ export const alunoService = {
             },
           });
 
-          const hadParqChange = !parqResponsesEqual(
-            currentAluno.intakeForm?.parqResponses as Partial<ParqResponseShape> | null | undefined,
-            intakeForm.parqResponses
-          );
-
-          if (hadParqChange) {
+          if (intakeForm.parqResponses) {
             await createParqSubmission(tx, {
               alunoId: id,
               contractId: currentAluno.professor.contractId,

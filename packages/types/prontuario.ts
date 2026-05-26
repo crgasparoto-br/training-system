@@ -133,6 +133,7 @@ export interface ProntuarioOverview {
   records: ProntuarioRecord[];
   currentRecord: ProntuarioRecord | null;
   latestParqSubmission: StudentParqSubmission | null;
+  parqSubmissions: StudentParqSubmission[];
 }
 
 export type ProntuarioRecordPayload = {

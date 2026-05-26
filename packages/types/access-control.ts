@@ -261,6 +261,11 @@ export const ACCESS_BLOCK_CATALOG = [
     label: 'PRNT: Submissoes PAR-Q',
   },
   {
+    key: 'physicalAssessment.prnt.actions.createParqSubmission',
+    screenKey: 'physicalAssessment.protocol',
+    label: 'PRNT: Acao criar submissao PAR-Q',
+  },
+  {
     key: 'physicalAssessment.prnt.actions.createRecord',
     screenKey: 'physicalAssessment.protocol',
     label: 'PRNT: Acao criar registro',
@@ -382,6 +387,7 @@ export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
       'physicalAssessment.prnt.painCases',
       'physicalAssessment.prnt.discomforts',
       'physicalAssessment.prnt.parqSubmissions',
+      'physicalAssessment.prnt.actions.createParqSubmission',
       'physicalAssessment.prnt.actions.createRecord',
       'physicalAssessment.prnt.actions.editRecord',
       'physicalAssessment.prnt.actions.closeFollowUp',
@@ -439,6 +445,7 @@ export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
       'physicalAssessment.prnt.painCases',
       'physicalAssessment.prnt.discomforts',
       'physicalAssessment.prnt.parqSubmissions',
+      'physicalAssessment.prnt.actions.createParqSubmission',
       'physicalAssessment.prnt.actions.createRecord',
       'physicalAssessment.prnt.actions.editRecord',
       'physicalAssessment.prnt.actions.closeFollowUp',
