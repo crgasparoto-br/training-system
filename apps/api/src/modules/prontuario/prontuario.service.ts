@@ -115,13 +115,13 @@ export const prontuarioService = {
 
   async overview(contractId: string, alunoId: string) {
     await assertAlunoInContract(alunoId, contractId);
-    const [records, latestParqSubmission] = await Promise.all([
+    const [records, parqSubmissions] = await Promise.all([
       prisma.prontuarioRecord.findMany({
         where: { contractId, alunoId },
         include: includeRecord,
         orderBy: [{ recordDate: 'desc' }, { createdAt: 'desc' }],
       }),
-      prisma.studentParqSubmission.findFirst({
+      prisma.studentParqSubmission.findMany({
         where: { contractId, alunoId },
         orderBy: [{ submittedAt: 'desc' }, { createdAt: 'desc' }],
       }),
@@ -130,7 +130,8 @@ export const prontuarioService = {
     return {
       records,
       currentRecord: records[0] ?? null,
-      latestParqSubmission,
+      latestParqSubmission: parqSubmissions[0] ?? null,
+      parqSubmissions,
     };
   },
 
@@ -176,46 +177,35 @@ export const prontuarioService = {
   async saveGoals(contractId: string, recordId: string, goals: Array<{ id?: string; title: string; description?: string | null; status?: ProntuarioItemStatus; priority?: number; targetDate?: string | null }>) {
     const record = await prisma.prontuarioRecord.findFirstOrThrow({ where: { id: recordId, contractId } });
     await prisma.$transaction(async (tx) => {
-      const existing = await tx.prontuarioGoal.findMany({ where: { recordId: record.id }, select: { id: true } });
-      const existingIds = new Set(existing.map((item) => item.id));
-      const touchedIds: string[] = [];
+      const existing = await tx.prontuarioGoal.findMany({ where: { recordId: record.id }, select: { id: true, status: true } });
+      const existingById = new Map(existing.map((item) => [item.id, item]));
 
       for (const [index, item] of goals.entries()) {
         const title = item.title?.trim();
         if (!title) continue;
 
+        const existingItem = item.id ? existingById.get(item.id) : null;
+
         const payload = {
           title,
           description: toNullableString(item.description),
-          status: item.status ?? 'active',
+          status: item.status ?? existingItem?.status ?? 'active',
           priority: item.priority ?? index,
           targetDate: parseDate(item.targetDate) ?? null,
         };
 
-        if (item.id && existingIds.has(item.id)) {
+        if (item.id && existingItem) {
           await tx.prontuarioGoal.update({ where: { id: item.id }, data: payload });
-          touchedIds.push(item.id);
           continue;
         }
 
-        const created = await tx.prontuarioGoal.create({
+        await tx.prontuarioGoal.create({
           data: {
             recordId: record.id,
             ...payload,
           },
-          select: { id: true },
         });
-        touchedIds.push(created.id);
       }
-
-      await tx.prontuarioGoal.updateMany({
-        where: {
-          recordId: record.id,
-          status: { not: 'archived' },
-          ...(touchedIds.length ? { id: { notIn: touchedIds } } : {}),
-        },
-        data: { status: 'archived' },
-      });
     });
     return this.getRecord(contractId, record.id);
   },
@@ -223,49 +213,38 @@ export const prontuarioService = {
   async saveAnamnesisFollowUps(contractId: string, recordId: string, items: Array<{ id?: string; parqSubmissionId?: string | null; itemKey: string; itemLabel: string; status?: ProntuarioItemStatus; followUpNotes?: string | null; actionPlan?: string | null; closedAt?: string | null }>) {
     const record = await prisma.prontuarioRecord.findFirstOrThrow({ where: { id: recordId, contractId } });
     await prisma.$transaction(async (tx) => {
-      const existing = await tx.prontuarioAnamnesisFollowUp.findMany({ where: { recordId: record.id }, select: { id: true } });
-      const existingIds = new Set(existing.map((item) => item.id));
-      const touchedIds: string[] = [];
+      const existing = await tx.prontuarioAnamnesisFollowUp.findMany({ where: { recordId: record.id }, select: { id: true, status: true, closedAt: true } });
+      const existingById = new Map(existing.map((item) => [item.id, item]));
 
       for (const item of items) {
         const itemKey = item.itemKey?.trim();
         const itemLabel = item.itemLabel?.trim();
         if (!itemKey || !itemLabel) continue;
 
+        const existingItem = item.id ? existingById.get(item.id) : null;
+
         const payload = {
           parqSubmissionId: item.parqSubmissionId || null,
           itemKey,
           itemLabel,
-          status: item.status ?? 'active',
+          status: item.status ?? existingItem?.status ?? 'active',
           followUpNotes: toNullableString(item.followUpNotes),
           actionPlan: toNullableString(item.actionPlan),
-          closedAt: parseDate(item.closedAt) ?? null,
+          closedAt: parseDate(item.closedAt) ?? existingItem?.closedAt ?? null,
         };
 
-        if (item.id && existingIds.has(item.id)) {
+        if (item.id && existingItem) {
           await tx.prontuarioAnamnesisFollowUp.update({ where: { id: item.id }, data: payload });
-          touchedIds.push(item.id);
           continue;
         }
 
-        const created = await tx.prontuarioAnamnesisFollowUp.create({
+        await tx.prontuarioAnamnesisFollowUp.create({
           data: {
             recordId: record.id,
             ...payload,
           },
-          select: { id: true },
         });
-        touchedIds.push(created.id);
       }
-
-      await tx.prontuarioAnamnesisFollowUp.updateMany({
-        where: {
-          recordId: record.id,
-          status: { not: 'archived' },
-          ...(touchedIds.length ? { id: { notIn: touchedIds } } : {}),
-        },
-        data: { status: 'archived' },
-      });
     });
     return this.getRecord(contractId, record.id);
   },

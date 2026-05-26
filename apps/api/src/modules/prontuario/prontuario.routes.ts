@@ -78,7 +78,7 @@ router.get('/alunos/:alunoId/parq-submissions', blockAccessMiddleware('physicalA
   }
 });
 
-router.post('/alunos/:alunoId/parq-submissions', blockAccessMiddleware('physicalAssessment.prnt.parqSubmissions'), async (req: Request, res: Response) => {
+router.post('/alunos/:alunoId/parq-submissions', blockAccessMiddleware('physicalAssessment.prnt.actions.createParqSubmission'), async (req: Request, res: Response) => {
   try {
     const { contractId, userId } = contextFromRequest(req);
     if (!contractId) return sendError(res, 'Contrato não encontrado', 404);

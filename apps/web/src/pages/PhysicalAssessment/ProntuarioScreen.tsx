@@ -17,6 +17,7 @@ import type {
   ProntuarioOverview,
   ProntuarioPainCase,
   ProntuarioRecord,
+  StudentParqSubmission,
 } from '@corrida/types';
 import type { BodyDiscomfortEntry } from '../../constants/bodyRegions';
 
@@ -65,11 +66,23 @@ function draftsFromRecord(record: ProntuarioRecord | null): Drafts {
   };
 }
 
+function inferParqSubmissionId(record: ProntuarioRecord | null, submissions: StudentParqSubmission[]): string | null {
+  if (!record) return null;
+  for (const followUp of record.anamnesisFollowUps) {
+    if (!followUp.parqSubmissionId) continue;
+    if (submissions.some((submission) => submission.id === followUp.parqSubmissionId)) {
+      return followUp.parqSubmissionId;
+    }
+  }
+  return null;
+}
+
 export function ProntuarioScreen() {
   const user = useAuthStore((state) => state.user);
   const [students, setStudents] = useState<Aluno[]>([]);
   const [selectedAlunoId, setSelectedAlunoId] = useState('');
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
+  const [selectedParqSubmissionId, setSelectedParqSubmissionId] = useState<string | null>(null);
   const [overview, setOverview] = useState<ProntuarioOverview | null>(null);
   const [drafts, setDrafts] = useState<Drafts>(emptyDrafts);
   const [followUpDrafts, setFollowUpDrafts] = useState<Record<string, { followUpNotes: string; actionPlan: string }>>({});
@@ -87,6 +100,11 @@ export function ProntuarioScreen() {
     return overview.currentRecord ?? null;
   }, [overview, selectedRecordId]);
   const selectedStudent = students.find((student) => student.id === selectedAlunoId);
+  const parqSubmissions = overview?.parqSubmissions || [];
+  const selectedParqSubmission =
+    (selectedParqSubmissionId
+      ? parqSubmissions.find((submission) => submission.id === selectedParqSubmissionId)
+      : null) || overview?.latestParqSubmission || null;
 
   const blocks = useMemo(() => ({
     summary: canAccessBlock(user, 'physicalAssessment.prnt.summary'),
@@ -111,6 +129,7 @@ export function ProntuarioScreen() {
     if (!selectedAlunoId) {
       setOverview(null);
       setSelectedRecordId(null);
+      setSelectedParqSubmissionId(null);
       setDrafts(emptyDrafts);
       return;
     }
@@ -121,6 +140,8 @@ export function ProntuarioScreen() {
         setOverview(data);
         const fallbackRecord = data.currentRecord ?? data.records[0] ?? null;
         setSelectedRecordId(fallbackRecord?.id ?? null);
+        const preferredParqId = inferParqSubmissionId(fallbackRecord, data.parqSubmissions || []);
+        setSelectedParqSubmissionId(preferredParqId ?? data.latestParqSubmission?.id ?? null);
         setDrafts(draftsFromRecord(fallbackRecord));
       })
       .catch((err) => setError(err?.response?.data?.error || 'Não foi possível carregar o PRNT.'))
@@ -129,7 +150,7 @@ export function ProntuarioScreen() {
 
   useEffect(() => {
     const nextDrafts: Record<string, { followUpNotes: string; actionPlan: string }> = {};
-    for (const item of overview?.latestParqSubmission?.positiveItems || []) {
+    for (const item of selectedParqSubmission?.positiveItems || []) {
       const followUp = currentRecord?.anamnesisFollowUps.find((entry) => entry.itemKey === item.key);
       nextDrafts[item.key] = {
         followUpNotes: followUp?.followUpNotes || '',
@@ -137,7 +158,7 @@ export function ProntuarioScreen() {
       };
     }
     setFollowUpDrafts(nextDrafts);
-  }, [currentRecord, overview?.latestParqSubmission]);
+  }, [currentRecord, selectedParqSubmission]);
 
   useEffect(() => {
     setDrafts(draftsFromRecord(currentRecord));
@@ -151,8 +172,76 @@ export function ProntuarioScreen() {
       ? data.records.find((record) => record.id === selectedRecordId) ?? null
       : null;
     const fallbackRecord = preferredRecord ?? data.currentRecord ?? data.records[0] ?? null;
+    const nextParqSubmissionId = selectedParqSubmissionId && data.parqSubmissions.some((submission) => submission.id === selectedParqSubmissionId)
+      ? selectedParqSubmissionId
+      : inferParqSubmissionId(fallbackRecord, data.parqSubmissions || []) ?? data.latestParqSubmission?.id ?? null;
     setSelectedRecordId(fallbackRecord?.id ?? null);
+    setSelectedParqSubmissionId(nextParqSubmissionId);
     setDrafts(draftsFromRecord(fallbackRecord));
+  };
+
+  const normalizeGoalsPayload = (goals: Drafts['goals']) =>
+    goals
+      .map((item, index) => ({
+        id: item.id,
+        title: item.title?.trim() || '',
+        description: item.description?.trim() || null,
+        status: item.status,
+        priority: item.priority ?? index,
+        targetDate: item.targetDate || null,
+      }))
+      .filter((item) => item.title.length > 0);
+
+  const normalizeActivityPayload = (items: Drafts['activityHistory']) => {
+    const allowedTypes: ProntuarioActivityHistory['activityType'][] = ['running', 'strength', 'mobility', 'sport', 'occupational', 'other'];
+    return items
+      .map((item) => ({
+        id: item.id,
+        description: item.description?.trim() || '',
+        activityType: allowedTypes.includes(item.activityType as ProntuarioActivityHistory['activityType'])
+          ? (item.activityType as ProntuarioActivityHistory['activityType'])
+          : 'other',
+        frequency: item.frequency?.trim() || null,
+        duration: item.duration?.trim() || null,
+        intensity: item.intensity?.trim() || null,
+        startedAt: item.startedAt || null,
+        endedAt: item.endedAt || null,
+        notes: item.notes?.trim() || null,
+      }))
+      .filter((item) => item.description.length > 0);
+  };
+
+  const normalizeMedicationsPayload = (items: Drafts['medicationsProcedures']) => {
+    const allowedTypes: ProntuarioMedicationProcedure['type'][] = ['medication', 'supplement', 'procedure', 'exam', 'therapy', 'other'];
+    return items
+      .map((item) => ({
+        id: item.id,
+        type: allowedTypes.includes(item.type) ? item.type : 'other',
+        name: item.name?.trim() || '',
+        dosage: item.dosage?.trim() || null,
+        frequency: item.frequency?.trim() || null,
+        startDate: item.startDate || null,
+        endDate: item.endDate || null,
+        notes: item.notes?.trim() || null,
+      }))
+      .filter((item) => item.name.length > 0);
+  };
+
+  const normalizePainCasesPayload = (items: Drafts['painCases']) => {
+    const allowedStatus: ProntuarioPainCase['status'][] = ['active', 'monitoring', 'resolved', 'archived'];
+    return items
+      .map((item) => ({
+        id: item.id,
+        title: item.title?.trim() || '',
+        region: item.region?.trim() || null,
+        status: allowedStatus.includes(item.status as ProntuarioPainCase['status'])
+          ? (item.status as ProntuarioPainCase['status'])
+          : 'active',
+        onsetDate: item.onsetDate || null,
+        description: item.description?.trim() || null,
+        followUps: item.followUps,
+      }))
+      .filter((item) => item.title.length > 0);
   };
 
   const ensureRecord = async () => {
@@ -190,80 +279,19 @@ export function ProntuarioScreen() {
     try {
       const record = await ensureRecord();
       if (blocks.goals) {
-        await prontuarioService.saveGoals(
-          record.id,
-          drafts.goals
-            .map((item, index) => ({
-              id: item.id,
-              title: item.title?.trim() || '',
-              description: item.description?.trim() || null,
-              status: item.status,
-              priority: item.priority ?? index,
-              targetDate: item.targetDate || null,
-            }))
-            .filter((item) => item.title.length > 0)
-        );
+        await prontuarioService.saveGoals(record.id, normalizeGoalsPayload(drafts.goals));
       }
 
       if (blocks.activity) {
-        const allowedTypes: ProntuarioActivityHistory['activityType'][] = ['running', 'strength', 'mobility', 'sport', 'occupational', 'other'];
-        await prontuarioService.saveActivityHistory(
-          record.id,
-          drafts.activityHistory
-            .map((item) => ({
-              id: item.id,
-              description: item.description?.trim() || '',
-              activityType: allowedTypes.includes(item.activityType as ProntuarioActivityHistory['activityType'])
-                ? (item.activityType as ProntuarioActivityHistory['activityType'])
-                : 'other',
-              frequency: item.frequency?.trim() || null,
-              duration: item.duration?.trim() || null,
-              intensity: item.intensity?.trim() || null,
-              startedAt: item.startedAt || null,
-              endedAt: item.endedAt || null,
-              notes: item.notes?.trim() || null,
-            }))
-            .filter((item) => item.description.length > 0)
-        );
+        await prontuarioService.saveActivityHistory(record.id, normalizeActivityPayload(drafts.activityHistory));
       }
 
       if (blocks.meds) {
-        const allowedTypes: ProntuarioMedicationProcedure['type'][] = ['medication', 'supplement', 'procedure', 'exam', 'therapy', 'other'];
-        await prontuarioService.saveMedicationsProcedures(
-          record.id,
-          drafts.medicationsProcedures
-            .map((item) => ({
-              id: item.id,
-              type: allowedTypes.includes(item.type) ? item.type : 'other',
-              name: item.name?.trim() || '',
-              dosage: item.dosage?.trim() || null,
-              frequency: item.frequency?.trim() || null,
-              startDate: item.startDate || null,
-              endDate: item.endDate || null,
-              notes: item.notes?.trim() || null,
-            }))
-            .filter((item) => item.name.length > 0)
-        );
+        await prontuarioService.saveMedicationsProcedures(record.id, normalizeMedicationsPayload(drafts.medicationsProcedures));
       }
 
       if (blocks.pain) {
-        const allowedStatus: ProntuarioPainCase['status'][] = ['active', 'monitoring', 'resolved', 'archived'];
-        await prontuarioService.savePainCases(
-          record.id,
-          drafts.painCases
-            .map((item) => ({
-              id: item.id,
-              title: item.title?.trim() || '',
-              region: item.region?.trim() || null,
-              status: allowedStatus.includes(item.status as ProntuarioPainCase['status'])
-                ? (item.status as ProntuarioPainCase['status'])
-                : 'active',
-              onsetDate: item.onsetDate || null,
-              description: item.description?.trim() || null,
-              followUps: item.followUps,
-            }))
-            .filter((item) => item.title.length > 0)
-        );
+        await prontuarioService.savePainCases(record.id, normalizePainCasesPayload(drafts.painCases));
       }
       await refresh();
     } catch (err: any) {
@@ -274,18 +302,18 @@ export function ProntuarioScreen() {
   };
 
   const saveAnamnesisFollowUps = async () => {
-    if (!overview?.latestParqSubmission?.positiveItems?.length) return;
+    if (!selectedParqSubmission?.positiveItems?.length) return;
     setSaving(true);
     try {
       const record = await ensureRecord();
       const previous = new Map(record.anamnesisFollowUps.map((item) => [item.itemKey, item]));
       await prontuarioService.saveAnamnesisFollowUps(
         record.id,
-        overview.latestParqSubmission.positiveItems.map((item) => ({
+        selectedParqSubmission.positiveItems.map((item) => ({
           ...(previous.get(item.key) || {}),
           id: previous.get(item.key)?.id,
           recordId: record.id,
-          parqSubmissionId: overview.latestParqSubmission?.id,
+          parqSubmissionId: selectedParqSubmission.id,
           itemKey: item.key,
           itemLabel: item.label,
           status: previous.get(item.key)?.status || 'monitoring',
@@ -338,7 +366,7 @@ export function ProntuarioScreen() {
     }
   };
 
-  const latestPositiveItems = overview?.latestParqSubmission?.positiveItems || [];
+  const latestPositiveItems = selectedParqSubmission?.positiveItems || [];
 
   return (
     <div className="space-y-6">
@@ -393,6 +421,11 @@ export function ProntuarioScreen() {
                   <CardDescription>{currentRecord ? `${currentRecord.code} · ${currentRecord.status}` : 'Novo registro PRNT'}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {currentRecord ? (
+                    <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                      Visualizando registro {currentRecord.code} salvo em {toDateInput(currentRecord.recordDate)}.
+                    </div>
+                  ) : null}
                   <Input label="Data" type="date" value={drafts.recordDate} onChange={(event) => setDrafts((current) => ({ ...current, recordDate: event.target.value }))} />
                   <textarea className="min-h-[96px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="Resumo do momento do aluno" value={drafts.summary} onChange={(event) => setDrafts((current) => ({ ...current, summary: event.target.value }))} />
                   <textarea className="min-h-[96px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="Notas gerais" value={drafts.notes} onChange={(event) => setDrafts((current) => ({ ...current, notes: event.target.value }))} />
@@ -505,6 +538,10 @@ export function ProntuarioScreen() {
                     className={record.id === currentRecord?.id ? 'w-full rounded-md border border-primary bg-primary/5 px-3 py-2 text-left text-sm' : 'w-full rounded-md border border-border px-3 py-2 text-left text-sm hover:bg-muted/40'}
                     onClick={() => {
                       setSelectedRecordId(record.id);
+                      const recordParqId = inferParqSubmissionId(record, parqSubmissions);
+                      if (recordParqId) {
+                        setSelectedParqSubmissionId(recordParqId);
+                      }
                       setDrafts(draftsFromRecord(record));
                     }}
                   >
@@ -520,8 +557,23 @@ export function ProntuarioScreen() {
               <CardHeader>
                 <CardTitle>PAR-Q</CardTitle>
               </CardHeader>
-              <CardContent className="text-sm text-muted-foreground">
-                {overview?.latestParqSubmission ? `${latestPositiveItems.length} item(ns) positivo(s) em ${toDateInput(overview.latestParqSubmission.submittedAt)}.` : 'Sem submissões históricas.'}
+              <CardContent className="space-y-3 text-sm text-muted-foreground">
+                {parqSubmissions.length ? (
+                  <select
+                    className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground"
+                    value={selectedParqSubmission?.id || ''}
+                    onChange={(event) => setSelectedParqSubmissionId(event.target.value || null)}
+                  >
+                    {parqSubmissions.map((submission) => (
+                      <option key={submission.id} value={submission.id}>
+                        {toDateInput(submission.submittedAt)} · {submission.positiveItems?.length || 0} positivo(s)
+                      </option>
+                    ))}
+                  </select>
+                ) : null}
+                {selectedParqSubmission
+                  ? `${latestPositiveItems.length} item(ns) positivo(s) em ${toDateInput(selectedParqSubmission.submittedAt)}.`
+                  : 'Sem submissões históricas.'}
               </CardContent>
             </Card>
           </aside>

@@ -142,6 +142,17 @@ const positiveParqItems = (responses: Record<string, unknown>) =>
     .filter(([key]) => responses[key] === true)
     .map(([key, label]) => ({ key, label }));
 
+const normalizeParqResponses = (responses: Record<string, unknown>) => ({
+  q1: responses.q1 === true,
+  q2: responses.q2 === true,
+  q3: responses.q3 === true,
+  q4: responses.q4 === true,
+  q5: responses.q5 === true,
+  q6: responses.q6 === true,
+  q7: responses.q7 === true,
+  q8: responses.q8 === true,
+});
+
 const EMPTY_PATCH = {
   profile: {},
   aluno: {},
@@ -405,6 +416,10 @@ const applyAlunoPatch = async (
   const profilePatch = parseJsonRecord(patch.profile as Prisma.JsonValue | undefined);
   const alunoPatch = parseJsonRecord(patch.aluno as Prisma.JsonValue | undefined);
   const intakePatch = parseJsonRecord(patch.intakeForm as Prisma.JsonValue | undefined);
+  const normalizedParqResponses =
+    intakePatch.parqResponses && isPlainObject(intakePatch.parqResponses)
+      ? normalizeParqResponses(intakePatch.parqResponses)
+      : null;
 
   if (hasOwnValues(profilePatch)) {
     const profileData: Prisma.ProfileUpdateInput = {
@@ -469,10 +484,13 @@ const applyAlunoPatch = async (
       }
 
       if (key === 'parqResponses' || key === 'formResponses') {
+        const sourceValue = key === 'parqResponses' && normalizedParqResponses
+          ? normalizedParqResponses
+          : intakePatch[key];
         const jsonValue =
-          intakePatch[key] === null
+          sourceValue === null
             ? Prisma.JsonNull
-            : (intakePatch[key] as Prisma.InputJsonValue | undefined);
+            : (sourceValue as Prisma.InputJsonValue | undefined);
         intakeUpdateData[key] = jsonValue;
         intakeCreateData[key] = jsonValue;
         continue;
@@ -489,7 +507,7 @@ const applyAlunoPatch = async (
       update: intakeUpdateData,
     });
 
-    if (intakePatch.parqResponses && isPlainObject(intakePatch.parqResponses)) {
+    if (normalizedParqResponses) {
       const aluno = await tx.aluno.findUnique({
         where: { id: alunoId },
         select: { professor: { select: { contractId: true } } },
@@ -502,9 +520,9 @@ const applyAlunoPatch = async (
             contractId: aluno.professor.contractId,
             sourceType: 'student',
             submittedByUserId: alunoUserId,
-            responses: intakePatch.parqResponses as Prisma.InputJsonValue,
-            positiveItems: positiveParqItems(intakePatch.parqResponses) as Prisma.InputJsonValue,
-            declarationAccepted: intakePatch.parqResponses.q8 === true,
+            responses: normalizedParqResponses as Prisma.InputJsonValue,
+            positiveItems: positiveParqItems(normalizedParqResponses) as Prisma.InputJsonValue,
+            declarationAccepted: normalizedParqResponses.q8,
           },
         });
       }
