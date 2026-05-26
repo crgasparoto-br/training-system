@@ -79,6 +79,23 @@ const createParqSubmission = async (
   });
 };
 
+const hasParqResponsesChanged = (
+  currentResponses: Partial<ParqResponseShape> | null | undefined,
+  nextResponses?: Partial<ParqResponseShape> | null
+) => {
+  const nextNormalized = normalizeParqResponses(nextResponses);
+  if (!nextNormalized) {
+    return false;
+  }
+
+  const currentNormalized = normalizeParqResponses(currentResponses);
+  if (!currentNormalized) {
+    return true;
+  }
+
+  return JSON.stringify(currentNormalized) !== JSON.stringify(nextNormalized);
+};
+
 export interface CreateAlunoDTO {
   name: string;
   email: string;
@@ -647,6 +664,11 @@ export const alunoService = {
               },
             },
           },
+          intakeForm: {
+            select: {
+              parqResponses: true,
+            },
+          },
         },
       });
 
@@ -752,7 +774,7 @@ export const alunoService = {
             },
           });
 
-          if (intakeForm.parqResponses) {
+          if (hasParqResponsesChanged(currentAluno.intakeForm?.parqResponses as Partial<ParqResponseShape> | null | undefined, intakeForm.parqResponses)) {
             await createParqSubmission(tx, {
               alunoId: id,
               contractId: alunoContractId,
@@ -1003,4 +1025,3 @@ export const alunoService = {
     return tempPassword;
   },
 };
-
