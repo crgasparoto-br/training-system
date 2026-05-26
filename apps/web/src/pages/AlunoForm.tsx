@@ -21,7 +21,6 @@ import { Input } from '../components/ui/Input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
 import { ArrowLeft, ClipboardList, FileText, HeartPulse, Sparkles, Upload, User, Wallet, X } from 'lucide-react';
 import { alunoFormCopy } from '../i18n/ptBR';
-import { BODY_REGIONS, type BodyDiscomfortEntry } from '../constants/bodyRegions';
 import { useAuthStore } from '../stores/useAuthStore';
 import { canAccessScreen } from '../access/access-control';
 
@@ -86,16 +85,6 @@ const preferencesSchema = z.object({
 
 const ahaResponseSchema = z.union([z.literal(''), z.enum(['yes', 'no', 'unknown'])]);
 
-const discomfortTypeSchema = z.enum(['peso', 'formigamento', 'agulhada', 'dor']);
-
-const bodyDiscomfortSchema = z.object({
-  regionId: z.string().min(1),
-  regionName: z.string().min(1),
-  discomfortTypes: z.array(discomfortTypeSchema).min(1, 'Selecione pelo menos um tipo de desconforto'),
-  intensity: z.number().int().min(1, 'Intensidade mínima: 1').max(10, 'Intensidade máxima: 10'),
-  notes: z.string().optional(),
-});
-
 const requiredNumber = (message: string) =>
   z.number({
     required_error: message,
@@ -149,7 +138,6 @@ const alunoSchema = z.object({
       q8: z.boolean(),
     }),
     ahaResponses: z.record(ahaResponseSchema),
-    bodyDiscomforts: z.array(bodyDiscomfortSchema),
   }),
 });
 
@@ -306,26 +294,10 @@ type AlunoFormResponses = {
   preferences?: Partial<AlunoFormData['intakeForm']['preferencesInfo']>;
   parqResponses?: Partial<AlunoFormData['intakeForm']['parqResponses']>;
   ahaResponses?: Record<string, unknown>;
-  bodyDiscomforts?: unknown;
 };
 
 const readFormResponses = (value?: Record<string, unknown>): AlunoFormResponses =>
   value && typeof value === 'object' ? (value as AlunoFormResponses) : {};
-
-const readBodyDiscomforts = (value: unknown): BodyDiscomfortEntry[] => {
-  if (!Array.isArray(value)) return [];
-
-  return value
-    .map((item) => bodyDiscomfortSchema.safeParse(item))
-    .filter((result): result is z.SafeParseSuccess<BodyDiscomfortEntry> => result.success)
-    .map((result) => {
-      const region = BODY_REGIONS.find((item) => item.id === result.data.regionId);
-      return {
-        ...result.data,
-        regionName: region?.name || result.data.regionName,
-      };
-    });
-};
 
 const formatDateForInput = (value?: string | null) => {
   if (!value) return '';
@@ -521,7 +493,6 @@ export function AlunoForm() {
           q8: false,
         },
         ahaResponses: defaultAhaResponses,
-        bodyDiscomforts: [],
       },
     },
   });
@@ -1161,7 +1132,6 @@ export function AlunoForm() {
                 : ''
         );
       });
-      setValue('intakeForm.bodyDiscomforts', readBodyDiscomforts(formResponses.bodyDiscomforts));
     } catch (error) {
       console.error('Erro ao carregar aluno:', error);
       alert(alunoFormCopy.loadError);
@@ -1207,7 +1177,6 @@ export function AlunoForm() {
         preferences: data.intakeForm.preferencesInfo,
         parqResponses,
         ahaResponses: data.intakeForm.ahaResponses,
-        bodyDiscomforts: data.intakeForm.bodyDiscomforts,
       };
 
       const updatePayload: UpdateAlunoDTO = {

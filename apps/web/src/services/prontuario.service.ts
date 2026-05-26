@@ -39,7 +39,19 @@ export const prontuarioService = {
     return unwrap(await api.put(`/prontuario/records/${recordId}/goals`, { goals }));
   },
 
-  async saveAnamnesisFollowUps(recordId: string, items: ProntuarioRecord['anamnesisFollowUps']): Promise<ProntuarioRecord> {
+  async saveAnamnesisFollowUps(
+    recordId: string,
+    items: Array<{
+      id?: string;
+      parqSubmissionId?: string | null;
+      itemKey: string;
+      itemLabel: string;
+      status?: ProntuarioRecord['anamnesisFollowUps'][number]['status'];
+      followUpNotes?: string | null;
+      actionPlan?: string | null;
+      closedAt?: string | null;
+    }>
+  ): Promise<ProntuarioRecord> {
     return unwrap(await api.put(`/prontuario/records/${recordId}/anamnesis-follow-ups`, { items }));
   },
 
