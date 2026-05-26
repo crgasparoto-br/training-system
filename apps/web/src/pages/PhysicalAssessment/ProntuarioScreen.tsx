@@ -69,6 +69,7 @@ export function ProntuarioScreen() {
   const user = useAuthStore((state) => state.user);
   const [students, setStudents] = useState<Aluno[]>([]);
   const [selectedAlunoId, setSelectedAlunoId] = useState('');
+  const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
   const [overview, setOverview] = useState<ProntuarioOverview | null>(null);
   const [drafts, setDrafts] = useState<Drafts>(emptyDrafts);
   const [followUpDrafts, setFollowUpDrafts] = useState<Record<string, { followUpNotes: string; actionPlan: string }>>({});
@@ -78,7 +79,13 @@ export function ProntuarioScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const currentRecord = overview?.currentRecord ?? null;
+  const currentRecord = useMemo(() => {
+    if (!overview) return null;
+    if (selectedRecordId) {
+      return overview.records.find((record) => record.id === selectedRecordId) ?? overview.currentRecord ?? null;
+    }
+    return overview.currentRecord ?? null;
+  }, [overview, selectedRecordId]);
   const selectedStudent = students.find((student) => student.id === selectedAlunoId);
 
   const blocks = useMemo(() => ({
@@ -103,6 +110,7 @@ export function ProntuarioScreen() {
   useEffect(() => {
     if (!selectedAlunoId) {
       setOverview(null);
+      setSelectedRecordId(null);
       setDrafts(emptyDrafts);
       return;
     }
@@ -111,7 +119,9 @@ export function ProntuarioScreen() {
     prontuarioService.overview(selectedAlunoId)
       .then((data) => {
         setOverview(data);
-        setDrafts(draftsFromRecord(data.currentRecord));
+        const fallbackRecord = data.currentRecord ?? data.records[0] ?? null;
+        setSelectedRecordId(fallbackRecord?.id ?? null);
+        setDrafts(draftsFromRecord(fallbackRecord));
       })
       .catch((err) => setError(err?.response?.data?.error || 'Não foi possível carregar o PRNT.'))
       .finally(() => setLoading(false));
@@ -120,20 +130,29 @@ export function ProntuarioScreen() {
   useEffect(() => {
     const nextDrafts: Record<string, { followUpNotes: string; actionPlan: string }> = {};
     for (const item of overview?.latestParqSubmission?.positiveItems || []) {
-      const followUp = overview?.currentRecord?.anamnesisFollowUps.find((entry) => entry.itemKey === item.key);
+      const followUp = currentRecord?.anamnesisFollowUps.find((entry) => entry.itemKey === item.key);
       nextDrafts[item.key] = {
         followUpNotes: followUp?.followUpNotes || '',
         actionPlan: followUp?.actionPlan || '',
       };
     }
     setFollowUpDrafts(nextDrafts);
-  }, [overview?.currentRecord, overview?.latestParqSubmission]);
+  }, [currentRecord, overview?.latestParqSubmission]);
+
+  useEffect(() => {
+    setDrafts(draftsFromRecord(currentRecord));
+  }, [currentRecord?.id]);
 
   const refresh = async () => {
     if (!selectedAlunoId) return;
     const data = await prontuarioService.overview(selectedAlunoId);
     setOverview(data);
-    setDrafts(draftsFromRecord(data.currentRecord));
+    const preferredRecord = selectedRecordId
+      ? data.records.find((record) => record.id === selectedRecordId) ?? null
+      : null;
+    const fallbackRecord = preferredRecord ?? data.currentRecord ?? data.records[0] ?? null;
+    setSelectedRecordId(fallbackRecord?.id ?? null);
+    setDrafts(draftsFromRecord(fallbackRecord));
   };
 
   const ensureRecord = async () => {
@@ -144,6 +163,7 @@ export function ProntuarioScreen() {
       summary: drafts.summary,
       notes: drafts.notes,
     });
+    setSelectedRecordId(created.id);
     await refresh();
     return created;
   };
@@ -155,6 +175,7 @@ export function ProntuarioScreen() {
       const record = currentRecord
         ? await prontuarioService.updateRecord(currentRecord.id, { recordDate: drafts.recordDate, summary: drafts.summary, notes: drafts.notes })
         : await prontuarioService.createRecord(selectedAlunoId, { recordDate: drafts.recordDate, summary: drafts.summary, notes: drafts.notes });
+      setSelectedRecordId(record.id);
       setOverview((current) => current ? { ...current, currentRecord: record, records: [record, ...current.records.filter((item) => item.id !== record.id)] } : current);
     } catch (err: any) {
       setError(err?.response?.data?.error || 'Não foi possível salvar o registro.');
@@ -168,10 +189,82 @@ export function ProntuarioScreen() {
     setError(null);
     try {
       const record = await ensureRecord();
-      if (blocks.goals) await prontuarioService.saveGoals(record.id, drafts.goals);
-      if (blocks.activity) await prontuarioService.saveActivityHistory(record.id, drafts.activityHistory);
-      if (blocks.meds) await prontuarioService.saveMedicationsProcedures(record.id, drafts.medicationsProcedures);
-      if (blocks.pain) await prontuarioService.savePainCases(record.id, drafts.painCases);
+      if (blocks.goals) {
+        await prontuarioService.saveGoals(
+          record.id,
+          drafts.goals
+            .map((item, index) => ({
+              id: item.id,
+              title: item.title?.trim() || '',
+              description: item.description?.trim() || null,
+              status: item.status,
+              priority: item.priority ?? index,
+              targetDate: item.targetDate || null,
+            }))
+            .filter((item) => item.title.length > 0)
+        );
+      }
+
+      if (blocks.activity) {
+        const allowedTypes: ProntuarioActivityHistory['activityType'][] = ['running', 'strength', 'mobility', 'sport', 'occupational', 'other'];
+        await prontuarioService.saveActivityHistory(
+          record.id,
+          drafts.activityHistory
+            .map((item) => ({
+              id: item.id,
+              description: item.description?.trim() || '',
+              activityType: allowedTypes.includes(item.activityType as ProntuarioActivityHistory['activityType'])
+                ? (item.activityType as ProntuarioActivityHistory['activityType'])
+                : 'other',
+              frequency: item.frequency?.trim() || null,
+              duration: item.duration?.trim() || null,
+              intensity: item.intensity?.trim() || null,
+              startedAt: item.startedAt || null,
+              endedAt: item.endedAt || null,
+              notes: item.notes?.trim() || null,
+            }))
+            .filter((item) => item.description.length > 0)
+        );
+      }
+
+      if (blocks.meds) {
+        const allowedTypes: ProntuarioMedicationProcedure['type'][] = ['medication', 'supplement', 'procedure', 'exam', 'therapy', 'other'];
+        await prontuarioService.saveMedicationsProcedures(
+          record.id,
+          drafts.medicationsProcedures
+            .map((item) => ({
+              id: item.id,
+              type: allowedTypes.includes(item.type) ? item.type : 'other',
+              name: item.name?.trim() || '',
+              dosage: item.dosage?.trim() || null,
+              frequency: item.frequency?.trim() || null,
+              startDate: item.startDate || null,
+              endDate: item.endDate || null,
+              notes: item.notes?.trim() || null,
+            }))
+            .filter((item) => item.name.length > 0)
+        );
+      }
+
+      if (blocks.pain) {
+        const allowedStatus: ProntuarioPainCase['status'][] = ['active', 'monitoring', 'resolved', 'archived'];
+        await prontuarioService.savePainCases(
+          record.id,
+          drafts.painCases
+            .map((item) => ({
+              id: item.id,
+              title: item.title?.trim() || '',
+              region: item.region?.trim() || null,
+              status: allowedStatus.includes(item.status as ProntuarioPainCase['status'])
+                ? (item.status as ProntuarioPainCase['status'])
+                : 'active',
+              onsetDate: item.onsetDate || null,
+              description: item.description?.trim() || null,
+              followUps: item.followUps,
+            }))
+            .filter((item) => item.title.length > 0)
+        );
+      }
       await refresh();
     } catch (err: any) {
       setError(err?.response?.data?.error || err?.message || 'Não foi possível salvar os blocos.');
@@ -190,7 +283,7 @@ export function ProntuarioScreen() {
         record.id,
         overview.latestParqSubmission.positiveItems.map((item) => ({
           ...(previous.get(item.key) || {}),
-          id: previous.get(item.key)?.id || item.key,
+          id: previous.get(item.key)?.id,
           recordId: record.id,
           parqSubmissionId: overview.latestParqSubmission?.id,
           itemKey: item.key,
@@ -236,6 +329,7 @@ export function ProntuarioScreen() {
     setError(null);
     try {
       const record = await prontuarioService.closeAnamnesisFollowUp(followUpId);
+      setSelectedRecordId(record.id);
       setOverview((current) => current ? { ...current, currentRecord: record, records: [record, ...current.records.filter((item) => item.id !== record.id)] } : current);
     } catch (err: any) {
       setError(err?.response?.data?.error || 'Não foi possível encerrar o acompanhamento.');
@@ -361,19 +455,19 @@ export function ProntuarioScreen() {
             )}
 
             {blocks.goals && (
-              <EditableList title="Objetivos" items={drafts.goals} onChange={(goals) => setDrafts((current) => ({ ...current, goals }))} fields={['title', 'description', 'targetDate']} />
+              <GoalsEditor items={drafts.goals} onChange={(goals) => setDrafts((current) => ({ ...current, goals }))} />
             )}
 
             {blocks.activity && (
-              <EditableList title="Histórico de atividades" items={drafts.activityHistory} onChange={(activityHistory) => setDrafts((current) => ({ ...current, activityHistory }))} fields={['description', 'frequency', 'duration', 'intensity']} />
+              <ActivityHistoryEditor items={drafts.activityHistory} onChange={(activityHistory) => setDrafts((current) => ({ ...current, activityHistory }))} />
             )}
 
             {blocks.meds && (
-              <EditableList title="Medicações e procedimentos" items={drafts.medicationsProcedures} onChange={(medicationsProcedures) => setDrafts((current) => ({ ...current, medicationsProcedures }))} fields={['type', 'name', 'dosage', 'frequency']} defaultItem={{ type: 'medication', name: '' }} />
+              <MedicationsProceduresEditor items={drafts.medicationsProcedures} onChange={(medicationsProcedures) => setDrafts((current) => ({ ...current, medicationsProcedures }))} />
             )}
 
             {blocks.pain && (
-              <EditableList title="Casos de dor" items={drafts.painCases} onChange={(painCases) => setDrafts((current) => ({ ...current, painCases }))} fields={['title', 'region', 'description', 'onsetDate']} />
+              <PainCasesEditor items={drafts.painCases} onChange={(painCases) => setDrafts((current) => ({ ...current, painCases }))} />
             )}
 
             {(blocks.goals || blocks.activity || blocks.meds || blocks.pain) && (
@@ -405,10 +499,18 @@ export function ProntuarioScreen() {
               </CardHeader>
               <CardContent className="space-y-2">
                 {(overview?.records || []).map((record) => (
-                  <div key={record.id} className="rounded-md border border-border px-3 py-2 text-sm">
+                  <button
+                    key={record.id}
+                    type="button"
+                    className={record.id === currentRecord?.id ? 'w-full rounded-md border border-primary bg-primary/5 px-3 py-2 text-left text-sm' : 'w-full rounded-md border border-border px-3 py-2 text-left text-sm hover:bg-muted/40'}
+                    onClick={() => {
+                      setSelectedRecordId(record.id);
+                      setDrafts(draftsFromRecord(record));
+                    }}
+                  >
                     <div className="font-medium">{record.code}</div>
                     <div className="text-xs text-muted-foreground">{toDateInput(record.recordDate)} · {record.status}</div>
-                  </div>
+                  </button>
                 ))}
                 {!overview?.records.length ? <p className="text-sm text-muted-foreground">Sem registros PRNT.</p> : null}
               </CardContent>
@@ -429,40 +531,169 @@ export function ProntuarioScreen() {
   );
 }
 
-function EditableList<T extends Record<string, any>>({
-  title,
+function GoalsEditor({
   items,
-  fields,
   onChange,
-  defaultItem,
 }: {
-  title: string;
-  items: T[];
-  fields: string[];
-  onChange: (items: T[]) => void;
-  defaultItem?: Partial<T>;
+  items: Array<Partial<ProntuarioGoal> & { title: string }>;
+  onChange: (items: Array<Partial<ProntuarioGoal> & { title: string }>) => void;
 }) {
-  const addItem = () => onChange([...items, { ...(defaultItem || {}), title: '', description: '', name: '', type: 'medication', activityType: 'other' } as unknown as T]);
-  const updateItem = (index: number, field: string, value: string) => onChange(items.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: value } : item));
-  const removeItem = (index: number) => onChange(items.filter((_, itemIndex) => itemIndex !== index));
+  const updateItem = (index: number, patch: Partial<ProntuarioGoal> & { title?: string }) => {
+    onChange(items.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item)));
+  };
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{title}</CardTitle>
+        <CardTitle>Objetivos</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         {items.map((item, index) => (
           <div key={item.id || index} className="grid gap-3 rounded-md border border-border bg-muted/20 p-3 md:grid-cols-2">
-            {fields.map((field) => (
-              <Input key={field} label={field} type={field.toLowerCase().includes('date') ? 'date' : 'text'} value={item[field] || ''} onChange={(event) => updateItem(index, field, event.target.value)} />
-            ))}
+            <Input label="Título" value={item.title || ''} onChange={(event) => updateItem(index, { title: event.target.value })} />
+            <Input label="Data alvo" type="date" value={toDateInput(item.targetDate)} onChange={(event) => updateItem(index, { targetDate: event.target.value })} />
             <div className="md:col-span-2">
-              <Button type="button" variant="outline" onClick={() => removeItem(index)}>Remover</Button>
+              <textarea className="min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="Descrição" value={item.description || ''} onChange={(event) => updateItem(index, { description: event.target.value })} />
+            </div>
+            <div className="md:col-span-2">
+              <Button type="button" variant="outline" onClick={() => onChange(items.filter((_, itemIndex) => itemIndex !== index))}>Remover</Button>
             </div>
           </div>
         ))}
-        <Button type="button" variant="outline" onClick={addItem}>Adicionar</Button>
+        <Button type="button" variant="outline" onClick={() => onChange([...items, { title: '', description: '', targetDate: '' }])}>Adicionar</Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ActivityHistoryEditor({
+  items,
+  onChange,
+}: {
+  items: Array<Partial<ProntuarioActivityHistory> & { description: string }>;
+  onChange: (items: Array<Partial<ProntuarioActivityHistory> & { description: string }>) => void;
+}) {
+  const updateItem = (index: number, patch: Partial<ProntuarioActivityHistory> & { description?: string }) => {
+    onChange(items.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item)));
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Histórico de atividades</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {items.map((item, index) => (
+          <div key={item.id || index} className="grid gap-3 rounded-md border border-border bg-muted/20 p-3 md:grid-cols-2">
+            <Input label="Descrição" value={item.description || ''} onChange={(event) => updateItem(index, { description: event.target.value })} />
+            <div>
+              <label className="mb-1 block text-sm font-medium text-foreground">Tipo</label>
+              <select
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                value={item.activityType || 'other'}
+                onChange={(event) => updateItem(index, { activityType: event.target.value as ProntuarioActivityHistory['activityType'] })}
+              >
+                <option value="running">Corrida</option>
+                <option value="strength">Força</option>
+                <option value="mobility">Mobilidade</option>
+                <option value="sport">Esporte</option>
+                <option value="occupational">Ocupacional</option>
+                <option value="other">Outro</option>
+              </select>
+            </div>
+            <Input label="Frequência" value={item.frequency || ''} onChange={(event) => updateItem(index, { frequency: event.target.value })} />
+            <Input label="Duração" value={item.duration || ''} onChange={(event) => updateItem(index, { duration: event.target.value })} />
+            <Input label="Intensidade" value={item.intensity || ''} onChange={(event) => updateItem(index, { intensity: event.target.value })} />
+            <div className="md:col-span-2">
+              <Button type="button" variant="outline" onClick={() => onChange(items.filter((_, itemIndex) => itemIndex !== index))}>Remover</Button>
+            </div>
+          </div>
+        ))}
+        <Button type="button" variant="outline" onClick={() => onChange([...items, { description: '', activityType: 'other' }])}>Adicionar</Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function MedicationsProceduresEditor({
+  items,
+  onChange,
+}: {
+  items: Array<Partial<ProntuarioMedicationProcedure> & { type: ProntuarioMedicationProcedure['type']; name: string }>;
+  onChange: (items: Array<Partial<ProntuarioMedicationProcedure> & { type: ProntuarioMedicationProcedure['type']; name: string }>) => void;
+}) {
+  const updateItem = (index: number, patch: Partial<ProntuarioMedicationProcedure> & { type?: ProntuarioMedicationProcedure['type']; name?: string }) => {
+    onChange(items.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item)));
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Medicações e procedimentos</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {items.map((item, index) => (
+          <div key={item.id || index} className="grid gap-3 rounded-md border border-border bg-muted/20 p-3 md:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-foreground">Tipo</label>
+              <select
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                value={item.type || 'medication'}
+                onChange={(event) => updateItem(index, { type: event.target.value as ProntuarioMedicationProcedure['type'] })}
+              >
+                <option value="medication">Medicação</option>
+                <option value="supplement">Suplemento</option>
+                <option value="procedure">Procedimento</option>
+                <option value="exam">Exame</option>
+                <option value="therapy">Terapia</option>
+                <option value="other">Outro</option>
+              </select>
+            </div>
+            <Input label="Nome" value={item.name || ''} onChange={(event) => updateItem(index, { name: event.target.value })} />
+            <Input label="Dosagem" value={item.dosage || ''} onChange={(event) => updateItem(index, { dosage: event.target.value })} />
+            <Input label="Frequência" value={item.frequency || ''} onChange={(event) => updateItem(index, { frequency: event.target.value })} />
+            <div className="md:col-span-2">
+              <Button type="button" variant="outline" onClick={() => onChange(items.filter((_, itemIndex) => itemIndex !== index))}>Remover</Button>
+            </div>
+          </div>
+        ))}
+        <Button type="button" variant="outline" onClick={() => onChange([...items, { type: 'medication', name: '' }])}>Adicionar</Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function PainCasesEditor({
+  items,
+  onChange,
+}: {
+  items: Array<Partial<ProntuarioPainCase> & { title: string }>;
+  onChange: (items: Array<Partial<ProntuarioPainCase> & { title: string }>) => void;
+}) {
+  const updateItem = (index: number, patch: Partial<ProntuarioPainCase> & { title?: string }) => {
+    onChange(items.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item)));
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Casos de dor</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {items.map((item, index) => (
+          <div key={item.id || index} className="grid gap-3 rounded-md border border-border bg-muted/20 p-3 md:grid-cols-2">
+            <Input label="Título" value={item.title || ''} onChange={(event) => updateItem(index, { title: event.target.value })} />
+            <Input label="Região" value={item.region || ''} onChange={(event) => updateItem(index, { region: event.target.value })} />
+            <Input label="Data de início" type="date" value={toDateInput(item.onsetDate)} onChange={(event) => updateItem(index, { onsetDate: event.target.value })} />
+            <div className="md:col-span-2">
+              <textarea className="min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="Descrição" value={item.description || ''} onChange={(event) => updateItem(index, { description: event.target.value })} />
+            </div>
+            <div className="md:col-span-2">
+              <Button type="button" variant="outline" onClick={() => onChange(items.filter((_, itemIndex) => itemIndex !== index))}>Remover</Button>
+            </div>
+          </div>
+        ))}
+        <Button type="button" variant="outline" onClick={() => onChange([...items, { title: '', description: '', region: '', onsetDate: '' }])}>Adicionar</Button>
       </CardContent>
     </Card>
   );

@@ -5,6 +5,94 @@ import { getServiceForContract } from '../services/service.service.js';
 
 const prisma = new PrismaClient();
 
+const PARQ_LABELS: Record<string, string> = {
+  q1: 'Algum médico já disse que você possui problema no coração e recomendou atividade física apenas sob supervisão?',
+  q2: 'Você sente dor no peito causada pela prática de atividade física?',
+  q3: 'Você sentiu dor no peito no último mês?',
+  q4: 'Você perde o equilíbrio por tontura ou já perdeu a consciência?',
+  q5: 'Você tem problema ósseo ou articular que poderia piorar com atividade física?',
+  q6: 'Algum médico prescreveu medicamento para pressão arterial ou condição cardíaca?',
+  q7: 'Você conhece outro motivo para não realizar atividade física?',
+};
+
+type ParqResponseShape = {
+  q1: boolean;
+  q2: boolean;
+  q3: boolean;
+  q4: boolean;
+  q5: boolean;
+  q6: boolean;
+  q7: boolean;
+  q8: boolean;
+};
+
+const normalizeParqResponses = (responses?: Partial<ParqResponseShape> | null): ParqResponseShape | null => {
+  if (!responses) return null;
+  return {
+    q1: responses.q1 === true,
+    q2: responses.q2 === true,
+    q3: responses.q3 === true,
+    q4: responses.q4 === true,
+    q5: responses.q5 === true,
+    q6: responses.q6 === true,
+    q7: responses.q7 === true,
+    q8: responses.q8 === true,
+  };
+};
+
+const parqResponsesEqual = (
+  a?: Partial<ParqResponseShape> | null,
+  b?: Partial<ParqResponseShape> | null
+) => {
+  const normalizedA = normalizeParqResponses(a);
+  const normalizedB = normalizeParqResponses(b);
+
+  if (!normalizedA && !normalizedB) return true;
+  if (!normalizedA || !normalizedB) return false;
+
+  return (
+    normalizedA.q1 === normalizedB.q1 &&
+    normalizedA.q2 === normalizedB.q2 &&
+    normalizedA.q3 === normalizedB.q3 &&
+    normalizedA.q4 === normalizedB.q4 &&
+    normalizedA.q5 === normalizedB.q5 &&
+    normalizedA.q6 === normalizedB.q6 &&
+    normalizedA.q7 === normalizedB.q7 &&
+    normalizedA.q8 === normalizedB.q8
+  );
+};
+
+const positiveParqItems = (responses: ParqResponseShape) =>
+  Object.entries(PARQ_LABELS)
+    .filter(([key]) => responses[key as keyof ParqResponseShape] === true)
+    .map(([key, label]) => ({ key, label }));
+
+const createParqSubmission = async (
+  tx: Prisma.TransactionClient,
+  data: {
+    alunoId: string;
+    contractId: string;
+    sourceType: 'student' | 'professional' | 'integration' | 'system';
+    submittedByUserId?: string;
+    responses?: Partial<ParqResponseShape> | null;
+  }
+) => {
+  const normalized = normalizeParqResponses(data.responses);
+  if (!normalized) return;
+
+  await tx.studentParqSubmission.create({
+    data: {
+      alunoId: data.alunoId,
+      contractId: data.contractId,
+      sourceType: data.sourceType,
+      submittedByUserId: data.submittedByUserId,
+      responses: normalized as Prisma.InputJsonValue,
+      positiveItems: positiveParqItems(normalized) as Prisma.InputJsonValue,
+      declarationAccepted: normalized.q8,
+    },
+  });
+};
+
 export interface CreateAlunoDTO {
   name: string;
   email: string;
@@ -158,13 +246,12 @@ export const alunoService = {
 
     const aluno = await prisma.$transaction(async (tx) => {
       let serviceId: string | undefined;
+      const professor = await tx.professor.findUniqueOrThrow({
+        where: { id: data.professorId },
+        select: { contractId: true },
+      });
 
       if (data.serviceId) {
-        const professor = await tx.professor.findUniqueOrThrow({
-          where: { id: data.professorId },
-          select: { contractId: true },
-        });
-
         const service = await getServiceForContract(professor.contractId, data.serviceId, tx);
         assertBaseServiceIsSelectable(service);
 
@@ -255,6 +342,13 @@ export const alunoService = {
             parqResponses: data.intakeForm.parqResponses,
             formResponses: toInputJson(data.intakeForm.formResponses),
           },
+        });
+
+        await createParqSubmission(tx, {
+          alunoId: aluno.id,
+          contractId: professor.contractId,
+          sourceType: 'professional',
+          responses: data.intakeForm.parqResponses,
         });
       }
 
@@ -558,6 +652,11 @@ export const alunoService = {
               contractId: true,
             },
           },
+          intakeForm: {
+            select: {
+              parqResponses: true,
+            },
+          },
         },
       });
 
@@ -656,6 +755,20 @@ export const alunoService = {
               formResponses: toInputJson(intakeForm.formResponses),
             },
           });
+
+          const hadParqChange = !parqResponsesEqual(
+            currentAluno.intakeForm?.parqResponses as Partial<ParqResponseShape> | null | undefined,
+            intakeForm.parqResponses
+          );
+
+          if (hadParqChange) {
+            await createParqSubmission(tx, {
+              alunoId: id,
+              contractId: currentAluno.professor.contractId,
+              sourceType: 'professional',
+              responses: intakeForm.parqResponses,
+            });
+          }
         }
       }
 

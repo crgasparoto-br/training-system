@@ -24,7 +24,18 @@ const medicationProcedureType = z.enum(['medication', 'supplement', 'procedure',
 const painCaseStatus = z.enum(['active', 'monitoring', 'resolved', 'archived']);
 
 const parqSchema = z.object({
-  responses: z.record(z.boolean()),
+  responses: z
+    .object({
+      q1: z.boolean(),
+      q2: z.boolean(),
+      q3: z.boolean(),
+      q4: z.boolean(),
+      q5: z.boolean(),
+      q6: z.boolean(),
+      q7: z.boolean(),
+      q8: z.boolean(),
+    })
+    .strict(),
   notes: z.string().optional().nullable(),
 });
 
@@ -56,7 +67,7 @@ router.get(
   }
 );
 
-router.get('/alunos/:alunoId/parq-submissions', async (req: Request, res: Response) => {
+router.get('/alunos/:alunoId/parq-submissions', blockAccessMiddleware('physicalAssessment.prnt.parqSubmissions'), async (req: Request, res: Response) => {
   try {
     const { contractId } = contextFromRequest(req);
     if (!contractId) return sendError(res, 'Contrato não encontrado', 404);
@@ -67,7 +78,7 @@ router.get('/alunos/:alunoId/parq-submissions', async (req: Request, res: Respon
   }
 });
 
-router.post('/alunos/:alunoId/parq-submissions', async (req: Request, res: Response) => {
+router.post('/alunos/:alunoId/parq-submissions', blockAccessMiddleware('physicalAssessment.prnt.parqSubmissions'), async (req: Request, res: Response) => {
   try {
     const { contractId, userId } = contextFromRequest(req);
     if (!contractId) return sendError(res, 'Contrato não encontrado', 404);
@@ -115,7 +126,7 @@ router.put('/records/:recordId/goals', blockAccessMiddleware('physicalAssessment
   try {
     const { contractId } = contextFromRequest(req);
     if (!contractId) return sendError(res, 'Contrato não encontrado', 404);
-    const { goals } = z.object({ goals: z.array(z.object({ title: z.string(), description: z.string().optional().nullable(), status: itemStatus.optional(), priority: z.number().int().optional(), targetDate: z.string().optional().nullable() })) }).parse(req.body);
+    const { goals } = z.object({ goals: z.array(z.object({ id: z.string().optional(), title: z.string(), description: z.string().optional().nullable(), status: itemStatus.optional(), priority: z.number().int().optional(), targetDate: z.string().optional().nullable() })) }).parse(req.body);
     return sendSuccess(res, await prontuarioService.saveGoals(contractId, req.params.recordId, goals), 'Objetivos salvos');
   } catch (error) {
     return handleError(res, error, 'Erro ao salvar objetivos');
@@ -126,7 +137,7 @@ router.put('/records/:recordId/anamnesis-follow-ups', blockAccessMiddleware('phy
   try {
     const { contractId } = contextFromRequest(req);
     if (!contractId) return sendError(res, 'Contrato não encontrado', 404);
-    const { items } = z.object({ items: z.array(z.object({ parqSubmissionId: z.string().optional().nullable(), itemKey: z.string(), itemLabel: z.string(), status: itemStatus.optional(), followUpNotes: z.string().optional().nullable(), actionPlan: z.string().optional().nullable(), closedAt: z.string().optional().nullable() })) }).parse(req.body);
+    const { items } = z.object({ items: z.array(z.object({ id: z.string().optional(), parqSubmissionId: z.string().optional().nullable(), itemKey: z.string(), itemLabel: z.string(), status: itemStatus.optional(), followUpNotes: z.string().optional().nullable(), actionPlan: z.string().optional().nullable(), closedAt: z.string().optional().nullable() })) }).parse(req.body);
     return sendSuccess(res, await prontuarioService.saveAnamnesisFollowUps(contractId, req.params.recordId, items), 'Acompanhamentos salvos');
   } catch (error) {
     return handleError(res, error, 'Erro ao salvar acompanhamentos');
@@ -147,7 +158,7 @@ router.put('/records/:recordId/activity-history', blockAccessMiddleware('physica
   try {
     const { contractId } = contextFromRequest(req);
     if (!contractId) return sendError(res, 'Contrato não encontrado', 404);
-    const { items } = z.object({ items: z.array(z.object({ activityType: activityType.optional(), description: z.string(), frequency: z.string().optional().nullable(), duration: z.string().optional().nullable(), intensity: z.string().optional().nullable(), startedAt: z.string().optional().nullable(), endedAt: z.string().optional().nullable(), notes: z.string().optional().nullable() })) }).parse(req.body);
+    const { items } = z.object({ items: z.array(z.object({ id: z.string().optional(), activityType: activityType.optional(), description: z.string(), frequency: z.string().optional().nullable(), duration: z.string().optional().nullable(), intensity: z.string().optional().nullable(), startedAt: z.string().optional().nullable(), endedAt: z.string().optional().nullable(), notes: z.string().optional().nullable() })) }).parse(req.body);
     return sendSuccess(res, await prontuarioService.saveActivityHistory(contractId, req.params.recordId, items), 'Histórico de atividades salvo');
   } catch (error) {
     return handleError(res, error, 'Erro ao salvar histórico de atividades');
@@ -158,7 +169,7 @@ router.put('/records/:recordId/medications-procedures', blockAccessMiddleware('p
   try {
     const { contractId } = contextFromRequest(req);
     if (!contractId) return sendError(res, 'Contrato não encontrado', 404);
-    const { items } = z.object({ items: z.array(z.object({ type: medicationProcedureType, name: z.string(), dosage: z.string().optional().nullable(), frequency: z.string().optional().nullable(), startDate: z.string().optional().nullable(), endDate: z.string().optional().nullable(), notes: z.string().optional().nullable() })) }).parse(req.body);
+    const { items } = z.object({ items: z.array(z.object({ id: z.string().optional(), type: medicationProcedureType, name: z.string(), dosage: z.string().optional().nullable(), frequency: z.string().optional().nullable(), startDate: z.string().optional().nullable(), endDate: z.string().optional().nullable(), notes: z.string().optional().nullable() })) }).parse(req.body);
     return sendSuccess(res, await prontuarioService.saveMedicationsProcedures(contractId, req.params.recordId, items), 'Medicações e procedimentos salvos');
   } catch (error) {
     return handleError(res, error, 'Erro ao salvar medicações e procedimentos');
@@ -169,7 +180,7 @@ router.put('/records/:recordId/pain-cases', blockAccessMiddleware('physicalAsses
   try {
     const { contractId } = contextFromRequest(req);
     if (!contractId) return sendError(res, 'Contrato não encontrado', 404);
-    const { items } = z.object({ items: z.array(z.object({ title: z.string(), region: z.string().optional().nullable(), status: painCaseStatus.optional(), onsetDate: z.string().optional().nullable(), description: z.string().optional().nullable(), followUps: z.array(z.object({ followUpAt: z.string().optional(), intensity: z.number().int().min(1).max(10).optional().nullable(), notes: z.string().optional().nullable(), conduct: z.string().optional().nullable() })).optional() })) }).parse(req.body);
+    const { items } = z.object({ items: z.array(z.object({ id: z.string().optional(), title: z.string(), region: z.string().optional().nullable(), status: painCaseStatus.optional(), onsetDate: z.string().optional().nullable(), description: z.string().optional().nullable(), followUps: z.array(z.object({ id: z.string().optional(), followUpAt: z.string().optional(), intensity: z.number().int().min(1).max(10).optional().nullable(), notes: z.string().optional().nullable(), conduct: z.string().optional().nullable() })).optional() })) }).parse(req.body);
     return sendSuccess(res, await prontuarioService.savePainCases(contractId, req.params.recordId, items), 'Casos de dor salvos');
   } catch (error) {
     return handleError(res, error, 'Erro ao salvar casos de dor');
