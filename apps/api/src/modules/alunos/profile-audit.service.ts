@@ -44,16 +44,19 @@ export const profileAuditService = {
     tx?: Prisma.TransactionClient
   ): Promise<void> {
     const client = tx ?? prisma;
+    const payload = {
+      ...(input.beforeData !== undefined ? { beforeData: input.beforeData } : {}),
+      ...(input.afterData !== undefined ? { afterData: input.afterData } : {}),
+      ...(input.changedFields !== undefined ? { changedFields: input.changedFields } : {}),
+    };
 
     await client.studentProfileAuditLog.create({
       data: {
         alunoId: input.alunoId,
-        changedByUserId: input.changedByUserId ?? null,
+        userId: input.changedByUserId ?? null,
         source: input.source,
         action: input.action,
-        beforeData: sanitize(input.beforeData) ?? Prisma.JsonNull,
-        afterData: sanitize(input.afterData) ?? Prisma.JsonNull,
-        changedFields: sanitize(input.changedFields) ?? Prisma.JsonNull,
+        changedFields: sanitize(payload) ?? Prisma.JsonNull,
       },
     });
   },
@@ -76,19 +79,27 @@ export const profileAuditService = {
         select: {
           id: true,
           alunoId: true,
-          changedByUserId: true,
+          userId: true,
           source: true,
           action: true,
-          beforeData: true,
-          afterData: true,
           changedFields: true,
           createdAt: true,
         },
       }),
     ]);
 
+    const normalizedItems = items.map((item) => {
+      const changedFields = item.changedFields as Record<string, unknown> | null;
+      return {
+        ...item,
+        changedByUserId: item.userId,
+        beforeData: changedFields?.beforeData ?? null,
+        afterData: changedFields?.afterData ?? null,
+      };
+    });
+
     return {
-      items,
+      items: normalizedItems,
       pagination: {
         total,
         page,
