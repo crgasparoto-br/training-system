@@ -45,6 +45,14 @@ const positiveParqItems = (responses: ParqResponseShape) =>
     .filter(([key]) => responses[key as keyof ParqResponseShape] === true)
     .map(([key, label]) => ({ key, label }));
 
+const resolveAlunoCompanyContractId = (alunoLike: {
+  professor?: { contractId?: string | null } | null;
+  currentStudentContract?: { contract?: { companyContractId?: string | null } | null } | null;
+}) =>
+  alunoLike.currentStudentContract?.contract?.companyContractId ||
+  alunoLike.professor?.contractId ||
+  null;
+
 const createParqSubmission = async (
   tx: Prisma.TransactionClient,
   data: {
@@ -630,14 +638,29 @@ export const alunoService = {
               contractId: true,
             },
           },
+          currentStudentContract: {
+            select: {
+              contract: {
+                select: {
+                  companyContractId: true,
+                },
+              },
+            },
+          },
         },
       });
+
+      const alunoContractId = resolveAlunoCompanyContractId(currentAluno);
+
+      if (!alunoContractId) {
+        throw new Error('Contrato do aluno não encontrado');
+      }
 
       if (data.serviceId !== undefined) {
         if (!data.serviceId) {
           alunoData.serviceId = null as never;
         } else {
-          const service = await getServiceForContract(currentAluno.professor.contractId, data.serviceId, tx);
+          const service = await getServiceForContract(alunoContractId, data.serviceId, tx);
           assertBaseServiceIsSelectable(service);
 
           alunoData.serviceId = service.id as never;
@@ -651,7 +674,7 @@ export const alunoService = {
         const targetProfessor = await tx.professor.findFirst({
           where: {
             id: desiredProfessorId,
-            contractId: currentAluno.professor.contractId,
+            contractId: alunoContractId,
           },
           select: { id: true },
         });
@@ -732,7 +755,7 @@ export const alunoService = {
           if (intakeForm.parqResponses) {
             await createParqSubmission(tx, {
               alunoId: id,
-              contractId: currentAluno.professor.contractId,
+              contractId: alunoContractId,
               sourceType: 'professional',
               responses: intakeForm.parqResponses,
             });
