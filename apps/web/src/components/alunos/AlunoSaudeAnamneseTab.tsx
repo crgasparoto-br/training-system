@@ -27,14 +27,6 @@ const countPositiveAhaAnswers = (value: unknown) => {
   return Object.values(value as Record<string, unknown>).filter((answer) => answer === 'yes').length;
 };
 
-const countBodyDiscomforts = (value: unknown) => {
-  if (!Array.isArray(value)) {
-    return 0;
-  }
-
-  return value.length;
-};
-
 const getLegacyRawFormResponses = (aluno: Aluno) => {
   const responses = aluno.intakeForm?.formResponses;
   if (!responses || typeof responses !== 'object') {
@@ -56,9 +48,6 @@ export function AlunoSaudeAnamneseTab({
   const rawFormResponses = segmentedIntake?.rawFormResponses ?? getLegacyRawFormResponses(aluno);
   const ahaPositiveCount = countPositiveAhaAnswers(
     segmentedIntake?.questionnaires.american ?? (rawFormResponses as Record<string, unknown>).ahaResponses
-  );
-  const bodyDiscomfortCount = countBodyDiscomforts(
-    (rawFormResponses as Record<string, unknown>).bodyDiscomforts
   );
   const clinicalHistory =
     (segmentedIntake?.clinicalHistory as Record<string, unknown> | null | undefined) ?? null;
@@ -95,11 +84,11 @@ export function AlunoSaudeAnamneseTab({
         <CardHeader>
           <CardTitle>Anamnese inicial e questionários</CardTitle>
           <CardDescription>
-            Esta aba reúne a anamnese inicial, PAR-Q, AHA e desconfortos relatados na entrada do aluno, sem misturar avaliações profissionais de evolução.
+              Esta aba reúne a anamnese inicial, PAR-Q e AHA da entrada do aluno, sem misturar avaliações profissionais de evolução.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             <div className="rounded-lg border border-gray-200 p-4">
               <div className="text-xs text-muted-foreground">Data da anamnese inicial</div>
               <div className="mt-1 text-sm font-semibold text-gray-900">
@@ -113,10 +102,6 @@ export function AlunoSaudeAnamneseTab({
             <div className="rounded-lg border border-gray-200 p-4">
               <div className="text-xs text-muted-foreground">Respostas positivas no questionário AHA</div>
               <div className="mt-1 text-sm font-semibold text-gray-900">{ahaPositiveCount}</div>
-            </div>
-            <div className="rounded-lg border border-gray-200 p-4">
-              <div className="text-xs text-muted-foreground">Desconfortos mapeados</div>
-              <div className="mt-1 text-sm font-semibold text-gray-900">{bodyDiscomfortCount}</div>
             </div>
           </div>
 

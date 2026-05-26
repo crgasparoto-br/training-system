@@ -15,6 +15,7 @@ jest.mock('@prisma/client', () => {
   const profile = { update: jest.fn() };
   const alunoModel = { update: jest.fn() };
   const alunoIntakeForm = { upsert: jest.fn() };
+  const studentParqSubmission = { create: jest.fn() };
 
   const instance: Record<string, unknown> = {
     aluno,
@@ -24,6 +25,7 @@ jest.mock('@prisma/client', () => {
     profile,
     aluno_update: alunoModel, // held separately to avoid name clash
     alunoIntakeForm,
+    studentParqSubmission,
     $transaction: jest.fn(),
   };
 
@@ -64,6 +66,7 @@ type DbMock = {
   profileReviewPolicy: { findFirst: jest.Mock };
   profile: { update: jest.Mock };
   alunoIntakeForm: { upsert: jest.Mock };
+  studentParqSubmission: { create: jest.Mock };
   $transaction: jest.Mock;
 };
 
@@ -116,6 +119,7 @@ function makeAlunoRecord(overrides: Record<string, unknown> = {}) {
       },
     },
     professor: { contractId: CONTRACT_ID },
+    currentStudentContract: null,
     intakeForm: null,
     ...overrides,
   };
@@ -145,6 +149,7 @@ function makePendingReview(overrides: Record<string, unknown> = {}) {
       id: ALUNO_ID,
       user: { id: ALUNO_USER_ID },
       professor: { contractId: CONTRACT_ID },
+      currentStudentContract: null,
     },
     ...overrides,
   };
@@ -322,10 +327,147 @@ describe('profileReviewService', () => {
       );
       expect(result.approval.requiresApproval).toBe(true);
     });
+
+    it('marca PAR-Q como sensível e deixa a aplicação para aprovação', async () => {
+      setupCompleteBase();
+      db.aluno.findUnique.mockResolvedValue(
+        makeAlunoRecord({
+          currentStudentContract: {
+            contract: {
+              companyContractId: 'contract-current',
+            },
+          },
+        })
+      );
+      const pendingReview = makePendingReview({
+        aluno: {
+          id: ALUNO_ID,
+          user: { id: ALUNO_USER_ID },
+          professor: { contractId: CONTRACT_ID },
+          currentStudentContract: {
+            contract: {
+              companyContractId: 'contract-current',
+            },
+          },
+        },
+      });
+      const updatedReview = {
+        ...pendingReview,
+        status: 'completed_with_changes',
+        completedAt: new Date(),
+        requiresApproval: true,
+        changedFields: [
+          { path: 'intakeForm.parqResponses.q1', before: false, after: true, requiresApproval: true, status: 'pending_approval' },
+          { path: 'intakeForm.parqResponses.q8', before: false, after: true, requiresApproval: true, status: 'pending_approval' },
+        ],
+      };
+      db.studentProfileReview.findUnique.mockResolvedValue(pendingReview);
+      db.studentProfileReview.update.mockResolvedValue(updatedReview);
+
+      await profileReviewService.completeByStudent({
+        reviewId: REVIEW_ID,
+        alunoUserId: ALUNO_USER_ID,
+        changes: {
+          intakeForm: {
+            parqResponses: {
+              q1: true,
+              q2: false,
+              q3: false,
+              q4: false,
+              q5: false,
+              q6: false,
+              q7: false,
+              q8: true,
+            },
+          },
+        },
+      });
+
+      expect(db.studentParqSubmission.create).not.toHaveBeenCalled();
+      expect(db.studentProfileReview.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ requiresApproval: true }),
+        })
+      );
+    });
+
   });
 
   // ── approveReview ─────────────────────────────────────────────────────────
   describe('approveReview', () => {
+    it('gera submissão histórica de PAR-Q aprovado usando o contrato atual do aluno', async () => {
+      db.aluno.findUnique.mockResolvedValue(
+        makeAlunoRecord({
+          currentStudentContract: {
+            contract: {
+              companyContractId: 'contract-current',
+            },
+          },
+        })
+      );
+      const reviewWithPending = {
+        ...makePendingReview({
+          status: 'completed_with_changes',
+          requiresApproval: true,
+          snapshotAfter: {
+            intakeForm: {
+              parqResponses: {
+                q1: true,
+                q2: false,
+                q3: false,
+                q4: false,
+                q5: false,
+                q6: false,
+                q7: false,
+                q8: true,
+              },
+            },
+          },
+          changedFields: [
+            { path: 'intakeForm.parqResponses.q1', before: false, after: true, requiresApproval: true, status: 'pending_approval' },
+            { path: 'intakeForm.parqResponses.q8', before: false, after: true, requiresApproval: true, status: 'pending_approval' },
+          ],
+          aluno: {
+            id: ALUNO_ID,
+            user: { id: ALUNO_USER_ID },
+            professor: { contractId: CONTRACT_ID },
+            currentStudentContract: {
+              contract: {
+                companyContractId: 'contract-current',
+              },
+            },
+          },
+        }),
+      };
+      db.studentProfileReview.findUnique.mockResolvedValue(reviewWithPending);
+      db.alunoIntakeForm.upsert.mockResolvedValue({});
+      db.studentProfileReview.update.mockResolvedValue({
+        ...reviewWithPending,
+        approvedByUserId: 'prof-1',
+        approvedAt: new Date(),
+        requiresApproval: false,
+        changedFields: [
+          { path: 'intakeForm.parqResponses.q1', before: false, after: true, requiresApproval: true, status: 'approved' },
+          { path: 'intakeForm.parqResponses.q8', before: false, after: true, requiresApproval: true, status: 'approved' },
+        ],
+        rejectedByUserId: null,
+        rejectedAt: null,
+        rejectionReason: null,
+      });
+
+      await profileReviewService.approveReview(ALUNO_ID, REVIEW_ID, 'prof-1');
+
+      expect(db.studentParqSubmission.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            alunoId: ALUNO_ID,
+            contractId: 'contract-current',
+            declarationAccepted: true,
+          }),
+        })
+      );
+    });
+
     it('aprova alteração sensível e aplica o patch', async () => {
       const reviewWithPending = {
         ...makePendingReview(),

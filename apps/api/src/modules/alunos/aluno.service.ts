@@ -5,6 +5,80 @@ import { getServiceForContract } from '../services/service.service.js';
 
 const prisma = new PrismaClient();
 
+const PARQ_LABELS: Record<string, string> = {
+  q1: 'Algum médico já disse que você possui problema no coração e recomendou atividade física apenas sob supervisão?',
+  q2: 'Você sente dor no peito causada pela prática de atividade física?',
+  q3: 'Você sentiu dor no peito no último mês?',
+  q4: 'Você perde o equilíbrio por tontura ou já perdeu a consciência?',
+  q5: 'Você tem problema ósseo ou articular que poderia piorar com atividade física?',
+  q6: 'Algum médico prescreveu medicamento para pressão arterial ou condição cardíaca?',
+  q7: 'Você conhece outro motivo para não realizar atividade física?',
+};
+
+type ParqResponseShape = {
+  q1: boolean;
+  q2: boolean;
+  q3: boolean;
+  q4: boolean;
+  q5: boolean;
+  q6: boolean;
+  q7: boolean;
+  q8: boolean;
+};
+
+const normalizeParqResponses = (responses?: Partial<ParqResponseShape> | null): ParqResponseShape | null => {
+  if (!responses) return null;
+  return {
+    q1: responses.q1 === true,
+    q2: responses.q2 === true,
+    q3: responses.q3 === true,
+    q4: responses.q4 === true,
+    q5: responses.q5 === true,
+    q6: responses.q6 === true,
+    q7: responses.q7 === true,
+    q8: responses.q8 === true,
+  };
+};
+
+const positiveParqItems = (responses: ParqResponseShape) =>
+  Object.entries(PARQ_LABELS)
+    .filter(([key]) => responses[key as keyof ParqResponseShape] === true)
+    .map(([key, label]) => ({ key, label }));
+
+const resolveAlunoCompanyContractId = (alunoLike: {
+  professor?: { contractId?: string | null } | null;
+  currentStudentContract?: { contract?: { companyContractId?: string | null } | null } | null;
+}) =>
+  alunoLike.currentStudentContract?.contract?.companyContractId ||
+  alunoLike.professor?.contractId ||
+  null;
+
+const createParqSubmission = async (
+  tx: Prisma.TransactionClient,
+  data: {
+    alunoId: string;
+    contractId: string;
+    sourceType: 'student' | 'professional' | 'integration' | 'system';
+    submittedByUserId?: string;
+    responses?: Partial<ParqResponseShape> | null;
+  }
+) => {
+  const normalized = normalizeParqResponses(data.responses);
+  if (!normalized) return;
+
+  await tx.studentParqSubmission.create({
+    data: {
+      alunoId: data.alunoId,
+      contractId: data.contractId,
+      sourceType: data.sourceType,
+      submittedByUserId: data.submittedByUserId,
+      responses: normalized as Prisma.InputJsonValue,
+      positiveItems: positiveParqItems(normalized) as Prisma.InputJsonValue,
+      declarationAccepted: normalized.q8,
+    },
+  });
+};
+
 export interface CreateAlunoDTO {
   name: string;
   email: string;
@@ -158,13 +232,12 @@ export const alunoService = {
 
     const aluno = await prisma.$transaction(async (tx) => {
       let serviceId: string | undefined;
+      const professor = await tx.professor.findUniqueOrThrow({
+        where: { id: data.professorId },
+        select: { contractId: true },
+      });
 
       if (data.serviceId) {
-        const professor = await tx.professor.findUniqueOrThrow({
-          where: { id: data.professorId },
-          select: { contractId: true },
-        });
-
         const service = await getServiceForContract(professor.contractId, data.serviceId, tx);
         assertBaseServiceIsSelectable(service);
 
@@ -255,6 +328,13 @@ export const alunoService = {
             parqResponses: data.intakeForm.parqResponses,
             formResponses: toInputJson(data.intakeForm.formResponses),
           },
+        });
+
+        await createParqSubmission(tx, {
+          alunoId: aluno.id,
+          contractId: professor.contractId,
+          sourceType: 'professional',
+          responses: data.intakeForm.parqResponses,
         });
       }
 
@@ -558,14 +638,29 @@ export const alunoService = {
               contractId: true,
             },
           },
+          currentStudentContract: {
+            select: {
+              contract: {
+                select: {
+                  companyContractId: true,
+                },
+              },
+            },
+          },
         },
       });
+
+      const alunoContractId = resolveAlunoCompanyContractId(currentAluno);
+
+      if (!alunoContractId) {
+        throw new Error('Contrato do aluno não encontrado');
+      }
 
       if (data.serviceId !== undefined) {
         if (!data.serviceId) {
           alunoData.serviceId = null as never;
         } else {
-          const service = await getServiceForContract(currentAluno.professor.contractId, data.serviceId, tx);
+          const service = await getServiceForContract(alunoContractId, data.serviceId, tx);
           assertBaseServiceIsSelectable(service);
 
           alunoData.serviceId = service.id as never;
@@ -579,7 +674,7 @@ export const alunoService = {
         const targetProfessor = await tx.professor.findFirst({
           where: {
             id: desiredProfessorId,
-            contractId: currentAluno.professor.contractId,
+            contractId: alunoContractId,
           },
           select: { id: true },
         });
@@ -656,6 +751,15 @@ export const alunoService = {
               formResponses: toInputJson(intakeForm.formResponses),
             },
           });
+
+          if (intakeForm.parqResponses) {
+            await createParqSubmission(tx, {
+              alunoId: id,
+              contractId: alunoContractId,
+              sourceType: 'professional',
+              responses: intakeForm.parqResponses,
+            });
+          }
         }
       }
 

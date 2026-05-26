@@ -127,6 +127,40 @@ const SENSITIVE_FIELDS = new Set<string>([
   'aluno.restingHeartRate',
 ]);
 
+const PARQ_LABELS: Record<string, string> = {
+  q1: 'Algum médico já disse que você possui problema no coração e recomendou atividade física apenas sob supervisão?',
+  q2: 'Você sente dor no peito causada pela prática de atividade física?',
+  q3: 'Você sentiu dor no peito no último mês?',
+  q4: 'Você perde o equilíbrio por tontura ou já perdeu a consciência?',
+  q5: 'Você tem problema ósseo ou articular que poderia piorar com atividade física?',
+  q6: 'Algum médico prescreveu medicamento para pressão arterial ou condição cardíaca?',
+  q7: 'Você conhece outro motivo para não realizar atividade física?',
+};
+
+const positiveParqItems = (responses: Record<string, unknown>) =>
+  Object.entries(PARQ_LABELS)
+    .filter(([key]) => responses[key] === true)
+    .map(([key, label]) => ({ key, label }));
+
+const resolveAlunoCompanyContractId = (alunoLike: {
+  professor?: { contractId?: string | null } | null;
+  currentStudentContract?: { contract?: { companyContractId?: string | null } | null } | null;
+}) =>
+  alunoLike.currentStudentContract?.contract?.companyContractId ||
+  alunoLike.professor?.contractId ||
+  null;
+
+const normalizeParqResponses = (responses: Record<string, unknown>) => ({
+  q1: responses.q1 === true,
+  q2: responses.q2 === true,
+  q3: responses.q3 === true,
+  q4: responses.q4 === true,
+  q5: responses.q5 === true,
+  q6: responses.q6 === true,
+  q7: responses.q7 === true,
+  q8: responses.q8 === true,
+});
+
 const EMPTY_PATCH = {
   profile: {},
   aluno: {},
@@ -390,6 +424,10 @@ const applyAlunoPatch = async (
   const profilePatch = parseJsonRecord(patch.profile as Prisma.JsonValue | undefined);
   const alunoPatch = parseJsonRecord(patch.aluno as Prisma.JsonValue | undefined);
   const intakePatch = parseJsonRecord(patch.intakeForm as Prisma.JsonValue | undefined);
+  const normalizedParqResponses =
+    intakePatch.parqResponses && isPlainObject(intakePatch.parqResponses)
+      ? normalizeParqResponses(intakePatch.parqResponses)
+      : null;
 
   if (hasOwnValues(profilePatch)) {
     const profileData: Prisma.ProfileUpdateInput = {
@@ -454,10 +492,13 @@ const applyAlunoPatch = async (
       }
 
       if (key === 'parqResponses' || key === 'formResponses') {
+        const sourceValue = key === 'parqResponses' && normalizedParqResponses
+          ? normalizedParqResponses
+          : intakePatch[key];
         const jsonValue =
-          intakePatch[key] === null
+          sourceValue === null
             ? Prisma.JsonNull
-            : (intakePatch[key] as Prisma.InputJsonValue | undefined);
+            : (sourceValue as Prisma.InputJsonValue | undefined);
         intakeUpdateData[key] = jsonValue;
         intakeCreateData[key] = jsonValue;
         continue;
@@ -473,6 +514,40 @@ const applyAlunoPatch = async (
       create: intakeCreateData,
       update: intakeUpdateData,
     });
+
+    if (normalizedParqResponses) {
+      const aluno = await tx.aluno.findUnique({
+        where: { id: alunoId },
+        select: {
+          professor: { select: { contractId: true } },
+          currentStudentContract: {
+            select: {
+              contract: {
+                select: {
+                  companyContractId: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      const contractId = aluno ? resolveAlunoCompanyContractId(aluno) : null;
+
+      if (contractId) {
+        await tx.studentParqSubmission.create({
+          data: {
+            alunoId,
+            contractId,
+            sourceType: 'student',
+            submittedByUserId: alunoUserId,
+            responses: normalizedParqResponses as Prisma.InputJsonValue,
+            positiveItems: positiveParqItems(normalizedParqResponses) as Prisma.InputJsonValue,
+            declarationAccepted: normalizedParqResponses.q8,
+          },
+        });
+      }
+    }
   }
 };
 
