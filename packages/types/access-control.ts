@@ -225,6 +225,56 @@ export const ACCESS_BLOCK_CATALOG = [
     screenKey: 'collaborators.registration',
     label: 'Aba Gestor',
   },
+  {
+    key: 'physicalAssessment.prnt.summary',
+    screenKey: 'physicalAssessment.protocol',
+    label: 'PRNT: Resumo',
+  },
+  {
+    key: 'physicalAssessment.prnt.goals',
+    screenKey: 'physicalAssessment.protocol',
+    label: 'PRNT: Objetivos',
+  },
+  {
+    key: 'physicalAssessment.prnt.anamnesisFollowUp',
+    screenKey: 'physicalAssessment.protocol',
+    label: 'PRNT: Acompanhamento da anamnese',
+  },
+  {
+    key: 'physicalAssessment.prnt.activityHistory',
+    screenKey: 'physicalAssessment.protocol',
+    label: 'PRNT: Historico de atividades',
+  },
+  {
+    key: 'physicalAssessment.prnt.medicationsProcedures',
+    screenKey: 'physicalAssessment.protocol',
+    label: 'PRNT: Medicacoes e procedimentos',
+  },
+  {
+    key: 'physicalAssessment.prnt.painCases',
+    screenKey: 'physicalAssessment.protocol',
+    label: 'PRNT: Casos de dor',
+  },
+  {
+    key: 'physicalAssessment.prnt.discomforts',
+    screenKey: 'physicalAssessment.protocol',
+    label: 'PRNT: Desconfortos',
+  },
+  {
+    key: 'physicalAssessment.prnt.actions.createRecord',
+    screenKey: 'physicalAssessment.protocol',
+    label: 'PRNT: Acao criar registro',
+  },
+  {
+    key: 'physicalAssessment.prnt.actions.editRecord',
+    screenKey: 'physicalAssessment.protocol',
+    label: 'PRNT: Acao editar registro',
+  },
+  {
+    key: 'physicalAssessment.prnt.actions.closeFollowUp',
+    screenKey: 'physicalAssessment.protocol',
+    label: 'PRNT: Acao encerrar acompanhamento',
+  },
 ] as const;
 
 export type AccessBlockKey = (typeof ACCESS_BLOCK_CATALOG)[number]['key'];
@@ -325,6 +375,16 @@ export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
       'students.actions.manageAssessments',
       'students.actions.manageAssessmentPlan',
       'collaborators.registration.collaborator',
+      'physicalAssessment.prnt.summary',
+      'physicalAssessment.prnt.goals',
+      'physicalAssessment.prnt.anamnesisFollowUp',
+      'physicalAssessment.prnt.activityHistory',
+      'physicalAssessment.prnt.medicationsProcedures',
+      'physicalAssessment.prnt.painCases',
+      'physicalAssessment.prnt.discomforts',
+      'physicalAssessment.prnt.actions.createRecord',
+      'physicalAssessment.prnt.actions.editRecord',
+      'physicalAssessment.prnt.actions.closeFollowUp',
     ],
     dataScopes: {
       'collaborators.registration': 'self',
@@ -372,6 +432,16 @@ export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
       'students.actions.manageAssessmentPlan',
       'collaborators.registration.collaborator',
       'collaborators.registration.manager',
+      'physicalAssessment.prnt.summary',
+      'physicalAssessment.prnt.goals',
+      'physicalAssessment.prnt.anamnesisFollowUp',
+      'physicalAssessment.prnt.activityHistory',
+      'physicalAssessment.prnt.medicationsProcedures',
+      'physicalAssessment.prnt.painCases',
+      'physicalAssessment.prnt.discomforts',
+      'physicalAssessment.prnt.actions.createRecord',
+      'physicalAssessment.prnt.actions.editRecord',
+      'physicalAssessment.prnt.actions.closeFollowUp',
     ],
     dataScopes: {
       'collaborators.registration': 'contract',

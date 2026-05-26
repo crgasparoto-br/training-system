@@ -127,6 +127,21 @@ const SENSITIVE_FIELDS = new Set<string>([
   'aluno.restingHeartRate',
 ]);
 
+const PARQ_LABELS: Record<string, string> = {
+  q1: 'Algum médico já disse que você possui problema no coração e recomendou atividade física apenas sob supervisão?',
+  q2: 'Você sente dor no peito causada pela prática de atividade física?',
+  q3: 'Você sentiu dor no peito no último mês?',
+  q4: 'Você perde o equilíbrio por tontura ou já perdeu a consciência?',
+  q5: 'Você tem problema ósseo ou articular que poderia piorar com atividade física?',
+  q6: 'Algum médico prescreveu medicamento para pressão arterial ou condição cardíaca?',
+  q7: 'Você conhece outro motivo para não realizar atividade física?',
+};
+
+const positiveParqItems = (responses: Record<string, unknown>) =>
+  Object.entries(PARQ_LABELS)
+    .filter(([key]) => responses[key] === true)
+    .map(([key, label]) => ({ key, label }));
+
 const EMPTY_PATCH = {
   profile: {},
   aluno: {},
@@ -473,6 +488,27 @@ const applyAlunoPatch = async (
       create: intakeCreateData,
       update: intakeUpdateData,
     });
+
+    if (intakePatch.parqResponses && isPlainObject(intakePatch.parqResponses)) {
+      const aluno = await tx.aluno.findUnique({
+        where: { id: alunoId },
+        select: { professor: { select: { contractId: true } } },
+      });
+
+      if (aluno?.professor.contractId) {
+        await tx.studentParqSubmission.create({
+          data: {
+            alunoId,
+            contractId: aluno.professor.contractId,
+            sourceType: 'student',
+            submittedByUserId: alunoUserId,
+            responses: intakePatch.parqResponses as Prisma.InputJsonValue,
+            positiveItems: positiveParqItems(intakePatch.parqResponses) as Prisma.InputJsonValue,
+            declarationAccepted: intakePatch.parqResponses.q8 === true,
+          },
+        });
+      }
+    }
   }
 };
 
