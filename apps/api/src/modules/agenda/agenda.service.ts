@@ -447,7 +447,7 @@ export const agendaService = {
         startTime,
         endTime,
         spaceId: data.spaceId,
-        bookingType: data.bookingType,
+        type: data.bookingType,
         fixedSlotId: data.fixedSlotId,
         notes: data.notes,
       },
@@ -475,7 +475,6 @@ export const agendaService = {
       where: { id },
       data: {
         status: data.status,
-        canceledReason: data.status === 'canceled' ? data.canceledReason ?? null : null,
       },
     });
   },

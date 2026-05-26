@@ -1620,13 +1620,15 @@ router.post('/:id/assessments/:assessmentId/reprocess', blockAccessMiddleware('s
         assessmentId,
         professorId,
         action: 'update',
-        beforeData: {
-          reprocess: true,
-          extractedData: assessment.extractedData,
-        },
-        afterData: {
-          reprocess: true,
-          extractedData,
+        diff: {
+          beforeData: {
+            reprocess: true,
+            extractedData: assessment.extractedData,
+          },
+          afterData: {
+            reprocess: true,
+            extractedData,
+          },
         },
       },
     });
@@ -1766,11 +1768,13 @@ router.put('/:id/assessments/:assessmentId', blockAccessMiddleware('students.act
         assessmentId,
         professorId,
         action: 'update',
-        beforeData,
-        afterData: {
-          typeId: updated.typeId,
-          assessmentDate: updated.assessmentDate,
-          variables: updatedVariables ?? undefined,
+        diff: {
+          beforeData,
+          afterData: {
+            typeId: updated.typeId,
+            assessmentDate: updated.assessmentDate,
+            variables: updatedVariables ?? undefined,
+          },
         },
       },
     });
@@ -1814,10 +1818,12 @@ router.delete('/:id/assessments/:assessmentId', blockAccessMiddleware('students.
         assessmentId,
         professorId,
         action: 'delete',
-        beforeData: {
-          typeId: assessment.typeId,
-          assessmentDate: assessment.assessmentDate,
-          originalFileName: assessment.originalFileName,
+        diff: {
+          beforeData: {
+            typeId: assessment.typeId,
+            assessmentDate: assessment.assessmentDate,
+            originalFileName: assessment.originalFileName,
+          },
         },
       },
     });

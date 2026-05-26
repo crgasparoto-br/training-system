@@ -51,6 +51,23 @@ Aplique escopo de dados quando uma tela pode ser acessada por varias funcoes, ma
 
 Exemplo: a funcao professor pode abrir Consulta de Colaboradores, mas deve ver somente o proprio cadastro.
 
+## PRNT
+
+O PRNT usa a tela `physicalAssessment.protocol` e blocos especificos para liberar partes do prontuario:
+
+- `physicalAssessment.prnt.summary`
+- `physicalAssessment.prnt.goals`
+- `physicalAssessment.prnt.anamnesisFollowUp`
+- `physicalAssessment.prnt.activityHistory`
+- `physicalAssessment.prnt.medicationsProcedures`
+- `physicalAssessment.prnt.painCases`
+- `physicalAssessment.prnt.discomforts`
+- `physicalAssessment.prnt.actions.createRecord`
+- `physicalAssessment.prnt.actions.editRecord`
+- `physicalAssessment.prnt.actions.closeFollowUp`
+
+Os perfis `professor` e `manager` recebem acesso padrao ao PRNT. A API deve validar a tela e o bloco antes de ler ou alterar qualquer dado do prontuario.
+
 ## Criterios de aceite para mudancas de acesso
 
 - Catalogo compartilhado atualizado.
