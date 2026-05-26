@@ -1,14 +1,11 @@
-import { PrismaClient } from '@prisma/client';
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { sendError, sendSuccess } from '@corrida/utils';
 import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js';
 import { blockAccessMiddleware, screenAccessMiddleware } from '../access-control/access-control.middleware.js';
-import { canProfessorAccessBlock } from '../access-control/access-control.service.js';
 import { prontuarioService } from './prontuario.service.js';
 
 const router: Router = Router();
-const prisma = new PrismaClient();
 
 router.use(authMiddleware);
 router.use(professorMiddleware);
@@ -48,18 +45,6 @@ const contextFromRequest = (req: Request) => ({
   userId: (req as any).user.userId as string | undefined,
 });
 
-const PRNT_OVERVIEW_BLOCKS = {
-  goals: 'physicalAssessment.prnt.goals',
-  anamnesisFollowUps: 'physicalAssessment.prnt.anamnesisFollowUp',
-  activityHistory: 'physicalAssessment.prnt.activityHistory',
-  medicationsProcedures: 'physicalAssessment.prnt.medicationsProcedures',
-  painCases: 'physicalAssessment.prnt.painCases',
-  discomfortSnapshots: 'physicalAssessment.prnt.discomforts',
-  parqSubmissions: 'physicalAssessment.prnt.parqSubmissions',
-} as const;
-
-type PrntOverviewVisibility = Record<keyof typeof PRNT_OVERVIEW_BLOCKS, boolean>;
-
 function handleError(res: Response, error: any, fallback: string) {
   if (error instanceof z.ZodError) return sendError(res, 'Dados inválidos', 400, error.errors);
   if (error?.message === 'Aluno não encontrado no contrato') return sendError(res, error.message, 404);
@@ -67,64 +52,15 @@ function handleError(res: Response, error: any, fallback: string) {
   return sendError(res, error?.message || fallback, 500);
 }
 
-async function getProfessorAccessContext(userId: string) {
-  return prisma.professor.findUnique({
-    where: { userId },
-    include: {
-      collaboratorFunction: true,
-    },
-  });
-}
-
-async function resolvePrntOverviewVisibility(userId: string): Promise<PrntOverviewVisibility> {
-  const professor = await getProfessorAccessContext(userId);
-  if (!professor) {
-    throw new Error('Professor não encontrado');
-  }
-
-  const entries = await Promise.all(
-    Object.entries(PRNT_OVERVIEW_BLOCKS).map(async ([key, blockKey]) => [
-      key,
-      await canProfessorAccessBlock(professor, blockKey),
-    ])
-  );
-
-  return Object.fromEntries(entries) as PrntOverviewVisibility;
-}
-
-function sanitizeProntuarioRecord(record: any, visibility: PrntOverviewVisibility) {
-  return {
-    ...record,
-    goals: visibility.goals ? record.goals : [],
-    anamnesisFollowUps: visibility.anamnesisFollowUps ? record.anamnesisFollowUps : [],
-    activityHistory: visibility.activityHistory ? record.activityHistory : [],
-    medicationsProcedures: visibility.medicationsProcedures ? record.medicationsProcedures : [],
-    painCases: visibility.painCases ? record.painCases : [],
-    discomfortSnapshots: visibility.discomfortSnapshots ? record.discomfortSnapshots : [],
-  };
-}
-
-function sanitizeProntuarioOverview(overview: any, visibility: PrntOverviewVisibility) {
-  return {
-    ...overview,
-    records: overview.records.map((record: any) => sanitizeProntuarioRecord(record, visibility)),
-    currentRecord: overview.currentRecord ? sanitizeProntuarioRecord(overview.currentRecord, visibility) : null,
-    latestParqSubmission: visibility.parqSubmissions ? overview.latestParqSubmission : null,
-    parqSubmissions: visibility.parqSubmissions ? overview.parqSubmissions : [],
-  };
-}
-
 router.get(
   '/alunos/:alunoId',
   blockAccessMiddleware('physicalAssessment.prnt.summary'),
   async (req: Request, res: Response) => {
     try {
-      const { contractId, userId } = contextFromRequest(req);
+      const { contractId } = contextFromRequest(req);
       if (!contractId) return sendError(res, 'Contrato não encontrado', 404);
-      if (!userId) return sendError(res, 'Usuário não encontrado', 404);
       const overview = await prontuarioService.overview(contractId, req.params.alunoId);
-      const visibility = await resolvePrntOverviewVisibility(userId);
-      return sendSuccess(res, sanitizeProntuarioOverview(overview, visibility), 'PRNT carregado');
+      return sendSuccess(res, overview, 'PRNT carregado');
     } catch (error) {
       return handleError(res, error, 'Erro ao carregar PRNT');
     }
@@ -253,7 +189,7 @@ router.put('/records/:recordId/pain-cases', blockAccessMiddleware('physicalAsses
 
 router.post('/records/:recordId/discomfort-snapshots', blockAccessMiddleware('physicalAssessment.prnt.discomforts'), async (req, res) => {
   try {
-    const { contractId, professorId } = contextFromRequest(req);
+    const { contractId } = contextFromRequest(req);
     if (!contractId) return sendError(res, 'Contrato não encontrado', 404);
     const payload = z.object({
       notes: z.string().optional().nullable(),
@@ -265,7 +201,7 @@ router.post('/records/:recordId/discomfort-snapshots', blockAccessMiddleware('ph
         notes: z.string().optional().nullable(),
       })),
     }).parse(req.body);
-    return sendSuccess(res, await prontuarioService.createDiscomfortSnapshot(contractId, req.params.recordId, professorId, payload), 'Snapshot de desconforto salvo', 201);
+    return sendSuccess(res, await prontuarioService.createDiscomfortSnapshot(contractId, req.params.recordId, payload), 'Snapshot de desconforto salvo', 201);
   } catch (error) {
     return handleError(res, error, 'Erro ao salvar snapshot de desconforto');
   }

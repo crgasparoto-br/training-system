@@ -166,6 +166,16 @@ function nextCodeFrom(code?: string | null) {
   return `PRNT-${String(next).padStart(3, '0')}`;
 }
 
+function withSnapshotProfessorId<T extends { professorId?: string | null; discomfortSnapshots: Array<Record<string, unknown>> }>(record: T) {
+  return {
+    ...record,
+    discomfortSnapshots: record.discomfortSnapshots.map((snapshot) => ({
+      ...snapshot,
+      professorId: (snapshot as { professorId?: string | null }).professorId ?? record.professorId ?? null,
+    })),
+  };
+}
+
 export const prontuarioService = {
   async listParqSubmissions(contractId: string, alunoId: string) {
     await assertAlunoInContract(alunoId, contractId);
@@ -206,9 +216,11 @@ export const prontuarioService = {
       }),
     ]);
 
+    const normalizedRecords = records.map((record) => withSnapshotProfessorId(record));
+
     return {
-      records,
-      currentRecord: records[0] ?? null,
+      records: normalizedRecords,
+      currentRecord: normalizedRecords[0] ?? null,
       latestParqSubmission: parqSubmissions[0] ?? null,
       parqSubmissions,
     };
@@ -235,7 +247,7 @@ export const prontuarioService = {
       include: includeRecord,
     });
 
-    return record;
+    return withSnapshotProfessorId(record);
   },
 
   async updateRecord(contractId: string, recordId: string, data: { recordDate?: string; summary?: string | null; notes?: string | null; status?: 'open' | 'closed' | 'archived' }) {
@@ -251,7 +263,7 @@ export const prontuarioService = {
       },
       include: includeRecord,
     });
-    return record;
+    return withSnapshotProfessorId(record);
   },
 
   async saveGoals(contractId: string, recordId: string, goals: Array<{ id?: string; title: string; description?: string | null; status?: ProntuarioItemStatus; priority?: number; targetDate?: string | null }>) {
@@ -572,14 +584,13 @@ export const prontuarioService = {
     return this.getRecord(contractId, record.id);
   },
 
-  async createDiscomfortSnapshot(contractId: string, recordId: string, professorId: string | undefined, data: { notes?: string | null; entries: Array<{ regionId: string; regionName: string; discomfortTypes: string[]; intensity: number; notes?: string | null }> }) {
+  async createDiscomfortSnapshot(contractId: string, recordId: string, data: { notes?: string | null; entries: Array<{ regionId: string; regionName: string; discomfortTypes: string[]; intensity: number; notes?: string | null }> }) {
     const record = await prisma.prontuarioRecord.findFirstOrThrow({ where: { id: recordId, contractId } });
-    return prisma.prontuarioDiscomfortSnapshot.create({
+    const snapshot = await prisma.prontuarioDiscomfortSnapshot.create({
       data: {
         contractId,
         alunoId: record.alunoId,
         recordId: record.id,
-        professorId,
         notes: data.notes,
         entries: {
           create: data.entries.map((entry) => ({
@@ -593,6 +604,11 @@ export const prontuarioService = {
       },
       include: { entries: true },
     });
+
+    return {
+      ...snapshot,
+      professorId: record.professorId ?? null,
+    };
   },
 
   async getRecord(contractId: string, recordId: string) {
@@ -601,6 +617,6 @@ export const prontuarioService = {
       include: includeRecord,
     });
 
-    return record;
+    return record ? withSnapshotProfessorId(record) : null;
   },
 };

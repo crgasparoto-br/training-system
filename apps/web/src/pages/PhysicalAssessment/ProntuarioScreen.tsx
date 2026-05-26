@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Activity, ClipboardList, FilePlus2, Save } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -83,7 +83,6 @@ function followUpLookupKey(parqSubmissionId: string | null | undefined, itemKey:
 
 export function ProntuarioScreen() {
   const user = useAuthStore((state) => state.user);
-  const [searchParams, setSearchParams] = useSearchParams();
   const [students, setStudents] = useState<Aluno[]>([]);
   const [selectedAlunoId, setSelectedAlunoId] = useState('');
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
@@ -105,7 +104,6 @@ export function ProntuarioScreen() {
     return overview.currentRecord ?? null;
   }, [overview, selectedRecordId]);
   const selectedStudent = students.find((student) => student.id === selectedAlunoId);
-  const alunoIdFromQuery = searchParams.get('alunoId') || '';
   const parqSubmissions = overview?.parqSubmissions || [];
   const selectedParqSubmission =
     (selectedParqSubmissionId
@@ -130,12 +128,6 @@ export function ProntuarioScreen() {
       .then((response) => setStudents(response.alunos || []))
       .catch(() => setError('Não foi possível carregar alunos.'));
   }, []);
-
-  useEffect(() => {
-    if (!selectedAlunoId && alunoIdFromQuery && students.some((student) => student.id === alunoIdFromQuery)) {
-      setSelectedAlunoId(alunoIdFromQuery);
-    }
-  }, [students, selectedAlunoId, alunoIdFromQuery]);
 
   useEffect(() => {
     if (!selectedAlunoId) {
@@ -386,17 +378,6 @@ export function ProntuarioScreen() {
 
   const latestPositiveItems = selectedParqSubmission?.positiveItems || [];
 
-  const updateAlunoSelection = (alunoId: string) => {
-    setSelectedAlunoId(alunoId);
-    const nextSearchParams = new URLSearchParams(searchParams);
-    if (alunoId) {
-      nextSearchParams.set('alunoId', alunoId);
-    } else {
-      nextSearchParams.delete('alunoId');
-    }
-    setSearchParams(nextSearchParams, { replace: true });
-  };
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -418,7 +399,7 @@ export function ProntuarioScreen() {
         <CardContent className="grid gap-4 pt-6 lg:grid-cols-[minmax(260px,420px)_1fr_auto] lg:items-end">
           <div>
             <label className="mb-2 block text-sm font-medium text-foreground">Aluno</label>
-            <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={selectedAlunoId} onChange={(event) => updateAlunoSelection(event.target.value)}>
+            <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={selectedAlunoId} onChange={(event) => setSelectedAlunoId(event.target.value)}>
               <option value="">Selecione um aluno</option>
               {students.map((student) => (
                 <option key={student.id} value={student.id}>{student.user.profile.name}</option>
@@ -474,11 +455,7 @@ export function ProntuarioScreen() {
                     <div key={item.key} className="rounded-md border border-border bg-muted/30 p-4 text-sm">
                       <div className="font-medium text-foreground">{item.label}</div>
                       {(() => {
-                        const followUp = currentRecord?.anamnesisFollowUps.find(
-                          (entry) =>
-                            followUpLookupKey(entry.parqSubmissionId, entry.itemKey) ===
-                            followUpLookupKey(selectedParqSubmission?.id, item.key)
-                        );
+                        const followUp = currentRecord?.anamnesisFollowUps.find((entry) => entry.itemKey === item.key);
                         return (
                           <>
                             <div className="mt-3 grid gap-3 md:grid-cols-2">

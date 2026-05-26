@@ -15,12 +15,4 @@ describe('prontuario.routes', () => {
 
     expect(source).toContain("router.post('/alunos/:alunoId/parq-submissions', blockAccessMiddleware('physicalAssessment.prnt.actions.createParqSubmission')");
   });
-
-  it('passa professorId autenticado ao criar snapshot de desconforto', () => {
-    const routePath = path.resolve(__dirname, '../src/modules/prontuario/prontuario.routes.ts');
-    const source = fs.readFileSync(routePath, 'utf-8');
-
-    expect(source).toContain('const { contractId, professorId } = contextFromRequest(req);');
-    expect(source).toContain('prontuarioService.createDiscomfortSnapshot(contractId, req.params.recordId, professorId, payload)');
-  });
 });

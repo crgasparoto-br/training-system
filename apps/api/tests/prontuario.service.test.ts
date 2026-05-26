@@ -3,7 +3,6 @@ jest.mock('@prisma/client', () => {
   const prontuarioRecord = {
     findFirstOrThrow: jest.fn(),
     findFirst: jest.fn(),
-    findMany: jest.fn(),
   };
   const prontuarioGoal = {
     findMany: jest.fn(),
@@ -35,11 +34,7 @@ jest.mock('@prisma/client', () => {
     create: jest.fn(),
   };
   const studentParqSubmission = {
-    findMany: jest.fn(),
     findFirstOrThrow: jest.fn(),
-    create: jest.fn(),
-  };
-  const prontuarioDiscomfortSnapshot = {
     create: jest.fn(),
   };
 
@@ -53,7 +48,6 @@ jest.mock('@prisma/client', () => {
     prontuarioPainCase,
     prontuarioPainFollowUp,
     studentParqSubmission,
-    prontuarioDiscomfortSnapshot,
     $transaction: jest.fn(),
   };
 
@@ -73,15 +67,14 @@ import { prontuarioService } from '../src/modules/prontuario/prontuario.service'
 
 type DbMock = {
   aluno: { findUnique: jest.Mock };
-  prontuarioRecord: { findFirstOrThrow: jest.Mock; findFirst: jest.Mock; findMany: jest.Mock };
+  prontuarioRecord: { findFirstOrThrow: jest.Mock; findFirst: jest.Mock };
   prontuarioGoal: { findMany: jest.Mock; update: jest.Mock; create: jest.Mock };
   prontuarioAnamnesisFollowUp: { findMany: jest.Mock; update: jest.Mock; create: jest.Mock };
   prontuarioActivityHistory: { findMany: jest.Mock; update: jest.Mock; create: jest.Mock };
   prontuarioMedicationProcedure: { findMany: jest.Mock; update: jest.Mock; create: jest.Mock };
   prontuarioPainCase: { findMany: jest.Mock; update: jest.Mock; create: jest.Mock };
   prontuarioPainFollowUp: { update: jest.Mock; create: jest.Mock };
-  studentParqSubmission: { findMany: jest.Mock; findFirstOrThrow: jest.Mock; create: jest.Mock };
-  prontuarioDiscomfortSnapshot: { create: jest.Mock };
+  studentParqSubmission: { findFirstOrThrow: jest.Mock; create: jest.Mock };
   $transaction: jest.Mock;
 };
 
@@ -106,9 +99,6 @@ beforeEach(() => {
   });
   db.prontuarioRecord.findFirstOrThrow.mockResolvedValue({ id: RECORD_ID, alunoId: ALUNO_ID, contractId: CONTRACT_ID });
   db.prontuarioRecord.findFirst.mockResolvedValue({ id: RECORD_ID, goals: [], anamnesisFollowUps: [], activityHistory: [], medicationsProcedures: [], painCases: [], discomfortSnapshots: [] });
-  db.prontuarioRecord.findMany.mockResolvedValue([]);
-  db.studentParqSubmission.findMany.mockResolvedValue([]);
-  db.prontuarioDiscomfortSnapshot.create.mockResolvedValue({ id: 'snapshot-1', professorId: 'prof-2', entries: [] });
 });
 
 describe('prontuarioService', () => {
@@ -202,58 +192,6 @@ describe('prontuarioService', () => {
     expect(db.prontuarioMedicationProcedure.update).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: 'med-end' }, data: expect.objectContaining({ endDate: expect.any(Date) }) })
     );
-  });
-
-  it('persiste professor autor no snapshot de desconforto sem herdar do PRNT', async () => {
-    db.prontuarioRecord.findFirstOrThrow.mockResolvedValue({
-      id: RECORD_ID,
-      alunoId: ALUNO_ID,
-      contractId: CONTRACT_ID,
-      professorId: 'prof-record',
-    });
-
-    await prontuarioService.createDiscomfortSnapshot(CONTRACT_ID, RECORD_ID, 'prof-author', {
-      notes: 'Reavaliação',
-      entries: [
-        {
-          regionId: 'knee-right',
-          regionName: 'Joelho direito',
-          discomfortTypes: ['pain'],
-          intensity: 4,
-        },
-      ],
-    });
-
-    expect(db.prontuarioDiscomfortSnapshot.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          contractId: CONTRACT_ID,
-          alunoId: ALUNO_ID,
-          recordId: RECORD_ID,
-          professorId: 'prof-author',
-        }),
-      })
-    );
-  });
-
-  it('retorna overview com professorId persistido em cada snapshot', async () => {
-    db.prontuarioRecord.findMany.mockResolvedValue([
-      {
-        id: RECORD_ID,
-        professorId: 'prof-record',
-        discomfortSnapshots: [
-          { id: 'snapshot-a', professorId: 'prof-author-a', entries: [] },
-          { id: 'snapshot-b', professorId: 'prof-author-b', entries: [] },
-        ],
-      },
-    ]);
-
-    const overview = await prontuarioService.overview(CONTRACT_ID, ALUNO_ID);
-
-    expect(overview.currentRecord?.discomfortSnapshots).toEqual([
-      expect.objectContaining({ id: 'snapshot-a', professorId: 'prof-author-a' }),
-      expect.objectContaining({ id: 'snapshot-b', professorId: 'prof-author-b' }),
-    ]);
   });
 
   it('arquiva casos de dor omitidos e preserva follow-ups existentes', async () => {
