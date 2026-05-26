@@ -105,6 +105,7 @@ export interface ProntuarioDiscomfortSnapshot {
   recordId: string;
   alunoId: string;
   contractId: string;
+  professorId?: string | null;
   snapshotAt: string;
   notes?: string | null;
   entries: ProntuarioDiscomfortEntry[];
