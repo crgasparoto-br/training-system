@@ -142,6 +142,14 @@ const positiveParqItems = (responses: Record<string, unknown>) =>
     .filter(([key]) => responses[key] === true)
     .map(([key, label]) => ({ key, label }));
 
+const resolveAlunoCompanyContractId = (alunoLike: {
+  professor?: { contractId?: string | null } | null;
+  currentStudentContract?: { contract?: { companyContractId?: string | null } | null } | null;
+}) =>
+  alunoLike.currentStudentContract?.contract?.companyContractId ||
+  alunoLike.professor?.contractId ||
+  null;
+
 const normalizeParqResponses = (responses: Record<string, unknown>) => ({
   q1: responses.q1 === true,
   q2: responses.q2 === true,
@@ -510,14 +518,27 @@ const applyAlunoPatch = async (
     if (normalizedParqResponses) {
       const aluno = await tx.aluno.findUnique({
         where: { id: alunoId },
-        select: { professor: { select: { contractId: true } } },
+        select: {
+          professor: { select: { contractId: true } },
+          currentStudentContract: {
+            select: {
+              contract: {
+                select: {
+                  companyContractId: true,
+                },
+              },
+            },
+          },
+        },
       });
 
-      if (aluno?.professor.contractId) {
+      const contractId = aluno ? resolveAlunoCompanyContractId(aluno) : null;
+
+      if (contractId) {
         await tx.studentParqSubmission.create({
           data: {
             alunoId,
-            contractId: aluno.professor.contractId,
+            contractId,
             sourceType: 'student',
             submittedByUserId: alunoUserId,
             responses: normalizedParqResponses as Prisma.InputJsonValue,

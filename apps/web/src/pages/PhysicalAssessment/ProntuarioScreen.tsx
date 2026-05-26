@@ -77,6 +77,10 @@ function inferParqSubmissionId(record: ProntuarioRecord | null, submissions: Stu
   return null;
 }
 
+function followUpLookupKey(parqSubmissionId: string | null | undefined, itemKey: string) {
+  return `${parqSubmissionId || '__none__'}:${itemKey}`;
+}
+
 export function ProntuarioScreen() {
   const user = useAuthStore((state) => state.user);
   const [students, setStudents] = useState<Aluno[]>([]);
@@ -150,8 +154,12 @@ export function ProntuarioScreen() {
 
   useEffect(() => {
     const nextDrafts: Record<string, { followUpNotes: string; actionPlan: string }> = {};
+    const followUpsByKey = new Map(
+      (currentRecord?.anamnesisFollowUps || []).map((entry) => [followUpLookupKey(entry.parqSubmissionId, entry.itemKey), entry])
+    );
+
     for (const item of selectedParqSubmission?.positiveItems || []) {
-      const followUp = currentRecord?.anamnesisFollowUps.find((entry) => entry.itemKey === item.key);
+      const followUp = followUpsByKey.get(followUpLookupKey(selectedParqSubmission?.id, item.key));
       nextDrafts[item.key] = {
         followUpNotes: followUp?.followUpNotes || '',
         actionPlan: followUp?.actionPlan || '',
@@ -306,19 +314,21 @@ export function ProntuarioScreen() {
     setSaving(true);
     try {
       const record = await ensureRecord();
-      const previous = new Map(record.anamnesisFollowUps.map((item) => [item.itemKey, item]));
+      const previous = new Map(
+        record.anamnesisFollowUps.map((item) => [followUpLookupKey(item.parqSubmissionId, item.itemKey), item])
+      );
       await prontuarioService.saveAnamnesisFollowUps(
         record.id,
         selectedParqSubmission.positiveItems.map((item) => ({
-          ...(previous.get(item.key) || {}),
-          id: previous.get(item.key)?.id,
+          ...(previous.get(followUpLookupKey(selectedParqSubmission.id, item.key)) || {}),
+          id: previous.get(followUpLookupKey(selectedParqSubmission.id, item.key))?.id,
           recordId: record.id,
           parqSubmissionId: selectedParqSubmission.id,
           itemKey: item.key,
           itemLabel: item.label,
-          status: previous.get(item.key)?.status || 'monitoring',
-          followUpNotes: followUpDrafts[item.key]?.followUpNotes || previous.get(item.key)?.followUpNotes || '',
-          actionPlan: followUpDrafts[item.key]?.actionPlan || previous.get(item.key)?.actionPlan || '',
+          status: previous.get(followUpLookupKey(selectedParqSubmission.id, item.key))?.status || 'monitoring',
+          followUpNotes: followUpDrafts[item.key]?.followUpNotes || previous.get(followUpLookupKey(selectedParqSubmission.id, item.key))?.followUpNotes || '',
+          actionPlan: followUpDrafts[item.key]?.actionPlan || previous.get(followUpLookupKey(selectedParqSubmission.id, item.key))?.actionPlan || '',
         }))
       );
       await refresh();
