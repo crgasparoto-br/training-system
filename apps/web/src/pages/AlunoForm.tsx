@@ -19,9 +19,8 @@ import { formatCep, getCepLookupFeedbackMessage, lookupCep, onlyCepDigits } from
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
-import { Activity, ArrowLeft, ClipboardList, FileText, HeartPulse, Sparkles, Upload, User, Wallet, X } from 'lucide-react';
+import { ArrowLeft, ClipboardList, FileText, HeartPulse, Sparkles, Upload, User, Wallet, X } from 'lucide-react';
 import { alunoFormCopy } from '../i18n/ptBR';
-import { BodyDiscomfortMap } from '../components/BodyDiscomfortMap';
 import { BODY_REGIONS, type BodyDiscomfortEntry } from '../constants/bodyRegions';
 import { useAuthStore } from '../stores/useAuthStore';
 import { canAccessScreen } from '../access/access-control';
@@ -299,7 +298,7 @@ const ahaAnswerOptions = [
   { value: 'unknown', label: 'Não sei' },
 ] as const;
 
-type AlunoFormTab = 'anamneseInicial' | 'identificacao' | 'financeiro' | 'preferencias' | 'parq' | 'aha' | 'desconfortos';
+type AlunoFormTab = 'anamneseInicial' | 'identificacao' | 'financeiro' | 'preferencias' | 'parq' | 'aha';
 
 type AlunoFormResponses = {
   identification?: Partial<AlunoFormData['intakeForm']['personalInfo']>;
@@ -381,7 +380,6 @@ const getBlockKeyForTab = (tab: AlunoFormTab): string => {
     identificacao: 'students.registration.initialAnamnesis',
     parq: 'students.registration.parq',
     aha: 'students.registration.aha',
-    desconfortos: 'students.registration.discomforts',
     financeiro: 'students.registration.financial',
     preferencias: 'students.registration.preferences',
   };
@@ -538,7 +536,6 @@ export function AlunoForm() {
   const selectedContractId = watch('intakeForm.financialInfo.selectedContractId');
   const calculatedAge = calculateAgeFromBirthDate(birthDate);
   const parqDeclarationAccepted = watch('intakeForm.parqResponses.q8');
-  const bodyDiscomforts = watch('intakeForm.bodyDiscomforts');
   const bmi = weight && height ? alunoService.calculateBMI(weight, height) : 0;
   const bmiClass = bmi ? alunoService.getBMIClassification(bmi) : '';
   const resolvedAvatar = resolveAvatarUrl(avatar);
@@ -555,7 +552,6 @@ export function AlunoForm() {
       'preferencias',
       'parq',
       'aha',
-      'desconfortos',
     ];
     return tabs.filter((tab) => canAccessScreen(user, getBlockKeyForTab(tab)));
   }, [user]);
@@ -1363,11 +1359,6 @@ export function AlunoForm() {
       return;
     }
 
-    if (formErrors.intakeForm?.bodyDiscomforts) {
-      setActiveTab('desconfortos');
-      return;
-    }
-
     if (formErrors.intakeForm?.parqResponses) {
       setActiveTab('parq');
       return;
@@ -1462,13 +1453,6 @@ export function AlunoForm() {
                     panelId: 'aluno-panel-aha',
                     label: 'Questionário American Heart Association',
                     Icon: HeartPulse,
-                  },
-                  {
-                    key: 'desconfortos' as AlunoFormTab,
-                    tabId: 'aluno-tab-desconfortos',
-                    panelId: 'aluno-panel-desconfortos',
-                    label: 'Desconfortos',
-                    Icon: Activity,
                   },
                   {
                     key: 'financeiro' as AlunoFormTab,
@@ -2396,37 +2380,6 @@ export function AlunoForm() {
                   </div>
                 </div>
                 <p className="text-sm text-muted-foreground">Marque as respostas positivas. Se todas permanecerem desmarcadas, o aluno não sinalizou restrições no PAR-Q.</p>
-              </div>
-            )}
-
-            {accessibleTabs.includes('desconfortos') && activeTab === 'desconfortos' && (
-              <div
-                id="aluno-panel-desconfortos"
-                role="tabpanel"
-                aria-labelledby="aluno-tab-desconfortos"
-                className="space-y-5"
-              >
-                <div>
-                  <h2 className="text-lg font-semibold text-foreground">Desconfortos corporais</h2>
-                  <p className="text-sm text-muted-foreground">
-                    Registre regiões com dor, peso, formigamento ou agulhada para acompanhar a evolução do aluno.
-                  </p>
-                </div>
-                <BodyDiscomfortMap
-                  value={bodyDiscomforts}
-                  onChange={(nextValue) =>
-                    setValue('intakeForm.bodyDiscomforts', nextValue, {
-                      shouldDirty: true,
-                      shouldTouch: true,
-                      shouldValidate: true,
-                    })
-                  }
-                />
-                {errors.intakeForm?.bodyDiscomforts && (
-                  <p className="text-sm font-medium text-destructive">
-                    Revise os desconfortos marcados: informe pelo menos um tipo e intensidade entre 1 e 10.
-                  </p>
-                )}
               </div>
             )}
 

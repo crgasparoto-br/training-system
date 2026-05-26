@@ -6,6 +6,7 @@ import 'express-async-errors';
 import path from 'path';
 import { assessmentTypeRoutes } from './modules/assessments/index.js';
 import { anthropometryRoutes } from './modules/anthropometry/index.js';
+import { prontuarioRoutes } from './modules/prontuario/index.js';
 import { authRoutes } from './modules/auth/index.js';
 import { alunoRoutes } from './modules/alunos/index.js';
 import { bankRoutes } from './modules/banks/index.js';
@@ -104,6 +105,7 @@ app.get('/api/v1', (req, res) => {
       auth: '/api/v1/auth',
       alunos: '/api/v1/alunos',
       anthropometry: '/api/v1/anthropometry',
+      prontuario: '/api/v1/prontuario',
       banks: '/api/v1/banks',
       collaboratorFunctions: '/api/v1/collaborator-functions',
       contracts: '/api/v1/contracts',
@@ -127,6 +129,9 @@ app.use('/api/v1/alunos', alunoRoutes);
 
 // Rotas de Avaliação Antropométrica
 app.use('/api/v1/anthropometry', anthropometryRoutes);
+
+// Rotas do PRNT
+app.use('/api/v1/prontuario', prontuarioRoutes);
 
 // Rotas de Bancos
 app.use('/api/v1/banks', bankRoutes);
