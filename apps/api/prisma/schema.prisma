@@ -276,37 +276,38 @@ model AccessPermission {
 }
 
 model Professor {
-  id                              String                     @id(map: "Educator_pkey") @default(cuid())
-  userId                          String                     @unique(map: "Educator_userId_key")
-  createdAt                       DateTime                   @default(now())
-  updatedAt                       DateTime                   @updatedAt
+  id                              String                         @id(map: "Educator_pkey") @default(cuid())
+  userId                          String                         @unique(map: "Educator_userId_key")
+  createdAt                       DateTime                       @default(now())
+  updatedAt                       DateTime                       @updatedAt
   contractId                      String
-  role                            ProfessorRole              @default(professor)
+  role                            ProfessorRole                  @default(professor)
   collaboratorFunctionId          String
   responsibleManagerId            String?
   admissionDate                   DateTime?
   currentStatus                   String?
-  operationalRoleIds              String[]                   @default([])
+  operationalRoleIds              String[]                       @default([])
   hourlyRates                     Json?
-  hasSignedContract               Boolean                    @default(false)
+  hasSignedContract               Boolean                        @default(false)
   signedContractDocumentUrl       String?
   dismissalDate                   DateTime?
   agendaBookings                  AgendaBooking[]
   alunos                          Aluno[]
   anthropometryAssessments        AnthropometryAssessment[]
   prontuarioRecords               ProntuarioRecord[]
+  prontuarioDiscomfortSnapshots   ProntuarioDiscomfortSnapshot[]
   assessmentAuditLogs             AssessmentAuditLog[]
   cloneLogs                       ContractDataCloneLog[]
   generatedContracts              Contract[]
   fixedSlots                      FixedScheduleSlot[]
-  contract                        CompanyContract            @relation(fields: [contractId], references: [id], onDelete: Cascade, map: "Educator_contractId_fkey")
-  user                            User                       @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Educator_userId_fkey")
-  collaboratorFunction            CollaboratorFunctionOption @relation(fields: [collaboratorFunctionId], references: [id])
-  responsibleManager              Professor?                 @relation("ProfessorResponsibleManager", fields: [responsibleManagerId], references: [id])
-  managedCollaborators            Professor[]                @relation("ProfessorResponsibleManager")
+  contract                        CompanyContract                @relation(fields: [contractId], references: [id], onDelete: Cascade, map: "Educator_contractId_fkey")
+  user                            User                           @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Educator_userId_fkey")
+  collaboratorFunction            CollaboratorFunctionOption     @relation(fields: [collaboratorFunctionId], references: [id])
+  responsibleManager              Professor?                     @relation("ProfessorResponsibleManager", fields: [responsibleManagerId], references: [id])
+  managedCollaborators            Professor[]                    @relation("ProfessorResponsibleManager")
   availabilities                  ProfessorAvailability[]
-  providedLegalFinancialProfiles  Profile[]                  @relation("ProfileLegalFinancialProvidedBy")
-  validatedLegalFinancialProfiles Profile[]                  @relation("ProfileLegalFinancialValidatedBy")
+  providedLegalFinancialProfiles  Profile[]                      @relation("ProfileLegalFinancialProvidedBy")
+  validatedLegalFinancialProfiles Profile[]                      @relation("ProfileLegalFinancialValidatedBy")
   subscription                    Subscription?
   library                         TrainingLibrary[]
   plans                           TrainingPlan[]
@@ -1562,20 +1563,23 @@ model ProntuarioPainFollowUp {
 }
 
 model ProntuarioDiscomfortSnapshot {
-  id         String                      @id @default(cuid())
-  recordId   String
-  alunoId    String
-  contractId String
-  snapshotAt DateTime                    @default(now())
-  notes      String?
-  createdAt  DateTime                    @default(now())
-  updatedAt  DateTime                    @updatedAt
-  record     ProntuarioRecord            @relation(fields: [recordId], references: [id], onDelete: Cascade)
-  aluno      Aluno                       @relation(fields: [alunoId], references: [id], onDelete: Cascade)
-  contract   CompanyContract             @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  entries    ProntuarioDiscomfortEntry[]
+  id          String                      @id @default(cuid())
+  recordId    String
+  alunoId     String
+  contractId  String
+  professorId String?
+  snapshotAt  DateTime                    @default(now())
+  notes       String?
+  createdAt   DateTime                    @default(now())
+  updatedAt   DateTime                    @updatedAt
+  record      ProntuarioRecord            @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  aluno       Aluno                       @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  contract    CompanyContract             @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  professor   Professor?                  @relation(fields: [professorId], references: [id], onDelete: SetNull)
+  entries     ProntuarioDiscomfortEntry[]
 
   @@index([contractId, alunoId, snapshotAt])
+  @@index([professorId])
   @@index([recordId, snapshotAt])
 }
 

@@ -189,7 +189,7 @@ router.put('/records/:recordId/pain-cases', blockAccessMiddleware('physicalAsses
 
 router.post('/records/:recordId/discomfort-snapshots', blockAccessMiddleware('physicalAssessment.prnt.discomforts'), async (req, res) => {
   try {
-    const { contractId } = contextFromRequest(req);
+    const { contractId, professorId } = contextFromRequest(req);
     if (!contractId) return sendError(res, 'Contrato não encontrado', 404);
     const payload = z.object({
       notes: z.string().optional().nullable(),
@@ -201,7 +201,7 @@ router.post('/records/:recordId/discomfort-snapshots', blockAccessMiddleware('ph
         notes: z.string().optional().nullable(),
       })),
     }).parse(req.body);
-    return sendSuccess(res, await prontuarioService.createDiscomfortSnapshot(contractId, req.params.recordId, payload), 'Snapshot de desconforto salvo', 201);
+    return sendSuccess(res, await prontuarioService.createDiscomfortSnapshot(contractId, req.params.recordId, professorId, payload), 'Snapshot de desconforto salvo', 201);
   } catch (error) {
     return handleError(res, error, 'Erro ao salvar snapshot de desconforto');
   }
