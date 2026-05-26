@@ -14,6 +14,12 @@ O projeto usa Prisma para modelagem e acesso ao banco.
 
 O `contractId` e a barreira principal entre clientes/contratos. Rotas, services e consultas devem preservar esse filtro.
 
+## PRNT
+
+O PRNT possui historico proprio em `ProntuarioRecord` e tabelas filhas por bloco. `StudentParqSubmission` registra cada envio historico do PAR-Q; o prontuario le a submissao mais recente e mantem acompanhamentos antigos em `ProntuarioAnamnesisFollowUp`.
+
+Snapshots de desconforto corporal ficam em `ProntuarioDiscomfortSnapshot` e `ProntuarioDiscomfortEntry`. Dados legados de desconforto no cadastro do aluno nao sao migrados automaticamente.
+
 ## Cuidados para agentes
 
 - Nao criar `PrismaClient` em arquivos aleatorios sem necessidade.

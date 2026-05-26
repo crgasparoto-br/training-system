@@ -83,46 +83,49 @@ model Bank {
 }
 
 model CompanyContract {
-  id                    String                       @id(map: "Contract_pkey") @default(cuid())
-  type                  ContractType
-  document              String                       @unique
-  name                  String?
-  tradeName             String?
-  cref                  String?
-  addressStreet         String?
-  addressNumber         String?
-  addressNeighborhood   String?
-  addressCity           String?
-  addressState          String?
-  addressComplement     String?
-  addressZipCode        String?
-  logoUrl               String?
-  createdAt             DateTime                     @default(now())
-  updatedAt             DateTime                     @updatedAt
-  agendaBookings        AgendaBooking[]
-  anthropometryAssessments AnthropometryAssessment[]
-  anthropometrySegments AnthropometrySegment[]
-  assessmentTypes       AssessmentType[]
-  collaboratorFunctions CollaboratorFunctionOption[]
-  cloneLogsAsSource     ContractDataCloneLog[]       @relation("ContractCloneSource")
-  cloneLogsAsTarget     ContractDataCloneLog[]       @relation("ContractCloneTarget")
-  exerciseLibrary       ExerciseLibrary[]
-  hourlyRateLevels      HourlyRateLevel[]
-  professores           Professor[]
-  professorManualItems  ProfessorManualItem[]
-  services              ServiceOption[]
-  subjectiveScaleItems  SubjectiveScaleItem[]
-  trainingParameters    TrainingParameter[]
-  trainingSpaces        TrainingSpace[]
-  contractTemplates     ContractTemplate[]
-  generatedContracts    Contract[]
-  studentProfiles       StudentProfile[]
-  studentHealthIntakes  StudentHealthIntake[]
-  studentAssessmentRecords StudentAssessmentRecord[]
-  studentFinancialProfiles StudentFinancialProfile[]
-  studentExternalAccounts StudentExternalAccount[]
-  studentExternalActivities StudentExternalActivity[]
-  profileReviewPolicies ProfileReviewPolicy[]
+  id                            String                         @id(map: "Contract_pkey") @default(cuid())
+  type                          ContractType
+  document                      String                         @unique
+  name                          String?
+  tradeName                     String?
+  cref                          String?
+  addressStreet                 String?
+  addressNumber                 String?
+  addressNeighborhood           String?
+  addressCity                   String?
+  addressState                  String?
+  addressComplement             String?
+  addressZipCode                String?
+  logoUrl                       String?
+  createdAt                     DateTime                       @default(now())
+  updatedAt                     DateTime                       @updatedAt
+  agendaBookings                AgendaBooking[]
+  anthropometryAssessments      AnthropometryAssessment[]
+  anthropometrySegments         AnthropometrySegment[]
+  assessmentTypes               AssessmentType[]
+  collaboratorFunctions         CollaboratorFunctionOption[]
+  cloneLogsAsSource             ContractDataCloneLog[]         @relation("ContractCloneSource")
+  cloneLogsAsTarget             ContractDataCloneLog[]         @relation("ContractCloneTarget")
+  exerciseLibrary               ExerciseLibrary[]
+  hourlyRateLevels              HourlyRateLevel[]
+  professores                   Professor[]
+  professorManualItems          ProfessorManualItem[]
+  services                      ServiceOption[]
+  subjectiveScaleItems          SubjectiveScaleItem[]
+  trainingParameters            TrainingParameter[]
+  trainingSpaces                TrainingSpace[]
+  contractTemplates             ContractTemplate[]
+  generatedContracts            Contract[]
+  studentProfiles               StudentProfile[]
+  studentHealthIntakes          StudentHealthIntake[]
+  studentAssessmentRecords      StudentAssessmentRecord[]
+  studentFinancialProfiles      StudentFinancialProfile[]
+  studentExternalAccounts       StudentExternalAccount[]
+  studentExternalActivities     StudentExternalActivity[]
+  profileReviewPolicies         ProfileReviewPolicy[]
+  studentParqSubmissions        StudentParqSubmission[]
+  prontuarioRecords             ProntuarioRecord[]
+  prontuarioDiscomfortSnapshots ProntuarioDiscomfortSnapshot[]
 
   @@index([type])
   @@map("Contract")
@@ -166,38 +169,38 @@ model ContractTemplateClause {
 }
 
 model Contract {
-  id                String               @id(map: "GeneratedContract_pkey") @default(cuid())
-  companyContractId String
-  templateId        String
-  templateVersion   Int
-  alunoId           String
-  responsavelName   String?
-  responsavelCpf    String?
-  responsavelEmail  String?
-  serviceId         String?
-  professorId       String?
-  status            ContractStatus       @default(DRAFT)
-  title             String
-  renderedHtml      String
-  dataSnapshot      Json
-  pdfPath           String?
-  publicTokenHash   String?              @unique
+  id                   String              @id(map: "GeneratedContract_pkey") @default(cuid())
+  companyContractId    String
+  templateId           String
+  templateVersion      Int
+  alunoId              String
+  responsavelName      String?
+  responsavelCpf       String?
+  responsavelEmail     String?
+  serviceId            String?
+  professorId          String?
+  status               ContractStatus      @default(DRAFT)
+  title                String
+  renderedHtml         String
+  dataSnapshot         Json
+  pdfPath              String?
+  publicTokenHash      String?             @unique
   publicTokenExpiresAt DateTime?
-  externalProvider  String?
-  externalEnvelopeId String?
-  documentHash      String?
-  signedAt          DateTime?
-  cancelledAt       DateTime?
-  createdAt         DateTime             @default(now())
-  updatedAt         DateTime             @updatedAt
-  companyContract   CompanyContract      @relation(fields: [companyContractId], references: [id], onDelete: Cascade)
-  template          ContractTemplate     @relation(fields: [templateId], references: [id])
-  aluno             Aluno                @relation(fields: [alunoId], references: [id], onDelete: Cascade)
-  service           ServiceOption?       @relation(fields: [serviceId], references: [id], onDelete: SetNull)
-  professor         Professor?           @relation(fields: [professorId], references: [id], onDelete: SetNull)
-  signatures        ContractSignature[]
-  auditLogs         ContractAuditLog[]
-  studentContracts  StudentContract[]
+  externalProvider     String?
+  externalEnvelopeId   String?
+  documentHash         String?
+  signedAt             DateTime?
+  cancelledAt          DateTime?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  companyContract      CompanyContract     @relation(fields: [companyContractId], references: [id], onDelete: Cascade)
+  template             ContractTemplate    @relation(fields: [templateId], references: [id])
+  aluno                Aluno               @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  service              ServiceOption?      @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  professor            Professor?          @relation(fields: [professorId], references: [id], onDelete: SetNull)
+  signatures           ContractSignature[]
+  auditLogs            ContractAuditLog[]
+  studentContracts     StudentContract[]
 
   @@index([companyContractId, status])
   @@index([alunoId])
@@ -208,17 +211,17 @@ model Contract {
 }
 
 model ContractSignature {
-  id            String   @id @default(cuid())
-  contractId    String
-  signerName    String
-  signerCpf     String
-  signerEmail   String?
-  ipAddress     String?
-  userAgent     String?
-  acceptedAt    DateTime @default(now())
-  documentHash  String
-  method        String   @default("INTERNAL_ELECTRONIC_ACCEPTANCE")
-  contract      Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  id           String   @id @default(cuid())
+  contractId   String
+  signerName   String
+  signerCpf    String
+  signerEmail  String?
+  ipAddress    String?
+  userAgent    String?
+  acceptedAt   DateTime @default(now())
+  documentHash String
+  method       String   @default("INTERNAL_ELECTRONIC_ACCEPTANCE")
+  contract     Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
 
   @@index([contractId])
   @@index([signerCpf])
@@ -249,7 +252,7 @@ model CollaboratorFunctionOption {
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @default(now()) @updatedAt
   accessPermissions AccessPermission[]
-  contract          CompanyContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  contract          CompanyContract    @relation(fields: [contractId], references: [id], onDelete: Cascade)
   professores       Professor[]
 
   @@unique([contractId, code])
@@ -291,11 +294,12 @@ model Professor {
   agendaBookings                  AgendaBooking[]
   alunos                          Aluno[]
   anthropometryAssessments        AnthropometryAssessment[]
+  prontuarioRecords               ProntuarioRecord[]
   assessmentAuditLogs             AssessmentAuditLog[]
   cloneLogs                       ContractDataCloneLog[]
   generatedContracts              Contract[]
   fixedSlots                      FixedScheduleSlot[]
-  contract                        CompanyContract @relation(fields: [contractId], references: [id], onDelete: Cascade, map: "Educator_contractId_fkey")
+  contract                        CompanyContract            @relation(fields: [contractId], references: [id], onDelete: Cascade, map: "Educator_contractId_fkey")
   user                            User                       @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Educator_userId_fkey")
   collaboratorFunction            CollaboratorFunctionOption @relation(fields: [collaboratorFunctionId], references: [id])
   responsibleManager              Professor?                 @relation("ProfessorResponsibleManager", fields: [responsibleManagerId], references: [id])
@@ -306,6 +310,7 @@ model Professor {
   subscription                    Subscription?
   library                         TrainingLibrary[]
   plans                           TrainingPlan[]
+  Assessment                      Assessment[]
 
   @@index([collaboratorFunctionId])
   @@index([responsibleManagerId])
@@ -313,7 +318,7 @@ model Professor {
 }
 
 model ContractDataCloneLog {
-  id                     String     @id @default(cuid())
+  id                     String          @id @default(cuid())
   sourceContractId       String
   targetContractId       String
   professorId            String?
@@ -321,10 +326,10 @@ model ContractDataCloneLog {
   parametersSkipped      Int
   exercisesCreated       Int
   exercisesSkipped       Int
-  createdAt              DateTime   @default(now())
-  assessmentTypesCreated Int        @default(0)
-  assessmentTypesSkipped Int        @default(0)
-  professor              Professor? @relation(fields: [professorId], references: [id], map: "ContractDataCloneLog_educatorId_fkey")
+  createdAt              DateTime        @default(now())
+  assessmentTypesCreated Int             @default(0)
+  assessmentTypesSkipped Int             @default(0)
+  professor              Professor?      @relation(fields: [professorId], references: [id], map: "ContractDataCloneLog_educatorId_fkey")
   sourceContract         CompanyContract @relation("ContractCloneSource", fields: [sourceContractId], references: [id], onDelete: Cascade)
   targetContract         CompanyContract @relation("ContractCloneTarget", fields: [targetContractId], references: [id], onDelete: Cascade)
 
@@ -334,54 +339,57 @@ model ContractDataCloneLog {
 }
 
 model Aluno {
-  id                  String                  @id(map: "Athlete_pkey") @default(cuid())
-  userId              String                  @unique(map: "Athlete_userId_key")
-  professorId         String
-  age                 Int
-  weight              Float?
-  height              Float?
-  bodyFatPercentage   Float?
-  vo2Max              Float?
-  anaerobicThreshold  Float?
-  maxHeartRate        Int?
-  restingHeartRate    Int?
-  createdAt           DateTime                @default(now())
-  updatedAt           DateTime                @updatedAt
-  lastPasswordResetAt DateTime?
-  schedulePlan        AlunoSchedulePlan       @default(free)
-  systolicPressure    Int?
-  diastolicPressure   Int?
-  serviceId           String?
-  currentStudentContractId String?
-  agendaBookings      AgendaBooking[]
-  anthropometryAssessments AnthropometryAssessment[]
-  service             ServiceOption?          @relation(fields: [serviceId], references: [id])
-  currentStudentContract StudentContract?     @relation("AlunoCurrentStudentContract", fields: [currentStudentContractId], references: [id], onDelete: SetNull)
-  professor           Professor               @relation(fields: [professorId], references: [id], onDelete: Cascade, map: "Athlete_educatorId_fkey")
-  user                User                    @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Athlete_userId_fkey")
-  exerciseProgress    AlunoExerciseProgress[]
-  intakeForm          AlunoIntakeForm?
-  profileReviewSettings AlunoProfileReviewSettings?
-  profileReviews      StudentProfileReview[]
-  assessmentPlanItems AlunoAssessmentPlanItem[]
-  assessments         Assessment[]
-  contracts           Contract[]
-  studentContracts    StudentContract[]       @relation("AlunoStudentContracts")
-  fixedSlots          FixedScheduleSlot[]
-  integrations        Integration[]
-  macronutrients      Macronutrients?
-  nutritionPlans      NutritionPlan[]
-  profileAuditLogs    StudentProfileAuditLog[]
-  progressMetrics     ProgressMetric[]
-  executions          TrainingExecution[]
-  trainingPlans       TrainingPlan[]
-  workoutExecutions   WorkoutExecution[]
-  studentProfile      StudentProfile?
-  studentHealthIntake StudentHealthIntake?
-  studentAssessmentRecords StudentAssessmentRecord[]
-  studentFinancialProfile StudentFinancialProfile?
-  studentExternalAccounts StudentExternalAccount[]
-  studentExternalActivities StudentExternalActivity[]
+  id                            String                         @id(map: "Athlete_pkey") @default(cuid())
+  userId                        String                         @unique(map: "Athlete_userId_key")
+  professorId                   String
+  age                           Int
+  weight                        Float?
+  height                        Float?
+  bodyFatPercentage             Float?
+  vo2Max                        Float?
+  anaerobicThreshold            Float?
+  maxHeartRate                  Int?
+  restingHeartRate              Int?
+  createdAt                     DateTime                       @default(now())
+  updatedAt                     DateTime                       @updatedAt
+  lastPasswordResetAt           DateTime?
+  schedulePlan                  AlunoSchedulePlan              @default(free)
+  systolicPressure              Int?
+  diastolicPressure             Int?
+  serviceId                     String?
+  currentStudentContractId      String?
+  agendaBookings                AgendaBooking[]
+  anthropometryAssessments      AnthropometryAssessment[]
+  service                       ServiceOption?                 @relation(fields: [serviceId], references: [id])
+  currentStudentContract        StudentContract?               @relation("AlunoCurrentStudentContract", fields: [currentStudentContractId], references: [id], onDelete: SetNull)
+  professor                     Professor                      @relation(fields: [professorId], references: [id], onDelete: Cascade, map: "Athlete_educatorId_fkey")
+  user                          User                           @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Athlete_userId_fkey")
+  exerciseProgress              AlunoExerciseProgress[]
+  intakeForm                    AlunoIntakeForm?
+  profileReviewSettings         AlunoProfileReviewSettings?
+  profileReviews                StudentProfileReview[]
+  assessmentPlanItems           AlunoAssessmentPlanItem[]
+  assessments                   Assessment[]
+  contracts                     Contract[]
+  studentContracts              StudentContract[]              @relation("AlunoStudentContracts")
+  fixedSlots                    FixedScheduleSlot[]
+  integrations                  Integration[]
+  macronutrients                Macronutrients?
+  nutritionPlans                NutritionPlan[]
+  profileAuditLogs              StudentProfileAuditLog[]
+  progressMetrics               ProgressMetric[]
+  executions                    TrainingExecution[]
+  trainingPlans                 TrainingPlan[]
+  workoutExecutions             WorkoutExecution[]
+  studentProfile                StudentProfile?
+  studentHealthIntake           StudentHealthIntake?
+  studentAssessmentRecords      StudentAssessmentRecord[]
+  studentFinancialProfile       StudentFinancialProfile?
+  studentExternalAccounts       StudentExternalAccount[]
+  studentExternalActivities     StudentExternalActivity[]
+  parqSubmissions               StudentParqSubmission[]
+  prontuarioRecords             ProntuarioRecord[]
+  prontuarioDiscomfortSnapshots ProntuarioDiscomfortSnapshot[]
 
   @@index([serviceId])
   @@index([currentStudentContractId])
@@ -389,9 +397,9 @@ model Aluno {
 }
 
 model StudentContract {
-  id                 String               @id @default(cuid())
+  id                 String                @id @default(cuid())
   alunoId            String
-  contractId         String               @unique
+  contractId         String                @unique
   serviceId          String?
   status             StudentContractStatus @default(draft)
   startDate          DateTime?
@@ -402,12 +410,12 @@ model StudentContract {
   amount             Decimal?
   paymentDay         Int?
   notes              String?
-  createdAt          DateTime             @default(now())
-  updatedAt          DateTime             @updatedAt
-  aluno              Aluno                @relation("AlunoStudentContracts", fields: [alunoId], references: [id], onDelete: Cascade)
-  contract           Contract             @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  service            ServiceOption?       @relation(fields: [serviceId], references: [id], onDelete: SetNull)
-  currentForAlunos   Aluno[]              @relation("AlunoCurrentStudentContract")
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+  aluno              Aluno                 @relation("AlunoStudentContracts", fields: [alunoId], references: [id], onDelete: Cascade)
+  contract           Contract              @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  service            ServiceOption?        @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  currentForAlunos   Aluno[]               @relation("AlunoCurrentStudentContract")
 
   @@index([alunoId])
   @@index([contractId])
@@ -432,24 +440,24 @@ model ProfileReviewPolicy {
 }
 
 model AlunoProfileReviewSettings {
-  id                 String   @id @default(cuid())
-  alunoId            String   @unique
+  id                 String    @id @default(cuid())
+  alunoId            String    @unique
   reviewPeriodMonths Int?
   nextReviewAt       DateTime?
-  isReviewRequired   Boolean  @default(true)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-  aluno              Aluno    @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  isReviewRequired   Boolean   @default(true)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  aluno              Aluno     @relation(fields: [alunoId], references: [id], onDelete: Cascade)
 
   @@index([nextReviewAt])
   @@index([isReviewRequired])
 }
 
 model StudentProfileReview {
-  id                String                    @id @default(cuid())
+  id                String                     @id @default(cuid())
   alunoId           String
   requestedByUserId String?
-  requestedAt       DateTime                  @default(now())
+  requestedAt       DateTime                   @default(now())
   dueAt             DateTime?
   completedAt       DateTime?
   status            StudentProfileReviewStatus @default(pending)
@@ -457,19 +465,19 @@ model StudentProfileReview {
   snapshotBefore    Json?
   snapshotAfter     Json?
   changedFields     Json?
-  requiresApproval  Boolean                   @default(false)
+  requiresApproval  Boolean                    @default(false)
   approvedByUserId  String?
   approvedAt        DateTime?
   rejectedByUserId  String?
   rejectedAt        DateTime?
   rejectionReason   String?
   nextReviewAt      DateTime?
-  createdAt         DateTime                  @default(now())
-  updatedAt         DateTime                  @updatedAt
-  aluno             Aluno                     @relation(fields: [alunoId], references: [id], onDelete: Cascade)
-  requestedByUser   User?                     @relation("StudentProfileReviewRequestedBy", fields: [requestedByUserId], references: [id], onDelete: SetNull)
-  approvedByUser    User?                     @relation("StudentProfileReviewApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
-  rejectedByUser    User?                     @relation("StudentProfileReviewRejectedBy", fields: [rejectedByUserId], references: [id], onDelete: SetNull)
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+  aluno             Aluno                      @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  requestedByUser   User?                      @relation("StudentProfileReviewRequestedBy", fields: [requestedByUserId], references: [id], onDelete: SetNull)
+  approvedByUser    User?                      @relation("StudentProfileReviewApprovedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  rejectedByUser    User?                      @relation("StudentProfileReviewRejectedBy", fields: [rejectedByUserId], references: [id], onDelete: SetNull)
 
   @@index([alunoId, status])
   @@index([requestedAt])
@@ -481,26 +489,26 @@ model StudentProfileReview {
 }
 
 model ServiceOption {
-  id         String   @id @default(cuid())
-  contractId String
-  name       String
-  code       String
-  description String?
-  parentServiceId String?
-  monthlyPrice Float?
-  validFrom DateTime?
-  validUntil DateTime?
-  isActive   Boolean  @default(true)
-  isSystem   Boolean  @default(false)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @default(now()) @updatedAt
-  alunos     Aluno[]
-  studentContracts StudentContract[]
-  contractTemplates ContractTemplate[]
+  id                 String             @id @default(cuid())
+  contractId         String
+  name               String
+  code               String
+  description        String?
+  parentServiceId    String?
+  monthlyPrice       Float?
+  validFrom          DateTime?
+  validUntil         DateTime?
+  isActive           Boolean            @default(true)
+  isSystem           Boolean            @default(false)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @default(now()) @updatedAt
+  alunos             Aluno[]
+  studentContracts   StudentContract[]
+  contractTemplates  ContractTemplate[]
   generatedContracts Contract[]
-  contract   CompanyContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  parentService ServiceOption? @relation("ServiceOptionOffers", fields: [parentServiceId], references: [id], onDelete: SetNull)
-  financialOffers ServiceOption[] @relation("ServiceOptionOffers")
+  contract           CompanyContract    @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  parentService      ServiceOption?     @relation("ServiceOptionOffers", fields: [parentServiceId], references: [id], onDelete: SetNull)
+  financialOffers    ServiceOption[]    @relation("ServiceOptionOffers")
 
   @@unique([contractId, code])
   @@index([contractId])
@@ -536,7 +544,7 @@ model TrainingSpace {
   updatedAt  DateTime            @updatedAt
   bookings   AgendaBooking[]
   fixedSlots FixedScheduleSlot[]
-  contract   CompanyContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  contract   CompanyContract     @relation(fields: [contractId], references: [id], onDelete: Cascade)
 
   @@unique([contractId, name])
   @@index([contractId])
@@ -580,25 +588,25 @@ model FixedScheduleSlot {
 }
 
 model AgendaBooking {
-  id             String                @id @default(cuid())
-  contractId     String
-  alunoId        String
-  professorId    String
-  spaceId        String?
-  fixedSlotId    String?
-  bookingDate    DateTime
-  startTime      String
-  endTime        String
-  type           AgendaBookingType     @default(free)
-  status         AgendaBookingStatus   @default(scheduled)
-  notes          String?
-  createdAt      DateTime              @default(now())
-  updatedAt      DateTime              @updatedAt
-  aluno          Aluno                 @relation(fields: [alunoId], references: [id], onDelete: Cascade, map: "AgendaBooking_athleteId_fkey")
-  contract       CompanyContract       @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  professor      Professor             @relation(fields: [professorId], references: [id], onDelete: Cascade, map: "AgendaBooking_educatorId_fkey")
-  fixedSlot      FixedScheduleSlot?    @relation(fields: [fixedSlotId], references: [id])
-  space          TrainingSpace?        @relation(fields: [spaceId], references: [id])
+  id          String              @id @default(cuid())
+  contractId  String
+  alunoId     String
+  professorId String
+  spaceId     String?
+  fixedSlotId String?
+  bookingDate DateTime
+  startTime   String
+  endTime     String
+  type        AgendaBookingType   @default(free)
+  status      AgendaBookingStatus @default(scheduled)
+  notes       String?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  aluno       Aluno               @relation(fields: [alunoId], references: [id], onDelete: Cascade, map: "AgendaBooking_athleteId_fkey")
+  contract    CompanyContract     @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  professor   Professor           @relation(fields: [professorId], references: [id], onDelete: Cascade, map: "AgendaBooking_educatorId_fkey")
+  fixedSlot   FixedScheduleSlot?  @relation(fields: [fixedSlotId], references: [id])
+  space       TrainingSpace?      @relation(fields: [spaceId], references: [id])
 
   @@index([spaceId, bookingDate])
   @@index([alunoId, bookingDate], map: "AgendaBooking_athleteId_bookingDate_idx")
@@ -607,22 +615,23 @@ model AgendaBooking {
 }
 
 model AssessmentType {
-  id             String                 @id @default(cuid())
-  contractId     String
-  name           String
-  code           String
-  description    String?
-  scheduleType   AssessmentScheduleType @default(fixed_interval)
-  intervalMonths Int?
-  afterTypeId    String?
-  offsetMonths   Int?
-  isActive       Boolean                @default(true)
-  createdAt      DateTime               @default(now())
-  updatedAt      DateTime               @updatedAt
-  assessments    Assessment[]
-  afterType      AssessmentType?        @relation("AssessmentTypeDependencies", fields: [afterTypeId], references: [id])
-  dependents     AssessmentType[]       @relation("AssessmentTypeDependencies")
-  contract       CompanyContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  id                      String                    @id @default(cuid())
+  contractId              String
+  name                    String
+  code                    String
+  description             String?
+  scheduleType            AssessmentScheduleType    @default(fixed_interval)
+  intervalMonths          Int?
+  afterTypeId             String?
+  offsetMonths            Int?
+  isActive                Boolean                   @default(true)
+  createdAt               DateTime                  @default(now())
+  updatedAt               DateTime                  @updatedAt
+  assessments             Assessment[]
+  afterType               AssessmentType?           @relation("AssessmentTypeDependencies", fields: [afterTypeId], references: [id])
+  dependents              AssessmentType[]          @relation("AssessmentTypeDependencies")
+  contract                CompanyContract           @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  AlunoAssessmentPlanItem AlunoAssessmentPlanItem[]
 
   @@unique([contractId, code])
   @@index([contractId])
@@ -630,19 +639,19 @@ model AssessmentType {
 }
 
 model AlunoAssessmentPlanItem {
-  id               String   @id @default(cuid())
+  id               String         @id @default(cuid())
   alunoId          String
   assessmentTypeId String
-  isActive         Boolean  @default(true)
-  isRequired       Boolean  @default(true)
+  isActive         Boolean        @default(true)
+  isRequired       Boolean        @default(true)
   cadenceMonths    Int?
   startDate        DateTime?
   nextDueDate      DateTime?
   lastAssessmentAt DateTime?
   notes            String?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  aluno            Aluno    @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  aluno            Aluno          @relation(fields: [alunoId], references: [id], onDelete: Cascade)
   assessmentType   AssessmentType @relation(fields: [assessmentTypeId], references: [id], onDelete: Cascade)
 
   @@unique([alunoId, assessmentTypeId])
@@ -652,7 +661,7 @@ model AlunoAssessmentPlanItem {
 }
 
 model Assessment {
-  id               String     @id @default(cuid())
+  id               String               @id @default(cuid())
   alunoId          String
   professorId      String
   typeId           String
@@ -664,11 +673,11 @@ model Assessment {
   assessmentDate   DateTime
   extractedData    Json?
   uploadSource     String?
-  createdAt        DateTime   @default(now())
-  updatedAt        DateTime   @updatedAt
-  aluno            Aluno      @relation(fields: [alunoId], references: [id], onDelete: Cascade)
-  professor        Professor  @relation(fields: [professorId], references: [id], onDelete: Cascade)
-  type             AssessmentType @relation(fields: [typeId], references: [id], onDelete: Cascade)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  aluno            Aluno                @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  professor        Professor            @relation(fields: [professorId], references: [id], onDelete: Cascade)
+  type             AssessmentType       @relation(fields: [typeId], references: [id], onDelete: Cascade)
   auditLogs        AssessmentAuditLog[]
 
   @@index([alunoId, assessmentDate])
@@ -677,28 +686,28 @@ model Assessment {
 }
 
 model AssessmentAuditLog {
-  id            String               @id @default(cuid())
-  assessmentId  String
-  professorId   String
-  action        AssessmentAuditAction
-  createdAt     DateTime             @default(now())
-  diff          Json?
-  assessment    Assessment           @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
-  professor     Professor            @relation(fields: [professorId], references: [id], onDelete: Cascade)
+  id           String                @id @default(cuid())
+  assessmentId String
+  professorId  String
+  action       AssessmentAuditAction
+  createdAt    DateTime              @default(now())
+  diff         Json?
+  assessment   Assessment            @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  professor    Professor             @relation(fields: [professorId], references: [id], onDelete: Cascade)
 
   @@index([assessmentId, createdAt])
   @@index([professorId])
 }
 
 model StudentProfileAuditLog {
-  id             String             @id @default(cuid())
-  alunoId        String
-  userId         String?
-  source         ProfileAuditSource
-  action         ProfileAuditAction
-  changedFields  Json?
-  createdAt      DateTime           @default(now())
-  aluno          Aluno              @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  id            String             @id @default(cuid())
+  alunoId       String
+  userId        String?
+  source        ProfileAuditSource
+  action        ProfileAuditAction
+  changedFields Json?
+  createdAt     DateTime           @default(now())
+  aluno         Aluno              @relation(fields: [alunoId], references: [id], onDelete: Cascade)
 
   @@index([alunoId, createdAt])
   @@index([source])
@@ -769,15 +778,15 @@ model AnthropometryAssessmentValue {
 }
 
 model AnthropometryObservation {
-  id           String                   @id @default(cuid())
+  id           String                  @id @default(cuid())
   assessmentId String
   segmentId    String?
   text         String
-  importable   Boolean                  @default(false)
-  createdAt    DateTime                 @default(now())
-  updatedAt    DateTime                 @updatedAt
-  assessment   AnthropometryAssessment  @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
-  segment      AnthropometrySegment?    @relation(fields: [segmentId], references: [id], onDelete: SetNull)
+  importable   Boolean                 @default(false)
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+  assessment   AnthropometryAssessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  segment      AnthropometrySegment?   @relation(fields: [segmentId], references: [id], onDelete: SetNull)
 
   @@index([assessmentId])
   @@index([segmentId])
@@ -1016,14 +1025,14 @@ model NotificationPreferences {
 }
 
 model TrainingParameter {
-  id          String   @id @default(cuid())
+  id          String          @id @default(cuid())
   category    String
   code        String
   description String
   order       Int
-  active      Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  active      Boolean         @default(true)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
   contractId  String
   contract    CompanyContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
 
@@ -1032,16 +1041,16 @@ model TrainingParameter {
 }
 
 model HourlyRateLevel {
-  id         String   @id @default(cuid())
+  id         String          @id @default(cuid())
   contractId String
   code       String
   label      String
-  minValue   Decimal? @db.Decimal(10, 2)
-  maxValue   Decimal? @db.Decimal(10, 2)
+  minValue   Decimal?        @db.Decimal(10, 2)
+  maxValue   Decimal?        @db.Decimal(10, 2)
   order      Int
-  isActive   Boolean  @default(true)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  isActive   Boolean         @default(true)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
   contract   CompanyContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
 
   @@unique([contractId, code])
@@ -1058,7 +1067,7 @@ model SubjectiveScaleItem {
   isActive   Boolean             @default(true)
   createdAt  DateTime            @default(now())
   updatedAt  DateTime            @updatedAt
-  contract   CompanyContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  contract   CompanyContract     @relation(fields: [contractId], references: [id], onDelete: Cascade)
 
   @@unique([contractId, type, value])
   @@index([contractId, type])
@@ -1084,7 +1093,7 @@ model ProfessorManualItem {
   isActive          Boolean                @default(true)
   createdAt         DateTime               @default(now())
   updatedAt         DateTime               @default(now()) @updatedAt
-  contract          CompanyContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  contract          CompanyContract        @relation(fields: [contractId], references: [id], onDelete: Cascade)
 
   @@unique([contractId, code])
   @@index([contractId, context, isActive])
@@ -1209,7 +1218,7 @@ model ExerciseLibrary {
   updatedAt        DateTime                @updatedAt
   contractId       String
   alunoProgress    AlunoExerciseProgress[]
-  contract         CompanyContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  contract         CompanyContract         @relation(fields: [contractId], references: [id], onDelete: Cascade)
   workoutExercises WorkoutExercise[]
 
   @@index([contractId])
@@ -1399,26 +1408,213 @@ model StudentHealthIntake {
   @@index([sourceType])
 }
 
-model StudentAssessmentRecord {
-  id                    String                        @id @default(cuid())
+model StudentParqSubmission {
+  id                  String                        @id @default(cuid())
+  alunoId             String
+  contractId          String
+  sourceType          StudentRecordSourceType       @default(student)
+  submittedByUserId   String?
+  submittedAt         DateTime                      @default(now())
+  responses           Json
+  positiveItems       Json?
+  declarationAccepted Boolean                       @default(false)
+  notes               String?
+  createdAt           DateTime                      @default(now())
+  updatedAt           DateTime                      @updatedAt
+  aluno               Aluno                         @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  contract            CompanyContract               @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  followUps           ProntuarioAnamnesisFollowUp[]
+
+  @@index([contractId, submittedAt])
+  @@index([alunoId, submittedAt])
+}
+
+model ProntuarioRecord {
+  id                    String                          @id @default(cuid())
   alunoId               String
   contractId            String
-  assessmentCategory    String
-  assessmentCode        String?
-  title                 String?
-  sourceType            StudentRecordSourceType      @default(professional)
-  sourceReference       String?
-  recordedByUserId      String?
-  performedByProfessorId String?
-  performedAt           DateTime
-  status                StudentAssessmentRecordStatus @default(completed)
-  summaryData           Json?
+  professorId           String?
+  code                  String
+  status                ProntuarioRecordStatus          @default(open)
+  recordDate            DateTime                        @default(now())
+  summary               String?
   notes                 String?
-  createdAt             DateTime                      @default(now())
-  updatedAt             DateTime                      @updatedAt
-  aluno                 Aluno                         @relation(fields: [alunoId], references: [id], onDelete: Cascade)
-  contract              CompanyContract               @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  measurements          StudentAssessmentMeasurement[]
+  createdAt             DateTime                        @default(now())
+  updatedAt             DateTime                        @updatedAt
+  closedAt              DateTime?
+  aluno                 Aluno                           @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  contract              CompanyContract                 @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  professor             Professor?                      @relation(fields: [professorId], references: [id], onDelete: SetNull)
+  goals                 ProntuarioGoal[]
+  anamnesisFollowUps    ProntuarioAnamnesisFollowUp[]
+  activityHistory       ProntuarioActivityHistory[]
+  medicationsProcedures ProntuarioMedicationProcedure[]
+  painCases             ProntuarioPainCase[]
+  discomfortSnapshots   ProntuarioDiscomfortSnapshot[]
+
+  @@unique([contractId, alunoId, code])
+  @@index([contractId, alunoId, recordDate])
+  @@index([professorId])
+  @@index([status])
+}
+
+model ProntuarioGoal {
+  id          String               @id @default(cuid())
+  recordId    String
+  title       String
+  description String?
+  status      ProntuarioItemStatus @default(active)
+  priority    Int                  @default(0)
+  targetDate  DateTime?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  record      ProntuarioRecord     @relation(fields: [recordId], references: [id], onDelete: Cascade)
+
+  @@index([recordId, status])
+  @@index([targetDate])
+}
+
+model ProntuarioAnamnesisFollowUp {
+  id               String                 @id @default(cuid())
+  recordId         String
+  parqSubmissionId String?
+  itemKey          String
+  itemLabel        String
+  status           ProntuarioItemStatus   @default(active)
+  followUpNotes    String?
+  actionPlan       String?
+  closedAt         DateTime?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  record           ProntuarioRecord       @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  parqSubmission   StudentParqSubmission? @relation(fields: [parqSubmissionId], references: [id], onDelete: SetNull)
+
+  @@index([recordId, status])
+  @@index([parqSubmissionId])
+  @@index([itemKey])
+}
+
+model ProntuarioActivityHistory {
+  id           String                 @id @default(cuid())
+  recordId     String
+  activityType ProntuarioActivityType @default(other)
+  description  String
+  frequency    String?
+  duration     String?
+  intensity    String?
+  startedAt    DateTime?
+  endedAt      DateTime?
+  notes        String?
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+  record       ProntuarioRecord       @relation(fields: [recordId], references: [id], onDelete: Cascade)
+
+  @@index([recordId])
+  @@index([activityType])
+}
+
+model ProntuarioMedicationProcedure {
+  id        String                            @id @default(cuid())
+  recordId  String
+  type      ProntuarioMedicationProcedureType
+  name      String
+  dosage    String?
+  frequency String?
+  startDate DateTime?
+  endDate   DateTime?
+  notes     String?
+  createdAt DateTime                          @default(now())
+  updatedAt DateTime                          @updatedAt
+  record    ProntuarioRecord                  @relation(fields: [recordId], references: [id], onDelete: Cascade)
+
+  @@index([recordId, type])
+}
+
+model ProntuarioPainCase {
+  id          String                   @id @default(cuid())
+  recordId    String
+  title       String
+  region      String?
+  status      ProntuarioPainCaseStatus @default(active)
+  onsetDate   DateTime?
+  description String?
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+  closedAt    DateTime?
+  record      ProntuarioRecord         @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  followUps   ProntuarioPainFollowUp[]
+
+  @@index([recordId, status])
+}
+
+model ProntuarioPainFollowUp {
+  id         String             @id @default(cuid())
+  painCaseId String
+  followUpAt DateTime           @default(now())
+  intensity  Int?
+  notes      String?
+  conduct    String?
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+  painCase   ProntuarioPainCase @relation(fields: [painCaseId], references: [id], onDelete: Cascade)
+
+  @@index([painCaseId, followUpAt])
+}
+
+model ProntuarioDiscomfortSnapshot {
+  id         String                      @id @default(cuid())
+  recordId   String
+  alunoId    String
+  contractId String
+  snapshotAt DateTime                    @default(now())
+  notes      String?
+  createdAt  DateTime                    @default(now())
+  updatedAt  DateTime                    @updatedAt
+  record     ProntuarioRecord            @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  aluno      Aluno                       @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  contract   CompanyContract             @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  entries    ProntuarioDiscomfortEntry[]
+
+  @@index([contractId, alunoId, snapshotAt])
+  @@index([recordId, snapshotAt])
+}
+
+model ProntuarioDiscomfortEntry {
+  id              String                       @id @default(cuid())
+  snapshotId      String
+  regionId        String
+  regionName      String
+  discomfortTypes String[]
+  intensity       Int
+  notes           String?
+  createdAt       DateTime                     @default(now())
+  updatedAt       DateTime                     @updatedAt
+  snapshot        ProntuarioDiscomfortSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@index([snapshotId])
+  @@index([regionId])
+}
+
+model StudentAssessmentRecord {
+  id                     String                         @id @default(cuid())
+  alunoId                String
+  contractId             String
+  assessmentCategory     String
+  assessmentCode         String?
+  title                  String?
+  sourceType             StudentRecordSourceType        @default(professional)
+  sourceReference        String?
+  recordedByUserId       String?
+  performedByProfessorId String?
+  performedAt            DateTime
+  status                 StudentAssessmentRecordStatus  @default(completed)
+  summaryData            Json?
+  notes                  String?
+  createdAt              DateTime                       @default(now())
+  updatedAt              DateTime                       @updatedAt
+  aluno                  Aluno                          @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  contract               CompanyContract                @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  measurements           StudentAssessmentMeasurement[]
 
   @@index([contractId, performedAt])
   @@index([alunoId, performedAt])
@@ -1427,21 +1623,21 @@ model StudentAssessmentRecord {
 }
 
 model StudentAssessmentMeasurement {
-  id                 String                     @id @default(cuid())
+  id                 String                      @id @default(cuid())
   assessmentRecordId String
   metricKey          String
   metricLabel        String?
   valueType          StudentMeasurementValueType @default(text)
   valueText          String?
-  valueNumber        Decimal?                   @db.Decimal(12, 4)
+  valueNumber        Decimal?                    @db.Decimal(12, 4)
   valueBoolean       Boolean?
   valueJson          Json?
   unit               String?
   notes              String?
-  sortOrder          Int                        @default(0)
-  createdAt          DateTime                   @default(now())
-  updatedAt          DateTime                   @updatedAt
-  assessmentRecord   StudentAssessmentRecord    @relation(fields: [assessmentRecordId], references: [id], onDelete: Cascade)
+  sortOrder          Int                         @default(0)
+  createdAt          DateTime                    @default(now())
+  updatedAt          DateTime                    @updatedAt
+  assessmentRecord   StudentAssessmentRecord     @relation(fields: [assessmentRecordId], references: [id], onDelete: Cascade)
 
   @@index([assessmentRecordId, sortOrder])
   @@index([assessmentRecordId, metricKey])
@@ -1479,7 +1675,7 @@ model StudentExternalAccount {
   contractId       String
   provider         String
   externalUserId   String?
-  sourceType       StudentRecordSourceType        @default(integration)
+  sourceType       StudentRecordSourceType         @default(integration)
   sourceReference  String?
   recordedByUserId String?
   connectionStatus StudentExternalConnectionStatus @default(pending)
@@ -1499,7 +1695,7 @@ model StudentExternalAccount {
 }
 
 model StudentExternalActivity {
-  id                  String                 @id @default(cuid())
+  id                  String                  @id @default(cuid())
   externalAccountId   String
   alunoId             String
   contractId          String
@@ -1511,20 +1707,20 @@ model StudentExternalActivity {
   activityType        String?
   startedAt           DateTime
   endedAt             DateTime?
-  distanceMeters      Decimal?               @db.Decimal(12, 2)
+  distanceMeters      Decimal?                @db.Decimal(12, 2)
   durationSeconds     Int?
-  paceSecondsPerKm    Decimal?               @db.Decimal(10, 2)
+  paceSecondsPerKm    Decimal?                @db.Decimal(10, 2)
   averageHeartRate    Int?
   maxHeartRate        Int?
-  calories            Decimal?               @db.Decimal(10, 2)
-  elevationGainMeters Decimal?               @db.Decimal(10, 2)
+  calories            Decimal?                @db.Decimal(10, 2)
+  elevationGainMeters Decimal?                @db.Decimal(10, 2)
   rawPayload          Json?
-  importedAt          DateTime               @default(now())
-  createdAt           DateTime               @default(now())
-  updatedAt           DateTime               @updatedAt
-  externalAccount     StudentExternalAccount @relation(fields: [externalAccountId], references: [id], onDelete: Cascade)
-  aluno               Aluno                  @relation(fields: [alunoId], references: [id], onDelete: Cascade)
-  contract            CompanyContract        @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  importedAt          DateTime                @default(now())
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+  externalAccount     StudentExternalAccount  @relation(fields: [externalAccountId], references: [id], onDelete: Cascade)
+  aluno               Aluno                   @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  contract            CompanyContract         @relation(fields: [contractId], references: [id], onDelete: Cascade)
 
   @@unique([externalAccountId, externalActivityId])
   @@index([contractId, provider, startedAt])
@@ -1587,6 +1783,44 @@ enum StudentAssessmentRecordStatus {
   draft
   completed
   superseded
+  archived
+}
+
+enum ProntuarioRecordStatus {
+  open
+  closed
+  archived
+}
+
+enum ProntuarioItemStatus {
+  active
+  monitoring
+  resolved
+  archived
+}
+
+enum ProntuarioActivityType {
+  running
+  strength
+  mobility
+  sport
+  occupational
+  other
+}
+
+enum ProntuarioMedicationProcedureType {
+  medication
+  supplement
+  procedure
+  exam
+  therapy
+  other
+}
+
+enum ProntuarioPainCaseStatus {
+  active
+  monitoring
+  resolved
   archived
 }
 
