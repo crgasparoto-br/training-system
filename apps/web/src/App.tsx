@@ -68,6 +68,24 @@ function DefaultAuthorizedRoute() {
   return <Navigate to={firstAllowed?.path || '/login'} replace />;
 }
 
+function StudentsRoute() {
+  const { isAuthenticated, user } = useAuthStore();
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (canAccessScreen(user, 'students.consultation')) {
+    return <Navigate to="/consultas/alunos" replace />;
+  }
+
+  if (canAccessScreen(user, 'students.registration')) {
+    return <Navigate to="/alunos/new" replace />;
+  }
+
+  return <DefaultAuthorizedRoute />;
+}
+
 function App() {
   return (
     <AppErrorBoundary>
@@ -91,7 +109,7 @@ function App() {
           <Route index element={<DefaultAuthorizedRoute />} />
           <Route path="professores" element={<Navigate to="/professores/new" replace />} />
           <Route path="professores/new" element={withAccess('collaborators.registration', <Professores />)} />
-          <Route path="alunos" element={<Navigate to="/consultas/alunos" replace />} />
+          <Route path="alunos" element={<StudentsRoute />} />
           <Route path="alunos/new" element={withAccess('students.registration', <AlunoForm />)} />
           <Route
             path="alunos/:id"
