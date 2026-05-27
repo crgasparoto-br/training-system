@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/Card';
 import { formatDateBR } from '../../utils/date';
 import type { Aluno, StudentSegmentedIntake } from '../../services/aluno.service';
@@ -77,6 +78,7 @@ export function AlunoSaudeAnamneseTab({
     null;
   const observations = segmentedIntake?.observations ?? aluno.intakeForm?.observations ?? null;
   const assessmentDate = segmentedIntake?.assessmentDate ?? aluno.intakeForm?.assessmentDate ?? null;
+  const prontuarioHref = `/protocolo-avaliacao-fisica/prontuario-entrevista-acompanhamento?alunoId=${aluno.id}`;
 
   return (
     <div className="space-y-4">
@@ -88,7 +90,21 @@ export function AlunoSaudeAnamneseTab({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm text-foreground">
+            <div className="font-medium text-primary">Acompanhamento evolutivo agora fica no PRNT</div>
+            <p className="mt-1 text-muted-foreground">
+              Use o PRNT para registrar condutas, acompanhamentos, dores, desconfortos e observações profissionais posteriores ao cadastro inicial.
+            </p>
+            <div className="mt-3 flex justify-end">
+              <Link
+                to={prontuarioHref}
+                className="inline-flex items-center rounded-md border border-border bg-background px-3 py-2 text-sm font-medium text-foreground hover:bg-muted"
+              >
+                Abrir PRNT do aluno
+              </Link>
+            </div>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             <div className="rounded-lg border border-gray-200 p-4">
               <div className="text-xs text-muted-foreground">Data da anamnese inicial</div>
               <div className="mt-1 text-sm font-semibold text-gray-900">
