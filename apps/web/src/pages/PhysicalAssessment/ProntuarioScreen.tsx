@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Activity, ClipboardList, FilePlus2, Save } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -83,8 +83,9 @@ function followUpLookupKey(parqSubmissionId: string | null | undefined, itemKey:
 
 export function ProntuarioScreen() {
   const user = useAuthStore((state) => state.user);
+  const [searchParams, setSearchParams] = useSearchParams();
   const [students, setStudents] = useState<Aluno[]>([]);
-  const [selectedAlunoId, setSelectedAlunoId] = useState('');
+  const [selectedAlunoId, setSelectedAlunoId] = useState(searchParams.get('alunoId') || '');
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
   const [selectedParqSubmissionId, setSelectedParqSubmissionId] = useState<string | null>(null);
   const [overview, setOverview] = useState<ProntuarioOverview | null>(null);
@@ -128,6 +129,28 @@ export function ProntuarioScreen() {
       .then((response) => setStudents(response.alunos || []))
       .catch(() => setError('Não foi possível carregar alunos.'));
   }, []);
+
+  useEffect(() => {
+    const alunoId = searchParams.get('alunoId') || '';
+    if (alunoId !== selectedAlunoId) {
+      setSelectedAlunoId(alunoId);
+    }
+  }, [searchParams, selectedAlunoId]);
+
+  useEffect(() => {
+    const currentAlunoId = searchParams.get('alunoId') || '';
+
+    if (!selectedAlunoId) {
+      if (currentAlunoId) {
+        setSearchParams({}, { replace: true });
+      }
+      return;
+    }
+
+    if (currentAlunoId !== selectedAlunoId) {
+      setSearchParams({ alunoId: selectedAlunoId }, { replace: true });
+    }
+  }, [selectedAlunoId, searchParams, setSearchParams]);
 
   useEffect(() => {
     if (!selectedAlunoId) {
