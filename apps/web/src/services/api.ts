@@ -2,9 +2,19 @@ import axios, { type AxiosError, type AxiosResponse } from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
+function resolveApiBaseUrl(value?: string) {
+  const normalized = value?.replace(/\/+$/, '');
+
+  if (!normalized) {
+    return '/api/v1';
+  }
+
+  return normalized.endsWith('/api/v1') ? normalized : `${normalized}/api/v1`;
+}
+
 // Criar instância do Axios
 export const api = axios.create({
-  baseURL: API_URL ? `${API_URL}/api/v1` : '/api/v1',
+  baseURL: resolveApiBaseUrl(API_URL),
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
