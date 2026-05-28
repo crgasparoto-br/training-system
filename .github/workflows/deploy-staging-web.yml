@@ -69,7 +69,6 @@ jobs:
       # de producao para evitar fallback para /api/v1 no dominio do frontend.
 
       - name: Install Vercel CLI
-        - run: pnpm add -g vercel@latest
         run: pnpm dlx vercel@latest
 
       - name: Deploy to Vercel (prod)
@@ -83,5 +82,5 @@ jobs:
         run: |
           vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
           vercel build --prod --token="$VERCEL_TOKEN"
-          - vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+
 
