@@ -75,6 +75,7 @@ jobs:
         shell: bash
         working-directory: apps/web
         env:
+          SHELL: /bin/bash
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
