@@ -23,6 +23,7 @@ import { profileAuditService } from './profile-audit.service.js';
 import { assessmentPlanNotificationService } from './assessment-plan-notification.service.js';
 import { screenAccessMiddleware, blockAccessMiddleware } from '../access-control/access-control.middleware.js';
 import { studentContractService } from '../student-contracts/student-contract.service.js';
+import { buildPublicUploadUrl } from '../../common/public-upload-url.js';
 
 const router: Router = Router();
 const prisma = new PrismaClient();
@@ -131,12 +132,10 @@ router.post('/avatar-upload', uploadAvatarFile, async (req: Request, res: Respon
       return sendError(res, 'Selecione uma imagem para upload', 400);
     }
 
-    const host = req.get('host');
-    if (!host) {
+    const fileUrl = buildPublicUploadUrl(req, `/uploads/alunos/${req.file.filename}`);
+    if (!fileUrl) {
       return sendError(res, 'Não foi possível montar a URL da foto enviada', 500);
     }
-
-    const fileUrl = `${req.protocol}://${host}/uploads/alunos/${req.file.filename}`;
 
     return sendSuccess(res, { url: fileUrl }, 'Foto enviada com sucesso');
   } catch (error: any) {

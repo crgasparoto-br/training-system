@@ -9,21 +9,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../co
 import { Input } from '../components/ui/Input';
 import { Plus, Search, Edit, Eye, User, LayoutGrid, List, UserX, UserCheck } from 'lucide-react';
 import { alunosCopy } from '../i18n/ptBR';
+import { resolveAssetUrl } from '../utils/assetUrl';
 
 const VIEW_STATE_STORAGE_KEY = 'alunos.viewState';
-const baseUrl = import.meta.env.VITE_API_URL || '';
-
-const resolveAvatarUrl = (avatar?: string) => {
-  if (!avatar) {
-    return '';
-  }
-
-  if (/^(https?:|data:|blob:)/i.test(avatar)) {
-    return avatar;
-  }
-
-  return `${baseUrl}/${avatar}`;
-};
 
 export function Alunos() {
   const user = useAuthStore((state) => state.user);
@@ -331,7 +319,7 @@ export function Alunos() {
             const bmi = weight !== undefined && height !== undefined ? alunoService.calculateBMI(weight, height) : null;
             const alunoName = aluno.user?.profile?.name || 'Aluno sem nome';
             const alunoActive = aluno.user?.isActive !== false;
-            const avatarUrl = resolveAvatarUrl(aluno.user?.profile?.avatar);
+            const avatarUrl = resolveAssetUrl(aluno.user?.profile?.avatar);
 
             return (
               <Card key={aluno.id} className="transition-shadow hover:shadow-[var(--shadow-card)]">
@@ -444,7 +432,7 @@ export function Alunos() {
                 const professorName = aluno.professor?.user?.profile?.name;
                 const alunoName = aluno.user?.profile?.name || 'Aluno sem nome';
                 const alunoActive = aluno.user?.isActive !== false;
-                const avatarUrl = resolveAvatarUrl(aluno.user?.profile?.avatar);
+                const avatarUrl = resolveAssetUrl(aluno.user?.profile?.avatar);
 
                 return (
                   <div key={aluno.id} className="grid grid-cols-12 gap-2 py-3 items-center">

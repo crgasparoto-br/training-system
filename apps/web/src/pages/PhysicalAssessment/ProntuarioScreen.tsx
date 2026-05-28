@@ -33,6 +33,16 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 const toDateInput = (value?: string | null) => (value ? value.slice(0, 10) : '');
 
+function getProntuarioErrorMessage(err: any) {
+  const apiError = err?.response?.data?.error;
+
+  if (apiError === 'Route not found') {
+    return 'O módulo de prontuário ainda não está disponível na API publicada. Publique a API da branch main antes de carregar este aluno.';
+  }
+
+  return apiError || 'Não foi possível carregar o PRNT.';
+}
+
 type Drafts = {
   recordDate: string;
   summary: string;
@@ -171,7 +181,7 @@ export function ProntuarioScreen() {
         setSelectedParqSubmissionId(preferredParqId ?? data.latestParqSubmission?.id ?? null);
         setDrafts(draftsFromRecord(fallbackRecord));
       })
-      .catch((err) => setError(err?.response?.data?.error || 'Não foi possível carregar o PRNT.'))
+      .catch((err) => setError(getProntuarioErrorMessage(err)))
       .finally(() => setLoading(false));
   }, [selectedAlunoId]);
 

@@ -33,6 +33,7 @@ import { AlunoPlanoAvaliacoesTab } from '../components/alunos/AlunoPlanoAvaliaco
 import { AlunoRevisoesCadastraisTab } from '../components/alunos/AlunoRevisoesCadastraisTab';
 import { alunoDetailsCopy } from '../i18n/ptBR';
 import { useAuthStore } from '../stores/useAuthStore';
+import { resolveAssetUrl } from '../utils/assetUrl';
 import { canAccessScreen, canAccessBlock } from '../access/access-control';
 import {
   ArrowLeft,
@@ -45,20 +46,6 @@ import {
   Mail,
   Sparkles,
 } from 'lucide-react';
-
-const baseUrl = import.meta.env.VITE_API_URL || '';
-
-const resolveAvatarUrl = (avatar?: string) => {
-  if (!avatar) {
-    return '';
-  }
-
-  if (/^(https?:|data:|blob:)/i.test(avatar)) {
-    return avatar;
-  }
-
-  return `${baseUrl}/${avatar}`;
-};
 
 type AlunoAssessmentPlanSnapshot = {
   items: Array<{
@@ -1063,7 +1050,7 @@ export function AlunoDetails() {
   const preferencesInfo = readAlunoFormResponses(aluno?.intakeForm?.formResponses).preferences ?? {};
   const alunoName = aluno?.user?.profile?.name || 'Aluno sem nome';
   const alunoPhone = aluno?.user?.profile?.phone || '';
-  const avatarUrl = resolveAvatarUrl(aluno?.user?.profile?.avatar);
+  const avatarUrl = resolveAssetUrl(aluno?.user?.profile?.avatar);
 
   const visibleTabs = useMemo<AlunoDetailsTab[]>(() => {
     const allPossibleTabs: AlunoDetailsTab[] = [
