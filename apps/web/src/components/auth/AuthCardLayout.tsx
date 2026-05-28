@@ -10,7 +10,7 @@ interface AuthCardLayoutProps {
 }
 
 export function AuthCardLayout({ title, description, children, footer }: AuthCardLayoutProps) {
-  const logoSrc = '/brand/acesso-logo.jpg';
+  const logoSrc = '/logo.jpg';
 
   return (
     <div className="min-h-screen bg-background px-4 py-10 sm:px-6 lg:px-8">

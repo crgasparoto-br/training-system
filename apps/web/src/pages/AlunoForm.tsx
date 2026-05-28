@@ -23,6 +23,7 @@ import { ArrowLeft, ClipboardList, FileText, HeartPulse, Sparkles, Upload, User,
 import { alunoFormCopy } from '../i18n/ptBR';
 import { useAuthStore } from '../stores/useAuthStore';
 import { canAccessScreen } from '../access/access-control';
+import { resolveAssetUrl } from '../utils/assetUrl';
 
 const numberOrUndefined = (value: unknown) =>
   typeof value === 'number' && Number.isNaN(value) ? undefined : value;
@@ -143,8 +144,6 @@ const alunoSchema = z.object({
 
 type AlunoFormData = z.infer<typeof alunoSchema>;
 
-const baseUrl = import.meta.env.VITE_API_URL || '';
-
 const getAvatarInitials = (name?: string) => {
   const parts = (name || '')
     .trim()
@@ -157,18 +156,6 @@ const getAvatarInitials = (name?: string) => {
   }
 
   return parts.map((part) => part.charAt(0).toUpperCase()).join('');
-};
-
-const resolveAvatarUrl = (avatar?: string | null) => {
-  if (!avatar) {
-    return '';
-  }
-
-  if (/^(https?:|data:|blob:)/i.test(avatar)) {
-    return avatar;
-  }
-
-  return `${baseUrl}/${avatar}`;
 };
 
 const selectClassName =
@@ -509,7 +496,7 @@ export function AlunoForm() {
   const parqDeclarationAccepted = watch('intakeForm.parqResponses.q8');
   const bmi = weight && height ? alunoService.calculateBMI(weight, height) : 0;
   const bmiClass = bmi ? alunoService.getBMIClassification(bmi) : '';
-  const resolvedAvatar = resolveAvatarUrl(avatar);
+  const resolvedAvatar = resolveAssetUrl(avatar);
   const canSelectInactiveContract =
     user?.professor?.role === 'master' ||
     user?.professor?.collaboratorFunction?.code === 'manager' ||
