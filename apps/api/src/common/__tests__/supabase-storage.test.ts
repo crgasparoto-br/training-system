@@ -1,21 +1,18 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { createClient } from '@supabase/supabase-js';
+import { fetch } from 'undici';
 import {
   resolveSupabaseStorageConfig,
   savePublicAsset,
   savePublicAssetToSupabase,
 } from '../supabase-storage';
 
-jest.mock('@supabase/supabase-js', () => ({
-  createClient: jest.fn(),
+jest.mock('undici', () => ({
+  fetch: jest.fn(),
 }));
 
-const mockedCreateClient = createClient as jest.MockedFunction<typeof createClient>;
-const upload = jest.fn();
-const from = jest.fn(() => ({ upload }));
-
+const mockedFetch = fetch as jest.MockedFunction<typeof fetch>;
 const originalEnv = process.env;
 
 function setSupabaseEnv() {
@@ -29,11 +26,8 @@ function setSupabaseEnv() {
 
 beforeEach(() => {
   process.env = { ...originalEnv };
-  mockedCreateClient.mockReset();
-  upload.mockReset();
-  from.mockClear();
-  upload.mockResolvedValue({ error: null });
-  mockedCreateClient.mockReturnValue({ storage: { from } } as any);
+  mockedFetch.mockReset();
+  mockedFetch.mockResolvedValue({ ok: true, text: async () => '' } as any);
 });
 
 afterAll(() => {
@@ -70,26 +64,27 @@ describe('Supabase public asset storage', () => {
       mimeType: 'image/png',
     });
 
-    expect(mockedCreateClient).toHaveBeenCalledWith(
-      'https://example.supabase.co',
-      'service-role-secret',
-      {
-        auth: {
-          persistSession: false,
-          autoRefreshToken: false,
-        },
-      }
+    expect(mockedFetch).toHaveBeenCalledTimes(1);
+    const [uploadUrl, options] = mockedFetch.mock.calls[0];
+    expect(uploadUrl).toEqual(
+      expect.stringMatching(
+        /^https:\/\/example\.supabase\.co\/storage\/v1\/object\/sistema-acesso-assets\/alunos\/\d+-[\w-]+-avatar_aluno\.png$/
+      )
     );
-    expect(from).toHaveBeenCalledWith('sistema-acesso-assets');
-
-    const [assetPath, uploadedBuffer, options] = upload.mock.calls[0];
-    expect(assetPath).toEqual(expect.stringMatching(/^alunos\/\d+-[\w-]+-avatar_aluno\.png$/));
-    expect(uploadedBuffer).toBe(buffer);
-    expect(options).toEqual({ contentType: 'image/png', upsert: false });
-    expect(result).toEqual({
-      path: assetPath,
-      url: `https://example.supabase.co/storage/v1/object/public/sistema-acesso-assets/${assetPath}`,
+    expect(options).toMatchObject({
+      method: 'POST',
+      body: buffer,
+      headers: {
+        Authorization: 'Bearer service-role-secret',
+        'Content-Type': 'image/png',
+        'Cache-Control': '3600',
+        'x-upsert': 'false',
+      },
     });
+    expect(result.path).toEqual(expect.stringMatching(/^alunos\/\d+-[\w-]+-avatar_aluno\.png$/));
+    expect(result.url).toBe(
+      `https://example.supabase.co/storage/v1/object/public/sistema-acesso-assets/${result.path}`
+    );
   });
 
   it('keeps local filesystem behavior when the provider is not supabase', async () => {
