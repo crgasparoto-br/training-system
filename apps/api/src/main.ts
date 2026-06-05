@@ -7,6 +7,7 @@ import { assessmentTypeRoutes } from './modules/assessments/index.js';
 import { anthropometryRoutes } from './modules/anthropometry/index.js';
 import { prontuarioRoutes } from './modules/prontuario/index.js';
 import { authRoutes } from './modules/auth/index.js';
+import alunoAvatarUploadRoutes from './modules/alunos/aluno-avatar-upload.routes.js';
 import { alunoRoutes } from './modules/alunos/index.js';
 import { bankRoutes } from './modules/banks/index.js';
 import { collaboratorFunctionRoutes } from './modules/collaborator-functions/index.js';
@@ -47,7 +48,7 @@ const allowedOrigins = Array.from(
 // MIDDLEWARE
 // ============================================================================
 
-// SeguranÃ§a
+// Seguranca
 app.use(
   helmet({
     crossOriginResourcePolicy: { policy: 'cross-origin' },
@@ -99,7 +100,7 @@ app.get('/health', (req, res) => {
 
 app.get('/api/v1', (req, res) => {
   res.json({
-    message: 'Sistema Acesso Saúde e Performance API',
+    message: 'Sistema Acesso Saude e Performance API',
     version: '0.1.0',
     endpoints: {
       assessmentTypes: '/api/v1/assessment-types',
@@ -119,16 +120,19 @@ app.get('/api/v1', (req, res) => {
   });
 });
 
-// Rotas de Autenticação
+// Rotas de Autenticacao
 app.use('/api/v1/auth', authRoutes);
 
-// Rotas de Tipos de Avaliação
+// Rotas de Tipos de Avaliacao
 app.use('/api/v1/assessment-types', assessmentTypeRoutes);
+
+// Upload publico de avatar de aluno deve usar storage externo antes do modulo legado.
+app.use('/api/v1/alunos', alunoAvatarUploadRoutes);
 
 // Rotas de Alunos
 app.use('/api/v1/alunos', alunoRoutes);
 
-// Rotas de Avaliação Antropométrica
+// Rotas de Avaliacao Antropometrica
 app.use('/api/v1/anthropometry', anthropometryRoutes);
 
 // Rotas do PRNT
@@ -137,13 +141,13 @@ app.use('/api/v1/prontuario', prontuarioRoutes);
 // Rotas de Bancos
 app.use('/api/v1/banks', bankRoutes);
 
-// Rotas de Funções de Colaboradores
+// Rotas de Funcoes de Colaboradores
 app.use('/api/v1/collaborator-functions', collaboratorFunctionRoutes);
 
 // Rotas de Contratos
 app.use('/api/v1/contracts', contractRoutes);
 
-// Rotas de Níveis de Valor/Hora
+// Rotas de Niveis de Valor/Hora
 app.use('/api/v1/hourly-rate-levels', hourlyRateLevelRoutes);
 
 // Rotas de Planos
@@ -152,7 +156,7 @@ app.use('/api/v1/plans', planRoutes);
 // Rotas de Professores
 app.use('/api/v1/professores', professorRoutes);
 
-// Rotas de Serviços
+// Rotas de Servicos
 app.use('/api/v1/services', serviceRoutes);
 
 // Rotas do aluno autenticado
@@ -190,19 +194,13 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 
 app.listen(PORT, () => {
   console.log(`
-â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—
-â•‘                                                            â•‘
-â•‘   ðŸƒ Sistema Acesso Saúde e Performance API      â•‘
-â•‘   âœ… Servidor iniciado com sucesso                        â•‘
-â•‘                                                            â•‘
-â•‘   ðŸŒ URL: http://localhost:${PORT}                        â•‘
-â•‘   ðŸ“ Health: http://localhost:${PORT}/health              â•‘
-â•‘   ðŸ“š API: http://localhost:${PORT}/api/v1                 â•‘
-â•‘   ðŸ” Auth: http://localhost:${PORT}/api/v1/auth           â•‘
-â•‘                                                            â•‘
-â•‘   ðŸ”§ Environment: ${NODE_ENV}                             â•‘
-â•‘                                                            â•‘
-â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+Sistema Acesso Saude e Performance API
+Servidor iniciado com sucesso
+URL: http://localhost:${PORT}
+Health: http://localhost:${PORT}/health
+API: http://localhost:${PORT}/api/v1
+Auth: http://localhost:${PORT}/api/v1/auth
+Environment: ${NODE_ENV}
   `);
 });
 
