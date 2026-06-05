@@ -1,17 +1,22 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { alunoService, type Aluno } from '../services/aluno.service';
 import { professorService } from '../services/professor.service';
 import type { ProfessorSummary } from '@corrida/types';
 import { useAuthStore } from '../stores/useAuthStore';
+import { canAccessBlock, canAccessScreen } from '../access/access-control';
 import { Button } from '../components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
 import { Input } from '../components/ui/Input';
-import { Plus, Search, Edit, Eye, User, LayoutGrid, List, UserX, UserCheck } from 'lucide-react';
+import { Plus, Search, Edit, Eye, User, LayoutGrid, List, UserX, UserCheck, AlertCircle, RefreshCcw } from 'lucide-react';
 import { alunosCopy } from '../i18n/ptBR';
 import { resolveAssetUrl } from '../utils/assetUrl';
 
 const VIEW_STATE_STORAGE_KEY = 'alunos.viewState';
+
+function getAlunoErrorMessage(error: any, fallback: string) {
+  return error?.response?.data?.error || error?.message || fallback;
+}
 
 export function Alunos() {
   const user = useAuthStore((state) => state.user);
@@ -19,6 +24,7 @@ export function Alunos() {
   const [professores, setProfessores] = useState<ProfessorSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingProfessores, setLoadingProfessores] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState(() => {
     if (typeof window === 'undefined') return '';
     try {
@@ -72,15 +78,25 @@ export function Alunos() {
     user?.type === 'professor' &&
     user?.professor?.role === 'master' &&
     user?.professor?.contract?.type === 'academy';
+  const canCreateAluno = canAccessScreen(user, 'students.registration');
+  const canViewAlunoDetails =
+    canAccessScreen(user, 'students.details') ||
+    canAccessScreen(user, 'students.consultation') ||
+    canAccessScreen(user, 'students.registration');
+  const canEditAluno =
+    canAccessScreen(user, 'students.registration') &&
+    canAccessBlock(user, 'students.actions.editProfile');
+  const canToggleAlunoStatus = canEditAluno;
+  const isSearchMode = searchQuery.trim().length >= 2;
 
   useEffect(() => {
-    if (searchQuery.length >= 2) {
+    if (isSearchMode) {
       handleSearch();
       return;
     }
 
     loadAlunos();
-  }, [page, professorFilter, statusFilter]);
+  }, [page, professorFilter, statusFilter, isSearchMode]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -106,11 +122,12 @@ export function Alunos() {
     }
   }, [canManageProfessores, professorFilter]);
 
-  const loadAlunos = async () => {
+  const loadAlunos = async (nextPage = page) => {
     setLoading(true);
+    setLoadError(null);
     try {
       const scopedProfessorFilter = canManageProfessores ? professorFilter || undefined : undefined;
-      const data = await alunoService.list(page, 10, scopedProfessorFilter, statusFilter);
+      const data = await alunoService.list(nextPage, 10, scopedProfessorFilter, statusFilter);
       const nextAlunos = Array.isArray(data?.alunos) ? data.alunos : [];
       const nextTotalPages =
         typeof data?.pagination?.totalPages === 'number' && data.pagination.totalPages > 0
@@ -123,32 +140,49 @@ export function Alunos() {
       console.error('Erro ao carregar alunos:', error);
       setAlunos([]);
       setTotalPages(1);
+      setLoadError(getAlunoErrorMessage(error, 'Não foi possível carregar os alunos.'));
     } finally {
       setLoading(false);
     }
   };
 
   const handleSearch = async () => {
-    if (searchQuery.length < 2) {
-      loadAlunos();
+    const trimmedQuery = searchQuery.trim();
+
+    if (trimmedQuery.length < 2) {
+      await loadAlunos(1);
       return;
     }
 
     setLoading(true);
+    setLoadError(null);
     try {
       const scopedProfessorFilter = canManageProfessores ? professorFilter || undefined : undefined;
       const data = await alunoService.search(
-        searchQuery,
+        trimmedQuery,
         scopedProfessorFilter,
         statusFilter
       );
       setAlunos(Array.isArray(data) ? data : []);
+      setTotalPages(1);
+      setPage(1);
     } catch (error) {
       console.error('Erro ao buscar alunos:', error);
       setAlunos([]);
+      setTotalPages(1);
+      setLoadError(getAlunoErrorMessage(error, 'Não foi possível buscar alunos.'));
     } finally {
       setLoading(false);
     }
+  };
+
+  const reloadCurrentView = async () => {
+    if (isSearchMode) {
+      await handleSearch();
+      return;
+    }
+
+    await loadAlunos(page);
   };
 
   const visibleAlunos = Array.isArray(alunos) ? alunos : [];
@@ -163,6 +197,11 @@ export function Alunos() {
     } finally {
       setLoadingProfessores(false);
     }
+  };
+
+  const handleSearchQueryChange = (value: string) => {
+    setSearchQuery(value);
+    setPage(1);
   };
 
   const handleProfessorFilterChange = (value: string) => {
@@ -182,39 +221,81 @@ export function Alunos() {
 
     try {
       await alunoService.deactivate(id);
-      loadAlunos();
+      await reloadCurrentView();
     } catch (error) {
       console.error('Erro ao inativar aluno:', error);
-      alert(alunosCopy.deactivateError);
+      alert(getAlunoErrorMessage(error, alunosCopy.deactivateError));
     }
   };
 
   const handleActivate = async (id: string) => {
     try {
       await alunoService.activate(id);
-      loadAlunos();
+      await reloadCurrentView();
     } catch (error) {
       console.error('Erro ao reativar aluno:', error);
-      alert(alunosCopy.activateError);
+      alert(getAlunoErrorMessage(error, alunosCopy.activateError));
     }
   };
+
+  const renderAlunoActions = (aluno: Aluno, alunoActive: boolean, compact = false) => (
+    <>
+      {canViewAlunoDetails && (
+        <Link to={`/alunos/${aluno.id}`} className={compact ? undefined : 'flex-1'}>
+          <Button variant="outline" size="sm" className={compact ? undefined : 'w-full'}>
+            <Eye size={16} />
+            {!compact && alunosCopy.view}
+          </Button>
+        </Link>
+      )}
+      {canEditAluno && (
+        <Link to={`/alunos/${aluno.id}/edit`} className={compact ? undefined : 'flex-1'}>
+          <Button variant="outline" size="sm" className={compact ? undefined : 'w-full'}>
+            <Edit size={16} />
+            {!compact && alunosCopy.edit}
+          </Button>
+        </Link>
+      )}
+      {canToggleAlunoStatus && (
+        !alunoActive ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => handleActivate(aluno.id)}
+          >
+            <UserCheck size={16} />
+          </Button>
+        ) : (
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => handleDeactivate(aluno.id)}
+          >
+            <UserX size={16} />
+          </Button>
+        )
+      )}
+    </>
+  );
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="ts-page-heading">{alunosCopy.title}</h1>
           <p className="ts-page-description">
             {alunosCopy.description}
           </p>
         </div>
-        <Link to="/alunos/new">
-          <Button>
-            <Plus size={20} />
-            {alunosCopy.newAluno}
-          </Button>
-        </Link>
+        {canCreateAluno && (
+          <Link to="/alunos/new">
+            <Button>
+              <Plus size={20} />
+              {alunosCopy.newAluno}
+            </Button>
+          </Link>
+        )}
       </div>
 
       {/* Search */}
@@ -225,8 +306,8 @@ export function Alunos() {
               <Input
                 placeholder={alunosCopy.searchPlaceholder}
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                onChange={(e) => handleSearchQueryChange(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
               />
             </div>
             <div className="w-full lg:w-52">
@@ -285,6 +366,24 @@ export function Alunos() {
         </CardContent>
       </Card>
 
+      {loadError && (
+        <Card>
+          <CardContent className="flex flex-col gap-3 py-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3 text-destructive">
+              <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
+              <div>
+                <p className="font-medium">Falha ao carregar a consulta</p>
+                <p className="text-sm text-muted-foreground">{loadError}</p>
+              </div>
+            </div>
+            <Button type="button" variant="outline" onClick={reloadCurrentView}>
+              <RefreshCcw size={16} />
+              Tentar novamente
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Alunos List */}
       {loading ? (
         <Card>
@@ -301,7 +400,7 @@ export function Alunos() {
             <p className="text-muted-foreground mb-4">
               {searchQuery ? alunosCopy.emptySearchHint : alunosCopy.emptyDefaultHint}
             </p>
-            {!searchQuery && (
+            {!searchQuery && canCreateAluno && (
               <Link to="/alunos/new">
                 <Button>
                   <Plus size={20} />
@@ -378,35 +477,7 @@ export function Alunos() {
                   </div>
 
                   <div className="flex gap-2 border-t pt-4">
-                    <Link to={`/alunos/${aluno.id}`} className="flex-1">
-                      <Button variant="outline" size="sm" className="w-full">
-                        <Eye size={16} />
-                        {alunosCopy.view}
-                      </Button>
-                    </Link>
-                    <Link to={`/alunos/${aluno.id}/edit`} className="flex-1">
-                      <Button variant="outline" size="sm" className="w-full">
-                        <Edit size={16} />
-                        {alunosCopy.edit}
-                      </Button>
-                    </Link>
-                    {!alunoActive ? (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => handleActivate(aluno.id)}
-                      >
-                        <UserCheck size={16} />
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => handleDeactivate(aluno.id)}
-                      >
-                        <UserX size={16} />
-                      </Button>
-                    )}
+                    {renderAlunoActions(aluno, alunoActive)}
                   </div>
                 </CardContent>
               </Card>
@@ -416,99 +487,77 @@ export function Alunos() {
       ) : (
         <Card>
           <CardContent className="pt-6">
-            <div className="grid grid-cols-12 gap-2 border-b pb-3 text-xs font-semibold text-muted-foreground">
-              <div className="col-span-4">{alunosCopy.studentColumn}</div>
-              <div className="col-span-2">{alunosCopy.weightColumn}</div>
-              <div className="col-span-2">{alunosCopy.heightColumn}</div>
-              <div className="col-span-1">IMC</div>
-              <div className="col-span-1">VO2</div>
-              <div className="col-span-2 text-right">{alunosCopy.actions}</div>
-            </div>
-            <div className="divide-y">
-              {visibleAlunos.map((aluno) => {
-                const weight = typeof aluno.weight === 'number' ? aluno.weight : undefined;
-                const height = typeof aluno.height === 'number' ? aluno.height : undefined;
-                const bmi = weight !== undefined && height !== undefined ? alunoService.calculateBMI(weight, height) : null;
-                const professorName = aluno.professor?.user?.profile?.name;
-                const alunoName = aluno.user?.profile?.name || 'Aluno sem nome';
-                const alunoActive = aluno.user?.isActive !== false;
-                const avatarUrl = resolveAssetUrl(aluno.user?.profile?.avatar);
+            <div className="overflow-x-auto">
+              <div className="min-w-[760px]">
+                <div className="grid grid-cols-12 gap-2 border-b pb-3 text-xs font-semibold text-muted-foreground">
+                  <div className="col-span-4">{alunosCopy.studentColumn}</div>
+                  <div className="col-span-2">{alunosCopy.weightColumn}</div>
+                  <div className="col-span-2">{alunosCopy.heightColumn}</div>
+                  <div className="col-span-1">IMC</div>
+                  <div className="col-span-1">VO2</div>
+                  <div className="col-span-2 text-right">{alunosCopy.actions}</div>
+                </div>
+                <div className="divide-y">
+                  {visibleAlunos.map((aluno) => {
+                    const weight = typeof aluno.weight === 'number' ? aluno.weight : undefined;
+                    const height = typeof aluno.height === 'number' ? aluno.height : undefined;
+                    const bmi = weight !== undefined && height !== undefined ? alunoService.calculateBMI(weight, height) : null;
+                    const professorName = aluno.professor?.user?.profile?.name;
+                    const alunoName = aluno.user?.profile?.name || 'Aluno sem nome';
+                    const alunoActive = aluno.user?.isActive !== false;
+                    const avatarUrl = resolveAssetUrl(aluno.user?.profile?.avatar);
 
-                return (
-                  <div key={aluno.id} className="grid grid-cols-12 gap-2 py-3 items-center">
-                    <div className="col-span-4 flex items-center gap-3">
-                      <div className="h-10 w-10 overflow-hidden rounded-full bg-primary/10 flex items-center justify-center">
-                        {avatarUrl ? (
-                          <img
-                            src={avatarUrl}
-                            alt={`Foto de ${alunoName}`}
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          <User className="h-5 w-5 text-primary" />
-                        )}
+                    return (
+                      <div key={aluno.id} className="grid grid-cols-12 gap-2 py-3 items-center">
+                        <div className="col-span-4 flex items-center gap-3">
+                          <div className="h-10 w-10 overflow-hidden rounded-full bg-primary/10 flex items-center justify-center">
+                            {avatarUrl ? (
+                              <img
+                                src={avatarUrl}
+                                alt={`Foto de ${alunoName}`}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <User className="h-5 w-5 text-primary" />
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="truncate font-medium">{alunoName}</p>
+                            <p className="truncate text-xs text-muted-foreground">
+                              {aluno.age} {alunosCopy.ageYears}
+                              {canManageProfessores && (
+                                <>
+                                  {' '}
+                                  • {professorName || alunosCopy.professorLabel}
+                                </>
+                              )}
+                              {!alunoActive && (
+                                <span className="ts-badge-danger ml-2">
+                                  {alunosCopy.inactive}
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="col-span-2 text-sm">{weight !== undefined ? `${weight} kg` : 'Não informado'}</div>
+                        <div className="col-span-2 text-sm">{height !== undefined ? `${height} cm` : 'Não informado'}</div>
+                        <div className="col-span-1 text-sm">{bmi !== null ? bmi.toFixed(1) : '—'}</div>
+                        <div className="col-span-1 text-sm">{typeof aluno.vo2Max === 'number' ? aluno.vo2Max : '—'}</div>
+                        <div className="col-span-2 flex justify-end gap-2">
+                          {renderAlunoActions(aluno, alunoActive, true)}
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium">{alunoName}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {aluno.age} {alunosCopy.ageYears}
-                          {canManageProfessores && (
-                            <>
-                              {' '}
-                              • {professorName || alunosCopy.professorLabel}
-                            </>
-                          )}
-                          {!alunoActive && (
-                            <span className="ts-badge-danger ml-2">
-                              {alunosCopy.inactive}
-                            </span>
-                          )}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="col-span-2 text-sm">{weight !== undefined ? `${weight} kg` : 'Não informado'}</div>
-                    <div className="col-span-2 text-sm">{height !== undefined ? `${height} cm` : 'Não informado'}</div>
-                    <div className="col-span-1 text-sm">{bmi !== null ? bmi.toFixed(1) : '—'}</div>
-                    <div className="col-span-1 text-sm">{typeof aluno.vo2Max === 'number' ? aluno.vo2Max : '—'}</div>
-                    <div className="col-span-2 flex justify-end gap-2">
-                      <Link to={`/alunos/${aluno.id}`}>
-                        <Button variant="outline" size="sm">
-                          <Eye size={16} />
-                        </Button>
-                      </Link>
-                      <Link to={`/alunos/${aluno.id}/edit`}>
-                        <Button variant="outline" size="sm">
-                          <Edit size={16} />
-                        </Button>
-                      </Link>
-                      {!alunoActive ? (
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => handleActivate(aluno.id)}
-                        >
-                          <UserCheck size={16} />
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => handleDeactivate(aluno.id)}
-                        >
-                          <UserX size={16} />
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
       )}
 
       {/* Pagination */}
-      {totalPages > 1 && (
+      {!isSearchMode && totalPages > 1 && (
         <Card>
           <CardContent className="py-4">
             <div className="flex items-center justify-between">
