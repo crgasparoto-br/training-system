@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Activity, ClipboardList, FilePlus2, Save } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -150,8 +150,9 @@ function followUpLookupKey(parqSubmissionId: string | null | undefined, itemKey:
 export function ProntuarioScreen() {
   const user = useAuthStore((state) => state.user);
   const [searchParams, setSearchParams] = useSearchParams();
+  const alunoIdFromUrl = searchParams.get('alunoId') || '';
   const [students, setStudents] = useState<Aluno[]>([]);
-  const [selectedAlunoId, setSelectedAlunoId] = useState(searchParams.get('alunoId') || '');
+  const [selectedAlunoId, setSelectedAlunoId] = useState(alunoIdFromUrl);
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
   const [selectedParqSubmissionId, setSelectedParqSubmissionId] = useState<string | null>(null);
   const [overview, setOverview] = useState<ProntuarioOverview | null>(null);
@@ -162,6 +163,7 @@ export function ProntuarioScreen() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const overviewRequestIdRef = useRef(0);
 
   const currentRecord = useMemo(() => {
     if (!overview) return null;
@@ -189,45 +191,59 @@ export function ProntuarioScreen() {
   );
 
   useEffect(() => {
+    let isActive = true;
+
     alunoService.list(1, 100, undefined, 'active')
-      .then((response) => setStudents(response.alunos || []))
-      .catch(() => setError('Não foi possível carregar alunos.'));
+      .then((response) => {
+        if (isActive) {
+          setStudents(response.alunos || []);
+        }
+      })
+      .catch(() => {
+        if (isActive) {
+          setError('Não foi possível carregar alunos.');
+        }
+      });
+
+    return () => {
+      isActive = false;
+    };
   }, []);
 
   useEffect(() => {
-    const alunoId = searchParams.get('alunoId') || '';
-    if (alunoId !== selectedAlunoId) {
-      setSelectedAlunoId(alunoId);
-    }
-  }, [searchParams, selectedAlunoId]);
+    setSelectedAlunoId((currentAlunoId) =>
+      currentAlunoId === alunoIdFromUrl ? currentAlunoId : alunoIdFromUrl
+    );
+  }, [alunoIdFromUrl]);
 
   useEffect(() => {
-    const currentAlunoId = searchParams.get('alunoId') || '';
+    const requestId = overviewRequestIdRef.current + 1;
+    overviewRequestIdRef.current = requestId;
 
-    if (!selectedAlunoId) {
-      if (currentAlunoId) {
-        setSearchParams({}, { replace: true });
-      }
-      return;
-    }
-
-    if (currentAlunoId !== selectedAlunoId) {
-      setSearchParams({ alunoId: selectedAlunoId }, { replace: true });
-    }
-  }, [selectedAlunoId, searchParams, setSearchParams]);
-
-  useEffect(() => {
     if (!selectedAlunoId) {
       setOverview(null);
       setSelectedRecordId(null);
       setSelectedParqSubmissionId(null);
       setDrafts(emptyDrafts);
+      setFollowUpDrafts({});
+      setLoading(false);
       return;
     }
+
     setLoading(true);
     setError(null);
+    setOverview(null);
+    setSelectedRecordId(null);
+    setSelectedParqSubmissionId(null);
+    setDrafts(emptyDrafts);
+    setFollowUpDrafts({});
+
     prontuarioService.overview(selectedAlunoId)
       .then((data) => {
+        if (overviewRequestIdRef.current !== requestId) {
+          return;
+        }
+
         setOverview(data);
         const fallbackRecord = data.currentRecord ?? data.records[0] ?? null;
         setSelectedRecordId(fallbackRecord?.id ?? null);
@@ -235,8 +251,16 @@ export function ProntuarioScreen() {
         setSelectedParqSubmissionId(preferredParqId ?? data.latestParqSubmission?.id ?? null);
         setDrafts(draftsFromRecord(fallbackRecord));
       })
-      .catch((err) => setError(getProntuarioErrorMessage(err)))
-      .finally(() => setLoading(false));
+      .catch((err) => {
+        if (overviewRequestIdRef.current === requestId) {
+          setError(getProntuarioErrorMessage(err));
+        }
+      })
+      .finally(() => {
+        if (overviewRequestIdRef.current === requestId) {
+          setLoading(false);
+        }
+      });
   }, [selectedAlunoId]);
 
   useEffect(() => {
@@ -273,6 +297,11 @@ export function ProntuarioScreen() {
     setSelectedRecordId(fallbackRecord?.id ?? null);
     setSelectedParqSubmissionId(nextParqSubmissionId);
     setDrafts(draftsFromRecord(fallbackRecord));
+  };
+
+  const handleAlunoSelectionChange = (alunoId: string) => {
+    setSelectedAlunoId(alunoId);
+    setSearchParams(alunoId ? { alunoId } : {}, { replace: true });
   };
 
   const normalizeGoalsPayload = (goals: Drafts['goals']) =>
@@ -485,7 +514,7 @@ export function ProntuarioScreen() {
         <CardContent className="grid gap-4 pt-6 lg:grid-cols-[minmax(260px,420px)_1fr_auto] lg:items-end">
           <div>
             <label className="mb-2 block text-sm font-medium text-foreground">Aluno</label>
-            <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={selectedAlunoId} onChange={(event) => setSelectedAlunoId(event.target.value)}>
+            <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={selectedAlunoId} onChange={(event) => handleAlunoSelectionChange(event.target.value)}>
               <option value="">Selecione um aluno</option>
               {students.map((student) => (
                 <option key={student.id} value={student.id}>{student.user.profile.name}</option>
