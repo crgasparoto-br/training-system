@@ -16,6 +16,7 @@ Este documento registra as regras minimas para publicar o Sistema Acesso.
 - `FRONTEND_URL`
 - `CORS_ORIGINS`
 - `JWT_SECRET`
+- `UPLOAD_STORAGE_ROOT`: caminho absoluto no host da API para armazenamento persistente de uploads. Em Render, deve apontar para o mount path do Persistent Disk.
 - `ASSET_BASE_URL`: URL publica preferencial para servir assets enviados, como logos, avatares e contratos assinados. Em producao, deve apontar para storage/CDN persistente quando houver provider configurado.
 - `API_PUBLIC_URL`: URL publica da API usada como fallback para montar URLs de uploads quando `ASSET_BASE_URL` nao estiver configurada.
 
@@ -25,13 +26,23 @@ Este documento registra as regras minimas para publicar o Sistema Acesso.
 
 ## Uploads e assets persistentes
 
-O fluxo atual ainda grava uploads no filesystem da API e monta a URL publica com `ASSET_BASE_URL`, `API_PUBLIC_URL` ou headers da requisicao. Em ambientes como Render, esse filesystem pode ser efemero se nao houver disco persistente configurado.
+O fluxo de uploads grava arquivos na raiz configurada por `UPLOAD_STORAGE_ROOT` (ou `./uploads` por padrao) e monta a URL publica com `ASSET_BASE_URL`, `API_PUBLIC_URL` ou headers da requisicao.
 
-Para producao, valide uma destas estrategias antes de considerar logos e avatares resilientes a redeploy/restart:
+Para producao em Render, o modo recomendado e:
 
-- configurar storage externo persistente, como Cloudflare R2, S3 ou Supabase Storage;
-- configurar disco persistente no provedor da API e garantir que `/uploads` esteja montado nele;
-- manter `ASSET_BASE_URL` apontando para o host/CDN que realmente serve os arquivos persistidos.
+- provisionar um Persistent Disk;
+- montar o disco no servico da API (ex.: `/var/data`);
+- configurar `UPLOAD_STORAGE_ROOT` para `${mountPath}/uploads` (ex.: `/var/data/uploads`);
+- configurar `ASSET_BASE_URL` para o host publico que serve `/uploads`;
+- manter `API_PUBLIC_URL` como fallback coerente com o host da API.
+
+Alternativamente, pode-se usar storage externo (R2/S3/Supabase Storage), mantendo `ASSET_BASE_URL` apontando para o host/CDN correto.
+
+Antes de publicar, valide:
+
+- reinicio do servico preserva arquivos enviados;
+- redeploy preserva logo de contrato, avatar de aluno e avatar de colaborador;
+- URLs antigas com `/api/v1/uploads/...` e `/uploads/...` continuam resolvendo quando o arquivo existir no storage.
 
 `ASSET_BASE_URL` e `API_PUBLIC_URL` estabilizam a URL gravada/retornada, mas nao recuperam arquivos perdidos quando o storage fisico e efemero.
 
