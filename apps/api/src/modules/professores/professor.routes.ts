@@ -9,28 +9,22 @@ import {
 import { CreateProfessorSchema, UpdateProfessorSchema } from '@corrida/utils';
 import { sendSuccess, sendError } from '@corrida/utils';
 import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
 import { buildPublicUploadUrl } from '../../common/public-upload-url.js';
+import {
+  buildTimestampedUploadFileName,
+  ensureUploadStorageDir,
+  resolvePublicUploadPath,
+} from '../../common/asset-storage.js';
+import { blockAccessMiddleware } from '../access-control/access-control.middleware.js';
 
 const router: Router = Router();
-const avatarUploadRoot = path.resolve(process.cwd(), 'uploads', 'professores');
-const signedContractUploadRoot = path.resolve(process.cwd(), 'uploads', 'professores', 'contracts');
-
-const ensureDir = (dirPath: string) => {
-  if (!fs.existsSync(dirPath)) {
-    fs.mkdirSync(dirPath, { recursive: true });
-  }
-};
 
 const avatarStorage = multer.diskStorage({
   destination: (_req, _file, cb) => {
-    ensureDir(avatarUploadRoot);
-    cb(null, avatarUploadRoot);
+    cb(null, ensureUploadStorageDir('professores'));
   },
   filename: (_req, file, cb) => {
-    const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]+/g, '_');
-    cb(null, `${Date.now()}-${safeName}`);
+    cb(null, buildTimestampedUploadFileName(file.originalname));
   },
 });
 
@@ -48,12 +42,10 @@ const avatarUpload = multer({
 
 const signedContractStorage = multer.diskStorage({
   destination: (_req, _file, cb) => {
-    ensureDir(signedContractUploadRoot);
-    cb(null, signedContractUploadRoot);
+    cb(null, ensureUploadStorageDir('professores', 'contracts'));
   },
   filename: (_req, file, cb) => {
-    const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]+/g, '_');
-    cb(null, `${Date.now()}-${safeName}`);
+    cb(null, buildTimestampedUploadFileName(file.originalname));
   },
 });
 
@@ -115,7 +107,7 @@ router.post(
       return sendError(res, 'Selecione uma imagem para upload', 400);
     }
 
-    const fileUrl = buildPublicUploadUrl(req, `/uploads/professores/${req.file.filename}`);
+    const fileUrl = buildPublicUploadUrl(req, resolvePublicUploadPath('professores', req.file.filename));
 
     if (!fileUrl) {
       return sendError(res, 'Não foi possível montar a URL da foto enviada', 500);
@@ -131,6 +123,7 @@ router.post(
 router.post(
   '/signed-contract-upload',
   screenAccessMiddleware('collaborators.registration'),
+  blockAccessMiddleware('collaborators.actions.uploadSignedContract'),
   uploadSignedContractFile,
   async (req: Request, res: Response) => {
   try {
@@ -147,7 +140,10 @@ router.post(
       return sendError(res, 'Selecione um PDF para upload', 400);
     }
 
-    const fileUrl = buildPublicUploadUrl(req, `/uploads/professores/contracts/${req.file.filename}`);
+    const fileUrl = buildPublicUploadUrl(
+      req,
+      resolvePublicUploadPath('professores', 'contracts', req.file.filename)
+    );
 
     if (!fileUrl) {
       return sendError(res, 'Não foi possível montar a URL do contrato enviado', 500);
@@ -276,7 +272,11 @@ router.put('/:id', screenAccessMiddleware('collaborators.registration'), async (
  * POST /api/v1/professores/:id/legal-financial/validate
  * Validar bloco juridico e financeiro do colaborador
  */
-router.post('/:id/legal-financial/validate', screenAccessMiddleware('collaborators.registration'), async (req: Request, res: Response) => {
+router.post(
+  '/:id/legal-financial/validate',
+  screenAccessMiddleware('collaborators.registration'),
+  blockAccessMiddleware('collaborators.actions.validateLegalFinancial'),
+  async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const contractId = (req as any).user.contractId;
@@ -296,13 +296,18 @@ router.post('/:id/legal-financial/validate', screenAccessMiddleware('collaborato
   } catch (error: any) {
     return sendScopedError(res, error, 'Erro ao validar dados juridicos e financeiros');
   }
-});
+}
+);
 
 /**
  * POST /api/v1/professores/:id/deactivate
  * Desativar professor
  */
-router.post('/:id/deactivate', screenAccessMiddleware('collaborators.registration'), async (req: Request, res: Response) => {
+router.post(
+  '/:id/deactivate',
+  screenAccessMiddleware('collaborators.registration'),
+  blockAccessMiddleware('collaborators.actions.deactivate'),
+  async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const contractId = (req as any).user.contractId;
@@ -320,13 +325,18 @@ router.post('/:id/deactivate', screenAccessMiddleware('collaborators.registratio
   } catch (error: any) {
     return sendScopedError(res, error, 'Erro ao desativar professor');
   }
-});
+}
+);
 
 /**
  * POST /api/v1/professores/:id/activate
  * Reativar professor
  */
-router.post('/:id/activate', screenAccessMiddleware('collaborators.registration'), async (req: Request, res: Response) => {
+router.post(
+  '/:id/activate',
+  screenAccessMiddleware('collaborators.registration'),
+  blockAccessMiddleware('collaborators.actions.activate'),
+  async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const contractId = (req as any).user.contractId;
@@ -344,13 +354,18 @@ router.post('/:id/activate', screenAccessMiddleware('collaborators.registration'
   } catch (error: any) {
     return sendScopedError(res, error, 'Erro ao reativar professor');
   }
-});
+}
+);
 
 /**
  * POST /api/v1/professores/:id/reset-password
  * Reset rápido de senha do professor
  */
-router.post('/:id/reset-password', screenAccessMiddleware('collaborators.registration'), async (req: Request, res: Response) => {
+router.post(
+  '/:id/reset-password',
+  screenAccessMiddleware('collaborators.registration'),
+  blockAccessMiddleware('collaborators.actions.resetPassword'),
+  async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const contractId = (req as any).user.contractId;
@@ -372,6 +387,7 @@ router.post('/:id/reset-password', screenAccessMiddleware('collaborators.registr
   } catch (error: any) {
     return sendScopedError(res, error, 'Erro ao resetar senha');
   }
-});
+}
+);
 
 export default router;

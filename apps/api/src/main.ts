@@ -3,7 +3,6 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import 'express-async-errors';
-import path from 'path';
 import { assessmentTypeRoutes } from './modules/assessments/index.js';
 import { anthropometryRoutes } from './modules/anthropometry/index.js';
 import { prontuarioRoutes } from './modules/prontuario/index.js';
@@ -18,6 +17,7 @@ import { professorRoutes } from './modules/professores/index.js';
 import { serviceRoutes } from './modules/services/index.js';
 import { startProfileReviewScheduler } from './modules/alunos/profile-review.scheduler.js';
 import studentRoutes from './routes/student.routes.js';
+import { getUploadStorageRoot } from './common/asset-storage.js';
 
 const app: express.Express = express();
 const PORT = Number(process.env.PORT || process.env.API_PORT || 3000);
@@ -78,7 +78,8 @@ app.use(
 // Body Parser
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
-app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads')));
+app.use('/uploads', express.static(getUploadStorageRoot()));
+app.use('/api/v1/uploads', express.static(getUploadStorageRoot()));
 
 // ============================================================================
 // HEALTH CHECK

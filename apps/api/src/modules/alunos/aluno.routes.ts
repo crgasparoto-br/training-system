@@ -24,26 +24,23 @@ import { assessmentPlanNotificationService } from './assessment-plan-notificatio
 import { screenAccessMiddleware, blockAccessMiddleware } from '../access-control/access-control.middleware.js';
 import { studentContractService } from '../student-contracts/student-contract.service.js';
 import { buildPublicUploadUrl } from '../../common/public-upload-url.js';
+import {
+  buildTimestampedUploadFileName,
+  ensureUploadStorageDir,
+  resolvePublicUploadPath,
+  resolveStoredUploadPathFromAbsolute,
+  resolveUploadAbsolutePathFromStored,
+} from '../../common/asset-storage.js';
 
 const router: Router = Router();
 const prisma = new PrismaClient();
 
-const uploadRoot = path.resolve(process.cwd(), 'uploads', 'assessments');
-const avatarUploadRoot = path.resolve(process.cwd(), 'uploads', 'alunos');
-const ensureDir = (dirPath: string) => {
-  if (!fs.existsSync(dirPath)) {
-    fs.mkdirSync(dirPath, { recursive: true });
-  }
-};
-
 const avatarStorage = multer.diskStorage({
   destination: (_req, _file, cb) => {
-    ensureDir(avatarUploadRoot);
-    cb(null, avatarUploadRoot);
+    cb(null, ensureUploadStorageDir('alunos'));
   },
   filename: (_req, file, cb) => {
-    const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]+/g, '_');
-    cb(null, `${Date.now()}-${safeName}`);
+    cb(null, buildTimestampedUploadFileName(file.originalname));
   },
 });
 
@@ -62,13 +59,10 @@ const avatarUpload = multer({
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const alunoId = req.params.id;
-    const alunoDir = path.join(uploadRoot, alunoId);
-    ensureDir(alunoDir);
-    cb(null, alunoDir);
+    cb(null, ensureUploadStorageDir('assessments', alunoId));
   },
   filename: (req, file, cb) => {
-    const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]+/g, '_');
-    cb(null, `${Date.now()}-${safeName}`);
+    cb(null, buildTimestampedUploadFileName(file.originalname));
   },
 });
 
@@ -132,7 +126,7 @@ router.post('/avatar-upload', uploadAvatarFile, async (req: Request, res: Respon
       return sendError(res, 'Selecione uma imagem para upload', 400);
     }
 
-    const fileUrl = buildPublicUploadUrl(req, `/uploads/alunos/${req.file.filename}`);
+    const fileUrl = buildPublicUploadUrl(req, resolvePublicUploadPath('alunos', req.file.filename));
     if (!fileUrl) {
       return sendError(res, 'Não foi possível montar a URL da foto enviada', 500);
     }
@@ -1453,7 +1447,7 @@ router.post('/:id/assessments', blockAccessMiddleware('students.actions.manageAs
       return sendError(res, 'Data de avaliaÃƒÂ§ÃƒÂ£o invÃƒÂ¡lida', 400);
     }
 
-    const storedPath = path.relative(process.cwd(), req.file.path);
+    const storedPath = resolveStoredUploadPathFromAbsolute(req.file.path);
 
     let extractedData: any = null;
     try {
@@ -1530,7 +1524,7 @@ router.get('/:id/assessments/:assessmentId/file', blockAccessMiddleware('student
       return sendError(res, 'AvaliaÃƒÂ§ÃƒÂ£o nÃƒÂ£o encontrada', 404);
     }
 
-    const filePath = path.resolve(process.cwd(), assessment.filePath);
+    const filePath = resolveUploadAbsolutePathFromStored(assessment.filePath);
     if (!fs.existsSync(filePath)) {
       return sendError(res, 'Arquivo nÃƒÂ£o encontrado no servidor', 404);
     }
@@ -1573,7 +1567,7 @@ router.post('/:id/assessments/:assessmentId/reprocess', blockAccessMiddleware('s
       return sendError(res, 'Avaliação não encontrada', 404);
     }
 
-    const filePath = path.resolve(process.cwd(), assessment.filePath);
+    const filePath = resolveUploadAbsolutePathFromStored(assessment.filePath);
     console.log('[assessments][reprocess] file', { filePath });
     if (!fs.existsSync(filePath)) {
       return sendError(res, 'Arquivo não encontrado no servidor', 404);
@@ -1827,7 +1821,7 @@ router.delete('/:id/assessments/:assessmentId', blockAccessMiddleware('students.
       },
     });
 
-    const filePath = path.resolve(process.cwd(), assessment.filePath);
+    const filePath = resolveUploadAbsolutePathFromStored(assessment.filePath);
     if (fs.existsSync(filePath)) {
       fs.unlinkSync(filePath);
     }

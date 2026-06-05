@@ -5,7 +5,13 @@ function normalizeBaseUrl(baseUrl: string) {
 }
 
 function normalizeUploadPath(uploadPath: string) {
-  return uploadPath.startsWith('/') ? uploadPath : `/${uploadPath}`;
+  const trimmed = uploadPath.trim();
+  const withoutOrigin = trimmed.replace(/^https?:\/\/[^/]+/i, '');
+  const withLeadingSlash = withoutOrigin.startsWith('/') ? withoutOrigin : `/${withoutOrigin}`;
+
+  return withLeadingSlash
+    .replace(/^\/api\/v\d+\/uploads\//i, '/uploads/')
+    .replace(/^\/?uploads\//i, '/uploads/');
 }
 
 export function buildPublicUploadUrl(req: Request, uploadPath: string) {

@@ -26,6 +26,12 @@ describe('resolveAssetUrl', () => {
     );
   });
 
+  it('normaliza URL absoluta com host legado e prefixo /api/v1/uploads', () => {
+    const result = resolveAssetUrl('https://legacy-api.com/api/v1/uploads/alunos/1234-avatar.png');
+
+    expect(result).toContain('/uploads/alunos/1234-avatar.png');
+  });
+
   it('usa a origin atual quando VITE_API_URL nao estiver disponivel', () => {
     const originalWindow = globalThis.window;
     vi.stubEnv('VITE_API_URL', '');

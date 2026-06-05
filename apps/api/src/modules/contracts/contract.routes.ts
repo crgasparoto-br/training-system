@@ -8,31 +8,26 @@ import { PrismaClient, type ContractStatus } from '@prisma/client';
 import { screenAccessMiddleware } from '../access-control/access-control.middleware.js';
 import multer from 'multer';
 import path from 'path';
-import fs from 'fs';
 import { buildPublicUploadUrl } from '../../common/public-upload-url.js';
+import {
+  buildTimestampedUploadFileName,
+  ensureUploadStorageDir,
+  resolvePublicUploadPath,
+} from '../../common/asset-storage.js';
 
 const router: Router = Router();
 const prisma = new PrismaClient();
-const logoUploadRoot = path.resolve(process.cwd(), 'uploads', 'contracts', 'logos');
 
 const normalizeDocument = (document: string) => document.replace(/\D/g, '');
 const trimOptional = (value: unknown) =>
   typeof value === 'string' ? value.trim() || null : null;
 
-const ensureDir = (dirPath: string) => {
-  if (!fs.existsSync(dirPath)) {
-    fs.mkdirSync(dirPath, { recursive: true });
-  }
-};
-
 const logoStorage = multer.diskStorage({
   destination: (_req, _file, cb) => {
-    ensureDir(logoUploadRoot);
-    cb(null, logoUploadRoot);
+    cb(null, ensureUploadStorageDir('contracts', 'logos'));
   },
   filename: (_req, file, cb) => {
-    const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]+/g, '_');
-    cb(null, `${Date.now()}-${safeName}`);
+    cb(null, buildTimestampedUploadFileName(file.originalname));
   },
 });
 
@@ -538,7 +533,10 @@ router.post('/logo-upload', async (req: Request, res: Response) => {
           return sendError(res, 'Selecione uma imagem para upload', 400);
         }
 
-        const fileUrl = buildPublicUploadUrl(req, `/uploads/contracts/logos/${req.file.filename}`);
+        const fileUrl = buildPublicUploadUrl(
+          req,
+          resolvePublicUploadPath('contracts', 'logos', req.file.filename)
+        );
 
         if (!fileUrl) {
           return sendError(res, 'Não foi possível montar a URL do logotipo', 500);
