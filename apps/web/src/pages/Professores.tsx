@@ -15,6 +15,7 @@ import {
   RotateCcw,
   Search,
   ShieldCheck,
+  AlertTriangle,
   Upload,
   UserCheck,
   UserRound,
@@ -442,11 +443,13 @@ function SignedContractToggleField({
   checked,
   onChange,
   documentUrl,
+  disabled,
 }: {
   inputId: string;
   checked: boolean;
   onChange: (checked: boolean) => void;
   documentUrl?: string;
+  disabled?: boolean;
 }) {
   return (
     <div className="flex items-center justify-between gap-3 rounded-lg border border-border px-4 py-3 text-sm">
@@ -456,6 +459,7 @@ function SignedContractToggleField({
           type="checkbox"
           className="h-4 w-4"
           checked={checked}
+          disabled={disabled}
           onChange={(event) => onChange(event.target.checked)}
         />
         <span>{professoresCopy.hasSignedContractLabel}</span>
@@ -540,6 +544,7 @@ type HourlyRatesForm = {
 type HourlyRateSectionKey = keyof HourlyRatesForm;
 type HourlyRateErrors = Partial<Record<HourlyRateSectionKey, string | undefined>>;
 type CollaboratorRegistrationTab = 'collaborator' | 'manager';
+type AdministrativeRowAction = 'validate-legal-financial' | 'reset-password' | 'activate' | 'deactivate';
 
 const collaboratorTabFields = [
   'name',
@@ -1413,6 +1418,7 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
   const [responsibleManagers, setResponsibleManagers] = useState<ProfessorSummary[]>([]);
   const [hourlyRateLevels, setHourlyRateLevels] = useState<HourlyRateLevel[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<'active' | 'inactive' | 'all'>('all');
   const [consultSearch, setConsultSearch] = useState('');
@@ -1420,6 +1426,7 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
   const [contractFilter, setContractFilter] = useState<ConsultContractFilter>('all');
   const [legalFinancialFilter, setLegalFinancialFilter] = useState<ConsultLegalFinancialFilter>('all');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [rowActionsLoading, setRowActionsLoading] = useState<Record<string, AdministrativeRowAction | undefined>>({});
   const [uploadingCreateAvatar, setUploadingCreateAvatar] = useState(false);
   const [uploadingEditAvatar, setUploadingEditAvatar] = useState(false);
   const [uploadingCreateSignedContract, setUploadingCreateSignedContract] = useState(false);
@@ -1602,8 +1609,49 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
     user,
     isConsultMode ? 'collaborators.consultation' : 'collaborators.registration'
   );
-  const canPerformAdministrativeActions = currentDataScope === 'contract';
+  const canUseAdministrativeScope = currentDataScope === 'contract';
+  const canValidateLegalFinancialAction =
+    canUseAdministrativeScope &&
+    canAccessBlock(user, 'collaborators.actions.validateLegalFinancial');
+  const canResetPasswordAction =
+    canUseAdministrativeScope &&
+    canAccessBlock(user, 'collaborators.actions.resetPassword');
+  const canActivateAction = canUseAdministrativeScope && canAccessBlock(user, 'collaborators.actions.activate');
+  const canDeactivateAction =
+    canUseAdministrativeScope &&
+    canAccessBlock(user, 'collaborators.actions.deactivate');
+  const canUploadSignedContractAction =
+    canUseAdministrativeScope &&
+    canAccessBlock(user, 'collaborators.actions.uploadSignedContract');
+  const canPerformAdministrativeActions =
+    canValidateLegalFinancialAction ||
+    canResetPasswordAction ||
+    canActivateAction ||
+    canDeactivateAction;
   const currentProfessorId = user?.professor?.id;
+
+  const runAdministrativeRowAction = async (
+    professorId: string,
+    action: AdministrativeRowAction,
+    callback: () => Promise<void>
+  ) => {
+    setRowActionsLoading((current) => ({ ...current, [professorId]: action }));
+    setError(null);
+
+    try {
+      await callback();
+    } finally {
+      setRowActionsLoading((current) => {
+        if (current[professorId] !== action) {
+          return current;
+        }
+
+        const next = { ...current };
+        delete next[professorId];
+        return next;
+      });
+    }
+  };
 
   const getAllowedRegistrationTab = (preferredTab: CollaboratorRegistrationTab) => {
     if (preferredTab === 'manager' && canViewManagerRegistrationBlock) {
@@ -1676,44 +1724,55 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
 
   const loadData = async (status: 'active' | 'inactive' | 'all' = statusFilter) => {
     setLoading(true);
+    setLoadError(null);
     setError(null);
     try {
-      const [professorResult, activeProfessorResult, functionResult, hourlyRateLevelResult, bankResult] = await Promise.all([
+      const [professorResult, functionResult] = await Promise.all([
         professorService.list(status === 'all' ? undefined : status),
-        professorService.list('active'),
         collaboratorFunctionService.list(),
-        hourlyRateLevelService.list(),
-        bankService.list(),
       ]);
-      const managerOptions = getResponsibleManagerOptions(activeProfessorResult);
 
       setProfessores(professorResult);
-      setBanks(bankResult);
       setCollaboratorFunctions(functionResult);
-      setResponsibleManagers(managerOptions);
-      setHourlyRateLevels(hourlyRateLevelResult);
 
-      const currentCreateValue = getValues('collaboratorFunctionId');
-      if (!currentCreateValue) {
-        setValue('collaboratorFunctionId', getDefaultCollaboratorFunctionId(functionResult));
-      }
+      if (!isConsultMode) {
+        const [activeProfessorResult, hourlyRateLevelResult, bankResult] = await Promise.all([
+          professorService.list('active'),
+          hourlyRateLevelService.list(),
+          bankService.list(),
+        ]);
+        const managerOptions = getResponsibleManagerOptions(activeProfessorResult);
 
-      const currentCreateResponsibleManagerId = getValues('responsibleManagerId');
-      if (!currentCreateResponsibleManagerId) {
-        setValue('responsibleManagerId', getDefaultResponsibleManagerId(managerOptions));
-      }
+        setBanks(bankResult);
+        setResponsibleManagers(managerOptions);
+        setHourlyRateLevels(hourlyRateLevelResult);
 
-      const currentEditValue = getEditValues('collaboratorFunctionId');
-      if (editingId && !currentEditValue) {
-        setEditValue('collaboratorFunctionId', getDefaultCollaboratorFunctionId(functionResult));
-      }
+        const currentCreateValue = getValues('collaboratorFunctionId');
+        if (!currentCreateValue) {
+          setValue('collaboratorFunctionId', getDefaultCollaboratorFunctionId(functionResult));
+        }
 
-      const currentEditResponsibleManagerId = getEditValues('responsibleManagerId');
-      if (editingId && !currentEditResponsibleManagerId) {
-        setEditValue('responsibleManagerId', getDefaultResponsibleManagerId(managerOptions));
+        const currentCreateResponsibleManagerId = getValues('responsibleManagerId');
+        if (!currentCreateResponsibleManagerId) {
+          setValue('responsibleManagerId', getDefaultResponsibleManagerId(managerOptions));
+        }
+
+        const currentEditValue = getEditValues('collaboratorFunctionId');
+        if (editingId && !currentEditValue) {
+          setEditValue('collaboratorFunctionId', getDefaultCollaboratorFunctionId(functionResult));
+        }
+
+        const currentEditResponsibleManagerId = getEditValues('responsibleManagerId');
+        if (editingId && !currentEditResponsibleManagerId) {
+          setEditValue('responsibleManagerId', getDefaultResponsibleManagerId(managerOptions));
+        }
       }
     } catch (err: any) {
-      setError(err.response?.data?.error || professoresCopy.loadError);
+      const message = err.response?.data?.error || professoresCopy.loadError;
+      setLoadError(message);
+      if (!isConsultMode) {
+        setError(message);
+      }
     } finally {
       setLoading(false);
     }
@@ -1725,7 +1784,7 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
     } else {
       setLoading(false);
     }
-  }, [canManageProfessores, statusFilter]);
+  }, [canManageProfessores, isConsultMode, statusFilter]);
 
   const activeCollaboratorFunctions = collaboratorFunctions.filter((item) => item.isActive);
   const createCollaboratorFunctionName =
@@ -1756,7 +1815,6 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
         profile.name,
         professor.user.email,
         profile.phone,
-        profile.cpf,
         profile.cref,
         profile.instagramHandle,
         professor.collaboratorFunction.name,
@@ -2158,15 +2216,13 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
   };
 
   const handleValidateLegalFinancial = async (professorId: string) => {
-    setIsSubmitting(true);
-    setError(null);
     try {
-      await professorService.validateLegalFinancial(professorId);
-      await loadData();
+      await runAdministrativeRowAction(professorId, 'validate-legal-financial', async () => {
+        await professorService.validateLegalFinancial(professorId);
+        await loadData();
+      });
     } catch (err: any) {
       setError(err.response?.data?.error || professoresCopy.legalFinancialValidateError);
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -2174,16 +2230,14 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
     if (!confirm(professoresCopy.resetPasswordConfirm)) {
       return;
     }
-    setIsSubmitting(true);
-    setError(null);
     try {
-      const result = await professorService.resetPassword(professorId);
-      setResetPassword(result.tempPassword);
-      setResetTarget(professorId);
+      await runAdministrativeRowAction(professorId, 'reset-password', async () => {
+        const result = await professorService.resetPassword(professorId);
+        setResetPassword(result.tempPassword);
+        setResetTarget(professorId);
+      });
     } catch (err: any) {
       setError(err.response?.data?.error || professoresCopy.resetPasswordError);
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -2191,28 +2245,24 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
     if (!confirm(professoresCopy.deactivateConfirm)) {
       return;
     }
-    setIsSubmitting(true);
-    setError(null);
     try {
-      await professorService.deactivate(professorId);
-      await loadData();
+      await runAdministrativeRowAction(professorId, 'deactivate', async () => {
+        await professorService.deactivate(professorId);
+        await loadData();
+      });
     } catch (err: any) {
       setError(err.response?.data?.error || professoresCopy.deactivateError);
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
   const handleActivate = async (professorId: string) => {
-    setIsSubmitting(true);
-    setError(null);
     try {
-      await professorService.activate(professorId);
-      await loadData();
+      await runAdministrativeRowAction(professorId, 'activate', async () => {
+        await professorService.activate(professorId);
+        await loadData();
+      });
     } catch (err: any) {
       setError(err.response?.data?.error || professoresCopy.activateError);
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -2221,6 +2271,8 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
     const isInactive = professor.user?.isActive === false;
     const isOwnRecord = professor.id === currentProfessorId;
     const canEditRecord = canPerformAdministrativeActions || isOwnRecord;
+    const rowLoadingAction = rowActionsLoading[professor.id];
+    const rowIsBusy = Boolean(rowLoadingAction);
     const legalFinancialStatusKey = getLegalFinancialStatusKey(profile);
     const legalFinancialStatus = getLegalFinancialStatus(profile);
     const legalFinancialTone: ConsultBadgeTone =
@@ -2308,12 +2360,13 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
           {professor.role !== 'master' && (
             <>
               {isInactive ? (
-                canPerformAdministrativeActions && (
+                canActivateAction && (
                   <Button
                     variant="secondary"
                     size="sm"
                     onClick={() => handleActivate(professor.id)}
-                    isLoading={isSubmitting}
+                    isLoading={rowLoadingAction === 'activate'}
+                    disabled={rowIsBusy}
                   >
                     <UserCheck className="h-4 w-4" />
                     {professoresCopy.activate}
@@ -2329,34 +2382,42 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
                   )}
                   {canPerformAdministrativeActions && (
                     <>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleValidateLegalFinancial(professor.id)}
-                        isLoading={isSubmitting}
-                        disabled={!canValidateLegalFinancial(profile)}
-                      >
-                        <ShieldCheck className="h-4 w-4" />
-                        Validar
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleResetPassword(professor.id)}
-                        isLoading={isSubmitting}
-                      >
-                        <KeyRound className="h-4 w-4" />
-                        Senha
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => handleDeactivate(professor.id)}
-                        isLoading={isSubmitting}
-                      >
-                        <UserX className="h-4 w-4" />
-                        {professoresCopy.deactivate}
-                      </Button>
+                      {canValidateLegalFinancialAction && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleValidateLegalFinancial(professor.id)}
+                          isLoading={rowLoadingAction === 'validate-legal-financial'}
+                          disabled={!canValidateLegalFinancial(profile) || rowIsBusy}
+                        >
+                          <ShieldCheck className="h-4 w-4" />
+                          Validar
+                        </Button>
+                      )}
+                      {canResetPasswordAction && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleResetPassword(professor.id)}
+                          isLoading={rowLoadingAction === 'reset-password'}
+                          disabled={rowIsBusy}
+                        >
+                          <KeyRound className="h-4 w-4" />
+                          Senha
+                        </Button>
+                      )}
+                      {canDeactivateAction && (
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleDeactivate(professor.id)}
+                          isLoading={rowLoadingAction === 'deactivate'}
+                          disabled={rowIsBusy}
+                        >
+                          <UserX className="h-4 w-4" />
+                          {professoresCopy.deactivate}
+                        </Button>
+                      )}
                     </>
                   )}
                 </>
@@ -2834,6 +2895,7 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
                               checked={!!createHasSignedContract}
                               onChange={handleCreateSignedContractToggle}
                               documentUrl={createSignedContractDocumentUrl}
+                              disabled={!canUploadSignedContractAction}
                             />
                           </div>
                         </div>
@@ -3083,7 +3145,7 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
                     onChange={(event) => setConsultSearch(event.target.value)}
                     placeholder="Nome, e-mail, telefone, CREF ou gestor"
                     className="ts-form-control pl-9"
-                    disabled={loading || isSubmitting}
+                    disabled={loading}
                   />
                   {consultSearch && (
                     <button
@@ -3109,7 +3171,7 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
                     setStatusFilter(e.target.value as 'active' | 'inactive' | 'all')
                   }
                   className="ts-form-control"
-                  disabled={loading || isSubmitting}
+                  disabled={loading}
                 >
                   <option value="all">{professoresCopy.statusAll}</option>
                   <option value="active">{professoresCopy.statusActive}</option>
@@ -3126,7 +3188,7 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
                   value={collaboratorFunctionFilter}
                   onChange={(event) => setCollaboratorFunctionFilter(event.target.value)}
                   className="ts-form-control"
-                  disabled={loading || isSubmitting}
+                  disabled={loading}
                 >
                   <option value="all">Todas</option>
                   {collaboratorFunctions.map((collaboratorFunction) => (
@@ -3146,7 +3208,7 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
                   value={contractFilter}
                   onChange={(event) => setContractFilter(event.target.value as ConsultContractFilter)}
                   className="ts-form-control"
-                  disabled={loading || isSubmitting}
+                  disabled={loading}
                 >
                   {consultContractFilterOptions.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -3167,7 +3229,7 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
                     setLegalFinancialFilter(event.target.value as ConsultLegalFinancialFilter)
                   }
                   className="ts-form-control"
-                  disabled={loading || isSubmitting}
+                  disabled={loading}
                 >
                   {consultLegalFinancialFilterOptions.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -3181,7 +3243,7 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
                 type="button"
                 variant={hasActiveConsultFilters ? 'outline' : 'ghost'}
                 onClick={clearConsultFilters}
-                disabled={!hasActiveConsultFilters || loading || isSubmitting}
+                disabled={!hasActiveConsultFilters || loading}
                 className="w-full xl:w-auto"
               >
                 <RotateCcw className="h-4 w-4" />
@@ -3194,6 +3256,16 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
             <div className="flex items-center justify-center gap-3 px-6 py-12 text-muted-foreground">
               <Filter className="h-5 w-5 animate-pulse" />
               {professoresCopy.loading}
+            </div>
+          ) : loadError ? (
+            <div className="px-6 py-12 text-center">
+              <AlertTriangle className="mx-auto h-10 w-10 text-destructive/70" />
+              <p className="mt-3 font-medium text-foreground">Não foi possível carregar a consulta</p>
+              <p className="mt-1 text-sm text-muted-foreground">{loadError}</p>
+              <Button type="button" variant="outline" className="mt-4" onClick={() => loadData()}>
+                <RotateCcw className="h-4 w-4" />
+                Tentar novamente
+              </Button>
             </div>
           ) : professores.length === 0 ? (
             <div className="px-6 py-12 text-center text-muted-foreground">{professoresCopy.empty}</div>
@@ -3645,6 +3717,7 @@ export function Professores({ mode = 'manage' }: ProfessoresProps) {
                                         checked={!!editHasSignedContract}
                                         onChange={handleEditSignedContractToggle}
                                         documentUrl={editSignedContractDocumentUrl}
+                                        disabled={!canUploadSignedContractAction}
                                       />
                                     </div>
                                   </div>

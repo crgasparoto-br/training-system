@@ -221,6 +221,31 @@ export const ACCESS_BLOCK_CATALOG = [
     label: 'Aba Gestor',
   },
   {
+    key: 'collaborators.actions.validateLegalFinancial',
+    screenKey: 'collaborators.registration',
+    label: 'Acao: Validar juridico/financeiro do colaborador',
+  },
+  {
+    key: 'collaborators.actions.resetPassword',
+    screenKey: 'collaborators.registration',
+    label: 'Acao: Redefinir senha do colaborador',
+  },
+  {
+    key: 'collaborators.actions.activate',
+    screenKey: 'collaborators.registration',
+    label: 'Acao: Reativar colaborador',
+  },
+  {
+    key: 'collaborators.actions.deactivate',
+    screenKey: 'collaborators.registration',
+    label: 'Acao: Desativar colaborador',
+  },
+  {
+    key: 'collaborators.actions.uploadSignedContract',
+    screenKey: 'collaborators.registration',
+    label: 'Acao: Upload de contrato assinado do colaborador',
+  },
+  {
     key: 'physicalAssessment.prnt.summary',
     screenKey: 'physicalAssessment.protocol',
     label: 'PRNT: Resumo',
@@ -437,6 +462,11 @@ export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
       'students.actions.manageAssessmentPlan',
       'collaborators.registration.collaborator',
       'collaborators.registration.manager',
+      'collaborators.actions.validateLegalFinancial',
+      'collaborators.actions.resetPassword',
+      'collaborators.actions.activate',
+      'collaborators.actions.deactivate',
+      'collaborators.actions.uploadSignedContract',
       'physicalAssessment.prnt.summary',
       'physicalAssessment.prnt.goals',
       'physicalAssessment.prnt.anamnesisFollowUp',
