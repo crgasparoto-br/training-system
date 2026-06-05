@@ -15,21 +15,13 @@ import {
   ensureUploadStorageDir,
   resolvePublicUploadPath,
 } from '../../common/asset-storage.js';
+import { savePublicAsset } from '../../common/supabase-storage.js';
 import { blockAccessMiddleware } from '../access-control/access-control.middleware.js';
 
 const router: Router = Router();
 
-const avatarStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    cb(null, ensureUploadStorageDir('professores'));
-  },
-  filename: (_req, file, cb) => {
-    cb(null, buildTimestampedUploadFileName(file.originalname));
-  },
-});
-
 const avatarUpload = multer({
-  storage: avatarStorage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     if (!file.mimetype.startsWith('image/')) {
@@ -107,13 +99,14 @@ router.post(
       return sendError(res, 'Selecione uma imagem para upload', 400);
     }
 
-    const fileUrl = buildPublicUploadUrl(req, resolvePublicUploadPath('professores', req.file.filename));
+    const asset = await savePublicAsset({
+      folder: 'professores',
+      buffer: req.file.buffer,
+      originalName: req.file.originalname,
+      mimeType: req.file.mimetype,
+    });
 
-    if (!fileUrl) {
-      return sendError(res, 'Não foi possível montar a URL da foto enviada', 500);
-    }
-
-    return sendSuccess(res, { url: fileUrl }, 'Foto enviada com sucesso');
+    return sendSuccess(res, { url: asset.url }, 'Foto enviada com sucesso');
   } catch (error: any) {
     return sendError(res, error.message || 'Erro ao enviar foto', 400);
   }
