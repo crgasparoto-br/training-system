@@ -53,6 +53,24 @@ describe('controle de acesso de abas e acoes sensiveis do aluno', () => {
     expect(() => canAccessScreen(user, 'students.consultation')).not.toThrow();
   });
 
+  it('aceita blockKey em canAccessScreen para compatibilidade com abas de cadastro', () => {
+    const user = makeProfessorUser([
+      { screenKey: 'students.registration', blockKey: null, canView: true },
+      { screenKey: 'students.registration', blockKey: 'students.registration.identification', canView: true },
+    ]);
+
+    expect(canAccessScreen(user, 'students.registration.identification')).toBe(true);
+  });
+
+  it('blockKey em canAccessScreen respeita bloqueio da tela pai', () => {
+    const user = makeProfessorUser([
+      { screenKey: 'students.registration', blockKey: null, canView: false },
+      { screenKey: 'students.registration', blockKey: 'students.registration.identification', canView: true },
+    ]);
+
+    expect(canAccessScreen(user, 'students.registration.identification')).toBe(false);
+  });
+
   it('usuario sem permissao nao acessa aba financeira, avaliacoes e acoes sensiveis', () => {
     const user = makeProfessorUser([
       { screenKey: 'students.details', blockKey: null, canView: true },
