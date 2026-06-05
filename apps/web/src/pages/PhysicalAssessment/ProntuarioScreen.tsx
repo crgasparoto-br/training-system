@@ -10,6 +10,7 @@ import { useAuthStore } from '../../stores/useAuthStore';
 import { alunoService, type Aluno } from '../../services/aluno.service';
 import { prontuarioService } from '../../services/prontuario.service';
 import type {
+  AccessBlockKey,
   ProntuarioActivityHistory,
   ProntuarioDiscomfortEntry,
   ProntuarioGoal,
@@ -28,6 +29,61 @@ const protocolLinks = [
   ['bioimpedanciometria', 'Bioimpedanciometria'],
   ['ultrassonografia', 'Ultrassonografia'],
 ] as const;
+
+type ProntuarioBlockName =
+  | 'summary'
+  | 'goals'
+  | 'anamnesis'
+  | 'activity'
+  | 'meds'
+  | 'pain'
+  | 'discomforts'
+  | 'create'
+  | 'edit'
+  | 'closeFollowUp';
+
+const prontuarioBlockKeys = {
+  summary: 'physicalAssessment.prnt.summary',
+  goals: 'physicalAssessment.prnt.goals',
+  anamnesis: 'physicalAssessment.prnt.anamnesisFollowUp',
+  activity: 'physicalAssessment.prnt.activityHistory',
+  meds: 'physicalAssessment.prnt.medicationsProcedures',
+  pain: 'physicalAssessment.prnt.painCases',
+  discomforts: 'physicalAssessment.prnt.discomforts',
+  create: 'physicalAssessment.prnt.actions.createRecord',
+  edit: 'physicalAssessment.prnt.actions.editRecord',
+  closeFollowUp: 'physicalAssessment.prnt.actions.closeFollowUp',
+} as const satisfies Record<ProntuarioBlockName, AccessBlockKey>;
+
+const prontuarioBlockEntries = Object.entries(prontuarioBlockKeys) as Array<[
+  ProntuarioBlockName,
+  AccessBlockKey,
+]>;
+
+const allowedActivityTypes = [
+  'running',
+  'strength',
+  'mobility',
+  'sport',
+  'occupational',
+  'other',
+] as const satisfies readonly ProntuarioActivityHistory['activityType'][];
+
+const allowedMedicationProcedureTypes = [
+  'medication',
+  'supplement',
+  'procedure',
+  'exam',
+  'therapy',
+  'other',
+] as const satisfies readonly ProntuarioMedicationProcedure['type'][];
+
+const allowedPainCaseStatuses = [
+  'active',
+  'monitoring',
+  'resolved',
+  'archived',
+] as const satisfies readonly ProntuarioPainCase['status'][];
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -121,18 +177,16 @@ export function ProntuarioScreen() {
       ? parqSubmissions.find((submission) => submission.id === selectedParqSubmissionId)
       : null) || overview?.latestParqSubmission || null;
 
-  const blocks = useMemo(() => ({
-    summary: canAccessBlock(user, 'physicalAssessment.prnt.summary'),
-    goals: canAccessBlock(user, 'physicalAssessment.prnt.goals'),
-    anamnesis: canAccessBlock(user, 'physicalAssessment.prnt.anamnesisFollowUp'),
-    activity: canAccessBlock(user, 'physicalAssessment.prnt.activityHistory'),
-    meds: canAccessBlock(user, 'physicalAssessment.prnt.medicationsProcedures'),
-    pain: canAccessBlock(user, 'physicalAssessment.prnt.painCases'),
-    discomforts: canAccessBlock(user, 'physicalAssessment.prnt.discomforts'),
-    create: canAccessBlock(user, 'physicalAssessment.prnt.actions.createRecord'),
-    edit: canAccessBlock(user, 'physicalAssessment.prnt.actions.editRecord'),
-    closeFollowUp: canAccessBlock(user, 'physicalAssessment.prnt.actions.closeFollowUp'),
-  }), [user]);
+  const blocks = useMemo(
+    () =>
+      Object.fromEntries(
+        prontuarioBlockEntries.map(([blockName, blockKey]) => [
+          blockName,
+          canAccessBlock(user, blockKey),
+        ])
+      ) as Record<ProntuarioBlockName, boolean>,
+    [user]
+  );
 
   useEffect(() => {
     alunoService.list(1, 100, undefined, 'active')
@@ -233,13 +287,12 @@ export function ProntuarioScreen() {
       }))
       .filter((item) => item.title.length > 0);
 
-  const normalizeActivityPayload = (items: Drafts['activityHistory']) => {
-    const allowedTypes: ProntuarioActivityHistory['activityType'][] = ['running', 'strength', 'mobility', 'sport', 'occupational', 'other'];
-    return items
+  const normalizeActivityPayload = (items: Drafts['activityHistory']) =>
+    items
       .map((item) => ({
         id: item.id,
         description: item.description?.trim() || '',
-        activityType: allowedTypes.includes(item.activityType as ProntuarioActivityHistory['activityType'])
+        activityType: allowedActivityTypes.includes(item.activityType as ProntuarioActivityHistory['activityType'])
           ? (item.activityType as ProntuarioActivityHistory['activityType'])
           : 'other',
         frequency: item.frequency?.trim() || null,
@@ -250,14 +303,12 @@ export function ProntuarioScreen() {
         notes: item.notes?.trim() || null,
       }))
       .filter((item) => item.description.length > 0);
-  };
 
-  const normalizeMedicationsPayload = (items: Drafts['medicationsProcedures']) => {
-    const allowedTypes: ProntuarioMedicationProcedure['type'][] = ['medication', 'supplement', 'procedure', 'exam', 'therapy', 'other'];
-    return items
+  const normalizeMedicationsPayload = (items: Drafts['medicationsProcedures']) =>
+    items
       .map((item) => ({
         id: item.id,
-        type: allowedTypes.includes(item.type) ? item.type : 'other',
+        type: allowedMedicationProcedureTypes.includes(item.type) ? item.type : 'other',
         name: item.name?.trim() || '',
         dosage: item.dosage?.trim() || null,
         frequency: item.frequency?.trim() || null,
@@ -266,16 +317,14 @@ export function ProntuarioScreen() {
         notes: item.notes?.trim() || null,
       }))
       .filter((item) => item.name.length > 0);
-  };
 
-  const normalizePainCasesPayload = (items: Drafts['painCases']) => {
-    const allowedStatus: ProntuarioPainCase['status'][] = ['active', 'monitoring', 'resolved', 'archived'];
-    return items
+  const normalizePainCasesPayload = (items: Drafts['painCases']) =>
+    items
       .map((item) => ({
         id: item.id,
         title: item.title?.trim() || '',
         region: item.region?.trim() || null,
-        status: allowedStatus.includes(item.status as ProntuarioPainCase['status'])
+        status: allowedPainCaseStatuses.includes(item.status as ProntuarioPainCase['status'])
           ? (item.status as ProntuarioPainCase['status'])
           : 'active',
         onsetDate: item.onsetDate || null,
@@ -283,7 +332,6 @@ export function ProntuarioScreen() {
         followUps: item.followUps,
       }))
       .filter((item) => item.title.length > 0);
-  };
 
   const ensureRecord = async () => {
     if (currentRecord) return currentRecord;
@@ -352,17 +400,22 @@ export function ProntuarioScreen() {
       );
       await prontuarioService.saveAnamnesisFollowUps(
         record.id,
-        selectedParqSubmission.positiveItems.map((item) => ({
-          ...(previous.get(followUpLookupKey(selectedParqSubmission.id, item.key)) || {}),
-          id: previous.get(followUpLookupKey(selectedParqSubmission.id, item.key))?.id,
-          recordId: record.id,
-          parqSubmissionId: selectedParqSubmission.id,
-          itemKey: item.key,
-          itemLabel: item.label,
-          status: previous.get(followUpLookupKey(selectedParqSubmission.id, item.key))?.status || 'monitoring',
-          followUpNotes: followUpDrafts[item.key]?.followUpNotes || previous.get(followUpLookupKey(selectedParqSubmission.id, item.key))?.followUpNotes || '',
-          actionPlan: followUpDrafts[item.key]?.actionPlan || previous.get(followUpLookupKey(selectedParqSubmission.id, item.key))?.actionPlan || '',
-        }))
+        selectedParqSubmission.positiveItems.map((item) => {
+          const previousFollowUp = previous.get(followUpLookupKey(selectedParqSubmission.id, item.key));
+          const draft = followUpDrafts[item.key];
+
+          return {
+            ...previousFollowUp,
+            id: previousFollowUp?.id,
+            recordId: record.id,
+            parqSubmissionId: selectedParqSubmission.id,
+            itemKey: item.key,
+            itemLabel: item.label,
+            status: previousFollowUp?.status || 'monitoring',
+            followUpNotes: draft?.followUpNotes || previousFollowUp?.followUpNotes || '',
+            actionPlan: draft?.actionPlan || previousFollowUp?.actionPlan || '',
+          };
+        })
       );
       await refresh();
     } catch (err: any) {
