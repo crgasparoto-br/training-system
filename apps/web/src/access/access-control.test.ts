@@ -4,7 +4,10 @@ import type { AuthResponse } from '@corrida/types';
 
 type User = AuthResponse['user'];
 
-function makeProfessorUser(permissions: Array<{ screenKey: string; blockKey?: string | null; canView: boolean }>): User {
+function makeProfessorUser(
+  permissions: Array<{ screenKey: string; blockKey?: string | null; canView: boolean }>,
+  collaboratorFunctionCode = 'professor'
+): User {
   return {
     id: 'u-1',
     email: 'prof@test.com',
@@ -16,7 +19,7 @@ function makeProfessorUser(permissions: Array<{ screenKey: string; blockKey?: st
       collaboratorFunction: {
         id: 'fn-1',
         name: 'Funcao',
-        code: 'professor',
+        code: collaboratorFunctionCode,
         isActive: true,
         accessPermissions: permissions,
       },
@@ -77,5 +80,19 @@ describe('controle de acesso de abas e acoes sensiveis do aluno', () => {
     ]);
 
     expect(canAccessBlock(user, 'students.details.assessments')).toBe(true);
+  });
+
+  it('fallback de manager inclui acoes sensiveis de colaboradores', () => {
+    const user = makeProfessorUser([], 'manager');
+
+    expect(canAccessBlock(user, 'collaborators.actions.resetPassword')).toBe(true);
+    expect(canAccessBlock(user, 'collaborators.actions.deactivate')).toBe(true);
+  });
+
+  it('fallback de professor nao inclui acoes administrativas de colaboradores', () => {
+    const user = makeProfessorUser([], 'professor');
+
+    expect(canAccessBlock(user, 'collaborators.actions.resetPassword')).toBe(false);
+    expect(canAccessBlock(user, 'collaborators.actions.deactivate')).toBe(false);
   });
 });

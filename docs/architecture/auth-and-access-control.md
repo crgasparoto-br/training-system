@@ -59,3 +59,15 @@ Services importantes:
 5. Usar a chave no backend para bloquear a rota ou acao.
 6. Adicionar ou atualizar testes.
 7. Rodar `pnpm access:check`.
+
+## Blocos de acoes administrativas de colaboradores
+
+As acoes sensiveis de colaboradores devem usar `blockKey` dedicado no backend e no frontend, por exemplo:
+
+- `collaborators.actions.validateLegalFinancial`
+- `collaborators.actions.resetPassword`
+- `collaborators.actions.activate`
+- `collaborators.actions.deactivate`
+- `collaborators.actions.uploadSignedContract`
+
+Esses blocos exigem tambem acesso de tela em `collaborators.registration` e devem permanecer alinhados com defaults em `DEFAULT_ACCESS_BY_PROFILE_CODE`.
