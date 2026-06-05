@@ -88,9 +88,10 @@ describe('Supabase public asset storage', () => {
   });
 
   it('keeps local filesystem behavior when the provider is not supabase', async () => {
+    const uploadRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'assets-'));
     process.env.ASSET_STORAGE_PROVIDER = 'local';
     process.env.ASSET_BASE_URL = 'https://api.example.com';
-    process.env.UPLOAD_STORAGE_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'assets-'));
+    process.env.UPLOAD_STORAGE_ROOT = uploadRoot;
 
     const result = await savePublicAsset({
       folder: 'professores',
@@ -101,6 +102,6 @@ describe('Supabase public asset storage', () => {
 
     expect(result.path).toEqual(expect.stringMatching(/^uploads\/professores\/\d+-professor\.png$/));
     expect(result.url).toBe(`https://api.example.com/${result.path}`);
-    expect(fs.existsSync(path.join(process.env.UPLOAD_STORAGE_ROOT, 'professores'))).toBe(true);
+    expect(fs.existsSync(path.join(uploadRoot, 'professores'))).toBe(true);
   });
 });
