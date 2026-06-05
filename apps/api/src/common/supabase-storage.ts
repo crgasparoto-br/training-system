@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'crypto';
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { fetch } from 'undici';
 import {
   buildTimestampedUploadFileName,
   ensureUploadStorageDir,
@@ -29,9 +29,6 @@ type SupabaseStorageConfig = {
   bucket: string;
   publicBaseUrl: string;
 };
-
-let cachedClient: SupabaseClient | null = null;
-let cachedClientKey: string | null = null;
 
 function normalizeBaseUrl(value: string) {
   return value.replace(/\/+$/, '');
@@ -75,22 +72,6 @@ export function resolveSupabaseStorageConfig(): SupabaseStorageConfig {
   };
 }
 
-function getSupabaseClient(config: SupabaseStorageConfig) {
-  const clientKey = `${config.supabaseUrl}:${config.serviceRoleKey}`;
-
-  if (!cachedClient || cachedClientKey !== clientKey) {
-    cachedClient = createClient(config.supabaseUrl, config.serviceRoleKey, {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-      },
-    });
-    cachedClientKey = clientKey;
-  }
-
-  return cachedClient;
-}
-
 function buildUniqueAssetPath(folder: PublicAssetFolder, originalName: string) {
   const extension = path.extname(originalName);
   const baseName = sanitizeUploadFileName(path.basename(originalName, extension));
@@ -119,15 +100,22 @@ async function savePublicAssetToLocal(input: SavePublicAssetInput): Promise<Save
 export async function savePublicAssetToSupabase(input: SavePublicAssetInput): Promise<SavedPublicAsset> {
   const config = resolveSupabaseStorageConfig();
   const assetPath = buildUniqueAssetPath(input.folder, input.originalName);
-  const client = getSupabaseClient(config);
+  const uploadUrl = `${config.supabaseUrl}/storage/v1/object/${config.bucket}/${assetPath}`;
 
-  const { error } = await client.storage.from(config.bucket).upload(assetPath, input.buffer, {
-    contentType: input.mimeType,
-    upsert: false,
+  const response = await fetch(uploadUrl, {
+    method: 'POST',
+    body: input.buffer,
+    headers: {
+      Authorization: `Bearer ${config.serviceRoleKey}`,
+      'Content-Type': input.mimeType,
+      'Cache-Control': '3600',
+      'x-upsert': 'false',
+    },
   });
 
-  if (error) {
-    throw new Error(error.message || 'Erro ao enviar arquivo para o Supabase Storage');
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(errorBody || 'Erro ao enviar arquivo para o Supabase Storage');
   }
 
   return {
