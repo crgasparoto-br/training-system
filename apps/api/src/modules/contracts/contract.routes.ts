@@ -8,12 +8,7 @@ import { PrismaClient, type ContractStatus } from '@prisma/client';
 import { screenAccessMiddleware } from '../access-control/access-control.middleware.js';
 import multer from 'multer';
 import path from 'path';
-import { buildPublicUploadUrl } from '../../common/public-upload-url.js';
-import {
-  buildTimestampedUploadFileName,
-  ensureUploadStorageDir,
-  resolvePublicUploadPath,
-} from '../../common/asset-storage.js';
+import { savePublicAsset } from '../../common/supabase-storage.js';
 
 const router: Router = Router();
 const prisma = new PrismaClient();
@@ -22,17 +17,8 @@ const normalizeDocument = (document: string) => document.replace(/\D/g, '');
 const trimOptional = (value: unknown) =>
   typeof value === 'string' ? value.trim() || null : null;
 
-const logoStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    cb(null, ensureUploadStorageDir('contracts', 'logos'));
-  },
-  filename: (_req, file, cb) => {
-    cb(null, buildTimestampedUploadFileName(file.originalname));
-  },
-});
-
 const logoUpload = multer({
-  storage: logoStorage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     if (!file.mimetype.startsWith('image/')) {
@@ -533,16 +519,14 @@ router.post('/logo-upload', async (req: Request, res: Response) => {
           return sendError(res, 'Selecione uma imagem para upload', 400);
         }
 
-        const fileUrl = buildPublicUploadUrl(
-          req,
-          resolvePublicUploadPath('contracts', 'logos', req.file.filename)
-        );
+        const asset = await savePublicAsset({
+          folder: 'contracts/logos',
+          buffer: req.file.buffer,
+          originalName: req.file.originalname,
+          mimeType: req.file.mimetype,
+        });
 
-        if (!fileUrl) {
-          return sendError(res, 'Não foi possível montar a URL do logotipo', 500);
-        }
-
-        return sendSuccess(res, { url: fileUrl }, 'Logotipo enviado com sucesso');
+        return sendSuccess(res, { url: asset.url }, 'Logotipo enviado com sucesso');
       } catch (error: any) {
         return sendError(res, error.message || 'Erro ao enviar logotipo', 400);
       }
