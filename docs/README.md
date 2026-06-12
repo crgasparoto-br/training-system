@@ -22,6 +22,7 @@ Este diretorio concentra a documentacao versionada do projeto.
 ### Produto
 
 - [`product/access-control.md`](product/access-control.md): regras de produto para controle de acesso.
+- [`product/integrated-prescription-control.md`](product/integrated-prescription-control.md): arquitetura-alvo do fluxo integrado de prontuario, avaliacao, prescricao, montagem consolidada, treino de hoje, feedback e decisao.
 
 ### Operacao
 
@@ -31,6 +32,7 @@ Este diretorio concentra a documentacao versionada do projeto.
 
 - [`execution-plans/TEMPLATE.md`](execution-plans/TEMPLATE.md): template para tarefas grandes.
 - [`execution-plans/active/`](execution-plans/active/): planos em andamento.
+- [`execution-plans/active/2026-06-integrated-prescription-control.md`](execution-plans/active/2026-06-integrated-prescription-control.md): plano ativo para evolucao do fluxo integrado de prontuario, prescricao e treino.
 - [`execution-plans/completed/`](execution-plans/completed/): planos concluidos, quando aplicavel.
 
 ## Documentos historicos ou complementares
