@@ -40,6 +40,61 @@ Este plano adapta praticas consolidadas de sistemas de controle, seguranca e ent
 9. Professor ve a visao tecnica; aluno ve a visao pratica, simples e segura.
 10. Qualquer nova entidade sensivel deve respeitar contrato, escopo de dados, auditoria e permissao.
 
+## Governanca da Fase 0
+
+Esta fase consolida documentacao e limites de dominio. Ela nao cria banco, API, frontend, rotas, modelos, migrations nem comportamento novo.
+
+### Fontes rastreadas
+
+- `Ideias e estruturacao - Professor`: fonte de requisitos para avaliacao comparativa, prescricao por capacidades, montagem final, feedback pos-treino, smartwatch, indicadores de gestao e visoes separadas professor/aluno.
+- `Sistema ACESSO - comunicacao Claudinei/Leandro`: fonte historica para proximas acoes, cadastro do aluno, cadastro de professores, Manual do Professor, Prof-PRNT, Prof-ANTR, Prof-ADPT e Catalogo.
+- `ModeloTreinamento Combinado v. 3.12.8`: fonte de regras e estruturas de migracao do fluxo atual de treino, com 15 abas revisadas e mapeadas abaixo.
+- Issues #132 a #139: fonte de fases, dependencias, criterios de aceite e limites de escopo.
+- `docs/architecture/auth-and-access-control.md` e `docs/product/access-control.md`: fonte de controle por `screenKey`, `blockKey`, `dataScope` e `contractId`.
+
+### Separacao obrigatoria de dominios
+
+Cadastro, contrato, agenda, manual, avaliacao, prescricao e treino sao dominios relacionados, mas nao devem virar uma unica entidade ou tela gigante. Cada fase deve respeitar o limite abaixo.
+
+| Dominio | Funcao no sistema | Nao deve virar |
+| --- | --- | --- |
+| Cadastro do aluno | Identificacao, contato, responsaveis, revisao periodica e dados administrativos do aluno. | Fonte tecnica de prescricao ou historico de avaliacao sobrescrito. |
+| Contrato e servico vigente | Define plano, valor, regras comerciais, pagamento e escopo contratado. | Regra tecnica de treino ou permissao implicita para dado de saude. |
+| Agenda e rotina | Contextualiza disponibilidade, rotina externa, sessoes e alocacao operacional. | Origem automatica de treino sem prescricao validada. |
+| Manual do Professor | Conteudo de conduta, checklist, orientacao e operacao interna. | Motor de regra de negocio escondido ou substituto de validacao tecnica. |
+| Prontuario e avaliacao | Fonte tecnica historica antes da prescricao. | Campos soltos sobrescritos no cadastro do aluno. |
+| Prescricao por capacidade | Planejamento tecnico modular por Resistido, Flexibilidade, Ciclico e Equilibrio. | Treino de hoje publicado diretamente ao aluno. |
+| Montagem Consolidada | Camada-mae que valida, combina e libera saida operacional. | Copia direta da aba `Montagem` sem conflito, versao ou professor responsavel. |
+| Treino de hoje | Saida operacional segura e pratica para execucao. | Origem tecnica de prescricao, justificativa completa ou calculo oculto. |
+| Feedback e decisao sugerida | Evidencia para proxima decisao, sempre validada pelo professor. | Alteracao automatica de prescricao ou treino liberado. |
+
+### Privacidade, LGPD e dados sensiveis
+
+Toda evolucao funcional futura deve aplicar minimizacao de dados, finalidade clara, rastreabilidade, permissao por bloco e filtro por contrato. Exemplos reais com dados pessoais nao devem ser copiados para fixtures, seeds, prints ou documentacao publica.
+
+| Classe de dado | Exemplos | Regra documental para futuras fases |
+| --- | --- | --- |
+| Dados pessoais do aluno | Nome, documento, contato, nascimento, responsaveis, endereco, emergencia. | Usar apenas quando necessario para atendimento; proteger por `contractId`, escopo e permissao de cadastro. |
+| Dados de saude | PAR-Q, AHA, anamnese, historico clinico, laudos, avaliacao fisica. | Tratar como sensivel; exigir `blockKey`, escopo efetivo, auditoria e separacao entre visao professor/aluno. |
+| Medicamentos, cirurgias, dores e desconfortos | Medicacao, procedimento, intensidade de dor, mapa corporal, acompanhamento. | Manter historico por data e responsavel; nao sobrescrever versoes nem expor detalhe tecnico ao aluno sem finalidade pratica. |
+| Dados financeiros e contrato | Valor, vencimento, pagamento, condicao especial, servico vigente, contrato. | Separar de prescricao tecnica; liberar somente para funcoes administrativas/gestao autorizadas. |
+| Dados bancarios | Banco, agencia, conta, chave, comprovantes. | Proteger com permissao especifica, evitar duplicacao e nunca usar como criterio tecnico de treino. |
+| Documentos do professor | CREF, contrato assinado, documentos profissionais, curriculo, foto. | Restringir por funcao; nao misturar com visao operacional do aluno. |
+| Dados de treino e execucao | Carga, reps, PSE, PSR, aderencia, tonelagem, calorias, sessoes. | Usar como evidencia tecnica rastreavel; calculos criticos devem ficar em services/backend testaveis. |
+| Dados externos e smartwatch | FC, pace, zonas, sono, estresse, recuperacao. | Entrar como evidencia importada com origem, data, consentimento/contrato e validacao tecnica antes de afetar decisao. |
+
+### Formularios externos
+
+Formularios externos atuais podem ser usados como referencia historica ou transicao operacional. Quando migrarem para o Sistema Acesso, devem virar fluxo interno com origem, aceite/assinatura quando aplicavel, data, responsavel, contrato, revisao periodica e auditoria. Eles nao devem continuar como fonte final sem rastreabilidade.
+
+### Nucleo atual, backlog operacional e roadmap
+
+| Categoria | Conteudo | Regra de evolucao |
+| --- | --- | --- |
+| Nucleo atual preservado | Cadastro de alunos e colaboradores, contratos, avaliacoes fisicas atuais, PRNT, planos, templates, Workout Builder, biblioteca, agenda, execucoes e permissoes. | Nao remover nem substituir sem migracao explicita, compatibilidade e criterio de aceite. |
+| Backlog operacional | Revisao periodica de cadastro, PAR-Q/AHA internos, catalogo comercial, disponibilidade de colaboradores, materiais de sala, cobranca/notificacoes e Manual do Professor no app. | Criar issues proprias; nao misturar com prescricao tecnica quando o objetivo for administrativo ou operacional. |
+| Roadmap | Smartwatch, WhatsApp/mensagens praticas, relatorios evolutivos, indicadores clinicos, integracoes externas e decisoes mais avancadas. | Preparar rastreabilidade agora, mas implementar apenas com issue propria e validacao de seguranca. |
+
 ## Recomendacoes complementares da planilha
 
 A planilha `Ideias e estruturacao - Professor` trouxe itens que complementam o fluxo principal. Eles devem ser considerados como requisitos ou subissues nas fases correspondentes, evitando que o nucleo seja implementado de forma limitada demais.
@@ -83,23 +138,23 @@ A planilha `Ideias e estruturacao - Professor` trouxe itens que complementam o f
 
 A leitura completa registrada na issue #132 revisou 15 abas da planilha. Antes de qualquer implementacao funcional baseada nessas regras, cada item deve ser confirmado contra a documentacao da fase correspondente, migrado para services/backend testaveis quando for regra critica e protegido por contrato, auditoria e permissao quando envolver dado sensivel.
 
-| Aba revisada | Fase principal | Uso esperado no produto | Observacao de governanca |
-| --- | --- | --- | --- |
-| `Aluno` | #134 | Contexto do aluno selecionado, resumo, dados praticos e navegacao por abas. | Nao substituir cadastro atual; usar como referencia de organizacao e colapses. |
-| `Macrociclo` | #136 | Planejamento macro/meso/micro e parametros tecnicos de prescricao. | Regras devem ser versionadas e validadas pelo professor. |
-| `Montagem` | #137 | Origem da montagem consolidada da prescricao. | Nao pode gerar `Treino de hoje` diretamente sem camada de consolidacao. |
-| `Rascunho rapido` | #137 | Apoio operacional para montar blocos antes da consolidacao. | Deve permanecer como rascunho, sem publicacao sem validacao. |
-| `Atualizar mesociclo` | #136/#137 | Ajustes de ciclo e transicao entre planejamento e montagem. | Mudancas precisam preservar historico e origem da decisao. |
-| `Conversor grupamento muscular` | #137 | Cadastro/conversor estruturado para apoiar montagem resistida. | Nao embutir como formula oculta de frontend. |
-| `Biblioteca de Exercícios` | #137 | Fonte para biblioteca estruturada por contrato e revisao tecnica. | Preservar biblioteca atual e tratar importacoes como evolucao incremental. |
-| `Exercícios matriz` | #137 | Matriz base de exercicios e criterios de classificacao. | Migrar como cadastro auditavel quando virar dado operacional. |
-| `Exercícios novos` | #137 | Fluxo de entrada, revisao e aprovacao de novos exercicios. | Exigir revisao antes de disponibilizar em montagem/treino. |
-| `Siglas e ambiente` | #136 | Parametros, nomenclaturas e contexto de ambiente usados na prescricao. | Consolidar nomenclatura em contratos/tipos quando afetar API ou UI. |
-| `Anotações gerais e Alertas` | #135/#138 | Alertas, observacoes tecnicas e sinais para decisao sugerida. | Dados sensiveis exigem permissao, escopo e historico. |
-| `Controle de dados` | #138 | Metricas de execucao, aderencia, tonelagem, calorias, sessoes e saldo. | Usar como evidencia para feedback, nao como automacao sem professor. |
-| `calculos externos` | #133/#136/#138 | Inventario de formulas a migrar para regras testaveis. | Cada formula critica precisa virar service/backend com testes. |
-| `Dados de Base` | #135 | Dados-base do aluno e avaliacao que alimentam a prescricao. | Avaliacao/prontuario seguem como fonte anterior a prescricao. |
-| `Importar` | #135/#137 | Entrada controlada de dados e exercicios vindos de fontes externas. | Importacao deve registrar origem, responsavel, versao e contrato. |
+| Aba revisada | Dominio do sistema | Entidade/regra provavel | Fase principal | Observacao de governanca |
+| --- | --- | --- | --- | --- |
+| `Aluno` | Visao operacional do aluno | Contexto do aluno, treino disponivel, calendario/link, dicas e mensagens praticas. | #134 | Nao substituir cadastro atual; usar como referencia de organizacao e colapses. |
+| `Macrociclo` | Planejamento tecnico | Planejamento macro/meso/micro, objetivo do mesociclo e parametros de carga. | #136 | Regras devem ser versionadas e validadas pelo professor. |
+| `Montagem` | Montagem consolidada | Exercicios, series, repeticoes, carga, UC, metodos e blocos para consolidacao. | #137 | Nao pode gerar `Treino de hoje` diretamente sem camada de consolidacao. |
+| `Rascunho rapido` | Apoio operacional de montagem | Copia/montagem rapida em estado de rascunho. | #137 | Deve permanecer como rascunho, sem publicacao sem validacao. |
+| `Atualizar mesociclo` | Versionamento tecnico | Changelog de regras, ajustes de ciclo e transicao entre planejamento e montagem. | #136/#137 | Mudancas precisam preservar historico e origem da decisao. |
+| `Conversor grupamento muscular` | Cadastro/regra de exercicios | Conversao/troca de grupamentos, presets e substituicoes rastreaveis. | #137 | Nao embutir como formula oculta de frontend. |
+| `Biblioteca de Exercícios` | Biblioteca curada | Cadastro de exercicio, video, imagem, grupo muscular e atributos. | #137 | Preservar biblioteca atual e tratar importacoes como evolucao incremental. |
+| `Exercícios matriz` | Matriz de exercicios | Base original de exercicios e atributos calculados/importados. | #137 | Migrar como cadastro auditavel quando virar dado operacional. |
+| `Exercícios novos` | Curadoria/importacao | Fila de revisao/importacao de exercicios ainda nao consolidados. | #137 | Exigir revisao antes de disponibilizar em montagem/treino. |
+| `Siglas e ambiente` | Parametros compartilhados | Parametros de ambiente, grupo muscular, siglas, estimulos e metodos. | #136 | Consolidar nomenclatura em contratos/tipos quando afetar API ou UI. |
+| `Anotações gerais e Alertas` | Prontuario/feedback | Agenda semanal, observacoes e alertas tecnicos. | #135/#138 | Dados sensiveis exigem permissao, escopo e historico. |
+| `Controle de dados` | Execucao e aderencia | Tonelagem, calorias, sessoes, tempo, constancia, prescritas, realizadas e saldo. | #138 | Usar como evidencia para feedback, nao como automacao sem professor. |
+| `calculos externos` | Regras auxiliares | Textos/dicas e parametros auxiliares usados por formulas/mensagens. | #133/#136/#138 | Cada formula critica precisa virar service/backend com testes. |
+| `Dados de Base` | Avaliacao/prontuario | Dados antropometricos/fisiologicos, ultima avaliacao e dados-base oficiais. | #135 | Avaliacao/prontuario seguem como fonte anterior a prescricao. |
+| `Importar` | Importacao controlada | Ponte entre dados-base, avaliacao, macrociclo e montagem. | #135/#137 | Importacao deve registrar origem, responsavel, versao e contrato. |
 
 Itens ainda nao transformados em entidade ou regra devem permanecer como documentacao ou subissue. A migracao funcional deve acontecer nas fases filhas, em PRs pequenos contra `develop`, sem reproduzir a planilha como tela gigante.
 
