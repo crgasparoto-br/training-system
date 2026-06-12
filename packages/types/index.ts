@@ -6,3 +6,4 @@ export * from './collaborator-function.js';
 export * from './professor.js';
 export * from './service.js';
 export * from './prontuario.js';
+export * from './capacity-prescription.js';
