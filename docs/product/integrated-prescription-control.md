@@ -79,9 +79,29 @@ A planilha `Ideias e estruturacao - Professor` trouxe itens que complementam o f
 - Relatorios multidisciplinares devem prever indicadores clinicos e de performance: peso, sono, qualidade do sono, sono REM/leve, exercicio aerobico/resistido, estresse, FC repouso, variabilidade de FC, pressao arterial, LDL, HDL, hemoglobina glicada, VO2max, circunferencia abdominal e percentual de gordura.
 - Dados clinicos exigem permissao especifica, escopo por contrato e separacao clara entre visao tecnica e visao do aluno.
 
-### Limitacao da rodada de leitura
+### Mapeamento da planilha `ModeloTreinamento Combinado v. 3.12.8`
 
-A exportacao acessivel nesta revisao retornou a aba selecionada com 33 itens uteis. Caso existam outras abas na planilha nao exportadas pelo link atual, elas devem ser revisadas antes da implementacao funcional e seus achados devem atualizar este documento, o plano ativo ou as issues correspondentes.
+A leitura completa registrada na issue #132 revisou 15 abas da planilha. Antes de qualquer implementacao funcional baseada nessas regras, cada item deve ser confirmado contra a documentacao da fase correspondente, migrado para services/backend testaveis quando for regra critica e protegido por contrato, auditoria e permissao quando envolver dado sensivel.
+
+| Aba revisada | Fase principal | Uso esperado no produto | Observacao de governanca |
+| --- | --- | --- | --- |
+| `Aluno` | #134 | Contexto do aluno selecionado, resumo, dados praticos e navegacao por abas. | Nao substituir cadastro atual; usar como referencia de organizacao e colapses. |
+| `Macrociclo` | #136 | Planejamento macro/meso/micro e parametros tecnicos de prescricao. | Regras devem ser versionadas e validadas pelo professor. |
+| `Montagem` | #137 | Origem da montagem consolidada da prescricao. | Nao pode gerar `Treino de hoje` diretamente sem camada de consolidacao. |
+| `Rascunho rapido` | #137 | Apoio operacional para montar blocos antes da consolidacao. | Deve permanecer como rascunho, sem publicacao sem validacao. |
+| `Atualizar mesociclo` | #136/#137 | Ajustes de ciclo e transicao entre planejamento e montagem. | Mudancas precisam preservar historico e origem da decisao. |
+| `Conversor grupamento muscular` | #137 | Cadastro/conversor estruturado para apoiar montagem resistida. | Nao embutir como formula oculta de frontend. |
+| `Biblioteca de Exercícios` | #137 | Fonte para biblioteca estruturada por contrato e revisao tecnica. | Preservar biblioteca atual e tratar importacoes como evolucao incremental. |
+| `Exercícios matriz` | #137 | Matriz base de exercicios e criterios de classificacao. | Migrar como cadastro auditavel quando virar dado operacional. |
+| `Exercícios novos` | #137 | Fluxo de entrada, revisao e aprovacao de novos exercicios. | Exigir revisao antes de disponibilizar em montagem/treino. |
+| `Siglas e ambiente` | #136 | Parametros, nomenclaturas e contexto de ambiente usados na prescricao. | Consolidar nomenclatura em contratos/tipos quando afetar API ou UI. |
+| `Anotações gerais e Alertas` | #135/#138 | Alertas, observacoes tecnicas e sinais para decisao sugerida. | Dados sensiveis exigem permissao, escopo e historico. |
+| `Controle de dados` | #138 | Metricas de execucao, aderencia, tonelagem, calorias, sessoes e saldo. | Usar como evidencia para feedback, nao como automacao sem professor. |
+| `calculos externos` | #133/#136/#138 | Inventario de formulas a migrar para regras testaveis. | Cada formula critica precisa virar service/backend com testes. |
+| `Dados de Base` | #135 | Dados-base do aluno e avaliacao que alimentam a prescricao. | Avaliacao/prontuario seguem como fonte anterior a prescricao. |
+| `Importar` | #135/#137 | Entrada controlada de dados e exercicios vindos de fontes externas. | Importacao deve registrar origem, responsavel, versao e contrato. |
+
+Itens ainda nao transformados em entidade ou regra devem permanecer como documentacao ou subissue. A migracao funcional deve acontecer nas fases filhas, em PRs pequenos contra `develop`, sem reproduzir a planilha como tela gigante.
 
 ## Fronteiras de dominio
 

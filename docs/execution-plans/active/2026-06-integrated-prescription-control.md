@@ -83,9 +83,29 @@ Esta secao registra itens importantes identificados na planilha `Ideias e estrut
 - Relatorios multidisciplinares devem prever indicadores clinicos e de performance, como peso, sono, qualidade do sono, sono REM/leve, exercicio aerobico/resistido, estresse, FC repouso, variabilidade de FC, pressao arterial, LDL, HDL, hemoglobina glicada, VO2max, circunferencia abdominal e percentual de gordura.
 - Dados clinicos devem ter permissao especifica, escopo por contrato e separacao clara entre visao tecnica e visao do aluno.
 
-### Observacao sobre abas da planilha
+### Governanca das abas da planilha `ModeloTreinamento Combinado v. 3.12.8`
 
-A exportacao acessivel nesta rodada trouxe a aba selecionada com 33 itens uteis. Caso existam outras abas nao exportadas pelo link atual, elas devem ser revisadas antes de iniciar implementacao funcional e os achados devem atualizar este plano ou gerar issues adicionais.
+A leitura completa registrada na issue #132 revisou 15 abas: `Aluno`, `Macrociclo`, `Montagem`, `Rascunho rapido`, `Atualizar mesociclo`, `Conversor grupamento muscular`, `Biblioteca de Exercícios`, `Exercícios matriz`, `Exercícios novos`, `Siglas e ambiente`, `Anotações gerais e Alertas`, `Controle de dados`, `calculos externos`, `Dados de Base` e `Importar`.
+
+A planilha deve orientar a migracao incremental do fluxo atual de treino, nao virar uma tela gigante nem um conjunto de formulas ocultas no frontend. Antes de uma regra sair da documentacao para codigo, a fase responsavel deve registrar origem, contrato, professor responsavel, permissao, dados usados, versao e criterio de validacao.
+
+| Aba | Issue/fase responsavel | Decisao para execucao |
+| --- | --- | --- |
+| `Aluno` | #134 | Usar como referencia para contexto do aluno selecionado, resumo e organizacao de tela longa com colapses. |
+| `Macrociclo` | #136 | Mapear planejamento macro/meso/micro para prescricao por capacidades, com regras testaveis. |
+| `Montagem` | #137 | Usar como fonte da montagem consolidada, sem publicar treino antes da validacao da camada-mae. |
+| `Rascunho rapido` | #137 | Tratar como apoio de rascunho operacional, sem liberar alteracoes sem professor. |
+| `Atualizar mesociclo` | #136/#137 | Registrar como ajuste planejado entre prescricao e montagem, preservando historico. |
+| `Conversor grupamento muscular` | #137 | Migrar para cadastro/conversor estruturado quando virar regra operacional. |
+| `Biblioteca de Exercícios` | #137 | Evoluir biblioteca atual de modo incremental, por contrato e revisao tecnica. |
+| `Exercícios matriz` | #137 | Usar como matriz de classificacao de exercicios, com auditoria quando persistida. |
+| `Exercícios novos` | #137 | Criar fluxo futuro de importacao, revisao e aprovacao antes de uso em montagem. |
+| `Siglas e ambiente` | #136 | Consolidar nomenclaturas e parametros compartilhados que afetem prescricao, API ou UI. |
+| `Anotações gerais e Alertas` | #135/#138 | Tratar como entrada historica e sinal para feedback/decisao, com permissao sensivel. |
+| `Controle de dados` | #138 | Mapear metricas de execucao, aderencia, tonelagem, calorias, sessoes, tempo e saldo. |
+| `calculos externos` | #133/#136/#138 | Inventariar formulas e migrar regras criticas para services/backend com testes. |
+| `Dados de Base` | #135 | Manter prontuario/avaliacao como fonte oficial antes da prescricao. |
+| `Importar` | #135/#137 | Tratar importacoes com origem, revisao, contrato, versao e responsavel. |
 
 ## Fases e issues
 
@@ -253,7 +273,7 @@ Backlog:
 | Aluno ver informacao sensivel | Separar visao tecnica e pratica |
 | Prescricao virar tela gigante | Separar por capacidade e usar colapses |
 | Integracao futura exigir refatoracao grande | Definir origem, versao e rastreabilidade desde o inicio |
-| A planilha ter abas nao revisadas pela exportacao atual | Antes de implementar, confirmar se ha abas adicionais e atualizar issues/plano |
+| Migrar formulas de planilha sem confirmar origem e fase | Usar o mapeamento das 15 abas e exigir validacao por issue filha antes de codigo |
 
 ## Definicao de pronto global
 
