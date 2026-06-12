@@ -2,6 +2,16 @@
 
 Este diretorio concentra a documentacao versionada do projeto.
 
+## Leitura obrigatoria antes de mudar documentacao ou codigo
+
+Antes de criar, alterar ou revisar qualquer documentacao, plano ou codigo, leia primeiro:
+
+1. [`../AGENTS.md`](../AGENTS.md): mapa curto para agentes e humanos.
+2. [`../ARCHITECTURE.md`](../ARCHITECTURE.md): mapa raiz da arquitetura, invariantes e fronteiras principais.
+3. Este indice (`docs/README.md`) para localizar a fonte de verdade especifica.
+
+Depois disso, leia os documentos especificos da area afetada. Nao crie nova documentacao ou plano sem conferir se ja existe uma fonte de verdade aplicavel.
+
 ## Fontes de verdade
 
 ### Para agentes e desenvolvimento
@@ -55,8 +65,9 @@ Documentos antigos que ainda possuem valor historico devem ser movidos para [`ar
 
 Ao adicionar nova documentacao:
 
-1. Prefira criar em `architecture/`, `product/`, `quality`, `operations/` ou `execution-plans/`.
-2. Evite duplicar conteudo ja existente.
-3. Atualize este indice quando o documento for uma fonte de verdade.
-4. Arquivos de backup local nao devem ser versionados na raiz de `docs/`.
-5. Quando um documento antigo precisar ser preservado apenas por historico, mova o conteudo para `archive/` e deixe um apontador curto no caminho antigo somente se isso ajudar a manter links estaveis.
+1. Leia `../AGENTS.md` e `../ARCHITECTURE.md` antes de criar ou alterar documentos.
+2. Prefira criar em `architecture/`, `product/`, `quality`, `operations/` ou `execution-plans/`.
+3. Evite duplicar conteudo ja existente.
+4. Atualize este indice quando o documento for uma fonte de verdade.
+5. Arquivos de backup local nao devem ser versionados na raiz de `docs/`.
+6. Quando um documento antigo precisar ser preservado apenas por historico, mova o conteudo para `archive/` e deixe um apontador curto no caminho antigo somente se isso ajudar a manter links estaveis.
