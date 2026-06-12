@@ -44,6 +44,49 @@ Organizar a implementacao para reduzir retrabalho, permitir evolucao futura e ma
 7. Toda tela longa deve usar colapses por grupos logicos.
 8. Toda fase deve atualizar docs, tipos compartilhados e testes quando aplicavel.
 
+## Recomendacoes adicionais extraidas da planilha
+
+Esta secao registra itens importantes identificados na planilha `Ideias e estruturacao - Professor` que nao podem ser esquecidos durante a quebra das issues. Nem todos entram no nucleo inicial; alguns devem virar backlog ou subissues quando a fase correspondente for implementada.
+
+### Avaliacao fisica avancada
+
+- Baropodometria, ultrassom e ventilometria devem permitir itens de comparacao pre e pos, com configuracao para incorporar imagens, dados externos e resumos em laudos.
+- Ventilometria deve poder gerar protocolo exportavel para smartwatch em fase futura.
+- Avaliacoes devem funcionar como fonte oficial de dados-base da prescricao, reduzindo preenchimento manual duplicado.
+- Flexibilidade deve alimentar a prescricao por articulacao, puxando angulos avaliados e deficits por pescoço, ombro, cotovelo, punho, dedos, quadril e joelho.
+
+### Prescricao e montagem
+
+- A prescricao ciclica deve considerar capacidade fisica, reversibilidade do estimulo e dados como LAn/%VO2max quando existirem.
+- Cada sessao deve permitir PSE esperado pelo professor.
+- A montagem deve alertar CIT alto ou relacao agudo/cronico elevada quando aplicavel.
+- A montagem deve priorizar seguranca quando houver dor relevante, tontura, fadiga excessiva, queda de performance ou alerta vermelho.
+- A prescricao deve gerar mensagens praticas para WhatsApp, mas isso deve ser tratado como saida/exportacao, nao como fonte tecnica.
+
+### Smartwatch e execucao real
+
+- O sistema deve ser preparado para exportar treino aerobico para smartwatch e, futuramente, importar execucao real.
+- Dados futuros de importacao podem incluir distancia, pace, FC media, FC maxima, tempo em zona, sono, estresse e recuperacao.
+- Estes dados devem entrar como evidencias para feedback e decisao sugerida, sem substituir validacao do professor.
+
+### Gestao, aderencia e operacao
+
+- Gestao de alunos deve considerar status ativo com base em servico, pagamentos e respostas dos alunos.
+- O aluno deve receber notificacao de proximidade de pagamento, no celular e/ou na tela do aluno.
+- Gestores devem ter indicador de aderencia: presencas, treinos realizados, feedbacks respondidos, licoes de casa cumpridas e atrasos de pagamento.
+- Gestores devem visualizar disponibilidade de horario dos colaboradores para apoiar lotacao de alunos.
+- Gestao de ambiente deve incluir cadastro de materiais de sala.
+
+### Relatorios e visao multidisciplinar
+
+- A evolucao do aluno deve ter linha do tempo com avaliacoes, objetivos, ajustes de prescricao, feedbacks e indicadores relevantes.
+- Relatorios multidisciplinares devem prever indicadores clinicos e de performance, como peso, sono, qualidade do sono, sono REM/leve, exercicio aerobico/resistido, estresse, FC repouso, variabilidade de FC, pressao arterial, LDL, HDL, hemoglobina glicada, VO2max, circunferencia abdominal e percentual de gordura.
+- Dados clinicos devem ter permissao especifica, escopo por contrato e separacao clara entre visao tecnica e visao do aluno.
+
+### Observacao sobre abas da planilha
+
+A exportacao acessivel nesta rodada trouxe a aba selecionada com 33 itens uteis. Caso existam outras abas nao exportadas pelo link atual, elas devem ser revisadas antes de iniciar implementacao funcional e os achados devem atualizar este plano ou gerar issues adicionais.
+
 ## Fases e issues
 
 ### Fase 0 - Governanca e base documental
@@ -92,6 +135,7 @@ Escopo sugerido:
 - Marcar dados importaveis para prescricao.
 - Criar linha do tempo tecnica inicial.
 - Garantir auditoria nos blocos sensiveis.
+- Considerar baropodometria, ultrassom, ventilometria, flexibilidade e dados-base oficiais como extensoes planejadas.
 
 Criterios de aceite:
 
@@ -110,6 +154,7 @@ Escopo sugerido:
 - Vincular objetivos, justificativas, sessoes, alertas e feedback.
 - Criar validacoes por capacidade.
 - Impedir envio direto para Treino de hoje.
+- Considerar PSE esperado, prescricao ciclica por LAn/%VO2max e selecao articular por checkbox como subissues da fase.
 
 Criterios de aceite:
 
@@ -128,6 +173,7 @@ Escopo sugerido:
 - Validar conflitos e alertas.
 - Registrar versao, origem, justificativa e status.
 - Gerar versao operacional do Treino de hoje.
+- Considerar alertas de CIT alto, relacao agudo/cronico e priorizacao de seguranca quando houver dor, tontura, fadiga ou queda de performance.
 
 Criterios de aceite:
 
@@ -146,6 +192,7 @@ Escopo sugerido:
 - Criar decisao sugerida: manter, progredir, reduzir, trocar, suspender ou reavaliar.
 - Exigir validacao final do professor.
 - Registrar historico de decisao.
+- Preparar entrada futura de dados de smartwatch como evidencia complementar.
 
 Criterios de aceite:
 
@@ -164,6 +211,11 @@ Backlog:
 - Relatorios evolutivos.
 - Regras avancadas de decisao.
 - Agenda integrada com disponibilidade de professor, ambiente e aluno.
+- Geracao de mensagem WhatsApp a partir da prescricao validada.
+- Indicadores de aderencia, status ativo por pagamento/resposta e notificacao de cobranca.
+- Painel de disponibilidade de colaboradores.
+- Cadastro de materiais de sala.
+- Relatorios multidisciplinares com indicadores clinicos e de performance.
 
 ## Sequencia recomendada de PRs
 
@@ -201,6 +253,7 @@ Backlog:
 | Aluno ver informacao sensivel | Separar visao tecnica e pratica |
 | Prescricao virar tela gigante | Separar por capacidade e usar colapses |
 | Integracao futura exigir refatoracao grande | Definir origem, versao e rastreabilidade desde o inicio |
+| A planilha ter abas nao revisadas pela exportacao atual | Antes de implementar, confirmar se ha abas adicionais e atualizar issues/plano |
 
 ## Definicao de pronto global
 
