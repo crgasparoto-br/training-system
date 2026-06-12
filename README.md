@@ -9,6 +9,16 @@ Sistema SaaS para gestão de alunos, professores, treinos, agenda, avaliações,
 - Operação: controle de permissões por função, telas, blocos internos e escopo de dados.
 - Publicação: frontend web em Vercel e API em Render no cenário atual.
 
+## Leitura obrigatória antes de mudar documentação ou código
+
+Antes de criar, alterar ou revisar qualquer documentação, plano ou código, leia primeiro:
+
+1. [`AGENTS.md`](./AGENTS.md): mapa curto para agentes e humanos.
+2. [`ARCHITECTURE.md`](./ARCHITECTURE.md): mapa raiz da arquitetura, invariantes e fronteiras principais.
+3. [`docs/README.md`](./docs/README.md): índice da documentação versionada e fontes de verdade específicas.
+
+Depois disso, leia os documentos específicos da área afetada. Não crie nova documentação ou plano sem conferir se já existe uma fonte de verdade aplicável.
+
 ## Arquitetura
 
 ```text
@@ -33,6 +43,7 @@ Use [`docs/README.md`](./docs/README.md) como índice da documentação.
 Fontes de verdade atuais:
 
 - [`AGENTS.md`](./AGENTS.md): mapa curto para humanos e agentes.
+- [`ARCHITECTURE.md`](./ARCHITECTURE.md): mapa raiz da arquitetura e invariantes.
 - [`docs/architecture/overview.md`](./docs/architecture/overview.md): visão geral da arquitetura.
 - [`docs/architecture/api.md`](./docs/architecture/api.md): padrões da API.
 - [`docs/architecture/web.md`](./docs/architecture/web.md): padrões do frontend web.
@@ -40,6 +51,7 @@ Fontes de verdade atuais:
 - [`docs/architecture/auth-and-access-control.md`](./docs/architecture/auth-and-access-control.md): autenticação, autorização e escopo de dados.
 - [`docs/architecture/deployment.md`](./docs/architecture/deployment.md): deploy, variáveis e ambientes.
 - [`docs/product/access-control.md`](./docs/product/access-control.md): regras de produto para controle de acesso.
+- [`docs/product/integrated-prescription-control.md`](./docs/product/integrated-prescription-control.md): fluxo integrado de prontuário, avaliação, prescrição, montagem consolidada, treino de hoje, feedback e decisão.
 - [`docs/visual-guidelines.md`](./docs/visual-guidelines.md): diretrizes visuais.
 - [`docs/quality/validation.md`](./docs/quality/validation.md): comandos de validação.
 
