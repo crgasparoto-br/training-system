@@ -2,6 +2,16 @@
 
 Este diretorio concentra a documentacao versionada do projeto.
 
+## Leitura obrigatoria antes de mudar documentacao ou codigo
+
+Antes de criar, alterar ou revisar qualquer documentacao, plano ou codigo, leia primeiro:
+
+1. [`../AGENTS.md`](../AGENTS.md): mapa curto para agentes e humanos.
+2. [`../ARCHITECTURE.md`](../ARCHITECTURE.md): mapa raiz da arquitetura, invariantes e fronteiras principais.
+3. Este indice (`docs/README.md`) para localizar a fonte de verdade especifica.
+
+Depois disso, leia os documentos especificos da area afetada. Nao crie nova documentacao ou plano sem conferir se ja existe uma fonte de verdade aplicavel.
+
 ## Fontes de verdade
 
 ### Para agentes e desenvolvimento
@@ -22,6 +32,7 @@ Este diretorio concentra a documentacao versionada do projeto.
 ### Produto
 
 - [`product/access-control.md`](product/access-control.md): regras de produto para controle de acesso.
+- [`product/integrated-prescription-control.md`](product/integrated-prescription-control.md): arquitetura-alvo do fluxo integrado de prontuario, avaliacao, prescricao, montagem consolidada, treino de hoje, feedback e decisao.
 
 ### Operacao
 
@@ -31,6 +42,7 @@ Este diretorio concentra a documentacao versionada do projeto.
 
 - [`execution-plans/TEMPLATE.md`](execution-plans/TEMPLATE.md): template para tarefas grandes.
 - [`execution-plans/active/`](execution-plans/active/): planos em andamento.
+- [`execution-plans/active/2026-06-integrated-prescription-control.md`](execution-plans/active/2026-06-integrated-prescription-control.md): plano ativo para evolucao do fluxo integrado de prontuario, prescricao e treino.
 - [`execution-plans/completed/`](execution-plans/completed/): planos concluidos, quando aplicavel.
 
 ## Documentos historicos ou complementares
@@ -53,8 +65,9 @@ Documentos antigos que ainda possuem valor historico devem ser movidos para [`ar
 
 Ao adicionar nova documentacao:
 
-1. Prefira criar em `architecture/`, `product/`, `quality`, `operations/` ou `execution-plans/`.
-2. Evite duplicar conteudo ja existente.
-3. Atualize este indice quando o documento for uma fonte de verdade.
-4. Arquivos de backup local nao devem ser versionados na raiz de `docs/`.
-5. Quando um documento antigo precisar ser preservado apenas por historico, mova o conteudo para `archive/` e deixe um apontador curto no caminho antigo somente se isso ajudar a manter links estaveis.
+1. Leia `../AGENTS.md` e `../ARCHITECTURE.md` antes de criar ou alterar documentos.
+2. Prefira criar em `architecture/`, `product/`, `quality`, `operations/` ou `execution-plans/`.
+3. Evite duplicar conteudo ja existente.
+4. Atualize este indice quando o documento for uma fonte de verdade.
+5. Arquivos de backup local nao devem ser versionados na raiz de `docs/`.
+6. Quando um documento antigo precisar ser preservado apenas por historico, mova o conteudo para `archive/` e deixe um apontador curto no caminho antigo somente se isso ajudar a manter links estaveis.
