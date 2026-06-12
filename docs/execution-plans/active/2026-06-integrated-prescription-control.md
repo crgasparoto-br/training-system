@@ -2,7 +2,8 @@
 
 Status: ativo
 Data: 2026-06-12
-Branch de planejamento: `docs/develop-prescription-architecture-plan`
+Ponto de partida atual: `develop`
+Planejamento historico inicial: `docs/develop-prescription-architecture-plan`
 Documento de produto: `docs/product/integrated-prescription-control.md`
 
 ## Contexto
@@ -43,6 +44,24 @@ Organizar a implementacao para reduzir retrabalho, permitir evolucao futura e ma
 6. Toda nova consulta sensivel deve respeitar `contractId` e escopo de dados.
 7. Toda tela longa deve usar colapses por grupos logicos.
 8. Toda fase deve atualizar docs, tipos compartilhados e testes quando aplicavel.
+
+## Status da Fase 0 - Governanca e documentacao
+
+A Fase 0 e exclusivamente documental e deve preparar as fases funcionais sem alterar comportamento do sistema. O indice `docs/README.md` ja aponta para o documento de produto e para este plano ativo; novas fontes de verdade so devem ser adicionadas ao indice quando forem criadas.
+
+Entregas consolidadas desta fase:
+
+- Documento de produto revisado em `develop`.
+- Plano de execucao ativo revisado em `develop`.
+- Matriz da planilha `ModeloTreinamento Combinado v. 3.12.8` documentada para 15 abas revisadas.
+- Regras de privacidade, LGPD, dados sensiveis, limites de dominio, formularios externos, nucleo atual, backlog operacional e roadmap documentadas no produto.
+- Branch antiga de planejamento contextualizada como historico; os proximos PRs devem partir de `develop`.
+
+Limites desta fase:
+
+- Nao altera banco, API, frontend, rotas, modelos, migrations ou comportamento.
+- Nao implementa prescricao, montagem, feedback, smartwatch, WhatsApp ou notificacoes.
+- Nao importa exemplos reais com dados pessoais para fixtures, seeds ou documentacao publica.
 
 ## Recomendacoes adicionais extraidas da planilha
 
@@ -274,6 +293,8 @@ Backlog:
 | Prescricao virar tela gigante | Separar por capacidade e usar colapses |
 | Integracao futura exigir refatoracao grande | Definir origem, versao e rastreabilidade desde o inicio |
 | Migrar formulas de planilha sem confirmar origem e fase | Usar o mapeamento das 15 abas e exigir validacao por issue filha antes de codigo |
+| Misturar cadastro, contrato, agenda, manual e prescricao | Respeitar a separacao de dominios registrada no documento de produto |
+| Usar exemplos reais com dados pessoais em docs ou seeds | Usar dados ficticios e minimizados; nunca copiar exemplos reais para documentacao publica |
 
 ## Definicao de pronto global
 
