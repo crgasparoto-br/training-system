@@ -40,6 +40,49 @@ Este plano adapta praticas consolidadas de sistemas de controle, seguranca e ent
 9. Professor ve a visao tecnica; aluno ve a visao pratica, simples e segura.
 10. Qualquer nova entidade sensivel deve respeitar contrato, escopo de dados, auditoria e permissao.
 
+## Recomendacoes complementares da planilha
+
+A planilha `Ideias e estruturacao - Professor` trouxe itens que complementam o fluxo principal. Eles devem ser considerados como requisitos ou subissues nas fases correspondentes, evitando que o nucleo seja implementado de forma limitada demais.
+
+### Avaliacao fisica avancada
+
+- Baropodometria, ultrassom e ventilometria devem permitir comparacao pre e pos, com dados, imagens e laudos importaveis/configuraveis.
+- Ventilometria deve ser preparada para gerar protocolo exportavel para smartwatch em etapa futura.
+- Avaliacao fisica deve ser a fonte oficial dos dados-base usados pela prescricao, evitando digitacao duplicada.
+- Flexibilidade deve alimentar a prescricao por articulacao, incluindo angulos, deficits, prioridades e sugestoes por pescoço, ombro, cotovelo, punho, dedos, quadril e joelho.
+
+### Prescricao tecnica
+
+- Prescricao ciclica deve considerar capacidade fisica, reversibilidade do estimulo e dados como LAn/%VO2max quando disponiveis.
+- Sessoes devem permitir PSE esperado pelo professor.
+- A montagem deve avaliar CIT alto ou relacao agudo/cronico elevada quando houver dados suficientes.
+- A montagem deve priorizar seguranca diante de dor relevante, tontura, fadiga excessiva, queda de performance ou alerta vermelho.
+- A prescricao validada deve poder gerar mensagem pratica para WhatsApp, sem transformar o WhatsApp em fonte tecnica do sistema.
+
+### Smartwatch e dados externos
+
+- O sistema deve ser preparado para exportar treino, principalmente aerobico, para smartwatch.
+- Em etapa futura, deve importar execucao real: distancia, pace, FC media, FC maxima, tempo em zona, sono, estresse e recuperacao.
+- Dados importados devem virar evidencia para feedback e decisao sugerida, mantendo validacao final do professor.
+
+### Gestao operacional
+
+- Gestao de alunos deve considerar status ativo a partir de servico, pagamento e resposta/aderencia do aluno.
+- O aluno deve receber notificacao de proximidade de pagamento quando aplicavel.
+- Gestores devem acompanhar aderencia: presencas, treinos realizados, feedbacks respondidos, licoes de casa cumpridas e atrasos de pagamento.
+- Gestores devem visualizar disponibilidade de colaboradores para lotacao de alunos.
+- Gestao de ambiente deve prever cadastro de materiais de sala.
+
+### Relatorios e visao multidisciplinar
+
+- A evolucao do aluno deve ter linha do tempo com avaliacoes, objetivos, ajustes de prescricao, feedbacks relevantes e indicadores.
+- Relatorios multidisciplinares devem prever indicadores clinicos e de performance: peso, sono, qualidade do sono, sono REM/leve, exercicio aerobico/resistido, estresse, FC repouso, variabilidade de FC, pressao arterial, LDL, HDL, hemoglobina glicada, VO2max, circunferencia abdominal e percentual de gordura.
+- Dados clinicos exigem permissao especifica, escopo por contrato e separacao clara entre visao tecnica e visao do aluno.
+
+### Limitacao da rodada de leitura
+
+A exportacao acessivel nesta revisao retornou a aba selecionada com 33 itens uteis. Caso existam outras abas na planilha nao exportadas pelo link atual, elas devem ser revisadas antes da implementacao funcional e seus achados devem atualizar este documento, o plano ativo ou as issues correspondentes.
+
 ## Fronteiras de dominio
 
 ### 1. Aluno selecionado
@@ -80,6 +123,10 @@ Deve manter historico e expor dados consumiveis pela prescricao, incluindo:
 - antropometria;
 - adipometria;
 - bioimpedancia;
+- baropodometria;
+- ultrassom;
+- ventilometria;
+- flexibilidade;
 - testes fisicos;
 - resumo tecnico por data;
 - comparativos evolutivos.
@@ -101,6 +148,8 @@ Cada capacidade deve possuir:
 - plano;
 - sessao selecionada;
 - status: planejado, ativo, em ajuste, suspenso, finalizado;
+- PSE esperado quando aplicavel;
+- dados-base usados na prescricao;
 - alertas;
 - feedback relacionado;
 - regra de decisao sugerida;
@@ -115,6 +164,7 @@ Responsabilidades:
 
 - receber blocos ativos e validados das capacidades;
 - validar conflitos entre capacidades;
+- avaliar alertas de seguranca, CIT alto e carga agudo/cronica quando houver dados;
 - organizar prioridade, ordem e combinacao;
 - gerar versao operacional para o Treino de hoje;
 - registrar versao gerada e justificativa;
@@ -125,7 +175,8 @@ Exemplos de conflito:
 - dor ativa no joelho + treino intenso de membro inferior;
 - fadiga alta + intervalado forte;
 - restricao de mobilidade + exercicio com amplitude elevada;
-- baixa recuperacao + progressao automatica de carga.
+- baixa recuperacao + progressao automatica de carga;
+- CIT alto ou relacao agudo/cronico elevada + nova carga intensa.
 
 ### 6. Treino de hoje
 
@@ -157,7 +208,8 @@ Dados esperados:
 - reps executadas;
 - observacoes do aluno;
 - observacoes do professor;
-- aderencia ao planejado.
+- aderencia ao planejado;
+- dados externos importados, quando houver integracao validada.
 
 Decisoes sugeridas:
 
@@ -227,6 +279,10 @@ Atendimento
             │   ├── Antropometria
             │   ├── Adipometria
             │   ├── Bioimpedancia
+            │   ├── Baropodometria
+            │   ├── Ultrassom
+            │   ├── Ventilometria
+            │   ├── Flexibilidade
             │   ├── Testes fisicos
             │   └── Historico
             ├── Prescricao
@@ -266,6 +322,7 @@ Atendimento
 - Consolidar PRNT como fonte antes da prescricao.
 - Garantir historico de avaliacao fisica.
 - Expor resumos consumiveis pela prescricao.
+- Incluir dados-base e avaliacoes avancadas como extensoes planejadas.
 - Garantir auditoria e escopo de dados.
 
 ### Fase 3 - Prescricao por capacidades
@@ -273,12 +330,14 @@ Atendimento
 - Criar estrutura tecnica para Resistido, Flexibilidade, Ciclico e Equilibrio.
 - Criar status por capacidade.
 - Vincular objetivos, alertas e feedback.
+- Considerar PSE esperado, prescricao ciclica por LAn/%VO2max e flexibilidade por articulacao.
 - Ainda nao gerar Treino de hoje diretamente.
 
 ### Fase 4 - Montagem Consolidada da Prescricao
 
 - Receber blocos ativos e validados.
 - Validar conflitos.
+- Avaliar alertas de seguranca, CIT e carga agudo/cronica quando houver dados.
 - Gerar versao operacional do Treino de hoje.
 - Registrar versao, origem e justificativa.
 
@@ -288,6 +347,7 @@ Atendimento
 - Gerar decisao sugerida.
 - Exigir validacao final do professor.
 - Registrar historico e linha do tempo.
+- Preparar entrada futura de dados de smartwatch.
 
 ### Fase 6 - Evolucoes futuras
 
@@ -295,6 +355,10 @@ Atendimento
 - Notificacoes inteligentes.
 - Relatorios evolutivos.
 - Regras de decisao mais avancadas.
+- Mensagens WhatsApp geradas a partir da prescricao validada.
+- Indicadores de aderencia e status ativo por pagamento/resposta.
+- Painel de disponibilidade de colaboradores e gestao de materiais.
+- Relatorios multidisciplinares.
 
 ## Criterios globais de aceite
 
