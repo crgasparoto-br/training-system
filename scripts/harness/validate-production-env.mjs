@@ -1,6 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+const JWT_PLACEHOLDERS = new Set([
+  'dev-secret',
+  'your-super-secret-jwt-key-change-in-production',
+]);
+
 function parseDotEnv(contents) {
   const parsed = {};
   const lines = contents.split(/\r?\n/);
@@ -40,9 +45,13 @@ function loadEnvFileIfExists(fileName) {
   }
 }
 
+const strictRealEnv = process.env.HARNESS_VALIDATE_REAL_ENV === '1';
+
 // Prioriza valores reais do ambiente e usa .env local apenas como fallback.
 loadEnvFileIfExists('.env');
-loadEnvFileIfExists('.env.example');
+if (!strictRealEnv) {
+  loadEnvFileIfExists('.env.example');
+}
 
 const requiredApiVars = [
   'DATABASE_URL',
@@ -66,19 +75,39 @@ function missing(vars) {
   return vars.filter((name) => !process.env[name]);
 }
 
+function isProduction() {
+  return process.env.NODE_ENV === 'production';
+}
+
 const missingApi = missing(requiredApiVars);
 const missingWeb = missing(requiredWebVars);
 const missingSecrets = missing(requiredGithubSecrets);
 const strictDeploySecrets = process.env.HARNESS_VALIDATE_DEPLOY_SECRETS === '1';
+const invalidSecrets = [];
 
-if (missingApi.length || missingWeb.length || (strictDeploySecrets && missingSecrets.length)) {
-  console.error('Variaveis ausentes no ambiente atual:');
+if ((isProduction() || strictRealEnv) && JWT_PLACEHOLDERS.has(process.env.JWT_SECRET?.trim())) {
+  invalidSecrets.push('JWT_SECRET usa valor placeholder');
+}
+
+if (isProduction() && !process.env.CORS_ORIGINS?.trim()) {
+  invalidSecrets.push('CORS_ORIGINS deve ser definido explicitamente em producao');
+}
+
+if (
+  missingApi.length ||
+  missingWeb.length ||
+  invalidSecrets.length ||
+  (strictDeploySecrets && missingSecrets.length)
+) {
+  console.error('Variaveis ausentes ou invalidas no ambiente atual:');
   if (missingApi.length) console.error(`API: ${missingApi.join(', ')}`);
   if (missingWeb.length) console.error(`WEB: ${missingWeb.join(', ')}`);
+  if (invalidSecrets.length) console.error(`Invalidas: ${invalidSecrets.join(', ')}`);
   if (strictDeploySecrets && missingSecrets.length) {
     console.error(`GitHub/Deploy: ${missingSecrets.join(', ')}`);
   }
   console.error('\nUse este comando como checklist. Nao commit valores reais de segredo.');
+  console.error('Para ignorar .env.example e validar somente ambiente real/.env, use HARNESS_VALIDATE_REAL_ENV=1.');
   process.exit(1);
 }
 

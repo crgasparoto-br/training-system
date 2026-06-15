@@ -19,35 +19,19 @@ import { serviceRoutes } from './modules/services/index.js';
 import { startProfileReviewScheduler } from './modules/alunos/profile-review.scheduler.js';
 import studentRoutes from './routes/student.routes.js';
 import { getUploadStorageRoot } from './common/asset-storage.js';
+import { getJwtSecret, resolveCorsConfig } from './common/runtime-config.js';
 
 const app: express.Express = express();
 const PORT = Number(process.env.PORT || process.env.API_PORT || 3000);
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
+getJwtSecret(process.env);
+
 app.set('trust proxy', 1);
 
-function parseCorsOrigins(value?: string) {
-  return (value || '')
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean);
-}
-
-const allowedOrigins = Array.from(
-  new Set([
-    ...parseCorsOrigins(process.env.CORS_ORIGINS),
-    process.env.FRONTEND_URL,
-    process.env.MOBILE_URL,
-    'http://localhost:5173',
-    'http://localhost:8081',
-    'exp://localhost:8081',
-  ].filter(Boolean) as string[])
-);
-
-const allowedVercelPreviewProjects = new Set([
-  'training-system-web',
-  ...parseCorsOrigins(process.env.CORS_VERCEL_PREVIEW_PROJECTS),
-]);
+const corsConfig = resolveCorsConfig(process.env);
+const allowedOrigins = corsConfig.allowedOrigins;
+const allowedVercelPreviewProjects = new Set(corsConfig.allowedVercelPreviewProjects);
 
 function isAllowedVercelPreviewOrigin(origin: string) {
   let hostname: string;
@@ -102,8 +86,16 @@ app.use(
 // Body Parser
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
-app.use('/uploads', express.static(getUploadStorageRoot()));
-app.use('/api/v1/uploads', express.static(getUploadStorageRoot()));
+app.use('/uploads', express.static(getUploadStorageRoot(), {
+  setHeaders: (res) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+  },
+}));
+app.use('/api/v1/uploads', express.static(getUploadStorageRoot(), {
+  setHeaders: (res) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+  },
+}));
 
 // ============================================================================
 // HEALTH CHECK

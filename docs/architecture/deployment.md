@@ -12,10 +12,10 @@ Este documento registra as regras minimas para publicar o Sistema Acesso.
 ## Variaveis esperadas da API
 
 - `DATABASE_URL`
-- `NODE_ENV`
+- `NODE_ENV`: use `production` no ambiente produtivo.
 - `FRONTEND_URL`
-- `CORS_ORIGINS`
-- `JWT_SECRET`
+- `CORS_ORIGINS`: obrigatoria em producao e deve listar somente origins produtivas explicitamente permitidas. Origins locais nao sao incluidas por padrao em `NODE_ENV=production`.
+- `JWT_SECRET`: obrigatoria em producao. Nao use placeholders como `dev-secret` ou `your-super-secret-jwt-key-change-in-production`.
 - `UPLOAD_STORAGE_ROOT`: caminho absoluto no host da API para armazenamento persistente de uploads locais. Em Render, deve apontar para o mount path do Persistent Disk quando o provider de assets for `local`.
 - `ASSET_BASE_URL`: URL publica preferencial para servir assets gravados no storage local/persistente.
 - `API_PUBLIC_URL`: URL publica da API usada como fallback para montar URLs de uploads locais quando `ASSET_BASE_URL` nao estiver configurada.
@@ -89,7 +89,10 @@ Antes de publicar, valide:
 ```bash
 pnpm validate
 pnpm harness:validate-env
+HARNESS_VALIDATE_REAL_ENV=1 NODE_ENV=production pnpm harness:validate-env
 ```
+
+Use `HARNESS_VALIDATE_REAL_ENV=1` para validar o ambiente real sem fallback de `.env.example`.
 
 ## Observacao sobre hooks de deploy
 
