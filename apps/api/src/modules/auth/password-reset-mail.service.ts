@@ -1,4 +1,5 @@
 import sgMail from '@sendgrid/mail';
+import { isProductionEnvironment } from '../../common/runtime-config.js';
 
 const sendgridApiKey = process.env.SENDGRID_API_KEY?.trim();
 const sendgridFromEmail = process.env.SENDGRID_FROM_EMAIL?.trim();
@@ -11,11 +12,26 @@ function isMailConfigured() {
   return Boolean(sendgridApiKey && sendgridFromEmail);
 }
 
+function maskEmail(email: string) {
+  const [localPart, domain] = email.split('@');
+
+  if (!localPart || !domain) {
+    return 'email-invalido';
+  }
+
+  const visibleLocal = localPart.slice(0, 2);
+  return `${visibleLocal}${'*'.repeat(Math.max(localPart.length - 2, 1))}@${domain}`;
+}
+
 export async function sendPasswordResetEmail(email: string, resetUrl: string) {
   if (!isMailConfigured()) {
-    console.warn(
-      `[auth] SendGrid não configurado. Link de redefinição para ${email}: ${resetUrl}`
-    );
+    const message = '[auth] SendGrid nao configurado para recuperacao de senha';
+
+    if (isProductionEnvironment()) {
+      throw new Error(message);
+    }
+
+    console.warn(`${message}. Solicitacao registrada para ${maskEmail(email)} sem expor token.`);
     return { delivered: false };
   }
 

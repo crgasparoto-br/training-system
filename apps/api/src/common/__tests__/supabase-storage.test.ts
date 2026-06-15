@@ -14,6 +14,9 @@ jest.mock('undici', () => ({
 
 const mockedFetch = fetch as jest.MockedFunction<typeof fetch>;
 const originalEnv = process.env;
+const pngBuffer = Buffer.from([
+  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00,
+]);
 
 function setSupabaseEnv() {
   process.env.ASSET_STORAGE_PROVIDER = 'supabase';
@@ -55,11 +58,10 @@ describe('Supabase public asset storage', () => {
 
   it('uploads the in-memory buffer and returns the public Supabase URL', async () => {
     setSupabaseEnv();
-    const buffer = Buffer.from('image-bytes');
 
     const result = await savePublicAssetToSupabase({
       folder: 'alunos',
-      buffer,
+      buffer: pngBuffer,
       originalName: 'avatar aluno.png',
       mimeType: 'image/png',
     });
@@ -73,7 +75,7 @@ describe('Supabase public asset storage', () => {
     );
     expect(options).toMatchObject({
       method: 'POST',
-      body: buffer,
+      body: pngBuffer,
       headers: {
         Authorization: 'Bearer service-role-secret',
         'Content-Type': 'image/png',
@@ -95,7 +97,7 @@ describe('Supabase public asset storage', () => {
 
     const result = await savePublicAsset({
       folder: 'professores',
-      buffer: Buffer.from('local-image'),
+      buffer: pngBuffer,
       originalName: 'professor.png',
       mimeType: 'image/png',
     });
