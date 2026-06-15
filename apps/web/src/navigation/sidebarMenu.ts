@@ -1,10 +1,10 @@
 import {
   Activity,
-  BarChart3,
   Briefcase,
+  CalendarDays,
   FileText,
-  Search,
   Settings,
+  Users,
 } from 'lucide-react';
 import { ACCESS_SCREEN_CATALOG } from '@corrida/types';
 import type { SidebarNavItem } from '../components/sidebar';
@@ -39,74 +39,38 @@ type PermissionNavItem = Omit<SidebarNavItem, 'children'> & {
 
 export const sidebarMenuItems: SidebarNavItem[] = [
   {
-    id: 'atendimento',
-    icon: Search,
-    label: 'Atendimento',
-    description: 'Cadastros e consultas',
+    id: 'alunos-hub',
+    icon: Users,
+    label: 'Alunos',
+    description: 'Consulta, cadastro e acompanhamento',
     children: [
       {
-        id: 'atendimento-cadastros',
-        label: 'Cadastros',
+        id: 'alunos-operacao',
+        label: 'Operação do aluno',
         children: [
           {
-            id: 'atendimento-cadastros-alunos',
-            label: 'Alunos',
-            children: [
-              {
-                id: 'alunos',
-                label: 'Novo aluno',
-                path: '/alunos/new',
-                screenKey: 'students.registration',
-              },
-              {
-                id: 'settings-aluno-access',
-                label: 'Acesso dos alunos',
-                path: '/settings/aluno-access',
-                screenKey: 'settings.alunoAccess',
-              },
-            ],
+            id: 'consultas-alunos',
+            label: 'Consultar alunos',
+            path: '/consultas/alunos',
+            screenKey: 'students.consultation',
           },
           {
-            id: 'atendimento-cadastros-colaboradores',
-            label: 'Colaboradores',
-            children: [
-              {
-                id: 'professores',
-                label: 'Novo colaborador',
-                path: '/professores',
-                screenKey: 'collaborators.registration',
-              },
-            ],
+            id: 'alunos',
+            label: 'Novo aluno',
+            path: '/alunos/new',
+            screenKey: 'students.registration',
           },
         ],
       },
       {
-        id: 'atendimento-consultas',
-        label: 'Consultas',
+        id: 'alunos-acessos',
+        label: 'Acessos',
         children: [
           {
-            id: 'atendimento-consultas-alunos',
-            label: 'Alunos',
-            children: [
-              {
-                id: 'consultas-alunos',
-                label: 'Consultar alunos',
-                path: '/consultas/alunos',
-                screenKey: 'students.consultation',
-              },
-            ],
-          },
-          {
-            id: 'atendimento-consultas-colaboradores',
-            label: 'Colaboradores',
-            children: [
-              {
-                id: 'consultas-colaboradores',
-                label: 'Consultar colaboradores',
-                path: '/consultas/colaboradores',
-                screenKey: 'collaborators.consultation',
-              },
-            ],
+            id: 'settings-aluno-access',
+            label: 'Acesso dos alunos',
+            path: '/settings/aluno-access',
+            screenKey: 'settings.alunoAccess',
           },
         ],
       },
@@ -119,87 +83,33 @@ export const sidebarMenuItems: SidebarNavItem[] = [
     description: 'Planejamento e execução',
     children: [
       { id: 'plans', label: 'Planos de treino', path: '/plans', screenKey: 'plans' },
-      { id: 'agenda', label: 'Agenda', path: '/agenda', screenKey: 'agenda' },
-      {
-        id: 'library',
-        label: 'Biblioteca de exercícios',
-        path: '/library',
-        screenKey: 'library',
-      },
       {
         id: 'executions',
         label: 'Execuções dos alunos',
         path: '/executions',
         screenKey: 'executions',
       },
+      {
+        id: 'library',
+        label: 'Biblioteca de exercícios',
+        path: '/library',
+        screenKey: 'library',
+      },
     ],
   },
   {
-    id: 'gestao',
-    icon: Briefcase,
-    label: 'Gestão',
-    description: 'Comercial e documentos',
+    id: 'agenda-hub',
+    icon: CalendarDays,
+    label: 'Agenda',
+    description: 'Sessões e compromissos',
     children: [
-      {
-        id: 'gestao-contratos',
-        label: 'Contratos',
-        children: [
-          {
-            id: 'settings-contract-templates',
-            label: 'Modelos de contrato',
-            path: '/settings/contract-templates',
-            screenKey: 'settings.contract',
-          },
-          {
-            id: 'settings-contract',
-            label: 'Empresa / prestador',
-            path: '/settings/contract',
-            screenKey: 'settings.contract',
-          },
-        ],
-      },
-      {
-        id: 'gestao-comercial',
-        label: 'Comercial',
-        children: [
-          {
-            id: 'settings-services',
-            label: 'Serviços e planos',
-            path: '/settings/services',
-            screenKey: 'settings.services',
-          },
-          {
-            id: 'hourly-rate-levels',
-            label: 'Valores de hora/aula',
-            path: '/cadastros/valores-hora-aula',
-            screenKey: 'hourlyRateLevels.registration',
-          },
-        ],
-      },
-      {
-        id: 'gestao-administrativo',
-        label: 'Administrativo',
-        children: [
-          {
-            id: 'settings-banks',
-            label: 'Bancos',
-            path: '/settings/banks',
-            screenKey: 'settings.banks',
-          },
-          {
-            id: 'settings-collaborator-functions',
-            label: 'Funções de colaboradores',
-            path: '/settings/collaborator-functions',
-            screenKey: 'settings.collaboratorFunctions',
-          },
-        ],
-      },
+      { id: 'agenda', label: 'Agenda geral', path: '/agenda', screenKey: 'agenda' },
     ],
   },
   {
     id: 'physical-assessment-protocol',
     icon: FileText,
-    label: 'Avaliação física',
+    label: 'Avaliações',
     description: 'Protocolos e medidas',
     screenKey: 'physicalAssessment.protocol',
     children: [
@@ -235,12 +145,68 @@ export const sidebarMenuItems: SidebarNavItem[] = [
       },
     ],
   },
-  { id: 'reports', icon: BarChart3, label: 'Relatórios', path: '/reports', screenKey: 'reports' },
+  {
+    id: 'gestao',
+    icon: Briefcase,
+    label: 'Gestão',
+    description: 'Equipe, comercial e indicadores',
+    children: [
+      {
+        id: 'gestao-colaboradores',
+        label: 'Colaboradores',
+        children: [
+          {
+            id: 'consultas-colaboradores',
+            label: 'Consultar colaboradores',
+            path: '/consultas/colaboradores',
+            screenKey: 'collaborators.consultation',
+          },
+          {
+            id: 'professores',
+            label: 'Novo colaborador',
+            path: '/professores',
+            screenKey: 'collaborators.registration',
+          },
+        ],
+      },
+      {
+        id: 'gestao-comercial',
+        label: 'Comercial',
+        children: [
+          {
+            id: 'settings-services',
+            label: 'Serviços e planos',
+            path: '/settings/services',
+            screenKey: 'settings.services',
+          },
+          {
+            id: 'hourly-rate-levels',
+            label: 'Valores de hora/aula',
+            path: '/cadastros/valores-hora-aula',
+            screenKey: 'hourlyRateLevels.registration',
+          },
+          {
+            id: 'settings-contract',
+            label: 'Empresa / prestador',
+            path: '/settings/contract',
+            screenKey: 'settings.contract',
+          },
+        ],
+      },
+      {
+        id: 'gestao-indicadores',
+        label: 'Indicadores',
+        children: [
+          { id: 'reports', label: 'Relatórios', path: '/reports', screenKey: 'reports' },
+        ],
+      },
+    ],
+  },
   {
     id: 'settings',
     icon: Settings,
     label: 'Configurações',
-    description: 'Parâmetros do sistema',
+    description: 'Parâmetros e cadastros de suporte',
     path: '/settings',
     screenKey: 'settings.home',
     children: [
@@ -283,6 +249,36 @@ export const sidebarMenuItems: SidebarNavItem[] = [
             label: 'Tipos de avaliação',
             path: '/settings/assessment-types',
             screenKey: 'settings.assessmentTypes',
+          },
+        ],
+      },
+      {
+        id: 'settings-contracts',
+        label: 'Contratos e financeiro',
+        children: [
+          {
+            id: 'settings-contract-templates',
+            label: 'Modelos de contrato',
+            path: '/settings/contract-templates',
+            screenKey: 'settings.contract',
+          },
+          {
+            id: 'settings-banks',
+            label: 'Bancos',
+            path: '/settings/banks',
+            screenKey: 'settings.banks',
+          },
+        ],
+      },
+      {
+        id: 'settings-access',
+        label: 'Permissões',
+        children: [
+          {
+            id: 'settings-collaborator-functions',
+            label: 'Funções de colaboradores',
+            path: '/settings/collaborator-functions',
+            screenKey: 'settings.collaboratorFunctions',
           },
         ],
       },
