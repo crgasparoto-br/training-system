@@ -62,7 +62,7 @@ describe('SettingsCollaboratorFunctions', () => {
 
     await user.click((await screen.findAllByText('Professor'))[0]);
 
-    expect((await screen.findAllByText(/atendimento/i)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/alunos/i)).length).toBeGreaterThan(0);
 
     const searchInput = screen.getByPlaceholderText('Buscar tela ou aba...');
     await user.type(searchInput, 'termo inexistente');

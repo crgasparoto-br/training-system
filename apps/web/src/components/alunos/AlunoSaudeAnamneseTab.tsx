@@ -20,6 +20,13 @@ const parqQuestionLabels: Record<string, string> = {
   q8: 'Declaração final',
 };
 
+const sourceTypeLabels: Record<string, string> = {
+  student: 'Aluno',
+  professional: 'Profissional',
+  integration: 'Integração',
+  system: 'Sistema',
+};
+
 const countPositiveAhaAnswers = (value: unknown) => {
   if (!value || typeof value !== 'object') {
     return 0;
@@ -36,6 +43,10 @@ const getLegacyRawFormResponses = (aluno: Aluno) => {
 
   return responses as Record<string, unknown>;
 };
+
+const hasText = (value?: string | null) => Boolean(value?.trim());
+
+const formatNullableDate = (value?: string | null) => (value ? formatDateBR(value) : 'Não informada');
 
 export function AlunoSaudeAnamneseTab({
   aluno,
@@ -78,6 +89,44 @@ export function AlunoSaudeAnamneseTab({
     null;
   const observations = segmentedIntake?.observations ?? aluno.intakeForm?.observations ?? null;
   const assessmentDate = segmentedIntake?.assessmentDate ?? aluno.intakeForm?.assessmentDate ?? null;
+  const technicalSourceDate = assessmentDate ?? segmentedIntake?.createdAt ?? null;
+  const sourceType = segmentedIntake?.source?.type;
+  const sourceReference = segmentedIntake?.source?.reference ?? segmentedIntake?.legacyIntakeId ?? null;
+  const technicalSourceLabel = sourceType ? sourceTypeLabels[sourceType] ?? 'Fonte técnica' : 'Cadastro inicial';
+  const technicalAlertCount =
+    parqPositiveCount +
+    ahaPositiveCount +
+    (hasText(currentMedications) ? 1 : 0) +
+    (hasText(injuriesHistory) ? 1 : 0) +
+    (hasText(medicalHistory) ? 1 : 0);
+  const technicalSourceItems = [
+    {
+      label: 'Objetivo declarado',
+      value: hasText(objective) ? 'Informado' : 'Pendente',
+      description: objective || 'Registre o objetivo para orientar a prescrição futura.',
+    },
+    {
+      label: 'Triagem PAR-Q/AHA',
+      value: `${parqPositiveCount + ahaPositiveCount} alerta(s)`,
+      description:
+        parqPositiveCount + ahaPositiveCount > 0
+          ? 'Respostas positivas devem ser revisadas antes de avançar para a prescrição.'
+          : 'Sem respostas positivas registradas nos questionários disponíveis.',
+    },
+    {
+      label: 'Histórico e restrições',
+      value: technicalAlertCount > 0 ? 'Revisar' : 'Sem alerta ativo',
+      description:
+        technicalAlertCount > 0
+          ? 'Histórico médico, medicações ou lesões possuem informação útil para o professor.'
+          : 'Nenhum histórico sensível foi informado nesta entrada.',
+    },
+    {
+      label: 'Dados-base versionados',
+      value: formatNullableDate(technicalSourceDate),
+      description: 'Esta data identifica a versão técnica usada como referência, sem sobrescrever avaliações antigas.',
+    },
+  ];
   const prontuarioPath = `/protocolo-avaliacao-fisica/prontuario-entrevista-acompanhamento?alunoId=${aluno.id}`;
 
   return (
@@ -149,6 +198,69 @@ export function AlunoSaudeAnamneseTab({
               <div className="text-xs text-muted-foreground">Observações da anamnese</div>
               <div className="mt-1 text-gray-900">{observations || 'Não informado'}</div>
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Entrada técnica para prescrição futura</CardTitle>
+          <CardDescription>
+            Dados do prontuário e da anamnese ficam identificados por origem e data para apoiar a prescrição sem substituir histórico anterior.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-lg border border-gray-200 p-4">
+              <div className="text-xs text-muted-foreground">Origem do dado-base</div>
+              <div className="mt-1 text-sm font-semibold text-gray-900">{technicalSourceLabel}</div>
+              {sourceReference && <div className="mt-1 text-xs text-muted-foreground">Referência: {sourceReference}</div>}
+            </div>
+            <div className="rounded-lg border border-gray-200 p-4">
+              <div className="text-xs text-muted-foreground">Data-base técnica</div>
+              <div className="mt-1 text-sm font-semibold text-gray-900">{formatNullableDate(technicalSourceDate)}</div>
+            </div>
+            <div className="rounded-lg border border-gray-200 p-4">
+              <div className="text-xs text-muted-foreground">Última atualização</div>
+              <div className="mt-1 text-sm font-semibold text-gray-900">{formatNullableDate(segmentedIntake?.updatedAt)}</div>
+            </div>
+            <div className="rounded-lg border border-gray-200 p-4">
+              <div className="text-xs text-muted-foreground">Pontos para revisar</div>
+              <div className="mt-1 text-sm font-semibold text-gray-900">{technicalAlertCount}</div>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-dashed border-primary/40 bg-primary/5 p-4 text-sm">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="font-semibold text-gray-900">Seleção controlada antes da prescrição</p>
+                <p className="mt-1 text-muted-foreground">
+                  Estes dados estão prontos para revisão do professor. A prescrição futura deve selecionar o que será importado, mantendo origem, data, aluno, contrato e responsável.
+                </p>
+              </div>
+              <Link
+                to={prontuarioPath}
+                className="inline-flex items-center justify-center rounded-md border border-primary px-4 py-2 text-sm font-medium text-primary hover:bg-primary/10"
+              >
+                Revisar PRNT
+              </Link>
+            </div>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            {technicalSourceItems.map((item) => (
+              <div key={item.label} className="rounded-lg border border-gray-200 p-4 text-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="font-medium text-gray-900">{item.label}</div>
+                    <p className="mt-1 text-muted-foreground">{item.description}</p>
+                  </div>
+                  <span className="shrink-0 rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
+                    {item.value}
+                  </span>
+                </div>
+              </div>
+            ))}
           </div>
         </CardContent>
       </Card>

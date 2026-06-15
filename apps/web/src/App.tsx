@@ -3,6 +3,7 @@ import { Login } from './pages/Login';
 import type { ReactElement } from 'react';
 import { ForgotPassword } from './pages/ForgotPassword';
 import { Register } from './pages/Register';
+import { Home } from './pages/Home';
 import { Professores } from './pages/Professores';
 import { Alunos } from './pages/Alunos';
 import { AlunoForm } from './pages/AlunoForm';
@@ -44,28 +45,14 @@ function withAnyAccess(screenKeys: string[], element: ReactElement) {
   return <ProtectedRoute screenKeys={screenKeys}>{element}</ProtectedRoute>;
 }
 
-const DEFAULT_HOME_CANDIDATES: Array<{ path: string; screenKey: string }> = [
-  { path: '/consultas/alunos', screenKey: 'students.consultation' },
-  { path: '/alunos/new', screenKey: 'students.registration' },
-  { path: '/plans', screenKey: 'plans' },
-  { path: '/agenda', screenKey: 'agenda' },
-  { path: '/executions', screenKey: 'executions' },
-  { path: '/library', screenKey: 'library' },
-  { path: '/settings', screenKey: 'settings.home' },
-];
-
 function DefaultAuthorizedRoute() {
-  const { isAuthenticated, user } = useAuthStore();
+  const { isAuthenticated } = useAuthStore();
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
 
-  const firstAllowed = DEFAULT_HOME_CANDIDATES.find((candidate) =>
-    canAccessScreen(user, candidate.screenKey)
-  );
-
-  return <Navigate to={firstAllowed?.path || '/login'} replace />;
+  return <Navigate to="/inicio" replace />;
 }
 
 function StudentsRoute() {
@@ -107,6 +94,7 @@ function App() {
           }
         >
           <Route index element={<DefaultAuthorizedRoute />} />
+          <Route path="inicio" element={<Home />} />
           <Route path="professores" element={<Navigate to="/professores/new" replace />} />
           <Route path="professores/new" element={withAccess('collaborators.registration', <Professores />)} />
           <Route path="alunos" element={<StudentsRoute />} />

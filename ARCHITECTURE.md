@@ -8,12 +8,13 @@ Mantenha este arquivo curto, navegavel e atualizado. Detalhes ficam em `docs/`; 
 
 O Sistema Acesso e um SaaS para gestao de alunos, colaboradores, treinos, agenda, avaliacoes, contratos, financeiro e operacao de assessorias/estudios.
 
-A arquitetura deve proteger quatro propriedades:
+A arquitetura deve proteger cinco propriedades:
 
 1. **Seguranca multi-tenant**: nenhum dado pode escapar do `contractId` do usuario autenticado.
 2. **Controle de acesso consistente**: telas, blocos, acoes e escopo de dados precisam ser validados no backend.
-3. **Legibilidade para agentes**: o repositorio deve explicar como evoluir o sistema sem depender de contexto externo.
-4. **Mudancas pequenas e validaveis**: alteracoes devem ter testes, documentacao e comandos claros de validacao.
+3. **Fluxo integrado rastreavel**: prontuario, avaliacao, prescricao, montagem consolidada, treino, feedback e revisao devem manter origem, versao e responsavel quando afetarem o acompanhamento do aluno.
+4. **Legibilidade para agentes**: o repositorio deve explicar como evoluir o sistema sem depender de contexto externo.
+5. **Mudancas pequenas e validaveis**: alteracoes devem ter testes, documentacao e comandos claros de validacao.
 
 ## Topologia principal
 
@@ -138,6 +139,30 @@ Invariantes obrigatorios:
 5. Backend e frontend devem ser atualizados juntos quando uma permissao nova afetar UI e dados.
 
 Documento detalhado: `docs/architecture/auth-and-access-control.md`.
+
+## Fluxo integrado do aluno
+
+Mudancas em aluno, prontuario, avaliacao fisica, prescricao, treino de hoje, feedback ou revisao devem preservar este fluxo:
+
+```text
+Prontuario / Avaliacao Fisica
+  -> Prescricao por capacidades fisicas
+  -> Montagem Consolidada da Prescricao
+  -> Treino de hoje
+  -> Feedback pos-treino
+  -> Revisao validada pelo professor
+```
+
+Invariantes deste fluxo:
+
+1. Prontuario e avaliacao fisica sao entradas antes da prescricao.
+2. Prescricoes por capacidade nao publicam treino diretamente para o aluno.
+3. Montagem Consolidada da Prescricao e a fronteira entre planejamento e execucao.
+4. Treino de hoje e saida operacional rastreavel ate a montagem que o gerou.
+5. Feedback e sugestoes de revisao nao alteram prescricao sem validacao do professor.
+6. A visao do aluno expoe somente orientacao pratica; a visao detalhada fica restrita ao professor autorizado.
+
+Documento detalhado: `docs/product/integrated-prescription-control.md`.
 
 ## Deploy e ambientes
 
