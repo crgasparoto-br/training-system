@@ -1,6 +1,7 @@
 import axios, { type AxiosError, type AxiosResponse } from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL;
+const API_TIMEOUT_MS = 120000;
 
 function resolveApiBaseUrl(value?: string) {
   const normalized = value?.replace(/\/+$/, '');
@@ -15,7 +16,7 @@ function resolveApiBaseUrl(value?: string) {
 // Criar instância do Axios
 export const api = axios.create({
   baseURL: resolveApiBaseUrl(API_URL),
-  timeout: 30000,
+  timeout: API_TIMEOUT_MS,
   headers: {
     'Content-Type': 'application/json',
   },
