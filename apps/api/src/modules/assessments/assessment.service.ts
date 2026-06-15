@@ -1,4 +1,6 @@
-﻿import { PrismaClient, type AssessmentScheduleType } from '@prisma/client';
+﻿import fs from 'fs';
+import { PrismaClient, type AssessmentScheduleType } from '@prisma/client';
+import { resolveUploadAbsolutePathFromStored } from '../../common/asset-storage.js';
 
 const prisma = new PrismaClient();
 
@@ -12,6 +14,14 @@ export interface CreateAssessmentDTO {
   mimeType: string;
   fileSize: number;
   extractedData?: any;
+}
+
+function removeUploadedFileIfExists(filePath: string) {
+  const absolutePath = resolveUploadAbsolutePathFromStored(filePath);
+
+  if (fs.existsSync(absolutePath)) {
+    fs.unlinkSync(absolutePath);
+  }
 }
 
 export const assessmentService = {
@@ -38,6 +48,11 @@ export const assessmentService = {
   },
 
   async create(data: CreateAssessmentDTO) {
+    if (data.extractedData?.parseOk === false) {
+      removeUploadedFileIfExists(data.filePath);
+      throw new Error('Somente arquivos PDF validos sao permitidos');
+    }
+
     return prisma.assessment.create({
       data: {
         alunoId: data.alunoId,
