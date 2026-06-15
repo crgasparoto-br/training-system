@@ -1,5 +1,17 @@
+const mockPrisma = {
+  accessPermission: {
+    findMany: jest.fn(),
+    createMany: jest.fn(),
+    deleteMany: jest.fn(),
+  },
+  collaboratorFunctionOption: {
+    findMany: jest.fn(),
+  },
+  $transaction: jest.fn(),
+};
+
 jest.mock('@prisma/client', () => ({
-  PrismaClient: jest.fn(() => ({})),
+  PrismaClient: jest.fn(() => mockPrisma),
   Prisma: { JsonNull: null },
 }));
 
@@ -11,6 +23,8 @@ import {
 import {
   buildProfessorDataScopeWhere,
   canAccessOwnData,
+  canProfessorAccessBlock,
+  canProfessorAccessScreen,
   getEffectiveAccessPermissionsForProfessor,
   replaceAccessPermissionsForFunction,
   syncAccessPermissionsForFunction,
@@ -67,6 +81,12 @@ function createDb(seed: Row[] = []) {
 }
 
 describe('access-control.service', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockPrisma.accessPermission.findMany.mockResolvedValue([]);
+    mockPrisma.accessPermission.createMany.mockResolvedValue({ count: 0 });
+  });
+
   it('syncAccessPermissionsForFunction cria linhas faltantes', async () => {
     const db = createDb();
 
@@ -154,6 +174,75 @@ describe('access-control.service', () => {
 
     const defaults = DEFAULT_ACCESS_BY_PROFILE_CODE.intern;
     expect(defaults.blocks.includes('students.details.summary')).toBe(true);
+  });
+
+  it('canProfessorAccessScreen nega tela sem permissao', async () => {
+    mockPrisma.accessPermission.findMany.mockResolvedValue([
+      {
+        collaboratorFunctionId: 'fn-denied',
+        screenKey: 'students.details',
+        blockKey: '',
+        canView: false,
+        dataScope: null,
+      },
+    ]);
+
+    await expect(
+      canProfessorAccessScreen(
+        { role: 'professor', collaboratorFunction: { id: 'fn-denied', code: 'intern' } },
+        'students.details',
+      ),
+    ).resolves.toBe(false);
+  });
+
+  it('canProfessorAccessBlock exige tela pai e bloco permitidos', async () => {
+    mockPrisma.accessPermission.findMany.mockResolvedValue([
+      {
+        collaboratorFunctionId: 'fn-block',
+        screenKey: 'students.details',
+        blockKey: '',
+        canView: true,
+        dataScope: null,
+      },
+      {
+        collaboratorFunctionId: 'fn-block',
+        screenKey: 'students.details',
+        blockKey: 'students.details.financialContract',
+        canView: false,
+        dataScope: null,
+      },
+    ]);
+
+    await expect(
+      canProfessorAccessBlock(
+        { role: 'professor', collaboratorFunction: { id: 'fn-block', code: 'intern' } },
+        'students.details.financialContract',
+      ),
+    ).resolves.toBe(false);
+
+    mockPrisma.accessPermission.findMany.mockResolvedValue([
+      {
+        collaboratorFunctionId: 'fn-block',
+        screenKey: 'students.details',
+        blockKey: '',
+        canView: true,
+        dataScope: null,
+      },
+      {
+        collaboratorFunctionId: 'fn-block',
+        screenKey: 'students.details',
+        blockKey: 'students.details.financialContract',
+        canView: true,
+        dataScope: null,
+      },
+    ]);
+
+    await expect(
+      canProfessorAccessBlock(
+        { role: 'professor', collaboratorFunction: { id: 'fn-block', code: 'manager' } },
+        'students.details.financialContract',
+      ),
+    ).resolves.toBe(true);
   });
 
   it('buildProfessorDataScopeWhere aplica escopo contract', () => {
