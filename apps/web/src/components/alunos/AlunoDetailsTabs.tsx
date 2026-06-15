@@ -29,15 +29,15 @@ const tabs: Array<{
 }> = [
   {
     id: 'resumo',
-    label: 'Resumo',
-    description: 'Contexto do aluno, treino de hoje e proximos passos.',
+    label: 'Aluno 360',
+    description: 'Resumo, status, proximas acoes e treino de hoje no contexto do aluno.',
     group: 'selectedStudent',
     blockKey: 'students.details.summary',
   },
   {
     id: 'treinos',
-    label: 'Treinos / Planos',
-    description: 'Planos e agenda operacional de treino preservados.',
+    label: 'Treino de hoje / Planos',
+    description: 'Treino operacional, planos e agenda de treinamento preservados.',
     group: 'selectedStudent',
     blockKey: 'students.details.trainingPlans',
   },
@@ -107,9 +107,9 @@ const tabGroups: Array<{
 }> = [
   {
     id: 'selectedStudent',
-    badge: 'Aluno selecionado',
-    title: 'Operacao do acompanhamento',
-    description: 'Comece pelo resumo, treino de hoje e planos sem perder o contexto do aluno.',
+    badge: 'Aluno 360',
+    title: 'Resumo operacional do aluno',
+    description: 'Comece pelo contexto geral, treino de hoje e planos sem sair da tela do aluno.',
   },
   {
     id: 'technicalFlow',
