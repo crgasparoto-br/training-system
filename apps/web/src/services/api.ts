@@ -1,7 +1,7 @@
 import axios, { type AxiosError, type AxiosResponse } from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL;
-const API_TIMEOUT_MS = 120000;
+const API_TIMEOUT_MS = 30000;
 
 function resolveApiBaseUrl(value?: string) {
   const normalized = value?.replace(/\/+$/, '');
