@@ -16,6 +16,7 @@ import {
   resolvePublicUploadPath,
 } from '../../common/asset-storage.js';
 import { savePublicAsset } from '../../common/supabase-storage.js';
+import { assertStoredUploadContent, validateUploadMetadata } from '../../common/upload-validation.js';
 import { blockAccessMiddleware } from '../access-control/access-control.middleware.js';
 
 const router: Router = Router();
@@ -24,11 +25,12 @@ const avatarUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
-    if (!file.mimetype.startsWith('image/')) {
-      return cb(new Error('Envie um arquivo de imagem válido'));
+    try {
+      validateUploadMetadata('image', file.mimetype);
+      cb(null, true);
+    } catch (error) {
+      cb(error as Error);
     }
-
-    cb(null, true);
   },
 });
 
@@ -45,11 +47,12 @@ const signedContractUpload = multer({
   storage: signedContractStorage,
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
-    if (file.mimetype !== 'application/pdf') {
-      return cb(new Error('Envie um arquivo PDF válido'));
+    try {
+      validateUploadMetadata('pdf', file.mimetype);
+      cb(null, true);
+    } catch (error) {
+      cb(error as Error);
     }
-
-    cb(null, true);
   },
 });
 
@@ -81,6 +84,14 @@ const uploadSignedContractFile = (req: Request, res: Response, next: any) => {
   signedContractUpload.single('file')(req, res, (err: any) => {
     if (err) {
       return sendError(res, err.message || 'Erro ao fazer upload do contrato', 400);
+    }
+
+    try {
+      if (req.file) {
+        assertStoredUploadContent(req.file, 'pdf');
+      }
+    } catch (error: any) {
+      return sendError(res, error.message || 'Erro ao fazer upload do contrato', 400);
     }
 
     next();
