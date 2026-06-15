@@ -4,7 +4,7 @@ import { canAccessScreen } from '../access/access-control';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
 import { useAuthStore } from '../stores/useAuthStore';
 
-type CurrentUser = AuthResponse['user'];
+type CurrentUser = AuthResponse['user'] | null | undefined;
 
 type HomeShortcut = {
   title: string;
