@@ -58,9 +58,13 @@ function normalizeBlockKey(blockKey?: string | null) {
   return blockKey || null;
 }
 
+function findAccessBlock(blockKey: string) {
+  return ACCESS_BLOCK_CATALOG.find((item) => item.key === blockKey);
+}
+
 export function canAccessScreen(
   user: CurrentUser,
-  screenKey?: AccessScreenKey | string
+  screenKey?: AccessScreenKey | AccessBlockKey | string
 ) {
   if (!screenKey) {
     return true;
@@ -72,6 +76,11 @@ export function canAccessScreen(
 
   if (isMaster(user)) {
     return true;
+  }
+
+  const block = findAccessBlock(screenKey);
+  if (block) {
+    return canAccessBlock(user, block.key);
   }
 
   return getPermissions(user).some(
@@ -91,7 +100,7 @@ export function canAccessBlock(user: CurrentUser, blockKey: AccessBlockKey | str
     return true;
   }
 
-  const block = ACCESS_BLOCK_CATALOG.find((item) => item.key === blockKey);
+  const block = findAccessBlock(blockKey);
 
   if (block && !canAccessScreen(user, block.screenKey)) {
     return false;

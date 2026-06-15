@@ -10,7 +10,8 @@ Este arquivo e o mapa inicial para humanos e agentes que trabalham no `training-
 4. Para frontend web, leia `docs/architecture/web.md`.
 5. Para banco e Prisma, leia `docs/architecture/database.md`.
 6. Para autenticacao, funcoes, telas, blocos e escopo de dados, leia `docs/architecture/auth-and-access-control.md` e `docs/product/access-control.md`.
-7. Para deploy, leia `docs/architecture/deployment.md`.
+7. Para fluxo de aluno, prontuario, avaliacao fisica, prescricao, treino de hoje, feedback ou decisao tecnica, leia `docs/product/integrated-prescription-control.md`.
+8. Para deploy, leia `docs/architecture/deployment.md`.
 
 ## Tarefas grandes
 
