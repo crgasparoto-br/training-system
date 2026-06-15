@@ -8,6 +8,7 @@ import {
   resolvePublicUploadPath,
   sanitizeUploadFileName,
 } from './asset-storage.js';
+import { assertUploadContent, normalizeUploadFileName } from './upload-validation.js';
 
 export type PublicAssetFolder = 'alunos' | 'professores' | 'contracts/logos';
 
@@ -51,6 +52,16 @@ function getRequiredEnv(name: string) {
   }
 
   return value;
+}
+
+function validatePublicAssetInput(input: SavePublicAssetInput): SavePublicAssetInput {
+  const detected = assertUploadContent('image', input.buffer, input.mimeType);
+
+  return {
+    ...input,
+    mimeType: detected.mimeType,
+    originalName: normalizeUploadFileName(input.originalName, detected.extension),
+  };
 }
 
 export function getAssetStorageProvider() {
@@ -125,9 +136,11 @@ export async function savePublicAssetToSupabase(input: SavePublicAssetInput): Pr
 }
 
 export async function savePublicAsset(input: SavePublicAssetInput): Promise<SavedPublicAsset> {
+  const validatedInput = validatePublicAssetInput(input);
+
   if (getAssetStorageProvider() === 'supabase') {
-    return savePublicAssetToSupabase(input);
+    return savePublicAssetToSupabase(validatedInput);
   }
 
-  return savePublicAssetToLocal(input);
+  return savePublicAssetToLocal(validatedInput);
 }
