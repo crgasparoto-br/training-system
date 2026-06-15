@@ -44,6 +44,29 @@ const allowedOrigins = Array.from(
   ].filter(Boolean) as string[])
 );
 
+const allowedVercelPreviewProjects = new Set([
+  'training-system-web',
+  ...parseCorsOrigins(process.env.CORS_VERCEL_PREVIEW_PROJECTS),
+]);
+
+function isAllowedVercelPreviewOrigin(origin: string) {
+  let hostname: string;
+
+  try {
+    hostname = new URL(origin).hostname;
+  } catch {
+    return false;
+  }
+
+  if (!hostname.endsWith('.vercel.app')) {
+    return false;
+  }
+
+  return Array.from(allowedVercelPreviewProjects).some((project) =>
+    project && hostname.startsWith(`${project}-`)
+  );
+}
+
 // ============================================================================
 // MIDDLEWARE
 // ============================================================================
@@ -65,7 +88,7 @@ app.use(
         return;
       }
 
-      if (allowedOrigins.includes(origin)) {
+      if (allowedOrigins.includes(origin) || isAllowedVercelPreviewOrigin(origin)) {
         callback(null, true);
         return;
       }
