@@ -1,3 +1,4 @@
+import fs from 'fs';
 import path from 'path';
 
 type UploadKind = 'image' | 'pdf';
@@ -64,4 +65,27 @@ export function assertUploadContent(kind: UploadKind, buffer: Buffer, declaredMi
 export function normalizeUploadFileName(originalName: string, extension: string) {
   const baseName = path.basename(originalName, path.extname(originalName)).trim() || 'file';
   return `${baseName}${extension}`;
+}
+
+export function assertStoredUploadContent(file: Express.Multer.File, kind: UploadKind) {
+  try {
+    const detected = assertUploadContent(kind, fs.readFileSync(file.path), file.mimetype);
+    const normalizedName = normalizeUploadFileName(file.filename, detected.extension);
+
+    if (normalizedName !== file.filename) {
+      const normalizedPath = path.join(path.dirname(file.path), normalizedName);
+      fs.renameSync(file.path, normalizedPath);
+      file.filename = normalizedName;
+      file.path = normalizedPath;
+    }
+
+    file.mimetype = detected.mimeType;
+    return detected;
+  } catch (error) {
+    if (file.path && fs.existsSync(file.path)) {
+      fs.unlinkSync(file.path);
+    }
+
+    throw error;
+  }
 }
