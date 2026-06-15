@@ -1,20 +1,34 @@
-import { AuthService } from '../src/modules/auth/auth.service';
 import bcryptjs from 'bcryptjs';
+import { PrismaClient } from '@prisma/client';
+import { AuthService } from '../src/modules/auth/auth.service';
 
-const mockDb = {
+jest.mock('@prisma/client', () => {
+  const mockDb = {
+    user: {
+      findUnique: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+    },
+    educator: {
+      create: jest.fn(),
+    },
+  };
+
+  return {
+    PrismaClient: jest.fn(() => mockDb),
+  };
+});
+
+const mockDb = new PrismaClient() as unknown as {
   user: {
-    findUnique: jest.fn(),
-    create: jest.fn(),
-    update: jest.fn(),
-  },
+    findUnique: jest.Mock;
+    create: jest.Mock;
+    update: jest.Mock;
+  };
   educator: {
-    create: jest.fn(),
-  },
+    create: jest.Mock;
+  };
 };
-
-jest.mock('@prisma/client', () => ({
-  PrismaClient: jest.fn(() => mockDb),
-}));
 
 describe('AuthService', () => {
   let authService: AuthService;
