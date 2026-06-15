@@ -9,7 +9,12 @@ const LOCAL_CORS_ORIGINS = [
   'exp://localhost:8081',
 ];
 
-type RuntimeEnv = Pick<NodeJS.ProcessEnv, 'NODE_ENV' | 'JWT_SECRET' | 'CORS_ORIGINS' | 'FRONTEND_URL' | 'MOBILE_URL' | 'CORS_VERCEL_PREVIEW_PROJECTS'>;
+type RuntimeEnv = Partial<
+  Pick<
+    NodeJS.ProcessEnv,
+    'NODE_ENV' | 'JWT_SECRET' | 'CORS_ORIGINS' | 'FRONTEND_URL' | 'MOBILE_URL' | 'CORS_VERCEL_PREVIEW_PROJECTS'
+  >
+>;
 
 export function isProductionEnvironment(nodeEnv = process.env.NODE_ENV) {
   return nodeEnv === 'production';
