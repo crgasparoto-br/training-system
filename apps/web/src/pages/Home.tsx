@@ -1,7 +1,10 @@
+import type { AuthResponse } from '@corrida/types';
 import { Link } from 'react-router-dom';
 import { canAccessScreen } from '../access/access-control';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
 import { useAuthStore } from '../stores/useAuthStore';
+
+type CurrentUser = AuthResponse['user'];
 
 type HomeShortcut = {
   title: string;
@@ -117,7 +120,7 @@ const groupLabels: Record<HomeShortcut['group'], { title: string; description: s
   },
 };
 
-function getRoleLabel(user: ReturnType<typeof useAuthStore.getState>['user']) {
+function getRoleLabel(user: CurrentUser) {
   if (user?.type !== 'professor') {
     return 'Aluno';
   }
