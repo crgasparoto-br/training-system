@@ -3,6 +3,7 @@ import multer from 'multer';
 import { sendSuccess, sendError } from '@corrida/utils';
 import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js';
 import { savePublicAsset } from '../../common/supabase-storage.js';
+import { validateUploadMetadata } from '../../common/upload-validation.js';
 
 const router: Router = Router();
 
@@ -10,11 +11,12 @@ const avatarUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
-    if (!file.mimetype.startsWith('image/')) {
-      return cb(new Error('Envie um arquivo de imagem válido'));
+    try {
+      validateUploadMetadata('image', file.mimetype);
+      cb(null, true);
+    } catch (error) {
+      cb(error as Error);
     }
-
-    cb(null, true);
   },
 });
 
