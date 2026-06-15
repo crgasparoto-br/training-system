@@ -1,7 +1,7 @@
 import { AuthService } from '../src/modules/auth/auth.service';
 import bcryptjs from 'bcryptjs';
 
-const db = {
+const mockDb = {
   user: {
     findUnique: jest.fn(),
     create: jest.fn(),
@@ -13,7 +13,7 @@ const db = {
 };
 
 jest.mock('@prisma/client', () => ({
-  PrismaClient: jest.fn(() => db),
+  PrismaClient: jest.fn(() => mockDb),
 }));
 
 describe('AuthService', () => {
@@ -40,7 +40,7 @@ describe('AuthService', () => {
     });
 
     it('deve lançar erro com email incorreto', async () => {
-      db.user.findUnique.mockResolvedValue(null);
+      mockDb.user.findUnique.mockResolvedValue(null);
 
       await expect(
         authService.login({ email: 'wrong@example.com', password: 'password123' })
@@ -49,7 +49,7 @@ describe('AuthService', () => {
 
     it('deve lançar erro para usuário inativo antes de comparar senha', async () => {
       const compareSpy = jest.spyOn(bcryptjs, 'compare');
-      db.user.findUnique.mockResolvedValue({
+      mockDb.user.findUnique.mockResolvedValue({
         id: 'user-1',
         email: 'inactive@example.com',
         passwordHash: 'hash',
@@ -64,7 +64,7 @@ describe('AuthService', () => {
       ).rejects.toThrow('Usuário desativado');
 
       expect(compareSpy).not.toHaveBeenCalled();
-      expect(db.user.update).not.toHaveBeenCalled();
+      expect(mockDb.user.update).not.toHaveBeenCalled();
     });
   });
 
