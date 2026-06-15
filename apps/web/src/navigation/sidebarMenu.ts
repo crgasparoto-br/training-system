@@ -1,10 +1,10 @@
 import {
   Activity,
+  BarChart3,
   Briefcase,
-  CalendarDays,
   FileText,
+  Search,
   Settings,
-  Users,
 } from 'lucide-react';
 import { ACCESS_SCREEN_CATALOG } from '@corrida/types';
 import type { SidebarNavItem } from '../components/sidebar';
@@ -40,7 +40,7 @@ type PermissionNavItem = Omit<SidebarNavItem, 'children'> & {
 export const sidebarMenuItems: SidebarNavItem[] = [
   {
     id: 'alunos-hub',
-    icon: Users,
+    icon: Search,
     label: 'Alunos',
     description: 'Consulta, cadastro e acompanhamento',
     children: [
@@ -99,7 +99,7 @@ export const sidebarMenuItems: SidebarNavItem[] = [
   },
   {
     id: 'agenda-hub',
-    icon: CalendarDays,
+    icon: BarChart3,
     label: 'Agenda',
     description: 'Sessões e compromissos',
     children: [
