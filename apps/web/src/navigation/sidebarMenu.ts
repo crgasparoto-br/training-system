@@ -39,13 +39,13 @@ type PermissionNavItem = Omit<SidebarNavItem, 'children'> & {
 
 export const sidebarMenuItems: SidebarNavItem[] = [
   {
-    id: 'alunos-hub',
+    id: 'atendimento',
     icon: Search,
     label: 'Alunos',
     description: 'Consulta, cadastro e acompanhamento',
     children: [
       {
-        id: 'alunos-operacao',
+        id: 'atendimento-consultas',
         label: 'Operação do aluno',
         children: [
           {
@@ -63,7 +63,7 @@ export const sidebarMenuItems: SidebarNavItem[] = [
         ],
       },
       {
-        id: 'alunos-acessos',
+        id: 'atendimento-cadastros',
         label: 'Acessos',
         children: [
           {
