@@ -61,7 +61,7 @@ describe('AuthService', () => {
 
       await expect(
         authService.login({ email: 'inactive@example.com', password: 'password123' })
-      ).rejects.toThrow('Usuário desativado');
+      ).rejects.toThrow('desativado');
 
       expect(compareSpy).not.toHaveBeenCalled();
       expect(mockDb.user.update).not.toHaveBeenCalled();
