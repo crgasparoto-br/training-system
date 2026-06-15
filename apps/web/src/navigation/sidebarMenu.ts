@@ -39,6 +39,13 @@ type PermissionNavItem = Omit<SidebarNavItem, 'children'> & {
 
 export const sidebarMenuItems: SidebarNavItem[] = [
   {
+    id: 'inicio',
+    icon: BarChart3,
+    label: 'Início',
+    description: 'Atalhos por perfil',
+    path: '/inicio',
+  },
+  {
     id: 'atendimento',
     icon: Search,
     label: 'Alunos',
