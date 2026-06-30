@@ -36,7 +36,7 @@ const tabs: Array<{
   },
   {
     id: 'treinos',
-    label: 'Treino de hoje / Planos',
+    label: 'Treino de Hoje/Planos',
     description: 'Treino operacional, planos e agenda de treinamento preservados.',
     group: 'selectedStudent',
     blockKey: 'students.details.trainingPlans',
@@ -101,33 +101,28 @@ const tabs: Array<{
 
 const tabGroups: Array<{
   id: AlunoDetailsTabGroup;
-  badge: string;
-  title: string;
+  label: string;
   description: string;
 }> = [
   {
     id: 'selectedStudent',
-    badge: 'Aluno 360',
-    title: 'Resumo operacional do aluno',
-    description: 'Comece pelo contexto geral, treino de hoje e planos sem sair da tela do aluno.',
+    label: 'Aluno 360',
+    description: 'Resumo do aluno, treino de hoje e planos.',
   },
   {
     id: 'technicalFlow',
-    badge: 'Fluxo tecnico',
-    title: 'Prontuario, avaliacao, prescricao futura e evolucao',
-    description: 'Use estas entradas para preparar a prescricao por capacidades e a montagem consolidada nas proximas fases.',
+    label: 'Fluxo tecnico',
+    description: 'Prontuario, avaliacoes, plano tecnico e historico.',
   },
   {
     id: 'records',
-    badge: 'Cadastro e vinculos',
-    title: 'Dados cadastrais, contrato e revisoes',
-    description: 'Separe informacoes administrativas, contrato vigente e confirmacoes periodicas dos dados tecnicos.',
+    label: 'Cadastro e vinculos',
+    description: 'Cadastro, contrato e revisoes cadastrais.',
   },
   {
     id: 'operations',
-    badge: 'Conexoes',
-    title: 'Integracoes e evidencias externas',
-    description: 'Mantenha dados externos como evidencia complementar, sem substituir validacao do professor.',
+    label: 'Conexoes',
+    description: 'Integracoes e dados externos do aluno.',
   },
 ];
 
@@ -147,43 +142,74 @@ export function AlunoDetailsTabs({ activeTab, onChange, visibleTabs }: AlunoDeta
     }))
     .filter((group) => group.tabs.length > 0);
 
+  const activeGroup =
+    groupedTabs.find((group) => group.tabs.some((tab) => tab.id === activeTab)) ??
+    groupedTabs[0];
+
+  if (!activeGroup) {
+    return null;
+  }
+
   return (
-    <div className="space-y-4" id="aluno-details-tabs">
-      {groupedTabs.map((group) => (
-        <section key={group.id} className="rounded-lg border border-border bg-muted/20 p-4">
-          <div className="mb-3 space-y-1">
-            <span className="inline-flex rounded-full border border-border bg-card px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              {group.badge}
-            </span>
-            <h3 className="text-sm font-semibold text-foreground">{group.title}</h3>
-            <p className="text-sm text-muted-foreground">{group.description}</p>
-          </div>
+    <nav
+      id="aluno-details-tabs"
+      aria-label="Menu da consulta do aluno"
+      className="rounded-lg border border-border bg-card p-3 shadow-[var(--shadow-soft)]"
+    >
+      <div className="overflow-x-auto">
+        <div role="tablist" aria-label="Blocos da consulta do aluno" className="ts-tabs-bar">
+          {groupedTabs.map((group) => {
+            const selected = activeGroup.id === group.id;
 
-          <div className="overflow-x-auto">
-            <div role="tablist" aria-label={group.title} className="ts-tabs-bar">
-              {group.tabs.map((tab) => {
-                const selected = activeTab === tab.id;
+            return (
+              <button
+                key={group.id}
+                type="button"
+                role="tab"
+                id={`aluno-details-menu-${group.id}`}
+                aria-selected={selected}
+                aria-controls={`aluno-details-submenu-${group.id}`}
+                title={group.description}
+                onClick={() => onChange(group.tabs[0].id)}
+                className={`ts-tab-button ${selected ? 'ts-tab-button-active' : 'ts-tab-button-inactive'}`}
+              >
+                {group.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    role="tab"
-                    id={`aluno-details-tab-${tab.id}`}
-                    aria-selected={selected}
-                    title={tab.description}
-                    onClick={() => onChange(tab.id)}
-                    className={`ts-tab-button ${selected ? 'ts-tab-button-active' : 'ts-tab-button-inactive'}`}
-                  >
-                    {tab.label}
-                  </button>
-                );
-              })}
-            </div>
+      <div
+        id={`aluno-details-submenu-${activeGroup.id}`}
+        role="tabpanel"
+        aria-labelledby={`aluno-details-menu-${activeGroup.id}`}
+        className="mt-3 border-t border-border pt-3"
+      >
+        <div className="overflow-x-auto">
+          <div role="tablist" aria-label={`Submenu ${activeGroup.label}`} className="ts-tabs-bar">
+            {activeGroup.tabs.map((tab) => {
+              const selected = activeTab === tab.id;
+
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  id={`aluno-details-tab-${tab.id}`}
+                  aria-selected={selected}
+                  title={tab.description}
+                  onClick={() => onChange(tab.id)}
+                  className={`ts-tab-button ${selected ? 'ts-tab-button-active' : 'ts-tab-button-inactive'}`}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
           </div>
-        </section>
-      ))}
-    </div>
+        </div>
+      </div>
+    </nav>
   );
 }
 
