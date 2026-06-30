@@ -4,7 +4,7 @@ const JWT_PLACEHOLDER_VALUES = new Set([
 ]);
 
 const LOCAL_CORS_ORIGINS = [
-  'http://localhost:5173',
+  'http://localhost:5200',
   'http://localhost:8081',
   'exp://localhost:8081',
 ];
