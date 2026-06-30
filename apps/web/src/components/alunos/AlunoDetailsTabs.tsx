@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import { ChevronRight, Folder } from 'lucide-react';
 import type { AccessBlockKey } from '@corrida/types';
 
 type AlunoDetailsTab =
@@ -131,6 +133,7 @@ export function getTabBlockKey(tab: AlunoDetailsTab): AccessBlockKey | undefined
 }
 
 export function AlunoDetailsTabs({ activeTab, onChange, visibleTabs }: AlunoDetailsTabsProps) {
+  const [expandedGroupId, setExpandedGroupId] = useState<AlunoDetailsTabGroup | null>(null);
   const tabsToRender = visibleTabs
     ? tabs.filter((tab) => visibleTabs.includes(tab.id))
     : tabs;
@@ -145,6 +148,7 @@ export function AlunoDetailsTabs({ activeTab, onChange, visibleTabs }: AlunoDeta
   const activeGroup =
     groupedTabs.find((group) => group.tabs.some((tab) => tab.id === activeTab)) ??
     groupedTabs[0];
+  const expandedGroup = groupedTabs.find((group) => group.id === expandedGroupId);
 
   if (!activeGroup) {
     return null;
@@ -157,22 +161,28 @@ export function AlunoDetailsTabs({ activeTab, onChange, visibleTabs }: AlunoDeta
       className="rounded-lg border border-border bg-card p-3 shadow-[var(--shadow-soft)]"
     >
       <div className="overflow-x-auto">
-        <div role="tablist" aria-label="Blocos da consulta do aluno" className="ts-tabs-bar">
+        <div role="menubar" aria-label="Blocos da consulta do aluno" className="ts-tabs-bar">
           {groupedTabs.map((group) => {
             const selected = activeGroup.id === group.id;
+            const expanded = expandedGroupId === group.id;
 
             return (
               <button
                 key={group.id}
                 type="button"
-                role="tab"
+                role="menuitem"
                 id={`aluno-details-menu-${group.id}`}
-                aria-selected={selected}
+                aria-expanded={expanded}
                 aria-controls={`aluno-details-submenu-${group.id}`}
                 title={group.description}
-                onClick={() => onChange(group.tabs[0].id)}
-                className={`ts-tab-button ${selected ? 'ts-tab-button-active' : 'ts-tab-button-inactive'}`}
+                onClick={() =>
+                  setExpandedGroupId((currentGroupId) =>
+                    currentGroupId === group.id ? null : group.id
+                  )
+                }
+                className={`ts-tab-button ${selected || expanded ? 'ts-tab-button-active' : 'ts-tab-button-inactive'}`}
               >
+                <Folder className="h-4 w-4" aria-hidden="true" />
                 {group.label}
               </button>
             );
@@ -180,35 +190,41 @@ export function AlunoDetailsTabs({ activeTab, onChange, visibleTabs }: AlunoDeta
         </div>
       </div>
 
-      <div
-        id={`aluno-details-submenu-${activeGroup.id}`}
-        role="tabpanel"
-        aria-labelledby={`aluno-details-menu-${activeGroup.id}`}
-        className="mt-3 border-t border-border pt-3"
-      >
-        <div className="overflow-x-auto">
-          <div role="tablist" aria-label={`Submenu ${activeGroup.label}`} className="ts-tabs-bar">
-            {activeGroup.tabs.map((tab) => {
-              const selected = activeTab === tab.id;
+      {expandedGroup && (
+        <div
+          id={`aluno-details-submenu-${expandedGroup.id}`}
+          role="menu"
+          aria-labelledby={`aluno-details-menu-${expandedGroup.id}`}
+          className="mt-3 w-full rounded-lg border border-border bg-popover p-2 shadow-[var(--shadow-card)] md:max-w-md"
+        >
+          {expandedGroup.tabs.map((tab) => {
+            const selected = activeTab === tab.id;
 
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  role="tab"
-                  id={`aluno-details-tab-${tab.id}`}
-                  aria-selected={selected}
-                  title={tab.description}
-                  onClick={() => onChange(tab.id)}
-                  className={`ts-tab-button ${selected ? 'ts-tab-button-active' : 'ts-tab-button-inactive'}`}
-                >
-                  {tab.label}
-                </button>
-              );
-            })}
-          </div>
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                role="menuitem"
+                id={`aluno-details-tab-${tab.id}`}
+                aria-current={selected ? 'page' : undefined}
+                title={tab.description}
+                onClick={() => {
+                  onChange(tab.id);
+                  setExpandedGroupId(null);
+                }}
+                className={`flex w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm font-medium transition-colors ${
+                  selected
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-popover-foreground hover:bg-accent hover:text-accent-foreground'
+                }`}
+              >
+                <span className="min-w-0 truncate">{tab.label}</span>
+                <ChevronRight className="h-4 w-4 shrink-0" aria-hidden="true" />
+              </button>
+            );
+          })}
         </div>
-      </div>
+      )}
     </nav>
   );
 }
