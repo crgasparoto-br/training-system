@@ -97,7 +97,7 @@ pnpm dev
 pnpm dev:api
 pnpm dev:web
 pnpm dev:local
-pnpm dev:up
+pnpm dev:all
 pnpm dev:down
 
 # Qualidade

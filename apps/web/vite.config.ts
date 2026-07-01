@@ -16,12 +16,13 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5173,
+    port: 5200,
     host: true,
     proxy: {
       '/api': {
         target: apiTarget,
         changeOrigin: true,
+        timeout: 60000,
       },
       '/uploads': {
         target: apiTarget,

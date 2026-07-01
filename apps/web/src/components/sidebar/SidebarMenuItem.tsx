@@ -1,6 +1,5 @@
-import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronDown } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import type { SidebarNavItem } from './types';
 
@@ -46,91 +45,158 @@ export function SidebarMenuItem({
   const active = itemMatchesPath(item, currentPath);
   const activeChild = hasChildren && hasActiveChild(item, currentPath);
 
-  const triggerClassName = useMemo(
-    () =>
-      cn(
-        'flex w-full items-center rounded-md px-3 py-2 text-left text-sm font-medium transition-colors',
-        collapsed ? 'justify-center' : 'gap-3',
-        level > 0 && !collapsed && 'py-2 text-xs',
-        active || activeChild
-          ? 'bg-sidebar-accent text-sidebar-accent-foreground font-semibold'
-          : 'text-sidebar-foreground/80 hover:bg-sidebar-muted hover:text-sidebar-foreground'
-      ),
-    [active, activeChild, collapsed, level]
-  );
+  const Icon = item.icon;
 
+  /* ── Leaf item (no children) ─────────────────────────────────────────── */
   if (!hasChildren && item.path) {
-    const Icon = item.icon;
+    if (level === 0) {
+      return (
+        <Link
+          to={item.path}
+          onClick={onNavigate}
+          title={collapsed ? item.label : undefined}
+          className={cn(
+            'flex w-full items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150',
+            collapsed ? 'justify-center' : 'gap-3',
+            active
+              ? 'bg-sidebar-accent text-sidebar-accent-foreground shadow-sm'
+              : 'text-sidebar-foreground/80 hover:bg-sidebar-muted hover:text-sidebar-foreground',
+          )}
+        >
+          {Icon && <Icon size={18} className="shrink-0" />}
+          {!collapsed && <span className="block min-w-0 truncate">{item.label}</span>}
+        </Link>
+      );
+    }
+
+    /* leaf at level ≥ 1 */
     return (
       <Link
         to={item.path}
         onClick={onNavigate}
-        className={triggerClassName}
-        title={collapsed ? item.label : undefined}
-      >
-        {Icon ? <Icon size={18} className="shrink-0" /> : null}
-        {!collapsed && (
-          <span className="min-w-0">
-            <span className="block truncate">{item.label}</span>
-            {item.description && level === 0 && (
-              <span className="mt-0.5 block truncate text-[11px] font-normal text-sidebar-foreground/55">
-                {item.description}
-              </span>
-            )}
-          </span>
+        className={cn(
+          'group flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-all duration-150',
+          active
+            ? 'bg-sidebar-accent/25 text-sidebar-foreground font-semibold'
+            : 'text-sidebar-foreground/55 hover:bg-sidebar-muted hover:text-sidebar-foreground',
         )}
+      >
+        <span
+          className={cn(
+            'h-1.5 w-1.5 shrink-0 rounded-full transition-colors duration-150',
+            active
+              ? 'bg-sidebar-accent-foreground'
+              : 'bg-sidebar-foreground/25 group-hover:bg-sidebar-foreground/55',
+          )}
+        />
+        <span className="truncate">{item.label}</span>
       </Link>
     );
   }
 
-  const Icon = item.icon;
-  return (
-    <div className="space-y-1">
-      <button
-        type="button"
-        onClick={() => onToggle(item.id)}
-        className={triggerClassName}
-        title={collapsed ? item.label : undefined}
-      >
-        <div className={cn('flex min-w-0 items-center', !collapsed && 'gap-3')}>
-          {Icon ? <Icon size={18} className="shrink-0" /> : null}
+  /* ── Level-0 parent (top-level section with icon) ────────────────────── */
+  if (level === 0) {
+    return (
+      <div className="mb-1">
+        <button
+          type="button"
+          onClick={() => hasChildren ? onToggle(item.id) : undefined}
+          title={collapsed ? item.label : undefined}
+          className={cn(
+            'flex w-full items-center rounded-lg px-3 py-2.5 text-left text-sm font-semibold transition-all duration-150',
+            collapsed ? 'justify-center' : 'gap-3',
+            active || activeChild
+              ? 'bg-sidebar-accent text-sidebar-accent-foreground shadow-sm'
+              : 'text-sidebar-foreground/85 hover:bg-sidebar-muted hover:text-sidebar-foreground',
+          )}
+        >
+          {Icon && <Icon size={18} className="shrink-0" />}
           {!collapsed && (
-            <span className="min-w-0 text-left">
+            <span className="flex min-w-0 flex-1 flex-col text-left">
               <span className="block truncate">{item.label}</span>
-              {item.description && level === 0 && (
-                <span className="mt-0.5 block truncate text-[11px] font-normal text-sidebar-foreground/55">
+              {item.description && (
+                <span className="mt-0.5 block truncate text-[11px] font-normal opacity-55">
                   {item.description}
                 </span>
               )}
             </span>
           )}
+          {!collapsed && hasChildren && (
+            <ChevronRight
+              size={15}
+              className={cn(
+                'ml-auto shrink-0 transition-transform duration-200',
+                isOpen && 'rotate-90',
+              )}
+            />
+          )}
+        </button>
+
+        {/* Children panel */}
+        <div
+          className={cn(
+            'grid transition-[grid-template-rows,opacity] duration-200 ease-in-out',
+            isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',
+            collapsed && 'hidden',
+          )}
+        >
+          <div className={cn('min-h-0 overflow-hidden', isOpen && 'overflow-visible')}>
+            <div className="ml-4 mt-1 flex flex-col gap-0.5 border-l-2 border-white/[0.08] pl-3 pb-1">
+              {item.children?.map((child) => (
+                <SidebarMenuItem
+                  key={child.id}
+                  item={child}
+                  currentPath={currentPath}
+                  collapsed={collapsed}
+                  isOpen={!!openMap[child.id]}
+                  openMap={openMap}
+                  onToggle={onToggle}
+                  onNavigate={onNavigate}
+                  level={1}
+                />
+              ))}
+            </div>
+          </div>
         </div>
-        {!collapsed && (
-          <ChevronDown
-            size={16}
-            className={cn('ml-auto shrink-0 transition-transform duration-200', isOpen && 'rotate-180')}
-          />
+      </div>
+    );
+  }
+
+  /* ── Level-1+ section group (sub-header, no icon) ────────────────────── */
+  return (
+    <div className="mb-0.5">
+      <button
+        type="button"
+        onClick={() => onToggle(item.id)}
+        className={cn(
+          'flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left transition-all duration-150',
+          activeChild
+            ? 'text-sidebar-foreground/80'
+            : 'text-sidebar-foreground/38 hover:text-sidebar-foreground/65',
         )}
+      >
+        <span className="flex-1 truncate text-[10px] font-bold uppercase tracking-[0.09em]">
+          {item.label}
+        </span>
+        <ChevronRight
+          size={11}
+          className={cn(
+            'shrink-0 transition-transform duration-200',
+            isOpen && 'rotate-90',
+          )}
+        />
       </button>
 
       <div
         className={cn(
           'grid transition-[grid-template-rows,opacity] duration-200 ease-in-out',
           isOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',
-          collapsed && 'hidden'
         )}
       >
-        <div
-          className={cn(
-            'min-h-0 overflow-hidden',
-            isOpen && 'overflow-visible'
-          )}
-        >
-          <div className={cn('flex flex-col gap-1 pb-1', level === 0 ? 'ml-9' : 'ml-4 border-l border-white/10 pl-3')}>
+        <div className={cn('min-h-0 overflow-hidden', isOpen && 'overflow-visible')}>
+          <div className="ml-2 flex flex-col gap-0.5 border-l border-white/[0.07] pl-2.5 pb-1 pt-0.5">
             {item.children?.map((child) => {
-              const childActive = itemMatchesPath(child, currentPath);
               const childHasChildren = !!child.children?.length;
-
               if (childHasChildren) {
                 return (
                   <SidebarMenuItem
@@ -146,19 +212,18 @@ export function SidebarMenuItem({
                   />
                 );
               }
-
               return child.path ? (
-                <Link
+                <SidebarMenuItem
                   key={child.id}
-                  to={child.path}
-                  onClick={onNavigate}
-                  className={cn(
-                    'rounded-md px-3 py-2 text-xs font-medium transition-colors',
-                    childActive ? 'bg-sidebar-muted text-sidebar-foreground' : 'text-sidebar-foreground/60 hover:bg-sidebar-muted hover:text-sidebar-foreground'
-                  )}
-                >
-                  {child.label}
-                </Link>
+                  item={child}
+                  currentPath={currentPath}
+                  collapsed={collapsed}
+                  isOpen={false}
+                  openMap={openMap}
+                  onToggle={onToggle}
+                  onNavigate={onNavigate}
+                  level={level}
+                />
               ) : null;
             })}
           </div>
