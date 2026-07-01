@@ -75,7 +75,7 @@ echo "[2/4] Validando portas da aplicacao..."
 API_PORT="$(sed -n 's/^API_PORT=["'\'']\?\([0-9]\+\)["'\'']\?$/\1/p' apps/api/.env | head -n 1)"
 API_PORT="${API_PORT:-3000}"
 ensure_port_free "$API_PORT" "api"
-ensure_port_free 5173 "web"
+ensure_port_free 5200 "web"
 
 echo "[3/4] Subindo banco e cache (docker compose)..."
 docker compose up -d postgres redis pgadmin redis-commander
