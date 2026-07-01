@@ -110,6 +110,16 @@ describe('Public asset storage', () => {
     );
   });
 
+  it('rejects R2 public URL when it uses the frontend domain', () => {
+    setR2Env();
+    process.env.FRONTEND_URL = 'https://sistema-acesso.solveritconsultoria.com.br';
+    process.env.R2_PUBLIC_BASE_URL = 'https://sistema-acesso.solveritconsultoria.com.br';
+
+    expect(() => resolveR2StorageConfig()).toThrow(
+      'R2_PUBLIC_BASE_URL deve usar um dominio exclusivo para assets, diferente do dominio do frontend (https://sistema-acesso.solveritconsultoria.com.br)'
+    );
+  });
+
   it('uploads the in-memory buffer and returns the public R2 URL', async () => {
     setR2Env();
 
