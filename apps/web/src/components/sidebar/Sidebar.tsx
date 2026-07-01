@@ -40,6 +40,19 @@ function collectParentIdsWithActiveChild(items: SidebarNavItem[], currentPath: s
   return foundActive;
 }
 
+/** When a level-0 item is open, auto-open all its direct sub-group children. */
+function expandSubGroups(items: SidebarNavItem[], openSet: Set<string>): void {
+  for (const item of items) {
+    if (item.children?.length && openSet.has(item.id)) {
+      for (const child of item.children) {
+        if (child.children?.length) {
+          openSet.add(child.id);
+        }
+      }
+    }
+  }
+}
+
 export function AppSidebar({
   items,
   currentPath,
@@ -57,6 +70,7 @@ export function AppSidebar({
   const defaultOpenMap = useMemo(() => {
     const opened = new Set<string>();
     collectParentIdsWithActiveChild(items, currentPath, opened);
+    expandSubGroups(items, opened);
     return Object.fromEntries(Array.from(opened).map((id) => [id, true]));
   }, [items, currentPath]);
 
