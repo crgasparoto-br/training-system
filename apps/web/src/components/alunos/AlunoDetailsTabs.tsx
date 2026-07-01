@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Check, ChevronDown } from 'lucide-react';
 import type { AccessBlockKey } from '@corrida/types';
 
 type AlunoDetailsTab =
@@ -132,7 +133,7 @@ export function getTabBlockKey(tab: AlunoDetailsTab): AccessBlockKey | undefined
 }
 
 export function AlunoDetailsTabs({ activeTab, onChange, visibleTabs }: AlunoDetailsTabsProps) {
-  const [selectedGroupId, setSelectedGroupId] = useState<AlunoDetailsTabGroup | null>(null);
+  const [openGroupId, setOpenGroupId] = useState<AlunoDetailsTabGroup | null>(null);
   const tabsToRender = visibleTabs
     ? tabs.filter((tab) => visibleTabs.includes(tab.id))
     : tabs;
@@ -147,10 +148,8 @@ export function AlunoDetailsTabs({ activeTab, onChange, visibleTabs }: AlunoDeta
   const activeGroup =
     groupedTabs.find((group) => group.tabs.some((tab) => tab.id === activeTab)) ??
     groupedTabs[0];
-  const selectedGroup =
-    groupedTabs.find((group) => group.id === selectedGroupId) ?? activeGroup;
 
-  if (!activeGroup || !selectedGroup) {
+  if (!activeGroup) {
     return null;
   }
 
@@ -158,80 +157,85 @@ export function AlunoDetailsTabs({ activeTab, onChange, visibleTabs }: AlunoDeta
     <nav
       id="aluno-details-tabs"
       aria-label="Menu da consulta do aluno"
-      className="overflow-hidden rounded-lg border border-border bg-card shadow-[var(--shadow-soft)]"
+      className="relative z-20 rounded-lg border border-border bg-card shadow-[var(--shadow-soft)]"
     >
-      <div className="overflow-x-auto border-b border-border bg-muted/40 px-2 pt-2">
-        <div role="tablist" aria-label="Blocos da consulta do aluno" className="flex min-w-max gap-1">
-          {groupedTabs.map((group) => {
-            const selected = selectedGroup.id === group.id;
-            const currentContent = activeGroup.id === group.id;
+      <div role="menubar" aria-label="Blocos da consulta do aluno" className="flex flex-wrap items-center gap-1 border-b border-border px-2 py-1">
+        {groupedTabs.map((group) => {
+          const active = activeGroup.id === group.id;
+          const open = openGroupId === group.id;
 
-            return (
+          return (
+            <div key={group.id} className="relative">
               <button
-                key={group.id}
                 type="button"
-                role="tab"
+                role="menuitem"
                 id={`aluno-details-menu-${group.id}`}
-                aria-selected={selected}
-                aria-controls={`aluno-details-ribbon-${group.id}`}
+                aria-haspopup="menu"
+                aria-expanded={open}
+                aria-controls={`aluno-details-submenu-${group.id}`}
                 title={group.description}
-                onClick={() => {
-                  setSelectedGroupId(group.id);
-                  if (!group.tabs.some((tab) => tab.id === activeTab)) {
-                    onChange(group.tabs[0].id);
-                  }
-                }}
-                className={`relative -mb-px inline-flex h-10 shrink-0 items-center rounded-t-md border px-4 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
-                  selected
-                    ? 'border-border border-b-card bg-card text-foreground'
-                    : 'border-transparent text-muted-foreground hover:bg-card/70 hover:text-foreground'
+                onClick={() =>
+                  setOpenGroupId((currentGroupId) =>
+                    currentGroupId === group.id ? null : group.id
+                  )
+                }
+                className={`inline-flex h-9 items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                  open
+                    ? 'bg-accent text-accent-foreground'
+                    : active
+                      ? 'bg-primary/10 text-foreground'
+                      : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
                 }`}
               >
                 {group.label}
-                {currentContent && !selected && (
-                  <span className="ml-2 h-1.5 w-1.5 rounded-full bg-primary" aria-hidden="true" />
-                )}
+                <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
-            );
-          })}
-        </div>
-      </div>
 
-      <div
-        id={`aluno-details-ribbon-${selectedGroup.id}`}
-        role="tabpanel"
-        aria-labelledby={`aluno-details-menu-${selectedGroup.id}`}
-        className="bg-card p-3"
-      >
-        <div className="overflow-x-auto">
-          <div role="tablist" aria-label={`Acoes de ${selectedGroup.label}`} className="flex min-w-max gap-2">
-            {selectedGroup.tabs.map((tab) => {
-              const selected = activeTab === tab.id;
-
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  role="tab"
-                  id={`aluno-details-tab-${tab.id}`}
-                  aria-selected={selected}
-                  title={tab.description}
-                  onClick={() => onChange(tab.id)}
-                  className={`flex min-h-[72px] w-40 shrink-0 flex-col justify-between rounded-md border px-3 py-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
-                    selected
-                      ? 'border-primary bg-primary/10 text-foreground shadow-sm'
-                      : 'border-border bg-background text-foreground hover:bg-accent hover:text-accent-foreground'
-                  }`}
+              {open && (
+                <div
+                  id={`aluno-details-submenu-${group.id}`}
+                  role="menu"
+                  aria-labelledby={`aluno-details-menu-${group.id}`}
+                  className="absolute left-0 top-full z-50 mt-1 w-[340px] rounded-lg border border-border bg-popover p-1 shadow-[var(--shadow-card)]"
                 >
-                  <span className="font-semibold leading-snug">{tab.label}</span>
-                  <span className="mt-2 line-clamp-2 text-xs leading-snug text-muted-foreground">
-                    {tab.description}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+                  {group.tabs.map((tab) => {
+                    const selected = activeTab === tab.id;
+
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        role="menuitem"
+                        id={`aluno-details-tab-${tab.id}`}
+                        aria-current={selected ? 'page' : undefined}
+                        title={tab.description}
+                        onClick={() => {
+                          onChange(tab.id);
+                          setOpenGroupId(null);
+                        }}
+                        className={`flex w-full items-start gap-3 rounded-md px-3 py-2.5 text-left transition-colors ${
+                          selected
+                            ? 'bg-primary/10 text-foreground'
+                            : 'text-popover-foreground hover:bg-accent hover:text-accent-foreground'
+                        }`}
+                      >
+                        <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border border-border bg-card">
+                          {selected && <Check className="h-3.5 w-3.5 text-primary" aria-hidden="true" />}
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block text-sm font-semibold leading-5">{tab.label}</span>
+                          <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">
+                            {tab.description}
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </nav>
   );
