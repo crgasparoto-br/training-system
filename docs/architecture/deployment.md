@@ -19,11 +19,16 @@ Este documento registra as regras minimas para publicar o Sistema Acesso.
 - `UPLOAD_STORAGE_ROOT`: caminho absoluto no host da API para armazenamento persistente de uploads locais. Em Render, deve apontar para o mount path do Persistent Disk quando o provider de assets for `local`.
 - `ASSET_BASE_URL`: URL publica preferencial para servir assets gravados no storage local/persistente.
 - `API_PUBLIC_URL`: URL publica da API usada como fallback para montar URLs de uploads locais quando `ASSET_BASE_URL` nao estiver configurada.
-- `ASSET_STORAGE_PROVIDER`: provider dos assets publicos de logo/avatar. Use `local` para filesystem persistente ou `supabase` para Supabase Storage.
+- `ASSET_STORAGE_PROVIDER`: provider dos assets publicos de logo/avatar. Use `local` para filesystem persistente, `supabase` para Supabase Storage ou `r2` para Cloudflare R2.
 - `SUPABASE_URL`: URL raiz do projeto Supabase, sem `/rest/v1/`. Obrigatoria quando `ASSET_STORAGE_PROVIDER=supabase`.
 - `SUPABASE_SERVICE_ROLE_KEY`: service role key usada somente pela API/backend. Nunca configure no frontend.
 - `SUPABASE_STORAGE_BUCKET`: bucket usado para assets publicos de logo/avatar, por exemplo `sistema-acesso-assets`.
-- `ASSET_PUBLIC_BASE_URL`: URL publica do bucket, por exemplo `https://<projeto>.supabase.co/storage/v1/object/public/sistema-acesso-assets`.
+- `ASSET_PUBLIC_BASE_URL`: URL publica do bucket Supabase, por exemplo `https://<projeto>.supabase.co/storage/v1/object/public/sistema-acesso-assets`.
+- `R2_ACCOUNT_ID`: account id da conta Cloudflare. Obrigatoria quando `ASSET_STORAGE_PROVIDER=r2`.
+- `R2_BUCKET`: bucket R2 usado para assets publicos de logo/avatar, por exemplo `sistema-acesso-assets`.
+- `R2_ACCESS_KEY_ID`: access key id do token R2 usada somente pela API/backend.
+- `R2_SECRET_ACCESS_KEY`: secret access key do token R2 usada somente pela API/backend.
+- `R2_PUBLIC_BASE_URL`: URL publica de leitura do bucket R2, preferencialmente um dominio customizado como `https://assets.seu-dominio.com`.
 
 ## Variaveis esperadas do frontend
 
@@ -41,6 +46,25 @@ Para producao em Render com storage local, o modo recomendado e:
 - configurar `ASSET_BASE_URL` para o host publico que serve `/uploads`;
 - manter `API_PUBLIC_URL` como fallback coerente com o host da API.
 
+## Cloudflare R2 para logo e avatar
+
+Para producao sem depender do filesystem efemero da API e sem usar Supabase Storage, configure logo e avatares publicos no Cloudflare R2:
+
+- criar o bucket `sistema-acesso-assets` no Cloudflare R2;
+- criar um token R2 com permissao de leitura e escrita de objetos, restrito ao bucket quando possivel;
+- conectar um dominio customizado ao bucket em **R2 > bucket > Settings > Custom Domains**;
+- configurar no Render, no servico da API:
+  - `ASSET_STORAGE_PROVIDER=r2`;
+  - `R2_ACCOUNT_ID=`;
+  - `R2_BUCKET=sistema-acesso-assets`;
+  - `R2_ACCESS_KEY_ID=`;
+  - `R2_SECRET_ACCESS_KEY=`;
+  - `R2_PUBLIC_BASE_URL=https://assets.seu-dominio.com`.
+
+O upload autenticado usa o endpoint S3 compativel do R2 em `https://<R2_ACCOUNT_ID>.r2.cloudflarestorage.com`. A URL publica retornada ao frontend vem de `R2_PUBLIC_BASE_URL`, que deve apontar para o dominio publico do bucket, nao para o endpoint S3.
+
+Use `r2.dev` apenas para teste rapido. Em producao, prefira dominio customizado para permitir cache, regras de acesso e controles do Cloudflare.
+
 ## Supabase Storage para logo e avatar
 
 Para producao sem depender do filesystem efemero da API, configure logo e avatares publicos no Supabase Storage:
@@ -56,9 +80,9 @@ Para producao sem depender do filesystem efemero da API, configure logo e avatar
 
 `SUPABASE_URL` deve ser a URL raiz do projeto e nao deve conter `/rest/v1/`.
 
-O frontend/Vercel nao deve receber `SUPABASE_SERVICE_ROLE_KEY`. Essa chave fica apenas no ambiente da API.
+O frontend/Vercel nao deve receber `SUPABASE_SERVICE_ROLE_KEY`, `R2_ACCESS_KEY_ID` ou `R2_SECRET_ACCESS_KEY`. Esses segredos ficam apenas no ambiente da API.
 
-Esse provider migra apenas:
+Os providers externos migram apenas:
 
 - logo do contrato/empresa;
 - avatar/foto de aluno;
@@ -71,9 +95,10 @@ Antes de publicar, valide:
 - reinicio do servico preserva arquivos enviados;
 - redeploy preserva logo de contrato, avatar de aluno e avatar de colaborador;
 - URLs antigas com `/api/v1/uploads/...` e `/uploads/...` continuam resolvendo quando o arquivo existir no storage local;
+- URLs novas de logo/avatar apontam para `R2_PUBLIC_BASE_URL` quando o provider for `r2`;
 - URLs novas de logo/avatar apontam para `ASSET_PUBLIC_BASE_URL` quando o provider for `supabase`.
 
-`ASSET_BASE_URL`, `API_PUBLIC_URL` e `ASSET_PUBLIC_BASE_URL` estabilizam a URL gravada/retornada, mas nao recuperam arquivos perdidos quando o storage fisico anterior era efemero.
+`ASSET_BASE_URL`, `API_PUBLIC_URL`, `ASSET_PUBLIC_BASE_URL` e `R2_PUBLIC_BASE_URL` estabilizam a URL gravada/retornada, mas nao recuperam arquivos perdidos quando o storage fisico anterior era efemero.
 
 ## GitHub Secrets usados em deploy
 
