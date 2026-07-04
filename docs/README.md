@@ -45,6 +45,7 @@ Depois disso, leia os documentos especificos da area afetada. Nao crie nova docu
 - [`execution-plans/active/`](execution-plans/active/): planos em andamento.
 - [`execution-plans/active/2026-06-integrated-prescription-control.md`](execution-plans/active/2026-06-integrated-prescription-control.md): plano ativo para evolucao do fluxo integrado de prontuario, prescricao e treino.
 - [`execution-plans/active/2026-06-navigation-information-architecture.md`](execution-plans/active/2026-06-navigation-information-architecture.md): plano ativo para reorganizacao incremental da navegacao, Aluno 360, inicio por perfil e permissoes.
+- [`execution-plans/active/2026-07-student-central-roadmap.md`](execution-plans/active/2026-07-student-central-roadmap.md): plano ativo para Central do Aluno, roadmap integrado, fases, epicos, subissues e controle de avanco.
 - [`execution-plans/completed/`](execution-plans/completed/): planos concluidos, quando aplicavel.
 
 ## Documentos historicos ou complementares
