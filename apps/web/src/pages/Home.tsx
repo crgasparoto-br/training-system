@@ -16,9 +16,9 @@ type HomeShortcut = {
 
 const shortcuts: HomeShortcut[] = [
   {
-    title: 'Consultar alunos',
-    description: 'Abra a lista de alunos para acompanhar cadastro, contexto e Aluno 360.',
-    path: '/consultas/alunos',
+    title: 'Central do Aluno',
+    description: 'Pesquise um aluno e abra a ficha centralizada com resumo, historico e proximas acoes.',
+    path: '/central-do-aluno',
     screenKey: 'students.consultation',
     group: 'professor',
   },
