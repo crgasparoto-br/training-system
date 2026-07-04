@@ -90,6 +90,40 @@ function validateAbsoluteHttpUrl(value: string, envName: string) {
   }
 }
 
+function getUrlOrigin(value?: string | null) {
+  if (!value?.trim()) return null;
+
+  try {
+    return new URL(value.trim()).origin;
+  } catch {
+    return null;
+  }
+}
+
+function getConfiguredFrontendOrigins() {
+  const origins = [
+    process.env.FRONTEND_URL,
+    ...(process.env.CORS_ORIGINS || '').split(','),
+  ]
+    .map(getUrlOrigin)
+    .filter(Boolean) as string[];
+
+  return Array.from(new Set(origins));
+}
+
+function validatePublicAssetDomain(publicBaseUrl: string, envName: string) {
+  const assetOrigin = getUrlOrigin(publicBaseUrl);
+  const conflictingOrigin = getConfiguredFrontendOrigins().find((origin) => origin === assetOrigin);
+
+  if (conflictingOrigin) {
+    throw new Error(
+      `${envName} deve usar um dominio exclusivo para assets, diferente do dominio do frontend (${conflictingOrigin})`
+    );
+  }
+
+  return publicBaseUrl;
+}
+
 function validatePublicAssetInput(input: SavePublicAssetInput): SavePublicAssetInput {
   const detected = assertUploadContent('image', input.buffer, input.mimeType);
 
@@ -126,12 +160,14 @@ export function resolveR2StorageConfig(): R2StorageConfig {
     throw new Error(`Variaveis de ambiente obrigatorias ausentes para R2: ${missing.join(', ')}`);
   }
 
+  const publicBaseUrl = validateAbsoluteHttpUrl(getRequiredEnv('R2_PUBLIC_BASE_URL'), 'R2_PUBLIC_BASE_URL');
+
   return {
     accountId: getRequiredEnv('R2_ACCOUNT_ID'),
     bucket: getRequiredEnv('R2_BUCKET'),
     accessKeyId: getRequiredEnv('R2_ACCESS_KEY_ID'),
     secretAccessKey: getRequiredEnv('R2_SECRET_ACCESS_KEY'),
-    publicBaseUrl: validateAbsoluteHttpUrl(getRequiredEnv('R2_PUBLIC_BASE_URL'), 'R2_PUBLIC_BASE_URL'),
+    publicBaseUrl: validatePublicAssetDomain(publicBaseUrl, 'R2_PUBLIC_BASE_URL'),
   };
 }
 
