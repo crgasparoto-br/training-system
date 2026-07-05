@@ -7,6 +7,7 @@ import { Home } from './pages/Home';
 import { Professores } from './pages/Professores';
 import { Alunos } from './pages/Alunos';
 import { StudentCentral } from './pages/StudentCentral';
+import { StudentCentralEdit } from './pages/StudentCentralEdit';
 import { AlunoForm } from './pages/AlunoForm';
 import { AlunoDetails } from './pages/AlunoDetails';
 import { Plans } from './pages/Plans';
@@ -111,7 +112,7 @@ function App() {
             path="central-do-aluno/:id"
             element={withAnyAccess(['students.registration', 'students.consultation', 'students.details'], <AlunoDetails />)}
           />
-          <Route path="central-do-aluno/:id/edit" element={withAccess('students.registration', <AlunoForm />)} />
+          <Route path="central-do-aluno/:id/edit" element={withAccess('students.registration', <StudentCentralEdit />)} />
           <Route
             path="protocolo-avaliacao-fisica"
             element={<Navigate to="/protocolo-avaliacao-fisica/antropometria" replace />}
