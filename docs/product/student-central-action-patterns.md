@@ -102,14 +102,23 @@ Acoes contextuais da Central devem seguir este contrato:
 
 ## Implementacao inicial aplicada
 
-A rota `/central-do-aluno/:id/edit`, criada na primeira entrega da Central, e a entrada contextual inicial para editar cadastro de um aluno a partir da ficha centralizada.
+A rota `/central-do-aluno/:id/edit`, criada na primeira entrega da Central, e a entrada contextual inicial para editar dados de acompanhamento a partir da ficha centralizada.
 
-Ela ainda reaproveita o formulario completo existente para preservar compatibilidade e reduzir risco. Enquanto o painel lateral final nao existir, essa rota deve ser tratada como transicao para o padrao de painel lateral:
+Enquanto o painel lateral final nao existir, essa rota usa uma tela contextual enxuta para campos que aparecem no resumo da Central:
+
+- objetivo principal;
+- historico de treino;
+- observacoes de acompanhamento.
+
+Esse fluxo preserva o contrato de contexto inicial:
 
 - a acao continua vinculada ao `alunoId` da Central;
 - a rota deixa claro que a edicao pertence ao aluno selecionado;
-- a proxima evolucao deve ajustar botoes de voltar, cancelar e salvar para retornar explicitamente a `/central-do-aluno/:id` quando a edicao for iniciada pela Central;
+- voltar e cancelar retornam para `/central-do-aluno/:id`;
+- salvar atualiza a ficha e retorna para `/central-do-aluno/:id`;
 - a API permanece responsavel por validar permissao e contrato.
+
+O formulario completo de cadastro continua disponivel no fluxo legado em `/alunos/:id/edit`.
 
 ## Como declarar novas acoes
 
