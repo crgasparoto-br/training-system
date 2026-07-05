@@ -24,6 +24,16 @@ type ScheduledSession = {
   mesocycleFocus?: string | null;
 };
 
+type SummaryCardTone = 'ok' | 'pending' | 'attention' | 'neutral';
+
+type SummaryStatusCardProps = {
+  title: string;
+  status: string;
+  evidence: string;
+  nextAction: string;
+  tone: SummaryCardTone;
+};
+
 const safeDate = (value?: string | null) => {
   if (!value) return null;
   const date = new Date(value);
@@ -70,6 +80,20 @@ const studentContractStatusLabel: Record<string, string> = {
   expired: 'Expirado',
   canceled: 'Cancelado',
   terminated: 'Encerrado',
+};
+
+const summaryToneClass: Record<SummaryCardTone, string> = {
+  ok: 'border-emerald-200 bg-emerald-50/50',
+  pending: 'border-amber-200 bg-amber-50/60',
+  attention: 'border-red-200 bg-red-50/60',
+  neutral: 'border-border bg-muted/20',
+};
+
+const summaryToneBadgeClass: Record<SummaryCardTone, string> = {
+  ok: 'border-emerald-200 bg-emerald-100 text-emerald-700',
+  pending: 'border-amber-200 bg-amber-100 text-amber-700',
+  attention: 'border-red-200 bg-red-100 text-red-700',
+  neutral: 'border-border bg-background text-muted-foreground',
 };
 
 const formatSessionTitle = (session: Microcycle) =>
@@ -124,6 +148,26 @@ const buildScheduledSessions = (plans: TrainingPlan[]) => {
   return sessions.sort((left, right) => left.date.getTime() - right.date.getTime());
 };
 
+function SummaryStatusCard({ title, status, evidence, nextAction, tone }: SummaryStatusCardProps) {
+  return (
+    <div className={`rounded-lg border p-4 ${summaryToneClass[tone]}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</div>
+          <div className="mt-2 text-sm font-semibold text-foreground">{status}</div>
+        </div>
+        <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-medium ${summaryToneBadgeClass[tone]}`}>
+          {tone === 'ok' ? 'Em dia' : tone === 'attention' ? 'Atencao' : tone === 'pending' ? 'Pendente' : 'Info'}
+        </span>
+      </div>
+      <p className="mt-2 text-xs text-muted-foreground">{evidence}</p>
+      <div className="mt-3 rounded-md border border-border/70 bg-background/70 px-3 py-2 text-xs text-foreground">
+        Proxima acao: {nextAction}
+      </div>
+    </div>
+  );
+}
+
 export function AlunoResumoHubTab({
   aluno,
   assessments,
@@ -144,7 +188,7 @@ export function AlunoResumoHubTab({
     ? {
         assessmentDate: segmentedSummary.assessments.latest.performedAt,
         type: {
-          name: segmentedSummary.assessments.latest.title || 'Avaliação registrada',
+          name: segmentedSummary.assessments.latest.title || 'Avaliacao registrada',
         },
       }
     : assessments[0];
@@ -165,16 +209,95 @@ export function AlunoResumoHubTab({
     aluno.service?.name ??
     null;
   const displayIntakeDate = segmentedSummary?.intake.assessmentDate ?? aluno.intakeForm?.assessmentDate ?? null;
+  const hasCadastroEssentials = Boolean(displayName && displayEmail && aluno.age);
+  const hasHealthAlert = Object.values(aluno.intakeForm?.parqResponses || {}).some(Boolean);
   const todayStatusTitle = todaySessions.length
     ? 'Treino planejado para hoje'
     : activePlan
-      ? 'Sem sessão planejada para hoje'
+      ? 'Sem sessao planejada para hoje'
       : 'Sem treino liberado hoje';
   const todayStatusDescription = todaySessions.length
     ? 'Use as orientacoes abaixo para acompanhar a execucao operacional do aluno.'
     : activePlan
       ? 'Existe plano ativo, mas nenhuma sessao do plano cai na data de hoje.'
       : 'Nenhum plano ativo foi encontrado para a data de hoje.';
+  const summaryCards: SummaryStatusCardProps[] = [
+    {
+      title: 'Cadastro do aluno',
+      status: hasCadastroEssentials ? 'Dados minimos disponiveis' : 'Cadastro incompleto',
+      evidence: `${aluno.age || 'Idade nao informada'} anos • ${displayEmail || 'email pendente'}${displayPhone ? ` • ${displayPhone}` : ''}`,
+      nextAction: hasCadastroEssentials
+        ? `Revisar cadastro se houver mudanca desde ${formatDateBR(displayUpdatedAt)}.`
+        : 'Completar dados basicos antes de evoluir para analises e prescricoes.',
+      tone: hasCadastroEssentials ? 'ok' : 'pending',
+    },
+    {
+      title: 'PRNT e anamnese',
+      status: displayIntakeDate ? `Atualizado em ${formatDateBR(displayIntakeDate)}` : 'Sem intake inicial',
+      evidence: displayMainGoal ? `Objetivo declarado: ${displayMainGoal}` : 'Objetivo principal ainda nao informado.',
+      nextAction: displayIntakeDate
+        ? 'Validar se o objetivo e as restricoes seguem atuais.'
+        : 'Registrar PRNT/anamnese para orientar condutas e restricoes.',
+      tone: displayIntakeDate ? (hasHealthAlert ? 'attention' : 'ok') : 'pending',
+    },
+    {
+      title: 'Dores e restricoes',
+      status: hasHealthAlert ? 'Ha respostas positivas no PAR-Q' : 'Sem alerta critico carregado',
+      evidence: hasHealthAlert
+        ? 'Revisar respostas positivas antes de prescrever ou intensificar treino.'
+        : 'Nenhuma restricao critica foi identificada nas fontes carregadas.',
+      nextAction: hasHealthAlert
+        ? 'Abrir Saude/Anamnese e confirmar conduta segura.'
+        : 'Manter acompanhamento e atualizar se houver dor, lesao ou medicacao.',
+      tone: hasHealthAlert ? 'attention' : 'ok',
+    },
+    {
+      title: 'Avaliacoes',
+      status: latestAssessment ? formatDateBR(latestAssessment.assessmentDate) : 'Nenhuma avaliacao registrada',
+      evidence: latestAssessment?.type?.name || 'Aguardando primeira avaliacao profissional.',
+      nextAction: upcomingAssessment?.nextDueDate
+        ? `Proxima prevista em ${formatDateBR(upcomingAssessment.nextDueDate)}.`
+        : latestAssessment
+          ? 'Definir ou revisar a proxima reavaliacao.'
+          : 'Registrar avaliacao inicial para criar linha de base.',
+      tone: latestAssessment ? (upcomingAssessment?.nextDueDate ? 'ok' : 'pending') : 'pending',
+    },
+    {
+      title: 'Treinamento',
+      status: activePlan?.name || 'Nenhum plano ativo',
+      evidence: activePlan
+        ? `${formatDateBR(activePlan.startDate)} ate ${formatDateBR(activePlan.endDate)}`
+        : 'Nao ha plano ativo para a data de hoje.',
+      nextAction: activePlan
+        ? 'Acompanhar execucao e feedback do ciclo atual.'
+        : 'Criar ou ativar plano de treino no contexto deste aluno.',
+      tone: activePlan ? 'ok' : 'pending',
+    },
+    {
+      title: 'Contrato e servico',
+      status: contractForDisplay?.contract.title || 'Sem contrato ativo',
+      evidence: contractForDisplay
+        ? `${studentContractStatusLabel[contractForDisplay.status] || contractForDisplay.status} • Servico: ${displayServiceName || 'Nao informado'}`
+        : `Servico: ${displayServiceName || 'Nao informado'}`,
+      nextAction: contractForDisplay
+        ? 'Conferir vigencia e condicoes na aba Financeiro.'
+        : 'Verificar contrato, servico e condicoes comerciais permitidas.',
+      tone: contractForDisplay?.status === 'active' ? 'ok' : contractForDisplay ? 'attention' : 'pending',
+    },
+    {
+      title: 'Integracoes e apps',
+      status: segmentedSummary?.integrations.totalAccounts
+        ? `${segmentedSummary.integrations.totalAccounts} conta(s) conectada(s)`
+        : 'Sem conta externa conectada',
+      evidence: segmentedSummary?.integrations.lastSyncAt
+        ? `Ultima sincronizacao em ${formatDateBR(segmentedSummary.integrations.lastSyncAt)}.`
+        : 'Area preparada para separar dados externos do cadastro e das avaliacoes.',
+      nextAction: segmentedSummary?.integrations.totalAccounts
+        ? 'Conferir ultima sincronizacao e atividades importadas.'
+        : 'Conectar integracoes quando fizer parte do acompanhamento.',
+      tone: segmentedSummary?.integrations.totalAccounts ? 'ok' : 'neutral',
+    },
+  ];
 
   return (
     <div className="space-y-4">
@@ -280,88 +403,14 @@ export function AlunoResumoHubTab({
         <CardHeader>
           <CardTitle>Visao geral do aluno</CardTitle>
           <CardDescription>
-            Leitura rapida separando o que veio do cadastro, o que foi registrado por professores e o que esta operando no acompanhamento.
+            Leitura rapida com situacao atual, evidencia carregada e proxima acao recomendada para cada dominio da Central.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            <div className="rounded-lg border border-gray-200 p-4">
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Cadastro do aluno</div>
-              <div className="mt-2 text-sm font-semibold text-gray-900">{displayName}</div>
-              <div className="text-xs text-muted-foreground">
-                {aluno.age} anos • {displayEmail}
-              </div>
-              {displayPhone && (
-                <div className="mt-1 text-xs text-muted-foreground">{displayPhone}</div>
-              )}
-              <div className="mt-3 text-xs text-muted-foreground">
-                Ultima atualizacao do cadastro: {formatDateBR(displayUpdatedAt)}
-              </div>
-            </div>
-
-            <div className="rounded-lg border border-gray-200 p-4">
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Avaliacoes profissionais</div>
-              <div className="mt-2 text-sm font-semibold text-gray-900">
-                {latestAssessment ? formatDateBR(latestAssessment.assessmentDate) : 'Nenhuma avaliacao registrada'}
-              </div>
-              <div className="text-xs text-muted-foreground">
-                {latestAssessment?.type?.name || 'Aguardando primeira avaliacao'}
-              </div>
-              <div className="mt-3 text-xs text-muted-foreground">
-                Proxima prevista: {upcomingAssessment?.nextDueDate ? formatDateBR(upcomingAssessment.nextDueDate) : 'Sem previsao'}
-              </div>
-            </div>
-
-            <div className="rounded-lg border border-gray-200 p-4">
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Contrato e financeiro</div>
-              <div className="mt-2 text-sm font-semibold text-gray-900">
-                {contractForDisplay?.contract.title || 'Sem contrato ativo'}
-              </div>
-              <div className="text-xs text-muted-foreground">
-                {contractForDisplay
-                  ? studentContractStatusLabel[contractForDisplay.status] || contractForDisplay.status
-                  : 'Verifique a aba Financeiro'}
-              </div>
-              <div className="mt-3 text-xs text-muted-foreground">
-                Servico: {displayServiceName || 'Nao informado'}
-              </div>
-            </div>
-
-            <div className="rounded-lg border border-gray-200 p-4">
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Treino em andamento</div>
-              <div className="mt-2 text-sm font-semibold text-gray-900">
-                {activePlan?.name || 'Nenhum plano ativo'}
-              </div>
-              <div className="text-xs text-muted-foreground">
-                {activePlan
-                  ? `${formatDateBR(activePlan.startDate)} ate ${formatDateBR(activePlan.endDate)}`
-                  : 'Cadastre ou ative um plano de treino'}
-              </div>
-            </div>
-
-            <div className="rounded-lg border border-gray-200 p-4">
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Saude inicial</div>
-              <div className="mt-2 text-sm font-semibold text-gray-900">
-                {displayIntakeDate ? formatDateBR(displayIntakeDate) : 'Sem intake inicial'}
-              </div>
-              <div className="text-xs text-muted-foreground">
-                Objetivo declarado: {displayMainGoal || 'Nao informado'}
-              </div>
-            </div>
-
-            <div className="rounded-lg border border-dashed border-gray-300 p-4">
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Integracoes e apps</div>
-              <div className="mt-2 text-sm font-semibold text-gray-900">
-                {segmentedSummary?.integrations.totalAccounts
-                  ? `${segmentedSummary.integrations.totalAccounts} conta(s) conectada(s)`
-                  : 'Base preparada para dados externos'}
-              </div>
-              <div className="text-xs text-muted-foreground">
-                {segmentedSummary?.integrations.lastSyncAt
-                  ? `Ultima sincronizacao em ${formatDateBR(segmentedSummary.integrations.lastSyncAt)}.`
-                  : 'Esta area separa futuras sincronizacoes, como Strava, do cadastro e das avaliacoes.'}
-              </div>
-            </div>
+            {summaryCards.map((card) => (
+              <SummaryStatusCard key={card.title} {...card} />
+            ))}
           </div>
         </CardContent>
       </Card>

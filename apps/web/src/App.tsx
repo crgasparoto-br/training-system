@@ -6,6 +6,7 @@ import { Register } from './pages/Register';
 import { Home } from './pages/Home';
 import { Professores } from './pages/Professores';
 import { Alunos } from './pages/Alunos';
+import { StudentCentral } from './pages/StudentCentral';
 import { AlunoForm } from './pages/AlunoForm';
 import { AlunoDetails } from './pages/AlunoDetails';
 import { Plans } from './pages/Plans';
@@ -63,7 +64,7 @@ function StudentsRoute() {
   }
 
   if (canAccessScreen(user, 'students.consultation')) {
-    return <Navigate to="/consultas/alunos" replace />;
+    return <Navigate to="/central-do-aluno" replace />;
   }
 
   if (canAccessScreen(user, 'students.registration')) {
@@ -105,6 +106,12 @@ function App() {
           />
           <Route path="alunos/:id/contracts" element={withAccess('students.registration', <AlunoContracts />)} />
           <Route path="alunos/:id/edit" element={withAccess('students.registration', <AlunoForm />)} />
+          <Route path="central-do-aluno" element={withAccess('students.consultation', <StudentCentral />)} />
+          <Route
+            path="central-do-aluno/:id"
+            element={withAnyAccess(['students.registration', 'students.consultation', 'students.details'], <AlunoDetails />)}
+          />
+          <Route path="central-do-aluno/:id/edit" element={withAccess('students.registration', <AlunoForm />)} />
           <Route
             path="protocolo-avaliacao-fisica"
             element={<Navigate to="/protocolo-avaliacao-fisica/antropometria" replace />}
@@ -117,7 +124,7 @@ function App() {
           <Route path="protocolo-avaliacao-fisica/adipometria" element={withAccess('physicalAssessment.protocol', <PhysicalAssessmentProtocol />)} />
           <Route path="protocolo-avaliacao-fisica/bioimpedanciometria" element={withAccess('physicalAssessment.protocol', <PhysicalAssessmentProtocol />)} />
           <Route path="protocolo-avaliacao-fisica/ultrassonografia" element={withAccess('physicalAssessment.protocol', <PhysicalAssessmentProtocol />)} />
-          <Route path="consultas" element={<Navigate to="/consultas/alunos" replace />} />
+          <Route path="consultas" element={<Navigate to="/central-do-aluno" replace />} />
           <Route path="consultas/alunos" element={withAccess('students.consultation', <Alunos />)} />
           <Route path="consultas/colaboradores" element={withAccess('collaborators.consultation', <Professores mode="consult" />)} />
           <Route path="plans" element={withAccess('plans', <Plans />)} />
