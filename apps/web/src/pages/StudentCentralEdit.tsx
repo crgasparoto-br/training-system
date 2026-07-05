@@ -54,6 +54,7 @@ export function StudentCentralEdit() {
       return;
     }
 
+    const alunoId = id;
     let active = true;
 
     async function loadAluno() {
@@ -61,7 +62,7 @@ export function StudentCentralEdit() {
       setLoadError(null);
 
       try {
-        const data = await alunoService.getById(id);
+        const data = await alunoService.getById(alunoId);
 
         if (!active) {
           return;
@@ -102,13 +103,14 @@ export function StudentCentralEdit() {
       return;
     }
 
+    const alunoId = id;
     setSaving(true);
     setSaveError(null);
 
     try {
       const intakeForm = aluno.intakeForm;
 
-      await alunoService.update(id, {
+      await alunoService.update(alunoId, {
         intakeForm: {
           assessmentDate: intakeForm?.assessmentDate || undefined,
           mainGoal: form.mainGoal.trim() || undefined,
