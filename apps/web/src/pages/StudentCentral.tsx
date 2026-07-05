@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AlertCircle, ArrowRight, RefreshCcw, Search, User, UserPlus } from 'lucide-react';
 import { canAccessScreen } from '../access/access-control';
@@ -24,6 +24,31 @@ function getStudentStatusLabel(aluno: Aluno) {
   return aluno.user?.isActive === false ? 'Inativo' : 'Ativo';
 }
 
+function getStudentContactSummary(aluno: Aluno) {
+  const email = aluno.user?.email;
+  const phone = aluno.user?.profile?.phone;
+
+  if (email && phone) {
+    return `${email} • ${phone}`;
+  }
+
+  return email || phone || 'Contato pendente';
+}
+
+function getSearchContextLabel(isSearchMode: boolean, searchQuery: string) {
+  const query = searchQuery.trim();
+
+  if (isSearchMode) {
+    return `Busca atual: "${query}"`;
+  }
+
+  if (query.length === 1) {
+    return 'Digite pelo menos 2 letras para iniciar a busca por nome.';
+  }
+
+  return 'Exibindo alunos recentes para acesso rapido.';
+}
+
 export function StudentCentral() {
   const user = useAuthStore((state) => state.user);
   const canCreateAluno = canAccessScreen(user, 'students.registration');
@@ -32,43 +57,61 @@ export function StudentCentral() {
   const [statusFilter, setStatusFilter] = useState<StudentStatusFilter>('active');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const requestSequenceRef = useRef(0);
 
-  const isSearchMode = searchQuery.trim().length >= 2;
+  const trimmedSearchQuery = searchQuery.trim();
+  const isSearchMode = trimmedSearchQuery.length >= 2;
   const visibleAlunos = useMemo(() => (Array.isArray(alunos) ? alunos : []), [alunos]);
+  const searchContextLabel = getSearchContextLabel(isSearchMode, searchQuery);
 
-  const loadInitialStudents = async () => {
+  const runStudentRequest = async (
+    request: () => Promise<Aluno[]>,
+    fallbackErrorMessage: string
+  ) => {
+    const requestSequence = requestSequenceRef.current + 1;
+    requestSequenceRef.current = requestSequence;
     setLoading(true);
     setLoadError(null);
+
     try {
-      const response = await alunoService.list(1, 8, undefined, statusFilter);
-      setAlunos(Array.isArray(response.alunos) ? response.alunos : []);
+      const nextAlunos = await request();
+
+      if (requestSequenceRef.current !== requestSequence) {
+        return;
+      }
+
+      setAlunos(Array.isArray(nextAlunos) ? nextAlunos : []);
     } catch (error) {
+      if (requestSequenceRef.current !== requestSequence) {
+        return;
+      }
+
       setAlunos([]);
-      setLoadError(getAlunoErrorMessage(error, 'Nao foi possivel carregar os alunos.'));
+      setLoadError(getAlunoErrorMessage(error, fallbackErrorMessage));
     } finally {
-      setLoading(false);
+      if (requestSequenceRef.current === requestSequence) {
+        setLoading(false);
+      }
     }
   };
 
-  const searchStudents = async () => {
-    const query = searchQuery.trim();
+  const loadInitialStudents = async () => {
+    await runStudentRequest(async () => {
+      const response = await alunoService.list(1, 8, undefined, statusFilter);
+      return response.alunos;
+    }, 'Nao foi possivel carregar os alunos.');
+  };
 
-    if (query.length < 2) {
+  const searchStudents = async () => {
+    if (trimmedSearchQuery.length < 2) {
       await loadInitialStudents();
       return;
     }
 
-    setLoading(true);
-    setLoadError(null);
-    try {
-      const response = await alunoService.search(query, undefined, statusFilter);
-      setAlunos(Array.isArray(response) ? response : []);
-    } catch (error) {
-      setAlunos([]);
-      setLoadError(getAlunoErrorMessage(error, 'Nao foi possivel buscar alunos.'));
-    } finally {
-      setLoading(false);
-    }
+    await runStudentRequest(
+      () => alunoService.search(trimmedSearchQuery, undefined, statusFilter),
+      'Nao foi possivel buscar alunos.'
+    );
   };
 
   const reloadCurrentView = async () => {
@@ -116,7 +159,7 @@ export function StudentCentral() {
         <CardHeader>
           <CardTitle>Buscar aluno</CardTitle>
           <CardDescription>
-            Digite pelo menos 2 letras do nome para localizar e abrir a ficha centralizada.
+            Digite pelo menos 2 letras do nome para localizar e abrir a ficha centralizada. A estrutura deixa espaco para evoluir a busca por CPF, telefone ou matricula quando houver contrato de API.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -129,6 +172,7 @@ export function StudentCentral() {
                 onChange={(event) => setSearchQuery(event.target.value)}
                 onKeyDown={(event) => event.key === 'Enter' && searchStudents()}
               />
+              <p className="mt-2 text-xs text-muted-foreground">{searchContextLabel}</p>
             </div>
             <div className="w-full lg:w-52">
               <label className="mb-2 block text-sm font-medium">Status</label>
@@ -188,7 +232,9 @@ export function StudentCentral() {
                 Nenhum aluno encontrado
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Revise o nome buscado ou altere o filtro de status para encontrar a ficha correta.
+                {isSearchMode
+                  ? 'Revise o nome buscado ou altere o filtro de status para encontrar a ficha correta.'
+                  : 'Ainda nao ha alunos recentes para listar. Use a busca por nome ou cadastre um novo aluno, se permitido.'}
               </p>
             </div>
           ) : (
@@ -220,6 +266,9 @@ export function StudentCentral() {
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
                             <p className="truncate text-sm font-semibold text-foreground">{alunoName}</p>
+                            <p className="mt-1 truncate text-xs text-muted-foreground">
+                              {getStudentContactSummary(aluno)}
+                            </p>
                             <p className="mt-1 text-xs text-muted-foreground">
                               {aluno.age} anos
                               {aluno.professor?.user?.profile?.name
