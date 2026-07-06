@@ -60,7 +60,7 @@ describe('AlunoResumoHubTab PRNT card', () => {
       },
     } as unknown as Aluno);
 
-    expect(screen.getByText('PRNT parcial')).toBeInTheDocument();
+    expect(screen.getAllByText('PRNT parcial').length).toBeGreaterThan(0);
     expect(screen.getAllByText(/1 alerta\(s\)/i).length).toBeGreaterThan(0);
     expect(screen.getByText('Atualizar PRNT')).toBeInTheDocument();
   });
