@@ -32,7 +32,7 @@ describe('AlunoSaudeAnamneseTab objetivo contextual', () => {
     renderTab(baseAluno);
 
     expect(screen.getByText('Objetivo do aluno')).toBeInTheDocument();
-    expect(screen.getByText('Objetivo pendente')).toBeInTheDocument();
+    expect(screen.getAllByText('Objetivo pendente').length).toBeGreaterThan(0);
     expect(screen.getByText(/Crie o objetivo principal/i)).toBeInTheDocument();
     expect(screen.getByText('Criar objetivo')).toBeInTheDocument();
   });
@@ -48,7 +48,7 @@ describe('AlunoSaudeAnamneseTab objetivo contextual', () => {
       },
     } as unknown as Aluno);
 
-    expect(screen.getByText('Objetivo ativo')).toBeInTheDocument();
+    expect(screen.getAllByText('Objetivo ativo').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Correr 10 km sem dor').length).toBeGreaterThan(0);
     expect(screen.getByText('Atualizar objetivo')).toBeInTheDocument();
     expect(screen.getByText('Registrar observação')).toBeInTheDocument();
