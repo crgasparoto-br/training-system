@@ -34,7 +34,7 @@ Classifique como **Administracao geral** quando:
 Classifique como **Hibrida** quando:
 
 - existe uma configuracao, cadastro ou operacao geral fora da Central;
-- existe tambem um vinculo, status, resumo, historico ou acao contextual relevante para um aluno especifico;
+- existe tambem um vinculo, status, resumo, historico ou acao contextual relevante para um aluno especificico;
 - a Central precisa mostrar o impacto no aluno, mas nao substituir o modulo administrativo principal.
 
 ## Matriz de classificacao
@@ -42,7 +42,7 @@ Classifique como **Hibrida** quando:
 | Funcionalidade | Classificacao | Ponto principal de acesso | Presenca esperada na Central | Permissoes e dados sensiveis |
 | --- | --- | --- | --- | --- |
 | Busca e selecao de aluno | Central do Aluno | `/central-do-aluno` | Entrada para abrir a ficha centralizada. | Deve respeitar `contractId` e escopo permitido pela API. |
-| Dados cadastrais do aluno | Central do Aluno | Ficha do aluno e cadastro legado compatibilizado | Cabeçalho, aba Resumo, cadastro do aluno e acoes contextuais de edicao. | Dados pessoais exigem controle por tela/bloco e filtro por `contractId`. |
+| Dados cadastrais do aluno | Central do Aluno | Ficha do aluno e cadastro legado compatibilizado | Cabecalho, aba Resumo, cadastro do aluno e acoes contextuais de edicao. | Dados pessoais exigem controle por tela/bloco e filtro por `contractId`. |
 | Status do aluno | Hibrida | Administracao/cadastro e ficha do aluno | Resumo de situacao, pendencias e proxima acao. | Pode envolver dados administrativos; nao expor detalhes financeiros sem permissao. |
 | Professor responsavel ou vinculo aluno-professor | Hibrida | Administracao de vinculos e ficha do aluno | Nome/responsavel atual, historico ou acao contextual quando permitido. | Professores devem ver somente alunos sob sua responsabilidade, salvo permissao ampliada. |
 | Cadastro geral de professores e colaboradores | Administracao geral | Administracao de colaboradores | Apenas responsavel vinculado ao aluno quando aplicavel. | Usa permissoes de colaboradores; nao deve entrar como edicao completa na Central. |
@@ -91,7 +91,7 @@ Atualize esta matriz quando:
 - uma acao sensivel exigir nova chave de permissao;
 - uma decisao de produto mudar o ponto principal de acesso.
 
-Mudancas nesta matriz devem continuar compatíveis com:
+Mudancas nesta matriz devem continuar compativeis com:
 
 - `ARCHITECTURE.md`;
 - `docs/product/integrated-prescription-control.md`;
