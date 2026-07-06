@@ -2,11 +2,7 @@ import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/Card';
 import { Button } from '../ui/Button';
 import { isDateWithinRange, formatDateBR } from '../../utils/date';
-import type {
-  Aluno,
-  StudentContractLink,
-  StudentSegmentedSummary,
-} from '../../services/aluno.service';
+import type { Aluno, StudentContractLink, StudentSegmentedSummary } from '../../services/aluno.service';
 import type { Microcycle, TrainingPlan } from '../../services/plan.service';
 import type { Assessment, AssessmentSummary } from '../../services/assessment.service';
 
@@ -57,34 +53,23 @@ const normalizeText = (value?: string | null) => {
 };
 
 const normalizeUnknownText = (value: unknown) => {
-  if (typeof value === 'string') {
-    return normalizeText(value);
-  }
-
-  if (typeof value === 'number' || typeof value === 'boolean') {
-    return String(value);
-  }
-
+  if (typeof value === 'string') return normalizeText(value);
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
   return null;
 };
 
 const getRecordText = (record: Record<string, unknown> | null | undefined, keys: string[]) => {
-  if (!record || typeof record !== 'object') {
-    return null;
-  }
+  if (!record || typeof record !== 'object') return null;
 
   for (const key of keys) {
     const value = normalizeUnknownText(record[key]);
-    if (value) {
-      return value;
-    }
+    if (value) return value;
   }
 
   return null;
 };
 
-const startOfDay = (date: Date) =>
-  new Date(date.getFullYear(), date.getMonth(), date.getDate());
+const startOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
 
 const addDays = (date: Date, days: number) => {
   const nextDate = new Date(date);
@@ -147,17 +132,9 @@ const formatSessionTitle = (session: Microcycle) =>
 const formatSessionTarget = (session: Microcycle) => {
   const details = [formatDuration(session.durationMinutes)];
 
-  if (session.distanceKm) {
-    details.push(`${session.distanceKm.toLocaleString('pt-BR')} km`);
-  }
-
-  if (session.intensityPercentage) {
-    details.push(`${session.intensityPercentage}% intensidade`);
-  }
-
-  if (session.heartRateZone) {
-    details.push(`Zona ${session.heartRateZone}`);
-  }
+  if (session.distanceKm) details.push(`${session.distanceKm.toLocaleString('pt-BR')} km`);
+  if (session.intensityPercentage) details.push(`${session.intensityPercentage}% intensidade`);
+  if (session.heartRateZone) details.push(`Zona ${session.heartRateZone}`);
 
   return details.join(' • ');
 };
@@ -178,12 +155,7 @@ const buildScheduledSessions = (plans: TrainingPlan[]) => {
           const sessionDate = startOfDay(addDays(mesocycleStart, daysUntilSession));
 
           if (sessionDate <= startOfDay(mesocycleEnd)) {
-            sessions.push({
-              plan,
-              session,
-              date: sessionDate,
-              mesocycleFocus: mesocycle.focus,
-            });
+            sessions.push({ plan, session, date: sessionDate, mesocycleFocus: mesocycle.focus });
           }
         });
       });
@@ -193,15 +165,7 @@ const buildScheduledSessions = (plans: TrainingPlan[]) => {
   return sessions.sort((left, right) => left.date.getTime() - right.date.getTime());
 };
 
-function SummaryStatusCard({
-  title,
-  status,
-  evidence,
-  nextAction,
-  tone,
-  actionLabel,
-  actionTo,
-}: SummaryStatusCardProps) {
+function SummaryStatusCard({ title, status, evidence, nextAction, tone, actionLabel, actionTo }: SummaryStatusCardProps) {
   return (
     <div className={`rounded-lg border p-4 ${summaryToneClass[tone]}`}>
       <div className="flex items-start justify-between gap-3">
@@ -258,9 +222,7 @@ export function AlunoResumoHubTab({
   const latestAssessment = segmentedSummary?.assessments.latest
     ? {
         assessmentDate: segmentedSummary.assessments.latest.performedAt,
-        type: {
-          name: segmentedSummary.assessments.latest.title || 'Avaliação registrada',
-        },
+        type: { name: segmentedSummary.assessments.latest.title || 'Avaliação registrada' },
       }
     : assessments[0];
   const upcomingAssessment = [...assessmentSummary]
@@ -273,15 +235,17 @@ export function AlunoResumoHubTab({
   const displayEmail = normalizeText(segmentedSummary?.overview.email) ?? normalizeText(aluno.user.email);
   const displayPhone = normalizeText(segmentedSummary?.overview.phone) ?? normalizeText(aluno.user.profile.phone);
   const displayUpdatedAt = segmentedSummary?.updatedAt ?? aluno.updatedAt;
-  const displayMainGoal = normalizeText(segmentedSummary?.overview.mainGoal) ?? normalizeText(aluno.intakeForm?.mainGoal);
+  const intake = segmentedSummary?.intake;
+  const rawFormResponses = intake?.rawFormResponses ?? aluno.intakeForm?.formResponses ?? null;
+  const rawAssessmentDate = getRecordText(rawFormResponses, ['assessmentDate']);
+  const rawMainGoal = getRecordText(rawFormResponses, ['mainGoal']);
+  const displayMainGoal = normalizeText(segmentedSummary?.overview.mainGoal) ?? normalizeText(aluno.intakeForm?.mainGoal) ?? rawMainGoal;
   const displayServiceName =
     normalizeText(segmentedSummary?.overview.currentServiceName) ??
     normalizeText(contractForDisplay?.service?.name) ??
     normalizeText(aluno.service?.name);
-  const intake = segmentedSummary?.intake;
-  const rawFormResponses = intake?.rawFormResponses ?? aluno.intakeForm?.formResponses ?? null;
-  const displayIntakeDate = intake?.assessmentDate ?? aluno.intakeForm?.assessmentDate ?? null;
-  const displayIntakeUpdatedAt = intake?.updatedAt ?? intake?.createdAt ?? aluno.intakeForm?.assessmentDate ?? null;
+  const displayIntakeDate = intake?.assessmentDate ?? aluno.intakeForm?.assessmentDate ?? rawAssessmentDate;
+  const displayIntakeUpdatedAt = intake?.updatedAt ?? intake?.createdAt ?? displayIntakeDate;
   const trainingBackground =
     getRecordText(intake?.clinicalHistory, ['trainingBackground', 'physicalActivityHistory', 'activityHistory']) ??
     normalizeText(aluno.intakeForm?.trainingBackground);
@@ -301,29 +265,14 @@ export function AlunoResumoHubTab({
   const hasHealthAlert = parqPositiveCount > 0;
   const hasPrntGoal = Boolean(displayMainGoal);
   const hasPrntIntake = Boolean(displayIntakeDate);
-  const hasTechnicalDetails = Boolean(
-    trainingBackground || medicalHistory || currentMedications || injuriesHistory || allergies || observations
-  );
+  const hasTechnicalDetails = Boolean(trainingBackground || medicalHistory || currentMedications || injuriesHistory || allergies || observations);
   const prntCompletedItems = [hasPrntIntake, hasPrntGoal, hasTechnicalDetails].filter(Boolean).length;
   const prntStatus = !hasPrntIntake && !hasPrntGoal && !hasTechnicalDetails
     ? 'pendente'
     : prntCompletedItems >= 3
       ? 'completo'
       : 'parcial';
-  const prntStatusLabel = prntStatus === 'pendente'
-    ? 'PRNT pendente'
-    : prntStatus === 'completo'
-      ? 'PRNT completo'
-      : 'PRNT parcial';
-  const prntEvidenceParts = [
-    hasPrntIntake
-      ? `Anamnese em ${formatDateBR(displayIntakeDate as string)}`
-      : 'Anamnese pendente',
-    hasPrntGoal ? `Objetivo: ${displayMainGoal}` : 'Objetivo pendente',
-    hasHealthAlert
-      ? `${parqPositiveCount} alerta(s) no PAR-Q/AHA`
-      : 'Sem alerta crítico no PAR-Q/AHA carregado',
-  ];
+  const prntStatusLabel = prntStatus === 'pendente' ? 'PRNT pendente' : prntStatus === 'completo' ? 'PRNT completo' : 'PRNT parcial';
   const centralEditPath = `/central-do-aluno/${aluno.id}/edit`;
   const prontuarioPath = `/protocolo-avaliacao-fisica/prontuario-entrevista-acompanhamento?alunoId=${aluno.id}`;
   const prntTechnicalItems: PrntTechnicalItem[] = [
@@ -374,6 +323,11 @@ export function AlunoResumoHubTab({
     : activePlan
       ? 'Existe plano ativo, mas nenhuma sessão do plano cai na data de hoje.'
       : 'Nenhum plano ativo foi encontrado para a data de hoje.';
+  const prntEvidenceParts = [
+    hasPrntIntake ? `Anamnese em ${formatDateBR(displayIntakeDate as string)}` : 'Anamnese pendente',
+    hasPrntGoal ? `Objetivo: ${displayMainGoal}` : 'Objetivo pendente',
+    hasHealthAlert ? `${parqPositiveCount} alerta(s) no PAR-Q/AHA` : 'Sem alerta crítico no PAR-Q/AHA carregado',
+  ];
   const summaryCards: SummaryStatusCardProps[] = [
     {
       title: 'Cadastro do aluno',
@@ -426,12 +380,8 @@ export function AlunoResumoHubTab({
     {
       title: 'Treinamento',
       status: activePlan?.name || 'Nenhum plano ativo',
-      evidence: activePlan
-        ? `${formatDateBR(activePlan.startDate)} até ${formatDateBR(activePlan.endDate)}`
-        : 'Não há plano ativo para a data de hoje.',
-      nextAction: activePlan
-        ? 'Acompanhar execução e feedback do ciclo atual.'
-        : 'Criar ou ativar plano de treino no contexto deste aluno.',
+      evidence: activePlan ? `${formatDateBR(activePlan.startDate)} até ${formatDateBR(activePlan.endDate)}` : 'Não há plano ativo para a data de hoje.',
+      nextAction: activePlan ? 'Acompanhar execução e feedback do ciclo atual.' : 'Criar ou ativar plano de treino no contexto deste aluno.',
       tone: activePlan ? 'ok' : 'pending',
       actionLabel: activePlan ? 'Abrir plano ativo' : 'Criar plano de treino',
       actionTo: activePlan ? `/plans/${activePlan.id}` : `/plans/new?alunoId=${aluno.id}`,
@@ -442,25 +392,10 @@ export function AlunoResumoHubTab({
       evidence: contractForDisplay
         ? `${studentContractStatusLabel[contractForDisplay.status] || contractForDisplay.status} • Serviço: ${displayServiceName || 'Não informado'}`
         : `Serviço: ${displayServiceName || 'Não informado'}`,
-      nextAction: contractForDisplay
-        ? 'Conferir vigência e condições na aba Financeiro.'
-        : 'Verificar contrato, serviço e condições comerciais permitidas.',
+      nextAction: contractForDisplay ? 'Conferir vigência e condições na aba Financeiro.' : 'Verificar contrato, serviço e condições comerciais permitidas.',
       tone: contractForDisplay?.status === 'active' ? 'ok' : contractForDisplay ? 'attention' : 'pending',
       actionLabel: 'Gerenciar contratos',
       actionTo: `/alunos/${aluno.id}/contracts`,
-    },
-    {
-      title: 'Integrações e apps',
-      status: segmentedSummary?.integrations.totalAccounts
-        ? `${segmentedSummary.integrations.totalAccounts} conta(s) conectada(s)`
-        : 'Sem conta externa conectada',
-      evidence: segmentedSummary?.integrations.lastSyncAt
-        ? `Última sincronização em ${formatDateBR(segmentedSummary.integrations.lastSyncAt)}.`
-        : 'Área preparada para separar dados externos do cadastro e das avaliações.',
-      nextAction: segmentedSummary?.integrations.totalAccounts
-        ? 'Conferir última sincronização e atividades importadas.'
-        : 'Conectar integrações quando fizer parte do acompanhamento.',
-      tone: segmentedSummary?.integrations.totalAccounts ? 'ok' : 'neutral',
     },
   ];
 
@@ -478,9 +413,7 @@ export function AlunoResumoHubTab({
             <div className="rounded-lg border border-border bg-background p-4">
               <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Treino de hoje
-                  </p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Treino de hoje</p>
                   <h3 className="mt-2 text-lg font-semibold text-foreground">{todayStatusTitle}</h3>
                   <p className="mt-1 text-sm text-muted-foreground">{todayStatusDescription}</p>
                 </div>
@@ -488,7 +421,6 @@ export function AlunoResumoHubTab({
                   {formatDateBR(now.toISOString())}
                 </span>
               </div>
-
               <div className="mt-4 space-y-3">
                 {todaySessions.length > 0 ? (
                   todaySessions.map(({ session, plan, mesocycleFocus }) => (
@@ -498,34 +430,25 @@ export function AlunoResumoHubTab({
                         <p className="text-xs text-muted-foreground">{plan.name}</p>
                       </div>
                       <p className="mt-1 text-sm text-muted-foreground">{formatSessionTarget(session)}</p>
-                      {mesocycleFocus && (
-                        <p className="mt-2 text-xs text-muted-foreground">Objetivo do mesociclo: {mesocycleFocus}</p>
-                      )}
-                      {session.instructions && (
-                        <p className="mt-2 text-sm text-foreground">{session.instructions}</p>
-                      )}
+                      {mesocycleFocus && <p className="mt-2 text-xs text-muted-foreground">Objetivo do mesociclo: {mesocycleFocus}</p>}
+                      {session.instructions && <p className="mt-2 text-sm text-foreground">{session.instructions}</p>}
                     </div>
                   ))
                 ) : (
                   <div className="rounded-lg border border-dashed border-border bg-muted/20 p-3 text-sm text-muted-foreground">
-                    A mensagem de indisponibilidade usa os planos carregados para este aluno. Quando a montagem consolidada existir, este bloco deve exibir somente treinos liberados e validados pelo professor.
+                    Quando a montagem consolidada existir, este bloco deve exibir somente treinos liberados e validados pelo professor.
                   </div>
                 )}
               </div>
             </div>
-
             <div className="rounded-lg border border-border bg-background p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Próximas sessões
-              </p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Próximas sessões</p>
               <div className="mt-3 space-y-3">
                 {upcomingSessions.length > 0 ? (
                   upcomingSessions.map(({ session, plan, date }) => (
                     <div key={`${session.id}-${date.toISOString()}`} className="flex gap-3 rounded-lg border border-border bg-muted/20 p-3">
                       <div className="min-w-20 text-xs font-medium text-muted-foreground">
-                        {dayLabels[date.getDay()]}
-                        <br />
-                        {formatDateBR(date.toISOString())}
+                        {dayLabels[date.getDay()]}<br />{formatDateBR(date.toISOString())}
                       </div>
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-foreground">{formatSessionTitle(session)}</p>
@@ -535,33 +458,9 @@ export function AlunoResumoHubTab({
                     </div>
                   ))
                 ) : (
-                  <p className="text-sm text-muted-foreground">
-                    Nenhuma sessão futura encontrada nos planos carregados deste aluno.
-                  </p>
+                  <p className="text-sm text-muted-foreground">Nenhuma sessão futura encontrada nos planos carregados deste aluno.</p>
                 )}
               </div>
-            </div>
-          </div>
-
-          <div className="grid gap-3 md:grid-cols-4">
-            <div className={`rounded-lg border p-3 ${hasHealthAlert ? 'border-red-200 bg-red-50/60' : hasPrntIntake || hasPrntGoal ? 'border-emerald-200 bg-emerald-50/50' : 'border-amber-200 bg-amber-50/60'}`}>
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">PRNT</p>
-              <p className="mt-2 text-sm font-semibold text-foreground">{prntStatusLabel}</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {hasHealthAlert ? `${parqPositiveCount} alerta(s) exigem revisão.` : hasPrntGoal ? `Objetivo: ${displayMainGoal}` : 'Objetivo e anamnese pendentes.'}
-              </p>
-            </div>
-            <div className="rounded-lg border border-border bg-muted/20 p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Avaliação</p>
-              <p className="mt-2 text-sm text-foreground">Histórico e dados-base sustentam a decisão técnica.</p>
-            </div>
-            <div className="rounded-lg border border-border bg-muted/20 p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Prescrição</p>
-              <p className="mt-2 text-sm text-foreground">Entrada preparada para capacidades futuras sem gerar treino direto.</p>
-            </div>
-            <div className="rounded-lg border border-border bg-muted/20 p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Histórico</p>
-              <p className="mt-2 text-sm text-foreground">Evolução e auditoria preservam rastreabilidade do acompanhamento.</p>
             </div>
           </div>
         </CardContent>
@@ -601,13 +500,9 @@ export function AlunoResumoHubTab({
               </p>
             </div>
           </div>
-
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {prntTechnicalItems.map((item) => (
-              <PrntTechnicalItemCard key={item.label} {...item} />
-            ))}
+            {prntTechnicalItems.map((item) => <PrntTechnicalItemCard key={item.label} {...item} />)}
           </div>
-
           <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
@@ -620,10 +515,7 @@ export function AlunoResumoHubTab({
                       : 'Complete o PRNT para reduzir navegação entre telas e sustentar a decisão técnica.'}
                 </p>
               </div>
-              <Link
-                to={prontuarioPath}
-                className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-              >
+              <Link to={prontuarioPath} className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
                 {prntStatus === 'pendente' ? 'Iniciar PRNT' : 'Abrir PRNT'}
               </Link>
             </div>
@@ -640,9 +532,7 @@ export function AlunoResumoHubTab({
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {summaryCards.map((card) => (
-              <SummaryStatusCard key={card.title} {...card} />
-            ))}
+            {summaryCards.map((card) => <SummaryStatusCard key={card.title} {...card} />)}
           </div>
         </CardContent>
       </Card>
