@@ -35,6 +35,7 @@ Depois disso, leia os documentos especificos da area afetada. Nao crie nova docu
 - [`product/integrated-prescription-control.md`](product/integrated-prescription-control.md): arquitetura-alvo do fluxo integrado de prontuario, avaliacao, prescricao, montagem consolidada, treino de hoje, feedback e decisao.
 - [`product/navigation-information-architecture.md`](product/navigation-information-architecture.md): mapa atual, arquitetura por hubs, Aluno 360, telas longas, inicio por perfil, permissoes e rollout da nova navegacao.
 - [`product/student-central-action-patterns.md`](product/student-central-action-patterns.md): padrao de pop-up, painel lateral e fluxo guiado para acoes contextuais da Central do Aluno.
+- [`product/student-central-domain-matrix.md`](product/student-central-domain-matrix.md): matriz de classificacao entre Central do Aluno, administracao geral e funcionalidades hibridas.
 
 ### Operacao
 
