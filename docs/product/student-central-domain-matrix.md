@@ -34,7 +34,7 @@ Classifique como **Administracao geral** quando:
 Classifique como **Hibrida** quando:
 
 - existe uma configuracao, cadastro ou operacao geral fora da Central;
-- existe tambem um vinculo, status, resumo, historico ou acao contextual relevante para um aluno especificico;
+- existe tambem um vinculo, status, resumo, historico ou acao contextual relevante para um aluno especifico;
 - a Central precisa mostrar o impacto no aluno, mas nao substituir o modulo administrativo principal.
 
 ## Matriz de classificacao
