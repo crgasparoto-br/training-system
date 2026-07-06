@@ -1,4 +1,6 @@
+import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/Card';
+import { Button } from '../ui/Button';
 import { isDateWithinRange, formatDateBR } from '../../utils/date';
 import type {
   Aluno,
@@ -32,6 +34,8 @@ type SummaryStatusCardProps = {
   evidence: string;
   nextAction: string;
   tone: SummaryCardTone;
+  actionLabel?: string;
+  actionTo?: string;
 };
 
 const safeDate = (value?: string | null) => {
@@ -148,7 +152,15 @@ const buildScheduledSessions = (plans: TrainingPlan[]) => {
   return sessions.sort((left, right) => left.date.getTime() - right.date.getTime());
 };
 
-function SummaryStatusCard({ title, status, evidence, nextAction, tone }: SummaryStatusCardProps) {
+function SummaryStatusCard({
+  title,
+  status,
+  evidence,
+  nextAction,
+  tone,
+  actionLabel,
+  actionTo,
+}: SummaryStatusCardProps) {
   return (
     <div className={`rounded-lg border p-4 ${summaryToneClass[tone]}`}>
       <div className="flex items-start justify-between gap-3">
@@ -164,6 +176,15 @@ function SummaryStatusCard({ title, status, evidence, nextAction, tone }: Summar
       <div className="mt-3 rounded-md border border-border/70 bg-background/70 px-3 py-2 text-xs text-foreground">
         Proxima acao: {nextAction}
       </div>
+      {actionLabel && actionTo && (
+        <div className="mt-3">
+          <Link to={actionTo}>
+            <Button variant="outline" size="sm" className="w-full justify-center">
+              {actionLabel}
+            </Button>
+          </Link>
+        </div>
+      )}
     </div>
   );
 }
@@ -211,6 +232,7 @@ export function AlunoResumoHubTab({
   const displayIntakeDate = segmentedSummary?.intake.assessmentDate ?? aluno.intakeForm?.assessmentDate ?? null;
   const hasCadastroEssentials = Boolean(displayName && displayEmail && aluno.age);
   const hasHealthAlert = Object.values(aluno.intakeForm?.parqResponses || {}).some(Boolean);
+  const centralEditPath = `/central-do-aluno/${aluno.id}/edit`;
   const todayStatusTitle = todaySessions.length
     ? 'Treino planejado para hoje'
     : activePlan
@@ -230,6 +252,8 @@ export function AlunoResumoHubTab({
         ? `Revisar cadastro se houver mudanca desde ${formatDateBR(displayUpdatedAt)}.`
         : 'Completar dados basicos antes de evoluir para analises e prescricoes.',
       tone: hasCadastroEssentials ? 'ok' : 'pending',
+      actionLabel: 'Editar dados da Central',
+      actionTo: centralEditPath,
     },
     {
       title: 'PRNT e anamnese',
@@ -239,6 +263,8 @@ export function AlunoResumoHubTab({
         ? 'Validar se o objetivo e as restricoes seguem atuais.'
         : 'Registrar PRNT/anamnese para orientar condutas e restricoes.',
       tone: displayIntakeDate ? (hasHealthAlert ? 'attention' : 'ok') : 'pending',
+      actionLabel: 'Atualizar objetivo e observacoes',
+      actionTo: centralEditPath,
     },
     {
       title: 'Dores e restricoes',
@@ -250,6 +276,8 @@ export function AlunoResumoHubTab({
         ? 'Abrir Saude/Anamnese e confirmar conduta segura.'
         : 'Manter acompanhamento e atualizar se houver dor, lesao ou medicacao.',
       tone: hasHealthAlert ? 'attention' : 'ok',
+      actionLabel: 'Revisar observacoes',
+      actionTo: centralEditPath,
     },
     {
       title: 'Avaliacoes',
@@ -272,6 +300,8 @@ export function AlunoResumoHubTab({
         ? 'Acompanhar execucao e feedback do ciclo atual.'
         : 'Criar ou ativar plano de treino no contexto deste aluno.',
       tone: activePlan ? 'ok' : 'pending',
+      actionLabel: activePlan ? 'Abrir plano ativo' : 'Criar plano de treino',
+      actionTo: activePlan ? `/plans/${activePlan.id}` : `/plans/new?alunoId=${aluno.id}`,
     },
     {
       title: 'Contrato e servico',
@@ -283,6 +313,8 @@ export function AlunoResumoHubTab({
         ? 'Conferir vigencia e condicoes na aba Financeiro.'
         : 'Verificar contrato, servico e condicoes comerciais permitidas.',
       tone: contractForDisplay?.status === 'active' ? 'ok' : contractForDisplay ? 'attention' : 'pending',
+      actionLabel: 'Gerenciar contratos',
+      actionTo: `/alunos/${aluno.id}/contracts`,
     },
     {
       title: 'Integracoes e apps',
