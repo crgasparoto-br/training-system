@@ -44,6 +44,11 @@ const safeDate = (value?: string | null) => {
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
+const normalizeText = (value?: string | null) => {
+  const normalizedValue = value?.trim();
+  return normalizedValue && normalizedValue.length > 0 ? normalizedValue : null;
+};
+
 const startOfDay = (date: Date) =>
   new Date(date.getFullYear(), date.getMonth(), date.getDate());
 
@@ -219,19 +224,41 @@ export function AlunoResumoHubTab({
     .filter((item) => item.nextDate)
     .sort((a, b) => (a.nextDate as Date).getTime() - (b.nextDate as Date).getTime())[0];
   const contractForDisplay = segmentedSummary?.financial.activeContract ?? activeStudentContract;
-  const displayName = segmentedSummary?.overview.name ?? aluno.user.profile.name;
-  const displayEmail = segmentedSummary?.overview.email ?? aluno.user.email;
-  const displayPhone = segmentedSummary?.overview.phone ?? aluno.user.profile.phone ?? null;
+  const displayName = normalizeText(segmentedSummary?.overview.name) ?? normalizeText(aluno.user.profile.name);
+  const displayEmail = normalizeText(segmentedSummary?.overview.email) ?? normalizeText(aluno.user.email);
+  const displayPhone = normalizeText(segmentedSummary?.overview.phone) ?? normalizeText(aluno.user.profile.phone);
   const displayUpdatedAt = segmentedSummary?.updatedAt ?? aluno.updatedAt;
-  const displayMainGoal = segmentedSummary?.overview.mainGoal ?? aluno.intakeForm?.mainGoal ?? null;
+  const displayMainGoal = normalizeText(segmentedSummary?.overview.mainGoal) ?? normalizeText(aluno.intakeForm?.mainGoal);
   const displayServiceName =
-    segmentedSummary?.overview.currentServiceName ??
-    contractForDisplay?.service?.name ??
-    aluno.service?.name ??
-    null;
+    normalizeText(segmentedSummary?.overview.currentServiceName) ??
+    normalizeText(contractForDisplay?.service?.name) ??
+    normalizeText(aluno.service?.name);
   const displayIntakeDate = segmentedSummary?.intake.assessmentDate ?? aluno.intakeForm?.assessmentDate ?? null;
   const hasCadastroEssentials = Boolean(displayName && displayEmail && aluno.age);
-  const hasHealthAlert = Object.values(aluno.intakeForm?.parqResponses || {}).some(Boolean);
+  const parqPositiveCount = Object.values(aluno.intakeForm?.parqResponses || {}).filter(Boolean).length;
+  const hasHealthAlert = parqPositiveCount > 0;
+  const hasPrntGoal = Boolean(displayMainGoal);
+  const hasPrntIntake = Boolean(displayIntakeDate);
+  const prntCompletedItems = [hasPrntIntake, hasPrntGoal, !hasHealthAlert].filter(Boolean).length;
+  const prntStatus = !hasPrntIntake && !hasPrntGoal
+    ? 'pendente'
+    : prntCompletedItems >= 2
+      ? 'parcial'
+      : 'incompleto';
+  const prntStatusLabel = prntStatus === 'pendente'
+    ? 'PRNT pendente'
+    : prntStatus === 'parcial'
+      ? 'PRNT parcial'
+      : 'PRNT incompleto';
+  const prntEvidenceParts = [
+    hasPrntIntake
+      ? `Anamnese em ${formatDateBR(displayIntakeDate as string)}`
+      : 'Anamnese pendente',
+    hasPrntGoal ? `Objetivo: ${displayMainGoal}` : 'Objetivo pendente',
+    hasHealthAlert
+      ? `${parqPositiveCount} alerta(s) no PAR-Q/AHA`
+      : 'Sem alerta critico no PAR-Q/AHA carregado',
+  ];
   const centralEditPath = `/central-do-aluno/${aluno.id}/edit`;
   const todayStatusTitle = todaySessions.length
     ? 'Treino planejado para hoje'
@@ -256,21 +283,23 @@ export function AlunoResumoHubTab({
       actionTo: centralEditPath,
     },
     {
-      title: 'PRNT e anamnese',
-      status: displayIntakeDate ? `Atualizado em ${formatDateBR(displayIntakeDate)}` : 'Sem intake inicial',
-      evidence: displayMainGoal ? `Objetivo declarado: ${displayMainGoal}` : 'Objetivo principal ainda nao informado.',
-      nextAction: displayIntakeDate
-        ? 'Validar se o objetivo e as restricoes seguem atuais.'
-        : 'Registrar PRNT/anamnese para orientar condutas e restricoes.',
-      tone: displayIntakeDate ? (hasHealthAlert ? 'attention' : 'ok') : 'pending',
-      actionLabel: 'Atualizar objetivo e observacoes',
+      title: 'PRNT tecnico',
+      status: prntStatusLabel,
+      evidence: prntEvidenceParts.join(' • '),
+      nextAction: hasHealthAlert
+        ? 'Revisar alertas tecnicos antes de prescrever ou intensificar treino.'
+        : hasPrntIntake && hasPrntGoal
+          ? 'Validar se objetivo, anamnese e restricoes continuam atuais.'
+          : 'Completar anamnese e objetivo principal para orientar condutas.',
+      tone: hasHealthAlert ? 'attention' : hasPrntIntake && hasPrntGoal ? 'ok' : 'pending',
+      actionLabel: hasPrntIntake ? 'Atualizar PRNT' : 'Iniciar PRNT',
       actionTo: centralEditPath,
     },
     {
       title: 'Dores e restricoes',
-      status: hasHealthAlert ? 'Ha respostas positivas no PAR-Q' : 'Sem alerta critico carregado',
+      status: hasHealthAlert ? 'Ha respostas positivas no PAR-Q/AHA' : 'Sem alerta critico carregado',
       evidence: hasHealthAlert
-        ? 'Revisar respostas positivas antes de prescrever ou intensificar treino.'
+        ? `${parqPositiveCount} resposta(s) positiva(s) exigem revisao antes da proxima conduta.`
         : 'Nenhuma restricao critica foi identificada nas fontes carregadas.',
       nextAction: hasHealthAlert
         ? 'Abrir Saude/Anamnese e confirmar conduta segura.'
@@ -411,9 +440,12 @@ export function AlunoResumoHubTab({
           </div>
 
           <div className="grid gap-3 md:grid-cols-4">
-            <div className="rounded-lg border border-border bg-muted/20 p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Prontuario</p>
-              <p className="mt-2 text-sm text-foreground">Objetivos, anamnese e alertas ficam antes da prescricao.</p>
+            <div className={`rounded-lg border p-3 ${hasHealthAlert ? 'border-red-200 bg-red-50/60' : hasPrntIntake || hasPrntGoal ? 'border-emerald-200 bg-emerald-50/50' : 'border-amber-200 bg-amber-50/60'}`}>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">PRNT</p>
+              <p className="mt-2 text-sm font-semibold text-foreground">{prntStatusLabel}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {hasHealthAlert ? `${parqPositiveCount} alerta(s) exigem revisao.` : hasPrntGoal ? `Objetivo: ${displayMainGoal}` : 'Objetivo e anamnese pendentes.'}
+              </p>
             </div>
             <div className="rounded-lg border border-border bg-muted/20 p-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Avaliacao</p>
