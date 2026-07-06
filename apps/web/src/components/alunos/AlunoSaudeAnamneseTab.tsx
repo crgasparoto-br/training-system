@@ -93,6 +93,10 @@ export function AlunoSaudeAnamneseTab({
   const sourceType = segmentedIntake?.source?.type;
   const sourceReference = segmentedIntake?.source?.reference ?? segmentedIntake?.legacyIntakeId ?? null;
   const technicalSourceLabel = sourceType ? sourceTypeLabels[sourceType] ?? 'Fonte técnica' : 'Cadastro inicial';
+  const hasObjective = hasText(objective);
+  const goalStatusLabel = hasObjective ? 'Objetivo ativo' : 'Objetivo pendente';
+  const goalActionLabel = hasObjective ? 'Atualizar objetivo' : 'Criar objetivo';
+  const goalReviewDate = segmentedIntake?.updatedAt ?? assessmentDate ?? aluno.updatedAt ?? null;
   const technicalAlertCount =
     parqPositiveCount +
     ahaPositiveCount +
@@ -102,7 +106,7 @@ export function AlunoSaudeAnamneseTab({
   const technicalSourceItems = [
     {
       label: 'Objetivo declarado',
-      value: hasText(objective) ? 'Informado' : 'Pendente',
+      value: hasObjective ? 'Informado' : 'Pendente',
       description: objective || 'Registre o objetivo para orientar a prescrição futura.',
     },
     {
@@ -125,6 +129,27 @@ export function AlunoSaudeAnamneseTab({
       label: 'Dados-base versionados',
       value: formatNullableDate(technicalSourceDate),
       description: 'Esta data identifica a versão técnica usada como referência, sem sobrescrever avaliações antigas.',
+    },
+  ];
+  const goalContextItems = [
+    {
+      label: 'Status',
+      value: goalStatusLabel,
+      description: hasObjective
+        ? 'Existe um objetivo principal orientando avaliação, PRNT e prescrição futura.'
+        : 'Nenhum objetivo principal foi encontrado para este aluno.',
+    },
+    {
+      label: 'Última revisão',
+      value: formatNullableDate(goalReviewDate),
+      description: 'Use esta data como referência para decidir se o objetivo precisa ser confirmado ou substituído.',
+    },
+    {
+      label: 'Atenções técnicas',
+      value: technicalAlertCount > 0 ? `${technicalAlertCount} ponto(s)` : 'Sem alerta ativo',
+      description: technicalAlertCount > 0
+        ? 'Antes de alterar o objetivo, revise alertas clínicos, medicações, lesões ou questionários.'
+        : 'Nenhum bloqueio técnico foi identificado nas fontes carregadas.',
     },
   ];
   const prontuarioPath = `/protocolo-avaliacao-fisica/prontuario-entrevista-acompanhamento?alunoId=${aluno.id}`;
@@ -153,6 +178,43 @@ export function AlunoSaudeAnamneseTab({
               >
                 Abrir PRNT do aluno
               </Link>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-primary/20 bg-background p-4 text-sm">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0">
+                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Objetivo do aluno</div>
+                <div className="mt-2 text-base font-semibold text-foreground">{goalStatusLabel}</div>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {hasObjective ? objective : 'Crie o objetivo principal para orientar avaliação, PRNT, prescrição e acompanhamento.'}
+                </p>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row lg:flex-col">
+                <Link
+                  to={prontuarioPath}
+                  className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                >
+                  {goalActionLabel}
+                </Link>
+                {hasObjective && (
+                  <Link
+                    to={prontuarioPath}
+                    className="inline-flex items-center justify-center rounded-md border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-muted"
+                  >
+                    Registrar observação
+                  </Link>
+                )}
+              </div>
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              {goalContextItems.map((item) => (
+                <div key={item.label} className="rounded-lg border border-border bg-muted/20 p-3">
+                  <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{item.label}</div>
+                  <div className="mt-1 text-sm font-semibold text-foreground">{item.value}</div>
+                  <p className="mt-1 text-xs text-muted-foreground">{item.description}</p>
+                </div>
+              ))}
             </div>
           </div>
 
