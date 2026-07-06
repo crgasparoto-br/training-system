@@ -44,7 +44,7 @@ describe('AlunoResumoHubTab PRNT card', () => {
 
     expect(screen.getAllByText('PRNT pendente').length).toBeGreaterThan(0);
     expect(screen.getByText(/Completar anamnese e objetivo principal/i)).toBeInTheDocument();
-    expect(screen.getByText('Iniciar PRNT')).toBeInTheDocument();
+    expect(screen.getAllByText('Iniciar PRNT').length).toBeGreaterThan(0);
   });
 
   it('destaca alerta tecnico quando PAR-Q possui respostas positivas', () => {
