@@ -38,6 +38,13 @@ type SummaryStatusCardProps = {
   actionTo?: string;
 };
 
+type PrntTechnicalItem = {
+  label: string;
+  value: string;
+  tone: SummaryCardTone;
+  empty?: boolean;
+};
+
 const safeDate = (value?: string | null) => {
   if (!value) return null;
   const date = new Date(value);
@@ -47,6 +54,33 @@ const safeDate = (value?: string | null) => {
 const normalizeText = (value?: string | null) => {
   const normalizedValue = value?.trim();
   return normalizedValue && normalizedValue.length > 0 ? normalizedValue : null;
+};
+
+const normalizeUnknownText = (value: unknown) => {
+  if (typeof value === 'string') {
+    return normalizeText(value);
+  }
+
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+
+  return null;
+};
+
+const getRecordText = (record: Record<string, unknown> | null | undefined, keys: string[]) => {
+  if (!record || typeof record !== 'object') {
+    return null;
+  }
+
+  for (const key of keys) {
+    const value = normalizeUnknownText(record[key]);
+    if (value) {
+      return value;
+    }
+  }
+
+  return null;
 };
 
 const startOfDay = (date: Date) =>
@@ -62,7 +96,7 @@ const isSameDay = (left: Date, right: Date) =>
   startOfDay(left).getTime() === startOfDay(right).getTime();
 
 const formatDuration = (minutes?: number | null) => {
-  if (!minutes) return 'Tempo nao informado';
+  if (!minutes) return 'Tempo não informado';
   if (minutes < 60) return `${minutes} min`;
 
   const hours = Math.floor(minutes / 60);
@@ -70,17 +104,19 @@ const formatDuration = (minutes?: number | null) => {
   return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}min` : `${hours}h`;
 };
 
+const formatNullableDate = (value?: string | null) => (value ? formatDateBR(value) : 'Não informada');
+
 const sessionTypeLabels: Record<string, string> = {
   easy_run: 'Corrida leve',
   tempo_run: 'Corrida tempo',
   interval: 'Intervalado',
   long_run: 'Corrida longa',
-  recovery: 'Recuperacao',
+  recovery: 'Recuperação',
   strength: 'Fortalecimento',
   rest: 'Descanso',
 };
 
-const dayLabels = ['Domingo', 'Segunda', 'Terca', 'Quarta', 'Quinta', 'Sexta', 'Sabado'];
+const dayLabels = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
 const studentContractStatusLabel: Record<string, string> = {
   draft: 'Rascunho',
@@ -106,7 +142,7 @@ const summaryToneBadgeClass: Record<SummaryCardTone, string> = {
 };
 
 const formatSessionTitle = (session: Microcycle) =>
-  sessionTypeLabels[session.sessionType] || 'Sessao de treino';
+  sessionTypeLabels[session.sessionType] || 'Sessão de treino';
 
 const formatSessionTarget = (session: Microcycle) => {
   const details = [formatDuration(session.durationMinutes)];
@@ -174,12 +210,12 @@ function SummaryStatusCard({
           <div className="mt-2 text-sm font-semibold text-foreground">{status}</div>
         </div>
         <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-medium ${summaryToneBadgeClass[tone]}`}>
-          {tone === 'ok' ? 'Em dia' : tone === 'attention' ? 'Atencao' : tone === 'pending' ? 'Pendente' : 'Info'}
+          {tone === 'ok' ? 'Em dia' : tone === 'attention' ? 'Atenção' : tone === 'pending' ? 'Pendente' : 'Info'}
         </span>
       </div>
       <p className="mt-2 text-xs text-muted-foreground">{evidence}</p>
       <div className="mt-3 rounded-md border border-border/70 bg-background/70 px-3 py-2 text-xs text-foreground">
-        Proxima acao: {nextAction}
+        Próxima ação: {nextAction}
       </div>
       {actionLabel && actionTo && (
         <div className="mt-3">
@@ -190,6 +226,15 @@ function SummaryStatusCard({
           </Link>
         </div>
       )}
+    </div>
+  );
+}
+
+function PrntTechnicalItemCard({ label, value, tone, empty }: PrntTechnicalItem) {
+  return (
+    <div className={`rounded-lg border p-3 ${empty ? 'border-dashed border-border bg-muted/20' : summaryToneClass[tone]}`}>
+      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
+      <p className="mt-2 line-clamp-3 text-sm text-foreground">{value}</p>
     </div>
   );
 }
@@ -214,7 +259,7 @@ export function AlunoResumoHubTab({
     ? {
         assessmentDate: segmentedSummary.assessments.latest.performedAt,
         type: {
-          name: segmentedSummary.assessments.latest.title || 'Avaliacao registrada',
+          name: segmentedSummary.assessments.latest.title || 'Avaliação registrada',
         },
       }
     : assessments[0];
@@ -233,23 +278,43 @@ export function AlunoResumoHubTab({
     normalizeText(segmentedSummary?.overview.currentServiceName) ??
     normalizeText(contractForDisplay?.service?.name) ??
     normalizeText(aluno.service?.name);
-  const displayIntakeDate = segmentedSummary?.intake.assessmentDate ?? aluno.intakeForm?.assessmentDate ?? null;
+  const intake = segmentedSummary?.intake;
+  const rawFormResponses = intake?.rawFormResponses ?? aluno.intakeForm?.formResponses ?? null;
+  const displayIntakeDate = intake?.assessmentDate ?? aluno.intakeForm?.assessmentDate ?? null;
+  const displayIntakeUpdatedAt = intake?.updatedAt ?? intake?.createdAt ?? aluno.intakeForm?.assessmentDate ?? null;
+  const trainingBackground =
+    getRecordText(intake?.clinicalHistory, ['trainingBackground', 'physicalActivityHistory', 'activityHistory']) ??
+    normalizeText(aluno.intakeForm?.trainingBackground);
+  const medicalHistory =
+    getRecordText(intake?.clinicalHistory, ['medicalHistory', 'history', 'description']) ??
+    normalizeText(aluno.intakeForm?.medicalHistory);
+  const currentMedications =
+    getRecordText(intake?.medications, ['currentMedications', 'medications', 'description', 'notes']) ??
+    normalizeText(aluno.intakeForm?.currentMedications);
+  const injuriesHistory =
+    getRecordText(intake?.injuries, ['injuriesHistory', 'injuries', 'restrictions', 'description', 'notes']) ??
+    normalizeText(aluno.intakeForm?.injuriesHistory);
+  const allergies = getRecordText(intake?.allergies, ['allergies', 'description', 'notes']);
+  const observations = normalizeText(intake?.observations) ?? normalizeText(aluno.intakeForm?.observations);
   const hasCadastroEssentials = Boolean(displayName && displayEmail && aluno.age);
   const parqPositiveCount = Object.values(aluno.intakeForm?.parqResponses || {}).filter(Boolean).length;
   const hasHealthAlert = parqPositiveCount > 0;
   const hasPrntGoal = Boolean(displayMainGoal);
   const hasPrntIntake = Boolean(displayIntakeDate);
-  const prntCompletedItems = [hasPrntIntake, hasPrntGoal, !hasHealthAlert].filter(Boolean).length;
-  const prntStatus = !hasPrntIntake && !hasPrntGoal
+  const hasTechnicalDetails = Boolean(
+    trainingBackground || medicalHistory || currentMedications || injuriesHistory || allergies || observations
+  );
+  const prntCompletedItems = [hasPrntIntake, hasPrntGoal, hasTechnicalDetails].filter(Boolean).length;
+  const prntStatus = !hasPrntIntake && !hasPrntGoal && !hasTechnicalDetails
     ? 'pendente'
-    : prntCompletedItems >= 2
-      ? 'parcial'
-      : 'incompleto';
+    : prntCompletedItems >= 3
+      ? 'completo'
+      : 'parcial';
   const prntStatusLabel = prntStatus === 'pendente'
     ? 'PRNT pendente'
-    : prntStatus === 'parcial'
-      ? 'PRNT parcial'
-      : 'PRNT incompleto';
+    : prntStatus === 'completo'
+      ? 'PRNT completo'
+      : 'PRNT parcial';
   const prntEvidenceParts = [
     hasPrntIntake
       ? `Anamnese em ${formatDateBR(displayIntakeDate as string)}`
@@ -257,105 +322,144 @@ export function AlunoResumoHubTab({
     hasPrntGoal ? `Objetivo: ${displayMainGoal}` : 'Objetivo pendente',
     hasHealthAlert
       ? `${parqPositiveCount} alerta(s) no PAR-Q/AHA`
-      : 'Sem alerta critico no PAR-Q/AHA carregado',
+      : 'Sem alerta crítico no PAR-Q/AHA carregado',
   ];
   const centralEditPath = `/central-do-aluno/${aluno.id}/edit`;
+  const prontuarioPath = `/protocolo-avaliacao-fisica/prontuario-entrevista-acompanhamento?alunoId=${aluno.id}`;
+  const prntTechnicalItems: PrntTechnicalItem[] = [
+    {
+      label: 'Objetivo ativo',
+      value: displayMainGoal || 'Registre o objetivo principal para orientar avaliação, prescrição e acompanhamento.',
+      tone: hasPrntGoal ? 'ok' : 'pending',
+      empty: !hasPrntGoal,
+    },
+    {
+      label: 'Histórico de atividade física',
+      value: trainingBackground || 'Sem histórico de atividade física informado no prontuário.',
+      tone: trainingBackground ? 'ok' : 'pending',
+      empty: !trainingBackground,
+    },
+    {
+      label: 'Medicações',
+      value: currentMedications || 'Nenhuma medicação registrada nas fontes carregadas.',
+      tone: currentMedications ? 'attention' : 'neutral',
+      empty: !currentMedications,
+    },
+    {
+      label: 'Restrições, dores ou lesões',
+      value: injuriesHistory || 'Nenhuma restrição, dor ou lesão registrada nas fontes carregadas.',
+      tone: injuriesHistory ? 'attention' : 'neutral',
+      empty: !injuriesHistory,
+    },
+    {
+      label: 'Histórico médico',
+      value: medicalHistory || 'Sem histórico médico adicional informado.',
+      tone: medicalHistory ? 'attention' : 'neutral',
+      empty: !medicalHistory,
+    },
+    {
+      label: 'Observações técnicas',
+      value: observations || allergies || 'Sem observações técnicas categorizadas nas fontes carregadas.',
+      tone: observations || allergies ? 'ok' : 'pending',
+      empty: !observations && !allergies,
+    },
+  ];
   const todayStatusTitle = todaySessions.length
     ? 'Treino planejado para hoje'
     : activePlan
-      ? 'Sem sessao planejada para hoje'
+      ? 'Sem sessão planejada para hoje'
       : 'Sem treino liberado hoje';
   const todayStatusDescription = todaySessions.length
-    ? 'Use as orientacoes abaixo para acompanhar a execucao operacional do aluno.'
+    ? 'Use as orientações abaixo para acompanhar a execução operacional do aluno.'
     : activePlan
-      ? 'Existe plano ativo, mas nenhuma sessao do plano cai na data de hoje.'
+      ? 'Existe plano ativo, mas nenhuma sessão do plano cai na data de hoje.'
       : 'Nenhum plano ativo foi encontrado para a data de hoje.';
   const summaryCards: SummaryStatusCardProps[] = [
     {
       title: 'Cadastro do aluno',
-      status: hasCadastroEssentials ? 'Dados minimos disponiveis' : 'Cadastro incompleto',
-      evidence: `${aluno.age || 'Idade nao informada'} anos • ${displayEmail || 'email pendente'}${displayPhone ? ` • ${displayPhone}` : ''}`,
+      status: hasCadastroEssentials ? 'Dados mínimos disponíveis' : 'Cadastro incompleto',
+      evidence: `${aluno.age || 'Idade não informada'} anos • ${displayEmail || 'email pendente'}${displayPhone ? ` • ${displayPhone}` : ''}`,
       nextAction: hasCadastroEssentials
-        ? `Revisar cadastro se houver mudanca desde ${formatDateBR(displayUpdatedAt)}.`
-        : 'Completar dados basicos antes de evoluir para analises e prescricoes.',
+        ? `Revisar cadastro se houver mudança desde ${formatDateBR(displayUpdatedAt)}.`
+        : 'Completar dados básicos antes de evoluir para análises e prescrições.',
       tone: hasCadastroEssentials ? 'ok' : 'pending',
       actionLabel: 'Editar dados da Central',
       actionTo: centralEditPath,
     },
     {
-      title: 'PRNT tecnico',
+      title: 'PRNT técnico',
       status: prntStatusLabel,
       evidence: prntEvidenceParts.join(' • '),
       nextAction: hasHealthAlert
-        ? 'Revisar alertas tecnicos antes de prescrever ou intensificar treino.'
+        ? 'Revisar alertas técnicos antes de prescrever ou intensificar treino.'
         : hasPrntIntake && hasPrntGoal
-          ? 'Validar se objetivo, anamnese e restricoes continuam atuais.'
+          ? 'Validar se objetivo, anamnese e restrições continuam atuais.'
           : 'Completar anamnese e objetivo principal para orientar condutas.',
       tone: hasHealthAlert ? 'attention' : hasPrntIntake && hasPrntGoal ? 'ok' : 'pending',
       actionLabel: hasPrntIntake ? 'Atualizar PRNT' : 'Iniciar PRNT',
-      actionTo: centralEditPath,
+      actionTo: prontuarioPath,
     },
     {
-      title: 'Dores e restricoes',
-      status: hasHealthAlert ? 'Ha respostas positivas no PAR-Q/AHA' : 'Sem alerta critico carregado',
+      title: 'Dores e restrições',
+      status: hasHealthAlert || injuriesHistory ? 'Há pontos técnicos para revisar' : 'Sem alerta crítico carregado',
       evidence: hasHealthAlert
-        ? `${parqPositiveCount} resposta(s) positiva(s) exigem revisao antes da proxima conduta.`
-        : 'Nenhuma restricao critica foi identificada nas fontes carregadas.',
-      nextAction: hasHealthAlert
-        ? 'Abrir Saude/Anamnese e confirmar conduta segura.'
-        : 'Manter acompanhamento e atualizar se houver dor, lesao ou medicacao.',
-      tone: hasHealthAlert ? 'attention' : 'ok',
-      actionLabel: 'Revisar observacoes',
-      actionTo: centralEditPath,
+        ? `${parqPositiveCount} resposta(s) positiva(s) exigem revisão antes da próxima conduta.`
+        : injuriesHistory || 'Nenhuma restrição crítica foi identificada nas fontes carregadas.',
+      nextAction: hasHealthAlert || injuriesHistory
+        ? 'Abrir Prontuário e confirmar conduta segura.'
+        : 'Manter acompanhamento e atualizar se houver dor, lesão ou medicação.',
+      tone: hasHealthAlert || injuriesHistory ? 'attention' : 'ok',
+      actionLabel: 'Revisar PRNT',
+      actionTo: prontuarioPath,
     },
     {
-      title: 'Avaliacoes',
-      status: latestAssessment ? formatDateBR(latestAssessment.assessmentDate) : 'Nenhuma avaliacao registrada',
-      evidence: latestAssessment?.type?.name || 'Aguardando primeira avaliacao profissional.',
+      title: 'Avaliações',
+      status: latestAssessment ? formatDateBR(latestAssessment.assessmentDate) : 'Nenhuma avaliação registrada',
+      evidence: latestAssessment?.type?.name || 'Aguardando primeira avaliação profissional.',
       nextAction: upcomingAssessment?.nextDueDate
-        ? `Proxima prevista em ${formatDateBR(upcomingAssessment.nextDueDate)}.`
+        ? `Próxima prevista em ${formatDateBR(upcomingAssessment.nextDueDate)}.`
         : latestAssessment
-          ? 'Definir ou revisar a proxima reavaliacao.'
-          : 'Registrar avaliacao inicial para criar linha de base.',
+          ? 'Definir ou revisar a próxima reavaliação.'
+          : 'Registrar avaliação inicial para criar linha de base.',
       tone: latestAssessment ? (upcomingAssessment?.nextDueDate ? 'ok' : 'pending') : 'pending',
     },
     {
       title: 'Treinamento',
       status: activePlan?.name || 'Nenhum plano ativo',
       evidence: activePlan
-        ? `${formatDateBR(activePlan.startDate)} ate ${formatDateBR(activePlan.endDate)}`
-        : 'Nao ha plano ativo para a data de hoje.',
+        ? `${formatDateBR(activePlan.startDate)} até ${formatDateBR(activePlan.endDate)}`
+        : 'Não há plano ativo para a data de hoje.',
       nextAction: activePlan
-        ? 'Acompanhar execucao e feedback do ciclo atual.'
+        ? 'Acompanhar execução e feedback do ciclo atual.'
         : 'Criar ou ativar plano de treino no contexto deste aluno.',
       tone: activePlan ? 'ok' : 'pending',
       actionLabel: activePlan ? 'Abrir plano ativo' : 'Criar plano de treino',
       actionTo: activePlan ? `/plans/${activePlan.id}` : `/plans/new?alunoId=${aluno.id}`,
     },
     {
-      title: 'Contrato e servico',
+      title: 'Contrato e serviço',
       status: contractForDisplay?.contract.title || 'Sem contrato ativo',
       evidence: contractForDisplay
-        ? `${studentContractStatusLabel[contractForDisplay.status] || contractForDisplay.status} • Servico: ${displayServiceName || 'Nao informado'}`
-        : `Servico: ${displayServiceName || 'Nao informado'}`,
+        ? `${studentContractStatusLabel[contractForDisplay.status] || contractForDisplay.status} • Serviço: ${displayServiceName || 'Não informado'}`
+        : `Serviço: ${displayServiceName || 'Não informado'}`,
       nextAction: contractForDisplay
-        ? 'Conferir vigencia e condicoes na aba Financeiro.'
-        : 'Verificar contrato, servico e condicoes comerciais permitidas.',
+        ? 'Conferir vigência e condições na aba Financeiro.'
+        : 'Verificar contrato, serviço e condições comerciais permitidas.',
       tone: contractForDisplay?.status === 'active' ? 'ok' : contractForDisplay ? 'attention' : 'pending',
       actionLabel: 'Gerenciar contratos',
       actionTo: `/alunos/${aluno.id}/contracts`,
     },
     {
-      title: 'Integracoes e apps',
+      title: 'Integrações e apps',
       status: segmentedSummary?.integrations.totalAccounts
         ? `${segmentedSummary.integrations.totalAccounts} conta(s) conectada(s)`
         : 'Sem conta externa conectada',
       evidence: segmentedSummary?.integrations.lastSyncAt
-        ? `Ultima sincronizacao em ${formatDateBR(segmentedSummary.integrations.lastSyncAt)}.`
-        : 'Area preparada para separar dados externos do cadastro e das avaliacoes.',
+        ? `Última sincronização em ${formatDateBR(segmentedSummary.integrations.lastSyncAt)}.`
+        : 'Área preparada para separar dados externos do cadastro e das avaliações.',
       nextAction: segmentedSummary?.integrations.totalAccounts
-        ? 'Conferir ultima sincronizacao e atividades importadas.'
-        : 'Conectar integracoes quando fizer parte do acompanhamento.',
+        ? 'Conferir última sincronização e atividades importadas.'
+        : 'Conectar integrações quando fizer parte do acompanhamento.',
       tone: segmentedSummary?.integrations.totalAccounts ? 'ok' : 'neutral',
     },
   ];
@@ -366,7 +470,7 @@ export function AlunoResumoHubTab({
         <CardHeader>
           <CardTitle>Aluno selecionado</CardTitle>
           <CardDescription>
-            Resumo operacional para navegar entre treino de hoje, prontuario, avaliacao, prescricao futura e historico sem perder o contexto do aluno.
+            Resumo operacional para navegar entre treino de hoje, prontuário, avaliação, prescrição futura e histórico sem perder o contexto do aluno.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
@@ -412,7 +516,7 @@ export function AlunoResumoHubTab({
 
             <div className="rounded-lg border border-border bg-background p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Proximas sessoes
+                Próximas sessões
               </p>
               <div className="mt-3 space-y-3">
                 {upcomingSessions.length > 0 ? (
@@ -432,7 +536,7 @@ export function AlunoResumoHubTab({
                   ))
                 ) : (
                   <p className="text-sm text-muted-foreground">
-                    Nenhuma sessao futura encontrada nos planos carregados deste aluno.
+                    Nenhuma sessão futura encontrada nos planos carregados deste aluno.
                   </p>
                 )}
               </div>
@@ -444,20 +548,20 @@ export function AlunoResumoHubTab({
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">PRNT</p>
               <p className="mt-2 text-sm font-semibold text-foreground">{prntStatusLabel}</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                {hasHealthAlert ? `${parqPositiveCount} alerta(s) exigem revisao.` : hasPrntGoal ? `Objetivo: ${displayMainGoal}` : 'Objetivo e anamnese pendentes.'}
+                {hasHealthAlert ? `${parqPositiveCount} alerta(s) exigem revisão.` : hasPrntGoal ? `Objetivo: ${displayMainGoal}` : 'Objetivo e anamnese pendentes.'}
               </p>
             </div>
             <div className="rounded-lg border border-border bg-muted/20 p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Avaliacao</p>
-              <p className="mt-2 text-sm text-foreground">Historico e dados-base sustentam a decisao tecnica.</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Avaliação</p>
+              <p className="mt-2 text-sm text-foreground">Histórico e dados-base sustentam a decisão técnica.</p>
             </div>
             <div className="rounded-lg border border-border bg-muted/20 p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Prescricao</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Prescrição</p>
               <p className="mt-2 text-sm text-foreground">Entrada preparada para capacidades futuras sem gerar treino direto.</p>
             </div>
             <div className="rounded-lg border border-border bg-muted/20 p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Historico</p>
-              <p className="mt-2 text-sm text-foreground">Evolucao e auditoria preservam rastreabilidade do acompanhamento.</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Histórico</p>
+              <p className="mt-2 text-sm text-foreground">Evolução e auditoria preservam rastreabilidade do acompanhamento.</p>
             </div>
           </div>
         </CardContent>
@@ -465,9 +569,73 @@ export function AlunoResumoHubTab({
 
       <Card>
         <CardHeader>
-          <CardTitle>Visao geral do aluno</CardTitle>
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <CardTitle>PRNT e histórico técnico</CardTitle>
+              <CardDescription>
+                Resumo vivo do prontuário dentro da Central do Aluno, com objetivo, dados sensíveis, origem, atualização e próxima ação sem sair da ficha.
+              </CardDescription>
+            </div>
+            <span className={`w-fit rounded-full border px-3 py-1 text-xs font-medium ${summaryToneBadgeClass[hasHealthAlert ? 'attention' : prntStatus === 'pendente' ? 'pending' : 'ok']}`}>
+              {prntStatusLabel}
+            </span>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="rounded-lg border border-border bg-background p-4">
+              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Data-base do PRNT</div>
+              <div className="mt-1 text-sm font-semibold text-foreground">{formatNullableDate(displayIntakeDate)}</div>
+              <p className="mt-1 text-xs text-muted-foreground">Referência usada para interpretar objetivo, anamnese e restrições.</p>
+            </div>
+            <div className="rounded-lg border border-border bg-background p-4">
+              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Última atualização</div>
+              <div className="mt-1 text-sm font-semibold text-foreground">{formatNullableDate(displayIntakeUpdatedAt)}</div>
+              <p className="mt-1 text-xs text-muted-foreground">Use esta data para decidir se o prontuário precisa ser confirmado.</p>
+            </div>
+            <div className={`rounded-lg border p-4 ${hasHealthAlert ? summaryToneClass.attention : summaryToneClass.neutral}`}>
+              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Alertas técnicos</div>
+              <div className="mt-1 text-sm font-semibold text-foreground">{parqPositiveCount} ponto(s)</div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {hasHealthAlert ? 'Revise respostas positivas antes de prescrever ou intensificar treino.' : 'Sem alertas críticos carregados no PAR-Q/AHA.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {prntTechnicalItems.map((item) => (
+              <PrntTechnicalItemCard key={item.label} {...item} />
+            ))}
+          </div>
+
+          <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="font-semibold text-foreground">Próxima ação no contexto do aluno</p>
+                <p className="mt-1 text-muted-foreground">
+                  {hasHealthAlert
+                    ? 'Abra o PRNT para revisar alertas, dores, medicações e conduta antes de avançar para treino ou avaliação.'
+                    : prntStatus === 'completo'
+                      ? 'Confirme se objetivo e dados técnicos continuam atuais antes da próxima decisão.'
+                      : 'Complete o PRNT para reduzir navegação entre telas e sustentar a decisão técnica.'}
+                </p>
+              </div>
+              <Link
+                to={prontuarioPath}
+                className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+              >
+                {prntStatus === 'pendente' ? 'Iniciar PRNT' : 'Abrir PRNT'}
+              </Link>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Visão geral do aluno</CardTitle>
           <CardDescription>
-            Leitura rapida com situacao atual, evidencia carregada e proxima acao recomendada para cada dominio da Central.
+            Leitura rápida com situação atual, evidência carregada e próxima ação recomendada para cada domínio da Central.
           </CardDescription>
         </CardHeader>
         <CardContent>
