@@ -34,18 +34,18 @@ export function AlunoAssessmentSummaryCard({
   const latestFromSummary = segmentedSummary?.assessments.latest;
   const responsibleFromSummary = normalizeText(segmentedSummary?.overview.professorResponsible);
   const responsibleFromAluno = normalizeText(aluno.professor?.user?.profile?.name);
-  const responsibleName = responsibleFromSummary ?? responsibleFromAluno;
   const latestAssessment = latestFromSummary
     ? {
         title: normalizeText(latestFromSummary.title) ?? 'Avaliação registrada',
         performedAt: latestFromSummary.performedAt,
-        responsibleName,
+        responsibleName: responsibleFromSummary ?? responsibleFromAluno,
       }
     : assessments[0]
       ? {
           title: normalizeText(assessments[0].type?.name) ?? 'Avaliação registrada',
           performedAt: assessments[0].assessmentDate,
-          responsibleName,
+          responsibleName:
+            normalizeText(assessments[0].professional?.user?.profile?.name) ?? responsibleFromAluno,
         }
       : null;
 
