@@ -27,7 +27,7 @@ export function AlunoAnthropometryFlowEntry({
   const latestAnthropometry = assessments.find(isAnthropometryAssessment);
   const hasAnthropometry = Boolean(latestAnthropometry);
   const latestDate = latestAnthropometry?.assessmentDate;
-  const responsibleName = normalizeText(latestAnthropometry?.professional?.user?.profile?.name);
+  const responsibleName = normalizeText(aluno.professor?.user?.profile?.name);
   const studentName = normalizeText(aluno.user?.profile?.name) ?? 'Aluno selecionado';
 
   const steps = [
