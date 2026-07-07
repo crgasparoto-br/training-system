@@ -2,7 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { assessmentHistorySections } from '../data/assessmentVariables';
 import { AnthropometryScreen } from './PhysicalAssessment/AnthropometryScreen';
-import { ProntuarioScreen } from './PhysicalAssessment/ProntuarioScreen';
+import { ProntuarioScreenWithDiscomfortFollowUps } from './PhysicalAssessment/ProntuarioScreenWithDiscomfortFollowUps';
 
 type ProtocolPageConfig = {
   slug: string;
@@ -177,7 +177,7 @@ export default function PhysicalAssessmentProtocol() {
   }
 
   if (currentProtocol.slug === 'prontuario-entrevista-acompanhamento') {
-    return <ProntuarioScreen />;
+    return <ProntuarioScreenWithDiscomfortFollowUps />;
   }
 
   return <GenericProtocolScreen currentProtocol={currentProtocol} />;
