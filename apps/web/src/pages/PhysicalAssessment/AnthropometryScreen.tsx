@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { History, Plus, RefreshCw, Save } from 'lucide-react';
+import { CheckCircle2, History, Lock, Plus, RefreshCw, Save } from 'lucide-react';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../../components/ui/Accordion';
 import { Button } from '../../components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/Card';
@@ -19,6 +19,14 @@ type ProfessorOption = {
   name: string;
 };
 
+type GuidedStepTone = 'done' | 'current' | 'pending';
+
+type GuidedStep = {
+  title: string;
+  description: string;
+  tone: GuidedStepTone;
+};
+
 const protocolLinks = [
   ['antropometria', 'Antropometria'],
   ['prontuario-entrevista-acompanhamento', 'Prontuário de entrevista e acompanhamento'],
@@ -29,16 +37,37 @@ const protocolLinks = [
 
 const toDateInput = (value?: string) => (value ? new Date(value).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10));
 
+const guidedStepClass: Record<GuidedStepTone, string> = {
+  done: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+  current: 'border-primary/40 bg-primary/5 text-foreground',
+  pending: 'border-border bg-muted/20 text-muted-foreground',
+};
+
+function GuidedStepCard({ title, description, tone }: GuidedStep) {
+  return (
+    <div className={`rounded-lg border p-3 text-sm ${guidedStepClass[tone]}`}>
+      <div className="flex items-center gap-2 font-semibold">
+        {tone === 'done' ? <CheckCircle2 className="h-4 w-4" /> : null}
+        {title}
+      </div>
+      <p className="mt-1 text-xs leading-5 opacity-80">{description}</p>
+    </div>
+  );
+}
+
 export function AnthropometryScreen() {
   const { user } = useAuthStore();
   const [searchParams, setSearchParams] = useSearchParams();
+  const initialAlunoId = searchParams.get('alunoId') || '';
+  const startedFromCentral = Boolean(initialAlunoId);
   const [alunos, setAlunos] = useState<Aluno[]>([]);
-  const [selectedAlunoId, setSelectedAlunoId] = useState(searchParams.get('alunoId') || '');
+  const [selectedAlunoId, setSelectedAlunoId] = useState(initialAlunoId);
   const [professors, setProfessors] = useState<ProfessorOption[]>([]);
   const [helpSegment, setHelpSegment] = useState<AnthropometrySegment | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
   const [header, setHeader] = useState({ assessmentDate: toDateInput(), professorId: '', notes: '' });
   const [observations, setObservations] = useState<Array<Pick<AnthropometryObservation, 'segmentId' | 'text' | 'importable'>>>([]);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   const selectedAluno = alunos.find((aluno) => aluno.id === selectedAlunoId);
   const alunoSex = selectedAluno?.user.profile.gender;
@@ -50,6 +79,8 @@ export function AnthropometryScreen() {
       ? anthropometry.selectedAssessment
       : null;
   const previousAssessments = anthropometry.assessments.slice(1);
+  const effectiveProfessorId = header.professorId || user?.professor?.id || '';
+  const centralAlunoPath = selectedAlunoId ? `/central-do-aluno/${selectedAlunoId}` : '/central-do-aluno';
 
   useEffect(() => {
     async function loadMetadata() {
@@ -110,20 +141,79 @@ export function AnthropometryScreen() {
     [anthropometry.assessments]
   );
 
+  const guidedSteps: GuidedStep[] = useMemo(
+    () => [
+      {
+        title: '1. Aluno preservado',
+        description: selectedAluno
+          ? `${selectedAluno.user.profile.name} está vinculado ao fluxo atual.`
+          : 'Selecione ou aguarde o aluno carregado pela Central.',
+        tone: selectedAluno ? 'done' : 'current',
+      },
+      {
+        title: '2. Cabeçalho obrigatório',
+        description: header.assessmentDate && effectiveProfessorId
+          ? 'Data e responsável definidos para rastreabilidade.'
+          : 'Informe data e responsável antes de criar ou salvar a avaliação.',
+        tone: header.assessmentDate && effectiveProfessorId ? 'done' : selectedAluno ? 'current' : 'pending',
+      },
+      {
+        title: '3. Coleta guiada',
+        description: currentAssessment
+          ? 'Preencha as medidas principais em centímetros e use ajuda técnica quando necessário.'
+          : 'Crie a avaliação ANTR para liberar a tabela de medidas.',
+        tone: currentAssessment ? 'done' : selectedAluno ? 'current' : 'pending',
+      },
+      {
+        title: '4. Salvar e voltar à Central',
+        description: currentAssessment
+          ? 'Salvar atualiza o registro para consulta no histórico e no card da Central.'
+          : 'A avaliação ainda não conta como concluída enquanto não houver registro salvo.',
+        tone: currentAssessment ? 'current' : 'pending',
+      },
+    ],
+    [currentAssessment, effectiveProfessorId, header.assessmentDate, selectedAluno]
+  );
+
+  const validateRequiredHeader = () => {
+    if (!selectedAlunoId) {
+      setValidationError('Selecione um aluno antes de iniciar a antropometria.');
+      return false;
+    }
+
+    if (!header.assessmentDate) {
+      setValidationError('Informe a data da avaliação antes de continuar.');
+      return false;
+    }
+
+    if (!effectiveProfessorId) {
+      setValidationError('Informe o professor responsável antes de continuar.');
+      return false;
+    }
+
+    setValidationError(null);
+    return true;
+  };
+
   const handleCreateAssessment = async () => {
-    const created = await anthropometry.createNewAssessment(header.professorId || user?.professor?.id);
+    if (!validateRequiredHeader()) return;
+
+    const created = await anthropometry.createNewAssessment(effectiveProfessorId);
     if (created) {
       setHeader({
         assessmentDate: toDateInput(created.assessmentDate),
-        professorId: created.professorId || '',
+        professorId: created.professorId || effectiveProfessorId,
         notes: created.notes || '',
       });
     }
   };
 
   const handleSave = async () => {
-    if (!currentAssessment) return;
-    await anthropometry.updateHeader(currentAssessment.id, header);
+    if (!currentAssessment || !validateRequiredHeader()) return;
+    await anthropometry.updateHeader(currentAssessment.id, {
+      ...header,
+      professorId: effectiveProfessorId,
+    });
     await anthropometry.saveValues(
       currentAssessment.id,
       anthropometry.segments.map((segment) => ({
@@ -141,6 +231,9 @@ export function AnthropometryScreen() {
     );
   };
 
+  const protocolLinkTo = (slug: string) =>
+    selectedAlunoId ? `/protocolo-avaliacao-fisica/${slug}?alunoId=${selectedAlunoId}` : `/protocolo-avaliacao-fisica/${slug}`;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -155,7 +248,7 @@ export function AnthropometryScreen() {
           {protocolLinks.map(([slug, label]) => (
             <Link
               key={slug}
-              to={`/protocolo-avaliacao-fisica/${slug}`}
+              to={protocolLinkTo(slug)}
               className={slug === 'antropometria' ? 'rounded-lg border border-primary bg-primary/10 px-3 py-2 text-sm font-medium text-primary' : 'rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground hover:bg-muted'}
             >
               {label}
@@ -163,6 +256,32 @@ export function AnthropometryScreen() {
           ))}
         </div>
       </div>
+
+      {startedFromCentral ? (
+        <Card>
+          <CardHeader>
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Lock className="h-4 w-4" />
+                  Fluxo iniciado pela Central do Aluno
+                </CardTitle>
+                <CardDescription>
+                  O aluno veio pré-selecionado pela Central e fica protegido contra troca acidental durante a coleta.
+                </CardDescription>
+              </div>
+              <Link to={centralAlunoPath}>
+                <Button variant="outline" size="sm">Voltar à Central</Button>
+              </Link>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-3 md:grid-cols-4">
+              {guidedSteps.map((step) => <GuidedStepCard key={step.title} {...step} />)}
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader>
@@ -172,11 +291,14 @@ export function AnthropometryScreen() {
         <CardContent className="space-y-4">
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_180px_minmax(220px,0.8fr)_auto_auto]">
             <div>
-              <label className="mb-2 block text-sm font-medium text-foreground">Aluno</label>
+              <label className="mb-2 block text-sm font-medium text-foreground">
+                Aluno <span className="text-destructive">*</span>
+              </label>
               <select
                 value={selectedAlunoId}
+                disabled={startedFromCentral}
                 onChange={(event) => setSelectedAlunoId(event.target.value)}
-                className="h-11 w-full rounded-lg border border-input bg-card px-4 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="h-11 w-full rounded-lg border border-input bg-card px-4 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:bg-muted"
               >
                 <option value="">Selecione um aluno</option>
                 {alunos.map((aluno) => (
@@ -185,21 +307,26 @@ export function AnthropometryScreen() {
                   </option>
                 ))}
               </select>
+              {startedFromCentral ? (
+                <p className="mt-1 text-xs text-muted-foreground">Aluno travado porque o fluxo foi iniciado pela Central.</p>
+              ) : null}
             </div>
 
             <Input
-              label="Data"
+              label="Data *"
               type="date"
               value={header.assessmentDate}
-              disabled={!currentAssessment}
+              disabled={!selectedAlunoId}
               onChange={(event) => setHeader((current) => ({ ...current, assessmentDate: event.target.value }))}
             />
 
             <div>
-              <label className="mb-2 block text-sm font-medium text-foreground">Professor</label>
+              <label className="mb-2 block text-sm font-medium text-foreground">
+                Professor <span className="text-destructive">*</span>
+              </label>
               <select
-                value={header.professorId}
-                disabled={!currentAssessment}
+                value={effectiveProfessorId}
+                disabled={!selectedAlunoId}
                 onChange={(event) => setHeader((current) => ({ ...current, professorId: event.target.value }))}
                 className="h-11 w-full rounded-lg border border-input bg-card px-4 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:bg-muted"
               >
@@ -227,7 +354,17 @@ export function AnthropometryScreen() {
             </div>
           </div>
 
+          {validationError ? <p className="text-sm text-destructive">{validationError}</p> : null}
           {anthropometry.error ? <p className="text-sm text-destructive">{anthropometry.error}</p> : null}
+
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="rounded-lg border border-border bg-muted/20 p-3 text-sm text-foreground">
+              <span className="font-semibold">Campos obrigatórios:</span> aluno, data e professor responsável.
+            </div>
+            <div className="rounded-lg border border-border bg-muted/20 p-3 text-sm text-muted-foreground">
+              Medidas e observações seguem como campos de coleta. Preencha conforme protocolo aplicado antes de salvar.
+            </div>
+          </div>
 
           {currentAssessment ? (
             <div className="rounded-lg border border-border bg-muted/20 p-3 text-sm text-foreground">
@@ -235,7 +372,7 @@ export function AnthropometryScreen() {
             </div>
           ) : (
             <div className="rounded-lg border border-dashed border-border bg-muted/20 p-4 text-sm text-muted-foreground">
-              Selecione um aluno e clique em Nova avaliação para gerar ANTR-001 ou o próximo código sequencial.
+              Selecione um aluno e clique em Nova avaliação para gerar ANTR-001 ou o próximo código sequencial. Enquanto isso não for feito, nada conta como avaliação concluída.
             </div>
           )}
         </CardContent>
