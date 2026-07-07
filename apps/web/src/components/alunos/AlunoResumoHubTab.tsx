@@ -41,6 +41,16 @@ type PrntTechnicalItem = {
   empty?: boolean;
 };
 
+type AssessmentHistoryItem = {
+  id: string;
+  title: string;
+  typeName: string;
+  performedAt: string;
+  responsibleName: string;
+  origin: string;
+  status: string;
+};
+
 const safeDate = (value?: string | null) => {
   if (!value) return null;
   const date = new Date(value);
@@ -112,6 +122,15 @@ const studentContractStatusLabel: Record<string, string> = {
   terminated: 'Encerrado',
 };
 
+const assessmentStatusLabel: Record<string, string> = {
+  completed: 'Concluída',
+  complete: 'Concluída',
+  done: 'Concluída',
+  draft: 'Rascunho',
+  pending: 'Pendente',
+  canceled: 'Cancelada',
+};
+
 const summaryToneClass: Record<SummaryCardTone, string> = {
   ok: 'border-emerald-200 bg-emerald-50/50',
   pending: 'border-amber-200 bg-amber-50/60',
@@ -164,6 +183,15 @@ const buildScheduledSessions = (plans: TrainingPlan[]) => {
 
   return sessions.sort((left, right) => left.date.getTime() - right.date.getTime());
 };
+
+const getAssessmentResponsibleName = (assessment: Assessment) =>
+  normalizeText(assessment.professional?.user?.profile?.name) ?? 'Responsável não informado';
+
+const getAssessmentOrigin = (assessment: Assessment) =>
+  assessment.extractedData?.parseOk ? 'Arquivo interpretado' : assessment.originalFileName ? 'Arquivo anexado' : 'Registro manual/sistema';
+
+const getAssessmentStatusLabel = (status?: string | null) =>
+  status ? assessmentStatusLabel[status] || status : 'Registrada';
 
 function SummaryStatusCard({ title, status, evidence, nextAction, tone, actionLabel, actionTo }: SummaryStatusCardProps) {
   return (
@@ -219,17 +247,73 @@ export function AlunoResumoHubTab({
   const upcomingSessions = scheduledSessions
     .filter((item) => startOfDay(item.date).getTime() > today.getTime())
     .slice(0, 4);
+  const assessmentsByDate = [...assessments].sort((left, right) => {
+    const leftDate = safeDate(left.assessmentDate)?.getTime() ?? 0;
+    const rightDate = safeDate(right.assessmentDate)?.getTime() ?? 0;
+    return rightDate - leftDate;
+  });
+  const latestLegacyAssessment = assessmentsByDate[0];
   const latestAssessment = segmentedSummary?.assessments.latest
     ? {
         assessmentDate: segmentedSummary.assessments.latest.performedAt,
-        type: { name: segmentedSummary.assessments.latest.title || 'Avaliação registrada' },
+        typeName: segmentedSummary.assessments.latest.title || 'Avaliação registrada',
+        responsibleName: 'Responsável não informado',
       }
-    : assessments[0];
+    : latestLegacyAssessment
+      ? {
+          assessmentDate: latestLegacyAssessment.assessmentDate,
+          typeName: latestLegacyAssessment.type?.name || 'Avaliação registrada',
+          responsibleName: getAssessmentResponsibleName(latestLegacyAssessment),
+        }
+      : null;
   const upcomingAssessment = [...assessmentSummary]
     .filter((item) => item.nextDueDate)
     .map((item) => ({ ...item, nextDate: safeDate(item.nextDueDate) }))
     .filter((item) => item.nextDate)
     .sort((a, b) => (a.nextDate as Date).getTime() - (b.nextDate as Date).getTime())[0];
+  const assessmentHistoryItems: AssessmentHistoryItem[] = assessmentsByDate.length
+    ? assessmentsByDate.slice(0, 4).map((assessment) => ({
+        id: assessment.id,
+        title: assessment.type?.name || 'Avaliação registrada',
+        typeName: assessment.type?.name || 'Tipo não informado',
+        performedAt: assessment.assessmentDate,
+        responsibleName: getAssessmentResponsibleName(assessment),
+        origin: getAssessmentOrigin(assessment),
+        status: 'Registrada',
+      }))
+    : segmentedSummary?.assessments.latest
+      ? [
+          {
+            id: segmentedSummary.assessments.latest.id,
+            title: segmentedSummary.assessments.latest.title || 'Avaliação registrada',
+            typeName: segmentedSummary.assessments.latest.category || segmentedSummary.assessments.latest.code || 'Tipo não informado',
+            performedAt: segmentedSummary.assessments.latest.performedAt,
+            responsibleName: 'Responsável não informado',
+            origin: segmentedSummary.assessments.latest.source.reference || segmentedSummary.assessments.latest.source.type,
+            status: getAssessmentStatusLabel(segmentedSummary.assessments.latest.status),
+          },
+        ]
+      : [];
+  const assessmentTotal = segmentedSummary?.assessments.total ?? assessments.length;
+  const hasAssessmentHistory = assessmentHistoryItems.length > 0;
+  const nextAssessmentDate = upcomingAssessment?.nextDueDate ?? null;
+  const nextAssessmentDue = safeDate(nextAssessmentDate);
+  const isAssessmentOverdue = Boolean(nextAssessmentDue && startOfDay(nextAssessmentDue).getTime() < today.getTime());
+  const assessmentStatusLabel = !latestAssessment
+    ? 'Avaliação pendente'
+    : isAssessmentOverdue
+      ? 'Reavaliação vencida'
+      : nextAssessmentDate
+        ? 'Avaliação em dia'
+        : 'Reavaliação sem data definida';
+  const assessmentTone: SummaryCardTone = !latestAssessment
+    ? 'pending'
+    : isAssessmentOverdue
+      ? 'attention'
+      : nextAssessmentDate
+        ? 'ok'
+        : 'pending';
+  const canCompareAssessments = assessmentTotal >= 2;
   const contractForDisplay = segmentedSummary?.financial.activeContract ?? activeStudentContract;
   const displayName = normalizeText(segmentedSummary?.overview.name) ?? normalizeText(aluno.user.profile.name);
   const displayEmail = normalizeText(segmentedSummary?.overview.email) ?? normalizeText(aluno.user.email);
@@ -275,6 +359,8 @@ export function AlunoResumoHubTab({
   const prntStatusLabel = prntStatus === 'pendente' ? 'PRNT pendente' : prntStatus === 'completo' ? 'PRNT completo' : 'PRNT parcial';
   const centralEditPath = `/central-do-aluno/${aluno.id}/edit`;
   const prontuarioPath = `/protocolo-avaliacao-fisica/prontuario-entrevista-acompanhamento?alunoId=${aluno.id}`;
+  const anthropometryPath = `/protocolo-avaliacao-fisica/antropometria?alunoId=${aluno.id}`;
+  const assessmentsPath = `/central-do-aluno/${aluno.id}?tab=avaliacoes-fisicas`;
   const prntTechnicalItems: PrntTechnicalItem[] = [
     {
       label: 'Objetivo ativo',
@@ -328,6 +414,9 @@ export function AlunoResumoHubTab({
     hasPrntGoal ? `Objetivo: ${displayMainGoal}` : 'Objetivo pendente',
     hasHealthAlert ? `${parqPositiveCount} alerta(s) no PAR-Q/AHA` : 'Sem alerta crítico no PAR-Q/AHA carregado',
   ];
+  const assessmentEvidence = latestAssessment
+    ? `${latestAssessment.typeName} • ${formatDateBR(latestAssessment.assessmentDate)} • ${latestAssessment.responsibleName}`
+    : 'Aguardando primeira avaliação profissional.';
   const summaryCards: SummaryStatusCardProps[] = [
     {
       title: 'Cadastro do aluno',
@@ -368,14 +457,16 @@ export function AlunoResumoHubTab({
     },
     {
       title: 'Avaliações',
-      status: latestAssessment ? formatDateBR(latestAssessment.assessmentDate) : 'Nenhuma avaliação registrada',
-      evidence: latestAssessment?.type?.name || 'Aguardando primeira avaliação profissional.',
-      nextAction: upcomingAssessment?.nextDueDate
-        ? `Próxima prevista em ${formatDateBR(upcomingAssessment.nextDueDate)}.`
+      status: assessmentStatusLabel,
+      evidence: assessmentEvidence,
+      nextAction: nextAssessmentDate
+        ? `Próxima prevista em ${formatDateBR(nextAssessmentDate)}.`
         : latestAssessment
           ? 'Definir ou revisar a próxima reavaliação.'
           : 'Registrar avaliação inicial para criar linha de base.',
-      tone: latestAssessment ? (upcomingAssessment?.nextDueDate ? 'ok' : 'pending') : 'pending',
+      tone: assessmentTone,
+      actionLabel: latestAssessment ? 'Ver histórico de avaliações' : 'Iniciar antropometria',
+      actionTo: latestAssessment ? assessmentsPath : anthropometryPath,
     },
     {
       title: 'Treinamento',
@@ -518,6 +609,101 @@ export function AlunoResumoHubTab({
               <Link to={prontuarioPath} className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
                 {prntStatus === 'pendente' ? 'Iniciar PRNT' : 'Abrir PRNT'}
               </Link>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <CardTitle>Avaliações e evolução física</CardTitle>
+              <CardDescription>
+                Histórico avaliativo do aluno dentro da Central, com última coleta, próxima reavaliação, responsável e ponto de entrada para antropometria guiada.
+              </CardDescription>
+            </div>
+            <span className={`w-fit rounded-full border px-3 py-1 text-xs font-medium ${summaryToneBadgeClass[assessmentTone]}`}>
+              {assessmentStatusLabel}
+            </span>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className={`rounded-lg border p-4 ${assessmentTone === 'ok' ? summaryToneClass.ok : summaryToneClass.pending}`}>
+              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Última avaliação</div>
+              <div className="mt-1 text-sm font-semibold text-foreground">
+                {latestAssessment ? formatDateBR(latestAssessment.assessmentDate) : 'Não registrada'}
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {latestAssessment ? `${latestAssessment.typeName} • ${latestAssessment.responsibleName}` : 'Registre a primeira avaliação para criar uma linha de base.'}
+              </p>
+            </div>
+            <div className={`rounded-lg border p-4 ${isAssessmentOverdue ? summaryToneClass.attention : summaryToneClass.neutral}`}>
+              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Próxima reavaliação</div>
+              <div className="mt-1 text-sm font-semibold text-foreground">{formatNullableDate(nextAssessmentDate)}</div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {isAssessmentOverdue
+                  ? 'A data planejada já passou; revisar prioridade da reavaliação.'
+                  : nextAssessmentDate
+                    ? 'Data carregada a partir do resumo/plano de avaliações.'
+                    : 'Sem regra objetiva de vencimento definida para este aluno.'}
+              </p>
+            </div>
+            <div className="rounded-lg border border-border bg-background p-4">
+              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Comparação evolutiva</div>
+              <div className="mt-1 text-sm font-semibold text-foreground">
+                {canCompareAssessments ? 'Base pronta para comparar' : 'Comparação pendente'}
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {canCompareAssessments
+                  ? `${assessmentTotal} avaliações encontradas para comparação futura.`
+                  : 'São necessárias pelo menos duas avaliações para comparar evolução.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-border bg-background p-4">
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-foreground">Histórico recente de avaliações</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Lista enxuta para consulta rápida por data, tipo, responsável, origem e status sem sair da Central.
+                </p>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Link to={anthropometryPath}>
+                  <Button size="sm">Nova antropometria</Button>
+                </Link>
+                <Link to={assessmentsPath}>
+                  <Button variant="outline" size="sm">Ver histórico completo</Button>
+                </Link>
+              </div>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              {hasAssessmentHistory ? (
+                assessmentHistoryItems.map((item) => (
+                  <div key={item.id} className="rounded-lg border border-border bg-muted/20 p-3">
+                    <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">{item.title}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {formatDateBR(item.performedAt)} • {item.typeName} • {item.responsibleName}
+                        </p>
+                      </div>
+                      <span className="w-fit rounded-full border border-border bg-background px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                        {item.status}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-xs text-muted-foreground">Origem: {item.origin}</p>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-lg border border-dashed border-border bg-muted/20 p-4 text-sm text-muted-foreground">
+                  Nenhuma avaliação física carregada para este aluno. Use a ação de nova antropometria para iniciar o histórico evolutivo.
+                </div>
+              )}
             </div>
           </div>
         </CardContent>
