@@ -1,16 +1,18 @@
-name: Validate PR
+name: Apply final UI fixes
 
 on:
-  pull_request:
-    branches:
-      - develop
   push:
     branches:
-      - 'feat/**'
+      - 'feat/210-services-commercial-catalog'
+    paths:
+      - '.github/workflows/validate-pr.yml'
+
+permissions:
+  contents: write
 
 jobs:
-  diagnose:
-    name: Diagnose catalog API patch
+  apply-and-validate:
+    name: Apply and validate remaining fixes
     runs-on: ubuntu-latest
 
     steps:
@@ -19,103 +21,187 @@ jobs:
         with:
           ref: feat/210-services-commercial-catalog
 
-      - name: Run patch diagnostic
-        id: patch
-        continue-on-error: true
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Preserve unavailable current service in student form
         shell: bash
         run: |
-          set +e
-          python - <<'PY' > patch.log 2>&1
+          python - <<'PY'
           from pathlib import Path
 
-          path = Path('apps/api/src/modules/services/service.service.ts')
+          path = Path('apps/web/src/pages/AlunoForm.tsx')
           content = path.read_text(encoding='utf-8')
-          print('loaded', len(content))
 
-          if 'isPlanComponentCommerciallyActive,' not in content:
-              anchor = '  assertValidity,\n  normalizeCatalogCode,'
-              print('import anchor', anchor in content)
-              content = content.replace(
-                  anchor,
-                  '  assertValidity,\n  isPlanComponentCommerciallyActive,\n  normalizeCatalogCode,',
-                  1,
-              )
-
-          start = content.index('function mapCommercialOption')
-          end = content.index('function mapPresentationItem', start)
-          segment = content[start:end]
-          print('option segment', start, end)
-          if 'usedByPlansCount: 0' not in segment:
-              anchor = '    origin: asOrigin(row.origin),\n    createdAt: row.createdAt.toISOString(),'
-              print('option anchor', anchor in segment)
-              segment = segment.replace(
-                  anchor,
-                  '    origin: asOrigin(row.origin),\n    usedByPlansCount: 0,\n    createdAt: row.createdAt.toISOString(),',
-                  1,
-              )
-          content = content[:start] + segment + content[end:]
-
-          start = content.index('function mapComponent')
-          end = content.index('async function listServiceRows', start)
-          segment = content[start:end]
-          print('component segment', start, end)
-          if 'isCommerciallyActive:' not in segment:
-              anchor = '    isActive: row.isActive,\n    displayOrder: row.displayOrder,'
-              print('component anchor', anchor in segment)
-              segment = segment.replace(
-                  anchor,
-                  '''    isActive: row.isActive,
-                  isCommerciallyActive: isPlanComponentCommerciallyActive({
-                    isActive: row.isActive,
-                    targetServiceId: row.targetServiceId,
-                    targetOptionId: row.targetOptionId,
-                    targetServiceActive: row.targetServiceActive,
-                    targetOptionActive: row.targetOptionActive,
-                  }),
-                  displayOrder: row.displayOrder,''',
-                  1,
-              )
-          content = content[:start] + segment + content[end:]
-
-          anchor = '  const activeComponentsCount = components.filter((component) => component.isActive).length;'
-          print('count anchor', anchor in content)
           content = content.replace(
-              anchor,
-              '  const activeComponentsCount = components.filter((component) => component.isCommerciallyActive).length;',
+              '      const data = await serviceCatalogService.list();\n      setServiceOptions(data.filter((item) => item.isActive));',
+              '      const data = await serviceCatalogService.list(isEditMode);\n      setServiceOptions(data);',
               1,
           )
 
-          if 'optionImpactRows' not in content:
-              start_marker = '    const [optionRows, presentationRows, componentRows, usedByRows] = await Promise.all(['
-              end_marker = '    const components = componentRows.map(mapComponent);'
-              print('detail start marker', start_marker in content)
-              print('detail end marker', end_marker in content)
-              start = content.index(start_marker)
-              end = content.index(end_marker, start)
-              print('detail segment', start, end)
+          content = content.replace(
+              '  const interestServiceOptions = serviceOptions.filter((item) => !item.parentServiceId);\n  const financialServiceOptions = serviceOptions.filter((item) => item.parentServiceId);',
+              '''  const interestServiceOptions = serviceOptions
+                  .filter((item) => !item.parentServiceId && (item.isActive || item.id === selectedServiceId))
+                  .sort(
+                    (left, right) =>
+                      (left.displayOrder ?? 0) - (right.displayOrder ?? 0) ||
+                      left.name.localeCompare(right.name, 'pt-BR')
+                  );
+                const financialServiceOptions = serviceOptions.filter(
+                  (item) => item.parentServiceId && item.isActive
+                );''',
+              1,
+          )
+
+          content = content.replace(
+              '''                                  <option key={service.id} value={service.id}>
+                                        {service.name}
+                                      </option>''',
+              '''                                  <option key={service.id} value={service.id} disabled={!service.isActive}>
+                                        {service.name}{service.isActive ? '' : ' (indisponível — vínculo atual)'}
+                                      </option>''',
+              1,
+          )
 
           required = (
-              'isPlanComponentCommerciallyActive,',
-              'usedByPlansCount: 0',
-              'isCommerciallyActive: isPlanComponentCommerciallyActive',
+              'serviceCatalogService.list(isEditMode)',
+              'item.id === selectedServiceId',
+              'indisponível — vínculo atual',
           )
-          print('missing', [marker for marker in required if marker not in content])
+          missing = [marker for marker in required if marker not in content]
+          if missing:
+              raise RuntimeError(f'Missing student form markers: {missing}')
+
           path.write_text(content, encoding='utf-8')
-          print('done')
           PY
-          status=$?
-          echo "status=$status" >> "$GITHUB_OUTPUT"
-          cat patch.log
-          exit 0
+          if ! git diff --quiet -- apps/web/src/pages/AlunoForm.tsx; then
+            git add apps/web/src/pages/AlunoForm.tsx
+            git commit -m "fix(students): show unavailable current service"
+            git push origin HEAD:feat/210-services-commercial-catalog
+          fi
 
-      - name: Upload diagnostics
-        uses: actions/upload-artifact@v4
-        with:
-          name: catalog-api-patch-diagnostics
-          path: |
-            patch.log
-            apps/api/src/modules/services/service.service.ts
-
-      - name: Report diagnostic status
+      - name: Confirm impacted plans and show effective component status
+        shell: bash
         run: |
-          test "${{ steps.patch.outputs.status }}" = "0"
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('apps/web/src/pages/Settings/ServicesCatalog.tsx')
+          content = path.read_text(encoding='utf-8')
+
+          content = content.replace(
+              "  validUntil: '',\n  isActive: true,\n};\n\nconst emptyPresentationForm",
+              "  validUntil: '',\n  isActive: true,\n  usedByPlansCount: 0,\n};\n\nconst emptyPresentationForm",
+              1,
+          )
+
+          content = content.replace(
+              "  const normalized = value.replace(/\\./g, '').replace(',', '.').trim();\n  if (!normalized) return undefined;",
+              "  const trimmed = value.trim();\n  if (!trimmed) return undefined;\n  const normalized = trimmed.includes(',')\n    ? trimmed.replace(/\\./g, '').replace(',', '.')\n    : trimmed;",
+              1,
+          )
+
+          if 'detail.usedByPlansCount > 0' not in content:
+              marker = '      const saved = selectedId\n'
+              insertion = '''      if (detail?.isActive && !serviceForm.isActive && detail.usedByPlansCount > 0) {
+                    const confirmed = window.confirm(
+                      `Este serviço participa de ${detail.usedByPlansCount} plano(s) ativo(s). Ao inativá-lo, esses componentes deixarão de aparecer como ativos na apresentação comercial. Deseja continuar?`
+                    );
+                    if (!confirmed) return;
+                  }
+
+                  '''
+              position = content.index(marker)
+              content = content[:position] + insertion + content[position:]
+
+          content = content.replace(
+              '      isActive: option.isActive,\n    });',
+              '      isActive: option.isActive,\n      usedByPlansCount: option.usedByPlansCount ?? 0,\n    });',
+              1,
+          )
+
+          if 'optionForm.usedByPlansCount > 0' not in content:
+              marker = '      const amount = parseOptionalNumber(optionForm.priceAmount);'
+              insertion = '''      if (optionForm.id && !optionForm.isActive && optionForm.usedByPlansCount > 0) {
+                    const original = detail?.options.find((item) => item.id === optionForm.id);
+                    if (original?.isActive) {
+                      const confirmed = window.confirm(
+                        `Esta opção participa de ${optionForm.usedByPlansCount} plano(s) ativo(s). Ao inativá-la, esses componentes deixarão de aparecer como ativos na apresentação comercial. Deseja continuar?`
+                      );
+                      if (!confirmed) return;
+                    }
+                  }
+                  '''
+              position = content.index(marker)
+              content = content[:position] + insertion + content[position:]
+
+          content = content.replace(
+              '{detail.components.length === 0 &&',
+              '{detail.activeComponentsCount === 0 &&',
+          )
+          content = content.replace(
+              '<StatusBadge active={component.isActive} />',
+              '<StatusBadge active={component.isCommerciallyActive ?? component.isActive} />{component.isActive && component.isCommerciallyActive === false && <p className="mt-1 text-xs text-amber-700">Destino inativo: mantido apenas no histórico.</p>}',
+              1,
+          )
+          content = content.replace(
+              'items.filter((item) => item.id !== detail.id)',
+              'items.filter((item) => item.id !== detail.id && item.isActive)',
+          )
+
+          required = (
+              'usedByPlansCount: option.usedByPlansCount ?? 0',
+              'detail.usedByPlansCount > 0',
+              'optionForm.usedByPlansCount > 0',
+              'Destino inativo: mantido apenas no histórico.',
+              'item.id !== detail.id && item.isActive',
+          )
+          missing = [marker for marker in required if marker not in content]
+          if missing:
+              raise RuntimeError(f'Missing catalog UI markers: {missing}')
+
+          path.write_text(content, encoding='utf-8')
+          PY
+          if ! git diff --quiet -- apps/web/src/pages/Settings/ServicesCatalog.tsx; then
+            git add apps/web/src/pages/Settings/ServicesCatalog.tsx
+            git commit -m "fix(services): confirm impacted plan inactivation"
+            git push origin HEAD:feat/210-services-commercial-catalog
+          fi
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma Client (api)
+        run: pnpm --filter @corrida/api exec prisma generate
+
+      - name: Type check
+        run: pnpm type-check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Test
+        run: pnpm test
+
+      - name: Architecture checks
+        run: pnpm arch:check
+
+      - name: Access catalog checks
+        run: pnpm access:check
+
+      - name: Documentation checks
+        run: pnpm docs:check
