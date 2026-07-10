@@ -50,6 +50,19 @@ export function isOptionCurrent(option: Pick<ServiceCommercialOption, 'isActive'
   return (!from || from.getTime() <= now.getTime()) && (!until || until.getTime() >= now.getTime());
 }
 
+export function isPlanComponentCommerciallyActive(component: {
+  isActive: boolean;
+  targetServiceId?: string | null;
+  targetOptionId?: string | null;
+  targetServiceActive?: boolean | null;
+  targetOptionActive?: boolean | null;
+}) {
+  if (!component.isActive) return false;
+  if (component.targetOptionId) return component.targetOptionActive === true;
+  if (component.targetServiceId) return component.targetServiceActive === true;
+  return false;
+}
+
 export function resolveCommercialState(
   category: ServiceCategory,
   options: ServiceCommercialOption[],
