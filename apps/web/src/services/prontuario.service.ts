@@ -7,12 +7,18 @@ import type {
   ProntuarioMedicationProcedure,
   ProntuarioOverview,
   ProntuarioPainCase,
+  ProntuarioPainFollowUp,
   ProntuarioRecord,
   ProntuarioRecordPayload,
   StudentParqSubmission,
 } from '@corrida/types';
 
 const unwrap = <T>(response: { data: { data: T } }) => response.data.data;
+
+type ProntuarioPainCasePayload = Omit<Partial<ProntuarioPainCase>, 'followUps'> & {
+  title: string;
+  followUps?: Array<Partial<ProntuarioPainFollowUp> & { followUpAt: string }>;
+};
 
 export const prontuarioService = {
   async overview(alunoId: string): Promise<ProntuarioOverview> {
@@ -67,7 +73,7 @@ export const prontuarioService = {
     return unwrap(await api.put(`/prontuario/records/${recordId}/medications-procedures`, { items }));
   },
 
-  async savePainCases(recordId: string, items: Array<Partial<ProntuarioPainCase> & { title: string }>): Promise<ProntuarioRecord> {
+  async savePainCases(recordId: string, items: ProntuarioPainCasePayload[]): Promise<ProntuarioRecord> {
     return unwrap(await api.put(`/prontuario/records/${recordId}/pain-cases`, { items }));
   },
 
