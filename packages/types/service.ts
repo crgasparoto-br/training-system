@@ -134,16 +134,16 @@ export interface ServiceCatalogDetail extends ServiceCatalogSummary {
 export interface CreateServiceRequest {
   name: string;
   code?: string;
-  description?: string;
+  description?: string | null;
   parentServiceId?: string;
   monthlyPrice?: number;
   validFrom?: string;
   validUntil?: string;
   isActive?: boolean;
   category?: ServiceCategory;
-  summary?: string;
-  whatIs?: string;
-  targetAudience?: string;
+  summary?: string | null;
+  whatIs?: string | null;
+  targetAudience?: string | null;
   displayOrder?: number;
 }
 
@@ -177,7 +177,10 @@ export interface CreateCommercialOptionRequest {
   displayOrder?: number;
 }
 
-export type UpdateCommercialOptionRequest = Partial<CreateCommercialOptionRequest> & {
+export type UpdateCommercialOptionRequest = Omit<
+  Partial<CreateCommercialOptionRequest>,
+  'frequency' | 'quantity' | 'unit' | 'priceAmount' | 'validFrom' | 'validUntil'
+> & {
   frequency?: string | null;
   quantity?: number | null;
   unit?: string | null;
@@ -204,7 +207,10 @@ export interface CreatePlanComponentRequest {
   displayOrder?: number;
 }
 
-export type UpdatePlanComponentRequest = Partial<CreatePlanComponentRequest> & {
+export type UpdatePlanComponentRequest = Omit<
+  Partial<CreatePlanComponentRequest>,
+  'targetServiceId' | 'targetOptionId' | 'quantity' | 'unit' | 'notes'
+> & {
   targetServiceId?: string | null;
   targetOptionId?: string | null;
   quantity?: number | null;
