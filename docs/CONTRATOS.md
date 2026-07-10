@@ -23,9 +23,36 @@ O modelo é carregado com status `DRAFT` e deve ser revisado antes de ser salvo 
 
 ## Variáveis disponíveis
 
-Consulte `GET /api/v1/contracts/variables`. Os tokens incluem dados de aluno, responsável, empresa, professor, serviço e contrato, por exemplo `{{aluno.nome}}`, `{{empresa.cnpj}}`, `{{professor.nome}}`, `{{professor.cref}}` e `{{contrato.valorMensal}}`.
+Consulte `GET /api/v1/contracts/variables`. Cada variável retorna:
+
+- chave e token Handlebars;
+- grupo e rótulo do grupo;
+- nome amigável;
+- descrição de uso;
+- exemplo de preenchimento.
+
+Na tela de modelos, as variáveis aparecem em grupos expansíveis: **Aluno**, **Responsável**, **Empresa**, **Professor**, **Serviços** e **Contrato**. Ao passar o mouse ou focar uma variável, a interface apresenta sua descrição e um exemplo. O clique continua copiando o token para a área de transferência. Os seletores dos editores usam os mesmos grupos.
 
 Quando a geração não informa explicitamente um professor, o contexto utiliza o professor responsável vinculado ao aluno.
+
+### Variáveis de serviço
+
+Além de `{{servico.nome}}` e `{{servico.valor}}`, o contexto pode utilizar dados do catálogo comercial:
+
+- `{{servico.codigo}}`;
+- `{{servico.categoria}}`;
+- `{{servico.resumo}}`;
+- `{{servico.oQueE}}`;
+- `{{servico.publicoAlvo}}`;
+- `{{servico.itensInclusos}}`;
+- `{{servico.quantidadeItensInclusos}}`;
+- `{{servico.plano.componentes}}`.
+
+Os itens inclusos consideram somente registros ativos de “O que o compõe?”. Os componentes do plano consideram somente relações ativas com serviços ou opções comerciais também ativos.
+
+As variáveis `{{servico.duracaoSessao}}` e `{{servico.quantidadeSemanal}}` permanecem disponíveis por compatibilidade, mas continuam vazias enquanto duração e opção comercial não forem selecionadas de forma estruturada. O módulo não escolhe automaticamente uma opção comercial quando um serviço possui várias combinações.
+
+Se a migration do catálogo comercial ainda não estiver aplicada, o contexto mantém compatibilidade com os dados legados de nome, código, descrição e valor, deixando vazias somente as informações estruturadas indisponíveis.
 
 ## Segurança e auditoria
 
