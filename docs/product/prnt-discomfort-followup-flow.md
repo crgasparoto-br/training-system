@@ -1,89 +1,104 @@
 # PRNT: fluxo contextual de desconfortos e acompanhamentos
 
-## Issue relacionada
+## Issues relacionadas
 
 - #182
-- Épica: #171
+- Épica #171
 
-## Situação atual
+## Status
 
-O PRNT já possui duas bases relacionadas a desconfortos:
+Fluxo funcional implementado.
 
-- `PainCasesEditor`: permite registrar casos de dor com título, região, data de início e descrição.
-- `BodyDiscomfortMap`: permite salvar snapshots corporais com regiões, intensidade e observações.
+As entregas principais foram realizadas nas PRs #207, #208 e #209.
 
-Essas entregas permitem registrar informação sensível dentro do contexto do aluno, mas ainda não fecham o fluxo completo de acompanhamento contínuo.
+## Modelo funcional
 
-## Lacuna funcional
+O fluxo diferencia três conceitos.
 
-Para concluir a #182 como fluxo completo, ainda é necessário diferenciar três conceitos:
+### Desconforto ativo
 
-1. **Desconforto ativo**
-   - Registro que permanece aberto enquanto impacta avaliação, treino ou conduta.
-   - Deve ter status claro, região, intensidade, descrição e data de início.
+Registro que permanece aberto enquanto impacta avaliação, treino ou conduta.
 
-2. **Acompanhamento do desconforto**
-   - Evento vinculado ao desconforto ativo.
-   - Deve preservar data, responsável, evolução, conduta e observações.
+Deve preservar:
 
-3. **Encerramento do desconforto**
-   - Ação que altera o status sem apagar histórico.
-   - Deve registrar data de encerramento e motivo/status final.
+- título;
+- região;
+- data de início;
+- descrição;
+- status;
+- vínculo com o registro PRNT e o aluno.
 
-## Fluxo recomendado
+### Acompanhamento do desconforto
 
-### 1. Resumo na Central do Aluno
+Evento vinculado a um desconforto.
 
-A Central deve exibir:
+Deve preservar:
 
-- quantidade de desconfortos ativos;
-- último acompanhamento quando existir;
-- maior intensidade atual;
-- ação para abrir PRNT no aluno selecionado.
+- data;
+- intensidade quando informada;
+- observação;
+- conduta;
+- vínculo com o caso de origem.
 
-### 2. PRNT como ponto de edição
+### Encerramento
 
-Dentro do PRNT, o professor deve conseguir:
+Alteração de status para resolvido ou arquivado sem apagar o histórico do caso nem seus acompanhamentos.
 
+## Experiência atual
+
+### Central do Aluno
+
+A Central apresenta um resumo contextual com:
+
+- quantidade de casos ativos ou em acompanhamento;
+- último acompanhamento disponível;
+- intensidade mais recente quando informada;
+- alerta técnico quando existe caso ativo;
+- ação para abrir o PRNT preservando o `alunoId`.
+
+### PRNT
+
+O PRNT permite:
+
+- visualizar casos existentes;
 - criar novo desconforto;
-- editar descrição, região, intensidade e status;
-- registrar acompanhamento rápido;
-- encerrar desconforto sem excluir histórico;
-- consultar histórico filtrado por desconforto.
+- editar título, região, data, descrição e status;
+- registrar acompanhamento com data, intensidade, observação e conduta;
+- marcar caso como resolvido;
+- manter os acompanhamentos anteriores no histórico do caso.
 
-### 3. Histórico unificado
+## Componentes e contratos atuais
 
-Cada evento relevante deve aparecer no histórico do aluno:
-
-- criação do desconforto;
-- alteração de status;
-- novo acompanhamento;
-- encerramento.
+- `apps/web/src/pages/PhysicalAssessment/ProntuarioScreenWithDiscomfortFollowUps.tsx`;
+- `apps/web/src/components/alunos/AlunoDiscomfortSummaryCard.tsx`;
+- `apps/web/src/services/prontuario.service.ts`;
+- `apps/api/src/modules/prontuario/prontuario.service.ts`;
+- `packages/types/prontuario.ts`.
 
 ## Permissões e dados sensíveis
 
-- Visualização: `physicalAssessment.prnt.discomforts`.
-- Criação/edição: `physicalAssessment.prnt.actions.createRecord` e `physicalAssessment.prnt.actions.editRecord`.
-- Encerramento: `physicalAssessment.prnt.actions.closeFollowUp` ou permissão específica futura.
-- Todos os dados devem respeitar escopo, aluno selecionado e `contractId`.
+- A visualização deve respeitar os blocos de saúde/PRNT aplicáveis ao perfil.
+- A API continua sendo a barreira de segurança.
+- Todos os registros e vínculos devem respeitar `contractId` e o aluno selecionado.
+- A Central não deve expor dados de saúde para perfis sem acesso ao bloco correspondente.
 
-## Próxima implementação recomendada
+## Pendências reais
 
-Criar uma entrega técnica para:
+O fluxo principal da #182 foi entregue. Permanecem como evoluções possíveis, não como requisito para considerar o fluxo atual funcional:
 
-1. Confirmar se `ProntuarioPainCase` será o agregado principal de desconfortos ativos.
-2. Adicionar UI de status no `PainCasesEditor`.
-3. Exibir acompanhamentos de cada caso de dor.
-4. Permitir adicionar acompanhamento rápido.
-5. Permitir encerrar caso mantendo histórico e `closedAt`.
-6. Atualizar a Central com resumo de desconfortos ativos.
+- registrar todos os eventos de criação, acompanhamento e encerramento no histórico unificado do aluno;
+- formalizar permissão específica de encerramento caso a regra de acesso seja separada no futuro;
+- revisar necessidade de motivo de encerramento estruturado;
+- ampliar cobertura automatizada do editor completo do PRNT.
 
-## Critério para fechar #182
+## Critério de manutenção
 
-A #182 deve ser fechada somente quando houver, além do mapa/snapshot existente:
+Atualize este documento quando mudar:
 
-- desconfortos ativos com status;
-- acompanhamento vinculado;
-- encerramento sem perda de histórico;
-- resumo na Central;
-- proteção por permissão.
+- o agregado usado para representar desconfortos;
+- o contrato de acompanhamento;
+- as permissões do fluxo;
+- a integração com o histórico unificado;
+- a experiência da Central ou do PRNT.
+
+Documentos de plano antigos não devem repetir este conteúdo. Devem apontar para esta fonte de verdade.
