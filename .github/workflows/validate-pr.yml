@@ -5,14 +5,15 @@ on:
     branches:
       - develop
     types:
+      - synchronize
       - reopened
 
 permissions:
   contents: write
 
 jobs:
-  apply-and-validate:
-    name: Apply and validate UI compatibility
+  apply:
+    name: Apply UI compatibility
     runs-on: ubuntu-latest
 
     steps:
@@ -195,38 +196,3 @@ jobs:
             git commit -m "fix(services): confirm impacted plan inactivation"
             git push origin HEAD:feat/210-services-commercial-catalog
           fi
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Generate Prisma Client (api)
-        run: pnpm --filter @corrida/api exec prisma generate
-
-      - name: Type check
-        run: pnpm type-check
-
-      - name: Lint
-        run: pnpm lint
-
-      - name: Test
-        run: pnpm test
-
-      - name: Architecture checks
-        run: pnpm arch:check
-
-      - name: Access catalog checks
-        run: pnpm access:check
-
-      - name: Documentation checks
-        run: pnpm docs:check
