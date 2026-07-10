@@ -3,12 +3,14 @@ import { ChevronDown, Copy, Eye, FilePlus2, FileText, Info, Plus, Save } from 'l
 import { Button } from '../../components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
+import type { Aluno } from '../../services/aluno.service';
 import { contractService, type ContractTemplate } from '../../services/contract.service';
 import {
   CONTRACT_VARIABLES,
   groupContractVariables,
   type ContractVariableDefinition,
 } from '../../services/contractVariables';
+import { loadActiveStudentsForContractPreview } from './contractPreviewStudents';
 import {
   ACCESS_PERSONAL_TRAINING_TEMPLATE_NAME,
   createAccessPersonalTrainingTemplate,
@@ -200,16 +202,24 @@ function VariableTree({
 export default function ContractTemplates() {
   const [templates, setTemplates] = useState<ContractTemplate[]>([]);
   const [variables, setVariables] = useState<ContractVariableDefinition[]>(CONTRACT_VARIABLES);
+  const [previewStudents, setPreviewStudents] = useState<Aluno[]>([]);
+  const [previewAlunoId, setPreviewAlunoId] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Partial<ContractTemplate>>(emptyTemplate);
   const [previewHtml, setPreviewHtml] = useState('');
   const [loading, setLoading] = useState(true);
+  const [previewStudentsLoading, setPreviewStudentsLoading] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   const selected = useMemo(
     () => templates.find((template) => template.id === selectedId),
     [selectedId, templates]
+  );
+  const selectedPreviewStudent = useMemo(
+    () => previewStudents.find((student) => student.id === previewAlunoId),
+    [previewAlunoId, previewStudents]
   );
 
   async function load() {
@@ -224,6 +234,24 @@ export default function ContractTemplates() {
       setSelectedId(loadedTemplates[0].id);
       setDraft(loadedTemplates[0]);
     }
+
+    setPreviewStudentsLoading(true);
+    try {
+      const students = await loadActiveStudentsForContractPreview();
+      setPreviewStudents(students);
+      setPreviewAlunoId((current) =>
+        current && students.some((student) => student.id === current)
+          ? current
+          : students[0]?.id || ''
+      );
+    } catch {
+      setPreviewStudents([]);
+      setPreviewAlunoId('');
+      setMessage('Modelos carregados, mas não foi possível carregar os alunos para a prévia.');
+    } finally {
+      setPreviewStudentsLoading(false);
+    }
+
     setLoading(false);
   }
 
@@ -231,6 +259,7 @@ export default function ContractTemplates() {
     load().catch(() => {
       setMessage('Não foi possível carregar os modelos.');
       setLoading(false);
+      setPreviewStudentsLoading(false);
     });
   }, []);
 
@@ -295,11 +324,31 @@ export default function ContractTemplates() {
 
   const preview = async () => {
     if (!draft.id) {
-      setMessage('Salve o modelo antes de gerar prévia.');
+      setMessage('Salve o modelo antes de gerar a prévia.');
       return;
     }
-    const result = await contractService.preview({ templateId: draft.id, alunoId: 'preview' }).catch(() => null);
-    setPreviewHtml(result?.html || '<p>Use um aluno real na tela de contratos do aluno para uma prévia preenchida.</p>');
+    if (!previewAlunoId) {
+      setMessage('Selecione um aluno para gerar a prévia preenchida.');
+      return;
+    }
+
+    setPreviewing(true);
+    setMessage(null);
+    try {
+      const result = await contractService.preview({
+        templateId: draft.id,
+        alunoId: previewAlunoId,
+      });
+      setPreviewHtml(result.html);
+      setMessage(
+        `Prévia gerada com os dados de ${selectedPreviewStudent?.user.profile.name || 'aluno selecionado'}.`
+      );
+    } catch (error: any) {
+      setPreviewHtml('');
+      setMessage(error.response?.data?.error || 'Não foi possível gerar a prévia do contrato.');
+    } finally {
+      setPreviewing(false);
+    }
   };
 
   if (loading) {
@@ -407,6 +456,39 @@ export default function ContractTemplates() {
                 Cláusula
               </Button>
             </div>
+
+            <div className="rounded-lg border border-border bg-muted/20 p-4">
+              <label className="text-sm font-medium" htmlFor="contract-preview-student">
+                Aluno para prévia
+              </label>
+              <select
+                id="contract-preview-student"
+                className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                value={previewAlunoId}
+                disabled={previewStudentsLoading || previewStudents.length === 0}
+                onChange={(event) => {
+                  setPreviewAlunoId(event.target.value);
+                  setPreviewHtml('');
+                }}
+              >
+                <option value="">
+                  {previewStudentsLoading
+                    ? 'Carregando alunos...'
+                    : previewStudents.length === 0
+                      ? 'Nenhum aluno ativo disponível'
+                      : 'Selecione um aluno'}
+                </option>
+                {previewStudents.map((student) => (
+                  <option key={student.id} value={student.id}>
+                    {student.user.profile.name} — {student.user.email}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Os dados reais do aluno selecionado serão usados somente para montar a prévia. Nenhum contrato será criado ou alterado.
+              </p>
+            </div>
+
             <div className="flex flex-wrap justify-end gap-2">
               {draft.id && (
                 <Button variant="outline" onClick={() => contractService.duplicateTemplate(draft.id!).then(load)}>
@@ -414,7 +496,12 @@ export default function ContractTemplates() {
                   Duplicar
                 </Button>
               )}
-              <Button variant="outline" onClick={preview}>
+              <Button
+                variant="outline"
+                onClick={preview}
+                isLoading={previewing}
+                disabled={previewStudentsLoading || previewStudents.length === 0}
+              >
                 <Eye size={16} className="mr-2" />
                 Prévia
               </Button>
