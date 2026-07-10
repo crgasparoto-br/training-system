@@ -1,4 +1,12 @@
 import api from './api';
+import {
+  CONTRACT_VARIABLES,
+  normalizeContractVariables,
+  type ContractVariableDefinition,
+} from './contractVariables';
+
+export { CONTRACT_VARIABLES };
+export type { ContractVariableDefinition };
 
 export interface Contract {
   id: string;
@@ -74,35 +82,6 @@ export interface AvailableStudentContract {
   }>;
 }
 
-export const CONTRACT_VARIABLES = [
-  'aluno.nome',
-  'aluno.cpf',
-  'aluno.rg',
-  'aluno.enderecoCompleto',
-  'responsavel.nome',
-  'responsavel.cpf',
-  'responsavel.email',
-  'empresa.razaoSocial',
-  'empresa.cnpj',
-  'empresa.cref',
-  'empresa.endereco',
-  'professor.nome',
-  'professor.cref',
-  'servico.nome',
-  'servico.valor',
-  'servico.duracaoSessao',
-  'servico.quantidadeSemanal',
-  'contrato.valorMensal',
-  'contrato.valorMensalExtenso',
-  'contrato.diaVencimento',
-  'contrato.horarios',
-  'contrato.dataInicio',
-  'contrato.dataAssinatura',
-].map((key) => ({
-  key,
-  token: `{{${key}}}`,
-}));
-
 export const contractService = {
   async getMe(): Promise<Contract> {
     const response = await api.get<{ success: boolean; data: Contract }>('/contracts/me');
@@ -147,10 +126,15 @@ export const contractService = {
     return response.data.data.url;
   },
 
-  async listVariables(): Promise<Array<{ key: string; token: string }>> {
+  async listVariables(): Promise<ContractVariableDefinition[]> {
     try {
-      const response = await api.get<{ success: boolean; data: Array<{ key: string; token: string }> }>('/contracts/variables');
-      return response.data.data?.length ? response.data.data : CONTRACT_VARIABLES;
+      const response = await api.get<{
+        success: boolean;
+        data: Array<Partial<ContractVariableDefinition> & { key: string; token?: string }>;
+      }>('/contracts/variables');
+      return response.data.data?.length
+        ? normalizeContractVariables(response.data.data)
+        : CONTRACT_VARIABLES;
     } catch (error) {
       return CONTRACT_VARIABLES;
     }
