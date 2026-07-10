@@ -221,7 +221,7 @@ const getResponsibleProfessorIdFromFormResponses = (
   return normalized.length > 0 ? normalized : undefined;
 };
 
-const assertBaseServiceIsSelectable = (service: { isActive: boolean; parentServiceId: string | null }) => {
+const assertBaseServiceIsSelectable = (service: { isActive: boolean; parentServiceId?: string | null }) => {
   if (!service.isActive) {
     throw new Error('Serviço selecionado está inativo');
   }
@@ -255,7 +255,7 @@ export const alunoService = {
       });
 
       if (data.serviceId) {
-        const service = await getServiceForContract(professor.contractId, data.serviceId, tx);
+        const service = await getServiceForContract(professor.contractId, data.serviceId);
         assertBaseServiceIsSelectable(service);
 
         serviceId = service.id;
@@ -682,7 +682,7 @@ export const alunoService = {
         if (!data.serviceId) {
           alunoData.serviceId = null as never;
         } else {
-          const service = await getServiceForContract(alunoContractId, data.serviceId, tx);
+          const service = await getServiceForContract(alunoContractId, data.serviceId);
           assertBaseServiceIsSelectable(service);
 
           alunoData.serviceId = service.id as never;
