@@ -12,13 +12,33 @@ jest.mock('puppeteer', () => ({
 import { contractDocumentService } from '../src/modules/contracts/contract-document.service';
 
 describe('contractDocumentService', () => {
-  it('lista variáveis com tokens Handlebars', () => {
+  it('lista variáveis com metadados e tokens Handlebars', () => {
     const variables = contractDocumentService.listVariables();
 
-    expect(variables).toContainEqual({ key: 'aluno.nome', token: '{{aluno.nome}}' });
-    expect(variables).toContainEqual({ key: 'professor.nome', token: '{{professor.nome}}' });
-    expect(variables).toContainEqual({ key: 'professor.cref', token: '{{professor.cref}}' });
-    expect(variables).toContainEqual({ key: 'contrato.valorMensal', token: '{{contrato.valorMensal}}' });
+    expect(variables).toContainEqual(
+      expect.objectContaining({ key: 'aluno.nome', token: '{{aluno.nome}}', groupLabel: 'Aluno' })
+    );
+    expect(variables).toContainEqual(
+      expect.objectContaining({ key: 'professor.nome', token: '{{professor.nome}}', groupLabel: 'Professor' })
+    );
+    expect(variables).toContainEqual(
+      expect.objectContaining({ key: 'servico.resumo', token: '{{servico.resumo}}', groupLabel: 'Serviços' })
+    );
+    expect(variables).toContainEqual(
+      expect.objectContaining({
+        key: 'servico.plano.componentes',
+        token: '{{servico.plano.componentes}}',
+        groupLabel: 'Serviços',
+      })
+    );
+    expect(variables).toContainEqual(
+      expect.objectContaining({
+        key: 'contrato.valorMensal',
+        token: '{{contrato.valorMensal}}',
+        groupLabel: 'Contrato',
+      })
+    );
+    expect(variables.every((variable) => variable.description && variable.example)).toBe(true);
   });
 
   it('renderiza HTML preservando snapshot textual do contrato', () => {
