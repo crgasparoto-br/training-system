@@ -86,6 +86,8 @@ export const CONTRACT_VARIABLES = [
   'empresa.cnpj',
   'empresa.cref',
   'empresa.endereco',
+  'professor.nome',
+  'professor.cref',
   'servico.nome',
   'servico.valor',
   'servico.duracaoSessao',
