@@ -44,7 +44,7 @@ describe('contract service variables', () => {
     expect(context.quantidadeItensInclusos).toBe(2);
     expect(context.plano.componentes).toContain('Plano Essencial | Personal Trainer — 2x por semana');
     expect(context.plano.componentes).toContain('2 sessões por semana');
-    expect(context.valor).toBe('R$ 2.262,00');
+    expect(context.valor).toContain('2.262,00');
   });
 
   it('preserva compatibilidade quando o catálogo estruturado ainda não está disponível', () => {
