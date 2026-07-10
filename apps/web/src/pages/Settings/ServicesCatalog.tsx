@@ -5,14 +5,13 @@ import type {
   ServiceCategory,
   ServiceCommercialOption,
   ServicePlanComponent,
-  ServicePresentationItem,
   ServicePriceType,
 } from '@corrida/types';
 import {
   ArrowLeft,
   ChevronDown,
   ChevronUp,
-  CircleAlert,
+  AlertCircle as CircleAlert,
   Edit3,
   Plus,
   RefreshCw,
