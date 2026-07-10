@@ -41,175 +41,262 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Align Prisma schemas with catalog migration
+      - name: Apply final catalog compatibility fixes
         shell: bash
         run: |
           python - <<'PY'
           from pathlib import Path
 
-          contract_anchor = '  services                      ServiceOption[]\n'
-          contract_replacement = '''  services                      ServiceOption[]
-          serviceCommercialOptions      ServiceCommercialOption[]
-          servicePresentationItems      ServicePresentationItem[]
-          servicePlanComponents         ServicePlanComponent[]
+          def replace_once(content: str, old: str, new: str, label: str) -> str:
+              if old not in content:
+                  if new in content:
+                      return content
+                  raise RuntimeError(f'Patch anchor not found: {label}')
+              return content.replace(old, new, 1)
+
+          service_path = Path('apps/api/src/modules/services/service.service.ts')
+          service = service_path.read_text(encoding='utf-8')
+          service = replace_once(
+              service,
+              '  assertValidity,\n  normalizeCatalogCode,',
+              '  assertValidity,\n  isPlanComponentCommerciallyActive,\n  normalizeCatalogCode,',
+              'service domain import',
+          )
+          service = replace_once(
+              service,
+              '    origin: asOrigin(row.origin),\n    createdAt: row.createdAt.toISOString(),',
+              '    origin: asOrigin(row.origin),\n    usedByPlansCount: 0,\n    createdAt: row.createdAt.toISOString(),',
+              'option impact default',
+          )
+          service = replace_once(
+              service,
+              '    isActive: row.isActive,\n    displayOrder: row.displayOrder,\n    origin: asOrigin(row.origin),\n    createdAt: row.createdAt.toISOString(),\n    updatedAt: row.updatedAt.toISOString(),\n  };\n}\n\nasync function listServiceRows',
+              '''    isActive: row.isActive,
+                  isCommerciallyActive: isPlanComponentCommerciallyActive({
+                    isActive: row.isActive,
+                    targetServiceId: row.targetServiceId,
+                    targetOptionId: row.targetOptionId,
+                    targetServiceActive: row.targetServiceActive,
+                    targetOptionActive: row.targetOptionActive,
+                  }),
+                  displayOrder: row.displayOrder,
+                  origin: asOrigin(row.origin),
+                  createdAt: row.createdAt.toISOString(),
+                  updatedAt: row.updatedAt.toISOString(),
+                };
+              }
+
+              async function listServiceRows''',
+              'effective component status',
+          )
+          service = replace_once(
+              service,
+              '  const activeComponentsCount = components.filter((component) => component.isActive).length;',
+              '  const activeComponentsCount = components.filter((component) => component.isCommerciallyActive).length;',
+              'effective component count',
+          )
+          old_detail = '''    const [optionRows, presentationRows, componentRows, usedByRows] = await Promise.all([
+                    listOptionRows(contractId, serviceId),
+                    listPresentationRows(contractId, serviceId),
+                    listComponentRows(contractId, serviceId),
+                    prisma.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`
+                      SELECT COUNT(*)::bigint AS "count"
+                      FROM "ServicePlanComponent" component
+                      LEFT JOIN "ServiceCommercialOption" target_option ON target_option."id" = component."targetOptionId"
+                      WHERE component."contractId" = ${contractId}
+                        AND (component."targetServiceId" = ${serviceId} OR target_option."serviceId" = ${serviceId})
+                    `),
+                  ]);
+                  const options = optionRows.map(mapCommercialOption);'''
+          new_detail = '''    const [optionRows, presentationRows, componentRows, usedByRows, optionImpactRows] = await Promise.all([
+                    listOptionRows(contractId, serviceId),
+                    listPresentationRows(contractId, serviceId),
+                    listComponentRows(contractId, serviceId),
+                    prisma.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`
+                      SELECT COUNT(*)::bigint AS "count"
+                      FROM "ServicePlanComponent" component
+                      LEFT JOIN "ServiceCommercialOption" target_option ON target_option."id" = component."targetOptionId"
+                      WHERE component."contractId" = ${contractId}
+                        AND component."isActive" = true
+                        AND (component."targetServiceId" = ${serviceId} OR target_option."serviceId" = ${serviceId})
+                    `),
+                    prisma.$queryRaw<Array<{ optionId: string; count: bigint }>>(Prisma.sql`
+                      SELECT component."targetOptionId" AS "optionId", COUNT(*)::bigint AS "count"
+                      FROM "ServicePlanComponent" component
+                      INNER JOIN "ServiceCommercialOption" target_option ON target_option."id" = component."targetOptionId"
+                      WHERE component."contractId" = ${contractId}
+                        AND component."isActive" = true
+                        AND target_option."serviceId" = ${serviceId}
+                      GROUP BY component."targetOptionId"
+                    `),
+                  ]);
+                  const optionImpactById = new Map(
+                    optionImpactRows.map((item) => [item.optionId, Number(item.count)])
+                  );
+                  const options = optionRows.map((item) => ({
+                    ...mapCommercialOption(item),
+                    usedByPlansCount: optionImpactById.get(item.id) ?? 0,
+                  }));'''
+          service = replace_once(service, old_detail, new_detail, 'catalog impact queries')
+          service_path.write_text(service, encoding='utf-8')
+
+          student_service_path = Path('apps/api/src/modules/alunos/aluno.service.ts')
+          student_service = student_service_path.read_text(encoding='utf-8')
+          student_service = replace_once(
+              student_service,
+              "import { getServiceForContract } from '../services/service.service.js';\n",
+              "import { getServiceForContract } from '../services/service.service.js';\nimport { assertStudentInterestServiceSelectable } from './aluno.service-selection.js';\n",
+              'student selection import',
+          )
+          old_assertion = '''const assertBaseServiceIsSelectable = (service: { isActive: boolean; parentServiceId?: string | null }) => {
+            if (!service.isActive) {
+              throw new Error('Serviço selecionado está inativo');
+            }
+
+            if (service.parentServiceId) {
+              throw new Error('Selecione um serviço base no campo Serviço de Interesse');
+            }
+          };
+
           '''
+          student_service = replace_once(student_service, old_assertion, '', 'remove legacy selection assertion')
+          student_service = student_service.replace(
+              'assertBaseServiceIsSelectable(service);',
+              'assertStudentInterestServiceSelectable(service);',
+          )
+          student_service = replace_once(
+              student_service,
+              '          assertStudentInterestServiceSelectable(service);\n\n          alunoData.serviceId = service.id as never;',
+              '          assertStudentInterestServiceSelectable(service, currentAluno.serviceId);\n\n          alunoData.serviceId = service.id as never;',
+              'preserve current unavailable service',
+          )
+          student_service_path.write_text(student_service, encoding='utf-8')
 
-          old_block = '''model ServiceOption {
-            id                 String             @id @default(cuid())
-            contractId         String
-            name               String
-            code               String
-            description        String?
-            parentServiceId    String?
-            monthlyPrice       Float?
-            validFrom          DateTime?
-            validUntil         DateTime?
-            isActive           Boolean            @default(true)
-            isSystem           Boolean            @default(false)
-            createdAt          DateTime           @default(now())
-            updatedAt          DateTime           @default(now()) @updatedAt
-            alunos             Aluno[]
-            studentContracts   StudentContract[]
-            contractTemplates  ContractTemplate[]
-            generatedContracts Contract[]
-            contract           CompanyContract    @relation(fields: [contractId], references: [id], onDelete: Cascade)
-            parentService      ServiceOption?     @relation("ServiceOptionOffers", fields: [parentServiceId], references: [id], onDelete: SetNull)
-            financialOffers    ServiceOption[]    @relation("ServiceOptionOffers")
+          form_path = Path('apps/web/src/pages/AlunoForm.tsx')
+          form = form_path.read_text(encoding='utf-8')
+          form = replace_once(
+              form,
+              '      const data = await serviceCatalogService.list();\n      setServiceOptions(data.filter((item) => item.isActive));',
+              '      const data = await serviceCatalogService.list(isEditMode);\n      setServiceOptions(data);',
+              'load inactive current service on edit',
+          )
+          form = replace_once(
+              form,
+              '''  const interestServiceOptions = serviceOptions.filter((item) => !item.parentServiceId);
+                const financialServiceOptions = serviceOptions.filter((item) => item.parentServiceId);''',
+              '''  const interestServiceOptions = serviceOptions
+                  .filter((item) => !item.parentServiceId && (item.isActive || item.id === selectedServiceId))
+                  .sort(
+                    (left, right) =>
+                      (left.displayOrder ?? 0) - (right.displayOrder ?? 0) ||
+                      left.name.localeCompare(right.name, 'pt-BR')
+                  );
+                const financialServiceOptions = serviceOptions.filter(
+                  (item) => item.parentServiceId && item.isActive
+                );''',
+              'student service filtering',
+          )
+          form = replace_once(
+              form,
+              '''                                  <option key={service.id} value={service.id}>
+                                        {service.name}
+                                      </option>''',
+              '''                                  <option key={service.id} value={service.id} disabled={!service.isActive}>
+                                        {service.name}{service.isActive ? '' : ' (indisponível — vínculo atual)'}
+                                      </option>''',
+              'student unavailable label',
+          )
+          form_path.write_text(form, encoding='utf-8')
 
-            @@unique([contractId, code])
-            @@index([contractId])
-            @@index([parentServiceId])
-          }
-          '''
+          catalog_path = Path('apps/web/src/pages/Settings/ServicesCatalog.tsx')
+          catalog = catalog_path.read_text(encoding='utf-8')
+          catalog = replace_once(
+              catalog,
+              "  validUntil: '',\n  isActive: true,\n};\n\nconst emptyPresentationForm",
+              "  validUntil: '',\n  isActive: true,\n  usedByPlansCount: 0,\n};\n\nconst emptyPresentationForm",
+              'option impact form field',
+          )
+          catalog = replace_once(
+              catalog,
+              "  const normalized = value.replace(/\\./g, '').replace(',', '.').trim();\n  if (!normalized) return undefined;",
+              "  const trimmed = value.trim();\n  if (!trimmed) return undefined;\n  const normalized = trimmed.includes(',')\n    ? trimmed.replace(/\\./g, '').replace(',', '.')\n    : trimmed;",
+              'decimal parsing',
+          )
+          catalog = replace_once(
+              catalog,
+              '''      if (detail && detail.category !== serviceForm.category) {
+                    const confirmed = window.confirm(
+                      'A categoria será alterada. Opções e componentes existentes não serão excluídos. Deseja continuar?'
+                    );
+                    if (!confirmed) return;
+                  }
 
-          new_block = '''model ServiceOption {
-            id                       String                     @id @default(cuid())
-            contractId               String
-            name                     String
-            code                     String
-            description              String?
-            parentServiceId          String?
-            monthlyPrice             Float?
-            validFrom                DateTime?
-            validUntil               DateTime?
-            isActive                 Boolean                    @default(true)
-            isSystem                 Boolean                    @default(false)
-            category                 String                     @default("individual_service")
-            summary                  String?
-            whatIs                   String?
-            targetAudience           String?
-            displayOrder             Int                        @default(0)
-            origin                   String                     @default("legacy")
-            createdAt                DateTime                   @default(now())
-            updatedAt                DateTime                   @default(now()) @updatedAt
-            alunos                   Aluno[]
-            studentContracts         StudentContract[]
-            contractTemplates        ContractTemplate[]
-            generatedContracts       Contract[]
-            contract                 CompanyContract            @relation(fields: [contractId], references: [id], onDelete: Cascade)
-            parentService            ServiceOption?             @relation("ServiceOptionOffers", fields: [parentServiceId], references: [id], onDelete: SetNull)
-            financialOffers          ServiceOption[]            @relation("ServiceOptionOffers")
-            commercialOptions        ServiceCommercialOption[]
-            presentationItems        ServicePresentationItem[]
-            planComponents           ServicePlanComponent[]     @relation("PlanServiceComponents")
-            referencedPlanComponents ServicePlanComponent[]     @relation("TargetServiceComponents")
+                  const saved = selectedId''',
+              '''      if (detail && detail.category !== serviceForm.category) {
+                    const confirmed = window.confirm(
+                      'A categoria será alterada. Opções e componentes existentes não serão excluídos. Deseja continuar?'
+                    );
+                    if (!confirmed) return;
+                  }
 
-            @@unique([contractId, code])
-            @@index([contractId])
-            @@index([parentServiceId])
-            @@index([contractId, category, isActive, displayOrder])
-          }
+                  if (detail?.isActive && !serviceForm.isActive && detail.usedByPlansCount > 0) {
+                    const confirmed = window.confirm(
+                      `Este serviço participa de ${detail.usedByPlansCount} plano(s) ativo(s). Ao inativá-lo, esses componentes deixarão de aparecer como ativos na apresentação comercial. Deseja continuar?`
+                    );
+                    if (!confirmed) return;
+                  }
 
-          model ServiceCommercialOption {
-            id             String                 @id @default(cuid())
-            contractId     String
-            serviceId      String
-            code           String
-            name           String
-            frequency      String?
-            quantity       Decimal?               @db.Decimal(10, 2)
-            unit           String?
-            priceType      String
-            priceAmount    Decimal?               @db.Decimal(12, 2)
-            validFrom      DateTime?
-            validUntil     DateTime?
-            isActive       Boolean                @default(true)
-            displayOrder   Int                    @default(0)
-            origin         String                 @default("manual")
-            createdAt      DateTime               @default(now())
-            updatedAt      DateTime               @default(now()) @updatedAt
-            contract       CompanyContract        @relation(fields: [contractId], references: [id], onDelete: Cascade)
-            service        ServiceOption          @relation(fields: [serviceId], references: [id], onDelete: Cascade)
-            planComponents ServicePlanComponent[] @relation("TargetOptionComponents")
-
-            @@unique([contractId, code])
-            @@index([contractId, serviceId, isActive, displayOrder])
-            @@index([contractId, validFrom, validUntil])
-          }
-
-          model ServicePresentationItem {
-            id           String          @id @default(cuid())
-            contractId   String
-            serviceId    String
-            text         String
-            isActive     Boolean         @default(true)
-            displayOrder Int             @default(0)
-            origin       String          @default("manual")
-            createdAt    DateTime        @default(now())
-            updatedAt    DateTime        @default(now()) @updatedAt
-            contract     CompanyContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
-            service      ServiceOption   @relation(fields: [serviceId], references: [id], onDelete: Cascade)
-
-            @@index([contractId, serviceId, isActive, displayOrder])
-          }
-
-          model ServicePlanComponent {
-            id              String                   @id @default(cuid())
-            contractId      String
-            planServiceId   String
-            targetServiceId String?
-            targetOptionId  String?
-            quantity        Decimal?                 @db.Decimal(10, 2)
-            unit            String?
-            notes           String?
-            isActive        Boolean                  @default(true)
-            displayOrder    Int                      @default(0)
-            origin          String                   @default("manual")
-            createdAt       DateTime                 @default(now())
-            updatedAt       DateTime                 @default(now()) @updatedAt
-            contract        CompanyContract          @relation(fields: [contractId], references: [id], onDelete: Cascade)
-            planService     ServiceOption            @relation("PlanServiceComponents", fields: [planServiceId], references: [id], onDelete: Cascade)
-            targetService   ServiceOption?           @relation("TargetServiceComponents", fields: [targetServiceId], references: [id], onDelete: Restrict)
-            targetOption    ServiceCommercialOption? @relation("TargetOptionComponents", fields: [targetOptionId], references: [id], onDelete: Restrict)
-
-            @@index([contractId, planServiceId, isActive, displayOrder])
-            @@index([contractId, targetServiceId])
-            @@index([contractId, targetOptionId])
-          }
-          '''
-
-          for filename in ('apps/api/prisma/schema.prisma', 'prisma/schema.prisma'):
-              path = Path(filename)
-              content = path.read_text(encoding='utf-8')
-              if 'model ServiceCommercialOption {' in content:
-                  continue
-              if contract_anchor not in content:
-                  raise RuntimeError(f'CompanyContract anchor not found in {filename}')
-              if old_block not in content:
-                  raise RuntimeError(f'ServiceOption block not found in {filename}')
-              content = content.replace(contract_anchor, contract_replacement, 1)
-              content = content.replace(old_block, new_block, 1)
-              path.write_text(content, encoding='utf-8')
+                  const saved = selectedId''',
+              'service impact confirmation',
+          )
+          catalog = replace_once(
+              catalog,
+              '      isActive: option.isActive,\n    });',
+              '      isActive: option.isActive,\n      usedByPlansCount: option.usedByPlansCount ?? 0,\n    });',
+              'option impact editing',
+          )
+          catalog = replace_once(
+              catalog,
+              '''    try {
+                    const amount = parseOptionalNumber(optionForm.priceAmount);''',
+              '''    try {
+                    if (optionForm.id && !optionForm.isActive && optionForm.usedByPlansCount > 0) {
+                      const original = detail?.options.find((item) => item.id === optionForm.id);
+                      if (original?.isActive) {
+                        const confirmed = window.confirm(
+                          `Esta opção participa de ${optionForm.usedByPlansCount} plano(s) ativo(s). Ao inativá-la, esses componentes deixarão de aparecer como ativos na apresentação comercial. Deseja continuar?`
+                        );
+                        if (!confirmed) return;
+                      }
+                    }
+                    const amount = parseOptionalNumber(optionForm.priceAmount);''',
+              'option impact confirmation',
+          )
+          catalog = catalog.replace(
+              '{detail.components.length === 0 &&',
+              '{detail.activeComponentsCount === 0 &&',
+          )
+          catalog = replace_once(
+              catalog,
+              '<StatusBadge active={component.isActive} />',
+              '''<StatusBadge active={component.isCommerciallyActive ?? component.isActive} />{component.isActive && component.isCommerciallyActive === false && <p className="mt-1 text-xs text-amber-700">Destino inativo: mantido apenas no histórico.</p>}''',
+              'effective component badge',
+          )
+          catalog = catalog.replace(
+              'items.filter((item) => item.id !== detail.id)',
+              'items.filter((item) => item.id !== detail.id && item.isActive)',
+          )
+          catalog_path.write_text(catalog, encoding='utf-8')
           PY
           pnpm --filter @corrida/api exec prisma format --schema prisma/schema.prisma
           pnpm --filter @corrida/api exec prisma format --schema ../../prisma/schema.prisma
           if git diff --quiet; then
-            echo "Prisma schemas already aligned"
+            echo "Final compatibility fixes already applied"
           else
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add apps/api/prisma/schema.prisma prisma/schema.prisma
-            git commit -m "feat(services): align Prisma catalog schema"
+            git add apps/api/src/modules/services/service.service.ts apps/api/src/modules/alunos/aluno.service.ts apps/web/src/pages/AlunoForm.tsx apps/web/src/pages/Settings/ServicesCatalog.tsx
+            git commit -m "fix(services): preserve legacy links and plan impact"
             git push origin HEAD:feat/210-services-commercial-catalog
           fi
 
