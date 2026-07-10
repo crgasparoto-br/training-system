@@ -2,6 +2,7 @@
 import bcryptjs from 'bcryptjs';
 import crypto from 'crypto';
 import { getServiceForContract } from '../services/service.service.js';
+import { assertStudentInterestServiceSelectable } from './aluno.service-selection.js';
 
 const prisma = new PrismaClient();
 
@@ -221,16 +222,6 @@ const getResponsibleProfessorIdFromFormResponses = (
   return normalized.length > 0 ? normalized : undefined;
 };
 
-const assertBaseServiceIsSelectable = (service: { isActive: boolean; parentServiceId?: string | null }) => {
-  if (!service.isActive) {
-    throw new Error('Serviço selecionado está inativo');
-  }
-
-  if (service.parentServiceId) {
-    throw new Error('Selecione um serviço base no campo Serviço de Interesse');
-  }
-};
-
 export const alunoService = {
   /**
    * Criar novo aluno
@@ -256,7 +247,7 @@ export const alunoService = {
 
       if (data.serviceId) {
         const service = await getServiceForContract(professor.contractId, data.serviceId);
-        assertBaseServiceIsSelectable(service);
+        assertStudentInterestServiceSelectable(service);
 
         serviceId = service.id;
       }
@@ -683,7 +674,7 @@ export const alunoService = {
           alunoData.serviceId = null as never;
         } else {
           const service = await getServiceForContract(alunoContractId, data.serviceId);
-          assertBaseServiceIsSelectable(service);
+          assertStudentInterestServiceSelectable(service, currentAluno.serviceId);
 
           alunoData.serviceId = service.id as never;
         }
