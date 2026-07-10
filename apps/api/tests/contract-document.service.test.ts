@@ -16,6 +16,8 @@ describe('contractDocumentService', () => {
     const variables = contractDocumentService.listVariables();
 
     expect(variables).toContainEqual({ key: 'aluno.nome', token: '{{aluno.nome}}' });
+    expect(variables).toContainEqual({ key: 'professor.nome', token: '{{professor.nome}}' });
+    expect(variables).toContainEqual({ key: 'professor.cref', token: '{{professor.cref}}' });
     expect(variables).toContainEqual({ key: 'contrato.valorMensal', token: '{{contrato.valorMensal}}' });
   });
 
@@ -43,5 +45,22 @@ describe('contractDocumentService', () => {
     expect(html).toContain('Acesso Saúde e Performance');
     expect(html).toContain('Maria Silva');
     expect(html).toContain('01/05/2026');
+    expect(html).toContain('<p>Contratante</p>');
+  });
+
+  it('não duplica a área de assinaturas quando o modelo fornece uma seção própria', () => {
+    const html = contractDocumentService.renderTemplate(
+      {
+        name: 'Contrato com testemunhas',
+        headerHtml: '',
+        footerHtml: '<div class="signatures"><p>Assinaturas personalizadas</p></div>',
+        clauses: [],
+      },
+      {}
+    );
+
+    expect(html).toContain('Assinaturas personalizadas');
+    expect(html).not.toContain('<p>Contratante</p>');
+    expect(html.match(/class="signatures"/g)).toHaveLength(1);
   });
 });
