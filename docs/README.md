@@ -42,6 +42,7 @@ Depois disso, leia os documentos especificos da area afetada. Nao crie nova docu
 ### Operacao
 
 - [`operations/api-scripts.md`](operations/api-scripts.md): scripts oficiais de manutencao/operacao da API.
+- [`operations/services-commercial-catalog-rollout.md`](operations/services-commercial-catalog-rollout.md): ordem de deploy, carga idempotente, compatibilidade, rollback e checklist do catalogo comercial.
 
 ### Planos de execucao
 
@@ -51,7 +52,7 @@ Depois disso, leia os documentos especificos da area afetada. Nao crie nova docu
 - [`execution-plans/active/2026-06-navigation-information-architecture.md`](execution-plans/active/2026-06-navigation-information-architecture.md): plano ativo para reorganizacao incremental da navegacao, Aluno 360, inicio por perfil e permissoes.
 - [`execution-plans/active/2026-07-student-central-roadmap.md`](execution-plans/active/2026-07-student-central-roadmap.md): estado funcional da Central do Aluno, roadmap integrado, fases e proximos passos.
 - [`execution-plans/active/2026-07-epic-172-completion-assessment.md`](execution-plans/active/2026-07-epic-172-completion-assessment.md): levantamento do que foi entregue na epica #172 e do que ainda falta para concluir a Fase 5 de antropometria.
-- [`execution-plans/active/2026-07-services-commercial-catalog.md`](execution-plans/active/2026-07-services-commercial-catalog.md): plano incremental da epica #210 para dominio, API, interface, carga inicial e rollout do catalogo comercial.
+- [`execution-plans/active/2026-07-services-commercial-catalog.md`](execution-plans/active/2026-07-services-commercial-catalog.md): registro de implementacao da epica #210; mantido no caminho ativo por compatibilidade ate a validacao operacional.
 - [`execution-plans/completed/`](execution-plans/completed/): planos concluidos, quando aplicavel.
 
 ## Apontadores de compatibilidade
@@ -75,7 +76,7 @@ Documentos antigos que ainda possuem valor historico devem ser movidos para [`ar
 ### Arquivos historicos arquivados
 
 - [`archive/BIBLIOTECA_MELHORIAS-2026-02-02.md`](archive/BIBLIOTECA_MELHORIAS-2026-02-02.md): registro detalhado da entrega historica de 02/02/2026 da tela de Biblioteca.
-- [`archive/CHECKLIST_TESTES_BIBLIOTECA-2026-02-02.md`](archive/CHECKLIST_TESTES_BIBLIOTECA-2026-02-02.md): checklist manual historico associado a essa entrega.
+- [`archive/CHECKLIST_TESTES_BIBLIOTECA-2026-02-02.md`](archive/CHECKLIST_TESTES_BIBLIOTECA-2026-02-02.md): checklist manual historico associado a entrega.
 - [`archive/visual-guidelines.local-backup-20260420-165809.md`](archive/visual-guidelines.local-backup-20260420-165809.md): backup visual local mantido apenas para consulta historica.
 
 ## Regra de manutencao
