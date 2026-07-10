@@ -1,4 +1,4 @@
-name: Apply final UI fixes
+name: Apply final compatibility fixes
 
 on:
   pull_request:
@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   apply-and-validate:
-    name: Apply and validate remaining fixes
+    name: Apply and validate final fixes
     runs-on: ubuntu-latest
 
     steps:
@@ -31,7 +31,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Preserve unavailable current service in student form
+      - name: Patch student form
         shell: bash
         run: |
           python - <<'PY'
@@ -40,40 +40,51 @@ jobs:
           path = Path('apps/web/src/pages/AlunoForm.tsx')
           content = path.read_text(encoding='utf-8')
 
-          content = content.replace(
-              '      const data = await serviceCatalogService.list();\n      setServiceOptions(data.filter((item) => item.isActive));',
-              '      const data = await serviceCatalogService.list(isEditMode);\n      setServiceOptions(data);',
-              1,
+          load_start = content.index('  const loadServiceOptions = async () => {')
+          load_end = content.index('  const loadProfessorOptions = async () => {', load_start)
+          load_segment = content[load_start:load_end]
+          load_segment = load_segment.replace(
+              'serviceCatalogService.list()',
+              'serviceCatalogService.list(isEditMode)',
           )
+          load_segment = load_segment.replace(
+              'setServiceOptions(data.filter((item) => item.isActive));',
+              'setServiceOptions(data);',
+          )
+          content = content[:load_start] + load_segment + content[load_end:]
 
-          content = content.replace(
-              '  const interestServiceOptions = serviceOptions.filter((item) => !item.parentServiceId);\n  const financialServiceOptions = serviceOptions.filter((item) => item.parentServiceId);',
-              '''  const interestServiceOptions = serviceOptions
-                  .filter((item) => !item.parentServiceId && (item.isActive || item.id === selectedServiceId))
-                  .sort(
-                    (left, right) =>
-                      (left.displayOrder ?? 0) - (right.displayOrder ?? 0) ||
-                      left.name.localeCompare(right.name, 'pt-BR')
-                  );
-                const financialServiceOptions = serviceOptions.filter(
-                  (item) => item.parentServiceId && item.isActive
-                );''',
-              1,
-          )
+          options_start = content.index('  const interestServiceOptions =')
+          options_end = content.index('  const selectedFinancialServiceName =', options_start)
+          options_block = '''  const interestServiceOptions = serviceOptions
+            .filter((item) => !item.parentServiceId && (item.isActive || item.id === selectedServiceId))
+            .sort(
+              (left, right) =>
+                (left.displayOrder ?? 0) - (right.displayOrder ?? 0) ||
+                left.name.localeCompare(right.name, 'pt-BR')
+            );
+          const financialServiceOptions = serviceOptions.filter(
+            (item) => item.parentServiceId && item.isActive
+          );
+'''
+          content = content[:options_start] + options_block + content[options_end:]
 
-          content = content.replace(
-              '''                                  <option key={service.id} value={service.id}>
-                                        {service.name}
-                                      </option>''',
-              '''                                  <option key={service.id} value={service.id} disabled={!service.isActive}>
-                                        {service.name}{service.isActive ? '' : ' (indisponível — vínculo atual)'}
-                                      </option>''',
-              1,
+          render_start = content.index('{interestServiceOptions.map((service) => (')
+          render_end = content.index('))}', render_start) + 3
+          render_segment = content[render_start:render_end]
+          render_segment = render_segment.replace(
+              '<option key={service.id} value={service.id}>',
+              '<option key={service.id} value={service.id} disabled={!service.isActive}>',
           )
+          render_segment = render_segment.replace(
+              '{service.name}',
+              "{service.name}{service.isActive ? '' : ' (indisponível — vínculo atual)'}",
+          )
+          content = content[:render_start] + render_segment + content[render_end:]
 
           required = (
               'serviceCatalogService.list(isEditMode)',
               'item.id === selectedServiceId',
+              'disabled={!service.isActive}',
               'indisponível — vínculo atual',
           )
           missing = [marker for marker in required if marker not in content]
@@ -84,11 +95,11 @@ jobs:
           PY
           if ! git diff --quiet -- apps/web/src/pages/AlunoForm.tsx; then
             git add apps/web/src/pages/AlunoForm.tsx
-            git commit -m "fix(students): show unavailable current service"
+            git commit -m "fix(students): preserve unavailable current service"
             git push origin HEAD:feat/210-services-commercial-catalog
           fi
 
-      - name: Confirm impacted plans and show effective component status
+      - name: Patch catalog UI
         shell: bash
         run: |
           python - <<'PY'
@@ -97,51 +108,78 @@ jobs:
           path = Path('apps/web/src/pages/Settings/ServicesCatalog.tsx')
           content = path.read_text(encoding='utf-8')
 
-          content = content.replace(
-              "  validUntil: '',\n  isActive: true,\n};\n\nconst emptyPresentationForm",
-              "  validUntil: '',\n  isActive: true,\n  usedByPlansCount: 0,\n};\n\nconst emptyPresentationForm",
-              1,
-          )
+          option_start = content.index('const emptyOptionForm = {')
+          option_end = content.index('const emptyPresentationForm', option_start)
+          option_segment = content[option_start:option_end]
+          if 'usedByPlansCount' not in option_segment:
+              option_segment = option_segment.replace(
+                  '  isActive: true,\n};',
+                  '  isActive: true,\n  usedByPlansCount: 0,\n};',
+                  1,
+              )
+          content = content[:option_start] + option_segment + content[option_end:]
 
-          content = content.replace(
-              "  const normalized = value.replace(/\\./g, '').replace(',', '.').trim();\n  if (!normalized) return undefined;",
-              "  const trimmed = value.trim();\n  if (!trimmed) return undefined;\n  const normalized = trimmed.includes(',')\n    ? trimmed.replace(/\\./g, '').replace(',', '.')\n    : trimmed;",
-              1,
-          )
+          parser_start = content.index('function parseOptionalNumber')
+          parser_end = content.index('function dateInput', parser_start)
+          parser_block = '''function parseOptionalNumber(value: string) {
+            const trimmed = value.trim();
+            if (!trimmed) return undefined;
+            const normalized = trimmed.includes(',')
+              ? trimmed.replace(/\\./g, '').replace(',', '.')
+              : trimmed;
+            const parsed = Number(normalized);
+            return Number.isFinite(parsed) ? parsed : undefined;
+          }
 
-          if 'detail.usedByPlansCount > 0' not in content:
+          '''
+          content = content[:parser_start] + parser_block + content[parser_end:]
+
+          save_service_start = content.index('  const saveService = async')
+          save_service_end = content.index('  const editOption =', save_service_start)
+          save_service_segment = content[save_service_start:save_service_end]
+          if 'detail.usedByPlansCount > 0' not in save_service_segment:
               marker = '      const saved = selectedId\n'
               insertion = '''      if (detail?.isActive && !serviceForm.isActive && detail.usedByPlansCount > 0) {
-                    const confirmed = window.confirm(
-                      `Este serviço participa de ${detail.usedByPlansCount} plano(s) ativo(s). Ao inativá-lo, esses componentes deixarão de aparecer como ativos na apresentação comercial. Deseja continuar?`
-                    );
-                    if (!confirmed) return;
-                  }
+                const confirmed = window.confirm(
+                  `Este serviço participa de ${detail.usedByPlansCount} plano(s) ativo(s). Ao inativá-lo, esses componentes deixarão de aparecer como ativos na apresentação comercial. Deseja continuar?`
+                );
+                if (!confirmed) return;
+              }
 
-                  '''
-              position = content.index(marker)
-              content = content[:position] + insertion + content[position:]
+              '''
+              position = save_service_segment.index(marker)
+              save_service_segment = save_service_segment[:position] + insertion + save_service_segment[position:]
+          content = content[:save_service_start] + save_service_segment + content[save_service_end:]
 
-          content = content.replace(
-              '      isActive: option.isActive,\n    });',
-              '      isActive: option.isActive,\n      usedByPlansCount: option.usedByPlansCount ?? 0,\n    });',
-              1,
-          )
+          edit_start = content.index('  const editOption =')
+          edit_end = content.index('  const saveOption =', edit_start)
+          edit_segment = content[edit_start:edit_end]
+          if 'usedByPlansCount:' not in edit_segment:
+              edit_segment = edit_segment.replace(
+                  '      isActive: option.isActive,\n',
+                  '      isActive: option.isActive,\n      usedByPlansCount: option.usedByPlansCount ?? 0,\n',
+                  1,
+              )
+          content = content[:edit_start] + edit_segment + content[edit_end:]
 
-          if 'optionForm.usedByPlansCount > 0' not in content:
+          save_option_start = content.index('  const saveOption =')
+          save_option_end = content.index('  const savePresentationItem =', save_option_start)
+          save_option_segment = content[save_option_start:save_option_end]
+          if 'optionForm.usedByPlansCount > 0' not in save_option_segment:
               marker = '      const amount = parseOptionalNumber(optionForm.priceAmount);'
               insertion = '''      if (optionForm.id && !optionForm.isActive && optionForm.usedByPlansCount > 0) {
-                    const original = detail?.options.find((item) => item.id === optionForm.id);
-                    if (original?.isActive) {
-                      const confirmed = window.confirm(
-                        `Esta opção participa de ${optionForm.usedByPlansCount} plano(s) ativo(s). Ao inativá-la, esses componentes deixarão de aparecer como ativos na apresentação comercial. Deseja continuar?`
-                      );
-                      if (!confirmed) return;
-                    }
-                  }
-                  '''
-              position = content.index(marker)
-              content = content[:position] + insertion + content[position:]
+                const original = detail?.options.find((item) => item.id === optionForm.id);
+                if (original?.isActive) {
+                  const confirmed = window.confirm(
+                    `Esta opção participa de ${optionForm.usedByPlansCount} plano(s) ativo(s). Ao inativá-la, esses componentes deixarão de aparecer como ativos na apresentação comercial. Deseja continuar?`
+                  );
+                  if (!confirmed) return;
+                }
+              }
+              '''
+              position = save_option_segment.index(marker)
+              save_option_segment = save_option_segment[:position] + insertion + save_option_segment[position:]
+          content = content[:save_option_start] + save_option_segment + content[save_option_end:]
 
           content = content.replace(
               '{detail.components.length === 0 &&',
