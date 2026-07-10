@@ -3,7 +3,10 @@ import { assertStudentInterestServiceSelectable } from './aluno.service-selectio
 describe('student interest service selection', () => {
   it('permite novo vínculo somente com serviço principal ativo', () => {
     expect(() =>
-      assertStudentInterestServiceSelectable({ id: 'active', isActive: true, parentServiceId: null })
+      assertStudentInterestServiceSelectable(
+        { id: 'active', isActive: true, parentServiceId: null },
+        null
+      )
     ).not.toThrow();
     expect(() =>
       assertStudentInterestServiceSelectable({ id: 'inactive', isActive: false, parentServiceId: null })
