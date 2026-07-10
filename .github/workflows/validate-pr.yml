@@ -13,57 +13,14 @@ on:
       - 'feat/**'
       - 'fix/**'
 
-permissions:
-  contents: write
-
 jobs:
   validate:
     name: Validate repository
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout feature branch
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: feat/210-services-commercial-catalog
-
-      - name: Apply one-time compatibility fixes
-        shell: bash
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          catalog_path = Path('apps/web/src/pages/Settings/ServicesCatalog.tsx')
-          catalog = catalog_path.read_text(encoding='utf-8')
-          catalog = catalog.replace('  ServicePresentationItem,\n', '')
-          catalog = catalog.replace('  CircleAlert,\n', '  AlertCircle as CircleAlert,\n')
-          catalog_path.write_text(catalog, encoding='utf-8')
-
-          aluno_path = Path('apps/api/src/modules/alunos/aluno.service.ts')
-          aluno = aluno_path.read_text(encoding='utf-8')
-          aluno = aluno.replace(
-              'const assertBaseServiceIsSelectable = (service: { isActive: boolean; parentServiceId: string | null }) => {',
-              'const assertBaseServiceIsSelectable = (service: { isActive: boolean; parentServiceId?: string | null }) => {'
-          )
-          aluno = aluno.replace(
-              'getServiceForContract(professor.contractId, data.serviceId, tx)',
-              'getServiceForContract(professor.contractId, data.serviceId)'
-          )
-          aluno = aluno.replace(
-              'getServiceForContract(alunoContractId, data.serviceId, tx)',
-              'getServiceForContract(alunoContractId, data.serviceId)'
-          )
-          aluno_path.write_text(aluno, encoding='utf-8')
-          PY
-          if git diff --quiet; then
-            echo "Compatibility fixes already applied"
-          else
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add apps/web/src/pages/Settings/ServicesCatalog.tsx apps/api/src/modules/alunos/aluno.service.ts
-            git commit -m "fix(services): preserve student service compatibility"
-            git push origin HEAD:feat/210-services-commercial-catalog
-          fi
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -83,16 +40,7 @@ jobs:
         run: pnpm --filter @corrida/api exec prisma generate
 
       - name: Type check
-        run: |
-          set -o pipefail
-          pnpm type-check 2>&1 | tee typecheck.log
-
-      - name: Upload type check diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: typecheck-diagnostics
-          path: typecheck.log
+        run: pnpm type-check
 
       - name: Lint
         run: pnpm lint
