@@ -148,7 +148,7 @@ function VariableTree({
   return (
     <div className="space-y-2">
       {groups.map((group) => (
-        <details key={group.key} defaultOpen className="group rounded-lg border border-border bg-white">
+        <details key={group.key} open className="group rounded-lg border border-border bg-white">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2 text-sm font-semibold text-foreground [&::-webkit-details-marker]:hidden">
             <span>{group.label}</span>
             <span className="flex items-center gap-2 text-xs font-normal text-muted-foreground">
