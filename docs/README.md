@@ -34,6 +34,7 @@ Depois disso, leia os documentos especificos da area afetada. Nao crie nova docu
 - [`product/access-control.md`](product/access-control.md): regras de produto para controle de acesso.
 - [`product/integrated-prescription-control.md`](product/integrated-prescription-control.md): arquitetura-alvo do fluxo integrado de prontuario, avaliacao, prescricao, montagem consolidada, treino de hoje, feedback e decisao.
 - [`product/navigation-information-architecture.md`](product/navigation-information-architecture.md): mapa atual, arquitetura por hubs, Aluno 360, telas longas, inicio por perfil, permissoes e rollout da nova navegacao.
+- [`product/services-commercial-catalog.md`](product/services-commercial-catalog.md): arquitetura de produto para catalogo comercial, opcoes, valores, apresentacao e composicao de planos em `/settings/services`.
 - [`product/student-central-action-patterns.md`](product/student-central-action-patterns.md): padrao de pop-up, painel lateral e fluxo guiado para acoes contextuais da Central do Aluno.
 - [`product/student-central-domain-matrix.md`](product/student-central-domain-matrix.md): matriz de classificacao entre Central do Aluno, administracao geral e funcionalidades hibridas.
 
@@ -49,6 +50,7 @@ Depois disso, leia os documentos especificos da area afetada. Nao crie nova docu
 - [`execution-plans/active/2026-06-navigation-information-architecture.md`](execution-plans/active/2026-06-navigation-information-architecture.md): plano ativo para reorganizacao incremental da navegacao, Aluno 360, inicio por perfil e permissoes.
 - [`execution-plans/active/2026-07-student-central-roadmap.md`](execution-plans/active/2026-07-student-central-roadmap.md): estado funcional da Central do Aluno, roadmap integrado, fases e proximos passos.
 - [`execution-plans/active/2026-07-epic-172-completion-assessment.md`](execution-plans/active/2026-07-epic-172-completion-assessment.md): levantamento do que foi entregue na epica #172 e do que ainda falta para concluir a Fase 5 de antropometria.
+- [`execution-plans/active/2026-07-services-commercial-catalog.md`](execution-plans/active/2026-07-services-commercial-catalog.md): plano incremental da epica #210 para dominio, API, interface, carga inicial e rollout do catalogo comercial.
 - [`execution-plans/completed/`](execution-plans/completed/): planos concluidos, quando aplicavel.
 
 ## Documentos historicos ou complementares
