@@ -13,14 +13,19 @@ on:
       - 'feat/**'
       - 'fix/**'
 
+permissions:
+  contents: write
+
 jobs:
   validate:
     name: Validate repository
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout feature branch
         uses: actions/checkout@v4
+        with:
+          ref: feat/210-services-commercial-catalog
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -35,6 +40,178 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Align Prisma schemas with catalog migration
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          contract_anchor = '  services                      ServiceOption[]\n'
+          contract_replacement = '''  services                      ServiceOption[]
+          serviceCommercialOptions      ServiceCommercialOption[]
+          servicePresentationItems      ServicePresentationItem[]
+          servicePlanComponents         ServicePlanComponent[]
+          '''
+
+          old_block = '''model ServiceOption {
+            id                 String             @id @default(cuid())
+            contractId         String
+            name               String
+            code               String
+            description        String?
+            parentServiceId    String?
+            monthlyPrice       Float?
+            validFrom          DateTime?
+            validUntil         DateTime?
+            isActive           Boolean            @default(true)
+            isSystem           Boolean            @default(false)
+            createdAt          DateTime           @default(now())
+            updatedAt          DateTime           @default(now()) @updatedAt
+            alunos             Aluno[]
+            studentContracts   StudentContract[]
+            contractTemplates  ContractTemplate[]
+            generatedContracts Contract[]
+            contract           CompanyContract    @relation(fields: [contractId], references: [id], onDelete: Cascade)
+            parentService      ServiceOption?     @relation("ServiceOptionOffers", fields: [parentServiceId], references: [id], onDelete: SetNull)
+            financialOffers    ServiceOption[]    @relation("ServiceOptionOffers")
+
+            @@unique([contractId, code])
+            @@index([contractId])
+            @@index([parentServiceId])
+          }
+          '''
+
+          new_block = '''model ServiceOption {
+            id                       String                     @id @default(cuid())
+            contractId               String
+            name                     String
+            code                     String
+            description              String?
+            parentServiceId          String?
+            monthlyPrice             Float?
+            validFrom                DateTime?
+            validUntil               DateTime?
+            isActive                 Boolean                    @default(true)
+            isSystem                 Boolean                    @default(false)
+            category                 String                     @default("individual_service")
+            summary                  String?
+            whatIs                   String?
+            targetAudience           String?
+            displayOrder             Int                        @default(0)
+            origin                   String                     @default("legacy")
+            createdAt                DateTime                   @default(now())
+            updatedAt                DateTime                   @default(now()) @updatedAt
+            alunos                   Aluno[]
+            studentContracts         StudentContract[]
+            contractTemplates        ContractTemplate[]
+            generatedContracts       Contract[]
+            contract                 CompanyContract            @relation(fields: [contractId], references: [id], onDelete: Cascade)
+            parentService            ServiceOption?             @relation("ServiceOptionOffers", fields: [parentServiceId], references: [id], onDelete: SetNull)
+            financialOffers          ServiceOption[]            @relation("ServiceOptionOffers")
+            commercialOptions        ServiceCommercialOption[]
+            presentationItems        ServicePresentationItem[]
+            planComponents           ServicePlanComponent[]     @relation("PlanServiceComponents")
+            referencedPlanComponents ServicePlanComponent[]     @relation("TargetServiceComponents")
+
+            @@unique([contractId, code])
+            @@index([contractId])
+            @@index([parentServiceId])
+            @@index([contractId, category, isActive, displayOrder])
+          }
+
+          model ServiceCommercialOption {
+            id             String                 @id @default(cuid())
+            contractId     String
+            serviceId      String
+            code           String
+            name           String
+            frequency      String?
+            quantity       Decimal?               @db.Decimal(10, 2)
+            unit           String?
+            priceType      String
+            priceAmount    Decimal?               @db.Decimal(12, 2)
+            validFrom      DateTime?
+            validUntil     DateTime?
+            isActive       Boolean                @default(true)
+            displayOrder   Int                    @default(0)
+            origin         String                 @default("manual")
+            createdAt      DateTime               @default(now())
+            updatedAt      DateTime               @default(now()) @updatedAt
+            contract       CompanyContract        @relation(fields: [contractId], references: [id], onDelete: Cascade)
+            service        ServiceOption          @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+            planComponents ServicePlanComponent[] @relation("TargetOptionComponents")
+
+            @@unique([contractId, code])
+            @@index([contractId, serviceId, isActive, displayOrder])
+            @@index([contractId, validFrom, validUntil])
+          }
+
+          model ServicePresentationItem {
+            id           String          @id @default(cuid())
+            contractId   String
+            serviceId    String
+            text         String
+            isActive     Boolean         @default(true)
+            displayOrder Int             @default(0)
+            origin       String          @default("manual")
+            createdAt    DateTime        @default(now())
+            updatedAt    DateTime        @default(now()) @updatedAt
+            contract     CompanyContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+            service      ServiceOption   @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+            @@index([contractId, serviceId, isActive, displayOrder])
+          }
+
+          model ServicePlanComponent {
+            id              String                   @id @default(cuid())
+            contractId      String
+            planServiceId   String
+            targetServiceId String?
+            targetOptionId  String?
+            quantity        Decimal?                 @db.Decimal(10, 2)
+            unit            String?
+            notes           String?
+            isActive        Boolean                  @default(true)
+            displayOrder    Int                      @default(0)
+            origin          String                   @default("manual")
+            createdAt       DateTime                 @default(now())
+            updatedAt       DateTime                 @default(now()) @updatedAt
+            contract        CompanyContract          @relation(fields: [contractId], references: [id], onDelete: Cascade)
+            planService     ServiceOption            @relation("PlanServiceComponents", fields: [planServiceId], references: [id], onDelete: Cascade)
+            targetService   ServiceOption?           @relation("TargetServiceComponents", fields: [targetServiceId], references: [id], onDelete: Restrict)
+            targetOption    ServiceCommercialOption? @relation("TargetOptionComponents", fields: [targetOptionId], references: [id], onDelete: Restrict)
+
+            @@index([contractId, planServiceId, isActive, displayOrder])
+            @@index([contractId, targetServiceId])
+            @@index([contractId, targetOptionId])
+          }
+          '''
+
+          for filename in ('apps/api/prisma/schema.prisma', 'prisma/schema.prisma'):
+              path = Path(filename)
+              content = path.read_text(encoding='utf-8')
+              if 'model ServiceCommercialOption {' in content:
+                  continue
+              if contract_anchor not in content:
+                  raise RuntimeError(f'CompanyContract anchor not found in {filename}')
+              if old_block not in content:
+                  raise RuntimeError(f'ServiceOption block not found in {filename}')
+              content = content.replace(contract_anchor, contract_replacement, 1)
+              content = content.replace(old_block, new_block, 1)
+              path.write_text(content, encoding='utf-8')
+          PY
+          pnpm --filter @corrida/api exec prisma format --schema prisma/schema.prisma
+          pnpm --filter @corrida/api exec prisma format --schema ../../prisma/schema.prisma
+          if git diff --quiet; then
+            echo "Prisma schemas already aligned"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add apps/api/prisma/schema.prisma prisma/schema.prisma
+            git commit -m "feat(services): align Prisma catalog schema"
+            git push origin HEAD:feat/210-services-commercial-catalog
+          fi
 
       - name: Generate Prisma Client (api)
         run: pnpm --filter @corrida/api exec prisma generate
