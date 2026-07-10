@@ -24,6 +24,7 @@ import {
   assertNonNegativeOrder,
   assertPriceRule,
   assertValidity,
+  isPlanComponentCommerciallyActive,
   normalizeCatalogCode,
   resolveCommercialState,
   wouldCreateServiceCycle,
@@ -162,6 +163,7 @@ function mapCommercialOption(row: CommercialOptionRow): ServiceCommercialOption 
     isActive: row.isActive,
     displayOrder: row.displayOrder,
     origin: asOrigin(row.origin),
+    usedByPlansCount: 0,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -204,7 +206,14 @@ function mapComponent(row: ComponentRow): ServicePlanComponent {
     unit: row.unit,
     notes: row.notes,
     isActive: row.isActive,
-    displayOrder: row.displayOrder,
+        isCommerciallyActive: isPlanComponentCommerciallyActive({
+          isActive: row.isActive,
+          targetServiceId: row.targetServiceId,
+          targetOptionId: row.targetOptionId,
+          targetServiceActive: row.targetServiceActive,
+          targetOptionActive: row.targetOptionActive,
+        }),
+        displayOrder: row.displayOrder,
     origin: asOrigin(row.origin),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -402,7 +411,7 @@ async function buildCatalogSummary(
   components: ServicePlanComponent[]
 ): Promise<ServiceCatalogSummary> {
   const activeOptionsCount = options.filter((option) => option.isActive).length;
-  const activeComponentsCount = components.filter((component) => component.isActive).length;
+  const activeComponentsCount = components.filter((component) => component.isCommerciallyActive).length;
   const pricing = resolveCommercialState(asCategory(row.category), options, activeComponentsCount);
 
   return {
@@ -631,20 +640,36 @@ export const serviceCatalogService = {
 
   async getCatalogDetail(contractId: string, serviceId: string): Promise<ServiceCatalogDetail> {
     const row = await getServiceRow(contractId, serviceId);
-    const [optionRows, presentationRows, componentRows, usedByRows] = await Promise.all([
-      listOptionRows(contractId, serviceId),
-      listPresentationRows(contractId, serviceId),
-      listComponentRows(contractId, serviceId),
-      prisma.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`
-        SELECT COUNT(*)::bigint AS "count"
-        FROM "ServicePlanComponent" component
-        LEFT JOIN "ServiceCommercialOption" target_option ON target_option."id" = component."targetOptionId"
-        WHERE component."contractId" = ${contractId}
-          AND (component."targetServiceId" = ${serviceId} OR target_option."serviceId" = ${serviceId})
-      `),
-    ]);
-    const options = optionRows.map(mapCommercialOption);
-    const components = componentRows.map(mapComponent);
+    const [optionRows, presentationRows, componentRows, usedByRows, optionImpactRows] = await Promise.all([
+          listOptionRows(contractId, serviceId),
+          listPresentationRows(contractId, serviceId),
+          listComponentRows(contractId, serviceId),
+          prisma.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`
+            SELECT COUNT(*)::bigint AS "count"
+            FROM "ServicePlanComponent" component
+            LEFT JOIN "ServiceCommercialOption" target_option ON target_option."id" = component."targetOptionId"
+            WHERE component."contractId" = ${contractId}
+              AND component."isActive" = true
+              AND (component."targetServiceId" = ${serviceId} OR target_option."serviceId" = ${serviceId})
+          `),
+          prisma.$queryRaw<Array<{ optionId: string; count: bigint }>>(Prisma.sql`
+            SELECT component."targetOptionId" AS "optionId", COUNT(*)::bigint AS "count"
+            FROM "ServicePlanComponent" component
+            INNER JOIN "ServiceCommercialOption" target_option ON target_option."id" = component."targetOptionId"
+            WHERE component."contractId" = ${contractId}
+              AND component."isActive" = true
+              AND target_option."serviceId" = ${serviceId}
+            GROUP BY component."targetOptionId"
+          `),
+        ]);
+        const optionImpactById = new Map(
+          optionImpactRows.map((item) => [item.optionId, Number(item.count)])
+        );
+        const options = optionRows.map((item) => ({
+          ...mapCommercialOption(item),
+          usedByPlansCount: optionImpactById.get(item.id) ?? 0,
+        }));
+            const components = componentRows.map(mapComponent);
     const summary = await buildCatalogSummary(row, options, components);
 
     return {
