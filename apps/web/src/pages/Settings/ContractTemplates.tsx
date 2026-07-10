@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Copy, Eye, FileText, Plus, Save } from 'lucide-react';
+import { Copy, Eye, FilePlus2, FileText, Plus, Save } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { CONTRACT_VARIABLES, contractService, type ContractTemplate } from '../../services/contract.service';
+import {
+  ACCESS_PERSONAL_TRAINING_TEMPLATE_NAME,
+  createAccessPersonalTrainingTemplate,
+} from './contractTemplatePresets';
 
 type VariableItem = { key: string; token: string };
 
@@ -174,6 +178,30 @@ export default function ContractTemplates() {
     setDraft({ ...draft, clauses });
   };
 
+  const startNewTemplate = () => {
+    setSelectedId(null);
+    setDraft(emptyTemplate);
+    setPreviewHtml('');
+    setMessage(null);
+  };
+
+  const loadAccessTemplate = () => {
+    const existingTemplate = templates.find(
+      (template) => template.name === ACCESS_PERSONAL_TRAINING_TEMPLATE_NAME
+    );
+
+    if (existingTemplate) {
+      setSelectedId(existingTemplate.id);
+      setMessage('O modelo ACESSO já existe e foi selecionado para revisão.');
+      return;
+    }
+
+    setSelectedId(null);
+    setDraft(createAccessPersonalTrainingTemplate());
+    setPreviewHtml('');
+    setMessage('Modelo ACESSO carregado como rascunho. Revise o conteúdo e salve para disponibilizá-lo.');
+  };
+
   const save = async () => {
     setSaving(true);
     setMessage(null);
@@ -211,10 +239,16 @@ export default function ContractTemplates() {
           <h1 className="text-2xl font-bold text-gray-900">Modelos de contrato</h1>
           <p className="text-sm text-muted-foreground">Edite cabeçalho, rodapé, cláusulas e variáveis dinâmicas sem escrever HTML.</p>
         </div>
-        <Button onClick={() => { setSelectedId(null); setDraft(emptyTemplate); }}>
-          <Plus size={16} className="mr-2" />
-          Novo modelo
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={loadAccessTemplate}>
+            <FilePlus2 size={16} className="mr-2" />
+            Usar modelo ACESSO
+          </Button>
+          <Button onClick={startNewTemplate}>
+            <Plus size={16} className="mr-2" />
+            Novo modelo
+          </Button>
+        </div>
       </div>
 
       {message && <div className="rounded-md border border-border bg-muted/30 p-3 text-sm">{message}</div>}
