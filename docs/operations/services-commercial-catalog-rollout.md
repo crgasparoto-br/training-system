@@ -13,7 +13,19 @@ Aplicar o catálogo estruturado da épica #210 por contrato sem interromper o ca
 5. Executar a carga real somente após a revisão.
 6. Validar o catálogo, o Serviço de Interesse e os vínculos contratuais.
 
-A API nova depende das tabelas e colunas da migration. Não publique a API antes da migration.
+A API nova depende das tabelas e colunas da migration. O comando de produção da API executa `prisma migrate deploy` antes de iniciar o servidor, evitando que uma versão nova consulte um schema antigo.
+
+## Recuperação quando a API foi iniciada antes da migration
+
+O erro PostgreSQL `42703` com mensagem semelhante a `column "category" does not exist` indica que a aplicação nova está conectada a um banco que ainda não recebeu a migration do catálogo.
+
+A partir da raiz do repositório, execute:
+
+```bash
+pnpm --filter @corrida/api db:migrate:prod
+```
+
+Em seguida, reinicie a API. Não use `prisma db push` para essa correção, pois o histórico de migrations precisa permanecer consistente entre os ambientes.
 
 ## Comando de simulação
 
