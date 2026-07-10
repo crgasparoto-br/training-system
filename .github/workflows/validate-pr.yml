@@ -40,7 +40,16 @@ jobs:
         run: pnpm --filter @corrida/api exec prisma generate
 
       - name: Type check
-        run: pnpm type-check
+        run: |
+          set -o pipefail
+          pnpm type-check 2>&1 | tee typecheck.log
+
+      - name: Upload type check diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: typecheck-diagnostics
+          path: typecheck.log
 
       - name: Lint
         run: pnpm lint
