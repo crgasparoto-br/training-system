@@ -1,4 +1,5 @@
 import type { ServiceCatalogSummary } from '@corrida/types';
+import { describe, expect, it } from 'vitest';
 import { filterCatalog, formatCatalogPrice } from './serviceCatalogPresentation';
 
 const item = (overrides: Partial<ServiceCatalogSummary> = {}): ServiceCatalogSummary => ({
