@@ -17,7 +17,7 @@ Depois disso, leia os documentos especificos da area afetada. Nao crie nova docu
 ### Para agentes e desenvolvimento
 
 - [`../AGENTS.md`](../AGENTS.md): mapa curto para agentes e humanos.
-- [`../ARCHITECTURE.md`](../ARCHITECTURE.md): mapa raiz da arquitetura, invariantes e fronteiras principais.
+- [`../ARCHITECTURE.md`](../ARCHITECTURE.md): mapa raiz da arquitetura e invariantes.
 - [`architecture/overview.md`](architecture/overview.md): visao geral da arquitetura.
 - [`quality/validation.md`](quality/validation.md): comandos e criterios de validacao.
 
@@ -36,7 +36,8 @@ Depois disso, leia os documentos especificos da area afetada. Nao crie nova docu
 - [`product/navigation-information-architecture.md`](product/navigation-information-architecture.md): mapa atual, arquitetura por hubs, Aluno 360, telas longas, inicio por perfil, permissoes e rollout da nova navegacao.
 - [`product/services-commercial-catalog.md`](product/services-commercial-catalog.md): arquitetura de produto para catalogo comercial, opcoes, valores, apresentacao e composicao de planos em `/settings/services`.
 - [`product/student-central-action-patterns.md`](product/student-central-action-patterns.md): padrao de pop-up, painel lateral e fluxo guiado para acoes contextuais da Central do Aluno.
-- [`product/student-central-domain-matrix.md`](product/student-central-domain-matrix.md): matriz de classificacao entre Central do Aluno, administracao geral e funcionalidades hibridas.
+- [`product/student-central-domain-matrix.md`](product/student-central-domain-matrix.md): unica fonte de verdade para a fronteira entre Central do Aluno, administracao geral e funcionalidades hibridas.
+- [`product/prnt-discomfort-followup-flow.md`](product/prnt-discomfort-followup-flow.md): fonte de verdade do fluxo implementado de desconfortos e acompanhamentos no PRNT.
 
 ### Operacao
 
@@ -45,13 +46,21 @@ Depois disso, leia os documentos especificos da area afetada. Nao crie nova docu
 ### Planos de execucao
 
 - [`execution-plans/TEMPLATE.md`](execution-plans/TEMPLATE.md): template para tarefas grandes.
-- [`execution-plans/active/`](execution-plans/active/): planos em andamento.
+- [`execution-plans/active/`](execution-plans/active/): planos realmente em andamento; arquivos concluidos mantidos nesse caminho apenas por compatibilidade devem declarar explicitamente que nao sao ativos.
 - [`execution-plans/active/2026-06-integrated-prescription-control.md`](execution-plans/active/2026-06-integrated-prescription-control.md): plano ativo para evolucao do fluxo integrado de prontuario, prescricao e treino.
 - [`execution-plans/active/2026-06-navigation-information-architecture.md`](execution-plans/active/2026-06-navigation-information-architecture.md): plano ativo para reorganizacao incremental da navegacao, Aluno 360, inicio por perfil e permissoes.
 - [`execution-plans/active/2026-07-student-central-roadmap.md`](execution-plans/active/2026-07-student-central-roadmap.md): estado funcional da Central do Aluno, roadmap integrado, fases e proximos passos.
 - [`execution-plans/active/2026-07-epic-172-completion-assessment.md`](execution-plans/active/2026-07-epic-172-completion-assessment.md): levantamento do que foi entregue na epica #172 e do que ainda falta para concluir a Fase 5 de antropometria.
 - [`execution-plans/active/2026-07-services-commercial-catalog.md`](execution-plans/active/2026-07-services-commercial-catalog.md): plano incremental da epica #210 para dominio, API, interface, carga inicial e rollout do catalogo comercial.
 - [`execution-plans/completed/`](execution-plans/completed/): planos concluidos, quando aplicavel.
+
+## Apontadores de compatibilidade
+
+Alguns caminhos antigos permanecem versionados apenas para nao quebrar links existentes. Eles nao sao fontes de verdade e devem apontar para o documento atual.
+
+- `product/student-central-boundary-map.md` aponta para `product/student-central-domain-matrix.md`.
+- `product/prnt-followup-implementation-plan.md` aponta para `product/prnt-discomfort-followup-flow.md`.
+- `execution-plans/active/2026-07-prnt-followup-implementation-plan.md` registra uma entrega concluida e nao deve ser interpretado como plano ativo.
 
 ## Documentos historicos ou complementares
 
@@ -78,4 +87,5 @@ Ao adicionar nova documentacao:
 3. Evite duplicar conteudo ja existente.
 4. Atualize este indice quando o documento for uma fonte de verdade.
 5. Arquivos de backup local nao devem ser versionados na raiz de `docs/`.
-6. Quando um documento antigo precisar ser preservado apenas por historico, mova o conteudo para `archive/` e deixe um apontador curto no caminho antigo somente se isso ajudar a manter links estaveis.
+6. Quando um documento antigo precisar ser preservado apenas por historico, mova o conteudo para `archive/` ou transforme o caminho antigo em apontador curto para a fonte atual.
+7. Planos concluidos nao devem permanecer descritos como trabalho futuro dentro de `execution-plans/active/`.
