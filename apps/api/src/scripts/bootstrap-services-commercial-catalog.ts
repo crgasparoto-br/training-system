@@ -1,3 +1,4 @@
+import '../bootstrap-env.js';
 import { serviceCatalogService } from '../modules/services/service.service.js';
 
 function readArgument(name: string) {
@@ -17,12 +18,10 @@ async function main() {
   }
 
   const result = await serviceCatalogService.bootstrapReferenceCatalog(contractId, dryRun);
-  console.log(JSON.stringify(result, null, 2));
+  console.log('[services-catalog-bootstrap] completed', JSON.stringify(result, null, 2));
 }
 
-main()
-  .then(() => process.exit(0))
-  .catch((error) => {
-    console.error(error instanceof Error ? error.message : error);
-    process.exit(1);
-  });
+main().catch((error) => {
+  console.error('[services-catalog-bootstrap] failed', error instanceof Error ? error.message : error);
+  process.exitCode = 1;
+});
