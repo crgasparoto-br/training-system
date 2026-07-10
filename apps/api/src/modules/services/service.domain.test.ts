@@ -3,6 +3,7 @@ import {
   assertCompleteReorder,
   assertPriceRule,
   assertValidity,
+  isPlanComponentCommerciallyActive,
   resolveCommercialState,
   wouldCreateServiceCycle,
 } from './service.domain.js';
@@ -67,6 +68,37 @@ describe('service catalog domain', () => {
       ).state
     ).toBe('expired');
     expect(resolveCommercialState('combined_plan', [option()], 0).state).toBe('incomplete_plan');
+  });
+
+  it('considera ativo apenas componente e destino ativos', () => {
+    expect(
+      isPlanComponentCommerciallyActive({
+        isActive: true,
+        targetServiceId: 'service-1',
+        targetServiceActive: true,
+      })
+    ).toBe(true);
+    expect(
+      isPlanComponentCommerciallyActive({
+        isActive: true,
+        targetServiceId: 'service-1',
+        targetServiceActive: false,
+      })
+    ).toBe(false);
+    expect(
+      isPlanComponentCommerciallyActive({
+        isActive: true,
+        targetOptionId: 'option-1',
+        targetOptionActive: false,
+      })
+    ).toBe(false);
+    expect(
+      isPlanComponentCommerciallyActive({
+        isActive: false,
+        targetOptionId: 'option-1',
+        targetOptionActive: true,
+      })
+    ).toBe(false);
   });
 
   it('exige a sequência completa e sem duplicidades ao reordenar', () => {
