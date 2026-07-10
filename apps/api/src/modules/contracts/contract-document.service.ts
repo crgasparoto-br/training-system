@@ -5,34 +5,15 @@ import fs from 'fs/promises';
 import path from 'path';
 import puppeteer from 'puppeteer';
 import { studentContractService } from '../student-contracts/student-contract.service.js';
+import {
+  contractVariableDefinitions,
+  contractVariables,
+} from './contract-variable-definitions.js';
+import { loadContractServiceVariableContext } from './contract-service-context.js';
 
 const prisma = new PrismaClient();
 
-export const contractVariables = [
-  'aluno.nome',
-  'aluno.cpf',
-  'aluno.rg',
-  'aluno.enderecoCompleto',
-  'responsavel.nome',
-  'responsavel.cpf',
-  'responsavel.email',
-  'empresa.razaoSocial',
-  'empresa.cnpj',
-  'empresa.cref',
-  'empresa.endereco',
-  'professor.nome',
-  'professor.cref',
-  'servico.nome',
-  'servico.valor',
-  'servico.duracaoSessao',
-  'servico.quantidadeSemanal',
-  'contrato.valorMensal',
-  'contrato.valorMensalExtenso',
-  'contrato.diaVencimento',
-  'contrato.horarios',
-  'contrato.dataInicio',
-  'contrato.dataAssinatura',
-];
+export { contractVariables };
 
 type Actor = {
   userId?: string;
@@ -161,10 +142,7 @@ async function audit(contractId: string, action: string, actor?: Actor, details?
 
 export const contractDocumentService = {
   listVariables() {
-    return contractVariables.map((key) => ({
-      key,
-      token: `{{${key}}}`,
-    }));
+    return contractVariableDefinitions;
   },
 
   async listTemplates(contractId: string) {
@@ -339,6 +317,12 @@ export const contractDocumentService = {
     const selectedService = service || aluno.service;
     const valorMensal =
       input.valorMensal ?? (selectedService?.monthlyPrice ? Number(selectedService.monthlyPrice) : undefined);
+    const serviceContext = await loadContractServiceVariableContext(
+      prisma,
+      contractId,
+      selectedService,
+      valorMensal
+    );
 
     return {
       aluno: {
@@ -358,12 +342,7 @@ export const contractDocumentService = {
         cref: company.cref || '',
         endereco: formatAddress(company),
       },
-      servico: {
-        nome: selectedService?.name || '',
-        valor: valorMensal ? currency.format(valorMensal) : '',
-        duracaoSessao: '',
-        quantidadeSemanal: '',
-      },
+      servico: serviceContext,
       professor: {
         id: professor?.id || '',
         nome: professor?.user.profile?.name || '',
