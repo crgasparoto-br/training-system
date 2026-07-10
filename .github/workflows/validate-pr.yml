@@ -1,6 +1,11 @@
 name: Apply final UI fixes
 
 on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - '.github/workflows/validate-pr.yml'
   push:
     branches:
       - 'feat/210-services-commercial-catalog'
