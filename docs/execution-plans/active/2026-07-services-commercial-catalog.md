@@ -108,12 +108,12 @@ Evoluir `/settings/services` para um hub de gestão do catálogo comercial, pres
 
 A PR executa o workflow oficial `Validate PR`:
 
-- [ ] type-check;
-- [ ] lint;
-- [ ] testes;
-- [ ] arquitetura;
-- [ ] catálogo de acesso;
-- [ ] documentação.
+- [x] type-check;
+- [x] lint;
+- [x] testes;
+- [x] arquitetura;
+- [x] catálogo de acesso;
+- [x] documentação.
 
 ## Checklist manual final
 
