@@ -47,30 +47,41 @@ jobs:
           python - <<'PY'
           from pathlib import Path
 
-          def replace_once(content: str, old: str, new: str, label: str) -> str:
+          def replace_required(content: str, old: str, new: str, label: str) -> str:
+              if new in content:
+                  print(f'{label}: already applied')
+                  return content
               if old not in content:
-                  if new in content:
-                      return content
-                  raise RuntimeError(f'Patch anchor not found: {label}')
+                  raise RuntimeError(f'{label}: source anchor not found')
+              print(f'{label}: applied')
               return content.replace(old, new, 1)
 
           service_path = Path('apps/api/src/modules/services/service.service.ts')
           service = service_path.read_text(encoding='utf-8')
-          service = replace_once(
+          service = replace_required(
               service,
               '  assertValidity,\n  normalizeCatalogCode,',
               '  assertValidity,\n  isPlanComponentCommerciallyActive,\n  normalizeCatalogCode,',
-              'service domain import',
+              'domain helper import',
           )
-          service = replace_once(
-              service,
+
+          option_start = service.index('function mapCommercialOption')
+          option_end = service.index('function mapPresentationItem', option_start)
+          option_segment = service[option_start:option_end]
+          option_segment = replace_required(
+              option_segment,
               '    origin: asOrigin(row.origin),\n    createdAt: row.createdAt.toISOString(),',
               '    origin: asOrigin(row.origin),\n    usedByPlansCount: 0,\n    createdAt: row.createdAt.toISOString(),',
               'option impact default',
           )
-          service = replace_once(
-              service,
-              '    isActive: row.isActive,\n    displayOrder: row.displayOrder,\n    origin: asOrigin(row.origin),\n    createdAt: row.createdAt.toISOString(),\n    updatedAt: row.updatedAt.toISOString(),\n  };\n}\n\nasync function listServiceRows',
+          service = service[:option_start] + option_segment + service[option_end:]
+
+          component_start = service.index('function mapComponent')
+          component_end = service.index('async function listServiceRows', component_start)
+          component_segment = service[component_start:component_end]
+          component_segment = replace_required(
+              component_segment,
+              '    isActive: row.isActive,\n    displayOrder: row.displayOrder,',
               '''    isActive: row.isActive,
                   isCommerciallyActive: isPlanComponentCommerciallyActive({
                     isActive: row.isActive,
@@ -79,36 +90,23 @@ jobs:
                     targetServiceActive: row.targetServiceActive,
                     targetOptionActive: row.targetOptionActive,
                   }),
-                  displayOrder: row.displayOrder,
-                  origin: asOrigin(row.origin),
-                  createdAt: row.createdAt.toISOString(),
-                  updatedAt: row.updatedAt.toISOString(),
-                };
-              }
-
-              async function listServiceRows''',
+                  displayOrder: row.displayOrder,''',
               'effective component status',
           )
-          service = replace_once(
+          service = service[:component_start] + component_segment + service[component_end:]
+          service = replace_required(
               service,
               '  const activeComponentsCount = components.filter((component) => component.isActive).length;',
               '  const activeComponentsCount = components.filter((component) => component.isCommerciallyActive).length;',
               'effective component count',
           )
-          old_detail = '''    const [optionRows, presentationRows, componentRows, usedByRows] = await Promise.all([
-                    listOptionRows(contractId, serviceId),
-                    listPresentationRows(contractId, serviceId),
-                    listComponentRows(contractId, serviceId),
-                    prisma.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`
-                      SELECT COUNT(*)::bigint AS "count"
-                      FROM "ServicePlanComponent" component
-                      LEFT JOIN "ServiceCommercialOption" target_option ON target_option."id" = component."targetOptionId"
-                      WHERE component."contractId" = ${contractId}
-                        AND (component."targetServiceId" = ${serviceId} OR target_option."serviceId" = ${serviceId})
-                    `),
-                  ]);
-                  const options = optionRows.map(mapCommercialOption);'''
-          new_detail = '''    const [optionRows, presentationRows, componentRows, usedByRows, optionImpactRows] = await Promise.all([
+
+          detail_start_marker = '    const [optionRows, presentationRows, componentRows, usedByRows] = await Promise.all(['
+          detail_done_marker = '    const components = componentRows.map(mapComponent);'
+          if 'optionImpactRows' not in service:
+              detail_start = service.index(detail_start_marker)
+              detail_end = service.index(detail_done_marker, detail_start)
+              replacement = '''    const [optionRows, presentationRows, componentRows, usedByRows, optionImpactRows] = await Promise.all([
                     listOptionRows(contractId, serviceId),
                     listPresentationRows(contractId, serviceId),
                     listComponentRows(contractId, serviceId),
@@ -136,54 +134,49 @@ jobs:
                   const options = optionRows.map((item) => ({
                     ...mapCommercialOption(item),
                     usedByPlansCount: optionImpactById.get(item.id) ?? 0,
-                  }));'''
-          service = replace_once(service, old_detail, new_detail, 'catalog impact queries')
+                  }));
+                  '''
+              service = service[:detail_start] + replacement + service[detail_end:]
+              print('catalog impact queries: applied')
+          else:
+              print('catalog impact queries: already applied')
           service_path.write_text(service, encoding='utf-8')
 
-          student_service_path = Path('apps/api/src/modules/alunos/aluno.service.ts')
-          student_service = student_service_path.read_text(encoding='utf-8')
-          student_service = replace_once(
-              student_service,
+          student_path = Path('apps/api/src/modules/alunos/aluno.service.ts')
+          student = student_path.read_text(encoding='utf-8')
+          student = replace_required(
+              student,
               "import { getServiceForContract } from '../services/service.service.js';\n",
               "import { getServiceForContract } from '../services/service.service.js';\nimport { assertStudentInterestServiceSelectable } from './aluno.service-selection.js';\n",
-              'student selection import',
+              'student selector import',
           )
-          old_assertion = '''const assertBaseServiceIsSelectable = (service: { isActive: boolean; parentServiceId?: string | null }) => {
-            if (!service.isActive) {
-              throw new Error('Serviço selecionado está inativo');
-            }
-
-            if (service.parentServiceId) {
-              throw new Error('Selecione um serviço base no campo Serviço de Interesse');
-            }
-          };
-
-          '''
-          student_service = replace_once(student_service, old_assertion, '', 'remove legacy selection assertion')
-          student_service = student_service.replace(
+          assertion_start = student.find('const assertBaseServiceIsSelectable =')
+          if assertion_start >= 0:
+              assertion_end = student.index('\n\n', student.index('};', assertion_start)) + 2
+              student = student[:assertion_start] + student[assertion_end:]
+              print('legacy selector removal: applied')
+          else:
+              print('legacy selector removal: already applied')
+          student = student.replace(
               'assertBaseServiceIsSelectable(service);',
               'assertStudentInterestServiceSelectable(service);',
           )
-          student_service = replace_once(
-              student_service,
-              '          assertStudentInterestServiceSelectable(service);\n\n          alunoData.serviceId = service.id as never;',
-              '          assertStudentInterestServiceSelectable(service, currentAluno.serviceId);\n\n          alunoData.serviceId = service.id as never;',
-              'preserve current unavailable service',
-          )
-          student_service_path.write_text(student_service, encoding='utf-8')
+          update_anchor = '          assertStudentInterestServiceSelectable(service);\n\n          alunoData.serviceId = service.id as never;'
+          update_replacement = '          assertStudentInterestServiceSelectable(service, currentAluno.serviceId);\n\n          alunoData.serviceId = service.id as never;'
+          student = replace_required(student, update_anchor, update_replacement, 'preserve current unavailable service')
+          student_path.write_text(student, encoding='utf-8')
 
           form_path = Path('apps/web/src/pages/AlunoForm.tsx')
           form = form_path.read_text(encoding='utf-8')
-          form = replace_once(
+          form = replace_required(
               form,
               '      const data = await serviceCatalogService.list();\n      setServiceOptions(data.filter((item) => item.isActive));',
               '      const data = await serviceCatalogService.list(isEditMode);\n      setServiceOptions(data);',
-              'load inactive current service on edit',
+              'load current inactive service',
           )
-          form = replace_once(
+          form = replace_required(
               form,
-              '''  const interestServiceOptions = serviceOptions.filter((item) => !item.parentServiceId);
-                const financialServiceOptions = serviceOptions.filter((item) => item.parentServiceId);''',
+              '  const interestServiceOptions = serviceOptions.filter((item) => !item.parentServiceId);\n  const financialServiceOptions = serviceOptions.filter((item) => item.parentServiceId);',
               '''  const interestServiceOptions = serviceOptions
                   .filter((item) => !item.parentServiceId && (item.isActive || item.id === selectedServiceId))
                   .sort(
@@ -194,9 +187,9 @@ jobs:
                 const financialServiceOptions = serviceOptions.filter(
                   (item) => item.parentServiceId && item.isActive
                 );''',
-              'student service filtering',
+              'student option filters',
           )
-          form = replace_once(
+          form = replace_required(
               form,
               '''                                  <option key={service.id} value={service.id}>
                                         {service.name}
@@ -204,62 +197,49 @@ jobs:
               '''                                  <option key={service.id} value={service.id} disabled={!service.isActive}>
                                         {service.name}{service.isActive ? '' : ' (indisponível — vínculo atual)'}
                                       </option>''',
-              'student unavailable label',
+              'unavailable student option label',
           )
           form_path.write_text(form, encoding='utf-8')
 
           catalog_path = Path('apps/web/src/pages/Settings/ServicesCatalog.tsx')
           catalog = catalog_path.read_text(encoding='utf-8')
-          catalog = replace_once(
+          catalog = replace_required(
               catalog,
               "  validUntil: '',\n  isActive: true,\n};\n\nconst emptyPresentationForm",
               "  validUntil: '',\n  isActive: true,\n  usedByPlansCount: 0,\n};\n\nconst emptyPresentationForm",
-              'option impact form field',
+              'option impact form state',
           )
-          catalog = replace_once(
+          catalog = replace_required(
               catalog,
               "  const normalized = value.replace(/\\./g, '').replace(',', '.').trim();\n  if (!normalized) return undefined;",
               "  const trimmed = value.trim();\n  if (!trimmed) return undefined;\n  const normalized = trimmed.includes(',')\n    ? trimmed.replace(/\\./g, '').replace(',', '.')\n    : trimmed;",
-              'decimal parsing',
+              'decimal parser',
           )
-          catalog = replace_once(
-              catalog,
-              '''      if (detail && detail.category !== serviceForm.category) {
+          category_block = '''      if (detail && detail.category !== serviceForm.category) {
                     const confirmed = window.confirm(
                       'A categoria será alterada. Opções e componentes existentes não serão excluídos. Deseja continuar?'
                     );
                     if (!confirmed) return;
                   }
-
-                  const saved = selectedId''',
-              '''      if (detail && detail.category !== serviceForm.category) {
-                    const confirmed = window.confirm(
-                      'A categoria será alterada. Opções e componentes existentes não serão excluídos. Deseja continuar?'
-                    );
-                    if (!confirmed) return;
-                  }
-
+          '''
+          impact_block = category_block + '''
                   if (detail?.isActive && !serviceForm.isActive && detail.usedByPlansCount > 0) {
                     const confirmed = window.confirm(
                       `Este serviço participa de ${detail.usedByPlansCount} plano(s) ativo(s). Ao inativá-lo, esses componentes deixarão de aparecer como ativos na apresentação comercial. Deseja continuar?`
                     );
                     if (!confirmed) return;
                   }
-
-                  const saved = selectedId''',
-              'service impact confirmation',
-          )
-          catalog = replace_once(
+          '''
+          catalog = replace_required(catalog, category_block, impact_block, 'service impact confirmation')
+          catalog = replace_required(
               catalog,
               '      isActive: option.isActive,\n    });',
               '      isActive: option.isActive,\n      usedByPlansCount: option.usedByPlansCount ?? 0,\n    });',
-              'option impact editing',
+              'option impact edit state',
           )
-          catalog = replace_once(
-              catalog,
-              '''    try {
-                    const amount = parseOptionalNumber(optionForm.priceAmount);''',
-              '''    try {
+          option_try = '''    try {
+                    const amount = parseOptionalNumber(optionForm.priceAmount);'''
+          option_confirm = '''    try {
                     if (optionForm.id && !optionForm.isActive && optionForm.usedByPlansCount > 0) {
                       const original = detail?.options.find((item) => item.id === optionForm.id);
                       if (original?.isActive) {
@@ -269,27 +249,30 @@ jobs:
                         if (!confirmed) return;
                       }
                     }
-                    const amount = parseOptionalNumber(optionForm.priceAmount);''',
-              'option impact confirmation',
-          )
-          catalog = catalog.replace(
-              '{detail.components.length === 0 &&',
-              '{detail.activeComponentsCount === 0 &&',
-          )
-          catalog = replace_once(
+                    const amount = parseOptionalNumber(optionForm.priceAmount);'''
+          catalog = replace_required(catalog, option_try, option_confirm, 'option impact confirmation')
+          catalog = catalog.replace('{detail.components.length === 0 &&', '{detail.activeComponentsCount === 0 &&')
+          catalog = replace_required(
               catalog,
               '<StatusBadge active={component.isActive} />',
-              '''<StatusBadge active={component.isCommerciallyActive ?? component.isActive} />{component.isActive && component.isCommerciallyActive === false && <p className="mt-1 text-xs text-amber-700">Destino inativo: mantido apenas no histórico.</p>}''',
-              'effective component badge',
+              '<StatusBadge active={component.isCommerciallyActive ?? component.isActive} />{component.isActive && component.isCommerciallyActive === false && <p className="mt-1 text-xs text-amber-700">Destino inativo: mantido apenas no histórico.</p>}',
+              'effective component presentation',
           )
           catalog = catalog.replace(
               'items.filter((item) => item.id !== detail.id)',
               'items.filter((item) => item.id !== detail.id && item.isActive)',
           )
+          for marker in (
+              'usedByPlansCount: optionImpactById.get(item.id) ?? 0',
+              'isCommerciallyActive: isPlanComponentCommerciallyActive',
+              'assertStudentInterestServiceSelectable(service, currentAluno.serviceId)',
+              'indisponível — vínculo atual',
+              'optionForm.usedByPlansCount > 0',
+          ):
+              if marker not in service + student + form + catalog:
+                  raise RuntimeError(f'Expected marker missing after patch: {marker}')
           catalog_path.write_text(catalog, encoding='utf-8')
           PY
-          pnpm --filter @corrida/api exec prisma format --schema prisma/schema.prisma
-          pnpm --filter @corrida/api exec prisma format --schema ../../prisma/schema.prisma
           if git diff --quiet; then
             echo "Final compatibility fixes already applied"
           else
