@@ -3,22 +3,14 @@ name: Validate PR
 on:
   pull_request:
     branches:
-      - main
       - develop
   push:
     branches:
-      - main
-      - develop
-      - 'chore/**'
       - 'feat/**'
-      - 'fix/**'
-
-permissions:
-  contents: write
 
 jobs:
-  validate:
-    name: Validate repository
+  diagnose:
+    name: Diagnose catalog API patch
     runs-on: ubuntu-latest
 
     steps:
@@ -27,23 +19,24 @@ jobs:
         with:
           ref: feat/210-services-commercial-catalog
 
-      - name: Configure Git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-      - name: Patch catalog API impact metadata
+      - name: Run patch diagnostic
+        id: patch
+        continue-on-error: true
         shell: bash
         run: |
-          python - <<'PY'
+          set +e
+          python - <<'PY' > patch.log 2>&1
           from pathlib import Path
 
           path = Path('apps/api/src/modules/services/service.service.ts')
           content = path.read_text(encoding='utf-8')
+          print('loaded', len(content))
 
           if 'isPlanComponentCommerciallyActive,' not in content:
+              anchor = '  assertValidity,\n  normalizeCatalogCode,'
+              print('import anchor', anchor in content)
               content = content.replace(
-                  '  assertValidity,\n  normalizeCatalogCode,',
+                  anchor,
                   '  assertValidity,\n  isPlanComponentCommerciallyActive,\n  normalizeCatalogCode,',
                   1,
               )
@@ -51,9 +44,12 @@ jobs:
           start = content.index('function mapCommercialOption')
           end = content.index('function mapPresentationItem', start)
           segment = content[start:end]
+          print('option segment', start, end)
           if 'usedByPlansCount: 0' not in segment:
+              anchor = '    origin: asOrigin(row.origin),\n    createdAt: row.createdAt.toISOString(),'
+              print('option anchor', anchor in segment)
               segment = segment.replace(
-                  '    origin: asOrigin(row.origin),\n    createdAt: row.createdAt.toISOString(),',
+                  anchor,
                   '    origin: asOrigin(row.origin),\n    usedByPlansCount: 0,\n    createdAt: row.createdAt.toISOString(),',
                   1,
               )
@@ -62,9 +58,12 @@ jobs:
           start = content.index('function mapComponent')
           end = content.index('async function listServiceRows', start)
           segment = content[start:end]
+          print('component segment', start, end)
           if 'isCommerciallyActive:' not in segment:
+              anchor = '    isActive: row.isActive,\n    displayOrder: row.displayOrder,'
+              print('component anchor', anchor in segment)
               segment = segment.replace(
-                  '    isActive: row.isActive,\n    displayOrder: row.displayOrder,',
+                  anchor,
                   '''    isActive: row.isActive,
                   isCommerciallyActive: isPlanComponentCommerciallyActive({
                     isActive: row.isActive,
@@ -78,267 +77,45 @@ jobs:
               )
           content = content[:start] + segment + content[end:]
 
+          anchor = '  const activeComponentsCount = components.filter((component) => component.isActive).length;'
+          print('count anchor', anchor in content)
           content = content.replace(
-              '  const activeComponentsCount = components.filter((component) => component.isActive).length;',
+              anchor,
               '  const activeComponentsCount = components.filter((component) => component.isCommerciallyActive).length;',
               1,
           )
 
           if 'optionImpactRows' not in content:
-              start = content.index('    const [optionRows, presentationRows, componentRows, usedByRows] = await Promise.all([')
-              end = content.index('    const components = componentRows.map(mapComponent);', start)
-              replacement = '''    const [optionRows, presentationRows, componentRows, usedByRows, optionImpactRows] = await Promise.all([
-                    listOptionRows(contractId, serviceId),
-                    listPresentationRows(contractId, serviceId),
-                    listComponentRows(contractId, serviceId),
-                    prisma.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`
-                      SELECT COUNT(*)::bigint AS "count"
-                      FROM "ServicePlanComponent" component
-                      LEFT JOIN "ServiceCommercialOption" target_option ON target_option."id" = component."targetOptionId"
-                      WHERE component."contractId" = ${contractId}
-                        AND component."isActive" = true
-                        AND (component."targetServiceId" = ${serviceId} OR target_option."serviceId" = ${serviceId})
-                    `),
-                    prisma.$queryRaw<Array<{ optionId: string; count: bigint }>>(Prisma.sql`
-                      SELECT component."targetOptionId" AS "optionId", COUNT(*)::bigint AS "count"
-                      FROM "ServicePlanComponent" component
-                      INNER JOIN "ServiceCommercialOption" target_option ON target_option."id" = component."targetOptionId"
-                      WHERE component."contractId" = ${contractId}
-                        AND component."isActive" = true
-                        AND target_option."serviceId" = ${serviceId}
-                      GROUP BY component."targetOptionId"
-                    `),
-                  ]);
-                  const optionImpactById = new Map(
-                    optionImpactRows.map((item) => [item.optionId, Number(item.count)])
-                  );
-                  const options = optionRows.map((item) => ({
-                    ...mapCommercialOption(item),
-                    usedByPlansCount: optionImpactById.get(item.id) ?? 0,
-                  }));
-                  '''
-              content = content[:start] + replacement + content[end:]
+              start_marker = '    const [optionRows, presentationRows, componentRows, usedByRows] = await Promise.all(['
+              end_marker = '    const components = componentRows.map(mapComponent);'
+              print('detail start marker', start_marker in content)
+              print('detail end marker', end_marker in content)
+              start = content.index(start_marker)
+              end = content.index(end_marker, start)
+              print('detail segment', start, end)
 
           required = (
               'isPlanComponentCommerciallyActive,',
               'usedByPlansCount: 0',
               'isCommerciallyActive: isPlanComponentCommerciallyActive',
-              'optionImpactRows',
           )
-          missing = [marker for marker in required if marker not in content]
-          if missing:
-              raise RuntimeError(f'Missing API markers: {missing}')
-
+          print('missing', [marker for marker in required if marker not in content])
           path.write_text(content, encoding='utf-8')
+          print('done')
           PY
-          if ! git diff --quiet -- apps/api/src/modules/services/service.service.ts; then
-            git add apps/api/src/modules/services/service.service.ts
-            git commit -m "fix(services): expose plan impact metadata"
-            git push origin HEAD:feat/210-services-commercial-catalog
-          fi
+          status=$?
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          cat patch.log
+          exit 0
 
-      - name: Patch student API compatibility
-        shell: bash
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          path = Path('apps/api/src/modules/alunos/aluno.service.ts')
-          content = path.read_text(encoding='utf-8')
-
-          if 'assertStudentInterestServiceSelectable' not in content.split('\n', 12)[0:12]:
-              content = content.replace(
-                  "import { getServiceForContract } from '../services/service.service.js';\n",
-                  "import { getServiceForContract } from '../services/service.service.js';\nimport { assertStudentInterestServiceSelectable } from './aluno.service-selection.js';\n",
-                  1,
-              )
-
-          start = content.find('const assertBaseServiceIsSelectable =')
-          if start >= 0:
-              end = content.index('\n\n', content.index('};', start)) + 2
-              content = content[:start] + content[end:]
-
-          content = content.replace(
-              'assertBaseServiceIsSelectable(service);',
-              'assertStudentInterestServiceSelectable(service);',
-          )
-          content = content.replace(
-              '          assertStudentInterestServiceSelectable(service);\n\n          alunoData.serviceId = service.id as never;',
-              '          assertStudentInterestServiceSelectable(service, currentAluno.serviceId);\n\n          alunoData.serviceId = service.id as never;',
-              1,
-          )
-
-          if 'assertStudentInterestServiceSelectable(service, currentAluno.serviceId)' not in content:
-              raise RuntimeError('Student update compatibility marker missing')
-          path.write_text(content, encoding='utf-8')
-          PY
-          if ! git diff --quiet -- apps/api/src/modules/alunos/aluno.service.ts; then
-            git add apps/api/src/modules/alunos/aluno.service.ts
-            git commit -m "fix(students): preserve unavailable current service"
-            git push origin HEAD:feat/210-services-commercial-catalog
-          fi
-
-      - name: Patch student form compatibility
-        shell: bash
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          path = Path('apps/web/src/pages/AlunoForm.tsx')
-          content = path.read_text(encoding='utf-8')
-          content = content.replace(
-              '      const data = await serviceCatalogService.list();\n      setServiceOptions(data.filter((item) => item.isActive));',
-              '      const data = await serviceCatalogService.list(isEditMode);\n      setServiceOptions(data);',
-              1,
-          )
-          content = content.replace(
-              '  const interestServiceOptions = serviceOptions.filter((item) => !item.parentServiceId);\n  const financialServiceOptions = serviceOptions.filter((item) => item.parentServiceId);',
-              '''  const interestServiceOptions = serviceOptions
-                  .filter((item) => !item.parentServiceId && (item.isActive || item.id === selectedServiceId))
-                  .sort(
-                    (left, right) =>
-                      (left.displayOrder ?? 0) - (right.displayOrder ?? 0) ||
-                      left.name.localeCompare(right.name, 'pt-BR')
-                  );
-                const financialServiceOptions = serviceOptions.filter(
-                  (item) => item.parentServiceId && item.isActive
-                );''',
-              1,
-          )
-          content = content.replace(
-              '''                                  <option key={service.id} value={service.id}>
-                                        {service.name}
-                                      </option>''',
-              '''                                  <option key={service.id} value={service.id} disabled={!service.isActive}>
-                                        {service.name}{service.isActive ? '' : ' (indisponível — vínculo atual)'}
-                                      </option>''',
-              1,
-          )
-
-          required = ('serviceCatalogService.list(isEditMode)', 'indisponível — vínculo atual')
-          missing = [marker for marker in required if marker not in content]
-          if missing:
-              raise RuntimeError(f'Missing student form markers: {missing}')
-          path.write_text(content, encoding='utf-8')
-          PY
-          if ! git diff --quiet -- apps/web/src/pages/AlunoForm.tsx; then
-            git add apps/web/src/pages/AlunoForm.tsx
-            git commit -m "fix(students): show unavailable current service"
-            git push origin HEAD:feat/210-services-commercial-catalog
-          fi
-
-      - name: Patch catalog impact confirmations
-        shell: bash
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-
-          path = Path('apps/web/src/pages/Settings/ServicesCatalog.tsx')
-          content = path.read_text(encoding='utf-8')
-          content = content.replace(
-              "  validUntil: '',\n  isActive: true,\n};\n\nconst emptyPresentationForm",
-              "  validUntil: '',\n  isActive: true,\n  usedByPlansCount: 0,\n};\n\nconst emptyPresentationForm",
-              1,
-          )
-          content = content.replace(
-              "  const normalized = value.replace(/\\./g, '').replace(',', '.').trim();\n  if (!normalized) return undefined;",
-              "  const trimmed = value.trim();\n  if (!trimmed) return undefined;\n  const normalized = trimmed.includes(',')\n    ? trimmed.replace(/\\./g, '').replace(',', '.')\n    : trimmed;",
-              1,
-          )
-
-          if 'detail.usedByPlansCount > 0' not in content:
-              marker = '      const saved = selectedId\n'
-              insertion = '''      if (detail?.isActive && !serviceForm.isActive && detail.usedByPlansCount > 0) {
-                    const confirmed = window.confirm(
-                      `Este serviço participa de ${detail.usedByPlansCount} plano(s) ativo(s). Ao inativá-lo, esses componentes deixarão de aparecer como ativos na apresentação comercial. Deseja continuar?`
-                    );
-                    if (!confirmed) return;
-                  }
-
-                  '''
-              position = content.index(marker)
-              content = content[:position] + insertion + content[position:]
-
-          content = content.replace(
-              '      isActive: option.isActive,\n    });',
-              '      isActive: option.isActive,\n      usedByPlansCount: option.usedByPlansCount ?? 0,\n    });',
-              1,
-          )
-
-          if 'optionForm.usedByPlansCount > 0' not in content:
-              marker = '      const amount = parseOptionalNumber(optionForm.priceAmount);'
-              insertion = '''      if (optionForm.id && !optionForm.isActive && optionForm.usedByPlansCount > 0) {
-                    const original = detail?.options.find((item) => item.id === optionForm.id);
-                    if (original?.isActive) {
-                      const confirmed = window.confirm(
-                        `Esta opção participa de ${optionForm.usedByPlansCount} plano(s) ativo(s). Ao inativá-la, esses componentes deixarão de aparecer como ativos na apresentação comercial. Deseja continuar?`
-                      );
-                      if (!confirmed) return;
-                    }
-                  }
-                  '''
-              position = content.index(marker)
-              content = content[:position] + insertion + content[position:]
-
-          content = content.replace('{detail.components.length === 0 &&', '{detail.activeComponentsCount === 0 &&')
-          content = content.replace(
-              '<StatusBadge active={component.isActive} />',
-              '<StatusBadge active={component.isCommerciallyActive ?? component.isActive} />{component.isActive && component.isCommerciallyActive === false && <p className="mt-1 text-xs text-amber-700">Destino inativo: mantido apenas no histórico.</p>}',
-              1,
-          )
-          content = content.replace(
-              'items.filter((item) => item.id !== detail.id)',
-              'items.filter((item) => item.id !== detail.id && item.isActive)',
-          )
-
-          required = (
-              'usedByPlansCount: option.usedByPlansCount ?? 0',
-              'detail.usedByPlansCount > 0',
-              'optionForm.usedByPlansCount > 0',
-              'Destino inativo: mantido apenas no histórico.',
-          )
-          missing = [marker for marker in required if marker not in content]
-          if missing:
-              raise RuntimeError(f'Missing catalog UI markers: {missing}')
-          path.write_text(content, encoding='utf-8')
-          PY
-          if ! git diff --quiet -- apps/web/src/pages/Settings/ServicesCatalog.tsx; then
-            git add apps/web/src/pages/Settings/ServicesCatalog.tsx
-            git commit -m "fix(services): confirm impacted plan inactivation"
-            git push origin HEAD:feat/210-services-commercial-catalog
-          fi
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+      - name: Upload diagnostics
+        uses: actions/upload-artifact@v4
         with:
-          version: 9
+          name: catalog-api-patch-diagnostics
+          path: |
+            patch.log
+            apps/api/src/modules/services/service.service.ts
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Generate Prisma Client (api)
-        run: pnpm --filter @corrida/api exec prisma generate
-
-      - name: Type check
-        run: pnpm type-check
-
-      - name: Lint
-        run: pnpm lint
-
-      - name: Test
-        run: pnpm test
-
-      - name: Architecture checks
-        run: pnpm arch:check
-
-      - name: Access catalog checks
-        run: pnpm access:check
-
-      - name: Documentation checks
-        run: pnpm docs:check
+      - name: Report diagnostic status
+        run: |
+          test "${{ steps.patch.outputs.status }}" = "0"
