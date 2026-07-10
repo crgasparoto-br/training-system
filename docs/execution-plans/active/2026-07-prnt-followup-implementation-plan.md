@@ -1,36 +1,37 @@
-# Plano técnico: acompanhamento de desconfortos no PRNT
+# Plano concluído: acompanhamento de desconfortos no PRNT
+
+## Status
+
+Concluído.
 
 ## Issue
 
 - #182
 
-## Decisão técnica
+## Entregas realizadas
 
-O backend já possui suporte para `ProntuarioPainCase` com `followUps`, `status` e `closedAt`. A próxima entrega funcional deve concentrar-se na UI do PRNT e na atualização do resumo da Central do Aluno.
+O plano foi implementado nas PRs:
 
-## Arquivos principais
+- #207 — UI de acompanhamento e encerramento de desconfortos no PRNT;
+- #208 — correção dos tipos usados no salvamento de acompanhamentos;
+- #209 — resumo contextual de desconfortos na Central do Aluno.
 
-- `apps/web/src/pages/PhysicalAssessment/ProntuarioScreen.tsx`
-- `apps/api/src/modules/prontuario/prontuario.service.ts`
-- `packages/types/prontuario.ts`
-- `apps/web/src/components/alunos/AlunoResumoHubTab.tsx`
+Foram entregues:
 
-## Implementação recomendada
+- visualização de casos ativos e em acompanhamento;
+- criação de novo desconforto;
+- registro de acompanhamento com data, intensidade, observação e conduta;
+- alteração de status para resolvido sem remoção do histórico;
+- preservação do `alunoId` no fluxo;
+- resumo na Central com quantidade de casos ativos e último acompanhamento;
+- testes direcionados para o resumo da Central.
 
-1. Atualizar `PainCasesEditor` para expor status do caso.
-2. Exibir acompanhamentos existentes de cada caso.
-3. Permitir adicionar acompanhamento com data, intensidade, observação e conduta.
-4. Permitir marcar caso como resolvido/arquivado sem remover histórico.
-5. Preservar `alunoId` e o registro PRNT selecionado após salvar.
-6. Atualizar card/resumo da Central para mostrar contagem de casos ativos e último acompanhamento.
+## Fonte de verdade atual
 
-## Validações mínimas
+- [`../../product/prnt-discomfort-followup-flow.md`](../../product/prnt-discomfort-followup-flow.md)
 
-- Caso sem título não deve ser salvo.
-- Acompanhamento vazio não deve ser criado.
-- Encerramento deve gerar status terminal e manter `closedAt`.
-- Usuário sem permissão de PRNT não deve ver os dados sensíveis.
+## Observação de manutenção
 
-## Critério para fechar a #182
+Este arquivo permanece no caminho original apenas para preservar referências existentes. Ele não deve ser tratado como plano ativo nem usado para listar trabalho pendente.
 
-A #182 só deve ser fechada depois de uma PR funcional com UI de acompanhamento e encerramento, além do resumo na Central do Aluno.
+Quando a organização física da documentação for revisada, este apontador pode ser movido para `execution-plans/completed/`, desde que os links existentes sejam atualizados ou preservados.

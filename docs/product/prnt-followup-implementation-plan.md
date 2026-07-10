@@ -1,27 +1,17 @@
-# PRNT: implementação de acompanhamentos
+# Documento substituído: implementação de acompanhamentos do PRNT
 
-## Contexto
+Este arquivo foi preservado apenas para manter links históricos.
 
-A issue #182 continua aberta porque a documentação do fluxo já foi criada, mas a UI completa de acompanhamento ainda não foi implementada.
+O conteúdo original descrevia a implementação futura da issue #182, mas esse trabalho já foi entregue pelas PRs funcionais #207, #208 e #209.
 
-## Estado atual observado
+A fonte de verdade de produto para o fluxo é:
 
-- A API já inclui casos de dor com `followUps`.
-- A API já preserva `status` e `closedAt` para casos resolvidos ou arquivados.
-- A tela do PRNT já permite criar casos de dor e snapshots corporais.
-- A tela ainda não expõe de forma clara acompanhamento, encerramento e resumo consolidado para a Central.
+- [`prnt-discomfort-followup-flow.md`](prnt-discomfort-followup-flow.md)
 
-## Próxima PR funcional
+Consulte também o código atual em:
 
-A próxima PR deve alterar a tela `ProntuarioScreen.tsx` para:
+- `apps/web/src/pages/PhysicalAssessment/ProntuarioScreenWithDiscomfortFollowUps.tsx`;
+- `apps/web/src/components/alunos/AlunoDiscomfortSummaryCard.tsx`;
+- `apps/web/src/services/prontuario.service.ts`.
 
-- exibir status do caso;
-- permitir incluir acompanhamento com data, intensidade, observação e conduta;
-- permitir marcar o caso como resolvido ou arquivado;
-- exibir acompanhamentos existentes;
-- manter o aluno selecionado depois de salvar;
-- atualizar o resumo da Central com casos ativos e último acompanhamento.
-
-## Observação
-
-Este documento não fecha a #182. Ele existe para deixar explícito que a issue precisa de uma PR funcional posterior.
+Não use este arquivo para definir novas pendências ou próximos passos. Evoluções futuras devem atualizar o documento de fluxo ou criar um novo plano ativo quando houver escopo ainda não implementado.
