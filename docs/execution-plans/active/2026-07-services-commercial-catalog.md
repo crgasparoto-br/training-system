@@ -2,181 +2,137 @@
 
 ## Status
 
-Planejado.
+Implementado na PR #219. Mantido neste caminho por compatibilidade até a aplicação da migration, carga por contrato e validação operacional.
 
-Épica: #210
+Épica: #210  
+Subissues: #211, #212, #213, #214, #215, #216 e #217
 
 ## Objetivo
 
-Evoluir `/settings/services` para um hub de gestão do catálogo comercial, preservando compatibilidade com os serviços atuais e com o campo Serviço de Interesse do aluno.
+Evoluir `/settings/services` para um hub de gestão do catálogo comercial, preservando os IDs dos serviços atuais e a compatibilidade com o campo Serviço de Interesse do aluno.
 
-## Fonte de verdade de produto
+## Fontes de verdade
 
 - `docs/product/services-commercial-catalog.md`
 - material comercial "Serviços ACESSO 2026"
+- `docs/operations/services-commercial-catalog-rollout.md`
 
-## Contexto atual
+## Entrega implementada
 
-A implementação atual concentra criação/edição e listagem em uma única tela. O domínio compartilhado representa serviço-base e oferta por `parentServiceId`, com descrição única, preço mensal e vigência.
+### Domínio e persistência - #211
 
-Esse modelo não cobre adequadamente:
+- [x] campos de categoria, resumo, "O que é?", público-alvo, ordem e origem no agregado principal;
+- [x] entidades para opções comerciais, itens de apresentação e componentes de plano;
+- [x] constraints para categoria, preço, vigência, ordem, quantidade, alvo único e autorreferência;
+- [x] índices com `contractId` e chaves de consulta;
+- [x] conversão idempotente das ofertas legadas sem exclusão dos registros originais;
+- [x] preservação dos IDs de `ServiceOption` usados por alunos e contratos.
 
-- categorias comerciais;
-- conteúdo institucional por seção;
-- preço gratuito ou sob consulta;
-- opções comerciais independentes;
-- composição de planos por vários serviços;
-- quantidade, periodicidade e ordem dos componentes.
+### Contratos compartilhados e API - #212
 
-## Estratégia de entrega
+- [x] tipos compartilhados para catálogo, detalhe, opções, itens, componentes e carga;
+- [x] leitura resumida e detalhada;
+- [x] criação e edição de serviços, opções, itens e componentes;
+- [x] reordenação transacional com sequência completa;
+- [x] validação de preço fixo, gratuito e sob consulta;
+- [x] validação de vigência e ciclos indiretos;
+- [x] escopo por contrato em todas as consultas e mutações;
+- [x] autorização pela tela `settings.services` e papel master para escrita;
+- [x] adaptador temporário em `GET /services`.
 
-A implementação deve ser incremental, mantendo consumidores atuais funcionais durante a transição.
+### Catálogo navegável - #213
 
-### Fase 1 - domínio e persistência
+- [x] cards responsivos em vez de tabela extensa;
+- [x] busca por nome/código;
+- [x] filtros por categoria e status;
+- [x] preço inicial e estados sem opção, vencido ou plano incompleto;
+- [x] estados de carregamento, erro, vazio e nenhum resultado.
 
-Issue: #211
+### Editor estruturado - #214
 
-- definir entidades, enums, constraints e migrations;
-- preservar isolamento por `contractId`;
-- mapear registros legados;
-- testar aplicação em base vazia e com dados.
+- [x] fluxo de novo serviço e detalhe contextual;
+- [x] categoria, ordem, status e código estável;
+- [x] seções "O que é?", "A quem se destina?" e "O que o compõe?";
+- [x] proteção contra saída com alterações não salvas;
+- [x] preservação dos dados digitados em falha de gravação;
+- [x] alteração de categoria sem exclusão silenciosa de registros.
 
-### Fase 2 - contratos e API
+### Opções, valores e composição - #215
 
-Issue: #212
+- [x] CRUD e reordenação de opções comerciais;
+- [x] preço fixo, gratuito e sob consulta;
+- [x] frequência, quantidade, unidade e vigência;
+- [x] composição por serviço ou opção do mesmo contrato;
+- [x] bloqueio de autorreferência e ciclos;
+- [x] visão consolidada "Combinações e valores".
 
-- atualizar tipos compartilhados;
-- implementar leitura e mutações;
-- validar preço, vigência, composição e ordenação;
-- garantir autorização e multi-tenant;
-- manter compatibilidade durante o rollout.
+### Carga ACESSO 2026 - #216
 
-### Fase 3 - catálogo navegável
+- [x] matriz explícita dos nove serviços de referência;
+- [x] preços e opções confirmados no material;
+- [x] itens de apresentação confirmados;
+- [x] componentes relacionais para as opções do Plano Essencial confirmadas;
+- [x] comando por contrato com `--dry-run`;
+- [x] carga incremental, idempotente e sem sobrescrita automática;
+- [x] relatório de conflitos para divergências existentes.
 
-Issue: #213
+### Compatibilidade e rollout - #217
 
-- substituir a tabela como experiência principal;
-- implementar cards/lista, busca, filtros, status e ordenação;
-- tratar estados de carregamento, erro e vazio.
+- [x] Serviço de Interesse continua usando IDs dos serviços principais;
+- [x] projeção das opções estruturadas no formato legado;
+- [x] registros legados preservados para rollback;
+- [x] documentação de ordem de deploy, carga, validação e rollback;
+- [ ] migration aplicada em ambiente alvo;
+- [ ] carga executada por contrato;
+- [ ] checklist manual em ambiente com banco concluído.
 
-### Fase 4 - editor estruturado
+## Decisões de implementação
 
-Issue: #214
+- `ServiceOption` permanece como agregado principal durante o rollout para preservar referências existentes.
+- As novas entidades são acessadas pela API com SQL parametrizado até a consolidação do schema Prisma; a migration é a fonte de verdade física desta etapa.
+- Componentes externos que ainda não são serviços do catálogo ficam como itens de apresentação; não são criados serviços adicionais sem confirmação do material.
+- A carga nunca altera um serviço existente com o mesmo código; divergências são reportadas.
+- Instalações, parceiros, checkout e geração de PDF permanecem fora do escopo.
 
-- implementar fluxo por categoria;
-- separar Visão geral e Apresentação;
-- estruturar "O que é?", "A quem se destina?" e "O que o compõe?";
-- tratar alterações não salvas e validação.
+## Ordem de rollout
 
-### Fase 5 - opções, valores e composição
+1. aplicar `20260710230000_services_commercial_catalog`;
+2. publicar API e web;
+3. executar `db:bootstrap-services-catalog` com `--dry-run` para cada contrato;
+4. revisar conflitos;
+5. executar a carga real;
+6. validar catálogo, Serviço de Interesse e contratos;
+7. executar novamente o dry-run para confirmar idempotência.
 
-Issue: #215
+## Validação automatizada
 
-- implementar opções comerciais;
-- implementar tipos de preço e vigência;
-- implementar composição de planos;
-- criar visão consolidada Combinações e valores.
+A PR executa o workflow oficial `Validate PR`:
 
-### Fase 6 - carga inicial
-
-Issue: #216
-
-- cadastrar os nove serviços de referência;
-- cadastrar opções, valores e composições;
-- garantir idempotência e preservação de alterações manuais.
-
-### Fase 7 - integração e rollout
-
-Issue: #217
-
-- adaptar todos os consumidores;
-- preservar Serviço de Interesse do aluno;
-- validar serviços legados e inativos;
-- executar regressão completa e finalizar documentação.
-
-## Dependências principais
-
-```text
-#211 Modelo e persistência
-  -> #212 Tipos e API
-      -> #213 Catálogo
-      -> #214 Editor
-          -> #215 Valores e composição
-  -> #216 Carga inicial
-#211 + #212 + #213 + #214 + #215 + #216
-  -> #217 Compatibilidade e rollout
-```
-
-## Módulos inicialmente afetados
-
-- `apps/api` - rotas, validação, serviços e persistência;
-- `apps/web/src/pages/Settings/Services.tsx` e componentes derivados;
-- `apps/web/src/services/service.service.ts`;
-- `apps/web/src/pages/AlunoForm.tsx` e consumidores equivalentes;
-- `packages/types/service.ts`;
-- schema e migrations Prisma;
-- catálogo de acesso caso novos `blockKey` sejam necessários;
-- documentação e testes relacionados.
-
-Os caminhos exatos devem ser confirmados em cada issue antes da implementação.
-
-## Riscos
-
-### Compatibilidade com dados atuais
-
-Mitigação: migração explícita, códigos estáveis, testes com dados legados e rollout incremental.
-
-### Regressão no cadastro de aluno
-
-Mitigação: manter contrato compatível até a fase final e adicionar testes específicos do campo Serviço de Interesse.
-
-### Vazamento multi-tenant por vínculos
-
-Mitigação: validar `contractId` no backend em toda associação e cobrir tentativas entre contratos nos testes.
-
-### Ciclos em planos combinados
-
-Mitigação: impedir autorreferência e ciclos indiretos antes de persistir.
-
-### Sobrescrita pela carga inicial
-
-Mitigação: carga idempotente por códigos estáveis e política de não sobrescrever alterações manuais.
-
-## Critérios de conclusão da épica
-
-- issues #211 a #217 concluídas;
-- catálogo representa os nove serviços de referência;
-- opções e composições são estruturadas;
-- Serviço de Interesse continua funcional;
-- segurança multi-tenant validada;
-- `pnpm validate` passa;
-- checklist manual concluído;
-- documentação atualizada e plano movido para `completed/`.
+- [x] type-check;
+- [x] lint;
+- [x] testes;
+- [x] arquitetura;
+- [x] catálogo de acesso;
+- [x] documentação.
 
 ## Checklist manual final
 
 - [ ] visualizar os nove serviços na ordem definida;
 - [ ] buscar e filtrar por categoria e status;
-- [ ] criar e editar avaliação/consulta;
-- [ ] criar e editar serviço individual;
-- [ ] criar e editar plano combinado;
+- [ ] criar e editar as três categorias;
 - [ ] editar as três seções de apresentação;
-- [ ] cadastrar preço fixo;
-- [ ] cadastrar opção gratuita;
-- [ ] cadastrar opção sob consulta;
-- [ ] configurar e reordenar várias opções;
-- [ ] configurar e reordenar vários componentes;
-- [ ] impedir composição cíclica;
-- [ ] validar vigências;
+- [ ] cadastrar preço fixo, gratuito e sob consulta;
+- [ ] configurar e reordenar opções e componentes;
+- [ ] confirmar bloqueio de composição cíclica;
+- [ ] validar vigências e preços vencidos;
 - [ ] preservar aluno com serviço legado;
 - [ ] impedir novo vínculo com serviço inativo;
 - [ ] validar isolamento entre contratos;
 - [ ] executar carga duas vezes sem duplicação.
 
-## Decisões registradas
+## Riscos remanescentes
 
-- a interface usará linguagem comercial, não serviço-base/oferta;
-- a página principal será navegável antes de ser editável;
-- conteúdo institucional será separado por seção;
-- opções comerciais e composição são conceitos distintos;
-- instalações, parceiros, checkout e geração de PDF ficam fora da primeira evolução.
+- a API nova depende da migration e não deve ser publicada antes dela;
+- a validação real de dados legados exige banco representativo;
+- a remoção futura do adaptador legado deve ocorrer apenas após inventário de consumidores;
+- o schema Prisma deve ser consolidado em etapa posterior antes de eliminar o acesso SQL de compatibilidade.
