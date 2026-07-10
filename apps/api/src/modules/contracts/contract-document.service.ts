@@ -20,6 +20,8 @@ export const contractVariables = [
   'empresa.cnpj',
   'empresa.cref',
   'empresa.endereco',
+  'professor.nome',
+  'professor.cref',
   'servico.nome',
   'servico.valor',
   'servico.duracaoSessao',
@@ -200,18 +202,41 @@ export const contractDocumentService = {
   },
 
   async updateTemplate(contractId: string, templateId: string, data: any) {
-    return prisma.contractTemplate.update({
-      where: { id: templateId, contractId },
-      data: {
-        name: data.name,
-        description: data.description,
-        serviceId: data.serviceId ?? undefined,
-        version: data.version,
-        status: data.status,
-        headerHtml: data.headerHtml,
-        footerHtml: data.footerHtml,
-      },
-      include: { clauses: { orderBy: { order: 'asc' } } },
+    return prisma.$transaction(async (tx) => {
+      await tx.contractTemplate.update({
+        where: { id: templateId, contractId },
+        data: {
+          name: data.name,
+          description: data.description,
+          serviceId: data.serviceId ?? undefined,
+          version: data.version,
+          status: data.status,
+          headerHtml: data.headerHtml,
+          footerHtml: data.footerHtml,
+        },
+      });
+
+      if (Array.isArray(data.clauses)) {
+        await tx.contractTemplateClause.deleteMany({ where: { templateId } });
+
+        if (data.clauses.length > 0) {
+          await tx.contractTemplateClause.createMany({
+            data: data.clauses.map((clause: any, index: number) => ({
+              templateId,
+              order: Number(clause.order ?? index + 1),
+              title: clause.title || `Cláusula ${index + 1}`,
+              bodyHtml: clause.bodyHtml || '',
+              required: clause.required ?? true,
+              editable: clause.editable ?? true,
+            })),
+          });
+        }
+      }
+
+      return tx.contractTemplate.findUniqueOrThrow({
+        where: { id: templateId, contractId },
+        include: { clauses: { orderBy: { order: 'asc' } } },
+      });
     });
   },
 
@@ -295,21 +320,22 @@ export const contractDocumentService = {
   },
 
   async buildContext(contractId: string, input: GenerateContractInput) {
-    const [company, aluno, service, professor] = await Promise.all([
+    const [company, aluno, service] = await Promise.all([
       prisma.companyContract.findUniqueOrThrow({ where: { id: contractId } }),
       prisma.aluno.findUniqueOrThrow({
         where: { id: input.alunoId },
         include: { user: { include: { profile: true } }, service: true },
       }),
       input.serviceId ? prisma.serviceOption.findUnique({ where: { id: input.serviceId } }) : null,
-      input.professorId
-        ? prisma.professor.findUnique({
-            where: { id: input.professorId },
-            include: { user: { include: { profile: true } } },
-          })
-        : null,
     ]);
 
+    const professorId = input.professorId || aluno.professorId;
+    const professor = professorId
+      ? await prisma.professor.findFirst({
+          where: { id: professorId, contractId },
+          include: { user: { include: { profile: true } } },
+        })
+      : null;
     const selectedService = service || aluno.service;
     const valorMensal =
       input.valorMensal ?? (selectedService?.monthlyPrice ? Number(selectedService.monthlyPrice) : undefined);
@@ -339,7 +365,9 @@ export const contractDocumentService = {
         quantidadeSemanal: '',
       },
       professor: {
+        id: professor?.id || '',
         nome: professor?.user.profile?.name || '',
+        cref: professor?.user.profile?.cref || '',
       },
       contrato: {
         valorMensal: valorMensal ? currency.format(valorMensal) : '',
@@ -354,6 +382,10 @@ export const contractDocumentService = {
 
   renderTemplate(template: { headerHtml: string; footerHtml: string; clauses: any[]; name: string }, context: any) {
     const render = (html: string) => Handlebars.compile(html, { noEscape: false })(context);
+    const renderedFooterHtml = render(template.footerHtml);
+    const hasCustomSignatures =
+      renderedFooterHtml.includes('class="signatures"') ||
+      renderedFooterHtml.includes("class='signatures'");
     const bodyHtml = [
       `<h1>${template.name}</h1>`,
       ...template.clauses
@@ -362,12 +394,16 @@ export const contractDocumentService = {
           (clause) =>
             `<section class="contract-clause"><h2>${clause.title}</h2>${render(clause.bodyHtml)}</section>`
         ),
-      '<section class="signatures"><p>________________________________________</p><p>Contratante</p><p>________________________________________</p><p>Contratada</p></section>',
+      ...(hasCustomSignatures
+        ? []
+        : [
+            '<section class="signatures"><p>________________________________________</p><p>Contratante</p><p>________________________________________</p><p>Contratada</p></section>',
+          ]),
     ].join('\n');
     return buildHtmlDocument({
       title: template.name,
       headerHtml: render(template.headerHtml),
-      footerHtml: render(template.footerHtml),
+      footerHtml: renderedFooterHtml,
       bodyHtml,
     });
   },
@@ -405,7 +441,7 @@ export const contractDocumentService = {
         responsavelCpf: input.responsavel?.cpf || null,
         responsavelEmail: input.responsavel?.email || null,
         serviceId: input.serviceId || null,
-        professorId: input.professorId || null,
+        professorId: input.professorId || context.professor.id || null,
         status: 'GENERATED',
         title: template.name,
         renderedHtml,
