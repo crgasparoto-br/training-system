@@ -59,6 +59,7 @@ export interface ServiceCommercialOption {
   isActive: boolean;
   displayOrder: number;
   origin: ServiceOrigin;
+  usedByPlansCount?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -87,6 +88,7 @@ export interface ServicePlanComponent {
   unit?: string | null;
   notes?: string | null;
   isActive: boolean;
+  isCommerciallyActive?: boolean;
   displayOrder: number;
   origin: ServiceOrigin;
   createdAt: string;
