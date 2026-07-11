@@ -1,4 +1,4 @@
-﻿import './bootstrap-env.js';
+import './bootstrap-env.js';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -11,6 +11,7 @@ import alunoAvatarUploadRoutes from './modules/alunos/aluno-avatar-upload.routes
 import { alunoRoutes } from './modules/alunos/index.js';
 import { bankRoutes } from './modules/banks/index.js';
 import { collaboratorFunctionRoutes } from './modules/collaborator-functions/index.js';
+import contractRejectionRoutes from './modules/contracts/contract-rejection.routes.js';
 import { contractRoutes } from './modules/contracts/index.js';
 import { hourlyRateLevelRoutes } from './modules/hourly-rate-levels/index.js';
 import { planRoutes } from './modules/plans/index.js';
@@ -158,6 +159,9 @@ app.use('/api/v1/banks', bankRoutes);
 
 // Rotas de Funcoes de Colaboradores
 app.use('/api/v1/collaborator-functions', collaboratorFunctionRoutes);
+
+// Rotas de recusa devem ser registradas antes do modulo principal para proteger reenvios.
+app.use('/api/v1/contracts', contractRejectionRoutes);
 
 // Rotas de Contratos
 app.use('/api/v1/contracts', contractRoutes);
