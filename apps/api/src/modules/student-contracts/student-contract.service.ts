@@ -1,4 +1,5 @@
 import { PrismaClient, type Prisma, type StudentContractStatus } from '@prisma/client';
+import { parseActiveContractTemplateReference } from './student-contract-reference.js';
 
 const prisma = new PrismaClient();
 
@@ -65,6 +66,59 @@ async function getContractScoped(contractId: string, companyContractId: string |
   }
 
   return contract;
+}
+
+async function generateContractFromActiveTemplate(
+  data: CreateStudentContractInput,
+  options: ServiceOperationOptions,
+  client: DbClient
+) {
+  const templateId = parseActiveContractTemplateReference(data.contractId);
+  if (!templateId) {
+    return null;
+  }
+
+  if (!options.companyContractId) {
+    throw new Error('Contrato da empresa não encontrado');
+  }
+
+  const template = await client.contractTemplate.findFirst({
+    where: {
+      id: templateId,
+      contractId: options.companyContractId,
+      status: 'ACTIVE',
+    },
+    select: {
+      id: true,
+      serviceId: true,
+    },
+  });
+
+  if (!template) {
+    throw new Error('Modelo de contrato ativo não encontrado');
+  }
+
+  const resolvedServiceId = template.serviceId ?? data.serviceId ?? undefined;
+  const { contractDocumentService } = await import('../contracts/contract-document.service.js');
+  const generatedContract = await contractDocumentService.generate(options.companyContractId, {
+    templateId: template.id,
+    alunoId: data.alunoId,
+    serviceId: resolvedServiceId,
+    valorMensal: data.amount === null || data.amount === undefined ? undefined : Number(data.amount),
+    diaVencimento: data.paymentDay ?? undefined,
+    dataInicio: data.startDate ?? undefined,
+    horarios: data.notes ?? undefined,
+  });
+
+  const generatedLink = await client.studentContract.findUnique({
+    where: { contractId: generatedContract.id },
+  });
+
+  if (!generatedLink) {
+    throw new Error('Não foi possível criar o vínculo do contrato gerado');
+  }
+
+  return generatedLink;
 }
 
 async function assertStudentContractOwnership(
@@ -209,6 +263,11 @@ export const studentContractService = {
     options: ServiceOperationOptions = {},
     client: DbClient = prisma
   ) {
+    const generatedFromTemplate = await generateContractFromActiveTemplate(data, options, client);
+    if (generatedFromTemplate) {
+      return generatedFromTemplate;
+    }
+
     const generatedContract = await getContractScoped(data.contractId, options.companyContractId, client);
 
     if (generatedContract.alunoId !== data.alunoId) {
