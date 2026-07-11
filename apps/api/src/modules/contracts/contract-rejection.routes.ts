@@ -82,6 +82,9 @@ router.post('/public/:token/reject', async (req: Request, res: Response) => {
 
     const rejectedAt = new Date();
     const actor = actorFromRequest(req);
+    const cancellationReason = rejectionReason
+      ? `Recusado pelo aluno: ${rejectionReason}`
+      : 'Recusado pelo aluno';
 
     await prisma.$transaction(async (tx) => {
       await tx.contract.update({
@@ -102,14 +105,17 @@ router.post('/public/:token/reject', async (req: Request, res: Response) => {
           details: buildContractRejectionAuditDetails(rejectedAt, rejectionReason),
         },
       });
-    });
 
-    await studentContractService.setStatusByGeneratedContractId(contract.id, 'canceled', {
-      canceledAt: rejectedAt,
-      endDate: rejectedAt,
-      cancellationReason: rejectionReason
-        ? `Recusado pelo aluno: ${rejectionReason}`
-        : 'Recusado pelo aluno',
+      await studentContractService.setStatusByGeneratedContractId(
+        contract.id,
+        'canceled',
+        {
+          canceledAt: rejectedAt,
+          endDate: rejectedAt,
+          cancellationReason,
+        },
+        tx
+      );
     });
 
     return sendSuccess(
