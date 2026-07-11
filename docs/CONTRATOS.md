@@ -12,6 +12,17 @@ O módulo permite cadastrar modelos de contrato com cabeçalho, rodapé, cláusu
 6. Gere o PDF e envie para assinatura interna.
 7. O link público `/assinatura/contrato/:token` registra aceite, nome, CPF, IP, User Agent, data/hora e hash SHA-256 do documento.
 
+## Organização da aba Financeiro
+
+A leitura operacional segue a ordem natural do processo comercial:
+
+1. **Oferta e vínculo comercial**: Serviço Vigente, Condição Especial e Plano de agenda do aluno.
+2. **Cobrança**: valores, desconto, vigência, vencimento, dia de pagamento e professor responsável.
+3. **Contrato do aluno**: seleção do documento, contrato ativo atual, alerta de substituição, status de aprovação/assinatura e prévia.
+4. **Origem e observações**: indicação e contexto administrativo.
+
+As informações de contrato são apresentadas somente depois que serviço, agenda e cobrança estiverem visíveis. O seletor original permanece conectado ao formulário, mas sua apresentação é concentrada no bloco **Contrato do aluno** para evitar duplicidade.
+
 ## Prévia na aba Financeiro
 
 Na edição de um aluno, a aba **Financeiro** oferece a ação **Abrir prévia** depois que um contrato é selecionado.
