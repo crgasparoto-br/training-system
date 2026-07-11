@@ -46,6 +46,7 @@ export function AlunoFormWithContractDelivery() {
   const [deliverySlot, setDeliverySlot] = useState<HTMLElement | null>(null);
   const [selectedContractId, setSelectedContractId] = useState('');
   const [activeStudentContract, setActiveStudentContract] = useState<StudentContractLink | null>(null);
+  const [activeContractLoading, setActiveContractLoading] = useState(Boolean(id));
   const [confirmedReplacementContractId, setConfirmedReplacementContractId] = useState('');
   const [replacementFeedback, setReplacementFeedback] = useState<string | null>(null);
   const [contract, setContract] = useState<GeneratedContract | null>(null);
@@ -77,6 +78,8 @@ export function AlunoFormWithContractDelivery() {
     [activeStudentContract?.contractId, selectedContractId, confirmedReplacementContractId]
   );
 
+  const replacementCheckPending = Boolean(id && selectedContractId && activeContractLoading);
+  const replacementCanProceed = !replacementCheckPending && replacement.canProceed;
   const activeContractIsSigned = Boolean(
     activeStudentContract?.contract.status === 'SIGNED' ||
       activeStudentContract?.contract.signedAt ||
@@ -162,10 +165,12 @@ export function AlunoFormWithContractDelivery() {
   useEffect(() => {
     if (!id) {
       setActiveStudentContract(null);
+      setActiveContractLoading(false);
       return undefined;
     }
 
     let active = true;
+    setActiveContractLoading(true);
 
     alunoService
       .listStudentContracts(id)
@@ -174,6 +179,9 @@ export function AlunoFormWithContractDelivery() {
       })
       .catch(() => {
         if (active) setActiveStudentContract(null);
+      })
+      .finally(() => {
+        if (active) setActiveContractLoading(false);
       });
 
     return () => {
@@ -190,12 +198,16 @@ export function AlunoFormWithContractDelivery() {
     let attachedForm: HTMLFormElement | null = null;
 
     const handleSubmitCapture = (event: SubmitEvent) => {
-      if (replacement.canProceed) return;
+      if (replacementCanProceed) return;
 
       event.preventDefault();
       event.stopPropagation();
       event.stopImmediatePropagation();
-      setReplacementFeedback('Confirme a troca do contrato antes de salvar o cadastro.');
+      setReplacementFeedback(
+        replacementCheckPending
+          ? 'Aguarde a verificação do contrato vigente antes de salvar.'
+          : 'Confirme a troca do contrato antes de salvar o cadastro.'
+      );
       window.requestAnimationFrame(() => {
         document.getElementById(CONTRACT_REPLACEMENT_PANEL_ID)?.scrollIntoView({
           behavior: 'smooth',
@@ -221,7 +233,7 @@ export function AlunoFormWithContractDelivery() {
       observer.disconnect();
       attachedForm?.removeEventListener('submit', handleSubmitCapture, true);
     };
-  }, [replacement.canProceed]);
+  }, [replacementCanProceed, replacementCheckPending]);
 
   useEffect(() => {
     const syncRejectedOptions = () => {
@@ -304,7 +316,7 @@ export function AlunoFormWithContractDelivery() {
   };
 
   const handleSend = async () => {
-    if (!contract || !delivery.canSend || !replacement.canProceed) return;
+    if (!contract || !delivery.canSend || !replacementCanProceed) return;
 
     if (
       delivery.requiresConfirmation &&
@@ -360,7 +372,16 @@ export function AlunoFormWithContractDelivery() {
       {deliverySlot &&
         createPortal(
           <div className="space-y-4">
-            {replacement.required && activeStudentContract && (
+            {replacementCheckPending && (
+              <div
+                id={CONTRACT_REPLACEMENT_PANEL_ID}
+                className="rounded-xl border border-border bg-muted/20 px-4 py-3 text-sm text-muted-foreground"
+              >
+                Verificando o contrato vigente antes de liberar a troca e o envio.
+              </div>
+            )}
+
+            {!replacementCheckPending && replacement.required && activeStudentContract && (
               <div
                 id={CONTRACT_REPLACEMENT_PANEL_ID}
                 className={`space-y-4 rounded-xl border p-4 ${
@@ -423,16 +444,18 @@ export function AlunoFormWithContractDelivery() {
                 <div>
                   <h4 className="text-sm font-semibold text-foreground">Envio para assinatura</h4>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    {replacement.required && !replacement.confirmed
-                      ? 'Confirme a troca do contrato atual antes de enviar o novo documento para assinatura.'
-                      : delivery.description}
+                    {replacementCheckPending
+                      ? 'Aguarde a verificação do contrato vigente antes de preparar o envio.'
+                      : replacement.required && !replacement.confirmed
+                        ? 'Confirme a troca do contrato atual antes de enviar o novo documento para assinatura.'
+                        : delivery.description}
                   </p>
                 </div>
                 <Button
                   type="button"
                   onClick={handleSend}
                   isLoading={sending}
-                  disabled={!delivery.canSend || sending || !replacement.canProceed}
+                  disabled={!delivery.canSend || sending || !replacementCanProceed}
                 >
                   <Send className="mr-2 h-4 w-4" />
                   {delivery.actionLabel}
