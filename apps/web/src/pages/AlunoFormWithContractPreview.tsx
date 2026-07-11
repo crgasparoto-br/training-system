@@ -9,6 +9,8 @@ import { resolveStudentContractPreviewTarget } from '../services/student-contrac
 import { AlunoForm } from './AlunoForm';
 
 const FINANCIAL_PANEL_ID = 'aluno-panel-financeiro';
+const PREVIEW_SLOT_ID = 'aluno-contract-preview-slot';
+const ORIGIN_SECTION_TITLE = 'Origem e observações';
 
 const formFieldNames = {
   selectedContractId: 'intakeForm.financialInfo.selectedContractId',
@@ -28,6 +30,14 @@ const readFormValue = (name: string) => {
   return field?.value?.trim() || '';
 };
 
+const findOriginSection = (financialPanel: HTMLElement) => {
+  const heading = Array.from(financialPanel.querySelectorAll<HTMLHeadingElement>('h3')).find(
+    (candidate) => candidate.textContent?.trim() === ORIGIN_SECTION_TITLE
+  );
+
+  return heading?.parentElement?.parentElement || null;
+};
+
 const getErrorMessage = (error: unknown) => {
   const candidate = error as { response?: { data?: { error?: string } }; message?: string };
   return candidate.response?.data?.error || candidate.message || 'Não foi possível gerar a prévia do contrato.';
@@ -36,6 +46,7 @@ const getErrorMessage = (error: unknown) => {
 export function AlunoFormWithContractPreview() {
   const { id = '' } = useParams<{ id: string }>();
   const [financialPanel, setFinancialPanel] = useState<HTMLElement | null>(null);
+  const [previewSlot, setPreviewSlot] = useState<HTMLElement | null>(null);
   const [selectedContractId, setSelectedContractId] = useState('');
   const [previewHtml, setPreviewHtml] = useState('');
   const [previewTitle, setPreviewTitle] = useState('Prévia do contrato');
@@ -53,6 +64,34 @@ export function AlunoFormWithContractPreview() {
 
     return () => observer.disconnect();
   }, []);
+
+  useEffect(() => {
+    if (!financialPanel) {
+      setPreviewSlot(null);
+      return undefined;
+    }
+
+    const existingSlot = document.getElementById(PREVIEW_SLOT_ID);
+    if (existingSlot) {
+      setPreviewSlot(existingSlot);
+      return undefined;
+    }
+
+    const originSection = findOriginSection(financialPanel);
+    if (!originSection?.parentElement) {
+      setPreviewSlot(null);
+      return undefined;
+    }
+
+    const slot = document.createElement('div');
+    slot.id = PREVIEW_SLOT_ID;
+    originSection.parentElement.insertBefore(slot, originSection);
+    setPreviewSlot(slot);
+
+    return () => {
+      slot.remove();
+    };
+  }, [financialPanel]);
 
   useEffect(() => {
     if (!financialPanel) {
@@ -146,7 +185,7 @@ export function AlunoFormWithContractPreview() {
     <>
       <AlunoForm />
 
-      {financialPanel &&
+      {previewSlot &&
         createPortal(
           <div className="rounded-xl border border-border bg-card p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -176,7 +215,7 @@ export function AlunoFormWithContractPreview() {
               A prévia é somente leitura. Nenhum contrato é criado, alterado, enviado ou assinado nesta etapa.
             </p>
           </div>,
-          financialPanel
+          previewSlot
         )}
 
       {previewHtml &&
