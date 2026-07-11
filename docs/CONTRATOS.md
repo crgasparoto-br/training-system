@@ -18,7 +18,7 @@ A leitura operacional segue a ordem natural do processo comercial:
 
 1. **Oferta e vínculo comercial**: Serviço Vigente, Condição Especial e Plano de agenda do aluno.
 2. **Cobrança**: valores, desconto, vigência, vencimento, dia de pagamento e professor responsável.
-3. **Contrato do aluno**: seleção do documento, contrato ativo atual, alerta de substituição, status de aprovação/assinatura e prévia.
+3. **Contrato do aluno**: seleção do documento, contrato ativo atual, alerta de substituição, status de aprovação/assinatura, prévia e envio.
 4. **Origem e observações**: indicação e contexto administrativo.
 
 As informações de contrato são apresentadas somente depois que serviço, agenda e cobrança estiverem visíveis. O seletor original permanece conectado ao formulário, mas sua apresentação é concentrada no bloco **Contrato do aluno** para evitar duplicidade.
@@ -32,6 +32,23 @@ Na edição de um aluno, a aba **Financeiro** oferece a ação **Abrir prévia**
 - A prévia é somente leitura e não cria contrato, vínculo, PDF, token público ou assinatura.
 - Fechar a prévia não altera os dados do formulário.
 - A assinatura não é disponibilizada dentro do modal administrativo; ela continua restrita ao link público criado pelo envio do contrato.
+
+## Envio para assinatura na aba Financeiro
+
+O bloco **Contrato do aluno** apresenta a ação **Enviar para assinatura** somente quando a seleção representa um documento já gerado e elegível.
+
+1. A tela chama `POST /api/v1/contracts/documents/:contractDocumentId/send`.
+2. O backend altera o documento para `SENT`, cria um token aleatório e armazena somente o hash desse token.
+3. O token expira em 30 dias.
+4. A tela monta `/assinatura/contrato/:token`, tenta copiar o endereço e mantém o link visível durante a sessão atual.
+5. O usuário compartilha manualmente o link com o aluno por WhatsApp, e-mail ou outro canal.
+
+O sistema não dispara mensagem automaticamente. A ação “enviar” significa preparar o documento e gerar o endereço seguro de assinatura.
+
+- Um modelo `ACTIVE` ainda não gerado não pode ser enviado; primeiro é necessário salvar o cadastro para gerar o documento.
+- `SIGNED`, `CANCELLED` e `EXPIRED` não apresentam envio disponível na interface.
+- Para `SENT` ou `VIEWED`, a ação passa a ser **Gerar novo link**. A tela solicita confirmação porque o novo token substitui e invalida o endereço anterior.
+- Como o banco armazena somente o hash, um link antigo não pode ser recuperado depois. Caso ele tenha sido perdido, deve-se gerar um novo link.
 
 ## Status e aprovação na aba Financeiro
 
