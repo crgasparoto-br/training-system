@@ -22,6 +22,7 @@ const formFieldNames = {
   notes: 'intakeForm.financialInfo.otherObservations',
   professorId: 'intakeForm.financialInfo.responsibleProfessorId',
   serviceId: 'serviceId',
+  legacyContract: 'intakeForm.financialInfo.contract',
 } as const;
 
 const readFormValue = (name: string) => {
@@ -224,6 +225,27 @@ export function AlunoFormWithContractPreview() {
       observer.disconnect();
       restoreLayout?.();
     };
+  }, [financialPanel]);
+
+  useEffect(() => {
+    if (!financialPanel) return undefined;
+
+    const syncContractLabel = () => {
+      const field = financialPanel.querySelector<HTMLInputElement>(
+        `[name="${formFieldNames.legacyContract}"]`
+      );
+      const label = field?.closest('div')?.querySelector<HTMLLabelElement>('label');
+
+      if (label && label.textContent?.trim() !== 'Contrato Ativo') {
+        label.textContent = 'Contrato Ativo';
+      }
+    };
+
+    syncContractLabel();
+    const observer = new MutationObserver(syncContractLabel);
+    observer.observe(financialPanel, { childList: true, subtree: true });
+
+    return () => observer.disconnect();
   }, [financialPanel]);
 
   useEffect(() => {
