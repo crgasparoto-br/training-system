@@ -56,13 +56,29 @@ export interface ContractTemplate {
   clauses: ContractTemplateClause[];
 }
 
+export interface ContractRejection {
+  rejected: boolean;
+  rejectedAt?: string | null;
+  rejectionReason?: string | null;
+}
+
 export interface GeneratedContract {
   id: string;
   title: string;
-  status: 'DRAFT' | 'GENERATED' | 'SENT' | 'VIEWED' | 'SIGNED' | 'CANCELLED' | 'EXPIRED';
+  status:
+    | 'DRAFT'
+    | 'GENERATED'
+    | 'SENT'
+    | 'VIEWED'
+    | 'SIGNED'
+    | 'REJECTED'
+    | 'CANCELLED'
+    | 'EXPIRED';
   renderedHtml: string;
   pdfPath?: string | null;
   signedAt?: string | null;
+  rejectedAt?: string | null;
+  rejectionReason?: string | null;
   createdAt: string;
 }
 
@@ -76,12 +92,15 @@ export interface AvailableStudentContract {
     | 'SENT'
     | 'VIEWED'
     | 'SIGNED'
+    | 'REJECTED'
     | 'CANCELLED'
     | 'EXPIRED';
   alunoId: string;
   serviceId?: string | null;
   createdAt: string;
   signedAt?: string | null;
+  rejectedAt?: string | null;
+  rejectionReason?: string | null;
   cancelledAt?: string | null;
   sourceType?: 'generated' | 'template';
   templateId?: string;
@@ -99,6 +118,31 @@ export interface AvailableStudentContract {
     status: 'draft' | 'pending_signature' | 'active' | 'expired' | 'canceled' | 'terminated';
   }>;
 }
+
+const loadContractRejection = async (id: string): Promise<ContractRejection> => {
+  try {
+    const response = await api.get<{ success: boolean; data: ContractRejection }>(
+      `/contracts/documents/${id}/rejection`
+    );
+    return response.data.data;
+  } catch {
+    return { rejected: false, rejectedAt: null, rejectionReason: null };
+  }
+};
+
+const applyContractRejection = <T extends GeneratedContract | AvailableStudentContract>(
+  contract: T,
+  rejection: ContractRejection
+): T => {
+  if (!rejection.rejected) return contract;
+
+  return {
+    ...contract,
+    status: 'REJECTED',
+    rejectedAt: rejection.rejectedAt || null,
+    rejectionReason: rejection.rejectionReason || null,
+  } as T;
+};
 
 export const contractService = {
   async getMe(): Promise<Contract> {
@@ -153,7 +197,7 @@ export const contractService = {
       return response.data.data?.length
         ? normalizeContractVariables(response.data.data)
         : CONTRACT_VARIABLES;
-    } catch (error) {
+    } catch {
       return CONTRACT_VARIABLES;
     }
   },
@@ -195,12 +239,19 @@ export const contractService = {
 
   async listAlunoContracts(alunoId: string): Promise<GeneratedContract[]> {
     const response = await api.get<{ success: boolean; data: GeneratedContract[] }>(`/contracts/alunos/${alunoId}`);
-    return response.data.data;
+    return Promise.all(
+      response.data.data.map(async (contract) =>
+        applyContractRejection(contract, await loadContractRejection(contract.id))
+      )
+    );
   },
 
   async getDocument(id: string): Promise<GeneratedContract> {
-    const response = await api.get<{ success: boolean; data: GeneratedContract }>(`/contracts/documents/${id}`);
-    return response.data.data;
+    const [documentResponse, rejection] = await Promise.all([
+      api.get<{ success: boolean; data: GeneratedContract }>(`/contracts/documents/${id}`),
+      loadContractRejection(id),
+    ]);
+    return applyContractRejection(documentResponse.data.data, rejection);
   },
 
   async listAvailableForStudent(
@@ -225,10 +276,17 @@ export const contractService = {
     );
 
     const generatedContracts = filters?.alunoId
-      ? generatedResponse.data.data.map((contract) => ({
-          ...contract,
-          sourceType: 'generated' as const,
-        }))
+      ? await Promise.all(
+          generatedResponse.data.data.map(async (contract) =>
+            applyContractRejection(
+              {
+                ...contract,
+                sourceType: 'generated' as const,
+              },
+              await loadContractRejection(contract.id)
+            )
+          )
+        )
       : [];
 
     return [...activeTemplateOptions, ...generatedContracts];
@@ -256,5 +314,13 @@ export const contractService = {
 
   async signPublic(token: string, data: { signerName: string; signerCpf: string; signerEmail?: string }): Promise<void> {
     await api.post(`/contracts/public/${token}/sign`, data);
+  },
+
+  async rejectPublic(token: string, reason?: string): Promise<GeneratedContract> {
+    const response = await api.post<{ success: boolean; data: GeneratedContract }>(
+      `/contracts/public/${token}/reject`,
+      { reason }
+    );
+    return response.data.data;
   },
 };
