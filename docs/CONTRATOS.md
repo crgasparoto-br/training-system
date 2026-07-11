@@ -22,6 +22,22 @@ Na edição de um aluno, a aba **Financeiro** oferece a ação **Abrir prévia**
 - Fechar a prévia não altera os dados do formulário.
 - A assinatura não é disponibilizada dentro do modal administrativo; ela continua restrita ao link público criado pelo envio do contrato.
 
+## Status e aprovação na aba Financeiro
+
+O seletor **Contrato** é a origem funcional da escolha. O antigo campo textual de contrato permanece apenas nos dados do formulário para compatibilidade com cadastros anteriores e não é apresentado como um segundo campo editável.
+
+No lugar dele, a tela exibe **Status do contrato**, com o estado real do documento eletrônico:
+
+- modelo `ACTIVE` selecionado: ainda não gerado e não enviado;
+- `GENERATED`: documento gerado, aguardando envio;
+- `SENT`: enviado, aguardando assinatura;
+- `VIEWED`: aberto pelo aluno, mas ainda não assinado;
+- `SIGNED`: aprovado e assinado pelo aluno;
+- `CANCELLED`: cancelado;
+- `EXPIRED`: prazo encerrado sem assinatura.
+
+Somente `SIGNED` confirma **Aluno aprovou: Sim**. Um vínculo financeiro ativo, o texto legado, o envio ou a visualização do documento não comprovam aceite. Quando disponível, a tela também apresenta a data e a hora da assinatura.
+
 ## Assinatura eletrônica interna
 
 O fluxo interno de assinatura funciona da seguinte forma:
