@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { CheckCircle2, Clock3, Eye, FileText, X, XCircle } from 'lucide-react';
 import { useParams } from 'react-router-dom';
@@ -13,10 +13,12 @@ import {
 import { AlunoForm } from './AlunoForm';
 
 const FINANCIAL_PANEL_ID = 'aluno-panel-financeiro';
-const PREVIEW_SLOT_ID = 'aluno-contract-preview-slot';
-const STATUS_SLOT_ID = 'aluno-contract-status-slot';
-const ORIGIN_SECTION_TITLE = 'Origem e observações';
+const CONTRACT_SECTION_SLOT_ID = 'aluno-contract-section-slot';
 const COMMERCIAL_SECTION_TITLE = 'Oferta e vínculo comercial';
+const CHARGING_SECTION_TITLE = 'Cobrança';
+
+const contractSelectClassName =
+  'flex h-12 w-full rounded-xl border border-[#cbd5e1] bg-background px-4 py-3 text-base ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3b82f6] focus-visible:ring-offset-2 focus-visible:shadow-[0_0_0_6px_rgba(59,130,246,0.15)] disabled:cursor-not-allowed disabled:bg-muted';
 
 const formFieldNames = {
   selectedContractId: 'intakeForm.financialInfo.selectedContractId',
@@ -38,6 +40,12 @@ const statusToneClassName: Record<StudentContractStatusTone, string> = {
   danger: 'border-rose-200 bg-rose-50 text-rose-800',
 };
 
+type ContractOption = {
+  value: string;
+  label: string;
+  disabled: boolean;
+};
+
 const readFormValue = (name: string) => {
   const field = document.querySelector<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(
     `[name="${name}"]`
@@ -52,9 +60,6 @@ const findSectionByTitle = (financialPanel: HTMLElement, title: string) => {
 
   return heading?.parentElement?.parentElement || null;
 };
-
-const findOriginSection = (financialPanel: HTMLElement) =>
-  findSectionByTitle(financialPanel, ORIGIN_SECTION_TITLE);
 
 const formatDateTimeLabel = (value?: string | null) => {
   if (!value) return null;
@@ -75,6 +80,17 @@ const getErrorMessage = (error: unknown) => {
   return candidate.response?.data?.error || candidate.message || 'Não foi possível gerar a prévia do contrato.';
 };
 
+const normalizeText = (value?: string | null) => value?.replace(/\s+/g, ' ').trim() || '';
+
+const haveSameOptions = (current: ContractOption[], next: ContractOption[]) =>
+  current.length === next.length &&
+  current.every(
+    (option, index) =>
+      option.value === next[index]?.value &&
+      option.label === next[index]?.label &&
+      option.disabled === next[index]?.disabled
+  );
+
 function ContractStatusIcon({ tone, approved }: { tone: StudentContractStatusTone; approved: boolean }) {
   const className = 'h-5 w-5 shrink-0';
 
@@ -86,11 +102,16 @@ function ContractStatusIcon({ tone, approved }: { tone: StudentContractStatusTon
 
 export function AlunoFormWithContractPreview() {
   const { id = '' } = useParams<{ id: string }>();
+  const originalContractSelectRef = useRef<HTMLSelectElement | null>(null);
   const [financialPanel, setFinancialPanel] = useState<HTMLElement | null>(null);
-  const [previewSlot, setPreviewSlot] = useState<HTMLElement | null>(null);
-  const [statusSlot, setStatusSlot] = useState<HTMLElement | null>(null);
+  const [contractSectionSlot, setContractSectionSlot] = useState<HTMLElement | null>(null);
+  const [contractOptions, setContractOptions] = useState<ContractOption[]>([]);
+  const [contractSelectReady, setContractSelectReady] = useState(false);
+  const [contractSelectMessage, setContractSelectMessage] = useState('Carregando contratos disponíveis...');
   const [selectedContractId, setSelectedContractId] = useState('');
   const [selectedContractLabel, setSelectedContractLabel] = useState('');
+  const [activeContractMessage, setActiveContractMessage] = useState('');
+  const [replacementWarningMessage, setReplacementWarningMessage] = useState('');
   const [generatedContract, setGeneratedContract] = useState<GeneratedContract | null>(null);
   const [contractStatusLoading, setContractStatusLoading] = useState(false);
   const [contractStatusError, setContractStatusError] = useState(false);
@@ -124,26 +145,26 @@ export function AlunoFormWithContractPreview() {
 
   useEffect(() => {
     if (!financialPanel) {
-      setPreviewSlot(null);
+      setContractSectionSlot(null);
       return undefined;
     }
 
-    const existingSlot = document.getElementById(PREVIEW_SLOT_ID);
+    const existingSlot = document.getElementById(CONTRACT_SECTION_SLOT_ID);
     if (existingSlot) {
-      setPreviewSlot(existingSlot);
+      setContractSectionSlot(existingSlot);
       return undefined;
     }
 
-    const originSection = findOriginSection(financialPanel);
-    if (!originSection?.parentElement) {
-      setPreviewSlot(null);
+    const chargingSection = findSectionByTitle(financialPanel, CHARGING_SECTION_TITLE);
+    if (!chargingSection?.parentElement) {
+      setContractSectionSlot(null);
       return undefined;
     }
 
     const slot = document.createElement('div');
-    slot.id = PREVIEW_SLOT_ID;
-    originSection.parentElement.insertBefore(slot, originSection);
-    setPreviewSlot(slot);
+    slot.id = CONTRACT_SECTION_SLOT_ID;
+    chargingSection.parentElement.insertBefore(slot, chargingSection.nextSibling);
+    setContractSectionSlot(slot);
 
     return () => {
       slot.remove();
@@ -181,6 +202,9 @@ export function AlunoFormWithContractPreview() {
         child.textContent?.includes('Este aluno já possui um contrato ativo')
       );
 
+      setActiveContractMessage(normalizeText(activeContractBlock?.textContent));
+      setReplacementWarningMessage(normalizeText(replacementWarningBlock?.textContent));
+
       if (
         !headingBlock ||
         !primaryGrid ||
@@ -210,11 +234,15 @@ export function AlunoFormWithContractPreview() {
       const originalClasses = new Map(
         trackedElements.map((element) => [element, element.getAttribute('class') || ''])
       );
+      const hiddenState = new Map(
+        [contractBlock, legacyContractBlock, activeContractBlock, replacementWarningBlock]
+          .filter((element): element is HTMLElement => Boolean(element))
+          .map((element) => [element, element.classList.contains('hidden')])
+      );
 
       commercialSection.classList.remove('space-y-4');
-      commercialSection.classList.add('grid', 'grid-cols-1', 'gap-4', 'xl:grid-cols-2');
-      headingBlock.classList.add('xl:col-span-2');
-
+      commercialSection.classList.add('grid', 'grid-cols-1', 'gap-4', 'lg:grid-cols-3');
+      headingBlock.classList.add('lg:col-span-3');
       primaryGrid.className = 'contents';
       secondaryColumn.className = 'contents';
 
@@ -234,27 +262,8 @@ export function AlunoFormWithContractPreview() {
         'bg-card',
         'p-4'
       );
-      contractBlock.classList.add(
-        'order-3',
-        'rounded-xl',
-        'border',
-        'border-border',
-        'bg-card',
-        'p-4',
-        'xl:col-span-2'
-      );
-      activeContractBlock?.classList.add('order-4', 'xl:col-span-2');
-      replacementWarningBlock?.classList.add('order-5', 'xl:col-span-2');
       scheduleBlock.classList.add(
-        'order-6',
-        'rounded-xl',
-        'border',
-        'border-border',
-        'bg-card',
-        'p-4'
-      );
-      legacyContractBlock.classList.add(
-        'order-7',
+        'order-3',
         'rounded-xl',
         'border',
         'border-border',
@@ -262,9 +271,18 @@ export function AlunoFormWithContractPreview() {
         'p-4'
       );
 
+      contractBlock.classList.add('hidden');
+      legacyContractBlock.classList.add('hidden');
+      activeContractBlock?.classList.add('hidden');
+      replacementWarningBlock?.classList.add('hidden');
+
       restoreLayout = () => {
         originalClasses.forEach((className, element) => {
           element.setAttribute('class', className);
+        });
+        hiddenState.forEach((wasHidden, element) => {
+          if (wasHidden) element.classList.add('hidden');
+          else element.classList.remove('hidden');
         });
       };
     };
@@ -276,71 +294,70 @@ export function AlunoFormWithContractPreview() {
     return () => {
       observer.disconnect();
       restoreLayout?.();
+      setActiveContractMessage('');
+      setReplacementWarningMessage('');
     };
   }, [financialPanel]);
 
   useEffect(() => {
     if (!financialPanel) {
-      setStatusSlot(null);
-      return undefined;
-    }
-
-    const legacyField = financialPanel.querySelector<HTMLInputElement>(
-      `[name="${formFieldNames.legacyContract}"]`
-    );
-    const legacyBlock = legacyField?.parentElement?.parentElement;
-    if (!legacyBlock) {
-      setStatusSlot(null);
-      return undefined;
-    }
-
-    const existingSlot = document.getElementById(STATUS_SLOT_ID);
-    if (existingSlot) {
-      setStatusSlot(existingSlot);
-      return undefined;
-    }
-
-    const originalChildren = Array.from(legacyBlock.children) as HTMLElement[];
-    const hiddenState = new Map(originalChildren.map((child) => [child, child.classList.contains('hidden')]));
-    originalChildren.forEach((child) => child.classList.add('hidden'));
-
-    const slot = document.createElement('div');
-    slot.id = STATUS_SLOT_ID;
-    legacyBlock.appendChild(slot);
-    setStatusSlot(slot);
-
-    return () => {
-      slot.remove();
-      hiddenState.forEach((wasHidden, child) => {
-        if (!wasHidden) child.classList.remove('hidden');
-      });
-    };
-  }, [financialPanel]);
-
-  useEffect(() => {
-    if (!financialPanel) {
+      originalContractSelectRef.current = null;
+      setContractOptions([]);
+      setContractSelectReady(false);
       setSelectedContractId('');
       setSelectedContractLabel('');
       return undefined;
     }
 
-    const syncSelectedContract = () => {
+    const syncContractControl = () => {
       const select = financialPanel.querySelector<HTMLSelectElement>(
         `[name="${formFieldNames.selectedContractId}"]`
       );
-      const value = select?.value?.trim() || '';
-      const label = value ? select?.selectedOptions[0]?.textContent?.trim() || '' : '';
+      originalContractSelectRef.current = select;
+
+      if (!select) {
+        const contractLabel = Array.from(financialPanel.querySelectorAll<HTMLLabelElement>('label')).find(
+          (candidate) => candidate.textContent?.trim() === 'Contrato'
+        );
+        const contractBlock = contractLabel?.parentElement;
+        const errorMessage = contractBlock?.querySelector<HTMLElement>('.text-destructive')?.textContent;
+        const loadingMessage = contractBlock?.querySelector<HTMLElement>('.text-muted-foreground')?.textContent;
+        setContractSelectReady(false);
+        setContractSelectMessage(normalizeText(errorMessage || loadingMessage) || 'Carregando contratos disponíveis...');
+        return;
+      }
+
+      const nextOptions = Array.from(select.options).map((option) => ({
+        value: option.value,
+        label: option.textContent?.trim() || '',
+        disabled: option.disabled,
+      }));
+      const value = select.value?.trim() || '';
+      const label = value ? select.selectedOptions[0]?.textContent?.trim() || '' : '';
+
+      setContractOptions((current) => (haveSameOptions(current, nextOptions) ? current : nextOptions));
+      setContractSelectReady(true);
+      setContractSelectMessage('');
       setSelectedContractId(value);
       setSelectedContractLabel(label);
     };
 
-    syncSelectedContract();
-    financialPanel.addEventListener('change', syncSelectedContract);
-    financialPanel.addEventListener('input', syncSelectedContract);
+    syncContractControl();
+    financialPanel.addEventListener('change', syncContractControl);
+    financialPanel.addEventListener('input', syncContractControl);
+    const observer = new MutationObserver(syncContractControl);
+    observer.observe(financialPanel, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['disabled'],
+    });
 
     return () => {
-      financialPanel.removeEventListener('change', syncSelectedContract);
-      financialPanel.removeEventListener('input', syncSelectedContract);
+      observer.disconnect();
+      financialPanel.removeEventListener('change', syncContractControl);
+      financialPanel.removeEventListener('input', syncContractControl);
+      originalContractSelectRef.current = null;
     };
   }, [financialPanel]);
 
@@ -391,6 +408,16 @@ export function AlunoFormWithContractPreview() {
       document.removeEventListener('keydown', closeOnEscape);
     };
   }, [previewHtml]);
+
+  const handleContractSelectionChange = (value: string) => {
+    const select =
+      originalContractSelectRef.current ||
+      financialPanel?.querySelector<HTMLSelectElement>(`[name="${formFieldNames.selectedContractId}"]`);
+
+    if (!select) return;
+    select.value = value;
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  };
 
   const handlePreview = async () => {
     if (!id || !selectedContractId) {
@@ -443,58 +470,20 @@ export function AlunoFormWithContractPreview() {
 
   const signedAtLabel = formatDateTimeLabel(contractStatus.signedAt);
   const displayedContractTitle = generatedContract?.title || selectedContractLabel || 'Nenhum contrato selecionado';
+  const hasRestrictedOptions = contractOptions.some((option) => option.disabled);
 
   return (
     <>
       <AlunoForm />
 
-      {statusSlot &&
+      {contractSectionSlot &&
         createPortal(
-          <div className="space-y-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-5 rounded-xl border border-border bg-card p-5">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div>
-                <h3 className="text-sm font-semibold text-foreground">Status do contrato</h3>
-                <p className="mt-1 text-sm text-muted-foreground">{displayedContractTitle}</p>
-              </div>
-              <div
-                className={`inline-flex items-center gap-2 self-start rounded-full border px-3 py-1.5 text-xs font-semibold ${statusToneClassName[contractStatus.tone]}`}
-              >
-                <ContractStatusIcon tone={contractStatus.tone} approved={contractStatus.approved} />
-                {contractStatus.label}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="rounded-lg border border-border bg-muted/20 px-4 py-3">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Aluno aprovou?</p>
-                <p className={`mt-1 text-base font-semibold ${contractStatus.approved ? 'text-emerald-700' : 'text-foreground'}`}>
-                  {contractStatus.approvalLabel}
-                </p>
-              </div>
-              <div className="rounded-lg border border-border bg-muted/20 px-4 py-3">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Assinatura</p>
-                <p className="mt-1 text-sm font-semibold text-foreground">
-                  {signedAtLabel || (contractStatus.approved ? 'Data não informada' : 'Ainda não assinou')}
-                </p>
-              </div>
-            </div>
-
-            <p className="text-sm text-muted-foreground">{contractStatus.description}</p>
-            <p className="text-xs text-muted-foreground">
-              O status é obtido do documento eletrônico. O vínculo ativo ou o texto legado não confirmam aprovação do aluno.
-            </p>
-          </div>,
-          statusSlot
-        )}
-
-      {previewSlot &&
-        createPortal(
-          <div className="rounded-xl border border-border bg-card p-5">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h3 className="text-sm font-semibold text-foreground">Prévia do contrato</h3>
+                <h3 className="text-sm font-semibold text-foreground">Contrato do aluno</h3>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Visualize o documento com os dados atuais antes de salvar, gerar ou enviar para assinatura.
+                  Selecione o documento, acompanhe a aprovação e confira a prévia depois de definir serviço, agenda e cobrança.
                 </p>
               </div>
               <Button
@@ -508,16 +497,91 @@ export function AlunoFormWithContractPreview() {
                 Abrir prévia
               </Button>
             </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-foreground">Contrato</label>
+              {contractSelectReady ? (
+                <select
+                  className={contractSelectClassName}
+                  value={selectedContractId}
+                  onChange={(event) => handleContractSelectionChange(event.target.value)}
+                >
+                  {contractOptions.map((option) => (
+                    <option key={`${option.value}-${option.label}`} value={option.value} disabled={option.disabled}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <p className="rounded-lg border border-border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+                  {contractSelectMessage}
+                </p>
+              )}
+              {hasRestrictedOptions && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Contratos inativos permanecem indisponíveis conforme a permissão do usuário.
+                </p>
+              )}
+            </div>
+
+            {activeContractMessage && (
+              <div className="rounded-lg border border-border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+                {activeContractMessage}
+              </div>
+            )}
+
+            {replacementWarningMessage && (
+              <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                {replacementWarningMessage}
+              </div>
+            )}
+
+            <div className="space-y-4 rounded-xl border border-border bg-muted/10 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h4 className="text-sm font-semibold text-foreground">Status do contrato</h4>
+                  <p className="mt-1 text-sm text-muted-foreground">{displayedContractTitle}</p>
+                </div>
+                <div
+                  className={`inline-flex items-center gap-2 self-start rounded-full border px-3 py-1.5 text-xs font-semibold ${statusToneClassName[contractStatus.tone]}`}
+                >
+                  <ContractStatusIcon tone={contractStatus.tone} approved={contractStatus.approved} />
+                  {contractStatus.label}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="rounded-lg border border-border bg-card px-4 py-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Aluno aprovou?</p>
+                  <p className={`mt-1 text-base font-semibold ${contractStatus.approved ? 'text-emerald-700' : 'text-foreground'}`}>
+                    {contractStatus.approvalLabel}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-border bg-card px-4 py-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Assinatura</p>
+                  <p className="mt-1 text-sm font-semibold text-foreground">
+                    {signedAtLabel || (contractStatus.approved ? 'Data não informada' : 'Ainda não assinou')}
+                  </p>
+                </div>
+              </div>
+
+              <p className="text-sm text-muted-foreground">{contractStatus.description}</p>
+              <p className="text-xs text-muted-foreground">
+                O status é obtido do documento eletrônico. O vínculo ativo ou o texto legado não confirmam aprovação do aluno.
+              </p>
+            </div>
+
             {previewError && (
-              <div className="mt-3 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
                 {previewError}
               </div>
             )}
-            <p className="mt-3 text-xs text-muted-foreground">
+
+            <p className="text-xs text-muted-foreground">
               A prévia é somente leitura. Nenhum contrato é criado, alterado, enviado ou assinado nesta etapa.
             </p>
           </div>,
-          previewSlot
+          contractSectionSlot
         )}
 
       {previewHtml &&
