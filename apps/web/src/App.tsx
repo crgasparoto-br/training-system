@@ -1,3 +1,4 @@
+import './services/contract-replacement-confirm-copy';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Login } from './pages/Login';
 import type { ReactElement } from 'react';
