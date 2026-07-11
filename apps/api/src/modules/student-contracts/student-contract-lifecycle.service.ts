@@ -135,9 +135,9 @@ export const studentContractLifecycleService = {
     data: PublicSignatureInput,
     actor: ContractActor = {}
   ) {
-    const signerName = String(data.signerName || '').trim();
-    const signerCpf = normalizeDocument(data.signerCpf);
-    const signerEmail = String(data.signerEmail || '').trim() || null;
+    const signerName = String(data?.signerName || '').trim();
+    const signerCpf = normalizeDocument(data?.signerCpf);
+    const signerEmail = String(data?.signerEmail || '').trim() || null;
 
     if (!signerName) {
       throw new Error('Informe o nome completo para assinar');
@@ -210,6 +210,7 @@ export const studentContractLifecycleService = {
           id: true,
           status: true,
           publicTokenHash: true,
+          publicTokenExpiresAt: true,
         },
       });
 
@@ -217,8 +218,19 @@ export const studentContractLifecycleService = {
         throw new Error('Link inválido ou já utilizado');
       }
 
+      if (
+        freshContract.publicTokenExpiresAt &&
+        freshContract.publicTokenExpiresAt < signedAt
+      ) {
+        throw new Error('Link expirado');
+      }
+
       if (freshContract.status === 'SIGNED') {
         throw new Error('Contrato já assinado');
+      }
+
+      if (freshContract.status === 'CANCELLED' || freshContract.status === 'EXPIRED') {
+        throw new Error('Contrato não está disponível para assinatura');
       }
 
       const signature = await tx.contractSignature.create({
