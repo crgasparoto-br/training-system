@@ -1,4 +1,8 @@
 import api from './api';
+import {
+  buildAvailableStudentContractQuery,
+  type AvailableStudentContractFilters,
+} from './contract-query';
 
 export interface Contract {
   id: string;
@@ -194,31 +198,10 @@ export const contractService = {
     return response.data.data;
   },
 
-  async listAvailableForStudent(filters?: {
-    alunoId?: string;
-    serviceId?: string;
-    onlyUnlinked?: boolean;
-    status?: string[];
-  }): Promise<AvailableStudentContract[]> {
-    const params = new URLSearchParams();
-
-    if (filters?.alunoId) {
-      params.set('alunoId', filters.alunoId);
-    }
-
-    if (filters?.serviceId) {
-      params.set('serviceId', filters.serviceId);
-    }
-
-    if (filters?.onlyUnlinked !== undefined) {
-      params.set('onlyUnlinked', String(filters.onlyUnlinked));
-    }
-
-    if (filters?.status?.length) {
-      params.set('status', filters.status.join(','));
-    }
-
-    const query = params.toString();
+  async listAvailableForStudent(
+    filters?: AvailableStudentContractFilters
+  ): Promise<AvailableStudentContract[]> {
+    const query = buildAvailableStudentContractQuery(filters);
     const response = await api.get<{ success: boolean; data: AvailableStudentContract[] }>(
       query ? `/contracts/available-for-student?${query}` : '/contracts/available-for-student'
     );
