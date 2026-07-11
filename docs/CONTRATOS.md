@@ -32,6 +32,8 @@ O bloco **Contrato do aluno** separa claramente:
 
 O cartão do contrato vigente apresenta título, situação, data de assinatura, início e término da vigência. A ação **Consultar contrato vigente** abre o documento persistido em modo somente leitura.
 
+A página `Contratos do aluno` também oferece **Consultar** em cada item do histórico, permitindo abrir qualquer documento persistido sem alterá-lo.
+
 Quando outro documento é selecionado, a ação **Confirmar preparação da substituição** autoriza o cadastro do candidato, mas não encerra o vínculo atual.
 
 Regras:
@@ -100,6 +102,7 @@ O aluno possui duas ações mutuamente exclusivas no endereço público:
 4. O documento passa para `SIGNED`.
 5. Se a data efetiva já chegou, o candidato entra em vigor e o contrato anterior é encerrado na mesma transação.
 6. Se a data efetiva for futura, o contrato anterior continua vigente e o candidato assinado aguarda o agendador.
+7. A página pública informa se a vigência começou imediatamente ou mostra a data futura programada.
 
 ### Não aceitar contrato
 
