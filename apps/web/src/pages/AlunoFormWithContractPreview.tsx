@@ -105,7 +105,9 @@ export function AlunoFormWithContractPreview() {
     try {
       const currentServiceName = readFormValue(formFieldNames.currentService);
       const structuralServiceId = readFormValue(formFieldNames.serviceId);
-      const services = currentServiceName ? await serviceCatalogService.list() : [];
+      const services = currentServiceName
+        ? await serviceCatalogService.list().catch(() => [])
+        : [];
       const selectedFinancialService = services.find((service) => service.name === currentServiceName);
 
       const target = resolveStudentContractPreviewTarget({
