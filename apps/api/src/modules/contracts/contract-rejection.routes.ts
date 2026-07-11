@@ -129,43 +129,47 @@ router.post('/public/:token/reject', async (req: Request, res: Response) => {
   }
 });
 
-router.use(authMiddleware);
-router.use(professorMiddleware);
+router.get(
+  '/documents/:contractDocumentId/rejection',
+  authMiddleware,
+  professorMiddleware,
+  async (req: Request, res: Response) => {
+    try {
+      const companyContractId = (req as any).user.contractId as string | undefined;
+      if (!companyContractId) {
+        return sendError(res, 'Contrato da empresa não encontrado', 404);
+      }
 
-router.get('/documents/:contractDocumentId/rejection', async (req: Request, res: Response) => {
-  try {
-    const companyContractId = (req as any).user.contractId as string | undefined;
-    if (!companyContractId) {
-      return sendError(res, 'Contrato da empresa não encontrado', 404);
+      const contract = await prisma.contract.findFirst({
+        where: {
+          id: req.params.contractDocumentId,
+          companyContractId,
+        },
+        select: { id: true },
+      });
+
+      if (!contract) {
+        return sendError(res, 'Contrato não encontrado', 404);
+      }
+
+      const rejection = await loadRejection(contract.id);
+      return sendSuccess(
+        res,
+        rejection
+          ? { rejected: true, ...rejection }
+          : { rejected: false, rejectedAt: null, rejectionReason: null },
+        'Situação de recusa recuperada com sucesso'
+      );
+    } catch (error: any) {
+      return sendError(res, error.message || 'Erro ao consultar recusa do contrato', 500);
     }
-
-    const contract = await prisma.contract.findFirst({
-      where: {
-        id: req.params.contractDocumentId,
-        companyContractId,
-      },
-      select: { id: true },
-    });
-
-    if (!contract) {
-      return sendError(res, 'Contrato não encontrado', 404);
-    }
-
-    const rejection = await loadRejection(contract.id);
-    return sendSuccess(
-      res,
-      rejection
-        ? { rejected: true, ...rejection }
-        : { rejected: false, rejectedAt: null, rejectionReason: null },
-      'Situação de recusa recuperada com sucesso'
-    );
-  } catch (error: any) {
-    return sendError(res, error.message || 'Erro ao consultar recusa do contrato', 500);
   }
-});
+);
 
 router.post(
   '/documents/:contractDocumentId/send',
+  authMiddleware,
+  professorMiddleware,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const companyContractId = (req as any).user.contractId as string | undefined;
