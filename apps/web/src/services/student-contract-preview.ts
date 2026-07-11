@@ -56,6 +56,9 @@ export function resolveStudentContractPreviewTarget(
     return null;
   }
 
+  const monthlyAmount = parseCurrency(values.monthlyValue);
+  const paymentDay = parsePaymentDay(values.paymentDay);
+
   return {
     kind: 'template',
     templateId,
@@ -64,12 +67,8 @@ export function resolveStudentContractPreviewTarget(
       alunoId,
       ...(values.serviceId ? { serviceId: values.serviceId } : {}),
       ...(values.professorId ? { professorId: values.professorId } : {}),
-      ...(parseCurrency(values.monthlyValue) !== undefined
-        ? { valorMensal: parseCurrency(values.monthlyValue) }
-        : {}),
-      ...(parsePaymentDay(values.paymentDay) !== undefined
-        ? { diaVencimento: parsePaymentDay(values.paymentDay) }
-        : {}),
+      ...(monthlyAmount !== undefined ? { valorMensal: monthlyAmount } : {}),
+      ...(paymentDay !== undefined ? { diaVencimento: paymentDay } : {}),
       ...(values.contractStartDate ? { dataInicio: values.contractStartDate } : {}),
       ...(values.notes ? { horarios: values.notes } : {}),
     },
