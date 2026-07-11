@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { CalendarDays, CheckCircle2, Eye, FileClock, ShieldCheck, X } from 'lucide-react';
 import { useParams } from 'react-router-dom';
@@ -75,37 +75,39 @@ export function AlunoFormWithContractLifecycle() {
       : 'Sem data futura definida, o novo contrato entrará em vigor quando for assinado.';
   }, [isDifferentSelection, plannedStartDate]);
 
-  useEffect(() => {
+  const loadActiveContract = useCallback(async () => {
     if (!id) {
       setActiveContract(null);
       setActiveContractLoading(false);
-      return undefined;
+      return;
     }
 
-    let active = true;
     setActiveContractLoading(true);
     setActiveContractError(null);
 
-    alunoService
-      .listStudentContracts(id)
-      .then((result) => {
-        if (active) setActiveContract(result.activeContract);
-      })
-      .catch((error: any) => {
-        if (!active) return;
-        setActiveContract(null);
-        setActiveContractError(
-          error?.response?.data?.error || 'Não foi possível consultar o contrato vigente.'
-        );
-      })
-      .finally(() => {
-        if (active) setActiveContractLoading(false);
-      });
-
-    return () => {
-      active = false;
-    };
+    try {
+      const result = await alunoService.listStudentContracts(id);
+      setActiveContract(result.activeContract);
+    } catch (error: any) {
+      setActiveContract(null);
+      setActiveContractError(
+        error?.response?.data?.error || 'Não foi possível consultar o contrato vigente.'
+      );
+    } finally {
+      setActiveContractLoading(false);
+    }
   }, [id]);
+
+  useEffect(() => {
+    void loadActiveContract();
+
+    const refreshOnFocus = () => {
+      void loadActiveContract();
+    };
+
+    window.addEventListener('focus', refreshOnFocus);
+    return () => window.removeEventListener('focus', refreshOnFocus);
+  }, [loadActiveContract]);
 
   useEffect(() => {
     const syncControls = () => {
