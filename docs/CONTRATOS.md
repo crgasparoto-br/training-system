@@ -18,21 +18,48 @@ A leitura operacional segue a ordem natural do processo comercial:
 
 1. **Oferta e vínculo comercial**: Serviço Vigente, Condição Especial e Plano de agenda do aluno.
 2. **Cobrança**: valores, desconto, vigência, vencimento, dia de pagamento e professor responsável.
-3. **Contrato do aluno**: seleção do documento, contrato ativo atual, confirmação de substituição, envio, status de aprovação e prévia.
+3. **Contrato do aluno**: seleção, contrato vigente, candidato à substituição, envio, status de aprovação e prévia.
 4. **Origem e observações**: indicação e contexto administrativo.
 
 As informações de contrato são apresentadas somente depois que serviço, agenda e cobrança estiverem visíveis. O seletor original permanece conectado ao formulário, mas sua apresentação é concentrada no bloco **Contrato do aluno** para evitar duplicidade.
 
-## Troca de contrato vigente
+## Contrato vigente e substituição
 
-Quando o aluno já possui um contrato ativo ou assinado e outro documento é selecionado, o bloco **Contrato do aluno** apresenta **Confirmar troca de contrato**.
+O bloco **Contrato do aluno** separa claramente:
 
-- A confirmação informa qual contrato vigente será encerrado quando o cadastro for salvo.
-- A troca não ocorre no clique do botão; o contrato atual permanece intacto até o salvamento ser concluído.
-- O salvamento e o envio do novo documento ficam bloqueados enquanto a confirmação estiver pendente.
-- A confirmação é vinculada ao contrato atualmente selecionado. Alterar a seleção exige uma nova confirmação.
-- Depois do clique explícito, o diálogo legado de substituição é aceito automaticamente para evitar uma segunda confirmação duplicada.
-- A ativação do novo vínculo encerra o anterior conforme a rotina de contratos do aluno.
+- **Contrato vigente**: vínculo atualmente válido para o aluno;
+- **Novo contrato em substituição**: documento em negociação, geração, envio, assinatura ou espera pela data de início.
+
+O cartão do contrato vigente apresenta título, situação, data de assinatura, início e término da vigência. A ação **Consultar contrato vigente** abre o documento persistido em modo somente leitura.
+
+Quando outro documento é selecionado, a ação **Confirmar preparação da substituição** autoriza o cadastro do candidato, mas não encerra o vínculo atual.
+
+Regras:
+
+1. O contrato atual permanece vigente enquanto o candidato estiver em rascunho, gerado, enviado, visualizado ou aguardando assinatura.
+2. Recusa, expiração ou cancelamento do candidato não alteram o contrato vigente.
+3. O salvamento apenas cria ou atualiza o vínculo candidato.
+4. O contrato vigente só é encerrado quando o novo documento estiver assinado e atingir a data efetiva de início.
+5. A confirmação é vinculada ao contrato selecionado; mudar a seleção exige nova confirmação.
+6. O envio do candidato fica bloqueado enquanto a preparação da substituição não estiver confirmada.
+
+## Controle de datas de vigência
+
+A data efetiva do novo contrato é a maior entre:
+
+- a data/hora da assinatura eletrônica;
+- a **Data de Início do Contrato** informada na aba Financeiro.
+
+Consequências:
+
+- uma data anterior à assinatura não produz vigência retroativa;
+- sem data futura, o novo contrato entra em vigor na assinatura;
+- com data futura, o documento fica assinado e o vínculo permanece em `pending_signature` até o início planejado;
+- um agendador verifica contratos assinados aguardando início a cada 15 minutos por padrão;
+- na data efetiva, o vínculo anterior passa para `terminated`, recebe `endDate` igual à entrada em vigor do novo, e o novo vínculo passa para `active` na mesma transação;
+- `Aluno.currentStudentContractId` é atualizado na mesma transação, evitando período sem contrato ou dois vigentes simultaneamente.
+
+O agendador pode ser desativado com `CONTRACT_LIFECYCLE_SCHEDULER_ENABLED=false`. O intervalo pode ser ajustado por `CONTRACT_LIFECYCLE_SCHEDULER_INTERVAL_MINUTES`.
 
 ## Prévia na aba Financeiro
 
@@ -70,7 +97,9 @@ O aluno possui duas ações mutuamente exclusivas no endereço público:
 1. O aluno informa nome completo, CPF e e-mail opcional.
 2. Confirma **Aceitar e assinar**.
 3. O sistema registra nome, CPF normalizado, e-mail, IP, User Agent, data/hora e hash do documento.
-4. O documento passa para `SIGNED` e o vínculo financeiro do aluno passa para `active`.
+4. O documento passa para `SIGNED`.
+5. Se a data efetiva já chegou, o candidato entra em vigor e o contrato anterior é encerrado na mesma transação.
+6. Se a data efetiva for futura, o contrato anterior continua vigente e o candidato assinado aguarda o agendador.
 
 ### Não aceitar contrato
 
@@ -79,8 +108,9 @@ O aluno possui duas ações mutuamente exclusivas no endereço público:
 3. Confirma que deseja recusar o documento.
 4. `POST /api/v1/contracts/public/:token/reject` invalida imediatamente o token público.
 5. A auditoria registra a recusa, data/hora, motivo, IP e User Agent.
-6. O vínculo pendente do aluno é encerrado com a justificativa **Recusado pelo aluno**.
+6. O vínculo candidato é encerrado com a justificativa **Recusado pelo aluno**.
 7. A apresentação administrativa passa a usar o status derivado `REJECTED`.
+8. Qualquer contrato vigente anterior permanece inalterado.
 
 A recusa não é tratada como cancelamento administrativo. O documento não pode mais ser assinado nem reenviado. Após revisar valores, vigência ou cláusulas, a equipe deve gerar um novo contrato.
 
@@ -90,7 +120,7 @@ O status `REJECTED` é derivado do registro de auditoria `STUDENT_REJECTION`. De
 
 O seletor **Contrato** é a origem funcional da escolha. O antigo campo textual de contrato permanece apenas nos dados do formulário para compatibilidade com cadastros anteriores e não é apresentado como um segundo campo editável.
 
-No lugar dele, a tela exibe **Status do contrato**, com o estado real do documento eletrônico:
+A tela exibe **Status do contrato** com o estado do documento eletrônico:
 
 - modelo `ACTIVE` selecionado: ainda não gerado e não enviado;
 - `GENERATED`: documento gerado, aguardando envio;
@@ -100,6 +130,8 @@ No lugar dele, a tela exibe **Status do contrato**, com o estado real do documen
 - `REJECTED`: recusado pelo aluno, com data e motivo quando informados;
 - `CANCELLED`: cancelado administrativamente;
 - `EXPIRED`: prazo encerrado sem assinatura.
+
+O status eletrônico e a vigência são conceitos distintos. Um documento `SIGNED` pode estar aguardando uma data futura para se tornar o contrato vigente.
 
 Somente `SIGNED` confirma **Aluno aprovou: Sim**. Quando o aluno recusa, o painel apresenta **Aluno aprovou: Não — recusado**. Um vínculo financeiro ativo, o texto legado, o envio ou a visualização do documento não comprovam aceite.
 
@@ -113,7 +145,8 @@ O fluxo interno de assinatura funciona da seguinte forma:
 4. O usuário compartilha o endereço `/assinatura/contrato/:token` com o contratante.
 5. Ao abrir o link, o contrato pode passar para `VIEWED` e o evento é registrado na auditoria.
 6. O contratante escolhe entre aceitar e assinar ou recusar o documento.
-7. A conclusão da assinatura passa o documento para `SIGNED`; a recusa invalida o token e passa a ser apresentada como `REJECTED`.
+7. A assinatura registra o documento como `SIGNED` e resolve a entrada em vigor conforme assinatura e data planejada.
+8. A recusa invalida o token, encerra somente o candidato e passa a ser apresentada como `REJECTED`.
 
 Links expirados passam para `EXPIRED`. Contratos cancelados, expirados ou recusados não podem ser assinados. Contratos já assinados não podem ser reenviados, editados ou cancelados pela rotina comum; qualquer alteração deve gerar novo contrato ou aditivo.
 
@@ -162,7 +195,7 @@ Se a migration do catálogo comercial ainda não estiver aplicada, o contexto ma
 
 ## Segurança e auditoria
 
-Contratos assinados não são editados. Recusas e demais eventos relevantes são registrados em `ContractAuditLog`. O token público é removido após a recusa e não pode ser recuperado.
+Contratos assinados não são editados. Recusas, assinaturas e mudanças de vigência são registradas em `ContractAuditLog`. A troca de contrato vigente e a atualização de `currentStudentContractId` são transacionais. Tokens públicos são removidos após assinatura ou recusa.
 
 ## Provedores externos
 
