@@ -198,6 +198,11 @@ export const contractService = {
     return response.data.data;
   },
 
+  async getDocument(id: string): Promise<GeneratedContract> {
+    const response = await api.get<{ success: boolean; data: GeneratedContract }>(`/contracts/documents/${id}`);
+    return response.data.data;
+  },
+
   async listAvailableForStudent(
     filters?: AvailableStudentContractFilters
   ): Promise<AvailableStudentContract[]> {
