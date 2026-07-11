@@ -13,6 +13,13 @@ const terminalStatuses: GeneratedContract['status'][] = [
   'EXPIRED',
 ];
 
+const formatDateLabel = (value: string) => {
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime())
+    ? 'data programada'
+    : parsed.toLocaleDateString('pt-BR');
+};
+
 export default function PublicContractSignature() {
   const { token = '' } = useParams();
   const [contract, setContract] = useState<GeneratedContract | null>(null);
@@ -37,8 +44,12 @@ export default function PublicContractSignature() {
     setSigning(true);
     setMessage(null);
     try {
-      await contractService.signPublic(token, { signerName, signerCpf, signerEmail });
-      setMessage('Contrato assinado com sucesso.');
+      const result = await contractService.signPublic(token, { signerName, signerCpf, signerEmail });
+      setMessage(
+        result.activation.scheduled
+          ? `Contrato assinado com sucesso. Ele entrará em vigor em ${formatDateLabel(result.activation.effectiveAt)}. Até essa data, o contrato vigente atual permanece válido.`
+          : 'Contrato assinado e colocado em vigor com sucesso.'
+      );
       setContract((current) => current ? { ...current, status: 'SIGNED', signedAt: new Date().toISOString() } : current);
     } catch (error: any) {
       setMessage(error.response?.data?.error || 'Não foi possível assinar.');
@@ -58,7 +69,9 @@ export default function PublicContractSignature() {
       const rejectedContract = await contractService.rejectPublic(token, rejectionReason);
       setContract(rejectedContract);
       setShowRejectionForm(false);
-      setMessage('Recusa registrada. A empresa poderá revisar as condições e gerar um novo contrato.');
+      setMessage(
+        'Recusa registrada. Se já houver um contrato vigente, ele permanece válido. A empresa poderá revisar as condições e gerar um novo documento.'
+      );
     } catch (error: any) {
       setMessage(error.response?.data?.error || 'Não foi possível registrar a recusa.');
     } finally {
