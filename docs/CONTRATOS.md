@@ -10,7 +10,7 @@ O módulo permite cadastrar modelos de contrato com cabeçalho, rodapé, cláusu
 4. Antes de salvar ou gerar, use **Abrir prévia** para conferir o documento preenchido.
 5. O backend salva `renderedHtml` e `dataSnapshot` somente quando o contrato real é gerado, preservando a versão utilizada.
 6. Gere o PDF e envie para assinatura interna.
-7. O link público `/assinatura/contrato/:token` registra aceite, nome, CPF, IP, User Agent, data/hora e hash SHA-256 do documento.
+7. O link público `/assinatura/contrato/:token` permite ao aluno aceitar e assinar ou recusar o documento.
 
 ## Organização da aba Financeiro
 
@@ -18,7 +18,7 @@ A leitura operacional segue a ordem natural do processo comercial:
 
 1. **Oferta e vínculo comercial**: Serviço Vigente, Condição Especial e Plano de agenda do aluno.
 2. **Cobrança**: valores, desconto, vigência, vencimento, dia de pagamento e professor responsável.
-3. **Contrato do aluno**: seleção do documento, contrato ativo atual, alerta de substituição, status de aprovação/assinatura, prévia e envio.
+3. **Contrato do aluno**: seleção do documento, contrato ativo atual, alerta de substituição, envio, status de aprovação e prévia.
 4. **Origem e observações**: indicação e contexto administrativo.
 
 As informações de contrato são apresentadas somente depois que serviço, agenda e cobrança estiverem visíveis. O seletor original permanece conectado ao formulário, mas sua apresentação é concentrada no bloco **Contrato do aluno** para evitar duplicidade.
@@ -31,7 +31,7 @@ Na edição de um aluno, a aba **Financeiro** oferece a ação **Abrir prévia**
 - Quando a seleção representa um contrato já gerado, a tela abre o `renderedHtml` persistido por `GET /api/v1/contracts/documents/:contractDocumentId`.
 - A prévia é somente leitura e não cria contrato, vínculo, PDF, token público ou assinatura.
 - Fechar a prévia não altera os dados do formulário.
-- A assinatura não é disponibilizada dentro do modal administrativo; ela continua restrita ao link público criado pelo envio do contrato.
+- A assinatura ou recusa não é disponibilizada dentro do modal administrativo; essas ações continuam restritas ao link público criado pelo envio do contrato.
 
 ## Envio para assinatura na aba Financeiro
 
@@ -46,9 +46,34 @@ O bloco **Contrato do aluno** apresenta a ação **Enviar para assinatura** some
 O sistema não dispara mensagem automaticamente. A ação “enviar” significa preparar o documento e gerar o endereço seguro de assinatura.
 
 - Um modelo `ACTIVE` ainda não gerado não pode ser enviado; primeiro é necessário salvar o cadastro para gerar o documento.
-- `SIGNED`, `CANCELLED` e `EXPIRED` não apresentam envio disponível na interface.
+- `SIGNED`, `REJECTED`, `CANCELLED` e `EXPIRED` não apresentam envio disponível na interface.
 - Para `SENT` ou `VIEWED`, a ação passa a ser **Gerar novo link**. A tela solicita confirmação porque o novo token substitui e invalida o endereço anterior.
 - Como o banco armazena somente o hash, um link antigo não pode ser recuperado depois. Caso ele tenha sido perdido, deve-se gerar um novo link.
+
+## Aceite e recusa no link público
+
+O aluno possui duas ações mutuamente exclusivas no endereço público:
+
+### Aceitar e assinar
+
+1. O aluno informa nome completo, CPF e e-mail opcional.
+2. Confirma **Aceitar e assinar**.
+3. O sistema registra nome, CPF normalizado, e-mail, IP, User Agent, data/hora e hash do documento.
+4. O documento passa para `SIGNED` e o vínculo financeiro do aluno passa para `active`.
+
+### Não aceitar contrato
+
+1. O aluno seleciona **Não aceitar contrato**.
+2. Pode informar um motivo opcional de até 1.000 caracteres.
+3. Confirma que deseja recusar o documento.
+4. `POST /api/v1/contracts/public/:token/reject` invalida imediatamente o token público.
+5. A auditoria registra a recusa, data/hora, motivo, IP e User Agent.
+6. O vínculo pendente do aluno é encerrado com a justificativa **Recusado pelo aluno**.
+7. A apresentação administrativa passa a usar o status derivado `REJECTED`.
+
+A recusa não é tratada como cancelamento administrativo. O documento não pode mais ser assinado nem reenviado. Após revisar valores, vigência ou cláusulas, a equipe deve gerar um novo contrato.
+
+O status `REJECTED` é derivado do registro de auditoria `STUDENT_REJECTION`. Dessa forma, a recusa é distinguida de `CANCELLED` sem alterar contratos históricos ou exigir conversão do enum existente no banco.
 
 ## Status e aprovação na aba Financeiro
 
@@ -61,10 +86,11 @@ No lugar dele, a tela exibe **Status do contrato**, com o estado real do documen
 - `SENT`: enviado, aguardando assinatura;
 - `VIEWED`: aberto pelo aluno, mas ainda não assinado;
 - `SIGNED`: aprovado e assinado pelo aluno;
-- `CANCELLED`: cancelado;
+- `REJECTED`: recusado pelo aluno, com data e motivo quando informados;
+- `CANCELLED`: cancelado administrativamente;
 - `EXPIRED`: prazo encerrado sem assinatura.
 
-Somente `SIGNED` confirma **Aluno aprovou: Sim**. Um vínculo financeiro ativo, o texto legado, o envio ou a visualização do documento não comprovam aceite. Quando disponível, a tela também apresenta a data e a hora da assinatura.
+Somente `SIGNED` confirma **Aluno aprovou: Sim**. Quando o aluno recusa, o painel apresenta **Aluno aprovou: Não — recusado**. Um vínculo financeiro ativo, o texto legado, o envio ou a visualização do documento não comprovam aceite.
 
 ## Assinatura eletrônica interna
 
@@ -75,11 +101,10 @@ O fluxo interno de assinatura funciona da seguinte forma:
 3. `POST /api/v1/contracts/documents/:contractDocumentId/send` muda o documento para `SENT`, cria um token público aleatório armazenado somente como hash e define validade de 30 dias.
 4. O usuário compartilha o endereço `/assinatura/contrato/:token` com o contratante.
 5. Ao abrir o link, o contrato pode passar para `VIEWED` e o evento é registrado na auditoria.
-6. O contratante informa nome completo, CPF e, opcionalmente, e-mail, e confirma **Aceitar e assinar**.
-7. A assinatura registra nome, CPF normalizado, e-mail, IP, User Agent, data/hora e o hash do documento aceito.
-8. O contrato passa para `SIGNED` e o vínculo financeiro do aluno passa para `active`.
+6. O contratante escolhe entre aceitar e assinar ou recusar o documento.
+7. A conclusão da assinatura passa o documento para `SIGNED`; a recusa invalida o token e passa a ser apresentada como `REJECTED`.
 
-Links expirados passam para `EXPIRED`. Contratos cancelados ou expirados não podem ser assinados. Contratos já assinados não podem ser reenviados, editados ou cancelados pela rotina comum; qualquer alteração deve gerar novo contrato ou aditivo.
+Links expirados passam para `EXPIRED`. Contratos cancelados, expirados ou recusados não podem ser assinados. Contratos já assinados não podem ser reenviados, editados ou cancelados pela rotina comum; qualquer alteração deve gerar novo contrato ou aditivo.
 
 ## Modelo ACESSO de treinamento físico personalizado
 
@@ -126,7 +151,7 @@ Se a migration do catálogo comercial ainda não estiver aplicada, o contexto ma
 
 ## Segurança e auditoria
 
-Contratos assinados não são editados. Alterações posteriores devem gerar novo contrato ou aditivo. Eventos relevantes são registrados em `ContractAuditLog`.
+Contratos assinados não são editados. Recusas e demais eventos relevantes são registrados em `ContractAuditLog`. O token público é removido após a recusa e não pode ser recuperado.
 
 ## Provedores externos
 
