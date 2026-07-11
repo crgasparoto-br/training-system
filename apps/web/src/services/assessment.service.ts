@@ -32,6 +32,13 @@ export interface Assessment {
     name: string;
     code: string;
   };
+  professional?: {
+    user?: {
+      profile?: {
+        name?: string;
+      };
+    };
+  };
 }
 
 export interface AssessmentAuditLog {
@@ -134,4 +141,3 @@ export const assessmentService = {
     return response.data.data;
   },
 };
-

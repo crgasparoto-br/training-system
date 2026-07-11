@@ -5,32 +5,15 @@ import fs from 'fs/promises';
 import path from 'path';
 import puppeteer from 'puppeteer';
 import { studentContractService } from '../student-contracts/student-contract.service.js';
+import {
+  contractVariableDefinitions,
+  contractVariables,
+} from './contract-variable-definitions.js';
+import { loadContractServiceVariableContext } from './contract-service-context.js';
 
 const prisma = new PrismaClient();
 
-export const contractVariables = [
-  'aluno.nome',
-  'aluno.cpf',
-  'aluno.rg',
-  'aluno.enderecoCompleto',
-  'responsavel.nome',
-  'responsavel.cpf',
-  'responsavel.email',
-  'empresa.razaoSocial',
-  'empresa.cnpj',
-  'empresa.cref',
-  'empresa.endereco',
-  'servico.nome',
-  'servico.valor',
-  'servico.duracaoSessao',
-  'servico.quantidadeSemanal',
-  'contrato.valorMensal',
-  'contrato.valorMensalExtenso',
-  'contrato.diaVencimento',
-  'contrato.horarios',
-  'contrato.dataInicio',
-  'contrato.dataAssinatura',
-];
+export { contractVariables };
 
 type Actor = {
   userId?: string;
@@ -159,10 +142,7 @@ async function audit(contractId: string, action: string, actor?: Actor, details?
 
 export const contractDocumentService = {
   listVariables() {
-    return contractVariables.map((key) => ({
-      key,
-      token: `{{${key}}}`,
-    }));
+    return contractVariableDefinitions;
   },
 
   async listTemplates(contractId: string) {
@@ -200,18 +180,41 @@ export const contractDocumentService = {
   },
 
   async updateTemplate(contractId: string, templateId: string, data: any) {
-    return prisma.contractTemplate.update({
-      where: { id: templateId, contractId },
-      data: {
-        name: data.name,
-        description: data.description,
-        serviceId: data.serviceId ?? undefined,
-        version: data.version,
-        status: data.status,
-        headerHtml: data.headerHtml,
-        footerHtml: data.footerHtml,
-      },
-      include: { clauses: { orderBy: { order: 'asc' } } },
+    return prisma.$transaction(async (tx) => {
+      await tx.contractTemplate.update({
+        where: { id: templateId, contractId },
+        data: {
+          name: data.name,
+          description: data.description,
+          serviceId: data.serviceId ?? undefined,
+          version: data.version,
+          status: data.status,
+          headerHtml: data.headerHtml,
+          footerHtml: data.footerHtml,
+        },
+      });
+
+      if (Array.isArray(data.clauses)) {
+        await tx.contractTemplateClause.deleteMany({ where: { templateId } });
+
+        if (data.clauses.length > 0) {
+          await tx.contractTemplateClause.createMany({
+            data: data.clauses.map((clause: any, index: number) => ({
+              templateId,
+              order: Number(clause.order ?? index + 1),
+              title: clause.title || `Cláusula ${index + 1}`,
+              bodyHtml: clause.bodyHtml || '',
+              required: clause.required ?? true,
+              editable: clause.editable ?? true,
+            })),
+          });
+        }
+      }
+
+      return tx.contractTemplate.findUniqueOrThrow({
+        where: { id: templateId, contractId },
+        include: { clauses: { orderBy: { order: 'asc' } } },
+      });
     });
   },
 
@@ -295,24 +298,31 @@ export const contractDocumentService = {
   },
 
   async buildContext(contractId: string, input: GenerateContractInput) {
-    const [company, aluno, service, professor] = await Promise.all([
+    const [company, aluno, service] = await Promise.all([
       prisma.companyContract.findUniqueOrThrow({ where: { id: contractId } }),
       prisma.aluno.findUniqueOrThrow({
         where: { id: input.alunoId },
         include: { user: { include: { profile: true } }, service: true },
       }),
       input.serviceId ? prisma.serviceOption.findUnique({ where: { id: input.serviceId } }) : null,
-      input.professorId
-        ? prisma.professor.findUnique({
-            where: { id: input.professorId },
-            include: { user: { include: { profile: true } } },
-          })
-        : null,
     ]);
 
+    const professorId = input.professorId || aluno.professorId;
+    const professor = professorId
+      ? await prisma.professor.findFirst({
+          where: { id: professorId, contractId },
+          include: { user: { include: { profile: true } } },
+        })
+      : null;
     const selectedService = service || aluno.service;
     const valorMensal =
       input.valorMensal ?? (selectedService?.monthlyPrice ? Number(selectedService.monthlyPrice) : undefined);
+    const serviceContext = await loadContractServiceVariableContext(
+      prisma,
+      contractId,
+      selectedService,
+      valorMensal
+    );
 
     return {
       aluno: {
@@ -332,14 +342,11 @@ export const contractDocumentService = {
         cref: company.cref || '',
         endereco: formatAddress(company),
       },
-      servico: {
-        nome: selectedService?.name || '',
-        valor: valorMensal ? currency.format(valorMensal) : '',
-        duracaoSessao: '',
-        quantidadeSemanal: '',
-      },
+      servico: serviceContext,
       professor: {
+        id: professor?.id || '',
         nome: professor?.user.profile?.name || '',
+        cref: professor?.user.profile?.cref || '',
       },
       contrato: {
         valorMensal: valorMensal ? currency.format(valorMensal) : '',
@@ -354,6 +361,10 @@ export const contractDocumentService = {
 
   renderTemplate(template: { headerHtml: string; footerHtml: string; clauses: any[]; name: string }, context: any) {
     const render = (html: string) => Handlebars.compile(html, { noEscape: false })(context);
+    const renderedFooterHtml = render(template.footerHtml);
+    const hasCustomSignatures =
+      renderedFooterHtml.includes('class="signatures"') ||
+      renderedFooterHtml.includes("class='signatures'");
     const bodyHtml = [
       `<h1>${template.name}</h1>`,
       ...template.clauses
@@ -362,12 +373,16 @@ export const contractDocumentService = {
           (clause) =>
             `<section class="contract-clause"><h2>${clause.title}</h2>${render(clause.bodyHtml)}</section>`
         ),
-      '<section class="signatures"><p>________________________________________</p><p>Contratante</p><p>________________________________________</p><p>Contratada</p></section>',
+      ...(hasCustomSignatures
+        ? []
+        : [
+            '<section class="signatures"><p>________________________________________</p><p>Contratante</p><p>________________________________________</p><p>Contratada</p></section>',
+          ]),
     ].join('\n');
     return buildHtmlDocument({
       title: template.name,
       headerHtml: render(template.headerHtml),
-      footerHtml: render(template.footerHtml),
+      footerHtml: renderedFooterHtml,
       bodyHtml,
     });
   },
@@ -405,7 +420,7 @@ export const contractDocumentService = {
         responsavelCpf: input.responsavel?.cpf || null,
         responsavelEmail: input.responsavel?.email || null,
         serviceId: input.serviceId || null,
-        professorId: input.professorId || null,
+        professorId: input.professorId || context.professor.id || null,
         status: 'GENERATED',
         title: template.name,
         renderedHtml,

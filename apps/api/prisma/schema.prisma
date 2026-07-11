@@ -111,6 +111,9 @@ model CompanyContract {
   professores                   Professor[]
   professorManualItems          ProfessorManualItem[]
   services                      ServiceOption[]
+  serviceCommercialOptions      ServiceCommercialOption[]
+  servicePresentationItems      ServicePresentationItem[]
+  servicePlanComponents         ServicePlanComponent[]
   subjectiveScaleItems          SubjectiveScaleItem[]
   trainingParameters            TrainingParameter[]
   trainingSpaces                TrainingSpace[]
@@ -489,30 +492,108 @@ model StudentProfileReview {
 }
 
 model ServiceOption {
-  id                 String             @id @default(cuid())
-  contractId         String
-  name               String
-  code               String
-  description        String?
-  parentServiceId    String?
-  monthlyPrice       Float?
-  validFrom          DateTime?
-  validUntil         DateTime?
-  isActive           Boolean            @default(true)
-  isSystem           Boolean            @default(false)
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @default(now()) @updatedAt
-  alunos             Aluno[]
-  studentContracts   StudentContract[]
-  contractTemplates  ContractTemplate[]
-  generatedContracts Contract[]
-  contract           CompanyContract    @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  parentService      ServiceOption?     @relation("ServiceOptionOffers", fields: [parentServiceId], references: [id], onDelete: SetNull)
-  financialOffers    ServiceOption[]    @relation("ServiceOptionOffers")
+  id                       String                    @id @default(cuid())
+  contractId               String
+  name                     String
+  code                     String
+  description              String?
+  parentServiceId          String?
+  monthlyPrice             Float?
+  validFrom                DateTime?
+  validUntil               DateTime?
+  isActive                 Boolean                   @default(true)
+  isSystem                 Boolean                   @default(false)
+  category                 String                    @default("individual_service")
+  summary                  String?
+  whatIs                   String?
+  targetAudience           String?
+  displayOrder             Int                       @default(0)
+  origin                   String                    @default("legacy")
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @default(now()) @updatedAt
+  alunos                   Aluno[]
+  studentContracts         StudentContract[]
+  contractTemplates        ContractTemplate[]
+  generatedContracts       Contract[]
+  contract                 CompanyContract           @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  parentService            ServiceOption?            @relation("ServiceOptionOffers", fields: [parentServiceId], references: [id], onDelete: SetNull)
+  financialOffers          ServiceOption[]           @relation("ServiceOptionOffers")
+  commercialOptions        ServiceCommercialOption[]
+  presentationItems        ServicePresentationItem[]
+  planComponents           ServicePlanComponent[]    @relation("PlanServiceComponents")
+  referencedPlanComponents ServicePlanComponent[]    @relation("TargetServiceComponents")
 
   @@unique([contractId, code])
   @@index([contractId])
   @@index([parentServiceId])
+  @@index([contractId, category, isActive, displayOrder])
+}
+
+model ServiceCommercialOption {
+  id             String                 @id @default(cuid())
+  contractId     String
+  serviceId      String
+  code           String
+  name           String
+  frequency      String?
+  quantity       Decimal?               @db.Decimal(10, 2)
+  unit           String?
+  priceType      String
+  priceAmount    Decimal?               @db.Decimal(12, 2)
+  validFrom      DateTime?
+  validUntil     DateTime?
+  isActive       Boolean                @default(true)
+  displayOrder   Int                    @default(0)
+  origin         String                 @default("manual")
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @default(now()) @updatedAt
+  contract       CompanyContract        @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  service        ServiceOption          @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  planComponents ServicePlanComponent[] @relation("TargetOptionComponents")
+
+  @@unique([contractId, code])
+  @@index([contractId, serviceId, isActive, displayOrder])
+  @@index([contractId, validFrom, validUntil])
+}
+
+model ServicePresentationItem {
+  id           String          @id @default(cuid())
+  contractId   String
+  serviceId    String
+  text         String
+  isActive     Boolean         @default(true)
+  displayOrder Int             @default(0)
+  origin       String          @default("manual")
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @default(now()) @updatedAt
+  contract     CompanyContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  service      ServiceOption   @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@index([contractId, serviceId, isActive, displayOrder])
+}
+
+model ServicePlanComponent {
+  id              String                   @id @default(cuid())
+  contractId      String
+  planServiceId   String
+  targetServiceId String?
+  targetOptionId  String?
+  quantity        Decimal?                 @db.Decimal(10, 2)
+  unit            String?
+  notes           String?
+  isActive        Boolean                  @default(true)
+  displayOrder    Int                      @default(0)
+  origin          String                   @default("manual")
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @default(now()) @updatedAt
+  contract        CompanyContract          @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  planService     ServiceOption            @relation("PlanServiceComponents", fields: [planServiceId], references: [id], onDelete: Cascade)
+  targetService   ServiceOption?           @relation("TargetServiceComponents", fields: [targetServiceId], references: [id], onDelete: Restrict)
+  targetOption    ServiceCommercialOption? @relation("TargetOptionComponents", fields: [targetOptionId], references: [id], onDelete: Restrict)
+
+  @@index([contractId, planServiceId, isActive, displayOrder])
+  @@index([contractId, targetServiceId])
+  @@index([contractId, targetOptionId])
 }
 
 model AlunoIntakeForm {

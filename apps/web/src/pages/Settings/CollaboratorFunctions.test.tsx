@@ -69,8 +69,8 @@ describe('SettingsCollaboratorFunctions', () => {
     expect(screen.getByText('Nenhuma permissão encontrada.')).toBeInTheDocument();
 
     await user.clear(searchInput);
-    await user.type(searchInput, 'Detalhes do aluno');
-    expect(await screen.findByText('Detalhes do aluno')).toBeInTheDocument();
+    await user.type(searchInput, 'Central do Aluno');
+    expect(await screen.findByText('Central do Aluno')).toBeInTheDocument();
   });
 
   it('marcar e desmarcar grupo funciona', async () => {
