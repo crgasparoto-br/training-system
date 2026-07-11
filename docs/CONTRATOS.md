@@ -18,10 +18,21 @@ A leitura operacional segue a ordem natural do processo comercial:
 
 1. **Oferta e vínculo comercial**: Serviço Vigente, Condição Especial e Plano de agenda do aluno.
 2. **Cobrança**: valores, desconto, vigência, vencimento, dia de pagamento e professor responsável.
-3. **Contrato do aluno**: seleção do documento, contrato ativo atual, alerta de substituição, envio, status de aprovação e prévia.
+3. **Contrato do aluno**: seleção do documento, contrato ativo atual, confirmação de substituição, envio, status de aprovação e prévia.
 4. **Origem e observações**: indicação e contexto administrativo.
 
 As informações de contrato são apresentadas somente depois que serviço, agenda e cobrança estiverem visíveis. O seletor original permanece conectado ao formulário, mas sua apresentação é concentrada no bloco **Contrato do aluno** para evitar duplicidade.
+
+## Troca de contrato vigente
+
+Quando o aluno já possui um contrato ativo ou assinado e outro documento é selecionado, o bloco **Contrato do aluno** apresenta **Confirmar troca de contrato**.
+
+- A confirmação informa qual contrato vigente será encerrado quando o cadastro for salvo.
+- A troca não ocorre no clique do botão; o contrato atual permanece intacto até o salvamento ser concluído.
+- O salvamento e o envio do novo documento ficam bloqueados enquanto a confirmação estiver pendente.
+- A confirmação é vinculada ao contrato atualmente selecionado. Alterar a seleção exige uma nova confirmação.
+- Depois do clique explícito, o diálogo legado de substituição é aceito automaticamente para evitar uma segunda confirmação duplicada.
+- A ativação do novo vínculo encerra o anterior conforme a rotina de contratos do aluno.
 
 ## Prévia na aba Financeiro
 
