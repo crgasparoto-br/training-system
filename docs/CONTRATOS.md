@@ -6,10 +6,36 @@ O módulo permite cadastrar modelos de contrato com cabeçalho, rodapé, cláusu
 
 1. Acesse `Configurações > Contratos`.
 2. Crie ou edite um modelo, mantendo o status `ACTIVE` para permitir geração.
-3. Use `Contratos do aluno` em `/alunos/:id/contracts` para gerar o contrato a partir de um modelo ativo.
-4. O backend salva `renderedHtml` e `dataSnapshot`, preservando a versão gerada.
-5. Gere o PDF e envie para assinatura interna.
-6. O link público `/assinatura/contrato/:token` registra aceite, nome, CPF, IP, User Agent, data/hora e hash SHA-256 do documento.
+3. Use a aba **Financeiro** da edição do aluno ou `Contratos do aluno` em `/alunos/:id/contracts` para selecionar o modelo aplicável.
+4. Antes de salvar ou gerar, use **Abrir prévia** para conferir o documento preenchido.
+5. O backend salva `renderedHtml` e `dataSnapshot` somente quando o contrato real é gerado, preservando a versão utilizada.
+6. Gere o PDF e envie para assinatura interna.
+7. O link público `/assinatura/contrato/:token` registra aceite, nome, CPF, IP, User Agent, data/hora e hash SHA-256 do documento.
+
+## Prévia na aba Financeiro
+
+Na edição de um aluno, a aba **Financeiro** oferece a ação **Abrir prévia** depois que um contrato é selecionado.
+
+- Quando a seleção representa um modelo `ACTIVE`, a tela chama `POST /api/v1/contracts/preview` com o aluno e os valores financeiros atualmente preenchidos.
+- Quando a seleção representa um contrato já gerado, a tela abre o `renderedHtml` persistido por `GET /api/v1/contracts/documents/:contractDocumentId`.
+- A prévia é somente leitura e não cria contrato, vínculo, PDF, token público ou assinatura.
+- Fechar a prévia não altera os dados do formulário.
+- A assinatura não é disponibilizada dentro do modal administrativo; ela continua restrita ao link público criado pelo envio do contrato.
+
+## Assinatura eletrônica interna
+
+O fluxo interno de assinatura funciona da seguinte forma:
+
+1. Um modelo `ACTIVE` é usado para gerar o contrato real por `POST /api/v1/contracts/generate`.
+2. A geração grava o HTML renderizado, o snapshot dos dados, a versão do modelo e o hash do documento, além de criar o vínculo contratual do aluno em estado de rascunho.
+3. `POST /api/v1/contracts/documents/:contractDocumentId/send` muda o documento para `SENT`, cria um token público aleatório armazenado somente como hash e define validade de 30 dias.
+4. O usuário compartilha o endereço `/assinatura/contrato/:token` com o contratante.
+5. Ao abrir o link, o contrato pode passar para `VIEWED` e o evento é registrado na auditoria.
+6. O contratante informa nome completo, CPF e, opcionalmente, e-mail, e confirma **Aceitar e assinar**.
+7. A assinatura registra nome, CPF normalizado, e-mail, IP, User Agent, data/hora e o hash do documento aceito.
+8. O contrato passa para `SIGNED` e o vínculo financeiro do aluno passa para `active`.
+
+Links expirados passam para `EXPIRED`. Contratos cancelados ou expirados não podem ser assinados. Contratos já assinados não podem ser reenviados, editados ou cancelados pela rotina comum; qualquer alteração deve gerar novo contrato ou aditivo.
 
 ## Modelo ACESSO de treinamento físico personalizado
 
