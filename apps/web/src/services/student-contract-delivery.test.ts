@@ -38,7 +38,7 @@ describe('resolveStudentContractDelivery', () => {
     });
   });
 
-  it.each(['SIGNED', 'CANCELLED', 'EXPIRED'] as const)(
+  it.each(['SIGNED', 'REJECTED', 'CANCELLED', 'EXPIRED'] as const)(
     'bloqueia envio quando o status é %s',
     (status) => {
       expect(
@@ -49,4 +49,16 @@ describe('resolveStudentContractDelivery', () => {
       ).toBe(false);
     }
   );
+
+  it('orienta gerar novo documento depois da recusa', () => {
+    expect(
+      resolveStudentContractDelivery({
+        selectedContractId: 'contract-1',
+        contract: { status: 'REJECTED' },
+      })
+    ).toMatchObject({
+      actionLabel: 'Contrato recusado',
+      description: 'O aluno recusou este documento. Revise as condições e gere um novo contrato.',
+    });
+  });
 });
