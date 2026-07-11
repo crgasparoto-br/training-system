@@ -288,7 +288,7 @@ export function AlunoFormWithContractPreview() {
     const legacyField = financialPanel.querySelector<HTMLInputElement>(
       `[name="${formFieldNames.legacyContract}"]`
     );
-    const legacyBlock = legacyField?.closest('div');
+    const legacyBlock = legacyField?.parentElement?.parentElement;
     if (!legacyBlock) {
       setStatusSlot(null);
       return undefined;
