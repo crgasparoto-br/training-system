@@ -1,11 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Copy, Eye, FileText, Plus, Save } from 'lucide-react';
+import { ChevronDown, Copy, Eye, FilePlus2, FileText, Info, Plus, Save } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
-import { CONTRACT_VARIABLES, contractService, type ContractTemplate } from '../../services/contract.service';
-
-type VariableItem = { key: string; token: string };
+import type { Aluno } from '../../services/aluno.service';
+import { contractService, type ContractTemplate } from '../../services/contract.service';
+import {
+  CONTRACT_VARIABLES,
+  groupContractVariables,
+  type ContractVariableDefinition,
+} from '../../services/contractVariables';
+import { loadActiveStudentsForContractPreview } from './contractPreviewStudents';
+import {
+  ACCESS_PERSONAL_TRAINING_TEMPLATE_NAME,
+  createAccessPersonalTrainingTemplate,
+} from './contractTemplatePresets';
 
 const emptyTemplate: Partial<ContractTemplate> = {
   name: '',
@@ -35,10 +44,11 @@ function RichTextEditor({
   label: string;
   value: string;
   onChange: (value: string) => void;
-  variables: VariableItem[];
+  variables: ContractVariableDefinition[];
   minHeight?: number;
 }) {
   const editorRef = useRef<HTMLDivElement | null>(null);
+  const variableGroups = useMemo(() => groupContractVariables(variables), [variables]);
 
   useEffect(() => {
     if (editorRef.current && editorRef.current.innerHTML !== value) {
@@ -89,7 +99,7 @@ function RichTextEditor({
             Lista
           </Button>
           <select
-            className="ml-auto h-8 min-w-[180px] rounded-md border border-input bg-background px-2 text-xs"
+            className="ml-auto h-8 min-w-[210px] rounded-md border border-input bg-background px-2 text-xs"
             aria-label="Inserir variável"
             defaultValue=""
             onChange={(event) => {
@@ -98,10 +108,14 @@ function RichTextEditor({
             }}
           >
             <option value="">Inserir variável</option>
-            {variables.map((variable) => (
-              <option key={variable.key} value={variable.token}>
-                {variable.key}
-              </option>
+            {variableGroups.map((group) => (
+              <optgroup key={group.key} label={group.label}>
+                {group.variables.map((variable) => (
+                  <option key={variable.key} value={variable.token}>
+                    {variable.label} — {variable.key}
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </select>
         </div>
@@ -124,19 +138,89 @@ function RichTextEditor({
   );
 }
 
+function VariableTree({
+  variables,
+  onCopy,
+}: {
+  variables: ContractVariableDefinition[];
+  onCopy: (variable: ContractVariableDefinition) => void;
+}) {
+  const groups = useMemo(() => groupContractVariables(variables), [variables]);
+
+  return (
+    <div className="space-y-2">
+      {groups.map((group) => (
+        <details key={group.key} open className="group rounded-lg border border-border bg-white">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2 text-sm font-semibold text-foreground [&::-webkit-details-marker]:hidden">
+            <span>{group.label}</span>
+            <span className="flex items-center gap-2 text-xs font-normal text-muted-foreground">
+              {group.variables.length}
+              <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
+            </span>
+          </summary>
+          <div className="space-y-1 border-t border-border p-2">
+            {group.variables.map((variable) => {
+              const tooltipId = `contract-variable-${variable.key.replace(/[^a-zA-Z0-9]+/g, '-')}`;
+              const tooltipText = `${variable.description} Exemplo: ${variable.example}`;
+
+              return (
+                <div key={variable.key} className="relative">
+                  <button
+                    type="button"
+                    className="peer flex w-full items-start justify-between gap-2 rounded-md px-2 py-2 text-left transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                    aria-describedby={tooltipId}
+                    aria-label={`Copiar variável ${variable.label}`}
+                    title={tooltipText}
+                    onClick={() => onCopy(variable)}
+                  >
+                    <span className="min-w-0">
+                      <span className="block text-xs font-medium text-foreground">{variable.label}</span>
+                      <span className="block truncate font-mono text-[11px] text-muted-foreground">{variable.token}</span>
+                    </span>
+                    <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  </button>
+                  <div
+                    id={tooltipId}
+                    role="tooltip"
+                    className="pointer-events-none invisible absolute left-0 top-full z-50 mt-2 w-72 rounded-lg border border-slate-700 bg-slate-900 p-3 text-xs text-white opacity-0 shadow-xl transition peer-hover:visible peer-hover:opacity-100 peer-focus-visible:visible peer-focus-visible:opacity-100 xl:left-auto xl:right-full xl:top-0 xl:mr-2 xl:mt-0"
+                  >
+                    <p className="font-medium">{variable.description}</p>
+                    <p className="mt-2 text-slate-300">
+                      <strong className="text-white">Exemplo:</strong> {variable.example}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </details>
+      ))}
+    </div>
+  );
+}
+
 export default function ContractTemplates() {
   const [templates, setTemplates] = useState<ContractTemplate[]>([]);
-  const [variables, setVariables] = useState<VariableItem[]>(CONTRACT_VARIABLES);
+  const [variables, setVariables] = useState<ContractVariableDefinition[]>(CONTRACT_VARIABLES);
+  const [previewStudents, setPreviewStudents] = useState<Aluno[]>([]);
+  const [previewAlunoId, setPreviewAlunoId] = useState('');
+  const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Partial<ContractTemplate>>(emptyTemplate);
   const [previewHtml, setPreviewHtml] = useState('');
   const [loading, setLoading] = useState(true);
+  const [previewStudentsLoading, setPreviewStudentsLoading] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   const selected = useMemo(
     () => templates.find((template) => template.id === selectedId),
     [selectedId, templates]
+  );
+  const selectedPreviewStudent = useMemo(
+    () => previewStudents.find((student) => student.id === previewAlunoId),
+    [previewAlunoId, previewStudents]
   );
 
   async function load() {
@@ -151,6 +235,24 @@ export default function ContractTemplates() {
       setSelectedId(loadedTemplates[0].id);
       setDraft(loadedTemplates[0]);
     }
+
+    setPreviewStudentsLoading(true);
+    try {
+      const students = await loadActiveStudentsForContractPreview();
+      setPreviewStudents(students);
+      setPreviewAlunoId((current) =>
+        current && students.some((student) => student.id === current)
+          ? current
+          : students[0]?.id || ''
+      );
+    } catch {
+      setPreviewStudents([]);
+      setPreviewAlunoId('');
+      setMessage('Modelos carregados, mas não foi possível carregar os alunos para a prévia.');
+    } finally {
+      setPreviewStudentsLoading(false);
+    }
+
     setLoading(false);
   }
 
@@ -158,6 +260,7 @@ export default function ContractTemplates() {
     load().catch(() => {
       setMessage('Não foi possível carregar os modelos.');
       setLoading(false);
+      setPreviewStudentsLoading(false);
     });
   }, []);
 
@@ -168,10 +271,57 @@ export default function ContractTemplates() {
     }
   }, [selected]);
 
+  useEffect(() => {
+    if (!previewDialogOpen) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !previewing) {
+        setPreviewDialogOpen(false);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [previewDialogOpen, previewing]);
+
   const updateClause = (index: number, field: string, value: string | number | boolean) => {
     const clauses = [...(draft.clauses || [])];
     clauses[index] = { ...clauses[index], [field]: value };
     setDraft({ ...draft, clauses });
+  };
+
+  const startNewTemplate = () => {
+    setSelectedId(null);
+    setDraft(emptyTemplate);
+    setPreviewHtml('');
+    setMessage(null);
+  };
+
+  const loadAccessTemplate = () => {
+    const existingTemplate = templates.find(
+      (template) => template.name === ACCESS_PERSONAL_TRAINING_TEMPLATE_NAME
+    );
+
+    if (existingTemplate) {
+      setSelectedId(existingTemplate.id);
+      setMessage('O modelo ACESSO já existe e foi selecionado para revisão.');
+      return;
+    }
+
+    setSelectedId(null);
+    setDraft(createAccessPersonalTrainingTemplate());
+    setPreviewHtml('');
+    setMessage('Modelo ACESSO carregado como rascunho. Revise o conteúdo e salve para disponibilizá-lo.');
+  };
+
+  const copyVariable = async (variable: ContractVariableDefinition) => {
+    await navigator.clipboard?.writeText(variable.token);
+    setMessage(`Variável ${variable.token} copiada.`);
   };
 
   const save = async () => {
@@ -191,13 +341,44 @@ export default function ContractTemplates() {
     }
   };
 
-  const preview = async () => {
+  const openPreviewDialog = () => {
     if (!draft.id) {
-      setMessage('Salve o modelo antes de gerar prévia.');
+      setMessage('Salve o modelo antes de gerar a prévia.');
       return;
     }
-    const result = await contractService.preview({ templateId: draft.id, alunoId: 'preview' }).catch(() => null);
-    setPreviewHtml(result?.html || '<p>Use um aluno real na tela de contratos do aluno para uma prévia preenchida.</p>');
+    setMessage(null);
+    setPreviewDialogOpen(true);
+  };
+
+  const preview = async () => {
+    if (!draft.id) {
+      setMessage('Salve o modelo antes de gerar a prévia.');
+      setPreviewDialogOpen(false);
+      return;
+    }
+    if (!previewAlunoId) {
+      setMessage('Selecione um aluno para gerar a prévia preenchida.');
+      return;
+    }
+
+    setPreviewing(true);
+    setMessage(null);
+    try {
+      const result = await contractService.preview({
+        templateId: draft.id,
+        alunoId: previewAlunoId,
+      });
+      setPreviewHtml(result.html);
+      setPreviewDialogOpen(false);
+      setMessage(
+        `Prévia gerada com os dados de ${selectedPreviewStudent?.user.profile.name || 'aluno selecionado'}.`
+      );
+    } catch (error: any) {
+      setPreviewHtml('');
+      setMessage(error.response?.data?.error || 'Não foi possível gerar a prévia do contrato.');
+    } finally {
+      setPreviewing(false);
+    }
   };
 
   if (loading) {
@@ -211,15 +392,21 @@ export default function ContractTemplates() {
           <h1 className="text-2xl font-bold text-gray-900">Modelos de contrato</h1>
           <p className="text-sm text-muted-foreground">Edite cabeçalho, rodapé, cláusulas e variáveis dinâmicas sem escrever HTML.</p>
         </div>
-        <Button onClick={() => { setSelectedId(null); setDraft(emptyTemplate); }}>
-          <Plus size={16} className="mr-2" />
-          Novo modelo
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={loadAccessTemplate}>
+            <FilePlus2 size={16} className="mr-2" />
+            Usar modelo ACESSO
+          </Button>
+          <Button onClick={startNewTemplate}>
+            <Plus size={16} className="mr-2" />
+            Novo modelo
+          </Button>
+        </div>
       </div>
 
       {message && <div className="rounded-md border border-border bg-muted/30 p-3 text-sm">{message}</div>}
 
-      <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)_260px]">
+      <div className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)_300px]">
         <Card>
           <CardHeader>
             <CardTitle>Modelos</CardTitle>
@@ -299,6 +486,7 @@ export default function ContractTemplates() {
                 Cláusula
               </Button>
             </div>
+
             <div className="flex flex-wrap justify-end gap-2">
               {draft.id && (
                 <Button variant="outline" onClick={() => contractService.duplicateTemplate(draft.id!).then(load)}>
@@ -306,7 +494,7 @@ export default function ContractTemplates() {
                   Duplicar
                 </Button>
               )}
-              <Button variant="outline" onClick={preview}>
+              <Button variant="outline" onClick={openPreviewDialog}>
                 <Eye size={16} className="mr-2" />
                 Prévia
               </Button>
@@ -318,22 +506,15 @@ export default function ContractTemplates() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="overflow-visible">
           <CardHeader>
             <CardTitle>Variáveis</CardTitle>
-            <CardDescription>Também estão disponíveis no seletor de cada editor.</CardDescription>
+            <CardDescription>
+              Abra um grupo, passe o mouse sobre uma variável para ver a explicação e clique para copiar o token.
+            </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-2">
-            {variables.map((variable) => (
-              <button
-                key={variable.key}
-                type="button"
-                className="block w-full rounded bg-muted px-2 py-1 text-left text-xs transition hover:bg-muted/70"
-                onClick={() => navigator.clipboard?.writeText(variable.token)}
-              >
-                {variable.key}
-              </button>
-            ))}
+          <CardContent>
+            <VariableTree variables={variables} onCopy={copyVariable} />
           </CardContent>
         </Card>
       </div>
@@ -347,6 +528,80 @@ export default function ContractTemplates() {
             <iframe className="h-[620px] w-full rounded-md border border-border bg-white" srcDoc={previewHtml} title="Prévia do contrato" />
           </CardContent>
         </Card>
+      )}
+
+      {previewDialogOpen && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !previewing) {
+              setPreviewDialogOpen(false);
+            }
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="contract-preview-dialog-title"
+            className="w-full max-w-md rounded-xl border border-border bg-background p-5 shadow-2xl"
+          >
+            <h2 id="contract-preview-dialog-title" className="text-lg font-semibold text-foreground">
+              Gerar prévia do contrato
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Selecione o aluno cujos dados serão usados para preencher as variáveis.
+            </p>
+
+            <label className="mt-4 block text-sm font-medium" htmlFor="contract-preview-student">
+              Aluno
+            </label>
+            <select
+              id="contract-preview-student"
+              autoFocus
+              className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              value={previewAlunoId}
+              disabled={previewStudentsLoading || previewStudents.length === 0 || previewing}
+              onChange={(event) => {
+                setPreviewAlunoId(event.target.value);
+                setPreviewHtml('');
+              }}
+            >
+              <option value="">
+                {previewStudentsLoading
+                  ? 'Carregando alunos...'
+                  : previewStudents.length === 0
+                    ? 'Nenhum aluno ativo disponível'
+                    : 'Selecione um aluno'}
+              </option>
+              {previewStudents.map((student) => (
+                <option key={student.id} value={student.id}>
+                  {student.user.profile.name} — {student.user.email}
+                </option>
+              ))}
+            </select>
+
+            <p className="mt-3 text-xs text-muted-foreground">
+              A prévia usa dados reais somente para visualização. Nenhum contrato será criado ou alterado.
+            </p>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setPreviewDialogOpen(false)}
+                disabled={previewing}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={preview}
+                isLoading={previewing}
+                disabled={previewStudentsLoading || previewStudents.length === 0 || !previewAlunoId}
+              >
+                Gerar prévia
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
