@@ -1,4 +1,3 @@
-import { describe, expect, it } from 'vitest';
 import { parseActiveContractTemplateReference } from '../src/modules/student-contracts/student-contract-reference.js';
 
 describe('parseActiveContractTemplateReference', () => {
