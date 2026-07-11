@@ -103,110 +103,126 @@ export function AlunoFormWithContractPreview() {
     const commercialSection = findSectionByTitle(financialPanel, COMMERCIAL_SECTION_TITLE);
     if (!commercialSection) return undefined;
 
-    const directChildren = Array.from(commercialSection.children) as HTMLElement[];
-    const headingBlock = directChildren[0];
-    const primaryGrid = directChildren[1];
-    const serviceBlock = primaryGrid?.children[0] as HTMLElement | undefined;
-    const secondaryColumn = primaryGrid?.children[1] as HTMLElement | undefined;
-    const specialConditionBlock = secondaryColumn?.children[0] as HTMLElement | undefined;
-    const contractBlock = secondaryColumn?.children[1] as HTMLElement | undefined;
-    const legacyContractBlock = secondaryColumn?.children[2] as HTMLElement | undefined;
-    const scheduleLabel = Array.from(commercialSection.querySelectorAll<HTMLLabelElement>('label')).find(
-      (candidate) => candidate.textContent?.trim() === 'Plano de agenda do aluno'
-    );
-    const scheduleBlock = scheduleLabel?.parentElement || undefined;
-    const activeContractBlock = directChildren.find((child) =>
-      child.textContent?.includes('Contrato ativo atual:')
-    );
-    const replacementWarningBlock = directChildren.find((child) =>
-      child.textContent?.includes('Este aluno já possui um contrato ativo')
-    );
+    let restoreLayout: (() => void) | undefined;
 
-    if (
-      !headingBlock ||
-      !primaryGrid ||
-      !serviceBlock ||
-      !secondaryColumn ||
-      !specialConditionBlock ||
-      !contractBlock ||
-      !legacyContractBlock ||
-      !scheduleBlock
-    ) {
-      return undefined;
-    }
+    const applyLayout = () => {
+      restoreLayout?.();
+      restoreLayout = undefined;
 
-    const trackedElements = [
-      commercialSection,
-      headingBlock,
-      primaryGrid,
-      secondaryColumn,
-      serviceBlock,
-      specialConditionBlock,
-      contractBlock,
-      legacyContractBlock,
-      scheduleBlock,
-      activeContractBlock,
-      replacementWarningBlock,
-    ].filter((element): element is HTMLElement => Boolean(element));
-    const originalClasses = new Map(
-      trackedElements.map((element) => [element, element.getAttribute('class') || ''])
-    );
+      const directChildren = Array.from(commercialSection.children) as HTMLElement[];
+      const headingBlock = directChildren[0];
+      const primaryGrid = directChildren[1];
+      const serviceBlock = primaryGrid?.children[0] as HTMLElement | undefined;
+      const secondaryColumn = primaryGrid?.children[1] as HTMLElement | undefined;
+      const specialConditionBlock = secondaryColumn?.children[0] as HTMLElement | undefined;
+      const contractBlock = secondaryColumn?.children[1] as HTMLElement | undefined;
+      const legacyContractBlock = secondaryColumn?.children[2] as HTMLElement | undefined;
+      const scheduleLabel = Array.from(commercialSection.querySelectorAll<HTMLLabelElement>('label')).find(
+        (candidate) => candidate.textContent?.trim() === 'Plano de agenda do aluno'
+      );
+      const scheduleBlock = scheduleLabel?.parentElement || undefined;
+      const activeContractBlock = directChildren.find((child) =>
+        child.textContent?.includes('Contrato ativo atual:')
+      );
+      const replacementWarningBlock = directChildren.find((child) =>
+        child.textContent?.includes('Este aluno já possui um contrato ativo')
+      );
 
-    commercialSection.classList.remove('space-y-4');
-    commercialSection.classList.add('grid', 'grid-cols-1', 'gap-4', 'xl:grid-cols-2');
-    headingBlock.classList.add('xl:col-span-2');
+      if (
+        !headingBlock ||
+        !primaryGrid ||
+        !serviceBlock ||
+        !secondaryColumn ||
+        !specialConditionBlock ||
+        !contractBlock ||
+        !legacyContractBlock ||
+        !scheduleBlock
+      ) {
+        return;
+      }
 
-    primaryGrid.className = 'contents';
-    secondaryColumn.className = 'contents';
+      const trackedElements = [
+        commercialSection,
+        headingBlock,
+        primaryGrid,
+        secondaryColumn,
+        serviceBlock,
+        specialConditionBlock,
+        contractBlock,
+        legacyContractBlock,
+        scheduleBlock,
+        activeContractBlock,
+        replacementWarningBlock,
+      ].filter((element): element is HTMLElement => Boolean(element));
+      const originalClasses = new Map(
+        trackedElements.map((element) => [element, element.getAttribute('class') || ''])
+      );
 
-    serviceBlock.classList.add(
-      'order-1',
-      'rounded-xl',
-      'border',
-      'border-border',
-      'bg-card',
-      'p-4'
-    );
-    specialConditionBlock.classList.add(
-      'order-2',
-      'rounded-xl',
-      'border',
-      'border-border',
-      'bg-card',
-      'p-4'
-    );
-    contractBlock.classList.add(
-      'order-3',
-      'rounded-xl',
-      'border',
-      'border-border',
-      'bg-card',
-      'p-4',
-      'xl:col-span-2'
-    );
-    activeContractBlock?.classList.add('order-4', 'xl:col-span-2');
-    replacementWarningBlock?.classList.add('order-5', 'xl:col-span-2');
-    scheduleBlock.classList.add(
-      'order-6',
-      'rounded-xl',
-      'border',
-      'border-border',
-      'bg-card',
-      'p-4'
-    );
-    legacyContractBlock.classList.add(
-      'order-7',
-      'rounded-xl',
-      'border',
-      'border-border',
-      'bg-muted/30',
-      'p-4'
-    );
+      commercialSection.classList.remove('space-y-4');
+      commercialSection.classList.add('grid', 'grid-cols-1', 'gap-4', 'xl:grid-cols-2');
+      headingBlock.classList.add('xl:col-span-2');
+
+      primaryGrid.className = 'contents';
+      secondaryColumn.className = 'contents';
+
+      serviceBlock.classList.add(
+        'order-1',
+        'rounded-xl',
+        'border',
+        'border-border',
+        'bg-card',
+        'p-4'
+      );
+      specialConditionBlock.classList.add(
+        'order-2',
+        'rounded-xl',
+        'border',
+        'border-border',
+        'bg-card',
+        'p-4'
+      );
+      contractBlock.classList.add(
+        'order-3',
+        'rounded-xl',
+        'border',
+        'border-border',
+        'bg-card',
+        'p-4',
+        'xl:col-span-2'
+      );
+      activeContractBlock?.classList.add('order-4', 'xl:col-span-2');
+      replacementWarningBlock?.classList.add('order-5', 'xl:col-span-2');
+      scheduleBlock.classList.add(
+        'order-6',
+        'rounded-xl',
+        'border',
+        'border-border',
+        'bg-card',
+        'p-4'
+      );
+      legacyContractBlock.classList.add(
+        'order-7',
+        'rounded-xl',
+        'border',
+        'border-border',
+        'bg-muted/30',
+        'p-4'
+      );
+
+      restoreLayout = () => {
+        originalClasses.forEach((className, element) => {
+          element.setAttribute('class', className);
+        });
+      };
+    };
+
+    applyLayout();
+    const observer = new MutationObserver(applyLayout);
+    observer.observe(commercialSection, { childList: true, subtree: true });
 
     return () => {
-      originalClasses.forEach((className, element) => {
-        element.setAttribute('class', className);
-      });
+      observer.disconnect();
+      restoreLayout?.();
     };
   }, [financialPanel]);
 
