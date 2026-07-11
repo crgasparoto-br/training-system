@@ -7,6 +7,7 @@ import { resolveStudentContractDelivery } from '../services/student-contract-del
 import { AlunoFormWithContractPreview } from './AlunoFormWithContractPreview';
 
 const CONTRACT_SECTION_SLOT_ID = 'aluno-contract-section-slot';
+const CONTRACT_DELIVERY_SLOT_ID = 'aluno-contract-delivery-slot';
 const SELECTED_CONTRACT_FIELD = 'intakeForm.financialInfo.selectedContractId';
 
 const getSelectedContractControl = () =>
@@ -23,9 +24,17 @@ const copyToClipboard = async (value: string) => {
   }
 };
 
+const findContractStatusBlock = (contractSection: HTMLElement) => {
+  const heading = Array.from(contractSection.querySelectorAll<HTMLHeadingElement>('h4')).find(
+    (candidate) => candidate.textContent?.trim() === 'Status do contrato'
+  );
+
+  return heading?.parentElement?.parentElement?.parentElement || null;
+};
+
 export function AlunoFormWithContractDelivery() {
   const refreshingParentStatusRef = useRef(false);
-  const [contractSectionSlot, setContractSectionSlot] = useState<HTMLElement | null>(null);
+  const [deliverySlot, setDeliverySlot] = useState<HTMLElement | null>(null);
   const [selectedContractId, setSelectedContractId] = useState('');
   const [contract, setContract] = useState<GeneratedContract | null>(null);
   const [contractLoading, setContractLoading] = useState(false);
@@ -48,14 +57,38 @@ export function AlunoFormWithContractDelivery() {
 
   useEffect(() => {
     const syncSlot = () => {
-      setContractSectionSlot(document.getElementById(CONTRACT_SECTION_SLOT_ID));
+      const existingSlot = document.getElementById(CONTRACT_DELIVERY_SLOT_ID);
+      if (existingSlot) {
+        setDeliverySlot(existingSlot);
+        return;
+      }
+
+      const contractSection = document.getElementById(CONTRACT_SECTION_SLOT_ID);
+      if (!contractSection) {
+        setDeliverySlot(null);
+        return;
+      }
+
+      const statusBlock = findContractStatusBlock(contractSection);
+      if (!statusBlock?.parentElement) {
+        setDeliverySlot(null);
+        return;
+      }
+
+      const slot = document.createElement('div');
+      slot.id = CONTRACT_DELIVERY_SLOT_ID;
+      statusBlock.parentElement.insertBefore(slot, statusBlock);
+      setDeliverySlot(slot);
     };
 
     syncSlot();
     const observer = new MutationObserver(syncSlot);
     observer.observe(document.body, { childList: true, subtree: true });
 
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      document.getElementById(CONTRACT_DELIVERY_SLOT_ID)?.remove();
+    };
   }, []);
 
   useEffect(() => {
@@ -176,12 +209,12 @@ export function AlunoFormWithContractDelivery() {
     <>
       <AlunoFormWithContractPreview />
 
-      {contractSectionSlot &&
+      {deliverySlot &&
         createPortal(
-          <div className="mt-4 space-y-4 rounded-xl border border-border bg-muted/20 p-5">
+          <div className="space-y-4 rounded-xl border border-border bg-muted/10 p-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div>
-                <h3 className="text-sm font-semibold text-foreground">Envio para assinatura</h3>
+                <h4 className="text-sm font-semibold text-foreground">Envio para assinatura</h4>
                 <p className="mt-1 text-sm text-muted-foreground">{delivery.description}</p>
               </div>
               <Button
@@ -232,7 +265,7 @@ export function AlunoFormWithContractDelivery() {
               e-mail ou outro canal. O link é exibido somente nesta sessão; gerar outro link invalida o anterior.
             </p>
           </div>,
-          contractSectionSlot
+          deliverySlot
         )}
     </>
   );
