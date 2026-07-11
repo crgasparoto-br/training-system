@@ -4,6 +4,10 @@ import {
   type AvailableStudentContractFilters,
 } from './contract-query';
 import {
+  buildActiveContractTemplateOptions,
+  type ContractTemplateOptionService,
+} from './contract-template-options';
+import {
   CONTRACT_VARIABLES,
   normalizeContractVariables,
   type ContractVariableDefinition,
@@ -65,12 +69,22 @@ export interface GeneratedContract {
 export interface AvailableStudentContract {
   id: string;
   title: string;
-  status: 'DRAFT' | 'GENERATED' | 'SENT' | 'VIEWED' | 'SIGNED' | 'CANCELLED' | 'EXPIRED';
+  status:
+    | 'ACTIVE'
+    | 'DRAFT'
+    | 'GENERATED'
+    | 'SENT'
+    | 'VIEWED'
+    | 'SIGNED'
+    | 'CANCELLED'
+    | 'EXPIRED';
   alunoId: string;
   serviceId?: string | null;
   createdAt: string;
   signedAt?: string | null;
   cancelledAt?: string | null;
+  sourceType?: 'generated' | 'template';
+  templateId?: string;
   service?: {
     id: string;
     name: string;
@@ -188,11 +202,31 @@ export const contractService = {
     filters?: AvailableStudentContractFilters
   ): Promise<AvailableStudentContract[]> {
     const query = buildAvailableStudentContractQuery(filters);
-    const response = await api.get<{ success: boolean; data: AvailableStudentContract[] }>(
-      query ? `/contracts/available-for-student?${query}` : '/contracts/available-for-student'
+    const [generatedResponse, templatesResponse, servicesResponse] = await Promise.all([
+      api.get<{ success: boolean; data: AvailableStudentContract[] }>(
+        query ? `/contracts/available-for-student?${query}` : '/contracts/available-for-student'
+      ),
+      api.get<{ success: boolean; data: ContractTemplate[] }>('/contracts/templates'),
+      api.get<{ success: boolean; data: ContractTemplateOptionService[] }>('/services'),
+    ]);
+
+    const activeTemplateOptions = buildActiveContractTemplateOptions(
+      templatesResponse.data.data,
+      servicesResponse.data.data,
+      {
+        alunoId: filters?.alunoId,
+        serviceId: filters?.serviceId,
+      }
     );
 
-    return response.data.data;
+    const generatedContracts = filters?.alunoId
+      ? generatedResponse.data.data.map((contract) => ({
+          ...contract,
+          sourceType: 'generated' as const,
+        }))
+      : [];
+
+    return [...activeTemplateOptions, ...generatedContracts];
   },
 
   async generatePdf(id: string): Promise<GeneratedContract> {
