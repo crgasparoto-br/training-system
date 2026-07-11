@@ -82,6 +82,14 @@ export interface GeneratedContract {
   createdAt: string;
 }
 
+export interface ContractSignatureResult {
+  activation: {
+    effectiveAt: string;
+    scheduled: boolean;
+    studentContractStatus: 'pending_signature' | 'active';
+  };
+}
+
 export interface AvailableStudentContract {
   id: string;
   title: string;
@@ -312,8 +320,15 @@ export const contractService = {
     return response.data.data;
   },
 
-  async signPublic(token: string, data: { signerName: string; signerCpf: string; signerEmail?: string }): Promise<void> {
-    await api.post(`/contracts/public/${token}/sign`, data);
+  async signPublic(
+    token: string,
+    data: { signerName: string; signerCpf: string; signerEmail?: string }
+  ): Promise<ContractSignatureResult> {
+    const response = await api.post<{ success: boolean; data: ContractSignatureResult }>(
+      `/contracts/public/${token}/sign`,
+      data
+    );
+    return response.data.data;
   },
 
   async rejectPublic(token: string, reason?: string): Promise<GeneratedContract> {
