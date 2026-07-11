@@ -109,6 +109,25 @@ export function AlunoFormWithContractDelivery() {
   }, []);
 
   useEffect(() => {
+    const syncRejectedOptions = () => {
+      const select = getSelectedContractControl();
+      if (!select) return;
+
+      Array.from(select.options).forEach((option) => {
+        if (!option.textContent?.includes('• REJECTED')) return;
+        option.textContent = option.textContent.replace('• REJECTED', '• Recusado pelo aluno');
+        option.disabled = true;
+      });
+    };
+
+    syncRejectedOptions();
+    const observer = new MutationObserver(syncRejectedOptions);
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
     setSignatureLink('');
     setFeedback(null);
     setCopied(false);
