@@ -65,6 +65,15 @@ export const resolveStudentContractDelivery = ({
     };
   }
 
+  if (contract.status === 'REJECTED') {
+    return {
+      canSend: false,
+      actionLabel: 'Contrato recusado',
+      description: 'O aluno recusou este documento. Revise as condições e gere um novo contrato.',
+      requiresConfirmation: false,
+    };
+  }
+
   if (contract.status === 'CANCELLED') {
     return {
       canSend: false,
