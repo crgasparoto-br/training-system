@@ -5,6 +5,24 @@ import { Button } from '../components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { contractService, type ContractTemplate, type GeneratedContract } from '../services/contract.service';
 
+const contractStatusLabel: Record<GeneratedContract['status'], string> = {
+  DRAFT: 'Rascunho',
+  GENERATED: 'Gerado',
+  SENT: 'Enviado',
+  VIEWED: 'Visualizado',
+  SIGNED: 'Assinado',
+  REJECTED: 'Recusado pelo aluno',
+  CANCELLED: 'Cancelado',
+  EXPIRED: 'Expirado',
+};
+
+const blockedSendStatuses: GeneratedContract['status'][] = [
+  'SIGNED',
+  'REJECTED',
+  'CANCELLED',
+  'EXPIRED',
+];
+
 export default function AlunoContracts() {
   const { id = '' } = useParams();
   const [templates, setTemplates] = useState<ContractTemplate[]>([]);
@@ -74,16 +92,25 @@ export default function AlunoContracts() {
             <CardContent className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
               <div>
                 <div className="font-medium">{contract.title}</div>
-                <div className="text-sm text-muted-foreground">{contract.status} · {new Date(contract.createdAt).toLocaleDateString('pt-BR')}</div>
+                <div className="text-sm text-muted-foreground">
+                  {contractStatusLabel[contract.status]} · {new Date(contract.createdAt).toLocaleDateString('pt-BR')}
+                </div>
+                {contract.status === 'REJECTED' && contract.rejectionReason && (
+                  <div className="mt-1 text-sm text-rose-700">Motivo: {contract.rejectionReason}</div>
+                )}
               </div>
               <div className="flex flex-wrap gap-2">
                 <Button variant="outline" onClick={() => contractService.generatePdf(contract.id).then(load)}>
                   <Download size={16} className="mr-2" />
                   PDF
                 </Button>
-                <Button variant="outline" onClick={() => send(contract.id)} disabled={contract.status === 'SIGNED'}>
+                <Button
+                  variant="outline"
+                  onClick={() => send(contract.id)}
+                  disabled={blockedSendStatuses.includes(contract.status)}
+                >
                   <Send size={16} className="mr-2" />
-                  Enviar
+                  {contract.status === 'REJECTED' ? 'Recusado' : 'Enviar'}
                 </Button>
               </div>
             </CardContent>
