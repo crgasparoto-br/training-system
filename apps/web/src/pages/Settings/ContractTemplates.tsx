@@ -204,6 +204,7 @@ export default function ContractTemplates() {
   const [variables, setVariables] = useState<ContractVariableDefinition[]>(CONTRACT_VARIABLES);
   const [previewStudents, setPreviewStudents] = useState<Aluno[]>([]);
   const [previewAlunoId, setPreviewAlunoId] = useState('');
+  const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Partial<ContractTemplate>>(emptyTemplate);
   const [previewHtml, setPreviewHtml] = useState('');
@@ -270,6 +271,24 @@ export default function ContractTemplates() {
     }
   }, [selected]);
 
+  useEffect(() => {
+    if (!previewDialogOpen) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !previewing) {
+        setPreviewDialogOpen(false);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [previewDialogOpen, previewing]);
+
   const updateClause = (index: number, field: string, value: string | number | boolean) => {
     const clauses = [...(draft.clauses || [])];
     clauses[index] = { ...clauses[index], [field]: value };
@@ -322,9 +341,19 @@ export default function ContractTemplates() {
     }
   };
 
+  const openPreviewDialog = () => {
+    if (!draft.id) {
+      setMessage('Salve o modelo antes de gerar a prévia.');
+      return;
+    }
+    setMessage(null);
+    setPreviewDialogOpen(true);
+  };
+
   const preview = async () => {
     if (!draft.id) {
       setMessage('Salve o modelo antes de gerar a prévia.');
+      setPreviewDialogOpen(false);
       return;
     }
     if (!previewAlunoId) {
@@ -340,6 +369,7 @@ export default function ContractTemplates() {
         alunoId: previewAlunoId,
       });
       setPreviewHtml(result.html);
+      setPreviewDialogOpen(false);
       setMessage(
         `Prévia gerada com os dados de ${selectedPreviewStudent?.user.profile.name || 'aluno selecionado'}.`
       );
@@ -457,38 +487,6 @@ export default function ContractTemplates() {
               </Button>
             </div>
 
-            <div className="rounded-lg border border-border bg-muted/20 p-4">
-              <label className="text-sm font-medium" htmlFor="contract-preview-student">
-                Aluno para prévia
-              </label>
-              <select
-                id="contract-preview-student"
-                className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                value={previewAlunoId}
-                disabled={previewStudentsLoading || previewStudents.length === 0}
-                onChange={(event) => {
-                  setPreviewAlunoId(event.target.value);
-                  setPreviewHtml('');
-                }}
-              >
-                <option value="">
-                  {previewStudentsLoading
-                    ? 'Carregando alunos...'
-                    : previewStudents.length === 0
-                      ? 'Nenhum aluno ativo disponível'
-                      : 'Selecione um aluno'}
-                </option>
-                {previewStudents.map((student) => (
-                  <option key={student.id} value={student.id}>
-                    {student.user.profile.name} — {student.user.email}
-                  </option>
-                ))}
-              </select>
-              <p className="mt-2 text-xs text-muted-foreground">
-                Os dados reais do aluno selecionado serão usados somente para montar a prévia. Nenhum contrato será criado ou alterado.
-              </p>
-            </div>
-
             <div className="flex flex-wrap justify-end gap-2">
               {draft.id && (
                 <Button variant="outline" onClick={() => contractService.duplicateTemplate(draft.id!).then(load)}>
@@ -496,12 +494,7 @@ export default function ContractTemplates() {
                   Duplicar
                 </Button>
               )}
-              <Button
-                variant="outline"
-                onClick={preview}
-                isLoading={previewing}
-                disabled={previewStudentsLoading || previewStudents.length === 0}
-              >
+              <Button variant="outline" onClick={openPreviewDialog}>
                 <Eye size={16} className="mr-2" />
                 Prévia
               </Button>
@@ -535,6 +528,80 @@ export default function ContractTemplates() {
             <iframe className="h-[620px] w-full rounded-md border border-border bg-white" srcDoc={previewHtml} title="Prévia do contrato" />
           </CardContent>
         </Card>
+      )}
+
+      {previewDialogOpen && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !previewing) {
+              setPreviewDialogOpen(false);
+            }
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="contract-preview-dialog-title"
+            className="w-full max-w-md rounded-xl border border-border bg-background p-5 shadow-2xl"
+          >
+            <h2 id="contract-preview-dialog-title" className="text-lg font-semibold text-foreground">
+              Gerar prévia do contrato
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Selecione o aluno cujos dados serão usados para preencher as variáveis.
+            </p>
+
+            <label className="mt-4 block text-sm font-medium" htmlFor="contract-preview-student">
+              Aluno
+            </label>
+            <select
+              id="contract-preview-student"
+              autoFocus
+              className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              value={previewAlunoId}
+              disabled={previewStudentsLoading || previewStudents.length === 0 || previewing}
+              onChange={(event) => {
+                setPreviewAlunoId(event.target.value);
+                setPreviewHtml('');
+              }}
+            >
+              <option value="">
+                {previewStudentsLoading
+                  ? 'Carregando alunos...'
+                  : previewStudents.length === 0
+                    ? 'Nenhum aluno ativo disponível'
+                    : 'Selecione um aluno'}
+              </option>
+              {previewStudents.map((student) => (
+                <option key={student.id} value={student.id}>
+                  {student.user.profile.name} — {student.user.email}
+                </option>
+              ))}
+            </select>
+
+            <p className="mt-3 text-xs text-muted-foreground">
+              A prévia usa dados reais somente para visualização. Nenhum contrato será criado ou alterado.
+            </p>
+
+            <div className="mt-5 flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setPreviewDialogOpen(false)}
+                disabled={previewing}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={preview}
+                isLoading={previewing}
+                disabled={previewStudentsLoading || previewStudents.length === 0 || !previewAlunoId}
+              >
+                Gerar prévia
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
