@@ -45,6 +45,29 @@ describe('resolveStudentContractStatus', () => {
     );
   });
 
+  it('apresenta a recusa do aluno sem confundir com cancelamento administrativo', () => {
+    const status = resolveStudentContractStatus({
+      selectedContractId: 'contract-1',
+      contract: {
+        status: 'REJECTED',
+        signedAt: null,
+        rejectedAt: '2026-07-11T02:20:00.000Z',
+        rejectionReason: 'Não concordo com a vigência.',
+      },
+    });
+
+    expect(status).toEqual(
+      expect.objectContaining({
+        label: 'Recusado pelo aluno',
+        approvalLabel: 'Não — recusado',
+        approved: false,
+        rejectedAt: '2026-07-11T02:20:00.000Z',
+        rejectionReason: 'Não concordo com a vigência.',
+      })
+    );
+    expect(status.description).toContain('Motivo: Não concordo com a vigência.');
+  });
+
   it('não confirma aprovação quando o status não pode ser consultado', () => {
     expect(
       resolveStudentContractStatus({ selectedContractId: 'contract-1', error: true })
