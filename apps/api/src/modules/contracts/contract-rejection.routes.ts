@@ -7,6 +7,7 @@ import { studentContractService } from '../student-contracts/student-contract.se
 import {
   buildContractRejectionAuditDetails,
   buildContractRejectionClaimWhere,
+  CONTRACT_REJECTION_AUDIT_KIND,
   normalizeContractRejectionReason,
   resolveContractRejection,
 } from './contract-rejection.js';
@@ -24,20 +25,23 @@ const actorFromRequest = (req: Request) => ({
 });
 
 const loadRejection = async (contractId: string) => {
-  const auditLogs = await prisma.contractAuditLog.findMany({
+  const auditLog = await prisma.contractAuditLog.findFirst({
     where: {
       contractId,
       action: 'UPDATED',
+      details: {
+        path: ['kind'],
+        equals: CONTRACT_REJECTION_AUDIT_KIND,
+      },
     },
     orderBy: { createdAt: 'desc' },
-    take: 50,
     select: {
       details: true,
       createdAt: true,
     },
   });
 
-  return resolveContractRejection(auditLogs);
+  return auditLog ? resolveContractRejection([auditLog]) : null;
 };
 
 router.post('/public/:token/reject', async (req: Request, res: Response) => {
