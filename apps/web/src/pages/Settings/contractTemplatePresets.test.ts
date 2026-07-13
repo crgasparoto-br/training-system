@@ -3,6 +3,9 @@ import { CONTRACT_VARIABLES } from '../../services/contract.service';
 import {
   ACCESS_PERSONAL_TRAINING_TEMPLATE_NAME,
   ACCESS_PERSONAL_TRAINING_TEMPLATE_SOURCE,
+  ACCESS_PERSONAL_TRAINING_TEMPLATE_SOURCE_DATE,
+  ACCESS_PERSONAL_TRAINING_TEMPLATE_SOURCE_ID,
+  ACCESS_PERSONAL_TRAINING_TEMPLATE_SOURCE_TITLE,
   ACCESS_YEAR_END_RECESS_CLAUSE,
   createAccessPersonalTrainingTemplate,
 } from './contractTemplatePresets';
@@ -42,14 +45,23 @@ describe('ACESSO personal training contract template', () => {
     expect(tokens.filter((token) => !supportedVariables.has(token))).toEqual([]);
   });
 
-  it('keeps legal review explicit before activation', () => {
+  it('keeps legal review explicit and records the approved source before activation', () => {
     const template = createAccessPersonalTrainingTemplate();
 
     expect(template.status).not.toBe('ACTIVE');
     expect(template.description).toContain(ACCESS_PERSONAL_TRAINING_TEMPLATE_SOURCE);
+    expect(ACCESS_PERSONAL_TRAINING_TEMPLATE_SOURCE).toContain(
+      ACCESS_PERSONAL_TRAINING_TEMPLATE_SOURCE_TITLE
+    );
+    expect(ACCESS_PERSONAL_TRAINING_TEMPLATE_SOURCE).toContain(
+      ACCESS_PERSONAL_TRAINING_TEMPLATE_SOURCE_ID
+    );
+    expect(ACCESS_PERSONAL_TRAINING_TEMPLATE_SOURCE).toContain(
+      ACCESS_PERSONAL_TRAINING_TEMPLATE_SOURCE_DATE
+    );
   });
 
-  it('preserves the approved year-end recess dates and remote support wording', () => {
+  it('preserves the complete approved year-end recess obligations', () => {
     const template = createAccessPersonalTrainingTemplate();
     const recessClause = template.clauses?.find((clause) => clause.order === 6);
 
@@ -59,6 +71,7 @@ describe('ACESSO personal training contract template', () => {
     expect(recessClause?.bodyHtml).toContain('não serão realizados atendimentos presenciais regulares');
     expect(recessClause?.bodyHtml).toContain('planilha de treinamento');
     expect(recessClause?.bodyHtml).toContain('internet ou telefone');
-    expect(recessClause?.bodyHtml).not.toContain('avaliações físicas oficiais');
+    expect(recessClause?.bodyHtml).toContain('avaliações físicas oficiais');
+    expect(recessClause?.bodyHtml).toContain('fora do horário regular de atendimento');
   });
 });
