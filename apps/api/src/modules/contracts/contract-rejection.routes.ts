@@ -10,7 +10,7 @@ import {
   resolveContractRejection,
 } from './contract-rejection.js';
 
-const router = Router();
+const router: Router = Router();
 const prisma = new PrismaClient();
 
 const tokenHash = (token: string) =>
