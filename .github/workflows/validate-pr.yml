@@ -46,7 +46,16 @@ jobs:
         run: pnpm lint
 
       - name: Test
-        run: pnpm test
+        run: pnpm test 2>&1 | tee test-output.log
+
+      - name: Upload test output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-output-${{ github.run_id }}
+          path: test-output.log
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Architecture checks
         run: pnpm arch:check
