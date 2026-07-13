@@ -7,6 +7,7 @@ import type {
   ReorderCatalogItemsRequest,
   ServiceCatalogBootstrapResult,
   ServiceCatalogDetail,
+  ServiceCatalogImpact,
   ServiceCatalogSummary,
   ServiceCommercialOption,
   ServiceOption,
@@ -40,6 +41,13 @@ export const serviceCatalogService = {
 
   async getCatalogDetail(id: string): Promise<ServiceCatalogDetail> {
     const response = await api.get<ApiResponse<ServiceCatalogDetail>>(`/services/catalog/${id}`);
+    return response.data.data;
+  },
+
+  async getCatalogImpact(id: string): Promise<ServiceCatalogImpact> {
+    const response = await api.get<ApiResponse<ServiceCatalogImpact>>(
+      `/services/catalog/${id}/impact`
+    );
     return response.data.data;
   },
 
