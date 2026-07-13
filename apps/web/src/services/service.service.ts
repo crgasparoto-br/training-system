@@ -8,8 +8,10 @@ import type {
   ServiceCatalogBootstrapResult,
   ServiceCatalogDetail,
   ServiceCatalogImpact,
+  ServiceCatalogImpactConfirmation,
   ServiceCatalogSummary,
   ServiceCommercialOption,
+  ServiceCommercialOptionImpact,
   ServiceOption,
   ServicePlanComponent,
   ServicePresentationItem,
@@ -18,10 +20,32 @@ import type {
   UpdatePresentationItemRequest,
   UpdateServiceRequest,
 } from '@corrida/types';
+import {
+  buildCommercialOptionInactivationMessage,
+  buildServiceInactivationMessage,
+  toImpactConfirmation,
+} from './service-catalog-inactivation';
 
 interface ApiResponse<T> {
   success: boolean;
   data: T;
+}
+
+type ImpactAwareServiceUpdate = UpdateServiceRequest & {
+  impactConfirmation?: ServiceCatalogImpactConfirmation;
+};
+
+type ImpactAwareOptionUpdate = UpdateCommercialOptionRequest & {
+  impactConfirmation?: ServiceCatalogImpactConfirmation;
+};
+
+function confirmInactivation(message: string) {
+  if (typeof window === 'undefined') return false;
+  return window.confirm(message);
+}
+
+function cancellationError() {
+  return new Error('Inativação cancelada. Nenhuma alteração foi salva.');
 }
 
 export const serviceCatalogService = {
@@ -51,13 +75,35 @@ export const serviceCatalogService = {
     return response.data.data;
   },
 
+  async getCommercialOptionImpact(id: string): Promise<ServiceCommercialOptionImpact> {
+    const response = await api.get<ApiResponse<ServiceCommercialOptionImpact>>(
+      `/services/catalog/options/${id}/impact`
+    );
+    return response.data.data;
+  },
+
   async createCatalogService(data: CreateServiceRequest): Promise<ServiceCatalogDetail> {
     const response = await api.post<ApiResponse<ServiceCatalogDetail>>('/services/catalog', data);
     return response.data.data;
   },
 
   async updateCatalogService(id: string, data: UpdateServiceRequest): Promise<ServiceCatalogDetail> {
-    const response = await api.put<ApiResponse<ServiceCatalogDetail>>(`/services/catalog/${id}`, data);
+    let request: ImpactAwareServiceUpdate = data;
+
+    if (data.isActive === false) {
+      const impact = await this.getCatalogImpact(id);
+      if (impact.serviceIsActive) {
+        if (!confirmInactivation(buildServiceInactivationMessage(impact))) {
+          throw cancellationError();
+        }
+        request = { ...data, impactConfirmation: toImpactConfirmation(impact) };
+      }
+    }
+
+    const response = await api.put<ApiResponse<ServiceCatalogDetail>>(
+      `/services/catalog/${id}`,
+      request
+    );
     return response.data.data;
   },
 
@@ -70,9 +116,21 @@ export const serviceCatalogService = {
   },
 
   async updateCommercialOption(id: string, data: UpdateCommercialOptionRequest): Promise<ServiceCommercialOption> {
+    let request: ImpactAwareOptionUpdate = data;
+
+    if (data.isActive === false) {
+      const impact = await this.getCommercialOptionImpact(id);
+      if (impact.optionIsActive) {
+        if (!confirmInactivation(buildCommercialOptionInactivationMessage(impact))) {
+          throw cancellationError();
+        }
+        request = { ...data, impactConfirmation: toImpactConfirmation(impact) };
+      }
+    }
+
     const response = await api.put<ApiResponse<ServiceCommercialOption>>(
       `/services/catalog/options/${id}`,
-      data
+      request
     );
     return response.data.data;
   },
