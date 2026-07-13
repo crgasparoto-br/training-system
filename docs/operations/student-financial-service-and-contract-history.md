@@ -13,9 +13,9 @@ A restauração ocorre após os carregamentos assíncronos do aluno, dos víncul
 
 ## Histórico de contratos
 
-O bloco contratual da aba **Financeiro** apresenta a ação **Visualizar contratos**, que abre `/alunos/:id/contracts`.
+O bloco contratual da aba **Financeiro** apresenta a ação **Visualizar contratos**. A ação abre um modal sobre a própria edição do aluno, sem navegar para outra tela e sem perder os dados ainda não salvos do formulário.
 
-A página permite consultar os documentos do aluno e seus estados:
+O modal lista os documentos do aluno e seus estados:
 
 - rascunho;
 - gerado;
@@ -25,5 +25,7 @@ A página permite consultar os documentos do aluno e seus estados:
 - recusado;
 - cancelado;
 - expirado.
+
+Cada item apresenta a ação **Consultar**, que abre o documento persistido em modo somente leitura dentro do mesmo modal. O usuário pode retornar à lista, fechar pelo botão, clicar fora da janela ou usar `Esc`.
 
 Esse acesso não modifica as regras de ativação ou substituição. O contrato vigente continua sendo encerrado somente quando o substituto estiver assinado e atingir sua data efetiva de início.
