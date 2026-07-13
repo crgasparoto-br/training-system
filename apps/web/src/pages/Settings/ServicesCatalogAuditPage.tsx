@@ -168,12 +168,12 @@ export default function ServicesCatalogAuditPage() {
                 ))}
               </div>
 
-              {impact.options.some((option) => option.planComponents > 0) && (
+              {impact.options.some((option) => option.affectedPlans > 0) && (
                 <div className="rounded-lg border p-4">
-                  <p className="text-sm font-semibold text-foreground">Opções usadas por planos</p>
+                  <p className="text-sm font-semibold text-foreground">Opções usadas por planos ativos</p>
                   <div className="mt-3 space-y-2">
                     {impact.options
-                      .filter((option) => option.planComponents > 0)
+                      .filter((option) => option.affectedPlans > 0)
                       .map((option) => (
                         <div
                           key={option.optionId}
@@ -182,7 +182,7 @@ export default function ServicesCatalogAuditPage() {
                           <span>
                             {option.optionName} {!option.isActive && '(inativa)'}
                           </span>
-                          <strong>{option.planComponents} plano(s)</strong>
+                          <strong>{option.affectedPlans} plano(s) ativo(s)</strong>
                         </div>
                       ))}
                   </div>
