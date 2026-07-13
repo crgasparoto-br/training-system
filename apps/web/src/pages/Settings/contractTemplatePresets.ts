@@ -3,11 +3,20 @@ import type { ContractTemplate } from '../../services/contract.service';
 export const ACCESS_PERSONAL_TRAINING_TEMPLATE_NAME =
   'Treinamento Físico Personalizado - ACESSO';
 
+export const ACCESS_PERSONAL_TRAINING_TEMPLATE_SOURCE_TITLE =
+  'Cópia de INSTRUMENTO PARTICULAR DE PRESTAÇÃO DE SERVIÇO DE TREINAMENTO FÍSICO INDIVIDUALIZADO - 2025 - ACESSO';
+
+export const ACCESS_PERSONAL_TRAINING_TEMPLATE_SOURCE_ID =
+  '1g91qEC3w3TDG_4a4mRvdB9bLkQH00Fr_YgqcOtYi3Lk';
+
+export const ACCESS_PERSONAL_TRAINING_TEMPLATE_SOURCE_DATE =
+  '26 de fevereiro de 2026';
+
 export const ACCESS_PERSONAL_TRAINING_TEMPLATE_SOURCE =
-  'Instrumento Particular de Prestação de Serviços de Treinamento Físico Personalizado — 26 de fevereiro de 2026';
+  `${ACCESS_PERSONAL_TRAINING_TEMPLATE_SOURCE_TITLE} (Google Drive ID ${ACCESS_PERSONAL_TRAINING_TEMPLATE_SOURCE_ID}), versão consultada em ${ACCESS_PERSONAL_TRAINING_TEMPLATE_SOURCE_DATE}`;
 
 export const ACCESS_YEAR_END_RECESS_CLAUSE =
-  '<p><strong>6.5.</strong> Durante o período de recesso compreendido entre 24/12/2025 e 04/01/2026, não serão realizados atendimentos presenciais regulares. Nesse período, o CONTRATANTE terá direito à planilha de treinamento e à assessoria para ajustes e esclarecimento de dúvidas por internet ou telefone.</p>';
+  '<p><strong>6.5.</strong> Durante o período de recesso compreendido entre 24/12/2025 e 04/01/2026, não serão realizados atendimentos presenciais regulares. Nesse período, o CONTRATANTE terá direito à planilha de treinamento e à assessoria para ajustes e esclarecimento de dúvidas por internet ou telefone. As avaliações físicas oficiais previstas para esse período deverão ser agendadas fora do horário regular de atendimento, em data acordada entre as partes.</p>';
 
 export function createAccessPersonalTrainingTemplate(): Partial<ContractTemplate> {
   return {
