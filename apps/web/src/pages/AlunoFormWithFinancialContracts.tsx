@@ -2,7 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowLeft, Eye, FileText, X } from 'lucide-react';
 import { Button } from '../components/ui/Button';
-import { alunoService } from '../services/aluno.service';
+import { alunoService, type StudentContractLink } from '../services/aluno.service';
+import {
+  findStudentContractLink,
+  resolveContractValidity,
+  type ContractValidityStatus,
+} from '../services/contract-validity';
 import { contractService, type GeneratedContract } from '../services/contract.service';
 import {
   ensurePreservedFinancialServiceOption,
@@ -37,6 +42,15 @@ const contractStatusClassName: Record<GeneratedContract['status'], string> = {
   EXPIRED: 'border-orange-200 bg-orange-50 text-orange-800',
 };
 
+const contractValidityClassName: Record<ContractValidityStatus, string> = {
+  current: 'border-emerald-300 bg-emerald-100 text-emerald-900',
+  expired: 'border-orange-300 bg-orange-100 text-orange-900',
+  future: 'border-blue-300 bg-blue-100 text-blue-900',
+  ended: 'border-slate-300 bg-slate-100 text-slate-700',
+  pending: 'border-amber-300 bg-amber-100 text-amber-900',
+  undefined: 'border-border bg-muted text-muted-foreground',
+};
+
 const formatDateLabel = (value?: string | null) => {
   if (!value) return null;
   const parsed = new Date(value);
@@ -54,6 +68,7 @@ export function AlunoFormWithFinancialContracts() {
   const [contractHistorySlot, setContractHistorySlot] = useState<HTMLElement | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [contracts, setContracts] = useState<GeneratedContract[]>([]);
+  const [studentContractLinks, setStudentContractLinks] = useState<StudentContractLink[]>([]);
   const [contractsLoading, setContractsLoading] = useState(false);
   const [contractsError, setContractsError] = useState<string | null>(null);
   const [previewContract, setPreviewContract] = useState<GeneratedContract | null>(null);
@@ -61,6 +76,7 @@ export function AlunoFormWithFinancialContracts() {
   useEffect(() => {
     userChangedServiceRef.current = false;
     setFinancialServiceName('');
+    setStudentContractLinks([]);
 
     if (!id) {
       return undefined;
@@ -81,9 +97,12 @@ export function AlunoFormWithFinancialContracts() {
         });
 
         setFinancialServiceName(resolvedServiceName);
+        setStudentContractLinks(contractLinks.contracts);
       })
       .catch(() => {
-        if (active) setFinancialServiceName('');
+        if (!active) return;
+        setFinancialServiceName('');
+        setStudentContractLinks([]);
       });
 
     return () => {
@@ -190,14 +209,19 @@ export function AlunoFormWithFinancialContracts() {
     setContractsLoading(true);
     setContractsError(null);
     try {
-      const result = await contractService.listAlunoContracts(id);
+      const [result, contractLinks] = await Promise.all([
+        contractService.listAlunoContracts(id),
+        alunoService.listStudentContracts(id),
+      ]);
       setContracts(
         [...result].sort(
           (left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
         )
       );
+      setStudentContractLinks(contractLinks.contracts);
     } catch (error: any) {
       setContracts([]);
+      setStudentContractLinks([]);
       setContractsError(error?.response?.data?.error || 'Não foi possível carregar os contratos do aluno.');
     } finally {
       setContractsLoading(false);
@@ -229,8 +253,7 @@ export function AlunoFormWithFinancialContracts() {
                   Histórico de contratos
                 </h4>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Consulte contratos em rascunho, enviados, visualizados, assinados, recusados,
-                  cancelados ou expirados sem sair do cadastro.
+                  Consulte o estado do documento e a vigência de cada contrato sem sair do cadastro.
                 </p>
               </div>
               <Button type="button" variant="outline" onClick={openContractHistory}>
@@ -271,13 +294,16 @@ export function AlunoFormWithFinancialContracts() {
                     </Button>
                   )}
                   <div className="min-w-0">
-                    <h2 id="student-contract-history-title" className="truncate text-lg font-semibold text-foreground">
+                    <h2
+                      id="student-contract-history-title"
+                      className="truncate text-lg font-semibold text-foreground"
+                    >
                       {previewContract?.title || 'Contratos do aluno'}
                     </h2>
                     <p className="text-sm text-muted-foreground">
                       {previewContract
                         ? 'Documento em modo somente leitura.'
-                        : 'Acompanhe o envio, a visualização, a assinatura e os demais estados dos documentos.'}
+                        : 'Acompanhe separadamente o estado do documento e a vigência contratual.'}
                     </p>
                   </div>
                 </div>
@@ -307,7 +333,12 @@ export function AlunoFormWithFinancialContracts() {
                   ) : contractsError ? (
                     <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-4 text-sm text-destructive">
                       <p>{contractsError}</p>
-                      <Button type="button" variant="outline" className="mt-3" onClick={() => void loadContracts()}>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="mt-3"
+                        onClick={() => void loadContracts()}
+                      >
                         Tentar novamente
                       </Button>
                     </div>
@@ -321,6 +352,16 @@ export function AlunoFormWithFinancialContracts() {
                         const createdAt = formatDateLabel(contract.createdAt);
                         const signedAt = formatDateLabel(contract.signedAt);
                         const rejectedAt = formatDateLabel(contract.rejectedAt);
+                        const studentContractLink = findStudentContractLink(
+                          contract.id,
+                          studentContractLinks
+                        );
+                        const validity = resolveContractValidity(
+                          contract.status,
+                          studentContractLink
+                        );
+                        const validityStart = formatDateLabel(studentContractLink?.startDate);
+                        const validityEnd = formatDateLabel(studentContractLink?.endDate);
 
                         return (
                           <div
@@ -333,21 +374,38 @@ export function AlunoFormWithFinancialContracts() {
                                 <span
                                   className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${contractStatusClassName[contract.status]}`}
                                 >
-                                  {contractStatusLabel[contract.status]}
+                                  Documento: {contractStatusLabel[contract.status]}
                                 </span>
+                                {validity && (
+                                  <span
+                                    className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${contractValidityClassName[validity.status]}`}
+                                  >
+                                    Vigência: {validity.label}
+                                  </span>
+                                )}
                               </div>
                               <p className="mt-1 text-sm text-muted-foreground">
                                 Criado em {createdAt || 'data não informada'}
                                 {signedAt ? ` • Assinado em ${signedAt}` : ''}
                                 {rejectedAt ? ` • Recusado em ${rejectedAt}` : ''}
                               </p>
+                              {contract.status === 'SIGNED' && (validityStart || validityEnd) && (
+                                <p className="mt-1 text-sm text-muted-foreground">
+                                  Período de vigência: {validityStart || 'início não informado'} até{' '}
+                                  {validityEnd || 'sem término definido'}
+                                </p>
+                              )}
                               {contract.status === 'REJECTED' && contract.rejectionReason && (
                                 <p className="mt-2 text-sm text-rose-700">
                                   Motivo da recusa: {contract.rejectionReason}
                                 </p>
                               )}
                             </div>
-                            <Button type="button" variant="outline" onClick={() => setPreviewContract(contract)}>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => setPreviewContract(contract)}
+                            >
                               <Eye className="mr-2 h-4 w-4" />
                               Consultar
                             </Button>
