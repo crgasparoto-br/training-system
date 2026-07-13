@@ -1,5 +1,4 @@
 import { Prisma, type StudentContract } from '@prisma/client';
-import { describe, expect, it } from 'vitest';
 import { serializeStudentContractActivation } from '../src/modules/student-contracts/student-contract-activation-response.js';
 
 const buildStudentContract = (): StudentContract => ({
