@@ -17,7 +17,7 @@ async function createCompanyContract(id: string, document: string) {
   return prisma.companyContract.create({
     data: {
       id,
-      type: ContractType.CNPJ,
+      type: ContractType.academy,
       document,
       name: `Contrato ${id}`,
     },
@@ -169,7 +169,7 @@ describeDatabase('service catalog reference bootstrap with PostgreSQL', () => {
       prisma.serviceOption.count({
         where: {
           contractId: contractIds.first,
-          serviceCommercialOptions: {
+          commercialOptions: {
             some: { contractId: contractIds.second },
           },
         },
