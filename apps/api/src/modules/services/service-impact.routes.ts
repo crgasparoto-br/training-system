@@ -122,7 +122,7 @@ router.put(
       const item = await serviceCatalogService.updateCommercialOption(
         contractId,
         req.params.optionId,
-        payload
+        payload as any
       );
       return sendSuccess(res, item, 'Opção comercial atualizada com sucesso');
     } catch (error) {
