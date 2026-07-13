@@ -5,11 +5,16 @@ import { authMiddleware, masterMiddleware } from '../auth/auth.middleware.js';
 import { screenAccessMiddleware } from '../access-control/access-control.middleware.js';
 import {
   assertActiveCatalogComponentTarget,
+  assertCommercialOptionInactivationConfirmation,
+  assertServiceInactivationConfirmation,
+  getCommercialOptionImpact,
   getServiceCatalogImpact,
 } from './service-impact.service.js';
 import { serviceCatalogService } from './service.service.js';
 import {
   CreatePlanComponentSchema,
+  UpdateCatalogServiceSchema,
+  UpdateCommercialOptionSchema,
   UpdatePlanComponentSchema,
 } from './service.validation.js';
 
@@ -29,7 +34,12 @@ function handleError(res: Response, error: unknown, fallback: string) {
   }
 
   const message = error instanceof Error ? error.message : fallback;
-  const status = message.includes('não encontrado') ? 404 : 400;
+  const explicitStatus =
+    typeof error === 'object' && error !== null && 'statusCode' in error
+      ? Number((error as { statusCode?: number }).statusCode)
+      : undefined;
+  const status =
+    explicitStatus || (message.includes('não encontrado') ? 404 : 400);
   return sendError(res, message || fallback, status);
 }
 
@@ -41,6 +51,85 @@ router.get('/catalog/:id/impact', ...readAccess, async (req: Request, res: Respo
     return handleError(res, error, 'Erro ao calcular impacto do serviço');
   }
 });
+
+router.get(
+  '/catalog/options/:optionId/impact',
+  ...readAccess,
+  async (req: Request, res: Response) => {
+    try {
+      const impact = await getCommercialOptionImpact(
+        getContractId(req),
+        req.params.optionId
+      );
+      return sendSuccess(res, impact, 'Impacto da opção recuperado com sucesso');
+    } catch (error) {
+      return handleError(res, error, 'Erro ao calcular impacto da opção');
+    }
+  }
+);
+
+router.put('/catalog/:id', ...writeAccess, async (req: Request, res: Response) => {
+  try {
+    const contractId = getContractId(req);
+    const parsed = UpdateCatalogServiceSchema.parse(req.body);
+    const { impactConfirmation, ...payload } = parsed;
+
+    if (payload.isActive === false) {
+      const currentImpact = await getServiceCatalogImpact(contractId, req.params.id);
+      if (currentImpact.serviceIsActive) {
+        await assertServiceInactivationConfirmation(
+          contractId,
+          req.params.id,
+          impactConfirmation
+        );
+      }
+    }
+
+    const item = await serviceCatalogService.updateCatalogService(
+      contractId,
+      req.params.id,
+      payload
+    );
+    return sendSuccess(res, item, 'Serviço atualizado com sucesso');
+  } catch (error) {
+    return handleError(res, error, 'Erro ao atualizar serviço');
+  }
+});
+
+router.put(
+  '/catalog/options/:optionId',
+  ...writeAccess,
+  async (req: Request, res: Response) => {
+    try {
+      const contractId = getContractId(req);
+      const parsed = UpdateCommercialOptionSchema.parse(req.body);
+      const { impactConfirmation, ...payload } = parsed;
+
+      if (payload.isActive === false) {
+        const currentImpact = await getCommercialOptionImpact(
+          contractId,
+          req.params.optionId
+        );
+        if (currentImpact.optionIsActive) {
+          await assertCommercialOptionInactivationConfirmation(
+            contractId,
+            req.params.optionId,
+            impactConfirmation
+          );
+        }
+      }
+
+      const item = await serviceCatalogService.updateCommercialOption(
+        contractId,
+        req.params.optionId,
+        payload
+      );
+      return sendSuccess(res, item, 'Opção comercial atualizada com sucesso');
+    } catch (error) {
+      return handleError(res, error, 'Erro ao atualizar opção comercial');
+    }
+  }
+);
 
 router.post(
   '/catalog/:serviceId/components',
