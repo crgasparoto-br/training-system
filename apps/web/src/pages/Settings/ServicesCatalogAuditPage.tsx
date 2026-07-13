@@ -12,6 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from '../../components/ui/Card';
+import { subscribeServiceCatalogMutation } from '../../services/service-catalog-events';
 import { serviceCatalogService } from '../../services/service.service';
 import ServicesCatalog from './ServicesCatalog';
 import {
@@ -32,6 +33,7 @@ export default function ServicesCatalogAuditPage() {
   const [impact, setImpact] = useState<ServiceCatalogImpact | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [catalogRevision, setCatalogRevision] = useState(0);
 
   const selectedService = useMemo(
     () => services.find((service) => service.id === selectedServiceId) || null,
@@ -42,7 +44,11 @@ export default function ServicesCatalogAuditPage() {
     try {
       const items = await serviceCatalogService.listCatalog(true);
       setServices(items);
-      setSelectedServiceId((current) => current || items[0]?.id || '');
+      setSelectedServiceId((current) =>
+        current && items.some((item) => item.id === current)
+          ? current
+          : items[0]?.id || ''
+      );
     } catch (loadError) {
       setError(readError(loadError, 'Não foi possível carregar os serviços para auditoria.'));
     }
@@ -73,6 +79,18 @@ export default function ServicesCatalogAuditPage() {
   useEffect(() => {
     if (selectedServiceId) loadImpact(selectedServiceId);
   }, [selectedServiceId]);
+
+  useEffect(
+    () =>
+      subscribeServiceCatalogMutation(() => {
+        setCatalogRevision((current) => current + 1);
+        void loadServices();
+        if (selectedServiceId) {
+          void loadImpact(selectedServiceId);
+        }
+      }),
+    [selectedServiceId]
+  );
 
   const impactItems = impact ? buildServiceCatalogImpactItems(impact) : [];
 
@@ -193,7 +211,7 @@ export default function ServicesCatalogAuditPage() {
         </CardContent>
       </Card>
 
-      <ServicesCatalog />
+      <ServicesCatalog key={catalogRevision} />
     </div>
   );
 }
