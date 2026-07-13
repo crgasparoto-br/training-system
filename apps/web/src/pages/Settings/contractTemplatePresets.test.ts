@@ -49,6 +49,7 @@ describe('ACESSO personal training contract template', () => {
     const template = createAccessPersonalTrainingTemplate();
 
     expect(template.status).not.toBe('ACTIVE');
+    expect(ACCESS_PERSONAL_TRAINING_TEMPLATE_SOURCE_DATE).toBe('22 de abril de 2026');
     expect(template.description).toContain(ACCESS_PERSONAL_TRAINING_TEMPLATE_SOURCE);
     expect(ACCESS_PERSONAL_TRAINING_TEMPLATE_SOURCE).toContain(
       ACCESS_PERSONAL_TRAINING_TEMPLATE_SOURCE_TITLE
