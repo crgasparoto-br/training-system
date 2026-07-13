@@ -3,6 +3,7 @@ import type { ServiceCatalogImpact } from '@corrida/types';
 export type ServiceCatalogImpactItem = {
   key: keyof Pick<
     ServiceCatalogImpact,
+    | 'affectedPlans'
     | 'alunos'
     | 'studentContracts'
     | 'contractTemplates'
@@ -19,6 +20,11 @@ export function buildServiceCatalogImpactItems(
   impact: ServiceCatalogImpact
 ): ServiceCatalogImpactItem[] {
   return [
+    {
+      key: 'affectedPlans',
+      label: 'Planos ativos afetados',
+      value: impact.affectedPlans,
+    },
     { key: 'alunos', label: 'Alunos vinculados', value: impact.alunos },
     {
       key: 'studentContracts',
@@ -37,17 +43,17 @@ export function buildServiceCatalogImpactItems(
     },
     {
       key: 'planComponentsOwned',
-      label: 'Componentes do próprio plano',
+      label: 'Componentes ativos do próprio plano',
       value: impact.planComponentsOwned,
     },
     {
       key: 'planComponentsTargetingService',
-      label: 'Planos que usam o serviço',
+      label: 'Planos ativos que usam o serviço',
       value: impact.planComponentsTargetingService,
     },
     {
       key: 'planComponentsTargetingOptions',
-      label: 'Planos que usam opções comerciais',
+      label: 'Planos ativos que usam opções comerciais',
       value: impact.planComponentsTargetingOptions,
     },
   ];
@@ -58,5 +64,10 @@ export function getServiceCatalogImpactSummary(impact: ServiceCatalogImpact) {
     return 'Nenhuma referência encontrada para este serviço.';
   }
 
-  return `${impact.totalReferences} referência(s) encontrada(s). A inativação preserva o histórico, mas o serviço deixa de ficar disponível para novos vínculos e composições.`;
+  const planText =
+    impact.affectedPlans === 1
+      ? '1 plano ativo será afetado por uma inativação.'
+      : `${impact.affectedPlans} planos ativos serão afetados por uma inativação.`;
+
+  return `${planText} Há ${impact.totalReferences} referência(s) administrativas ou históricas. A inativação preserva o histórico, mas o serviço deixa de ficar disponível para novos vínculos e composições.`;
 }
