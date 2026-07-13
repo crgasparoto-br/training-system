@@ -6,6 +6,7 @@ import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js'
 import { studentContractService } from '../student-contracts/student-contract.service.js';
 import {
   buildContractRejectionAuditDetails,
+  buildContractRejectionClaimWhere,
   normalizeContractRejectionReason,
   resolveContractRejection,
 } from './contract-rejection.js';
@@ -42,8 +43,9 @@ const loadRejection = async (contractId: string) => {
 router.post('/public/:token/reject', async (req: Request, res: Response) => {
   try {
     const rejectionReason = normalizeContractRejectionReason(req.body?.reason);
+    const tokenDigest = tokenHash(req.params.token);
     const contract = await prisma.contract.findUnique({
-      where: { publicTokenHash: tokenHash(req.params.token) },
+      where: { publicTokenHash: tokenDigest },
       select: {
         id: true,
         title: true,
@@ -58,16 +60,32 @@ router.post('/public/:token/reject', async (req: Request, res: Response) => {
     }
 
     if (contract.publicTokenExpiresAt && contract.publicTokenExpiresAt < new Date()) {
-      await prisma.contract.update({
-        where: { id: contract.id },
-        data: {
-          status: 'EXPIRED',
-          publicTokenHash: null,
-          publicTokenExpiresAt: null,
-        },
-      });
-      await studentContractService.setStatusByGeneratedContractId(contract.id, 'expired', {
-        endDate: new Date(),
+      const expiredAt = new Date();
+      await prisma.$transaction(async (tx) => {
+        const expired = await tx.contract.updateMany({
+          where: {
+            id: contract.id,
+            publicTokenHash: tokenDigest,
+            status: { notIn: ['SIGNED', 'CANCELLED', 'EXPIRED'] },
+            publicTokenExpiresAt: { lt: expiredAt },
+          },
+          data: {
+            status: 'EXPIRED',
+            publicTokenHash: null,
+            publicTokenExpiresAt: null,
+          },
+        });
+
+        if (expired.count !== 1) {
+          throw new Error('Link inválido ou já utilizado');
+        }
+
+        await studentContractService.setStatusByGeneratedContractId(
+          contract.id,
+          'expired',
+          { endDate: expiredAt },
+          tx
+        );
       });
       return sendError(res, 'Link expirado', 400);
     }
@@ -87,13 +105,21 @@ router.post('/public/:token/reject', async (req: Request, res: Response) => {
       : 'Recusado pelo aluno';
 
     await prisma.$transaction(async (tx) => {
-      await tx.contract.update({
-        where: { id: contract.id },
+      const claimed = await tx.contract.updateMany({
+        where: buildContractRejectionClaimWhere(
+          contract.id,
+          tokenDigest,
+          rejectedAt
+        ),
         data: {
           publicTokenHash: null,
           publicTokenExpiresAt: null,
         },
       });
+
+      if (claimed.count !== 1) {
+        throw new Error('Link inválido ou já utilizado');
+      }
 
       await tx.contractAuditLog.create({
         data: {
