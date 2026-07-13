@@ -1,3 +1,4 @@
+import './contract-lifecycle-visibility-refresh';
 import type { StudentContractActivationResponse } from '@corrida/types';
 import {
   alunoService,
