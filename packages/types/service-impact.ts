@@ -14,6 +14,7 @@ export interface ServiceCatalogOptionImpact {
 export interface ServiceCatalogImpact {
   contractId: string;
   serviceId: string;
+  serviceIsActive: boolean;
   resourceUpdatedAt: string;
   alunos: number;
   studentContracts: number;
@@ -31,6 +32,7 @@ export interface ServiceCommercialOptionImpact {
   contractId: string;
   serviceId: string;
   optionId: string;
+  optionIsActive: boolean;
   resourceUpdatedAt: string;
   affectedPlans: number;
 }
