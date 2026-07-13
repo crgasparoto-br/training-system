@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import { sendError, sendSuccess } from '@corrida/utils';
 import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js';
 import { blockAccessMiddleware } from '../access-control/access-control.middleware.js';
+import { serializeStudentContractActivation } from './student-contract-activation-response.js';
 import { studentContractLifecycleService } from './student-contract-lifecycle.service.js';
 
 const router: Router = Router();
@@ -60,9 +61,10 @@ router.post(
         return sendError(res, 'Aluno não encontrado ou não pertence ao seu acesso', 404);
       }
 
-      const result = await studentContractLifecycleService.prepareOrActivateStudentContract(
+      const lifecycleResult = await studentContractLifecycleService.prepareOrActivateStudentContract(
         studentContractId
       );
+      const result = serializeStudentContractActivation(lifecycleResult);
 
       return sendSuccess(
         res,
@@ -71,7 +73,7 @@ router.post(
           ? 'Substituição preparada. O contrato vigente será mantido até a assinatura do novo documento.'
           : result.reason === 'scheduled_start'
             ? 'Contrato assinado e programado. O vigente será mantido até a data de início.'
-            : 'Contrato assinado colocado em vigor com sucesso.'
+            : 'Contrato assinado e colocado em vigor com sucesso.'
       );
     } catch (error: any) {
       return sendError(res, error.message || 'Erro ao processar vigência do contrato', 400);
