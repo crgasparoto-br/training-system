@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   isLegacyContractReplacementConfirmation,
+  LIFECYCLE_PREPARATION_FEEDBACK,
   normalizeContractReplacementConfirmation,
+  normalizeContractReplacementFeedback,
 } from './contract-replacement-confirm-copy';
 
 describe('normalizeContractReplacementConfirmation', () => {
@@ -29,5 +31,25 @@ describe('normalizeContractReplacementConfirmation', () => {
     expect(normalizeContractReplacementConfirmation('Gerar um novo link?')).toBe(
       'Gerar um novo link?'
     );
+  });
+});
+
+describe('normalizeContractReplacementFeedback', () => {
+  it('remove o feedback que afirmava encerramento no salvamento', () => {
+    expect(
+      normalizeContractReplacementFeedback(
+        'O contrato atual será encerrado somente ao salvar o cadastro.'
+      )
+    ).toBe(LIFECYCLE_PREPARATION_FEEDBACK);
+  });
+
+  it('corrige a explicação legada exibida no painel de substituição', () => {
+    const normalized = normalizeContractReplacementFeedback(
+      'Ao salvar, esse vínculo será encerrado e o novo contrato selecionado será ativado.'
+    );
+
+    expect(normalized).toContain('substituição será preparada');
+    expect(normalized).toContain('continuará ativo');
+    expect(normalized).toContain('data efetiva');
   });
 });
