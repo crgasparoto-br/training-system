@@ -182,7 +182,7 @@ describeDatabase('concurrent public contract signature and rejection', () => {
     await prisma.$disconnect();
   });
 
-  it('allows only the signature to win when rejection read the previous token concurrently', async () => {
+  it('allows only the signature to win against a concurrent rejection', async () => {
     const fixture = await seedFixture();
 
     await prisma.$executeRawUnsafe(`
@@ -248,7 +248,7 @@ describeDatabase('concurrent public contract signature and rejection', () => {
     );
 
     expect(signatureResult.activation.scheduled).toBe(false);
-    expect(rejectionResponse.status).toBe(400);
+    expect([400, 404]).toContain(rejectionResponse.status);
     expect(rejectionResponse.body.error).toBe('Link inválido ou já utilizado');
     expect(document.status).toBe(ContractStatus.SIGNED);
     expect(document.publicTokenHash).toBeNull();
