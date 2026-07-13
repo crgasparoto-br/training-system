@@ -3,11 +3,26 @@ import type { ContractTemplate } from '../../services/contract.service';
 export const ACCESS_PERSONAL_TRAINING_TEMPLATE_NAME =
   'Treinamento Físico Personalizado - ACESSO';
 
+export const ACCESS_PERSONAL_TRAINING_TEMPLATE_SOURCE_TITLE =
+  'Cópia de INSTRUMENTO PARTICULAR DE PRESTAÇÃO DE SERVIÇO DE TREINAMENTO FÍSICO INDIVIDUALIZADO - 2025 - ACESSO';
+
+export const ACCESS_PERSONAL_TRAINING_TEMPLATE_SOURCE_ID =
+  '1g91qEC3w3TDG_4a4mRvdB9bLkQH00Fr_YgqcOtYi3Lk';
+
+export const ACCESS_PERSONAL_TRAINING_TEMPLATE_SOURCE_DATE =
+  '22 de abril de 2026';
+
+export const ACCESS_PERSONAL_TRAINING_TEMPLATE_SOURCE =
+  `${ACCESS_PERSONAL_TRAINING_TEMPLATE_SOURCE_TITLE} (Google Drive ID ${ACCESS_PERSONAL_TRAINING_TEMPLATE_SOURCE_ID}), versão consultada em ${ACCESS_PERSONAL_TRAINING_TEMPLATE_SOURCE_DATE}`;
+
+export const ACCESS_YEAR_END_RECESS_CLAUSE =
+  '<p><strong>6.5.</strong> Durante o período de recesso compreendido entre 24/12/2025 e 04/01/2026, não serão realizados atendimentos presenciais regulares. Nesse período, o CONTRATANTE terá direito à planilha de treinamento e à assessoria para ajustes e esclarecimento de dúvidas por internet ou telefone. As avaliações físicas oficiais previstas para esse período deverão ser agendadas fora do horário regular de atendimento, em data acordada entre as partes.</p>';
+
 export function createAccessPersonalTrainingTemplate(): Partial<ContractTemplate> {
   return {
     name: ACCESS_PERSONAL_TRAINING_TEMPLATE_NAME,
     description:
-      'Modelo ACESSO para prestação de serviços de treinamento físico personalizado, baseado no instrumento particular institucional.',
+      `Modelo ACESSO para prestação de serviços de treinamento físico personalizado, baseado em ${ACCESS_PERSONAL_TRAINING_TEMPLATE_SOURCE}.`,
     version: 1,
     status: 'DRAFT',
     headerHtml: `
@@ -114,7 +129,7 @@ export function createAccessPersonalTrainingTemplate(): Partial<ContractTemplate
 <p><strong>6.2.</strong> As sessões que coincidirem com pontos facultativos e não forem realizadas por necessidade do CONTRATADO terão direito à reposição além do limite do item 5.6. Quando não realizadas por necessidade do CONTRATANTE, serão consideradas realizadas, sem direito à reposição.</p>
 <p><strong>6.3.</strong> Durante as férias do CONTRATANTE, quando este estiver impossibilitado de comparecer às sessões, será disponibilizada planilha de treinamento para o período de ausência. O pagamento mensal será mantido integralmente, pois o horário permanecerá reservado e a assessoria continuará disponível. As sessões desse período não terão direito à reposição.</p>
 <p><strong>6.4.</strong> O CONTRATADO terá direito a 30 (trinta) dias de férias por ano, que poderão ser usufruídos de forma contínua ou parcelada, desde que os períodos não sejam inferiores a 7 (sete) dias. Durante as férias do CONTRATADO, os serviços continuarão sendo oferecidos por profissional competente, de sua confiança, treinado e certificado para dar continuidade ao programa. O CONTRATADO comunicará os períodos de férias com, no mínimo, 15 (quinze) dias de antecedência ou no ato da contratação quando esta ocorrer a menos de 15 (quinze) dias de férias já planejadas.</p>
-<p><strong>6.5.</strong> Durante o recesso de fim de ano definido e comunicado anualmente pelo CONTRATADO, os atendimentos presenciais regulares poderão ser suspensos. Nesse período, o CONTRATANTE terá direito à planilha de treinamento e à assessoria para ajustes e dúvidas por internet ou telefone. As avaliações físicas oficiais poderão ser agendadas fora do horário regular para compensar os atendimentos presenciais não realizados durante o recesso.</p>
+${ACCESS_YEAR_END_RECESS_CLAUSE}
 `.trim(),
         required: true,
         editable: true,
