@@ -17,6 +17,24 @@ jobs:
   validate:
     name: Validate repository
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/training_system_test?schema=public
+      RUN_DATABASE_INTEGRATION_TESTS: 'true'
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: training_system_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d training_system_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - name: Checkout
@@ -38,6 +56,9 @@ jobs:
 
       - name: Generate Prisma Client (api)
         run: pnpm --filter @corrida/api exec prisma generate
+
+      - name: Apply test database migrations
+        run: pnpm --filter @corrida/api exec prisma migrate deploy
 
       - name: Type check
         run: pnpm type-check 2>&1 | tee type-check-output.log
