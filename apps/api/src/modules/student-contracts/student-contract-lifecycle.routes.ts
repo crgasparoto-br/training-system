@@ -1,4 +1,4 @@
-import { Router, type Request, type Response } from 'express';
+import { Router, type NextFunction, type Request, type Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { sendError, sendSuccess } from '@corrida/utils';
 import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js';
@@ -11,6 +11,22 @@ const prisma = new PrismaClient();
 
 router.use(authMiddleware);
 router.use(professorMiddleware);
+
+router.patch(
+  '/:id/contracts/:studentContractId',
+  blockAccessMiddleware('students.actions.manageFinancialContract'),
+  (req: Request, res: Response, next: NextFunction) => {
+    if (Object.prototype.hasOwnProperty.call(req.body ?? {}, 'status')) {
+      return sendError(
+        res,
+        'O status do vínculo contratual deve ser alterado pelo fluxo de vigência',
+        400
+      );
+    }
+
+    return next();
+  }
+);
 
 router.post(
   '/:id/contracts/:studentContractId/activate',
