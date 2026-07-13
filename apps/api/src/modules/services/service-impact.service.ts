@@ -14,6 +14,47 @@ type OptionImpactRow = {
 
 const firstCount = (rows: CountRow[]) => Number(rows[0]?.count ?? 0);
 
+export async function assertActiveCatalogComponentTarget(
+  contractId: string,
+  targetServiceId?: string | null,
+  targetOptionId?: string | null
+) {
+  if (targetServiceId) {
+    const target = await prisma.serviceOption.findFirst({
+      where: {
+        id: targetServiceId,
+        contractId,
+        parentServiceId: null,
+        isActive: true,
+      },
+      select: { id: true },
+    });
+
+    if (!target) {
+      throw new Error('O serviço selecionado está inativo ou não pertence a este contrato');
+    }
+  }
+
+  if (targetOptionId) {
+    const target = await prisma.serviceCommercialOption.findFirst({
+      where: {
+        id: targetOptionId,
+        contractId,
+        isActive: true,
+        service: {
+          contractId,
+          isActive: true,
+        },
+      },
+      select: { id: true },
+    });
+
+    if (!target) {
+      throw new Error('A opção comercial selecionada está inativa ou não pertence a este contrato');
+    }
+  }
+}
+
 export async function getServiceCatalogImpact(
   contractId: string,
   serviceId: string
