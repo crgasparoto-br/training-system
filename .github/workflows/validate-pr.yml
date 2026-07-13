@@ -40,13 +40,31 @@ jobs:
         run: pnpm --filter @corrida/api exec prisma generate
 
       - name: Type check
-        run: pnpm type-check
+        run: pnpm type-check 2>&1 | tee type-check-output.log
+
+      - name: Upload type-check output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: type-check-output-${{ github.run_id }}
+          path: type-check-output.log
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Lint
         run: pnpm lint
 
       - name: Test
-        run: pnpm test
+        run: pnpm test 2>&1 | tee test-output.log
+
+      - name: Upload test output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-output-${{ github.run_id }}
+          path: test-output.log
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Architecture checks
         run: pnpm arch:check
