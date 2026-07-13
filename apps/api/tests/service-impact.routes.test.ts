@@ -7,11 +7,9 @@ let mockContractId: string | undefined = 'contract-1';
 
 const mockGetServiceCatalogImpact = jest.fn();
 const mockGetCommercialOptionImpact = jest.fn();
-const mockAssertServiceInactivationConfirmation = jest.fn();
-const mockAssertCommercialOptionInactivationConfirmation = jest.fn();
 const mockAssertActiveCatalogComponentTarget = jest.fn();
-const mockUpdateCatalogService = jest.fn();
-const mockUpdateCommercialOption = jest.fn();
+const mockUpdateCatalogServiceWithImpact = jest.fn();
+const mockUpdateCommercialOptionWithImpact = jest.fn();
 const mockCreatePlanComponent = jest.fn();
 const mockUpdatePlanComponent = jest.fn();
 
@@ -47,16 +45,16 @@ jest.mock('../src/modules/access-control/access-control.middleware', () => ({
 jest.mock('../src/modules/services/service-impact.service', () => ({
   getServiceCatalogImpact: mockGetServiceCatalogImpact,
   getCommercialOptionImpact: mockGetCommercialOptionImpact,
-  assertServiceInactivationConfirmation: mockAssertServiceInactivationConfirmation,
-  assertCommercialOptionInactivationConfirmation:
-    mockAssertCommercialOptionInactivationConfirmation,
   assertActiveCatalogComponentTarget: mockAssertActiveCatalogComponentTarget,
+}));
+
+jest.mock('../src/modules/services/service-catalog-guarded-update.service', () => ({
+  updateCatalogServiceWithImpact: mockUpdateCatalogServiceWithImpact,
+  updateCommercialOptionWithImpact: mockUpdateCommercialOptionWithImpact,
 }));
 
 jest.mock('../src/modules/services/service.service', () => ({
   serviceCatalogService: {
-    updateCatalogService: mockUpdateCatalogService,
-    updateCommercialOption: mockUpdateCommercialOption,
     createPlanComponent: mockCreatePlanComponent,
     updatePlanComponent: mockUpdatePlanComponent,
   },
@@ -101,11 +99,15 @@ describe('service catalog impact routes', () => {
     jest.clearAllMocks();
     mockGetServiceCatalogImpact.mockResolvedValue(serviceImpact);
     mockGetCommercialOptionImpact.mockResolvedValue(optionImpact);
-    mockAssertServiceInactivationConfirmation.mockResolvedValue(serviceImpact);
-    mockAssertCommercialOptionInactivationConfirmation.mockResolvedValue(optionImpact);
     mockAssertActiveCatalogComponentTarget.mockResolvedValue(undefined);
-    mockUpdateCatalogService.mockResolvedValue({ id: 'service-1', isActive: false });
-    mockUpdateCommercialOption.mockResolvedValue({ id: 'option-1', isActive: false });
+    mockUpdateCatalogServiceWithImpact.mockResolvedValue({
+      id: 'service-1',
+      isActive: false,
+    });
+    mockUpdateCommercialOptionWithImpact.mockResolvedValue({
+      id: 'option-1',
+      isActive: false,
+    });
     mockCreatePlanComponent.mockResolvedValue({ id: 'component-1' });
     mockUpdatePlanComponent.mockResolvedValue({ id: 'component-1' });
   });
@@ -147,25 +149,29 @@ describe('service catalog impact routes', () => {
 
     expect(response.status).toBe(400);
     expect(response.body.error).toBe('Dados inválidos');
-    expect(mockUpdateCatalogService).not.toHaveBeenCalled();
+    expect(mockUpdateCatalogServiceWithImpact).not.toHaveBeenCalled();
   });
 
-  it('requires a fresh impact confirmation before service inactivation', async () => {
+  it('returns the guarded conflict when impact confirmation is missing', async () => {
     const conflict = Object.assign(
       new Error('Revise e confirme o impacto atualizado antes de inativar este item'),
       { statusCode: 409 }
     );
-    mockAssertServiceInactivationConfirmation.mockRejectedValue(conflict);
+    mockUpdateCatalogServiceWithImpact.mockRejectedValue(conflict);
 
     const response = await request(app)
       .put('/services/catalog/service-1')
       .send({ isActive: false });
 
     expect(response.status).toBe(409);
-    expect(mockUpdateCatalogService).not.toHaveBeenCalled();
+    expect(mockUpdateCatalogServiceWithImpact).toHaveBeenCalledWith(
+      'contract-1',
+      'service-1',
+      { isActive: false }
+    );
   });
 
-  it('passes the observed version and exact count when service inactivation is confirmed', async () => {
+  it('passes the observed version and exact count to the guarded service update', async () => {
     const impactConfirmation = {
       resourceUpdatedAt: '2026-07-13T12:00:00.000Z',
       affectedPlans: 2,
@@ -176,17 +182,14 @@ describe('service catalog impact routes', () => {
       .send({ isActive: false, impactConfirmation });
 
     expect(response.status).toBe(200);
-    expect(mockAssertServiceInactivationConfirmation).toHaveBeenCalledWith(
+    expect(mockUpdateCatalogServiceWithImpact).toHaveBeenCalledWith(
       'contract-1',
       'service-1',
-      impactConfirmation
+      { isActive: false, impactConfirmation }
     );
-    expect(mockUpdateCatalogService).toHaveBeenCalledWith('contract-1', 'service-1', {
-      isActive: false,
-    });
   });
 
-  it('requires exact impact confirmation before option inactivation', async () => {
+  it('passes exact impact confirmation to the guarded option update', async () => {
     const impactConfirmation = {
       resourceUpdatedAt: '2026-07-13T12:00:00.000Z',
       affectedPlans: 1,
@@ -197,14 +200,11 @@ describe('service catalog impact routes', () => {
       .send({ isActive: false, impactConfirmation });
 
     expect(response.status).toBe(200);
-    expect(mockAssertCommercialOptionInactivationConfirmation).toHaveBeenCalledWith(
+    expect(mockUpdateCommercialOptionWithImpact).toHaveBeenCalledWith(
       'contract-1',
       'option-1',
-      impactConfirmation
+      { isActive: false, impactConfirmation }
     );
-    expect(mockUpdateCommercialOption).toHaveBeenCalledWith('contract-1', 'option-1', {
-      isActive: false,
-    });
   });
 
   it('blocks a new component when its target is inactive or belongs to another contract', async () => {
