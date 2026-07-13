@@ -6,12 +6,14 @@ Aplicar o catálogo estruturado da épica #210 por contrato sem interromper o ca
 
 ## Ordem obrigatória
 
-1. Publicar e aplicar a migration `20260710230000_services_commercial_catalog`.
-2. Publicar a API e a interface na mesma janela de rollout.
-3. Executar a carga em simulação para cada contrato alvo.
-4. Revisar conflitos e a quantidade de registros projetados.
-5. Executar a carga real somente após a revisão.
-6. Validar o catálogo, o Serviço de Interesse e os vínculos contratuais.
+1. Confirmar backup recuperável do banco e registrar o identificador do backup.
+2. Publicar e aplicar a migration `20260710230000_services_commercial_catalog`.
+3. Publicar a API e a interface na mesma janela de rollout.
+4. Executar a carga em simulação para cada contrato alvo.
+5. Revisar conflitos e a quantidade de registros projetados.
+6. Executar a carga real somente após a revisão.
+7. Validar o catálogo, o Serviço de Interesse e os vínculos contratuais.
+8. Repetir a simulação para comprovar idempotência e registrar a evidência na issue ou PR.
 
 A API nova depende das tabelas e colunas da migration. O comando de produção da API executa `prisma migrate deploy` antes de iniciar o servidor, evitando que uma versão nova consulte um schema antigo.
 
@@ -43,6 +45,8 @@ A simulação informa:
 - serviços preservados;
 - conflitos que exigem revisão manual.
 
+Registre a saída completa da simulação. Conflitos não devem ser corrigidos por edição direta no banco; alinhe o código estável e o nome na aplicação antes da carga real.
+
 ## Comando com gravação
 
 ```bash
@@ -55,6 +59,30 @@ A carga é incremental e idempotente por códigos estáveis:
 - não sobrescreve serviço já existente;
 - não duplica serviço, opção, item textual ou componente reconhecido;
 - registra divergências de nome como conflito em vez de corrigi-las silenciosamente.
+
+Depois da carga, repita o comando com `--dry-run`. O resultado esperado é ausência de novas criações, exceto quando houver alteração intencional no catálogo de referência.
+
+## Auditoria de impacto antes de mudanças sensíveis
+
+A tela **Configurações > Serviços** possui o bloco **Auditoria de impacto do catálogo**. Selecione um serviço para revisar, sempre dentro do contrato autenticado:
+
+- alunos vinculados;
+- vínculos contratuais do aluno;
+- modelos de contrato;
+- documentos contratuais gerados;
+- componentes do próprio plano;
+- planos que usam o serviço diretamente;
+- planos que usam opções comerciais do serviço.
+
+A mesma informação está disponível em:
+
+```http
+GET /api/v1/services/catalog/:serviceId/impact
+```
+
+O endpoint exige autenticação e acesso a `settings.services`. O `contractId` é obtido da sessão; não é aceito como parâmetro do cliente.
+
+A inativação é o mecanismo seguro para retirar um serviço de novas seleções. Ela preserva os registros históricos e as referências existentes. Novas composições não podem apontar para serviço ou opção comercial inativos, nem para registros de outro contrato.
 
 ## Matriz inicial
 
@@ -81,7 +109,15 @@ Durante o rollout:
 - as antigas ofertas com `parentServiceId` permanecem armazenadas, mas deixam de ser a fonte da nova tela;
 - rollback da aplicação pode usar a interface/API anterior porque os registros legados não são apagados.
 
-A reversão da migration não deve ser feita enquanto houver dados nas novas tabelas. Em caso de falha, reverta primeiro a aplicação e preserve a migration até planejar uma migração reversa de dados.
+A reversão da migration não deve ser feita enquanto houver dados nas novas tabelas. Em caso de falha:
+
+1. interrompa novas alterações no catálogo;
+2. reverta a aplicação para a versão anterior;
+3. preserve a migration e os dados estruturados;
+4. compare a carga executada com o backup e a saída da simulação;
+5. planeje uma migração reversa explícita somente se a restauração dos dados for realmente necessária.
+
+Não apague serviços, opções, componentes, modelos ou contratos para realizar rollback. A exclusão física fica fora do fluxo de rollout.
 
 ## Checklist pós-carga
 
@@ -93,5 +129,7 @@ A reversão da migration não deve ser feita enquanto houver dados nas novas tab
 - validar busca, filtros, inativos e visão Combinações e valores;
 - cadastrar/editar aluno e confirmar Serviço de Interesse;
 - validar contratos gerados e vínculos existentes;
+- consultar a auditoria de impacto de ao menos um serviço com referências e outro sem referências;
+- tentar criar composição com alvo inativo e confirmar o bloqueio;
 - executar novamente em `--dry-run` e confirmar ausência de novas criações inesperadas;
-- registrar contrato, ambiente, operador e resultado na issue/PR.
+- registrar contrato, ambiente, operador, backup, comandos, resultados e evidências na issue/PR.
