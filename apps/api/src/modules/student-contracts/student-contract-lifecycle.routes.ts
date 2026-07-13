@@ -5,7 +5,7 @@ import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js'
 import { blockAccessMiddleware } from '../access-control/access-control.middleware.js';
 import { studentContractLifecycleService } from './student-contract-lifecycle.service.js';
 
-const router = Router();
+const router: Router = Router();
 const prisma = new PrismaClient();
 
 router.use(authMiddleware);
