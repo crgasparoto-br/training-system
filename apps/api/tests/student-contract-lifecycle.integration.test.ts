@@ -158,10 +158,7 @@ async function createFixture(options: {
   });
 
   return {
-    professor,
     aluno,
-    template,
-    oldDocument,
     oldLink,
     candidateDocument,
     candidateLink,
@@ -194,7 +191,7 @@ describeDatabase('student contract lifecycle with PostgreSQL', () => {
     await prisma.companyContract.create({
       data: {
         id: companyContractId,
-        type: ContractType.CNPJ,
+        type: ContractType.academy,
         document: '57365610000301',
         name: 'Contrato Ciclo de Vida',
       },
@@ -260,9 +257,7 @@ describeDatabase('student contract lifecycle with PostgreSQL', () => {
     expect(candidateDocument.publicTokenHash).toBeNull();
     expect(candidateLink.status).toBe('canceled');
     expect(audit.details).toEqual(
-      expect.objectContaining({
-        rejectionReason: 'Não concordo com as condições',
-      })
+      expect.objectContaining({ rejectionReason: 'Não concordo com as condições' })
     );
     expect(lifecycle.aluno.currentStudentContractId).toBe(fixture.oldLink.id);
     expect(lifecycle.links.filter((link) => link.status === 'active')).toHaveLength(1);
@@ -287,9 +282,7 @@ describeDatabase('student contract lifecycle with PostgreSQL', () => {
     ).rejects.toThrow('Link expirado');
 
     const lifecycle = await readLifecycle(fixture.aluno.id);
-    const candidate = lifecycle.links.find(
-      (link) => link.id === fixture.candidateLink.id
-    );
+    const candidate = lifecycle.links.find((link) => link.id === fixture.candidateLink.id);
     expect(candidate?.status).toBe('expired');
     expect(lifecycle.aluno.currentStudentContractId).toBe(fixture.oldLink.id);
     expect(lifecycle.links.filter((link) => link.status === 'active')).toHaveLength(1);
@@ -363,10 +356,13 @@ describeDatabase('student contract lifecycle with PostgreSQL', () => {
       beforeDue.links.find((link) => link.id === fixture.candidateLink.id)?.status
     ).toBe('pending_signature');
 
-    const earlyRun = await studentContractLifecycleService.activateDueSignedContracts(
-      new Date(effectiveAt.getTime() - 1)
-    );
-    expect(earlyRun.activated).toBe(0);
+    expect(
+      (
+        await studentContractLifecycleService.activateDueSignedContracts(
+          new Date(effectiveAt.getTime() - 1)
+        )
+      ).activated
+    ).toBe(0);
 
     const dueRun = await studentContractLifecycleService.activateDueSignedContracts(
       effectiveAt
