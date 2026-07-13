@@ -32,6 +32,22 @@ const activateCandidateAt = async (
   studentContractId: string,
   effectiveAt: Date
 ) => {
+  const initialCandidate = await client.studentContract.findUnique({
+    where: { id: studentContractId },
+    select: { alunoId: true },
+  });
+
+  if (!initialCandidate) {
+    throw new Error('Vínculo do contrato substituto não encontrado');
+  }
+
+  await client.$queryRaw(Prisma.sql`
+    SELECT "id"
+    FROM "Aluno"
+    WHERE "id" = ${initialCandidate.alunoId}
+    FOR UPDATE
+  `);
+
   const candidate = await client.studentContract.findUnique({
     where: { id: studentContractId },
     include: {
@@ -47,6 +63,22 @@ const activateCandidateAt = async (
 
   if (!candidate) {
     throw new Error('Vínculo do contrato substituto não encontrado');
+  }
+
+  if (candidate.status === 'active') {
+    await client.aluno.update({
+      where: { id: candidate.alunoId },
+      data: { currentStudentContractId: candidate.id },
+    });
+    return candidate;
+  }
+
+  if (
+    candidate.status === 'canceled' ||
+    candidate.status === 'expired' ||
+    candidate.status === 'terminated'
+  ) {
+    throw new Error('Contrato substituto não está disponível para ativação');
   }
 
   if (candidate.contract.status !== 'SIGNED') {
@@ -233,6 +265,25 @@ export const studentContractLifecycleService = {
         throw new Error('Contrato não está disponível para assinatura');
       }
 
+      const claimed = await tx.contract.updateMany({
+        where: {
+          id: contract.id,
+          publicTokenHash: tokenDigest,
+          status: { notIn: ['SIGNED', 'CANCELLED', 'EXPIRED'] },
+        },
+        data: {
+          status: 'SIGNED',
+          signedAt,
+          documentHash,
+          publicTokenHash: null,
+          publicTokenExpiresAt: null,
+        },
+      });
+
+      if (claimed.count !== 1) {
+        throw new Error('Link inválido ou já utilizado');
+      }
+
       const signature = await tx.contractSignature.create({
         data: {
           contractId: contract.id,
@@ -243,17 +294,6 @@ export const studentContractLifecycleService = {
           userAgent: actor.userAgent,
           documentHash,
           acceptedAt: signedAt,
-        },
-      });
-
-      await tx.contract.update({
-        where: { id: contract.id },
-        data: {
-          status: 'SIGNED',
-          signedAt,
-          documentHash,
-          publicTokenHash: null,
-          publicTokenExpiresAt: null,
         },
       });
 
@@ -300,6 +340,16 @@ export const studentContractLifecycleService = {
 
     if (!candidate) {
       throw new Error('Vínculo de contrato do aluno não encontrado');
+    }
+
+    if (
+      candidate.contract.status === 'CANCELLED' ||
+      candidate.contract.status === 'EXPIRED' ||
+      candidate.status === 'canceled' ||
+      candidate.status === 'expired' ||
+      candidate.status === 'terminated'
+    ) {
+      throw new Error('Contrato substituto não está disponível para ativação');
     }
 
     if (candidate.contract.status !== 'SIGNED') {
