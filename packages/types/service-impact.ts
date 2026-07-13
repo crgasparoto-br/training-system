@@ -1,14 +1,20 @@
+export interface ServiceCatalogImpactConfirmation {
+  resourceUpdatedAt: string;
+  affectedPlans: number;
+}
+
 export interface ServiceCatalogOptionImpact {
   optionId: string;
   optionCode: string;
   optionName: string;
   isActive: boolean;
-  planComponents: number;
+  affectedPlans: number;
 }
 
 export interface ServiceCatalogImpact {
   contractId: string;
   serviceId: string;
+  resourceUpdatedAt: string;
   alunos: number;
   studentContracts: number;
   contractTemplates: number;
@@ -16,6 +22,15 @@ export interface ServiceCatalogImpact {
   planComponentsOwned: number;
   planComponentsTargetingService: number;
   planComponentsTargetingOptions: number;
+  affectedPlans: number;
   totalReferences: number;
   options: ServiceCatalogOptionImpact[];
+}
+
+export interface ServiceCommercialOptionImpact {
+  contractId: string;
+  serviceId: string;
+  optionId: string;
+  resourceUpdatedAt: string;
+  affectedPlans: number;
 }
