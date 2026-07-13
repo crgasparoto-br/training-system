@@ -27,6 +27,11 @@ const category = z.enum(['assessment', 'individual_service', 'combined_plan']);
 const priceType = z.enum(['fixed', 'free', 'on_request']);
 const order = z.number().int().min(0, 'A ordem deve ser maior ou igual a zero');
 
+export const ServiceCatalogImpactConfirmationSchema = z.object({
+  resourceUpdatedAt: z.string().datetime({ offset: true }),
+  affectedPlans: z.number().int().min(0),
+});
+
 export const CreateCatalogServiceSchema = z.object({
   name: z.string().trim().min(2, 'Informe um nome com pelo menos 2 caracteres'),
   code: z.string().trim().min(2, 'Informe um código estável'),
@@ -47,6 +52,7 @@ export const UpdateCatalogServiceSchema = z.object({
   targetAudience: nullableText,
   displayOrder: order.optional(),
   isActive: z.boolean().optional(),
+  impactConfirmation: ServiceCatalogImpactConfirmationSchema.optional(),
 });
 
 export const CreateCommercialOptionSchema = z.object({
@@ -75,6 +81,7 @@ export const UpdateCommercialOptionSchema = z.object({
   validUntil: optionalDate,
   isActive: z.boolean().optional(),
   displayOrder: order.optional(),
+  impactConfirmation: ServiceCatalogImpactConfirmationSchema.optional(),
 });
 
 export const CreatePresentationItemSchema = z.object({

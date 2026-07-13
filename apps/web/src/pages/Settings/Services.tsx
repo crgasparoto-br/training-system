@@ -1,1 +1,1 @@
-export { default } from './ServicesCatalog';
+export { default } from './ServicesCatalogAuditPage';
