@@ -25,6 +25,7 @@ import {
   buildServiceInactivationMessage,
   toImpactConfirmation,
 } from './service-catalog-inactivation';
+import { publishServiceCatalogMutation } from './service-catalog-events';
 
 interface ApiResponse<T> {
   success: boolean;
@@ -84,6 +85,7 @@ export const serviceCatalogService = {
 
   async createCatalogService(data: CreateServiceRequest): Promise<ServiceCatalogDetail> {
     const response = await api.post<ApiResponse<ServiceCatalogDetail>>('/services/catalog', data);
+    publishServiceCatalogMutation({ kind: 'service', resourceId: response.data.data.id });
     return response.data.data;
   },
 
@@ -104,6 +106,7 @@ export const serviceCatalogService = {
       `/services/catalog/${id}`,
       request
     );
+    publishServiceCatalogMutation({ kind: 'service', resourceId: id, serviceId: id });
     return response.data.data;
   },
 
@@ -112,6 +115,11 @@ export const serviceCatalogService = {
       `/services/catalog/${serviceId}/options`,
       data
     );
+    publishServiceCatalogMutation({
+      kind: 'option',
+      resourceId: response.data.data.id,
+      serviceId,
+    });
     return response.data.data;
   },
 
@@ -132,6 +140,11 @@ export const serviceCatalogService = {
       `/services/catalog/options/${id}`,
       request
     );
+    publishServiceCatalogMutation({
+      kind: 'option',
+      resourceId: id,
+      serviceId: response.data.data.serviceId,
+    });
     return response.data.data;
   },
 
@@ -140,6 +153,7 @@ export const serviceCatalogService = {
       `/services/catalog/${serviceId}/options/reorder`,
       data
     );
+    publishServiceCatalogMutation({ kind: 'reorder', serviceId });
     return response.data.data;
   },
 
@@ -148,6 +162,11 @@ export const serviceCatalogService = {
       `/services/catalog/${serviceId}/presentation-items`,
       data
     );
+    publishServiceCatalogMutation({
+      kind: 'presentation',
+      resourceId: response.data.data.id,
+      serviceId,
+    });
     return response.data.data;
   },
 
@@ -156,6 +175,7 @@ export const serviceCatalogService = {
       `/services/catalog/presentation-items/${id}`,
       data
     );
+    publishServiceCatalogMutation({ kind: 'presentation', resourceId: id });
     return response.data.data;
   },
 
@@ -164,6 +184,7 @@ export const serviceCatalogService = {
       `/services/catalog/${serviceId}/presentation-items/reorder`,
       data
     );
+    publishServiceCatalogMutation({ kind: 'reorder', serviceId });
     return response.data.data;
   },
 
@@ -172,6 +193,11 @@ export const serviceCatalogService = {
       `/services/catalog/${serviceId}/components`,
       data
     );
+    publishServiceCatalogMutation({
+      kind: 'component',
+      resourceId: response.data.data.id,
+      serviceId,
+    });
     return response.data.data;
   },
 
@@ -180,6 +206,7 @@ export const serviceCatalogService = {
       `/services/catalog/components/${id}`,
       data
     );
+    publishServiceCatalogMutation({ kind: 'component', resourceId: id });
     return response.data.data;
   },
 
@@ -188,6 +215,7 @@ export const serviceCatalogService = {
       `/services/catalog/${serviceId}/components/reorder`,
       data
     );
+    publishServiceCatalogMutation({ kind: 'reorder', serviceId });
     return response.data.data;
   },
 
@@ -196,16 +224,21 @@ export const serviceCatalogService = {
       '/services/catalog/bootstrap',
       { dryRun }
     );
+    if (!dryRun) {
+      publishServiceCatalogMutation({ kind: 'bootstrap' });
+    }
     return response.data.data;
   },
 
   async create(data: CreateServiceRequest): Promise<ServiceOption> {
     const response = await api.post<ApiResponse<ServiceOption>>('/services', data);
+    publishServiceCatalogMutation({ kind: 'service', resourceId: response.data.data.id });
     return response.data.data;
   },
 
   async update(id: string, data: UpdateServiceRequest): Promise<ServiceOption> {
     const response = await api.put<ApiResponse<ServiceOption>>(`/services/${id}`, data);
+    publishServiceCatalogMutation({ kind: 'service', resourceId: id });
     return response.data.data;
   },
 };
