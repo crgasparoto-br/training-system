@@ -1,4 +1,4 @@
-﻿export interface AlunoProfile {
+export interface AlunoProfile {
   id: string;
   userId: string;
   professorId: string;
@@ -7,7 +7,7 @@
   birthDate?: Date;
   gender?: 'male' | 'female' | 'other';
   
-  // Dados AntropomÃ©tricos
+  // Dados Antropométricos
   age: number;
   weight: number; // kg
   height: number; // cm
@@ -94,3 +94,40 @@ export interface UpdateAlunoRequest {
   intakeForm?: AlunoIntakeForm;
 }
 
+export type StudentContractActivationReason =
+  | 'awaiting_signature'
+  | 'scheduled_start'
+  | 'activated';
+
+export type StudentContractLifecycleStatus =
+  | 'draft'
+  | 'pending_signature'
+  | 'active'
+  | 'expired'
+  | 'canceled'
+  | 'terminated';
+
+export interface StudentContractActivationLink {
+  id: string;
+  alunoId: string;
+  contractId: string;
+  serviceId: string | null;
+  status: StudentContractLifecycleStatus;
+  startDate: string | null;
+  endDate: string | null;
+  signedAt: string | null;
+  canceledAt: string | null;
+  cancellationReason: string | null;
+  amount: number | null;
+  paymentDay: number | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StudentContractActivationResponse {
+  studentContract: StudentContractActivationLink;
+  activationDeferred: boolean;
+  reason: StudentContractActivationReason;
+  effectiveAt?: string;
+}

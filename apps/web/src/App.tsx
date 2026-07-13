@@ -1,3 +1,5 @@
+import './services/contract-replacement-confirm-copy';
+import './services/student-contract-activation-adapter';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Login } from './pages/Login';
 import type { ReactElement } from 'react';
@@ -9,6 +11,7 @@ import { Alunos } from './pages/Alunos';
 import { StudentCentral } from './pages/StudentCentral';
 import { StudentCentralEdit } from './pages/StudentCentralEdit';
 import { AlunoForm } from './pages/AlunoForm';
+import { AlunoFormWithContractLifecycle } from './pages/AlunoFormWithContractLifecycle';
 import { AlunoDetails } from './pages/AlunoDetails';
 import { Plans } from './pages/Plans';
 import { PlanForm } from './pages/PlanForm';
@@ -35,6 +38,7 @@ import AlunoContracts from './pages/AlunoContracts';
 import PublicContractSignature from './pages/PublicContractSignature';
 import { DashboardLayout } from './layouts/DashboardLayout';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { StudentContractActivationNotice } from './components/StudentContractActivationNotice';
 import { useAuthStore } from './stores/useAuthStore';
 import { canAccessScreen } from './access/access-control';
 import { AppErrorBoundary } from './components/AppErrorBoundary';
@@ -79,6 +83,7 @@ function App() {
   return (
     <AppErrorBoundary>
       <BrowserRouter>
+        <StudentContractActivationNotice />
         <Routes>
         {/* Public Routes */}
         <Route path="/login" element={<Login />} />
@@ -106,7 +111,7 @@ function App() {
             element={withAnyAccess(['students.registration', 'students.consultation', 'students.details'], <AlunoDetails />)}
           />
           <Route path="alunos/:id/contracts" element={withAccess('students.registration', <AlunoContracts />)} />
-          <Route path="alunos/:id/edit" element={withAccess('students.registration', <AlunoForm />)} />
+          <Route path="alunos/:id/edit" element={withAccess('students.registration', <AlunoFormWithContractLifecycle />)} />
           <Route path="central-do-aluno" element={withAccess('students.consultation', <StudentCentral />)} />
           <Route
             path="central-do-aluno/:id"
