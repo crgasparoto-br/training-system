@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { PrismaClient, type Prisma } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { resolveSignedContractActivation } from './student-contract-activation.js';
 
 const prisma = new PrismaClient();
