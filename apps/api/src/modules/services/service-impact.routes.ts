@@ -1,15 +1,22 @@
-import { Router, type Request, type Response } from 'express';
+import {
+  Router,
+  type NextFunction,
+  type Request,
+  type Response,
+} from 'express';
 import { z } from 'zod';
 import { sendError, sendSuccess } from '@corrida/utils';
 import { authMiddleware, masterMiddleware } from '../auth/auth.middleware.js';
 import { screenAccessMiddleware } from '../access-control/access-control.middleware.js';
 import {
   assertActiveCatalogComponentTarget,
-  assertCommercialOptionInactivationConfirmation,
-  assertServiceInactivationConfirmation,
   getCommercialOptionImpact,
   getServiceCatalogImpact,
 } from './service-impact.service.js';
+import {
+  updateCatalogServiceWithImpact,
+  updateCommercialOptionWithImpact,
+} from './service-catalog-guarded-update.service.js';
 import { serviceCatalogService } from './service.service.js';
 import {
   CreatePlanComponentSchema,
@@ -70,25 +77,10 @@ router.get(
 
 router.put('/catalog/:id', ...writeAccess, async (req: Request, res: Response) => {
   try {
-    const contractId = getContractId(req);
-    const parsed = UpdateCatalogServiceSchema.parse(req.body);
-    const { impactConfirmation, ...payload } = parsed;
-
-    if (payload.isActive === false) {
-      const currentImpact = await getServiceCatalogImpact(contractId, req.params.id);
-      if (currentImpact.serviceIsActive) {
-        await assertServiceInactivationConfirmation(
-          contractId,
-          req.params.id,
-          impactConfirmation
-        );
-      }
-    }
-
-    const item = await serviceCatalogService.updateCatalogService(
-      contractId,
+    const item = await updateCatalogServiceWithImpact(
+      getContractId(req),
       req.params.id,
-      payload
+      UpdateCatalogServiceSchema.parse(req.body)
     );
     return sendSuccess(res, item, 'Serviço atualizado com sucesso');
   } catch (error) {
@@ -101,28 +93,10 @@ router.put(
   ...writeAccess,
   async (req: Request, res: Response) => {
     try {
-      const contractId = getContractId(req);
-      const parsed = UpdateCommercialOptionSchema.parse(req.body);
-      const { impactConfirmation, ...payload } = parsed;
-
-      if (payload.isActive === false) {
-        const currentImpact = await getCommercialOptionImpact(
-          contractId,
-          req.params.optionId
-        );
-        if (currentImpact.optionIsActive) {
-          await assertCommercialOptionInactivationConfirmation(
-            contractId,
-            req.params.optionId,
-            impactConfirmation
-          );
-        }
-      }
-
-      const item = await serviceCatalogService.updateCommercialOption(
-        contractId,
+      const item = await updateCommercialOptionWithImpact(
+        getContractId(req),
         req.params.optionId,
-        payload as any
+        UpdateCommercialOptionSchema.parse(req.body)
       );
       return sendSuccess(res, item, 'Opção comercial atualizada com sucesso');
     } catch (error) {
@@ -178,6 +152,25 @@ router.put(
     } catch (error) {
       return handleError(res, error, 'Erro ao atualizar componente');
     }
+  }
+);
+
+// O adaptador legado permanece disponível para edições administrativas, mas não
+// pode contornar a auditoria obrigatória de impacto do catálogo estruturado.
+router.put(
+  '/:id',
+  authMiddleware,
+  masterMiddleware,
+  (req: Request, res: Response, next: NextFunction) => {
+    if (req.body?.isActive === false) {
+      return sendError(
+        res,
+        'Inative serviços e opções pela tela de catálogo para revisar e confirmar o impacto',
+        400
+      );
+    }
+
+    return next();
   }
 );
 
