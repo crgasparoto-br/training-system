@@ -1,19 +1,15 @@
-import { describe, expect, it } from 'vitest';
 import { resolveSignedContractActivation } from '../src/modules/student-contracts/student-contract-activation.js';
+
+const shouldReplaceCurrentContract = (candidateDocumentStatus: string) =>
+  candidateDocumentStatus === 'SIGNED';
 
 describe('contract replacement lifecycle policy', () => {
   it('não encerra o vigente antes da assinatura do candidato', () => {
-    const candidateDocumentStatus = 'VIEWED';
-    const shouldReplaceCurrent = candidateDocumentStatus === 'SIGNED';
-
-    expect(shouldReplaceCurrent).toBe(false);
+    expect(shouldReplaceCurrentContract('VIEWED')).toBe(false);
   });
 
   it('uma recusa do candidato não autoriza substituir o vigente', () => {
-    const candidateDocumentStatus = 'REJECTED';
-    const shouldReplaceCurrent = candidateDocumentStatus === 'SIGNED';
-
-    expect(shouldReplaceCurrent).toBe(false);
+    expect(shouldReplaceCurrentContract('REJECTED')).toBe(false);
   });
 
   it('usa a mesma data efetiva para terminar o anterior e iniciar o novo', () => {
