@@ -1,4 +1,3 @@
-import { describe, expect, it } from 'vitest';
 import { resolveSignedContractActivation } from '../src/modules/student-contracts/student-contract-activation.js';
 
 describe('resolveSignedContractActivation', () => {
