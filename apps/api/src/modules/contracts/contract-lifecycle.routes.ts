@@ -2,7 +2,7 @@ import { Router, type Request, type Response } from 'express';
 import { sendError, sendSuccess } from '@corrida/utils';
 import { studentContractLifecycleService } from '../student-contracts/student-contract-lifecycle.service.js';
 
-const router = Router();
+const router: Router = Router();
 
 const actorFromRequest = (req: Request) => ({
   userId: req.user?.userId,
