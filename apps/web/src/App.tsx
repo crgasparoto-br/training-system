@@ -1,4 +1,5 @@
 import './services/contract-replacement-confirm-copy';
+import './services/student-contract-activation-adapter';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Login } from './pages/Login';
 import type { ReactElement } from 'react';
@@ -37,6 +38,7 @@ import AlunoContracts from './pages/AlunoContracts';
 import PublicContractSignature from './pages/PublicContractSignature';
 import { DashboardLayout } from './layouts/DashboardLayout';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { StudentContractActivationNotice } from './components/StudentContractActivationNotice';
 import { useAuthStore } from './stores/useAuthStore';
 import { canAccessScreen } from './access/access-control';
 import { AppErrorBoundary } from './components/AppErrorBoundary';
@@ -81,6 +83,7 @@ function App() {
   return (
     <AppErrorBoundary>
       <BrowserRouter>
+        <StudentContractActivationNotice />
         <Routes>
         {/* Public Routes */}
         <Route path="/login" element={<Login />} />
