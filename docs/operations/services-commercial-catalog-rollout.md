@@ -66,23 +66,34 @@ Depois da carga, repita o comando com `--dry-run`. O resultado esperado é ausê
 
 A tela **Configurações > Serviços** possui o bloco **Auditoria de impacto do catálogo**. Selecione um serviço para revisar, sempre dentro do contrato autenticado:
 
+- quantidade exata de planos ativos distintos afetados;
 - alunos vinculados;
 - vínculos contratuais do aluno;
 - modelos de contrato;
 - documentos contratuais gerados;
-- componentes do próprio plano;
-- planos que usam o serviço diretamente;
-- planos que usam opções comerciais do serviço.
+- componentes ativos do próprio plano;
+- planos ativos que usam o serviço diretamente;
+- planos ativos que usam opções comerciais do serviço.
 
 A mesma informação está disponível em:
 
 ```http
 GET /api/v1/services/catalog/:serviceId/impact
+GET /api/v1/services/catalog/options/:optionId/impact
 ```
 
-O endpoint exige autenticação e acesso a `settings.services`. O `contractId` é obtido da sessão; não é aceito como parâmetro do cliente.
+Os endpoints exigem autenticação e acesso a `settings.services`. O `contractId` é obtido da sessão; não é aceito como parâmetro do cliente. IDs de outro contrato recebem a mesma resposta de item não encontrado, sem revelar existência ou conteúdo.
 
-A inativação é o mecanismo seguro para retirar um serviço de novas seleções. Ela preserva os registros históricos e as referências existentes. Novas composições não podem apontar para serviço ou opção comercial inativos, nem para registros de outro contrato.
+### Confirmação de inativação
+
+Ao inativar um serviço ou opção comercial, a interface consulta o impacto no backend e mostra a quantidade exata de planos ativos distintos afetados. A confirmação enviada à API contém:
+
+- `resourceUpdatedAt`: versão observada do serviço ou opção;
+- `affectedPlans`: quantidade observada de planos ativos afetados.
+
+A API recalcula o impacto antes de gravar. Se a versão ou a quantidade tiver mudado entre a consulta e a confirmação, a operação retorna HTTP `409` e nenhuma alteração é salva. O usuário deve atualizar a análise e confirmar novamente.
+
+A inativação preserva vínculos, componentes e documentos existentes para consulta histórica. O item deixa de ficar disponível para novos vínculos e composições. Novas composições não podem apontar para serviço ou opção comercial inativos, nem para registros de outro contrato.
 
 ## Matriz inicial
 
@@ -130,6 +141,8 @@ Não apague serviços, opções, componentes, modelos ou contratos para realizar
 - cadastrar/editar aluno e confirmar Serviço de Interesse;
 - validar contratos gerados e vínculos existentes;
 - consultar a auditoria de impacto de ao menos um serviço com referências e outro sem referências;
-- tentar criar composição com alvo inativo e confirmar o bloqueio;
+- validar confirmação de inativação com zero, um e múltiplos planos ativos;
+- alterar uma composição entre a consulta e a confirmação e validar o conflito HTTP `409`;
+- tentar criar composição com alvo inativo ou de outro contrato e confirmar o bloqueio;
 - executar novamente em `--dry-run` e confirmar ausência de novas criações inesperadas;
 - registrar contrato, ambiente, operador, backup, comandos, resultados e evidências na issue/PR.
