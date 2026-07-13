@@ -1,5 +1,9 @@
 import { Prisma, PrismaClient } from '@prisma/client';
-import type { ServiceCatalogImpact } from '@corrida/types';
+import type {
+  ServiceCatalogImpact,
+  ServiceCatalogImpactConfirmation,
+  ServiceCommercialOptionImpact,
+} from '@corrida/types';
 
 const prisma = new PrismaClient();
 
@@ -9,10 +13,40 @@ type OptionImpactRow = {
   optionCode: string;
   optionName: string;
   isActive: boolean;
-  planComponents: bigint;
+  affectedPlans: bigint;
 };
 
 const firstCount = (rows: CountRow[]) => Number(rows[0]?.count ?? 0);
+
+export class ServiceCatalogImpactConflictError extends Error {
+  readonly statusCode = 409;
+
+  constructor(message: string) {
+    super(message);
+    this.name = 'ServiceCatalogImpactConflictError';
+  }
+}
+
+function assertImpactConfirmation(
+  confirmation: ServiceCatalogImpactConfirmation | undefined,
+  resourceUpdatedAt: string,
+  affectedPlans: number
+) {
+  if (!confirmation) {
+    throw new ServiceCatalogImpactConflictError(
+      'Revise e confirme o impacto atualizado antes de inativar este item'
+    );
+  }
+
+  if (
+    confirmation.resourceUpdatedAt !== resourceUpdatedAt ||
+    confirmation.affectedPlans !== affectedPlans
+  ) {
+    throw new ServiceCatalogImpactConflictError(
+      'O catálogo foi alterado após a consulta de impacto. Atualize a análise e confirme novamente.'
+    );
+  }
+}
 
 export async function assertActiveCatalogComponentTarget(
   contractId: string,
@@ -55,6 +89,70 @@ export async function assertActiveCatalogComponentTarget(
   }
 }
 
+export async function getCommercialOptionImpact(
+  contractId: string,
+  optionId: string
+): Promise<ServiceCommercialOptionImpact> {
+  const option = await prisma.serviceCommercialOption.findFirst({
+    where: { id: optionId, contractId },
+    select: {
+      id: true,
+      serviceId: true,
+      isActive: true,
+      updatedAt: true,
+    },
+  });
+
+  if (!option) {
+    throw new Error('Opção comercial não encontrada');
+  }
+
+  const rows = await prisma.$queryRaw<CountRow[]>(Prisma.sql`
+    SELECT COUNT(DISTINCT component."planServiceId")::bigint AS "count"
+    FROM "ServicePlanComponent" component
+    WHERE component."contractId" = ${contractId}
+      AND component."targetOptionId" = ${optionId}
+      AND component."isActive" = true
+  `);
+
+  return {
+    contractId,
+    serviceId: option.serviceId,
+    optionId,
+    optionIsActive: option.isActive,
+    resourceUpdatedAt: option.updatedAt.toISOString(),
+    affectedPlans: firstCount(rows),
+  };
+}
+
+export async function assertServiceInactivationConfirmation(
+  contractId: string,
+  serviceId: string,
+  confirmation?: ServiceCatalogImpactConfirmation
+) {
+  const impact = await getServiceCatalogImpact(contractId, serviceId);
+  assertImpactConfirmation(
+    confirmation,
+    impact.resourceUpdatedAt,
+    impact.affectedPlans
+  );
+  return impact;
+}
+
+export async function assertCommercialOptionInactivationConfirmation(
+  contractId: string,
+  optionId: string,
+  confirmation?: ServiceCatalogImpactConfirmation
+) {
+  const impact = await getCommercialOptionImpact(contractId, optionId);
+  assertImpactConfirmation(
+    confirmation,
+    impact.resourceUpdatedAt,
+    impact.affectedPlans
+  );
+  return impact;
+}
+
 export async function getServiceCatalogImpact(
   contractId: string,
   serviceId: string
@@ -65,7 +163,11 @@ export async function getServiceCatalogImpact(
       contractId,
       parentServiceId: null,
     },
-    select: { id: true },
+    select: {
+      id: true,
+      isActive: true,
+      updatedAt: true,
+    },
   });
 
   if (!service) {
@@ -80,6 +182,7 @@ export async function getServiceCatalogImpact(
     planComponentsOwnedRows,
     planComponentsTargetingServiceRows,
     planComponentsTargetingOptionsRows,
+    affectedPlansRows,
     optionRows,
   ] = await Promise.all([
     prisma.aluno.count({
@@ -99,21 +202,41 @@ export async function getServiceCatalogImpact(
     prisma.$queryRaw<CountRow[]>(Prisma.sql`
       SELECT COUNT(*)::bigint AS "count"
       FROM "ServicePlanComponent"
-      WHERE "contractId" = ${contractId} AND "planServiceId" = ${serviceId}
+      WHERE "contractId" = ${contractId}
+        AND "planServiceId" = ${serviceId}
+        AND "isActive" = true
     `),
     prisma.$queryRaw<CountRow[]>(Prisma.sql`
-      SELECT COUNT(*)::bigint AS "count"
+      SELECT COUNT(DISTINCT "planServiceId")::bigint AS "count"
       FROM "ServicePlanComponent"
-      WHERE "contractId" = ${contractId} AND "targetServiceId" = ${serviceId}
+      WHERE "contractId" = ${contractId}
+        AND "targetServiceId" = ${serviceId}
+        AND "isActive" = true
     `),
     prisma.$queryRaw<CountRow[]>(Prisma.sql`
-      SELECT COUNT(*)::bigint AS "count"
+      SELECT COUNT(DISTINCT component."planServiceId")::bigint AS "count"
       FROM "ServicePlanComponent" component
       INNER JOIN "ServiceCommercialOption" option
         ON option."id" = component."targetOptionId"
       WHERE component."contractId" = ${contractId}
+        AND component."isActive" = true
         AND option."contractId" = ${contractId}
         AND option."serviceId" = ${serviceId}
+    `),
+    prisma.$queryRaw<CountRow[]>(Prisma.sql`
+      SELECT COUNT(DISTINCT component."planServiceId")::bigint AS "count"
+      FROM "ServicePlanComponent" component
+      LEFT JOIN "ServiceCommercialOption" option
+        ON option."id" = component."targetOptionId"
+      WHERE component."contractId" = ${contractId}
+        AND component."isActive" = true
+        AND (
+          component."targetServiceId" = ${serviceId}
+          OR (
+            option."contractId" = ${contractId}
+            AND option."serviceId" = ${serviceId}
+          )
+        )
     `),
     prisma.$queryRaw<OptionImpactRow[]>(Prisma.sql`
       SELECT
@@ -121,11 +244,12 @@ export async function getServiceCatalogImpact(
         option."code" AS "optionCode",
         option."name" AS "optionName",
         option."isActive" AS "isActive",
-        COUNT(component."id")::bigint AS "planComponents"
+        COUNT(DISTINCT component."planServiceId")::bigint AS "affectedPlans"
       FROM "ServiceCommercialOption" option
       LEFT JOIN "ServicePlanComponent" component
         ON component."contractId" = ${contractId}
         AND component."targetOptionId" = option."id"
+        AND component."isActive" = true
       WHERE option."contractId" = ${contractId}
         AND option."serviceId" = ${serviceId}
       GROUP BY option."id", option."code", option."name", option."isActive"
@@ -136,6 +260,7 @@ export async function getServiceCatalogImpact(
   const planComponentsOwned = firstCount(planComponentsOwnedRows);
   const planComponentsTargetingService = firstCount(planComponentsTargetingServiceRows);
   const planComponentsTargetingOptions = firstCount(planComponentsTargetingOptionsRows);
+  const affectedPlans = firstCount(affectedPlansRows);
   const totalReferences =
     alunos +
     studentContracts +
@@ -148,6 +273,8 @@ export async function getServiceCatalogImpact(
   return {
     contractId,
     serviceId,
+    serviceIsActive: service.isActive,
+    resourceUpdatedAt: service.updatedAt.toISOString(),
     alunos,
     studentContracts,
     contractTemplates,
@@ -155,13 +282,14 @@ export async function getServiceCatalogImpact(
     planComponentsOwned,
     planComponentsTargetingService,
     planComponentsTargetingOptions,
+    affectedPlans,
     totalReferences,
     options: optionRows.map((row) => ({
       optionId: row.optionId,
       optionCode: row.optionCode,
       optionName: row.optionName,
       isActive: row.isActive,
-      planComponents: Number(row.planComponents),
+      affectedPlans: Number(row.affectedPlans),
     })),
   };
 }
