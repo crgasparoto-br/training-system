@@ -28,6 +28,7 @@ Este registro complementa o runbook `services-commercial-catalog-rollout.md` e s
 | Mutação relacionada concorrente | `service-audit-gaps-contract` | inserir componente após consultar impacto e reutilizar confirmação antiga | versão invalidada, resposta `409` e item permanece ativo |
 | Bypass legado | `service-audit-gaps-contract` | tentar `PUT /services/:id` com `isActive=false` | resposta `400`; inativação exige a rota auditada do catálogo |
 | Alvo inativo no banco | `service-audit-gaps-contract` | inserir componente ativo apontando para serviço inativo | trigger rejeita a gravação e nenhuma relação inválida permanece |
+| Serviço de Interesse HTTP | `service-interest-http-contract-a` e `service-interest-http-contract-b` | teste `aluno-service-interest-http.integration.test.ts` com autenticação, permissão e banco reais | edição autorizada persiste; resposta `403` e falha cross-tenant preservam integralmente o serviço e os demais campos anteriores |
 | Fonte jurídica | teste web `contractTemplatePresets.test.ts` | validar ID, título, data da revisão e cláusula 6.5 | fonte rastreável, data `22 de abril de 2026` e modelo mantido em `DRAFT` |
 
 A referência oficial da execução deve ser o workflow **Validate PR** da PR de catálogo. O link e o número do run são registrados na descrição da PR após a conclusão.
