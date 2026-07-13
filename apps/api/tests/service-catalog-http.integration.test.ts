@@ -32,7 +32,7 @@ async function createContract(id: string, document: string) {
   return prisma.companyContract.create({
     data: {
       id,
-      type: ContractType.CNPJ,
+      type: ContractType.academy,
       document,
       name: `Contrato ${id}`,
     },
