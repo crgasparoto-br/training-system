@@ -137,8 +137,15 @@ export function installContractReplacementPreconfirmation({
   root.addEventListener('change', confirmReplacementBeforeApplying, true);
   targetWindow.confirm = confirm;
 
+  const observerTarget = root instanceof Document ? root.body : root;
+  const observer = new MutationObserver(confirmExistingReplacementPanel);
+  if (observerTarget instanceof Node) {
+    observer.observe(observerTarget, { childList: true, subtree: true });
+  }
+
   return () => {
     root.removeEventListener('change', confirmReplacementBeforeApplying, true);
+    observer.disconnect();
     acceptedReplacementId = '';
     automaticallyConfirmedPanelForId = '';
     if (targetWindow.confirm === confirm) {
