@@ -200,7 +200,26 @@ export async function prepareOrActivateStudentContractInTransaction(
     };
   }
 
-  const signedAt = candidate.contract.signedAt ?? candidate.signedAt ?? now;
+  const persistedSignedAt = candidate.contract.signedAt ?? candidate.signedAt;
+  if (
+    persistedSignedAt &&
+    candidate.startDate &&
+    candidate.startDate.getTime() <= now.getTime()
+  ) {
+    const activated = await activateCandidateAt(
+      tx,
+      candidate.id,
+      candidate.startDate
+    );
+    return {
+      studentContract: activated,
+      activationDeferred: false,
+      reason: 'activated',
+      effectiveAt: candidate.startDate,
+    };
+  }
+
+  const signedAt = persistedSignedAt ?? now;
   const lifecycle = await registerSignedCandidate(tx, candidate.id, signedAt);
 
   return {
