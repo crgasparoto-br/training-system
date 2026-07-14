@@ -3,9 +3,11 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AlunoFormWithContractDelivery } from './AlunoFormWithContractDelivery';
 
-const submitSpy = vi.fn();
-const listStudentContracts = vi.fn();
-const getDocument = vi.fn();
+const mocks = vi.hoisted(() => ({
+  submit: vi.fn(),
+  listStudentContracts: vi.fn(),
+  getDocument: vi.fn(),
+}));
 
 vi.mock('react-router-dom', () => ({
   useParams: () => ({ id: 'student-1' }),
@@ -13,13 +15,13 @@ vi.mock('react-router-dom', () => ({
 
 vi.mock('../services/aluno.service', () => ({
   alunoService: {
-    listStudentContracts,
+    listStudentContracts: mocks.listStudentContracts,
   },
 }));
 
 vi.mock('../services/contract.service', () => ({
   contractService: {
-    getDocument,
+    getDocument: mocks.getDocument,
     sendForSignature: vi.fn(),
   },
 }));
@@ -30,7 +32,7 @@ vi.mock('./AlunoFormWithContractPreview', () => ({
       data-testid="student-form"
       onSubmit={(event) => {
         event.preventDefault();
-        submitSpy();
+        mocks.submit();
       }}
     >
       <div id="aluno-contract-section-slot">
@@ -99,15 +101,15 @@ const generatedContract = (id: string) => ({
 
 describe('AlunoFormWithContractDelivery replacement blocker', () => {
   beforeEach(() => {
-    submitSpy.mockReset();
-    listStudentContracts.mockReset();
-    getDocument.mockReset();
-    listStudentContracts.mockResolvedValue({
+    mocks.submit.mockReset();
+    mocks.listStudentContracts.mockReset();
+    mocks.getDocument.mockReset();
+    mocks.listStudentContracts.mockResolvedValue({
       alunoId: 'student-1',
       activeContract,
       contracts: [activeContract],
     });
-    getDocument.mockImplementation(async (id: string) => generatedContract(id));
+    mocks.getDocument.mockImplementation(async (id: string) => generatedContract(id));
   });
 
   it('restores the active contract when the user cancels the replacement', async () => {
@@ -117,7 +119,9 @@ describe('AlunoFormWithContractDelivery replacement blocker', () => {
 
     render(<AlunoFormWithContractDelivery />);
 
-    await waitFor(() => expect(listStudentContracts).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(mocks.listStudentContracts).toHaveBeenCalledTimes(1)
+    );
     const select = screen.getByLabelText('Contrato') as HTMLSelectElement;
     await user.selectOptions(select, 'contract-new');
 
@@ -135,7 +139,9 @@ describe('AlunoFormWithContractDelivery replacement blocker', () => {
 
     render(<AlunoFormWithContractDelivery />);
 
-    await waitFor(() => expect(listStudentContracts).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(mocks.listStudentContracts).toHaveBeenCalledTimes(1)
+    );
     const select = screen.getByLabelText('Contrato') as HTMLSelectElement;
     await user.selectOptions(select, 'contract-new');
 
@@ -146,7 +152,7 @@ describe('AlunoFormWithContractDelivery replacement blocker', () => {
 
     fireEvent.submit(screen.getByTestId('student-form'));
 
-    expect(submitSpy).toHaveBeenCalledTimes(1);
+    expect(mocks.submit).toHaveBeenCalledTimes(1);
     expect(nativeConfirm).toHaveBeenCalledTimes(1);
   });
 });
