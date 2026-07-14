@@ -1,4 +1,4 @@
-import { PrismaClient, type Prisma, type StudentContractStatus } from '@prisma/client';
+import { PrismaClient, type Prisma } from '@prisma/client';
 import bcryptjs from 'bcryptjs';
 import crypto from 'crypto';
 import { assertStudentInterestServiceSelectable } from './aluno.service-selection.js';
@@ -6,6 +6,7 @@ import type { CreateAlunoDTO, UpdateAlunoDTO } from './aluno.service.js';
 import { contractDocumentService } from '../contracts/contract-document.service.js';
 import { loadContractServiceVariableContext } from '../contracts/contract-service-context.js';
 import { parseActiveContractTemplateReference } from '../student-contracts/student-contract-reference.js';
+import { prepareOrActivateStudentContractInTransaction } from '../student-contracts/student-contract-lifecycle-transaction.js';
 
 const prisma = new PrismaClient();
 
@@ -140,7 +141,10 @@ const hasAnyValue = (payload: Record<string, unknown>) =>
     if (typeof value === 'string') return value.trim().length > 0;
     if (typeof value === 'object') {
       return Object.values(value as Record<string, unknown>).some(
-        (nested) => nested === true || nested === false || (nested !== undefined && nested !== null && nested !== '')
+        (nested) =>
+          nested === true ||
+          nested === false ||
+          (nested !== undefined && nested !== null && nested !== '')
       );
     }
     return true;
@@ -148,6 +152,41 @@ const hasAnyValue = (payload: Record<string, unknown>) =>
 
 const toInputJson = (value?: Record<string, unknown>): Prisma.InputJsonValue | undefined =>
   value as Prisma.InputJsonValue | undefined;
+
+const asRecord = (value: unknown): Record<string, unknown> | null =>
+  value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+
+const readPersistedFinancialCurrentService = (formResponses: unknown) => {
+  const financial = asRecord(asRecord(formResponses)?.financial);
+  const currentService = financial?.currentService;
+  return typeof currentService === 'string' ? currentService : undefined;
+};
+
+/**
+ * currentService is a denormalized read model. During the atomic mutation the
+ * client may update the remaining financial form fields, but only the
+ * StudentContract synchronization is allowed to write the current service.
+ */
+export const preserveAuthoritativeFinancialCurrentService = (
+  formResponses?: Record<string, unknown>,
+  persistedCurrentService?: string
+) => {
+  if (!formResponses) return undefined;
+
+  const normalized: Record<string, unknown> = { ...formResponses };
+  const financial = asRecord(normalized.financial);
+  if (!financial) return normalized;
+
+  const normalizedFinancial: Record<string, unknown> = { ...financial };
+  delete normalizedFinancial.currentService;
+  if (persistedCurrentService !== undefined) {
+    normalizedFinancial.currentService = persistedCurrentService;
+  }
+  normalized.financial = normalizedFinancial;
+  return normalized;
+};
 
 const getResponsibleProfessorIdFromFormResponses = (
   formResponses?: Record<string, unknown>
@@ -256,7 +295,9 @@ const createAlunoRecord = async (
         trainingBackground: data.intakeForm.trainingBackground,
         observations: data.intakeForm.observations,
         parqResponses: data.intakeForm.parqResponses,
-        formResponses: toInputJson(data.intakeForm.formResponses),
+        formResponses: toInputJson(
+          preserveAuthoritativeFinancialCurrentService(data.intakeForm.formResponses)
+        ),
       },
     });
     await createParqSubmission(tx, {
@@ -306,7 +347,7 @@ const updateAlunoRecord = async (
       currentStudentContract: {
         select: { contract: { select: { companyContractId: true } } },
       },
-      intakeForm: { select: { parqResponses: true } },
+      intakeForm: { select: { parqResponses: true, formResponses: true } },
     },
   });
 
@@ -339,7 +380,9 @@ const updateAlunoRecord = async (
       where: { id: desiredProfessorId, contractId: options.companyContractId },
       select: { id: true },
     });
-    if (!targetProfessor) throw new Error('Professor responsável inválido para este contrato');
+    if (!targetProfessor) {
+      throw new Error('Professor responsável inválido para este contrato');
+    }
     alunoData.professorId = targetProfessor.id as never;
   }
 
@@ -376,6 +419,14 @@ const updateAlunoRecord = async (
   }
 
   if (intakeForm && hasAnyValue(intakeForm)) {
+    const persistedCurrentService = readPersistedFinancialCurrentService(
+      currentAluno.intakeForm?.formResponses
+    );
+    const formResponses = preserveAuthoritativeFinancialCurrentService(
+      intakeForm.formResponses,
+      persistedCurrentService
+    );
+
     await tx.alunoIntakeForm.upsert({
       where: { alunoId },
       create: {
@@ -388,7 +439,7 @@ const updateAlunoRecord = async (
         trainingBackground: intakeForm.trainingBackground,
         observations: intakeForm.observations,
         parqResponses: intakeForm.parqResponses,
-        formResponses: toInputJson(intakeForm.formResponses),
+        formResponses: toInputJson(formResponses),
       },
       update: {
         assessmentDate: intakeForm.assessmentDate,
@@ -399,13 +450,16 @@ const updateAlunoRecord = async (
         trainingBackground: intakeForm.trainingBackground,
         observations: intakeForm.observations,
         parqResponses: intakeForm.parqResponses,
-        formResponses: toInputJson(intakeForm.formResponses),
+        formResponses: toInputJson(formResponses),
       },
     });
 
     if (
       hasParqResponsesChanged(
-        currentAluno.intakeForm?.parqResponses as Partial<ParqResponseShape> | null | undefined,
+        currentAluno.intakeForm?.parqResponses as
+          | Partial<ParqResponseShape>
+          | null
+          | undefined,
         intakeForm.parqResponses
       )
     ) {
@@ -418,7 +472,10 @@ const updateAlunoRecord = async (
   }
 };
 
-const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+const currency = new Intl.NumberFormat('pt-BR', {
+  style: 'currency',
+  currency: 'BRL',
+});
 const dateFormat = new Intl.DateTimeFormat('pt-BR', {
   day: '2-digit',
   month: '2-digit',
@@ -445,7 +502,8 @@ const amountToWords = (value?: number | null) =>
   value === undefined || value === null || Number.isNaN(value)
     ? ''
     : `${currency.format(value)} reais`;
-const documentHash = (html: string) => crypto.createHash('sha256').update(html).digest('hex');
+const documentHash = (html: string) =>
+  crypto.createHash('sha256').update(html).digest('hex');
 
 const buildTemplateContext = async (
   tx: DbClient,
@@ -612,7 +670,7 @@ export const resolveAuthoritativeStudentContractServiceId = (
   fallbackServiceId?: string | null
 ) => contractServiceId?.trim() || fallbackServiceId?.trim() || null;
 
-const persistAndActivateStudentContract = async (
+const persistStudentContractWithLifecycle = async (
   tx: DbClient,
   alunoId: string,
   contractInput: StudentFinancialContractInput,
@@ -638,7 +696,7 @@ const persistAndActivateStudentContract = async (
     paymentDay: contractInput.paymentDay ?? null,
     notes: contractInput.notes ?? null,
   };
-  let link = existing
+  const link = existing
     ? await tx.studentContract.update({
         where: { id: existing.id },
         data: mutableData,
@@ -652,26 +710,7 @@ const persistAndActivateStudentContract = async (
         },
       });
 
-  const now = new Date();
-  await tx.studentContract.updateMany({
-    where: { alunoId, status: 'active', id: { not: link.id } },
-    data: { status: 'terminated', endDate: now },
-  });
-  link = await tx.studentContract.update({
-    where: { id: link.id },
-    data: {
-      status: 'active' satisfies StudentContractStatus,
-      startDate: link.startDate ?? contractInput.startDate ?? now,
-      signedAt: link.signedAt ?? now,
-      canceledAt: null,
-      cancellationReason: null,
-      serviceId,
-    },
-  });
-  await tx.aluno.update({
-    where: { id: alunoId },
-    data: { currentStudentContractId: link.id },
-  });
+  await prepareOrActivateStudentContractInTransaction(tx, link.id);
 
   return tx.studentContract.findUniqueOrThrow({
     where: { id: link.id },
@@ -690,7 +729,7 @@ export const studentFinancialContractService = {
 
     return prisma.$transaction(async (tx) => {
       const alunoId = await createAlunoRecord(tx, data, options, passwordHash);
-      const studentContract = await persistAndActivateStudentContract(
+      const studentContract = await persistStudentContractWithLifecycle(
         tx,
         alunoId,
         contractInput,
@@ -712,7 +751,7 @@ export const studentFinancialContractService = {
   ) {
     return prisma.$transaction(async (tx) => {
       await updateAlunoRecord(tx, alunoId, data, options);
-      const studentContract = await persistAndActivateStudentContract(
+      const studentContract = await persistStudentContractWithLifecycle(
         tx,
         alunoId,
         contractInput,
