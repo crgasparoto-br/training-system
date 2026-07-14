@@ -6,6 +6,7 @@ import {
   ensurePreservedFinancialServiceControl,
   FINANCIAL_SERVICE_FIELD,
   installFinancialServicePayloadAdapter,
+  readFinancialServiceControlValue,
   readPersistedFinancialServiceName,
   removePreservedFinancialServiceFallback,
   resolveFinancialServiceName,
@@ -29,6 +30,9 @@ export function AlunoFormWithContractValidityOptions() {
   const activeContractIdRef = useRef('');
   const financialServiceValueRef = useRef('');
   const userChangedFinancialServiceRef = useRef(false);
+  const applyingResolvedFinancialServiceRef = useRef(false);
+  const pendingContractServiceTimeoutRef = useRef<number | null>(null);
+  const pendingContractServiceFrameRef = useRef<number | null>(null);
   const [contracts, setContracts] = useState<GeneratedContract[]>([]);
   const [studentContractLinks, setStudentContractLinks] = useState<StudentContractLink[]>([]);
   const [financialServiceName, setFinancialServiceName] = useState('');
@@ -122,27 +126,66 @@ export function AlunoFormWithContractValidityOptions() {
   useEffect(() => {
     if (!financialServiceName) return undefined;
 
+    let active = true;
+
     const syncFinancialService = () => {
-      if (userChangedFinancialServiceRef.current) return;
-      const select = ensurePreservedFinancialServiceControl(document, financialServiceName);
+      const desiredServiceName = userChangedFinancialServiceRef.current
+        ? financialServiceValueRef.current
+        : financialServiceName;
+      const select = ensurePreservedFinancialServiceControl(document, desiredServiceName);
       if (!select) return;
 
-      if (select.value !== financialServiceName) {
-        select.value = financialServiceName;
-        select.dispatchEvent(new Event('change', { bubbles: true }));
+      if (select.value !== desiredServiceName) {
+        applyingResolvedFinancialServiceRef.current = true;
+        try {
+          select.value = desiredServiceName;
+          select.dispatchEvent(new Event('change', { bubbles: true }));
+        } finally {
+          applyingResolvedFinancialServiceRef.current = false;
+        }
       }
-      financialServiceValueRef.current = financialServiceName;
+      financialServiceValueRef.current = desiredServiceName;
+    };
+
+    const captureServiceSelectedByContract = () => {
+      if (!active) return;
+      userChangedFinancialServiceRef.current = true;
+      financialServiceValueRef.current = readFinancialServiceControlValue(document);
+    };
+
+    const scheduleContractServiceCapture = () => {
+      queueMicrotask(captureServiceSelectedByContract);
+      if (pendingContractServiceTimeoutRef.current !== null) {
+        window.clearTimeout(pendingContractServiceTimeoutRef.current);
+      }
+      pendingContractServiceTimeoutRef.current = window.setTimeout(
+        captureServiceSelectedByContract,
+        0
+      );
+      if (pendingContractServiceFrameRef.current !== null) {
+        window.cancelAnimationFrame(pendingContractServiceFrameRef.current);
+      }
+      pendingContractServiceFrameRef.current = window.requestAnimationFrame(
+        captureServiceSelectedByContract
+      );
     };
 
     const registerManualChange = (event: Event) => {
       const target = event.target;
+      if (!(target instanceof HTMLSelectElement)) return;
+
       if (
+        target.name === FINANCIAL_SERVICE_FIELD &&
         event.isTrusted &&
-        target instanceof HTMLSelectElement &&
-        target.name === FINANCIAL_SERVICE_FIELD
+        !applyingResolvedFinancialServiceRef.current
       ) {
         userChangedFinancialServiceRef.current = true;
         financialServiceValueRef.current = target.value;
+        return;
+      }
+
+      if (target.name === CONTRACT_SELECTION_FIELD && event.isTrusted) {
+        scheduleContractServiceCapture();
       }
     };
 
@@ -153,9 +196,18 @@ export function AlunoFormWithContractValidityOptions() {
     const interval = window.setInterval(syncFinancialService, 250);
 
     return () => {
+      active = false;
       document.removeEventListener('change', registerManualChange, true);
       observer.disconnect();
       window.clearInterval(interval);
+      if (pendingContractServiceTimeoutRef.current !== null) {
+        window.clearTimeout(pendingContractServiceTimeoutRef.current);
+        pendingContractServiceTimeoutRef.current = null;
+      }
+      if (pendingContractServiceFrameRef.current !== null) {
+        window.cancelAnimationFrame(pendingContractServiceFrameRef.current);
+        pendingContractServiceFrameRef.current = null;
+      }
       removePreservedFinancialServiceFallback(document);
     };
   }, [financialServiceName]);
