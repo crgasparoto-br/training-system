@@ -11,7 +11,7 @@ import { Alunos } from './pages/Alunos';
 import { StudentCentral } from './pages/StudentCentral';
 import { StudentCentralEdit } from './pages/StudentCentralEdit';
 import { AlunoForm } from './pages/AlunoForm';
-import { AlunoFormWithFinancialContracts } from './pages/AlunoFormWithFinancialContracts';
+import { AlunoFormWithContractValidityOptions } from './pages/AlunoFormWithContractValidityOptions';
 import { AlunoDetails } from './pages/AlunoDetails';
 import { Plans } from './pages/Plans';
 import { PlanForm } from './pages/PlanForm';
@@ -111,7 +111,7 @@ function App() {
             element={withAnyAccess(['students.registration', 'students.consultation', 'students.details'], <AlunoDetails />)}
           />
           <Route path="alunos/:id/contracts" element={withAccess('students.registration', <AlunoContracts />)} />
-          <Route path="alunos/:id/edit" element={withAccess('students.registration', <AlunoFormWithFinancialContracts />)} />
+          <Route path="alunos/:id/edit" element={withAccess('students.registration', <AlunoFormWithContractValidityOptions />)} />
           <Route path="central-do-aluno" element={withAccess('students.consultation', <StudentCentral />)} />
           <Route
             path="central-do-aluno/:id"
