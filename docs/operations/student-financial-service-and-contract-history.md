@@ -15,15 +15,38 @@ A restauração ocorre após os carregamentos assíncronos do aluno, dos víncul
 
 Uma resposta parcial não é interpretada como ausência de serviço. O sistema somente aplica um valor vazio automaticamente quando as fontes do perfil e do contrato ativo foram carregadas com sucesso. Se uma consulta falhar, o adaptador preserva o valor que já integra o payload do formulário em vez de substituí-lo por vazio.
 
-A sincronização do campo é centralizada em um único componente. Isso evita que uma rotina antiga restaure o vínculo anterior enquanto outra rotina aplica a escolha atual. O acompanhamento das alterações permanece ativo mesmo quando o aluno começa sem serviço vigente, permitindo selecionar uma oferta ou contrato e persistir o novo valor corretamente.
+A sincronização visual do campo é centralizada em um único componente. Isso evita que uma rotina antiga restaure o vínculo anterior enquanto outra rotina aplica a escolha atual. O acompanhamento das alterações permanece ativo mesmo quando o aluno começa sem serviço vigente, permitindo selecionar uma oferta ou contrato e persistir o novo valor corretamente.
 
 Ao selecionar outro contrato, o serviço financeiro do próprio contrato passa a ser a nova referência da sessão e não é substituído pelo vínculo anterior. O nome é obtido também para contratos ligados a ofertas inativas; antes de selecionar o valor, a tela adiciona uma opção de preservação ao controle real. Isso impede que o navegador converta a escolha em valor vazio apenas porque a oferta não pertence mais ao catálogo ativo.
 
 Quando a aba Financeiro é desmontada e aberta novamente, o seletor legado é reconstruído inclusive quando o usuário escolheu **Sem serviço vigente**, preservando a alteração manual.
 
-Quando o aluno já possui contrato ativo, a confirmação da substituição ocorre no momento da escolha do novo contrato, antes do salvamento do perfil. A confirmação aceita é propagada para o bloqueio de submissão que já existe na tela, inclusive quando o painel é montado depois da seleção, sem apresentar uma segunda caixa de confirmação. Se o usuário cancelar, o seletor volta ao contrato ativo e nenhuma alteração financeira relacionada à substituição é enviada.
+Quando o aluno já possui contrato ativo, a confirmação da substituição pertence ao componente que bloqueia o envio do formulário. No navegador, a escolha de outro contrato abre a confirmação antes de o formulário aplicar a troca. Se o usuário cancelar, o seletor volta ao contrato vigente e o evento original não prossegue. Se aceitar, a confirmação fica vinculada ao contrato selecionado e o salvamento não apresenta uma segunda caixa de confirmação.
 
-O vínculo `StudentContract` usa prioritariamente o `serviceId` associado ao contrato selecionado. O **Serviço de Interesse** do aluno é usado apenas quando a consulta foi concluída com sucesso e confirmou que o contrato não possui serviço financeiro próprio. Se o contrato não puder ser consultado ou localizado, a criação ou atualização do vínculo é interrompida; o sistema não grava silenciosamente o Serviço de Interesse como substituto.
+A implementação não procura, identifica ou aciona botões por texto ou posição no DOM. O painel visível e o bloqueio de submissão compartilham o mesmo estado controlado.
+
+## Autoridade e transação no backend
+
+`intakeForm.formResponses.financial.currentService` é uma representação desnormalizada para leitura e exibição. Na operação composta de cadastro ou edição, o cliente pode atualizar os demais campos financeiros, mas não é o escritor autoritativo do serviço vigente.
+
+A fonte de verdade do vínculo é:
+
+1. `GeneratedContract.serviceId`, quando preenchido;
+2. o serviço informado como fallback somente quando o contrato persistido não possui serviço próprio.
+
+O mesmo valor é aplicado a `StudentContract.serviceId`. Gatilhos PostgreSQL impedem que inserções ou atualizações gravem um serviço diferente daquele associado ao contrato e propagam alterações posteriores do contrato para o vínculo. Quando o vínculo efetivo muda, o gatilho sincroniza o nome do serviço em `financial.currentService`, preservando os demais campos do JSON financeiro.
+
+A migration `20260714203000_enforce_student_contract_service_authority` também corrige vínculos legados divergentes e atualiza o formulário financeiro do contrato ativo apontado pelo aluno.
+
+Quando existe contrato selecionado, perfil, formulário, vínculo e ciclo contratual são persistidos em uma única transação Prisma. Se o contrato não existir, pertencer a outro aluno/contrato empresarial ou falhar durante a mutação, nenhuma atualização parcial do perfil é confirmada.
+
+O ciclo aplicado dentro da transação respeita o estado documental:
+
+- documento ainda não assinado: vínculo em preparação ou aguardando assinatura, sem encerrar o vigente;
+- documento assinado com início futuro: vínculo agendado, mantendo o vigente até a data efetiva;
+- documento assinado e efetivo: encerramento do vínculo anterior, ativação do substituto e atualização do ponteiro atual na mesma transação.
+
+A mesma função transacional é usada pelo salvamento administrativo, pela assinatura pública e pelo agendador. Isso evita regras divergentes e preserva `StudentContract.endDate` durante preparação, assinatura, agendamento e ativação.
 
 ## Estado e vigência no campo Contrato
 
@@ -50,7 +73,7 @@ Quando já existe uma data final, a ação **Remover vencimento** fica disponív
 
 Datas de início e término são tratadas como **datas civis**, e não como instantes UTC. Um término em `14/07` permanece vigente durante todo o dia 14 no horário local e passa a vencido somente no dia seguinte. As datas retornadas pela API são normalizadas para evitar exibição do dia anterior em fusos negativos, como o Brasil.
 
-Os testes automatizados reproduzem os controles reais de início e duração, o campo visual desabilitado, a remoção intencional no cadastro e na edição, a persistência no perfil e no vínculo, a prioridade do serviço financeiro do contrato, a confirmação única mesmo com painel montado depois da seleção, a reconstrução do seletor sem ofertas ativas, o serviço inativo ausente das opções e falhas de consulta ou carregamento parcial.
+Os testes automatizados reproduzem os controles reais de início e duração, o campo visual desabilitado, a remoção intencional no cadastro e na edição, a persistência no perfil e no vínculo, a prioridade do serviço financeiro do contrato, a confirmação única, a reconstrução do seletor sem ofertas ativas, o serviço inativo ausente das opções e falhas de consulta ou carregamento parcial. A suíte PostgreSQL valida ainda os gatilhos de autoridade, propagação e sincronização.
 
 ## Histórico de contratos
 
@@ -74,7 +97,7 @@ A vigência é calculada a partir do vínculo contratual do aluno:
 
 Cada item apresenta a ação **Consultar**, que abre o documento persistido em modo somente leitura dentro do mesmo modal. O usuário pode retornar à lista, fechar pelo botão, clicar fora da janela ou usar `Esc`.
 
-Esse acesso não modifica as regras de ativação ou substituição. O contrato vigente continua sendo encerrado somente quando o substituto estiver assinado e atingir sua data efetiva de início.
+O contrato vigente continua sendo encerrado somente quando o substituto estiver assinado e atingir sua data efetiva de início.
 
 ## Validação
 
