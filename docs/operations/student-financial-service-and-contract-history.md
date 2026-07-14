@@ -23,6 +23,8 @@ Exemplos:
 
 Modelos ainda não vinculados e documentos que não estão assinados permanecem apenas com seu estado documental. A vigência é atualizada quando as opções do campo ou os vínculos do aluno são carregados, sem mudar o valor selecionado.
 
+A data calculada no campo **Vencimento do contrato** é persistida como `endDate` no vínculo contratual. Quando o usuário limpa essa data, o vínculo também recebe `endDate: null`. Após criar, atualizar ou ativar o vínculo, a tela recarrega documentos e vínculos automaticamente; respostas antigas de carregamentos concorrentes são descartadas para evitar que o seletor volte a apresentar uma vigência desatualizada.
+
 ## Histórico de contratos
 
 O bloco contratual da aba **Financeiro** apresenta a ação **Visualizar contratos**. A ação abre um modal sobre a própria edição do aluno, sem navegar para outra tela e sem perder os dados ainda não salvos do formulário.
