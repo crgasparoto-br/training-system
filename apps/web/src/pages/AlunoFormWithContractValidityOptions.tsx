@@ -31,6 +31,7 @@ export function AlunoFormWithContractValidityOptions() {
   const financialServiceValueRef = useRef('');
   const userChangedFinancialServiceRef = useRef(false);
   const applyingResolvedFinancialServiceRef = useRef(false);
+  const contractServiceCapturePendingRef = useRef(false);
   const pendingContractServiceTimeoutRef = useRef<number | null>(null);
   const pendingContractServiceFrameRef = useRef<number | null>(null);
   const [contracts, setContracts] = useState<GeneratedContract[]>([]);
@@ -129,6 +130,8 @@ export function AlunoFormWithContractValidityOptions() {
     let active = true;
 
     const syncFinancialService = () => {
+      if (contractServiceCapturePendingRef.current) return;
+
       const desiredServiceName = userChangedFinancialServiceRef.current
         ? financialServiceValueRef.current
         : financialServiceName;
@@ -149,11 +152,15 @@ export function AlunoFormWithContractValidityOptions() {
 
     const captureServiceSelectedByContract = () => {
       if (!active) return;
+      contractServiceCapturePendingRef.current = false;
       userChangedFinancialServiceRef.current = true;
       financialServiceValueRef.current = readFinancialServiceControlValue(document);
+      syncFinancialService();
     };
 
     const scheduleContractServiceCapture = () => {
+      contractServiceCapturePendingRef.current = true;
+      userChangedFinancialServiceRef.current = true;
       queueMicrotask(captureServiceSelectedByContract);
       if (pendingContractServiceTimeoutRef.current !== null) {
         window.clearTimeout(pendingContractServiceTimeoutRef.current);
@@ -197,6 +204,7 @@ export function AlunoFormWithContractValidityOptions() {
 
     return () => {
       active = false;
+      contractServiceCapturePendingRef.current = false;
       document.removeEventListener('change', registerManualChange, true);
       observer.disconnect();
       window.clearInterval(interval);
