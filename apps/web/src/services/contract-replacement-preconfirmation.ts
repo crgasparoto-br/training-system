@@ -41,12 +41,24 @@ export function installContractReplacementPreconfirmation({
 }: ContractReplacementPreconfirmationOptions) {
   const originalConfirm = targetWindow.confirm;
   let acceptedReplacementId = '';
+  let automaticallyConfirmedPanelForId = '';
   let restoringSelection = false;
 
   const confirmExistingReplacementPanel = () => {
     const selectedContractId = getContractSelectionControl(root)?.value || '';
-    if (!selectedContractId || selectedContractId !== acceptedReplacementId) return;
-    findReplacementConfirmationButton(root)?.click();
+    if (
+      !selectedContractId ||
+      selectedContractId !== acceptedReplacementId ||
+      automaticallyConfirmedPanelForId === selectedContractId
+    ) {
+      return;
+    }
+
+    const button = findReplacementConfirmationButton(root);
+    if (!button) return;
+
+    automaticallyConfirmedPanelForId = selectedContractId;
+    button.click();
   };
 
   const scheduleExistingReplacementConfirmation = () => {
@@ -73,6 +85,7 @@ export function installContractReplacementPreconfirmation({
 
     if (!activeContractId || !selectedContractId || selectedContractId === activeContractId) {
       acceptedReplacementId = '';
+      automaticallyConfirmedPanelForId = '';
       return;
     }
 
@@ -83,11 +96,13 @@ export function installContractReplacementPreconfirmation({
 
     if (confirmed) {
       acceptedReplacementId = selectedContractId;
+      automaticallyConfirmedPanelForId = '';
       scheduleExistingReplacementConfirmation();
       return;
     }
 
     acceptedReplacementId = '';
+    automaticallyConfirmedPanelForId = '';
     restoringSelection = true;
     try {
       target.value = activeContractId;
@@ -112,6 +127,7 @@ export function installContractReplacementPreconfirmation({
 
     if (acceptedSelection && message === CONTRACT_REPLACEMENT_CONFIRMATION_MESSAGE) {
       acceptedReplacementId = '';
+      automaticallyConfirmedPanelForId = '';
       return true;
     }
 
@@ -124,6 +140,7 @@ export function installContractReplacementPreconfirmation({
   return () => {
     root.removeEventListener('change', confirmReplacementBeforeApplying, true);
     acceptedReplacementId = '';
+    automaticallyConfirmedPanelForId = '';
     if (targetWindow.confirm === confirm) {
       targetWindow.confirm = originalConfirm;
     }
