@@ -67,7 +67,7 @@ describe('contract replacement preconfirmation', () => {
     expect(targetWindow.confirm).toBe(originalConfirm);
   });
 
-  it('confirms a replacement panel mounted after selection without a second dialog', async () => {
+  it('confirms the real blocker panel mounted after selection without relying on button copy', async () => {
     const root = buildRoot();
     const select = root.querySelector<HTMLSelectElement>('select')!;
     select.value = 'contract-a';
@@ -88,7 +88,8 @@ describe('contract replacement preconfirmation', () => {
     const panel = document.createElement('div');
     panel.id = 'aluno-contract-replacement-confirmation';
     const button = document.createElement('button');
-    button.textContent = 'Confirmar preparação da substituição';
+    button.type = 'button';
+    button.textContent = 'Confirmar troca de contrato';
     button.addEventListener('click', () => {
       const confirmed = targetWindow.confirm(
         'O contrato assinado "Contrato A" será encerrado quando este cadastro for salvo. Confirma a troca pelo novo contrato selecionado?'
@@ -100,6 +101,7 @@ describe('contract replacement preconfirmation', () => {
 
     await new Promise((resolve) => setTimeout(resolve, 10));
 
+    expect(button.dataset.contractReplacementConfirmAction).toBe('true');
     expect(replacementApplied).toHaveBeenCalledTimes(1);
     expect(originalConfirm).toHaveBeenCalledTimes(1);
     expect(originalConfirm).toHaveBeenCalledWith(
