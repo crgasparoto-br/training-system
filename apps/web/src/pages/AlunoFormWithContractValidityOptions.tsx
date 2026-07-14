@@ -48,11 +48,6 @@ export function AlunoFormWithContractValidityOptions() {
   const [financialServiceResolutionReady, setFinancialServiceResolutionReady] =
     useState(false);
 
-  const markFinancialServiceResolutionReady = (ready: boolean) => {
-    financialServiceResolutionReadyRef.current = ready;
-    setFinancialServiceResolutionReady(ready);
-  };
-
   const loadContractData = useCallback(async () => {
     if (!id) {
       setContracts([]);
@@ -90,14 +85,15 @@ export function AlunoFormWithContractValidityOptions() {
     });
 
     if (linksResult.status === 'fulfilled') {
+      const loadedLinks = linksResult.value;
       const endDates = new Map<string, string | null | undefined>();
-      links.contracts.forEach((link) => {
+      loadedLinks.contracts.forEach((link) => {
         endDates.set(link.contractId, link.endDate);
         endDates.set(link.contract.id, link.endDate);
       });
       contractEndDatesRef.current = endDates;
-      activeContractIdRef.current = links.activeContract?.contractId ?? '';
-      setStudentContractLinks(links.contracts);
+      activeContractIdRef.current = loadedLinks.activeContract?.contractId ?? '';
+      setStudentContractLinks(loadedLinks.contracts);
     }
 
     if (contractsResult.status === 'fulfilled') {
@@ -128,7 +124,8 @@ export function AlunoFormWithContractValidityOptions() {
     if (!userChangedFinancialServiceRef.current && serviceResolution.shouldApply) {
       setFinancialServiceName(serviceResolution.serviceName);
       financialServiceValueRef.current = serviceResolution.serviceName;
-      markFinancialServiceResolutionReady(true);
+      financialServiceResolutionReadyRef.current = true;
+      setFinancialServiceResolutionReady(true);
     }
   }, [id]);
 
