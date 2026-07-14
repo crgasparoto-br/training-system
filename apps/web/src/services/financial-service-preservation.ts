@@ -74,6 +74,9 @@ export function ensurePreservedFinancialServiceOption(
 const findFinancialServiceControl = (root: ParentNode) =>
   root.querySelector<HTMLSelectElement>(`select[name="${FINANCIAL_SERVICE_FIELD}"]`);
 
+export const readFinancialServiceControlValue = (root: ParentNode = document) =>
+  findFinancialServiceControl(root)?.value ?? '';
+
 const findFinancialServiceEmptyState = (root: ParentNode) =>
   Array.from(root.querySelectorAll<HTMLParagraphElement>('p')).find(
     (paragraph) =>
@@ -85,11 +88,12 @@ export const ensurePreservedFinancialServiceControl = (
   serviceName: string
 ) => {
   const normalizedServiceName = normalizeServiceName(serviceName);
-  if (!normalizedServiceName) return null;
-
   const existingControl = findFinancialServiceControl(root);
+
   if (existingControl) {
-    ensurePreservedFinancialServiceOption(existingControl, normalizedServiceName);
+    if (normalizedServiceName) {
+      ensurePreservedFinancialServiceOption(existingControl, normalizedServiceName);
+    }
     return existingControl;
   }
 
@@ -116,7 +120,9 @@ export const ensurePreservedFinancialServiceControl = (
     emptyState.setAttribute(HIDDEN_EMPTY_STATE_ATTRIBUTE, 'true');
   }
 
-  ensurePreservedFinancialServiceOption(fallback, normalizedServiceName);
+  if (normalizedServiceName) {
+    ensurePreservedFinancialServiceOption(fallback, normalizedServiceName);
+  }
   fallback.value = normalizedServiceName;
   return fallback;
 };
