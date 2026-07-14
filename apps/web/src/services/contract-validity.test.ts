@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { StudentContractLink } from './aluno.service';
-import { resolveContractValidity } from './contract-validity';
+import { parseContractCivilDate, resolveContractValidity } from './contract-validity';
 
 const buildLink = (overrides: Partial<StudentContractLink> = {}): StudentContractLink => ({
   id: 'student-contract-1',
@@ -8,7 +8,7 @@ const buildLink = (overrides: Partial<StudentContractLink> = {}): StudentContrac
   contractId: 'contract-1',
   status: 'active',
   startDate: '2026-01-01T00:00:00.000Z',
-  endDate: '2026-12-31T23:59:59.999Z',
+  endDate: '2026-12-31T00:00:00.000Z',
   signedAt: '2026-01-01T00:00:00.000Z',
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
@@ -23,9 +23,17 @@ const buildLink = (overrides: Partial<StudentContractLink> = {}): StudentContrac
   ...overrides,
 });
 
-const referenceDate = new Date('2026-07-13T12:00:00.000Z');
+const referenceDate = new Date('2026-07-14T12:00:00-03:00');
 
 describe('contract validity', () => {
+  it('parses contract dates as civil dates instead of UTC instants', () => {
+    const parsed = parseContractCivilDate('2026-07-14T00:00:00.000Z');
+
+    expect(parsed?.getFullYear()).toBe(2026);
+    expect(parsed?.getMonth()).toBe(6);
+    expect(parsed?.getDate()).toBe(14);
+  });
+
   it('identifies an active signed contract as current', () => {
     expect(resolveContractValidity('SIGNED', buildLink(), referenceDate)).toEqual({
       status: 'current',
@@ -33,11 +41,21 @@ describe('contract validity', () => {
     });
   });
 
-  it('identifies a signed contract with a past end date as expired', () => {
+  it('keeps a contract current throughout its final civil day', () => {
     expect(
       resolveContractValidity(
         'SIGNED',
-        buildLink({ endDate: '2026-07-12T23:59:59.999Z' }),
+        buildLink({ endDate: '2026-07-14T00:00:00.000Z' }),
+        referenceDate
+      )
+    ).toEqual({ status: 'current', label: 'Vigente' });
+  });
+
+  it('identifies a signed contract as expired on the following civil day', () => {
+    expect(
+      resolveContractValidity(
+        'SIGNED',
+        buildLink({ endDate: '2026-07-13T00:00:00.000Z' }),
         referenceDate
       )
     ).toEqual({ status: 'expired', label: 'Vencido' });
