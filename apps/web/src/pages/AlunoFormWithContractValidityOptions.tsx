@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { alunoService, type StudentContractLink } from '../services/aluno.service';
-import { installContractReplacementPreconfirmation } from '../services/contract-replacement-preconfirmation';
 import { syncContractOptionValidityOptions } from '../services/contract-option-validity';
 import { contractService, type GeneratedContract } from '../services/contract.service';
 import {
@@ -147,10 +146,6 @@ export function AlunoFormWithContractValidityOptions() {
     );
     const uninstallServiceResolutionAdapter =
       installStudentContractServiceResolutionAdapter();
-    const uninstallReplacementPreconfirmation =
-      installContractReplacementPreconfirmation({
-        getActiveContractId: () => activeContractIdRef.current,
-      });
     const uninstallFinancialServiceAdapter = installFinancialServicePayloadAdapter(
       () => {
         if (
@@ -173,7 +168,6 @@ export function AlunoFormWithContractValidityOptions() {
     return () => {
       window.removeEventListener(STUDENT_CONTRACTS_CHANGED_EVENT, refreshContractData);
       uninstallFinancialServiceAdapter();
-      uninstallReplacementPreconfirmation();
       uninstallServiceResolutionAdapter();
       uninstallEndDateAdapter();
       uninstallAtomicAdapter();
