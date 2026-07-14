@@ -53,7 +53,11 @@ export function installStudentContractProfileCreateAdapter(
     const endDate = dueDateRemoved
       ? null
       : calculateContractEndDateFromControls(root) ?? undefined;
-    return originalCreate.call(service, patchProfileContractDueDate(data, endDate));
+    const patchedData = patchProfileContractDueDate(
+      { ...data } as Record<string, unknown>,
+      endDate
+    ) as CreateAlunoDTO;
+    return originalCreate.call(service, patchedData);
   };
 
   root.addEventListener('click', markDueDateRemoved, true);
