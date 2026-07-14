@@ -12,34 +12,57 @@ type StudentContractMutationService = Pick<
   'linkStudentContract' | 'updateStudentContract' | 'activateStudentContract'
 >;
 
+type ContractFormRoot = ParentNode & EventTarget;
+
 export type StudentContractsChangedDetail = {
   alunoId: string;
 };
 
-export const readContractEndDate = (root: ParentNode = document) => {
+export const readContractEndDate = (
+  root: ParentNode = document,
+  blankWasEdited = false
+) => {
   const field = root.querySelector<HTMLInputElement>(
     `[name="${CONTRACT_DUE_DATE_FIELD}"]`
   );
 
   if (!field) return undefined;
-  return field.value.trim() || null;
+
+  const value = field.value.trim();
+  if (value) return value;
+
+  return blankWasEdited ? null : undefined;
 };
 
 export const appendContractEndDate = <
   T extends LinkStudentContractDTO | UpdateStudentContractDTO,
->(data: T, root: ParentNode = document): T => {
-  const endDate = readContractEndDate(root);
+>(data: T, root: ParentNode = document, blankWasEdited = false): T => {
+  const endDate = readContractEndDate(root, blankWasEdited);
   return endDate === undefined ? data : ({ ...data, endDate } as T);
 };
 
 export const installStudentContractEndDateAdapter = (
   service: StudentContractMutationService = alunoService,
-  root: ParentNode = document,
+  root: ContractFormRoot = document,
   eventTarget: EventTarget = window
 ) => {
   const originalLink = service.linkStudentContract;
   const originalUpdate = service.updateStudentContract;
   const originalActivate = service.activateStudentContract;
+  let dueDateWasEdited = false;
+
+  const markDueDateAsEdited = (event: Event) => {
+    const target = event.target;
+    if (
+      target instanceof HTMLInputElement &&
+      target.name === CONTRACT_DUE_DATE_FIELD
+    ) {
+      dueDateWasEdited = true;
+    }
+  };
+
+  root.addEventListener('input', markDueDateAsEdited);
+  root.addEventListener('change', markDueDateAsEdited);
 
   const notifyChanged = (alunoId: string) => {
     eventTarget.dispatchEvent(
@@ -49,8 +72,12 @@ export const installStudentContractEndDateAdapter = (
     );
   };
 
+  const withEndDate = <T extends LinkStudentContractDTO | UpdateStudentContractDTO>(
+    data: T
+  ) => appendContractEndDate(data, root, dueDateWasEdited);
+
   const linkStudentContract: typeof service.linkStudentContract = async (alunoId, data) => {
-    const payload = appendContractEndDate(data, root);
+    const payload = withEndDate(data);
     let result = await originalLink.call(service, alunoId, payload);
 
     if (payload.endDate !== undefined) {
@@ -72,7 +99,7 @@ export const installStudentContractEndDateAdapter = (
       service,
       alunoId,
       studentContractId,
-      appendContractEndDate(data, root)
+      withEndDate(data)
     );
     notifyChanged(alunoId);
     return result;
@@ -92,6 +119,9 @@ export const installStudentContractEndDateAdapter = (
   service.activateStudentContract = activateStudentContract;
 
   return () => {
+    root.removeEventListener('input', markDueDateAsEdited);
+    root.removeEventListener('change', markDueDateAsEdited);
+
     if (service.linkStudentContract === linkStudentContract) {
       service.linkStudentContract = originalLink;
     }
