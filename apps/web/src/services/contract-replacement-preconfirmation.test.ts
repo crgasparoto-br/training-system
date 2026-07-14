@@ -67,26 +67,13 @@ describe('contract replacement preconfirmation', () => {
     expect(targetWindow.confirm).toBe(originalConfirm);
   });
 
-  it('confirms the existing replacement panel without showing a second dialog', async () => {
+  it('confirms a replacement panel mounted after selection without a second dialog', async () => {
     const root = buildRoot();
-    const panel = document.createElement('div');
-    panel.id = 'aluno-contract-replacement-confirmation';
-    const button = document.createElement('button');
-    button.textContent = 'Confirmar preparação da substituição';
-    panel.appendChild(button);
-    root.appendChild(panel);
-
     const select = root.querySelector<HTMLSelectElement>('select')!;
     select.value = 'contract-a';
     const originalConfirm = vi.fn((_message?: string) => true);
     const targetWindow = { confirm: originalConfirm };
     const replacementApplied = vi.fn();
-    button.addEventListener('click', () => {
-      const confirmed = targetWindow.confirm(
-        'O contrato assinado "Contrato A" será encerrado quando este cadastro for salvo. Confirma a troca pelo novo contrato selecionado?'
-      );
-      if (confirmed) replacementApplied();
-    });
 
     const uninstall = installContractReplacementPreconfirmation({
       root,
@@ -97,6 +84,20 @@ describe('contract replacement preconfirmation', () => {
 
     select.value = 'contract-b';
     select.dispatchEvent(new Event('change', { bubbles: true }));
+
+    const panel = document.createElement('div');
+    panel.id = 'aluno-contract-replacement-confirmation';
+    const button = document.createElement('button');
+    button.textContent = 'Confirmar preparação da substituição';
+    button.addEventListener('click', () => {
+      const confirmed = targetWindow.confirm(
+        'O contrato assinado "Contrato A" será encerrado quando este cadastro for salvo. Confirma a troca pelo novo contrato selecionado?'
+      );
+      if (confirmed) replacementApplied();
+    });
+    panel.appendChild(button);
+    root.appendChild(panel);
+
     await new Promise((resolve) => setTimeout(resolve, 10));
 
     expect(replacementApplied).toHaveBeenCalledTimes(1);
