@@ -95,4 +95,48 @@ describe('student contract end date adapter', () => {
     uninstall();
     expect(service.updateStudentContract).toBe(originalUpdate);
   });
+
+  it('updates the generated link so active-template contracts also keep endDate', async () => {
+    const root = document.createElement('div');
+    root.innerHTML =
+      '<input name="intakeForm.financialInfo.contractDueDate" value="2027-01-31" />';
+
+    const createdLink = buildLink({ endDate: null });
+    const persistedLink = buildLink({ endDate: '2027-01-31' });
+    const originalLink = vi.fn(async () => createdLink);
+    const originalUpdate = vi.fn(async () => persistedLink);
+    const service = {
+      linkStudentContract: originalLink,
+      updateStudentContract: originalUpdate,
+      activateStudentContract: vi.fn(async () => persistedLink),
+    } as Pick<
+      typeof alunoService,
+      'linkStudentContract' | 'updateStudentContract' | 'activateStudentContract'
+    >;
+
+    const uninstall = installStudentContractEndDateAdapter(
+      service,
+      root,
+      new EventTarget()
+    );
+
+    const result = await service.linkStudentContract('student-1', {
+      contractId: 'active-template:template-1',
+      startDate: '2026-02-01',
+    });
+
+    expect(originalLink).toHaveBeenCalledWith('student-1', {
+      contractId: 'active-template:template-1',
+      startDate: '2026-02-01',
+      endDate: '2027-01-31',
+    });
+    expect(originalUpdate).toHaveBeenCalledWith(
+      'student-1',
+      createdLink.id,
+      { endDate: '2027-01-31' }
+    );
+    expect(result.endDate).toBe('2027-01-31');
+
+    uninstall();
+  });
 });
