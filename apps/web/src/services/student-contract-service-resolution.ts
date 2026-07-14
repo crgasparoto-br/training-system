@@ -11,7 +11,7 @@ import {
 } from './contract.service';
 import type { AvailableStudentContractFilters } from './contract-query';
 
-const CONTRACT_STATUSES: AvailableStudentContract['status'][] = [
+export const STUDENT_CONTRACT_LOOKUP_STATUSES: AvailableStudentContract['status'][] = [
   'ACTIVE',
   'DRAFT',
   'GENERATED',
@@ -55,21 +55,21 @@ export async function resolveContractServiceId({
   fallbackServiceId?: string | null;
   lookupService?: ContractLookupService;
 }) {
-  try {
-    const availableContracts = await lookupService.listAvailableForStudent({
-      alunoId,
-      status: CONTRACT_STATUSES,
-    });
-    const selectedContract = availableContracts.find((contract) => contract.id === contractId);
+  const availableContracts = await lookupService.listAvailableForStudent({
+    alunoId,
+    status: STUDENT_CONTRACT_LOOKUP_STATUSES,
+  });
+  const selectedContract = availableContracts.find((contract) => contract.id === contractId);
 
-    return (
-      normalizeOptionalId(selectedContract?.serviceId) ||
-      normalizeOptionalId(selectedContract?.service?.id) ||
-      normalizeOptionalId(fallbackServiceId)
-    );
-  } catch {
-    return normalizeOptionalId(fallbackServiceId);
+  if (!selectedContract) {
+    throw new Error('Não foi possível localizar o contrato selecionado para resolver o serviço financeiro.');
   }
+
+  return (
+    normalizeOptionalId(selectedContract.serviceId) ||
+    normalizeOptionalId(selectedContract.service?.id) ||
+    normalizeOptionalId(fallbackServiceId)
+  );
 }
 
 export function installStudentContractServiceResolutionAdapter(
@@ -101,18 +101,22 @@ export function installStudentContractServiceResolutionAdapter(
   ) => {
     const links = await originalList.call(service, alunoId);
     const selectedLink = links.contracts.find((link) => link.id === studentContractId);
+
+    if (!selectedLink) {
+      throw new Error('Não foi possível localizar o vínculo contratual que será atualizado.');
+    }
+
     const contractServiceId =
-      normalizeOptionalId(selectedLink?.contract.serviceId) ||
-      normalizeOptionalId(selectedLink?.service?.id);
-    const serviceId = selectedLink
-      ? contractServiceId ||
-        (await resolveContractServiceId({
-          alunoId,
-          contractId: selectedLink.contractId,
-          fallbackServiceId: data.serviceId,
-          lookupService,
-        }))
-      : normalizeOptionalId(data.serviceId);
+      normalizeOptionalId(selectedLink.contract.serviceId) ||
+      normalizeOptionalId(selectedLink.service?.id);
+    const serviceId =
+      contractServiceId ||
+      (await resolveContractServiceId({
+        alunoId,
+        contractId: selectedLink.contractId,
+        fallbackServiceId: data.serviceId,
+        lookupService,
+      }));
 
     return originalUpdate.call(service, alunoId, studentContractId, {
       ...data,
