@@ -20,7 +20,7 @@ describe('contract replacement preconfirmation', () => {
     const root = buildRoot();
     const select = root.querySelector<HTMLSelectElement>('select')!;
     select.value = 'contract-a';
-    const targetWindow = { confirm: vi.fn(() => false) };
+    const targetWindow = { confirm: vi.fn((_message?: string) => false) };
     const uninstall = installContractReplacementPreconfirmation({
       root,
       targetWindow,
@@ -43,7 +43,7 @@ describe('contract replacement preconfirmation', () => {
     const root = buildRoot();
     const select = root.querySelector<HTMLSelectElement>('select')!;
     select.value = 'contract-a';
-    const originalConfirm = vi.fn(() => true);
+    const originalConfirm = vi.fn((_message?: string) => true);
     const targetWindow = { confirm: originalConfirm };
     const uninstall = installContractReplacementPreconfirmation({
       root,
