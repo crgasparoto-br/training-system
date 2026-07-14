@@ -7,6 +7,7 @@ import {
   readFinancialServiceControlValue,
   readPersistedFinancialServiceName,
   removePreservedFinancialServiceFallback,
+  resolveFinancialServiceLoadState,
   resolveFinancialServiceName,
 } from './financial-service-preservation';
 
@@ -35,6 +36,35 @@ describe('financial service preservation', () => {
     ).toBe('Personal 2x por semana');
   });
 
+  it('does not apply an empty service while one source failed to load', () => {
+    expect(
+      resolveFinancialServiceLoadState({
+        activeContractServiceName: null,
+        persistedFinancialServiceName: '',
+        activeContractSourceLoaded: false,
+        persistedFinancialSourceLoaded: true,
+      })
+    ).toEqual({ serviceName: '', shouldApply: false });
+
+    expect(
+      resolveFinancialServiceLoadState({
+        activeContractServiceName: null,
+        persistedFinancialServiceName: '',
+        activeContractSourceLoaded: true,
+        persistedFinancialSourceLoaded: true,
+      })
+    ).toEqual({ serviceName: '', shouldApply: true });
+
+    expect(
+      resolveFinancialServiceLoadState({
+        activeContractServiceName: 'Plano vigente',
+        persistedFinancialServiceName: '',
+        activeContractSourceLoaded: true,
+        persistedFinancialSourceLoaded: false,
+      })
+    ).toEqual({ serviceName: 'Plano vigente', shouldApply: true });
+  });
+
   it('adds the current legacy service without duplicating an existing option', () => {
     const select = document.createElement('select');
     select.innerHTML = '<option value="">Selecione</option><option value="Plano atual">Plano atual</option>';
@@ -47,6 +77,22 @@ describe('financial service preservation', () => {
     expect(ensurePreservedFinancialServiceOption(select, 'Plano legado')).toBe(false);
     expect(Array.from(select.options).filter((option) => option.value === 'Plano legado')).toHaveLength(1);
     expect(ensurePreservedFinancialServiceOption(select, 'Plano atual')).toBe(false);
+  });
+
+  it('adds an inactive contract service to the real select before selecting it', () => {
+    const root = document.createElement('div');
+    root.innerHTML = `
+      <select name="intakeForm.financialInfo.currentService">
+        <option value="">Selecione</option>
+        <option value="Plano ativo">Plano ativo</option>
+      </select>
+    `;
+
+    const control = ensurePreservedFinancialServiceControl(root, 'Plano inativo');
+    control!.value = 'Plano inativo';
+
+    expect(readFinancialServiceControlValue(root)).toBe('Plano inativo');
+    expect(control?.selectedOptions[0]?.textContent).toBe('Plano inativo • vínculo atual');
   });
 
   it('renders only the current legacy service when there are no active offers', () => {
@@ -112,7 +158,7 @@ describe('financial service preservation', () => {
   it('persists the resolved service even when the fallback control is not registered by the form', async () => {
     const originalUpdate = vi.fn(async (_alunoId: string, data: Record<string, unknown>) => data);
     const service = { update: originalUpdate };
-    let currentService = 'Plano legado';
+    let currentService: string | undefined = 'Plano legado';
     const uninstall = installFinancialServicePayloadAdapter(
       () => currentService,
       service
@@ -148,6 +194,17 @@ describe('financial service preservation', () => {
         },
       },
     });
+
+    currentService = undefined;
+    const unchangedPayload = {
+      intakeForm: {
+        formResponses: {
+          financial: { currentService: 'Manter valor carregado' },
+        },
+      },
+    };
+    await service.update('student-1', unchangedPayload);
+    expect(originalUpdate).toHaveBeenLastCalledWith('student-1', unchangedPayload);
 
     uninstall();
     expect(service.update).toBe(originalUpdate);
