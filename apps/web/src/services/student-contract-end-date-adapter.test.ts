@@ -41,12 +41,22 @@ describe('student contract end date adapter', () => {
     });
   });
 
-  it('sends null when the due date field is intentionally cleared', () => {
+  it('preserves a legacy endDate when an initially blank field was not edited', () => {
     const root = document.createElement('div');
     root.innerHTML =
       '<input name="intakeForm.financialInfo.contractDueDate" value="" />';
 
     expect(appendContractEndDate({ startDate: '2026-01-01' }, root)).toEqual({
+      startDate: '2026-01-01',
+    });
+  });
+
+  it('sends null when the due date field is intentionally cleared', () => {
+    const root = document.createElement('div');
+    root.innerHTML =
+      '<input name="intakeForm.financialInfo.contractDueDate" value="" />';
+
+    expect(appendContractEndDate({ startDate: '2026-01-01' }, root, true)).toEqual({
       startDate: '2026-01-01',
       endDate: null,
     });
