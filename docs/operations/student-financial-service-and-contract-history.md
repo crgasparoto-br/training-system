@@ -13,13 +13,17 @@ Quando não existe nenhuma oferta financeira ativa, a edição ainda apresenta u
 
 A restauração ocorre após os carregamentos assíncronos do aluno, dos vínculos e das opções do seletor. Depois que o usuário altera manualmente o serviço, a sincronização automática deixa de sobrescrever o campo durante a sessão atual. Salvar outras informações do aluno não remove o serviço resolvido automaticamente.
 
+Uma resposta parcial não é interpretada como ausência de serviço. O sistema somente aplica um valor vazio automaticamente quando as fontes do perfil e do contrato ativo foram carregadas com sucesso. Se uma consulta falhar, o adaptador preserva o valor que já integra o payload do formulário em vez de substituí-lo por vazio.
+
 A sincronização do campo é centralizada em um único componente. Isso evita que uma rotina antiga restaure o vínculo anterior enquanto outra rotina aplica a escolha atual. O acompanhamento das alterações permanece ativo mesmo quando o aluno começa sem serviço vigente, permitindo selecionar uma oferta ou contrato e persistir o novo valor corretamente.
 
-Ao selecionar outro contrato, o serviço preenchido pelo próprio contrato passa a ser a nova referência da sessão e não é substituído pelo vínculo anterior. Quando a aba Financeiro é desmontada e aberta novamente, o seletor legado é reconstruído inclusive quando o usuário escolheu **Sem serviço vigente**, preservando a alteração manual.
+Ao selecionar outro contrato, o serviço financeiro do próprio contrato passa a ser a nova referência da sessão e não é substituído pelo vínculo anterior. O nome é obtido também para contratos ligados a ofertas inativas; antes de selecionar o valor, a tela adiciona uma opção de preservação ao controle real. Isso impede que o navegador converta a escolha em valor vazio apenas porque a oferta não pertence mais ao catálogo ativo.
 
-Quando o aluno já possui contrato ativo, a confirmação da substituição ocorre no momento da escolha do novo contrato, antes do salvamento do perfil. Se o usuário cancelar, o seletor volta ao contrato ativo e nenhuma alteração financeira relacionada à substituição é enviada.
+Quando a aba Financeiro é desmontada e aberta novamente, o seletor legado é reconstruído inclusive quando o usuário escolheu **Sem serviço vigente**, preservando a alteração manual.
 
-O vínculo `StudentContract` usa prioritariamente o `serviceId` associado ao contrato selecionado. O **Serviço de Interesse** do aluno é usado apenas como fallback quando o contrato não possui serviço financeiro próprio.
+Quando o aluno já possui contrato ativo, a confirmação da substituição ocorre no momento da escolha do novo contrato, antes do salvamento do perfil. A confirmação aceita é propagada para o bloqueio de submissão que já existe na tela, inclusive quando o painel é montado depois da seleção, sem apresentar uma segunda caixa de confirmação. Se o usuário cancelar, o seletor volta ao contrato ativo e nenhuma alteração financeira relacionada à substituição é enviada.
+
+O vínculo `StudentContract` usa prioritariamente o `serviceId` associado ao contrato selecionado. O **Serviço de Interesse** do aluno é usado apenas quando a consulta foi concluída com sucesso e confirmou que o contrato não possui serviço financeiro próprio. Se o contrato não puder ser consultado ou localizado, a criação ou atualização do vínculo é interrompida; o sistema não grava silenciosamente o Serviço de Interesse como substituto.
 
 ## Estado e vigência no campo Contrato
 
@@ -46,7 +50,7 @@ Quando já existe uma data final, a ação **Remover vencimento** fica disponív
 
 Datas de início e término são tratadas como **datas civis**, e não como instantes UTC. Um término em `14/07` permanece vigente durante todo o dia 14 no horário local e passa a vencido somente no dia seguinte. As datas retornadas pela API são normalizadas para evitar exibição do dia anterior em fusos negativos, como o Brasil.
 
-Os testes automatizados reproduzem os controles reais de início e duração, o campo visual desabilitado, a remoção intencional no cadastro e na edição, a persistência no perfil e no vínculo, a prioridade do serviço financeiro do contrato, a confirmação antecipada da substituição e a reconstrução do seletor sem ofertas financeiras ativas.
+Os testes automatizados reproduzem os controles reais de início e duração, o campo visual desabilitado, a remoção intencional no cadastro e na edição, a persistência no perfil e no vínculo, a prioridade do serviço financeiro do contrato, a confirmação única mesmo com painel montado depois da seleção, a reconstrução do seletor sem ofertas ativas, o serviço inativo ausente das opções e falhas de consulta ou carregamento parcial.
 
 ## Histórico de contratos
 
@@ -74,4 +78,4 @@ Esse acesso não modifica as regras de ativação ou substituição. O contrato 
 
 ## Validação
 
-O workflow oficial **Validate PR #1350** foi aprovado no commit `40d7064a9003e66efe1480cd25334189a5a3d57b`, incluindo migrations, type-check, lint, testes, arquitetura, catálogo de acessos e documentação.
+A mudança deve passar pelo workflow **Validate PR**, incluindo migrations, type-check, lint, testes, arquitetura, catálogo de acessos e documentação. O número e o commit da execução validada são registrados na descrição da PR correspondente.
