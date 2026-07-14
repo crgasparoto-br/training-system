@@ -9,7 +9,9 @@ Na rota `/alunos/:id/edit`, a aba **Financeiro** preserva o serviço vigente usa
 
 Quando o serviço vigente não está mais entre as ofertas comerciais ativas, ele continua visível no seletor com a indicação **vínculo atual**. Essa apresentação existe somente para preservar o cadastro do aluno editado e não reativa a oferta no catálogo nem a disponibiliza para novos vínculos.
 
-A restauração ocorre após os carregamentos assíncronos do aluno, dos vínculos e das opções do seletor. Depois que o usuário altera manualmente o serviço, a sincronização automática deixa de sobrescrever o campo durante a sessão atual.
+Quando não existe nenhuma oferta financeira ativa, a edição ainda apresenta um seletor de preservação contendo somente **Sem serviço vigente** e o vínculo atual legado. O valor mostrado nesse controle é incluído no payload do cadastro mesmo que o formulário legado não tenha renderizado seu seletor original.
+
+A restauração ocorre após os carregamentos assíncronos do aluno, dos vínculos e das opções do seletor. Depois que o usuário altera manualmente o serviço, a sincronização automática deixa de sobrescrever o campo durante a sessão atual. Salvar outras informações do aluno não remove o serviço resolvido automaticamente.
 
 ## Estado e vigência no campo Contrato
 
@@ -23,9 +25,16 @@ Exemplos:
 
 Modelos ainda não vinculados e documentos que não estão assinados permanecem apenas com seu estado documental. A vigência é atualizada quando as opções do campo ou os vínculos do aluno são carregados, sem mudar o valor selecionado.
 
-A data calculada no campo **Vencimento do contrato** é persistida como `endDate` no vínculo contratual. Quando o usuário limpa essa data manualmente, o vínculo também recebe `endDate: null`. Um campo inicialmente vazio e não editado não apaga uma data final legada já existente no vínculo. Para contratos criados a partir de um modelo ativo, a data é confirmada no vínculo recém-gerado antes da ativação.
+A data final é calculada diretamente a partir de **Data de início**, **Unidade da duração** e **Quantidade** no momento do salvamento. O cálculo não depende do campo visual desabilitado de vencimento. O mesmo valor é gravado em:
 
-Após criar, atualizar ou ativar o vínculo, a tela recarrega documentos e vínculos automaticamente. Respostas antigas de carregamentos concorrentes são descartadas para evitar que o seletor volte a apresentar uma vigência desatualizada.
+- `StudentContract.endDate` no vínculo contratual;
+- `intakeForm.formResponses.financial.contractDueDate` para manter o formulário financeiro consistente.
+
+Contratos gerados a partir de modelo ativo recebem uma atualização de confirmação do `endDate` imediatamente depois da geração. Após criar, atualizar ou ativar o vínculo, a tela recarrega documentos e vínculos automaticamente; respostas antigas de carregamentos concorrentes são descartadas.
+
+Quando já existe uma data final, a ação **Remover vencimento** fica disponível abaixo do campo. Ao usá-la, a interface limpa o vencimento e o salvamento envia `endDate: null`. Alterar ou limpar os campos de duração recalcula ou remove a data de forma equivalente.
+
+Datas de início e término são tratadas como **datas civis**, e não como instantes UTC. Um término em `14/07` permanece vigente durante todo o dia 14 no horário local e passa a vencido somente no dia seguinte. As datas retornadas pela API são normalizadas para evitar exibição do dia anterior em fusos negativos, como o Brasil.
 
 ## Histórico de contratos
 
