@@ -37,9 +37,9 @@ export const installStudentContractEndDateAdapter = (
   root: ParentNode = document,
   eventTarget: EventTarget = window
 ) => {
-  const originalLink = service.linkStudentContract.bind(service);
-  const originalUpdate = service.updateStudentContract.bind(service);
-  const originalActivate = service.activateStudentContract.bind(service);
+  const originalLink = service.linkStudentContract;
+  const originalUpdate = service.updateStudentContract;
+  const originalActivate = service.activateStudentContract;
 
   const notifyChanged = (alunoId: string) => {
     eventTarget.dispatchEvent(
@@ -50,7 +50,11 @@ export const installStudentContractEndDateAdapter = (
   };
 
   const linkStudentContract: typeof service.linkStudentContract = async (alunoId, data) => {
-    const result = await originalLink(alunoId, appendContractEndDate(data, root));
+    const result = await originalLink.call(
+      service,
+      alunoId,
+      appendContractEndDate(data, root)
+    );
     notifyChanged(alunoId);
     return result;
   };
@@ -60,7 +64,8 @@ export const installStudentContractEndDateAdapter = (
     studentContractId,
     data
   ) => {
-    const result = await originalUpdate(
+    const result = await originalUpdate.call(
+      service,
       alunoId,
       studentContractId,
       appendContractEndDate(data, root)
@@ -73,7 +78,7 @@ export const installStudentContractEndDateAdapter = (
     alunoId,
     studentContractId
   ) => {
-    const result = await originalActivate(alunoId, studentContractId);
+    const result = await originalActivate.call(service, alunoId, studentContractId);
     notifyChanged(alunoId);
     return result;
   };
