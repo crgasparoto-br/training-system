@@ -12,14 +12,17 @@ import {
   readFinancialServiceControlValue,
   readPersistedFinancialServiceName,
   removePreservedFinancialServiceFallback,
-  resolveFinancialServiceName,
+  resolveFinancialServiceLoadState,
 } from '../services/financial-service-preservation';
 import {
   installStudentContractEndDateAdapter,
   STUDENT_CONTRACTS_CHANGED_EVENT,
   type StudentContractsChangedDetail,
 } from '../services/student-contract-end-date-adapter';
-import { installStudentContractServiceResolutionAdapter } from '../services/student-contract-service-resolution';
+import {
+  installStudentContractServiceResolutionAdapter,
+  STUDENT_CONTRACT_LOOKUP_STATUSES,
+} from '../services/student-contract-service-resolution';
 import { AlunoFormWithFinancialContracts } from './AlunoFormWithFinancialContracts';
 
 const CONTRACT_SELECTION_FIELD = 'intakeForm.financialInfo.selectedContractId';
@@ -30,17 +33,25 @@ const getContractSelectionControl = () =>
 export function AlunoFormWithContractValidityOptions() {
   const id = window.location.pathname.match(/^\/alunos\/([^/]+)\/edit/)?.[1] || '';
   const loadSequenceRef = useRef(0);
+  const contractServiceCaptureSequenceRef = useRef(0);
   const contractEndDatesRef = useRef(new Map<string, string | null | undefined>());
+  const contractServiceNamesRef = useRef(new Map<string, string>());
   const activeContractIdRef = useRef('');
   const financialServiceValueRef = useRef('');
+  const financialServiceResolutionReadyRef = useRef(false);
   const userChangedFinancialServiceRef = useRef(false);
   const applyingResolvedFinancialServiceRef = useRef(false);
   const contractServiceCapturePendingRef = useRef(false);
-  const pendingContractServiceTimeoutRef = useRef<number | null>(null);
-  const pendingContractServiceFrameRef = useRef<number | null>(null);
   const [contracts, setContracts] = useState<GeneratedContract[]>([]);
   const [studentContractLinks, setStudentContractLinks] = useState<StudentContractLink[]>([]);
   const [financialServiceName, setFinancialServiceName] = useState('');
+  const [financialServiceResolutionReady, setFinancialServiceResolutionReady] =
+    useState(false);
+
+  const markFinancialServiceResolutionReady = (ready: boolean) => {
+    financialServiceResolutionReadyRef.current = ready;
+    setFinancialServiceResolutionReady(ready);
+  };
 
   const loadContractData = useCallback(async () => {
     if (!id) {
@@ -48,47 +59,86 @@ export function AlunoFormWithContractValidityOptions() {
       setStudentContractLinks([]);
       setFinancialServiceName('');
       contractEndDatesRef.current.clear();
+      contractServiceNamesRef.current.clear();
       activeContractIdRef.current = '';
       return;
     }
 
     const loadSequence = ++loadSequenceRef.current;
-    const [contractsResult, linksResult, alunoResult] = await Promise.allSettled([
-      contractService.listAlunoContracts(id),
-      alunoService.listStudentContracts(id),
-      alunoService.getById(id),
-    ]);
+    const [contractsResult, availableContractsResult, linksResult, alunoResult] =
+      await Promise.allSettled([
+        contractService.listAlunoContracts(id),
+        contractService.listAvailableForStudent({
+          alunoId: id,
+          status: STUDENT_CONTRACT_LOOKUP_STATUSES,
+        }),
+        alunoService.listStudentContracts(id),
+        alunoService.getById(id),
+      ]);
 
     if (loadSequence !== loadSequenceRef.current) return;
 
     const links = linksResult.status === 'fulfilled' ? linksResult.value : null;
     const aluno = alunoResult.status === 'fulfilled' ? alunoResult.value : null;
-    const resolvedServiceName = resolveFinancialServiceName({
+    const serviceResolution = resolveFinancialServiceLoadState({
       activeContractServiceName: links?.activeContract?.service?.name,
       persistedFinancialServiceName: readPersistedFinancialServiceName(
         aluno?.intakeForm?.formResponses
       ),
+      activeContractSourceLoaded: linksResult.status === 'fulfilled',
+      persistedFinancialSourceLoaded: alunoResult.status === 'fulfilled',
     });
 
-    const endDates = new Map<string, string | null | undefined>();
-    links?.contracts.forEach((link) => {
-      endDates.set(link.contractId, link.endDate);
-      endDates.set(link.contract.id, link.endDate);
-    });
-    contractEndDatesRef.current = endDates;
-    activeContractIdRef.current = links?.activeContract?.contractId ?? '';
-    setContracts(contractsResult.status === 'fulfilled' ? contractsResult.value : []);
-    setStudentContractLinks(links?.contracts ?? []);
-    if (!userChangedFinancialServiceRef.current) {
-      setFinancialServiceName(resolvedServiceName);
-      financialServiceValueRef.current = resolvedServiceName;
+    if (linksResult.status === 'fulfilled') {
+      const endDates = new Map<string, string | null | undefined>();
+      links.contracts.forEach((link) => {
+        endDates.set(link.contractId, link.endDate);
+        endDates.set(link.contract.id, link.endDate);
+      });
+      contractEndDatesRef.current = endDates;
+      activeContractIdRef.current = links.activeContract?.contractId ?? '';
+      setStudentContractLinks(links.contracts);
+    }
+
+    if (contractsResult.status === 'fulfilled') {
+      setContracts(contractsResult.value);
+    }
+
+    if (
+      availableContractsResult.status === 'fulfilled' ||
+      linksResult.status === 'fulfilled'
+    ) {
+      const serviceNames = new Map(contractServiceNamesRef.current);
+      links?.contracts.forEach((link) => {
+        const serviceName = link.service?.name?.replace(/\s+/gu, ' ').trim();
+        if (serviceName) {
+          serviceNames.set(link.contractId, serviceName);
+          serviceNames.set(link.contract.id, serviceName);
+        }
+      });
+      if (availableContractsResult.status === 'fulfilled') {
+        availableContractsResult.value.forEach((contract) => {
+          const serviceName = contract.service?.name?.replace(/\s+/gu, ' ').trim();
+          if (serviceName) serviceNames.set(contract.id, serviceName);
+        });
+      }
+      contractServiceNamesRef.current = serviceNames;
+    }
+
+    if (!userChangedFinancialServiceRef.current && serviceResolution.shouldApply) {
+      setFinancialServiceName(serviceResolution.serviceName);
+      financialServiceValueRef.current = serviceResolution.serviceName;
+      markFinancialServiceResolutionReady(true);
     }
   }, [id]);
 
   useEffect(() => {
     userChangedFinancialServiceRef.current = false;
     financialServiceValueRef.current = '';
+    financialServiceResolutionReadyRef.current = false;
+    setFinancialServiceResolutionReady(false);
     contractEndDatesRef.current.clear();
+    contractServiceNamesRef.current.clear();
     activeContractIdRef.current = '';
   }, [id]);
 
@@ -112,7 +162,16 @@ export function AlunoFormWithContractValidityOptions() {
         getActiveContractId: () => activeContractIdRef.current,
       });
     const uninstallFinancialServiceAdapter = installFinancialServicePayloadAdapter(
-      () => financialServiceValueRef.current
+      () => {
+        if (
+          userChangedFinancialServiceRef.current ||
+          financialServiceResolutionReadyRef.current
+        ) {
+          return financialServiceValueRef.current;
+        }
+
+        return readFinancialServiceControlValue(document) || undefined;
+      }
     );
 
     const refreshContractData = (event: Event) => {
@@ -141,6 +200,12 @@ export function AlunoFormWithContractValidityOptions() {
 
     const syncFinancialService = () => {
       if (contractServiceCapturePendingRef.current) return;
+      if (
+        !userChangedFinancialServiceRef.current &&
+        !financialServiceResolutionReady
+      ) {
+        return;
+      }
 
       const desiredServiceName = userChangedFinancialServiceRef.current
         ? financialServiceValueRef.current
@@ -160,31 +225,66 @@ export function AlunoFormWithContractValidityOptions() {
       financialServiceValueRef.current = desiredServiceName;
     };
 
-    const captureServiceSelectedByContract = () => {
-      if (!active) return;
+    const captureServiceSelectedByContract = async (
+      selectedContractId: string,
+      captureSequence: number
+    ) => {
+      let selectedServiceName = contractServiceNamesRef.current.get(selectedContractId) || '';
+
+      if (!selectedServiceName && selectedContractId && id) {
+        try {
+          const availableContracts = await contractService.listAvailableForStudent({
+            alunoId: id,
+            status: STUDENT_CONTRACT_LOOKUP_STATUSES,
+          });
+          if (!active || captureSequence !== contractServiceCaptureSequenceRef.current) return;
+
+          const serviceNames = new Map(contractServiceNamesRef.current);
+          availableContracts.forEach((contract) => {
+            const serviceName = contract.service?.name?.replace(/\s+/gu, ' ').trim();
+            if (serviceName) serviceNames.set(contract.id, serviceName);
+          });
+          contractServiceNamesRef.current = serviceNames;
+          selectedServiceName = serviceNames.get(selectedContractId) || '';
+        } catch {
+          // The link mutation will fail closed if the contract service cannot be resolved.
+        }
+      }
+
+      if (!active || captureSequence !== contractServiceCaptureSequenceRef.current) return;
+
       contractServiceCapturePendingRef.current = false;
       userChangedFinancialServiceRef.current = true;
-      financialServiceValueRef.current = readFinancialServiceControlValue(document);
+
+      if (selectedServiceName) {
+        const select = ensurePreservedFinancialServiceControl(
+          document,
+          selectedServiceName
+        );
+        if (select) {
+          applyingResolvedFinancialServiceRef.current = true;
+          try {
+            select.value = selectedServiceName;
+            select.dispatchEvent(new Event('change', { bubbles: true }));
+          } finally {
+            applyingResolvedFinancialServiceRef.current = false;
+          }
+        }
+        financialServiceValueRef.current = selectedServiceName;
+      } else {
+        financialServiceValueRef.current = readFinancialServiceControlValue(document);
+      }
+
       syncFinancialService();
     };
 
-    const scheduleContractServiceCapture = () => {
+    const scheduleContractServiceCapture = (selectedContractId: string) => {
       contractServiceCapturePendingRef.current = true;
       userChangedFinancialServiceRef.current = true;
-      queueMicrotask(captureServiceSelectedByContract);
-      if (pendingContractServiceTimeoutRef.current !== null) {
-        window.clearTimeout(pendingContractServiceTimeoutRef.current);
-      }
-      pendingContractServiceTimeoutRef.current = window.setTimeout(
-        captureServiceSelectedByContract,
-        0
-      );
-      if (pendingContractServiceFrameRef.current !== null) {
-        window.cancelAnimationFrame(pendingContractServiceFrameRef.current);
-      }
-      pendingContractServiceFrameRef.current = window.requestAnimationFrame(
-        captureServiceSelectedByContract
-      );
+      const captureSequence = ++contractServiceCaptureSequenceRef.current;
+      queueMicrotask(() => {
+        void captureServiceSelectedByContract(selectedContractId, captureSequence);
+      });
     };
 
     const registerManualChange = (event: Event) => {
@@ -202,7 +302,7 @@ export function AlunoFormWithContractValidityOptions() {
       }
 
       if (target.name === CONTRACT_SELECTION_FIELD && event.isTrusted) {
-        scheduleContractServiceCapture();
+        scheduleContractServiceCapture(target.value);
       }
     };
 
@@ -215,20 +315,13 @@ export function AlunoFormWithContractValidityOptions() {
     return () => {
       active = false;
       contractServiceCapturePendingRef.current = false;
+      contractServiceCaptureSequenceRef.current += 1;
       document.removeEventListener('change', registerManualChange, true);
       observer.disconnect();
       window.clearInterval(interval);
-      if (pendingContractServiceTimeoutRef.current !== null) {
-        window.clearTimeout(pendingContractServiceTimeoutRef.current);
-        pendingContractServiceTimeoutRef.current = null;
-      }
-      if (pendingContractServiceFrameRef.current !== null) {
-        window.cancelAnimationFrame(pendingContractServiceFrameRef.current);
-        pendingContractServiceFrameRef.current = null;
-      }
       removePreservedFinancialServiceFallback(document);
     };
-  }, [financialServiceName]);
+  }, [financialServiceName, financialServiceResolutionReady, id]);
 
   useEffect(() => {
     const syncContractOptionValidity = () => {
