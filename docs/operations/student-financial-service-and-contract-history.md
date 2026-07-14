@@ -11,6 +11,18 @@ Quando o serviço vigente não está mais entre as ofertas comerciais ativas, el
 
 A restauração ocorre após os carregamentos assíncronos do aluno, dos vínculos e das opções do seletor. Depois que o usuário altera manualmente o serviço, a sincronização automática deixa de sobrescrever o campo durante a sessão atual.
 
+## Estado e vigência no campo Contrato
+
+As opções do campo **Contrato** mantêm o estado do documento e acrescentam a vigência contratual quando o documento pertence ao aluno e está assinado.
+
+Exemplos:
+
+- `Contrato anual • Assinado • Vigência: Vigente`;
+- `Contrato anual • Assinado • Vigência: Vencido`;
+- `Contrato anual • Assinado • Vigência: Sem vigência definida`.
+
+Modelos ainda não vinculados e documentos que não estão assinados permanecem apenas com seu estado documental. A vigência é atualizada quando as opções do campo ou os vínculos do aluno são carregados, sem mudar o valor selecionado.
+
 ## Histórico de contratos
 
 O bloco contratual da aba **Financeiro** apresenta a ação **Visualizar contratos**. A ação abre um modal sobre a própria edição do aluno, sem navegar para outra tela e sem perder os dados ainda não salvos do formulário.
