@@ -10,7 +10,7 @@ import { Professores } from './pages/Professores';
 import { Alunos } from './pages/Alunos';
 import { StudentCentral } from './pages/StudentCentral';
 import { StudentCentralEdit } from './pages/StudentCentralEdit';
-import { AlunoForm } from './pages/AlunoForm';
+import { AlunoFormWithContractEndDate } from './pages/AlunoFormWithContractEndDate';
 import { AlunoFormWithContractValidityOptions } from './pages/AlunoFormWithContractValidityOptions';
 import { AlunoDetails } from './pages/AlunoDetails';
 import { Plans } from './pages/Plans';
@@ -105,7 +105,7 @@ function App() {
           <Route path="professores" element={<Navigate to="/professores/new" replace />} />
           <Route path="professores/new" element={withAccess('collaborators.registration', <Professores />)} />
           <Route path="alunos" element={<StudentsRoute />} />
-          <Route path="alunos/new" element={withAccess('students.registration', <AlunoForm />)} />
+          <Route path="alunos/new" element={withAccess('students.registration', <AlunoFormWithContractEndDate />)} />
           <Route
             path="alunos/:id"
             element={withAnyAccess(['students.registration', 'students.consultation', 'students.details'], <AlunoDetails />)}
