@@ -14,6 +14,11 @@ type FinancialServiceResolutionInput = {
   persistedFinancialServiceName?: string | null;
 };
 
+type FinancialServiceLoadResolutionInput = FinancialServiceResolutionInput & {
+  activeContractSourceLoaded: boolean;
+  persistedFinancialSourceLoaded: boolean;
+};
+
 type ProfileUpdatePayload = Record<string, unknown>;
 
 type StudentProfileMutationService = {
@@ -43,6 +48,25 @@ export function resolveFinancialServiceName({
     normalizeServiceName(activeContractServiceName) ||
     normalizeServiceName(persistedFinancialServiceName)
   );
+}
+
+export function resolveFinancialServiceLoadState({
+  activeContractServiceName,
+  persistedFinancialServiceName,
+  activeContractSourceLoaded,
+  persistedFinancialSourceLoaded,
+}: FinancialServiceLoadResolutionInput) {
+  const serviceName = resolveFinancialServiceName({
+    activeContractServiceName,
+    persistedFinancialServiceName,
+  });
+
+  return {
+    serviceName,
+    shouldApply:
+      Boolean(serviceName) ||
+      (activeContractSourceLoaded && persistedFinancialSourceLoaded),
+  };
 }
 
 export function ensurePreservedFinancialServiceOption(
@@ -163,13 +187,19 @@ export const patchProfileFinancialService = <T extends ProfileUpdatePayload>(
 };
 
 export const installFinancialServicePayloadAdapter = (
-  getServiceName: () => string,
+  getServiceName: () => string | undefined,
   service: StudentProfileMutationService = alunoService as unknown as StudentProfileMutationService
 ) => {
   const originalUpdate = service.update;
 
-  const update: typeof service.update = async (alunoId, data) =>
-    originalUpdate.call(service, alunoId, patchProfileFinancialService(data, getServiceName()));
+  const update: typeof service.update = async (alunoId, data) => {
+    const serviceName = getServiceName();
+    return originalUpdate.call(
+      service,
+      alunoId,
+      serviceName === undefined ? data : patchProfileFinancialService(data, serviceName)
+    );
+  };
 
   service.update = update;
 
