@@ -19,8 +19,15 @@ END;
 $$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS "StudentContract_enforce_contract_service" ON "StudentContract";
-CREATE TRIGGER "StudentContract_enforce_contract_service"
-BEFORE INSERT OR UPDATE OF "contractId", "serviceId"
+DROP TRIGGER IF EXISTS "StudentContract_enforce_contract_service_insert" ON "StudentContract";
+DROP TRIGGER IF EXISTS "StudentContract_enforce_contract_service_update" ON "StudentContract";
+CREATE TRIGGER "StudentContract_enforce_contract_service_insert"
+BEFORE INSERT
+ON "StudentContract"
+FOR EACH ROW
+EXECUTE FUNCTION enforce_student_contract_service_authority();
+CREATE TRIGGER "StudentContract_enforce_contract_service_update"
+BEFORE UPDATE OF "contractId", "serviceId"
 ON "StudentContract"
 FOR EACH ROW
 EXECUTE FUNCTION enforce_student_contract_service_authority();
@@ -83,8 +90,15 @@ END;
 $$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS "StudentContract_sync_financial_service" ON "StudentContract";
-CREATE TRIGGER "StudentContract_sync_financial_service"
-AFTER INSERT OR UPDATE OF "contractId", "serviceId", "status"
+DROP TRIGGER IF EXISTS "StudentContract_sync_financial_service_insert" ON "StudentContract";
+DROP TRIGGER IF EXISTS "StudentContract_sync_financial_service_update" ON "StudentContract";
+CREATE TRIGGER "StudentContract_sync_financial_service_insert"
+AFTER INSERT
+ON "StudentContract"
+FOR EACH ROW
+EXECUTE FUNCTION sync_active_student_contract_financial_service();
+CREATE TRIGGER "StudentContract_sync_financial_service_update"
+AFTER UPDATE OF "contractId", "serviceId", "status"
 ON "StudentContract"
 FOR EACH ROW
 EXECUTE FUNCTION sync_active_student_contract_financial_service();
