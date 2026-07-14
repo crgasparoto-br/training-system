@@ -8,8 +8,8 @@ import {
 import {
   contractService,
   type AvailableStudentContract,
-  type AvailableStudentContractFilters,
 } from './contract.service';
+import type { AvailableStudentContractFilters } from './contract-query';
 
 const CONTRACT_STATUSES: AvailableStudentContract['status'][] = [
   'ACTIVE',
