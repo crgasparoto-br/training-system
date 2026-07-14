@@ -59,7 +59,7 @@ describe('student contract service resolution', () => {
     ).resolves.toBe('financial-service-1');
   });
 
-  it('keeps the interest service only when the contract has no service', async () => {
+  it('keeps the interest service only when the contract was loaded and has no service', async () => {
     const lookupService = {
       listAvailableForStudent: vi.fn(async () => [
         { ...availableContract, serviceId: null, service: null },
@@ -74,6 +74,32 @@ describe('student contract service resolution', () => {
         lookupService,
       })
     ).resolves.toBe('interest-service-1');
+  });
+
+  it('fails closed when the contract lookup fails or does not return the selected contract', async () => {
+    await expect(
+      resolveContractServiceId({
+        alunoId: 'student-1',
+        contractId: 'contract-1',
+        fallbackServiceId: 'interest-service-1',
+        lookupService: {
+          listAvailableForStudent: vi.fn(async () => {
+            throw new Error('network error');
+          }),
+        },
+      })
+    ).rejects.toThrow('network error');
+
+    await expect(
+      resolveContractServiceId({
+        alunoId: 'student-1',
+        contractId: 'contract-1',
+        fallbackServiceId: 'interest-service-1',
+        lookupService: {
+          listAvailableForStudent: vi.fn(async () => []),
+        },
+      })
+    ).rejects.toThrow('Não foi possível localizar o contrato selecionado');
   });
 
   it('applies the contract service while creating and updating a link', async () => {
@@ -121,5 +147,33 @@ describe('student contract service resolution', () => {
     uninstall();
     expect(service.linkStudentContract).toBe(originalLink);
     expect(service.updateStudentContract).toBe(originalUpdate);
+  });
+
+  it('does not create a link with the interest service when lookup fails', async () => {
+    const originalLink = vi.fn(async () => link);
+    const service = {
+      linkStudentContract: originalLink,
+      updateStudentContract: vi.fn(async () => link),
+      listStudentContracts: vi.fn(async (): Promise<AlunoContractsResponse> => ({
+        alunoId: 'student-1',
+        activeContract: link,
+        contracts: [link],
+      })),
+    };
+    const uninstall = installStudentContractServiceResolutionAdapter(service, {
+      listAvailableForStudent: vi.fn(async () => {
+        throw new Error('lookup unavailable');
+      }),
+    });
+
+    await expect(
+      service.linkStudentContract('student-1', {
+        contractId: 'contract-1',
+        serviceId: 'interest-service-1',
+      })
+    ).rejects.toThrow('lookup unavailable');
+    expect(originalLink).not.toHaveBeenCalled();
+
+    uninstall();
   });
 });
