@@ -13,7 +13,13 @@ Quando não existe nenhuma oferta financeira ativa, a edição ainda apresenta u
 
 A restauração ocorre após os carregamentos assíncronos do aluno, dos vínculos e das opções do seletor. Depois que o usuário altera manualmente o serviço, a sincronização automática deixa de sobrescrever o campo durante a sessão atual. Salvar outras informações do aluno não remove o serviço resolvido automaticamente.
 
+A sincronização do campo é centralizada em um único componente. Isso evita que uma rotina antiga restaure o vínculo anterior enquanto outra rotina aplica a escolha atual. O acompanhamento das alterações permanece ativo mesmo quando o aluno começa sem serviço vigente, permitindo selecionar uma oferta ou contrato e persistir o novo valor corretamente.
+
 Ao selecionar outro contrato, o serviço preenchido pelo próprio contrato passa a ser a nova referência da sessão e não é substituído pelo vínculo anterior. Quando a aba Financeiro é desmontada e aberta novamente, o seletor legado é reconstruído inclusive quando o usuário escolheu **Sem serviço vigente**, preservando a alteração manual.
+
+Quando o aluno já possui contrato ativo, a confirmação da substituição ocorre no momento da escolha do novo contrato, antes do salvamento do perfil. Se o usuário cancelar, o seletor volta ao contrato ativo e nenhuma alteração financeira relacionada à substituição é enviada.
+
+O vínculo `StudentContract` usa prioritariamente o `serviceId` associado ao contrato selecionado. O **Serviço de Interesse** do aluno é usado apenas como fallback quando o contrato não possui serviço financeiro próprio.
 
 ## Estado e vigência no campo Contrato
 
@@ -32,7 +38,7 @@ A data final é calculada diretamente a partir de **Data de início**, **Unidade
 - `StudentContract.endDate` no vínculo contratual;
 - `intakeForm.formResponses.financial.contractDueDate` para manter o formulário financeiro consistente.
 
-A rota de cadastro `/alunos/new` instala o mesmo adaptador de vencimento antes da criação do aluno. Assim, o vínculo criado logo após o cadastro também recebe `endDate`; a persistência não fica restrita à rota de edição.
+A rota de cadastro `/alunos/new` instala os adaptadores antes da criação do aluno. Assim, o perfil e o vínculo criado logo após o cadastro recebem a mesma data final. Se **Remover vencimento** tiver sido usado, ambos persistem o vencimento vazio e o vínculo recebe `endDate: null`.
 
 Contratos gerados a partir de modelo ativo recebem uma atualização de confirmação do `endDate` imediatamente depois da geração. Após criar, atualizar ou ativar o vínculo, a tela recarrega documentos e vínculos automaticamente; respostas antigas de carregamentos concorrentes são descartadas.
 
@@ -40,7 +46,7 @@ Quando já existe uma data final, a ação **Remover vencimento** fica disponív
 
 Datas de início e término são tratadas como **datas civis**, e não como instantes UTC. Um término em `14/07` permanece vigente durante todo o dia 14 no horário local e passa a vencido somente no dia seguinte. As datas retornadas pela API são normalizadas para evitar exibição do dia anterior em fusos negativos, como o Brasil.
 
-Os testes automatizados reproduzem os controles reais de início e duração, o campo visual desabilitado, a remoção intencional, a persistência no perfil e no vínculo, a leitura do serviço atribuído pelo contrato e a reconstrução do seletor sem ofertas financeiras ativas.
+Os testes automatizados reproduzem os controles reais de início e duração, o campo visual desabilitado, a remoção intencional no cadastro e na edição, a persistência no perfil e no vínculo, a prioridade do serviço financeiro do contrato, a confirmação antecipada da substituição e a reconstrução do seletor sem ofertas financeiras ativas.
 
 ## Histórico de contratos
 
