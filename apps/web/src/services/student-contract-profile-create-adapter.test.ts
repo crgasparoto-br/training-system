@@ -51,7 +51,7 @@ const createResult: CreateAlunoResult = {
 describe('student contract profile create adapter', () => {
   it('persists the calculated due date in the new student profile', async () => {
     const root = buildRoot();
-    const originalCreate = vi.fn(async () => createResult);
+    const originalCreate = vi.fn(async (_data: CreateAlunoDTO) => createResult);
     const service = { create: originalCreate };
     const uninstall = installStudentContractProfileCreateAdapter(service, root);
 
@@ -73,7 +73,7 @@ describe('student contract profile create adapter', () => {
 
   it('keeps the profile empty when the due date is intentionally removed', async () => {
     const root = buildRoot();
-    const originalCreate = vi.fn(async () => createResult);
+    const originalCreate = vi.fn(async (_data: CreateAlunoDTO) => createResult);
     const service = { create: originalCreate };
     const uninstall = installStudentContractProfileCreateAdapter(service, root);
 
