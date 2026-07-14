@@ -1,10 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, CheckCircle2, Copy, Send, ShieldAlert } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { alunoService, type StudentContractLink } from '../services/aluno.service';
 import { contractService, type GeneratedContract } from '../services/contract.service';
+import {
+  CONTRACT_REPLACEMENT_CONFIRM_REQUEST_EVENT,
+  publishContractReplacementState,
+} from '../services/contract-replacement-coordination';
 import { resolveStudentContractDelivery } from '../services/student-contract-delivery';
 import {
   resolveStudentContractReplacement,
@@ -43,6 +47,11 @@ export function AlunoFormWithContractDelivery() {
   const { id = '' } = useParams<{ id: string }>();
   const refreshingParentStatusRef = useRef(false);
   const replacementConfirmedRef = useRef(false);
+  const activeStudentContractRef = useRef<StudentContractLink | null>(null);
+  const selectedContractIdRef = useRef('');
+  const restoringSelectionRef = useRef(false);
+  const pendingUserSelectionRef = useRef('');
+  const nativeConfirmRef = useRef(window.confirm.bind(window));
   const [deliverySlot, setDeliverySlot] = useState<HTMLElement | null>(null);
   const [selectedContractId, setSelectedContractId] = useState('');
   const [activeStudentContract, setActiveStudentContract] = useState<StudentContractLink | null>(null);
@@ -91,7 +100,24 @@ export function AlunoFormWithContractDelivery() {
   }, [replacement.confirmed]);
 
   useEffect(() => {
-    const nativeConfirm = window.confirm.bind(window);
+    activeStudentContractRef.current = activeStudentContract;
+  }, [activeStudentContract]);
+
+  useEffect(() => {
+    selectedContractIdRef.current = selectedContractId;
+  }, [selectedContractId]);
+
+  useEffect(() => {
+    publishContractReplacementState({
+      activeContractId: activeStudentContract?.contractId || '',
+      selectedContractId,
+      required: replacement.required,
+      confirmed: replacement.confirmed,
+    });
+  }, [activeStudentContract?.contractId, replacement.confirmed, replacement.required, selectedContractId]);
+
+  useEffect(() => {
+    const nativeConfirm = nativeConfirmRef.current;
     const replacementAwareConfirm = (message?: string) => {
       if (shouldBypassLegacyContractReplacementConfirm(message, replacementConfirmedRef.current)) {
         return true;
@@ -145,22 +171,120 @@ export function AlunoFormWithContractDelivery() {
     };
   }, []);
 
+  const clearReplacementConfirmation = useCallback(() => {
+    setConfirmedReplacementContractId('');
+    replacementConfirmedRef.current = false;
+  }, []);
+
+  const restoreActiveContractSelection = useCallback(
+    (control: HTMLSelectElement, activeContractId: string) => {
+      restoringSelectionRef.current = true;
+      control.value = activeContractId;
+      selectedContractIdRef.current = activeContractId;
+      setSelectedContractId(activeContractId);
+      clearReplacementConfirmation();
+      pendingUserSelectionRef.current = '';
+      setReplacementFeedback('Substituição cancelada. O contrato vigente foi mantido.');
+      restoringSelectionRef.current = false;
+      control.dispatchEvent(new Event('change', { bubbles: true }));
+    },
+    [clearReplacementConfirmation]
+  );
+
+  const confirmReplacementSelection = useCallback(
+    (control = getSelectedContractControl(), requestedContractId?: string) => {
+      const active = activeStudentContractRef.current;
+      const nextContractId = requestedContractId ?? control?.value?.trim() ?? '';
+
+      if (!active || !nextContractId || nextContractId === active.contractId) {
+        clearReplacementConfirmation();
+        setReplacementFeedback(null);
+        return true;
+      }
+
+      if (confirmedReplacementContractId === nextContractId) return true;
+
+      const contractStateLabel =
+        active.contract.status === 'SIGNED' || active.contract.signedAt || active.signedAt
+          ? 'assinado'
+          : 'ativo';
+      const confirmed = nativeConfirmRef.current(
+        `O contrato ${contractStateLabel} "${active.contract.title}" continuará vigente até a assinatura e a data efetiva do novo contrato. Confirma a preparação da substituição pelo contrato selecionado?`
+      );
+
+      if (!confirmed) {
+        if (control) restoreActiveContractSelection(control, active.contractId);
+        return false;
+      }
+
+      setConfirmedReplacementContractId(nextContractId);
+      replacementConfirmedRef.current = true;
+      pendingUserSelectionRef.current = '';
+      setReplacementFeedback(
+        'Substituição confirmada. O contrato atual continuará vigente até o novo contrato ser assinado e atingir a data de início.'
+      );
+      return true;
+    },
+    [clearReplacementConfirmation, confirmedReplacementContractId, restoreActiveContractSelection]
+  );
+
   useEffect(() => {
+    const handleSelectionChange = (event: Event) => {
+      const target = event.target;
+      if (
+        !(target instanceof HTMLSelectElement) ||
+        target.name !== SELECTED_CONTRACT_FIELD ||
+        restoringSelectionRef.current
+      ) {
+        return;
+      }
+
+      const nextContractId = target.value.trim();
+      selectedContractIdRef.current = nextContractId;
+
+      if (event.isTrusted) {
+        if (activeContractLoading) {
+          pendingUserSelectionRef.current = nextContractId;
+          clearReplacementConfirmation();
+        } else if (!confirmReplacementSelection(target, nextContractId)) {
+          event.preventDefault();
+          event.stopPropagation();
+          event.stopImmediatePropagation();
+          return;
+        }
+      } else if (confirmedReplacementContractId !== nextContractId) {
+        clearReplacementConfirmation();
+      }
+
+      setSelectedContractId(nextContractId);
+    };
+
     const syncSelectedContract = () => {
-      if (refreshingParentStatusRef.current) return;
-      setSelectedContractId(getSelectedContractControl()?.value?.trim() || '');
+      if (refreshingParentStatusRef.current || restoringSelectionRef.current) return;
+      const nextContractId = getSelectedContractControl()?.value?.trim() || '';
+      if (nextContractId === selectedContractIdRef.current) return;
+      selectedContractIdRef.current = nextContractId;
+      setSelectedContractId(nextContractId);
+      if (confirmedReplacementContractId !== nextContractId) {
+        clearReplacementConfirmation();
+      }
     };
 
     syncSelectedContract();
-    document.addEventListener('change', syncSelectedContract);
+    document.addEventListener('change', handleSelectionChange, true);
     const observer = new MutationObserver(syncSelectedContract);
     observer.observe(document.body, { childList: true, subtree: true });
 
     return () => {
-      document.removeEventListener('change', syncSelectedContract);
+      document.removeEventListener('change', handleSelectionChange, true);
       observer.disconnect();
     };
-  }, []);
+  }, [
+    activeContractLoading,
+    clearReplacementConfirmation,
+    confirmReplacementSelection,
+    confirmedReplacementContractId,
+  ]);
 
   useEffect(() => {
     if (!id) {
@@ -175,10 +299,14 @@ export function AlunoFormWithContractDelivery() {
     alunoService
       .listStudentContracts(id)
       .then((result) => {
-        if (active) setActiveStudentContract(result.activeContract);
+        if (!active) return;
+        activeStudentContractRef.current = result.activeContract;
+        setActiveStudentContract(result.activeContract);
       })
       .catch(() => {
-        if (active) setActiveStudentContract(null);
+        if (!active) return;
+        activeStudentContractRef.current = null;
+        setActiveStudentContract(null);
       })
       .finally(() => {
         if (active) setActiveContractLoading(false);
@@ -187,12 +315,27 @@ export function AlunoFormWithContractDelivery() {
     return () => {
       active = false;
     };
-  }, [id, selectedContractId]);
+  }, [id]);
 
   useEffect(() => {
-    setConfirmedReplacementContractId('');
-    setReplacementFeedback(null);
-  }, [selectedContractId, activeStudentContract?.contractId]);
+    if (activeContractLoading || !pendingUserSelectionRef.current) return;
+    const pendingContractId = pendingUserSelectionRef.current;
+    pendingUserSelectionRef.current = '';
+    const control = getSelectedContractControl();
+    if (!control || control.value.trim() !== pendingContractId) return;
+    confirmReplacementSelection(control, pendingContractId);
+  }, [activeContractLoading, confirmReplacementSelection]);
+
+  useEffect(() => {
+    const requestConfirmation = () => {
+      confirmReplacementSelection();
+    };
+
+    window.addEventListener(CONTRACT_REPLACEMENT_CONFIRM_REQUEST_EVENT, requestConfirmation);
+    return () => {
+      window.removeEventListener(CONTRACT_REPLACEMENT_CONFIRM_REQUEST_EVENT, requestConfirmation);
+    };
+  }, [confirmReplacementSelection]);
 
   useEffect(() => {
     let attachedForm: HTMLFormElement | null = null;
@@ -206,7 +349,7 @@ export function AlunoFormWithContractDelivery() {
       setReplacementFeedback(
         replacementCheckPending
           ? 'Aguarde a verificação do contrato vigente antes de salvar.'
-          : 'Confirme a troca do contrato antes de salvar o cadastro.'
+          : 'Confirme a preparação da substituição antes de salvar o cadastro.'
       );
       window.requestAnimationFrame(() => {
         document.getElementById(CONTRACT_REPLACEMENT_PANEL_ID)?.scrollIntoView({
@@ -302,17 +445,7 @@ export function AlunoFormWithContractDelivery() {
   };
 
   const handleConfirmReplacement = () => {
-    if (!replacement.required || !selectedContractId || !activeStudentContract) return;
-
-    const contractStateLabel = activeContractIsSigned ? 'assinado' : 'ativo';
-    const confirmed = window.confirm(
-      `O contrato ${contractStateLabel} "${activeStudentContract.contract.title}" será encerrado quando este cadastro for salvo. Confirma a troca pelo novo contrato selecionado?`
-    );
-
-    if (!confirmed) return;
-
-    setConfirmedReplacementContractId(selectedContractId);
-    setReplacementFeedback('Troca confirmada. O contrato atual será encerrado somente ao salvar o cadastro.');
+    confirmReplacementSelection();
   };
 
   const handleSend = async () => {
@@ -347,7 +480,10 @@ export function AlunoFormWithContractDelivery() {
     } catch (error: any) {
       setFeedback({
         type: 'error',
-        message: error?.response?.data?.error || error?.message || 'Não foi possível gerar o link de assinatura.',
+        message:
+          error?.response?.data?.error ||
+          error?.message ||
+          'Não foi possível gerar o link de assinatura.',
       });
     } finally {
       setSending(false);
@@ -361,7 +497,11 @@ export function AlunoFormWithContractDelivery() {
     setFeedback(
       linkCopied
         ? { type: 'success', message: 'Link de assinatura copiado.' }
-        : { type: 'error', message: 'Não foi possível copiar automaticamente. Selecione e copie o endereço.' }
+        : {
+            type: 'error',
+            message:
+              'Não foi possível copiar automaticamente. Selecione e copie o endereço.',
+          }
     );
   };
 
@@ -398,12 +538,15 @@ export function AlunoFormWithContractDelivery() {
                       ) : (
                         <ShieldAlert className="h-5 w-5 text-amber-700" />
                       )}
-                      Confirmação da troca de contrato
+                      Confirmação da substituição de contrato
                     </h4>
                     <p className="mt-1 text-sm text-muted-foreground">
                       O aluno possui o contrato {activeContractIsSigned ? 'assinado' : 'ativo'}{' '}
-                      <strong className="text-foreground">{activeStudentContract.contract.title}</strong>. Ao salvar,
-                      esse vínculo será encerrado e o novo contrato selecionado será ativado.
+                      <strong className="text-foreground">
+                        {activeStudentContract.contract.title}
+                      </strong>
+                      . O vínculo atual permanecerá vigente até a assinatura e a data efetiva do
+                      contrato selecionado.
                     </p>
                   </div>
                   <Button
@@ -417,7 +560,9 @@ export function AlunoFormWithContractDelivery() {
                     ) : (
                       <ShieldAlert className="mr-2 h-4 w-4" />
                     )}
-                    {replacement.confirmed ? 'Troca confirmada' : 'Confirmar troca de contrato'}
+                    {replacement.confirmed
+                      ? 'Substituição confirmada'
+                      : 'Confirmar preparação da substituição'}
                   </Button>
                 </div>
 
@@ -434,7 +579,8 @@ export function AlunoFormWithContractDelivery() {
                 )}
 
                 <p className="text-xs text-muted-foreground">
-                  A confirmação vale somente para o contrato atualmente selecionado. Alterar a seleção exigirá uma nova confirmação.
+                  A confirmação vale somente para o contrato atualmente selecionado. Alterar a
+                  seleção exigirá uma nova confirmação.
                 </p>
               </div>
             )}
@@ -442,12 +588,14 @@ export function AlunoFormWithContractDelivery() {
             <div className="space-y-4 rounded-xl border border-border bg-muted/10 p-4">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                 <div>
-                  <h4 className="text-sm font-semibold text-foreground">Envio para assinatura</h4>
+                  <h4 className="text-sm font-semibold text-foreground">
+                    Envio para assinatura
+                  </h4>
                   <p className="mt-1 text-sm text-muted-foreground">
                     {replacementCheckPending
                       ? 'Aguarde a verificação do contrato vigente antes de preparar o envio.'
                       : replacement.required && !replacement.confirmed
-                        ? 'Confirme a troca do contrato atual antes de enviar o novo documento para assinatura.'
+                        ? 'Confirme a substituição do contrato atual antes de enviar o novo documento para assinatura.'
                         : delivery.description}
                   </p>
                 </div>
@@ -476,7 +624,9 @@ export function AlunoFormWithContractDelivery() {
 
               {signatureLink && (
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-foreground">Link público de assinatura</label>
+                  <label className="block text-sm font-medium text-foreground">
+                    Link público de assinatura
+                  </label>
                   <div className="flex flex-col gap-2 sm:flex-row">
                     <input
                       type="text"
@@ -487,7 +637,11 @@ export function AlunoFormWithContractDelivery() {
                       aria-label="Link público de assinatura"
                     />
                     <Button type="button" variant="outline" onClick={handleCopy}>
-                      {copied ? <Check className="mr-2 h-4 w-4" /> : <Copy className="mr-2 h-4 w-4" />}
+                      {copied ? (
+                        <Check className="mr-2 h-4 w-4" />
+                      ) : (
+                        <Copy className="mr-2 h-4 w-4" />
+                      )}
                       {copied ? 'Copiado' : 'Copiar link'}
                     </Button>
                   </div>
@@ -495,8 +649,9 @@ export function AlunoFormWithContractDelivery() {
               )}
 
               <p className="text-xs text-muted-foreground">
-                O sistema cria o link seguro, mas não envia mensagem automaticamente. Compartilhe o endereço por WhatsApp,
-                e-mail ou outro canal. O link é exibido somente nesta sessão; gerar outro link invalida o anterior.
+                O sistema cria o link seguro, mas não envia mensagem automaticamente. Compartilhe o
+                endereço por WhatsApp, e-mail ou outro canal. O link é exibido somente nesta sessão;
+                gerar outro link invalida o anterior.
               </p>
             </div>
           </div>,
