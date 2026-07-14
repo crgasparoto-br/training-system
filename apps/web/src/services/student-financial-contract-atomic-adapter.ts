@@ -131,7 +131,7 @@ export function installStudentFinancialContractAtomicAdapter(
       actualAlunoId: result.aluno.id,
       link: result.studentContract,
       consumeConfirmationUpdate: contract.endDate !== undefined,
-      consumeActivation: true,
+      consumeActivation: result.studentContract.status === 'active',
     };
     pendingCreate = null;
     return result.studentContract;
@@ -148,7 +148,7 @@ export function installStudentFinancialContractAtomicAdapter(
       actualAlunoId: alunoId,
       link: result.studentContract,
       consumeConfirmationUpdate: contract.endDate !== undefined,
-      consumeActivation: true,
+      consumeActivation: result.studentContract.status === 'active',
     };
     pendingUpdates.delete(alunoId);
     return result.studentContract;
@@ -159,10 +159,13 @@ export function installStudentFinancialContractAtomicAdapter(
       return emptyContractsResponse(alunoId);
     }
 
-    if (completed?.requestedAlunoId === alunoId && alunoId.startsWith(PROVISIONAL_ALUNO_PREFIX)) {
+    if (
+      completed?.requestedAlunoId === alunoId &&
+      alunoId.startsWith(PROVISIONAL_ALUNO_PREFIX)
+    ) {
       const response: AlunoContractsResponse = {
         alunoId: completed.actualAlunoId,
-        activeContract: completed.link,
+        activeContract: completed.link.status === 'active' ? completed.link : null,
         contracts: [completed.link],
       };
       completed = null;
