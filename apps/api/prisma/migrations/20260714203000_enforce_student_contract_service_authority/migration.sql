@@ -1,4 +1,4 @@
--- Contract.serviceId is the authoritative financial service for StudentContract
+-- GeneratedContract.serviceId is the authoritative financial service for StudentContract
 -- whenever the generated contract has an explicit service association.
 CREATE OR REPLACE FUNCTION enforce_student_contract_service_authority()
 RETURNS TRIGGER AS $$
@@ -7,7 +7,7 @@ DECLARE
 BEGIN
   SELECT "serviceId"
     INTO authoritative_service_id
-  FROM "Contract"
+  FROM "GeneratedContract"
   WHERE "id" = NEW."contractId";
 
   IF authoritative_service_id IS NOT NULL THEN
@@ -66,7 +66,19 @@ RETURNS TRIGGER AS $$
 DECLARE
   authoritative_service_name TEXT;
 BEGIN
-  IF NEW."status" = 'active' AND NEW."serviceId" IS NOT NULL THEN
+  IF NEW."serviceId" IS NOT NULL AND (
+    NEW."status" = 'active'
+    OR (
+      NEW."status" IN ('draft', 'pending_signature')
+      AND NOT EXISTS (
+        SELECT 1
+        FROM "StudentContract" AS active_link
+        WHERE active_link."alunoId" = NEW."alunoId"
+          AND active_link."status" = 'active'
+          AND active_link."id" <> NEW."id"
+      )
+    )
+  ) THEN
     SELECT "name"
       INTO authoritative_service_name
     FROM "ServiceOption"
@@ -103,7 +115,7 @@ ON "StudentContract"
 FOR EACH ROW
 EXECUTE FUNCTION sync_active_student_contract_financial_service();
 
-CREATE OR REPLACE FUNCTION propagate_contract_service_to_student_contract()
+CREATE OR REPLACE FUNCTION propagate_generated_contract_service_to_student_contract()
 RETURNS TRIGGER AS $$
 BEGIN
   IF NEW."serviceId" IS NOT NULL AND NEW."serviceId" IS DISTINCT FROM OLD."serviceId" THEN
@@ -118,22 +130,23 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS "Contract_propagate_service_to_student_contract" ON "Contract";
-CREATE TRIGGER "Contract_propagate_service_to_student_contract"
+DROP TRIGGER IF EXISTS "Contract_propagate_service_to_student_contract" ON "GeneratedContract";
+DROP TRIGGER IF EXISTS "GeneratedContract_propagate_service_to_student_contract" ON "GeneratedContract";
+CREATE TRIGGER "GeneratedContract_propagate_service_to_student_contract"
 AFTER UPDATE OF "serviceId"
-ON "Contract"
+ON "GeneratedContract"
 FOR EACH ROW
-EXECUTE FUNCTION propagate_contract_service_to_student_contract();
+EXECUTE FUNCTION propagate_generated_contract_service_to_student_contract();
 
 -- Repair legacy links that were persisted with the interest service instead of
 -- the service associated with the generated contract.
 UPDATE "StudentContract" AS student_contract
-SET "serviceId" = contract."serviceId",
+SET "serviceId" = generated_contract."serviceId",
     "updatedAt" = CURRENT_TIMESTAMP
-FROM "Contract" AS contract
-WHERE student_contract."contractId" = contract."id"
-  AND contract."serviceId" IS NOT NULL
-  AND student_contract."serviceId" IS DISTINCT FROM contract."serviceId";
+FROM "GeneratedContract" AS generated_contract
+WHERE student_contract."contractId" = generated_contract."id"
+  AND generated_contract."serviceId" IS NOT NULL
+  AND student_contract."serviceId" IS DISTINCT FROM generated_contract."serviceId";
 
 -- Repair the denormalized financial form value for the active link as well.
 UPDATE "AlunoIntakeForm" AS intake
@@ -145,10 +158,10 @@ SET "formResponses" = with_financial_current_service(
 FROM "Aluno" AS aluno
 JOIN "StudentContract" AS student_contract
   ON student_contract."id" = aluno."currentStudentContractId"
-JOIN "Contract" AS contract
-  ON contract."id" = student_contract."contractId"
+JOIN "GeneratedContract" AS generated_contract
+  ON generated_contract."id" = student_contract."contractId"
 JOIN "ServiceOption" AS service
-  ON service."id" = contract."serviceId"
+  ON service."id" = generated_contract."serviceId"
 WHERE intake."alunoId" = aluno."id"
   AND student_contract."status" = 'active'
   AND COALESCE(intake."formResponses"::jsonb #>> '{financial,currentService}', '')
