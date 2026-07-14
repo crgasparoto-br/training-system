@@ -124,6 +124,11 @@ describe('AlunoFormWithContractDelivery replacement blocker', () => {
     );
     const select = screen.getByLabelText('Contrato') as HTMLSelectElement;
     await user.selectOptions(select, 'contract-new');
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'Confirmar preparação da substituição',
+      })
+    );
 
     expect(nativeConfirm).toHaveBeenCalledTimes(1);
     expect(select.value).toBe('contract-active');
@@ -144,6 +149,11 @@ describe('AlunoFormWithContractDelivery replacement blocker', () => {
     );
     const select = screen.getByLabelText('Contrato') as HTMLSelectElement;
     await user.selectOptions(select, 'contract-new');
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'Confirmar preparação da substituição',
+      })
+    );
 
     await waitFor(() =>
       expect(screen.getByText('Substituição confirmada')).toBeInTheDocument()
