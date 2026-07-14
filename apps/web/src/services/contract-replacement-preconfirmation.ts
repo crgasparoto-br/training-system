@@ -24,10 +24,12 @@ export function installContractReplacementPreconfirmation({
 }: ContractReplacementPreconfirmationOptions) {
   const originalConfirm = targetWindow.confirm;
   let acceptedReplacementId = '';
+  let restoringSelection = false;
 
   const confirmReplacementBeforeApplying = (event: Event) => {
     const target = event.target;
     if (
+      restoringSelection ||
       !isUserInitiated(event) ||
       !(target instanceof HTMLSelectElement) ||
       target.name !== CONTRACT_SELECTION_FIELD
@@ -54,8 +56,13 @@ export function installContractReplacementPreconfirmation({
     }
 
     acceptedReplacementId = '';
-    target.value = activeContractId;
-    target.dispatchEvent(new Event('change', { bubbles: true }));
+    restoringSelection = true;
+    try {
+      target.value = activeContractId;
+      target.dispatchEvent(new Event('change', { bubbles: true }));
+    } finally {
+      restoringSelection = false;
+    }
   };
 
   const confirm: typeof targetWindow.confirm = (message) => {
