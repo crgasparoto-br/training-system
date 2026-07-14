@@ -20,7 +20,8 @@ describe('contract replacement preconfirmation', () => {
     const root = buildRoot();
     const select = root.querySelector<HTMLSelectElement>('select')!;
     select.value = 'contract-a';
-    const targetWindow = { confirm: vi.fn((_message?: string) => false) };
+    const originalConfirm = vi.fn((_message?: string) => false);
+    const targetWindow = { confirm: originalConfirm };
     const uninstall = installContractReplacementPreconfirmation({
       root,
       targetWindow,
@@ -31,12 +32,13 @@ describe('contract replacement preconfirmation', () => {
     select.value = 'contract-b';
     select.dispatchEvent(new Event('change', { bubbles: true }));
 
-    expect(targetWindow.confirm).toHaveBeenCalledWith(
+    expect(originalConfirm).toHaveBeenCalledWith(
       CONTRACT_REPLACEMENT_CONFIRMATION_MESSAGE
     );
     expect(select.value).toBe('contract-a');
 
     uninstall();
+    expect(targetWindow.confirm).toBe(originalConfirm);
   });
 
   it('uses the accepted selection without prompting again during save', () => {
