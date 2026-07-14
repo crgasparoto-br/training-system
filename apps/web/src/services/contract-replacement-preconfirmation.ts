@@ -3,7 +3,8 @@ export const CONTRACT_REPLACEMENT_CONFIRMATION_MESSAGE =
   'Este aluno já possui um contrato ativo. Ao ativar um novo contrato, o anterior será encerrado.';
 
 const CONTRACT_REPLACEMENT_PANEL_ID = 'aluno-contract-replacement-confirmation';
-const CONTRACT_REPLACEMENT_ACTION_LABEL = 'Confirmar preparação da substituição';
+const CONTRACT_REPLACEMENT_ACTION_ATTRIBUTE =
+  'data-contract-replacement-confirm-action';
 const DETAILED_REPLACEMENT_CONFIRMATION_PATTERN =
   /^O contrato (?:assinado|ativo) ".+" será encerrado quando este cadastro for salvo\./u;
 
@@ -23,14 +24,15 @@ const getContractSelectionControl = (root: ParentNode) =>
 
 const findReplacementConfirmationButton = (root: ParentNode) => {
   const panel = root.querySelector<HTMLElement>(`#${CONTRACT_REPLACEMENT_PANEL_ID}`);
-  return (
-    Array.from(panel?.querySelectorAll<HTMLButtonElement>('button') ?? []).find(
-      (button) =>
-        !button.disabled &&
-        button.textContent?.replace(/\s+/gu, ' ').trim() ===
-          CONTRACT_REPLACEMENT_ACTION_LABEL
-    ) ?? null
+  if (!panel) return null;
+
+  const button = panel.querySelector<HTMLButtonElement>(
+    `button[type="button"][${CONTRACT_REPLACEMENT_ACTION_ATTRIBUTE}="true"], button[type="button"]:not([disabled])`
   );
+  if (!button || button.disabled) return null;
+
+  button.setAttribute(CONTRACT_REPLACEMENT_ACTION_ATTRIBUTE, 'true');
+  return button;
 };
 
 export function installContractReplacementPreconfirmation({
@@ -126,8 +128,6 @@ export function installContractReplacementPreconfirmation({
     }
 
     if (acceptedSelection && message === CONTRACT_REPLACEMENT_CONFIRMATION_MESSAGE) {
-      acceptedReplacementId = '';
-      automaticallyConfirmedPanelForId = '';
       return true;
     }
 
