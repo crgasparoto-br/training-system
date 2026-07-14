@@ -36,6 +36,8 @@ Quando já existe uma data final, a ação **Remover vencimento** fica disponív
 
 Datas de início e término são tratadas como **datas civis**, e não como instantes UTC. Um término em `14/07` permanece vigente durante todo o dia 14 no horário local e passa a vencido somente no dia seguinte. As datas retornadas pela API são normalizadas para evitar exibição do dia anterior em fusos negativos, como o Brasil.
 
+Os testes automatizados reproduzem os controles reais de início e duração, o campo visual desabilitado, a remoção intencional, a persistência no perfil e no vínculo e o cenário sem ofertas financeiras ativas.
+
 ## Histórico de contratos
 
 O bloco contratual da aba **Financeiro** apresenta a ação **Visualizar contratos**. A ação abre um modal sobre a própria edição do aluno, sem navegar para outra tela e sem perder os dados ainda não salvos do formulário.
