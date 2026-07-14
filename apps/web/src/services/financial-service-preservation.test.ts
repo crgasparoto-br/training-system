@@ -4,6 +4,7 @@ import {
   ensurePreservedFinancialServiceOption,
   installFinancialServicePayloadAdapter,
   patchProfileFinancialService,
+  readFinancialServiceControlValue,
   readPersistedFinancialServiceName,
   removePreservedFinancialServiceFallback,
   resolveFinancialServiceName,
@@ -69,6 +70,43 @@ describe('financial service preservation', () => {
     removePreservedFinancialServiceFallback(root);
     expect(root.querySelector('select')).toBeNull();
     expect(root.querySelector('p')?.hidden).toBe(false);
+  });
+
+  it('recreates an empty fallback after the financial tab is mounted again', () => {
+    const root = document.createElement('div');
+    root.innerHTML = `
+      <div>
+        <p>Nenhuma oferta financeira ativa cadastrada em Configurações &gt; Serviços.</p>
+      </div>
+    `;
+
+    const firstControl = ensurePreservedFinancialServiceControl(root, 'Plano legado');
+    firstControl!.value = '';
+    removePreservedFinancialServiceFallback(root);
+
+    const recreatedControl = ensurePreservedFinancialServiceControl(root, '');
+
+    expect(recreatedControl).toBeTruthy();
+    expect(recreatedControl?.value).toBe('');
+    expect(Array.from(recreatedControl?.options ?? []).map((option) => option.value)).toEqual([
+      '',
+    ]);
+    expect(root.querySelector('p')?.hidden).toBe(true);
+  });
+
+  it('reads the service selected programmatically by the chosen contract', () => {
+    const root = document.createElement('div');
+    root.innerHTML = `
+      <select name="intakeForm.financialInfo.currentService">
+        <option value="Plano A">Plano A</option>
+        <option value="Plano B">Plano B</option>
+      </select>
+    `;
+    const control = root.querySelector<HTMLSelectElement>('select')!;
+
+    control.value = 'Plano B';
+
+    expect(readFinancialServiceControlValue(root)).toBe('Plano B');
   });
 
   it('persists the resolved service even when the fallback control is not registered by the form', async () => {
