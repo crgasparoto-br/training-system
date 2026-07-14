@@ -77,8 +77,6 @@ const buildService = () => {
     originalUpdate,
     originalLink,
     originalContractUpdate,
-    originalActivate,
-    originalList,
   };
 };
 
@@ -91,9 +89,7 @@ describe('student contract end date adapter', () => {
   it('derives endDate from the real timing controls even when the display has no name', () => {
     const root = buildRoot();
 
-    expect(
-      appendContractEndDate({ startDate: '2026-01-31' }, root)
-    ).toEqual({
+    expect(appendContractEndDate({ startDate: '2026-01-31' }, root)).toEqual({
       startDate: '2026-01-31',
       endDate: '2026-02-28',
     });
@@ -101,11 +97,7 @@ describe('student contract end date adapter', () => {
 
   it('patches the persisted financial response together with the contract link', async () => {
     const root = buildRoot();
-    const {
-      service,
-      originalUpdate,
-      originalContractUpdate,
-    } = buildService();
+    const { service, originalUpdate, originalContractUpdate } = buildService();
     const target = new EventTarget();
     const changedAlunoIds: string[] = [];
     target.addEventListener(STUDENT_CONTRACTS_CHANGED_EVENT, (event) => {
@@ -114,11 +106,7 @@ describe('student contract end date adapter', () => {
       );
     });
 
-    const uninstall = installStudentContractEndDateAdapter(
-      service,
-      root,
-      target
-    );
+    const uninstall = installStudentContractEndDateAdapter(service, root, target);
 
     await service.update('student-1', {
       intakeForm: {
