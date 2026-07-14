@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowLeft, Eye, FileText, X } from 'lucide-react';
 import { Button } from '../components/ui/Button';
@@ -9,14 +9,8 @@ import {
   type ContractValidityStatus,
 } from '../services/contract-validity';
 import { contractService, type GeneratedContract } from '../services/contract.service';
-import {
-  ensurePreservedFinancialServiceOption,
-  readPersistedFinancialServiceName,
-  resolveFinancialServiceName,
-} from '../services/financial-service-preservation';
 import { AlunoFormWithContractLifecycle } from './AlunoFormWithContractLifecycle';
 
-const FINANCIAL_SERVICE_FIELD = 'intakeForm.financialInfo.currentService';
 const CONTRACT_SECTION_SLOT_ID = 'aluno-contract-section-slot';
 const CONTRACT_HISTORY_SLOT_ID = 'aluno-contract-history-slot';
 
@@ -58,13 +52,8 @@ const formatDateLabel = (value?: string | null) => {
   return parsed.toLocaleDateString('pt-BR');
 };
 
-const getFinancialServiceControl = () =>
-  document.querySelector<HTMLSelectElement>(`select[name="${FINANCIAL_SERVICE_FIELD}"]`);
-
 export function AlunoFormWithFinancialContracts() {
   const id = window.location.pathname.match(/^\/alunos\/([^/]+)\/edit/)?.[1] || '';
-  const userChangedServiceRef = useRef(false);
-  const [financialServiceName, setFinancialServiceName] = useState('');
   const [contractHistorySlot, setContractHistorySlot] = useState<HTMLElement | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [contracts, setContracts] = useState<GeneratedContract[]>([]);
@@ -72,86 +61,6 @@ export function AlunoFormWithFinancialContracts() {
   const [contractsLoading, setContractsLoading] = useState(false);
   const [contractsError, setContractsError] = useState<string | null>(null);
   const [previewContract, setPreviewContract] = useState<GeneratedContract | null>(null);
-
-  useEffect(() => {
-    userChangedServiceRef.current = false;
-    setFinancialServiceName('');
-    setStudentContractLinks([]);
-
-    if (!id) {
-      return undefined;
-    }
-
-    let active = true;
-
-    Promise.all([alunoService.getById(id), alunoService.listStudentContracts(id)])
-      .then(([aluno, contractLinks]) => {
-        if (!active) return;
-
-        const persistedFinancialServiceName = readPersistedFinancialServiceName(
-          aluno.intakeForm?.formResponses
-        );
-        const resolvedServiceName = resolveFinancialServiceName({
-          activeContractServiceName: contractLinks.activeContract?.service?.name,
-          persistedFinancialServiceName,
-        });
-
-        setFinancialServiceName(resolvedServiceName);
-        setStudentContractLinks(contractLinks.contracts);
-      })
-      .catch(() => {
-        if (!active) return;
-        setFinancialServiceName('');
-        setStudentContractLinks([]);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [id]);
-
-  useEffect(() => {
-    if (!financialServiceName) {
-      return undefined;
-    }
-
-    const syncFinancialService = () => {
-      const select = getFinancialServiceControl();
-      if (!select || userChangedServiceRef.current) return;
-
-      ensurePreservedFinancialServiceOption(select, financialServiceName);
-
-      if (select.value.trim() === financialServiceName) return;
-
-      select.value = financialServiceName;
-      select.dispatchEvent(new Event('change', { bubbles: true }));
-    };
-
-    const registerManualChange = (event: Event) => {
-      const target = event.target;
-      if (
-        event.isTrusted &&
-        target instanceof HTMLSelectElement &&
-        target.name === FINANCIAL_SERVICE_FIELD
-      ) {
-        userChangedServiceRef.current = true;
-      }
-    };
-
-    syncFinancialService();
-    document.addEventListener('change', registerManualChange, true);
-
-    const observer = new MutationObserver(syncFinancialService);
-    observer.observe(document.body, { childList: true, subtree: true });
-
-    const interval = window.setInterval(syncFinancialService, 250);
-
-    return () => {
-      document.removeEventListener('change', registerManualChange, true);
-      observer.disconnect();
-      window.clearInterval(interval);
-    };
-  }, [financialServiceName]);
 
   useEffect(() => {
     const syncContractHistorySlot = () => {
