@@ -1,89 +1,73 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { alunoService, type StudentContractLink } from '../services/aluno.service';
-import {
-  findStudentContractLink,
-  resolveContractValidity,
-} from '../services/contract-validity';
-import {
-  formatContractOptionValidity,
-  stripContractOptionValidity,
-} from '../services/contract-option-validity';
+import { syncContractOptionValidityOptions } from '../services/contract-option-validity';
 import { contractService, type GeneratedContract } from '../services/contract.service';
+import {
+  installStudentContractEndDateAdapter,
+  STUDENT_CONTRACTS_CHANGED_EVENT,
+  type StudentContractsChangedDetail,
+} from '../services/student-contract-end-date-adapter';
 import { AlunoFormWithFinancialContracts } from './AlunoFormWithFinancialContracts';
 
 const CONTRACT_SELECTION_FIELD = 'intakeForm.financialInfo.selectedContractId';
-const CONTRACT_OPTION_BASE_LABEL_DATASET_KEY = 'contractOptionBaseLabel';
 
 const getContractSelectionControl = () =>
   document.querySelector<HTMLSelectElement>(`select[name="${CONTRACT_SELECTION_FIELD}"]`);
 
-const readContractOptionBaseLabel = (option: HTMLOptionElement) => {
-  const currentLabel = option.textContent?.trim() || '';
-  const currentBaseLabel = stripContractOptionValidity(currentLabel);
-  const storedBaseLabel = option.dataset[CONTRACT_OPTION_BASE_LABEL_DATASET_KEY];
-
-  if (!storedBaseLabel || currentLabel === currentBaseLabel) {
-    option.dataset[CONTRACT_OPTION_BASE_LABEL_DATASET_KEY] = currentBaseLabel;
-    return currentBaseLabel;
-  }
-
-  return storedBaseLabel;
-};
-
 export function AlunoFormWithContractValidityOptions() {
   const id = window.location.pathname.match(/^\/alunos\/([^/]+)\/edit/)?.[1] || '';
+  const loadSequenceRef = useRef(0);
   const [contracts, setContracts] = useState<GeneratedContract[]>([]);
   const [studentContractLinks, setStudentContractLinks] = useState<StudentContractLink[]>([]);
 
-  useEffect(() => {
-    setContracts([]);
-    setStudentContractLinks([]);
+  const loadContractData = useCallback(async () => {
+    if (!id) {
+      setContracts([]);
+      setStudentContractLinks([]);
+      return;
+    }
 
-    if (!id) return undefined;
-
-    let active = true;
-
-    Promise.allSettled([
+    const loadSequence = ++loadSequenceRef.current;
+    const [contractsResult, linksResult] = await Promise.allSettled([
       contractService.listAlunoContracts(id),
       alunoService.listStudentContracts(id),
-    ]).then(([contractsResult, linksResult]) => {
-      if (!active) return;
+    ]);
 
-      setContracts(contractsResult.status === 'fulfilled' ? contractsResult.value : []);
-      setStudentContractLinks(
-        linksResult.status === 'fulfilled' ? linksResult.value.contracts : []
-      );
-    });
+    if (loadSequence !== loadSequenceRef.current) return;
 
-    return () => {
-      active = false;
-    };
+    setContracts(contractsResult.status === 'fulfilled' ? contractsResult.value : []);
+    setStudentContractLinks(
+      linksResult.status === 'fulfilled' ? linksResult.value.contracts : []
+    );
   }, [id]);
 
   useEffect(() => {
-    const contractsById = new Map(contracts.map((contract) => [contract.id, contract]));
+    void loadContractData();
+  }, [loadContractData]);
 
+  useEffect(() => {
+    const uninstallAdapter = installStudentContractEndDateAdapter();
+
+    const refreshContractData = (event: Event) => {
+      const detail = (event as CustomEvent<StudentContractsChangedDetail>).detail;
+      if (detail?.alunoId !== id) return;
+      void loadContractData();
+    };
+
+    window.addEventListener(STUDENT_CONTRACTS_CHANGED_EVENT, refreshContractData);
+
+    return () => {
+      window.removeEventListener(STUDENT_CONTRACTS_CHANGED_EVENT, refreshContractData);
+      uninstallAdapter();
+    };
+  }, [id, loadContractData]);
+
+  useEffect(() => {
     const syncContractOptionValidity = () => {
       const select = getContractSelectionControl();
       if (!select) return;
 
-      Array.from(select.options).forEach((option) => {
-        if (!option.value) return;
-
-        const baseLabel = readContractOptionBaseLabel(option);
-        const contract = contractsById.get(option.value);
-        const link = contract
-          ? findStudentContractLink(contract.id, studentContractLinks)
-          : null;
-        const validity = contract
-          ? resolveContractValidity(contract.status, link)
-          : null;
-        const nextLabel = formatContractOptionValidity(baseLabel, validity);
-
-        if (option.textContent !== nextLabel) {
-          option.textContent = nextLabel;
-        }
-      });
+      syncContractOptionValidityOptions(select, contracts, studentContractLinks);
     };
 
     syncContractOptionValidity();
