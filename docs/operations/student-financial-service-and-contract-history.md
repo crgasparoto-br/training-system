@@ -71,3 +71,7 @@ A vigência é calculada a partir do vínculo contratual do aluno:
 Cada item apresenta a ação **Consultar**, que abre o documento persistido em modo somente leitura dentro do mesmo modal. O usuário pode retornar à lista, fechar pelo botão, clicar fora da janela ou usar `Esc`.
 
 Esse acesso não modifica as regras de ativação ou substituição. O contrato vigente continua sendo encerrado somente quando o substituto estiver assinado e atingir sua data efetiva de início.
+
+## Validação
+
+O workflow oficial **Validate PR #1350** foi aprovado no commit `40d7064a9003e66efe1480cd25334189a5a3d57b`, incluindo migrations, type-check, lint, testes, arquitetura, catálogo de acessos e documentação.
