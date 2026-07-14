@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { alunoService, type StudentContractLink } from '../services/aluno.service';
+import {
+  installContractReplacementPreconfirmation,
+} from '../services/contract-replacement-preconfirmation';
 import { syncContractOptionValidityOptions } from '../services/contract-option-validity';
 import { contractService, type GeneratedContract } from '../services/contract.service';
 import {
@@ -16,6 +19,7 @@ import {
   STUDENT_CONTRACTS_CHANGED_EVENT,
   type StudentContractsChangedDetail,
 } from '../services/student-contract-end-date-adapter';
+import { installStudentContractServiceResolutionAdapter } from '../services/student-contract-service-resolution';
 import { AlunoFormWithFinancialContracts } from './AlunoFormWithFinancialContracts';
 
 const CONTRACT_SELECTION_FIELD = 'intakeForm.financialInfo.selectedContractId';
@@ -101,6 +105,12 @@ export function AlunoFormWithContractValidityOptions() {
         },
       }
     );
+    const uninstallServiceResolutionAdapter =
+      installStudentContractServiceResolutionAdapter();
+    const uninstallReplacementPreconfirmation =
+      installContractReplacementPreconfirmation({
+        getActiveContractId: () => activeContractIdRef.current,
+      });
     const uninstallFinancialServiceAdapter = installFinancialServicePayloadAdapter(
       () => financialServiceValueRef.current
     );
@@ -116,6 +126,8 @@ export function AlunoFormWithContractValidityOptions() {
     return () => {
       window.removeEventListener(STUDENT_CONTRACTS_CHANGED_EVENT, refreshContractData);
       uninstallFinancialServiceAdapter();
+      uninstallReplacementPreconfirmation();
+      uninstallServiceResolutionAdapter();
       uninstallEndDateAdapter();
     };
   }, [id, loadContractData]);
@@ -125,8 +137,6 @@ export function AlunoFormWithContractValidityOptions() {
   }, [loadContractData]);
 
   useEffect(() => {
-    if (!financialServiceName) return undefined;
-
     let active = true;
 
     const syncFinancialService = () => {
