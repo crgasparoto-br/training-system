@@ -23,6 +23,8 @@ export const STUDENT_CONTRACT_LOOKUP_STATUSES: AvailableStudentContract['status'
   'EXPIRED',
 ];
 
+const ATOMIC_PENDING_ALUNO_PREFIX = 'atomic-pending:';
+
 type StudentContractMutationService = {
   linkStudentContract(
     alunoId: string,
@@ -81,6 +83,14 @@ export function installStudentContractServiceResolutionAdapter(
   const originalList = service.listStudentContracts;
 
   const linkStudentContract: typeof service.linkStudentContract = async (alunoId, data) => {
+    // New-aluno atomic operations use a provisional id. The backend resolves
+    // the template/generated contract and enforces service authority inside the
+    // same transaction, so a frontend lookup with the provisional id would be
+    // both unreliable and redundant.
+    if (alunoId.startsWith(ATOMIC_PENDING_ALUNO_PREFIX)) {
+      return originalLink.call(service, alunoId, data);
+    }
+
     const serviceId = await resolveContractServiceId({
       alunoId,
       contractId: data.contractId,
