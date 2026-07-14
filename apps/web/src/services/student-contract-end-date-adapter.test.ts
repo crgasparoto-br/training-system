@@ -93,6 +93,6 @@ describe('student contract end date adapter', () => {
     expect(changedAlunoIds).toEqual(['student-1']);
 
     uninstall();
-    expect(service.updateStudentContract).not.toBe(originalUpdate);
+    expect(service.updateStudentContract).toBe(originalUpdate);
   });
 });
