@@ -1,7 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
+  ensurePreservedFinancialServiceControl,
   ensurePreservedFinancialServiceOption,
+  installFinancialServicePayloadAdapter,
+  patchProfileFinancialService,
   readPersistedFinancialServiceName,
+  removePreservedFinancialServiceFallback,
   resolveFinancialServiceName,
 } from './financial-service-preservation';
 
@@ -42,5 +46,98 @@ describe('financial service preservation', () => {
     expect(ensurePreservedFinancialServiceOption(select, 'Plano legado')).toBe(false);
     expect(Array.from(select.options).filter((option) => option.value === 'Plano legado')).toHaveLength(1);
     expect(ensurePreservedFinancialServiceOption(select, 'Plano atual')).toBe(false);
+  });
+
+  it('renders only the current legacy service when there are no active offers', () => {
+    const root = document.createElement('div');
+    root.innerHTML = `
+      <div>
+        <p>Nenhuma oferta financeira ativa cadastrada em Configurações &gt; Serviços.</p>
+      </div>
+    `;
+
+    const control = ensurePreservedFinancialServiceControl(root, 'Plano legado');
+
+    expect(control?.name).toBe('intakeForm.financialInfo.currentService');
+    expect(control?.value).toBe('Plano legado');
+    expect(Array.from(control?.options ?? []).map((option) => option.value)).toEqual([
+      '',
+      'Plano legado',
+    ]);
+    expect(root.querySelector('p')?.hidden).toBe(true);
+
+    removePreservedFinancialServiceFallback(root);
+    expect(root.querySelector('select')).toBeNull();
+    expect(root.querySelector('p')?.hidden).toBe(false);
+  });
+
+  it('persists the resolved service even when the fallback control is not registered by the form', async () => {
+    const originalUpdate = vi.fn(async (_alunoId: string, data: Record<string, unknown>) => data);
+    const service = { update: originalUpdate };
+    let currentService = 'Plano legado';
+    const uninstall = installFinancialServicePayloadAdapter(
+      () => currentService,
+      service
+    );
+
+    await service.update('student-1', {
+      intakeForm: {
+        formResponses: {
+          financial: { monthlyValue: '300,00' },
+        },
+      },
+    });
+
+    expect(originalUpdate).toHaveBeenCalledWith('student-1', {
+      intakeForm: {
+        formResponses: {
+          financial: {
+            monthlyValue: '300,00',
+            currentService: 'Plano legado',
+          },
+        },
+      },
+    });
+
+    currentService = '';
+    await service.update('student-1', {
+      intakeForm: { formResponses: { financial: {} } },
+    });
+    expect(originalUpdate).toHaveBeenLastCalledWith('student-1', {
+      intakeForm: {
+        formResponses: {
+          financial: { currentService: '' },
+        },
+      },
+    });
+
+    uninstall();
+    expect(service.update).toBe(originalUpdate);
+  });
+
+  it('keeps unrelated profile fields while patching the service', () => {
+    expect(
+      patchProfileFinancialService(
+        {
+          name: 'Aluno',
+          intakeForm: {
+            formResponses: {
+              financial: { monthlyValue: '350,00' },
+            },
+          },
+        },
+        '  Assessoria Premium  '
+      )
+    ).toEqual({
+      name: 'Aluno',
+      intakeForm: {
+        formResponses: {
+          financial: {
+            monthlyValue: '350,00',
+            currentService: 'Assessoria Premium',
+          },
+        },
+      },
+    });
   });
 });
