@@ -1,4 +1,5 @@
 const tx = {
+  $queryRaw: jest.fn(),
   aluno: {
     findUniqueOrThrow: jest.fn(),
     update: jest.fn(),
@@ -30,7 +31,7 @@ const prisma = {
 
 jest.mock('@prisma/client', () => ({
   PrismaClient: jest.fn(() => prisma),
-  Prisma: {},
+  Prisma: { sql: jest.fn((parts: TemplateStringsArray) => parts.join('?')) },
 }));
 
 jest.mock('bcryptjs', () => ({ hash: jest.fn(async () => 'hash') }));
@@ -42,6 +43,7 @@ jest.mock('../src/modules/contracts/contract-service-context', () => ({
 }));
 
 import {
+  preserveAuthoritativeFinancialCurrentService,
   resolveAuthoritativeStudentContractServiceId,
   studentFinancialContractService,
 } from '../src/modules/alunos/student-financial-contract.service';
@@ -49,12 +51,17 @@ import {
 describe('student financial contract service', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    prisma.$transaction.mockImplementation(async (callback: (client: typeof tx) => unknown) => callback(tx));
+    prisma.$transaction.mockImplementation(
+      async (callback: (client: typeof tx) => unknown) => callback(tx)
+    );
   });
 
-  it('always prioritizes the service persisted on the contract', () => {
+  it('always prioritizes the service persisted on the generated contract', () => {
     expect(
-      resolveAuthoritativeStudentContractServiceId('contract-service', 'interest-service')
+      resolveAuthoritativeStudentContractServiceId(
+        'contract-service',
+        'interest-service'
+      )
     ).toBe('contract-service');
     expect(
       resolveAuthoritativeStudentContractServiceId(null, 'interest-service')
@@ -62,7 +69,34 @@ describe('student financial contract service', () => {
     expect(resolveAuthoritativeStudentContractServiceId(null, null)).toBeNull();
   });
 
-  it('updates profile and legacy contract link inside one transaction using contract.serviceId', async () => {
+  it('keeps currentService server-owned while preserving the remaining financial form', () => {
+    expect(
+      preserveAuthoritativeFinancialCurrentService(
+        {
+          financial: {
+            currentService: 'client-writer',
+            monthlyValue: '350,00',
+          },
+          identification: { cpf: '123' },
+        },
+        'active-contract-service'
+      )
+    ).toEqual({
+      financial: {
+        currentService: 'active-contract-service',
+        monthlyValue: '350,00',
+      },
+      identification: { cpf: '123' },
+    });
+
+    expect(
+      preserveAuthoritativeFinancialCurrentService({
+        financial: { currentService: 'client-writer', paymentDay: '10' },
+      })
+    ).toEqual({ financial: { paymentDay: '10' } });
+  });
+
+  it('updates profile and prepares an unsigned replacement in one transaction without terminating the active contract', async () => {
     tx.aluno.findUniqueOrThrow
       .mockResolvedValueOnce({
         id: 'student-1',
@@ -73,33 +107,30 @@ describe('student financial contract service', () => {
         currentStudentContract: {
           contract: { companyContractId: 'company-1' },
         },
-        intakeForm: null,
+        intakeForm: {
+          parqResponses: null,
+          formResponses: {
+            financial: { currentService: 'active-contract-service' },
+          },
+        },
       })
       .mockResolvedValueOnce({ id: 'student-1' });
-    tx.aluno.update
-      .mockResolvedValueOnce({ id: 'student-1', userId: 'user-1' })
-      .mockResolvedValueOnce({ id: 'student-1', currentStudentContractId: 'link-1' });
+    tx.aluno.update.mockResolvedValue({ id: 'student-1', userId: 'user-1' });
     tx.contract.findUnique.mockResolvedValue({
       id: 'contract-1',
       alunoId: 'student-1',
       companyContractId: 'company-1',
       serviceId: 'financial-service',
     });
-    tx.studentContract.findUnique.mockResolvedValue({
-      id: 'link-1',
-      alunoId: 'student-1',
-      contractId: 'contract-1',
-      serviceId: 'interest-service',
-      startDate: null,
-      signedAt: null,
-    });
-    tx.studentContract.update
+    tx.studentContract.findUnique
       .mockResolvedValueOnce({
         id: 'link-1',
         alunoId: 'student-1',
         contractId: 'contract-1',
-        serviceId: 'financial-service',
+        serviceId: 'interest-service',
+        status: 'draft',
         startDate: null,
+        endDate: null,
         signedAt: null,
       })
       .mockResolvedValueOnce({
@@ -107,47 +138,88 @@ describe('student financial contract service', () => {
         alunoId: 'student-1',
         contractId: 'contract-1',
         serviceId: 'financial-service',
-        startDate: new Date(),
-        signedAt: new Date(),
+        status: 'draft',
+        startDate: new Date('2026-07-01T12:00:00.000Z'),
+        endDate: new Date('2027-07-01T12:00:00.000Z'),
+        signedAt: null,
+        contract: { status: 'GENERATED', signedAt: null },
       });
-    tx.studentContract.updateMany.mockResolvedValue({ count: 1 });
+    tx.studentContract.update
+      .mockResolvedValueOnce({
+        id: 'link-1',
+        alunoId: 'student-1',
+        contractId: 'contract-1',
+        serviceId: 'financial-service',
+        status: 'draft',
+      })
+      .mockResolvedValueOnce({
+        id: 'link-1',
+        alunoId: 'student-1',
+        contractId: 'contract-1',
+        serviceId: 'financial-service',
+        status: 'draft',
+      });
     tx.studentContract.findUniqueOrThrow.mockResolvedValue({
       id: 'link-1',
       serviceId: 'financial-service',
+      status: 'draft',
     });
 
     const result = await studentFinancialContractService.updateAlunoWithContract(
       'student-1',
-      { age: 31 },
+      {
+        age: 31,
+        intakeForm: {
+          formResponses: {
+            financial: {
+              currentService: 'client-writer',
+              monthlyValue: '350,00',
+            },
+          },
+        },
+      },
       {
         contractId: 'contract-1',
         serviceId: 'interest-service',
+        startDate: new Date('2026-07-01T12:00:00.000Z'),
         endDate: new Date('2027-07-01T12:00:00.000Z'),
       },
       { professorId: 'professor-1', companyContractId: 'company-1' }
     );
 
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
-    expect(tx.aluno.update).toHaveBeenNthCalledWith(1, {
-      where: { id: 'student-1' },
-      data: { age: 31 },
-    });
+    expect(tx.aluno.update).toHaveBeenCalledTimes(1);
+    expect(tx.alunoIntakeForm.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({
+          formResponses: expect.objectContaining({
+            financial: {
+              currentService: 'active-contract-service',
+              monthlyValue: '350,00',
+            },
+          }),
+        }),
+      })
+    );
     expect(tx.studentContract.update).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
         where: { id: 'link-1' },
-        data: expect.objectContaining({ serviceId: 'financial-service' }),
+        data: expect.objectContaining({
+          serviceId: 'financial-service',
+          endDate: new Date('2027-07-01T12:00:00.000Z'),
+        }),
       })
     );
-    expect(tx.studentContract.update).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({
-        data: expect.objectContaining({ serviceId: 'financial-service', status: 'active' }),
-      })
-    );
+    expect(tx.studentContract.update).toHaveBeenNthCalledWith(2, {
+      where: { id: 'link-1' },
+      data: { status: 'draft' },
+    });
+    expect(tx.studentContract.updateMany).not.toHaveBeenCalled();
     expect(result.studentContract).toEqual({
       id: 'link-1',
       serviceId: 'financial-service',
+      status: 'draft',
     });
   });
 
