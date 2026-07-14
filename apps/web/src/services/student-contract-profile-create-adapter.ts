@@ -56,7 +56,7 @@ export function installStudentContractProfileCreateAdapter(
     const patchedData = patchProfileContractDueDate(
       { ...data } as Record<string, unknown>,
       endDate
-    ) as CreateAlunoDTO;
+    ) as unknown as CreateAlunoDTO;
     return originalCreate.call(service, patchedData);
   };
 
