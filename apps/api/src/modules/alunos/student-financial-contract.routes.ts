@@ -105,7 +105,7 @@ router.post(
 
       const validated = createSchema.parse(req.body);
       const result = await studentFinancialContractService.createAlunoWithContract(
-        validated.profile,
+        { ...validated.profile, professorId },
         mapContractInput(validated.contract),
         { professorId, companyContractId }
       );
