@@ -14,10 +14,29 @@ export interface ContractValidityPresentation {
   label: string;
 }
 
-const parseDate = (value?: string | null) => {
+const DATE_ONLY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})/u;
+
+export const parseContractCivilDate = (value?: string | null) => {
   if (!value) return null;
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
+
+  const match = DATE_ONLY_PATTERN.exec(value.trim());
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const parsed = new Date(year, month - 1, day);
+
+  if (
+    Number.isNaN(parsed.getTime()) ||
+    parsed.getFullYear() !== year ||
+    parsed.getMonth() !== month - 1 ||
+    parsed.getDate() !== day
+  ) {
+    return null;
+  }
+
+  return parsed;
 };
 
 const startOfDay = (value: Date) => {
@@ -53,8 +72,8 @@ export const resolveContractValidity = (
     return { status: 'ended', label: 'Encerrado' };
   }
 
-  const startDate = parseDate(link.startDate);
-  const endDate = parseDate(link.endDate);
+  const startDate = parseContractCivilDate(link.startDate);
+  const endDate = parseContractCivilDate(link.endDate);
 
   if (link.status === 'expired' || (endDate && endDate < startOfDay(now))) {
     return { status: 'expired', label: 'Vencido' };
