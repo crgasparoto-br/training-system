@@ -50,11 +50,15 @@ export const installStudentContractEndDateAdapter = (
   };
 
   const linkStudentContract: typeof service.linkStudentContract = async (alunoId, data) => {
-    const result = await originalLink.call(
-      service,
-      alunoId,
-      appendContractEndDate(data, root)
-    );
+    const payload = appendContractEndDate(data, root);
+    let result = await originalLink.call(service, alunoId, payload);
+
+    if (payload.endDate !== undefined) {
+      result = await originalUpdate.call(service, alunoId, result.id, {
+        endDate: payload.endDate,
+      });
+    }
+
     notifyChanged(alunoId);
     return result;
   };
