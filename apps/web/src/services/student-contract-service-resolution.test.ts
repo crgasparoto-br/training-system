@@ -150,10 +150,18 @@ describe('student contract service resolution', () => {
   });
 
   it('does not create a link with the interest service when lookup fails', async () => {
-    const originalLink = vi.fn(async () => link);
+    const originalLink = vi.fn(
+      async (_alunoId: string, _data: LinkStudentContractDTO) => link
+    );
     const service = {
       linkStudentContract: originalLink,
-      updateStudentContract: vi.fn(async () => link),
+      updateStudentContract: vi.fn(
+        async (
+          _alunoId: string,
+          _studentContractId: string,
+          _data: UpdateStudentContractDTO
+        ) => link
+      ),
       listStudentContracts: vi.fn(async (): Promise<AlunoContractsResponse> => ({
         alunoId: 'student-1',
         activeContract: link,
