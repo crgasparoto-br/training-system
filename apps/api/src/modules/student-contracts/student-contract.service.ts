@@ -134,58 +134,68 @@ async function generateContractFromActiveTemplate(
     throw new Error('Contrato da empresa não encontrado');
   }
 
-  const template = await client.contractTemplate.findFirst({
-    where: {
-      id: templateId,
-      contractId: options.companyContractId,
-      status: 'ACTIVE',
-    },
-    select: {
-      id: true,
-      serviceId: true,
-    },
-  });
+  return runInTransaction(client, async (tx) => {
+    const template = await tx.contractTemplate.findFirst({
+      where: {
+        id: templateId,
+        contractId: options.companyContractId,
+        status: 'ACTIVE',
+      },
+      select: {
+        id: true,
+        serviceId: true,
+      },
+    });
 
-  if (!template) {
-    throw new Error('Modelo de contrato ativo não encontrado');
-  }
+    if (!template) {
+      throw new Error('Modelo de contrato ativo não encontrado');
+    }
 
-  const resolvedServiceId = await resolveAuthoritativeFinancialServiceId(
-    data.alunoId,
-    template.serviceId,
-    options.companyContractId,
-    client
-  );
-  const { contractDocumentService } = await import('../contracts/contract-document.service.js');
-  const generatedContract = await contractDocumentService.generate(options.companyContractId, {
-    templateId: template.id,
-    alunoId: data.alunoId,
-    serviceId: resolvedServiceId ?? undefined,
-    valorMensal: data.amount === null || data.amount === undefined ? undefined : Number(data.amount),
-    diaVencimento: data.paymentDay ?? undefined,
-    dataInicio: data.startDate ?? undefined,
-    horarios: data.notes ?? undefined,
-  });
+    await resolveAuthoritativeFinancialServiceId(
+      data.alunoId,
+      template.serviceId,
+      options.companyContractId,
+      tx
+    );
 
-  const generatedLink = await client.studentContract.findUnique({
-    where: { contractId: generatedContract.id },
-  });
+    const { contractAuthoritativeGenerationService } = await import(
+      '../contracts/contract-authoritative-generation.service.js'
+    );
+    const generatedContract = await contractAuthoritativeGenerationService.generate(
+      options.companyContractId,
+      {
+        templateId: template.id,
+        alunoId: data.alunoId,
+        valorMensal:
+          data.amount === null || data.amount === undefined
+            ? undefined
+            : Number(data.amount),
+        diaVencimento: data.paymentDay ?? undefined,
+        dataInicio: data.startDate ?? undefined,
+        horarios: data.notes ?? undefined,
+      },
+      undefined,
+      tx
+    );
 
-  if (!generatedLink) {
-    throw new Error('Não foi possível criar o vínculo do contrato gerado');
-  }
+    const generatedLink = await tx.studentContract.findUnique({
+      where: { contractId: generatedContract.id },
+    });
 
-  if (data.status === 'active') {
-    return runInTransaction(client, async (tx) => {
+    if (!generatedLink) {
+      throw new Error('Não foi possível criar o vínculo do contrato gerado');
+    }
+
+    if (data.status === 'active') {
       const lifecycle = await prepareOrActivateStudentContractInTransaction(
         tx,
         generatedLink.id
       );
       return lifecycle.studentContract;
-    });
-  }
+    }
 
-  return generatedLink;
+    return generatedLink;
+  });
 }
 
 async function assertStudentContractOwnership(
