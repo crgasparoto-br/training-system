@@ -61,6 +61,7 @@ describe('student financial contract routes', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockAssertAlunoAccess.mockResolvedValue({ id: 'student-1' });
+    mockAssertRequestedProfessorAccess.mockImplementation(() => undefined);
   });
 
   it('requires the financial contract block before reaching the atomic service', async () => {
