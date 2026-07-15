@@ -130,7 +130,8 @@ async function generateContractFromActiveTemplate(
     return null;
   }
 
-  if (!options.companyContractId) {
+  const companyContractId = options.companyContractId;
+  if (!companyContractId) {
     throw new Error('Contrato da empresa não encontrado');
   }
 
@@ -138,7 +139,7 @@ async function generateContractFromActiveTemplate(
     const template = await tx.contractTemplate.findFirst({
       where: {
         id: templateId,
-        contractId: options.companyContractId,
+        contractId: companyContractId,
         status: 'ACTIVE',
       },
       select: {
@@ -154,7 +155,7 @@ async function generateContractFromActiveTemplate(
     await resolveAuthoritativeFinancialServiceId(
       data.alunoId,
       template.serviceId,
-      options.companyContractId,
+      companyContractId,
       tx
     );
 
@@ -162,7 +163,7 @@ async function generateContractFromActiveTemplate(
       '../contracts/contract-authoritative-generation.service.js'
     );
     const generatedContract = await contractAuthoritativeGenerationService.generate(
-      options.companyContractId,
+      companyContractId,
       {
         templateId: template.id,
         alunoId: data.alunoId,
