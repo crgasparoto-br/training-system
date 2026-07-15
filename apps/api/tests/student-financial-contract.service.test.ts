@@ -249,4 +249,60 @@ describe('student financial contract service', () => {
     expect(tx.studentContract.update).not.toHaveBeenCalled();
     expect(tx.studentContract.create).not.toHaveBeenCalled();
   });
+
+  it('rejects an aluno owned by another company contract before writing the profile', async () => {
+    tx.aluno.findUniqueOrThrow.mockResolvedValue({
+      id: 'student-other-company',
+      userId: 'user-other-company',
+      professorId: 'professor-other-company',
+      serviceId: null,
+      professor: { contractId: 'company-other' },
+      currentStudentContract: null,
+      intakeForm: null,
+    });
+
+    await expect(
+      studentFinancialContractService.updateAlunoWithContract(
+        'student-other-company',
+        { age: 32 },
+        { contractId: 'contract-1' },
+        { professorId: 'professor-1', companyContractId: 'company-1' }
+      )
+    ).rejects.toThrow('Aluno não pertence ao contrato autenticado');
+
+    expect(tx.aluno.update).not.toHaveBeenCalled();
+    expect(tx.studentContract.update).not.toHaveBeenCalled();
+    expect(tx.studentContract.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects a generated contract from another company contract', async () => {
+    tx.aluno.findUniqueOrThrow.mockResolvedValue({
+      id: 'student-1',
+      userId: 'user-1',
+      professorId: 'professor-1',
+      serviceId: null,
+      professor: { contractId: 'company-1' },
+      currentStudentContract: null,
+      intakeForm: null,
+    });
+    tx.aluno.update.mockResolvedValue({ id: 'student-1', userId: 'user-1' });
+    tx.contract.findUnique.mockResolvedValue({
+      id: 'contract-other-company',
+      alunoId: 'student-1',
+      companyContractId: 'company-other',
+      serviceId: 'financial-service',
+    });
+
+    await expect(
+      studentFinancialContractService.updateAlunoWithContract(
+        'student-1',
+        { age: 32 },
+        { contractId: 'contract-other-company' },
+        { professorId: 'professor-1', companyContractId: 'company-1' }
+      )
+    ).rejects.toThrow('Contrato selecionado está fora do contrato autenticado');
+
+    expect(tx.studentContract.update).not.toHaveBeenCalled();
+    expect(tx.studentContract.create).not.toHaveBeenCalled();
+  });
 });

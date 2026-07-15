@@ -2,7 +2,7 @@
 
 ## Status
 
-Implementação concluída. O encerramento permanece condicionado à aprovação integral do workflow oficial **Validate PR** no head final da branch.
+Implementação concluída. A cobertura complementar solicitada pela auditoria independente monta os formulários reais de cadastro e edição, valida sucesso, cancelamento e falha da operação composta e protege autorização e isolamento por contrato nas novas rotas.
 
 ## Objetivo
 
@@ -52,6 +52,10 @@ Garantir consistência transacional e uma única fonte de verdade para serviço 
 - substituição não assinada sem encerramento do contrato vigente;
 - gatilhos PostgreSQL para inserção, atualização, propagação e sincronização do serviço;
 - ciclo de assinatura, recusa, expiração, vigência futura, agendador e rollback transacional já coberto pela suíte de integração contratual.
+- formulário real de edição com seleção, confirmação e uma única mutação atômica;
+- cancelamento e falha transacional no formulário real sem fallback para escritores separados;
+- formulário real de cadastro com a mesma data final no perfil e no vínculo;
+- bloqueio da rota sem `students.actions.manageFinancialContract` e rejeição de aluno ou documento pertencente a outro contrato empresarial.
 
 ## Critérios para encerramento
 
@@ -60,3 +64,9 @@ Garantir consistência transacional e uma única fonte de verdade para serviço 
 - A confirmação é única no fluxo composto real.
 - O contrato vigente permanece ativo até assinatura e data efetiva do substituto.
 - O workflow oficial deve concluir migrations, type-check, lint, testes, arquitetura, catálogo de acessos e documentação com sucesso.
+
+## Validação complementar da auditoria
+
+- `pnpm --filter @corrida/web exec vitest run src/pages/AlunoFormFinancialContract.integration.test.tsx`
+- `pnpm --filter @corrida/api exec jest --runInBand tests/student-financial-contract.routes.test.ts tests/student-financial-contract.service.test.ts`
+- `pnpm validate`

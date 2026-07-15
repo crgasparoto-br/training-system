@@ -73,7 +73,7 @@ Quando já existe uma data final, a ação **Remover vencimento** fica disponív
 
 Datas de início e término são tratadas como **datas civis**, e não como instantes UTC. Um término em `14/07` permanece vigente durante todo o dia 14 no horário local e passa a vencido somente no dia seguinte. As datas retornadas pela API são normalizadas para evitar exibição do dia anterior em fusos negativos, como o Brasil.
 
-Os testes automatizados reproduzem os controles reais de início e duração, o campo visual desabilitado, a remoção intencional no cadastro e na edição, a persistência no perfil e no vínculo, a prioridade do serviço financeiro do contrato, a confirmação única, a reconstrução do seletor sem ofertas ativas, o serviço inativo ausente das opções e falhas de consulta ou carregamento parcial. A suíte PostgreSQL valida ainda os gatilhos de autoridade, propagação e sincronização.
+Os testes automatizados reproduzem os controles reais de início e duração, o campo visual desabilitado, a remoção intencional no cadastro e na edição, a persistência no perfil e no vínculo, a prioridade do serviço financeiro do contrato, a confirmação única, a reconstrução do seletor sem ofertas ativas, o serviço inativo ausente das opções e falhas de consulta ou carregamento parcial. A integração do frontend monta os formulários reais de cadastro e edição com todos os adaptadores, cobrindo sucesso, cancelamento e falha sem persistência separada. A API cobre também bloqueio por permissão e rejeição de aluno ou documento de outro contrato empresarial. A suíte PostgreSQL valida ainda os gatilhos de autoridade, propagação e sincronização.
 
 ## Histórico de contratos
 
