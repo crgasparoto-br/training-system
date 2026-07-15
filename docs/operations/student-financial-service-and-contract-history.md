@@ -36,7 +36,9 @@ A fonte de verdade do vínculo é:
 
 O mesmo valor é aplicado a `StudentContract.serviceId`. Gatilhos PostgreSQL impedem que inserções ou atualizações gravem um serviço diferente daquele associado ao contrato e propagam alterações posteriores do contrato para o vínculo. Quando o vínculo efetivo muda, o gatilho sincroniza o nome do serviço em `financial.currentService`, preservando os demais campos do JSON financeiro.
 
-A migration `20260714203000_enforce_student_contract_service_authority` também corrige vínculos legados divergentes e atualiza o formulário financeiro do contrato ativo apontado pelo aluno.
+A geração direta por `/contracts/preview` e `/contracts/generate` passa por uma resolução autoritativa antes de alcançar o serviço legado. O `serviceId` do payload é ignorado: o serviço do modelo prevalece e o único fallback é `Aluno.serviceId`. Aluno, serviço e professor são validados contra o contrato empresarial autenticado.
+
+A migration `20260714203000_enforce_student_contract_service_authority` corrige vínculos legados divergentes e atualiza o formulário financeiro do contrato ativo apontado pelo aluno. A migration `20260715213000_recompute_terminal_current_service` recalcula o serviço quando vínculos são inseridos, atualizados ou removidos, inclusive nas transições para cancelado, expirado ou encerrado. Sem vínculo ativo, o vínculo em preparação mais recente é usado; sem vínculo efetivo ou preparado, o valor é limpo.
 
 Quando existe contrato selecionado, perfil, formulário, vínculo e ciclo contratual são persistidos em uma única transação Prisma. Se o contrato não existir, pertencer a outro aluno/contrato empresarial ou falhar durante a mutação, nenhuma atualização parcial do perfil é confirmada.
 
@@ -46,7 +48,7 @@ O ciclo aplicado dentro da transação respeita o estado documental:
 - documento assinado com início futuro: vínculo agendado, mantendo o vigente até a data efetiva;
 - documento assinado e efetivo: encerramento do vínculo anterior, ativação do substituto e atualização do ponteiro atual na mesma transação.
 
-A mesma função transacional é usada pelo salvamento administrativo, pela assinatura pública e pelo agendador. Isso evita regras divergentes e preserva `StudentContract.endDate` durante preparação, assinatura, agendamento e ativação.
+A mesma função transacional é usada pelo salvamento administrativo, pela rota pública real de assinatura e pelo agendador. A rota pública retorna o resultado de ativação ou agendamento esperado pelo frontend, consome o token uma única vez e preserva `StudentContract.startDate` e `StudentContract.endDate` durante preparação, assinatura, agendamento e ativação.
 
 ## Estado e vigência no campo Contrato
 
@@ -73,7 +75,7 @@ Quando já existe uma data final, a ação **Remover vencimento** fica disponív
 
 Datas de início e término são tratadas como **datas civis**, e não como instantes UTC. Um término em `14/07` permanece vigente durante todo o dia 14 no horário local e passa a vencido somente no dia seguinte. As datas retornadas pela API são normalizadas para evitar exibição do dia anterior em fusos negativos, como o Brasil.
 
-Os testes automatizados reproduzem os controles reais de início e duração, o campo visual desabilitado, a remoção intencional no cadastro e na edição, a persistência no perfil e no vínculo, a prioridade do serviço financeiro do contrato, a confirmação única, a reconstrução do seletor sem ofertas ativas, o serviço inativo ausente das opções e falhas de consulta ou carregamento parcial. A integração do frontend monta os formulários reais de cadastro e edição com todos os adaptadores, cobrindo sucesso, cancelamento e falha sem persistência separada. A API cobre também bloqueio por permissão e rejeição de aluno ou documento de outro contrato empresarial. A suíte PostgreSQL valida ainda os gatilhos de autoridade, propagação e sincronização.
+Os testes automatizados reproduzem os controles reais de início e duração, o campo visual desabilitado, a remoção intencional no cadastro e na edição, a persistência no perfil e no vínculo, a prioridade do serviço financeiro do contrato, a confirmação única, a reconstrução do seletor sem ofertas ativas, o serviço inativo ausente das opções e falhas de consulta ou carregamento parcial. A integração do frontend monta os formulários reais de cadastro e edição com todos os adaptadores, cobrindo sucesso, cancelamento e falha sem persistência separada. A API cobre bloqueio por permissão, assinatura pública pela política transacional, geração direta autoritativa e rejeição de aluno, serviço, professor ou documento de outro contrato empresarial. A suíte PostgreSQL valida ainda os gatilhos de autoridade, propagação, reparo e recálculo após estados terminais.
 
 ## Histórico de contratos
 
