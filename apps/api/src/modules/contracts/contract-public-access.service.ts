@@ -63,7 +63,7 @@ export const contractPublicAccessService = {
           await tx.studentContract.updateMany({
             where: {
               contractId: contract.id,
-              status: { not: 'active' },
+              status: { in: ['draft', 'pending_signature'] },
             },
             data: {
               status: 'expired',
