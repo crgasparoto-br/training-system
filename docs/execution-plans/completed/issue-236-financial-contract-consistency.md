@@ -140,3 +140,5 @@ Workflow oficial **Validate PR #1590**, commit `3aa9602a53f2e9c28bf006bf50fa59c1
 - arquitetura: sucesso;
 - catálogo de acessos: sucesso;
 - documentação: sucesso.
+
+O commit documental subsequente preserva exatamente o mesmo conteúdo funcional e foi validado novamente pelo workflow **Validate PR #1592**.
