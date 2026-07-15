@@ -147,7 +147,30 @@ describeDatabase('student contract cancel and public token consistency', () => {
     );
   });
 
-  it('does not overwrite a canceled link when a legacy public token expires', async () => {
+  it('invalidates the public token when the generic update path cancels the link', async () => {
+    const token = 'generic-update-cancel-token';
+    const fixture = await seedFixture(token);
+
+    await studentContractService.update(
+      fixture.aluno.id,
+      fixture.link.id,
+      {
+        status: 'canceled',
+        canceledAt: new Date('2026-07-15T12:00:00.000Z'),
+        cancellationReason: 'Cancelado pelo PATCH administrativo',
+      },
+      { companyContractId }
+    );
+
+    const document = await prisma.contract.findUniqueOrThrow({
+      where: { id: fixture.document.id },
+    });
+    expect(document.status).toBe(ContractStatus.CANCELLED);
+    expect(document.publicTokenHash).toBeNull();
+    expect(document.publicTokenExpiresAt).toBeNull();
+  });
+
+  it('does not overwrite a canceled link when an inconsistent legacy token expires', async () => {
     const token = 'legacy-canceled-public-link-token';
     const fixture = await seedFixture(token);
     await prisma.studentContract.update({
@@ -160,7 +183,11 @@ describeDatabase('student contract cancel and public token consistency', () => {
     });
     await prisma.contract.update({
       where: { id: fixture.document.id },
-      data: { publicTokenExpiresAt: new Date('2026-07-10T12:00:00.000Z') },
+      data: {
+        status: ContractStatus.SENT,
+        publicTokenHash: tokenHash(token),
+        publicTokenExpiresAt: new Date('2026-07-10T12:00:00.000Z'),
+      },
     });
 
     await expect(
@@ -179,5 +206,29 @@ describeDatabase('student contract cancel and public token consistency', () => {
     expect(document.status).toBe(ContractStatus.EXPIRED);
     expect(link.status).toBe('canceled');
     expect(link.cancellationReason).toBe('Cancelado anteriormente');
+  });
+
+  it('retires a legacy token that still points to a canceled document', async () => {
+    const token = 'legacy-canceled-document-token';
+    const fixture = await seedFixture(token);
+    await prisma.contract.update({
+      where: { id: fixture.document.id },
+      data: {
+        status: ContractStatus.CANCELLED,
+        cancelledAt: new Date('2026-07-01T12:00:00.000Z'),
+        publicTokenHash: tokenHash(token),
+        publicTokenExpiresAt: new Date('2026-08-01T12:00:00.000Z'),
+      },
+    });
+
+    await expect(contractPublicAccessService.open(token)).rejects.toThrow(
+      'Contrato não está disponível'
+    );
+
+    const document = await prisma.contract.findUniqueOrThrow({
+      where: { id: fixture.document.id },
+    });
+    expect(document.publicTokenHash).toBeNull();
+    expect(document.publicTokenExpiresAt).toBeNull();
   });
 });
