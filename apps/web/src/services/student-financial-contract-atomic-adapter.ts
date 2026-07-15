@@ -9,6 +9,7 @@ import {
   type UpdateAlunoDTO,
   type UpdateStudentContractDTO,
 } from './aluno.service';
+import { getContractReplacementState } from './contract-replacement-coordination';
 import {
   studentFinancialContractService,
   type AtomicCreateAlunoContractResult,
@@ -177,6 +178,27 @@ export function installStudentFinancialContractAtomicAdapter(
     }
 
     const response = await originalList.call(service, alunoId);
+
+    if (pendingUpdates.has(alunoId)) {
+      const selectedContractId = readSelectedContractId(root);
+      const replacementState = getContractReplacementState();
+      const confirmedForThisSave = Boolean(
+        selectedContractId &&
+          replacementState.required &&
+          replacementState.confirmed &&
+          replacementState.selectedContractId === selectedContractId &&
+          replacementState.activeContractId === response.activeContract?.contractId
+      );
+
+      if (confirmedForThisSave) {
+        // The real replacement component already obtained confirmation for this
+        // exact active/selected pair. Hiding only the legacy read-model pointer
+        // prevents the old form from opening a second confirmation while the
+        // adapter still preserves and returns the actual contract collection.
+        return { ...response, activeContract: null };
+      }
+    }
+
     if (completed?.actualAlunoId === alunoId) completed = null;
     return response;
   };
