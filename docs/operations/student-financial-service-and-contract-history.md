@@ -40,19 +40,19 @@ Gatilhos PostgreSQL impedem que inserções ou atualizações gravem um serviço
 
 A geração por `/contracts/generate` passa pelo serviço autoritativo e exige `students.actions.manageFinancialContract`. O `serviceId` do payload é ignorado. A prévia em `/contracts/preview` usa a mesma resolução autoritativa e pode ser acessada por quem possui `students.actions.manageFinancialContract` ou `settings.contract`.
 
-Além da permissão funcional e do isolamento por contrato empresarial, prévia e geração aplicam o escopo do professor autenticado:
+Além da permissão funcional e do isolamento por contrato empresarial, todos os fluxos financeiros e documentais aplicam o mesmo escopo do professor autenticado:
 
 - professor comum acessa somente alunos sob sua responsabilidade;
 - professor master pode acessar qualquer aluno do mesmo contrato empresarial;
-- professor comum não pode atribuir arbitrariamente outro professor ao documento.
+- professor comum não pode atribuir arbitrariamente outro professor ao aluno ou ao documento.
 
-Essa validação ocorre dentro do serviço de domínio antes da renderização do contexto ou da persistência. Portanto, conhecer o identificador de outro aluno do mesmo contrato empresarial não permite obter seus dados pelo HTML ou pelo contexto da prévia.
+A regra comum é aplicada na prévia, geração, atualização atômica de perfil e contrato, listagem do histórico, consulta do documento, geração e download de PDF, auditoria, leitura da recusa, reenvio e consulta de contratos disponíveis. Conhecer o identificador de outro aluno ou documento do mesmo contrato empresarial não permite acessar nem alterar seus dados.
 
 O caminho `POST /alunos/:id/contracts` com referência `template:<id>` reutiliza a mesma geração autoritativa. Documento, vínculo, auditoria, `startDate`, `endDate` e eventual decisão de ciclo são executados na transação recebida. Falha na criação do vínculo ou da auditoria desfaz também o documento. Para referências de modelo, somente os estados `draft` e `active` são aceitos; estados incompatíveis são rejeitados com erro de validação em vez de serem convertidos silenciosamente para rascunho.
 
 A migration `20260714203000_enforce_student_contract_service_authority` corrige vínculos legados divergentes e atualiza o formulário financeiro do contrato ativo apontado pelo aluno. A migration `20260715213000_recompute_terminal_current_service` recalcula o serviço quando vínculos são inseridos, atualizados ou removidos, inclusive nas transições para cancelado, expirado ou encerrado. Sem vínculo ativo, o vínculo em preparação mais recente é usado; sem vínculo efetivo ou preparado, o valor é limpo.
 
-Quando existe contrato selecionado, perfil, formulário, vínculo e ciclo contratual são persistidos em uma única transação Prisma. Se o contrato não existir, pertencer a outro aluno/contrato empresarial ou falhar durante a mutação, nenhuma atualização parcial do perfil é confirmada.
+Quando existe contrato selecionado, perfil, formulário, vínculo e ciclo contratual são persistidos em uma única transação Prisma. Antes da edição atômica, o backend valida que o professor autenticado possui acesso ao aluno e que uma eventual troca de responsável é permitida. Se o contrato não existir, pertencer a outro aluno/contrato empresarial, o aluno estiver fora do escopo ou qualquer etapa falhar, nenhuma atualização parcial do perfil é confirmada.
 
 O ciclo aplicado dentro da transação respeita o estado documental:
 
@@ -62,7 +62,7 @@ O ciclo aplicado dentro da transação respeita o estado documental:
 
 A mesma função transacional é usada pelo salvamento administrativo, pela rota pública real de assinatura e pelo agendador. A rota pública retorna o resultado de ativação ou agendamento esperado pelo frontend, consome o token uma única vez e preserva `StudentContract.startDate` e `StudentContract.endDate` durante preparação, assinatura, agendamento e ativação.
 
-A consulta pública altera o documento de `SENT` para `VIEWED` somente quando o token e o estado atuais ainda correspondem à leitura. A expiração também reivindica condicionalmente o token, limpa o token e sua validade e atualiza somente vínculos ainda em `draft` ou `pending_signature`. Vínculos já cancelados ou encerrados não são reclassificados como expirados.
+A abertura, a assinatura e a recusa públicas compartilham a mesma rotina de expiração segura. Ela reivindica condicionalmente o token, limpa o token e sua validade e atualiza somente vínculos ainda em `draft` ou `pending_signature`. Vínculos já cancelados, expirados ou encerrados não são reclassificados por uma tentativa tardia de abrir, assinar ou recusar o documento.
 
 Ao cancelar um vínculo cujo documento ainda não foi assinado, vínculo e documento são cancelados na mesma transação e o token público é removido. Um endereço anteriormente emitido deixa de abrir o documento e não pode ser usado para assinar depois do cancelamento.
 
@@ -91,7 +91,7 @@ Quando já existe uma data final, a ação **Remover vencimento** fica disponív
 
 Datas de início e término são tratadas como **datas civis**, e não como instantes UTC. Um término em `14/07` permanece vigente durante todo o dia 14 no horário local e passa a vencido somente no dia seguinte. As datas retornadas pela API são normalizadas para evitar exibição do dia anterior em fusos negativos, como o Brasil.
 
-Os testes automatizados reproduzem os controles reais de início e duração, o campo visual desabilitado, a remoção intencional no cadastro e na edição, a persistência no perfil e no vínculo, a prioridade do serviço financeiro do contrato, a confirmação única, a reconstrução do seletor sem ofertas ativas, o serviço inativo ausente das opções e falhas de consulta ou carregamento parcial. A API cobre autorização funcional e escopo por aluno na prévia e geração, assinatura pública pela política transacional, geração autoritativa por endpoint direto e por referência de modelo, persistência de `endDate`, rejeição explícita de estados incompatíveis e invalidação do token no cancelamento. A suíte PostgreSQL valida rollback integral, propagação do fallback, concorrência entre consulta, expiração e assinatura, preservação de estados terminais, gatilhos de autoridade, reparo e recálculo.
+Os testes automatizados reproduzem os controles reais de início e duração, o campo visual desabilitado, a remoção intencional no cadastro e na edição, a persistência no perfil e no vínculo, a prioridade do serviço financeiro do contrato, a confirmação única, a reconstrução do seletor sem ofertas ativas, o serviço inativo ausente das opções e falhas de consulta ou carregamento parcial. A API cobre autorização funcional e escopo por aluno em todas as rotas contratuais, atualização atômica, assinatura pública pela política transacional, geração autoritativa por endpoint direto e por referência de modelo, persistência de `endDate`, rejeição explícita de estados incompatíveis e invalidação do token no cancelamento. A suíte PostgreSQL valida rollback integral, propagação do fallback, concorrência entre consulta, expiração e assinatura, tentativa de assinatura expirada sobre vínculo terminal, preservação de estados terminais, gatilhos de autoridade, reparo e recálculo.
 
 ## Histórico de contratos
 
