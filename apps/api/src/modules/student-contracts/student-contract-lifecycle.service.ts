@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { PrismaClient } from '@prisma/client';
+import { contractPublicAccessService } from '../contracts/contract-public-access.service.js';
 import { prepareOrActivateStudentContractInTransaction } from './student-contract-lifecycle-transaction.js';
 
 const prisma = new PrismaClient();
@@ -58,28 +59,7 @@ export const studentContractLifecycleService = {
     }
 
     if (contract.publicTokenExpiresAt && contract.publicTokenExpiresAt < new Date()) {
-      const expiredAt = new Date();
-      await prisma.$transaction(async (tx) => {
-        await tx.contract.update({
-          where: { id: contract.id },
-          data: {
-            status: 'EXPIRED',
-            publicTokenHash: null,
-            publicTokenExpiresAt: null,
-          },
-        });
-
-        await tx.studentContract.updateMany({
-          where: {
-            contractId: contract.id,
-            status: { not: 'active' },
-          },
-          data: {
-            status: 'expired',
-            endDate: expiredAt,
-          },
-        });
-      });
+      await contractPublicAccessService.open(token, actor, prisma, new Date());
       throw new Error('Link expirado');
     }
 
@@ -99,7 +79,7 @@ export const studentContractLifecycleService = {
     const signedAt = new Date();
     const documentHash = contract.documentHash || hashDocument(contract.renderedHtml);
 
-    return prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       const freshContract = await tx.contract.findUnique({
         where: { id: contract.id },
         select: {
@@ -118,7 +98,7 @@ export const studentContractLifecycleService = {
         freshContract.publicTokenExpiresAt &&
         freshContract.publicTokenExpiresAt < signedAt
       ) {
-        throw new Error('Link expirado');
+        return { kind: 'expired' as const };
       }
 
       if (freshContract.status === 'SIGNED') {
@@ -185,14 +165,24 @@ export const studentContractLifecycleService = {
       });
 
       return {
-        signature,
-        activation: {
-          effectiveAt: effectiveAt.toISOString(),
-          scheduled,
-          studentContractStatus: lifecycle.studentContract.status,
+        kind: 'signed' as const,
+        value: {
+          signature,
+          activation: {
+            effectiveAt: effectiveAt.toISOString(),
+            scheduled,
+            studentContractStatus: lifecycle.studentContract.status,
+          },
         },
       };
     });
+
+    if (result.kind === 'expired') {
+      await contractPublicAccessService.open(token, actor, prisma, signedAt);
+      throw new Error('Link expirado');
+    }
+
+    return result.value;
   },
 
   async prepareOrActivateStudentContract(studentContractId: string, now = new Date()) {
