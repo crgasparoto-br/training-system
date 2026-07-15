@@ -56,7 +56,9 @@ const getContext = (req: Request) => ({
 
 const mapContractInput = (input: z.infer<typeof contractMutationSchema>) => ({
   contractId: input.contractId,
-  serviceId: input.serviceId,
+  // serviceId is intentionally ignored. The backend/database derives the
+  // financial service from GeneratedContract.serviceId and only falls back to
+  // the persisted Aluno.serviceId inside the same transaction.
   startDate: parseCivilDate(input.startDate, 'startDate'),
   endDate: parseCivilDate(input.endDate, 'endDate'),
   amount: input.amount,
