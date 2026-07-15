@@ -73,7 +73,7 @@ Garantir consistência transacional e uma única fonte de verdade para serviço 
 17. A geração direta resolve modelo, aluno, professor e serviço dentro do domínio e grava `Contract`, `StudentContract` e `ContractAuditLog` na mesma transação.
 18. O caminho `POST /alunos/:id/contracts` com referência `template:` reutiliza o mesmo gerador autoritativo e mantém geração, vínculo, auditoria e eventual decisão de ciclo na transação recebida.
 19. A consulta pública altera `SENT` para `VIEWED` somente quando token e estado atuais ainda correspondem ao documento lido. A expiração usa a mesma reivindicação condicional, limpa o token e atualiza o vínculo na transação antes de retornar o erro ao cliente.
-20. Se a assinatura vencer a corrida, a consulta pública pode retornar o documento assinado ou informar que o token já foi consumido, mas nunca rebaixa `SIGNED` para `VIEWED` ou `EXPIRED`.
+20. Em uma corrida, a consulta pode observar `VIEWED`, receber o documento `SIGNED` ou informar que o token já foi consumido, conforme a ordem real das transações; depois que a corrida termina, documento, assinatura e vínculo permanecem coerentes e `SIGNED` nunca é rebaixado para `VIEWED` ou `EXPIRED`.
 21. A assinatura pública possui uma única implementação canônica em `contract-lifecycle.routes.ts`.
 22. As migrations corrigem vínculos legados e instalam gatilhos para impedir divergência futura entre `GeneratedContract.serviceId`, o fallback persistido em `Aluno.serviceId`, `StudentContract.serviceId` e o valor financeiro desnormalizado.
 23. A função idempotente `repair_student_contract_service_authority_data()` permite validar e repetir de forma controlada a correção dos dados legados.
@@ -100,8 +100,8 @@ Garantir consistência transacional e uma única fonte de verdade para serviço 
 - rollback PostgreSQL de documento e auditoria quando a criação do vínculo falha;
 - rollback PostgreSQL do caminho de vínculo por referência de modelo ativo;
 - persistência atômica de documento, vínculo e auditoria em todos os caminhos de geração;
-- consulta pública concorrente com assinatura sem rebaixar o documento para `VIEWED`;
-- expiração concorrente com assinatura sem rebaixar o documento para `EXPIRED`;
+- consulta pública concorrente com assinatura sem estado final `VIEWED`;
+- expiração concorrente com assinatura sem estado misto entre documento, assinatura e vínculo;
 - confirmação da expiração e limpeza do token antes do retorno de erro;
 - rota pública canônica de assinatura usando o ciclo transacional;
 - gatilhos PostgreSQL para inserção, atualização, propagação e sincronização do serviço;
@@ -121,7 +121,7 @@ Garantir consistência transacional e uma única fonte de verdade para serviço 
 - A confirmação é única no fluxo composto real, não depende da redação de mensagens legadas e não libera confirmações posteriores.
 - O contrato vigente permanece ativo até assinatura e data efetiva do substituto.
 - Uma assinatura tardia nunca produz vigência anterior à assinatura.
-- Consulta e expiração públicas não sobrescrevem uma assinatura concorrente.
+- Consulta e expiração públicas não deixam documento, assinatura e vínculo em estados divergentes.
 - O editor de modelos consegue gerar prévia com sua própria permissão, sem receber permissão de geração contratual.
 - O fallback financeiro não pode ser escolhido pelo cliente.
 - A operação composta não dispara uma segunda mutação de ciclo após o commit atômico.
@@ -130,7 +130,7 @@ Garantir consistência transacional e uma única fonte de verdade para serviço 
 
 ## Validação da implementação
 
-Workflow oficial **Validate PR #1582**, commit `92ec457dfb53a87ac85075ad3d8bac9f0030962f`:
+Workflow oficial **Validate PR #1588**, commit `ba3c1e9d660b98bd97da3a041060d212fa3aa3aa`:
 
 - migrations PostgreSQL: sucesso;
 - type-check: sucesso;
