@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  LEGACY_CONTRACT_REPLACEMENT_CONFIRM_MESSAGE,
   resolveStudentContractReplacement,
   shouldBypassLegacyContractReplacementConfirm,
 } from './student-contract-replacement';
@@ -44,17 +43,19 @@ describe('resolveStudentContractReplacement', () => {
 });
 
 describe('shouldBypassLegacyContractReplacementConfirm', () => {
-  it('ignora somente a confirmação legada quando a troca explícita já foi confirmada', () => {
+  it('consome o follow-up legado pelo estado explícito, independentemente do texto', () => {
     expect(
       shouldBypassLegacyContractReplacementConfirm(
-        LEGACY_CONTRACT_REPLACEMENT_CONFIRM_MESSAGE,
+        'Uma redação futura completamente diferente',
         true
       )
     ).toBe(true);
-    expect(shouldBypassLegacyContractReplacementConfirm('Outra confirmação', true)).toBe(false);
+    expect(
+      shouldBypassLegacyContractReplacementConfirm(undefined, true)
+    ).toBe(true);
     expect(
       shouldBypassLegacyContractReplacementConfirm(
-        LEGACY_CONTRACT_REPLACEMENT_CONFIRM_MESSAGE,
+        'Este aluno já possui um contrato ativo.',
         false
       )
     ).toBe(false);
