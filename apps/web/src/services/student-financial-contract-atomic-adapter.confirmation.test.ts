@@ -36,9 +36,9 @@ const buildRoot = () => {
 
 const buildService = () => ({
   create: vi.fn(),
-  update: vi.fn(async (alunoId: string) => ({ id: alunoId })),
-  listStudentContracts: vi.fn(async () => ({
-    alunoId: 'student-1',
+  update: vi.fn(async (alunoId: string, _data: Record<string, unknown>) => ({ id: alunoId })),
+  listStudentContracts: vi.fn(async (alunoId: string) => ({
+    alunoId,
     activeContract,
     contracts: [activeContract],
   })),
@@ -63,9 +63,9 @@ describe('atomic adapter replacement confirmation coordination', () => {
       required: true,
       confirmed: true,
     });
-    await service.update('student-1');
+    await service.update('student-1', { age: 31 });
 
-    const response = await service.listStudentContracts();
+    const response = await service.listStudentContracts('student-1');
 
     expect(response.activeContract).toBeNull();
     expect(response.contracts).toEqual([activeContract]);
@@ -87,9 +87,9 @@ describe('atomic adapter replacement confirmation coordination', () => {
       required: true,
       confirmed: true,
     });
-    await service.update('student-1');
+    await service.update('student-1', { age: 31 });
 
-    const response = await service.listStudentContracts();
+    const response = await service.listStudentContracts('student-1');
 
     expect(response.activeContract).toEqual(activeContract);
     uninstall();
