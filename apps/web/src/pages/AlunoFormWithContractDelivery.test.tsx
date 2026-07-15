@@ -137,8 +137,11 @@ describe('AlunoFormWithContractDelivery replacement blocker', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('uses one confirmation to release the real submit blocker', async () => {
-    const nativeConfirm = vi.fn(() => true);
+  it('uses one replacement confirmation without intercepting unrelated confirmations', async () => {
+    const nativeConfirm = vi
+      .fn()
+      .mockReturnValueOnce(true)
+      .mockReturnValueOnce(false);
     window.confirm = nativeConfirm;
     const user = userEvent.setup();
 
@@ -160,9 +163,12 @@ describe('AlunoFormWithContractDelivery replacement blocker', () => {
     );
     expect(nativeConfirm).toHaveBeenCalledTimes(1);
 
+    expect(window.confirm('Confirmação não relacionada')).toBe(false);
+    expect(nativeConfirm).toHaveBeenCalledTimes(2);
+
     fireEvent.submit(screen.getByTestId('student-form'));
 
     expect(mocks.submit).toHaveBeenCalledTimes(1);
-    expect(nativeConfirm).toHaveBeenCalledTimes(1);
+    expect(nativeConfirm).toHaveBeenCalledTimes(2);
   });
 });
