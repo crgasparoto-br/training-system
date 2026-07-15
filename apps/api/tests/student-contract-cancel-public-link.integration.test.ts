@@ -170,6 +170,34 @@ describeDatabase('student contract cancel and public token consistency', () => {
     expect(document.publicTokenExpiresAt).toBeNull();
   });
 
+  it('clears the public token when document cancellation happens before link cancellation', async () => {
+    const token = 'document-first-cancel-token';
+    const fixture = await seedFixture(token);
+
+    await prisma.contract.update({
+      where: { id: fixture.document.id },
+      data: {
+        status: ContractStatus.CANCELLED,
+        cancelledAt: new Date('2026-07-15T12:00:00.000Z'),
+      },
+    });
+    await prisma.studentContract.update({
+      where: { id: fixture.link.id },
+      data: {
+        status: 'canceled',
+        canceledAt: new Date('2026-07-15T12:00:00.000Z'),
+        cancellationReason: 'Cancelamento iniciado pelo documento',
+      },
+    });
+
+    const document = await prisma.contract.findUniqueOrThrow({
+      where: { id: fixture.document.id },
+    });
+    expect(document.status).toBe(ContractStatus.CANCELLED);
+    expect(document.publicTokenHash).toBeNull();
+    expect(document.publicTokenExpiresAt).toBeNull();
+  });
+
   it('does not overwrite a canceled link when an inconsistent legacy token expires', async () => {
     const token = 'legacy-canceled-public-link-token';
     const fixture = await seedFixture(token);
