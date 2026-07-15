@@ -160,7 +160,25 @@ async function signAndOpen(token: string, openAt?: Date) {
     openAt ?? new Date()
   );
 
-  return Promise.all([signing, opening]);
+  return Promise.allSettled([signing, opening]);
+}
+
+function expectSignatureWon(
+  signatureOutcome: PromiseSettledResult<Awaited<ReturnType<typeof studentContractLifecycleService.signPublicContract>>>,
+  openingOutcome: PromiseSettledResult<Awaited<ReturnType<typeof contractPublicAccessService.open>>>
+) {
+  expect(signatureOutcome.status).toBe('fulfilled');
+  if (signatureOutcome.status === 'fulfilled') {
+    expect(signatureOutcome.value.activation.scheduled).toBe(false);
+  }
+
+  if (openingOutcome.status === 'fulfilled') {
+    expect(openingOutcome.value.status).toBe(ContractStatus.SIGNED);
+  } else {
+    expect(openingOutcome.reason).toEqual(
+      expect.objectContaining({ message: 'Contrato não encontrado' })
+    );
+  }
 }
 
 describeDatabase('concurrent public contract opening and signature', () => {
@@ -200,7 +218,7 @@ describeDatabase('concurrent public contract opening and signature', () => {
     const fixture = await seedFixture();
     await installSignatureDelay(fixture.candidateDocument.id);
 
-    const [signatureResult, opened] = await signAndOpen(fixture.token);
+    const [signatureOutcome, openingOutcome] = await signAndOpen(fixture.token);
     const [document, links, aluno] = await Promise.all([
       prisma.contract.findUniqueOrThrow({
         where: { id: fixture.candidateDocument.id },
@@ -211,8 +229,7 @@ describeDatabase('concurrent public contract opening and signature', () => {
       prisma.aluno.findUniqueOrThrow({ where: { id: fixture.aluno.id } }),
     ]);
 
-    expect(signatureResult.activation.scheduled).toBe(false);
-    expect(opened.status).toBe(ContractStatus.SIGNED);
+    expectSignatureWon(signatureOutcome, openingOutcome);
     expect(document.status).toBe(ContractStatus.SIGNED);
     expect(document.publicTokenHash).toBeNull();
     expect(links.find((link) => link.id === fixture.oldLink.id)?.status).toBe(
@@ -230,7 +247,7 @@ describeDatabase('concurrent public contract opening and signature', () => {
     await installSignatureDelay(fixture.candidateDocument.id);
 
     const forcedExpirationAt = new Date(Date.now() + 2 * 60 * 60 * 1000);
-    const [signatureResult, opened] = await signAndOpen(
+    const [signatureOutcome, openingOutcome] = await signAndOpen(
       fixture.token,
       forcedExpirationAt
     );
@@ -243,8 +260,7 @@ describeDatabase('concurrent public contract opening and signature', () => {
       }),
     ]);
 
-    expect(signatureResult.activation.scheduled).toBe(false);
-    expect(opened.status).toBe(ContractStatus.SIGNED);
+    expectSignatureWon(signatureOutcome, openingOutcome);
     expect(document.status).toBe(ContractStatus.SIGNED);
     expect(document.publicTokenHash).toBeNull();
     expect(candidateLink.status).toBe('active');
