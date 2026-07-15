@@ -21,12 +21,9 @@ export const LIFECYCLE_PREPARATION_FEEDBACK =
 const LIFECYCLE_PANEL_COPY =
   'Ao salvar, a substituição será preparada. O contrato vigente continuará ativo até a assinatura e a data efetiva do novo contrato.';
 
-const WINDOW_CONFIRM_MARKER = '__contractLifecycleConfirmCopyInstalled__';
 const WINDOW_COPY_MARKER = '__contractLifecycleCopyNormalizerInstalled__';
-const SELECTED_CONTRACT_FIELD = 'intakeForm.financialInfo.selectedContractId';
 
 type MarkedWindow = Window & {
-  [WINDOW_CONFIRM_MARKER]?: boolean;
   [WINDOW_COPY_MARKER]?: boolean;
 };
 
@@ -48,47 +45,13 @@ export const normalizeContractReplacementFeedback = (text?: string | null) => {
     .replace(LEGACY_PANEL_COPY, LIFECYCLE_PANEL_COPY);
 };
 
-if (typeof window !== 'undefined') {
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   const markedWindow = window as MarkedWindow;
 
-  if (!markedWindow[WINDOW_CONFIRM_MARKER]) {
-    const previousConfirm = window.confirm.bind(window);
-    let confirmedReplacementPendingActivation = false;
-
-    window.confirm = (message?: string) => {
-      if (
-        message === LEGACY_IMMEDIATE_ACTIVATION_MESSAGE &&
-        confirmedReplacementPendingActivation
-      ) {
-        confirmedReplacementPendingActivation = false;
-        return true;
-      }
-
-      const confirmed = previousConfirm(normalizeContractReplacementConfirmation(message));
-
-      if (typeof message === 'string' && message.includes(LEGACY_REPLACEMENT_PHRASE)) {
-        confirmedReplacementPendingActivation = confirmed;
-      } else if (message === LEGACY_IMMEDIATE_ACTIVATION_MESSAGE) {
-        confirmedReplacementPendingActivation = false;
-      }
-
-      return confirmed;
-    };
-
-    document.addEventListener('change', (event) => {
-      const target = event.target;
-      if (
-        target instanceof HTMLSelectElement &&
-        target.name === SELECTED_CONTRACT_FIELD
-      ) {
-        confirmedReplacementPendingActivation = false;
-      }
-    });
-
-    markedWindow[WINDOW_CONFIRM_MARKER] = true;
-  }
-
-  if (!markedWindow[WINDOW_COPY_MARKER] && typeof document !== 'undefined') {
+  // Confirmation ownership now belongs exclusively to the replacement
+  // component. This module only normalizes legacy explanatory copy and never
+  // intercepts window.confirm.
+  if (!markedWindow[WINDOW_COPY_MARKER]) {
     const normalizeRenderedCopy = () => {
       document.querySelectorAll<HTMLElement>('p, span, div').forEach((element) => {
         if (element.childElementCount > 0) return;
