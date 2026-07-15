@@ -10,7 +10,7 @@ BEGIN
         "publicTokenExpiresAt" = NULL,
         "updatedAt" = CURRENT_TIMESTAMP
     WHERE "id" = NEW."contractId"
-      AND "status" IN ('DRAFT', 'GENERATED', 'SENT', 'VIEWED', 'REJECTED', 'CANCELLED')
+      AND "status" IN ('DRAFT', 'GENERATED', 'SENT', 'VIEWED', 'CANCELLED')
       AND (
         "status" IS DISTINCT FROM 'CANCELLED'
         OR "publicTokenHash" IS NOT NULL
