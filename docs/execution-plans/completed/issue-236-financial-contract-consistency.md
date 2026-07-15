@@ -18,7 +18,7 @@ Garantir consistência transacional e uma única fonte de verdade para serviço 
 - [x] Cobrir os cenários acima com testes de serviço, rota, integração do frontend e PostgreSQL.
 - [x] Remover `serviceId` do contrato de entrada do domínio e usar `GeneratedContract.serviceId`, com fallback exclusivo para o `Aluno.serviceId` persistido.
 - [x] Validar no domínio que o serviço autoritativo pertence ao contrato empresarial autenticado.
-- [x] Consumir a confirmação legada pelo estado explícito da substituição, sem comparar texto de mensagem.
+- [x] Consumir uma única vez a confirmação legada pelo estado explícito da substituição, sem comparar texto de mensagem.
 - [x] Consumir a chamada legada de ativação após qualquer resultado bem-sucedido da mutação atômica, inclusive `draft` e `pending_signature`.
 - [x] Validar o reparo idempotente de vínculos preexistentes divergentes em PostgreSQL.
 
@@ -42,7 +42,7 @@ Garantir consistência transacional e uma única fonte de verdade para serviço 
 
 1. A confirmação é controlada pelo componente que efetivamente bloqueia o envio. A seleção cancelada é restaurada antes de o formulário aplicar a troca; a confirmação aceita é vinculada ao contrato selecionado e reutilizada no salvamento.
 2. A automação antiga que procurava e clicava botões por texto/posição no DOM foi removida.
-3. A confirmação de seguimento do fluxo legado é consumida pelo estado booleano já confirmado; nenhuma frase ou cópia específica é usada para identificar a operação.
+3. A confirmação de seguimento do fluxo legado é consumida pelo estado explícito da substituição. Cada nova confirmação incrementa uma versão interna que pode ser consumida apenas uma vez, sem usar a mensagem como identificador.
 4. O interceptador global de `window.confirm` que normalizava e suprimia mensagens por texto foi removido. O módulo remanescente atua somente sobre textos explicativos renderizados.
 5. O domínio não aceita mais `serviceId` em `StudentFinancialContractInput`.
 6. O backend resolve o serviço do vínculo pelo `GeneratedContract.serviceId`. Quando o contrato não possui serviço próprio, consulta diretamente o `Aluno.serviceId` persistido dentro da mesma transação.
@@ -60,7 +60,8 @@ Garantir consistência transacional e uma única fonte de verdade para serviço 
 
 - confirmação e cancelamento no bloqueador real do formulário;
 - envio após uma única confirmação;
-- confirmação de seguimento independente da redação da mensagem;
+- confirmação de seguimento independente da redação da mensagem e consumida uma única vez;
+- garantia de que uma segunda confirmação não relacionada não é liberada pelo estado já consumido;
 - falha atômica sem persistência separada do perfil;
 - chamada direta ao domínio com `serviceId` injetado ignorada;
 - fallback derivado do `Aluno.serviceId` persistido;
@@ -85,7 +86,7 @@ Garantir consistência transacional e uma única fonte de verdade para serviço 
 - A regra autoritativa existe no domínio, nas rotas e no banco de dados.
 - Chamadas internas não conseguem escolher arbitrariamente o serviço financeiro.
 - O cadastro e a edição não deixam persistência parcial quando a mutação contratual falha.
-- A confirmação é única no fluxo composto real e não depende da redação de mensagens legadas.
+- A confirmação é única no fluxo composto real, não depende da redação de mensagens legadas e não libera confirmações posteriores.
 - O contrato vigente permanece ativo até assinatura e data efetiva do substituto.
 - O fallback financeiro não pode ser escolhido pelo cliente.
 - A operação composta não dispara uma segunda mutação de ciclo após o commit atômico.
@@ -94,13 +95,12 @@ Garantir consistência transacional e uma única fonte de verdade para serviço 
 
 ## Validação final
 
-Workflow oficial **Validate PR #1486**, commit `d417a203e539b22c85697fcfc7db3daa6b395312`:
+Workflow oficial **Validate PR #1494**, commit `6fa292e3adfd054f616fe63c96ac36a3fcffa08b`:
 
 - migrations PostgreSQL: sucesso;
 - type-check: sucesso;
 - lint: sucesso;
-- web: 38 arquivos e 155 testes aprovados;
-- API: 50 suítes e 238 testes aprovados;
+- testes web e API: sucesso;
 - arquitetura: sucesso;
 - catálogo de acessos: sucesso;
 - documentação: sucesso.
