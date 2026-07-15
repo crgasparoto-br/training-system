@@ -25,22 +25,30 @@ Quando o aluno já possui contrato ativo, a confirmação da substituição pert
 
 A implementação não procura, identifica ou aciona botões por texto ou posição no DOM. O painel visível e o bloqueio de submissão compartilham o mesmo estado controlado.
 
-## Autoridade e transação no backend
+## Autoridade, escopo e transação no backend
 
 `intakeForm.formResponses.financial.currentService` é uma representação desnormalizada para leitura e exibição. Na operação composta de cadastro ou edição, o cliente pode atualizar os demais campos financeiros, mas não é o escritor autoritativo do serviço vigente.
 
 A fonte de verdade do vínculo é:
 
-1. `GeneratedContract.serviceId`, quando preenchido;
-2. `Aluno.serviceId` persistido, somente quando o contrato não possui serviço próprio.
+1. `GeneratedContract.serviceId`, quando o documento possui serviço próprio;
+2. `Aluno.serviceId` persistido, somente quando o documento não possui serviço próprio.
 
-O mesmo valor é aplicado a `StudentContract.serviceId`. Gatilhos PostgreSQL impedem que inserções ou atualizações gravem um serviço diferente daquele associado ao contrato e propagam alterações posteriores do contrato para o vínculo. Quando o vínculo efetivo muda, o gatilho sincroniza o nome do serviço em `financial.currentService`, preservando os demais campos do JSON financeiro.
+O fallback do aluno não é materializado como serviço próprio do documento. Assim, `GeneratedContract.serviceId` permanece nulo quando o modelo não define serviço, enquanto `StudentContract.serviceId` recebe o serviço efetivo do aluno e continua acompanhando alterações posteriores de `Aluno.serviceId`.
 
-A geração por `/contracts/generate` passa pelo serviço autoritativo e exige `students.actions.manageFinancialContract`. O `serviceId` do payload é ignorado: o serviço do modelo prevalece e o único fallback é `Aluno.serviceId`. Aluno, serviço e professor são validados contra o contrato empresarial autenticado.
+Gatilhos PostgreSQL impedem que inserções ou atualizações gravem um serviço diferente daquele associado ao documento ou ao fallback persistido. Quando o vínculo efetivo muda, o gatilho sincroniza o nome do serviço em `financial.currentService`, preservando os demais campos do JSON financeiro.
 
-A prévia em `/contracts/preview` usa a mesma resolução autoritativa, mas pode ser acessada por quem possui `students.actions.manageFinancialContract` ou `settings.contract`. Assim, o editor de modelos consegue produzir uma prévia preenchida sem receber autorização para gerar contratos definitivos.
+A geração por `/contracts/generate` passa pelo serviço autoritativo e exige `students.actions.manageFinancialContract`. O `serviceId` do payload é ignorado. A prévia em `/contracts/preview` usa a mesma resolução autoritativa e pode ser acessada por quem possui `students.actions.manageFinancialContract` ou `settings.contract`.
 
-O caminho `POST /alunos/:id/contracts` com referência `template:<id>` reutiliza a mesma geração autoritativa. Documento, vínculo, auditoria e eventual decisão de ciclo são executados na transação recebida. Falha na criação do vínculo ou da auditoria desfaz também o documento.
+Além da permissão funcional e do isolamento por contrato empresarial, prévia e geração aplicam o escopo do professor autenticado:
+
+- professor comum acessa somente alunos sob sua responsabilidade;
+- professor master pode acessar qualquer aluno do mesmo contrato empresarial;
+- professor comum não pode atribuir arbitrariamente outro professor ao documento.
+
+Essa validação ocorre dentro do serviço de domínio antes da renderização do contexto ou da persistência. Portanto, conhecer o identificador de outro aluno do mesmo contrato empresarial não permite obter seus dados pelo HTML ou pelo contexto da prévia.
+
+O caminho `POST /alunos/:id/contracts` com referência `template:<id>` reutiliza a mesma geração autoritativa. Documento, vínculo, auditoria, `startDate`, `endDate` e eventual decisão de ciclo são executados na transação recebida. Falha na criação do vínculo ou da auditoria desfaz também o documento. Para referências de modelo, somente os estados `draft` e `active` são aceitos; estados incompatíveis são rejeitados com erro de validação em vez de serem convertidos silenciosamente para rascunho.
 
 A migration `20260714203000_enforce_student_contract_service_authority` corrige vínculos legados divergentes e atualiza o formulário financeiro do contrato ativo apontado pelo aluno. A migration `20260715213000_recompute_terminal_current_service` recalcula o serviço quando vínculos são inseridos, atualizados ou removidos, inclusive nas transições para cancelado, expirado ou encerrado. Sem vínculo ativo, o vínculo em preparação mais recente é usado; sem vínculo efetivo ou preparado, o valor é limpo.
 
@@ -54,7 +62,9 @@ O ciclo aplicado dentro da transação respeita o estado documental:
 
 A mesma função transacional é usada pelo salvamento administrativo, pela rota pública real de assinatura e pelo agendador. A rota pública retorna o resultado de ativação ou agendamento esperado pelo frontend, consome o token uma única vez e preserva `StudentContract.startDate` e `StudentContract.endDate` durante preparação, assinatura, agendamento e ativação.
 
-A consulta pública altera o documento de `SENT` para `VIEWED` somente quando o token e o estado atuais ainda correspondem à leitura. A expiração também reivindica condicionalmente o token, limpa o token e sua validade e atualiza o vínculo na mesma transação. Se uma assinatura vencer a corrida, a consulta pode retornar o documento assinado ou informar que o token já foi consumido, mas nunca altera `SIGNED` para `VIEWED` ou `EXPIRED`.
+A consulta pública altera o documento de `SENT` para `VIEWED` somente quando o token e o estado atuais ainda correspondem à leitura. A expiração também reivindica condicionalmente o token, limpa o token e sua validade e atualiza somente vínculos ainda em `draft` ou `pending_signature`. Vínculos já cancelados ou encerrados não são reclassificados como expirados.
+
+Ao cancelar um vínculo cujo documento ainda não foi assinado, vínculo e documento são cancelados na mesma transação e o token público é removido. Um endereço anteriormente emitido deixa de abrir o documento e não pode ser usado para assinar depois do cancelamento.
 
 ## Estado e vigência no campo Contrato
 
@@ -75,13 +85,13 @@ A data final é calculada diretamente a partir de **Data de início**, **Unidade
 
 A rota de cadastro `/alunos/new` instala os adaptadores antes da criação do aluno. Assim, o perfil e o vínculo criado logo após o cadastro recebem a mesma data final. Se **Remover vencimento** tiver sido usado, ambos persistem o vencimento vazio e o vínculo recebe `endDate: null`.
 
-Contratos gerados a partir de modelo ativo recebem uma atualização de confirmação do `endDate` imediatamente depois da geração. Após criar, atualizar ou ativar o vínculo, a tela recarrega documentos e vínculos automaticamente; respostas antigas de carregamentos concorrentes são descartadas.
+Contratos gerados a partir de modelo ativo persistem o `endDate` já na transação de geração. Após criar, atualizar ou ativar o vínculo, a tela recarrega documentos e vínculos automaticamente; respostas antigas de carregamentos concorrentes são descartadas.
 
 Quando já existe uma data final, a ação **Remover vencimento** fica disponível abaixo do campo. Ao usá-la, a interface limpa o vencimento e o salvamento envia `endDate: null`. Alterar ou limpar os campos de duração recalcula ou remove a data de forma equivalente.
 
 Datas de início e término são tratadas como **datas civis**, e não como instantes UTC. Um término em `14/07` permanece vigente durante todo o dia 14 no horário local e passa a vencido somente no dia seguinte. As datas retornadas pela API são normalizadas para evitar exibição do dia anterior em fusos negativos, como o Brasil.
 
-Os testes automatizados reproduzem os controles reais de início e duração, o campo visual desabilitado, a remoção intencional no cadastro e na edição, a persistência no perfil e no vínculo, a prioridade do serviço financeiro do contrato, a confirmação única, a reconstrução do seletor sem ofertas ativas, o serviço inativo ausente das opções e falhas de consulta ou carregamento parcial. A integração do frontend monta os formulários reais de cadastro e edição com todos os adaptadores, cobrindo sucesso, cancelamento e falha sem persistência separada. A API cobre autorização da prévia e geração, assinatura pública pela política transacional, geração autoritativa por endpoint direto e por referência de modelo e rejeição de aluno, serviço, professor ou documento de outro contrato empresarial. A suíte PostgreSQL valida ainda rollback integral, concorrência entre consulta, expiração e assinatura, gatilhos de autoridade, propagação, reparo e recálculo após estados terminais.
+Os testes automatizados reproduzem os controles reais de início e duração, o campo visual desabilitado, a remoção intencional no cadastro e na edição, a persistência no perfil e no vínculo, a prioridade do serviço financeiro do contrato, a confirmação única, a reconstrução do seletor sem ofertas ativas, o serviço inativo ausente das opções e falhas de consulta ou carregamento parcial. A API cobre autorização funcional e escopo por aluno na prévia e geração, assinatura pública pela política transacional, geração autoritativa por endpoint direto e por referência de modelo, persistência de `endDate`, rejeição explícita de estados incompatíveis e invalidação do token no cancelamento. A suíte PostgreSQL valida rollback integral, propagação do fallback, concorrência entre consulta, expiração e assinatura, preservação de estados terminais, gatilhos de autoridade, reparo e recálculo.
 
 ## Histórico de contratos
 
