@@ -1,6 +1,3 @@
-export const LEGACY_CONTRACT_REPLACEMENT_CONFIRM_MESSAGE =
-  'Este aluno já possui um contrato ativo. Ao ativar um novo contrato, o anterior será encerrado.';
-
 export type StudentContractReplacementInput = {
   activeContractId?: string | null;
   selectedContractId?: string | null;
@@ -35,7 +32,12 @@ export const resolveStudentContractReplacement = ({
   };
 };
 
+/**
+ * The real replacement component owns the confirmation state. Once that state
+ * is confirmed, the legacy follow-up confirm is consumed without inspecting
+ * or depending on its copy.
+ */
 export const shouldBypassLegacyContractReplacementConfirm = (
-  message: unknown,
+  _message: unknown,
   replacementConfirmed: boolean
-) => replacementConfirmed && message === LEGACY_CONTRACT_REPLACEMENT_CONFIRM_MESSAGE;
+) => replacementConfirmed;
