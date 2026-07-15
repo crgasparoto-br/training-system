@@ -96,7 +96,7 @@ describe('student financial contract service', () => {
     ).toEqual({ financial: { paymentDay: '10' } });
   });
 
-  it('updates profile and prepares an unsigned replacement in one transaction without terminating the active contract', async () => {
+  it('uses the persisted Aluno service and ignores a serviceId injected by a direct caller', async () => {
     tx.aluno.findUniqueOrThrow
       .mockResolvedValueOnce({
         id: 'student-1',
@@ -114,20 +114,25 @@ describe('student financial contract service', () => {
           },
         },
       })
+      .mockResolvedValueOnce({
+        serviceId: 'interest-service',
+        professor: { contractId: 'company-1' },
+      })
       .mockResolvedValueOnce({ id: 'student-1' });
     tx.aluno.update.mockResolvedValue({ id: 'student-1', userId: 'user-1' });
     tx.contract.findUnique.mockResolvedValue({
       id: 'contract-1',
       alunoId: 'student-1',
       companyContractId: 'company-1',
-      serviceId: 'financial-service',
+      serviceId: null,
     });
+    tx.serviceOption.findFirst.mockResolvedValue({ id: 'interest-service' });
     tx.studentContract.findUnique
       .mockResolvedValueOnce({
         id: 'link-1',
         alunoId: 'student-1',
         contractId: 'contract-1',
-        serviceId: 'interest-service',
+        serviceId: 'legacy-service',
         status: 'draft',
         startDate: null,
         endDate: null,
@@ -137,7 +142,7 @@ describe('student financial contract service', () => {
         id: 'link-1',
         alunoId: 'student-1',
         contractId: 'contract-1',
-        serviceId: 'financial-service',
+        serviceId: 'interest-service',
         status: 'draft',
         startDate: new Date('2026-07-01T12:00:00.000Z'),
         endDate: new Date('2027-07-01T12:00:00.000Z'),
@@ -149,19 +154,19 @@ describe('student financial contract service', () => {
         id: 'link-1',
         alunoId: 'student-1',
         contractId: 'contract-1',
-        serviceId: 'financial-service',
+        serviceId: 'interest-service',
         status: 'draft',
       })
       .mockResolvedValueOnce({
         id: 'link-1',
         alunoId: 'student-1',
         contractId: 'contract-1',
-        serviceId: 'financial-service',
+        serviceId: 'interest-service',
         status: 'draft',
       });
     tx.studentContract.findUniqueOrThrow.mockResolvedValue({
       id: 'link-1',
-      serviceId: 'financial-service',
+      serviceId: 'interest-service',
       status: 'draft',
     });
 
@@ -180,10 +185,10 @@ describe('student financial contract service', () => {
       },
       {
         contractId: 'contract-1',
-        serviceId: 'interest-service',
+        serviceId: 'untrusted-direct-caller-service',
         startDate: new Date('2026-07-01T12:00:00.000Z'),
         endDate: new Date('2027-07-01T12:00:00.000Z'),
-      },
+      } as any,
       { professorId: 'professor-1', companyContractId: 'company-1' }
     );
 
@@ -201,12 +206,21 @@ describe('student financial contract service', () => {
         }),
       })
     );
+    expect(tx.serviceOption.findFirst).toHaveBeenCalledWith({
+      where: { id: 'interest-service', contractId: 'company-1' },
+      select: { id: true },
+    });
+    expect(tx.serviceOption.findFirst).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: 'untrusted-direct-caller-service' }),
+      })
+    );
     expect(tx.studentContract.update).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
         where: { id: 'link-1' },
         data: expect.objectContaining({
-          serviceId: 'financial-service',
+          serviceId: 'interest-service',
           endDate: new Date('2027-07-01T12:00:00.000Z'),
         }),
       })
@@ -218,9 +232,48 @@ describe('student financial contract service', () => {
     expect(tx.studentContract.updateMany).not.toHaveBeenCalled();
     expect(result.studentContract).toEqual({
       id: 'link-1',
-      serviceId: 'financial-service',
+      serviceId: 'interest-service',
       status: 'draft',
     });
+  });
+
+  it('rejects a persisted fallback service from another company contract', async () => {
+    tx.aluno.findUniqueOrThrow
+      .mockResolvedValueOnce({
+        id: 'student-1',
+        userId: 'user-1',
+        professorId: 'professor-1',
+        serviceId: 'foreign-service',
+        professor: { contractId: 'company-1' },
+        currentStudentContract: null,
+        intakeForm: null,
+      })
+      .mockResolvedValueOnce({
+        serviceId: 'foreign-service',
+        professor: { contractId: 'company-1' },
+      });
+    tx.aluno.update.mockResolvedValue({ id: 'student-1', userId: 'user-1' });
+    tx.contract.findUnique.mockResolvedValue({
+      id: 'contract-1',
+      alunoId: 'student-1',
+      companyContractId: 'company-1',
+      serviceId: null,
+    });
+    tx.serviceOption.findFirst.mockResolvedValue(null);
+
+    await expect(
+      studentFinancialContractService.updateAlunoWithContract(
+        'student-1',
+        { age: 32 },
+        { contractId: 'contract-1' },
+        { professorId: 'professor-1', companyContractId: 'company-1' }
+      )
+    ).rejects.toThrow(
+      'Serviço financeiro do contrato não pertence ao contrato autenticado'
+    );
+
+    expect(tx.studentContract.update).not.toHaveBeenCalled();
+    expect(tx.studentContract.create).not.toHaveBeenCalled();
   });
 
   it('rejects the whole transaction when the selected contract cannot be resolved', async () => {
