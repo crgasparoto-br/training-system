@@ -69,7 +69,9 @@ const buildService = () => ({
       _data: UpdateStudentContractDTO
     ) => buildPendingLink()
   ),
-  activateStudentContract: vi.fn(async () => buildPendingLink('active')),
+  activateStudentContract: vi.fn(
+    async (_alunoId: string, _studentContractId: string) => buildPendingLink('active')
+  ),
 });
 
 describe('student financial contract atomic adapter pending lifecycle', () => {
