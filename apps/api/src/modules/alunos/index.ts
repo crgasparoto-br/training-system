@@ -2,10 +2,12 @@ import { Router } from 'express';
 import legacyAlunoRoutes from './aluno.routes.js';
 import segmentedAlunoRoutes from './student-domain.routes.js';
 import studentFinancialContractRoutes from './student-financial-contract.routes.js';
+import studentContractTemplateStatusRoutes from './student-contract-template-status.routes.js';
 
 const alunoRoutes: Router = Router();
 
 alunoRoutes.use(studentFinancialContractRoutes);
+alunoRoutes.use(studentContractTemplateStatusRoutes);
 alunoRoutes.use(segmentedAlunoRoutes);
 alunoRoutes.use(legacyAlunoRoutes);
 
