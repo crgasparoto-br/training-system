@@ -34,7 +34,7 @@ export const contractPublicAccessService = {
   ) {
     const tokenDigest = hashToken(token);
 
-    return runInTransaction(client, async (tx) => {
+    const result = await runInTransaction(client, async (tx) => {
       const contract = await tx.contract.findUnique({
         where: { publicTokenHash: tokenDigest },
         include: { signatures: true },
@@ -70,7 +70,7 @@ export const contractPublicAccessService = {
               endDate: now,
             },
           });
-          throw new Error('Link expirado');
+          return { kind: 'expired' as const };
         }
 
         const current = await tx.contract.findUnique({
@@ -78,11 +78,15 @@ export const contractPublicAccessService = {
           include: { signatures: true },
         });
 
-        if (!current || current.status === 'EXPIRED') {
-          throw new Error('Link expirado');
+        if (!current) {
+          throw new Error('Contrato não encontrado');
         }
 
-        return current;
+        if (current.status === 'EXPIRED') {
+          return { kind: 'expired' as const };
+        }
+
+        return { kind: 'contract' as const, contract: current };
       }
 
       if (contract.status === 'SENT') {
@@ -118,10 +122,16 @@ export const contractPublicAccessService = {
       }
 
       if (current.status === 'EXPIRED') {
-        throw new Error('Link expirado');
+        return { kind: 'expired' as const };
       }
 
-      return current;
+      return { kind: 'contract' as const, contract: current };
     });
+
+    if (result.kind === 'expired') {
+      throw new Error('Link expirado');
+    }
+
+    return result.contract;
   },
 };
