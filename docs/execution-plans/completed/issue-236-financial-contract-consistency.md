@@ -130,7 +130,7 @@ Garantir consistência transacional e uma única fonte de verdade para serviço 
 
 ## Validação da implementação
 
-A implementação funcional foi validada repetidamente pelo workflow oficial **Validate PR**, incluindo o ciclo #1600 no head anterior a este commit documental sem alteração de conteúdo.
+A implementação funcional foi validada repetidamente pelo workflow oficial **Validate PR**.
 
 - migrations PostgreSQL: sucesso;
 - type-check: sucesso;
