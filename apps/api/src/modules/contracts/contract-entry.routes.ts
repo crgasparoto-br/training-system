@@ -11,6 +11,8 @@ const router: Router = Router();
 
 const actorFromRequest = (req: Request) => ({
   userId: req.user?.userId,
+  professorId: (req as any).user?.professorId as string | undefined,
+  professorRole: (req as any).user?.professorRole as string | undefined,
   ipAddress: req.ip,
   userAgent: req.get('user-agent') || undefined,
 });
@@ -20,6 +22,17 @@ const companyContractIdFromRequest = (req: Request) => {
   return typeof companyContractId === 'string' && companyContractId.trim()
     ? companyContractId.trim()
     : null;
+};
+
+const contractGenerationErrorStatus = (error: unknown) => {
+  const message = error instanceof Error ? error.message : '';
+  if (
+    message.includes('fora do escopo') ||
+    message.includes('não pertence ao contrato autenticado')
+  ) {
+    return 404;
+  }
+  return 400;
 };
 
 router.get('/public/:token', async (req: Request, res: Response) => {
@@ -59,11 +72,16 @@ router.post(
 
       const preview = await contractAuthoritativeGenerationService.preview(
         companyContractId,
-        req.body
+        req.body,
+        actorFromRequest(req)
       );
       return sendSuccess(res, preview, 'Prévia gerada com sucesso');
     } catch (error: any) {
-      return sendError(res, error.message || 'Erro ao gerar prévia', 400);
+      return sendError(
+        res,
+        error.message || 'Erro ao gerar prévia',
+        contractGenerationErrorStatus(error)
+      );
     }
   }
 );
@@ -85,7 +103,11 @@ router.post(
       );
       return sendSuccess(res, contract, 'Contrato gerado com sucesso', 201);
     } catch (error: any) {
-      return sendError(res, error.message || 'Erro ao gerar contrato', 400);
+      return sendError(
+        res,
+        error.message || 'Erro ao gerar contrato',
+        contractGenerationErrorStatus(error)
+      );
     }
   }
 );
