@@ -19,7 +19,18 @@ jest.mock('../src/modules/auth/auth.middleware', () => ({
 
 jest.mock('../src/modules/access-control/access-control.middleware', () => ({
   blockAccessMiddleware: jest.fn(
-    () => (_req: express.Request, _res: express.Response, next: express.NextFunction) => next()
+    (blockKey: string) => (req: express.Request, res: express.Response, next: express.NextFunction) => {
+      if (
+        blockKey === 'students.actions.manageFinancialContract' &&
+        req.get('x-test-deny-financial-contract') === 'true'
+      ) {
+        return res.status(403).json({
+          success: false,
+          error: 'Perfil sem permissão para acessar este recurso',
+        });
+      }
+      return next();
+    }
   ),
 }));
 
@@ -39,6 +50,24 @@ describe('student financial contract routes', () => {
   app.use('/alunos', router);
 
   beforeEach(() => jest.clearAllMocks());
+
+  it('requires the financial contract block before reaching the atomic service', async () => {
+    const response = await request(app)
+      .post('/alunos/financial-contract')
+      .set('x-test-deny-financial-contract', 'true')
+      .send({
+        profile: {
+          name: 'Aluno Teste',
+          email: 'aluno@example.com',
+          schedulePlan: 'free',
+          age: 30,
+        },
+        contract: { contractId: 'contract-1' },
+      });
+
+    expect(response.status).toBe(403);
+    expect(studentFinancialContractService.createAlunoWithContract).not.toHaveBeenCalled();
+  });
 
   it('creates profile and contract through one service operation with civil dates', async () => {
     studentFinancialContractService.createAlunoWithContract.mockResolvedValue({
