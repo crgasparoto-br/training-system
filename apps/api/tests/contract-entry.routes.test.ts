@@ -5,11 +5,24 @@ const request = require('supertest');
 const mockOpenPublic = jest.fn();
 const mockPreview = jest.fn();
 const mockGenerate = jest.fn();
+const mockAssertAlunoAccess = jest.fn();
+const mockAssertContractDocumentAccess = jest.fn();
 
-jest.mock('../src/modules/contracts/contract.routes', () => ({
-  __esModule: true,
-  default: require('express').Router(),
-}));
+jest.mock('../src/modules/contracts/contract.routes', () => {
+  const legacyRouter = require('express').Router();
+  legacyRouter.get('/alunos/:alunoId', (_req: express.Request, res: express.Response) =>
+    res.status(204).end()
+  );
+  legacyRouter.get(
+    '/documents/:contractDocumentId',
+    (_req: express.Request, res: express.Response) => res.status(204).end()
+  );
+  legacyRouter.get(
+    '/available-for-student',
+    (_req: express.Request, res: express.Response) => res.status(204).end()
+  );
+  return { __esModule: true, default: legacyRouter };
+});
 
 jest.mock('../src/modules/auth/auth.middleware', () => ({
   authMiddleware: (
@@ -50,6 +63,13 @@ jest.mock('../src/modules/access-control/access-control.middleware', () => ({
     },
 }));
 
+jest.mock('../src/modules/alunos/student-access-scope.service', () => ({
+  studentAccessScopeService: {
+    assertAlunoAccess: mockAssertAlunoAccess,
+    assertContractDocumentAccess: mockAssertContractDocumentAccess,
+  },
+}));
+
 jest.mock('../src/modules/contracts/contract-preview-access.middleware', () => ({
   contractPreviewAccessMiddleware: (
     req: express.Request,
@@ -86,7 +106,11 @@ describe('contract route entry', () => {
   app.use(express.json());
   app.use('/contracts', router);
 
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockAssertAlunoAccess.mockResolvedValue({ id: 'student-1' });
+    mockAssertContractDocumentAccess.mockResolvedValue({ id: 'document-1' });
+  });
 
   it('keeps public document opening outside authenticated routes', async () => {
     mockOpenPublic.mockResolvedValue({
@@ -160,6 +184,45 @@ describe('contract route entry', () => {
 
     expect(previewResponse.status).toBe(404);
     expect(generateResponse.status).toBe(404);
+  });
+
+  it('scopes contract history, document reads and available-contract queries', async () => {
+    const history = await request(app).get('/contracts/alunos/student-1');
+    const document = await request(app).get('/contracts/documents/document-1');
+    const available = await request(app).get(
+      '/contracts/available-for-student?alunoId=student-1'
+    );
+
+    expect(history.status).toBe(204);
+    expect(document.status).toBe(204);
+    expect(available.status).toBe(204);
+    expect(mockAssertAlunoAccess).toHaveBeenCalledWith(
+      'student-1',
+      expect.objectContaining({
+        professorId: 'professor-1',
+        professorRole: 'professor',
+        companyContractId: 'company-1',
+      })
+    );
+    expect(mockAssertContractDocumentAccess).toHaveBeenCalledWith(
+      'document-1',
+      expect.objectContaining({ professorId: 'professor-1' })
+    );
+  });
+
+  it('blocks history and document access when the aluno is outside the professor scope', async () => {
+    mockAssertAlunoAccess.mockRejectedValueOnce(
+      new Error('Aluno fora do escopo do professor autenticado')
+    );
+    mockAssertContractDocumentAccess.mockRejectedValueOnce(
+      new Error('Aluno fora do escopo do professor autenticado')
+    );
+
+    const history = await request(app).get('/contracts/alunos/student-other');
+    const document = await request(app).get('/contracts/documents/document-other');
+
+    expect(history.status).toBe(404);
+    expect(document.status).toBe(404);
   });
 
   it('keeps preview available when financial generation permission is denied', async () => {
