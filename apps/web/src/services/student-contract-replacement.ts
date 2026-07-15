@@ -1,3 +1,5 @@
+import { consumeConfirmedContractReplacementBypass } from './contract-replacement-coordination';
+
 export type StudentContractReplacementInput = {
   activeContractId?: string | null;
   selectedContractId?: string | null;
@@ -33,11 +35,11 @@ export const resolveStudentContractReplacement = ({
 };
 
 /**
- * The real replacement component owns the confirmation state. Once that state
- * is confirmed, the legacy follow-up confirm is consumed without inspecting
- * or depending on its copy.
+ * The real replacement component owns the confirmation state. The legacy
+ * follow-up confirm is consumed once from that explicit state, without
+ * inspecting or depending on message copy.
  */
 export const shouldBypassLegacyContractReplacementConfirm = (
   _message: unknown,
   replacementConfirmed: boolean
-) => replacementConfirmed;
+) => replacementConfirmed && consumeConfirmedContractReplacementBypass();
