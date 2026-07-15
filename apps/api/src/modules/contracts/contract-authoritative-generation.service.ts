@@ -73,6 +73,13 @@ async function runInTransaction<T>(
   return work(client as Prisma.TransactionClient);
 }
 
+const isDbClient = (value: ContractGenerationActor | DbClient | undefined): value is DbClient =>
+  Boolean(
+    value &&
+      typeof value === 'object' &&
+      ('contractTemplate' in value || '$transaction' in value)
+  );
+
 const assertActorCanAccessAluno = (
   aluno: { professorId: string },
   actor?: ContractGenerationActor
@@ -224,11 +231,13 @@ export const contractAuthoritativeGenerationService = {
   async preview(
     companyContractId: string,
     input: ContractGenerationInput,
-    actor?: ContractGenerationActor,
+    actorOrClient?: ContractGenerationActor | DbClient,
     client: DbClient = prisma
   ) {
+    const actor = isDbClient(actorOrClient) ? undefined : actorOrClient;
+    const dbClient = isDbClient(actorOrClient) ? actorOrClient : client;
     const resolved = await resolveGenerationData(
-      client,
+      dbClient,
       companyContractId,
       input,
       false,
