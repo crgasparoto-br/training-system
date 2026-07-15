@@ -130,6 +130,10 @@ async function generateContractFromActiveTemplate(
     return null;
   }
 
+  if (data.status && data.status !== 'draft' && data.status !== 'active') {
+    throw new Error('Estado não suportado para geração de contrato por modelo');
+  }
+
   const companyContractId = options.companyContractId;
   if (!companyContractId) {
     throw new Error('Contrato da empresa não encontrado');
@@ -176,7 +180,11 @@ async function generateContractFromActiveTemplate(
         horarios: data.notes ?? undefined,
       },
       undefined,
-      tx
+      tx,
+      {
+        endDate: data.endDate ?? null,
+        requestedStatus: data.status === 'active' ? 'active' : 'draft',
+      }
     );
 
     const generatedLink = await tx.studentContract.findUnique({
@@ -185,14 +193,6 @@ async function generateContractFromActiveTemplate(
 
     if (!generatedLink) {
       throw new Error('Não foi possível criar o vínculo do contrato gerado');
-    }
-
-    if (data.status === 'active') {
-      const lifecycle = await prepareOrActivateStudentContractInTransaction(
-        tx,
-        generatedLink.id
-      );
-      return lifecycle.studentContract;
     }
 
     return generatedLink;
@@ -212,6 +212,7 @@ async function assertStudentContractOwnership(
         select: {
           id: true,
           companyContractId: true,
+          status: true,
         },
       },
     },
@@ -391,6 +392,7 @@ export const studentContractService = {
           alunoId: data.alunoId,
           serviceId: data.serviceId ?? null,
           startDate: data.startDate ?? null,
+          endDate: data.endDate ?? null,
           amount: data.amount ?? null,
           paymentDay: data.paymentDay ?? null,
           notes: data.notes ?? null,
@@ -562,27 +564,43 @@ export const studentContractService = {
     options: ServiceOperationOptions = {},
     client: DbClient = prisma
   ) {
-    const existing = await assertStudentContractOwnership(
-      studentContractId,
-      alunoId,
-      options.companyContractId,
-      client
-    );
+    return runInTransaction(client, async (tx) => {
+      const existing = await assertStudentContractOwnership(
+        studentContractId,
+        alunoId,
+        options.companyContractId,
+        tx
+      );
 
-    const now = new Date();
+      const now = new Date();
+      const updated = await tx.studentContract.update({
+        where: { id: existing.id },
+        data: {
+          status: 'canceled',
+          canceledAt: now,
+          endDate: existing.endDate ?? now,
+          cancellationReason: reason,
+        },
+      });
 
-    const updated = await client.studentContract.update({
-      where: { id: existing.id },
-      data: {
-        status: 'canceled',
-        canceledAt: now,
-        endDate: existing.endDate ?? now,
-        cancellationReason: reason,
-      },
+      if (existing.contract.status !== 'SIGNED') {
+        await tx.contract.updateMany({
+          where: {
+            id: existing.contract.id,
+            status: { notIn: ['SIGNED', 'CANCELLED', 'EXPIRED'] },
+          },
+          data: {
+            status: 'CANCELLED',
+            cancelledAt: now,
+            publicTokenHash: null,
+            publicTokenExpiresAt: null,
+          },
+        });
+      }
+
+      await syncAlunoCurrentContract(alunoId, updated.id, 'canceled', tx);
+
+      return updated;
     });
-
-    await syncAlunoCurrentContract(alunoId, updated.id, 'canceled', client);
-
-    return updated;
   },
 };
