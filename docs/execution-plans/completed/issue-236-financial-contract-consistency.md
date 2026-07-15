@@ -2,7 +2,7 @@
 
 ## Status
 
-Implementação concluída. A cobertura complementar solicitada pelas auditorias independentes monta os formulários reais de cadastro e edição, valida sucesso, cancelamento e falha da operação composta, protege autorização e isolamento por contrato e por professor, impede fallbacks financeiros controláveis, preserva datas e estados em todos os caminhos, evita vigência retroativa e mantém documentos, vínculos e tokens públicos coerentes.
+Implementação concluída e aprovada na auditoria final. A cobertura complementar solicitada pelas auditorias independentes monta os formulários reais de cadastro e edição, valida sucesso, cancelamento e falha da operação composta, protege autorização e isolamento por contrato e por professor, impede fallbacks financeiros controláveis, preserva datas e estados em todos os caminhos, evita vigência retroativa e mantém documentos, vínculos e tokens públicos coerentes.
 
 ## Objetivo
 
@@ -133,6 +133,16 @@ Garantir consistência transacional e uma única fonte de verdade para serviço 
 - O reparo de dados preexistentes é validado em PostgreSQL.
 - O workflow oficial conclui migrations, type-check, lint, testes, arquitetura, catálogo de acessos e documentação com sucesso.
 
-## Validação da implementação
+## Validação final
 
-A implementação deve ser considerada concluída somente no head em que o workflow oficial **Validate PR** aprovar migrations PostgreSQL, type-check, lint, testes, arquitetura, catálogo de acessos e documentação.
+- Workflow: **Validate PR #1672**.
+- Commit auditado: `140adb100ff6c48eedbaaca3e567eb85323704de`.
+- Migrations PostgreSQL: aprovadas.
+- Type-check: aprovado.
+- Lint: aprovado.
+- Frontend: **39 arquivos e 156 testes aprovados**.
+- API: **66 suítes e 290 testes aprovados**.
+- Arquitetura: aprovada.
+- Catálogo de acessos: aprovado.
+- Documentação: aprovada.
+- Auditoria independente final: **Aprovado**, sem requisitos obrigatórios pendentes.
