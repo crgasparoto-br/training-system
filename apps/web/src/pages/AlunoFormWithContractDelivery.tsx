@@ -10,10 +10,7 @@ import {
   publishContractReplacementState,
 } from '../services/contract-replacement-coordination';
 import { resolveStudentContractDelivery } from '../services/student-contract-delivery';
-import {
-  resolveStudentContractReplacement,
-  shouldBypassLegacyContractReplacementConfirm,
-} from '../services/student-contract-replacement';
+import { resolveStudentContractReplacement } from '../services/student-contract-replacement';
 import { AlunoFormWithContractPreview } from './AlunoFormWithContractPreview';
 
 const CONTRACT_SECTION_SLOT_ID = 'aluno-contract-section-slot';
@@ -46,7 +43,6 @@ const findContractStatusBlock = (contractSection: HTMLElement) => {
 export function AlunoFormWithContractDelivery() {
   const { id = '' } = useParams<{ id: string }>();
   const refreshingParentStatusRef = useRef(false);
-  const replacementConfirmedRef = useRef(false);
   const activeStudentContractRef = useRef<StudentContractLink | null>(null);
   const selectedContractIdRef = useRef('');
   const restoringSelectionRef = useRef(false);
@@ -96,10 +92,6 @@ export function AlunoFormWithContractDelivery() {
   );
 
   useEffect(() => {
-    replacementConfirmedRef.current = replacement.confirmed;
-  }, [replacement.confirmed]);
-
-  useEffect(() => {
     activeStudentContractRef.current = activeStudentContract;
   }, [activeStudentContract]);
 
@@ -115,25 +107,6 @@ export function AlunoFormWithContractDelivery() {
       confirmed: replacement.confirmed,
     });
   }, [activeStudentContract?.contractId, replacement.confirmed, replacement.required, selectedContractId]);
-
-  useEffect(() => {
-    const nativeConfirm = nativeConfirmRef.current;
-    const replacementAwareConfirm = (message?: string) => {
-      if (shouldBypassLegacyContractReplacementConfirm(message, replacementConfirmedRef.current)) {
-        return true;
-      }
-
-      return nativeConfirm(message);
-    };
-
-    window.confirm = replacementAwareConfirm;
-
-    return () => {
-      if (window.confirm === replacementAwareConfirm) {
-        window.confirm = nativeConfirm;
-      }
-    };
-  }, []);
 
   useEffect(() => {
     const syncSlot = () => {
@@ -173,7 +146,6 @@ export function AlunoFormWithContractDelivery() {
 
   const clearReplacementConfirmation = useCallback(() => {
     setConfirmedReplacementContractId('');
-    replacementConfirmedRef.current = false;
   }, []);
 
   const restoreActiveContractSelection = useCallback(
@@ -218,7 +190,6 @@ export function AlunoFormWithContractDelivery() {
       }
 
       setConfirmedReplacementContractId(nextContractId);
-      replacementConfirmedRef.current = true;
       pendingUserSelectionRef.current = '';
       setReplacementFeedback(
         'Substituição confirmada. O contrato atual continuará vigente até o novo contrato ser assinado e atingir a data de início.'
