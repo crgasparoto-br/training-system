@@ -131,7 +131,10 @@ export function installStudentFinancialContractAtomicAdapter(
       actualAlunoId: result.aluno.id,
       link: result.studentContract,
       consumeConfirmationUpdate: contract.endDate !== undefined,
-      consumeActivation: result.studentContract.status === 'active',
+      // The atomic endpoint already executes the lifecycle decision for active,
+      // pending-signature and draft contracts. Swallow the legacy follow-up
+      // activation call for every successful atomic mutation.
+      consumeActivation: true,
     };
     pendingCreate = null;
     return result.studentContract;
@@ -148,7 +151,8 @@ export function installStudentFinancialContractAtomicAdapter(
       actualAlunoId: alunoId,
       link: result.studentContract,
       consumeConfirmationUpdate: contract.endDate !== undefined,
-      consumeActivation: result.studentContract.status === 'active',
+      // The lifecycle was committed inside the same backend transaction.
+      consumeActivation: true,
     };
     pendingUpdates.delete(alunoId);
     return result.studentContract;
