@@ -55,7 +55,8 @@ async function resolveAuthoritativeGenerationInput(
   }
 
   let professorId = aluno.professorId;
-  const requestedProfessorId = input.professorId?.trim();
+  const requestedProfessorId =
+    typeof input.professorId === 'string' ? input.professorId.trim() : '';
   if (requestedProfessorId) {
     const professor = await prisma.professor.findFirst({
       where: { id: requestedProfessorId, contractId: companyContractId },
