@@ -44,6 +44,21 @@ export const contractPublicAccessService = {
         throw new Error('Contrato não encontrado');
       }
 
+      if (contract.status === 'CANCELLED') {
+        await tx.contract.updateMany({
+          where: {
+            id: contract.id,
+            publicTokenHash: tokenDigest,
+            status: 'CANCELLED',
+          },
+          data: {
+            publicTokenHash: null,
+            publicTokenExpiresAt: null,
+          },
+        });
+        return { kind: 'unavailable' as const };
+      }
+
       if (contract.publicTokenExpiresAt && contract.publicTokenExpiresAt < now) {
         const expired = await tx.contract.updateMany({
           where: {
@@ -86,6 +101,10 @@ export const contractPublicAccessService = {
           return { kind: 'expired' as const };
         }
 
+        if (current.status === 'CANCELLED') {
+          return { kind: 'unavailable' as const };
+        }
+
         return { kind: 'contract' as const, contract: current };
       }
 
@@ -125,11 +144,19 @@ export const contractPublicAccessService = {
         return { kind: 'expired' as const };
       }
 
+      if (current.status === 'CANCELLED') {
+        return { kind: 'unavailable' as const };
+      }
+
       return { kind: 'contract' as const, contract: current };
     });
 
     if (result.kind === 'expired') {
       throw new Error('Link expirado');
+    }
+
+    if (result.kind === 'unavailable') {
+      throw new Error('Contrato não está disponível');
     }
 
     return result.contract;
