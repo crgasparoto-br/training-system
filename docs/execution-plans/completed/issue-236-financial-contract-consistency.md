@@ -130,7 +130,7 @@ Garantir consistência transacional e uma única fonte de verdade para serviço 
 
 ## Validação da implementação
 
-Workflow oficial **Validate PR #1588**, commit `ba3c1e9d660b98bd97da3a041060d212fa3aa3aa`:
+Workflow oficial **Validate PR #1590**, commit `3aa9602a53f2e9c28bf006bf50fa59c16301d697`:
 
 - migrations PostgreSQL: sucesso;
 - type-check: sucesso;
