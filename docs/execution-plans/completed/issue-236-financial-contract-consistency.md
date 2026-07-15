@@ -2,7 +2,7 @@
 
 ## Status
 
-Implementação concluída. A cobertura complementar solicitada pelas auditorias independentes monta os formulários reais de cadastro e edição, valida sucesso, cancelamento e falha da operação composta, protege autorização e isolamento por contrato, impede fallbacks financeiros controláveis inclusive em chamadas internas e elimina a dependência do texto da confirmação legada.
+Implementação concluída. A cobertura complementar solicitada pelas auditorias independentes monta os formulários reais de cadastro e edição, valida sucesso, cancelamento e falha da operação composta, protege autorização e isolamento por contrato, impede fallbacks financeiros controláveis inclusive em chamadas internas, evita vigência retroativa e elimina a dependência do texto da confirmação legada.
 
 ## Objetivo
 
@@ -12,7 +12,7 @@ Garantir consistência transacional e uma única fonte de verdade para serviço 
 
 - [x] Integrar a confirmação de substituição diretamente ao bloqueio real do formulário, sem depender de texto ou posição de botão no DOM e sem segunda confirmação.
 - [x] Tornar o serviço do contrato autoritativo no backend para criação e atualização de `StudentContract`.
-- [x] Eliminar escritores concorrentes de `intakeForm.formResponses.financial.currentService` na seleção do contrato.
+- [x] Eliminar escritores concorrentes de `intakeForm.formResponses.financial.currentService` na seleção de contrato.
 - [x] Persistir perfil e vínculo contratual de forma atômica no cadastro e na edição.
 - [x] Corrigir vínculos legados inconsistentes usando o serviço associado ao contrato como fonte de verdade.
 - [x] Cobrir os cenários acima com testes de serviço, rota, integração do frontend e PostgreSQL.
@@ -21,6 +21,10 @@ Garantir consistência transacional e uma única fonte de verdade para serviço 
 - [x] Consumir uma única vez a confirmação legada pelo estado explícito da substituição, sem comparar texto de mensagem.
 - [x] Consumir a chamada legada de ativação após qualquer resultado bem-sucedido da mutação atômica, inclusive `draft` e `pending_signature`.
 - [x] Validar o reparo idempotente de vínculos preexistentes divergentes em PostgreSQL.
+- [x] Impedir que assinatura tardia retroaja o início do contrato substituto e o encerramento do contrato vigente.
+- [x] Exigir autorização financeira na geração direta de contratos.
+- [x] Persistir documento, vínculo e auditoria da geração direta em uma única transação de domínio.
+- [x] Manter uma única rota pública canônica de assinatura.
 
 ## Módulos principais
 
@@ -33,10 +37,14 @@ Garantir consistência transacional e uma única fonte de verdade para serviço 
 - `apps/web/src/services/student-financial-contract-atomic-adapter.ts`
 - `apps/api/src/modules/alunos/student-financial-contract.routes.ts`
 - `apps/api/src/modules/alunos/student-financial-contract.service.ts`
+- `apps/api/src/modules/contracts/contract-entry.routes.ts`
+- `apps/api/src/modules/contracts/contract-authoritative-generation.service.ts`
+- `apps/api/src/modules/contracts/contract-lifecycle.routes.ts`
 - `apps/api/src/modules/student-contracts/student-contract-lifecycle-transaction.ts`
 - `apps/api/src/modules/student-contracts/student-contract-lifecycle.service.ts`
 - `apps/api/prisma/migrations/20260714203000_enforce_student_contract_service_authority/migration.sql`
 - `apps/api/prisma/migrations/20260715160000_enforce_persisted_interest_service_fallback/migration.sql`
+- `apps/api/prisma/migrations/20260715213000_recompute_terminal_current_service/migration.sql`
 
 ## Solução aplicada
 
@@ -52,9 +60,13 @@ Garantir consistência transacional e uma única fonte de verdade para serviço 
 10. Cadastro/edição do aluno, criação/atualização do vínculo e aplicação do ciclo contratual executam na mesma transação Prisma.
 11. A chamada legada de ativação executada pelo formulário é consumida localmente depois de qualquer mutação atômica bem-sucedida; não existe segunda requisição para contratos ativos, pendentes ou em rascunho.
 12. Contrato não assinado permanece preparado; contrato assinado com início futuro permanece agendado; somente contrato assinado e efetivo encerra o vigente e atualiza o ponteiro atual.
-13. `StudentContract.endDate` é preservado durante preparação, assinatura, agendamento e ativação.
-14. As migrations corrigem vínculos legados e instalam gatilhos para impedir divergência futura entre `GeneratedContract.serviceId`, o fallback persistido em `Aluno.serviceId`, `StudentContract.serviceId` e o valor financeiro desnormalizado.
-15. A função idempotente `repair_student_contract_service_authority_data()` permite validar e repetir de forma controlada a correção dos dados legados.
+13. Quando a assinatura ocorre depois da data planejada, a vigência começa em `signedAt`; somente vínculos já assinados e previamente agendados ativam na data planejada pelo scheduler.
+14. `StudentContract.endDate` é preservado durante preparação, assinatura, agendamento e ativação.
+15. `/contracts/preview` e `/contracts/generate` exigem `students.actions.manageFinancialContract`.
+16. A geração direta resolve modelo, aluno, professor e serviço dentro do domínio e grava `Contract`, `StudentContract` e `ContractAuditLog` na mesma transação.
+17. A assinatura pública possui uma única implementação canônica em `contract-lifecycle.routes.ts`.
+18. As migrations corrigem vínculos legados e instalam gatilhos para impedir divergência futura entre `GeneratedContract.serviceId`, o fallback persistido em `Aluno.serviceId`, `StudentContract.serviceId` e o valor financeiro desnormalizado.
+19. A função idempotente `repair_student_contract_service_authority_data()` permite validar e repetir de forma controlada a correção dos dados legados.
 
 ## Cobertura adicionada
 
@@ -71,7 +83,12 @@ Garantir consistência transacional e uma única fonte de verdade para serviço 
 - rejeição do `serviceId` financeiro enviado pelo cliente nas rotas atômicas;
 - preservação do `currentService` autoritativo durante atualização do formulário;
 - substituição não assinada sem encerramento do contrato vigente;
+- assinatura tardia iniciando na assinatura, sem retroagir para a data planejada;
 - ausência de segunda chamada de ativação para resultados `draft` e `pending_signature`;
+- bloqueio da geração direta sem permissão financeira;
+- rollback PostgreSQL de documento e auditoria quando a criação do vínculo falha;
+- persistência atômica de documento, vínculo e auditoria na geração direta;
+- rota pública canônica de assinatura usando o ciclo transacional;
 - gatilhos PostgreSQL para inserção, atualização, propagação e sincronização do serviço;
 - propagação da alteração de `Aluno.serviceId` quando o contrato não possui serviço próprio;
 - reparo PostgreSQL de vínculo e `currentService` simulando dado anterior à migration;
@@ -84,23 +101,25 @@ Garantir consistência transacional e uma única fonte de verdade para serviço 
 ## Critérios para encerramento
 
 - A regra autoritativa existe no domínio, nas rotas e no banco de dados.
-- Chamadas internas não conseguem escolher arbitrariamente o serviço financeiro.
-- O cadastro e a edição não deixam persistência parcial quando a mutação contratual falha.
+- Chamadas HTTP de geração não conseguem escolher arbitrariamente o serviço financeiro.
+- O cadastro, a edição e a geração direta não deixam persistência parcial quando uma etapa contratual falha.
 - A confirmação é única no fluxo composto real, não depende da redação de mensagens legadas e não libera confirmações posteriores.
 - O contrato vigente permanece ativo até assinatura e data efetiva do substituto.
+- Uma assinatura tardia nunca produz vigência anterior à assinatura.
 - O fallback financeiro não pode ser escolhido pelo cliente.
 - A operação composta não dispara uma segunda mutação de ciclo após o commit atômico.
 - O reparo de dados preexistentes é validado em PostgreSQL.
 - O workflow oficial conclui migrations, type-check, lint, testes, arquitetura, catálogo de acessos e documentação com sucesso.
 
-## Validação final
+## Validação da implementação
 
-Workflow oficial **Validate PR #1494**, commit `6fa292e3adfd054f616fe63c96ac36a3fcffa08b`:
+Workflow oficial **Validate PR #1554**, commit `38c62446617a4fa9d45a9f905e882a434a3e3e31`:
 
 - migrations PostgreSQL: sucesso;
 - type-check: sucesso;
 - lint: sucesso;
-- testes web e API: sucesso;
+- web: 39 arquivos e 156 testes aprovados;
+- API: 57 suítes e 255 testes aprovados;
 - arquitetura: sucesso;
 - catálogo de acessos: sucesso;
 - documentação: sucesso.
