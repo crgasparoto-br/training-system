@@ -127,6 +127,45 @@ async function seedFixture() {
   return { aluno, oldLink, candidateDocument, candidateLink, token };
 }
 
+async function installSignatureDelay(contractId: string) {
+  await prisma.$executeRawUnsafe(`
+    CREATE OR REPLACE FUNCTION "test_delay_public_open_signature_update"()
+    RETURNS trigger AS $$
+    BEGIN
+      IF NEW."id" = '${contractId}' AND NEW."status" = 'SIGNED' THEN
+        PERFORM pg_sleep(0.4);
+      END IF;
+      RETURN NEW;
+    END;
+    $$ LANGUAGE plpgsql
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TRIGGER "test_delay_public_open_signature"
+    BEFORE UPDATE ON "Contract"
+    FOR EACH ROW EXECUTE FUNCTION "test_delay_public_open_signature_update"()
+  `);
+}
+
+async function signAndOpen(
+  token: string,
+  openAt?: Date
+) {
+  const signing = studentContractLifecycleService.signPublicContract(token, {
+    signerName: 'Aluno Consulta Concorrente',
+    signerCpf: '12345678901',
+  });
+
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  const opening = contractPublicAccessService.open(
+    token,
+    {},
+    prisma,
+    openAt ?? new Date()
+  );
+
+  return Promise.all([signing, opening]);
+}
+
 describeDatabase('concurrent public contract opening and signature', () => {
   beforeEach(async () => {
     await prisma.companyContract.deleteMany({ where: { id: companyContractId } });
@@ -162,36 +201,9 @@ describeDatabase('concurrent public contract opening and signature', () => {
 
   it('never downgrades SIGNED to VIEWED when opening races with signature', async () => {
     const fixture = await seedFixture();
+    await installSignatureDelay(fixture.candidateDocument.id);
 
-    await prisma.$executeRawUnsafe(`
-      CREATE OR REPLACE FUNCTION "test_delay_public_open_signature_update"()
-      RETURNS trigger AS $$
-      BEGIN
-        IF NEW."id" = '${fixture.candidateDocument.id}' AND NEW."status" = 'SIGNED' THEN
-          PERFORM pg_sleep(0.4);
-        END IF;
-        RETURN NEW;
-      END;
-      $$ LANGUAGE plpgsql
-    `);
-    await prisma.$executeRawUnsafe(`
-      CREATE TRIGGER "test_delay_public_open_signature"
-      BEFORE UPDATE ON "Contract"
-      FOR EACH ROW EXECUTE FUNCTION "test_delay_public_open_signature_update"()
-    `);
-
-    const signing = studentContractLifecycleService.signPublicContract(
-      fixture.token,
-      {
-        signerName: 'Aluno Consulta Concorrente',
-        signerCpf: '12345678901',
-      }
-    );
-
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    const opening = contractPublicAccessService.open(fixture.token);
-
-    const [signatureResult, opened] = await Promise.all([signing, opening]);
+    const [signatureResult, opened] = await signAndOpen(fixture.token);
     const [document, links, aluno] = await Promise.all([
       prisma.contract.findUniqueOrThrow({
         where: { id: fixture.candidateDocument.id },
@@ -214,5 +226,30 @@ describeDatabase('concurrent public contract opening and signature', () => {
     ).toBe('active');
     expect(aluno.currentStudentContractId).toBe(fixture.candidateLink.id);
     expect(links.filter((link) => link.status === 'active')).toHaveLength(1);
+  });
+
+  it('never downgrades SIGNED to EXPIRED when expiration races with signature', async () => {
+    const fixture = await seedFixture();
+    await installSignatureDelay(fixture.candidateDocument.id);
+
+    const forcedExpirationAt = new Date(Date.now() + 2 * 60 * 60 * 1000);
+    const [signatureResult, opened] = await signAndOpen(
+      fixture.token,
+      forcedExpirationAt
+    );
+    const [document, candidateLink] = await Promise.all([
+      prisma.contract.findUniqueOrThrow({
+        where: { id: fixture.candidateDocument.id },
+      }),
+      prisma.studentContract.findUniqueOrThrow({
+        where: { id: fixture.candidateLink.id },
+      }),
+    ]);
+
+    expect(signatureResult.activation.scheduled).toBe(false);
+    expect(opened.status).toBe(ContractStatus.SIGNED);
+    expect(document.status).toBe(ContractStatus.SIGNED);
+    expect(document.publicTokenHash).toBeNull();
+    expect(candidateLink.status).toBe('active');
   });
 });
