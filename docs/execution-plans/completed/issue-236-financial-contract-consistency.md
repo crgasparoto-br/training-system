@@ -2,7 +2,7 @@
 
 ## Status
 
-Implementação concluída. A cobertura complementar solicitada pelas auditorias independentes monta os formulários reais de cadastro e edição, valida sucesso, cancelamento e falha da operação composta, protege autorização e isolamento por contrato, impede fallbacks financeiros controláveis inclusive em chamadas internas, evita vigência retroativa e elimina a dependência do texto da confirmação legada.
+Implementação concluída. A cobertura complementar solicitada pelas auditorias independentes monta os formulários reais de cadastro e edição, valida sucesso, cancelamento e falha da operação composta, protege autorização e isolamento por contrato, impede fallbacks financeiros controláveis inclusive em chamadas internas, evita vigência retroativa, protege a consulta pública contra concorrência e elimina a dependência do texto da confirmação legada.
 
 ## Objetivo
 
@@ -24,6 +24,9 @@ Garantir consistência transacional e uma única fonte de verdade para serviço 
 - [x] Impedir que assinatura tardia retroaja o início do contrato substituto e o encerramento do contrato vigente.
 - [x] Exigir autorização financeira na geração direta de contratos.
 - [x] Persistir documento, vínculo e auditoria da geração direta em uma única transação de domínio.
+- [x] Aplicar a mesma transação ao vínculo criado a partir de referência de modelo ativo.
+- [x] Proteger consulta e expiração públicas contra concorrência com assinatura.
+- [x] Permitir prévia de modelo por gerenciamento financeiro ou por `settings.contract`, mantendo geração restrita ao financeiro.
 - [x] Manter uma única rota pública canônica de assinatura.
 
 ## Módulos principais
@@ -39,7 +42,10 @@ Garantir consistência transacional e uma única fonte de verdade para serviço 
 - `apps/api/src/modules/alunos/student-financial-contract.service.ts`
 - `apps/api/src/modules/contracts/contract-entry.routes.ts`
 - `apps/api/src/modules/contracts/contract-authoritative-generation.service.ts`
+- `apps/api/src/modules/contracts/contract-preview-access.middleware.ts`
+- `apps/api/src/modules/contracts/contract-public-access.service.ts`
 - `apps/api/src/modules/contracts/contract-lifecycle.routes.ts`
+- `apps/api/src/modules/student-contracts/student-contract.service.ts`
 - `apps/api/src/modules/student-contracts/student-contract-lifecycle-transaction.ts`
 - `apps/api/src/modules/student-contracts/student-contract-lifecycle.service.ts`
 - `apps/api/prisma/migrations/20260714203000_enforce_student_contract_service_authority/migration.sql`
@@ -62,11 +68,15 @@ Garantir consistência transacional e uma única fonte de verdade para serviço 
 12. Contrato não assinado permanece preparado; contrato assinado com início futuro permanece agendado; somente contrato assinado e efetivo encerra o vigente e atualiza o ponteiro atual.
 13. Quando a assinatura ocorre depois da data planejada, a vigência começa em `signedAt`; somente vínculos já assinados e previamente agendados ativam na data planejada pelo scheduler.
 14. `StudentContract.endDate` é preservado durante preparação, assinatura, agendamento e ativação.
-15. `/contracts/preview` e `/contracts/generate` exigem `students.actions.manageFinancialContract`.
-16. A geração direta resolve modelo, aluno, professor e serviço dentro do domínio e grava `Contract`, `StudentContract` e `ContractAuditLog` na mesma transação.
-17. A assinatura pública possui uma única implementação canônica em `contract-lifecycle.routes.ts`.
-18. As migrations corrigem vínculos legados e instalam gatilhos para impedir divergência futura entre `GeneratedContract.serviceId`, o fallback persistido em `Aluno.serviceId`, `StudentContract.serviceId` e o valor financeiro desnormalizado.
-19. A função idempotente `repair_student_contract_service_authority_data()` permite validar e repetir de forma controlada a correção dos dados legados.
+15. `/contracts/generate` exige `students.actions.manageFinancialContract`.
+16. `/contracts/preview` aceita `students.actions.manageFinancialContract` ou `settings.contract`, permitindo a prévia no editor sem ampliar a permissão de geração.
+17. A geração direta resolve modelo, aluno, professor e serviço dentro do domínio e grava `Contract`, `StudentContract` e `ContractAuditLog` na mesma transação.
+18. O caminho `POST /alunos/:id/contracts` com referência `template:` reutiliza o mesmo gerador autoritativo e mantém geração, vínculo, auditoria e eventual decisão de ciclo na transação recebida.
+19. A consulta pública altera `SENT` para `VIEWED` somente quando token e estado atuais ainda correspondem ao documento lido. A expiração usa a mesma reivindicação condicional, limpa o token e atualiza o vínculo na transação antes de retornar o erro ao cliente.
+20. Se a assinatura vencer a corrida, a consulta pública pode retornar o documento assinado ou informar que o token já foi consumido, mas nunca rebaixa `SIGNED` para `VIEWED` ou `EXPIRED`.
+21. A assinatura pública possui uma única implementação canônica em `contract-lifecycle.routes.ts`.
+22. As migrations corrigem vínculos legados e instalam gatilhos para impedir divergência futura entre `GeneratedContract.serviceId`, o fallback persistido em `Aluno.serviceId`, `StudentContract.serviceId` e o valor financeiro desnormalizado.
+23. A função idempotente `repair_student_contract_service_authority_data()` permite validar e repetir de forma controlada a correção dos dados legados.
 
 ## Cobertura adicionada
 
@@ -86,8 +96,13 @@ Garantir consistência transacional e uma única fonte de verdade para serviço 
 - assinatura tardia iniciando na assinatura, sem retroagir para a data planejada;
 - ausência de segunda chamada de ativação para resultados `draft` e `pending_signature`;
 - bloqueio da geração direta sem permissão financeira;
+- prévia autorizada por gerenciamento financeiro ou configurações de contrato;
 - rollback PostgreSQL de documento e auditoria quando a criação do vínculo falha;
-- persistência atômica de documento, vínculo e auditoria na geração direta;
+- rollback PostgreSQL do caminho de vínculo por referência de modelo ativo;
+- persistência atômica de documento, vínculo e auditoria em todos os caminhos de geração;
+- consulta pública concorrente com assinatura sem rebaixar o documento para `VIEWED`;
+- expiração concorrente com assinatura sem rebaixar o documento para `EXPIRED`;
+- confirmação da expiração e limpeza do token antes do retorno de erro;
 - rota pública canônica de assinatura usando o ciclo transacional;
 - gatilhos PostgreSQL para inserção, atualização, propagação e sincronização do serviço;
 - propagação da alteração de `Aluno.serviceId` quando o contrato não possui serviço próprio;
@@ -101,11 +116,13 @@ Garantir consistência transacional e uma única fonte de verdade para serviço 
 ## Critérios para encerramento
 
 - A regra autoritativa existe no domínio, nas rotas e no banco de dados.
-- Chamadas HTTP de geração não conseguem escolher arbitrariamente o serviço financeiro.
-- O cadastro, a edição e a geração direta não deixam persistência parcial quando uma etapa contratual falha.
+- Chamadas HTTP e internas de geração não conseguem escolher arbitrariamente o serviço financeiro.
+- O cadastro, a edição e qualquer caminho de geração não deixam persistência parcial quando uma etapa contratual falha.
 - A confirmação é única no fluxo composto real, não depende da redação de mensagens legadas e não libera confirmações posteriores.
 - O contrato vigente permanece ativo até assinatura e data efetiva do substituto.
 - Uma assinatura tardia nunca produz vigência anterior à assinatura.
+- Consulta e expiração públicas não sobrescrevem uma assinatura concorrente.
+- O editor de modelos consegue gerar prévia com sua própria permissão, sem receber permissão de geração contratual.
 - O fallback financeiro não pode ser escolhido pelo cliente.
 - A operação composta não dispara uma segunda mutação de ciclo após o commit atômico.
 - O reparo de dados preexistentes é validado em PostgreSQL.
@@ -113,13 +130,13 @@ Garantir consistência transacional e uma única fonte de verdade para serviço 
 
 ## Validação da implementação
 
-Workflow oficial **Validate PR #1554**, commit `38c62446617a4fa9d45a9f905e882a434a3e3e31`:
+Workflow oficial **Validate PR #1582**, commit `92ec457dfb53a87ac85075ad3d8bac9f0030962f`:
 
 - migrations PostgreSQL: sucesso;
 - type-check: sucesso;
 - lint: sucesso;
 - web: 39 arquivos e 156 testes aprovados;
-- API: 57 suítes e 255 testes aprovados;
+- API: 60 suítes e 265 testes aprovados;
 - arquitetura: sucesso;
 - catálogo de acessos: sucesso;
 - documentação: sucesso.
