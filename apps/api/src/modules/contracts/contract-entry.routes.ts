@@ -4,7 +4,8 @@ import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js'
 import { blockAccessMiddleware } from '../access-control/access-control.middleware.js';
 import legacyContractRoutes from './contract.routes.js';
 import { contractAuthoritativeGenerationService } from './contract-authoritative-generation.service.js';
-import { contractDocumentService } from './contract-document.service.js';
+import { contractPreviewAccessMiddleware } from './contract-preview-access.middleware.js';
+import { contractPublicAccessService } from './contract-public-access.service.js';
 
 const router: Router = Router();
 
@@ -23,7 +24,7 @@ const companyContractIdFromRequest = (req: Request) => {
 
 router.get('/public/:token', async (req: Request, res: Response) => {
   try {
-    const contract = await contractDocumentService.openPublic(
+    const contract = await contractPublicAccessService.open(
       req.params.token,
       actorFromRequest(req)
     );
@@ -48,7 +49,7 @@ router.use(professorMiddleware);
 
 router.post(
   '/preview',
-  blockAccessMiddleware('students.actions.manageFinancialContract'),
+  contractPreviewAccessMiddleware,
   async (req: Request, res: Response) => {
     try {
       const companyContractId = companyContractIdFromRequest(req);
