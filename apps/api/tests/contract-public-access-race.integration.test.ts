@@ -146,10 +146,7 @@ async function installSignatureDelay(contractId: string) {
   `);
 }
 
-async function signAndOpen(
-  token: string,
-  openAt?: Date
-) {
+async function signAndOpen(token: string, openAt?: Date) {
   const signing = studentContractLifecycleService.signPublicContract(token, {
     signerName: 'Aluno Consulta Concorrente',
     signerCpf: '12345678901',
@@ -251,5 +248,36 @@ describeDatabase('concurrent public contract opening and signature', () => {
     expect(document.status).toBe(ContractStatus.SIGNED);
     expect(document.publicTokenHash).toBeNull();
     expect(candidateLink.status).toBe('active');
+  });
+
+  it('commits expiration before returning the expired-link error', async () => {
+    const fixture = await seedFixture();
+    const forcedExpirationAt = new Date(Date.now() + 2 * 60 * 60 * 1000);
+
+    await expect(
+      contractPublicAccessService.open(
+        fixture.token,
+        {},
+        prisma,
+        forcedExpirationAt
+      )
+    ).rejects.toThrow('Link expirado');
+
+    const [document, candidateLink] = await Promise.all([
+      prisma.contract.findUniqueOrThrow({
+        where: { id: fixture.candidateDocument.id },
+      }),
+      prisma.studentContract.findUniqueOrThrow({
+        where: { id: fixture.candidateLink.id },
+      }),
+    ]);
+
+    expect(document.status).toBe(ContractStatus.EXPIRED);
+    expect(document.publicTokenHash).toBeNull();
+    expect(document.publicTokenExpiresAt).toBeNull();
+    expect(candidateLink.status).toBe('expired');
+    expect(candidateLink.endDate?.toISOString()).toBe(
+      forcedExpirationAt.toISOString()
+    );
   });
 });
