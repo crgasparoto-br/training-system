@@ -2,12 +2,23 @@ import { PrismaClient, type Prisma } from '@prisma/client';
 import crypto from 'crypto';
 import { contractDocumentService } from './contract-document.service.js';
 import { loadContractServiceVariableContext } from './contract-service-context.js';
+import { prepareOrActivateStudentContractInTransaction } from '../student-contracts/student-contract-lifecycle-transaction.js';
 
 const prisma = new PrismaClient();
 
 type DbClient = PrismaClient | Prisma.TransactionClient;
 type ContractGenerationInput = Parameters<typeof contractDocumentService.generate>[1];
-type Actor = Parameters<typeof contractDocumentService.generate>[2];
+type BaseActor = NonNullable<Parameters<typeof contractDocumentService.generate>[2]>;
+
+export type ContractGenerationActor = BaseActor & {
+  professorId?: string;
+  professorRole?: string;
+};
+
+export type ContractGenerationPersistenceOptions = {
+  endDate?: Date | null;
+  requestedStatus?: 'draft' | 'active';
+};
 
 const normalizeDocument = (value?: string | null) => value?.replace(/\D/gu, '') || '';
 const currency = new Intl.NumberFormat('pt-BR', {
@@ -42,7 +53,7 @@ const amountToWords = (value?: number | null) =>
     ? ''
     : `${currency.format(value)} reais`;
 
-const toOptionalDate = (value?: string | Date) => {
+const toOptionalDate = (value?: string | Date | null) => {
   if (!value) return null;
   const parsed = value instanceof Date ? value : new Date(value);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
@@ -62,11 +73,32 @@ async function runInTransaction<T>(
   return work(client as Prisma.TransactionClient);
 }
 
+const assertActorCanAccessAluno = (
+  aluno: { professorId: string },
+  actor?: ContractGenerationActor
+) => {
+  if (!actor?.professorId || actor.professorRole === 'master') return;
+  if (aluno.professorId !== actor.professorId) {
+    throw new Error('Aluno fora do escopo do professor autenticado');
+  }
+};
+
+const assertActorCanAssignProfessor = (
+  professorId: string | null,
+  actor?: ContractGenerationActor
+) => {
+  if (!actor?.professorId || actor.professorRole === 'master' || !professorId) return;
+  if (professorId !== actor.professorId) {
+    throw new Error('Professor responsável fora do escopo do professor autenticado');
+  }
+};
+
 async function resolveGenerationData(
   client: DbClient,
   companyContractId: string,
   input: ContractGenerationInput,
-  requireActiveTemplate: boolean
+  requireActiveTemplate: boolean,
+  actor?: ContractGenerationActor
 ) {
   const templateId = String(input.templateId || '').trim();
   const alunoId = String(input.alunoId || '').trim();
@@ -104,20 +136,23 @@ async function resolveGenerationData(
   if (!aluno || aluno.professor.contractId !== companyContractId) {
     throw new Error('Aluno não pertence ao contrato autenticado');
   }
+  assertActorCanAccessAluno(aluno, actor);
 
-  const authoritativeServiceId = template.serviceId ?? aluno.serviceId ?? null;
-  const selectedService = authoritativeServiceId
+  const documentServiceId = template.serviceId?.trim() || null;
+  const effectiveServiceId = documentServiceId || aluno.serviceId?.trim() || null;
+  const selectedService = effectiveServiceId
     ? await client.serviceOption.findFirst({
-        where: { id: authoritativeServiceId, contractId: companyContractId },
+        where: { id: effectiveServiceId, contractId: companyContractId },
       })
     : null;
-  if (authoritativeServiceId && !selectedService) {
+  if (effectiveServiceId && !selectedService) {
     throw new Error('Serviço financeiro do contrato não pertence ao contrato autenticado');
   }
 
   const requestedProfessorId =
     typeof input.professorId === 'string' ? input.professorId.trim() : '';
   const professorId = requestedProfessorId || aluno.professorId;
+  assertActorCanAssignProfessor(professorId || null, actor);
   const professor = professorId
     ? await client.professor.findFirst({
         where: { id: professorId, contractId: companyContractId },
@@ -178,7 +213,8 @@ async function resolveGenerationData(
     template,
     alunoId,
     professorId: professor?.id || null,
-    serviceId: authoritativeServiceId,
+    documentServiceId,
+    effectiveServiceId,
     valorMensal,
     context,
   };
@@ -188,13 +224,15 @@ export const contractAuthoritativeGenerationService = {
   async preview(
     companyContractId: string,
     input: ContractGenerationInput,
+    actor?: ContractGenerationActor,
     client: DbClient = prisma
   ) {
     const resolved = await resolveGenerationData(
       client,
       companyContractId,
       input,
-      false
+      false,
+      actor
     );
     return {
       html: contractDocumentService.renderTemplate(resolved.template, resolved.context),
@@ -205,15 +243,17 @@ export const contractAuthoritativeGenerationService = {
   async generate(
     companyContractId: string,
     input: ContractGenerationInput,
-    actor?: Actor,
-    client: DbClient = prisma
+    actor?: ContractGenerationActor,
+    client: DbClient = prisma,
+    persistence: ContractGenerationPersistenceOptions = {}
   ) {
     return runInTransaction(client, async (tx) => {
       const resolved = await resolveGenerationData(
         tx,
         companyContractId,
         input,
-        true
+        true,
+        actor
       );
       const renderedHtml = contractDocumentService.renderTemplate(
         resolved.template,
@@ -228,7 +268,7 @@ export const contractAuthoritativeGenerationService = {
           responsavelName: input.responsavel?.nome || null,
           responsavelCpf: input.responsavel?.cpf || null,
           responsavelEmail: input.responsavel?.email || null,
-          serviceId: resolved.serviceId,
+          serviceId: resolved.documentServiceId,
           professorId: resolved.professorId,
           status: 'GENERATED',
           title: resolved.template.name,
@@ -238,18 +278,23 @@ export const contractAuthoritativeGenerationService = {
         },
       });
 
-      await tx.studentContract.create({
+      const link = await tx.studentContract.create({
         data: {
           alunoId: resolved.alunoId,
           contractId: created.id,
-          serviceId: resolved.serviceId,
+          serviceId: resolved.effectiveServiceId,
           status: 'draft',
           startDate: toOptionalDate(input.dataInicio),
+          endDate: persistence.endDate ?? null,
           amount: input.valorMensal ?? resolved.valorMensal ?? null,
           paymentDay: input.diaVencimento ?? null,
           notes: input.horarios ?? null,
         },
       });
+
+      if (persistence.requestedStatus === 'active') {
+        await prepareOrActivateStudentContractInTransaction(tx, link.id);
+      }
 
       await tx.contractAuditLog.create({
         data: {
