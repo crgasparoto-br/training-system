@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { publishContractReplacementState } from './contract-replacement-coordination';
 import {
   resolveStudentContractReplacement,
   shouldBypassLegacyContractReplacementConfirm,
@@ -43,7 +44,14 @@ describe('resolveStudentContractReplacement', () => {
 });
 
 describe('shouldBypassLegacyContractReplacementConfirm', () => {
-  it('consome o follow-up legado pelo estado explícito, independentemente do texto', () => {
+  it('consome uma única vez o estado explícito, independentemente do texto', () => {
+    publishContractReplacementState({
+      activeContractId: 'contract-active',
+      selectedContractId: 'contract-new',
+      required: true,
+      confirmed: true,
+    });
+
     expect(
       shouldBypassLegacyContractReplacementConfirm(
         'Uma redação futura completamente diferente',
@@ -51,8 +59,36 @@ describe('shouldBypassLegacyContractReplacementConfirm', () => {
       )
     ).toBe(true);
     expect(
-      shouldBypassLegacyContractReplacementConfirm(undefined, true)
-    ).toBe(true);
+      shouldBypassLegacyContractReplacementConfirm(
+        'Outra confirmação que não deve ser liberada',
+        true
+      )
+    ).toBe(false);
+
+    publishContractReplacementState({
+      activeContractId: 'contract-active',
+      selectedContractId: 'contract-new',
+      required: true,
+      confirmed: false,
+    });
+    publishContractReplacementState({
+      activeContractId: 'contract-active',
+      selectedContractId: 'contract-new-2',
+      required: true,
+      confirmed: true,
+    });
+
+    expect(shouldBypassLegacyContractReplacementConfirm(undefined, true)).toBe(true);
+  });
+
+  it('não libera confirmação sem substituição explicitamente confirmada', () => {
+    publishContractReplacementState({
+      activeContractId: 'contract-active',
+      selectedContractId: 'contract-new',
+      required: true,
+      confirmed: false,
+    });
+
     expect(
       shouldBypassLegacyContractReplacementConfirm(
         'Este aluno já possui um contrato ativo.',
