@@ -25,7 +25,6 @@ type ParqResponseShape = {
 
 export type StudentFinancialContractInput = {
   contractId: string;
-  serviceId?: string | null;
   startDate?: Date | null;
   endDate?: Date | null;
   amount?: number | Prisma.Decimal | null;
@@ -505,6 +504,23 @@ const amountToWords = (value?: number | null) =>
 const documentHash = (html: string) =>
   crypto.createHash('sha256').update(html).digest('hex');
 
+const loadScopedFinancialService = async (
+  tx: DbClient,
+  companyContractId: string,
+  serviceId?: string | null
+) => {
+  const normalizedServiceId = serviceId?.trim() || null;
+  if (!normalizedServiceId) return null;
+
+  const service = await tx.serviceOption.findFirst({
+    where: { id: normalizedServiceId, contractId: companyContractId },
+  });
+  if (!service) {
+    throw new Error('Serviço financeiro do contrato não pertence ao contrato autenticado');
+  }
+  return service;
+};
+
 const buildTemplateContext = async (
   tx: DbClient,
   companyContractId: string,
@@ -518,17 +534,19 @@ const buildTemplateContext = async (
     startDate?: Date | null;
   }
 ) => {
-  const [company, aluno, service] = await Promise.all([
+  const [company, aluno] = await Promise.all([
     tx.companyContract.findUniqueOrThrow({ where: { id: companyContractId } }),
     tx.aluno.findUniqueOrThrow({
       where: { id: input.alunoId },
-      include: { user: { include: { profile: true } }, service: true },
+      include: { user: { include: { profile: true } } },
     }),
-    input.serviceId
-      ? tx.serviceOption.findUnique({ where: { id: input.serviceId } })
-      : Promise.resolve(null),
   ]);
 
+  const selectedService = await loadScopedFinancialService(
+    tx,
+    companyContractId,
+    input.serviceId ?? aluno.serviceId
+  );
   const professorId = input.professorId || aluno.professorId;
   const professor = professorId
     ? await tx.professor.findFirst({
@@ -536,7 +554,6 @@ const buildTemplateContext = async (
         include: { user: { include: { profile: true } } },
       })
     : null;
-  const selectedService = service || aluno.service;
   const amount = input.amount ?? selectedService?.monthlyPrice ?? undefined;
   const numericAmount = amount === undefined || amount === null ? undefined : Number(amount);
   const serviceContext = await loadContractServiceVariableContext(
@@ -620,7 +637,7 @@ const resolveContractDocument = async (
   });
   if (!template) throw new Error('Modelo de contrato ativo não encontrado');
 
-  const authoritativeServiceId = template.serviceId ?? contractInput.serviceId ?? null;
+  const authoritativeServiceId = template.serviceId ?? null;
   const context = await buildTemplateContext(tx, options.companyContractId, {
     alunoId,
     serviceId: authoritativeServiceId,
@@ -667,8 +684,41 @@ const resolveContractDocument = async (
 
 export const resolveAuthoritativeStudentContractServiceId = (
   contractServiceId?: string | null,
-  fallbackServiceId?: string | null
-) => contractServiceId?.trim() || fallbackServiceId?.trim() || null;
+  persistedAlunoServiceId?: string | null
+) => contractServiceId?.trim() || persistedAlunoServiceId?.trim() || null;
+
+const loadAuthoritativeStudentContractServiceId = async (
+  tx: DbClient,
+  alunoId: string,
+  companyContractId: string,
+  contractServiceId?: string | null
+) => {
+  const aluno = await tx.aluno.findUniqueOrThrow({
+    where: { id: alunoId },
+    select: {
+      serviceId: true,
+      professor: { select: { contractId: true } },
+    },
+  });
+  if (aluno.professor.contractId !== companyContractId) {
+    throw new Error('Aluno não pertence ao contrato autenticado');
+  }
+
+  const serviceId = resolveAuthoritativeStudentContractServiceId(
+    contractServiceId,
+    aluno.serviceId
+  );
+  if (!serviceId) return null;
+
+  const service = await tx.serviceOption.findFirst({
+    where: { id: serviceId, contractId: companyContractId },
+    select: { id: true },
+  });
+  if (!service) {
+    throw new Error('Serviço financeiro do contrato não pertence ao contrato autenticado');
+  }
+  return service.id;
+};
 
 const persistStudentContractWithLifecycle = async (
   tx: DbClient,
@@ -677,9 +727,11 @@ const persistStudentContractWithLifecycle = async (
   options: StudentFinancialContractOperationOptions
 ) => {
   const contract = await resolveContractDocument(tx, alunoId, contractInput, options);
-  const serviceId = resolveAuthoritativeStudentContractServiceId(
-    contract.serviceId,
-    contractInput.serviceId
+  const serviceId = await loadAuthoritativeStudentContractServiceId(
+    tx,
+    alunoId,
+    options.companyContractId,
+    contract.serviceId
   );
   const existing = await tx.studentContract.findUnique({
     where: { contractId: contract.id },
