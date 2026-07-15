@@ -14,6 +14,13 @@ const actorFromRequest = (req: Request) => ({
   userAgent: req.get('user-agent') || undefined,
 });
 
+const companyContractIdFromRequest = (req: Request) => {
+  const companyContractId = (req as any).user?.contractId;
+  return typeof companyContractId === 'string' && companyContractId.trim()
+    ? companyContractId.trim()
+    : null;
+};
+
 router.get('/public/:token', async (req: Request, res: Response) => {
   try {
     const contract = await contractDocumentService.openPublic(
@@ -54,8 +61,13 @@ router.use(professorMiddleware);
 
 router.post('/preview', async (req: Request, res: Response) => {
   try {
+    const companyContractId = companyContractIdFromRequest(req);
+    if (!companyContractId) {
+      return sendError(res, 'Contrato autenticado não encontrado', 403);
+    }
+
     const preview = await contractAuthoritativeGenerationService.preview(
-      (req as any).user.contractId,
+      companyContractId,
       req.body
     );
     return sendSuccess(res, preview, 'Prévia gerada com sucesso');
@@ -66,8 +78,13 @@ router.post('/preview', async (req: Request, res: Response) => {
 
 router.post('/generate', async (req: Request, res: Response) => {
   try {
+    const companyContractId = companyContractIdFromRequest(req);
+    if (!companyContractId) {
+      return sendError(res, 'Contrato autenticado não encontrado', 403);
+    }
+
     const contract = await contractAuthoritativeGenerationService.generate(
-      (req as any).user.contractId,
+      companyContractId,
       req.body,
       actorFromRequest(req)
     );
