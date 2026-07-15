@@ -2,7 +2,7 @@
 
 ## Status
 
-Implementação concluída. A cobertura complementar solicitada pelas auditorias independentes monta os formulários reais de cadastro e edição, valida sucesso, cancelamento e falha da operação composta, protege autorização e isolamento por contrato, impede fallbacks financeiros controláveis inclusive em chamadas internas, evita vigência retroativa, protege a consulta pública contra concorrência e elimina a dependência do texto da confirmação legada.
+Implementação concluída. A cobertura complementar solicitada pelas auditorias independentes monta os formulários reais de cadastro e edição, valida sucesso, cancelamento e falha da operação composta, protege autorização e isolamento por contrato e por professor, impede fallbacks financeiros controláveis, preserva datas e estados em todos os caminhos, evita vigência retroativa e mantém documentos, vínculos e tokens públicos coerentes.
 
 ## Objetivo
 
@@ -28,6 +28,12 @@ Garantir consistência transacional e uma única fonte de verdade para serviço 
 - [x] Proteger consulta e expiração públicas contra concorrência com assinatura.
 - [x] Permitir prévia de modelo por gerenciamento financeiro ou por `settings.contract`, mantendo geração restrita ao financeiro.
 - [x] Manter uma única rota pública canônica de assinatura.
+- [x] Aplicar à prévia e à geração o mesmo escopo de aluno usado nas rotas cadastrais.
+- [x] Impedir que professor comum atribua outro professor ao documento.
+- [x] Preservar `endDate` na geração por referência de modelo e rejeitar estados incompatíveis explicitamente.
+- [x] Separar serviço próprio do documento do fallback efetivo do vínculo.
+- [x] Preservar estados terminais durante expiração pública.
+- [x] Invalidar tokens públicos em todos os caminhos de cancelamento.
 
 ## Módulos principais
 
@@ -40,6 +46,7 @@ Garantir consistência transacional e uma única fonte de verdade para serviço 
 - `apps/web/src/services/student-financial-contract-atomic-adapter.ts`
 - `apps/api/src/modules/alunos/student-financial-contract.routes.ts`
 - `apps/api/src/modules/alunos/student-financial-contract.service.ts`
+- `apps/api/src/modules/alunos/student-contract-template-status.routes.ts`
 - `apps/api/src/modules/contracts/contract-entry.routes.ts`
 - `apps/api/src/modules/contracts/contract-authoritative-generation.service.ts`
 - `apps/api/src/modules/contracts/contract-preview-access.middleware.ts`
@@ -51,92 +58,68 @@ Garantir consistência transacional e uma única fonte de verdade para serviço 
 - `apps/api/prisma/migrations/20260714203000_enforce_student_contract_service_authority/migration.sql`
 - `apps/api/prisma/migrations/20260715160000_enforce_persisted_interest_service_fallback/migration.sql`
 - `apps/api/prisma/migrations/20260715213000_recompute_terminal_current_service/migration.sql`
+- `apps/api/prisma/migrations/20260715233000_invalidate_canceled_contract_public_tokens/migration.sql`
 
 ## Solução aplicada
 
 1. A confirmação é controlada pelo componente que efetivamente bloqueia o envio. A seleção cancelada é restaurada antes de o formulário aplicar a troca; a confirmação aceita é vinculada ao contrato selecionado e reutilizada no salvamento.
-2. A automação antiga que procurava e clicava botões por texto/posição no DOM foi removida.
-3. A confirmação de seguimento do fluxo legado é consumida pelo estado explícito da substituição. Cada nova confirmação incrementa uma versão interna que pode ser consumida apenas uma vez, sem usar a mensagem como identificador.
-4. O interceptador global de `window.confirm` que normalizava e suprimia mensagens por texto foi removido. O módulo remanescente atua somente sobre textos explicativos renderizados.
-5. O domínio não aceita mais `serviceId` em `StudentFinancialContractInput`.
-6. O backend resolve o serviço do vínculo pelo `GeneratedContract.serviceId`. Quando o contrato não possui serviço próprio, consulta diretamente o `Aluno.serviceId` persistido dentro da mesma transação.
-7. O serviço financeiro resolvido é validado por `id` e `companyContractId` antes da geração do documento ou persistência do vínculo.
-8. O campo `contract.serviceId` recebido nas rotas atômicas permanece aceito apenas para compatibilidade HTTP, mas é descartado antes de alcançar o domínio.
-9. O cliente não grava diretamente `financial.currentService` na operação composta. O valor é preservado durante a atualização do perfil e sincronizado pelo vínculo contratual autoritativo.
-10. Cadastro/edição do aluno, criação/atualização do vínculo e aplicação do ciclo contratual executam na mesma transação Prisma.
-11. A chamada legada de ativação executada pelo formulário é consumida localmente depois de qualquer mutação atômica bem-sucedida; não existe segunda requisição para contratos ativos, pendentes ou em rascunho.
-12. Contrato não assinado permanece preparado; contrato assinado com início futuro permanece agendado; somente contrato assinado e efetivo encerra o vigente e atualiza o ponteiro atual.
-13. Quando a assinatura ocorre depois da data planejada, a vigência começa em `signedAt`; somente vínculos já assinados e previamente agendados ativam na data planejada pelo scheduler.
-14. `StudentContract.endDate` é preservado durante preparação, assinatura, agendamento e ativação.
-15. `/contracts/generate` exige `students.actions.manageFinancialContract`.
-16. `/contracts/preview` aceita `students.actions.manageFinancialContract` ou `settings.contract`, permitindo a prévia no editor sem ampliar a permissão de geração.
-17. A geração direta resolve modelo, aluno, professor e serviço dentro do domínio e grava `Contract`, `StudentContract` e `ContractAuditLog` na mesma transação.
-18. O caminho `POST /alunos/:id/contracts` com referência `template:` reutiliza o mesmo gerador autoritativo e mantém geração, vínculo, auditoria e eventual decisão de ciclo na transação recebida.
-19. A consulta pública altera `SENT` para `VIEWED` somente quando token e estado atuais ainda correspondem ao documento lido. A expiração usa a mesma reivindicação condicional, limpa o token e atualiza o vínculo na transação antes de retornar o erro ao cliente.
-20. Em uma corrida, a consulta pode observar `VIEWED`, receber o documento `SIGNED` ou informar que o token já foi consumido, conforme a ordem real das transações; depois que a corrida termina, documento, assinatura e vínculo permanecem coerentes e `SIGNED` nunca é rebaixado para `VIEWED` ou `EXPIRED`.
-21. A assinatura pública possui uma única implementação canônica em `contract-lifecycle.routes.ts`.
-22. As migrations corrigem vínculos legados e instalam gatilhos para impedir divergência futura entre `GeneratedContract.serviceId`, o fallback persistido em `Aluno.serviceId`, `StudentContract.serviceId` e o valor financeiro desnormalizado.
-23. A função idempotente `repair_student_contract_service_authority_data()` permite validar e repetir de forma controlada a correção dos dados legados.
+2. A automação antiga que procurava e clicava botões por texto/posição no DOM e o interceptador global de `window.confirm` foram removidos.
+3. O domínio não aceita `serviceId` em `StudentFinancialContractInput`; a compatibilidade HTTP descarta esse campo antes de alcançar o domínio.
+4. O serviço próprio do documento vem exclusivamente de `ContractTemplate.serviceId`. Quando o modelo não possui serviço, `GeneratedContract.serviceId` permanece nulo e somente o vínculo usa o `Aluno.serviceId` persistido como fallback efetivo.
+5. O serviço efetivo é validado por `id` e `companyContractId`. Triggers PostgreSQL impedem divergência e propagam alterações futuras do aluno quando o documento não possui serviço próprio.
+6. O cliente não grava diretamente `financial.currentService`; o valor é preservado na atualização do perfil e sincronizado pelo vínculo contratual autoritativo.
+7. Cadastro/edição do aluno, criação/atualização do vínculo e aplicação do ciclo contratual executam na mesma transação Prisma.
+8. Contrato não assinado permanece preparado; contrato assinado com início futuro permanece agendado; somente contrato assinado e efetivo encerra o vigente e atualiza o ponteiro atual.
+9. Quando a assinatura ocorre depois da data planejada, a vigência começa em `signedAt`; somente vínculos já assinados e previamente agendados ativam na data planejada pelo scheduler.
+10. `/contracts/generate` exige `students.actions.manageFinancialContract`; `/contracts/preview` aceita essa permissão ou `settings.contract`.
+11. Prévia e geração recebem a identidade do professor autenticado. Professor comum acessa somente alunos próprios e não pode atribuir outro professor; master pode operar em qualquer aluno do mesmo contrato empresarial.
+12. A geração direta resolve modelo, aluno, professor e serviços no domínio e grava `Contract`, `StudentContract` e `ContractAuditLog` na mesma transação.
+13. O caminho `POST /alunos/:id/contracts` com referência `template:` reutiliza o gerador autoritativo, persiste `startDate` e `endDate` e aceita somente `draft` ou `active`. Estados incompatíveis retornam erro de validação, sem conversão silenciosa.
+14. A consulta pública altera `SENT` para `VIEWED` somente quando token e estado ainda correspondem ao documento. A expiração atualiza somente vínculos em `draft` ou `pending_signature`, preservando `canceled` e `terminated`.
+15. Cancelar vínculo não assinado cancela o documento e remove o token na mesma transação. Um trigger de banco aplica a mesma regra a escritores administrativos e ao fluxo legado que cancela o documento antes do vínculo.
+16. Tokens legados que ainda apontem para documento cancelado são retirados na primeira consulta e nunca expõem o conteúdo ou permitem assinatura.
+17. A assinatura pública possui uma única implementação canônica em `contract-lifecycle.routes.ts`.
+18. As migrations corrigem vínculos legados, recalculam `currentService` em transições terminais e instalam proteções para autoridade financeira e cancelamento de tokens.
 
 ## Cobertura adicionada
 
 - confirmação e cancelamento no bloqueador real do formulário;
-- envio após uma única confirmação;
-- confirmação de seguimento independente da redação da mensagem e consumida uma única vez;
-- garantia de que uma segunda confirmação não relacionada não é liberada pelo estado já consumido;
+- envio após uma única confirmação e confirmações não relacionadas preservadas;
 - falha atômica sem persistência separada do perfil;
-- chamada direta ao domínio com `serviceId` injetado ignorada;
-- fallback derivado do `Aluno.serviceId` persistido;
-- rejeição de serviço persistido pertencente a outro contrato empresarial;
-- contrato pendente não apresentado como ativo;
-- prioridade do serviço persistido no contrato;
-- rejeição do `serviceId` financeiro enviado pelo cliente nas rotas atômicas;
-- preservação do `currentService` autoritativo durante atualização do formulário;
-- substituição não assinada sem encerramento do contrato vigente;
-- assinatura tardia iniciando na assinatura, sem retroagir para a data planejada;
-- ausência de segunda chamada de ativação para resultados `draft` e `pending_signature`;
-- bloqueio da geração direta sem permissão financeira;
-- prévia autorizada por gerenciamento financeiro ou configurações de contrato;
-- rollback PostgreSQL de documento e auditoria quando a criação do vínculo falha;
-- rollback PostgreSQL do caminho de vínculo por referência de modelo ativo;
-- persistência atômica de documento, vínculo e auditoria em todos os caminhos de geração;
-- consulta pública concorrente com assinatura sem estado final `VIEWED`;
-- expiração concorrente com assinatura sem estado misto entre documento, assinatura e vínculo;
-- confirmação da expiração e limpeza do token antes do retorno de erro;
-- rota pública canônica de assinatura usando o ciclo transacional;
-- gatilhos PostgreSQL para inserção, atualização, propagação e sincronização do serviço;
-- propagação da alteração de `Aluno.serviceId` quando o contrato não possui serviço próprio;
-- reparo PostgreSQL de vínculo e `currentService` simulando dado anterior à migration;
-- ciclo de assinatura, recusa, expiração, vigência futura, agendador e rollback transacional;
-- formulário real de edição com seleção, confirmação e uma única mutação atômica;
-- cancelamento e falha transacional no formulário real sem fallback para escritores separados;
-- formulário real de cadastro com a mesma data final no perfil e no vínculo;
-- bloqueio da rota sem `students.actions.manageFinancialContract` e rejeição de aluno ou documento pertencente a outro contrato empresarial.
+- injeção de serviço financeiro ignorada em rotas e chamadas internas;
+- fallback derivado do aluno persistido, sem materialização no documento;
+- propagação PostgreSQL após alteração de `Aluno.serviceId`;
+- rejeição de aluno de outro professor dentro do mesmo contrato empresarial;
+- acesso de master ao contrato inteiro;
+- bloqueio de atribuição de outro professor por ator não master;
+- preservação de `endDate` no caminho por modelo;
+- rejeição de estados incompatíveis antes da rota legada;
+- rollback PostgreSQL de documento, vínculo e auditoria;
+- assinatura tardia sem vigência retroativa;
+- consulta e expiração concorrentes com assinatura;
+- expiração sem sobrescrever vínculo cancelado;
+- cancelamento dedicado, genérico e iniciado pelo documento removendo token público;
+- aposentadoria de token legado ainda associado a documento cancelado;
+- gatilhos PostgreSQL para inserção, atualização, propagação, sincronização e cancelamento;
+- reparo PostgreSQL de vínculo e `currentService` simulando dados anteriores às migrations;
+- formulário real de cadastro e edição com sucesso, cancelamento e rollback.
 
 ## Critérios para encerramento
 
 - A regra autoritativa existe no domínio, nas rotas e no banco de dados.
-- Chamadas HTTP e internas de geração não conseguem escolher arbitrariamente o serviço financeiro.
-- O cadastro, a edição e qualquer caminho de geração não deixam persistência parcial quando uma etapa contratual falha.
-- A confirmação é única no fluxo composto real, não depende da redação de mensagens legadas e não libera confirmações posteriores.
+- Chamadas HTTP e internas de geração não escolhem arbitrariamente serviço, aluno ou professor.
+- O cadastro, a edição e qualquer caminho de geração não deixam persistência parcial quando uma etapa falha.
+- A confirmação é única no fluxo composto real e não libera confirmações posteriores.
 - O contrato vigente permanece ativo até assinatura e data efetiva do substituto.
 - Uma assinatura tardia nunca produz vigência anterior à assinatura.
-- Consulta e expiração públicas não deixam documento, assinatura e vínculo em estados divergentes.
-- O editor de modelos consegue gerar prévia com sua própria permissão, sem receber permissão de geração contratual.
-- O fallback financeiro não pode ser escolhido pelo cliente.
-- A operação composta não dispara uma segunda mutação de ciclo após o commit atômico.
+- Consulta, expiração e cancelamento públicos não deixam documento, assinatura, token e vínculo em estados divergentes.
+- O editor de modelos consegue gerar prévia sem receber permissão de geração, mas continua sujeito ao escopo do aluno.
+- O fallback financeiro não pode ser escolhido pelo cliente nem virar serviço próprio do documento.
+- `startDate` e `endDate` são equivalentes nos caminhos atômico, administrativo e por referência de modelo.
+- Estados de vínculo não suportados são rejeitados explicitamente.
 - O reparo de dados preexistentes é validado em PostgreSQL.
 - O workflow oficial conclui migrations, type-check, lint, testes, arquitetura, catálogo de acessos e documentação com sucesso.
 
 ## Validação da implementação
 
-A implementação funcional foi validada repetidamente pelo workflow oficial **Validate PR**.
-
-- migrations PostgreSQL: sucesso;
-- type-check: sucesso;
-- lint: sucesso;
-- web: 39 arquivos e 156 testes aprovados;
-- API: 60 suítes e 265 testes aprovados;
-- arquitetura: sucesso;
-- catálogo de acessos: sucesso;
-- documentação: sucesso.
+A implementação deve ser considerada concluída somente no head em que o workflow oficial **Validate PR** aprovar migrations PostgreSQL, type-check, lint, testes, arquitetura, catálogo de acessos e documentação.
