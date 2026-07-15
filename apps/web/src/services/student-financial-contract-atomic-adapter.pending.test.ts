@@ -73,7 +73,7 @@ const buildService = () => ({
 });
 
 describe('student financial contract atomic adapter pending lifecycle', () => {
-  it.each<StudentContractLink['status']>(['draft', 'pending_signature'])(
+  it.each(['draft', 'pending_signature'] as const)(
     'does not issue a second activation request after an atomic %s result',
     async (status) => {
       const service = buildService();
