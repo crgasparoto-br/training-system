@@ -201,8 +201,13 @@ export async function prepareOrActivateStudentContractInTransaction(
   }
 
   const persistedSignedAt = candidate.contract.signedAt ?? candidate.signedAt;
+
+  // Only a link that already recorded the signature and remained scheduled may
+  // activate at its planned start date. A newly signed document can have an old
+  // requested start date, but its effective date must never precede signedAt.
   if (
-    persistedSignedAt &&
+    candidate.status === 'pending_signature' &&
+    candidate.signedAt &&
     candidate.startDate &&
     candidate.startDate.getTime() <= now.getTime()
   ) {
