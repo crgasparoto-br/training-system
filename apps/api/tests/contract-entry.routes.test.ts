@@ -20,6 +20,7 @@ jest.mock('../src/modules/auth/auth.middleware', () => ({
     (req as any).user = {
       userId: 'user-1',
       professorId: 'professor-1',
+      professorRole: req.get('x-test-master') === 'true' ? 'master' : 'professor',
       contractId: 'company-1',
       type: 'professor',
     };
@@ -105,7 +106,7 @@ describe('contract route entry', () => {
     );
   });
 
-  it('routes previews and generation through the authoritative domain service', async () => {
+  it('routes previews and generation with the authenticated professor scope', async () => {
     mockPreview.mockResolvedValue({ html: '<p>Prévia</p>', context: {} });
     mockGenerate.mockResolvedValue({ id: 'generated-contract-1' });
 
@@ -128,13 +129,37 @@ describe('contract route entry', () => {
     expect(generateResponse.status).toBe(201);
     expect(mockPreview).toHaveBeenCalledWith(
       'company-1',
-      expect.objectContaining({ serviceId: 'untrusted-service' })
+      expect.objectContaining({ serviceId: 'untrusted-service' }),
+      expect.objectContaining({
+        userId: 'user-1',
+        professorId: 'professor-1',
+        professorRole: 'professor',
+      })
     );
     expect(mockGenerate).toHaveBeenCalledWith(
       'company-1',
       expect.objectContaining({ serviceId: 'untrusted-service' }),
-      expect.objectContaining({ userId: 'user-1' })
+      expect.objectContaining({
+        userId: 'user-1',
+        professorId: 'professor-1',
+        professorRole: 'professor',
+      })
     );
+  });
+
+  it('returns not found when the domain rejects an aluno outside the actor scope', async () => {
+    mockPreview.mockRejectedValue(new Error('Aluno fora do escopo do professor autenticado'));
+    mockGenerate.mockRejectedValue(new Error('Aluno fora do escopo do professor autenticado'));
+
+    const previewResponse = await request(app)
+      .post('/contracts/preview')
+      .send({ templateId: 'template-1', alunoId: 'student-other' });
+    const generateResponse = await request(app)
+      .post('/contracts/generate')
+      .send({ templateId: 'template-1', alunoId: 'student-other' });
+
+    expect(previewResponse.status).toBe(404);
+    expect(generateResponse.status).toBe(404);
   });
 
   it('keeps preview available when financial generation permission is denied', async () => {
