@@ -34,6 +34,10 @@ Garantir consistência transacional e uma única fonte de verdade para serviço 
 - [x] Separar serviço próprio do documento do fallback efetivo do vínculo.
 - [x] Preservar estados terminais durante expiração pública.
 - [x] Invalidar tokens públicos em todos os caminhos de cancelamento.
+- [x] Aplicar o escopo de aluno também à edição atômica, histórico, documentos, PDFs, auditoria, recusa e reenvio.
+- [x] Impedir troca de professor responsável pela edição atômica fora do escopo do ator.
+- [x] Compartilhar a mesma expiração segura entre abertura, assinatura e recusa públicas.
+- [x] Validar que assinatura de token expirado não sobrescreve vínculo cancelado ou encerrado.
 
 ## Módulos principais
 
@@ -44,6 +48,7 @@ Garantir consistência transacional e uma única fonte de verdade para serviço 
 - `apps/web/src/services/student-contract-replacement.ts`
 - `apps/web/src/services/contract-replacement-confirm-copy.ts`
 - `apps/web/src/services/student-financial-contract-atomic-adapter.ts`
+- `apps/api/src/modules/alunos/student-access-scope.service.ts`
 - `apps/api/src/modules/alunos/student-financial-contract.routes.ts`
 - `apps/api/src/modules/alunos/student-financial-contract.service.ts`
 - `apps/api/src/modules/alunos/student-contract-template-status.routes.ts`
@@ -52,6 +57,7 @@ Garantir consistência transacional e uma única fonte de verdade para serviço 
 - `apps/api/src/modules/contracts/contract-preview-access.middleware.ts`
 - `apps/api/src/modules/contracts/contract-public-access.service.ts`
 - `apps/api/src/modules/contracts/contract-lifecycle.routes.ts`
+- `apps/api/src/modules/contracts/contract-rejection.routes.ts`
 - `apps/api/src/modules/student-contracts/student-contract.service.ts`
 - `apps/api/src/modules/student-contracts/student-contract-lifecycle-transaction.ts`
 - `apps/api/src/modules/student-contracts/student-contract-lifecycle.service.ts`
@@ -80,6 +86,9 @@ Garantir consistência transacional e uma única fonte de verdade para serviço 
 16. Tokens legados que ainda apontem para documento cancelado são retirados na primeira consulta e nunca expõem o conteúdo ou permitem assinatura.
 17. A assinatura pública possui uma única implementação canônica em `contract-lifecycle.routes.ts`.
 18. As migrations corrigem vínculos legados, recalculam `currentService` em transições terminais e instalam proteções para autoridade financeira e cancelamento de tokens.
+19. `student-access-scope.service.ts` centraliza a regra de professor ou master e protege atualização atômica, histórico, documentos, PDFs, auditoria, leitura de recusa, reenvio e contratos disponíveis.
+20. A edição atômica valida o aluno antes da transação e bloqueia uma eventual troca de responsável fora do escopo do professor autenticado.
+21. Abertura, assinatura e recusa públicas usam `contractPublicAccessService` para expirar tokens de forma condicional e alterar somente vínculos ainda preparados.
 
 ## Cobertura adicionada
 
@@ -92,11 +101,14 @@ Garantir consistência transacional e uma única fonte de verdade para serviço 
 - rejeição de aluno de outro professor dentro do mesmo contrato empresarial;
 - acesso de master ao contrato inteiro;
 - bloqueio de atribuição de outro professor por ator não master;
+- proteção do histórico e de documentos contra acesso por outro professor da mesma empresa;
+- proteção da atualização atômica e da troca de responsável;
 - preservação de `endDate` no caminho por modelo;
 - rejeição de estados incompatíveis antes da rota legada;
 - rollback PostgreSQL de documento, vínculo e auditoria;
 - assinatura tardia sem vigência retroativa;
 - consulta e expiração concorrentes com assinatura;
+- assinatura de token expirado sem sobrescrever vínculo terminal;
 - expiração sem sobrescrever vínculo cancelado;
 - cancelamento dedicado, genérico e iniciado pelo documento removendo token público;
 - aposentadoria de token legado ainda associado a documento cancelado;
@@ -112,8 +124,9 @@ Garantir consistência transacional e uma única fonte de verdade para serviço 
 - A confirmação é única no fluxo composto real e não libera confirmações posteriores.
 - O contrato vigente permanece ativo até assinatura e data efetiva do substituto.
 - Uma assinatura tardia nunca produz vigência anterior à assinatura.
-- Consulta, expiração e cancelamento públicos não deixam documento, assinatura, token e vínculo em estados divergentes.
+- Consulta, assinatura, recusa, expiração e cancelamento públicos não deixam documento, assinatura, token e vínculo em estados divergentes.
 - O editor de modelos consegue gerar prévia sem receber permissão de geração, mas continua sujeito ao escopo do aluno.
+- Professor comum não consegue editar, listar, consultar, reenviar ou atribuir contratos de aluno de outro professor no mesmo contrato empresarial.
 - O fallback financeiro não pode ser escolhido pelo cliente nem virar serviço próprio do documento.
 - `startDate` e `endDate` são equivalentes nos caminhos atômico, administrativo e por referência de modelo.
 - Estados de vínculo não suportados são rejeitados explicitamente.
