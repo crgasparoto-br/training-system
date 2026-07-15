@@ -4,6 +4,7 @@ import { CreateAlunoSchema, UpdateAlunoSchema, sendError, sendSuccess } from '@c
 import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js';
 import { blockAccessMiddleware } from '../access-control/access-control.middleware.js';
 import { studentFinancialContractService } from './student-financial-contract.service.js';
+import { studentAccessScopeService } from './student-access-scope.service.js';
 
 const router: Router = Router();
 
@@ -51,8 +52,23 @@ const parseCivilDate = (value: string | null | undefined, fieldName: string) => 
 
 const getContext = (req: Request) => ({
   professorId: (req as any).user.professorId as string | undefined,
+  professorRole: (req as any).user.professorRole as string | undefined,
   companyContractId: (req as any).user.contractId as string | undefined,
 });
+
+const getRequestedProfessorId = (profile: z.infer<typeof UpdateAlunoSchema>) => {
+  if (typeof (profile as any).professorId === 'string') {
+    return (profile as any).professorId;
+  }
+  const formResponses = (profile as any).intakeForm?.formResponses;
+  const financial =
+    formResponses && typeof formResponses === 'object'
+      ? (formResponses as Record<string, unknown>).financial
+      : null;
+  if (!financial || typeof financial !== 'object') return null;
+  const value = (financial as Record<string, unknown>).responsibleProfessorId;
+  return typeof value === 'string' ? value : null;
+};
 
 const mapContractInput = (input: z.infer<typeof contractMutationSchema>) => ({
   contractId: input.contractId,
@@ -76,7 +92,8 @@ const handleError = (res: Response, error: unknown) => {
   if (
     message.includes('não encontrado') ||
     message.includes('não pertence') ||
-    message.includes('fora do contrato')
+    message.includes('fora do contrato') ||
+    message.includes('fora do escopo')
   ) {
     return sendError(res, message, 404);
   }
@@ -125,12 +142,19 @@ router.put(
   blockAccessMiddleware('students.actions.manageFinancialContract'),
   async (req: Request, res: Response) => {
     try {
-      const { professorId, companyContractId } = getContext(req);
+      const context = getContext(req);
+      const { professorId, companyContractId } = context;
       if (!professorId || !companyContractId) {
         return sendError(res, 'Professor ou contrato autenticado não encontrado', 404);
       }
 
       const validated = updateSchema.parse(req.body);
+      await studentAccessScopeService.assertAlunoAccess(req.params.id, context);
+      studentAccessScopeService.assertRequestedProfessorAccess(
+        getRequestedProfessorId(validated.profile),
+        context
+      );
+
       const result = await studentFinancialContractService.updateAlunoWithContract(
         req.params.id,
         validated.profile,
