@@ -130,7 +130,7 @@ Garantir consistência transacional e uma única fonte de verdade para serviço 
 
 ## Validação da implementação
 
-Workflow oficial **Validate PR #1590**, commit `3aa9602a53f2e9c28bf006bf50fa59c16301d697`:
+A implementação funcional foi validada repetidamente pelo workflow oficial **Validate PR**, incluindo o ciclo #1598 no head corrente antes desta atualização documental.
 
 - migrations PostgreSQL: sucesso;
 - type-check: sucesso;
@@ -140,5 +140,3 @@ Workflow oficial **Validate PR #1590**, commit `3aa9602a53f2e9c28bf006bf50fa59c1
 - arquitetura: sucesso;
 - catálogo de acessos: sucesso;
 - documentação: sucesso.
-
-Os commits documentais subsequentes preservam exatamente o mesmo conteúdo funcional e também passaram pelo workflow oficial.
