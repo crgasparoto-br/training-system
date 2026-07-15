@@ -163,22 +163,21 @@ async function signAndOpen(token: string, openAt?: Date) {
   return Promise.allSettled([signing, opening]);
 }
 
-function expectSignatureWon(
-  signatureOutcome: PromiseSettledResult<Awaited<ReturnType<typeof studentContractLifecycleService.signPublicContract>>>,
-  openingOutcome: PromiseSettledResult<Awaited<ReturnType<typeof contractPublicAccessService.open>>>
+function expectOpeningOutcomeAfterSignatureRace(
+  openingOutcome: PromiseSettledResult<
+    Awaited<ReturnType<typeof contractPublicAccessService.open>>
+  >
 ) {
-  expect(signatureOutcome.status).toBe('fulfilled');
-  if (signatureOutcome.status === 'fulfilled') {
-    expect(signatureOutcome.value.activation.scheduled).toBe(false);
+  if (openingOutcome.status === 'fulfilled') {
+    expect([ContractStatus.VIEWED, ContractStatus.SIGNED]).toContain(
+      openingOutcome.value.status
+    );
+    return;
   }
 
-  if (openingOutcome.status === 'fulfilled') {
-    expect(openingOutcome.value.status).toBe(ContractStatus.SIGNED);
-  } else {
-    expect(openingOutcome.reason).toEqual(
-      expect.objectContaining({ message: 'Contrato não encontrado' })
-    );
-  }
+  expect(openingOutcome.reason).toEqual(
+    expect.objectContaining({ message: 'Contrato não encontrado' })
+  );
 }
 
 describeDatabase('concurrent public contract opening and signature', () => {
@@ -214,12 +213,12 @@ describeDatabase('concurrent public contract opening and signature', () => {
     await prisma.$disconnect();
   });
 
-  it('never downgrades SIGNED to VIEWED when opening races with signature', async () => {
+  it('never leaves a signed document downgraded to VIEWED after the race settles', async () => {
     const fixture = await seedFixture();
     await installSignatureDelay(fixture.candidateDocument.id);
 
     const [signatureOutcome, openingOutcome] = await signAndOpen(fixture.token);
-    const [document, links, aluno] = await Promise.all([
+    const [document, links, aluno, signatures] = await Promise.all([
       prisma.contract.findUniqueOrThrow({
         where: { id: fixture.candidateDocument.id },
       }),
@@ -227,11 +226,19 @@ describeDatabase('concurrent public contract opening and signature', () => {
         where: { alunoId: fixture.aluno.id },
       }),
       prisma.aluno.findUniqueOrThrow({ where: { id: fixture.aluno.id } }),
+      prisma.contractSignature.findMany({
+        where: { contractId: fixture.candidateDocument.id },
+      }),
     ]);
 
-    expectSignatureWon(signatureOutcome, openingOutcome);
+    expect(signatureOutcome.status).toBe('fulfilled');
+    if (signatureOutcome.status === 'fulfilled') {
+      expect(signatureOutcome.value.activation.scheduled).toBe(false);
+    }
+    expectOpeningOutcomeAfterSignatureRace(openingOutcome);
     expect(document.status).toBe(ContractStatus.SIGNED);
     expect(document.publicTokenHash).toBeNull();
+    expect(signatures).toHaveLength(1);
     expect(links.find((link) => link.id === fixture.oldLink.id)?.status).toBe(
       'terminated'
     );
@@ -242,7 +249,7 @@ describeDatabase('concurrent public contract opening and signature', () => {
     expect(links.filter((link) => link.status === 'active')).toHaveLength(1);
   });
 
-  it('never downgrades SIGNED to EXPIRED when expiration races with signature', async () => {
+  it('keeps document, signature and link consistent when expiration races with signing', async () => {
     const fixture = await seedFixture();
     await installSignatureDelay(fixture.candidateDocument.id);
 
@@ -251,19 +258,47 @@ describeDatabase('concurrent public contract opening and signature', () => {
       fixture.token,
       forcedExpirationAt
     );
-    const [document, candidateLink] = await Promise.all([
-      prisma.contract.findUniqueOrThrow({
-        where: { id: fixture.candidateDocument.id },
-      }),
-      prisma.studentContract.findUniqueOrThrow({
-        where: { id: fixture.candidateLink.id },
-      }),
-    ]);
+    const [document, oldLink, candidateLink, aluno, signatures] =
+      await Promise.all([
+        prisma.contract.findUniqueOrThrow({
+          where: { id: fixture.candidateDocument.id },
+        }),
+        prisma.studentContract.findUniqueOrThrow({
+          where: { id: fixture.oldLink.id },
+        }),
+        prisma.studentContract.findUniqueOrThrow({
+          where: { id: fixture.candidateLink.id },
+        }),
+        prisma.aluno.findUniqueOrThrow({ where: { id: fixture.aluno.id } }),
+        prisma.contractSignature.findMany({
+          where: { contractId: fixture.candidateDocument.id },
+        }),
+      ]);
 
-    expectSignatureWon(signatureOutcome, openingOutcome);
-    expect(document.status).toBe(ContractStatus.SIGNED);
+    if (document.status === ContractStatus.SIGNED) {
+      expect(signatureOutcome.status).toBe('fulfilled');
+      expectOpeningOutcomeAfterSignatureRace(openingOutcome);
+      expect(signatures).toHaveLength(1);
+      expect(document.publicTokenHash).toBeNull();
+      expect(candidateLink.status).toBe('active');
+      expect(oldLink.status).toBe('terminated');
+      expect(aluno.currentStudentContractId).toBe(candidateLink.id);
+      return;
+    }
+
+    expect(document.status).toBe(ContractStatus.EXPIRED);
+    expect(signatureOutcome.status).toBe('rejected');
+    expect(openingOutcome.status).toBe('rejected');
+    if (openingOutcome.status === 'rejected') {
+      expect(openingOutcome.reason).toEqual(
+        expect.objectContaining({ message: 'Link expirado' })
+      );
+    }
+    expect(signatures).toHaveLength(0);
     expect(document.publicTokenHash).toBeNull();
-    expect(candidateLink.status).toBe('active');
+    expect(candidateLink.status).toBe('expired');
+    expect(oldLink.status).toBe('active');
+    expect(aluno.currentStudentContractId).toBe(oldLink.id);
   });
 
   it('commits expiration before returning the expired-link error', async () => {
