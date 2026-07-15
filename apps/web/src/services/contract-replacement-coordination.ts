@@ -16,23 +16,13 @@ let latestState: ContractReplacementState = {
   required: false,
   confirmed: false,
 };
-let confirmationVersion = 0;
-let consumedConfirmationVersion = 0;
 
 export function getContractReplacementState() {
   return latestState;
 }
 
 export function publishContractReplacementState(state: ContractReplacementState) {
-  const isNewConfirmation =
-    state.required &&
-    state.confirmed &&
-    (!latestState.confirmed ||
-      latestState.activeContractId !== state.activeContractId ||
-      latestState.selectedContractId !== state.selectedContractId);
-
   latestState = state;
-  if (isNewConfirmation) confirmationVersion += 1;
   if (typeof window === 'undefined') return;
 
   window.dispatchEvent(
@@ -40,14 +30,6 @@ export function publishContractReplacementState(state: ContractReplacementState)
       detail: state,
     })
   );
-}
-
-export function consumeConfirmedContractReplacementBypass() {
-  if (!latestState.required || !latestState.confirmed) return false;
-  if (consumedConfirmationVersion === confirmationVersion) return false;
-
-  consumedConfirmationVersion = confirmationVersion;
-  return true;
 }
 
 export function requestContractReplacementConfirmation() {
