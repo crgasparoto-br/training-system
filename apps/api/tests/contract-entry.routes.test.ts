@@ -85,7 +85,7 @@ describe('contract route entry', () => {
     expect(mockLifecycleSignPublic).toHaveBeenCalledWith(
       'public-token',
       expect.objectContaining({ signerName: 'Aluno Teste' }),
-      expect.objectContaining({ userAgent: expect.any(String) })
+      expect.objectContaining({ ipAddress: expect.any(String) })
     );
     expect(mockLegacySignPublic).not.toHaveBeenCalled();
     expect(response.body.data.activation).toEqual(
