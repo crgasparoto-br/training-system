@@ -1,6 +1,8 @@
 import express from 'express';
 
 const request = require('supertest');
+const mockAssertAlunoAccess = jest.fn();
+const mockAssertRequestedProfessorAccess = jest.fn();
 
 jest.mock('../src/modules/auth/auth.middleware', () => ({
   authMiddleware: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
@@ -23,6 +25,13 @@ jest.mock('../src/modules/access-control/access-control.middleware', () => ({
   ),
 }));
 
+jest.mock('../src/modules/alunos/student-access-scope.service', () => ({
+  studentAccessScopeService: {
+    assertAlunoAccess: mockAssertAlunoAccess,
+    assertRequestedProfessorAccess: mockAssertRequestedProfessorAccess,
+  },
+}));
+
 jest.mock('../src/modules/alunos/student-financial-contract.service', () => ({
   studentFinancialContractService: {
     createAlunoWithContract: jest.fn(),
@@ -38,7 +47,11 @@ describe('student financial contract route authority', () => {
   app.use(express.json());
   app.use('/alunos', router);
 
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockAssertAlunoAccess.mockResolvedValue({ id: 'student-1' });
+    mockAssertRequestedProfessorAccess.mockImplementation(() => undefined);
+  });
 
   it('does not forward a client supplied contract serviceId during create', async () => {
     studentFinancialContractService.createAlunoWithContract.mockResolvedValue({
@@ -88,6 +101,10 @@ describe('student financial contract route authority', () => {
     });
 
     expect(response.status).toBe(200);
+    expect(mockAssertAlunoAccess).toHaveBeenCalledWith(
+      'student-1',
+      expect.objectContaining({ professorRole: 'master' })
+    );
     expect(studentFinancialContractService.updateAlunoWithContract).toHaveBeenCalledWith(
       'student-1',
       expect.objectContaining({ serviceId: 'new-persisted-interest-service' }),
