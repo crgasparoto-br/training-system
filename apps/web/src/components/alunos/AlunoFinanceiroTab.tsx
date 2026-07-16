@@ -270,7 +270,7 @@ export function AlunoFinanceiroTab({
     await runAction('activate', async () => {
       if (currentContract && currentContract.id !== selectedHistoryContract.id) {
         const confirmed = window.confirm(
-          'Este aluno já possui um contrato ativo. Ao ativar um novo contrato, o anterior será encerrado.'
+          'Este aluno já possui um contrato ativo. A ativação do novo contrato substituirá o vigente somente após a assinatura e a data efetiva definida, sem encerramento imediato.'
         );
         if (!confirmed) return;
       }
@@ -326,7 +326,7 @@ export function AlunoFinanceiroTab({
 
       if (currentContract && currentContract.id !== linkId) {
         const confirmed = window.confirm(
-          'Este aluno já possui um contrato ativo. Ao ativar um novo contrato, o anterior será encerrado.'
+          'Este aluno já possui um contrato ativo. A ativação do novo contrato substituirá o vigente somente após a assinatura e a data efetiva definida, sem encerramento imediato.'
         );
         if (!confirmed) return;
       }
