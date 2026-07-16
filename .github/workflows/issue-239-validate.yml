@@ -1,0 +1,33 @@
+name: Validate issue 239 implementation
+
+on:
+  push:
+    branches:
+      - fix/239-remove-assessment-from-student-form
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/239-remove-assessment-from-student-form
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - run: pnpm install --frozen-lockfile
+      - name: Run repository validation
+        shell: bash
+        run: |
+          set +e
+          pnpm validate > /tmp/issue-239-validation.log 2>&1
+          status=$?
+          tail -n 200 /tmp/issue-239-validation.log
+          exit $status
