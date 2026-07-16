@@ -1,5 +1,4 @@
 diff --git a/apps/api/src/modules/services/service.bootstrap.ts b/apps/api/src/modules/services/service.bootstrap.ts
-index 08ae914..0000000 100644
 --- a/apps/api/src/modules/services/service.bootstrap.ts
 +++ b/apps/api/src/modules/services/service.bootstrap.ts
 @@ -259,7 +259,9 @@ async function executeBootstrap(
@@ -14,7 +13,6 @@ index 08ae914..0000000 100644
    const servicesToCreate: ServiceInsert[] = [];
    const optionsToCreate: OptionInsert[] = [];
 diff --git a/apps/api/tests/service-catalog-bootstrap.integration.scenarios.ts b/apps/api/tests/service-catalog-bootstrap.integration.scenarios.ts
-index efd2b8f..0000000 100644
 --- a/apps/api/tests/service-catalog-bootstrap.integration.scenarios.ts
 +++ b/apps/api/tests/service-catalog-bootstrap.integration.scenarios.ts
 @@ -204,6 +204,45 @@ describeDatabase('service catalog reference bootstrap with PostgreSQL', () => {
