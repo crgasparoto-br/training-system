@@ -27,6 +27,12 @@ type ErrorLike = {
   cause?: unknown;
 };
 
+function matchesTransactionUnavailableMessage(value: unknown): boolean {
+  if (typeof value !== 'string') return false;
+  const message = value;
+  return TRANSACTION_UNAVAILABLE_PATTERNS.some((pattern) => pattern.test(message));
+}
+
 export function isServiceCatalogTransactionUnavailable(error: unknown): boolean {
   let current: unknown = error;
   const visited = new Set<unknown>();
@@ -43,10 +49,7 @@ export function isServiceCatalogTransactionUnavailable(error: unknown): boolean 
         return true;
       }
 
-      if (
-        typeof candidate.message === 'string' &&
-        TRANSACTION_UNAVAILABLE_PATTERNS.some((pattern) => pattern.test(candidate.message))
-      ) {
+      if (matchesTransactionUnavailableMessage(candidate.message)) {
         return true;
       }
 
@@ -54,10 +57,7 @@ export function isServiceCatalogTransactionUnavailable(error: unknown): boolean 
       continue;
     }
 
-    if (
-      typeof current === 'string' &&
-      TRANSACTION_UNAVAILABLE_PATTERNS.some((pattern) => pattern.test(current))
-    ) {
+    if (matchesTransactionUnavailableMessage(current)) {
       return true;
     }
 
