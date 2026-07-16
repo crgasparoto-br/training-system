@@ -29,3 +29,5 @@ jobs:
           git add apps/api/src/modules/services/service.bootstrap.ts apps/api/tests/service-catalog-bootstrap.integration.scenarios.ts
           git commit -m "fix(api): preserve component targets on catalog conflict (#242)"
           git push origin HEAD:fix/242-service-catalog-transaction-timeout
+
+# This temporary workflow is removed after the patch is applied.
