@@ -12,11 +12,33 @@ jest.mock('puppeteer', () => ({
 import { contractDocumentService } from '../src/modules/contracts/contract-document.service';
 
 describe('contractDocumentService', () => {
-  it('lista variáveis com tokens Handlebars', () => {
+  it('lista variáveis com metadados e tokens Handlebars', () => {
     const variables = contractDocumentService.listVariables();
 
-    expect(variables).toContainEqual({ key: 'aluno.nome', token: '{{aluno.nome}}' });
-    expect(variables).toContainEqual({ key: 'contrato.valorMensal', token: '{{contrato.valorMensal}}' });
+    expect(variables).toContainEqual(
+      expect.objectContaining({ key: 'aluno.nome', token: '{{aluno.nome}}', groupLabel: 'Aluno' })
+    );
+    expect(variables).toContainEqual(
+      expect.objectContaining({ key: 'professor.nome', token: '{{professor.nome}}', groupLabel: 'Professor' })
+    );
+    expect(variables).toContainEqual(
+      expect.objectContaining({ key: 'servico.resumo', token: '{{servico.resumo}}', groupLabel: 'Serviços' })
+    );
+    expect(variables).toContainEqual(
+      expect.objectContaining({
+        key: 'servico.plano.componentes',
+        token: '{{servico.plano.componentes}}',
+        groupLabel: 'Serviços',
+      })
+    );
+    expect(variables).toContainEqual(
+      expect.objectContaining({
+        key: 'contrato.valorMensal',
+        token: '{{contrato.valorMensal}}',
+        groupLabel: 'Contrato',
+      })
+    );
+    expect(variables.every((variable) => variable.description && variable.example)).toBe(true);
   });
 
   it('renderiza HTML preservando snapshot textual do contrato', () => {
@@ -43,5 +65,22 @@ describe('contractDocumentService', () => {
     expect(html).toContain('Acesso Saúde e Performance');
     expect(html).toContain('Maria Silva');
     expect(html).toContain('01/05/2026');
+    expect(html).toContain('<p>Contratante</p>');
+  });
+
+  it('não duplica a área de assinaturas quando o modelo fornece uma seção própria', () => {
+    const html = contractDocumentService.renderTemplate(
+      {
+        name: 'Contrato com testemunhas',
+        headerHtml: '',
+        footerHtml: '<div class="signatures"><p>Assinaturas personalizadas</p></div>',
+        clauses: [],
+      },
+      {}
+    );
+
+    expect(html).toContain('Assinaturas personalizadas');
+    expect(html).not.toContain('<p>Contratante</p>');
+    expect(html.match(/class="signatures"/g)).toHaveLength(1);
   });
 });

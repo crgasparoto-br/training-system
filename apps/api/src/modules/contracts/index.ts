@@ -1,1 +1,1 @@
-export { default as contractRoutes } from './contract.routes.js';
+export { default as contractRoutes } from './contract-entry.routes.js';

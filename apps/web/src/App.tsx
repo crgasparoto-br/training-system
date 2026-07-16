@@ -1,3 +1,5 @@
+import './services/contract-replacement-confirm-copy';
+import './services/student-contract-activation-adapter';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Login } from './pages/Login';
 import type { ReactElement } from 'react';
@@ -6,7 +8,10 @@ import { Register } from './pages/Register';
 import { Home } from './pages/Home';
 import { Professores } from './pages/Professores';
 import { Alunos } from './pages/Alunos';
-import { AlunoForm } from './pages/AlunoForm';
+import { StudentCentral } from './pages/StudentCentral';
+import { StudentCentralEdit } from './pages/StudentCentralEdit';
+import { AlunoFormWithContractEndDate } from './pages/AlunoFormWithContractEndDate';
+import { AlunoFormWithContractValidityOptions } from './pages/AlunoFormWithContractValidityOptions';
 import { AlunoDetails } from './pages/AlunoDetails';
 import { Plans } from './pages/Plans';
 import { PlanForm } from './pages/PlanForm';
@@ -33,6 +38,7 @@ import AlunoContracts from './pages/AlunoContracts';
 import PublicContractSignature from './pages/PublicContractSignature';
 import { DashboardLayout } from './layouts/DashboardLayout';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { StudentContractActivationNotice } from './components/StudentContractActivationNotice';
 import { useAuthStore } from './stores/useAuthStore';
 import { canAccessScreen } from './access/access-control';
 import { AppErrorBoundary } from './components/AppErrorBoundary';
@@ -63,7 +69,7 @@ function StudentsRoute() {
   }
 
   if (canAccessScreen(user, 'students.consultation')) {
-    return <Navigate to="/consultas/alunos" replace />;
+    return <Navigate to="/central-do-aluno" replace />;
   }
 
   if (canAccessScreen(user, 'students.registration')) {
@@ -77,6 +83,7 @@ function App() {
   return (
     <AppErrorBoundary>
       <BrowserRouter>
+        <StudentContractActivationNotice />
         <Routes>
         {/* Public Routes */}
         <Route path="/login" element={<Login />} />
@@ -98,13 +105,19 @@ function App() {
           <Route path="professores" element={<Navigate to="/professores/new" replace />} />
           <Route path="professores/new" element={withAccess('collaborators.registration', <Professores />)} />
           <Route path="alunos" element={<StudentsRoute />} />
-          <Route path="alunos/new" element={withAccess('students.registration', <AlunoForm />)} />
+          <Route path="alunos/new" element={withAccess('students.registration', <AlunoFormWithContractEndDate />)} />
           <Route
             path="alunos/:id"
             element={withAnyAccess(['students.registration', 'students.consultation', 'students.details'], <AlunoDetails />)}
           />
           <Route path="alunos/:id/contracts" element={withAccess('students.registration', <AlunoContracts />)} />
-          <Route path="alunos/:id/edit" element={withAccess('students.registration', <AlunoForm />)} />
+          <Route path="alunos/:id/edit" element={withAccess('students.registration', <AlunoFormWithContractValidityOptions />)} />
+          <Route path="central-do-aluno" element={withAccess('students.consultation', <StudentCentral />)} />
+          <Route
+            path="central-do-aluno/:id"
+            element={withAnyAccess(['students.registration', 'students.consultation', 'students.details'], <AlunoDetails />)}
+          />
+          <Route path="central-do-aluno/:id/edit" element={withAccess('students.registration', <StudentCentralEdit />)} />
           <Route
             path="protocolo-avaliacao-fisica"
             element={<Navigate to="/protocolo-avaliacao-fisica/antropometria" replace />}
@@ -117,7 +130,7 @@ function App() {
           <Route path="protocolo-avaliacao-fisica/adipometria" element={withAccess('physicalAssessment.protocol', <PhysicalAssessmentProtocol />)} />
           <Route path="protocolo-avaliacao-fisica/bioimpedanciometria" element={withAccess('physicalAssessment.protocol', <PhysicalAssessmentProtocol />)} />
           <Route path="protocolo-avaliacao-fisica/ultrassonografia" element={withAccess('physicalAssessment.protocol', <PhysicalAssessmentProtocol />)} />
-          <Route path="consultas" element={<Navigate to="/consultas/alunos" replace />} />
+          <Route path="consultas" element={<Navigate to="/central-do-aluno" replace />} />
           <Route path="consultas/alunos" element={withAccess('students.consultation', <Alunos />)} />
           <Route path="consultas/colaboradores" element={withAccess('collaborators.consultation', <Professores mode="consult" />)} />
           <Route path="plans" element={withAccess('plans', <Plans />)} />

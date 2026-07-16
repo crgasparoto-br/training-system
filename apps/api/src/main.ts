@@ -1,4 +1,4 @@
-﻿import './bootstrap-env.js';
+import './bootstrap-env.js';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -11,12 +11,16 @@ import alunoAvatarUploadRoutes from './modules/alunos/aluno-avatar-upload.routes
 import { alunoRoutes } from './modules/alunos/index.js';
 import { bankRoutes } from './modules/banks/index.js';
 import { collaboratorFunctionRoutes } from './modules/collaborator-functions/index.js';
+import contractLifecycleRoutes from './modules/contracts/contract-lifecycle.routes.js';
+import contractRejectionRoutes from './modules/contracts/contract-rejection.routes.js';
 import { contractRoutes } from './modules/contracts/index.js';
 import { hourlyRateLevelRoutes } from './modules/hourly-rate-levels/index.js';
 import { planRoutes } from './modules/plans/index.js';
 import { professorRoutes } from './modules/professores/index.js';
 import { serviceRoutes } from './modules/services/index.js';
 import { startProfileReviewScheduler } from './modules/alunos/profile-review.scheduler.js';
+import studentContractLifecycleRoutes from './modules/student-contracts/student-contract-lifecycle.routes.js';
+import { startStudentContractLifecycleScheduler } from './modules/student-contracts/student-contract-lifecycle.scheduler.js';
 import studentRoutes from './routes/student.routes.js';
 import { getUploadStorageRoot } from './common/asset-storage.js';
 import { getJwtSecret, resolveCorsConfig } from './common/runtime-config.js';
@@ -144,6 +148,9 @@ app.use('/api/v1/assessment-types', assessmentTypeRoutes);
 // Upload publico de avatar de aluno deve usar storage externo antes do modulo legado.
 app.use('/api/v1/alunos', alunoAvatarUploadRoutes);
 
+// A ativacao contratual segura deve interceptar a rota legada antes do modulo de alunos.
+app.use('/api/v1/alunos', studentContractLifecycleRoutes);
+
 // Rotas de Alunos
 app.use('/api/v1/alunos', alunoRoutes);
 
@@ -158,6 +165,12 @@ app.use('/api/v1/banks', bankRoutes);
 
 // Rotas de Funcoes de Colaboradores
 app.use('/api/v1/collaborator-functions', collaboratorFunctionRoutes);
+
+// A assinatura com controle de vigencia deve ser registrada antes do modulo principal.
+app.use('/api/v1/contracts', contractLifecycleRoutes);
+
+// Rotas de recusa devem ser registradas antes do modulo principal para proteger reenvios.
+app.use('/api/v1/contracts', contractRejectionRoutes);
 
 // Rotas de Contratos
 app.use('/api/v1/contracts', contractRoutes);
@@ -220,5 +233,6 @@ Environment: ${NODE_ENV}
 });
 
 startProfileReviewScheduler();
+startStudentContractLifecycleScheduler();
 
 export default app;
