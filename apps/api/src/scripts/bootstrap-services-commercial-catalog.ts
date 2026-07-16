@@ -1,4 +1,8 @@
 import '../bootstrap-env.js';
+import {
+  SERVICE_CATALOG_BOOTSTRAP_UNAVAILABLE_MESSAGE,
+  ServiceCatalogBootstrapUnavailableError,
+} from '../modules/services/service.bootstrap-errors.js';
 import { serviceCatalogService } from '../modules/services/service.service.js';
 
 function readArgument(name: string) {
@@ -22,6 +26,12 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error('[services-catalog-bootstrap] failed', error instanceof Error ? error.message : error);
+  const message =
+    error instanceof ServiceCatalogBootstrapUnavailableError
+      ? SERVICE_CATALOG_BOOTSTRAP_UNAVAILABLE_MESSAGE
+      : error instanceof Error
+        ? error.message
+        : 'Não foi possível concluir a carga do catálogo.';
+  console.error('[services-catalog-bootstrap] failed', message);
   process.exitCode = 1;
 });
