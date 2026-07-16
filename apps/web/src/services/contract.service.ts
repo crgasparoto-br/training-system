@@ -1,4 +1,20 @@
 import api from './api';
+import {
+  buildAvailableStudentContractQuery,
+  type AvailableStudentContractFilters,
+} from './contract-query';
+import {
+  buildActiveContractTemplateOptions,
+  type ContractTemplateOptionService,
+} from './contract-template-options';
+import {
+  CONTRACT_VARIABLES,
+  normalizeContractVariables,
+  type ContractVariableDefinition,
+} from './contractVariables';
+
+export { CONTRACT_VARIABLES };
+export type { ContractVariableDefinition };
 
 export interface Contract {
   id: string;
@@ -40,25 +56,62 @@ export interface ContractTemplate {
   clauses: ContractTemplateClause[];
 }
 
+export interface ContractRejection {
+  rejected: boolean;
+  rejectedAt?: string | null;
+  rejectionReason?: string | null;
+}
+
 export interface GeneratedContract {
   id: string;
   title: string;
-  status: 'DRAFT' | 'GENERATED' | 'SENT' | 'VIEWED' | 'SIGNED' | 'CANCELLED' | 'EXPIRED';
+  status:
+    | 'DRAFT'
+    | 'GENERATED'
+    | 'SENT'
+    | 'VIEWED'
+    | 'SIGNED'
+    | 'REJECTED'
+    | 'CANCELLED'
+    | 'EXPIRED';
   renderedHtml: string;
   pdfPath?: string | null;
   signedAt?: string | null;
+  rejectedAt?: string | null;
+  rejectionReason?: string | null;
   createdAt: string;
+}
+
+export interface ContractSignatureResult {
+  activation: {
+    effectiveAt: string;
+    scheduled: boolean;
+    studentContractStatus: 'pending_signature' | 'active';
+  };
 }
 
 export interface AvailableStudentContract {
   id: string;
   title: string;
-  status: 'DRAFT' | 'GENERATED' | 'SENT' | 'VIEWED' | 'SIGNED' | 'CANCELLED' | 'EXPIRED';
+  status:
+    | 'ACTIVE'
+    | 'DRAFT'
+    | 'GENERATED'
+    | 'SENT'
+    | 'VIEWED'
+    | 'SIGNED'
+    | 'REJECTED'
+    | 'CANCELLED'
+    | 'EXPIRED';
   alunoId: string;
   serviceId?: string | null;
   createdAt: string;
   signedAt?: string | null;
+  rejectedAt?: string | null;
+  rejectionReason?: string | null;
   cancelledAt?: string | null;
+  sourceType?: 'generated' | 'template';
+  templateId?: string;
   service?: {
     id: string;
     name: string;
@@ -74,32 +127,30 @@ export interface AvailableStudentContract {
   }>;
 }
 
-export const CONTRACT_VARIABLES = [
-  'aluno.nome',
-  'aluno.cpf',
-  'aluno.rg',
-  'aluno.enderecoCompleto',
-  'responsavel.nome',
-  'responsavel.cpf',
-  'responsavel.email',
-  'empresa.razaoSocial',
-  'empresa.cnpj',
-  'empresa.cref',
-  'empresa.endereco',
-  'servico.nome',
-  'servico.valor',
-  'servico.duracaoSessao',
-  'servico.quantidadeSemanal',
-  'contrato.valorMensal',
-  'contrato.valorMensalExtenso',
-  'contrato.diaVencimento',
-  'contrato.horarios',
-  'contrato.dataInicio',
-  'contrato.dataAssinatura',
-].map((key) => ({
-  key,
-  token: `{{${key}}}`,
-}));
+const loadContractRejection = async (id: string): Promise<ContractRejection> => {
+  try {
+    const response = await api.get<{ success: boolean; data: ContractRejection }>(
+      `/contracts/documents/${id}/rejection`
+    );
+    return response.data.data;
+  } catch {
+    return { rejected: false, rejectedAt: null, rejectionReason: null };
+  }
+};
+
+const applyContractRejection = <T extends GeneratedContract | AvailableStudentContract>(
+  contract: T,
+  rejection: ContractRejection
+): T => {
+  if (!rejection.rejected) return contract;
+
+  return {
+    ...contract,
+    status: 'REJECTED',
+    rejectedAt: rejection.rejectedAt || null,
+    rejectionReason: rejection.rejectionReason || null,
+  } as T;
+};
 
 export const contractService = {
   async getMe(): Promise<Contract> {
@@ -145,11 +196,16 @@ export const contractService = {
     return response.data.data.url;
   },
 
-  async listVariables(): Promise<Array<{ key: string; token: string }>> {
+  async listVariables(): Promise<ContractVariableDefinition[]> {
     try {
-      const response = await api.get<{ success: boolean; data: Array<{ key: string; token: string }> }>('/contracts/variables');
-      return response.data.data?.length ? response.data.data : CONTRACT_VARIABLES;
-    } catch (error) {
+      const response = await api.get<{
+        success: boolean;
+        data: Array<Partial<ContractVariableDefinition> & { key: string; token?: string }>;
+      }>('/contracts/variables');
+      return response.data.data?.length
+        ? normalizeContractVariables(response.data.data)
+        : CONTRACT_VARIABLES;
+    } catch {
       return CONTRACT_VARIABLES;
     }
   },
@@ -191,39 +247,57 @@ export const contractService = {
 
   async listAlunoContracts(alunoId: string): Promise<GeneratedContract[]> {
     const response = await api.get<{ success: boolean; data: GeneratedContract[] }>(`/contracts/alunos/${alunoId}`);
-    return response.data.data;
+    return Promise.all(
+      response.data.data.map(async (contract) =>
+        applyContractRejection(contract, await loadContractRejection(contract.id))
+      )
+    );
   },
 
-  async listAvailableForStudent(filters?: {
-    alunoId?: string;
-    serviceId?: string;
-    onlyUnlinked?: boolean;
-    status?: string[];
-  }): Promise<AvailableStudentContract[]> {
-    const params = new URLSearchParams();
+  async getDocument(id: string): Promise<GeneratedContract> {
+    const [documentResponse, rejection] = await Promise.all([
+      api.get<{ success: boolean; data: GeneratedContract }>(`/contracts/documents/${id}`),
+      loadContractRejection(id),
+    ]);
+    return applyContractRejection(documentResponse.data.data, rejection);
+  },
 
-    if (filters?.alunoId) {
-      params.set('alunoId', filters.alunoId);
-    }
+  async listAvailableForStudent(
+    filters?: AvailableStudentContractFilters
+  ): Promise<AvailableStudentContract[]> {
+    const query = buildAvailableStudentContractQuery(filters);
+    const [generatedResponse, templatesResponse, servicesResponse] = await Promise.all([
+      api.get<{ success: boolean; data: AvailableStudentContract[] }>(
+        query ? `/contracts/available-for-student?${query}` : '/contracts/available-for-student'
+      ),
+      api.get<{ success: boolean; data: ContractTemplate[] }>('/contracts/templates'),
+      api.get<{ success: boolean; data: ContractTemplateOptionService[] }>('/services'),
+    ]);
 
-    if (filters?.serviceId) {
-      params.set('serviceId', filters.serviceId);
-    }
-
-    if (filters?.onlyUnlinked !== undefined) {
-      params.set('onlyUnlinked', String(filters.onlyUnlinked));
-    }
-
-    if (filters?.status?.length) {
-      params.set('status', filters.status.join(','));
-    }
-
-    const query = params.toString();
-    const response = await api.get<{ success: boolean; data: AvailableStudentContract[] }>(
-      query ? `/contracts/available-for-student?${query}` : '/contracts/available-for-student'
+    const activeTemplateOptions = buildActiveContractTemplateOptions(
+      templatesResponse.data.data,
+      servicesResponse.data.data,
+      {
+        alunoId: filters?.alunoId,
+        serviceId: filters?.serviceId,
+      }
     );
 
-    return response.data.data;
+    const generatedContracts = filters?.alunoId
+      ? await Promise.all(
+          generatedResponse.data.data.map(async (contract) =>
+            applyContractRejection(
+              {
+                ...contract,
+                sourceType: 'generated' as const,
+              },
+              await loadContractRejection(contract.id)
+            )
+          )
+        )
+      : [];
+
+    return [...activeTemplateOptions, ...generatedContracts];
   },
 
   async generatePdf(id: string): Promise<GeneratedContract> {
@@ -246,7 +320,22 @@ export const contractService = {
     return response.data.data;
   },
 
-  async signPublic(token: string, data: { signerName: string; signerCpf: string; signerEmail?: string }): Promise<void> {
-    await api.post(`/contracts/public/${token}/sign`, data);
+  async signPublic(
+    token: string,
+    data: { signerName: string; signerCpf: string; signerEmail?: string }
+  ): Promise<ContractSignatureResult> {
+    const response = await api.post<{ success: boolean; data: ContractSignatureResult }>(
+      `/contracts/public/${token}/sign`,
+      data
+    );
+    return response.data.data;
+  },
+
+  async rejectPublic(token: string, reason?: string): Promise<GeneratedContract> {
+    const response = await api.post<{ success: boolean; data: GeneratedContract }>(
+      `/contracts/public/${token}/reject`,
+      { reason }
+    );
+    return response.data.data;
   },
 };

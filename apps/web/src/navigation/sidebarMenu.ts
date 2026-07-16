@@ -56,9 +56,9 @@ export const sidebarMenuItems: SidebarNavItem[] = [
         label: 'Operação do aluno',
         children: [
           {
-            id: 'consultas-alunos',
-            label: 'Consultar alunos',
-            path: '/consultas/alunos',
+            id: 'central-do-aluno',
+            label: 'Central do Aluno',
+            path: '/central-do-aluno',
             screenKey: 'students.consultation',
           },
           {
@@ -294,10 +294,10 @@ export const sidebarMenuItems: SidebarNavItem[] = [
 ];
 
 const attachedPermissionItemsByMenuId: Record<string, PermissionAttachedItem[]> = {
-  'consultas-alunos': [
+  'central-do-aluno': [
     {
       id: 'students-details',
-      label: 'Detalhes do aluno',
+      label: 'Ficha centralizada do aluno',
       screenKey: 'students.details',
     },
   ],
