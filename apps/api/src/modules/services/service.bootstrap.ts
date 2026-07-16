@@ -257,7 +257,9 @@ async function executeBootstrap(
   );
 
   const serviceIds = new Map<string, string>();
-  const optionIds = new Map<string, string>();
+  const optionIds = new Map(
+  existing.options.map((row) => [row.code, row.id])
+);
   const conflictedCodes = new Set<string>();
   const servicesToCreate: ServiceInsert[] = [];
   const optionsToCreate: OptionInsert[] = [];
