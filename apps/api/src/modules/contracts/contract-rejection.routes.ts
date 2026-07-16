@@ -3,7 +3,9 @@ import { Router, type NextFunction, type Request, type Response } from 'express'
 import { PrismaClient } from '@prisma/client';
 import { sendError, sendSuccess } from '@corrida/utils';
 import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js';
+import { studentAccessScopeService } from '../alunos/student-access-scope.service.js';
 import { studentContractService } from '../student-contracts/student-contract.service.js';
+import { contractPublicAccessService } from './contract-public-access.service.js';
 import {
   buildContractRejectionAuditDetails,
   buildContractRejectionClaimWhere,
@@ -22,6 +24,12 @@ const actorFromRequest = (req: Request) => ({
   userId: req.user?.userId,
   ipAddress: req.ip,
   userAgent: req.get('user-agent') || undefined,
+});
+
+const studentAccessContextFromRequest = (req: Request) => ({
+  professorId: (req as any).user?.professorId as string | undefined,
+  professorRole: (req as any).user?.professorRole as string | undefined,
+  companyContractId: (req as any).user?.contractId as string | undefined,
 });
 
 const loadRejection = async (contractId: string) => {
@@ -64,33 +72,12 @@ router.post('/public/:token/reject', async (req: Request, res: Response) => {
     }
 
     if (contract.publicTokenExpiresAt && contract.publicTokenExpiresAt < new Date()) {
-      const expiredAt = new Date();
-      await prisma.$transaction(async (tx) => {
-        const expired = await tx.contract.updateMany({
-          where: {
-            id: contract.id,
-            publicTokenHash: tokenDigest,
-            status: { notIn: ['SIGNED', 'CANCELLED', 'EXPIRED'] },
-            publicTokenExpiresAt: { lt: expiredAt },
-          },
-          data: {
-            status: 'EXPIRED',
-            publicTokenHash: null,
-            publicTokenExpiresAt: null,
-          },
-        });
-
-        if (expired.count !== 1) {
-          throw new Error('Link inválido ou já utilizado');
-        }
-
-        await studentContractService.setStatusByGeneratedContractId(
-          contract.id,
-          'expired',
-          { endDate: expiredAt },
-          tx
-        );
-      });
+      await contractPublicAccessService.open(
+        req.params.token,
+        actorFromRequest(req),
+        prisma,
+        new Date()
+      );
       return sendError(res, 'Link expirado', 400);
     }
 
@@ -181,12 +168,18 @@ router.get(
           id: req.params.contractDocumentId,
           companyContractId,
         },
-        select: { id: true },
+        select: { id: true, alunoId: true },
       });
 
       if (!contract) {
         return sendError(res, 'Contrato não encontrado', 404);
       }
+
+      await studentAccessScopeService.assertAlunoAccess(
+        contract.alunoId,
+        studentAccessContextFromRequest(req),
+        prisma
+      );
 
       const rejection = await loadRejection(contract.id);
       return sendSuccess(
@@ -197,7 +190,8 @@ router.get(
         'Situação de recusa recuperada com sucesso'
       );
     } catch (error: any) {
-      return sendError(res, error.message || 'Erro ao consultar recusa do contrato', 500);
+      const status = error?.message?.includes('fora do escopo') ? 404 : 500;
+      return sendError(res, error.message || 'Erro ao consultar recusa do contrato', status);
     }
   }
 );
@@ -218,12 +212,18 @@ router.post(
           id: req.params.contractDocumentId,
           companyContractId,
         },
-        select: { id: true },
+        select: { id: true, alunoId: true },
       });
 
       if (!contract) {
         return sendError(res, 'Contrato não encontrado', 404);
       }
+
+      await studentAccessScopeService.assertAlunoAccess(
+        contract.alunoId,
+        studentAccessContextFromRequest(req),
+        prisma
+      );
 
       const rejection = await loadRejection(contract.id);
       if (rejection) {
@@ -236,7 +236,8 @@ router.post(
 
       return next();
     } catch (error: any) {
-      return sendError(res, error.message || 'Erro ao validar envio do contrato', 500);
+      const status = error?.message?.includes('fora do escopo') ? 404 : 500;
+      return sendError(res, error.message || 'Erro ao validar envio do contrato', status);
     }
   }
 );

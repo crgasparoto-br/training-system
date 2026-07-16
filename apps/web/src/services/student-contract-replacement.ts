@@ -1,6 +1,3 @@
-export const LEGACY_CONTRACT_REPLACEMENT_CONFIRM_MESSAGE =
-  'Este aluno já possui um contrato ativo. Ao ativar um novo contrato, o anterior será encerrado.';
-
 export type StudentContractReplacementInput = {
   activeContractId?: string | null;
   selectedContractId?: string | null;
@@ -34,8 +31,3 @@ export const resolveStudentContractReplacement = ({
     canProceed: !required || confirmed,
   };
 };
-
-export const shouldBypassLegacyContractReplacementConfirm = (
-  message: unknown,
-  replacementConfirmed: boolean
-) => replacementConfirmed && message === LEGACY_CONTRACT_REPLACEMENT_CONFIRM_MESSAGE;
