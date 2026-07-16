@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import type { PrismaClient } from '@prisma/client';
 import {
   SERVICE_CATALOG_BOOTSTRAP_TRANSACTION_MAX_WAIT_MS,
@@ -11,18 +9,6 @@ import {
   SERVICE_CATALOG_BOOTSTRAP_UNAVAILABLE_MESSAGE,
   ServiceCatalogBootstrapUnavailableError,
 } from '../src/modules/services/service.bootstrap-errors.js';
-
-function printSourceExport(marker: string, relativePath: string) {
-  const source = readFileSync(resolve(process.cwd(), relativePath), 'utf8');
-  const encoded = Buffer.from(source, 'utf8').toString('base64');
-  const chunks = encoded.match(/.{1,8000}/g) ?? [];
-
-  console.log(`SOURCE_EXPORT_${marker}_START`);
-  for (const chunk of chunks) console.log(chunk);
-  console.log(`SOURCE_EXPORT_${marker}_END`);
-
-  return source;
-}
 
 describe('service catalog bootstrap transaction configuration', () => {
   it('passes the named 10s/30s limits to the interactive transaction', async () => {
@@ -68,6 +54,26 @@ describe('service catalog bootstrap transaction configuration', () => {
     expect(transactionClient.$executeRaw).toHaveBeenCalledTimes(4);
   });
 
+  it('keeps dry-run outside a transaction and performs no writes', async () => {
+    const client = {
+      companyContract: {
+        findUnique: jest.fn().mockResolvedValue({ id: 'contract-1' }),
+      },
+      $queryRaw: jest.fn().mockResolvedValue([]),
+      $executeRaw: jest.fn().mockResolvedValue(1),
+      $transaction: jest.fn(),
+    };
+    const bootstrap = createServiceCatalogBootstrap(client as unknown as PrismaClient);
+
+    const result = await bootstrap('contract-1', true);
+
+    expect(result.dryRun).toBe(true);
+    expect(result.createdServices).toHaveLength(9);
+    expect(client.$transaction).not.toHaveBeenCalled();
+    expect(client.$queryRaw).toHaveBeenCalledTimes(4);
+    expect(client.$executeRaw).not.toHaveBeenCalled();
+  });
+
   it('translates transaction unavailability without exposing Prisma details', async () => {
     const technicalError = Object.assign(
       new Error('Transaction API error: Transaction not found for internal id tx-secret'),
@@ -88,24 +94,5 @@ describe('service catalog bootstrap transaction configuration', () => {
     await expect(bootstrap('contract-1', false)).rejects.toBeInstanceOf(
       ServiceCatalogBootstrapUnavailableError
     );
-  });
-
-  it('exports the current catalog sources for the issue 242 maintenance pass', () => {
-    const bootstrapSource = printSourceExport(
-      'BOOTSTRAP',
-      'src/modules/services/service.bootstrap.ts'
-    );
-    const routesSource = printSourceExport(
-      'ROUTES_BASE',
-      'src/modules/services/service.routes-base.ts'
-    );
-    const scenariosSource = printSourceExport(
-      'SCENARIOS',
-      'tests/service-catalog-bootstrap.integration.scenarios.ts'
-    );
-
-    expect(bootstrapSource).toContain('const prisma = new PrismaClient();');
-    expect(routesSource).toContain("router.post('/catalog/bootstrap'");
-    expect(scenariosSource).toContain('service catalog bootstrap integration');
   });
 });
