@@ -27,7 +27,15 @@ jobs:
         shell: bash
         run: |
           set +e
-          pnpm validate > /tmp/issue-239-validation.log 2>&1
-          status=$?
-          tail -n 200 /tmp/issue-239-validation.log
-          exit $status
+          pnpm validate > issue-239-validation.log 2>&1
+          echo $? > issue-239-validation.status
+          exit 0
+      - name: Upload validation log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-239-validation-log
+          path: issue-239-validation.log
+      - name: Enforce validation result
+        shell: bash
+        run: exit "$(cat issue-239-validation.status)"
