@@ -40,7 +40,7 @@ const preservedAnamnesisFields = [
 
 describe('AlunoForm assessment boundary', () => {
   it.each(assessmentIdentifiers)('does not keep assessment identifier %s in the registration form', (identifier) => {
-    expect(source).not.toMatch(new RegExp(`\b${identifier}\b`));
+    expect(source).not.toMatch(new RegExp(String.raw`\b${identifier}\b`));
   });
 
   it.each(removedHeadings)('does not render removed assessment section %s', (heading) => {
