@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { Prisma, PrismaClient } from '@prisma/client';
+import { Prisma, type PrismaClient } from '@prisma/client';
 import type { ServiceCatalogBootstrapResult } from '@corrida/types';
 import {
   SERVICE_CATALOG_BOOTSTRAP_UNAVAILABLE_MESSAGE,
@@ -7,6 +7,7 @@ import {
   isServiceCatalogTransactionUnavailable,
 } from './service.bootstrap-errors.js';
 import { ACESSO_2026_CATALOG } from './service.reference.js';
+import { serviceCatalogPrismaClient } from './service.service-base.js';
 
 export const SERVICE_CATALOG_BOOTSTRAP_TRANSACTION_MAX_WAIT_MS = 10_000;
 export const SERVICE_CATALOG_BOOTSTRAP_TRANSACTION_TIMEOUT_MS = 30_000;
@@ -15,7 +16,6 @@ export const SERVICE_CATALOG_BOOTSTRAP_TRANSACTION_OPTIONS = {
   timeout: SERVICE_CATALOG_BOOTSTRAP_TRANSACTION_TIMEOUT_MS,
 } as const;
 
-const prisma = new PrismaClient();
 
 type DbClient = PrismaClient | Prisma.TransactionClient;
 
@@ -400,5 +400,5 @@ export function createServiceCatalogBootstrap(prismaClient: PrismaClient) {
   };
 }
 
-export const bootstrapReferenceCatalog = createServiceCatalogBootstrap(prisma);
+export const bootstrapReferenceCatalog = createServiceCatalogBootstrap(serviceCatalogPrismaClient);
 export { SERVICE_CATALOG_BOOTSTRAP_UNAVAILABLE_MESSAGE };

@@ -57,20 +57,6 @@ router.get('/catalog/:id', ...catalogReadAccess, async (req: Request, res: Respo
   }
 });
 
-router.post('/catalog/bootstrap', ...catalogWriteAccess, async (req: Request, res: Response) => {
-  try {
-    const dryRun = req.body?.dryRun === true;
-    const result = await serviceCatalogService.bootstrapReferenceCatalog(getContractId(req), dryRun);
-    return sendSuccess(
-      res,
-      result,
-      dryRun ? 'Simulação da carga concluída' : 'Catálogo ACESSO 2026 carregado com sucesso'
-    );
-  } catch (error) {
-    return handleRouteError(res, error, 'Erro ao carregar catálogo de referência');
-  }
-});
-
 router.post('/catalog', ...catalogWriteAccess, async (req: Request, res: Response) => {
   try {
     const payload = CreateCatalogServiceSchema.parse(req.body);

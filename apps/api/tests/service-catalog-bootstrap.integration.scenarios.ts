@@ -96,6 +96,50 @@ describeDatabase('service catalog reference bootstrap with PostgreSQL', () => {
     });
   });
 
+  it('supports dry-run followed by the real load and a post-success dry-run', async () => {
+    const projected = await serviceCatalogService.bootstrapReferenceCatalog(
+      contractIds.dryRun,
+      true
+    );
+
+    expect(projected.dryRun).toBe(true);
+    expect(projected.createdServices).toHaveLength(9);
+    await expect(countCatalogRows(contractIds.dryRun)).resolves.toEqual({
+      services: 0,
+      options: 0,
+      presentationItems: 0,
+      components: 0,
+    });
+
+    const applied = await serviceCatalogService.bootstrapReferenceCatalog(
+      contractIds.dryRun,
+      false
+    );
+    const persistedCounts = await countCatalogRows(contractIds.dryRun);
+
+    expect(applied.dryRun).toBe(false);
+    expect(applied.createdServices).toHaveLength(9);
+    expect(persistedCounts).toEqual({
+      services: 9,
+      options: applied.createdOptions.length,
+      presentationItems: applied.createdPresentationItems,
+      components: applied.createdComponents,
+    });
+
+    const verified = await serviceCatalogService.bootstrapReferenceCatalog(
+      contractIds.dryRun,
+      true
+    );
+
+    expect(verified.dryRun).toBe(true);
+    expect(verified.createdServices).toEqual([]);
+    expect(verified.createdOptions).toEqual([]);
+    expect(verified.createdPresentationItems).toBe(0);
+    expect(verified.createdComponents).toBe(0);
+    expect(verified.preservedServices).toHaveLength(9);
+    await expect(countCatalogRows(contractIds.dryRun)).resolves.toEqual(persistedCounts);
+  });
+
   it('is idempotent and preserves customized fields and positions', async () => {
     await serviceCatalogService.bootstrapReferenceCatalog(contractIds.first, false);
     const initialCounts = await countCatalogRows(contractIds.first);
