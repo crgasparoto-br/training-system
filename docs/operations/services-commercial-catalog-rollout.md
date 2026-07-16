@@ -13,7 +13,7 @@ Aplicar o catálogo estruturado da épica #210 por contrato sem interromper o ca
 5. Revisar conflitos e a quantidade de registros projetados.
 6. Executar a carga real somente após a revisão.
 7. Validar o catálogo, o Serviço de Interesse e os vínculos contratuais.
-8. Repetir a simulação para comprovar idempotência e registrar a evidência na issue ou PR.
+8. Repetir a simulação depois da carga real para comprovar idempotência e registrar a evidência na issue ou PR.
 
 A API nova depende das tabelas e colunas da migration. O comando de produção da API executa `prisma migrate deploy` antes de iniciar o servidor, evitando que uma versão nova consulte um schema antigo.
 
@@ -45,7 +45,7 @@ A simulação informa:
 - serviços preservados;
 - conflitos que exigem revisão manual.
 
-Registre a saída completa da simulação. Conflitos não devem ser corrigidos por edição direta no banco; alinhe o código estável e o nome na aplicação antes da carga real.
+A simulação não abre transação interativa e não persiste registros. Registre a saída completa. Conflitos não devem ser corrigidos por edição direta no banco; alinhe o código estável e o nome na aplicação antes da carga real.
 
 ## Comando com gravação
 
@@ -60,7 +60,13 @@ A carga é incremental e idempotente por códigos estáveis:
 - não duplica serviço, opção, item textual ou componente reconhecido;
 - registra divergências de nome como conflito em vez de corrigi-las silenciosamente.
 
-Depois da carga, repita o comando com `--dry-run`. O resultado esperado é ausência de novas criações, exceto quando houver alteração intencional no catálogo de referência.
+Todas as gravações de um contrato são executadas em uma única transação. A operação pode aguardar até 10 segundos para obter a transação e possui limite de execução de 30 segundos. Se a transação expirar, perder a conexão ou não puder ser iniciada, nenhuma alteração da execução é mantida e a API retorna HTTP `503` com a mensagem operacional:
+
+> Não foi possível concluir a carga agora. Nenhuma alteração foi salva. Tente novamente.
+
+No comando de rollout, a mesma condição encerra o processo com código diferente de zero e não registra conclusão. Confirme a disponibilidade do banco e repita primeiro a simulação; não interprete a falha como sucesso parcial.
+
+Depois de uma carga real bem-sucedida, repita obrigatoriamente o comando com `--dry-run`. O resultado esperado é ausência de novas criações, exceto quando houver alteração intencional no catálogo de referência.
 
 ## Auditoria de impacto antes de mudanças sensíveis
 
