@@ -5,7 +5,6 @@ import type {
   CreatePlanComponentRequest,
   CreatePresentationItemRequest,
   CreateServiceRequest,
-  ServiceCatalogBootstrapResult,
   ServiceCatalogDetail,
   ServiceCatalogSummary,
   ServiceCategory,
@@ -29,9 +28,8 @@ import {
   resolveCommercialState,
   wouldCreateServiceCycle,
 } from './service.domain.js';
-import { ACESSO_2026_CATALOG } from './service.reference.js';
-
-const prisma = new PrismaClient();
+export const serviceCatalogPrismaClient = new PrismaClient();
+const prisma = serviceCatalogPrismaClient;
 
 type DbClient = PrismaClient | Prisma.TransactionClient;
 
@@ -246,19 +244,6 @@ async function getServiceRow(contractId: string, serviceId: string, client: DbCl
   const item = rows[0];
   if (!item) throw new Error('Serviço não encontrado');
   return item;
-}
-
-async function getServiceRowByCode(contractId: string, code: string, client: DbClient = prisma) {
-  const rows = await client.$queryRaw<ServiceRow[]>(Prisma.sql`
-    SELECT
-      "id", "contractId", "name", "code", "description", "isActive", "isSystem",
-      "category", "summary", "whatIs", "targetAudience", "displayOrder", "origin",
-      "createdAt", "updatedAt"
-    FROM "ServiceOption"
-    WHERE "contractId" = ${contractId} AND "code" = ${code} AND "parentServiceId" IS NULL
-    LIMIT 1
-  `);
-  return rows[0] ?? null;
 }
 
 async function listOptionRows(contractId: string, serviceId?: string, client: DbClient = prisma) {
@@ -945,160 +930,5 @@ export const serviceCatalogService = {
       ...data,
       whatIs: data.whatIs === undefined ? data.description : data.whatIs,
     });
-  },
-
-  async bootstrapReferenceCatalog(contractId: string, dryRun = false): Promise<ServiceCatalogBootstrapResult> {
-    const contract = await prisma.companyContract.findUnique({ where: { id: contractId }, select: { id: true } });
-    if (!contract) throw new Error('Contrato não encontrado');
-
-    const result: ServiceCatalogBootstrapResult = {
-      contractId,
-      dryRun,
-      createdServices: [],
-      createdOptions: [],
-      createdPresentationItems: 0,
-      createdComponents: 0,
-      preservedServices: [],
-      conflicts: [],
-    };
-
-    const execute = async (client: DbClient) => {
-      const serviceIds = new Map<string, string>();
-      const conflictedCodes = new Set<string>();
-
-      for (const reference of ACESSO_2026_CATALOG) {
-        let service = await getServiceRowByCode(contractId, reference.code, client);
-        if (service) {
-          result.preservedServices.push(reference.code);
-          if (normalizeName(service.name) !== normalizeName(reference.name)) {
-            result.conflicts.push({
-              code: reference.code,
-              message: `O código já existe com o nome “${service.name}”. Revise antes de alinhar ao material ACESSO 2026.`,
-            });
-            conflictedCodes.add(reference.code);
-          }
-        } else {
-          result.createdServices.push(reference.code);
-          if (!dryRun) {
-            const id = randomUUID();
-            await client.$executeRaw(Prisma.sql`
-              INSERT INTO "ServiceOption" (
-                "id", "contractId", "name", "code", "description", "parentServiceId", "monthlyPrice",
-                "validFrom", "validUntil", "isActive", "isSystem", "category", "summary", "whatIs",
-                "targetAudience", "displayOrder", "origin", "createdAt", "updatedAt"
-              ) VALUES (
-                ${id}, ${contractId}, ${reference.name}, ${reference.code}, ${reference.whatIs ?? null}, NULL, NULL,
-                NULL, NULL, true, true, ${reference.category}, ${reference.summary}, ${reference.whatIs ?? null},
-                ${reference.targetAudience ?? null}, ${reference.order}, 'acesso_2026', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-              )
-            `);
-            service = await getServiceRow(contractId, id, client);
-          }
-        }
-
-        if (service) serviceIds.set(reference.code, service.id);
-      }
-
-      for (const reference of ACESSO_2026_CATALOG) {
-        if (conflictedCodes.has(reference.code)) continue;
-        const serviceId = serviceIds.get(reference.code);
-        if (!serviceId && dryRun) {
-          result.createdOptions.push(...reference.options.map((option) => option.code));
-          result.createdPresentationItems += reference.presentationItems.length;
-          result.createdComponents += reference.componentOptionCodes?.length ?? 0;
-          continue;
-        }
-        if (!serviceId) continue;
-
-        for (const option of reference.options) {
-          const existingRows = await client.$queryRaw<Array<{ id: string }>>(Prisma.sql`
-            SELECT "id" FROM "ServiceCommercialOption"
-            WHERE "contractId" = ${contractId} AND "code" = ${option.code}
-            LIMIT 1
-          `);
-          if (existingRows.length === 0) {
-            result.createdOptions.push(option.code);
-            if (!dryRun) {
-              await client.$executeRaw(Prisma.sql`
-                INSERT INTO "ServiceCommercialOption" (
-                  "id", "contractId", "serviceId", "code", "name", "frequency", "quantity", "unit",
-                  "priceType", "priceAmount", "isActive", "displayOrder", "origin", "createdAt", "updatedAt"
-                ) VALUES (
-                  ${randomUUID()}, ${contractId}, ${serviceId}, ${option.code}, ${option.name},
-                  ${option.frequency ?? null}, ${option.quantity ?? null}, ${option.unit ?? null},
-                  ${option.priceType}, ${option.priceType === 'fixed' ? option.priceAmount ?? null : null},
-                  true, ${option.order}, 'acesso_2026', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-              `);
-            }
-          }
-        }
-
-        for (const [index, text] of reference.presentationItems.entries()) {
-          const existingRows = await client.$queryRaw<Array<{ id: string }>>(Prisma.sql`
-            SELECT "id" FROM "ServicePresentationItem"
-            WHERE "contractId" = ${contractId} AND "serviceId" = ${serviceId} AND "text" = ${text}
-            LIMIT 1
-          `);
-          if (existingRows.length === 0) {
-            result.createdPresentationItems += 1;
-            if (!dryRun) {
-              await client.$executeRaw(Prisma.sql`
-                INSERT INTO "ServicePresentationItem" (
-                  "id", "contractId", "serviceId", "text", "isActive", "displayOrder", "origin", "createdAt", "updatedAt"
-                ) VALUES (
-                  ${randomUUID()}, ${contractId}, ${serviceId}, ${text}, true, ${index}, 'acesso_2026',
-                  CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-              `);
-            }
-          }
-        }
-      }
-
-      for (const reference of ACESSO_2026_CATALOG) {
-        if (!reference.componentOptionCodes || conflictedCodes.has(reference.code)) continue;
-        const planServiceId = serviceIds.get(reference.code);
-        if (!planServiceId) continue;
-
-        for (const [index, optionCode] of reference.componentOptionCodes.entries()) {
-          const optionRows = await client.$queryRaw<Array<{ id: string }>>(Prisma.sql`
-            SELECT "id" FROM "ServiceCommercialOption"
-            WHERE "contractId" = ${contractId} AND "code" = ${optionCode}
-            LIMIT 1
-          `);
-          const optionId = optionRows[0]?.id;
-          if (!optionId) continue;
-          const existingRows = await client.$queryRaw<Array<{ id: string }>>(Prisma.sql`
-            SELECT "id" FROM "ServicePlanComponent"
-            WHERE "contractId" = ${contractId} AND "planServiceId" = ${planServiceId}
-              AND "targetOptionId" = ${optionId}
-            LIMIT 1
-          `);
-          if (existingRows.length === 0) {
-            result.createdComponents += 1;
-            if (!dryRun) {
-              await client.$executeRaw(Prisma.sql`
-                INSERT INTO "ServicePlanComponent" (
-                  "id", "contractId", "planServiceId", "targetOptionId", "isActive", "displayOrder", "origin",
-                  "createdAt", "updatedAt"
-                ) VALUES (
-                  ${randomUUID()}, ${contractId}, ${planServiceId}, ${optionId}, true, ${index}, 'acesso_2026',
-                  CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                )
-              `);
-            }
-          }
-        }
-      }
-    };
-
-    if (dryRun) {
-      await execute(prisma);
-    } else {
-      await prisma.$transaction(async (tx) => execute(tx));
-    }
-
-    return result;
   },
 };
