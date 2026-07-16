@@ -135,8 +135,8 @@ Garantir consistência transacional e uma única fonte de verdade para serviço 
 
 ## Validação final
 
-- Workflow: **Validate PR #1672**.
-- Commit auditado: `140adb100ff6c48eedbaaca3e567eb85323704de`.
+A implementação foi validada no código do commit `140adb100ff6c48eedbaaca3e567eb85323704de` pelo workflow **Validate PR #1672** e revalidada, após o registro documental, no commit `b0df563c971a1cbd7bcf15a7654645440146f925` pelo workflow **Validate PR #1674**.
+
 - Migrations PostgreSQL: aprovadas.
 - Type-check: aprovado.
 - Lint: aprovado.
