@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - fix/239-remove-assessment-from-student-form
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: write
