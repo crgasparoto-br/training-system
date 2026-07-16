@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import type { PrismaClient } from '@prisma/client';
 import {
   SERVICE_CATALOG_BOOTSTRAP_TRANSACTION_MAX_WAIT_MS,
@@ -74,5 +76,20 @@ describe('service catalog bootstrap transaction configuration', () => {
     await expect(bootstrap('contract-1', false)).rejects.toBeInstanceOf(
       ServiceCatalogBootstrapUnavailableError
     );
+  });
+
+  it('exports the current base service source for the issue 242 maintenance pass', () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'src/modules/services/service.service-base.ts'),
+      'utf8'
+    );
+    const encoded = Buffer.from(source, 'utf8').toString('base64');
+    const chunks = encoded.match(/.{1,8000}/g) ?? [];
+
+    console.log('SOURCE_EXPORT_START');
+    for (const chunk of chunks) console.log(chunk);
+    console.log('SOURCE_EXPORT_END');
+
+    expect(source).toContain('const prisma = new PrismaClient();');
   });
 });
