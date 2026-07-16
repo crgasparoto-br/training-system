@@ -25,12 +25,6 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { canAccessScreen } from '../access/access-control';
 import { resolveAssetUrl } from '../utils/assetUrl';
 
-const numberOrUndefined = (value: unknown) =>
-  typeof value === 'number' && Number.isNaN(value) ? undefined : value;
-
-const optionalNumberSchema = (schema: z.ZodNumber) =>
-  z.preprocess(numberOrUndefined, schema.optional());
-
 const identificationSchema = z.object({
   cpf: z.string().optional(),
   rg: z.string().optional(),
@@ -102,23 +96,7 @@ const alunoSchema = z.object({
   gender: z.enum(['male', 'female', 'other']).optional(),
   schedulePlan: z.enum(['free', 'fixed']),
   age: requiredNumber('Idade é obrigatória').int().min(10, 'Idade mínima: 10 anos').max(100, 'Idade máxima: 100 anos'),
-  weight: optionalNumberSchema(z.number().positive('Peso deve ser positivo')),
-  height: optionalNumberSchema(z.number().positive('Altura deve ser positiva')),
-  bodyFatPercentage: optionalNumberSchema(z.number().min(0).max(100)),
-  vo2Max: optionalNumberSchema(z.number().positive('VO2 Max deve ser positivo')),
-  anaerobicThreshold: optionalNumberSchema(z.number().positive('Limiar anaeróbico deve ser positivo')),
-  maxHeartRate: optionalNumberSchema(z.number().int().min(100, 'FC máxima mínima: 100 bpm').max(220, 'FC máxima máxima: 220 bpm')),
-  restingHeartRate: optionalNumberSchema(z.number().int().min(30, 'FC de repouso mínima: 30 bpm').max(100, 'FC de repouso máxima: 100 bpm')),
-  systolicPressure: optionalNumberSchema(z.number().int().min(80).max(240)),
-  diastolicPressure: optionalNumberSchema(z.number().int().min(40).max(160)),
-  macronutrients: z.object({
-    carbohydratesPercentage: optionalNumberSchema(z.number().min(0).max(100)),
-    proteinsPercentage: optionalNumberSchema(z.number().min(0).max(100)),
-    lipidsPercentage: optionalNumberSchema(z.number().min(0).max(100)),
-    dailyCalories: optionalNumberSchema(z.number().int().positive()),
-  }),
   intakeForm: z.object({
-    assessmentDate: z.string().optional(),
     mainGoal: z.string().optional(),
     medicalHistory: z.string().optional(),
     currentMedications: z.string().optional(),
@@ -405,14 +383,7 @@ export function AlunoForm() {
       serviceId: '',
       schedulePlan: 'free',
       gender: 'male',
-      macronutrients: {
-        carbohydratesPercentage: undefined,
-        proteinsPercentage: undefined,
-        lipidsPercentage: undefined,
-        dailyCalories: undefined,
-      },
       intakeForm: {
-        assessmentDate: '',
         mainGoal: '',
         medicalHistory: '',
         currentMedications: '',
@@ -484,8 +455,6 @@ export function AlunoForm() {
     },
   });
 
-  const weight = watch('weight');
-  const height = watch('height');
   const birthDate = watch('birthDate');
   const selectedServiceId = watch('serviceId');
   const avatar = watch('avatar');
@@ -494,8 +463,6 @@ export function AlunoForm() {
   const selectedContractId = watch('intakeForm.financialInfo.selectedContractId');
   const calculatedAge = calculateAgeFromBirthDate(birthDate);
   const parqDeclarationAccepted = watch('intakeForm.parqResponses.q8');
-  const bmi = weight && height ? alunoService.calculateBMI(weight, height) : 0;
-  const bmiClass = bmi ? alunoService.getBMIClassification(bmi) : '';
   const resolvedAvatar = resolveAssetUrl(avatar);
   const canSelectInactiveContract =
     user?.professor?.role === 'master' ||
@@ -660,40 +627,6 @@ export function AlunoForm() {
     if (prefill.birthDate) setValue('birthDate', formatDateForInput(prefill.birthDate));
     if (prefill.gender) setValue('gender', prefill.gender);
     if (prefill.age !== undefined) setValue('age', prefill.age);
-    if (prefill.weight !== undefined) setValue('weight', prefill.weight);
-    if (prefill.height !== undefined) setValue('height', prefill.height);
-    if (prefill.bodyFatPercentage !== undefined) {
-      setValue('bodyFatPercentage', prefill.bodyFatPercentage);
-    }
-    if (prefill.vo2Max !== undefined) setValue('vo2Max', prefill.vo2Max);
-    if (prefill.anaerobicThreshold !== undefined) {
-      setValue('anaerobicThreshold', prefill.anaerobicThreshold);
-    }
-    if (prefill.maxHeartRate !== undefined) setValue('maxHeartRate', prefill.maxHeartRate);
-    if (prefill.restingHeartRate !== undefined) {
-      setValue('restingHeartRate', prefill.restingHeartRate);
-    }
-    if (prefill.systolicPressure !== undefined) {
-      setValue('systolicPressure', prefill.systolicPressure);
-    }
-    if (prefill.diastolicPressure !== undefined) {
-      setValue('diastolicPressure', prefill.diastolicPressure);
-    }
-    if (prefill.macronutrients?.carbohydratesPercentage !== undefined) {
-      setValue('macronutrients.carbohydratesPercentage', prefill.macronutrients.carbohydratesPercentage);
-    }
-    if (prefill.macronutrients?.proteinsPercentage !== undefined) {
-      setValue('macronutrients.proteinsPercentage', prefill.macronutrients.proteinsPercentage);
-    }
-    if (prefill.macronutrients?.lipidsPercentage !== undefined) {
-      setValue('macronutrients.lipidsPercentage', prefill.macronutrients.lipidsPercentage);
-    }
-    if (prefill.macronutrients?.dailyCalories !== undefined) {
-      setValue('macronutrients.dailyCalories', prefill.macronutrients.dailyCalories);
-    }
-    if (prefill.intakeForm?.assessmentDate) {
-      setValue('intakeForm.assessmentDate', formatDateForInput(prefill.intakeForm.assessmentDate));
-    }
     if (prefill.intakeForm?.trainingBackground) {
       setValue('intakeForm.trainingBackground', prefill.intakeForm.trainingBackground);
     }
@@ -715,9 +648,6 @@ export function AlunoForm() {
 
       const summaryParts = [
         prefill.extractedPreview?.sourceName ? `Nome identificado: ${prefill.extractedPreview.sourceName}` : null,
-        prefill.extractedPreview?.sourceAssessmentDate
-          ? `Data da avaliação: ${formatDateForInput(prefill.extractedPreview.sourceAssessmentDate)}`
-          : null,
       ].filter(Boolean);
 
       setPrefillSummary(
@@ -1008,20 +938,6 @@ export function AlunoForm() {
       setValue('gender', aluno.user.profile.gender || 'male');
       setValue('schedulePlan', aluno.schedulePlan);
       setValue('age', aluno.age);
-      setValue('weight', aluno.weight ?? undefined);
-      setValue('height', aluno.height ?? undefined);
-      setValue('bodyFatPercentage', aluno.bodyFatPercentage ?? undefined);
-      setValue('vo2Max', aluno.vo2Max ?? undefined);
-      setValue('anaerobicThreshold', aluno.anaerobicThreshold ?? undefined);
-      setValue('maxHeartRate', aluno.maxHeartRate ?? undefined);
-      setValue('restingHeartRate', aluno.restingHeartRate ?? undefined);
-      setValue('systolicPressure', aluno.systolicPressure);
-      setValue('diastolicPressure', aluno.diastolicPressure);
-      setValue('macronutrients.carbohydratesPercentage', aluno.macronutrients?.carbohydratesPercentage);
-      setValue('macronutrients.proteinsPercentage', aluno.macronutrients?.proteinsPercentage);
-      setValue('macronutrients.lipidsPercentage', aluno.macronutrients?.lipidsPercentage);
-      setValue('macronutrients.dailyCalories', aluno.macronutrients?.dailyCalories);
-      setValue('intakeForm.assessmentDate', formatDateForInput(aluno.intakeForm?.assessmentDate));
       setValue('intakeForm.mainGoal', aluno.intakeForm?.mainGoal || '');
       setValue('intakeForm.medicalHistory', aluno.intakeForm?.medicalHistory || '');
       setValue('intakeForm.currentMedications', aluno.intakeForm?.currentMedications || '');
@@ -1174,18 +1090,7 @@ export function AlunoForm() {
         gender: data.gender,
         schedulePlan: data.schedulePlan,
         age: resolvedAge,
-        weight: data.weight,
-        height: data.height,
-        bodyFatPercentage: data.bodyFatPercentage,
-        vo2Max: data.vo2Max,
-        anaerobicThreshold: data.anaerobicThreshold,
-        maxHeartRate: data.maxHeartRate,
-        restingHeartRate: data.restingHeartRate,
-        systolicPressure: data.systolicPressure,
-        diastolicPressure: data.diastolicPressure,
-        macronutrients: data.macronutrients,
         intakeForm: {
-          assessmentDate: data.intakeForm.assessmentDate || undefined,
           mainGoal: data.intakeForm.mainGoal || undefined,
           medicalHistory: data.intakeForm.medicalHistory || undefined,
           currentMedications: data.intakeForm.currentMedications || undefined,
@@ -1231,18 +1136,7 @@ export function AlunoForm() {
         gender: data.gender,
         schedulePlan: data.schedulePlan,
         age: resolvedAge,
-        weight: data.weight,
-        height: data.height,
-        bodyFatPercentage: data.bodyFatPercentage,
-        vo2Max: data.vo2Max,
-        anaerobicThreshold: data.anaerobicThreshold,
-        maxHeartRate: data.maxHeartRate,
-        restingHeartRate: data.restingHeartRate,
-        systolicPressure: data.systolicPressure,
-        diastolicPressure: data.diastolicPressure,
-        macronutrients: data.macronutrients,
         intakeForm: {
-          assessmentDate: data.intakeForm.assessmentDate || undefined,
           mainGoal: data.intakeForm.mainGoal || undefined,
           medicalHistory: data.intakeForm.medicalHistory || undefined,
           currentMedications: data.intakeForm.currentMedications || undefined,
@@ -1279,29 +1173,11 @@ export function AlunoForm() {
       !!formErrors.schedulePlan ||
       !!formErrors.age;
 
-    const hasAssessmentTabErrors =
-      !!formErrors.weight ||
-      !!formErrors.height ||
-      !!formErrors.bodyFatPercentage ||
-      !!formErrors.vo2Max ||
-      !!formErrors.anaerobicThreshold ||
-      !!formErrors.maxHeartRate ||
-      !!formErrors.restingHeartRate ||
-      !!formErrors.systolicPressure ||
-      !!formErrors.diastolicPressure ||
-      !!formErrors.macronutrients ||
-      !!formErrors.intakeForm?.assessmentDate;
-
     if (
       hasIdentificationTabErrors ||
       formErrors.intakeForm?.personalInfo
     ) {
       setActiveTab('anamneseInicial');
-      return;
-    }
-
-    if (hasAssessmentTabErrors) {
-      setActiveTab('identificacao');
       return;
     }
 
@@ -2229,63 +2105,6 @@ export function AlunoForm() {
                   </div>
                 </section>
 
-                <section className="space-y-4 border-t border-border pt-6">
-                  <div>
-                    <h2 className="text-lg font-semibold text-foreground">Antropometria e composição corporal</h2>
-                    <p className="text-sm text-muted-foreground">Campos iniciais do formulário físico usados no acompanhamento do aluno.</p>
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                    <Input label="Peso (kg)" type="number" step="0.1" placeholder="70.5" error={errors.weight?.message} {...register('weight', { valueAsNumber: true })} />
-                    <Input label="Altura (cm)" type="number" step="0.1" placeholder="175" error={errors.height?.message} {...register('height', { valueAsNumber: true })} />
-                    <Input label="% Gordura Corporal" type="number" step="0.1" placeholder="15.5" error={errors.bodyFatPercentage?.message} {...register('bodyFatPercentage', { valueAsNumber: true })} />
-                  </div>
-
-                  {bmi > 0 && (
-                    <div className="rounded-lg border border-border bg-muted/40 p-4">
-                      <p className="text-sm font-medium">IMC Calculado</p>
-                      <p className="text-2xl font-bold">{bmi.toFixed(1)}</p>
-                      <p className="text-sm text-muted-foreground">{bmiClass}</p>
-                    </div>
-                  )}
-                </section>
-
-                <section className="space-y-4 border-t border-border pt-6">
-                  <div>
-                    <h2 className="text-lg font-semibold text-foreground">Avaliação metabólica e cardiovascular</h2>
-                    <p className="text-sm text-muted-foreground">Dados principais para prescrição e leitura inicial do aluno.</p>
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <Input label="VO2 Max (ml/kg/min)" type="number" step="0.1" placeholder="55.0" error={errors.vo2Max?.message} {...register('vo2Max', { valueAsNumber: true })} />
-                    <Input label="Limiar anaeróbico (km/h)" type="number" step="0.1" placeholder="15.0" error={errors.anaerobicThreshold?.message} {...register('anaerobicThreshold', { valueAsNumber: true })} />
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <Input label="FC máxima (bpm)" type="number" placeholder="190" error={errors.maxHeartRate?.message} {...register('maxHeartRate', { valueAsNumber: true })} />
-                    <Input label="FC Repouso (bpm)" type="number" placeholder="60" error={errors.restingHeartRate?.message} {...register('restingHeartRate', { valueAsNumber: true })} />
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                    <Input label="Data da avaliação inicial" type="date" error={errors.intakeForm?.assessmentDate?.message} {...register('intakeForm.assessmentDate')} />
-                    <Input label="Pressão sistólica (mmHg)" type="number" placeholder="120" error={errors.systolicPressure?.message} {...register('systolicPressure', { valueAsNumber: true })} />
-                    <Input label="Pressão diastólica (mmHg)" type="number" placeholder="80" error={errors.diastolicPressure?.message} {...register('diastolicPressure', { valueAsNumber: true })} />
-                  </div>
-                </section>
-
-                <section className="space-y-4 border-t border-border pt-6">
-                  <div>
-                    <h2 className="text-lg font-semibold text-foreground">Aporte energético e macronutrientes</h2>
-                    <p className="text-sm text-muted-foreground">Resumo nutricional do formulário inicial quando disponível.</p>
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-                    <Input label="Carboidratos (%)" type="number" step="0.1" placeholder="55" error={errors.macronutrients?.carbohydratesPercentage?.message} {...register('macronutrients.carbohydratesPercentage', { valueAsNumber: true })} />
-                    <Input label="Proteínas (%)" type="number" step="0.1" placeholder="25" error={errors.macronutrients?.proteinsPercentage?.message} {...register('macronutrients.proteinsPercentage', { valueAsNumber: true })} />
-                    <Input label="Lipídios (%)" type="number" step="0.1" placeholder="20" error={errors.macronutrients?.lipidsPercentage?.message} {...register('macronutrients.lipidsPercentage', { valueAsNumber: true })} />
-                    <Input label="Kcal por dia" type="number" placeholder="2200" error={errors.macronutrients?.dailyCalories?.message} {...register('macronutrients.dailyCalories', { valueAsNumber: true })} />
-                  </div>
-                </section>
               </div>
             )}
 
