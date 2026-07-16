@@ -46,7 +46,7 @@ jobs:
           ref: fix/242-service-catalog-transaction-timeout
           fetch-depth: 0
 
-      - name: Apply issue 242 audit correction
+      - name: Normalize issue 242 audit correction
         if: github.actor != 'github-actions[bot]'
         run: |
           python - <<'PY'
@@ -54,21 +54,21 @@ jobs:
 
           path = Path('apps/api/src/modules/services/service.bootstrap.ts')
           source = path.read_text()
-          old = '  const optionIds = new Map<string, string>();'
-          new = """  const optionIds = new Map(
-            existing.options.map((row) => [row.code, row.id])
-          );"""
-          if old not in source:
-              if new in source:
-                  raise SystemExit(0)
+          wrong = "  const optionIds = new Map(\n  existing.options.map((row) => [row.code, row.id])\n);"
+          correct = "  const optionIds = new Map(\n    existing.options.map((row) => [row.code, row.id])\n  );"
+          if wrong in source:
+              path.write_text(source.replace(wrong, correct, 1))
+          elif correct not in source:
               raise SystemExit('Expected option map declaration was not found')
-          path.write_text(source.replace(old, new, 1))
           PY
           git diff --check
+          if git diff --quiet; then
+            exit 0
+          fi
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add apps/api/src/modules/services/service.bootstrap.ts
-          git commit -m "fix(api): preserve component targets on catalog conflict (#242)"
+          git commit -m "style(api): normalize catalog conflict map (#242)"
           git push origin HEAD:fix/242-service-catalog-transaction-timeout
 
       - name: Setup pnpm
