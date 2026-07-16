@@ -12,6 +12,18 @@ import {
   ServiceCatalogBootstrapUnavailableError,
 } from '../src/modules/services/service.bootstrap-errors.js';
 
+function printSourceExport(marker: string, relativePath: string) {
+  const source = readFileSync(resolve(process.cwd(), relativePath), 'utf8');
+  const encoded = Buffer.from(source, 'utf8').toString('base64');
+  const chunks = encoded.match(/.{1,8000}/g) ?? [];
+
+  console.log(`SOURCE_EXPORT_${marker}_START`);
+  for (const chunk of chunks) console.log(chunk);
+  console.log(`SOURCE_EXPORT_${marker}_END`);
+
+  return source;
+}
+
 describe('service catalog bootstrap transaction configuration', () => {
   it('passes the named 10s/30s limits to the interactive transaction', async () => {
     const transaction = jest.fn().mockResolvedValue(undefined);
@@ -78,18 +90,22 @@ describe('service catalog bootstrap transaction configuration', () => {
     );
   });
 
-  it('exports the current base service source for the issue 242 maintenance pass', () => {
-    const source = readFileSync(
-      resolve(process.cwd(), 'src/modules/services/service.service-base.ts'),
-      'utf8'
+  it('exports the current catalog sources for the issue 242 maintenance pass', () => {
+    const bootstrapSource = printSourceExport(
+      'BOOTSTRAP',
+      'src/modules/services/service.bootstrap.ts'
     );
-    const encoded = Buffer.from(source, 'utf8').toString('base64');
-    const chunks = encoded.match(/.{1,8000}/g) ?? [];
+    const routesSource = printSourceExport(
+      'ROUTES_BASE',
+      'src/modules/services/service.routes-base.ts'
+    );
+    const scenariosSource = printSourceExport(
+      'SCENARIOS',
+      'tests/service-catalog-bootstrap.integration.scenarios.ts'
+    );
 
-    console.log('SOURCE_EXPORT_START');
-    for (const chunk of chunks) console.log(chunk);
-    console.log('SOURCE_EXPORT_END');
-
-    expect(source).toContain('const prisma = new PrismaClient();');
+    expect(bootstrapSource).toContain('const prisma = new PrismaClient();');
+    expect(routesSource).toContain("router.post('/catalog/bootstrap'");
+    expect(scenariosSource).toContain('service catalog bootstrap integration');
   });
 });
