@@ -871,7 +871,7 @@ export function AlunoForm() {
 
     if (currentActive && currentActive.contractId !== selectedGeneratedContractId) {
       const confirmed = window.confirm(
-        'Este aluno já possui um contrato ativo. Ao ativar um novo contrato, o anterior será encerrado.'
+        'Este aluno já possui um contrato ativo. A ativação do novo contrato substituirá o vigente somente após a assinatura e a data efetiva definida, sem encerramento imediato.'
       );
 
       if (!confirmed) {
@@ -1858,7 +1858,7 @@ export function AlunoForm() {
 
                     {shouldWarnContractReplacement && (
                       <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                        Este aluno já possui um contrato ativo. Ao ativar um novo contrato, o anterior será encerrado.
+                        Este aluno já possui um contrato ativo. A ativação do novo contrato substituirá o vigente somente após a assinatura e a data efetiva definida, sem encerramento imediato.
                       </div>
                     )}
 
