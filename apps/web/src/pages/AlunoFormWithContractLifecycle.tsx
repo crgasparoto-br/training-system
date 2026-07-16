@@ -146,7 +146,7 @@ export function AlunoFormWithContractLifecycle() {
         if (
           text.startsWith('Contrato ativo atual:') ||
           text ===
-            'Este aluno já possui um contrato ativo. Ao ativar um novo contrato, o anterior será encerrado.'
+            'Este aluno já possui um contrato ativo. A ativação do novo contrato substituirá o vigente somente após a assinatura e a data efetiva definida, sem encerramento imediato.'
         ) {
           child.classList.add('hidden');
           hiddenElements.add(child);
