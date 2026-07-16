@@ -1,3 +1,5 @@
+export {};
+
 const prisma = {
   $transaction: jest.fn(),
   contractTemplate: { findFirst: jest.fn() },
