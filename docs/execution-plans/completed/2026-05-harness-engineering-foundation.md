@@ -1,4 +1,8 @@
-# Plano: harness engineering foundation
+# Plano concluido: harness engineering foundation
+
+## Status
+
+Concluido. Este registro foi movido de `execution-plans/active/` porque todas as entregas e criterios de aceite foram atendidos.
 
 ## Objetivo
 
@@ -6,7 +10,7 @@ Estruturar o repositorio para desenvolvimento agent-first, criando documentacao 
 
 ## Contexto
 
-Este plano aplica a logica de harness engineering ao Sistema Acesso. A meta e reduzir ambiguidade para humanos e agentes, aumentando validacao automatica antes de PR e deploy.
+Este plano aplicou a logica de harness engineering ao Sistema Acesso para reduzir ambiguidade para humanos e agentes e aumentar a validacao automatica antes de PR e deploy.
 
 ## Fora de escopo
 
@@ -36,7 +40,7 @@ Este plano aplica a logica de harness engineering ao Sistema Acesso. A meta e re
 - Scripts devem usar Node.js puro para evitar novas dependencias.
 - CI deve rodar em PR e push para branches principais.
 
-## Passos de implementacao
+## Entregas concluidas
 
 - [x] Criar `AGENTS.md` curto.
 - [x] Criar docs de arquitetura e produto.
@@ -46,7 +50,7 @@ Este plano aplica a logica de harness engineering ao Sistema Acesso. A meta e re
 - [x] Adicionar workflow de validacao de PR.
 - [x] Adicionar testes complementares de escopo de dados.
 
-## Criterios de aceite
+## Criterios de aceite atendidos
 
 - [x] `pnpm validate` existe no `package.json`.
 - [x] `pnpm arch:check`, `pnpm access:check` e `pnpm docs:check` existem.
@@ -56,20 +60,20 @@ Este plano aplica a logica de harness engineering ao Sistema Acesso. A meta e re
 
 ## Validacao manual
 
-Rodar localmente:
+Comandos definidos para validacao:
 
 ```bash
 pnpm install --frozen-lockfile
 pnpm validate
 ```
 
-Opcionalmente, com a API local ativa:
+Com a API local ativa:
 
 ```bash
 pnpm harness:smoke-api
 ```
 
-## Decisoes e pendencias
+## Decisoes preservadas
 
 - Guardrails iniciais sao intencionalmente conservadores para evitar falsos positivos em excesso.
-- Observabilidade e navegacao automatizada do frontend ficam para um proximo PR.
+- Observabilidade e navegacao automatizada do frontend permaneceram para evolucoes posteriores.
