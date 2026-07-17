@@ -5,13 +5,17 @@ const root = process.cwd();
 const requiredFiles = [
   'AGENTS.md',
   'ARCHITECTURE.md',
+  'docs/README.md',
   'docs/architecture/overview.md',
   'docs/architecture/api.md',
   'docs/architecture/web.md',
   'docs/architecture/database.md',
   'docs/architecture/auth-and-access-control.md',
   'docs/architecture/deployment.md',
+  'docs/product/roadmap.md',
   'docs/product/access-control.md',
+  'docs/product/integrated-prescription-control.md',
+  'docs/product/student-centered-training-experience.md',
   'docs/execution-plans/TEMPLATE.md',
   'docs/quality/validation.md',
 ];
