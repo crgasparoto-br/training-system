@@ -38,9 +38,12 @@ O roadmap consolida os requisitos extraidos das seguintes fontes:
 - `Modelo Avaliacao Fisica v.4.10.12`;
 - `Ideias e estruturacao - Professor`;
 - `ModeloTreinamento Combinado v.3.12.8`;
+- benchmark publico do Grit Run (`https://gritrun.io/`) para experiencia operacional de treinador e aluno;
 - issues, PRs, documentacao versionada e implementacao atual do `training-system`.
 
 As planilhas sao referencias de produto. Regras criticas somente passam a valer no sistema quando estiverem documentadas, implementadas em camada testavel, persistidas quando aplicavel e protegidas por permissao e `contractId`.
+
+O Grit Run e tratado somente como benchmark publico de experiencia e operacao. Nenhuma regra tecnica, formula, identidade visual ou comportamento nao comprovado deve ser copiado. As decisoes do Sistema ACESSO continuam subordinadas ao seu proprio prontuario, avaliacao, governanca, seguranca e validacao profissional.
 
 ## Niveis de maturidade
 
@@ -64,6 +67,11 @@ Uma issue fechada nao torna automaticamente o modulo `Implementado` ou `Validado
 - Feedback e regras sugerem decisoes, mas a validacao final e sempre do professor.
 - O aluno recebe linguagem pratica e segura; o professor recebe contexto tecnico e rastreabilidade.
 - Dados sensiveis exigem permissao, escopo efetivo, `contractId`, origem, data e responsavel.
+- A complexidade tecnica deve permanecer disponivel ao professor sem tornar a operacao diaria complexa.
+- O treinador deve conseguir trabalhar a partir de uma linha do tempo unica do aluno, sem navegar por varias telas para executar uma tarefa simples.
+- A experiencia do aluno deve ser centrada em `Treino de hoje`, calendario, execucao e feedback curto.
+- Zonas e intensidades relativas podem ser transformadas em alvos individuais somente quando houver metodologia, origem, versao e dados-base validos.
+- Operacoes em massa devem individualizar os dados por aluno, destacar excecoes e exigir revisao antes da publicacao.
 
 ## Estado funcional atual
 
@@ -85,7 +93,8 @@ Pendente:
 
 - regressao manual completa por perfil e escopo;
 - confirmacao da atualizacao imediata de todos os cards apos alteracoes;
-- verificacao de preservacao do aluno selecionado em todos os fluxos.
+- verificacao de preservacao do aluno selecionado em todos os fluxos;
+- linha do tempo operacional unificando treinos, execucoes, feedbacks, reavaliacoes e eventos relevantes.
 
 ### 2. Cadastro, servicos, contratos e vinculos
 
@@ -97,7 +106,9 @@ Existem cadastros de alunos e colaboradores, catalogo comercial, contratos, func
 - separacao definitiva entre cadastro e dados de avaliacao;
 - resumos administrativos consistentes na Central;
 - historico e autoridade unica para servico e contrato vigente;
-- validacao completa dos fluxos administrativos e financeiros.
+- validacao completa dos fluxos administrativos e financeiros;
+- modelos versionados de questionarios iniciais, revisoes periodicas, retorno apos afastamento e prontidao para exercicio;
+- carteira de alunos por profissional, substituicao e acesso temporario conforme permissao.
 
 ### 3. PRNT
 
@@ -120,7 +131,8 @@ Pendente:
 - historicos proprios de medicamentos, cirurgias, restricoes e observacoes categorizadas;
 - agenda e rotina semanal dentro do contexto do PRNT;
 - garantia de todos os eventos no historico unificado;
-- testes completos de permissao e isolamento por contrato.
+- testes completos de permissao e isolamento por contrato;
+- receber respostas de questionarios versionados como eventos rastreaveis, sem sobrescrever historico.
 
 ### 4. Avaliacao Fisica
 
@@ -167,6 +179,15 @@ O sistema preserva planos, templates, dias, exercicios, biblioteca, Workout Buil
 
 As 15 abas do `ModeloTreinamento Combinado v.3.12.8` permanecem mapeadas como fontes para migracao incremental, incluindo macrociclo, montagem, rascunho, mesociclo, biblioteca, matriz, siglas, alertas, controle de dados e importacao.
 
+Tambem permanecem pendentes:
+
+- calendario ou linha do tempo operacional por aluno;
+- acoes para copiar, mover, revisar e publicar sessoes sem perder o contexto do aluno;
+- aplicacao de treino, semana ou microciclo para varios alunos com individualizacao e revisao de excecoes;
+- visao planejado versus executado;
+- provas-alvo e eventos esportivos vinculados ao planejamento;
+- conteudos e videos associados diretamente ao treino ou exercicio.
+
 ### 6. Prescricao por capacidades
 
 **Maturidade: Fundacao tecnica.**
@@ -188,7 +209,11 @@ Para ser considerada implementada ainda precisa de:
 - interface funcional;
 - vinculo real com objetivos, PRNT e avaliacoes;
 - parametros por contrato;
-- integracao com o nucleo atual de treino.
+- integracao com o nucleo atual de treino;
+- motor de zonas individualizadas por pace, FC, LAn, VO2max ou PSE;
+- versao e validade da metodologia usada para calcular cada zona;
+- alerta para teste vencido, dados insuficientes ou ausencia de zona;
+- conversao de intensidade relativa em instrucao pratica individual para o aluno.
 
 ### 7. Montagem Consolidada
 
@@ -202,7 +227,9 @@ Existem contratos e regras iniciais para blocos validados, origem, conflitos, ve
 - integracao com biblioteca e Workout Builder;
 - geracao controlada de `WorkoutDay` ou equivalente;
 - rastreabilidade real ate a execucao;
-- regras completas de seguranca, CIT e carga agudo/cronica.
+- regras completas de seguranca, CIT e carga agudo/cronica;
+- aplicacao em massa apenas em estado revisavel, com individualizacao por aluno;
+- relatorio de excecoes antes da publicacao, incluindo teste vencido, zona ausente, restricao ativa e conflito de carga.
 
 ### 8. Feedback pos-treino e decisao sugerida
 
@@ -215,7 +242,11 @@ Existem tipos e regras puras para PSE, PSR, dor, dificuldade, fadiga, aderencia,
 - interfaces separadas de aluno e professor;
 - aprovacao e rejeicao em fluxo real;
 - atualizacao da timeline e dos acompanhamentos do PRNT;
-- alimentacao de nova versao da prescricao.
+- alimentacao de nova versao da prescricao;
+- feedback curto para o aluno: concluiu, PSE, dor/desconforto, dificuldade e observacao opcional;
+- comparacao entre planejado e executado;
+- associacao controlada entre atividade importada e treino planejado;
+- confirmacao manual, atividade livre e prevencao de duplicidade quando a correspondencia nao for segura.
 
 ### 9. Agenda, frequencia e operacao
 
@@ -229,9 +260,29 @@ A agenda geral deve ser preservada. Evolucoes pendentes:
 - disponibilidade de colaboradores;
 - lotacao por horario, ambiente e servico;
 - substituicao de professor;
-- materiais e recursos de sala.
+- materiais e recursos de sala;
+- resumo operacional minimo para professor substituto, respeitando permissoes e dados sensiveis.
 
-### 10. Relatorios, notificacoes e integracoes futuras
+### 10. Experiencia do aluno
+
+**Maturidade: Contratos e telas previstas; experiencia integrada ainda pendente.**
+
+A primeira entrega deve priorizar uma PWA responsiva antes de exigir aplicativo nativo. O aluno deve ter uma experiencia simples, com:
+
+- Inicio;
+- Treino de hoje;
+- calendario de treinos e atendimentos;
+- registro de execucao;
+- feedback curto;
+- avaliacoes e proximos vencimentos;
+- prova-alvo quando aplicavel;
+- videos e orientacoes associados ao treino;
+- notificacoes;
+- perfil e revisao cadastral.
+
+A visao do aluno nao deve expor justificativas tecnicas completas, dados clinicos sem finalidade pratica nem regras internas de prescricao.
+
+### 11. Relatorios, notificacoes e integracoes futuras
 
 **Maturidade: Roadmap.**
 
@@ -241,9 +292,68 @@ Inclui:
 - relatorios de aderencia, retencao e indicadores clinicos;
 - notificacoes de treino, pagamento, feedback e reavaliacao;
 - mensagens praticas e WhatsApp a partir de dados validados;
+- integracao com Strava e Garmin apos estabilizar execucao e feedback;
 - exportacao futura de treino aerobico para smartwatch;
 - importacao de pace, FC, zonas, sono, estresse e recuperacao como evidencia;
-- integracoes com provedores externos mediante consentimento e auditoria.
+- integracoes com provedores externos mediante consentimento e auditoria;
+- central de conteudo para educativos, demonstracoes e orientacoes, sem priorizar uma plataforma completa de cursos antes do nucleo operacional.
+
+## Decisoes incorporadas do benchmark Grit Run
+
+Foram incorporadas as seguintes ideias por serem coerentes com as planilhas e com a arquitetura atual do Sistema ACESSO:
+
+1. **Linha do tempo operacional do treinador**
+   - uma unica superficie por aluno para visualizar e operar treinos, execucoes, feedbacks, provas, reavaliacoes e pendencias;
+   - acoes rapidas para criar, copiar, mover, revisar e publicar sessoes;
+   - preservacao da Central do Aluno como contexto principal.
+
+2. **Motor de zonas individualizadas**
+   - prescricao por intensidade relativa;
+   - conversao para pace, FC, LAn, VO2max ou PSE do aluno;
+   - metodologia versionada, origem do teste, validade e fallback documentado;
+   - alerta quando a zona estiver ausente ou baseada em avaliacao vencida.
+
+3. **Operacao em massa com individualizacao**
+   - aplicar sessao, semana ou microciclo a varios alunos;
+   - recalcular alvos individualmente;
+   - separar alunos prontos de alunos com excecao;
+   - exigir revisao e registrar auditoria antes da publicacao.
+
+4. **Experiencia simples do aluno**
+   - foco em `Treino de hoje`, calendario, execucao e feedback;
+   - linguagem pratica e segura;
+   - primeira entrega preferencialmente como PWA responsiva;
+   - conteudo e videos vinculados ao treino, sem exigir uma plataforma completa de cursos.
+
+5. **Planejado versus executado**
+   - comparar treino prescrito e atividade realizada;
+   - permitir correspondencia automatica com nivel de confianca;
+   - exigir confirmacao manual quando houver ambiguidade;
+   - suportar atividade livre, treino nao realizado e prevencao de duplicidade.
+
+6. **Feedback curto e aderencia**
+   - reduzir o formulario do aluno aos dados essenciais;
+   - manter a analise tecnica detalhada na visao do professor;
+   - alimentar timeline, PRNT e decisao sugerida sem alterar a prescricao automaticamente.
+
+7. **Questionarios e conteudo versionados**
+   - modelos configuraveis para anamnese inicial, revisao periodica, pre-prova, retorno apos afastamento e prontidao;
+   - respostas entram como eventos rastreaveis no PRNT;
+   - videos e orientacoes podem ser vinculados a treino, exercicio, capacidade, avaliacao ou grupo de alunos.
+
+8. **Operacao de equipe**
+   - carteira de alunos por profissional;
+   - substituicao, acesso temporario e resumo operacional minimo;
+   - disponibilidade e lotacao conectadas a agenda, sem liberar dados sensiveis indevidos.
+
+Nao foram incorporados como requisito imediato:
+
+- copia da identidade visual ou da interface do Grit Run;
+- aplicativo nativo como condicao para iniciar a experiencia do aluno;
+- cursos completos antes do nucleo de treino e feedback;
+- uso de dados externos como verdade tecnica sem confirmacao;
+- alteracao automatica da prescricao sem professor;
+- bloqueio tecnico de treino exclusivamente por situacao financeira.
 
 ## Prioridades recomendadas
 
@@ -259,6 +369,7 @@ Inclui:
 2. Completar historicos e permissoes do PRNT.
 3. Garantir timeline e origem dos eventos.
 4. Separar definitivamente cadastro de aluno e dados de avaliacao.
+5. Estruturar questionarios versionados como entrada rastreavel do PRNT.
 
 ### Prioridade 2 - Tornar Prescricao por Capacidades funcional
 
@@ -267,6 +378,8 @@ Inclui:
 3. Criar interface por capacidade.
 4. Conectar objetivos, PRNT e avaliacoes.
 5. Integrar parametros do ModeloTreinamento Combinado.
+6. Criar motor de zonas individualizadas, versionadas e vinculadas aos testes.
+7. Preparar aplicacao em massa em estado de rascunho, sem publicacao direta.
 
 ### Prioridade 3 - Integrar Montagem Consolidada ao treino atual
 
@@ -275,14 +388,18 @@ Inclui:
 3. Exibir conflitos e alertas.
 4. Exigir aprovacao do professor.
 5. Gerar saida operacional rastreavel sem substituir o nucleo atual de forma destrutiva.
+6. Criar linha do tempo operacional do treinador por aluno.
+7. Implementar copia, movimentacao e publicacao de sessoes com relatorio de excecoes.
 
-### Prioridade 4 - Fechar o ciclo de execucao
+### Prioridade 4 - Fechar o ciclo de execucao e experiencia do aluno
 
 1. Persistir feedback por sessao e capacidade.
 2. Vincular execucao, montagem, aluno e contrato.
 3. Implementar aprovacao/rejeicao da decisao.
 4. Atualizar timeline e PRNT.
 5. Gerar nova proposta de prescricao sem alteracao automatica.
+6. Entregar PWA inicial com Treino de hoje, calendario, execucao e feedback curto.
+7. Implementar planejado versus executado e correspondencia controlada de atividades.
 
 ### Prioridade 5 - Expandir Avaliacao Fisica
 
@@ -299,6 +416,10 @@ Apos estabilizar historico, permissoes e protocolos:
 ### Prioridade 6 - Evolucoes operacionais
 
 - agenda integrada;
+- provas-alvo e calendario esportivo;
+- conteudos e videos associados ao treino;
+- gestao de carteira e substituicao de profissional;
+- integracao Strava e Garmin;
 - relatorios;
 - notificacoes;
 - WhatsApp;
@@ -322,6 +443,14 @@ Um modulo somente pode ser classificado como `Validado` quando possuir, conforme
 - validacao manual documentada;
 - `pnpm validate` executado ou bloqueio explicitamente registrado.
 
+Para operacoes em massa, integracoes externas e correspondencia de atividades, tambem sao obrigatorios:
+
+- modo de revisao antes da publicacao;
+- relatorio de excecoes e itens nao processados;
+- idempotencia e prevencao de duplicidade;
+- auditoria de origem, responsavel, data e versao;
+- possibilidade de correcao sem apagar o historico.
+
 ## Planos ativos relacionados
 
 - `docs/execution-plans/active/2026-06-integrated-prescription-control.md`;
@@ -342,6 +471,6 @@ Atualize este roadmap quando:
 - um modulo passar de parcial para integrado;
 - uma validacao de ponta a ponta for concluida;
 - uma prioridade mudar por decisao de produto;
-- uma nova planilha, issue ou regra alterar as fronteiras do produto.
+- uma nova planilha, issue, benchmark ou regra alterar as fronteiras do produto.
 
 Nao crie outro roadmap geral. Roadmaps temporarios de uma iniciativa devem existir somente durante a execucao e ser removidos ou consolidados ao termino.
