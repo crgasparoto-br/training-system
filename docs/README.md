@@ -33,6 +33,8 @@ Depois disso, leia os documentos especificos da area afetada. Nao crie nova docu
 
 - [`product/access-control.md`](product/access-control.md): regras de produto para controle de acesso.
 - [`product/integrated-prescription-control.md`](product/integrated-prescription-control.md): arquitetura-alvo do fluxo integrado de prontuario, avaliacao, prescricao, montagem consolidada, treino de hoje, feedback e decisao.
+- [`product/student-centered-training-experience.md`](product/student-centered-training-experience.md): fonte de verdade da experiencia de corrida, musculacao e treino combinado centrada no aluno, da rotina semanal ao feedback e evolucao.
+- [`product/future-evolution-roadmap.md`](product/future-evolution-roadmap.md): roadmap de produto priorizado por valor ao aluno e evolucao interna antes de integracoes externas.
 - [`product/navigation-information-architecture.md`](product/navigation-information-architecture.md): mapa atual, arquitetura por hubs, Aluno 360, telas longas, inicio por perfil, permissoes e rollout da nova navegacao.
 - [`product/services-commercial-catalog.md`](product/services-commercial-catalog.md): arquitetura de produto para catalogo comercial, opcoes, valores, apresentacao e composicao de planos em `/settings/services`.
 - [`product/student-central-action-patterns.md`](product/student-central-action-patterns.md): padrao de pop-up, painel lateral e fluxo guiado para acoes contextuais da Central do Aluno.
@@ -50,7 +52,7 @@ Depois disso, leia os documentos especificos da area afetada. Nao crie nova docu
 - [`execution-plans/active/`](execution-plans/active/): planos realmente em andamento; arquivos concluidos mantidos nesse caminho apenas por compatibilidade devem declarar explicitamente que nao sao ativos.
 - [`execution-plans/active/2026-06-integrated-prescription-control.md`](execution-plans/active/2026-06-integrated-prescription-control.md): plano ativo para evolucao do fluxo integrado de prontuario, prescricao e treino.
 - [`execution-plans/active/2026-06-navigation-information-architecture.md`](execution-plans/active/2026-06-navigation-information-architecture.md): plano ativo para reorganizacao incremental da navegacao, Aluno 360, inicio por perfil e permissoes.
-- [`execution-plans/active/2026-07-student-central-roadmap.md`](execution-plans/active/2026-07-student-central-roadmap.md): estado funcional da Central do Aluno, roadmap integrado, fases e proximos passos.
+- [`execution-plans/active/2026-07-student-central-roadmap.md`](execution-plans/active/2026-07-student-central-roadmap.md): estado funcional da Central do Aluno, roadmap centrado no aluno, fases e proximos passos.
 - [`execution-plans/active/2026-07-epic-172-completion-assessment.md`](execution-plans/active/2026-07-epic-172-completion-assessment.md): levantamento do que foi entregue na epica #172 e do que ainda falta para concluir a Fase 5 de antropometria.
 - [`execution-plans/active/2026-07-services-commercial-catalog.md`](execution-plans/active/2026-07-services-commercial-catalog.md): registro de implementacao da epica #210; mantido no caminho ativo por compatibilidade ate a validacao operacional.
 - [`execution-plans/completed/`](execution-plans/completed/): planos concluidos, quando aplicavel.
