@@ -1,6 +1,11 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import {
+  collectDocumentationMarkdownFiles,
+  findBrokenMarkdownReferences,
+} from './check-doc-references.mjs';
+
 const root = process.cwd();
 const requiredFiles = [
   'AGENTS.md',
@@ -71,6 +76,9 @@ for (const check of contentChecks) {
     }
   }
 }
+
+const markdownFiles = collectDocumentationMarkdownFiles(root);
+errors.push(...findBrokenMarkdownReferences(root, markdownFiles));
 
 if (errors.length > 0) {
   console.error('docs:check encontrou problemas:');

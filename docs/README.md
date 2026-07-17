@@ -34,6 +34,7 @@ Codigo, migrations e testes definem o comportamento efetivamente entregue. Plani
 - [`product/access-control.md`](product/access-control.md): regras de produto para controle de acesso.
 - [`product/integrated-prescription-control.md`](product/integrated-prescription-control.md): fluxo PRNT/Avaliacao -> Prescricao -> Montagem -> Treino -> Feedback.
 - [`product/student-centered-training-experience.md`](product/student-centered-training-experience.md): experiencia de corrida, musculacao e treino combinado centrada no aluno.
+- [`product/future-evolution-roadmap.md`](product/future-evolution-roadmap.md): recorte complementar da issue #139, subordinado ao roadmap canonico e preservado ate seus itens virarem issues especificas.
 - [`product/navigation-information-architecture.md`](product/navigation-information-architecture.md): navegacao por hubs, Aluno 360 e rollout.
 - [`product/services-commercial-catalog.md`](product/services-commercial-catalog.md): catalogo comercial, opcoes, valores e planos.
 - [`product/student-central-action-patterns.md`](product/student-central-action-patterns.md): padrao de pop-up, painel lateral e fluxo guiado.
