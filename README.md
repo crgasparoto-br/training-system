@@ -16,6 +16,7 @@ Antes de criar, alterar ou revisar qualquer documentação, plano ou código, le
 1. [`AGENTS.md`](./AGENTS.md): mapa curto para agentes e humanos.
 2. [`ARCHITECTURE.md`](./ARCHITECTURE.md): mapa raiz da arquitetura, invariantes e fronteiras principais.
 3. [`docs/README.md`](./docs/README.md): índice da documentação versionada e fontes de verdade específicas.
+4. [`docs/product/roadmap.md`](./docs/product/roadmap.md): estado funcional, prioridades e evoluções do produto.
 
 Depois disso, leia os documentos específicos da área afetada. Não crie nova documentação ou plano sem conferir se já existe uma fonte de verdade aplicável.
 
@@ -44,6 +45,7 @@ Fontes de verdade atuais:
 
 - [`AGENTS.md`](./AGENTS.md): mapa curto para humanos e agentes.
 - [`ARCHITECTURE.md`](./ARCHITECTURE.md): mapa raiz da arquitetura e invariantes.
+- [`docs/product/roadmap.md`](./docs/product/roadmap.md): roadmap único e estado funcional do produto.
 - [`docs/architecture/overview.md`](./docs/architecture/overview.md): visão geral da arquitetura.
 - [`docs/architecture/api.md`](./docs/architecture/api.md): padrões da API.
 - [`docs/architecture/web.md`](./docs/architecture/web.md): padrões do frontend web.
@@ -206,6 +208,7 @@ Endpoints principais:
 
 - Issues: GitHub Issues.
 - Documentação: [`docs/README.md`](./docs/README.md).
+- Roadmap: [`docs/product/roadmap.md`](./docs/product/roadmap.md).
 - Planos ativos: [`docs/execution-plans/active/`](./docs/execution-plans/active/).
 
 ## Licença
