@@ -13,7 +13,7 @@ Este documento registra o estado funcional conhecido da branch `develop` em 2026
 - `docs/product/integrated-prescription-control.md`: fluxo tecnico integrado.
 - `docs/product/student-centered-training-experience.md`: experiencia-alvo de treinamento centrada no aluno.
 - `docs/product/student-central-domain-matrix.md`: fronteira entre Central, administracao geral e funcionalidades hibridas.
-- `docs/product/future-evolution-roadmap.md`: ordem futura priorizada por valor ao aluno.
+- `docs/product/future-evolution-roadmap.md`: recorte complementar da issue #139, subordinado ao roadmap canonico.
 
 ## Decisoes consolidadas
 
@@ -161,7 +161,7 @@ A issue #172 foi encerrada como conclusao do primeiro recorte funcional. A Fase 
 - contrato de dados para laudos futuros;
 - suite especifica de testes e validacao manual.
 
-Fonte detalhada: `docs/execution-plans/active/2026-07-epic-172-completion-assessment.md`.
+Fonte detalhada: `docs/execution-plans/completed/2026-07-epic-172-completion-assessment.md`.
 
 ### Fase 6 - Adipometria
 
