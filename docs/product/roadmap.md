@@ -39,6 +39,7 @@ O roadmap consolida os requisitos extraidos das seguintes fontes:
 - `Ideias e estruturacao - Professor`;
 - `ModeloTreinamento Combinado v.3.12.8`;
 - benchmark publico do Grit Run (`https://gritrun.io/`) para experiencia operacional de treinador e aluno;
+- documentacao publica oficial do Garmin Connect Developer Program e do FIT SDK para integracao futura;
 - issues, PRs, documentacao versionada e implementacao atual do `training-system`.
 
 As planilhas sao referencias de produto. Regras criticas somente passam a valer no sistema quando estiverem documentadas, implementadas em camada testavel, persistidas quando aplicavel e protegidas por permissao e `contractId`.
@@ -355,6 +356,94 @@ Nao foram incorporados como requisito imediato:
 - alteracao automatica da prescricao sem professor;
 - bloqueio tecnico de treino exclusivamente por situacao financeira.
 
+## Garmin Connect - integracao futura
+
+**Maturidade: Documentado para implementacao futura. Nao faz parte do foco imediato de entrega.**
+
+A integracao deve usar o Garmin Connect Developer Program, que oferece APIs cloud-to-cloud para receber dados do Garmin Connect e publicar treinos, planos e percursos. O programa e voltado a uso empresarial, utiliza OAuth 2.0 e exige solicitacao e aprovacao da Garmin antes do acesso a referencia tecnica completa, ferramentas e ambiente de avaliacao.
+
+Fontes oficiais publicas:
+
+- visao geral: `https://developer.garmin.com/gc-developer-program/`;
+- Training API: `https://developer.garmin.com/gc-developer-program/training-api/`;
+- Activity API: `https://developer.garmin.com/gc-developer-program/activity-api/`;
+- Health API: `https://developer.garmin.com/gc-developer-program/health-api/`;
+- Courses API: `https://developer.garmin.com/gc-developer-program/courses-api/`;
+- FAQ do programa: `https://developer.garmin.com/gc-developer-program/program-faq/`;
+- FIT SDK: `https://developer.garmin.com/fit/`.
+
+### Escopo futuro por API
+
+1. **Training API - Sistema ACESSO para Garmin**
+   - publicar treinos estruturados e planos no calendario Garmin Connect;
+   - permitir sincronizacao com relogios e ciclocomputadores compativeis;
+   - exportar somente treinos originados de Montagem Consolidada aprovada;
+   - mapear aquecimento, blocos, repeticoes, recuperacao, desaquecimento, duracao, distancia, pace, FC e outros alvos suportados;
+   - manter identificador externo, versao exportada, status e auditoria.
+
+2. **Activity API - Garmin para Sistema ACESSO**
+   - receber atividades apos sincronizacao do dispositivo com Garmin Connect;
+   - suportar arquitetura push ou ping/pull conforme a aprovacao e o desenho final;
+   - consumir dados detalhados e, quando necessario, arquivos `.FIT`, `.GPX` ou `.TCX`;
+   - relacionar atividade importada ao treino planejado com nivel de confianca;
+   - permitir confirmacao manual, atividade livre e treino nao realizado;
+   - impedir duplicidade, reprocessamento indevido e sobrescrita de historico.
+
+3. **Health API - Garmin para Sistema ACESSO**
+   - importar dados como sono, FC, passos, calorias, estresse, Pulse Ox, Body Battery, composicao corporal, respiracao e pressao arterial quando disponiveis e autorizados;
+   - registrar origem Garmin, data, dispositivo, consentimento e status de validacao;
+   - tratar os dados como evidencia complementar, nunca como avaliacao oficial da Acesso ou decisao automatica;
+   - proteger por permissao especifica, finalidade, `contractId`, retencao e revogacao;
+   - avaliar custos ou licencas comerciais aplicaveis antes da implementacao.
+
+4. **Courses API - Sistema ACESSO para Garmin**
+   - publicar percursos e pontos de percurso para treinos, longoes, provas e trilhas;
+   - implementar somente depois de Training API e Activity API estarem estabilizadas.
+
+5. **Women's Health API**
+   - considerar apenas em fase futura, com finalidade clinica ou de treinamento claramente aprovada;
+   - exigir consentimento explicito, permissao altamente restrita e revisao de LGPD antes de qualquer uso.
+
+### FIT SDK
+
+O FIT SDK pode ser utilizado no backend para codificar ou decodificar arquivos de atividade, treino e percurso. Para a stack Node.js/TypeScript, a opcao oficial e `@garmin/fitsdk`.
+
+O FIT SDK nao substitui o Garmin Connect Developer Program: ele trata o formato dos arquivos, mas nao concede acesso a conta do usuario, nao executa OAuth e nao publica ou recebe dados do Garmin Connect por conta propria.
+
+### Fora do primeiro escopo Garmin
+
+- aplicativo Connect IQ proprio;
+- comunicacao direta em tempo real com o relogio;
+- uso de dados Garmin para alterar prescricao automaticamente;
+- exportacao antes da aprovacao da Montagem Consolidada;
+- importacao de todos os indicadores sem finalidade definida;
+- dependencia da Garmin para o funcionamento basico do Treino de hoje.
+
+### Pre-condicoes para iniciar a integracao
+
+A integracao Garmin somente deve virar epica de implementacao quando estiverem concluidos ou estabilizados:
+
+1. Montagem Consolidada persistida e aprovada pelo professor;
+2. modelo interno versionado de Treino de hoje;
+3. execucao e feedback persistidos;
+4. comparacao planejado versus executado;
+5. modelo de correspondencia de atividades e prevencao de duplicidade;
+6. consentimento, revogacao, retencao e exclusao de dados externos;
+7. observabilidade, filas de processamento, retry e tratamento de falhas;
+8. solicitacao e aprovacao no Garmin Connect Developer Program.
+
+### Sequencia recomendada da futura epica Garmin
+
+1. Solicitar acesso empresarial e validar requisitos comerciais.
+2. Criar modelo interno neutro de treino exportavel, sem dependencia direta do payload Garmin.
+3. Implementar OAuth 2.0, consentimento, revogacao e armazenamento seguro de tokens.
+4. Implementar Training API e homologar exportacao de treinos estruturados.
+5. Implementar Activity API e correspondencia planejado versus executado.
+6. Integrar FIT SDK para detalhes que exijam processamento de arquivos.
+7. Implementar Health API apenas para indicadores com finalidade aprovada.
+8. Implementar Courses API quando houver demanda operacional validada.
+9. Executar homologacao por modalidade, dispositivo compativel, falhas, reenvio e revogacao.
+
 ## Prioridades recomendadas
 
 ### Prioridade 0 - Corrigir governanca de conclusao
@@ -419,7 +508,7 @@ Apos estabilizar historico, permissoes e protocolos:
 - provas-alvo e calendario esportivo;
 - conteudos e videos associados ao treino;
 - gestao de carteira e substituicao de profissional;
-- integracao Strava e Garmin;
+- integracao Strava e Garmin, respeitando as pre-condicoes documentadas;
 - relatorios;
 - notificacoes;
 - WhatsApp;
@@ -451,6 +540,15 @@ Para operacoes em massa, integracoes externas e correspondencia de atividades, t
 - auditoria de origem, responsavel, data e versao;
 - possibilidade de correcao sem apagar o historico.
 
+Para integracoes OAuth e dados de dispositivos, tambem sao obrigatorios:
+
+- consentimento explicito e escopos minimos;
+- armazenamento seguro e rotacao/revogacao de tokens;
+- exclusao ou desvinculacao solicitada pelo usuario;
+- tratamento de retry, backfill, eventos fora de ordem e indisponibilidade do provedor;
+- registro do identificador externo sem tornar o provedor fonte unica do dominio interno;
+- homologacao em ambiente oficial antes da liberacao em producao.
+
 ## Planos ativos relacionados
 
 - `docs/execution-plans/active/2026-06-integrated-prescription-control.md`;
@@ -471,6 +569,6 @@ Atualize este roadmap quando:
 - um modulo passar de parcial para integrado;
 - uma validacao de ponta a ponta for concluida;
 - uma prioridade mudar por decisao de produto;
-- uma nova planilha, issue, benchmark ou regra alterar as fronteiras do produto.
+- uma nova planilha, issue, benchmark, integracao ou regra alterar as fronteiras do produto.
 
 Nao crie outro roadmap geral. Roadmaps temporarios de uma iniciativa devem existir somente durante a execucao e ser removidos ou consolidados ao termino.
