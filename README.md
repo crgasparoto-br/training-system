@@ -15,7 +15,8 @@ Antes de criar, alterar ou revisar qualquer documentação, plano ou código, le
 
 1. [`AGENTS.md`](./AGENTS.md): mapa curto para agentes e humanos.
 2. [`ARCHITECTURE.md`](./ARCHITECTURE.md): mapa raiz da arquitetura, invariantes e fronteiras principais.
-3. [`docs/README.md`](./docs/README.md): índice da documentação versionada e fontes de verdade específicas.
+3. [`docs/product/roadmap.md`](./docs/product/roadmap.md): estado funcional, prioridades e evolução geral do produto.
+4. [`docs/README.md`](./docs/README.md): índice da documentação versionada e fontes de verdade específicas.
 
 Depois disso, leia os documentos específicos da área afetada. Não crie nova documentação ou plano sem conferir se já existe uma fonte de verdade aplicável.
 
@@ -44,6 +45,7 @@ Fontes de verdade atuais:
 
 - [`AGENTS.md`](./AGENTS.md): mapa curto para humanos e agentes.
 - [`ARCHITECTURE.md`](./ARCHITECTURE.md): mapa raiz da arquitetura e invariantes.
+- [`docs/product/roadmap.md`](./docs/product/roadmap.md): roadmap canônico e estado funcional do produto.
 - [`docs/architecture/overview.md`](./docs/architecture/overview.md): visão geral da arquitetura.
 - [`docs/architecture/api.md`](./docs/architecture/api.md): padrões da API.
 - [`docs/architecture/web.md`](./docs/architecture/web.md): padrões do frontend web.
@@ -52,6 +54,7 @@ Fontes de verdade atuais:
 - [`docs/architecture/deployment.md`](./docs/architecture/deployment.md): deploy, variáveis e ambientes.
 - [`docs/product/access-control.md`](./docs/product/access-control.md): regras de produto para controle de acesso.
 - [`docs/product/integrated-prescription-control.md`](./docs/product/integrated-prescription-control.md): fluxo integrado de prontuário, avaliação, prescrição, montagem consolidada, treino de hoje, feedback e decisão.
+- [`docs/product/student-centered-training-experience.md`](./docs/product/student-centered-training-experience.md): experiência de corrida, musculação e treino combinado centrada no aluno.
 - [`docs/visual-guidelines.md`](./docs/visual-guidelines.md): diretrizes visuais.
 - [`docs/quality/validation.md`](./docs/quality/validation.md): comandos de validação.
 
@@ -206,6 +209,7 @@ Endpoints principais:
 
 - Issues: GitHub Issues.
 - Documentação: [`docs/README.md`](./docs/README.md).
+- Roadmap: [`docs/product/roadmap.md`](./docs/product/roadmap.md).
 - Planos ativos: [`docs/execution-plans/active/`](./docs/execution-plans/active/).
 
 ## Licença
