@@ -1,92 +1,91 @@
-# Documentacao do Sistema Acesso
+# Documentacao do Sistema ACESSO
 
-Este diretorio concentra a documentacao versionada do projeto.
+Este indice define as fontes de verdade do projeto. O objetivo e evitar documentos duplicados, planos concluidos em `active/` e roadmaps concorrentes.
 
-## Leitura obrigatoria antes de mudar documentacao ou codigo
+## Ordem de leitura
 
-Antes de criar, alterar ou revisar qualquer documentacao, plano ou codigo, leia primeiro:
+Antes de criar ou alterar codigo, plano ou documentacao:
 
-1. [`../AGENTS.md`](../AGENTS.md): mapa curto para agentes e humanos.
-2. [`../ARCHITECTURE.md`](../ARCHITECTURE.md): mapa raiz da arquitetura, invariantes e fronteiras principais.
-3. Este indice (`docs/README.md`) para localizar a fonte de verdade especifica.
+1. [`../AGENTS.md`](../AGENTS.md)
+2. [`../ARCHITECTURE.md`](../ARCHITECTURE.md)
+3. [`product/roadmap.md`](product/roadmap.md)
+4. a fonte de verdade especifica da area afetada
+5. o plano ativo da iniciativa, quando existir
 
-Depois disso, leia os documentos especificos da area afetada. Nao crie nova documentacao ou plano sem conferir se ja existe uma fonte de verdade aplicavel.
+Codigo, migrations e testes definem o comportamento efetivamente entregue. Planilhas, issues e documentos de planejamento orientam o produto, mas nao comprovam implementacao isoladamente.
 
 ## Fontes de verdade
 
-### Para agentes e desenvolvimento
-
-- [`../AGENTS.md`](../AGENTS.md): mapa curto para agentes e humanos.
-- [`../ARCHITECTURE.md`](../ARCHITECTURE.md): mapa raiz da arquitetura e invariantes.
-- [`architecture/overview.md`](architecture/overview.md): visao geral da arquitetura.
-- [`quality/validation.md`](quality/validation.md): comandos e criterios de validacao.
-
 ### Arquitetura
 
+- [`architecture/overview.md`](architecture/overview.md): visao geral e fronteiras do monorepo.
 - [`architecture/api.md`](architecture/api.md): padroes da API.
 - [`architecture/web.md`](architecture/web.md): padroes do frontend web.
 - [`architecture/database.md`](architecture/database.md): banco, Prisma e multi-tenant.
 - [`architecture/auth-and-access-control.md`](architecture/auth-and-access-control.md): autenticacao, autorizacao e escopo de dados.
-- [`architecture/deployment.md`](architecture/deployment.md): deploy, variaveis e ambientes.
+- [`architecture/deployment.md`](architecture/deployment.md): deploy, ambientes e variaveis.
 
 ### Produto
 
+- [`product/roadmap.md`](product/roadmap.md): estado funcional, prioridades e evolucoes do Sistema ACESSO.
 - [`product/access-control.md`](product/access-control.md): regras de produto para controle de acesso.
-- [`product/integrated-prescription-control.md`](product/integrated-prescription-control.md): arquitetura-alvo do fluxo integrado de prontuario, avaliacao, prescricao, montagem consolidada, treino de hoje, feedback e decisao.
-- [`product/navigation-information-architecture.md`](product/navigation-information-architecture.md): mapa atual, arquitetura por hubs, Aluno 360, telas longas, inicio por perfil, permissoes e rollout da nova navegacao.
-- [`product/services-commercial-catalog.md`](product/services-commercial-catalog.md): arquitetura de produto para catalogo comercial, opcoes, valores, apresentacao e composicao de planos em `/settings/services`.
-- [`product/student-central-action-patterns.md`](product/student-central-action-patterns.md): padrao de pop-up, painel lateral e fluxo guiado para acoes contextuais da Central do Aluno.
-- [`product/student-central-domain-matrix.md`](product/student-central-domain-matrix.md): unica fonte de verdade para a fronteira entre Central do Aluno, administracao geral e funcionalidades hibridas.
-- [`product/prnt-discomfort-followup-flow.md`](product/prnt-discomfort-followup-flow.md): fonte de verdade do fluxo implementado de desconfortos e acompanhamentos no PRNT.
+- [`product/integrated-prescription-control.md`](product/integrated-prescription-control.md): fluxo PRNT/Avaliacao -> Prescricao -> Montagem -> Treino -> Feedback.
+- [`product/capacity-prescription-model.md`](product/capacity-prescription-model.md): recorte tecnico atual da prescricao por capacidades.
+- [`product/navigation-information-architecture.md`](product/navigation-information-architecture.md): navegacao por hubs, Aluno 360 e rollout.
+- [`product/student-central-domain-matrix.md`](product/student-central-domain-matrix.md): fronteira entre Central do Aluno, administracao e dominios hibridos.
+- [`product/student-central-action-patterns.md`](product/student-central-action-patterns.md): padrao de pop-up, painel lateral e fluxo guiado.
+- [`product/prnt-discomfort-followup-flow.md`](product/prnt-discomfort-followup-flow.md): fluxo atual de desconfortos e acompanhamentos do PRNT.
+- [`product/services-commercial-catalog.md`](product/services-commercial-catalog.md): catalogo comercial, opcoes, valores e planos.
 
-### Operacao
+### Contratos funcionais complementares
 
-- [`operations/api-scripts.md`](operations/api-scripts.md): scripts oficiais de manutencao/operacao da API.
-- [`operations/services-commercial-catalog-rollout.md`](operations/services-commercial-catalog-rollout.md): ordem de deploy, carga idempotente, compatibilidade, rollback e checklist do catalogo comercial.
+- [`student-app-data-contract.md`](student-app-data-contract.md): contrato de dados da visao do aluno.
+- [`student-contract-integration.md`](student-contract-integration.md): integracao de contratos do aluno.
 
-### Planos de execucao
+### Operacao e qualidade
 
-- [`execution-plans/TEMPLATE.md`](execution-plans/TEMPLATE.md): template para tarefas grandes.
-- [`execution-plans/active/`](execution-plans/active/): planos realmente em andamento; arquivos concluidos mantidos nesse caminho apenas por compatibilidade devem declarar explicitamente que nao sao ativos.
-- [`execution-plans/active/2026-06-integrated-prescription-control.md`](execution-plans/active/2026-06-integrated-prescription-control.md): plano ativo para evolucao do fluxo integrado de prontuario, prescricao e treino.
-- [`execution-plans/active/2026-06-navigation-information-architecture.md`](execution-plans/active/2026-06-navigation-information-architecture.md): plano ativo para reorganizacao incremental da navegacao, Aluno 360, inicio por perfil e permissoes.
-- [`execution-plans/active/2026-07-student-central-roadmap.md`](execution-plans/active/2026-07-student-central-roadmap.md): estado funcional da Central do Aluno, roadmap integrado, fases e proximos passos.
-- [`execution-plans/active/2026-07-epic-172-completion-assessment.md`](execution-plans/active/2026-07-epic-172-completion-assessment.md): levantamento do que foi entregue na epica #172 e do que ainda falta para concluir a Fase 5 de antropometria.
-- [`execution-plans/active/2026-07-services-commercial-catalog.md`](execution-plans/active/2026-07-services-commercial-catalog.md): registro de implementacao da epica #210; mantido no caminho ativo por compatibilidade ate a validacao operacional.
-- [`execution-plans/completed/`](execution-plans/completed/): planos concluidos, quando aplicavel.
+- [`operations/api-scripts.md`](operations/api-scripts.md): scripts oficiais de manutencao da API.
+- [`operations/services-commercial-catalog-rollout.md`](operations/services-commercial-catalog-rollout.md): rollout do catalogo comercial.
+- [`quality/validation.md`](quality/validation.md): comandos e criterios de validacao.
+- [`internal-test-deploy.md`](internal-test-deploy.md): orientacao complementar para publicacao de testes internos.
 
-## Apontadores de compatibilidade
+## Planos de execucao
 
-Alguns caminhos antigos permanecem versionados apenas para nao quebrar links existentes. Eles nao sao fontes de verdade e devem apontar para o documento atual.
+- [`execution-plans/TEMPLATE.md`](execution-plans/TEMPLATE.md): estrutura obrigatoria para novas iniciativas grandes.
+- [`execution-plans/active/`](execution-plans/active/): somente trabalho realmente em andamento.
+- [`execution-plans/completed/`](execution-plans/completed/): registros concluidos que ainda precisam permanecer acessiveis por motivo operacional.
 
-- `product/student-central-boundary-map.md` aponta para `product/student-central-domain-matrix.md`.
-- `product/prnt-followup-implementation-plan.md` aponta para `product/prnt-discomfort-followup-flow.md`.
-- `execution-plans/active/2026-07-prnt-followup-implementation-plan.md` registra uma entrega concluida e nao deve ser interpretado como plano ativo.
+Planos ativos relevantes no estado atual:
 
-## Documentos historicos ou complementares
+- [`execution-plans/active/2026-06-integrated-prescription-control.md`](execution-plans/active/2026-06-integrated-prescription-control.md)
+- [`execution-plans/active/2026-06-navigation-information-architecture.md`](execution-plans/active/2026-06-navigation-information-architecture.md)
+- [`execution-plans/active/2026-05-library-module-debt.md`](execution-plans/active/2026-05-library-module-debt.md)
+- [`execution-plans/active/2026-05-workout-builder-debt.md`](execution-plans/active/2026-05-workout-builder-debt.md)
+- [`execution-plans/active/2026-05-aluno-details-debt.md`](execution-plans/active/2026-05-aluno-details-debt.md)
+- [`execution-plans/active/2026-05-periodization-schema-debt.md`](execution-plans/active/2026-05-periodization-schema-debt.md)
+- [`execution-plans/active/2026-07-services-commercial-catalog.md`](execution-plans/active/2026-07-services-commercial-catalog.md)
 
-Documentos antigos que ainda possuem valor historico devem ser movidos para [`archive/`](archive/) ou atualizados para apontar para as fontes de verdade acima.
+## Regras de manutencao
 
-### Complementares ainda mantidos na raiz de `docs/`
+1. Nao criar outro roadmap geral; atualizar `product/roadmap.md`.
+2. Nao duplicar regras entre roadmap, documento de produto e plano de execucao.
+3. Documento de produto explica o comportamento e as fronteiras permanentes.
+4. Plano de execucao explica somente como uma iniciativa ativa sera entregue.
+5. Ao concluir um plano, incorporar as decisoes permanentes na fonte de verdade e remover o plano de `active/`.
+6. Evitar apontadores de compatibilidade sem uso real. O historico do Git preserva documentos removidos.
+7. Nao versionar backups locais, relatorios pontuais ou resumos de uma PR como documentacao permanente.
+8. Atualizar este indice quando uma nova fonte de verdade for criada ou removida.
+9. Executar `pnpm docs:check` depois de reorganizar documentacao.
 
-- [`internal-test-deploy.md`](internal-test-deploy.md): orientacao complementar para publicacao de testes internos; conferir sempre `architecture/deployment.md`, `quality/validation.md` e `operations/api-scripts.md`.
-- [`BIBLIOTECA_MELHORIAS.md`](BIBLIOTECA_MELHORIAS.md): apontador estavel para o registro historico arquivado da Biblioteca; conferir `archive/BIBLIOTECA_MELHORIAS-2026-02-02.md` e `execution-plans/active/2026-05-library-module-debt.md`.
-- [`CHECKLIST_TESTES_BIBLIOTECA.md`](CHECKLIST_TESTES_BIBLIOTECA.md): apontador estavel para o checklist manual historico da Biblioteca; conferir `archive/CHECKLIST_TESTES_BIBLIOTECA-2026-02-02.md`, `quality/validation.md` e o plano do modulo.
+## Criterio para manter um documento
 
-### Arquivos historicos arquivados
+Um documento deve permanecer versionado quando pelo menos uma condicao for verdadeira:
 
-- [`archive/BIBLIOTECA_MELHORIAS-2026-02-02.md`](archive/BIBLIOTECA_MELHORIAS-2026-02-02.md): registro detalhado da entrega historica de 02/02/2026 da tela de Biblioteca.
-- [`archive/CHECKLIST_TESTES_BIBLIOTECA-2026-02-02.md`](archive/CHECKLIST_TESTES_BIBLIOTECA-2026-02-02.md): checklist manual historico associado a entrega.
-- [`archive/visual-guidelines.local-backup-20260420-165809.md`](archive/visual-guidelines.local-backup-20260420-165809.md): backup visual local mantido apenas para consulta historica.
+- define arquitetura ou regra permanente;
+- e fonte de verdade de produto;
+- descreve operacao necessaria em ambiente real;
+- define validacao vigente;
+- orienta iniciativa realmente ativa;
+- documenta contrato consumido por mais de uma camada.
 
-## Regra de manutencao
-
-Ao adicionar nova documentacao:
-
-1. Leia `../AGENTS.md` e `../ARCHITECTURE.md` antes de criar ou alterar documentos.
-2. Prefira criar em `architecture/`, `product/`, `quality`, `operations/` ou `execution-plans/`.
-3. Evite duplicar conteudo ja existente.
-4. Atualize este indice quando o documento for uma fonte de verdade.
-5. Arquivos de backup local nao devem ser versionados na raiz de `docs/`.
-6. Quando um documento antigo precisar ser preservado apenas por historico, mova o conteudo para `archive/` ou transforme o caminho antigo em apontador curto para a fonte atual.
-7. Planos concluidos nao devem permanecer descritos como trabalho futuro dentro de `execution-plans/active/`.
+Documentos substituidos, planos concluidos, backups, resumos de entrega e historicos sem uso operacional devem ser removidos. O historico permanece disponivel no Git.
