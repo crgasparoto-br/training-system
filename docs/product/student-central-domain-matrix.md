@@ -10,6 +10,10 @@ A Central do Aluno deve responder a pergunta:
 
 > Estou trabalhando com este aluno agora. O que preciso ver, acompanhar ou atualizar sobre ele?
 
+Para o proprio aluno, a experiencia deve responder:
+
+> O que preciso fazer agora, o que ja realizei e qual e a proxima acao do meu acompanhamento?
+
 A administracao geral deve continuar concentrando cadastros, catalogos, parametros, configuracoes globais e operacoes que nao dependem de um aluno selecionado.
 
 Funcionalidades hibridas podem ter gestao principal fora da Central, mas devem aparecer dentro da ficha quando explicam a situacao do aluno selecionado ou permitem uma acao contextual diretamente vinculada a ele.
@@ -22,7 +26,8 @@ Classifique uma funcionalidade como **Central do Aluno** quando:
 - a acao cria, consulta ou atualiza dado diretamente vinculado ao aluno;
 - o usuario precisa preservar o contexto do aluno apos salvar, cancelar ou encontrar erro;
 - o registro deve aparecer no historico unificado, quando houver evento persistido;
-- o dado ajuda o professor, gestor ou perfil autorizado a decidir a proxima acao para aquele aluno.
+- o dado ajuda o professor, gestor ou perfil autorizado a decidir a proxima acao para aquele aluno;
+- o aluno precisa compreender o que fazer, registrar ou acompanhar sobre a propria jornada.
 
 Classifique como **Administracao geral** quando:
 
@@ -54,10 +59,18 @@ Classifique como **Hibrida** quando:
 | Observacoes tecnicas do aluno | Central do Aluno | Secao PRNT, Resumo ou Historico | Observacao recente, adicionar observacao e alimentar historico unificado. | Podem conter dados sensiveis; aplicar permissao de PRNT. |
 | Avaliacoes fisicas | Central do Aluno | Secao Avaliacao Fisica da ficha | Card de ultima avaliacao, estado pendente/vencido/em dia, historico e nova avaliacao. | Dados sensiveis; API deve validar permissao, escopo e `contractId`. |
 | Antropometria | Central do Aluno | Fluxo guiado a partir do aluno | Nova avaliacao com aluno pre-selecionado, historico e base para comparacao. | Dados sensiveis; registrar data, responsavel, origem e contrato. |
-| Adipometria | Central do Aluno | Fluxo guiado futuro a partir do aluno | Ponto planejado na secao Avaliacao Fisica e historico quando implementado. | Dados sensiveis e calculos testaveis preferencialmente no backend/service. |
+| Adipometria | Central do Aluno | Fluxo guiado a partir do aluno | Resumo, rascunhos autorizados, historico, nova avaliacao e comparacao quando implementados. | Dados sensiveis e calculos testaveis no backend/service; separar visualizacao, gestao e correcao. |
 | Prescricao tecnica | Central do Aluno | Secao Prescricao do aluno | Resumo, status por capacidade, origem dos dados-base e acoes do professor. | Visao tecnica restrita ao professor autorizado; aluno nao deve ver justificativas internas. |
-| Treino de hoje | Central do Aluno | Secao Treino de hoje do aluno | Saida operacional, orientacoes praticas, alertas e feedback. | Deve ser rastreavel ate a montagem consolidada e respeitar visao professor/aluno. |
-| Feedback pos-treino | Central do Aluno | Treino de hoje e Historico/Evolucao | Registro de PSE, dor, dificuldade, observacoes e evidencia para revisao. | Pode conter dados sensiveis; nao altera prescricao sem validacao do professor. |
+| Catalogo de templates de treino | Administracao geral | Configuracoes, biblioteca ou modulo de templates | Nao editar na Central; mostrar somente a versao individual aplicada ao aluno. | Exigir permissao de configuracao; templates nao publicam treino sem prescricao e validacao. |
+| Biblioteca geral de exercicios | Administracao geral | Biblioteca | Nao editar o catalogo completo na Central; mostrar exercicios usados, orientacoes e alternativas aprovadas. | Curadoria e alteracao exigem permissao; midia e conteudo devem possuir origem/licenca quando externos. |
+| Plano individual e rotina semanal | Central do Aluno | Secao Treinamento da ficha | Plano atual, dias planejados, status, objetivo pratico e historico de versoes. | Deve ser filtrado por aluno e `contractId`; detalhes tecnicos dependem do perfil. |
+| Montagem Consolidada da Prescricao | Central do Aluno | Secao tecnica de Treinamento/Prescricao | Versao, capacidades recebidas, conflitos, validacao e liberacao operacional. | Professor autorizado ve detalhe tecnico; aluno recebe somente resultado pratico liberado. |
+| Treino de hoje | Central do Aluno | Secao Treino de hoje do aluno | Saida operacional, etapas, exercicios, orientacoes, alertas e registro de execucao. | Deve ser rastreavel ate a montagem consolidada e respeitar visao professor/aluno. |
+| Check-in pre-treino | Central do Aluno | Treino de hoje | Recuperacao, sono, fadiga, dor, motivacao, tempo disponivel e alertas contextuais. | Pode conter dado sensivel; nao altera treino automaticamente e deve respeitar `contractId`. |
+| Execucao estruturada | Central do Aluno | Treino de hoje | Planejado versus executado por etapa ciclica, exercicio, bloco ou serie. | Aluno altera apenas a propria execucao; professor autorizado consulta e revisa. |
+| Feedback pos-treino | Central do Aluno | Treino de hoje e Historico/Evolucao | Registro de PSE, dor, dificuldade, observacoes, substituicoes e evidencia para revisao. | Pode conter dados sensiveis; nao altera prescricao sem validacao do professor. |
+| Substituicoes de exercicio | Hibrida | Biblioteca/montagem e Treino de hoje | Alternativa aprovada, motivo da troca e impacto na execucao do aluno. | Cadastro geral fica fora da Central; aplicacao individual deve ser rastreavel e respeitar restricoes. |
+| Evolucao e decisao sugerida | Central do Aluno | Historico/Evolucao e visao tecnica | Indicadores individuais, alertas recorrentes e sugestao de manter, progredir, reduzir, trocar, suspender ou reavaliar. | Sugestao nao altera prescricao; decisao exige professor autorizado e historico de status. |
 | Catalogo geral de servicos | Administracao geral | Administracao de servicos | Nao aparece como catalogo completo; apenas servico contratado do aluno. | Permissao administrativa; nao usar como regra tecnica de treino. |
 | Servico ou plano contratado pelo aluno | Hibrida | Contratos/servicos e ficha do aluno | Status, plano vigente, datas relevantes e vinculo administrativo. | Dados comerciais; detalhes financeiros exigem permissao especifica. |
 | Contratos do aluno | Hibrida | Administracao de contratos e ficha do aluno | Contrato vigente, historico do aluno e documentos vinculados quando permitido. | Dados financeiros/contratuais exigem bloco especifico e `contractId`. |
@@ -69,7 +82,7 @@ Classifique como **Hibrida** quando:
 | Relatorios gerenciais globais | Administracao geral | Relatorios gerenciais | Nao aparecem na ficha; no maximo indicadores agregados sem detalhe indevido. | Dados de varios alunos; exigir permissao gerencial e escopo adequado. |
 | Configuracoes do sistema | Administracao geral | Configuracoes | Nao aparecem na Central. | Permissao administrativa; nunca depender de contexto de aluno. |
 | Permissoes por perfil, tela, bloco e escopo | Administracao geral | Controle de acesso | A Central apenas reage ao que a API autoriza ou bloqueia. | Fonte em `packages/types/access-control.ts`; usar `screenKey`, `blockKey`, `dataScope` e `contractId`. |
-| Parametros, modelos e templates reutilizaveis | Administracao geral | Configuracoes, catalogos ou biblioteca | Nao editar na Central; apenas usar o resultado aplicado ao aluno. | Permissao conforme dominio; evitar regra critica escondida no frontend. |
+| Parametros e metodos reutilizaveis | Administracao geral | Configuracoes, catalogos ou biblioteca | Nao editar na Central; apresentar nomes legiveis e valores aplicados ao aluno. | Permissao conforme dominio; evitar regra critica escondida no frontend. |
 | Historico unificado do aluno | Central do Aluno | Ficha do aluno, Historico/Evolucao | Linha do tempo de eventos relevantes por data, responsavel, origem e contexto. | Eventos sensiveis devem filtrar detalhes conforme permissao. |
 
 ## Como usar esta matriz em novas issues
@@ -81,6 +94,8 @@ Toda issue relacionada a Central do Aluno deve declarar:
 - **Presenca na Central**: resumo, vinculo, historico, alerta ou acao contextual esperada.
 - **Permissoes**: `screenKey`, `blockKey`, `dataScope`, `contractId` ou justificativa quando nao houver impacto.
 - **Atualizacao de historico**: se a acao deve alimentar o historico unificado do aluno.
+- **Visao do aluno**: quais informacoes praticas o aluno pode ver ou registrar.
+- **Visao tecnica**: quais detalhes ficam restritos ao professor ou perfil autorizado.
 
 ## Criterios para revisao futura
 
@@ -89,12 +104,14 @@ Atualize esta matriz quando:
 - uma nova epica introduzir dominio que afete diretamente a ficha do aluno;
 - uma funcionalidade administrativa passar a ter resumo ou acao contextual na Central;
 - uma acao sensivel exigir nova chave de permissao;
-- uma decisao de produto mudar o ponto principal de acesso.
+- uma decisao de produto mudar o ponto principal de acesso;
+- uma evolucao de treinamento alterar o limite entre catalogo geral, prescricao e execucao individual.
 
 Mudancas nesta matriz devem continuar compativeis com:
 
 - `ARCHITECTURE.md`;
 - `docs/product/integrated-prescription-control.md`;
+- `docs/product/student-centered-training-experience.md`;
 - `docs/product/access-control.md`;
 - `docs/architecture/auth-and-access-control.md`;
 - `docs/product/student-central-action-patterns.md`.
