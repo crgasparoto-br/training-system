@@ -38,7 +38,7 @@ export const collaboratorFormSchema = z
     bankBranch: z.string().optional(),
     bankAccount: z.string().optional(),
     pixKey: z.string().optional(),
-    avatar: optionalUrl,
+    avatar: z.string().optional(),
     admissionDate: z.string().optional(),
     dismissalDate: z.string().optional(),
     currentStatus: z.string().optional(),
@@ -133,8 +133,14 @@ function emptyToNull(value?: string) {
 }
 
 function parseRate(value?: string) {
-  const normalized = value?.trim().replace(/\./g, '').replace(',', '.');
-  if (!normalized) return null;
+  const input = value?.trim().replace(/\s/g, '');
+  if (!input) return null;
+
+  const normalized = input.includes(',')
+    ? input.replace(/\./g, '').replace(',', '.')
+    : /^\d{1,3}(\.\d{3})+$/.test(input)
+      ? input.replace(/\./g, '')
+      : input;
   const parsed = Number(normalized);
   return Number.isFinite(parsed) && parsed >= 0 ? Number(parsed.toFixed(2)) : null;
 }
@@ -235,26 +241,42 @@ export function toUpdateProfessorRequest(values: CollaboratorFormValues): Update
   };
 }
 
+const SELF_SERVICE_FIELDS: Array<keyof UpdateProfessorRequest> = [
+  'name',
+  'email',
+  'password',
+  'phone',
+  'birthDate',
+  'cpf',
+  'rg',
+  'maritalStatus',
+  'addressStreet',
+  'addressNumber',
+  'addressNeighborhood',
+  'addressCity',
+  'addressState',
+  'addressComplement',
+  'addressZipCode',
+  'instagramHandle',
+  'cref',
+  'professionalSummary',
+  'lattesUrl',
+  'companyDocument',
+  'bankCode',
+  'bankName',
+  'bankBranch',
+  'bankAccount',
+  'pixKey',
+  'avatar',
+];
+
 export function toSelfServiceUpdateProfessorRequest(values: CollaboratorFormValues): UpdateProfessorRequest {
   const payload = toUpdateProfessorRequest(values);
-  const {
-    admissionDate: _admissionDate,
-    dismissalDate: _dismissalDate,
-    currentStatus: _currentStatus,
-    collaboratorFunctionId: _collaboratorFunctionId,
-    responsibleManagerId: _responsibleManagerId,
-    operationalRoleIds: _operationalRoleIds,
-    hourlyRates: _hourlyRates,
-    hasSignedContract: _hasSignedContract,
-    signedContractDocumentUrl: _signedContractDocumentUrl,
-    ...selfServicePayload
-  } = payload;
-
-  return selfServicePayload;
-}
-
-export function findCollaboratorById(items: ProfessorSummary[], collaboratorId: string) {
-  return items.find((item) => item.id === collaboratorId) ?? null;
+  return Object.fromEntries(
+    SELF_SERVICE_FIELDS
+      .filter((field) => payload[field] !== undefined)
+      .map((field) => [field, payload[field]])
+  ) as UpdateProfessorRequest;
 }
 
 export function getLegalFinancialStatus(professor: ProfessorSummary) {
