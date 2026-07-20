@@ -1,55 +1,112 @@
-name: Issue 263 Finalize
+name: Validate PR
 
 on:
+  pull_request:
+    branches:
+      - main
+      - develop
   push:
     branches:
-      - feat/263-generalize-contracts-collaborators
-
-permissions:
-  contents: write
+      - main
+      - develop
+      - 'chore/**'
+      - 'feat/**'
+      - 'fix/**'
 
 jobs:
-  finalize:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/feat/263-generalize-contracts-collaborators'
+  validate:
+    name: Validate repository
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/training_system_test?schema=public
+      RUN_DATABASE_INTEGRATION_TESTS: 'true'
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: training_system_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d training_system_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
-      - name: Checkout issue branch
+      - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
         with:
-          ref: feat/263-generalize-contracts-collaborators
-          fetch-depth: 0
+          version: 9
 
-      - name: Apply audited corrections
-        run: |
-          python .github/issue263-fix-1.py
-          python .github/issue263-fix-1b.py
-          python .github/issue263-fix-2a.py
-          python .github/issue263-fix-2b.py
-          python .github/issue263-fix-3.py
-          python .github/issue263-fix-4a.py
-          python .github/issue263-fix-4b.py
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
 
-      - name: Restore standard CI and remove temporary files
-        run: |
-          git fetch origin develop
-          git show origin/develop:.github/workflows/validate-pr.yml > .github/workflows/validate-pr.yml
-          rm -f \
-            .github/workflows/issue-263-one-shot-sync.yml \
-            .github/issue-263-trigger \
-            .github/issue-263-sync-complete \
-            .github/issue263-fix-1.py \
-            .github/issue263-fix-1b.py \
-            .github/issue263-fix-2.py \
-            .github/issue263-fix-2a.py \
-            .github/issue263-fix-2b.py \
-            .github/issue263-fix-3.py \
-            .github/issue263-fix-4a.py \
-            .github/issue263-fix-4b.py
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
-      - name: Commit finalized implementation
+      - name: Generate Prisma Client (api)
+        run: pnpm --filter @corrida/api exec prisma generate
+
+      - name: Apply test database migrations
+        run: pnpm --filter @corrida/api exec prisma migrate deploy
+
+      - name: Type check
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "fix: complete issue 263 contract generalization"
-          git push origin HEAD:feat/263-generalize-contracts-collaborators
+          set -o pipefail
+          pnpm type-check 2>&1 | tee type-check-output.log
+
+      - name: Upload type-check output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: type-check-output-${{ github.run_id }}
+          path: type-check-output.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Test
+        run: |
+          set -o pipefail
+          pnpm test 2>&1 | tee test-output.log
+
+      - name: Upload test output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-output-${{ github.run_id }}
+          path: test-output.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Architecture checks
+        run: pnpm arch:check
+
+      - name: Access catalog checks
+        run: pnpm access:check
+
+      - name: Documentation checks
+        run: |
+          set -o pipefail
+          pnpm docs:check 2>&1 | tee docs-check-output.log
+
+      - name: Upload documentation check output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs-check-output-${{ github.run_id }}
+          path: docs-check-output.log
+          if-no-files-found: ignore
+          retention-days: 7

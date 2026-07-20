@@ -142,6 +142,7 @@ model ContractTemplate {
   serviceId   String?
   version     Int                      @default(1)
   status      ContractTemplateStatus   @default(DRAFT)
+  applicability ContractTemplateApplicability @default(STUDENT)
   headerHtml  String                   @default("")
   footerHtml  String                   @default("")
   createdAt   DateTime                 @default(now())
@@ -176,7 +177,10 @@ model Contract {
   companyContractId    String
   templateId           String
   templateVersion      Int
-  alunoId              String
+  alunoId              String?
+  collaboratorId       String?
+  partyType            ContractPartyType @default(STUDENT)
+  origin               ContractLinkOrigin @default(ELECTRONIC)
   responsavelName      String?
   responsavelCpf       String?
   responsavelEmail     String?
@@ -198,19 +202,50 @@ model Contract {
   updatedAt            DateTime            @updatedAt
   companyContract      CompanyContract     @relation(fields: [companyContractId], references: [id], onDelete: Cascade)
   template             ContractTemplate    @relation(fields: [templateId], references: [id])
-  aluno                Aluno               @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  aluno                Aluno?              @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  collaborator         Professor?          @relation("ContractCollaborator", fields: [collaboratorId], references: [id], onDelete: Restrict)
   service              ServiceOption?      @relation(fields: [serviceId], references: [id], onDelete: SetNull)
-  professor            Professor?          @relation(fields: [professorId], references: [id], onDelete: SetNull)
+  professor            Professor?          @relation("ContractResponsibleProfessor", fields: [professorId], references: [id], onDelete: SetNull)
   signatures           ContractSignature[]
   auditLogs            ContractAuditLog[]
   studentContracts     StudentContract[]
+  collaboratorContract CollaboratorContract?
 
   @@index([companyContractId, status])
   @@index([alunoId])
+  @@index([collaboratorId])
+  @@index([partyType])
   @@index([templateId])
   @@index([serviceId])
   @@index([professorId])
   @@map("GeneratedContract")
+}
+
+model CollaboratorContract {
+  id                 String                     @id @default(cuid())
+  collaboratorId     String
+  contractId         String?                    @unique
+  status             CollaboratorContractStatus @default(draft)
+  origin             ContractLinkOrigin         @default(ELECTRONIC)
+  startDate          DateTime?
+  endDate            DateTime?
+  signedAt           DateTime?
+  canceledAt         DateTime?
+  cancellationReason String?
+  notes              String?
+  legacyDocumentUrl  String?
+  legacySourceKey    String?                    @unique
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+
+  collaborator        Professor  @relation("CollaboratorContracts", fields: [collaboratorId], references: [id], onDelete: Restrict)
+  contract            Contract?  @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  currentForProfessor Professor? @relation("CurrentCollaboratorContract")
+
+  @@index([collaboratorId])
+  @@index([status])
+  @@index([startDate])
+  @@index([endDate])
 }
 
 model ContractSignature {
@@ -289,6 +324,7 @@ model Professor {
   responsibleManagerId            String?
   admissionDate                   DateTime?
   currentStatus                   String?
+  currentCollaboratorContractId   String?                    @unique
   operationalRoleIds              String[]                   @default([])
   hourlyRates                     Json?
   hasSignedContract               Boolean                    @default(false)
@@ -300,7 +336,10 @@ model Professor {
   prontuarioRecords               ProntuarioRecord[]
   assessmentAuditLogs             AssessmentAuditLog[]
   cloneLogs                       ContractDataCloneLog[]
-  generatedContracts              Contract[]
+  generatedContracts              Contract[]                  @relation("ContractResponsibleProfessor")
+  generatedCollaboratorContracts  Contract[]                  @relation("ContractCollaborator")
+  collaboratorContracts           CollaboratorContract[]      @relation("CollaboratorContracts")
+  currentCollaboratorContract     CollaboratorContract?       @relation("CurrentCollaboratorContract", fields: [currentCollaboratorContractId], references: [id], onDelete: SetNull)
   fixedSlots                      FixedScheduleSlot[]
   contract                        CompanyContract            @relation(fields: [contractId], references: [id], onDelete: Cascade, map: "Educator_contractId_fkey")
   user                            User                       @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Educator_userId_fkey")
@@ -317,6 +356,7 @@ model Professor {
 
   @@index([collaboratorFunctionId])
   @@index([responsibleManagerId])
+  @@index([currentCollaboratorContractId])
   @@index([contractId], map: "Educator_contractId_idx")
 }
 
@@ -1841,6 +1881,33 @@ enum ContractTemplateStatus {
   DRAFT
   ACTIVE
   INACTIVE
+}
+
+enum ContractPartyType {
+  STUDENT
+  COLLABORATOR
+}
+
+enum ContractTemplateApplicability {
+  STUDENT
+  COLLABORATOR
+  BOTH
+}
+
+enum ContractLinkOrigin {
+  ELECTRONIC
+  LEGACY_PDF
+  LEGACY_DECLARATION
+}
+
+enum CollaboratorContractStatus {
+  draft
+  pending_signature
+  active
+  expired
+  canceled
+  terminated
+  legacy
 }
 
 enum ContractStatus {

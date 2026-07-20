@@ -67,7 +67,7 @@ export const contractPdfService = {
         data: {
           contractId: contract.id,
           actorUserId: actor.userId,
-          action: 'GENERATED_PDF' as never,
+          action: 'PDF_GENERATED',
           ipAddress: actor.ipAddress,
           userAgent: actor.userAgent,
           details: { pdfPath, partyType: contract.partyType } as Prisma.InputJsonObject,

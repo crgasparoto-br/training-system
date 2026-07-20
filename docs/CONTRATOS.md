@@ -162,7 +162,7 @@ Consequências:
 Os ponteiros são:
 
 - `Aluno.currentStudentContractId`;
-- `Educator.currentCollaboratorContractId`.
+- `Professor.currentCollaboratorContractId`.
 
 Índices parciais únicos garantem no máximo um vínculo `active` por aluno e por colaborador. A transação bloqueia a linha da parte antes da substituição para impedir corrida entre ativações concorrentes.
 
@@ -292,6 +292,8 @@ Colaborador:
 - `GET /api/v1/contracts/collaborators/:collaboratorId/summary`;
 - `POST /api/v1/contracts/collaborators/:collaboratorId/preview`;
 - `POST /api/v1/contracts/collaborators/:collaboratorId/generate`;
+- `GET /api/v1/contracts/collaborators/:collaboratorId/documents/:documentId`;
+- `GET /api/v1/contracts/collaborators/:collaboratorId/documents/:documentId/pdf`;
 - `POST /api/v1/contracts/collaborators/:collaboratorId/documents/:documentId/pdf`;
 - `POST /api/v1/contracts/collaborators/:collaboratorId/documents/:documentId/send`;
 - `POST /api/v1/contracts/collaborators/:collaboratorId/documents/:documentId/cancel`;
@@ -308,3 +310,21 @@ Compartilhado:
 ## Provedores externos
 
 `GeneratedContract` mantém `externalProvider` e `externalEnvelopeId` para futura integração com provedores externos. A issue 263 não altera o provedor de assinatura interna.
+
+## Consulta de documentos persistidos
+
+Na edição do colaborador, a ação **Consultar** abre o HTML persistido do documento em modo somente leitura. Quando o PDF já foi gerado, **Abrir PDF** usa uma rota autenticada que valida tenant, escopo do colaborador e vínculo do documento antes de retornar o arquivo. Caminhos locais de storage não são expostos diretamente ao navegador.
+
+Recusas aparecem explicitamente como **Recusado**, com data e motivo quando informado. Cancelamento administrativo e recusa da parte contratante permanecem distinguíveis no histórico.
+
+## Rollback da implantação da generalização
+
+A migration é aditiva e preserva os campos legados durante a transição. Em caso de rollback da aplicação:
+
+1. interrompa novas gerações para colaboradores;
+2. reverta primeiro a aplicação para a versão anterior, mantendo as tabelas e colunas novas no banco;
+3. não remova `CollaboratorContract`, `partyType`, `collaboratorId`, snapshots, hashes, auditorias ou tokens enquanto existir documento criado pela versão nova;
+4. restaure a aplicação corrigida e execute novamente `prisma migrate deploy`;
+5. somente uma migration posterior, revisada e explicitamente destrutiva, poderá remover estruturas novas após exportação e confirmação de que não existem documentos eletrônicos dependentes.
+
+Não existe rollback automático destrutivo. Essa estratégia mantém compatibilidade de leitura e evita perda de histórico durante uma reversão emergencial.

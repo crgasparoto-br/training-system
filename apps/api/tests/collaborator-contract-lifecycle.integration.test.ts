@@ -8,6 +8,7 @@ import {
   UserType,
 } from '@prisma/client';
 import { studentContractLifecycleService } from '../src/modules/student-contracts/student-contract-lifecycle.service.js';
+import { collaboratorContractService } from '../src/modules/contracts/collaborator-contract.service.js';
 
 const request = require('supertest');
 const contractRejectionRouter = require('../src/modules/contracts/contract-rejection.routes').default;
@@ -227,6 +228,26 @@ async function readLifecycle(collaboratorId: string) {
   return { professor: professors[0], links };
 }
 
+async function cleanupFixtures() {
+  await prisma.$executeRaw(Prisma.sql`
+    DELETE FROM "CollaboratorContract"
+    WHERE "collaboratorId" IN (
+      SELECT "id" FROM "Professor"
+      WHERE "contractId" IN (${companyContractId}, ${otherCompanyContractId})
+    )
+  `);
+  await prisma.$executeRaw(Prisma.sql`
+    DELETE FROM "GeneratedContract"
+    WHERE "companyContractId" IN (${companyContractId}, ${otherCompanyContractId})
+  `);
+  await prisma.companyContract.deleteMany({
+    where: { id: { in: [companyContractId, otherCompanyContractId] } },
+  });
+  await prisma.user.deleteMany({
+    where: { email: { startsWith: emailPrefix } },
+  });
+}
+
 describeDatabase('collaborator contract lifecycle with PostgreSQL', () => {
   const app = express();
   app.use(express.json());
@@ -234,21 +255,17 @@ describeDatabase('collaborator contract lifecycle with PostgreSQL', () => {
 
   beforeEach(async () => {
     sequence = 0;
-    await prisma.companyContract.deleteMany({
-      where: { id: { in: [companyContractId, otherCompanyContractId] } },
-    });
-    await prisma.user.deleteMany({
-      where: { email: { startsWith: emailPrefix } },
-    });
+    await cleanupFixtures();
   });
 
   afterEach(async () => {
-    await prisma.companyContract.deleteMany({
-      where: { id: { in: [companyContractId, otherCompanyContractId] } },
-    });
-    await prisma.user.deleteMany({
-      where: { email: { startsWith: emailPrefix } },
-    });
+    await prisma.$executeRawUnsafe(
+      'DROP TRIGGER IF EXISTS "test_delay_collaborator_signature_claim" ON "GeneratedContract"'
+    );
+    await prisma.$executeRawUnsafe(
+      'DROP FUNCTION IF EXISTS "test_delay_collaborator_signature_claim_update"()'
+    );
+    await cleanupFixtures();
   });
 
   afterAll(async () => {
@@ -321,9 +338,17 @@ describeDatabase('collaborator contract lifecycle with PostgreSQL', () => {
     expect(rejectedLifecycle.links.find((item) => item.id === rejectedFixture.candidateLinkId)?.status)
       .toBe('canceled');
     expect(rejectedLifecycle.links.filter((item) => item.status === 'active')).toHaveLength(1);
+    const rejectedSummary = await collaboratorContractService.summary(
+      companyContractId,
+      rejectedFixture.collaborator.id
+    );
+    const rejectedCandidate = rejectedSummary.history.find(
+      (item) => item.id === rejectedFixture.candidateLinkId
+    );
+    expect(rejectedCandidate?.rejectedAt).toBeInstanceOf(Date);
+    expect(rejectedCandidate?.rejectionReason).toBe('Não concordo com as condições');
 
-    await prisma.companyContract.delete({ where: { id: companyContractId } });
-    await prisma.user.deleteMany({ where: { email: { startsWith: emailPrefix } } });
+    await cleanupFixtures();
 
     const expiredFixture = await createFixture({
       tokenExpiresAt: new Date(Date.now() - 60_000),
@@ -375,6 +400,59 @@ describeDatabase('collaborator contract lifecycle with PostgreSQL', () => {
     expect(lifecycle.links.filter((item) => item.status === 'active')).toHaveLength(1);
     expect(lifecycle.professor?.currentCollaboratorContractId)
       .toBe(lifecycle.links.find((item) => item.status === 'active')?.id);
+  });
+
+
+  it('allows only the signature to win against a concurrent collaborator rejection', async () => {
+    const fixture = await createFixture();
+
+    await prisma.$executeRawUnsafe(`
+      CREATE OR REPLACE FUNCTION "test_delay_collaborator_signature_claim_update"()
+      RETURNS trigger AS $$
+      BEGIN
+        IF NEW."id" = '${fixture.candidateDocumentId}' AND NEW."status" = 'SIGNED' THEN
+          PERFORM pg_sleep(0.4);
+        END IF;
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE TRIGGER "test_delay_collaborator_signature_claim"
+      BEFORE UPDATE ON "GeneratedContract"
+      FOR EACH ROW EXECUTE FUNCTION "test_delay_collaborator_signature_claim_update"()
+    `);
+
+    const signing = studentContractLifecycleService.signPublicContract(
+      fixture.token,
+      { signerName: 'Colaborador Teste', signerCpf: '12345678901' }
+    );
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const rejecting = request(app)
+      .post(`/contracts/public/${fixture.token}/reject`)
+      .send({ reason: 'Recusa concorrente' });
+
+    const [signatureResult, rejectionResponse] = await Promise.all([signing, rejecting]);
+    const [document, lifecycle, rejectionAuditCount] = await Promise.all([
+      prisma.contract.findUniqueOrThrow({ where: { id: fixture.candidateDocumentId } }),
+      readLifecycle(fixture.collaborator.id),
+      prisma.contractAuditLog.count({
+        where: {
+          contractId: fixture.candidateDocumentId,
+          action: 'UPDATED',
+          details: { path: ['kind'], equals: 'STUDENT_REJECTION' },
+        },
+      }),
+    ]);
+
+    expect(signatureResult.activation.partyType).toBe('COLLABORATOR');
+    expect([400, 404]).toContain(rejectionResponse.status);
+    expect(rejectionResponse.body.error).toBe('Link inválido ou já utilizado');
+    expect(document.status).toBe('SIGNED');
+    expect(document.publicTokenHash).toBeNull();
+    expect(lifecycle.professor?.currentCollaboratorContractId).toBe(fixture.candidateLinkId);
+    expect(lifecycle.links.filter((item) => item.status === 'active')).toHaveLength(1);
+    expect(rejectionAuditCount).toBe(0);
   });
 
   it('rejects template and collaborator combinations from different tenants', async () => {

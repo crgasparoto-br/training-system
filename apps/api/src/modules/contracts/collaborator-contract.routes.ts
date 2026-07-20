@@ -1,12 +1,14 @@
 import crypto from 'crypto';
+import fs from 'fs/promises';
+import path from 'path';
 import { Router, type Request, type Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { sendError, sendSuccess } from '@corrida/utils';
+import { getMostPermissiveDataScopeForProfessor } from '../access-control/index.js';
 import {
-  getMostPermissiveDataScopeForProfessor,
+  blockAccessMiddleware,
   screenAccessMiddleware,
-} from '../access-control/index.js';
-import { blockAccessMiddleware } from '../access-control/access-control.middleware.js';
+} from '../access-control/access-control.middleware.js';
 import { professorAccessQueryService } from '../professores/professor-access-query.service.js';
 import { studentContractLifecycleService } from '../student-contracts/student-contract-lifecycle.service.js';
 import { collaboratorContractService } from './collaborator-contract.service.js';
@@ -113,6 +115,59 @@ router.post(
       return sendSuccess(res, generated, 'Contrato do colaborador gerado com sucesso', 201);
     } catch (error) {
       return handleError(res, error, 'Erro ao gerar contrato do colaborador');
+    }
+  }
+);
+
+router.get(
+  '/collaborators/:collaboratorId/documents/:documentId',
+  async (req: Request, res: Response) => {
+    try {
+      const { companyContractId } = await assertCollaboratorAccess(req, req.params.collaboratorId);
+      await collaboratorContractService.assertDocumentBelongsToCollaborator(
+        companyContractId,
+        req.params.collaboratorId,
+        req.params.documentId
+      );
+      const document = await contractRecordRepository.findByIdForCompany(
+        req.params.documentId,
+        companyContractId
+      );
+      if (!document) throw new Error('Contrato do colaborador não encontrado');
+      return sendSuccess(res, document, 'Documento contratual recuperado com sucesso');
+    } catch (error) {
+      return handleError(res, error, 'Erro ao consultar documento contratual');
+    }
+  }
+);
+
+router.get(
+  '/collaborators/:collaboratorId/documents/:documentId/pdf',
+  async (req: Request, res: Response) => {
+    try {
+      const { companyContractId } = await assertCollaboratorAccess(req, req.params.collaboratorId);
+      await collaboratorContractService.assertDocumentBelongsToCollaborator(
+        companyContractId,
+        req.params.collaboratorId,
+        req.params.documentId
+      );
+      const document = await contractRecordRepository.findByIdForCompany(
+        req.params.documentId,
+        companyContractId
+      );
+      if (!document?.pdfPath) throw new Error('PDF do contrato não encontrado');
+
+      const storageRoot = path.resolve(process.cwd(), 'storage', 'contracts');
+      const resolvedPdfPath = path.resolve(document.pdfPath);
+      if (!resolvedPdfPath.startsWith(`${storageRoot}${path.sep}`)) {
+        throw new Error('PDF do contrato não encontrado');
+      }
+      const pdf = await fs.readFile(resolvedPdfPath);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename=contrato-${document.id}.pdf`);
+      return res.status(200).send(pdf);
+    } catch (error) {
+      return handleError(res, error, 'Erro ao consultar PDF do contrato');
     }
   }
 );

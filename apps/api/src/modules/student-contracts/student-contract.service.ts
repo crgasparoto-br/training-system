@@ -445,6 +445,11 @@ export const studentContractService = {
       return null;
     }
 
+    const terminalStatuses: StudentContractStatus[] = ['canceled', 'expired', 'terminated'];
+    if (terminalStatuses.includes(existing.status) && existing.status !== status) {
+      return existing;
+    }
+
     const updated = await client.studentContract.update({
       where: { id: existing.id },
       data: {

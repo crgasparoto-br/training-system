@@ -243,7 +243,7 @@ export const ACCESS_BLOCK_CATALOG = [
   {
     key: 'collaborators.actions.uploadSignedContract',
     screenKey: 'collaborators.registration',
-    label: 'Acao: Upload de contrato assinado do colaborador',
+    label: 'Acao: Gerenciar contrato do colaborador',
   },
   {
     key: 'physicalAssessment.prnt.summary',

@@ -1,4 +1,4 @@
-import { PrismaClient, Prisma, type Prisma as PrismaTypes } from '@prisma/client';
+import { PrismaClient, type Prisma, type Prisma as PrismaTypes } from '@prisma/client';
 import crypto from 'crypto';
 import { contractDocumentService } from './contract-document.service.js';
 import { loadContractServiceVariableContext } from './contract-service-context.js';
@@ -97,15 +97,6 @@ const assertActorCanAssignProfessor = (
   }
 };
 
-async function loadApplicability(client: DbClient, templateId: string) {
-  const rows = await client.$queryRaw<Array<{ applicability: ContractTemplateApplicability }>>(Prisma.sql`
-    SELECT "applicability"::text AS "applicability"
-    FROM "ContractTemplate"
-    WHERE "id" = ${templateId}
-    LIMIT 1
-  `);
-  return rows[0]?.applicability ?? 'STUDENT';
-}
 
 async function resolveGenerationData(
   client: DbClient,
@@ -119,7 +110,7 @@ async function resolveGenerationData(
   if (!templateId) throw new Error('Informe o modelo de contrato');
   if (!alunoId) throw new Error('Informe o aluno do contrato');
 
-  const [template, applicability, company, aluno] = await Promise.all([
+  const [template, company, aluno] = await Promise.all([
     client.contractTemplate.findFirst({
       where: {
         id: templateId,
@@ -128,7 +119,6 @@ async function resolveGenerationData(
       },
       include: { clauses: { orderBy: { order: 'asc' as const } } },
     }),
-    loadApplicability(client, templateId),
     client.companyContract.findUnique({ where: { id: companyContractId } }),
     client.aluno.findUnique({
       where: { id: alunoId },
@@ -149,6 +139,7 @@ async function resolveGenerationData(
     throw new Error('Aluno não pertence ao contrato autenticado');
   }
 
+  const applicability: ContractTemplateApplicability = template.applicability ?? 'STUDENT';
   assertTemplateSupportsParty(applicability, 'STUDENT');
   const usedVariables = assertTemplateVariablesCompatible(applicability, [
     template.headerHtml,

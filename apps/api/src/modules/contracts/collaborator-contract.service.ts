@@ -70,6 +70,8 @@ export type CollaboratorContractView = {
   pdfPath: string | null;
   publicTokenExpiresAt: Date | null;
   documentCreatedAt: Date | null;
+  rejectedAt: Date | null;
+  rejectionReason: string | null;
 };
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -251,10 +253,23 @@ async function listRows(
       gc."renderedHtml",
       gc."pdfPath",
       gc."publicTokenExpiresAt",
-      gc."createdAt" AS "documentCreatedAt"
+      gc."createdAt" AS "documentCreatedAt",
+      rejection."rejectedAt",
+      rejection."rejectionReason"
     FROM "CollaboratorContract" cc
     JOIN "Professor" p ON p."id" = cc."collaboratorId"
     LEFT JOIN "GeneratedContract" gc ON gc."id" = cc."contractId"
+    LEFT JOIN LATERAL (
+      SELECT
+        NULLIF(log."details" ->> 'rejectedAt', '')::timestamptz AS "rejectedAt",
+        NULLIF(log."details" ->> 'rejectionReason', '') AS "rejectionReason"
+      FROM "ContractAuditLog" log
+      WHERE log."contractId" = gc."id"
+        AND log."action" = 'UPDATED'::"ContractAuditAction"
+        AND log."details" ->> 'kind' = 'STUDENT_REJECTION'
+      ORDER BY log."createdAt" DESC
+      LIMIT 1
+    ) rejection ON TRUE
     WHERE cc."collaboratorId" = ${collaboratorId}
       AND p."contractId" = ${companyContractId}
     ORDER BY
@@ -390,6 +405,16 @@ export const collaboratorContractService = {
     } = {},
     client: DbClient = prisma
   ) {
+    const current = await client.collaboratorContract.findUnique({
+      where: { contractId: documentId },
+      select: { status: true },
+    });
+    if (!current) return null;
+    const terminalStatuses = ['canceled', 'expired', 'terminated', 'legacy'] as const;
+    if (terminalStatuses.includes(current.status as (typeof terminalStatuses)[number]) && current.status !== status) {
+      return current;
+    }
+
     const patchJson = JSON.stringify(patch);
     await client.$executeRaw(Prisma.sql`
       UPDATE "CollaboratorContract"
@@ -403,5 +428,6 @@ export const collaboratorContractService = {
         "updatedAt" = CURRENT_TIMESTAMP
       WHERE "contractId" = ${documentId}
     `);
+    return client.collaboratorContract.findUnique({ where: { contractId: documentId } });
   },
 };

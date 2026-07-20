@@ -32,6 +32,8 @@ export interface CollaboratorContractRecord {
   pdfPath?: string | null;
   publicTokenExpiresAt?: string | null;
   documentCreatedAt?: string | null;
+  rejectedAt?: string | null;
+  rejectionReason?: string | null;
 }
 
 export interface CollaboratorContractSummary {
@@ -82,6 +84,21 @@ export const collaboratorContractService = {
       data: { id: string; linkId: string; title: string; status: string };
     }>(`/contracts/collaborators/${collaboratorId}/generate`, input);
     return response.data.data;
+  },
+
+  async getDocument(collaboratorId: string, documentId: string) {
+    const response = await api.get<{ success: boolean; data: CollaboratorContractRecord }>(
+      `/contracts/collaborators/${collaboratorId}/documents/${documentId}`
+    );
+    return response.data.data;
+  },
+
+  async downloadPdf(collaboratorId: string, documentId: string) {
+    const response = await api.get<Blob>(
+      `/contracts/collaborators/${collaboratorId}/documents/${documentId}/pdf`,
+      { responseType: 'blob' }
+    );
+    return response.data;
   },
 
   async generatePdf(collaboratorId: string, documentId: string) {

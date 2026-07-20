@@ -1,9 +1,4 @@
-from pathlib import Path
-
-ROOT = Path.cwd()
-
-path = ROOT / "apps/web/src/features/collaborators/CollaboratorContractControl.test.tsx"
-path.write_text('''import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CollaboratorContractControl } from './CollaboratorContractControl';
 import { collaboratorContractService } from '../../services/collaborator-contract.service';
@@ -64,38 +59,3 @@ describe('CollaboratorContractControl', () => {
     )).toBeInTheDocument();
   });
 });
-''')
-
-path = ROOT / "docs/CONTRATOS.md"
-text = path.read_text().replace(
-    "`Educator.currentCollaboratorContractId`",
-    "`Professor.currentCollaboratorContractId`",
-)
-text = text.replace(
-    "- `POST /api/v1/contracts/collaborators/:collaboratorId/documents/:documentId/pdf`;",
-    "- `GET /api/v1/contracts/collaborators/:collaboratorId/documents/:documentId`;\n"
-    "- `GET /api/v1/contracts/collaborators/:collaboratorId/documents/:documentId/pdf`;\n"
-    "- `POST /api/v1/contracts/collaborators/:collaboratorId/documents/:documentId/pdf`;",
-)
-append = """
-## Consulta de documentos persistidos
-
-Na edição do colaborador, a ação **Consultar** abre o HTML persistido do documento em modo somente leitura. Quando o PDF já foi gerado, **Abrir PDF** usa uma rota autenticada que valida tenant, escopo do colaborador e vínculo do documento antes de retornar o arquivo. Caminhos locais de storage não são expostos diretamente ao navegador.
-
-Recusas aparecem explicitamente como **Recusado**, com data e motivo quando informado. Cancelamento administrativo e recusa da parte contratante permanecem distinguíveis no histórico.
-
-## Rollback da implantação da generalização
-
-A migration é aditiva e preserva os campos legados durante a transição. Em caso de rollback da aplicação:
-
-1. interrompa novas gerações para colaboradores;
-2. reverta primeiro a aplicação para a versão anterior, mantendo as tabelas e colunas novas no banco;
-3. não remova `CollaboratorContract`, `partyType`, `collaboratorId`, snapshots, hashes, auditorias ou tokens enquanto existir documento criado pela versão nova;
-4. restaure a aplicação corrigida e execute novamente `prisma migrate deploy`;
-5. somente uma migration posterior, revisada e explicitamente destrutiva, poderá remover estruturas novas após exportação e confirmação de que não existem documentos eletrônicos dependentes.
-
-Não existe rollback automático destrutivo. Essa estratégia mantém compatibilidade de leitura e evita perda de histórico durante uma reversão emergencial.
-"""
-if "## Rollback da implantação da generalização" not in text:
-    text += append
-path.write_text(text)

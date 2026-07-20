@@ -43,7 +43,9 @@ function ContractRecordCard({
   item,
   canManage,
   busy,
-  onPdf,
+  onView,
+  onGeneratePdf,
+  onOpenPdf,
   onSend,
   onActivate,
   onCancel,
@@ -51,7 +53,9 @@ function ContractRecordCard({
   item: CollaboratorContractRecord;
   canManage: boolean;
   busy: boolean;
-  onPdf: (item: CollaboratorContractRecord) => void;
+  onView: (item: CollaboratorContractRecord) => void;
+  onGeneratePdf: (item: CollaboratorContractRecord) => void;
+  onOpenPdf: (item: CollaboratorContractRecord) => void;
   onSend: (item: CollaboratorContractRecord) => void;
   onActivate: (item: CollaboratorContractRecord) => void;
   onCancel: (item: CollaboratorContractRecord) => void;
@@ -66,7 +70,7 @@ function ContractRecordCard({
               {item.documentTitle || (item.origin === 'LEGACY_PDF' ? 'Documento legado' : 'Declaração legada')}
             </p>
             <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-              {statusLabel[item.status] || item.status}
+              {item.rejectedAt ? 'Recusado' : (statusLabel[item.status] || item.status)}
             </span>
             {item.documentStatus ? (
               <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-700">
@@ -79,7 +83,15 @@ function ContractRecordCard({
           </p>
           {item.origin !== 'ELECTRONIC' ? (
             <p className="mt-2 text-sm text-amber-700">
-              Registro importado do cadastro anterior. Não representa assinatura eletrônica, token, IP ou evidência de aceite.
+              {item.origin === 'LEGACY_PDF'
+                ? 'Documento legado importado. Não representa assinatura eletrônica, token, IP ou evidência de aceite.'
+                : 'Contrato informado no cadastro, sem documento eletrônico verificável.'}
+            </p>
+          ) : null}
+          {item.rejectedAt ? (
+            <p className="mt-2 text-sm text-rose-700">
+              Recusado em {formatDate(item.rejectedAt)}
+              {item.rejectionReason ? `: ${item.rejectionReason}` : '.'}
             </p>
           ) : null}
           {item.cancellationReason ? (
@@ -97,22 +109,31 @@ function ContractRecordCard({
           ) : null}
         </div>
 
-        {electronic && canManage ? (
+        {electronic ? (
           <div className="flex flex-wrap gap-2">
-            <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => onPdf(item)}>
-              <FileText size={14} /> PDF
+            <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => onView(item)}>
+              <Eye size={14} /> Consultar
             </Button>
-            {item.documentStatus !== 'SIGNED' && item.documentStatus !== 'CANCELLED' && item.documentStatus !== 'EXPIRED' ? (
+            {item.pdfPath ? (
+              <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => onOpenPdf(item)}>
+                <FileText size={14} /> Abrir PDF
+              </Button>
+            ) : canManage ? (
+              <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => onGeneratePdf(item)}>
+                <FileText size={14} /> Gerar PDF
+              </Button>
+            ) : null}
+            {canManage && !item.rejectedAt && item.documentStatus !== 'SIGNED' && item.documentStatus !== 'CANCELLED' && item.documentStatus !== 'EXPIRED' ? (
               <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => onSend(item)}>
                 <Send size={14} /> Enviar
               </Button>
             ) : null}
-            {item.documentStatus === 'SIGNED' && item.status !== 'active' ? (
+            {canManage && item.documentStatus === 'SIGNED' && item.status !== 'active' ? (
               <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => onActivate(item)}>
                 <CheckCircle2 size={14} /> Colocar em vigor
               </Button>
             ) : null}
-            {item.documentStatus !== 'SIGNED' && item.status !== 'canceled' ? (
+            {canManage && !item.rejectedAt && item.documentStatus !== 'SIGNED' && item.status !== 'canceled' ? (
               <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => onCancel(item)}>
                 <XCircle size={14} /> Cancelar
               </Button>
@@ -135,6 +156,7 @@ export function CollaboratorContractControl({ collaboratorId }: { collaboratorId
     horarios: '',
   });
   const [previewHtml, setPreviewHtml] = useState('');
+  const [documentHtml, setDocumentHtml] = useState('');
   const [signatureUrl, setSignatureUrl] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -199,6 +221,22 @@ export function CollaboratorContractControl({ collaboratorId }: { collaboratorId
     setMessage('Novo contrato gerado como candidato. O contrato vigente foi preservado.');
   });
 
+  const viewDocument = (item: CollaboratorContractRecord) => run(async () => {
+    if (!item.contractId) return;
+    const document = await collaboratorContractService.getDocument(collaboratorId, item.contractId);
+    setDocumentHtml(document.renderedHtml || '');
+    setMessage('Documento persistido carregado em modo somente leitura.');
+  });
+
+  const openPdf = (item: CollaboratorContractRecord) => run(async () => {
+    if (!item.contractId) return;
+    const blob = await collaboratorContractService.downloadPdf(collaboratorId, item.contractId);
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank', 'noopener,noreferrer');
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    setMessage('PDF persistido aberto em uma nova guia.');
+  });
+
   const generatePdf = (item: CollaboratorContractRecord) => run(async () => {
     if (!item.contractId) return;
     await collaboratorContractService.generatePdf(collaboratorId, item.contractId);
@@ -252,7 +290,9 @@ export function CollaboratorContractControl({ collaboratorId }: { collaboratorId
                   item={summary.current}
                   canManage={canManage}
                   busy={busy}
-                  onPdf={generatePdf}
+                  onView={viewDocument}
+                  onGeneratePdf={generatePdf}
+                  onOpenPdf={openPdf}
                   onSend={send}
                   onActivate={activate}
                   onCancel={cancel}
@@ -344,12 +384,25 @@ export function CollaboratorContractControl({ collaboratorId }: { collaboratorId
           </div>
         ) : null}
 
+        {documentHtml ? (
+          <div>
+            <h3 className="mb-2 text-sm font-semibold text-foreground">Documento persistido</h3>
+            <iframe
+              title="Documento persistido do contrato do colaborador"
+              srcDoc={documentHtml}
+              sandbox=""
+              className="h-[560px] w-full rounded-xl border border-border bg-white"
+            />
+          </div>
+        ) : null}
+
         {previewHtml ? (
           <div>
             <h3 className="mb-2 text-sm font-semibold text-foreground">Prévia</h3>
             <iframe
               title="Prévia do contrato do colaborador"
               srcDoc={previewHtml}
+              sandbox=""
               className="h-[560px] w-full rounded-xl border border-border bg-white"
             />
           </div>
@@ -365,7 +418,9 @@ export function CollaboratorContractControl({ collaboratorId }: { collaboratorId
                   item={item}
                   canManage={canManage}
                   busy={busy}
-                  onPdf={generatePdf}
+                  onView={viewDocument}
+                  onGeneratePdf={generatePdf}
+                  onOpenPdf={openPdf}
                   onSend={send}
                   onActivate={activate}
                   onCancel={cancel}
@@ -387,7 +442,9 @@ export function CollaboratorContractControl({ collaboratorId }: { collaboratorId
                   item={item}
                   canManage={false}
                   busy={busy}
-                  onPdf={generatePdf}
+                  onView={viewDocument}
+                  onGeneratePdf={generatePdf}
+                  onOpenPdf={openPdf}
                   onSend={send}
                   onActivate={activate}
                   onCancel={cancel}

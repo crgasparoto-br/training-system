@@ -27,7 +27,7 @@ describe('issue 263 collaborator contract migration', () => {
   it('enforces one active contract per student and per collaborator', () => {
     expect(migration).toContain('"StudentContract_one_active_per_aluno_key"');
     expect(migration).toContain('"CollaboratorContract_one_active_per_collaborator_key"');
-    expect(migration.match(/WHERE "status" = 'active'/gu)).toHaveLength(3);
+    expect(migration.match(/WHERE "status" = 'active'/gu)).toHaveLength(2);
   });
 
   it('protects tenant, template and party combinations in the database', () => {

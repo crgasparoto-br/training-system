@@ -1,4 +1,3 @@
-import { describe, expect, it, vi } from 'vitest';
 import type { NextFunction, Request, Response } from 'express';
 import {
   legacyCollaboratorContractMiddleware,
@@ -19,9 +18,9 @@ describe('legacy collaborator contract guard', () => {
   });
 
   it('returns 410 for the obsolete signed-contract upload endpoint', () => {
-    const status = vi.fn().mockReturnThis();
-    const json = vi.fn().mockReturnThis();
-    const next = vi.fn();
+    const status = jest.fn().mockReturnThis();
+    const json = jest.fn().mockReturnThis();
+    const next = jest.fn();
     const req = {
       path: '/signed-contract-upload',
       method: 'POST',
