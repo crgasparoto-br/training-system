@@ -2,6 +2,7 @@ import { KeyRound, ShieldCheck, UserCheck, UserX } from 'lucide-react';
 import type { ProfessorSummary } from '@corrida/types';
 import { Button } from '../../components/ui/Button';
 import { CollaboratorSection } from './CollaboratorSection';
+import { CollaboratorContractControl } from './CollaboratorContractControl';
 
 interface CollaboratorAdministrativeActionsProps {
   collaborator: ProfessorSummary;
@@ -48,59 +49,63 @@ export function CollaboratorAdministrativeActions({
   const canShowDeactivate = canDeactivate
     && collaborator.user.isActive !== false
     && collaborator.role !== 'master';
-  const hasVisibleContent = canValidateLegal
+  const hasVisibleAdministrativeContent = canValidateLegal
     || canShowResetPassword
     || canShowActivate
     || canShowDeactivate
     || Boolean(successMessage)
     || Boolean(temporaryPassword);
 
-  if (!hasVisibleContent) return null;
-
   return (
-    <CollaboratorSection
-      title="Ações administrativas"
-      description="Disponíveis apenas na edição e protegidas por permissão e escopo do contrato."
-    >
-      <div className="space-y-3">
-        {successMessage ? (
-          <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
-            {successMessage}
+    <div className="space-y-5">
+      <CollaboratorContractControl collaboratorId={collaborator.id} />
+
+      {hasVisibleAdministrativeContent ? (
+        <CollaboratorSection
+          title="Ações administrativas"
+          description="Disponíveis apenas na edição e protegidas por permissão e escopo do contrato."
+        >
+          <div className="space-y-3">
+            {successMessage ? (
+              <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
+                {successMessage}
+              </div>
+            ) : null}
+            {temporaryPassword ? (
+              <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                Senha temporária: <strong>{temporaryPassword}</strong>. Oriente o colaborador a alterá-la no próximo acesso.
+              </div>
+            ) : null}
+            <div className="flex flex-wrap gap-2">
+              {canValidateLegal ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={loading || !hasLegalFinancialData}
+                  onClick={onValidateLegal}
+                >
+                  <ShieldCheck size={16} /> Validar dados financeiros
+                </Button>
+              ) : null}
+              {canShowResetPassword ? (
+                <Button type="button" variant="outline" disabled={loading} onClick={onResetPassword}>
+                  <KeyRound size={16} /> Redefinir senha
+                </Button>
+              ) : null}
+              {canShowActivate ? (
+                <Button type="button" variant="outline" disabled={loading} onClick={onActivate}>
+                  <UserCheck size={16} /> Reativar
+                </Button>
+              ) : null}
+              {canShowDeactivate ? (
+                <Button type="button" variant="outline" disabled={loading} onClick={onDeactivate}>
+                  <UserX size={16} /> Desativar
+                </Button>
+              ) : null}
+            </div>
           </div>
-        ) : null}
-        {temporaryPassword ? (
-          <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-            Senha temporária: <strong>{temporaryPassword}</strong>. Oriente o colaborador a alterá-la no próximo acesso.
-          </div>
-        ) : null}
-        <div className="flex flex-wrap gap-2">
-          {canValidateLegal ? (
-            <Button
-              type="button"
-              variant="outline"
-              disabled={loading || !hasLegalFinancialData}
-              onClick={onValidateLegal}
-            >
-              <ShieldCheck size={16} /> Validar dados financeiros
-            </Button>
-          ) : null}
-          {canShowResetPassword ? (
-            <Button type="button" variant="outline" disabled={loading} onClick={onResetPassword}>
-              <KeyRound size={16} /> Redefinir senha
-            </Button>
-          ) : null}
-          {canShowActivate ? (
-            <Button type="button" variant="outline" disabled={loading} onClick={onActivate}>
-              <UserCheck size={16} /> Reativar
-            </Button>
-          ) : null}
-          {canShowDeactivate ? (
-            <Button type="button" variant="outline" disabled={loading} onClick={onDeactivate}>
-              <UserX size={16} /> Desativar
-            </Button>
-          ) : null}
-        </div>
-      </div>
-    </CollaboratorSection>
+        </CollaboratorSection>
+      ) : null}
+    </div>
   );
 }
