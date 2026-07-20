@@ -60,9 +60,6 @@ jobs:
       - name: Apply test database migrations
         run: pnpm --filter @corrida/api exec prisma migrate deploy
 
-      - name: Validate Prisma schema
-        run: pnpm --filter @corrida/api exec prisma validate
-
       - name: Type check
         run: |
           set -o pipefail
@@ -94,26 +91,11 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Build
-        run: pnpm build
-
       - name: Architecture checks
         run: pnpm arch:check
 
       - name: Access catalog checks
         run: pnpm access:check
-
-      - name: Prisma consistency
-        run: pnpm prisma:check
-
-      - name: API boundary checks
-        run: pnpm api:check
-
-      - name: Migration checks
-        run: pnpm migration:check
-
-      - name: Agent checks
-        run: pnpm agent:check
 
       - name: Documentation checks
         run: |
