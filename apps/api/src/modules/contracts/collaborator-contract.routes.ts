@@ -10,8 +10,9 @@ import { blockAccessMiddleware } from '../access-control/access-control.middlewa
 import { professorAccessQueryService } from '../professores/professor-access-query.service.js';
 import { studentContractLifecycleService } from '../student-contracts/student-contract-lifecycle.service.js';
 import { collaboratorContractService } from './collaborator-contract.service.js';
-import { contractDocumentService } from './contract-document.service.js';
 import { contractPartyLinkService } from './contract-party-link.service.js';
+import { contractPdfService } from './contract-pdf.service.js';
+import { contractRecordRepository } from './contract-record.repository.js';
 
 const router: Router = Router();
 const prisma = new PrismaClient();
@@ -127,7 +128,7 @@ router.post(
         req.params.collaboratorId,
         req.params.documentId
       );
-      const document = await contractDocumentService.generatePdf(
+      const document = await contractPdfService.generate(
         companyContractId,
         req.params.documentId,
         actorFromRequest(req)
@@ -152,9 +153,11 @@ router.post(
       );
 
       const result = await prisma.$transaction(async (tx) => {
-        const contract = await tx.contract.findFirst({
-          where: { id: req.params.documentId, companyContractId },
-        });
+        const contract = await contractRecordRepository.findByIdForCompany(
+          req.params.documentId,
+          companyContractId,
+          tx
+        );
         if (!contract) throw new Error('Contrato do colaborador não encontrado');
         if (contract.status === 'SIGNED') throw new Error('Contrato assinado não pode ser reenviado');
         if (contract.status === 'CANCELLED' || contract.status === 'EXPIRED') {
@@ -172,14 +175,20 @@ router.post(
         if (rejection) throw new Error('Contrato recusado não pode ser reenviado. Gere um novo documento.');
 
         const token = crypto.randomBytes(32).toString('hex');
-        const updated = await tx.contract.update({
-          where: { id: contract.id },
+        const claimed = await tx.contract.updateMany({
+          where: {
+            id: contract.id,
+            companyContractId,
+            status: { notIn: ['SIGNED', 'CANCELLED', 'EXPIRED'] },
+          },
           data: {
             status: 'SENT',
             publicTokenHash: tokenHash(token),
             publicTokenExpiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24 * 30),
           },
         });
+        if (claimed.count !== 1) throw new Error('Contrato não está disponível para envio');
+
         await contractPartyLinkService.setStatusByGeneratedContractId(
           contract.id,
           'pending_signature',
@@ -196,6 +205,7 @@ router.post(
             details: { partyType: 'COLLABORATOR', partyId: req.params.collaboratorId },
           },
         });
+        const updated = await contractRecordRepository.findById(contract.id, tx);
         return { contract: updated, token };
       });
 
@@ -220,16 +230,22 @@ router.post(
 
       const canceledAt = new Date();
       const updated = await prisma.$transaction(async (tx) => {
-        const contract = await tx.contract.findFirst({
-          where: { id: req.params.documentId, companyContractId },
-        });
+        const contract = await contractRecordRepository.findByIdForCompany(
+          req.params.documentId,
+          companyContractId,
+          tx
+        );
         if (!contract) throw new Error('Contrato do colaborador não encontrado');
         if (contract.status === 'SIGNED') {
           throw new Error('Contrato assinado não pode ser cancelado; gere um aditivo ou novo contrato');
         }
 
-        const canceled = await tx.contract.update({
-          where: { id: contract.id },
+        const claimed = await tx.contract.updateMany({
+          where: {
+            id: contract.id,
+            companyContractId,
+            status: { not: 'SIGNED' },
+          },
           data: {
             status: 'CANCELLED',
             cancelledAt: canceledAt,
@@ -237,6 +253,10 @@ router.post(
             publicTokenExpiresAt: null,
           },
         });
+        if (claimed.count !== 1) {
+          throw new Error('Contrato assinado não pode ser cancelado; gere um aditivo ou novo contrato');
+        }
+
         await contractPartyLinkService.setStatusByGeneratedContractId(
           contract.id,
           'canceled',
@@ -257,7 +277,7 @@ router.post(
             details: { partyType: 'COLLABORATOR', partyId: req.params.collaboratorId },
           },
         });
-        return canceled;
+        return contractRecordRepository.findById(contract.id, tx);
       });
 
       return sendSuccess(res, updated, 'Contrato cancelado com sucesso');
