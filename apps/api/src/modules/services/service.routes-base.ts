@@ -1,6 +1,10 @@
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { CreateServiceSchema, UpdateServiceSchema, sendError, sendSuccess } from '@corrida/utils';
+import {
+  DATABASE_CONNECTION_UNAVAILABLE_MESSAGE,
+  isDatabaseConnectionUnavailable,
+} from '../../common/database-runtime.js';
 import { authMiddleware, masterMiddleware } from '../auth/auth.middleware.js';
 import { screenAccessMiddleware } from '../access-control/access-control.middleware.js';
 import { serviceCatalogService } from './service.service.js';
@@ -27,6 +31,11 @@ function getContractId(req: Request) {
 }
 
 function handleRouteError(res: Response, error: unknown, fallback: string) {
+  if (isDatabaseConnectionUnavailable(error)) {
+    console.error('[services] database connection unavailable', error);
+    return sendError(res, DATABASE_CONNECTION_UNAVAILABLE_MESSAGE, 503);
+  }
+
   if (error instanceof z.ZodError) {
     return sendError(res, 'Dados inválidos', 400, error.errors);
   }
