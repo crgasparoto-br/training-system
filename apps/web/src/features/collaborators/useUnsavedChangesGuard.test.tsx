@@ -3,7 +3,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { confirmDiscardChanges, useUnsavedChangesGuard } from './useUnsavedChangesGuard';
 
 describe('useUnsavedChangesGuard', () => {
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
 
   it('confirma descarte apenas quando existem alterações', () => {
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
