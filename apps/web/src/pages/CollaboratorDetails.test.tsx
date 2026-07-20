@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProfessorSummary } from '@corrida/types';
 
 const mocks = vi.hoisted(() => ({
-  list: vi.fn(),
+  get: vi.fn(),
   listFunctions: vi.fn(),
   canEdit: false,
 }));
@@ -16,7 +16,7 @@ vi.mock('react-router-dom', async () => {
 
 vi.mock('../services/professor.service', () => ({
   professorService: {
-    list: (...args: unknown[]) => mocks.list(...args),
+    get: (...args: unknown[]) => mocks.get(...args),
     validateLegalFinancial: vi.fn(),
     resetPassword: vi.fn(),
     activate: vi.fn(),
@@ -54,20 +54,21 @@ describe('CollaboratorDetails', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.canEdit = false;
-    mocks.list.mockResolvedValue([collaborator]);
+    mocks.get.mockResolvedValue(collaborator);
     mocks.listFunctions.mockResolvedValue([{ id: 'function-1', name: 'Professor', code: 'professor', isActive: true }]);
   });
 
-  it('renderiza a consulta em modo estritamente somente leitura', async () => {
+  it('carrega o registro individual e renderiza a consulta em modo estritamente somente leitura', async () => {
     render(<MemoryRouter><CollaboratorDetails /></MemoryRouter>);
     expect(await screen.findByRole('heading', { name: 'Colaborador Teste' })).toBeInTheDocument();
+    expect(mocks.get).toHaveBeenCalledWith('professor-1');
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /salvar/i })).not.toBeInTheDocument();
     expect(screen.queryByText('Editar colaborador')).not.toBeInTheDocument();
   });
 
-  it('mostra resposta uniforme para id não disponível', async () => {
-    mocks.list.mockResolvedValue([]);
+  it('mostra resposta uniforme para id inexistente ou fora do escopo', async () => {
+    mocks.get.mockRejectedValue(new Error('Not found'));
     render(<MemoryRouter><CollaboratorDetails /></MemoryRouter>);
     await waitFor(() => expect(screen.getByText('Colaborador não encontrado')).toBeInTheDocument());
     expect(screen.getByText(/não existe ou não está disponível/i)).toBeInTheDocument();
