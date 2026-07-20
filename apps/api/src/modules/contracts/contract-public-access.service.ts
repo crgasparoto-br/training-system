@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { PrismaClient, type Prisma } from '@prisma/client';
 import { contractPartyLinkService } from './contract-party-link.service.js';
+import { contractRecordRepository } from './contract-record.repository.js';
 
 const prisma = new PrismaClient();
 
@@ -36,11 +37,7 @@ export const contractPublicAccessService = {
     const tokenDigest = hashToken(token);
 
     const result = await runInTransaction(client, async (tx) => {
-      const contract = await tx.contract.findUnique({
-        where: { publicTokenHash: tokenDigest },
-        include: { signatures: true },
-      });
-
+      const contract = await contractRecordRepository.findByPublicTokenHash(tokenDigest, tx);
       if (!contract) throw new Error('Contrato não encontrado');
 
       if (contract.status === 'CANCELLED') {
@@ -80,10 +77,7 @@ export const contractPublicAccessService = {
           return { kind: 'expired' as const };
         }
 
-        const current = await tx.contract.findUnique({
-          where: { id: contract.id },
-          include: { signatures: true },
-        });
+        const current = await contractRecordRepository.findById(contract.id, tx);
         if (!current) throw new Error('Contrato não encontrado');
         if (current.status === 'EXPIRED') return { kind: 'expired' as const };
         if (current.status === 'CANCELLED') return { kind: 'unavailable' as const };
@@ -113,10 +107,7 @@ export const contractPublicAccessService = {
         }
       }
 
-      const current = await tx.contract.findUnique({
-        where: { id: contract.id },
-        include: { signatures: true },
-      });
+      const current = await contractRecordRepository.findById(contract.id, tx);
       if (!current) throw new Error('Contrato não encontrado');
       if (current.status === 'EXPIRED') return { kind: 'expired' as const };
       if (current.status === 'CANCELLED') return { kind: 'unavailable' as const };
