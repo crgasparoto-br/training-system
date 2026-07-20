@@ -14,7 +14,6 @@ import { CollaboratorForm } from '../features/collaborators/CollaboratorForm';
 import {
   collaboratorFormSchema,
   createCollaboratorFormValues,
-  findCollaboratorById,
   toCreateProfessorRequest,
   toSelfServiceUpdateProfessorRequest,
   toUpdateProfessorRequest,
@@ -60,21 +59,27 @@ export function CollaboratorFormPage({ mode }: { mode: 'create' | 'edit' }) {
 
   useEffect(() => {
     let active = true;
-    Promise.all([professorService.list(), collaboratorFunctionService.list(), bankService.list()])
-      .then(([professors, collaboratorFunctions, bankOptions]) => {
+    const detailRequest = mode === 'edit' ? professorService.get(id) : Promise.resolve(null);
+
+    Promise.all([
+      professorService.list(),
+      detailRequest,
+      collaboratorFunctionService.list(),
+      bankService.list(),
+    ])
+      .then(([professors, detail, collaboratorFunctions, bankOptions]) => {
         if (!active) return;
         setItems(professors);
         setFunctions(collaboratorFunctions);
         setBanks(bankOptions);
 
         if (mode === 'edit') {
-          const found = findCollaboratorById(professors, id);
-          if (!found) {
+          if (!detail) {
             setError('Colaborador não encontrado.');
             return;
           }
-          setCollaborator(found);
-          reset(createCollaboratorFormValues(found));
+          setCollaborator(detail);
+          reset(createCollaboratorFormValues(detail));
         } else {
           const firstFunction = collaboratorFunctions.find((item) => item.isActive);
           reset({
@@ -84,8 +89,11 @@ export function CollaboratorFormPage({ mode }: { mode: 'create' | 'edit' }) {
           });
         }
       })
-      .catch((loadError) => {
-        if (active) setError(loadError instanceof Error ? loadError.message : 'Não foi possível carregar o formulário.');
+      .catch(() => {
+        if (active) {
+          setCollaborator(null);
+          setError(mode === 'edit' ? 'Colaborador não encontrado.' : 'Não foi possível carregar o formulário.');
+        }
       })
       .finally(() => {
         if (active) setLoading(false);
