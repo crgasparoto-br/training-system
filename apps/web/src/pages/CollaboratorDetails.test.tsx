@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   get: vi.fn(),
   listFunctions: vi.fn(),
   canEdit: false,
+  canAccessAdministrativeBlock: false,
+  dataScope: 'self' as 'self' | 'managed' | 'contract',
 }));
 
 vi.mock('react-router-dom', async () => {
@@ -31,8 +33,8 @@ vi.mock('../services/collaborator-function.service', () => ({
 vi.mock('../stores/useAuthStore', () => ({ useAuthStore: () => ({ user: { professor: { id: 'viewer' } } }) }));
 vi.mock('../access/access-control', () => ({
   canAccessScreen: () => mocks.canEdit,
-  canAccessBlock: () => false,
-  getDataScopeForScreen: () => 'self',
+  canAccessBlock: () => mocks.canAccessAdministrativeBlock,
+  getDataScopeForScreen: () => mocks.dataScope,
 }));
 
 import { CollaboratorDetails } from './CollaboratorDetails';
@@ -45,15 +47,29 @@ const collaborator = {
   operationalRoleIds: ['function-1'],
   hourlyRates: null,
   hasSignedContract: false,
-  user: { id: 'user-1', email: 'teste@example.com', isActive: true, profile: { name: 'Colaborador Teste' } },
+  user: {
+    id: 'user-1',
+    email: 'teste@example.com',
+    isActive: true,
+    profile: { name: 'Colaborador Teste', companyDocument: '12.345.678/0001-90' },
+  },
   contract: { id: 'contract-1', type: 'academy', document: '123' },
   createdAt: '2026-01-01T00:00:00.000Z',
 } as ProfessorSummary;
+
+const administrativeActionNames = [
+  /validar dados financeiros/i,
+  /redefinir senha/i,
+  /reativar/i,
+  /desativar/i,
+];
 
 describe('CollaboratorDetails', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.canEdit = false;
+    mocks.canAccessAdministrativeBlock = false;
+    mocks.dataScope = 'self';
     mocks.get.mockResolvedValue(collaborator);
     mocks.listFunctions.mockResolvedValue([{ id: 'function-1', name: 'Professor', code: 'professor', isActive: true }]);
   });
@@ -65,6 +81,19 @@ describe('CollaboratorDetails', () => {
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /salvar/i })).not.toBeInTheDocument();
     expect(screen.queryByText('Editar colaborador')).not.toBeInTheDocument();
+  });
+
+  it('não expõe mutações nem com escopo de contrato e blocos administrativos habilitados', async () => {
+    mocks.canEdit = true;
+    mocks.canAccessAdministrativeBlock = true;
+    mocks.dataScope = 'contract';
+
+    render(<MemoryRouter><CollaboratorDetails /></MemoryRouter>);
+    expect(await screen.findByRole('heading', { name: 'Colaborador Teste' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /editar colaborador/i })).toBeInTheDocument();
+    for (const actionName of administrativeActionNames) {
+      expect(screen.queryByRole('button', { name: actionName })).not.toBeInTheDocument();
+    }
   });
 
   it('mostra resposta uniforme para id inexistente ou fora do escopo', async () => {
