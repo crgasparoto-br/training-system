@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Edit3, Eye, Plus, Search, Users } from 'lucide-react';
+import { Edit3, Eye, Plus, RotateCcw, Search, Users } from 'lucide-react';
 import type { CollaboratorFunctionOption, ProfessorSummary } from '@corrida/types';
 import { professorService } from '../services/professor.service';
 import { collaboratorFunctionService } from '../services/collaborator-function.service';
 import { useAuthStore } from '../stores/useAuthStore';
-import { canAccessScreen } from '../access/access-control';
+import { canAccessScreen, getDataScopeForScreen } from '../access/access-control';
 import { Input } from '../components/ui/Input';
+import { Button } from '../components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
 import { getLegalFinancialStatus } from '../features/collaborators/collaborator-model';
+import { canCreateCollaborator, canWriteCollaborator } from '../features/collaborators/collaborator-access';
 import { resolveAssetUrl } from '../utils/assetUrl';
 
 const linkButtonClassName = 'inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary-hover';
@@ -30,7 +32,10 @@ export function CollaboratorsList() {
   const [functionId, setFunctionId] = useState('all');
   const [contractStatus, setContractStatus] = useState<'all' | 'signed' | 'pending'>('all');
   const [legalStatus, setLegalStatus] = useState<'all' | 'validated' | 'pending' | 'missing'>('all');
-  const canEdit = canAccessScreen(user, 'collaborators.registration');
+  const hasRegistrationAccess = canAccessScreen(user, 'collaborators.registration');
+  const registrationScope = getDataScopeForScreen(user, 'collaborators.registration');
+  const actorProfessorId = user?.professor?.id;
+  const canCreate = hasRegistrationAccess && canCreateCollaborator(registrationScope);
 
   useEffect(() => {
     let active = true;
@@ -54,8 +59,17 @@ export function CollaboratorsList() {
     return items.filter((item) => {
       const profile = item.user.profile;
       const legal = getLegalFinancialStatus(item);
-      const matchesSearch = !term || [profile.name, item.user.email, profile.phone, profile.cpf, item.collaboratorFunction.name]
-        .some((value) => normalize(value).includes(term));
+      const matchesSearch = !term || [
+        profile.name,
+        item.user.email,
+        profile.phone,
+        profile.cpf,
+        profile.cref,
+        profile.instagramHandle,
+        item.collaboratorFunction.name,
+        item.currentStatus,
+        item.responsibleManager?.user.profile.name,
+      ].some((value) => normalize(value).includes(term));
       const matchesStatus = status === 'all' || (status === 'active' ? item.user.isActive !== false : item.user.isActive === false);
       const matchesFunction = functionId === 'all' || item.collaboratorFunction.id === functionId;
       const matchesContract = contractStatus === 'all' || (contractStatus === 'signed' ? item.hasSignedContract : !item.hasSignedContract);
@@ -67,6 +81,15 @@ export function CollaboratorsList() {
     });
   }, [contractStatus, functionId, items, legalStatus, search, status]);
 
+  const hasFilters = search.trim() || status !== 'all' || functionId !== 'all' || contractStatus !== 'all' || legalStatus !== 'all';
+  const clearFilters = () => {
+    setSearch('');
+    setStatus('all');
+    setFunctionId('all');
+    setContractStatus('all');
+    setLegalStatus('all');
+  };
+
   return (
     <div className="space-y-6">
       <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -77,19 +100,24 @@ export function CollaboratorsList() {
             <p className="text-sm text-muted-foreground">Pesquise, filtre e abra o cadastro individual em modo de consulta.</p>
           </div>
         </div>
-        {canEdit ? <Link className={linkButtonClassName} to="/professores/new"><Plus size={17} /> Novo colaborador</Link> : null}
+        {canCreate ? <Link className={linkButtonClassName} to="/professores/new"><Plus size={17} /> Novo colaborador</Link> : null}
       </header>
 
       <Card>
         <CardHeader>
-          <CardTitle>Filtros</CardTitle>
-          <CardDescription>A consulta permanece somente leitura; edições são abertas em rota própria.</CardDescription>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <CardTitle>Filtros</CardTitle>
+              <CardDescription>A consulta permanece somente leitura; edições são abertas em rota própria.</CardDescription>
+            </div>
+            {hasFilters ? <Button type="button" variant="outline" size="sm" onClick={clearFilters}><RotateCcw size={15} /> Limpar filtros</Button> : null}
+          </div>
         </CardHeader>
         <CardContent>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
             <div className="relative xl:col-span-2">
               <Search className="pointer-events-none absolute left-3 top-3.5 z-10 text-muted-foreground" size={17} />
-              <Input aria-label="Pesquisar colaboradores" className="pl-10" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Nome, e-mail, telefone, CPF ou função" />
+              <Input aria-label="Pesquisar colaboradores" className="pl-10" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Nome, e-mail, contato, documento, função ou gestor" />
             </div>
             <select aria-label="Filtrar por situação" className={selectClassName} value={status} onChange={(event) => setStatus(event.target.value as typeof status)}>
               <option value="all">Todas as situações</option><option value="active">Ativos</option><option value="inactive">Inativos</option>
@@ -104,6 +132,7 @@ export function CollaboratorsList() {
               <option value="all">Todos os dados financeiros</option><option value="validated">Validados</option><option value="pending">Pendentes</option><option value="missing">Não informados</option>
             </select>
           </div>
+          <p className="mt-4 text-sm text-muted-foreground">{filteredItems.length} de {items.length} colaboradores exibidos.</p>
         </CardContent>
       </Card>
 
@@ -120,6 +149,8 @@ export function CollaboratorsList() {
           {filteredItems.map((item) => {
             const profile = item.user.profile;
             const avatarUrl = resolveAssetUrl(profile.avatar);
+            const canEditRecord = hasRegistrationAccess
+              && canWriteCollaborator(actorProfessorId, item, registrationScope);
             return (
               <article key={item.id} className="rounded-2xl border border-border bg-card p-5 shadow-sm">
                 <div className="flex gap-4">
@@ -140,7 +171,7 @@ export function CollaboratorsList() {
                 </div>
                 <div className="mt-5 flex flex-wrap justify-end gap-2 border-t border-border pt-4">
                   <Link className={outlineLinkButtonClassName} to={`/consultas/colaboradores/${item.id}`}><Eye size={16} /> Consultar</Link>
-                  {canEdit ? <Link className={linkButtonClassName} to={`/consultas/colaboradores/${item.id}/edit`}><Edit3 size={16} /> Editar</Link> : null}
+                  {canEditRecord ? <Link className={linkButtonClassName} to={`/consultas/colaboradores/${item.id}/edit`}><Edit3 size={16} /> Editar</Link> : null}
                 </div>
               </article>
             );
