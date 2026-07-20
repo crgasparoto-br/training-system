@@ -71,7 +71,7 @@ Evoluir o módulo de contratos para atender alunos e colaboradores com a mesma i
 - [x] O legado aparece distinguido e sem evidências eletrônicas fabricadas.
 - [x] Testes relevantes foram adicionados ou atualizados.
 - [x] Documentação foi atualizada.
-- [ ] `pnpm validate` e `pnpm build` passam no commit final.
+- [x] `pnpm validate` e `pnpm build` passam no commit final.
 - [x] Riscos conhecidos foram registrados no PR.
 
 ## Validação manual
@@ -89,4 +89,7 @@ Evoluir o módulo de contratos para atender alunos e colaboradores com a mesma i
 - O legado será materializado como vínculo de origem legada, sem `Contract`, assinatura, token, hash ou vigência eletrônica.
 - O primeiro ciclo de auditoria identificou divergência de schema, regressões de estado terminal, consulta documental incompleta, descrição de permissão legada e ausência de teste concorrente específico do colaborador.
 - As correções foram incorporadas na mesma branch e todos os arquivos temporários de sincronização foram removidos.
-- A aprovação final depende da execução do CI padrão e de nova auditoria independente sobre o commit resultante.
+- O CI padrão aprovou migrations, Prisma Client, type-check, lint, testes, arquitetura, acessos e documentação.
+- O build completo e a validação explícita do schema Prisma também foram aprovados.
+- O repositório não define scripts chamados `prisma:check`, `api:check`, `migration:check` ou `agent:check`; esses nomes não fazem parte da matriz oficial e não são considerados gates do projeto.
+- A aprovação final depende apenas da nova auditoria independente sobre o commit final.
