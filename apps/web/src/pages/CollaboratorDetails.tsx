@@ -8,6 +8,8 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { canAccessBlock, canAccessScreen, getDataScopeForScreen } from '../access/access-control';
 import { Button } from '../components/ui/Button';
 import { CollaboratorSection, ReadonlyField } from '../features/collaborators/CollaboratorSection';
+import { canWriteCollaborator } from '../features/collaborators/collaborator-access';
+import { formatMaritalStatus } from '../features/collaborators/collaborator-formatters';
 import {
   formatAddress,
   formatCollaboratorDate,
@@ -31,8 +33,9 @@ export function CollaboratorDetails() {
   const [actionLoading, setActionLoading] = useState(false);
   const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
 
-  const canEdit = canAccessScreen(user, 'collaborators.registration');
+  const hasRegistrationAccess = canAccessScreen(user, 'collaborators.registration');
   const dataScope = getDataScopeForScreen(user, 'collaborators.registration');
+  const actorProfessorId = user?.professor?.id;
   const canUseAdministrativeActions = dataScope === 'contract';
   const canValidateLegal = canUseAdministrativeActions && canAccessBlock(user, 'collaborators.actions.validateLegalFinancial');
   const canResetPassword = canUseAdministrativeActions && canAccessBlock(user, 'collaborators.actions.resetPassword');
@@ -93,6 +96,10 @@ export function CollaboratorDetails() {
   const profile = collaborator.user.profile;
   const avatarUrl = resolveAssetUrl(profile.avatar);
   const successMessage = (location.state as { success?: string } | null)?.success;
+  const canEditRecord = hasRegistrationAccess && canWriteCollaborator(actorProfessorId, collaborator, dataScope);
+  const hasLegalFinancialData = Boolean(
+    profile.companyDocument || profile.bankCode || profile.bankName || profile.bankBranch || profile.bankAccount || profile.pixKey
+  );
 
   return (
     <div className="space-y-5">
@@ -112,7 +119,7 @@ export function CollaboratorDetails() {
               </div>
             </div>
           </div>
-          {canEdit ? <Link className={linkButtonClassName} to={`/consultas/colaboradores/${collaborator.id}/edit`}><Edit3 size={16} /> Editar colaborador</Link> : null}
+          {canEditRecord ? <Link className={linkButtonClassName} to={`/consultas/colaboradores/${collaborator.id}/edit`}><Edit3 size={16} /> Editar colaborador</Link> : null}
         </div>
       </header>
 
@@ -134,7 +141,7 @@ export function CollaboratorDetails() {
           <ReadonlyField label="Data de nascimento" value={formatCollaboratorDate(profile.birthDate)} />
           <ReadonlyField label="CPF" value={profile.cpf} />
           <ReadonlyField label="RG" value={profile.rg} />
-          <ReadonlyField label="Estado civil" value={profile.maritalStatus} />
+          <ReadonlyField label="Estado civil" value={formatMaritalStatus(profile.maritalStatus)} />
           <div className="md:col-span-2 xl:col-span-4"><ReadonlyField label="Endereço" value={formatAddress(collaborator)} /></div>
         </div>
       </CollaboratorSection>
@@ -192,10 +199,10 @@ export function CollaboratorDetails() {
       {(canValidateLegal || canResetPassword || canActivate || canDeactivate) ? (
         <CollaboratorSection title="Ações administrativas" description="Ações protegidas por permissão e escopo do contrato.">
           <div className="flex flex-wrap gap-2">
-            {canValidateLegal ? <Button type="button" variant="outline" disabled={actionLoading} onClick={() => void runAction(() => professorService.validateLegalFinancial(collaborator.id))}><ShieldCheck size={16} /> Validar dados financeiros</Button> : null}
-            {canResetPassword && collaborator.role !== 'master' ? <Button type="button" variant="outline" disabled={actionLoading} onClick={() => void runAction(async () => { const result = await professorService.resetPassword(collaborator.id); setTemporaryPassword(result.tempPassword); })}><KeyRound size={16} /> Redefinir senha</Button> : null}
+            {canValidateLegal ? <Button type="button" variant="outline" disabled={actionLoading || !hasLegalFinancialData} onClick={() => void runAction(() => professorService.validateLegalFinancial(collaborator.id))}><ShieldCheck size={16} /> Validar dados financeiros</Button> : null}
+            {canResetPassword && collaborator.role !== 'master' ? <Button type="button" variant="outline" disabled={actionLoading} onClick={() => { if (window.confirm('Deseja gerar uma nova senha temporária para este colaborador?')) void runAction(async () => { const result = await professorService.resetPassword(collaborator.id); setTemporaryPassword(result.tempPassword); }); }}><KeyRound size={16} /> Redefinir senha</Button> : null}
             {canActivate && collaborator.user.isActive === false && collaborator.role !== 'master' ? <Button type="button" variant="outline" disabled={actionLoading} onClick={() => void runAction(() => professorService.activate(collaborator.id))}><UserCheck size={16} /> Reativar</Button> : null}
-            {canDeactivate && collaborator.user.isActive !== false && collaborator.role !== 'master' ? <Button type="button" variant="outline" disabled={actionLoading} onClick={() => void runAction(() => professorService.deactivate(collaborator.id))}><UserX size={16} /> Desativar</Button> : null}
+            {canDeactivate && collaborator.user.isActive !== false && collaborator.role !== 'master' ? <Button type="button" variant="outline" disabled={actionLoading} onClick={() => { if (window.confirm('Deseja desativar este colaborador?')) void runAction(() => professorService.deactivate(collaborator.id)); }}><UserX size={16} /> Desativar</Button> : null}
           </div>
         </CollaboratorSection>
       ) : null}
