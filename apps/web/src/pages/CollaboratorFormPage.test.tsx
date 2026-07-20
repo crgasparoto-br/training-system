@@ -10,6 +10,10 @@ const mocks = vi.hoisted(() => ({
   get: vi.fn(),
   list: vi.fn(),
   update: vi.fn(),
+  validateLegalFinancial: vi.fn(),
+  resetPassword: vi.fn(),
+  activate: vi.fn(),
+  deactivate: vi.fn(),
   listFunctions: vi.fn(),
   listBanks: vi.fn(),
   listRateLevels: vi.fn(),
@@ -31,6 +35,10 @@ vi.mock('../services/professor.service', () => ({
     get: (...args: unknown[]) => mocks.get(...args),
     list: (...args: unknown[]) => mocks.list(...args),
     update: (...args: unknown[]) => mocks.update(...args),
+    validateLegalFinancial: (...args: unknown[]) => mocks.validateLegalFinancial(...args),
+    resetPassword: (...args: unknown[]) => mocks.resetPassword(...args),
+    activate: (...args: unknown[]) => mocks.activate(...args),
+    deactivate: (...args: unknown[]) => mocks.deactivate(...args),
     create: vi.fn(),
     uploadAvatar: vi.fn(),
     uploadSignedContract: vi.fn(),
@@ -99,7 +107,10 @@ const collaborator = {
     id: 'user-1',
     email: 'teste@example.com',
     isActive: true,
-    profile: { name: 'Colaborador Teste' },
+    profile: {
+      name: 'Colaborador Teste',
+      companyDocument: '12.345.678/0001-90',
+    },
   },
   contract: { id: 'contract-1', type: 'academy', document: '123' },
   createdAt: '2026-01-01T00:00:00.000Z',
@@ -117,6 +128,10 @@ describe('CollaboratorFormPage', () => {
     mocks.listBanks.mockResolvedValue([]);
     mocks.listRateLevels.mockResolvedValue([]);
     mocks.loadUser.mockResolvedValue(undefined);
+    mocks.validateLegalFinancial.mockResolvedValue(collaborator);
+    mocks.resetPassword.mockResolvedValue({ tempPassword: 'Senha123' });
+    mocks.activate.mockResolvedValue(undefined);
+    mocks.deactivate.mockResolvedValue(undefined);
     mocks.update.mockImplementation(async (_id: string, payload: { name?: string }) => ({
       ...collaborator,
       user: {
@@ -136,6 +151,20 @@ describe('CollaboratorFormPage', () => {
     expect(await screen.findByDisplayValue('Colaborador Teste')).toBeInTheDocument();
     expect(mocks.get).toHaveBeenCalledWith('professor-1');
     expect(mocks.listRateLevels).toHaveBeenCalled();
+  });
+
+  it('disponibiliza as ações administrativas somente no contexto de edição', async () => {
+    render(<MemoryRouter><CollaboratorFormPage mode="edit" /></MemoryRouter>);
+
+    const validateButton = await screen.findByRole('button', { name: /validar dados financeiros/i });
+    expect(screen.getByRole('button', { name: /redefinir senha/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /desativar/i })).toBeInTheDocument();
+
+    fireEvent.click(validateButton);
+
+    await waitFor(() => expect(mocks.validateLegalFinancial).toHaveBeenCalledWith('professor-1'));
+    await waitFor(() => expect(mocks.get).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText('Dados jurídicos e financeiros validados com sucesso.')).toBeInTheDocument();
   });
 
   it('salva e permanece no contexto do mesmo colaborador', async () => {
