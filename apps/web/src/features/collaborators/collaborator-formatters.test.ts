@@ -4,6 +4,7 @@ import {
   formatCollaboratorCompanyDocument,
   formatCollaboratorCpf,
   formatCollaboratorPhone,
+  formatCollaboratorRateInput,
   formatCollaboratorRg,
   normalizeCollaboratorInstagram,
 } from './collaborator-formatters';
@@ -15,6 +16,12 @@ describe('collaborator formatters', () => {
     expect(formatCollaboratorRg('12345678X')).toBe('12.345.678-X');
     expect(formatCollaboratorCompanyDocument('12345678000190')).toBe('12.345.678/0001-90');
     expect(formatCollaboratorBankAccount('123456')).toBe('12345-6');
+  });
+
+  it('normaliza os formatos monetários aceitos', () => {
+    expect(formatCollaboratorRateInput('1.234,56')).toBe('1.234,56');
+    expect(formatCollaboratorRateInput('100.50')).toBe('100,50');
+    expect(formatCollaboratorRateInput('1000')).toBe('1.000,00');
   });
 
   it('normaliza o Instagram sem duplicar o arroba', () => {
