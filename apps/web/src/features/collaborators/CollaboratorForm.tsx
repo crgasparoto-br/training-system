@@ -1,10 +1,16 @@
-import type { ReactNode, SelectHTMLAttributes } from 'react';
+import { useState, type ReactNode, type SelectHTMLAttributes } from 'react';
 import type { BankOption, CollaboratorFunctionOption, ProfessorSummary } from '@corrida/types';
 import type { FieldErrors, UseFormRegister, UseFormSetValue, UseFormWatch } from 'react-hook-form';
 import { ExternalLink, Upload, X } from 'lucide-react';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { resolveAssetUrl } from '../../utils/assetUrl';
+import {
+  formatCep,
+  getCepLookupFeedbackMessage,
+  lookupCep,
+  onlyCepDigits,
+} from '../../services/cep.service';
 import type { CollaboratorFormValues } from './collaborator-model';
 import { CollaboratorSection } from './CollaboratorSection';
 
@@ -75,6 +81,7 @@ export function CollaboratorForm({
   onCancel: () => void;
   submitting: boolean;
 }) {
+  const [cepError, setCepError] = useState<string | null>(null);
   const avatar = watch('avatar');
   const hasSignedContract = watch('hasSignedContract');
   const signedContractDocumentUrl = watch('signedContractDocumentUrl');
@@ -83,12 +90,34 @@ export function CollaboratorForm({
   const selectedFunction = collaboratorFunctions.find((item) => item.id === collaboratorFunctionId);
   const showResponsibleManager = selectedFunction?.code !== 'manager';
   const avatarUrl = resolveAssetUrl(avatar);
+  const zipCodeField = register('addressZipCode');
 
   const toggleOperationalRole = (roleId: string, checked: boolean) => {
     const next = checked
       ? Array.from(new Set([...operationalRoleIds, roleId]))
       : operationalRoleIds.filter((id) => id !== roleId);
     setValue('operationalRoleIds', next, { shouldDirty: true, shouldValidate: true });
+  };
+
+  const handleZipCodeBlur = async (event: React.FocusEvent<HTMLInputElement>) => {
+    zipCodeField.onBlur(event);
+    const cep = onlyCepDigits(event.target.value);
+    if (cep.length < 8) return;
+
+    setCepError(null);
+    try {
+      const address = await lookupCep(cep);
+      if (!address) return;
+      setValue('addressStreet', address.street, { shouldDirty: true, shouldValidate: true });
+      setValue('addressNeighborhood', address.neighborhood, { shouldDirty: true, shouldValidate: true });
+      setValue('addressCity', address.city, { shouldDirty: true, shouldValidate: true });
+      setValue('addressState', address.state, { shouldDirty: true, shouldValidate: true });
+      if (address.complement) {
+        setValue('addressComplement', address.complement, { shouldDirty: true, shouldValidate: true });
+      }
+    } catch (error) {
+      setCepError(getCepLookupFeedbackMessage(error));
+    }
   };
 
   return (
@@ -155,7 +184,16 @@ export function CollaboratorForm({
 
       <CollaboratorSection title="Endereço" description="Informações para cadastro e documentos.">
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          <Input label="CEP" {...register('addressZipCode')} error={errorMessage(errors.addressZipCode)} />
+          <Input
+            label="CEP"
+            {...zipCodeField}
+            onChange={(event) => {
+              setCepError(null);
+              setValue('addressZipCode', formatCep(event.target.value), { shouldDirty: true, shouldValidate: true });
+            }}
+            onBlur={(event) => void handleZipCodeBlur(event)}
+            error={cepError ?? errorMessage(errors.addressZipCode)}
+          />
           <Input label="Logradouro" {...register('addressStreet')} error={errorMessage(errors.addressStreet)} />
           <Input label="Número" {...register('addressNumber')} error={errorMessage(errors.addressNumber)} />
           <Input label="Bairro" {...register('addressNeighborhood')} error={errorMessage(errors.addressNeighborhood)} />
