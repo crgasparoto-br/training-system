@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { PrismaClient, type Prisma } from '@prisma/client';
+import { contractPartyLinkService } from './contract-party-link.service.js';
 
 const prisma = new PrismaClient();
 
@@ -40,9 +41,7 @@ export const contractPublicAccessService = {
         include: { signatures: true },
       });
 
-      if (!contract) {
-        throw new Error('Contrato não encontrado');
-      }
+      if (!contract) throw new Error('Contrato não encontrado');
 
       if (contract.status === 'CANCELLED') {
         await tx.contract.updateMany({
@@ -51,10 +50,7 @@ export const contractPublicAccessService = {
             publicTokenHash: tokenDigest,
             status: 'CANCELLED',
           },
-          data: {
-            publicTokenHash: null,
-            publicTokenExpiresAt: null,
-          },
+          data: { publicTokenHash: null, publicTokenExpiresAt: null },
         });
         return { kind: 'unavailable' as const };
       }
@@ -75,16 +71,12 @@ export const contractPublicAccessService = {
         });
 
         if (expired.count === 1) {
-          await tx.studentContract.updateMany({
-            where: {
-              contractId: contract.id,
-              status: { in: ['draft', 'pending_signature'] },
-            },
-            data: {
-              status: 'expired',
-              endDate: now,
-            },
-          });
+          await contractPartyLinkService.setStatusByGeneratedContractId(
+            contract.id,
+            'expired',
+            { endDate: now },
+            tx
+          );
           return { kind: 'expired' as const };
         }
 
@@ -92,19 +84,9 @@ export const contractPublicAccessService = {
           where: { id: contract.id },
           include: { signatures: true },
         });
-
-        if (!current) {
-          throw new Error('Contrato não encontrado');
-        }
-
-        if (current.status === 'EXPIRED') {
-          return { kind: 'expired' as const };
-        }
-
-        if (current.status === 'CANCELLED') {
-          return { kind: 'unavailable' as const };
-        }
-
+        if (!current) throw new Error('Contrato não encontrado');
+        if (current.status === 'EXPIRED') return { kind: 'expired' as const };
+        if (current.status === 'CANCELLED') return { kind: 'unavailable' as const };
         return { kind: 'contract' as const, contract: current };
       }
 
@@ -135,30 +117,14 @@ export const contractPublicAccessService = {
         where: { id: contract.id },
         include: { signatures: true },
       });
-
-      if (!current) {
-        throw new Error('Contrato não encontrado');
-      }
-
-      if (current.status === 'EXPIRED') {
-        return { kind: 'expired' as const };
-      }
-
-      if (current.status === 'CANCELLED') {
-        return { kind: 'unavailable' as const };
-      }
-
+      if (!current) throw new Error('Contrato não encontrado');
+      if (current.status === 'EXPIRED') return { kind: 'expired' as const };
+      if (current.status === 'CANCELLED') return { kind: 'unavailable' as const };
       return { kind: 'contract' as const, contract: current };
     });
 
-    if (result.kind === 'expired') {
-      throw new Error('Link expirado');
-    }
-
-    if (result.kind === 'unavailable') {
-      throw new Error('Contrato não está disponível');
-    }
-
+    if (result.kind === 'expired') throw new Error('Link expirado');
+    if (result.kind === 'unavailable') throw new Error('Contrato não está disponível');
     return result.contract;
   },
 };
