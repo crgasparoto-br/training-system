@@ -32,6 +32,12 @@ import { confirmDiscardChanges, useUnsavedChangesGuard } from '../features/colla
 const ACCESS_REFRESH_SIGNAL_KEY = 'auth-permissions-updated-at';
 const outlineLinkButtonClassName = 'inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-input bg-card px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent';
 const UNSAVED_ADMINISTRATIVE_ACTION_WARNING = 'As alterações não salvas do formulário serão descartadas.';
+const ADMINISTRATIVE_REFRESH_WARNING = 'A ação foi concluída, mas não foi possível atualizar os dados exibidos. Recarregue a página.';
+
+interface AdministrativeActionOptions<T> {
+  confirmation?: string;
+  onSuccess?: (result: T) => void;
+}
 
 export function CollaboratorFormPage({ mode }: { mode: 'create' | 'edit' }) {
   const { id = '' } = useParams();
@@ -147,6 +153,11 @@ export function CollaboratorFormPage({ mode }: { mode: 'create' | 'edit' }) {
     [id, items]
   );
 
+  const applyCollaboratorSnapshot = (snapshot: ProfessorSummary) => {
+    setCollaborator(snapshot);
+    reset(createCollaboratorFormValues(snapshot));
+  };
+
   const handleCancel = () => {
     if (!confirmDiscardChanges(isDirty)) return;
     navigate(mode === 'edit' && id ? `/consultas/colaboradores/${id}` : '/consultas/colaboradores');
@@ -212,9 +223,9 @@ export function CollaboratorFormPage({ mode }: { mode: 'create' | 'edit' }) {
   const executeAdministrativeAction = async <T,>(
     action: () => Promise<T>,
     successMessage: string,
-    confirmation?: string
+    options: AdministrativeActionOptions<T> = {}
   ): Promise<T | undefined> => {
-    if (!collaborator || !confirmAdministrativeAction(confirmation)) return undefined;
+    if (!collaborator || !confirmAdministrativeAction(options.confirmation)) return undefined;
 
     setActionLoading(true);
     setError(null);
@@ -222,10 +233,17 @@ export function CollaboratorFormPage({ mode }: { mode: 'create' | 'edit' }) {
     setTemporaryPassword(null);
     try {
       const result = await action();
-      const refreshed = await professorService.get(collaborator.id);
-      setCollaborator(refreshed);
-      reset(createCollaboratorFormValues(refreshed));
+      reset(createCollaboratorFormValues(collaborator));
+      options.onSuccess?.(result);
       setAdministrativeSuccess(successMessage);
+
+      try {
+        const refreshed = await professorService.get(collaborator.id);
+        applyCollaboratorSnapshot(refreshed);
+      } catch {
+        setError(ADMINISTRATIVE_REFRESH_WARNING);
+      }
+
       return result;
     } catch (actionError) {
       setError(actionError instanceof Error ? actionError.message : 'Não foi possível concluir a ação administrativa.');
@@ -331,29 +349,41 @@ export function CollaboratorFormPage({ mode }: { mode: 'create' | 'edit' }) {
           onValidateLegal={() => {
             void executeAdministrativeAction(
               () => professorService.validateLegalFinancial(collaborator.id),
-              'Dados jurídicos e financeiros validados com sucesso.'
+              'Dados jurídicos e financeiros validados com sucesso.',
+              { onSuccess: applyCollaboratorSnapshot }
             );
           }}
           onResetPassword={() => {
             void executeAdministrativeAction(
               () => professorService.resetPassword(collaborator.id),
               'Senha temporária gerada com sucesso.',
-              'Deseja gerar uma nova senha temporária para este colaborador?'
-            ).then((result) => {
-              if (result) setTemporaryPassword(result.tempPassword);
-            });
+              {
+                confirmation: 'Deseja gerar uma nova senha temporária para este colaborador?',
+                onSuccess: (result) => setTemporaryPassword(result.tempPassword),
+              }
+            );
           }}
           onActivate={() => {
             void executeAdministrativeAction(
               () => professorService.activate(collaborator.id),
-              'Colaborador reativado com sucesso.'
+              'Colaborador reativado com sucesso.',
+              {
+                onSuccess: () => setCollaborator((current) => current
+                  ? { ...current, user: { ...current.user, isActive: true } }
+                  : current),
+              }
             );
           }}
           onDeactivate={() => {
             void executeAdministrativeAction(
               () => professorService.deactivate(collaborator.id),
               'Colaborador desativado com sucesso.',
-              'Deseja desativar este colaborador?'
+              {
+                confirmation: 'Deseja desativar este colaborador?',
+                onSuccess: () => setCollaborator((current) => current
+                  ? { ...current, user: { ...current.user, isActive: false } }
+                  : current),
+              }
             );
           }}
         />
