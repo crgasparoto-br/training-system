@@ -1,205 +1,310 @@
 # Módulo de contratos
 
-O módulo permite cadastrar modelos de contrato com cabeçalho, rodapé, cláusulas HTML ordenadas e variáveis Handlebars no formato `{{aluno.nome}}`.
+O módulo administra modelos, documentos eletrônicos, assinatura pública, auditoria e vigência para duas partes contratadas:
+
+- `STUDENT`: aluno;
+- `COLLABORATOR`: colaborador.
+
+A parte é explícita no documento e no vínculo de vigência. Aluno e colaborador permanecem entidades distintas; a infraestrutura de contrato é compartilhada.
 
 ## Fluxo básico
 
 1. Acesse `Configurações > Contratos`.
-2. Crie ou edite um modelo, mantendo o status `ACTIVE` para permitir geração.
-3. Use a aba **Financeiro** da edição do aluno ou `Contratos do aluno` em `/alunos/:id/contracts` para selecionar o modelo aplicável.
-4. Antes de salvar ou gerar, use **Abrir prévia** para conferir o documento preenchido.
-5. O backend salva `renderedHtml` e `dataSnapshot` somente quando o contrato real é gerado, preservando a versão utilizada.
-6. Gere o PDF e envie para assinatura interna.
-7. O link público `/assinatura/contrato/:token` permite ao aluno aceitar e assinar ou recusar o documento.
+2. Crie ou edite um modelo e defina a aplicabilidade: **Aluno**, **Colaborador** ou **Aluno e colaborador**.
+3. Use a prévia preenchida para validar conteúdo e variáveis sem criar documento.
+4. Na edição individual do aluno ou do colaborador, gere um contrato candidato.
+5. Gere o PDF e prepare o link público de assinatura.
+6. Compartilhe manualmente `/assinatura/contrato/:token` com a parte contratada.
+7. A assinatura eletrônica decide quando o candidato pode entrar em vigor.
 
-## Organização da aba Financeiro
+## Aplicabilidade dos modelos
 
-A leitura operacional segue a ordem natural do processo comercial:
+Cada `ContractTemplate` possui `applicability`:
 
-1. **Oferta e vínculo comercial**: Serviço Vigente, Condição Especial e Plano de agenda do aluno.
-2. **Cobrança**: valores, desconto, vigência, vencimento, dia de pagamento e professor responsável.
-3. **Contrato do aluno**: seleção, contrato vigente, candidato à substituição, envio, status de aprovação e prévia.
-4. **Origem e observações**: indicação e contexto administrativo.
+| Valor | Uso permitido |
+| --- | --- |
+| `STUDENT` | somente contratos de aluno |
+| `COLLABORATOR` | somente contratos de colaborador |
+| `BOTH` | contratos de ambos os tipos |
 
-As informações de contrato são apresentadas somente depois que serviço, agenda e cobrança estiverem visíveis. O seletor original permanece conectado ao formulário, mas sua apresentação é concentrada no bloco **Contrato do aluno** para evitar duplicidade.
+Modelos existentes recebem `STUDENT` na migração para manter o comportamento anterior.
 
-## Contrato vigente e substituição
+A compatibilidade é validada ao:
 
-O bloco **Contrato do aluno** separa claramente:
+- criar ou editar modelo;
+- adicionar ou editar cláusula;
+- ativar modelo;
+- gerar prévia;
+- gerar documento real.
 
-- **Contrato vigente**: vínculo atualmente válido para o aluno;
-- **Novo contrato em substituição**: documento em negociação, geração, envio, assinatura ou espera pela data de início.
+Um modelo `BOTH` aceita somente variáveis comuns, como `empresa.*` e `contrato.*`. Variáveis `aluno.*`, `responsavel.*`, `professor.*`, `servico.*` e `colaborador.*` são específicas e não podem ser usadas em modelo compartilhado.
 
-O cartão do contrato vigente apresenta título, situação, data de assinatura, início e término da vigência. A ação **Consultar contrato vigente** abre o documento persistido em modo somente leitura.
+A tela de configuração permite filtrar modelos pela aplicabilidade. A lista de variáveis acompanha a seleção e a prévia de um modelo `BOTH` pode ser executada com aluno ou colaborador.
 
-A página `Contratos do aluno` também oferece **Consultar** em cada item do histórico, permitindo abrir qualquer documento persistido sem alterá-lo.
+## Partes, documentos e vínculos
 
-Quando outro documento é selecionado, a ação **Confirmar preparação da substituição** autoriza o cadastro do candidato, mas não encerra o vínculo atual.
+`GeneratedContract` armazena o documento eletrônico compartilhado e identifica exatamente uma parte:
 
-Regras:
+- `partyType = STUDENT` e `alunoId` preenchido; ou
+- `partyType = COLLABORATOR` e `collaboratorId` preenchido.
 
-1. O contrato atual permanece vigente enquanto o candidato estiver em rascunho, gerado, enviado, visualizado ou aguardando assinatura.
-2. Recusa, expiração ou cancelamento do candidato não alteram o contrato vigente.
-3. O salvamento apenas cria ou atualiza o vínculo candidato.
-4. O contrato vigente só é encerrado quando o novo documento estiver assinado e atingir a data efetiva de início.
-5. A confirmação é vinculada ao contrato selecionado; mudar a seleção exige nova confirmação.
-6. O envio do candidato fica bloqueado enquanto a preparação da substituição não estiver confirmada.
+A constraint `GeneratedContract_exactly_one_party_check` impede documento sem parte ou com duas partes simultâneas.
 
-## Controle de datas de vigência
+Os vínculos de vigência são separados:
 
-A data efetiva do novo contrato é a maior entre:
+- `StudentContract` para aluno;
+- `CollaboratorContract` para colaborador.
 
-- a data/hora da assinatura eletrônica;
-- a **Data de Início do Contrato** informada na aba Financeiro.
+O documento, o vínculo, o modelo, a parte e o tenant devem formar uma combinação válida. Triggers de banco rejeitam referências cruzadas entre tenants, partes ou modelos.
+
+## Snapshot e imutabilidade
+
+Na geração, `dataSnapshot` registra:
+
+```json
+{
+  "party": {
+    "type": "STUDENT ou COLLABORATOR",
+    "id": "identificador da parte"
+  },
+  "values": {
+    "...": "contexto usado na renderização"
+  }
+}
+```
+
+O sistema também persiste:
+
+- versão do modelo;
+- HTML renderizado;
+- hash do documento;
+- trilha de auditoria;
+- PDF, quando solicitado.
+
+Documento assinado não é editado, reenviado nem cancelado pela rotina comum. Alterações posteriores exigem novo contrato ou aditivo.
+
+## Variáveis do aluno
+
+As variáveis existentes permanecem disponíveis em modelos `STUDENT`, incluindo:
+
+- `{{aluno.nome}}`, `{{aluno.cpf}}`, `{{aluno.rg}}` e `{{aluno.enderecoCompleto}}`;
+- `{{responsavel.nome}}`, `{{responsavel.cpf}}` e `{{responsavel.email}}`;
+- `{{professor.nome}}` e `{{professor.cref}}`;
+- `{{servico.*}}` para dados do catálogo comercial.
+
+Quando a geração não informa professor, o contexto utiliza o professor responsável vinculado ao aluno.
+
+## Variáveis do colaborador
+
+Modelos `COLLABORATOR` podem usar:
+
+- `{{colaborador.nome}}`;
+- `{{colaborador.cpf}}`;
+- `{{colaborador.rg}}`;
+- `{{colaborador.enderecoCompleto}}`;
+- `{{colaborador.email}}`;
+- `{{colaborador.telefone}}`;
+- `{{colaborador.funcao}}`;
+- `{{colaborador.cref}}`;
+- `{{colaborador.resumoProfissional}}`;
+- `{{colaborador.documentoEmpresa}}`;
+- `{{colaborador.gestorResponsavel}}`;
+- `{{colaborador.dataAdmissao}}`;
+- `{{colaborador.dataDesligamento}}`;
+- `{{colaborador.situacao}}`.
+
+O contexto é montado exclusivamente com dados do colaborador pertencente ao tenant autenticado.
+
+## Variáveis comuns
+
+Modelos de qualquer aplicabilidade podem usar:
+
+- `{{empresa.razaoSocial}}`;
+- `{{empresa.cnpj}}`;
+- `{{empresa.cref}}`;
+- `{{empresa.endereco}}`;
+- `{{contrato.valorMensal}}`;
+- `{{contrato.valorMensalExtenso}}`;
+- `{{contrato.diaVencimento}}`;
+- `{{contrato.horarios}}`;
+- `{{contrato.dataInicio}}`;
+- `{{contrato.dataAssinatura}}`.
+
+Tokens desconhecidos ou valores necessários não resolvidos impedem prévia e geração, evitando documento incompleto.
+
+## Contrato vigente e candidato
+
+A interface separa:
+
+- **Contrato vigente**: vínculo atualmente válido;
+- **Candidato**: documento em preparação, envio, assinatura ou espera pelo início planejado;
+- **Histórico**: vínculos encerrados, cancelados, expirados, recusados ou legados.
+
+Criar, enviar, visualizar, cancelar, recusar ou expirar um candidato não encerra o vigente.
+
+Somente documento `SIGNED` pode entrar em vigor.
+
+## Data efetiva e substituição
+
+A data efetiva é a maior entre:
+
+- data/hora da assinatura eletrônica;
+- data de início planejada.
 
 Consequências:
 
-- uma data anterior à assinatura não produz vigência retroativa;
-- sem data futura, o novo contrato entra em vigor na assinatura;
-- com data futura, o documento fica assinado e o vínculo permanece em `pending_signature` até o início planejado;
-- um agendador verifica contratos assinados aguardando início a cada 15 minutos por padrão;
-- na data efetiva, o vínculo anterior passa para `terminated`, recebe `endDate` igual à entrada em vigor do novo, e o novo vínculo passa para `active` na mesma transação;
-- `Aluno.currentStudentContractId` é atualizado na mesma transação, evitando período sem contrato ou dois vigentes simultaneamente.
+- não existe vigência retroativa anterior à assinatura;
+- sem início futuro, a vigência começa na assinatura;
+- com início futuro, o documento fica assinado e o vínculo aguarda em `pending_signature`;
+- o agendador processa vínculos assinados cujo início chegou;
+- na mesma transação, o vínculo anterior é encerrado, o novo é ativado e o ponteiro da parte é atualizado.
 
-O agendador pode ser desativado com `CONTRACT_LIFECYCLE_SCHEDULER_ENABLED=false`. O intervalo pode ser ajustado por `CONTRACT_LIFECYCLE_SCHEDULER_INTERVAL_MINUTES`.
+Os ponteiros são:
 
-## Prévia na aba Financeiro
+- `Aluno.currentStudentContractId`;
+- `Educator.currentCollaboratorContractId`.
 
-Na edição de um aluno, a aba **Financeiro** oferece a ação **Abrir prévia** depois que um contrato é selecionado.
+Índices parciais únicos garantem no máximo um vínculo `active` por aluno e por colaborador. A transação bloqueia a linha da parte antes da substituição para impedir corrida entre ativações concorrentes.
 
-- Quando a seleção representa um modelo `ACTIVE`, a tela chama `POST /api/v1/contracts/preview` com o aluno e os valores financeiros atualmente preenchidos.
-- Quando a seleção representa um contrato já gerado, a tela abre o `renderedHtml` persistido por `GET /api/v1/contracts/documents/:contractDocumentId`.
-- A prévia é somente leitura e não cria contrato, vínculo, PDF, token público ou assinatura.
-- Fechar a prévia não altera os dados do formulário.
-- A assinatura ou recusa não é disponibilizada dentro do modal administrativo; essas ações continuam restritas ao link público criado pelo envio do contrato.
+O agendador pode ser desativado com `CONTRACT_LIFECYCLE_SCHEDULER_ENABLED=false`. O intervalo é configurado por `CONTRACT_LIFECYCLE_SCHEDULER_INTERVAL_MINUTES`.
 
-## Envio para assinatura na aba Financeiro
+## Ciclo do aluno
 
-O bloco **Contrato do aluno** apresenta a ação **Enviar para assinatura** somente quando a seleção representa um documento já gerado e elegível.
+O aluno mantém o fluxo existente na aba **Financeiro** e em `/alunos/:id/contracts`:
 
-1. A tela chama `POST /api/v1/contracts/documents/:contractDocumentId/send`.
-2. O backend altera o documento para `SENT`, cria um token aleatório e armazena somente o hash desse token.
-3. O token expira em 30 dias.
-4. A tela monta `/assinatura/contrato/:token`, tenta copiar o endereço e mantém o link visível durante a sessão atual.
-5. O usuário compartilha manualmente o link com o aluno por WhatsApp, e-mail ou outro canal.
+1. selecionar modelo compatível;
+2. abrir prévia;
+3. gerar candidato;
+4. gerar PDF;
+5. preparar link;
+6. assinar ou recusar;
+7. ativar imediatamente ou na data planejada.
 
-O sistema não dispara mensagem automaticamente. A ação “enviar” significa preparar o documento e gerar o endereço seguro de assinatura.
+Modelos exclusivos de colaborador não aparecem nas opções do aluno.
 
-- Um modelo `ACTIVE` ainda não gerado não pode ser enviado; primeiro é necessário salvar o cadastro para gerar o documento.
-- `SIGNED`, `REJECTED`, `CANCELLED` e `EXPIRED` não apresentam envio disponível na interface.
-- Para `SENT` ou `VIEWED`, a ação passa a ser **Gerar novo link**. A tela solicita confirmação porque o novo token substitui e invalida o endereço anterior.
-- Como o banco armazena somente o hash, um link antigo não pode ser recuperado depois. Caso ele tenha sido perdido, deve-se gerar um novo link.
+## Ciclo do colaborador
 
-## Aceite e recusa no link público
+A página individual de edição do colaborador contém **Controle contratual**:
 
-O aluno possui duas ações mutuamente exclusivas no endereço público:
+- contrato vigente;
+- candidatos;
+- histórico;
+- registros legados;
+- seleção de modelo compatível;
+- prévia;
+- geração;
+- PDF;
+- link de assinatura;
+- cancelamento do candidato;
+- processamento da vigência.
 
-### Aceitar e assinar
+As escritas exigem a permissão administrativa de contrato do colaborador e respeitam o escopo `self`, `managed` ou `contract` da tela de cadastro. A consulta também exige acesso ao colaborador dentro do tenant.
 
-1. O aluno informa nome completo, CPF e e-mail opcional.
-2. Confirma **Aceitar e assinar**.
-3. O sistema registra nome, CPF normalizado, e-mail, IP, User Agent, data/hora e hash do documento.
-4. O documento passa para `SIGNED`.
-5. Se a data efetiva já chegou, o candidato entra em vigor e o contrato anterior é encerrado na mesma transação.
-6. Se a data efetiva for futura, o contrato anterior continua vigente e o candidato assinado aguarda o agendador.
-7. A página pública informa se a vigência começou imediatamente ou mostra a data futura programada.
+O antigo checkbox e upload editáveis do cadastro não são mais a fonte de verdade. O histórico legado aparece somente para consulta.
 
-### Não aceitar contrato
+## Envio e link público
 
-1. O aluno seleciona **Não aceitar contrato**.
-2. Pode informar um motivo opcional de até 1.000 caracteres.
-3. Confirma que deseja recusar o documento.
-4. `POST /api/v1/contracts/public/:token/reject` invalida imediatamente o token público.
-5. A auditoria registra a recusa, data/hora, motivo, IP e User Agent.
-6. O vínculo candidato é encerrado com a justificativa **Recusado pelo aluno**.
-7. A apresentação administrativa passa a usar o status derivado `REJECTED`.
-8. Qualquer contrato vigente anterior permanece inalterado.
+Ao preparar o envio:
 
-A recusa não é tratada como cancelamento administrativo. O documento não pode mais ser assinado nem reenviado. Após revisar valores, vigência ou cláusulas, a equipe deve gerar um novo contrato.
+1. o documento passa para `SENT`;
+2. um token aleatório é criado;
+3. somente o hash do token é armazenado;
+4. a validade padrão é 30 dias;
+5. o vínculo passa a `pending_signature`;
+6. a auditoria registra ator, parte, IP e User Agent.
 
-O status `REJECTED` é derivado do registro de auditoria `STUDENT_REJECTION`. Dessa forma, a recusa é distinguida de `CANCELLED` sem alterar contratos históricos ou exigir conversão do enum existente no banco.
+Gerar novo link invalida o endereço anterior. O sistema não envia mensagem automaticamente; a equipe compartilha o endereço pelo canal escolhido.
 
-## Status e aprovação na aba Financeiro
+A página pública usa linguagem neutra para aluno e colaborador. Ela permite:
 
-O seletor **Contrato** é a origem funcional da escolha. O antigo campo textual de contrato permanece apenas nos dados do formulário para compatibilidade com cadastros anteriores e não é apresentado como um segundo campo editável.
+- aceitar e assinar;
+- recusar com motivo opcional;
+- consultar o documento;
+- visualizar o resultado da assinatura e a data efetiva.
 
-A tela exibe **Status do contrato** com o estado do documento eletrônico:
+## Assinatura
 
-- modelo `ACTIVE` selecionado: ainda não gerado e não enviado;
-- `GENERATED`: documento gerado, aguardando envio;
-- `SENT`: enviado, aguardando assinatura;
-- `VIEWED`: aberto pelo aluno, mas ainda não assinado;
-- `SIGNED`: aprovado e assinado pelo aluno;
-- `REJECTED`: recusado pelo aluno, com data e motivo quando informados;
-- `CANCELLED`: cancelado administrativamente;
-- `EXPIRED`: prazo encerrado sem assinatura.
+Na assinatura:
 
-O status eletrônico e a vigência são conceitos distintos. Um documento `SIGNED` pode estar aguardando uma data futura para se tornar o contrato vigente.
+1. a parte informa nome, CPF e e-mail opcional;
+2. o token é reivindicado de forma atômica;
+3. são registrados nome, CPF normalizado, e-mail, IP, User Agent, data/hora e hash;
+4. o documento passa para `SIGNED`;
+5. o vínculo correto é localizado pelo `partyType`;
+6. a entrada em vigor ocorre imediatamente ou fica programada;
+7. o token é removido.
 
-Somente `SIGNED` confirma **Aluno aprovou: Sim**. Quando o aluno recusa, o painel apresenta **Aluno aprovou: Não — recusado**. Um vínculo financeiro ativo, o texto legado, o envio ou a visualização do documento não comprovam aceite.
+A mesma assinatura pública atende os dois tipos sem criar tabelas, rotas ou evidências paralelas.
 
-## Assinatura eletrônica interna
+## Recusa, expiração e cancelamento
 
-O fluxo interno de assinatura funciona da seguinte forma:
+Esses estados encerram somente o candidato:
 
-1. Um modelo `ACTIVE` é usado para gerar o contrato real por `POST /api/v1/contracts/generate`.
-2. A geração grava o HTML renderizado, o snapshot dos dados, a versão do modelo e o hash do documento, além de criar o vínculo contratual do aluno em estado de rascunho.
-3. `POST /api/v1/contracts/documents/:contractDocumentId/send` muda o documento para `SENT`, cria um token público aleatório armazenado somente como hash e define validade de 30 dias.
-4. O usuário compartilha o endereço `/assinatura/contrato/:token` com o contratante.
-5. Ao abrir o link, o contrato pode passar para `VIEWED` e o evento é registrado na auditoria.
-6. O contratante escolhe entre aceitar e assinar ou recusar o documento.
-7. A assinatura registra o documento como `SIGNED` e resolve a entrada em vigor conforme assinatura e data planejada.
-8. A recusa invalida o token, encerra somente o candidato e passa a ser apresentada como `REJECTED`.
+- recusa pública invalida o token e registra motivo e auditoria;
+- expiração invalida o token quando o prazo termina;
+- cancelamento administrativo é permitido apenas antes da assinatura.
 
-Links expirados passam para `EXPIRED`. Contratos cancelados, expirados ou recusados não podem ser assinados. Contratos já assinados não podem ser reenviados, editados ou cancelados pela rotina comum; qualquer alteração deve gerar novo contrato ou aditivo.
+O vigente anterior permanece intacto. Documento recusado não pode ser reenviado; deve ser gerado um novo candidato.
 
-## Modelo ACESSO de treinamento físico personalizado
+O status administrativo `REJECTED` continua derivado do evento de auditoria existente para preservar compatibilidade histórica.
 
-A tela `Configurações > Contratos` oferece a ação **Usar modelo ACESSO**. A ação carrega no editor um rascunho baseado no instrumento particular institucional de treinamento físico personalizado, com:
+## Legado do colaborador
 
-- qualificação de contratado, professor responsável e contratante;
-- sete cláusulas ordenadas sobre objeto, características do serviço, valores, rescisão, atrasos e reposições, férias e disposições gerais;
-- rodapé com local, data, assinaturas das partes e testemunhas.
+A migração lê:
 
-O modelo é carregado com status `DRAFT` e deve ser revisado antes de ser salvo e ativado. Se já existir um modelo com o mesmo nome, a tela seleciona o registro existente em vez de preparar uma nova cópia.
+- `Educator.hasSignedContract`;
+- `Educator.signedContractDocumentUrl`.
 
-## Variáveis disponíveis
+O backfill é idempotente por `legacySourceKey` e cria um `CollaboratorContract` com origem:
 
-Consulte `GET /api/v1/contracts/variables`. Cada variável retorna:
+- `LEGACY_PDF`, quando existe URL de documento;
+- `LEGACY_DECLARATION`, quando há somente a declaração anterior.
 
-- chave e token Handlebars;
-- grupo e rótulo do grupo;
-- nome amigável;
-- descrição de uso;
-- exemplo de preenchimento.
+Registros legados:
 
-Na tela de modelos, as variáveis aparecem em grupos expansíveis: **Aluno**, **Responsável**, **Empresa**, **Professor**, **Serviços** e **Contrato**. Ao passar o mouse ou focar uma variável, a interface apresenta sua descrição e um exemplo. O clique continua copiando o token para a área de transferência. Os seletores dos editores usam os mesmos grupos.
-
-Quando a geração não informa explicitamente um professor, o contexto utiliza o professor responsável vinculado ao aluno.
-
-### Variáveis de serviço
-
-Além de `{{servico.nome}}` e `{{servico.valor}}`, o contexto pode utilizar dados do catálogo comercial:
-
-- `{{servico.codigo}}`;
-- `{{servico.categoria}}`;
-- `{{servico.resumo}}`;
-- `{{servico.oQueE}}`;
-- `{{servico.publicoAlvo}}`;
-- `{{servico.itensInclusos}}`;
-- `{{servico.quantidadeItensInclusos}}`;
-- `{{servico.plano.componentes}}`.
-
-Os itens inclusos consideram somente registros ativos de “O que o compõe?”. Os componentes do plano consideram somente relações ativas com serviços ou opções comerciais também ativos.
-
-As variáveis `{{servico.duracaoSessao}}` e `{{servico.quantidadeSemanal}}` permanecem disponíveis por compatibilidade, mas continuam vazias enquanto duração e opção comercial não forem selecionadas de forma estruturada. O módulo não escolhe automaticamente uma opção comercial quando um serviço possui várias combinações.
-
-Se a migration do catálogo comercial ainda não estiver aplicada, o contexto mantém compatibilidade com os dados legados de nome, código, descrição e valor, deixando vazias somente as informações estruturadas indisponíveis.
+- usam status `legacy`;
+- não possuem `GeneratedContract`;
+- não recebem assinatura, token, hash, IP ou data de aceite fabricados;
+- não são considerados vigentes eletrônicos;
+- permanecem somente leitura no histórico.
 
 ## Segurança e auditoria
 
-Contratos assinados não são editados. Recusas, assinaturas e mudanças de vigência são registradas em `ContractAuditLog`. A troca de contrato vigente e a atualização de `currentStudentContractId` são transacionais. Tokens públicos são removidos após assinatura ou recusa.
+A segurança é aplicada em duas camadas:
+
+- aplicação: autenticação, permissão, escopo da tela e filtros de tenant;
+- banco: constraints, chaves estrangeiras, índices únicos e triggers de combinação.
+
+Eventos de geração, envio, visualização, assinatura, recusa, cancelamento e vigência são registrados em `ContractAuditLog`.
+
+## APIs principais
+
+Aluno:
+
+- `POST /api/v1/contracts/preview`;
+- `POST /api/v1/contracts/generate`;
+- `GET /api/v1/contracts/alunos/:alunoId`;
+- `POST /api/v1/contracts/documents/:documentId/pdf`;
+- `POST /api/v1/contracts/documents/:documentId/send`.
+
+Colaborador:
+
+- `GET /api/v1/contracts/collaborators/:collaboratorId/summary`;
+- `POST /api/v1/contracts/collaborators/:collaboratorId/preview`;
+- `POST /api/v1/contracts/collaborators/:collaboratorId/generate`;
+- `POST /api/v1/contracts/collaborators/:collaboratorId/documents/:documentId/pdf`;
+- `POST /api/v1/contracts/collaborators/:collaboratorId/documents/:documentId/send`;
+- `POST /api/v1/contracts/collaborators/:collaboratorId/documents/:documentId/cancel`;
+- `POST /api/v1/contracts/collaborators/:collaboratorId/links/:linkId/activate`.
+
+Compartilhado:
+
+- `GET /api/v1/contracts/templates` com filtros `partyType` e `applicability`;
+- `GET /api/v1/contracts/variables` com os mesmos filtros;
+- `GET /api/v1/contracts/public/:token`;
+- `POST /api/v1/contracts/public/:token/sign`;
+- `POST /api/v1/contracts/public/:token/reject`.
 
 ## Provedores externos
 
-O model `Contract` já possui `externalProvider` e `externalEnvelopeId` para futura integração com Clicksign, ZapSign, Autentique ou DocuSign.
+`GeneratedContract` mantém `externalProvider` e `externalEnvelopeId` para futura integração com provedores externos. A issue 263 não altera o provedor de assinatura interna.
