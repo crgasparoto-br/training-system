@@ -8,6 +8,7 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { AuthCardLayout } from '../components/auth/AuthCardLayout';
 import { authCopy, commonCopy } from '../i18n/ptBR';
+import { formatBrazilianDocument } from '../utils/document';
 
 const registerSchema = z
   .object({
@@ -57,25 +58,6 @@ export function Register() {
 
   const contractType = watch('contractType');
   const documentLabel = contractType === 'academy' ? 'CNPJ' : 'CPF';
-
-  const formatDocument = (value: string) => {
-    const digits = value.replace(/\D/g, '');
-
-    if (contractType === 'academy') {
-      const limited = digits.slice(0, 14);
-      return limited
-        .replace(/^(\d{2})(\d)/, '$1.$2')
-        .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
-        .replace(/\.(\d{3})(\d)/, '.$1/$2')
-        .replace(/(\d{4})(\d)/, '$1-$2');
-    }
-
-    const limited = digits.slice(0, 11);
-    return limited
-      .replace(/^(\d{3})(\d)/, '$1.$2')
-      .replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3')
-      .replace(/\.(\d{3})(\d)/, '.$1-$2');
-  };
 
   const onSubmit = async (data: RegisterFormData) => {
     setIsLoading(true);
@@ -156,7 +138,8 @@ export function Register() {
           error={errors.document?.message}
           {...register('document', {
             onChange: (event) => {
-              const formatted = formatDocument(event.target.value);
+              const type = contractType === 'academy' ? 'cnpj' : 'cpf';
+              const formatted = formatBrazilianDocument(event.target.value, type);
               setValue('document', formatted, { shouldValidate: true });
             },
           })}
