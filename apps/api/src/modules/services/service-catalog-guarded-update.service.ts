@@ -1,4 +1,3 @@
-import { PrismaClient } from '@prisma/client';
 import type {
   ServiceCatalogImpactConfirmation,
   ServiceCatalogDetail,
@@ -17,9 +16,8 @@ import {
   getServiceCatalogImpact,
   ServiceCatalogImpactConflictError,
 } from './service-impact.service.js';
+import { serviceCatalogPrismaClient as prisma } from './service.service-base.js';
 import { serviceCatalogService } from './service.service.js';
-
-const prisma = new PrismaClient();
 
 type GuardedServiceUpdate = UpdateServiceRequest & {
   impactConfirmation?: ServiceCatalogImpactConfirmation;

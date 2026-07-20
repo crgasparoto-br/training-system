@@ -20,7 +20,7 @@
     "type-check": "pnpm -r run type-check",
     "arch:check": "node scripts/check-architecture.mjs",
     "access:check": "node scripts/check-access-catalog.mjs",
-    "docs:check": "node scripts/check-docs.mjs",
+    "docs:check": "node --test scripts/check-doc-references.test.mjs && node scripts/check-docs.mjs",
     "harness:reset-db": "bash scripts/harness/reset-local-db.sh",
     "harness:seed-demo": "node scripts/harness/seed-demo-users.mjs",
     "harness:smoke-api": "node scripts/harness/smoke-api.mjs",

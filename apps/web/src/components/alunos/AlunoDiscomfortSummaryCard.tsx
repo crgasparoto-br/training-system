@@ -28,12 +28,14 @@ const latestFollowUpFrom = (items: ProntuarioPainCase[]) =>
 export function AlunoDiscomfortSummaryCard({ alunoId }: AlunoDiscomfortSummaryCardProps) {
   const { user } = useAuthStore();
   const canViewHealthData = canAccessBlock(user, 'students.details.health');
+  const canViewPrntSummary = canAccessBlock(user, 'physicalAssessment.prnt.summary');
+  const canViewDiscomfortSummary = canViewHealthData && canViewPrntSummary;
   const [cases, setCases] = useState<ProntuarioPainCase[]>([]);
-  const [loading, setLoading] = useState(canViewHealthData);
+  const [loading, setLoading] = useState(canViewDiscomfortSummary);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!canViewHealthData) {
+    if (!canViewDiscomfortSummary) {
       setCases([]);
       setLoading(false);
       setError(null);
@@ -62,7 +64,7 @@ export function AlunoDiscomfortSummaryCard({ alunoId }: AlunoDiscomfortSummaryCa
     return () => {
       active = false;
     };
-  }, [alunoId, canViewHealthData]);
+  }, [alunoId, canViewDiscomfortSummary]);
 
   const activeCases = useMemo(() => cases.filter(isActiveCase), [cases]);
   const latestFollowUp = useMemo(() => latestFollowUpFrom(cases), [cases]);
@@ -76,7 +78,7 @@ export function AlunoDiscomfortSummaryCard({ alunoId }: AlunoDiscomfortSummaryCa
     [activeCases]
   );
 
-  if (!canViewHealthData) return null;
+  if (!canViewDiscomfortSummary) return null;
 
   const prontuarioPath =
     `/protocolo-avaliacao-fisica/prontuario-entrevista-acompanhamento?alunoId=${alunoId}`;
