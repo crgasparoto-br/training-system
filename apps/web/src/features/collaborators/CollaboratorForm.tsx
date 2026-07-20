@@ -16,6 +16,7 @@ import {
   formatCollaboratorCompanyDocument,
   formatCollaboratorCpf,
   formatCollaboratorPhone,
+  formatCollaboratorRateInput,
   formatCollaboratorRg,
   normalizeCollaboratorInstagram,
 } from './collaborator-formatters';
@@ -52,15 +53,6 @@ function SelectField({
       {error ? <span className="block text-sm text-destructive">{error}</span> : null}
     </label>
   );
-}
-
-function formatRateInput(value?: string) {
-  const normalized = value?.trim().replace(/\./g, '').replace(',', '.');
-  if (!normalized) return '';
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed)
-    ? parsed.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    : value ?? '';
 }
 
 export function CollaboratorForm({
@@ -379,7 +371,7 @@ export function CollaboratorForm({
                   inputMode="decimal"
                   disabled={!administrativeFieldsEnabled}
                   {...register(`hourlyRates.${rateKey}`)}
-                  onBlur={(event) => setValue(`hourlyRates.${rateKey}`, formatRateInput(event.target.value), { shouldDirty: true, shouldValidate: true })}
+                  onBlur={(event) => setValue(`hourlyRates.${rateKey}`, formatCollaboratorRateInput(event.target.value), { shouldDirty: true, shouldValidate: true })}
                   error={errorMessage(errors.hourlyRates?.[rateKey])}
                 />
               ))}
