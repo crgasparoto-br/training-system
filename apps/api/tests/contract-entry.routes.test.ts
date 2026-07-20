@@ -47,6 +47,9 @@ jest.mock('../src/modules/auth/auth.middleware', () => ({
 }));
 
 jest.mock('../src/modules/access-control/access-control.middleware', () => ({
+  screenAccessMiddleware:
+    () =>
+    (_req: express.Request, _res: express.Response, next: express.NextFunction) => next(),
   blockAccessMiddleware:
     (blockKey: string) =>
     (req: express.Request, res: express.Response, next: express.NextFunction) => {

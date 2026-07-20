@@ -78,6 +78,10 @@ async function insertCollaboratorLink(input: {
 }
 
 async function seedCompany(id: string, suffix: string) {
+  const cpfSeed = Array.from(suffix).reduce(
+    (value, character) => (value * 31 + character.charCodeAt(0)) % 100_000_000_000,
+    0
+  );
   await prisma.companyContract.create({
     data: {
       id,
@@ -103,7 +107,7 @@ async function seedCompany(id: string, suffix: string) {
       profile: {
         create: {
           name: `Colaborador ${suffix}`,
-          cpf: `${suffix.replace(/\D/gu, '').padStart(11, '0').slice(-11)}`,
+          cpf: String(cpfSeed).padStart(11, '0'),
         },
       },
     },
