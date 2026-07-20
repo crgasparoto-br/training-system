@@ -11,6 +11,7 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { canAccessBlock, getDataScopeForScreen } from '../access/access-control';
 import { Button } from '../components/ui/Button';
 import { CollaboratorForm } from '../features/collaborators/CollaboratorForm';
+import { canCreateCollaborator, canWriteCollaborator, isSelfCollaborator } from '../features/collaborators/collaborator-access';
 import {
   collaboratorFormSchema,
   createCollaboratorFormValues,
@@ -53,7 +54,17 @@ export function CollaboratorFormPage({ mode }: { mode: 'create' | 'edit' }) {
   useUnsavedChangesGuard(isDirty && !submitting);
 
   const dataScope = getDataScopeForScreen(user, 'collaborators.registration');
-  const administrativeFieldsEnabled = dataScope === 'contract';
+  const actorProfessorId = user?.professor?.id;
+  const showCollaboratorBlock = canAccessBlock(user, 'collaborators.registration.collaborator');
+  const showManagerBlock = canAccessBlock(user, 'collaborators.registration.manager');
+  const canCreate = canCreateCollaborator(dataScope);
+  const canEditRecord = collaborator
+    ? canWriteCollaborator(actorProfessorId, collaborator, dataScope)
+    : false;
+  const editingOwnRecord = collaborator ? isSelfCollaborator(actorProfessorId, collaborator) : false;
+  const administrativeFieldsEnabled = mode === 'create'
+    ? canCreate && showManagerBlock
+    : canEditRecord && !editingOwnRecord && showManagerBlock;
   const signedContractUploadEnabled = administrativeFieldsEnabled
     && canAccessBlock(user, 'collaborators.actions.uploadSignedContract');
 
@@ -82,9 +93,14 @@ export function CollaboratorFormPage({ mode }: { mode: 'create' | 'edit' }) {
           reset(createCollaboratorFormValues(detail));
         } else {
           const firstFunction = collaboratorFunctions.find((item) => item.isActive);
+          const managerOptions = professors.filter(
+            (item) => item.user.isActive !== false && (item.role === 'master' || item.collaboratorFunction.code === 'manager')
+          );
+          const defaultManager = managerOptions.find((item) => item.role === 'master') ?? managerOptions[0];
           reset({
             ...createCollaboratorFormValues(),
             collaboratorFunctionId: firstFunction?.id ?? '',
+            responsibleManagerId: defaultManager?.id ?? '',
             operationalRoleIds: firstFunction ? [firstFunction.id] : [],
           });
         }
@@ -130,14 +146,14 @@ export function CollaboratorFormPage({ mode }: { mode: 'create' | 'edit' }) {
         return;
       }
 
-      if (!collaborator) {
-        setError('Colaborador não encontrado.');
+      if (!collaborator || !canEditRecord) {
+        setError('Este colaborador não está disponível para edição no seu escopo de acesso.');
         return;
       }
 
-      const payload = administrativeFieldsEnabled
-        ? toUpdateProfessorRequest(values)
-        : toSelfServiceUpdateProfessorRequest(values);
+      const payload = editingOwnRecord
+        ? toSelfServiceUpdateProfessorRequest(values)
+        : toUpdateProfessorRequest(values);
       const updated = await professorService.update(collaborator.id, payload);
       reset(createCollaboratorFormValues(updated));
       navigate(`/consultas/colaboradores/${updated.id}`, {
@@ -182,21 +198,31 @@ export function CollaboratorFormPage({ mode }: { mode: 'create' | 'edit' }) {
     return <div className="rounded-2xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">Carregando formulário...</div>;
   }
 
-  if (mode === 'edit' && !collaborator) {
+  if (mode === 'edit' && (!collaborator || !canEditRecord)) {
     return (
       <div className="space-y-4 rounded-2xl border border-border bg-card p-8 text-center">
-        <p className="text-lg font-semibold text-foreground">Colaborador não encontrado</p>
-        <p className="text-sm text-muted-foreground">O registro não existe ou não está disponível para o seu acesso.</p>
+        <p className="text-lg font-semibold text-foreground">Edição não disponível</p>
+        <p className="text-sm text-muted-foreground">O registro não existe ou não pertence ao seu escopo de escrita.</p>
+        <Link className={outlineLinkButtonClassName} to={collaborator ? `/consultas/colaboradores/${collaborator.id}` : '/consultas/colaboradores'}><ArrowLeft size={16} /> Voltar à consulta</Link>
+      </div>
+    );
+  }
+
+  if (mode === 'create' && !canCreate) {
+    return (
+      <div className="space-y-4 rounded-2xl border border-border bg-card p-8 text-center">
+        <p className="text-lg font-semibold text-foreground">Cadastro não disponível</p>
+        <p className="text-sm text-muted-foreground">Seu perfil não possui escopo administrativo para cadastrar colaboradores.</p>
         <Link className={outlineLinkButtonClassName} to="/consultas/colaboradores"><ArrowLeft size={16} /> Voltar à consulta</Link>
       </div>
     );
   }
 
-  if (mode === 'create' && !administrativeFieldsEnabled) {
+  if (!showCollaboratorBlock && !showManagerBlock) {
     return (
       <div className="space-y-4 rounded-2xl border border-border bg-card p-8 text-center">
-        <p className="text-lg font-semibold text-foreground">Cadastro não disponível</p>
-        <p className="text-sm text-muted-foreground">Seu perfil não possui escopo administrativo para cadastrar colaboradores.</p>
+        <p className="text-lg font-semibold text-foreground">Formulário não disponível</p>
+        <p className="text-sm text-muted-foreground">Seu perfil não possui acesso aos blocos deste cadastro.</p>
         <Link className={outlineLinkButtonClassName} to="/consultas/colaboradores"><ArrowLeft size={16} /> Voltar à consulta</Link>
       </div>
     );
@@ -223,6 +249,8 @@ export function CollaboratorFormPage({ mode }: { mode: 'create' | 'edit' }) {
         collaboratorFunctions={functions}
         managers={managers}
         banks={banks}
+        showCollaboratorBlock={showCollaboratorBlock}
+        showManagerBlock={showManagerBlock}
         administrativeFieldsEnabled={administrativeFieldsEnabled}
         signedContractUploadEnabled={signedContractUploadEnabled}
         uploadingAvatar={uploadingAvatar}
