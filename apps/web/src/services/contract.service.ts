@@ -15,6 +15,8 @@ import {
 
 export { CONTRACT_VARIABLES };
 export type { ContractVariableDefinition };
+export type ContractPartyType = 'STUDENT' | 'COLLABORATOR';
+export type ContractTemplateApplicability = ContractPartyType | 'BOTH';
 
 export interface Contract {
   id: string;
@@ -51,6 +53,7 @@ export interface ContractTemplate {
   serviceId?: string | null;
   version: number;
   status: 'DRAFT' | 'ACTIVE' | 'INACTIVE';
+  applicability: ContractTemplateApplicability;
   headerHtml: string;
   footerHtml: string;
   clauses: ContractTemplateClause[];
@@ -86,7 +89,9 @@ export interface ContractSignatureResult {
   activation: {
     effectiveAt: string;
     scheduled: boolean;
-    studentContractStatus: 'pending_signature' | 'active';
+    partyType: ContractPartyType;
+    linkStatus: 'pending_signature' | 'active';
+    studentContractStatus?: 'pending_signature' | 'active';
   };
 }
 
@@ -152,6 +157,17 @@ const applyContractRejection = <T extends GeneratedContract | AvailableStudentCo
   } as T;
 };
 
+const buildTemplateQuery = (filters?: {
+  applicability?: ContractTemplateApplicability;
+  partyType?: ContractPartyType;
+}) => {
+  const params = new URLSearchParams();
+  if (filters?.applicability) params.set('applicability', filters.applicability);
+  if (filters?.partyType) params.set('partyType', filters.partyType);
+  const query = params.toString();
+  return query ? `?${query}` : '';
+};
+
 export const contractService = {
   async getMe(): Promise<Contract> {
     const response = await api.get<{ success: boolean; data: Contract }>('/contracts/me');
@@ -186,22 +202,20 @@ export const contractService = {
     const response = await api.post<{ success: boolean; data: { url: string } }>(
       '/contracts/logo-upload',
       formData,
-      {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      }
+      { headers: { 'Content-Type': 'multipart/form-data' } }
     );
-
     return response.data.data.url;
   },
 
-  async listVariables(): Promise<ContractVariableDefinition[]> {
+  async listVariables(filters?: {
+    applicability?: ContractTemplateApplicability;
+    partyType?: ContractPartyType;
+  }): Promise<ContractVariableDefinition[]> {
     try {
       const response = await api.get<{
         success: boolean;
         data: Array<Partial<ContractVariableDefinition> & { key: string; token?: string }>;
-      }>('/contracts/variables');
+      }>(`/contracts/variables${buildTemplateQuery(filters)}`);
       return response.data.data?.length
         ? normalizeContractVariables(response.data.data)
         : CONTRACT_VARIABLES;
@@ -210,8 +224,13 @@ export const contractService = {
     }
   },
 
-  async listTemplates(): Promise<ContractTemplate[]> {
-    const response = await api.get<{ success: boolean; data: ContractTemplate[] }>('/contracts/templates');
+  async listTemplates(filters?: {
+    applicability?: ContractTemplateApplicability;
+    partyType?: ContractPartyType;
+  }): Promise<ContractTemplate[]> {
+    const response = await api.get<{ success: boolean; data: ContractTemplate[] }>(
+      `/contracts/templates${buildTemplateQuery(filters)}`
+    );
     return response.data.data;
   },
 
@@ -270,27 +289,21 @@ export const contractService = {
       api.get<{ success: boolean; data: AvailableStudentContract[] }>(
         query ? `/contracts/available-for-student?${query}` : '/contracts/available-for-student'
       ),
-      api.get<{ success: boolean; data: ContractTemplate[] }>('/contracts/templates'),
+      api.get<{ success: boolean; data: ContractTemplate[] }>('/contracts/templates?partyType=STUDENT'),
       api.get<{ success: boolean; data: ContractTemplateOptionService[] }>('/services'),
     ]);
 
     const activeTemplateOptions = buildActiveContractTemplateOptions(
       templatesResponse.data.data,
       servicesResponse.data.data,
-      {
-        alunoId: filters?.alunoId,
-        serviceId: filters?.serviceId,
-      }
+      { alunoId: filters?.alunoId, serviceId: filters?.serviceId }
     );
 
     const generatedContracts = filters?.alunoId
       ? await Promise.all(
           generatedResponse.data.data.map(async (contract) =>
             applyContractRejection(
-              {
-                ...contract,
-                sourceType: 'generated' as const,
-              },
+              { ...contract, sourceType: 'generated' as const },
               await loadContractRejection(contract.id)
             )
           )
