@@ -54,9 +54,10 @@ function Fixture() {
 
 describe('CollaboratorForm', () => {
   it('mantém no formulário real os blocos e comportamentos principais', () => {
-    render(<Fixture />);
+    const { container } = render(<Fixture />);
 
-    expect(screen.getByLabelText('CEP')).toBeInTheDocument();
+    expect(screen.getByText('CEP')).toBeInTheDocument();
+    expect(container.querySelector('input[name="addressZipCode"]')).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Banco' })).toBeInTheDocument();
     expect(screen.getByLabelText('Valor/hora personal')).toHaveValue('120,00');
     expect(screen.getByText('Ouro')).toBeInTheDocument();
