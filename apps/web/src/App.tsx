@@ -6,7 +6,9 @@ import type { ReactElement } from 'react';
 import { ForgotPassword } from './pages/ForgotPassword';
 import { Register } from './pages/Register';
 import { Home } from './pages/Home';
-import { Professores } from './pages/Professores';
+import { CollaboratorsList } from './pages/CollaboratorsList';
+import { CollaboratorDetails } from './pages/CollaboratorDetails';
+import { CollaboratorFormPage } from './pages/CollaboratorFormPage';
 import { Alunos } from './pages/Alunos';
 import { StudentCentral } from './pages/StudentCentral';
 import { StudentCentralEdit } from './pages/StudentCentralEdit';
@@ -103,7 +105,7 @@ function App() {
           <Route index element={<DefaultAuthorizedRoute />} />
           <Route path="inicio" element={<Home />} />
           <Route path="professores" element={<Navigate to="/professores/new" replace />} />
-          <Route path="professores/new" element={withAccess('collaborators.registration', <Professores />)} />
+          <Route path="professores/new" element={withAccess('collaborators.registration', <CollaboratorFormPage mode="create" />)} />
           <Route path="alunos" element={<StudentsRoute />} />
           <Route path="alunos/new" element={withAccess('students.registration', <AlunoFormWithContractEndDate />)} />
           <Route
@@ -132,7 +134,15 @@ function App() {
           <Route path="protocolo-avaliacao-fisica/ultrassonografia" element={withAccess('physicalAssessment.protocol', <PhysicalAssessmentProtocol />)} />
           <Route path="consultas" element={<Navigate to="/central-do-aluno" replace />} />
           <Route path="consultas/alunos" element={withAccess('students.consultation', <Alunos />)} />
-          <Route path="consultas/colaboradores" element={withAccess('collaborators.consultation', <Professores mode="consult" />)} />
+          <Route path="consultas/colaboradores" element={withAccess('collaborators.consultation', <CollaboratorsList />)} />
+          <Route
+            path="consultas/colaboradores/:id"
+            element={withAnyAccess(['collaborators.registration', 'collaborators.consultation'], <CollaboratorDetails />)}
+          />
+          <Route
+            path="consultas/colaboradores/:id/edit"
+            element={withAccess('collaborators.registration', <CollaboratorFormPage mode="edit" />)}
+          />
           <Route path="plans" element={withAccess('plans', <Plans />)} />
           <Route path="plans/new" element={withAccess('plans', <PlanForm />)} />
           <Route path="plans/:id" element={withAccess('plans', <PlanDetails />)} />
