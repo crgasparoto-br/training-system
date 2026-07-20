@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { applyPrismaRuntimeConnectionSettings } from './common/database-runtime.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -15,3 +16,5 @@ for (const envPath of [
 ]) {
   dotenv.config({ path: envPath, override: false });
 }
+
+applyPrismaRuntimeConnectionSettings(process.env);

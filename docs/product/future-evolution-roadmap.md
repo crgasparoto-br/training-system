@@ -1,6 +1,16 @@
-# Roadmap de evolucoes futuras do fluxo integrado
+# Evolucoes complementares do fluxo integrado — issue #139
 
-Este documento registra o recorte da issue #139. Ele separa o nucleo inicial do fluxo integrado das evolucoes futuras que devem virar issues proprias antes de qualquer implementacao.
+## Status e autoridade
+
+Este documento preserva o recorte funcional registrado na issue #139 e os requisitos complementares que ainda nao foram convertidos em epics especificas.
+
+Ele **nao e um segundo roadmap geral**. A fonte de verdade para estado funcional, maturidade e ordem de prioridade do produto e [`roadmap.md`](roadmap.md). Em caso de divergencia, o roadmap canonico prevalece e este arquivo deve ser atualizado.
+
+A experiencia detalhada de treinamento centrada no aluno permanece em [`student-centered-training-experience.md`](student-centered-training-experience.md).
+
+## Objetivo do recorte
+
+Separar o nucleo obrigatorio do fluxo integrado das evolucoes futuras que devem virar issues proprias antes de qualquer implementacao.
 
 ## Nucleo inicial preservado
 
@@ -15,15 +25,15 @@ O nucleo atual deve continuar preservando:
 - feedback pos-treino e decisao sugerida como evidencia para nova decisao, sempre validada pelo professor;
 - permissoes, escopos de dados, contrato, aluno, professor responsavel, origem e versao.
 
-Nenhuma evolucao futura deve remover ou substituir esse nucleo sem migration explicita, compatibilidade, testes e issue propria.
+Nenhuma evolucao futura deve remover ou substituir esse nucleo sem migration explicita quando aplicavel, compatibilidade, testes e issue propria.
 
 ## Rastreabilidade minima para extensoes
 
-As entidades criadas ou preparadas nas fases #135 a #138 devem manter dados suficientes para receber novas fontes no futuro:
+As entidades criadas ou preparadas nas fases relacionadas ao fluxo integrado devem manter dados suficientes para receber novas fontes no futuro:
 
 | Camada | Dados que precisam permanecer rastreaveis | Uso futuro |
 | --- | --- | --- |
-| PRNT e avaliacao | aluno, contrato, data, professor, origem, versao, observacoes e alertas | relatórios evolutivos, integracoes clinicas e apoio a prescricao |
+| PRNT e avaliacao | aluno, contrato, data, professor, origem, versao, observacoes e alertas | relatorios evolutivos, integracoes clinicas e apoio a prescricao |
 | Prescricao por capacidade | capacidade, status, origem, objetivos vinculados, parametros, justificativa e mensagem ao aluno | montagem, relatorios, exportacao futura e decisoes sugeridas |
 | Montagem Consolidada | versao, blocos usados, dados-base, conflitos, validacao e professor responsavel | Treino de hoje rastreavel, auditoria e revisao tecnica |
 | Feedback pos-treino | treino executado, montagem, execucoes, capacidade, aderencia, queixas e decisao sugerida | linha do tempo, retencao, relatorios e futuras recomendacoes |
@@ -32,8 +42,8 @@ As entidades criadas ou preparadas nas fases #135 a #138 devem manter dados sufi
 
 Escopo futuro:
 
-- exportar treinos ciclicos/aerobicos e protocolos de teste;
-- importar distancia, pace, FC media, FC maxima, tempo em zona, sono, estresse e recuperacao;
+- exportar treinos ciclicos ou aerobicos e protocolos de teste;
+- importar distancia, pace, frequencia cardiaca, tempo em zona, sono, estresse e recuperacao;
 - tratar dados externos como evidencia, nunca como decisao automatica;
 - registrar origem, provedor, data, consentimento, contrato e aluno;
 - exigir validacao tecnica antes de influenciar prescricao, montagem ou decisao sugerida.
@@ -49,7 +59,7 @@ Fora do escopo atual:
 Escopo futuro:
 
 - lembrete de treino, pagamento, reavaliacao, pendencia de feedback e ajuste de prescricao;
-- dicas do dia e mensagens praticas para aluno;
+- dicas do dia e mensagens praticas para o aluno;
 - envio por celular, tela do aluno ou WhatsApp quando houver consentimento e canal configurado;
 - mensagens geradas a partir de dados validados, sem transformar WhatsApp em fonte tecnica.
 
@@ -57,8 +67,8 @@ Regras obrigatorias:
 
 - aluno recebe linguagem pratica, clara e segura;
 - professor ve contexto tecnico, origem e justificativa;
-- notificacao financeira nao deve misturar dados sensiveis de saude;
-- mensagens futuras devem respeitar permissao, contrato e finalidade.
+- notificacao financeira nao mistura dados sensiveis de saude;
+- mensagens futuras respeitam permissao, contrato, consentimento e finalidade.
 
 ## Relatorios evolutivos
 
@@ -66,21 +76,21 @@ Escopo futuro:
 
 - linha do tempo com avaliacao, PRNT, prescricao, montagem, treino, execucao, feedback, aderencia e alertas;
 - indicadores de treino: sessoes, tempo, constancia, prescritas, realizadas, tonelagem, calorias, PSE, PSR e aderencia;
-- indicadores clinicos/evolutivos: peso, sono, qualidade do sono, sono profundo/leve, estresse, FC repouso, variabilidade de FC, PA sistolica/diastolica, LDL, HDL, hemoglobina glicada, VO2max, circunferencia abdominal e percentual de gordura;
-- visao separada para professor, gestor e aluno.
+- indicadores clinicos ou evolutivos: peso, sono, qualidade do sono, estresse, frequencia cardiaca de repouso, variabilidade de frequencia cardiaca, pressao arterial, LDL, HDL, hemoglobina glicada, VO2max, circunferencia abdominal e percentual de gordura;
+- visoes separadas para professor, gestor e aluno.
 
 Regras obrigatorias:
 
 - dado clinico exige permissao especifica;
-- relatorio deve apontar origem e data do dado;
-- dados externos precisam entrar como evidencia validada;
-- comparativos nao podem sobrescrever historico antigo.
+- relatorio aponta origem e data do dado;
+- dados externos entram como evidencia validada;
+- comparativos nao sobrescrevem historico antigo.
 
 ## Agenda integrada, colaboradores e ambiente
 
 Escopo futuro:
 
-- disponibilidade de professores, estagiarios, gestores, administrativo, limpeza e servicos;
+- disponibilidade de professores, estagiarios, gestores, administrativo, limpeza e prestadores;
 - lotacao de alunos conforme horario, servico contratado, ambiente e responsavel;
 - materiais de sala, equipamentos, recursos disponiveis e restricoes de ambiente;
 - substituicao de professor em falta, ferias ou viagem;
@@ -88,45 +98,56 @@ Escopo futuro:
 
 Regras obrigatorias:
 
-- agenda nao pode virar origem tecnica de treino sem prescricao validada;
+- agenda nao vira origem tecnica de treino sem prescricao validada;
 - disponibilidade operacional nao substitui permissao de dado sensivel;
-- substituto deve ver resumo pratico necessario, nao prontuario completo sem permissao.
+- substituto ve somente o resumo pratico necessario, sem prontuario completo quando nao autorizado.
 
 ## Cadastro profissional, servicos e contratos
 
 Escopo futuro:
 
-- cadastro profissional com CREF, curriculo resumido, link externo, foto profissional, situacao atual, cargo/função e valores por servico;
+- cadastro profissional com CREF, curriculo resumido, link externo, foto profissional, situacao atual, cargo ou funcao e valores por servico;
 - catalogo de servicos alimentando cadastro do aluno, contrato, valor mensal, servico vigente e regras comerciais;
 - contrato do aluno gerado por dados cadastrais, servico vigente, condicao especial, valor, dia de pagamento e modelo configuravel;
-- controle financeiro/notificacoes conectado a servico vigente, pagamento e aderencia.
+- controle financeiro e notificacoes conectados a servico vigente, pagamento e aderencia.
 
 Regras obrigatorias:
 
-- dados financeiros ficam separados de prescricao tecnica;
-- contrato e pagamento nao podem virar regra automatica de treino;
-- qualquer nova permissao deve entrar no catalogo de acesso e passar pelo check de acesso.
+- dados financeiros permanecem separados de prescricao tecnica;
+- contrato e pagamento nao viram regra automatica de treino;
+- qualquer nova permissao entra no catalogo de acesso e passa pelo check de acesso.
 
-## Backlog recomendado
+## Backlog complementar preservado
 
-Cada item abaixo deve virar issue propria antes de implementacao:
+Cada item deve virar issue ou epic propria antes da implementacao:
 
 1. Persistir feedback pos-treino e decisao sugerida com API e permissoes.
-2. Expor linha do tempo evolutiva do aluno usando dados das fases #135 a #138.
+2. Expor linha do tempo evolutiva do aluno usando dados do fluxo integrado.
 3. Criar relatorios de aderencia e retencao para gestor.
 4. Modelar integracao externa como evidencia importada com origem, consentimento e auditoria.
-5. Preparar exportacao de treino aerobico para smartwatch apos Montagem Consolidada validada.
+5. Preparar exportacao de treino aerobico para smartwatch somente apos Montagem Consolidada validada.
 6. Criar notificacoes de pagamento, treino, feedback e reavaliacao.
 7. Evoluir agenda integrada com disponibilidade de colaboradores e ambiente.
 8. Expandir cadastro profissional e catalogo de servicos com regras comerciais.
 9. Criar fila de curadoria para exercicios novos e substituicoes por grupamento muscular.
 10. Criar plano alternativo para ferias, faltas, viagens e professor substituto.
 
+Os itens que ja estiverem cobertos pelo [`roadmap.md`](roadmap.md) ou por uma issue aberta devem ser executados pela fonte mais especifica e recente, sem duplicar backlog.
+
 ## Nao fazer nesta fase
 
-- Nao implementar integracoes externas.
-- Nao implementar smartwatch.
-- Nao implementar notificacoes inteligentes.
-- Nao automatizar prescricao sem professor.
-- Nao expor justificativa tecnica completa ao aluno.
-- Nao refatorar destrutivamente agenda, contrato, servicos, execucoes ou permissoes.
+- nao implementar integracoes externas;
+- nao implementar smartwatch;
+- nao implementar notificacoes inteligentes sem consentimento, finalidade e fonte validada;
+- nao automatizar prescricao sem professor;
+- nao expor justificativa tecnica completa ao aluno;
+- nao refatorar destrutivamente agenda, contratos, servicos, execucoes ou permissoes.
+
+## Regra de manutencao
+
+Ao transformar um item deste recorte em epic ou issue:
+
+1. registrar o vinculo com a issue #139 quando aplicavel;
+2. atualizar o roadmap canonico apenas se prioridade ou maturidade mudar;
+3. remover daqui o item duplicado ou substitui-lo por referencia explicita a nova issue;
+4. preservar as regras permanentes na fonte de produto ou arquitetura correspondente.

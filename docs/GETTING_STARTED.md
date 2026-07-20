@@ -267,10 +267,10 @@ newgrp docker
 
 ## 📚 Documentação Adicional
 
-- [API Documentation](./api.md)
-- [Database Schema](./database.md)
-- [Architecture](./architecture.md)
-- [Deployment](./deployment.md)
+- [API Documentation](./architecture/api.md)
+- [Database Schema](./architecture/database.md)
+- [Architecture](./architecture/overview.md)
+- [Deployment](./architecture/deployment.md)
 
 ---
 
@@ -333,7 +333,7 @@ docker-compose logs -f redis
 Você está pronto para começar a desenvolver! 
 
 **Próximos passos:**
-1. Leia [API Documentation](./api.md)
+1. Leia [API Documentation](./architecture/api.md)
 2. Comece a implementar módulos em `apps/api/src/modules`
 3. Crie endpoints seguindo o padrão estabelecido
 4. Escreva testes para cada módulo

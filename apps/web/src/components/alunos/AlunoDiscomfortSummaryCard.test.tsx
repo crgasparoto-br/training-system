@@ -4,15 +4,31 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AlunoDiscomfortSummaryCard } from './AlunoDiscomfortSummaryCard';
 import { prontuarioService } from '../../services/prontuario.service';
 
+type MockUser = {
+  type: 'professor';
+  accessControl: {
+    isMaster: boolean;
+    permissions: Array<{
+      screenKey: string;
+      blockKey: string | null;
+      canView: boolean;
+    }>;
+  };
+};
+
+const authState = vi.hoisted(() => ({
+  user: {
+    type: 'professor',
+    accessControl: {
+      isMaster: true,
+      permissions: [],
+    },
+  } as MockUser,
+}));
+
 vi.mock('../../stores/useAuthStore', () => ({
   useAuthStore: () => ({
-    user: {
-      type: 'professor',
-      accessControl: {
-        isMaster: true,
-        permissions: [],
-      },
-    },
+    user: authState.user,
   }),
 }));
 
@@ -35,6 +51,13 @@ function renderCard() {
 describe('AlunoDiscomfortSummaryCard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    authState.user = {
+      type: 'professor',
+      accessControl: {
+        isMaster: true,
+        permissions: [],
+      },
+    };
   });
 
   it('mostra estado vazio quando nao existem desconfortos ativos', async () => {
@@ -101,6 +124,38 @@ describe('AlunoDiscomfortSummaryCard', () => {
     expect(screen.getByText(/Intensidade informada: 6\/10/i)).toBeInTheDocument();
     expect(screen.getByText(/Dor no joelho.*Joelho direito/i)).toBeInTheDocument();
     expect(screen.getByText('Acompanhar ou encerrar desconforto')).toBeInTheDocument();
+  });
+
+  it('nao consulta o PRNT quando falta acesso ao resumo', () => {
+    authState.user = {
+      type: 'professor',
+      accessControl: {
+        isMaster: false,
+        permissions: [
+          { screenKey: 'students.details', blockKey: null, canView: true },
+          {
+            screenKey: 'students.details',
+            blockKey: 'students.details.health',
+            canView: true,
+          },
+          {
+            screenKey: 'physicalAssessment.protocol',
+            blockKey: null,
+            canView: true,
+          },
+          {
+            screenKey: 'physicalAssessment.protocol',
+            blockKey: 'physicalAssessment.prnt.summary',
+            canView: false,
+          },
+        ],
+      },
+    };
+
+    const { container } = renderCard();
+
+    expect(container).toBeEmptyDOMElement();
+    expect(overviewMock).not.toHaveBeenCalled();
   });
 
   it('isola erro do prontuario sem quebrar a Central', async () => {
