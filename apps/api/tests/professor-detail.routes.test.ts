@@ -2,7 +2,7 @@ import express from 'express';
 
 const request = require('supertest');
 
-const mockListByAccessScope = jest.fn();
+const mockFindByAccessScope = jest.fn();
 const mockGetMostPermissiveDataScope = jest.fn();
 let mockScreenAllowed = true;
 
@@ -39,9 +39,9 @@ jest.mock('../src/modules/access-control/index', () => ({
     mockGetMostPermissiveDataScope(...args),
 }));
 
-jest.mock('../src/modules/professores/professor.service', () => ({
-  professorService: {
-    listByAccessScope: (...args: unknown[]) => mockListByAccessScope(...args),
+jest.mock('../src/modules/professores/professor-access-query.service', () => ({
+  professorAccessQueryService: {
+    findByAccessScope: (...args: unknown[]) => mockFindByAccessScope(...args),
   },
 }));
 
@@ -57,9 +57,12 @@ describe('professor detail routes', () => {
     jest.clearAllMocks();
     mockScreenAllowed = true;
     mockGetMostPermissiveDataScope.mockResolvedValue('managed');
-    mockListByAccessScope.mockResolvedValue([
-      { id: 'professor-visible', user: { profile: { name: 'Colaborador visível' } } },
-    ]);
+    mockFindByAccessScope.mockImplementation(
+      async (_contractId, _actorProfessorId, _scope, professorId) =>
+        professorId === 'professor-visible'
+          ? { id: 'professor-visible', user: { profile: { name: 'Colaborador visível' } } }
+          : null
+    );
   });
 
   it('consulta o colaborador dentro do contrato e do escopo efetivo', async () => {
@@ -67,18 +70,18 @@ describe('professor detail routes', () => {
 
     expect(response.status).toBe(200);
     expect(response.body.data.id).toBe('professor-visible');
-    expect(mockListByAccessScope).toHaveBeenCalledWith(
+    expect(mockFindByAccessScope).toHaveBeenCalledWith(
       'contract-1',
       'professor-actor',
       'managed',
-      'all'
+      'professor-visible'
     );
   });
 
   it('retorna a mesma resposta para id inexistente ou fora do escopo', async () => {
     const missingResponse = await request(app).get('/professores/professor-missing');
 
-    mockListByAccessScope.mockResolvedValue([]);
+    mockFindByAccessScope.mockResolvedValue(null);
     const crossContractResponse = await request(app)
       .get('/professores/professor-visible')
       .set('x-test-contract', 'contract-2');
@@ -94,7 +97,7 @@ describe('professor detail routes', () => {
     const response = await request(app).get('/professores/professor-visible');
 
     expect(response.status).toBe(404);
-    expect(mockListByAccessScope).not.toHaveBeenCalled();
+    expect(mockFindByAccessScope).not.toHaveBeenCalled();
   });
 
   it('nega a leitura individual sem permissão de tela', async () => {
@@ -104,7 +107,7 @@ describe('professor detail routes', () => {
 
     expect(response.status).toBe(403);
     expect(mockGetMostPermissiveDataScope).not.toHaveBeenCalled();
-    expect(mockListByAccessScope).not.toHaveBeenCalled();
+    expect(mockFindByAccessScope).not.toHaveBeenCalled();
   });
 
   it('permite que a atualização continue somente para registro acessível', async () => {
@@ -124,7 +127,7 @@ describe('professor detail routes', () => {
       .put('/professores/professor-missing')
       .send({ name: 'Atualizado' });
 
-    mockListByAccessScope.mockResolvedValue([]);
+    mockFindByAccessScope.mockResolvedValue(null);
     const crossContractResponse = await request(app)
       .put('/professores/professor-visible')
       .set('x-test-contract', 'contract-2')

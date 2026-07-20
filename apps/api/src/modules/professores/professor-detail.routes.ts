@@ -5,7 +5,7 @@ import {
   getMostPermissiveDataScopeForProfessor,
   screenAccessMiddleware,
 } from '../access-control/index.js';
-import { professorService } from './professor.service.js';
+import { professorAccessQueryService } from './professor-access-query.service.js';
 
 const router: Router = Router();
 
@@ -33,13 +33,12 @@ async function findAccessibleCollaborator(
   );
   if (!dataScope) return null;
 
-  const collaborators = await professorService.listByAccessScope(
+  return professorAccessQueryService.findByAccessScope(
     contractId,
     actorProfessorId,
     dataScope,
-    'all'
+    req.params.id
   );
-  return collaborators.find((item) => item.id === req.params.id) ?? null;
 }
 
 router.get(
