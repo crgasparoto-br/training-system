@@ -43,7 +43,7 @@ DO $$
 BEGIN
   ALTER TABLE "GeneratedContract"
     ADD CONSTRAINT "GeneratedContract_collaboratorId_fkey"
-    FOREIGN KEY ("collaboratorId") REFERENCES "Educator"("id")
+    FOREIGN KEY ("collaboratorId") REFERENCES "Professor"("id")
     ON DELETE CASCADE ON UPDATE CASCADE;
 EXCEPTION
   WHEN duplicate_object THEN NULL;
@@ -90,7 +90,7 @@ CREATE TABLE IF NOT EXISTS "CollaboratorContract" (
   CONSTRAINT "CollaboratorContract_contractId_key" UNIQUE ("contractId"),
   CONSTRAINT "CollaboratorContract_legacySourceKey_key" UNIQUE ("legacySourceKey"),
   CONSTRAINT "CollaboratorContract_collaboratorId_fkey"
-    FOREIGN KEY ("collaboratorId") REFERENCES "Educator"("id")
+    FOREIGN KEY ("collaboratorId") REFERENCES "Professor"("id")
     ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT "CollaboratorContract_contractId_fkey"
     FOREIGN KEY ("contractId") REFERENCES "GeneratedContract"("id")
@@ -113,21 +113,21 @@ CREATE INDEX IF NOT EXISTS "CollaboratorContract_startDate_idx"
 CREATE INDEX IF NOT EXISTS "CollaboratorContract_endDate_idx"
   ON "CollaboratorContract"("endDate");
 
-ALTER TABLE "Educator"
+ALTER TABLE "Professor"
   ADD COLUMN IF NOT EXISTS "currentCollaboratorContractId" TEXT;
 
 DO $$
 BEGIN
-  ALTER TABLE "Educator"
-    ADD CONSTRAINT "Educator_currentCollaboratorContractId_fkey"
+  ALTER TABLE "Professor"
+    ADD CONSTRAINT "Professor_currentCollaboratorContractId_fkey"
     FOREIGN KEY ("currentCollaboratorContractId") REFERENCES "CollaboratorContract"("id")
     ON DELETE SET NULL ON UPDATE CASCADE;
 EXCEPTION
   WHEN duplicate_object THEN NULL;
 END $$;
 
-CREATE INDEX IF NOT EXISTS "Educator_currentCollaboratorContractId_idx"
-  ON "Educator"("currentCollaboratorContractId");
+CREATE INDEX IF NOT EXISTS "Professor_currentCollaboratorContractId_idx"
+  ON "Professor"("currentCollaboratorContractId");
 
 -- Preserve history before adding the partial unique indexes. When an inconsistent
 -- database contains more than one active link, keep the pointer-selected record,
@@ -144,7 +144,7 @@ WITH ranked AS (
         sc."id" DESC
     ) AS position
   FROM "StudentContract" sc
-  JOIN "Athlete" a ON a."id" = sc."alunoId"
+  JOIN "Aluno" a ON a."id" = sc."alunoId"
   WHERE sc."status" = 'active'
 )
 UPDATE "StudentContract" sc
@@ -193,7 +193,7 @@ SELECT
   END,
   p."createdAt",
   CURRENT_TIMESTAMP
-FROM "Educator" p
+FROM "Professor" p
 WHERE p."hasSignedContract" = TRUE
    OR NULLIF(BTRIM(p."signedContractDocumentUrl"), '') IS NOT NULL
 ON CONFLICT ("legacySourceKey") DO UPDATE
@@ -219,7 +219,7 @@ BEGIN
   END IF;
 
   IF NEW."professorId" IS NOT NULL AND NOT EXISTS (
-    SELECT 1 FROM "Educator" p
+    SELECT 1 FROM "Professor" p
     WHERE p."id" = NEW."professorId"
       AND p."contractId" = NEW."companyContractId"
   ) THEN
@@ -229,8 +229,8 @@ BEGIN
   IF NEW."partyType" = 'STUDENT' THEN
     IF NOT EXISTS (
       SELECT 1
-      FROM "Athlete" a
-      JOIN "Educator" p ON p."id" = a."professorId"
+      FROM "Aluno" a
+      JOIN "Professor" p ON p."id" = a."professorId"
       WHERE a."id" = NEW."alunoId"
         AND p."contractId" = NEW."companyContractId"
     ) THEN
@@ -238,7 +238,7 @@ BEGIN
     END IF;
   ELSE
     IF NOT EXISTS (
-      SELECT 1 FROM "Educator" p
+      SELECT 1 FROM "Professor" p
       WHERE p."id" = NEW."collaboratorId"
         AND p."contractId" = NEW."companyContractId"
     ) THEN
