@@ -56,3 +56,7 @@ Os testes automatizados cobrem:
 - atualização do usuário autenticado após autoedição;
 - proteção de alterações não salvas em links, histórico e recarga;
 - escopo de contrato e `dataScope` no endpoint individual.
+
+## Auditoria
+
+A entrega deve ser considerada concluída somente após os testes, verificações de tipos, lint, arquitetura, catálogo de acesso e documentação passarem no commit final da pull request.
