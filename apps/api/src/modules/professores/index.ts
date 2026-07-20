@@ -2,7 +2,7 @@ import { Router } from 'express';
 import professorDetailRoutes from './professor-detail.routes.js';
 import professorRoutes from './professor.routes.js';
 
-const router = Router();
+const router: Router = Router();
 
 router.use('/', professorDetailRoutes);
 router.use('/', professorRoutes);
