@@ -178,7 +178,8 @@ describe('CollaboratorFormPage', () => {
     fireEvent.click(resetButton);
 
     await waitFor(() => expect(mocks.resetPassword).toHaveBeenCalledWith('professor-1'));
-    expect(await screen.findByText(/senha temporária:.*Senha123/i)).toBeInTheDocument();
+    const temporaryPassword = await screen.findByText('Senha123');
+    expect(temporaryPassword.closest('[role="status"]')).toHaveTextContent('Senha temporária: Senha123');
     expect(screen.getByRole('alert')).toHaveTextContent(/ação foi concluída.*recarregue a página/i);
   });
 
