@@ -20,4 +20,19 @@ describe('CollaboratorBankSearch', () => {
 
     expect(onChange).toHaveBeenCalledWith('341');
   });
+
+  it('permite navegar e selecionar uma opção pelo teclado', () => {
+    const onChange = vi.fn();
+    render(<CollaboratorBankSearch banks={banks} value="" onChange={onChange} />);
+    const input = screen.getByRole('combobox', { name: 'Banco' });
+
+    fireEvent.focus(input);
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+
+    expect(input).toHaveAttribute('aria-activedescendant', 'collaborator-bank-option-1');
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    expect(onChange).toHaveBeenCalledWith('341');
+  });
 });
