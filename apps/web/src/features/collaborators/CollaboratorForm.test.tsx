@@ -53,7 +53,7 @@ function Fixture() {
 }
 
 describe('CollaboratorForm', () => {
-  it('mantém no formulário real os blocos e comportamentos principais', () => {
+  it('mantém os blocos cadastrais e remove a edição concorrente do contrato legado', () => {
     const { container } = render(<Fixture />);
 
     expect(screen.getByText('CEP')).toBeInTheDocument();
@@ -61,7 +61,8 @@ describe('CollaboratorForm', () => {
     expect(screen.getByRole('combobox', { name: 'Banco' })).toBeInTheDocument();
     expect(screen.getByLabelText('Valor/hora personal')).toHaveValue('120,00');
     expect(screen.getByText('Ouro')).toBeInTheDocument();
-    expect(screen.getByText('Contrato legado')).toBeInTheDocument();
+    expect(screen.queryByText('Contrato legado')).not.toBeInTheDocument();
+    expect(screen.queryByText('Enviar contrato')).not.toBeInTheDocument();
     expect(screen.getByText('Enviar foto')).toBeInTheDocument();
   });
 });
