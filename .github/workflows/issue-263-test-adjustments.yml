@@ -1,0 +1,119 @@
+name: Issue 263 Test Adjustments
+
+on:
+  push:
+    branches:
+      - feat/263-generalize-contracts-collaborators
+
+permissions:
+  contents: write
+
+jobs:
+  adjust:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout issue branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/263-generalize-contracts-collaborators
+          fetch-depth: 0
+
+      - name: Update discriminating fixtures and mocks
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(text, old, new, label):
+              count = text.count(old)
+              if count != 1:
+                  raise RuntimeError(f'{label}: expected one occurrence, found {count}')
+              return text.replace(old, new, 1)
+
+          path = Path('apps/api/tests/contract-entry.routes.test.ts')
+          text = path.read_text()
+          text = replace_once(
+              text,
+              """jest.mock('../src/modules/access-control/access-control.middleware', () => ({
+            blockAccessMiddleware:
+              (blockKey: string) =>
+              (req: express.Request, res: express.Response, next: express.NextFunction) => {
+                if (
+                  blockKey === 'students.actions.manageFinancialContract' &&
+                  req.get('x-test-deny-financial-contract') === 'true'
+                ) {
+                  return res.status(403).json({
+                    success: false,
+                    error: 'Perfil sem permissão para acessar este recurso',
+                  });
+                }
+                return next();
+              },
+          }));""",
+              """jest.mock('../src/modules/access-control/access-control.middleware', () => ({
+            screenAccessMiddleware:
+              () =>
+              (_req: express.Request, _res: express.Response, next: express.NextFunction) => next(),
+            blockAccessMiddleware:
+              (blockKey: string) =>
+              (req: express.Request, res: express.Response, next: express.NextFunction) => {
+                if (
+                  blockKey === 'students.actions.manageFinancialContract' &&
+                  req.get('x-test-deny-financial-contract') === 'true'
+                ) {
+                  return res.status(403).json({
+                    success: false,
+                    error: 'Perfil sem permissão para acessar este recurso',
+                  });
+                }
+                return next();
+              },
+          }));""",
+              'contract entry access mock',
+          )
+          path.write_text(text)
+
+          path = Path('apps/api/tests/student-access-scope.service.test.ts')
+          text = path.read_text()
+          text = replace_once(
+              text,
+              "where: { id: 'document-1', companyContractId: 'company-1' },",
+              """where: {
+                id: 'document-1',
+                companyContractId: 'company-1',
+                partyType: 'STUDENT',
+                alunoId: { not: null },
+              },""",
+              'student document typed filter expectation',
+          )
+          path.write_text(text)
+
+          path = Path('apps/api/tests/collaborator-contract-lifecycle.integration.test.ts')
+          text = path.read_text()
+          text = replace_once(
+              text,
+              """async function seedCompany(id: string, suffix: string) {
+            await prisma.companyContract.create({""",
+              """async function seedCompany(id: string, suffix: string) {
+            const cpfSeed = Array.from(suffix).reduce(
+              (value, character) => (value * 31 + character.charCodeAt(0)) % 100_000_000_000,
+              0
+            );
+            await prisma.companyContract.create({""",
+              'unique cpf seed',
+          )
+          text = replace_once(
+              text,
+              "cpf: `${suffix.replace(/\\D/gu, '').padStart(11, '0').slice(-11)}`",
+              "cpf: String(cpfSeed).padStart(11, '0')",
+              'unique collaborator cpf',
+          )
+          path.write_text(text)
+          PY
+
+      - name: Commit test adjustments
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/api/tests
+          git commit -m "test: align issue 263 typed contract fixtures"
+          git push origin HEAD:feat/263-generalize-contracts-collaborators
