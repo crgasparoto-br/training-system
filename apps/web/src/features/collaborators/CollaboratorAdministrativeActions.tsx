@@ -41,9 +41,21 @@ export function CollaboratorAdministrativeActions({
       || profile.bankAccount
       || profile.pixKey
   );
-  const hasAnyAction = canValidateLegal || canResetPassword || canActivate || canDeactivate;
+  const canShowResetPassword = canResetPassword && collaborator.role !== 'master';
+  const canShowActivate = canActivate
+    && collaborator.user.isActive === false
+    && collaborator.role !== 'master';
+  const canShowDeactivate = canDeactivate
+    && collaborator.user.isActive !== false
+    && collaborator.role !== 'master';
+  const hasVisibleContent = canValidateLegal
+    || canShowResetPassword
+    || canShowActivate
+    || canShowDeactivate
+    || Boolean(successMessage)
+    || Boolean(temporaryPassword);
 
-  if (!hasAnyAction) return null;
+  if (!hasVisibleContent) return null;
 
   return (
     <CollaboratorSection
@@ -72,17 +84,17 @@ export function CollaboratorAdministrativeActions({
               <ShieldCheck size={16} /> Validar dados financeiros
             </Button>
           ) : null}
-          {canResetPassword && collaborator.role !== 'master' ? (
+          {canShowResetPassword ? (
             <Button type="button" variant="outline" disabled={loading} onClick={onResetPassword}>
               <KeyRound size={16} /> Redefinir senha
             </Button>
           ) : null}
-          {canActivate && collaborator.user.isActive === false && collaborator.role !== 'master' ? (
+          {canShowActivate ? (
             <Button type="button" variant="outline" disabled={loading} onClick={onActivate}>
               <UserCheck size={16} /> Reativar
             </Button>
           ) : null}
-          {canDeactivate && collaborator.user.isActive !== false && collaborator.role !== 'master' ? (
+          {canShowDeactivate ? (
             <Button type="button" variant="outline" disabled={loading} onClick={onDeactivate}>
               <UserX size={16} /> Desativar
             </Button>
