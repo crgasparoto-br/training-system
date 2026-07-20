@@ -9,7 +9,6 @@ import { canAccessBlock, canAccessScreen, getDataScopeForScreen } from '../acces
 import { Button } from '../components/ui/Button';
 import { CollaboratorSection, ReadonlyField } from '../features/collaborators/CollaboratorSection';
 import {
-  findCollaboratorById,
   formatAddress,
   formatCollaboratorDate,
   formatCurrency,
@@ -44,17 +43,14 @@ export function CollaboratorDetails() {
     setLoading(true);
     setError(null);
     try {
-      const [items, functionOptions] = await Promise.all([professorService.list(), collaboratorFunctionService.list()]);
-      const found = findCollaboratorById(items, id);
-      if (!found) {
-        setCollaborator(null);
-        setError('Colaborador não encontrado.');
-        return;
-      }
+      const [found, functionOptions] = await Promise.all([
+        professorService.get(id),
+        collaboratorFunctionService.list(),
+      ]);
       setCollaborator(found);
       setFunctions(functionOptions);
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'Não foi possível carregar o colaborador.');
+    } catch {
+      setCollaborator(null);
     } finally {
       setLoading(false);
     }
