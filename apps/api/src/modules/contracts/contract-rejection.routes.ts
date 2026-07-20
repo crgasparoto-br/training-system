@@ -141,15 +141,17 @@ router.get(
 
       const contract = await prisma.contract.findFirst({
         where: { id: req.params.contractDocumentId, companyContractId },
-        select: { id: true, alunoId: true },
+        select: { id: true },
       });
       if (!contract) return sendError(res, 'Contrato não encontrado', 404);
 
       const link = await contractPartyLinkService.resolveByGeneratedContractId(contract.id, prisma);
-      if (!link || link.partyType !== 'STUDENT') return sendError(res, 'Contrato do aluno não encontrado', 404);
+      if (!link || link.partyType !== 'STUDENT') {
+        return sendError(res, 'Contrato do aluno não encontrado', 404);
+      }
 
       await studentAccessScopeService.assertAlunoAccess(
-        contract.alunoId,
+        link.partyId,
         studentAccessContextFromRequest(req),
         prisma
       );
@@ -180,7 +182,7 @@ router.post(
 
       const contract = await prisma.contract.findFirst({
         where: { id: req.params.contractDocumentId, companyContractId },
-        select: { id: true, alunoId: true },
+        select: { id: true },
       });
       if (!contract) return sendError(res, 'Contrato não encontrado', 404);
 
@@ -188,7 +190,7 @@ router.post(
       if (!link || link.partyType !== 'STUDENT') return next();
 
       await studentAccessScopeService.assertAlunoAccess(
-        contract.alunoId,
+        link.partyId,
         studentAccessContextFromRequest(req),
         prisma
       );
