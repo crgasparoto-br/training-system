@@ -19,10 +19,9 @@ function getActorProfessor(req: Request) {
   };
 }
 
-router.use(authMiddleware);
-
 router.get(
   '/:id',
+  authMiddleware,
   screenAccessMiddleware(['collaborators.registration', 'collaborators.consultation']),
   async (req: Request, res: Response) => {
     try {
