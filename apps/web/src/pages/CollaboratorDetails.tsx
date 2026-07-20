@@ -1,12 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
-import { ArrowLeft, Edit3, ExternalLink, KeyRound, ShieldCheck, UserCheck, UserX } from 'lucide-react';
+import { ArrowLeft, Edit3, ExternalLink } from 'lucide-react';
 import type { CollaboratorFunctionOption, ProfessorSummary } from '@corrida/types';
 import { professorService } from '../services/professor.service';
 import { collaboratorFunctionService } from '../services/collaborator-function.service';
 import { useAuthStore } from '../stores/useAuthStore';
-import { canAccessBlock, canAccessScreen, getDataScopeForScreen } from '../access/access-control';
-import { Button } from '../components/ui/Button';
+import { canAccessScreen, getDataScopeForScreen } from '../access/access-control';
 import { CollaboratorSection, ReadonlyField } from '../features/collaborators/CollaboratorSection';
 import { canWriteCollaborator } from '../features/collaborators/collaborator-access';
 import { formatMaritalStatus } from '../features/collaborators/collaborator-formatters';
@@ -29,55 +28,39 @@ export function CollaboratorDetails() {
   const [collaborator, setCollaborator] = useState<ProfessorSummary | null>(null);
   const [functions, setFunctions] = useState<CollaboratorFunctionOption[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [actionLoading, setActionLoading] = useState(false);
-  const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
 
   const hasRegistrationAccess = canAccessScreen(user, 'collaborators.registration');
   const dataScope = getDataScopeForScreen(user, 'collaborators.registration');
   const actorProfessorId = user?.professor?.id;
-  const canUseAdministrativeActions = dataScope === 'contract';
-  const canValidateLegal = canUseAdministrativeActions && canAccessBlock(user, 'collaborators.actions.validateLegalFinancial');
-  const canResetPassword = canUseAdministrativeActions && canAccessBlock(user, 'collaborators.actions.resetPassword');
-  const canActivate = canUseAdministrativeActions && canAccessBlock(user, 'collaborators.actions.activate');
-  const canDeactivate = canUseAdministrativeActions && canAccessBlock(user, 'collaborators.actions.deactivate');
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [found, functionOptions] = await Promise.all([
-        professorService.get(id),
-        collaboratorFunctionService.list(),
-      ]);
-      setCollaborator(found);
-      setFunctions(functionOptions);
-    } catch {
-      setCollaborator(null);
-    } finally {
-      setLoading(false);
-    }
+  useEffect(() => {
+    let active = true;
+
+    Promise.all([
+      professorService.get(id),
+      collaboratorFunctionService.list(),
+    ])
+      .then(([found, functionOptions]) => {
+        if (!active) return;
+        setCollaborator(found);
+        setFunctions(functionOptions);
+      })
+      .catch(() => {
+        if (active) setCollaborator(null);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => { active = false; };
   }, [id]);
-
-  useEffect(() => { void load(); }, [load]);
 
   const operationalRoleNames = useMemo(() => {
     if (!collaborator) return [];
-    return collaborator.operationalRoleIds.map((roleId) => functions.find((item) => item.id === roleId)?.name ?? roleId);
+    return collaborator.operationalRoleIds.map(
+      (roleId) => functions.find((item) => item.id === roleId)?.name ?? roleId
+    );
   }, [collaborator, functions]);
-
-  const runAction = async (action: () => Promise<unknown>) => {
-    setActionLoading(true);
-    setError(null);
-    try {
-      await action();
-      await load();
-    } catch (actionError) {
-      setError(actionError instanceof Error ? actionError.message : 'Não foi possível concluir a ação.');
-    } finally {
-      setActionLoading(false);
-    }
-  };
 
   if (loading) {
     return <div className="rounded-2xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">Carregando colaborador...</div>;
@@ -96,10 +79,8 @@ export function CollaboratorDetails() {
   const profile = collaborator.user.profile;
   const avatarUrl = resolveAssetUrl(profile.avatar);
   const successMessage = (location.state as { success?: string } | null)?.success;
-  const canEditRecord = hasRegistrationAccess && canWriteCollaborator(actorProfessorId, collaborator, dataScope);
-  const hasLegalFinancialData = Boolean(
-    profile.companyDocument || profile.bankCode || profile.bankName || profile.bankBranch || profile.bankAccount || profile.pixKey
-  );
+  const canEditRecord = hasRegistrationAccess
+    && canWriteCollaborator(actorProfessorId, collaborator, dataScope);
 
   return (
     <div className="space-y-5">
@@ -107,7 +88,9 @@ export function CollaboratorDetails() {
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex min-w-0 items-center gap-4">
             <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-3xl border border-border bg-muted text-xl font-semibold">
-              {avatarUrl ? <img src={avatarUrl} alt={profile.name} className="h-full w-full object-cover" /> : profile.name.slice(0, 2).toUpperCase()}
+              {avatarUrl
+                ? <img src={avatarUrl} alt={profile.name} className="h-full w-full object-cover" />
+                : profile.name.slice(0, 2).toUpperCase()}
             </div>
             <div className="min-w-0">
               <Link className={`${ghostLinkButtonClassName} mb-1 -ml-3`} to="/consultas/colaboradores"><ArrowLeft size={16} /> Voltar</Link>
@@ -124,8 +107,6 @@ export function CollaboratorDetails() {
       </header>
 
       {successMessage ? <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">{successMessage}</div> : null}
-      {error ? <div role="alert" className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">{error}</div> : null}
-      {temporaryPassword ? <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">Senha temporária: <strong>{temporaryPassword}</strong>. Oriente o colaborador a alterá-la no próximo acesso.</div> : null}
 
       <CollaboratorSection title="Resumo do cadastro">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -191,21 +172,13 @@ export function CollaboratorDetails() {
 
       <CollaboratorSection title="Contrato legado" description="Este bloco será substituído pelo ciclo contratual da issue #263.">
         <div className="flex flex-col gap-3 rounded-xl border border-border p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div><p className="font-medium text-foreground">{collaborator.hasSignedContract ? 'Contrato assinado' : 'Contrato pendente'}</p><p className="text-sm text-muted-foreground">Consulta somente leitura do documento atualmente vinculado.</p></div>
+          <div>
+            <p className="font-medium text-foreground">{collaborator.hasSignedContract ? 'Contrato assinado' : 'Contrato pendente'}</p>
+            <p className="text-sm text-muted-foreground">Consulta somente leitura do documento atualmente vinculado.</p>
+          </div>
           {collaborator.signedContractDocumentUrl ? <a className={outlineLinkButtonClassName} href={collaborator.signedContractDocumentUrl} target="_blank" rel="noreferrer">Visualizar PDF <ExternalLink size={16} /></a> : null}
         </div>
       </CollaboratorSection>
-
-      {(canValidateLegal || canResetPassword || canActivate || canDeactivate) ? (
-        <CollaboratorSection title="Ações administrativas" description="Ações protegidas por permissão e escopo do contrato.">
-          <div className="flex flex-wrap gap-2">
-            {canValidateLegal ? <Button type="button" variant="outline" disabled={actionLoading || !hasLegalFinancialData} onClick={() => void runAction(() => professorService.validateLegalFinancial(collaborator.id))}><ShieldCheck size={16} /> Validar dados financeiros</Button> : null}
-            {canResetPassword && collaborator.role !== 'master' ? <Button type="button" variant="outline" disabled={actionLoading} onClick={() => { if (window.confirm('Deseja gerar uma nova senha temporária para este colaborador?')) void runAction(async () => { const result = await professorService.resetPassword(collaborator.id); setTemporaryPassword(result.tempPassword); }); }}><KeyRound size={16} /> Redefinir senha</Button> : null}
-            {canActivate && collaborator.user.isActive === false && collaborator.role !== 'master' ? <Button type="button" variant="outline" disabled={actionLoading} onClick={() => void runAction(() => professorService.activate(collaborator.id))}><UserCheck size={16} /> Reativar</Button> : null}
-            {canDeactivate && collaborator.user.isActive !== false && collaborator.role !== 'master' ? <Button type="button" variant="outline" disabled={actionLoading} onClick={() => { if (window.confirm('Deseja desativar este colaborador?')) void runAction(() => professorService.deactivate(collaborator.id)); }}><UserX size={16} /> Desativar</Button> : null}
-          </div>
-        </CollaboratorSection>
-      ) : null}
     </div>
   );
 }
