@@ -32,7 +32,7 @@ describe('serviceCatalogService connection pressure', () => {
   });
 
   it('coalesces simultaneous identical catalog requests', async () => {
-    const pending = deferred<ReturnType<typeof apiResponse<[]>>>();
+    const pending = deferred<any>();
     getMock.mockReturnValueOnce(pending.promise as any);
 
     const first = serviceCatalogService.listCatalog(true);
