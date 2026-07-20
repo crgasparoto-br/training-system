@@ -1,11 +1,10 @@
-import { Prisma, PrismaClient } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import type {
   ServiceCatalogImpact,
   ServiceCatalogImpactConfirmation,
   ServiceCommercialOptionImpact,
 } from '@corrida/types';
-
-const prisma = new PrismaClient();
+import { serviceCatalogPrismaClient as prisma } from './service.service-base.js';
 
 type CountRow = { count: bigint };
 type OptionImpactRow = {
@@ -174,88 +173,83 @@ export async function getServiceCatalogImpact(
     throw new Error('Serviço não encontrado');
   }
 
-  const [
-    alunos,
-    studentContracts,
-    contractTemplates,
-    generatedContracts,
-    planComponentsOwnedRows,
-    planComponentsTargetingServiceRows,
-    planComponentsTargetingOptionsRows,
-    affectedPlansRows,
-    optionRows,
-  ] = await Promise.all([
-    prisma.aluno.count({
-      where: {
-        serviceId,
-        service: { contractId },
-      },
-    }),
-    prisma.studentContract.count({
-      where: {
-        serviceId,
-        contract: { companyContractId: contractId },
-      },
-    }),
-    prisma.contractTemplate.count({ where: { contractId, serviceId } }),
-    prisma.contract.count({ where: { companyContractId: contractId, serviceId } }),
-    prisma.$queryRaw<CountRow[]>(Prisma.sql`
-      SELECT COUNT(*)::bigint AS "count"
-      FROM "ServicePlanComponent"
-      WHERE "contractId" = ${contractId}
-        AND "planServiceId" = ${serviceId}
-        AND "isActive" = true
-    `),
-    prisma.$queryRaw<CountRow[]>(Prisma.sql`
-      SELECT COUNT(DISTINCT "planServiceId")::bigint AS "count"
-      FROM "ServicePlanComponent"
-      WHERE "contractId" = ${contractId}
-        AND "targetServiceId" = ${serviceId}
-        AND "isActive" = true
-    `),
-    prisma.$queryRaw<CountRow[]>(Prisma.sql`
-      SELECT COUNT(DISTINCT component."planServiceId")::bigint AS "count"
-      FROM "ServicePlanComponent" component
-      INNER JOIN "ServiceCommercialOption" option
-        ON option."id" = component."targetOptionId"
-      WHERE component."contractId" = ${contractId}
-        AND component."isActive" = true
-        AND option."contractId" = ${contractId}
-        AND option."serviceId" = ${serviceId}
-    `),
-    prisma.$queryRaw<CountRow[]>(Prisma.sql`
-      SELECT COUNT(DISTINCT component."planServiceId")::bigint AS "count"
-      FROM "ServicePlanComponent" component
-      LEFT JOIN "ServiceCommercialOption" option
-        ON option."id" = component."targetOptionId"
-      WHERE component."contractId" = ${contractId}
-        AND component."isActive" = true
-        AND (
-          component."targetServiceId" = ${serviceId}
-          OR (
-            option."contractId" = ${contractId}
-            AND option."serviceId" = ${serviceId}
-          )
+  // Essas consultas são deliberadamente sequenciais. A tela de Serviços já pode
+  // abrir catálogo e auditoria ao mesmo tempo; disparar nove operações em
+  // Promise.all criava um pico desnecessário no pool do Prisma em produção.
+  const alunos = await prisma.aluno.count({
+    where: {
+      serviceId,
+      service: { contractId },
+    },
+  });
+  const studentContracts = await prisma.studentContract.count({
+    where: {
+      serviceId,
+      contract: { companyContractId: contractId },
+    },
+  });
+  const contractTemplates = await prisma.contractTemplate.count({
+    where: { contractId, serviceId },
+  });
+  const generatedContracts = await prisma.contract.count({
+    where: { companyContractId: contractId, serviceId },
+  });
+  const planComponentsOwnedRows = await prisma.$queryRaw<CountRow[]>(Prisma.sql`
+    SELECT COUNT(*)::bigint AS "count"
+    FROM "ServicePlanComponent"
+    WHERE "contractId" = ${contractId}
+      AND "planServiceId" = ${serviceId}
+      AND "isActive" = true
+  `);
+  const planComponentsTargetingServiceRows = await prisma.$queryRaw<CountRow[]>(Prisma.sql`
+    SELECT COUNT(DISTINCT "planServiceId")::bigint AS "count"
+    FROM "ServicePlanComponent"
+    WHERE "contractId" = ${contractId}
+      AND "targetServiceId" = ${serviceId}
+      AND "isActive" = true
+  `);
+  const planComponentsTargetingOptionsRows = await prisma.$queryRaw<CountRow[]>(Prisma.sql`
+    SELECT COUNT(DISTINCT component."planServiceId")::bigint AS "count"
+    FROM "ServicePlanComponent" component
+    INNER JOIN "ServiceCommercialOption" option
+      ON option."id" = component."targetOptionId"
+    WHERE component."contractId" = ${contractId}
+      AND component."isActive" = true
+      AND option."contractId" = ${contractId}
+      AND option."serviceId" = ${serviceId}
+  `);
+  const affectedPlansRows = await prisma.$queryRaw<CountRow[]>(Prisma.sql`
+    SELECT COUNT(DISTINCT component."planServiceId")::bigint AS "count"
+    FROM "ServicePlanComponent" component
+    LEFT JOIN "ServiceCommercialOption" option
+      ON option."id" = component."targetOptionId"
+    WHERE component."contractId" = ${contractId}
+      AND component."isActive" = true
+      AND (
+        component."targetServiceId" = ${serviceId}
+        OR (
+          option."contractId" = ${contractId}
+          AND option."serviceId" = ${serviceId}
         )
-    `),
-    prisma.$queryRaw<OptionImpactRow[]>(Prisma.sql`
-      SELECT
-        option."id" AS "optionId",
-        option."code" AS "optionCode",
-        option."name" AS "optionName",
-        option."isActive" AS "isActive",
-        COUNT(DISTINCT component."planServiceId")::bigint AS "affectedPlans"
-      FROM "ServiceCommercialOption" option
-      LEFT JOIN "ServicePlanComponent" component
-        ON component."contractId" = ${contractId}
-        AND component."targetOptionId" = option."id"
-        AND component."isActive" = true
-      WHERE option."contractId" = ${contractId}
-        AND option."serviceId" = ${serviceId}
-      GROUP BY option."id", option."code", option."name", option."isActive"
-      ORDER BY option."displayOrder" ASC, option."id" ASC
-    `),
-  ]);
+      )
+  `);
+  const optionRows = await prisma.$queryRaw<OptionImpactRow[]>(Prisma.sql`
+    SELECT
+      option."id" AS "optionId",
+      option."code" AS "optionCode",
+      option."name" AS "optionName",
+      option."isActive" AS "isActive",
+      COUNT(DISTINCT component."planServiceId")::bigint AS "affectedPlans"
+    FROM "ServiceCommercialOption" option
+    LEFT JOIN "ServicePlanComponent" component
+      ON component."contractId" = ${contractId}
+      AND component."targetOptionId" = option."id"
+      AND component."isActive" = true
+    WHERE option."contractId" = ${contractId}
+      AND option."serviceId" = ${serviceId}
+    GROUP BY option."id", option."code", option."name", option."isActive"
+    ORDER BY option."displayOrder" ASC, option."id" ASC
+  `);
 
   const planComponentsOwned = firstCount(planComponentsOwnedRows);
   const planComponentsTargetingService = firstCount(planComponentsTargetingServiceRows);
