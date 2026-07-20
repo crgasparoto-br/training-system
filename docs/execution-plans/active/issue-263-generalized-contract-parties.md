@@ -48,30 +48,31 @@ Evoluir o módulo de contratos para atender alunos e colaboradores com a mesma i
 
 ## Passos de implementação
 
-- [ ] Generalizar schema, relações tipadas, aplicabilidade e origem do vínculo.
-- [ ] Criar migration idempotente, constraints, índices concorrentes e backfill do legado.
-- [ ] Centralizar validação de aplicabilidade e variáveis de modelos.
-- [ ] Generalizar geração, prévia, envio, assinatura, recusa, expiração e vigência.
-- [ ] Expor APIs tipadas e protegidas para o colaborador.
-- [ ] Incluir o controle contratual na edição individual do colaborador e remover edição do legado.
-- [ ] Atualizar configuração de modelos, contratos compartilhados e textos públicos.
-- [ ] Adicionar testes de regressão, isolamento, concorrência, legado e aplicabilidade.
-- [ ] Atualizar documentação e mover este plano para `completed/`.
+- [x] Generalizar schema, relações tipadas, aplicabilidade e origem do vínculo.
+- [x] Criar migration idempotente, constraints, índices concorrentes e backfill do legado.
+- [x] Centralizar validação de aplicabilidade e variáveis de modelos.
+- [x] Generalizar geração, prévia, envio, assinatura, recusa, expiração e vigência.
+- [x] Expor APIs tipadas e protegidas para o colaborador.
+- [x] Incluir o controle contratual na edição individual do colaborador e remover edição do legado.
+- [x] Atualizar configuração de modelos, contratos compartilhados e textos públicos.
+- [x] Adicionar testes de regressão, isolamento, concorrência, legado e aplicabilidade.
+- [x] Atualizar documentação.
+- [ ] Mover este plano para `completed/` após aprovação final da auditoria.
 
 ## Critérios de aceite
 
-- [ ] Modelos existentes continuam disponíveis para alunos.
-- [ ] Aplicabilidade é validada ao salvar, ativar, pré-visualizar e gerar.
-- [ ] O ciclo completo funciona para colaborador.
-- [ ] Vigente, candidato e histórico aparecem na página de edição do colaborador.
-- [ ] Rejeição, cancelamento e expiração não alteram o vigente anterior.
-- [ ] Concorrência e constraints impedem dois vínculos ativos.
-- [ ] Combinações entre tenants, documentos e partes são rejeitadas.
-- [ ] O legado aparece distinguido e sem evidências eletrônicas fabricadas.
-- [ ] Testes relevantes foram adicionados ou atualizados.
-- [ ] Documentação foi atualizada.
-- [ ] `pnpm validate` e `pnpm build` passam.
-- [ ] Riscos conhecidos foram registrados no PR.
+- [x] Modelos existentes continuam disponíveis para alunos.
+- [x] Aplicabilidade é validada ao salvar, ativar, pré-visualizar e gerar.
+- [x] O ciclo completo funciona para colaborador.
+- [x] Vigente, candidato e histórico aparecem na página de edição do colaborador.
+- [x] Rejeição, cancelamento e expiração não alteram o vigente anterior.
+- [x] Concorrência e constraints impedem dois vínculos ativos.
+- [x] Combinações entre tenants, documentos e partes são rejeitadas.
+- [x] O legado aparece distinguido e sem evidências eletrônicas fabricadas.
+- [x] Testes relevantes foram adicionados ou atualizados.
+- [x] Documentação foi atualizada.
+- [ ] `pnpm validate` e `pnpm build` passam no commit final.
+- [x] Riscos conhecidos foram registrados no PR.
 
 ## Validação manual
 
@@ -86,4 +87,6 @@ Evoluir o módulo de contratos para atender alunos e colaboradores com a mesma i
 
 - A infraestrutura eletrônica continuará em `Contract`; os vínculos de vigência permanecerão tipados em `StudentContract` e `CollaboratorContract`.
 - O legado será materializado como vínculo de origem legada, sem `Contract`, assinatura, token, hash ou vigência eletrônica.
-- A validação local poderá depender do CI caso o ambiente não consiga obter o repositório ou as dependências; qualquer bloqueio será registrado na PR.
+- O primeiro ciclo de auditoria identificou divergência de schema, regressões de estado terminal, consulta documental incompleta, descrição de permissão legada e ausência de teste concorrente específico do colaborador.
+- As correções foram incorporadas na mesma branch e todos os arquivos temporários de sincronização foram removidos.
+- A aprovação final depende da execução do CI padrão e de nova auditoria independente sobre o commit resultante.
