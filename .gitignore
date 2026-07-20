@@ -66,3 +66,6 @@ reports/
 .dockerignore
 
 /generated/prisma
+
+# User-uploaded runtime files
+apps/api/uploads/
