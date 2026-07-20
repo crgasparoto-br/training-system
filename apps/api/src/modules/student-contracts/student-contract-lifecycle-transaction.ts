@@ -71,7 +71,7 @@ const activateStudentCandidateAt = async (
 
   await tx.$queryRaw(Prisma.sql`
     SELECT "id"
-    FROM "Athlete"
+    FROM "Aluno"
     WHERE "id" = ${initialCandidate.alunoId}
     FOR UPDATE
   `);
@@ -288,7 +288,7 @@ export async function prepareOrActivateCollaboratorContractInTransaction(
   }
 
   await tx.$queryRaw(Prisma.sql`
-    SELECT "id" FROM "Educator"
+    SELECT "id" FROM "Professor"
     WHERE "id" = ${candidate.collaboratorId}
     FOR UPDATE
   `);
@@ -359,7 +359,7 @@ export async function prepareOrActivateCollaboratorContractInTransaction(
   `);
 
   await tx.$executeRaw(Prisma.sql`
-    UPDATE "Educator"
+    UPDATE "Professor"
     SET "currentCollaboratorContractId" = ${candidate.id}, "updatedAt" = CURRENT_TIMESTAMP
     WHERE "id" = ${candidate.collaboratorId}
   `);
