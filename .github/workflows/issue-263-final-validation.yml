@@ -1,0 +1,51 @@
+name: Issue 263 Final Validation
+
+on:
+  push:
+    branches:
+      - feat/263-generalize-contracts-collaborators
+
+jobs:
+  validate-final:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/training_system_test?schema=public
+      RUN_DATABASE_INTEGRATION_TESTS: 'true'
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: training_system_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d training_system_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @corrida/api exec prisma generate
+      - run: pnpm --filter @corrida/api exec prisma migrate deploy
+      - name: Validate canonical Prisma schema
+        run: pnpm --filter @corrida/api exec prisma validate
+      - name: Build
+        run: pnpm build
+      - name: Prisma consistency
+        run: pnpm prisma:check
+      - name: API boundaries
+        run: pnpm api:check
+      - name: Migration checks
+        run: pnpm migration:check
+      - name: Agent checks
+        run: pnpm agent:check
