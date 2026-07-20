@@ -11,7 +11,10 @@ Este documento registra as regras minimas para publicar o Sistema Acesso.
 
 ## Variaveis esperadas da API
 
-- `DATABASE_URL`
+- `DATABASE_URL`: conexao usada pela API em execucao. Em producao, use uma credencial de aplicacao e, quando disponivel, o endpoint com pool do provedor.
+- `MIGRATION_DATABASE_URL`: conexao direta/privilegiada usada somente pelo `prisma migrate deploy` durante o start. E opcional para compatibilidade, mas recomendada em producao.
+- `PRISMA_CONNECTION_LIMIT`: limite por instancia de `PrismaClient`. Quando a URL nao possui `connection_limit`, o runtime produtivo usa `1` por padrao.
+- `PRISMA_POOL_TIMEOUT_SECONDS`: tempo maximo de espera por uma conexao livre. Quando a URL nao possui `pool_timeout`, o runtime produtivo usa `15` segundos.
 - `NODE_ENV`: use `production` no ambiente produtivo.
 - `FRONTEND_URL`
 - `CORS_ORIGINS`: obrigatoria em producao e deve listar somente origins produtivas explicitamente permitidas. Origins locais nao sao incluidas por padrao em `NODE_ENV=production`.
@@ -29,6 +32,31 @@ Este documento registra as regras minimas para publicar o Sistema Acesso.
 - `R2_ACCESS_KEY_ID`: access key id do token R2 usada somente pela API/backend.
 - `R2_SECRET_ACCESS_KEY`: secret access key do token R2 usada somente pela API/backend.
 - `R2_PUBLIC_BASE_URL`: URL publica de leitura do bucket R2, preferencialmente um dominio customizado como `https://assets.seu-dominio.com`.
+
+## Banco no Render
+
+Configuracao recomendada para evitar que a API consuma o limite da conta de migration:
+
+1. Em `DATABASE_URL`, configure a URL de runtime/pool e um usuario de aplicacao com apenas os privilegios necessarios para operar o sistema.
+2. Em `MIGRATION_DATABASE_URL`, configure a URL direta e o usuario autorizado a aplicar migrations.
+3. Configure `PRISMA_CONNECTION_LIMIT=1` inicialmente. Aumente somente com base no limite real do banco, numero de instancias da API e metricas de fila/latencia.
+4. Configure `PRISMA_POOL_TIMEOUT_SECONDS=15`.
+5. Reinicie ou redeploy a API para encerrar pools antigos e aplicar as novas variaveis.
+
+O comando `pnpm start` executa as migrations com `MIGRATION_DATABASE_URL` e inicia a API novamente com a `DATABASE_URL` original. Quando `MIGRATION_DATABASE_URL` nao existe, o start usa `DATABASE_URL` para manter compatibilidade com ambientes antigos.
+
+### Recuperacao de conexoes esgotadas
+
+Quando os logs mostrarem `too many connections`:
+
+1. interrompa novos deploys concorrentes;
+2. confirme se ha mais de uma instancia antiga da API ainda ativa;
+3. reinicie a API para liberar pools pertencentes ao processo anterior;
+4. confirme que `DATABASE_URL` nao usa a conta reservada para migrations;
+5. confirme o limite efetivo na URL e nas variaveis `PRISMA_*`;
+6. somente depois reabra `Configurações > Serviços` e valide catálogo, auditoria e combinações.
+
+A API converte esgotamento/timeout do pool em HTTP `503` com mensagem segura. Detalhes do papel, host e erro do Prisma devem permanecer apenas nos logs.
 
 ## Variaveis esperadas do frontend
 
@@ -121,4 +149,4 @@ Use `HARNESS_VALIDATE_REAL_ENV=1` para validar o ambiente real sem fallback de `
 
 ## Observacao sobre hooks de deploy
 
-Deploy Hook e segredo operacional. Se for regenerado no Render, atualize o secret correspondente no GitHub e remova qualquer valor antigo de historicos, prints ou documentacao publica.
+Deploy Hook e segredo operacional. Se for regenerado no Render, atualize o secret correspondente e remova qualquer valor antigo de historicos, prints ou documentacao publica.

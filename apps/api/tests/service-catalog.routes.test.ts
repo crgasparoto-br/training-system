@@ -109,6 +109,26 @@ describe('service catalog routes', () => {
     expect(serviceCatalogServiceMock.listCatalog).not.toHaveBeenCalled();
   });
 
+  it('returns a safe 503 when the database connection limit is exhausted', async () => {
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    serviceCatalogServiceMock.listCatalog.mockRejectedValue(
+      Object.assign(
+        new Error('FATAL: too many connections for role "prisma_migration"'),
+        { code: 'P2037' }
+      )
+    );
+
+    const response = await request(app).get('/services/catalog');
+
+    expect(response.status).toBe(503);
+    expect(response.body.error).toBe(
+      'O banco de dados está temporariamente sem conexões disponíveis. Tente novamente em instantes.'
+    );
+    expect(JSON.stringify(response.body)).not.toContain('prisma_migration');
+    expect(JSON.stringify(response.body)).not.toContain('P2037');
+    consoleSpy.mockRestore();
+  });
+
   it('does not reveal an id from another contract', async () => {
     serviceCatalogServiceMock.getCatalogDetail.mockRejectedValue(
       new Error('Serviço não encontrado')

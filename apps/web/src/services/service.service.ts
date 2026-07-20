@@ -40,6 +40,25 @@ type ImpactAwareOptionUpdate = UpdateCommercialOptionRequest & {
   impactConfirmation?: ServiceCatalogImpactConfirmation;
 };
 
+const catalogListRequests = new Map<boolean, Promise<ServiceCatalogSummary[]>>();
+const MAX_CONCURRENT_CATALOG_DETAIL_REQUESTS = 2;
+const catalogDetailWaiters: Array<() => void> = [];
+let activeCatalogDetailRequests = 0;
+
+async function withCatalogDetailConcurrency<T>(request: () => Promise<T>): Promise<T> {
+  if (activeCatalogDetailRequests >= MAX_CONCURRENT_CATALOG_DETAIL_REQUESTS) {
+    await new Promise<void>((resolve) => catalogDetailWaiters.push(resolve));
+  }
+
+  activeCatalogDetailRequests += 1;
+  try {
+    return await request();
+  } finally {
+    activeCatalogDetailRequests -= 1;
+    catalogDetailWaiters.shift()?.();
+  }
+}
+
 function confirmInactivation(message: string) {
   if (typeof window === 'undefined') return false;
   return window.confirm(message);
@@ -58,15 +77,30 @@ export const serviceCatalogService = {
   },
 
   async listCatalog(includeInactive = true): Promise<ServiceCatalogSummary[]> {
-    const response = await api.get<ApiResponse<ServiceCatalogSummary[]>>(
-      `/services/catalog${includeInactive ? '?includeInactive=true' : ''}`
-    );
-    return response.data.data;
+    const inFlight = catalogListRequests.get(includeInactive);
+    if (inFlight) return inFlight;
+
+    let request!: Promise<ServiceCatalogSummary[]>;
+    request = api
+      .get<ApiResponse<ServiceCatalogSummary[]>>(
+        `/services/catalog${includeInactive ? '?includeInactive=true' : ''}`
+      )
+      .then((response) => response.data.data)
+      .finally(() => {
+        if (catalogListRequests.get(includeInactive) === request) {
+          catalogListRequests.delete(includeInactive);
+        }
+      });
+
+    catalogListRequests.set(includeInactive, request);
+    return request;
   },
 
   async getCatalogDetail(id: string): Promise<ServiceCatalogDetail> {
-    const response = await api.get<ApiResponse<ServiceCatalogDetail>>(`/services/catalog/${id}`);
-    return response.data.data;
+    return withCatalogDetailConcurrency(async () => {
+      const response = await api.get<ApiResponse<ServiceCatalogDetail>>(`/services/catalog/${id}`);
+      return response.data.data;
+    });
   },
 
   async getCatalogImpact(id: string): Promise<ServiceCatalogImpact> {

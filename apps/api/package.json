@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx watch src/main.ts",
     "build": "pnpm --filter @corrida/types build && pnpm --filter @corrida/utils build && pnpm db:generate && tsc",
-    "start": "pnpm db:migrate:prod && node dist/main.js",
+    "start": "node scripts/migrate-and-start.mjs",
     "test": "jest",
     "test:watch": "jest --watch",
     "lint": "eslint src --ext .ts",
