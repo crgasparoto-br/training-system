@@ -6,6 +6,15 @@ import type {
   ProfessorSummary,
   UpdateProfessorRequest,
 } from '@corrida/types';
+import { formatCep } from '../../services/cep.service';
+import {
+  formatCollaboratorBankAccount,
+  formatCollaboratorCompanyDocument,
+  formatCollaboratorCpf,
+  formatCollaboratorPhone,
+  formatCollaboratorRg,
+  normalizeCollaboratorInstagram,
+} from './collaborator-formatters';
 
 const optionalUrl = z.preprocess(
   (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
@@ -16,7 +25,10 @@ export const collaboratorFormSchema = z
   .object({
     name: z.string().trim().min(3, 'O nome deve ter no mínimo 3 caracteres'),
     email: z.string().trim().email('Informe um e-mail válido'),
-    password: z.string().optional(),
+    password: z.string().optional().refine(
+      (value) => !value?.trim() || value.trim().length >= 8,
+      'A senha deve ter no mínimo 8 caracteres'
+    ),
     phone: z.string().optional(),
     birthDate: z.string().optional(),
     cpf: z.string().optional(),
@@ -73,10 +85,10 @@ export function createCollaboratorFormValues(professor?: ProfessorSummary): Coll
     name: profile?.name ?? '',
     email: professor?.user.email ?? '',
     password: '',
-    phone: profile?.phone ?? '',
+    phone: formatCollaboratorPhone(profile?.phone ?? ''),
     birthDate: toInputDate(profile?.birthDate),
-    cpf: profile?.cpf ?? '',
-    rg: profile?.rg ?? '',
+    cpf: formatCollaboratorCpf(profile?.cpf ?? ''),
+    rg: formatCollaboratorRg(profile?.rg ?? ''),
     maritalStatus: profile?.maritalStatus ?? '',
     addressStreet: profile?.addressStreet ?? '',
     addressNumber: profile?.addressNumber ?? '',
@@ -84,15 +96,15 @@ export function createCollaboratorFormValues(professor?: ProfessorSummary): Coll
     addressCity: profile?.addressCity ?? '',
     addressState: profile?.addressState ?? '',
     addressComplement: profile?.addressComplement ?? '',
-    addressZipCode: profile?.addressZipCode ?? '',
-    instagramHandle: profile?.instagramHandle ?? '',
+    addressZipCode: formatCep(profile?.addressZipCode ?? ''),
+    instagramHandle: normalizeCollaboratorInstagram(profile?.instagramHandle),
     cref: profile?.cref ?? '',
     professionalSummary: profile?.professionalSummary ?? '',
     lattesUrl: profile?.lattesUrl ?? '',
-    companyDocument: profile?.companyDocument ?? '',
+    companyDocument: formatCollaboratorCompanyDocument(profile?.companyDocument ?? ''),
     bankCode: profile?.bankCode ?? '',
     bankBranch: profile?.bankBranch ?? '',
-    bankAccount: profile?.bankAccount ?? '',
+    bankAccount: formatCollaboratorBankAccount(profile?.bankAccount ?? ''),
     pixKey: profile?.pixKey ?? '',
     avatar: profile?.avatar ?? '',
     admissionDate: toInputDate(professor?.admissionDate),
