@@ -253,7 +253,7 @@ async function listRows(
       gc."publicTokenExpiresAt",
       gc."createdAt" AS "documentCreatedAt"
     FROM "CollaboratorContract" cc
-    JOIN "Educator" p ON p."id" = cc."collaboratorId"
+    JOIN "Professor" p ON p."id" = cc."collaboratorId"
     LEFT JOIN "GeneratedContract" gc ON gc."id" = cc."contractId"
     WHERE cc."collaboratorId" = ${collaboratorId}
       AND p."contractId" = ${companyContractId}
@@ -367,7 +367,7 @@ export const collaboratorContractService = {
     const rows = await client.$queryRaw<Array<{ id: string }>>(Prisma.sql`
       SELECT gc."id"
       FROM "GeneratedContract" gc
-      JOIN "Educator" p ON p."id" = gc."collaboratorId"
+      JOIN "Professor" p ON p."id" = gc."collaboratorId"
       WHERE gc."id" = ${documentId}
         AND gc."partyType" = 'COLLABORATOR'::"ContractPartyType"
         AND gc."collaboratorId" = ${collaboratorId}
