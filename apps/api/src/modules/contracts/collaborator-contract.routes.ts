@@ -6,6 +6,7 @@ import {
   getMostPermissiveDataScopeForProfessor,
   screenAccessMiddleware,
 } from '../access-control/index.js';
+import { blockAccessMiddleware } from '../access-control/access-control.middleware.js';
 import { professorAccessQueryService } from '../professores/professor-access-query.service.js';
 import { studentContractLifecycleService } from '../student-contracts/student-contract-lifecycle.service.js';
 import { collaboratorContractService } from './collaborator-contract.service.js';
@@ -14,6 +15,7 @@ import { contractPartyLinkService } from './contract-party-link.service.js';
 
 const router: Router = Router();
 const prisma = new PrismaClient();
+const manageContractAccess = blockAccessMiddleware('collaborators.actions.uploadSignedContract');
 
 const tokenHash = (token: string) =>
   crypto.createHash('sha256').update(token).digest('hex');
@@ -79,35 +81,44 @@ router.get('/collaborators/:collaboratorId/summary', async (req: Request, res: R
   }
 });
 
-router.post('/collaborators/:collaboratorId/preview', async (req: Request, res: Response) => {
-  try {
-    const { companyContractId } = await assertCollaboratorAccess(req, req.params.collaboratorId);
-    const preview = await collaboratorContractService.preview(companyContractId, {
-      ...req.body,
-      collaboratorId: req.params.collaboratorId,
-    });
-    return sendSuccess(res, preview, 'Prévia do contrato do colaborador gerada com sucesso');
-  } catch (error) {
-    return handleError(res, error, 'Erro ao gerar prévia do contrato do colaborador');
+router.post(
+  '/collaborators/:collaboratorId/preview',
+  manageContractAccess,
+  async (req: Request, res: Response) => {
+    try {
+      const { companyContractId } = await assertCollaboratorAccess(req, req.params.collaboratorId);
+      const preview = await collaboratorContractService.preview(companyContractId, {
+        ...req.body,
+        collaboratorId: req.params.collaboratorId,
+      });
+      return sendSuccess(res, preview, 'Prévia do contrato do colaborador gerada com sucesso');
+    } catch (error) {
+      return handleError(res, error, 'Erro ao gerar prévia do contrato do colaborador');
+    }
   }
-});
+);
 
-router.post('/collaborators/:collaboratorId/generate', async (req: Request, res: Response) => {
-  try {
-    const { companyContractId } = await assertCollaboratorAccess(req, req.params.collaboratorId);
-    const generated = await collaboratorContractService.generate(
-      companyContractId,
-      { ...req.body, collaboratorId: req.params.collaboratorId },
-      actorFromRequest(req)
-    );
-    return sendSuccess(res, generated, 'Contrato do colaborador gerado com sucesso', 201);
-  } catch (error) {
-    return handleError(res, error, 'Erro ao gerar contrato do colaborador');
+router.post(
+  '/collaborators/:collaboratorId/generate',
+  manageContractAccess,
+  async (req: Request, res: Response) => {
+    try {
+      const { companyContractId } = await assertCollaboratorAccess(req, req.params.collaboratorId);
+      const generated = await collaboratorContractService.generate(
+        companyContractId,
+        { ...req.body, collaboratorId: req.params.collaboratorId },
+        actorFromRequest(req)
+      );
+      return sendSuccess(res, generated, 'Contrato do colaborador gerado com sucesso', 201);
+    } catch (error) {
+      return handleError(res, error, 'Erro ao gerar contrato do colaborador');
+    }
   }
-});
+);
 
 router.post(
   '/collaborators/:collaboratorId/documents/:documentId/pdf',
+  manageContractAccess,
   async (req: Request, res: Response) => {
     try {
       const { companyContractId } = await assertCollaboratorAccess(req, req.params.collaboratorId);
@@ -130,6 +141,7 @@ router.post(
 
 router.post(
   '/collaborators/:collaboratorId/documents/:documentId/send',
+  manageContractAccess,
   async (req: Request, res: Response) => {
     try {
       const { companyContractId } = await assertCollaboratorAccess(req, req.params.collaboratorId);
@@ -196,6 +208,7 @@ router.post(
 
 router.post(
   '/collaborators/:collaboratorId/documents/:documentId/cancel',
+  manageContractAccess,
   async (req: Request, res: Response) => {
     try {
       const { companyContractId } = await assertCollaboratorAccess(req, req.params.collaboratorId);
@@ -256,6 +269,7 @@ router.post(
 
 router.post(
   '/collaborators/:collaboratorId/links/:linkId/activate',
+  manageContractAccess,
   async (req: Request, res: Response) => {
     try {
       const { companyContractId } = await assertCollaboratorAccess(req, req.params.collaboratorId);
@@ -264,8 +278,7 @@ router.post(
         req.params.collaboratorId
       );
       const link = summary.all.find((item) => item.id === req.params.linkId);
-      if (!link) throw new Error('Vínculo de contrato do colaborador não encontrado');
-      if (link.collaboratorId !== req.params.collaboratorId) {
+      if (!link || link.collaboratorId !== req.params.collaboratorId) {
         throw new Error('Vínculo de contrato do colaborador não encontrado');
       }
 
