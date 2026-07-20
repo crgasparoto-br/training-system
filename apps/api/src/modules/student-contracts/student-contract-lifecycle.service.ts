@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { Prisma, PrismaClient } from '@prisma/client';
 import { contractPublicAccessService } from '../contracts/contract-public-access.service.js';
 import { contractPartyLinkService } from '../contracts/contract-party-link.service.js';
+import { contractRecordRepository } from '../contracts/contract-record.repository.js';
 import {
   prepareOrActivateCollaboratorContractInTransaction,
   prepareOrActivateStudentContractInTransaction,
@@ -41,9 +42,7 @@ export const studentContractLifecycleService = {
     if (signerCpf.length !== 11) throw new Error('Informe um CPF válido para assinar');
 
     const tokenDigest = hashToken(token);
-    const contract = await prisma.contract.findUnique({
-      where: { publicTokenHash: tokenDigest },
-    });
+    const contract = await contractRecordRepository.findByPublicTokenHash(tokenDigest, prisma);
     if (!contract) throw new Error('Link inválido ou já utilizado');
 
     if (contract.publicTokenExpiresAt && contract.publicTokenExpiresAt < new Date()) {
@@ -62,15 +61,7 @@ export const studentContractLifecycleService = {
     const documentHash = contract.documentHash || hashDocument(contract.renderedHtml);
 
     const result = await prisma.$transaction(async (tx) => {
-      const freshContract = await tx.contract.findUnique({
-        where: { id: contract.id },
-        select: {
-          id: true,
-          status: true,
-          publicTokenHash: true,
-          publicTokenExpiresAt: true,
-        },
-      });
+      const freshContract = await contractRecordRepository.findById(contract.id, tx);
 
       if (!freshContract || freshContract.publicTokenHash !== tokenDigest) {
         throw new Error('Link inválido ou já utilizado');
