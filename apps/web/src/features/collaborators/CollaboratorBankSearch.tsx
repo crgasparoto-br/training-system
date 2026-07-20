@@ -24,6 +24,7 @@ export function CollaboratorBankSearch({
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [search, setSearch] = useState('');
   const [open, setOpen] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
 
   useEffect(() => {
     const selected = banks.find((bank) => bank.code === value);
@@ -32,7 +33,10 @@ export function CollaboratorBankSearch({
 
   useEffect(() => {
     const close = (event: MouseEvent) => {
-      if (!wrapperRef.current?.contains(event.target as Node)) setOpen(false);
+      if (!wrapperRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+        setHighlightedIndex(-1);
+      }
     };
     document.addEventListener('mousedown', close);
     return () => document.removeEventListener('mousedown', close);
@@ -48,6 +52,19 @@ export function CollaboratorBankSearch({
       .slice(0, 30);
   }, [banks, search]);
 
+  useEffect(() => {
+    if (highlightedIndex >= visibleBanks.length) {
+      setHighlightedIndex(visibleBanks.length > 0 ? visibleBanks.length - 1 : -1);
+    }
+  }, [highlightedIndex, visibleBanks.length]);
+
+  const selectBank = (bank: BankOption) => {
+    onChange(bank.code);
+    setSearch(`${bank.code} - ${bank.description}`);
+    setOpen(false);
+    setHighlightedIndex(-1);
+  };
+
   const commitTypedValue = () => {
     const normalizedSearch = search.trim();
     const exact = banks.find(
@@ -56,8 +73,7 @@ export function CollaboratorBankSearch({
         `${bank.code} - ${bank.description}` === normalizedSearch
     );
     if (exact) {
-      onChange(exact.code);
-      setSearch(`${exact.code} - ${exact.description}`);
+      selectBank(exact);
       return;
     }
     if (!normalizedSearch) onChange('');
@@ -78,27 +94,52 @@ export function CollaboratorBankSearch({
         aria-expanded={open}
         aria-controls="collaborator-bank-options"
         aria-autocomplete="list"
+        aria-activedescendant={
+          open && highlightedIndex >= 0
+            ? `collaborator-bank-option-${highlightedIndex}`
+            : undefined
+        }
         autoComplete="off"
         disabled={disabled}
         value={search}
         placeholder="Pesquise por código ou nome"
         className="flex h-11 w-full rounded-lg border border-input bg-card px-4 py-2.5 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-muted"
-        onFocus={() => setOpen(true)}
+        onFocus={() => {
+          setOpen(true);
+          setHighlightedIndex(visibleBanks.findIndex((bank) => bank.code === value));
+        }}
         onChange={(event) => {
           setSearch(event.target.value);
           setOpen(true);
+          setHighlightedIndex(0);
         }}
         onBlur={() => window.setTimeout(commitTypedValue, 0)}
         onKeyDown={(event) => {
-          if (event.key === 'Escape') setOpen(false);
+          if (event.key === 'Escape') {
+            setOpen(false);
+            setHighlightedIndex(-1);
+            return;
+          }
+          if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            setOpen(true);
+            setHighlightedIndex((current) =>
+              visibleBanks.length === 0 ? -1 : current < visibleBanks.length - 1 ? current + 1 : 0
+            );
+            return;
+          }
+          if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            setOpen(true);
+            setHighlightedIndex((current) =>
+              visibleBanks.length === 0 ? -1 : current > 0 ? current - 1 : visibleBanks.length - 1
+            );
+            return;
+          }
           if (event.key === 'Enter') {
             event.preventDefault();
-            const first = visibleBanks[0];
-            if (first) {
-              onChange(first.code);
-              setSearch(`${first.code} - ${first.description}`);
-              setOpen(false);
-            }
+            const selected = visibleBanks[highlightedIndex] ?? visibleBanks[0];
+            if (selected) selectBank(selected);
           }
         }}
       />
@@ -118,6 +159,7 @@ export function CollaboratorBankSearch({
               onChange('');
               setSearch('');
               setOpen(false);
+              setHighlightedIndex(-1);
             }}
           >
             Selecionar depois
@@ -125,19 +167,19 @@ export function CollaboratorBankSearch({
           {visibleBanks.length === 0 ? (
             <p className="px-3 py-2 text-sm text-muted-foreground">Nenhum banco encontrado.</p>
           ) : (
-            visibleBanks.map((bank) => (
+            visibleBanks.map((bank, index) => (
               <button
                 key={bank.code}
+                id={`collaborator-bank-option-${index}`}
                 type="button"
                 role="option"
                 aria-selected={bank.code === value}
-                className="mt-1 w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-muted"
+                className={`mt-1 w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-muted ${
+                  highlightedIndex === index ? 'bg-primary/10 text-primary' : ''
+                }`}
                 onMouseDown={(event) => event.preventDefault()}
-                onClick={() => {
-                  onChange(bank.code);
-                  setSearch(`${bank.code} - ${bank.description}`);
-                  setOpen(false);
-                }}
+                onMouseEnter={() => setHighlightedIndex(index)}
+                onClick={() => selectBank(bank)}
               >
                 <span className="block font-medium">{bank.code}</span>
                 <span className="block text-muted-foreground">{bank.description}</span>
