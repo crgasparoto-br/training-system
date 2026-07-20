@@ -1,5 +1,7 @@
 import type { ProfessorMaritalStatus } from '@corrida/types';
 
+export { formatCollaboratorRateInput } from './collaborator-hourly-rates';
+
 export function formatCollaboratorPhone(value: string) {
   const digits = value.replace(/\D/g, '').slice(0, 11);
   if (digits.length <= 10) {
@@ -41,20 +43,6 @@ export function formatCollaboratorBankAccount(value: string) {
   const normalized = value.toUpperCase().replace(/[^0-9X]/g, '').slice(0, 20);
   if (normalized.length <= 1) return normalized;
   return `${normalized.slice(0, -1)}-${normalized.slice(-1)}`;
-}
-
-export function formatCollaboratorRateInput(value?: string) {
-  const input = value?.trim().replace(/\s/g, '');
-  if (!input) return '';
-  const normalized = input.includes(',')
-    ? input.replace(/\./g, '').replace(',', '.')
-    : /^\d{1,3}(\.\d{3})+$/.test(input)
-      ? input.replace(/\./g, '')
-      : input;
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed)
-    ? parsed.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    : value ?? '';
 }
 
 export function normalizeCollaboratorInstagram(value?: string | null) {

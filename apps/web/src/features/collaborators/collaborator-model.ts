@@ -15,11 +15,23 @@ import {
   formatCollaboratorRg,
   normalizeCollaboratorInstagram,
 } from './collaborator-formatters';
+import {
+  isValidCollaboratorRateInput,
+  parseCollaboratorRateInput,
+} from './collaborator-hourly-rates';
 
 const optionalUrl = z.preprocess(
   (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
   z.string().trim().url('Informe uma URL válida').optional()
 );
+
+const hourlyRateField = z
+  .string()
+  .optional()
+  .refine(
+    isValidCollaboratorRateInput,
+    'Informe um valor monetário válido e não negativo'
+  );
 
 export const collaboratorFormSchema = z
   .object({
@@ -58,9 +70,9 @@ export const collaboratorFormSchema = z
     responsibleManagerId: z.string().optional(),
     operationalRoleIds: z.array(z.string()).default([]),
     hourlyRates: z.object({
-      personal: z.string().optional(),
-      consulting: z.string().optional(),
-      evaluation: z.string().optional(),
+      personal: hourlyRateField,
+      consulting: hourlyRateField,
+      evaluation: hourlyRateField,
     }),
     hasSignedContract: z.boolean().default(false),
     signedContractDocumentUrl: optionalUrl,
@@ -144,24 +156,11 @@ function emptyToNull(value?: string) {
   return emptyToUndefined(value) ?? null;
 }
 
-function parseRate(value?: string) {
-  const input = value?.trim().replace(/\s/g, '');
-  if (!input) return null;
-
-  const normalized = input.includes(',')
-    ? input.replace(/\./g, '').replace(',', '.')
-    : /^\d{1,3}(\.\d{3})+$/.test(input)
-      ? input.replace(/\./g, '')
-      : input;
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed) && parsed >= 0 ? Number(parsed.toFixed(2)) : null;
-}
-
 function mapHourlyRates(values: CollaboratorFormValues): ProfessorHourlyRates | undefined {
   const hourlyRates = {
-    personal: parseRate(values.hourlyRates.personal),
-    consulting: parseRate(values.hourlyRates.consulting),
-    evaluation: parseRate(values.hourlyRates.evaluation),
+    personal: parseCollaboratorRateInput(values.hourlyRates.personal),
+    consulting: parseCollaboratorRateInput(values.hourlyRates.consulting),
+    evaluation: parseCollaboratorRateInput(values.hourlyRates.evaluation),
   };
 
   return Object.values(hourlyRates).some((value) => typeof value === 'number') ? hourlyRates : undefined;

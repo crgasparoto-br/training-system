@@ -1,5 +1,10 @@
 import { useEffect, useState, type ReactNode, type SelectHTMLAttributes } from 'react';
-import type { BankOption, CollaboratorFunctionOption, ProfessorSummary } from '@corrida/types';
+import type {
+  BankOption,
+  CollaboratorFunctionOption,
+  HourlyRateLevel,
+  ProfessorSummary,
+} from '@corrida/types';
 import type { FieldErrors, UseFormRegister, UseFormSetValue, UseFormWatch } from 'react-hook-form';
 import { ExternalLink, Upload, X } from 'lucide-react';
 import { Input } from '../../components/ui/Input';
@@ -16,11 +21,12 @@ import {
   formatCollaboratorCompanyDocument,
   formatCollaboratorCpf,
   formatCollaboratorPhone,
-  formatCollaboratorRateInput,
   formatCollaboratorRg,
   normalizeCollaboratorInstagram,
 } from './collaborator-formatters';
 import type { CollaboratorFormValues } from './collaborator-model';
+import { CollaboratorBankSearch } from './CollaboratorBankSearch';
+import { CollaboratorHourlyRates } from './CollaboratorHourlyRates';
 import { CollaboratorSection } from './CollaboratorSection';
 
 const selectClassName =
@@ -64,6 +70,7 @@ export function CollaboratorForm({
   collaboratorFunctions,
   managers,
   banks,
+  hourlyRateLevels,
   showCollaboratorBlock,
   showManagerBlock,
   administrativeFieldsEnabled,
@@ -83,6 +90,7 @@ export function CollaboratorForm({
   collaboratorFunctions: CollaboratorFunctionOption[];
   managers: ProfessorSummary[];
   banks: BankOption[];
+  hourlyRateLevels: HourlyRateLevel[];
   showCollaboratorBlock: boolean;
   showManagerBlock: boolean;
   administrativeFieldsEnabled: boolean;
@@ -102,6 +110,7 @@ export function CollaboratorForm({
   const dismissalDate = watch('dismissalDate');
   const collaboratorFunctionId = watch('collaboratorFunctionId');
   const operationalRoleIds = watch('operationalRoleIds') ?? [];
+  const bankCode = watch('bankCode') ?? '';
   const selectedFunction = collaboratorFunctions.find((item) => item.id === collaboratorFunctionId);
   const showResponsibleManager = selectedFunction?.code !== 'manager';
   const avatarUrl = resolveAssetUrl(avatar);
@@ -283,10 +292,13 @@ export function CollaboratorForm({
                 onChange={(event) => setValue('companyDocument', formatCollaboratorCompanyDocument(event.target.value), { shouldDirty: true, shouldValidate: true })}
                 error={errorMessage(errors.companyDocument)}
               />
-              <SelectField label="Banco" {...register('bankCode')} error={errorMessage(errors.bankCode)}>
-                <option value="">Selecionar depois</option>
-                {banks.map((bank) => <option key={bank.code} value={bank.code}>{bank.code} - {bank.description}</option>)}
-              </SelectField>
+              <input type="hidden" {...register('bankCode')} />
+              <CollaboratorBankSearch
+                banks={banks}
+                value={bankCode}
+                onChange={(nextBankCode) => setValue('bankCode', nextBankCode, { shouldDirty: true, shouldValidate: true })}
+                error={errorMessage(errors.bankCode)}
+              />
               <Input label="Agência" {...register('bankBranch')} error={errorMessage(errors.bankBranch)} />
               <Input
                 label="Conta"
@@ -362,20 +374,15 @@ export function CollaboratorForm({
             </div>
           </CollaboratorSection>
 
-          <CollaboratorSection title="Remuneração" description="Valores por frente de atuação.">
-            <div className="grid gap-4 md:grid-cols-3">
-              {(['personal', 'consulting', 'evaluation'] as const).map((rateKey) => (
-                <Input
-                  key={rateKey}
-                  label={rateKey === 'personal' ? 'Personal (R$/hora)' : rateKey === 'consulting' ? 'Consultoria (R$/hora)' : 'Avaliação (R$/hora)'}
-                  inputMode="decimal"
-                  disabled={!administrativeFieldsEnabled}
-                  {...register(`hourlyRates.${rateKey}`)}
-                  onBlur={(event) => setValue(`hourlyRates.${rateKey}`, formatCollaboratorRateInput(event.target.value), { shouldDirty: true, shouldValidate: true })}
-                  error={errorMessage(errors.hourlyRates?.[rateKey])}
-                />
-              ))}
-            </div>
+          <CollaboratorSection title="Remuneração" description="Valores por frente de atuação e nível calculado pelas faixas configuradas.">
+            <CollaboratorHourlyRates
+              register={register}
+              watch={watch}
+              setValue={setValue}
+              errors={errors}
+              levels={hourlyRateLevels}
+              disabled={!administrativeFieldsEnabled}
+            />
           </CollaboratorSection>
 
           <CollaboratorSection title="Contrato legado" description="Este bloco permanece disponível até a migração para o ciclo contratual da issue #263.">

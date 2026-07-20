@@ -1,4 +1,4 @@
-import { Router, type Request, type Response } from 'express';
+import { Router, type NextFunction, type Request, type Response } from 'express';
 import { sendError, sendSuccess } from '@corrida/utils';
 import { authMiddleware } from '../auth/auth.middleware.js';
 import {
@@ -19,35 +19,39 @@ function getActorProfessor(req: Request) {
   };
 }
 
+async function findAccessibleCollaborator(
+  req: Request,
+  screens: Array<'collaborators.registration' | 'collaborators.consultation'>
+) {
+  const contractId = (req as any).user.contractId;
+  const actorProfessorId = (req as any).user.professorId;
+  if (!contractId) return null;
+
+  const dataScope = await getMostPermissiveDataScopeForProfessor(
+    getActorProfessor(req),
+    screens
+  );
+  if (!dataScope) return null;
+
+  const collaborators = await professorService.listByAccessScope(
+    contractId,
+    actorProfessorId,
+    dataScope,
+    'all'
+  );
+  return collaborators.find((item) => item.id === req.params.id) ?? null;
+}
+
 router.get(
   '/:id',
   authMiddleware,
   screenAccessMiddleware(['collaborators.registration', 'collaborators.consultation']),
   async (req: Request, res: Response) => {
     try {
-      const contractId = (req as any).user.contractId;
-      const actorProfessorId = (req as any).user.professorId;
-
-      if (!contractId) {
-        return sendError(res, 'Colaborador não encontrado', 404);
-      }
-
-      const dataScope = await getMostPermissiveDataScopeForProfessor(getActorProfessor(req), [
+      const collaborator = await findAccessibleCollaborator(req, [
         'collaborators.consultation',
         'collaborators.registration',
       ]);
-
-      if (!dataScope) {
-        return sendError(res, 'Colaborador não encontrado', 404);
-      }
-
-      const collaborators = await professorService.listByAccessScope(
-        contractId,
-        actorProfessorId,
-        dataScope,
-        'all'
-      );
-      const collaborator = collaborators.find((item) => item.id === req.params.id);
 
       if (!collaborator) {
         return sendError(res, 'Colaborador não encontrado', 404);
@@ -57,6 +61,28 @@ router.get(
     } catch (error) {
       console.error('Erro ao consultar colaborador:', error);
       return sendError(res, 'Erro ao consultar colaborador', 500);
+    }
+  }
+);
+
+router.put(
+  '/:id',
+  authMiddleware,
+  screenAccessMiddleware('collaborators.registration'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const collaborator = await findAccessibleCollaborator(req, [
+        'collaborators.registration',
+      ]);
+
+      if (!collaborator) {
+        return sendError(res, 'Colaborador não encontrado', 404);
+      }
+
+      return next();
+    } catch (error) {
+      console.error('Erro ao validar acesso ao colaborador:', error);
+      return sendError(res, 'Erro ao validar acesso ao colaborador', 500);
     }
   }
 );

@@ -79,6 +79,18 @@ describe('collaborator model', () => {
     }).hourlyRates).toEqual({ personal: 1234.56, consulting: 100.5, evaluation: 1000 });
   });
 
+  it('rejeita remuneração negativa ou inválida antes do envio', () => {
+    const base = createCollaboratorFormValues(collaborator);
+    expect(collaboratorFormSchema.safeParse({
+      ...base,
+      hourlyRates: { ...base.hourlyRates, personal: '-1' },
+    }).success).toBe(false);
+    expect(collaboratorFormSchema.safeParse({
+      ...base,
+      hourlyRates: { ...base.hourlyRates, personal: 'abc' },
+    }).success).toBe(false);
+  });
+
   it('remove campos administrativos do autoatendimento', () => {
     const payload = toSelfServiceUpdateProfessorRequest(createCollaboratorFormValues(collaborator));
     expect(payload).not.toHaveProperty('collaboratorFunctionId');

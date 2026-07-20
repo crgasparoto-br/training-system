@@ -12,6 +12,9 @@ const mocks = vi.hoisted(() => ({
   update: vi.fn(),
   listFunctions: vi.fn(),
   listBanks: vi.fn(),
+  listRateLevels: vi.fn(),
+  loadUser: vi.fn(),
+  actorId: 'manager-1',
 }));
 
 vi.mock('react-router-dom', async () => {
@@ -44,8 +47,15 @@ vi.mock('../services/bank.service', () => ({
   bankService: { list: (...args: unknown[]) => mocks.listBanks(...args) },
 }));
 
+vi.mock('../services/hourly-rate-level.service', () => ({
+  hourlyRateLevelService: { list: (...args: unknown[]) => mocks.listRateLevels(...args) },
+}));
+
 vi.mock('../stores/useAuthStore', () => ({
-  useAuthStore: () => ({ user: { professor: { id: 'manager-1' } } }),
+  useAuthStore: () => ({
+    user: { professor: { id: mocks.actorId } },
+    loadUser: mocks.loadUser,
+  }),
 }));
 
 vi.mock('../access/access-control', () => ({
@@ -98,12 +108,15 @@ const collaborator = {
 describe('CollaboratorFormPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.actorId = 'manager-1';
     mocks.get.mockResolvedValue(collaborator);
     mocks.list.mockResolvedValue([collaborator]);
     mocks.listFunctions.mockResolvedValue([
       { id: 'function-1', name: 'Professor', code: 'professor', isActive: true },
     ]);
     mocks.listBanks.mockResolvedValue([]);
+    mocks.listRateLevels.mockResolvedValue([]);
+    mocks.loadUser.mockResolvedValue(undefined);
     mocks.update.mockImplementation(async (_id: string, payload: { name?: string }) => ({
       ...collaborator,
       user: {
@@ -122,6 +135,7 @@ describe('CollaboratorFormPage', () => {
 
     expect(await screen.findByDisplayValue('Colaborador Teste')).toBeInTheDocument();
     expect(mocks.get).toHaveBeenCalledWith('professor-1');
+    expect(mocks.listRateLevels).toHaveBeenCalled();
   });
 
   it('salva e permanece no contexto do mesmo colaborador', async () => {
@@ -139,6 +153,19 @@ describe('CollaboratorFormPage', () => {
       '/consultas/colaboradores/professor-1',
       expect.objectContaining({ replace: true, state: { success: 'Alterações salvas com sucesso.' } })
     );
+  });
+
+  it('atualiza o usuário autenticado após editar o próprio cadastro', async () => {
+    mocks.actorId = 'professor-1';
+    const setItem = vi.spyOn(Storage.prototype, 'setItem');
+    render(<MemoryRouter><CollaboratorFormPage mode="edit" /></MemoryRouter>);
+    const nameInput = await screen.findByLabelText('Nome');
+
+    fireEvent.change(nameInput, { target: { value: 'Meu nome atualizado' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar alterações' }));
+
+    await waitFor(() => expect(mocks.loadUser).toHaveBeenCalled());
+    expect(setItem).toHaveBeenCalledWith('auth-permissions-updated-at', expect.any(String));
   });
 
   it('confirma e descarta alterações ao cancelar', async () => {

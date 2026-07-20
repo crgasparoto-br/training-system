@@ -26,6 +26,16 @@ describe('useUnsavedChangesGuard', () => {
     anchor.remove();
   });
 
+  it('mantém a edição ao rejeitar a navegação pelo histórico', () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const forward = vi.spyOn(window.history, 'forward').mockImplementation(() => undefined);
+    renderHook(() => useUnsavedChangesGuard(true));
+
+    window.dispatchEvent(new PopStateEvent('popstate'));
+
+    expect(forward).toHaveBeenCalled();
+  });
+
   it('registra proteção contra recarga enquanto o formulário está sujo', () => {
     renderHook(() => useUnsavedChangesGuard(true));
     const event = new Event('beforeunload', { cancelable: true });

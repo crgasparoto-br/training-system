@@ -51,6 +51,7 @@ describe('professor detail routes', () => {
   const app = express();
   app.use(express.json());
   app.use('/professores', router);
+  app.put('/professores/:id', (_req, res) => res.status(204).end());
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -104,5 +105,34 @@ describe('professor detail routes', () => {
     expect(response.status).toBe(403);
     expect(mockGetMostPermissiveDataScope).not.toHaveBeenCalled();
     expect(mockListByAccessScope).not.toHaveBeenCalled();
+  });
+
+  it('permite que a atualização continue somente para registro acessível', async () => {
+    const response = await request(app)
+      .put('/professores/professor-visible')
+      .send({ name: 'Atualizado' });
+
+    expect(response.status).toBe(204);
+    expect(mockGetMostPermissiveDataScope).toHaveBeenCalledWith(
+      expect.anything(),
+      ['collaborators.registration']
+    );
+  });
+
+  it('retorna 404 uniforme ao atualizar id inexistente ou de outro tenant', async () => {
+    const missingResponse = await request(app)
+      .put('/professores/professor-missing')
+      .send({ name: 'Atualizado' });
+
+    mockListByAccessScope.mockResolvedValue([]);
+    const crossContractResponse = await request(app)
+      .put('/professores/professor-visible')
+      .set('x-test-contract', 'contract-2')
+      .send({ name: 'Atualizado' });
+
+    expect(missingResponse.status).toBe(404);
+    expect(crossContractResponse.status).toBe(404);
+    expect(missingResponse.body.error).toBe('Colaborador não encontrado');
+    expect(crossContractResponse.body.error).toBe('Colaborador não encontrado');
   });
 });

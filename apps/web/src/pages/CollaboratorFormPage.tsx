@@ -2,10 +2,16 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
-import type { BankOption, CollaboratorFunctionOption, ProfessorSummary } from '@corrida/types';
+import type {
+  BankOption,
+  CollaboratorFunctionOption,
+  HourlyRateLevel,
+  ProfessorSummary,
+} from '@corrida/types';
 import { ArrowLeft } from 'lucide-react';
 import { professorService } from '../services/professor.service';
 import { collaboratorFunctionService } from '../services/collaborator-function.service';
+import { hourlyRateLevelService } from '../services/hourly-rate-level.service';
 import { bankService } from '../services/bank.service';
 import { useAuthStore } from '../stores/useAuthStore';
 import { canAccessBlock, getDataScopeForScreen } from '../access/access-control';
@@ -22,16 +28,18 @@ import {
 } from '../features/collaborators/collaborator-model';
 import { confirmDiscardChanges, useUnsavedChangesGuard } from '../features/collaborators/useUnsavedChangesGuard';
 
+const ACCESS_REFRESH_SIGNAL_KEY = 'auth-permissions-updated-at';
 const outlineLinkButtonClassName = 'inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-input bg-card px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent';
 
 export function CollaboratorFormPage({ mode }: { mode: 'create' | 'edit' }) {
   const { id = '' } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuthStore();
+  const { user, loadUser } = useAuthStore();
   const [collaborator, setCollaborator] = useState<ProfessorSummary | null>(null);
   const [items, setItems] = useState<ProfessorSummary[]>([]);
   const [functions, setFunctions] = useState<CollaboratorFunctionOption[]>([]);
   const [banks, setBanks] = useState<BankOption[]>([]);
+  const [hourlyRateLevels, setHourlyRateLevels] = useState<HourlyRateLevel[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -77,12 +85,14 @@ export function CollaboratorFormPage({ mode }: { mode: 'create' | 'edit' }) {
       detailRequest,
       collaboratorFunctionService.list(),
       bankService.list(),
+      hourlyRateLevelService.list(),
     ])
-      .then(([professors, detail, collaboratorFunctions, bankOptions]) => {
+      .then(([professors, detail, collaboratorFunctions, bankOptions, rateLevels]) => {
         if (!active) return;
         setItems(professors);
         setFunctions(collaboratorFunctions);
         setBanks(bankOptions);
+        setHourlyRateLevels(rateLevels);
 
         if (mode === 'edit') {
           if (!detail) {
@@ -156,6 +166,12 @@ export function CollaboratorFormPage({ mode }: { mode: 'create' | 'edit' }) {
         : toUpdateProfessorRequest(values);
       const updated = await professorService.update(collaborator.id, payload);
       reset(createCollaboratorFormValues(updated));
+
+      if (editingOwnRecord) {
+        await loadUser();
+        localStorage.setItem(ACCESS_REFRESH_SIGNAL_KEY, String(Date.now()));
+      }
+
       navigate(`/consultas/colaboradores/${updated.id}`, {
         replace: true,
         state: { success: 'Alterações salvas com sucesso.' },
@@ -168,6 +184,11 @@ export function CollaboratorFormPage({ mode }: { mode: 'create' | 'edit' }) {
   });
 
   const handleAvatarFile = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      setError('Selecione um arquivo de imagem válido.');
+      return;
+    }
+
     setUploadingAvatar(true);
     setError(null);
     try {
@@ -181,6 +202,11 @@ export function CollaboratorFormPage({ mode }: { mode: 'create' | 'edit' }) {
   };
 
   const handleContractFile = async (file: File) => {
+    if (file.type !== 'application/pdf') {
+      setError('Selecione um arquivo PDF válido.');
+      return;
+    }
+
     setUploadingContract(true);
     setError(null);
     try {
@@ -249,6 +275,7 @@ export function CollaboratorFormPage({ mode }: { mode: 'create' | 'edit' }) {
         collaboratorFunctions={functions}
         managers={managers}
         banks={banks}
+        hourlyRateLevels={hourlyRateLevels}
         showCollaboratorBlock={showCollaboratorBlock}
         showManagerBlock={showManagerBlock}
         administrativeFieldsEnabled={administrativeFieldsEnabled}
