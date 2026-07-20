@@ -102,7 +102,7 @@ const definitionByKey = new Map(contractVariableDefinitions.map((definition) => 
 
 export const extractContractVariableKeys = (htmlParts: Array<string | null | undefined>) => {
   const found = new Set<string>();
-  const tokenPattern = /{{\s*([a-zA-Z0-9_.]+)\s*}}/gu;
+  const tokenPattern = /\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}/gu;
   for (const html of htmlParts) {
     if (!html) continue;
     for (const match of html.matchAll(tokenPattern)) {
