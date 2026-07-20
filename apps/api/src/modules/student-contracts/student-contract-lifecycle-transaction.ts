@@ -1,7 +1,24 @@
 import { Prisma, type StudentContract } from '@prisma/client';
 import { resolveSignedContractActivation } from './student-contract-activation.js';
+import type { ContractPartyType } from '../contracts/contract-variable-definitions.js';
 
 type TransactionClient = Prisma.TransactionClient;
+type ContractLink = StudentContract & {
+  collaboratorId?: string;
+  contract: {
+    id?: string;
+    status: string;
+    signedAt: Date | null;
+  };
+};
+
+export type TransactionalPartyContractLifecycleResult = {
+  link: ContractLink;
+  partyType: ContractPartyType;
+  activationDeferred: boolean;
+  reason: 'awaiting_signature' | 'scheduled_start' | 'activated';
+  effectiveAt?: Date;
+};
 
 export type TransactionalStudentContractLifecycleResult = {
   studentContract: StudentContract;
@@ -10,29 +27,139 @@ export type TransactionalStudentContractLifecycleResult = {
   effectiveAt?: Date;
 };
 
-const activateCandidateAt = async (
-  tx: TransactionClient,
-  studentContractId: string,
-  effectiveAt: Date
-) => {
-  const initialCandidate = await tx.studentContract.findUnique({
-    where: { id: studentContractId },
-    select: { alunoId: true },
-  });
+const delegateFor = (tx: TransactionClient, partyType: ContractPartyType) =>
+  partyType === 'STUDENT'
+    ? (tx as any).studentContract
+    : (tx as any).collaboratorContract;
 
-  if (!initialCandidate) {
-    throw new Error('Vínculo do contrato substituto não encontrado');
+const partyIdField = (partyType: ContractPartyType) =>
+  partyType === 'STUDENT' ? 'alunoId' : 'collaboratorId';
+
+const currentPointerField = (partyType: ContractPartyType) =>
+  partyType === 'STUDENT' ? 'currentStudentContractId' : 'currentCollaboratorContractId';
+
+const partyDelegate = (tx: TransactionClient, partyType: ContractPartyType) =>
+  partyType === 'STUDENT' ? (tx as any).aluno : (tx as any).professor;
+
+const lockParty = async (
+  tx: TransactionClient,
+  partyType: ContractPartyType,
+  partyId: string
+) => {
+  if (partyType === 'STUDENT') {
+    await tx.$queryRaw(Prisma.sql`
+      SELECT "id"
+      FROM "Athlete"
+      WHERE "id" = ${partyId}
+      FOR UPDATE
+    `);
+    return;
   }
 
   await tx.$queryRaw(Prisma.sql`
     SELECT "id"
-    FROM "Aluno"
-    WHERE "id" = ${initialCandidate.alunoId}
+    FROM "Educator"
+    WHERE "id" = ${partyId}
     FOR UPDATE
   `);
+};
 
-  const candidate = await tx.studentContract.findUnique({
-    where: { id: studentContractId },
+const loadCandidate = async (
+  tx: TransactionClient,
+  partyType: ContractPartyType,
+  linkId: string
+): Promise<ContractLink | null> => {
+  const candidate = await delegateFor(tx, partyType).findUnique({
+    where: { id: linkId },
+    include: {
+      contract: {
+        select: {
+          id: true,
+          status: true,
+          signedAt: true,
+        },
+      },
+    },
+  });
+  return candidate as ContractLink | null;
+};
+
+const updateCurrentPointer = async (
+  tx: TransactionClient,
+  partyType: ContractPartyType,
+  partyId: string,
+  linkId: string
+) => {
+  await partyDelegate(tx, partyType).update({
+    where: { id: partyId },
+    data: { [currentPointerField(partyType)]: linkId },
+  });
+};
+
+const activateCandidateAt = async (
+  tx: TransactionClient,
+  partyType: ContractPartyType,
+  linkId: string,
+  effectiveAt: Date
+) => {
+  const delegate = delegateFor(tx, partyType);
+  const idField = partyIdField(partyType);
+  const initialCandidate = await delegate.findUnique({
+    where: { id: linkId },
+    select: { [idField]: true },
+  });
+
+  const partyId = initialCandidate?.[idField] as string | undefined;
+  if (!partyId) {
+    throw new Error('Vínculo do contrato substituto não encontrado');
+  }
+
+  await lockParty(tx, partyType, partyId);
+
+  const candidate = await loadCandidate(tx, partyType, linkId);
+  if (!candidate) {
+    throw new Error('Vínculo do contrato substituto não encontrado');
+  }
+
+  if (candidate.status === 'active') {
+    await updateCurrentPointer(tx, partyType, partyId, candidate.id);
+    return candidate;
+  }
+
+  if (
+    candidate.status === 'canceled' ||
+    candidate.status === 'expired' ||
+    candidate.status === 'terminated' ||
+    candidate.status === 'legacy'
+  ) {
+    throw new Error('Contrato substituto não está disponível para ativação');
+  }
+
+  if (candidate.contract.status !== 'SIGNED') {
+    throw new Error('Somente contrato assinado pode entrar em vigor');
+  }
+
+  await delegate.updateMany({
+    where: {
+      [idField]: partyId,
+      status: 'active',
+      id: { not: candidate.id },
+    },
+    data: {
+      status: 'terminated',
+      endDate: effectiveAt,
+    },
+  });
+
+  const activated = await delegate.update({
+    where: { id: candidate.id },
+    data: {
+      status: 'active',
+      startDate: effectiveAt,
+      signedAt: candidate.signedAt ?? candidate.contract.signedAt ?? effectiveAt,
+      canceledAt: null,
+      cancellationReason: null,
+    },
     include: {
       contract: {
         select: {
@@ -44,70 +171,18 @@ const activateCandidateAt = async (
     },
   });
 
-  if (!candidate) {
-    throw new Error('Vínculo do contrato substituto não encontrado');
-  }
-
-  if (candidate.status === 'active') {
-    await tx.aluno.update({
-      where: { id: candidate.alunoId },
-      data: { currentStudentContractId: candidate.id },
-    });
-    return candidate;
-  }
-
-  if (
-    candidate.status === 'canceled' ||
-    candidate.status === 'expired' ||
-    candidate.status === 'terminated'
-  ) {
-    throw new Error('Contrato substituto não está disponível para ativação');
-  }
-
-  if (candidate.contract.status !== 'SIGNED') {
-    throw new Error('Somente contrato assinado pode entrar em vigor');
-  }
-
-  await tx.studentContract.updateMany({
-    where: {
-      alunoId: candidate.alunoId,
-      status: 'active',
-      id: { not: candidate.id },
-    },
-    data: {
-      status: 'terminated',
-      endDate: effectiveAt,
-    },
-  });
-
-  const activated = await tx.studentContract.update({
-    where: { id: candidate.id },
-    data: {
-      status: 'active',
-      startDate: effectiveAt,
-      signedAt: candidate.signedAt ?? candidate.contract.signedAt ?? effectiveAt,
-      canceledAt: null,
-      cancellationReason: null,
-    },
-  });
-
-  await tx.aluno.update({
-    where: { id: candidate.alunoId },
-    data: { currentStudentContractId: activated.id },
-  });
-
-  return activated;
+  await updateCurrentPointer(tx, partyType, partyId, activated.id);
+  return activated as ContractLink;
 };
 
 const registerSignedCandidate = async (
   tx: TransactionClient,
-  studentContractId: string,
+  partyType: ContractPartyType,
+  linkId: string,
   signedAt: Date
 ) => {
-  const candidate = await tx.studentContract.findUnique({
-    where: { id: studentContractId },
-  });
-
+  const delegate = delegateFor(tx, partyType);
+  const candidate = await delegate.findUnique({ where: { id: linkId } });
   if (!candidate) {
     throw new Error('Vínculo do contrato assinado não encontrado');
   }
@@ -118,7 +193,7 @@ const registerSignedCandidate = async (
   });
 
   if (activation.scheduled) {
-    const scheduled = await tx.studentContract.update({
+    const scheduled = await delegate.update({
       where: { id: candidate.id },
       data: {
         status: 'pending_signature',
@@ -127,44 +202,40 @@ const registerSignedCandidate = async (
         canceledAt: null,
         cancellationReason: null,
       },
+      include: {
+        contract: {
+          select: {
+            id: true,
+            status: true,
+            signedAt: true,
+          },
+        },
+      },
     });
-
-    return {
-      studentContract: scheduled,
-      activation,
-    };
+    return { link: scheduled as ContractLink, activation };
   }
 
   const activated = await activateCandidateAt(
     tx,
+    partyType,
     candidate.id,
     activation.effectiveAt
   );
-  return {
-    studentContract: activated,
-    activation,
-  };
+  return { link: activated, activation };
 };
 
-export async function prepareOrActivateStudentContractInTransaction(
+export async function prepareOrActivatePartyContractInTransaction(
   tx: TransactionClient,
-  studentContractId: string,
+  partyType: ContractPartyType,
+  linkId: string,
   now = new Date()
-): Promise<TransactionalStudentContractLifecycleResult> {
-  const candidate = await tx.studentContract.findUnique({
-    where: { id: studentContractId },
-    include: {
-      contract: {
-        select: {
-          status: true,
-          signedAt: true,
-        },
-      },
-    },
-  });
+): Promise<TransactionalPartyContractLifecycleResult> {
+  const delegate = delegateFor(tx, partyType);
+  const candidate = await loadCandidate(tx, partyType, linkId);
 
   if (!candidate) {
-    throw new Error('Vínculo de contrato do aluno não encontrado');
+    const label = partyType === 'STUDENT' ? 'aluno' : 'colaborador';
+    throw new Error(`Vínculo de contrato do ${label} não encontrado`);
   }
 
   if (
@@ -172,7 +243,8 @@ export async function prepareOrActivateStudentContractInTransaction(
     candidate.contract.status === 'EXPIRED' ||
     candidate.status === 'canceled' ||
     candidate.status === 'expired' ||
-    candidate.status === 'terminated'
+    candidate.status === 'terminated' ||
+    candidate.status === 'legacy'
   ) {
     throw new Error('Contrato substituto não está disponível para ativação');
   }
@@ -186,15 +258,23 @@ export async function prepareOrActivateStudentContractInTransaction(
       candidate.contract.status === 'SENT' || candidate.contract.status === 'VIEWED'
         ? 'pending_signature'
         : 'draft';
-    const prepared = await tx.studentContract.update({
+    const prepared = await delegate.update({
       where: { id: candidate.id },
-      data: {
-        status: pendingStatus,
+      data: { status: pendingStatus },
+      include: {
+        contract: {
+          select: {
+            id: true,
+            status: true,
+            signedAt: true,
+          },
+        },
       },
     });
 
     return {
-      studentContract: prepared,
+      link: prepared as ContractLink,
+      partyType,
       activationDeferred: true,
       reason: 'awaiting_signature',
     };
@@ -202,9 +282,6 @@ export async function prepareOrActivateStudentContractInTransaction(
 
   const persistedSignedAt = candidate.contract.signedAt ?? candidate.signedAt;
 
-  // Only a link that already recorded the signature and remained scheduled may
-  // activate at its planned start date. A newly signed document can have an old
-  // requested start date, but its effective date must never precede signedAt.
   if (
     candidate.status === 'pending_signature' &&
     candidate.signedAt &&
@@ -213,11 +290,13 @@ export async function prepareOrActivateStudentContractInTransaction(
   ) {
     const activated = await activateCandidateAt(
       tx,
+      partyType,
       candidate.id,
       candidate.startDate
     );
     return {
-      studentContract: activated,
+      link: activated,
+      partyType,
       activationDeferred: false,
       reason: 'activated',
       effectiveAt: candidate.startDate,
@@ -225,12 +304,45 @@ export async function prepareOrActivateStudentContractInTransaction(
   }
 
   const signedAt = persistedSignedAt ?? now;
-  const lifecycle = await registerSignedCandidate(tx, candidate.id, signedAt);
+  const lifecycle = await registerSignedCandidate(tx, partyType, candidate.id, signedAt);
 
   return {
-    studentContract: lifecycle.studentContract,
+    link: lifecycle.link,
+    partyType,
     activationDeferred: lifecycle.activation.scheduled,
     reason: lifecycle.activation.scheduled ? 'scheduled_start' : 'activated',
     effectiveAt: lifecycle.activation.effectiveAt,
   };
+}
+
+export async function prepareOrActivateStudentContractInTransaction(
+  tx: TransactionClient,
+  studentContractId: string,
+  now = new Date()
+): Promise<TransactionalStudentContractLifecycleResult> {
+  const result = await prepareOrActivatePartyContractInTransaction(
+    tx,
+    'STUDENT',
+    studentContractId,
+    now
+  );
+  return {
+    studentContract: result.link as StudentContract,
+    activationDeferred: result.activationDeferred,
+    reason: result.reason,
+    effectiveAt: result.effectiveAt,
+  };
+}
+
+export async function prepareOrActivateCollaboratorContractInTransaction(
+  tx: TransactionClient,
+  collaboratorContractId: string,
+  now = new Date()
+) {
+  return prepareOrActivatePartyContractInTransaction(
+    tx,
+    'COLLABORATOR',
+    collaboratorContractId,
+    now
+  );
 }
