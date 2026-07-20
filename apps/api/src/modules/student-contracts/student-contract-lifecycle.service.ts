@@ -112,14 +112,29 @@ export const studentContractLifecycleService = {
         },
       });
 
-      const lifecycle = link.partyType === 'STUDENT'
-        ? await prepareOrActivateStudentContractInTransaction(tx, link.linkId, signedAt)
-        : await prepareOrActivateCollaboratorContractInTransaction(tx, link.linkId, signedAt);
-      const effectiveAt = lifecycle.effectiveAt ?? signedAt;
-      const scheduled = lifecycle.reason === 'scheduled_start';
-      const linkStatus = link.partyType === 'STUDENT'
-        ? lifecycle.studentContract.status
-        : lifecycle.collaboratorContract.status;
+      let effectiveAt: Date;
+      let scheduled: boolean;
+      let linkStatus: string;
+
+      if (link.partyType === 'STUDENT') {
+        const lifecycle = await prepareOrActivateStudentContractInTransaction(
+          tx,
+          link.linkId,
+          signedAt
+        );
+        effectiveAt = lifecycle.effectiveAt ?? signedAt;
+        scheduled = lifecycle.reason === 'scheduled_start';
+        linkStatus = lifecycle.studentContract.status;
+      } else {
+        const lifecycle = await prepareOrActivateCollaboratorContractInTransaction(
+          tx,
+          link.linkId,
+          signedAt
+        );
+        effectiveAt = lifecycle.effectiveAt ?? signedAt;
+        scheduled = lifecycle.reason === 'scheduled_start';
+        linkStatus = lifecycle.collaboratorContract.status;
+      }
 
       await tx.contractAuditLog.create({
         data: {
