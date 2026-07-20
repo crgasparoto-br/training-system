@@ -51,8 +51,10 @@ const apiProcess = spawn(process.execPath, ['dist/main.js'], {
   stdio: 'inherit',
 });
 
+let forwardedSignal = null;
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.on(signal, () => {
+    forwardedSignal = signal;
     if (!apiProcess.killed) apiProcess.kill(signal);
   });
 }
@@ -62,9 +64,9 @@ apiProcess.once('error', (error) => {
   process.exit(1);
 });
 
-apiProcess.once('exit', (code, signal) => {
-  if (signal) {
-    process.kill(process.pid, signal);
+apiProcess.once('exit', (code) => {
+  if (forwardedSignal) {
+    process.exit(0);
     return;
   }
   process.exit(code ?? 1);
