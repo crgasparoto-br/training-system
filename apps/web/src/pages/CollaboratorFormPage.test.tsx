@@ -167,6 +167,21 @@ describe('CollaboratorFormPage', () => {
     expect(await screen.findByText('Dados jurídicos e financeiros validados com sucesso.')).toBeInTheDocument();
   });
 
+  it('preserva a senha temporária quando apenas a recarga posterior falha', async () => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    mocks.get.mockReset()
+      .mockResolvedValueOnce(collaborator)
+      .mockRejectedValueOnce(new Error('Falha de recarga'));
+
+    render(<MemoryRouter><CollaboratorFormPage mode="edit" /></MemoryRouter>);
+    const resetButton = await screen.findByRole('button', { name: /redefinir senha/i });
+    fireEvent.click(resetButton);
+
+    await waitFor(() => expect(mocks.resetPassword).toHaveBeenCalledWith('professor-1'));
+    expect(await screen.findByText(/senha temporária:.*Senha123/i)).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent(/ação foi concluída.*recarregue a página/i);
+  });
+
   it('salva e permanece no contexto do mesmo colaborador', async () => {
     render(<MemoryRouter><CollaboratorFormPage mode="edit" /></MemoryRouter>);
     const nameInput = await screen.findByLabelText('Nome');
