@@ -4,6 +4,7 @@ const request = require('supertest');
 
 const mockListByAccessScope = jest.fn();
 const mockGetMostPermissiveDataScope = jest.fn();
+let mockScreenAllowed = true;
 
 jest.mock('../src/modules/auth/auth.middleware', () => ({
   authMiddleware: (
@@ -27,8 +28,13 @@ jest.mock('../src/modules/auth/auth.middleware', () => ({
 jest.mock('../src/modules/access-control/index', () => ({
   screenAccessMiddleware:
     () =>
-    (_req: express.Request, _res: express.Response, next: express.NextFunction) =>
-      next(),
+    (_req: express.Request, res: express.Response, next: express.NextFunction) => {
+      if (!mockScreenAllowed) {
+        res.status(403).json({ success: false, error: 'Acesso negado' });
+        return;
+      }
+      next();
+    },
   getMostPermissiveDataScopeForProfessor: (...args: unknown[]) =>
     mockGetMostPermissiveDataScope(...args),
 }));
@@ -48,6 +54,7 @@ describe('professor detail routes', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockScreenAllowed = true;
     mockGetMostPermissiveDataScope.mockResolvedValue('managed');
     mockListByAccessScope.mockResolvedValue([
       { id: 'professor-visible', user: { profile: { name: 'Colaborador visível' } } },
@@ -86,6 +93,16 @@ describe('professor detail routes', () => {
     const response = await request(app).get('/professores/professor-visible');
 
     expect(response.status).toBe(404);
+    expect(mockListByAccessScope).not.toHaveBeenCalled();
+  });
+
+  it('nega a leitura individual sem permissão de tela', async () => {
+    mockScreenAllowed = false;
+
+    const response = await request(app).get('/professores/professor-visible');
+
+    expect(response.status).toBe(403);
+    expect(mockGetMostPermissiveDataScope).not.toHaveBeenCalled();
     expect(mockListByAccessScope).not.toHaveBeenCalled();
   });
 });
