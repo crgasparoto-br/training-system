@@ -1,8 +1,14 @@
-import { PrismaClient, type Prisma } from '@prisma/client';
+import { PrismaClient, Prisma, type Prisma as PrismaTypes } from '@prisma/client';
 import crypto from 'crypto';
 import { contractDocumentService } from './contract-document.service.js';
 import { loadContractServiceVariableContext } from './contract-service-context.js';
 import { prepareOrActivateStudentContractInTransaction } from '../student-contracts/student-contract-lifecycle-transaction.js';
+import {
+  assertTemplateSupportsParty,
+  assertTemplateVariablesCompatible,
+  assertUsedContractVariablesFilled,
+  type ContractTemplateApplicability,
+} from './contract-variable-definitions.js';
 
 const prisma = new PrismaClient();
 
@@ -21,10 +27,7 @@ export type ContractGenerationPersistenceOptions = {
 };
 
 const normalizeDocument = (value?: string | null) => value?.replace(/\D/gu, '') || '';
-const currency = new Intl.NumberFormat('pt-BR', {
-  style: 'currency',
-  currency: 'BRL',
-});
+const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 const dateFormat = new Intl.DateTimeFormat('pt-BR', {
   day: '2-digit',
   month: '2-digit',
@@ -67,18 +70,12 @@ async function runInTransaction<T>(
   work: (tx: Prisma.TransactionClient) => Promise<T>
 ): Promise<T> {
   const prismaClient = client as PrismaClient;
-  if (typeof prismaClient.$transaction === 'function') {
-    return prismaClient.$transaction(work);
-  }
+  if (typeof prismaClient.$transaction === 'function') return prismaClient.$transaction(work);
   return work(client as Prisma.TransactionClient);
 }
 
 const isDbClient = (value: ContractGenerationActor | DbClient | undefined): value is DbClient =>
-  Boolean(
-    value &&
-      typeof value === 'object' &&
-      ('contractTemplate' in value || '$transaction' in value)
-  );
+  Boolean(value && typeof value === 'object' && ('contractTemplate' in value || '$transaction' in value));
 
 const assertActorCanAccessAluno = (
   aluno: { professorId: string },
@@ -100,6 +97,16 @@ const assertActorCanAssignProfessor = (
   }
 };
 
+async function loadApplicability(client: DbClient, templateId: string) {
+  const rows = await client.$queryRaw<Array<{ applicability: ContractTemplateApplicability }>>(Prisma.sql`
+    SELECT "applicability"::text AS "applicability"
+    FROM "ContractTemplate"
+    WHERE "id" = ${templateId}
+    LIMIT 1
+  `);
+  return rows[0]?.applicability ?? 'STUDENT';
+}
+
 async function resolveGenerationData(
   client: DbClient,
   companyContractId: string,
@@ -109,11 +116,10 @@ async function resolveGenerationData(
 ) {
   const templateId = String(input.templateId || '').trim();
   const alunoId = String(input.alunoId || '').trim();
-
   if (!templateId) throw new Error('Informe o modelo de contrato');
   if (!alunoId) throw new Error('Informe o aluno do contrato');
 
-  const [template, company, aluno] = await Promise.all([
+  const [template, applicability, company, aluno] = await Promise.all([
     client.contractTemplate.findFirst({
       where: {
         id: templateId,
@@ -122,6 +128,7 @@ async function resolveGenerationData(
       },
       include: { clauses: { orderBy: { order: 'asc' as const } } },
     }),
+    loadApplicability(client, templateId),
     client.companyContract.findUnique({ where: { id: companyContractId } }),
     client.aluno.findUnique({
       where: { id: alunoId },
@@ -133,16 +140,21 @@ async function resolveGenerationData(
   ]);
 
   if (!template) {
-    throw new Error(
-      requireActiveTemplate
-        ? 'Modelo de contrato ativo não encontrado para o contrato autenticado'
-        : 'Modelo de contrato não encontrado para o contrato autenticado'
-    );
+    throw new Error(requireActiveTemplate
+      ? 'Modelo de contrato ativo não encontrado para o contrato autenticado'
+      : 'Modelo de contrato não encontrado para o contrato autenticado');
   }
   if (!company) throw new Error('Contrato autenticado não encontrado');
   if (!aluno || aluno.professor.contractId !== companyContractId) {
     throw new Error('Aluno não pertence ao contrato autenticado');
   }
+
+  assertTemplateSupportsParty(applicability, 'STUDENT');
+  const usedVariables = assertTemplateVariablesCompatible(applicability, [
+    template.headerHtml,
+    template.footerHtml,
+    ...template.clauses.map((clause) => clause.bodyHtml),
+  ]);
   assertActorCanAccessAluno(aluno, actor);
 
   const documentServiceId = template.serviceId?.trim() || null;
@@ -216,8 +228,11 @@ async function resolveGenerationData(
     },
   };
 
+  assertUsedContractVariablesFilled(usedVariables, context);
+
   return {
     template,
+    applicability,
     alunoId,
     professorId: professor?.id || null,
     documentServiceId,
@@ -246,6 +261,7 @@ export const contractAuthoritativeGenerationService = {
     return {
       html: contractDocumentService.renderTemplate(resolved.template, resolved.context),
       context: resolved.context,
+      party: { type: 'STUDENT' as const, id: resolved.alunoId },
     };
   },
 
@@ -268,6 +284,11 @@ export const contractAuthoritativeGenerationService = {
         resolved.template,
         resolved.context
       );
+      const snapshot = {
+        party: { type: 'STUDENT', id: resolved.alunoId },
+        values: resolved.context,
+      } as PrismaTypes.InputJsonObject;
+
       const created = await tx.contract.create({
         data: {
           companyContractId,
@@ -282,7 +303,7 @@ export const contractAuthoritativeGenerationService = {
           status: 'GENERATED',
           title: resolved.template.name,
           renderedHtml,
-          dataSnapshot: resolved.context as Prisma.InputJsonObject,
+          dataSnapshot: snapshot,
           documentHash: documentHash(renderedHtml),
         },
       });
@@ -312,7 +333,11 @@ export const contractAuthoritativeGenerationService = {
           action: 'GENERATED' as never,
           ipAddress: actor?.ipAddress,
           userAgent: actor?.userAgent,
-          details: { templateId: resolved.template.id },
+          details: {
+            templateId: resolved.template.id,
+            partyType: 'STUDENT',
+            partyId: resolved.alunoId,
+          },
         },
       });
 
