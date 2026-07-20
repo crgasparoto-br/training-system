@@ -40,6 +40,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Upload source snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-263-source-${{ github.run_id }}
+          path: |
+            .
+            !node_modules
+            !.git
+          include-hidden-files: true
+          retention-days: 1
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
