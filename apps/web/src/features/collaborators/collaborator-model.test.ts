@@ -3,7 +3,6 @@ import type { ProfessorSummary } from '@corrida/types';
 import {
   collaboratorFormSchema,
   createCollaboratorFormValues,
-  findCollaboratorById,
   toCreateProfessorRequest,
   toSelfServiceUpdateProfessorRequest,
   toUpdateProfessorRequest,
@@ -31,6 +30,7 @@ const collaborator = {
       cpf: '12345678900',
       bankCode: '001',
       bankName: 'Banco do Brasil',
+      avatar: '/uploads/professores/avatar.webp',
     },
   },
   contract: { id: 'contract-1', type: 'academy', document: '123' },
@@ -46,8 +46,10 @@ describe('collaborator model', () => {
       collaboratorFunctionId: 'function-1',
       operationalRoleIds: ['function-1'],
       hasSignedContract: true,
+      avatar: '/uploads/professores/avatar.webp',
       hourlyRates: { personal: '100,00', consulting: '80,00', evaluation: '120,00' },
     });
+    expect(collaboratorFormSchema.safeParse(values).success).toBe(true);
   });
 
   it('preserva os campos atuais nos payloads de criação e edição', () => {
@@ -67,6 +69,14 @@ describe('collaborator model', () => {
       currentStatus: 'Ativo',
       hasSignedContract: true,
     });
+  });
+
+  it('aceita separadores monetários em português e decimal técnico', () => {
+    const base = { ...createCollaboratorFormValues(collaborator), password: '12345678' };
+    expect(toCreateProfessorRequest({
+      ...base,
+      hourlyRates: { personal: '1.234,56', consulting: '100.50', evaluation: '1000' },
+    }).hourlyRates).toEqual({ personal: 1234.56, consulting: 100.5, evaluation: 1000 });
   });
 
   it('remove campos administrativos do autoatendimento', () => {
@@ -89,10 +99,5 @@ describe('collaborator model', () => {
       signedContractDocumentUrl: '',
     });
     expect(result.success).toBe(false);
-  });
-
-  it('retorna nulo para id inexistente ou fora da lista autorizada', () => {
-    expect(findCollaboratorById([collaborator], 'professor-1')).toBe(collaborator);
-    expect(findCollaboratorById([collaborator], 'outro-contrato')).toBeNull();
   });
 });
