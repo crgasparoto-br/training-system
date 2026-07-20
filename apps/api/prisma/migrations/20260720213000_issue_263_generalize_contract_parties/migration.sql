@@ -21,7 +21,12 @@ EXCEPTION
   WHEN duplicate_object THEN NULL;
 END $$;
 
-ALTER TYPE "StudentContractStatus" ADD VALUE IF NOT EXISTS 'legacy';
+DO $$
+BEGIN
+  CREATE TYPE "CollaboratorContractStatus" AS ENUM ('draft', 'pending_signature', 'active', 'expired', 'canceled', 'terminated', 'legacy');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
 ALTER TABLE "ContractTemplate"
   ADD COLUMN IF NOT EXISTS "applicability" "ContractTemplateApplicability" NOT NULL DEFAULT 'STUDENT';
@@ -68,7 +73,7 @@ CREATE TABLE IF NOT EXISTS "CollaboratorContract" (
   "id" TEXT NOT NULL,
   "collaboratorId" TEXT NOT NULL,
   "contractId" TEXT,
-  "status" "StudentContractStatus" NOT NULL DEFAULT 'draft',
+  "status" "CollaboratorContractStatus" NOT NULL DEFAULT 'draft',
   "origin" "ContractLinkOrigin" NOT NULL DEFAULT 'ELECTRONIC',
   "startDate" TIMESTAMP(3),
   "endDate" TIMESTAMP(3),
