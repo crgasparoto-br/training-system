@@ -16,7 +16,7 @@ A consulta individual usa `GET /professores/:id` e aplica, no backend:
 3. `contractId` do usuário autenticado;
 4. `dataScope` efetivo (`self`, `managed` ou `contract`).
 
-A atualização passa por uma pré-validação equivalente antes do `PUT /professores/:id`. Um identificador inexistente, de outro contrato ou fora do escopo retorna `404` tanto na consulta quanto na edição, sem expor a existência do registro.
+A atualização passa por uma pré-validação equivalente antes do `PUT /professores/:id`. Um identificador inexistente, de outro contrato ou fora do escopo retorna `404` tanto na consulta quanto na edição, sem expor a existência do registro. A consulta é feita diretamente pelo identificador combinado ao filtro de acesso, sem carregar a lista inteira de colaboradores.
 
 A tela de consulta não renderiza campos editáveis. O botão e a rota de edição dependem de `collaborators.registration`. Ações administrativas adicionais continuam protegidas por seus `blockKey` e exigem escopo de contrato.
 
@@ -28,7 +28,7 @@ Cadastro e edição reutilizam o mesmo schema, mapeamentos e seções visuais. O
 - consulta de CEP e preenchimento de endereço;
 - foto do colaborador;
 - perfil profissional, função principal, gestor e funções operacionais;
-- dados jurídicos, banco pesquisável por código ou nome e validação financeira;
+- dados jurídicos, banco pesquisável por código ou nome com navegação por teclado e validação financeira;
 - valores por tipo de atuação, validação monetária e classificação pelas faixas configuradas;
 - contrato assinado legado e upload do PDF.
 
@@ -47,7 +47,7 @@ Os testes automatizados cobrem:
 - mapeamento de criação, edição e autoatendimento;
 - valores monetários aceitos, inválidos e negativos;
 - classificação de remuneração pelas faixas configuradas;
-- busca de bancos por nome e retorno do código selecionado;
+- busca de bancos por nome, seleção pelo teclado e retorno do código selecionado;
 - formulário real com CEP, foto, remuneração e contrato legado;
 - avatares legados com caminho relativo;
 - obrigatoriedade do PDF quando o contrato é marcado como assinado;
