@@ -10,6 +10,16 @@ O projeto usa Prisma para modelagem e acesso ao banco.
 - Mudancas que afetam permissao ou escopo de dados devem atualizar `docs/architecture/auth-and-access-control.md`.
 - Seeds ou dados demo devem ser atualizados quando a validacao local depender deles.
 
+## Conexoes de runtime e migrations
+
+- `DATABASE_URL` pertence ao processo da API em execucao. Em producao, deve usar uma credencial de aplicacao e, quando o provedor oferecer, um endpoint com pool.
+- `MIGRATION_DATABASE_URL` e opcional e deve conter a conexao direta/privilegiada usada somente por `prisma migrate deploy` durante o start.
+- O script de start restaura `DATABASE_URL` antes de iniciar `dist/main.js`; a API nao deve permanecer conectada com o papel de migration.
+- `PRISMA_CONNECTION_LIMIT` limita o numero de conexoes por `PrismaClient`. Quando a URL nao possui `connection_limit`, o runtime produtivo usa `1` por padrao e permite ajuste explicito.
+- `PRISMA_POOL_TIMEOUT_SECONDS` controla por quanto tempo uma requisicao aguarda conexao livre; o padrao produtivo e `15` segundos quando a URL nao define `pool_timeout`.
+- Nao usar `Promise.all` para fan-out amplo de consultas independentes em telas que tambem disparam varias requisicoes HTTP. Prefira consulta agregada, sequencia controlada ou concorrencia limitada.
+- Esgotamento ou timeout do pool deve retornar HTTP `503` com mensagem segura. Nome de usuario do banco, papel, host, URL e detalhes internos do Prisma ficam somente nos logs da API.
+
 ## Multi-tenant
 
 O `contractId` e a barreira principal entre clientes/contratos. Rotas, services e consultas devem preservar esse filtro.
@@ -23,6 +33,7 @@ Snapshots de desconforto corporal ficam em `ProntuarioDiscomfortSnapshot` e `Pro
 ## Cuidados para agentes
 
 - Nao criar `PrismaClient` em arquivos aleatorios sem necessidade.
+- Reutilizar o cliente do dominio quando funcoes relacionadas participarem do mesmo fluxo.
 - Evitar regras de negocio escondidas em queries grandes sem teste.
 - Preferir services pequenos e testaveis.
 - Validar impactos de migration em deploy.
