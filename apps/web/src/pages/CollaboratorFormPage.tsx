@@ -16,6 +16,7 @@ import { bankService } from '../services/bank.service';
 import { useAuthStore } from '../stores/useAuthStore';
 import { canAccessBlock, getDataScopeForScreen } from '../access/access-control';
 import { Button } from '../components/ui/Button';
+import { CollaboratorAdministrativeActions } from '../features/collaborators/CollaboratorAdministrativeActions';
 import { CollaboratorForm } from '../features/collaborators/CollaboratorForm';
 import { canCreateCollaborator, canWriteCollaborator, isSelfCollaborator } from '../features/collaborators/collaborator-access';
 import {
@@ -30,6 +31,7 @@ import { confirmDiscardChanges, useUnsavedChangesGuard } from '../features/colla
 
 const ACCESS_REFRESH_SIGNAL_KEY = 'auth-permissions-updated-at';
 const outlineLinkButtonClassName = 'inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-input bg-card px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent';
+const UNSAVED_ADMINISTRATIVE_ACTION_WARNING = 'As alterações não salvas do formulário serão descartadas.';
 
 export function CollaboratorFormPage({ mode }: { mode: 'create' | 'edit' }) {
   const { id = '' } = useParams();
@@ -42,9 +44,12 @@ export function CollaboratorFormPage({ mode }: { mode: 'create' | 'edit' }) {
   const [hourlyRateLevels, setHourlyRateLevels] = useState<HourlyRateLevel[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [uploadingContract, setUploadingContract] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [administrativeSuccess, setAdministrativeSuccess] = useState<string | null>(null);
+  const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
 
   const {
     register,
@@ -59,7 +64,7 @@ export function CollaboratorFormPage({ mode }: { mode: 'create' | 'edit' }) {
     defaultValues: createCollaboratorFormValues(),
   });
 
-  useUnsavedChangesGuard(isDirty && !submitting);
+  useUnsavedChangesGuard(isDirty && !submitting && !actionLoading);
 
   const dataScope = getDataScopeForScreen(user, 'collaborators.registration');
   const actorProfessorId = user?.professor?.id;
@@ -75,6 +80,15 @@ export function CollaboratorFormPage({ mode }: { mode: 'create' | 'edit' }) {
     : canEditRecord && !editingOwnRecord && showManagerBlock;
   const signedContractUploadEnabled = administrativeFieldsEnabled
     && canAccessBlock(user, 'collaborators.actions.uploadSignedContract');
+  const canUseAdministrativeActions = mode === 'edit' && canEditRecord && dataScope === 'contract';
+  const canValidateLegal = canUseAdministrativeActions
+    && canAccessBlock(user, 'collaborators.actions.validateLegalFinancial');
+  const canResetPassword = canUseAdministrativeActions
+    && canAccessBlock(user, 'collaborators.actions.resetPassword');
+  const canActivate = canUseAdministrativeActions
+    && canAccessBlock(user, 'collaborators.actions.activate');
+  const canDeactivate = canUseAdministrativeActions
+    && canAccessBlock(user, 'collaborators.actions.deactivate');
 
   useEffect(() => {
     let active = true;
@@ -141,6 +155,8 @@ export function CollaboratorFormPage({ mode }: { mode: 'create' | 'edit' }) {
   const onSubmit = handleSubmit(async (values) => {
     setSubmitting(true);
     setError(null);
+    setAdministrativeSuccess(null);
+    setTemporaryPassword(null);
     try {
       if (mode === 'create') {
         if (!values.password || values.password.length < 8) {
@@ -182,6 +198,42 @@ export function CollaboratorFormPage({ mode }: { mode: 'create' | 'edit' }) {
       setSubmitting(false);
     }
   });
+
+  const confirmAdministrativeAction = (confirmation?: string) => {
+    if (confirmation) {
+      const message = isDirty
+        ? `${confirmation}\n\n${UNSAVED_ADMINISTRATIVE_ACTION_WARNING}`
+        : confirmation;
+      return window.confirm(message);
+    }
+    return confirmDiscardChanges(isDirty);
+  };
+
+  const executeAdministrativeAction = async <T,>(
+    action: () => Promise<T>,
+    successMessage: string,
+    confirmation?: string
+  ): Promise<T | undefined> => {
+    if (!collaborator || !confirmAdministrativeAction(confirmation)) return undefined;
+
+    setActionLoading(true);
+    setError(null);
+    setAdministrativeSuccess(null);
+    setTemporaryPassword(null);
+    try {
+      const result = await action();
+      const refreshed = await professorService.get(collaborator.id);
+      setCollaborator(refreshed);
+      reset(createCollaboratorFormValues(refreshed));
+      setAdministrativeSuccess(successMessage);
+      return result;
+    } catch (actionError) {
+      setError(actionError instanceof Error ? actionError.message : 'Não foi possível concluir a ação administrativa.');
+      return undefined;
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   const handleAvatarFile = async (file: File) => {
     if (!file.type.startsWith('image/')) {
@@ -260,11 +312,52 @@ export function CollaboratorFormPage({ mode }: { mode: 'create' | 'edit' }) {
         <div>
           <Button type="button" variant="ghost" className="mb-1 -ml-3" onClick={handleCancel}><ArrowLeft size={16} /> Voltar</Button>
           <h1 className="text-2xl font-bold text-foreground">{mode === 'create' ? 'Cadastrar colaborador' : `Editar ${collaborator?.user.profile.name}`}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{mode === 'create' ? 'Inclua os dados do novo colaborador.' : 'Revise os dados e salve as alterações nesta rota dedicada.'}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{mode === 'create' ? 'Inclua os dados do novo colaborador.' : 'Revise os dados e execute ações administrativas nesta rota dedicada.'}</p>
         </div>
       </header>
 
       {error ? <div role="alert" className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">{error}</div> : null}
+
+      {mode === 'edit' && collaborator ? (
+        <CollaboratorAdministrativeActions
+          collaborator={collaborator}
+          canValidateLegal={canValidateLegal}
+          canResetPassword={canResetPassword}
+          canActivate={canActivate}
+          canDeactivate={canDeactivate}
+          loading={actionLoading}
+          successMessage={administrativeSuccess}
+          temporaryPassword={temporaryPassword}
+          onValidateLegal={() => {
+            void executeAdministrativeAction(
+              () => professorService.validateLegalFinancial(collaborator.id),
+              'Dados jurídicos e financeiros validados com sucesso.'
+            );
+          }}
+          onResetPassword={() => {
+            void executeAdministrativeAction(
+              () => professorService.resetPassword(collaborator.id),
+              'Senha temporária gerada com sucesso.',
+              'Deseja gerar uma nova senha temporária para este colaborador?'
+            ).then((result) => {
+              if (result) setTemporaryPassword(result.tempPassword);
+            });
+          }}
+          onActivate={() => {
+            void executeAdministrativeAction(
+              () => professorService.activate(collaborator.id),
+              'Colaborador reativado com sucesso.'
+            );
+          }}
+          onDeactivate={() => {
+            void executeAdministrativeAction(
+              () => professorService.deactivate(collaborator.id),
+              'Colaborador desativado com sucesso.',
+              'Deseja desativar este colaborador?'
+            );
+          }}
+        />
+      ) : null}
 
       <CollaboratorForm
         mode={mode}
@@ -285,7 +378,7 @@ export function CollaboratorFormPage({ mode }: { mode: 'create' | 'edit' }) {
         onAvatarFile={(file) => void handleAvatarFile(file)}
         onContractFile={(file) => void handleContractFile(file)}
         onCancel={handleCancel}
-        submitting={submitting}
+        submitting={submitting || actionLoading}
       />
     </form>
   );
