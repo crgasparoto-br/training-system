@@ -10,6 +10,7 @@ const mockTx = {
     update: jest.fn(),
     findUniqueOrThrow: jest.fn(),
       findFirst: jest.fn(),
+      count: jest.fn(),
     },
     studentProfile: {
       upsert: jest.fn(),
@@ -92,6 +93,7 @@ describe('alunoService assessment boundary', () => {
     mockTx.aluno.create.mockResolvedValue({ id: 'aluno-1' });
     mockTx.aluno.update.mockResolvedValue({ id: 'aluno-1', userId: 'user-1' });
     mockTx.aluno.findUniqueOrThrow.mockResolvedValue({ id: 'aluno-1' });
+    mockTx.aluno.count.mockResolvedValue(1);
     mockTx.aluno.findFirst.mockResolvedValue({
       id: 'aluno-1',
       contractId: 'contract-1',

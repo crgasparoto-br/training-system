@@ -2,7 +2,7 @@
 // Mocks – must be declared before imports (jest.mock is hoisted)
 // ---------------------------------------------------------------------------
 jest.mock('@prisma/client', () => {
-  const aluno = { findUnique: jest.fn(), findFirst: jest.fn(), update: jest.fn() };
+  const aluno = { findUnique: jest.fn(), findFirst: jest.fn(), update: jest.fn(), count: jest.fn() };
   const studentProfileReview = {
     findUnique: jest.fn(),
     findMany: jest.fn(),
@@ -64,7 +64,7 @@ jest.mock('../src/modules/alunos/profile-audit.service', () => ({
 import { profileReviewService } from '../src/modules/alunos/profile-review.service';
 
 type DbMock = {
-  aluno: { findUnique: jest.Mock; findFirst: jest.Mock; update: jest.Mock };
+  aluno: { findUnique: jest.Mock; findFirst: jest.Mock; update: jest.Mock; count: jest.Mock };
   studentProfileReview: { findUnique: jest.Mock; findMany: jest.Mock; create: jest.Mock; update: jest.Mock };
   alunoProfileReviewSettings: { findUnique: jest.Mock; upsert: jest.Mock };
   profileReviewPolicy: { findFirst: jest.Mock };
@@ -182,6 +182,7 @@ beforeEach(() => {
   });
   notificationService.create.mockResolvedValue(true);
   db.aluno.findFirst.mockImplementation((args: unknown) => db.aluno.findUnique(args));
+  db.aluno.count.mockResolvedValue(1);
   db.studentProfile.upsert.mockResolvedValue({});
   db.studentLifecycleEvent.create.mockResolvedValue({});
 });
