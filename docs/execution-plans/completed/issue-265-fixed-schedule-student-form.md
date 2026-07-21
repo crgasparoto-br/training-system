@@ -13,6 +13,7 @@ Integrar o conjunto semanal de horários fixos ao cadastro e à edição do alun
 - editor de recorrências no formulário do aluno, visível apenas para agenda fixa;
 - consulta de uma linha ou do conjunto completo, com invalidação após edição;
 - códigos e mensagens estáveis por linha;
+- contrato de códigos de erro alinhado entre backend e frontend, incluindo identidade duplicada e histórico inativo;
 - revalidação obrigatória no backend e indicação de disponibilidade alterada antes do salvamento;
 - sincronização transacional do plano e do conjunto completo;
 - inativação histórica de recorrências removidas;
@@ -39,10 +40,10 @@ Integrar o conjunto semanal de horários fixos ao cadastro e à edição do alun
 
 - `pnpm type-check`;
 - `pnpm lint`;
-- `pnpm test` — web: 56 arquivos/229 testes; API: 83 suítes/375 testes;
+- `pnpm test` — web: 56 arquivos/230 testes; API: 83 suítes/375 testes;
 - testes PostgreSQL para concorrência, rollback, sincronização, ID duplicado, preservação de histórico inativo e recriação com novo ID;
 - `pnpm arch:check`;
 - `pnpm access:check`;
 - `pnpm docs:check`;
-- CI oficial `Validate PR` #2231 aprovado no commit `28e27140ff16f7ebb08183979df19485b09fddb2`;
-- auditoria funcional e passagem adversarial aprovadas sem ressalvas.
+- CI oficial `Validate PR` #2239 aprovado no commit funcional `e586375a6041ab08ff0c9e73c4f5955ec7fc52b4`;
+- auditoria funcional, passagem adversarial e revisão de higiene aprovadas sem ressalvas.
