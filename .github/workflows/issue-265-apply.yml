@@ -23,7 +23,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: feat/265-fixed-schedule-student-form
-          fetch-depth: 0
+          fetch-depth: 1
+          show-progress: false
 
       - name: Apply patch
         run: |
