@@ -329,7 +329,7 @@ export function FixedScheduleEditor({
                 {row.availability?.available ? (
                   <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
                 ) : row.availability ? (
-                  <CircleAlert size={16} className="mt-0.5 shrink-0" />
+                  <AlertCircle size={16} className="mt-0.5 shrink-0" />
                 ) : (
                   <Clock3 size={16} className="mt-0.5 shrink-0" />
                 )}
