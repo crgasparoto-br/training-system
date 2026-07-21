@@ -86,6 +86,8 @@ DROP INDEX IF EXISTS "Athlete_userId_key";
 DROP INDEX IF EXISTS "Aluno_userId_key";
 DROP INDEX IF EXISTS "Aluno_contractId_leadEmailNormalized_key";
 DROP INDEX IF EXISTS "Aluno_contractId_leadPhoneNormalized_key";
+DROP INDEX IF EXISTS "Profile_cpf_key";
+CREATE INDEX IF NOT EXISTS "Profile_cpf_idx" ON "Profile"("cpf");
 
 -- Backfill estrutural dos alunos existentes. Nenhum ID ou relacionamento muda.
 UPDATE "Aluno" a

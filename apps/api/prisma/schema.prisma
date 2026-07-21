@@ -38,7 +38,7 @@ model Profile {
   updatedAt                            DateTime       @updatedAt
   birthDate                            DateTime?
   gender                               Gender?
-  cpf                                  String?        @unique
+  cpf                                  String?
   rg                                   String?
   maritalStatus                        MaritalStatus?
   addressStreet                        String?
@@ -69,6 +69,7 @@ model Profile {
   @@index([legalFinancialProvidedByProfessorId])
   @@index([legalFinancialValidatedByProfessorId])
   @@index([bankCode])
+  @@index([cpf])
 }
 
 model Bank {

@@ -283,11 +283,17 @@ export async function upsertStudentIdentity(
       leadCpf: cleanText(identity.cpf) ?? null,
       leadCpfNormalized: normalizeStudentCpf(identity.cpf) ?? null,
       birthDate,
-      ...(birthDate ? { age: deriveAgeFromBirthDate(birthDate) } : {}),
+      age: birthDate ? deriveAgeFromBirthDate(birthDate) : null,
     },
   });
 
-  if (options.syncLegacyProfile && aluno.userId && aluno.user?.profile) {
+  const legacyProjectionIsUnambiguous =
+    options.syncLegacyProfile &&
+    aluno.userId &&
+    aluno.user?.profile &&
+    (await client.aluno.count({ where: { userId: aluno.userId } })) === 1;
+
+  if (legacyProjectionIsUnambiguous && aluno.userId && aluno.user?.profile) {
     await client.profile.update({
       where: { userId: aluno.userId },
       data: {
@@ -354,12 +360,6 @@ export async function findStudentAccountIdentityMismatches(
     normalizeComparableText(identity.name) !== normalizeComparableText(account.profile.name)
   ) {
     mismatches.push('name');
-  }
-  if (
-    identity.email &&
-    normalizeStudentEmail(identity.email) !== normalizeStudentEmail(account.email)
-  ) {
-    mismatches.push('email');
   }
   if (
     identity.phone &&

@@ -414,7 +414,7 @@ describe('profileReviewService', () => {
 
   // ── approveReview ─────────────────────────────────────────────────────────
   describe('approveReview', () => {
-    it('gera submissão histórica de PAR-Q aprovado usando o contrato atual do aluno', async () => {
+    it('gera submissão histórica de PAR-Q aprovado usando Aluno.contractId como tenant canônico', async () => {
       db.aluno.findUnique.mockResolvedValue(
         makeAlunoRecord({
           currentStudentContract: {
@@ -480,7 +480,7 @@ describe('profileReviewService', () => {
         expect.objectContaining({
           data: expect.objectContaining({
             alunoId: ALUNO_ID,
-            contractId: 'contract-current',
+            contractId: CONTRACT_ID,
             declarationAccepted: true,
           }),
         })

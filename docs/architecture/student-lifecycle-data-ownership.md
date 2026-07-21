@@ -22,7 +22,8 @@ Toda escrita do domínio do aluno passa por
 `student-identity.service.ts#upsertStudentIdentity`. Os fluxos administrativos
 legados, o aplicativo do aluno e a revisão cadastral também usam essa mesma
 fronteira. Durante o rollout, o service atualiza `Profile` como projeção de
-compatibilidade quando há conta vinculada; nenhum consumidor do domínio do
+compatibilidade somente quando a conta possui um único vínculo de aluno; contas
+compartilhadas entre tenants nunca recebem sobrescrita por dados tenant-scoped; nenhum consumidor do domínio do
 aluno deve escrever os mesmos campos diretamente em `Profile`.
 
 ## Matriz de propriedade
@@ -30,7 +31,7 @@ aluno deve escrever os mesmos campos diretamente em `Profile`.
 | Dado | Fonte canônica | Projeção/legado | Regra |
 | --- | --- | --- | --- |
 | nome | `StudentProfile.identificationData.name` | `Aluno.leadName`, `Profile.name` | `Profile` é projeção temporária da conta; leitura do domínio usa `StudentProfile` |
-| CPF/documento | `StudentProfile.identificationData.cpf` | `Aluno.leadCpf` e normalizado, `Profile.cpf` | CPF normalizado é bloqueante somente dentro do tenant por `@@unique([contractId, leadCpfNormalized])` |
+| CPF/documento | `StudentProfile.identificationData.cpf` | `Aluno.leadCpf` e normalizado, `Profile.cpf` | CPF normalizado é bloqueante somente dentro do tenant; `Profile.cpf` não possui unicidade global |
 | e-mail de contato | `StudentProfile.identificationData.email` | `Aluno.leadEmail` e normalizado | Pode ser diferente do e-mail de login e não bloqueia sozinho a criação |
 | e-mail de login | `User.email` | nenhuma | Globalmente único e usado apenas para autenticação |
 | telefone | `StudentProfile.identificationData.phone` | `Aluno.leadPhone` e normalizado, `Profile.phone` | Duplicidade exige revisão; não há unicidade de telefone |
@@ -65,8 +66,9 @@ consulta ou exposição cross-tenant. Dentro do tenant:
 1. localiza o `Aluno` por `id + contractId`;
 2. rejeita conta de tipo incompatível;
 3. compara os identificadores disponíveis e retorna
-   `ACCOUNT_DATA_MISMATCH` quando há divergência, sem reconciliar
-   silenciosamente;
+   `ACCOUNT_DATA_MISMATCH` quando nome, telefone, CPF ou nascimento disponíveis
+   divergem, sem confundir e-mail de contato com e-mail global de login e sem
+   reconciliar silenciosamente;
 4. rejeita a mesma conta em outro `Aluno` do mesmo contrato;
 5. grava somente quando `userId IS NULL`;
 6. trata retry da mesma conta como idempotente;

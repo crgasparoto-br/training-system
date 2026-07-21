@@ -288,7 +288,6 @@ export async function recordStudentOnboardingProgress(
   progress: {
     formVersion?: string;
     privacyNoticeVersion?: string;
-    privacyAcceptedAt?: Date;
   }
 ): Promise<void> {
   await prisma.$transaction(async (tx) => {

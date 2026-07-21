@@ -87,3 +87,11 @@ Concluir o gate arquitetural do ciclo único de lead até aluno, corrigindo os a
 
 - O contexto explícito de contrato para uma conta de aluno com múltiplos vínculos será consumido pela #271. Até lá, rotas legadas só resolvem automaticamente quando há um único vínculo ativo; ambiguidade é rejeitada sem escolher tenant silenciosamente.
 - A projeção legada em `Profile` terá remoção concluída no rollout integrado da #275, após os consumidores migrarem para `StudentProfile`.
+
+
+## Passagem adversarial adicional
+
+- removida a unicidade global de `Profile.cpf`, preservando validação de CPF de colaboradores no service;
+- e-mail de contato tenant-scoped deixou de ser comparado ao e-mail global de login no claim;
+- projeção legada em `Profile` é omitida para contas com múltiplos vínculos, evitando sobrescrita cross-tenant;
+- limpeza de nascimento também limpa a idade derivada.

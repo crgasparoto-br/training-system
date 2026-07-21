@@ -278,6 +278,56 @@ describeDb('student-lifecycle integration (banco real)', () => {
     ).rejects.toMatchObject({ code: 'IDENTIFIER_CONFLICT' });
   });
 
+  it('permite o mesmo CPF em contratos diferentes, inclusive nas projeções legadas', async () => {
+    const other = await createContract(true);
+    const cpf = '321.654.987-00';
+    const first = await prepareInProgressLead({
+      name: 'CPF Cross Tenant A',
+      phone: '11910101010',
+    });
+    const second = await prepareInProgressLead({
+      contractId: other.contractId,
+      professorId: other.professorId,
+      name: 'CPF Cross Tenant B',
+      phone: '11920202020',
+    });
+
+    await completeStudentPreRegistration(
+      first.lead.id,
+      contractId,
+      {
+        name: 'CPF Cross Tenant A',
+        phone: '11910101010',
+        cpf,
+        birthDate: '1990-01-01',
+        privacyNoticeVersion: 'v1',
+        privacyAcceptedAt: new Date(),
+      },
+      first.userId
+    );
+    await expect(
+      completeStudentPreRegistration(
+        second.lead.id,
+        other.contractId,
+        {
+          name: 'CPF Cross Tenant B',
+          phone: '11920202020',
+          cpf,
+          birthDate: '1991-01-01',
+          privacyNoticeVersion: 'v1',
+          privacyAcceptedAt: new Date(),
+        },
+        second.userId
+      )
+    ).resolves.toMatchObject({ id: second.lead.id });
+
+    expect(
+      await prisma.profile.count({
+        where: { cpf },
+      })
+    ).toBe(2);
+  });
+
   it('mantém o mesmo ID no fluxo completo e persiste identidade/consentimento canônicos', async () => {
     const prepared = await prepareInProgressLead({
       name: 'Ciclo Completo',
@@ -402,6 +452,71 @@ describeDb('student-lifecycle integration (banco real)', () => {
     await expect(
       claimAccountForStudentLead(secondInSameTenant.id, contractId, account.id)
     ).rejects.toMatchObject({ code: 'ACCOUNT_CONTRACT_CONFLICT' });
+  });
+
+  it('não confunde e-mail de contato tenant-scoped com e-mail global de login', async () => {
+    const name = 'Contato Diferente';
+    const phone = '11988886666';
+    const lead = await createStudentLead({
+      contractId,
+      name,
+      phone,
+      email: 'contato.operacional@example.com',
+      origin: 'test-suite',
+    });
+    const account = await createMatchingStudentAccount(name, phone);
+
+    await expect(
+      claimAccountForStudentLead(lead.id, contractId, account.id)
+    ).resolves.toMatchObject({ userId: account.id });
+  });
+
+  it('não sobrescreve Profile global quando a conta possui múltiplos tenants', async () => {
+    const other = await createContract(false);
+    const name = 'Conta Compartilhada';
+    const phone = '11933334444';
+    const account = await createMatchingStudentAccount(name, phone);
+
+    const first = await createStudentLead({ contractId, name, phone, origin: 'test-suite' });
+    const second = await createStudentLead({
+      contractId: other.contractId,
+      name,
+      phone,
+      origin: 'test-suite',
+    });
+    await claimAccountForStudentLead(first.id, contractId, account.id);
+    await claimAccountForStudentLead(second.id, other.contractId, account.id);
+    await recordStudentInvitationCreated(second.id, other.contractId, {
+      invitationId: `invite-${unique()}`,
+      actor: {},
+    });
+    await startStudentPreRegistration(second.id, other.contractId, account.id);
+
+    await completeStudentPreRegistration(
+      second.id,
+      other.contractId,
+      {
+        name: 'Nome Tenant Dois',
+        phone: '11999990000',
+        cpf: '987.654.321-00',
+        birthDate: '1992-02-02',
+        privacyNoticeVersion: 'v1',
+        privacyAcceptedAt: new Date(),
+      },
+      account.id
+    );
+
+    const globalProfile = await prisma.profile.findUniqueOrThrow({
+      where: { userId: account.id },
+    });
+    expect(globalProfile.name).toBe(name);
+    expect(globalProfile.phone).toBe(phone);
+    expect(globalProfile.cpf).toBeNull();
+
+    const tenantIdentity = await loadStudentIdentity(second.id, other.contractId);
+    expect(tenantIdentity.name).toBe('Nome Tenant Dois');
+    expect(tenantIdentity.phone).toBe('11999990000');
+    expect(tenantIdentity.cpf).toBe('987.654.321-00');
   });
 
   it('claim concorrente não sobrescreve o vencedor e gera um único evento', async () => {
