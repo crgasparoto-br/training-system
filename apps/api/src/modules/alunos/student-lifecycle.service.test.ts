@@ -13,6 +13,7 @@ import {
   reopenDiscardedStudentLead,
   completeStudentPreRegistration,
   legacyDirectActiveStudentCreationFields,
+  recordStudentOnboardingProgress,
   StudentLifecycleError,
 } from './student-lifecycle.service.js';
 
@@ -351,5 +352,29 @@ describeDb('student-lifecycle integration (banco real)', () => {
     } finally {
       await prisma.companyContract.delete({ where: { id: otherContract.id } });
     }
+  });
+
+  it('registra progresso incremental do pre-cadastro sem mudar de estado', async () => {
+    const lead = await createStudentLead({
+      contractId,
+      name: 'Progresso Incremental',
+      phone: '11900004444',
+      origin: 'landing-page',
+    });
+
+    await recordStudentOnboardingProgress(lead.id, contractId, {
+      formVersion: 'v2',
+      privacyNoticeVersion: 'v1',
+    });
+
+    const onboarding = await prisma.studentOnboardingProcess.findUnique({
+      where: { alunoId: lead.id },
+    });
+    expect(onboarding?.formVersion).toBe('v2');
+    expect(onboarding?.privacyNoticeVersion).toBe('v1');
+    expect(onboarding?.lastSavedAt).not.toBeNull();
+
+    const unchanged = await prisma.aluno.findUniqueOrThrow({ where: { id: lead.id } });
+    expect(unchanged.status).toBe('LEAD');
   });
 });
