@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { FixedScheduleErrorCode } from '../../services/agenda.service';
 import { serializeFixedScheduleSlots, type FixedScheduleSlotDraft } from './FixedScheduleEditor';
 
 describe('serializeFixedScheduleSlots', () => {
@@ -27,5 +28,17 @@ describe('serializeFixedScheduleSlots', () => {
     expect(serializeFixedScheduleSlots([row(true)])[0].availabilityConfirmed).toBe(true);
     expect(serializeFixedScheduleSlots([row(false)])[0].availabilityConfirmed).toBe(false);
     expect(serializeFixedScheduleSlots([row(null)])[0].availabilityConfirmed).toBe(false);
+  });
+
+  it('accepts the identity error codes returned by the fixed schedule backend', () => {
+    const identityErrorCodes: FixedScheduleErrorCode[] = [
+      'FIXED_SLOT_INACTIVE',
+      'FIXED_SLOT_ID_DUPLICATE',
+    ];
+
+    expect(identityErrorCodes).toEqual([
+      'FIXED_SLOT_INACTIVE',
+      'FIXED_SLOT_ID_DUPLICATE',
+    ]);
   });
 });
