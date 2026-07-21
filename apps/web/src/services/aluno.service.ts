@@ -1,4 +1,5 @@
 ﻿import api from './api';
+import type { FixedScheduleSlotInput } from './agenda.service';
 
 export interface Aluno {
   id: string;
@@ -116,6 +117,8 @@ export interface CreateAlunoDTO {
   phone?: string;
   serviceId?: string;
   schedulePlan: 'free' | 'fixed';
+  fixedScheduleSlots?: FixedScheduleSlotInput[];
+  confirmKeepFutureBookings?: boolean;
   birthDate?: string;
   gender?: 'male' | 'female' | 'other';
   age: number;
@@ -160,6 +163,8 @@ export interface UpdateAlunoDTO {
   avatar?: string;
   serviceId?: string;
   schedulePlan?: 'free' | 'fixed';
+  fixedScheduleSlots?: FixedScheduleSlotInput[];
+  confirmKeepFutureBookings?: boolean;
   birthDate?: string;
   gender?: 'male' | 'female' | 'other';
   age?: number;

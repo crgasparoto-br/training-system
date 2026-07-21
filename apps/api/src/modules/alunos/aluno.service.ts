@@ -3,6 +3,10 @@ import bcryptjs from 'bcryptjs';
 import crypto from 'crypto';
 import { getServiceForContract } from '../services/service.service.js';
 import { assertStudentInterestServiceSelectable } from './aluno.service-selection.js';
+import {
+  syncStudentFixedSchedule,
+  type FixedScheduleSlotInput,
+} from '../agenda/fixed-schedule.service.js';
 
 const prisma = new PrismaClient();
 
@@ -105,6 +109,8 @@ export interface CreateAlunoDTO {
   professorId: string;
   serviceId?: string;
   schedulePlan: 'free' | 'fixed';
+  fixedScheduleSlots?: FixedScheduleSlotInput[];
+  confirmKeepFutureBookings?: boolean;
   birthDate?: Date;
   gender?: 'male' | 'female' | 'other';
   age: number;
@@ -150,6 +156,8 @@ export interface UpdateAlunoDTO {
   professorId?: string;
   serviceId?: string;
   schedulePlan?: 'free' | 'fixed';
+  fixedScheduleSlots?: FixedScheduleSlotInput[];
+  confirmKeepFutureBookings?: boolean;
   birthDate?: Date;
   gender?: 'male' | 'female' | 'other';
   age?: number;
@@ -357,6 +365,17 @@ export const alunoService = {
             notes: data.intakeForm.observations,
           },
         });
+      }
+
+      if (data.schedulePlan === 'fixed') {
+        await syncStudentFixedSchedule(
+          tx,
+          professor.contractId,
+          aluno.id,
+          'fixed',
+          data.fixedScheduleSlots ?? [],
+          { confirmKeepFutureBookings: data.confirmKeepFutureBookings }
+        );
       }
 
       return tx.aluno.findUniqueOrThrow({
@@ -629,6 +648,9 @@ export const alunoService = {
     const {
       avatar,
       professorId,
+      schedulePlan,
+      fixedScheduleSlots,
+      confirmKeepFutureBookings,
       birthDate,
       gender,
       macronutrients,
@@ -774,6 +796,18 @@ export const alunoService = {
             });
           }
         }
+      }
+
+      if (schedulePlan !== undefined || fixedScheduleSlots !== undefined) {
+        const desiredSchedulePlan = schedulePlan ?? currentAluno.schedulePlan;
+        await syncStudentFixedSchedule(
+          tx,
+          alunoContractId,
+          id,
+          desiredSchedulePlan,
+          desiredSchedulePlan === 'fixed' ? fixedScheduleSlots ?? [] : [],
+          { confirmKeepFutureBookings }
+        );
       }
 
       return tx.aluno.findUniqueOrThrow({
