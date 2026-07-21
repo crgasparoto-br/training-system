@@ -1,4 +1,4 @@
-name: Apply issue 265 lock and error corrections
+name: Apply issue 265 agenda retry hygiene
 
 on:
   pull_request:
@@ -22,18 +22,18 @@ jobs:
 
       - name: Apply corrections
         run: |
-          if ! node scripts/issue-265-apply.mjs > issue-265-lock-patch.log 2>&1; then
-            cat issue-265-lock-patch.log
+          if ! node scripts/issue-265-apply.mjs > issue-265-agenda-retry.log 2>&1; then
+            cat issue-265-agenda-retry.log
             exit 1
           fi
-          cat issue-265-lock-patch.log
+          cat issue-265-agenda-retry.log
 
       - name: Upload patch diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: issue-265-lock-patch-${{ github.run_id }}
-          path: issue-265-lock-patch.log
+          name: issue-265-agenda-retry-${{ github.run_id }}
+          path: issue-265-agenda-retry.log
           if-no-files-found: error
           retention-days: 1
 
@@ -48,13 +48,6 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add packages/utils/validations.ts \
-            apps/api/src/modules/agenda/fixed-schedule.service.ts \
-            apps/api/src/modules/agenda/agenda.routes.ts \
-            apps/api/src/modules/alunos/aluno.service.ts \
-            apps/api/src/modules/alunos/aluno.routes.ts \
-            apps/api/tests/fixed-schedule.service.test.ts \
-            apps/web/src/services/agenda.service.ts \
-            apps/web/src/pages/AlunoForm.tsx
-          git commit -m "fix(issue-265): correct locks and save-time conflicts"
+          git add apps/web/src/pages/Agenda.tsx
+          git commit -m "fix(issue-265): report confirmed deactivation failures"
           git push origin HEAD:feat/265-fixed-schedule-student-form
