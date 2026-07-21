@@ -1,22 +1,16 @@
-name: Apply issue 265 source patch
+name: Issue 265 lint diagnostics
 
 on:
-  push:
-    branches:
-      - feat/265-fixed-schedule-student-form
-    paths:
-      - scripts/issue-265-apply.mjs
-      - .github/workflows/issue-265-apply.yml
   pull_request:
     branches:
       - develop
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  apply:
-    if: github.head_ref == 'feat/265-fixed-schedule-student-form' || github.ref_name == 'feat/265-fixed-schedule-student-form'
+  lint-diagnostics:
+    if: github.head_ref == 'feat/265-fixed-schedule-student-form'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout branch
@@ -26,21 +20,33 @@ jobs:
           fetch-depth: 1
           show-progress: false
 
-      - name: Apply audit corrections
-        run: node scripts/issue-265-apply.mjs
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
 
-      - name: Verify patch formatting
-        run: git diff --check
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
 
-      - name: Commit generated source changes
-        run: |
-          if git diff --quiet; then
-            echo "No changes to commit"
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add apps/api/src/modules/agenda/fixed-schedule.service.ts \
-            apps/api/tests/fixed-schedule.service.test.ts
-          git commit -m "fix(issue-265): strengthen interval validation and locking"
-          git push origin HEAD:feat/265-fixed-schedule-student-form
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run lint and capture output
+        id: lint
+        continue-on-error: true
+        run: pnpm lint > issue-265-lint.log 2>&1
+
+      - name: Upload lint diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-265-lint-${{ github.run_id }}
+          path: issue-265-lint.log
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Preserve lint conclusion
+        if: steps.lint.outcome == 'failure'
+        run: exit 1
