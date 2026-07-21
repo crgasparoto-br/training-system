@@ -63,6 +63,7 @@ async function seedBase() {
     data: {
       userId: alunoUser.id,
       professorId: professor.id,
+      contractId: professor.contractId,
       schedulePlan: 'free',
       age: 30,
     },

@@ -56,6 +56,7 @@ async function seedFixture() {
     data: {
       userId: alunoUser.id,
       professorId: professor.id,
+      contractId: professor.contractId,
       schedulePlan: 'free',
       age: 35,
     },

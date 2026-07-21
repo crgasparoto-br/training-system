@@ -119,10 +119,16 @@ async function createAluno(
     },
   });
 
+  const professor = await prisma.professor.findUniqueOrThrow({
+    where: { id: professorId },
+    select: { contractId: true },
+  });
+
   return prisma.aluno.create({
     data: {
       userId: user.id,
       professorId,
+      contractId: professor.contractId,
       serviceId,
       schedulePlan: 'free',
       age: 35,

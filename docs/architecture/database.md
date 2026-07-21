@@ -24,6 +24,22 @@ O projeto usa Prisma para modelagem e acesso ao banco.
 
 O `contractId` e a barreira principal entre clientes/contratos. Rotas, services e consultas devem preservar esse filtro.
 
+## Ciclo unico lead -> aluno (issue #268)
+
+`Aluno` agora representa o registro canonico da pessoa desde `LEAD` ate
+`ACTIVE_STUDENT` (`Aluno.status`), com `userId`, `professorId` e `age`
+opcionais para admitir um lead incompleto sem conta, professor ou idade
+fabricada. `Aluno.contractId` e obrigatorio desde a criacao do lead e e a
+fonte tenant-scoped preferida em vez de navegar por `professor.contractId`
+(que pode ser nulo antes da ativacao).
+
+Ver `docs/architecture/student-lifecycle-data-ownership.md` para a matriz de
+propriedade de dados pessoais, a regra de conta global vs. tenant-scoped e a
+documentacao de migration/rollback. Transicoes de estado ficam centralizadas
+em `apps/api/src/modules/alunos/student-lifecycle.service.ts` e nos contratos
+compartilhados de `packages/types/student-lifecycle.ts` -- nenhum outro
+ponto do codigo deve escrever `Aluno.status` diretamente.
+
 ## PRNT
 
 O PRNT possui historico proprio em `ProntuarioRecord` e tabelas filhas por bloco. `StudentParqSubmission` registra cada envio historico do PAR-Q; o prontuario le a submissao mais recente e mantem acompanhamentos antigos em `ProntuarioAnamnesisFollowUp`.

@@ -101,6 +101,7 @@ describeDatabase('student financial contract persisted interest fallback with Po
       data: {
         userId: alunoUser.id,
         professorId: professor.id,
+        contractId: professor.contractId,
         serviceId: interestService.id,
         schedulePlan: 'free',
         age: 30,

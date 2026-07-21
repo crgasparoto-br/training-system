@@ -81,6 +81,7 @@ describeDatabase('late public contract signature with PostgreSQL', () => {
       data: {
         userId: alunoUser.id,
         professorId: professor.id,
+        contractId: professor.contractId,
         schedulePlan: 'free',
         age: 31,
       },
