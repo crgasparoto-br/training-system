@@ -367,14 +367,16 @@ export const alunoService = {
         });
       }
 
-      await syncStudentFixedSchedule(
-        tx,
-        professor.contractId,
-        aluno.id,
-        data.schedulePlan,
-        data.schedulePlan === 'fixed' ? data.fixedScheduleSlots ?? [] : [],
-        { confirmKeepFutureBookings: data.confirmKeepFutureBookings }
-      );
+      if (data.schedulePlan === 'fixed') {
+        await syncStudentFixedSchedule(
+          tx,
+          professor.contractId,
+          aluno.id,
+          'fixed',
+          data.fixedScheduleSlots ?? [],
+          { confirmKeepFutureBookings: data.confirmKeepFutureBookings }
+        );
+      }
 
       return tx.aluno.findUniqueOrThrow({
         where: { id: aluno.id },
