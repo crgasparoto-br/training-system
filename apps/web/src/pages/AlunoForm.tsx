@@ -19,6 +19,10 @@ import { formatCep, getCepLookupFeedbackMessage, lookupCep, onlyCepDigits } from
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
+import {
+  FixedScheduleEditor,
+  type FixedScheduleSlotDraft,
+} from '../components/alunos/FixedScheduleEditor';
 import { ArrowLeft, ClipboardList, FileText, HeartPulse, Sparkles, Upload, User, Wallet, X } from 'lucide-react';
 import { alunoFormCopy } from '../i18n/ptBR';
 import { useAuthStore } from '../stores/useAuthStore';
@@ -368,6 +372,9 @@ export function AlunoForm() {
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
   const [cepError, setCepError] = useState<string | null>(null);
   const [originalResponsibleProfessorId, setOriginalResponsibleProfessorId] = useState('');
+  const [originalSchedulePlan, setOriginalSchedulePlan] = useState<'free' | 'fixed'>('free');
+  const [fixedScheduleSlots, setFixedScheduleSlots] = useState<FixedScheduleSlotDraft[]>([]);
+  const [fixedScheduleRefreshKey, setFixedScheduleRefreshKey] = useState(0);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
 
   const {
@@ -457,6 +464,7 @@ export function AlunoForm() {
 
   const birthDate = watch('birthDate');
   const selectedServiceId = watch('serviceId');
+  const schedulePlan = watch('schedulePlan');
   const avatar = watch('avatar');
   const studentName = watch('name');
   const cameFromReferral = watch('intakeForm.financialInfo.cameFromReferral');
@@ -937,6 +945,7 @@ export function AlunoForm() {
       setValue('birthDate', formatDateForInput(aluno.user.profile.birthDate));
       setValue('gender', aluno.user.profile.gender || 'male');
       setValue('schedulePlan', aluno.schedulePlan);
+      setOriginalSchedulePlan(aluno.schedulePlan);
       setValue('age', aluno.age);
       setValue('intakeForm.mainGoal', aluno.intakeForm?.mainGoal || '');
       setValue('intakeForm.medicalHistory', aluno.intakeForm?.medicalHistory || '');
@@ -1082,6 +1091,34 @@ export function AlunoForm() {
         ahaResponses: data.intakeForm.ahaResponses,
       };
 
+      if (
+        data.schedulePlan === 'fixed' &&
+        (fixedScheduleSlots.length === 0 ||
+          fixedScheduleSlots.some(
+            (slot) =>
+              !slot.professorId ||
+              !slot.spaceId ||
+              !slot.startTime ||
+              !slot.endTime ||
+              slot.startTime >= slot.endTime
+          ))
+      ) {
+        alert('Preencha ao menos um horário recorrente válido para usar a agenda fixa.');
+        return;
+      }
+
+      let confirmKeepFutureBookings = false;
+      if (isEditMode && originalSchedulePlan === 'fixed' && data.schedulePlan === 'free') {
+        confirmKeepFutureBookings = window.confirm(
+          'Ao mudar para agenda livre, os horários fixos serão inativados. Agendamentos futuros já criados serão mantidos e deverão ser cancelados separadamente quando necessário. Deseja continuar?'
+        );
+        if (!confirmKeepFutureBookings) return;
+      }
+
+      const serializedFixedScheduleSlots = fixedScheduleSlots.map(
+        ({ availability: _availability, ...slot }) => slot
+      );
+
       const updatePayload: UpdateAlunoDTO = {
         avatar: data.avatar || undefined,
         professorId: data.intakeForm.financialInfo.responsibleProfessorId || undefined,
@@ -1089,6 +1126,8 @@ export function AlunoForm() {
         birthDate: data.birthDate || undefined,
         gender: data.gender,
         schedulePlan: data.schedulePlan,
+        fixedScheduleSlots: data.schedulePlan === 'fixed' ? serializedFixedScheduleSlots : [],
+        confirmKeepFutureBookings,
         age: resolvedAge,
         intakeForm: {
           mainGoal: data.intakeForm.mainGoal || undefined,
@@ -1123,6 +1162,8 @@ export function AlunoForm() {
           setSaveNotice('Dados do aluno atualizados com sucesso.');
         }
 
+        setOriginalSchedulePlan(data.schedulePlan);
+        setFixedScheduleRefreshKey((current) => current + 1);
         return;
       }
 
@@ -1135,6 +1176,8 @@ export function AlunoForm() {
         birthDate: data.birthDate || undefined,
         gender: data.gender,
         schedulePlan: data.schedulePlan,
+        fixedScheduleSlots: data.schedulePlan === 'fixed' ? serializedFixedScheduleSlots : [],
+        confirmKeepFutureBookings,
         age: resolvedAge,
         intakeForm: {
           mainGoal: data.intakeForm.mainGoal || undefined,
@@ -1471,6 +1514,31 @@ export function AlunoForm() {
                           )}
                         </div>
 
+                        <div className="space-y-3">
+                          <div>
+                            <label className="block text-sm font-medium text-foreground">
+                              Plano de agenda <span className="ml-1 text-destructive">*</span>
+                            </label>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                              Na agenda fixa, informe todos os dias e horários recorrentes antes de salvar.
+                            </p>
+                          </div>
+                          <select className={selectClassName} {...register('schedulePlan')}>
+                            <option value="free">Agenda livre</option>
+                            <option value="fixed">Agenda fixa</option>
+                          </select>
+                          {errors.schedulePlan?.message && (
+                            <p className="text-sm text-destructive">{errors.schedulePlan.message}</p>
+                          )}
+                        </div>
+
+                        <FixedScheduleEditor
+                          alunoId={isEditMode ? id : undefined}
+                          plan={schedulePlan}
+                          value={fixedScheduleSlots}
+                          onChange={setFixedScheduleSlots}
+                          refreshKey={fixedScheduleRefreshKey}
+                        />
                       </div>
                     </div>
                   </div>

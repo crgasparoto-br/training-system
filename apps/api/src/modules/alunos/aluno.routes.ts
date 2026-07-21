@@ -1,5 +1,6 @@
 ﻿import { Router, Request, Response } from 'express';
 import { alunoService } from './aluno.service.js';
+import { FixedScheduleError } from '../agenda/fixed-schedule.service.js';
 import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js';
 import {
   sendSuccess,
@@ -733,8 +734,17 @@ router.post('/', async (req: Request, res: Response) => {
     if (error?.message === 'Email jÃ¡ estÃ¡ registrado') {
       return sendError(res, error.message, 400);
     }
+    if (error instanceof FixedScheduleError) {
+      return res.status(error.statusCode).json({
+        success: false,
+        error: error.message,
+        code: error.code,
+        stage: error.stage,
+        rowIndex: error.rowIndex,
+      });
+    }
     console.error('Erro ao criar aluno:', error);
-    return sendError(res, 'Erro ao criar aluno', 500);
+    return sendError(res, error?.message || 'Erro ao criar aluno', 500);
   }
 });
 
@@ -1123,8 +1133,17 @@ router.put('/:id', blockAccessMiddleware('students.actions.editProfile'), async 
     if (error instanceof z.ZodError) {
       return sendError(res, 'Dados inválidos', 400, error.errors);
     }
+    if (error instanceof FixedScheduleError) {
+      return res.status(error.statusCode).json({
+        success: false,
+        error: error.message,
+        code: error.code,
+        stage: error.stage,
+        rowIndex: error.rowIndex,
+      });
+    }
     console.error('Erro ao atualizar aluno:', error);
-    return sendError(res, 'Erro ao atualizar aluno', 500);
+    return sendError(res, error?.message || 'Erro ao atualizar aluno', 500);
   }
 });
 
