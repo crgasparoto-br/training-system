@@ -83,7 +83,12 @@ describe('studentAccessScopeService', () => {
     );
 
     expect(mockPrisma.contract.findFirst).toHaveBeenCalledWith({
-      where: { id: 'document-1', companyContractId: 'company-1' },
+      where: {
+      id: 'document-1',
+      companyContractId: 'company-1',
+      partyType: 'STUDENT',
+      alunoId: { not: null },
+    },
       select: { id: true, alunoId: true },
     });
     expect(mockPrisma.aluno.findUnique).toHaveBeenCalledWith(

@@ -38,37 +38,42 @@ const collaborator = {
 } as ProfessorSummary;
 
 describe('collaborator model', () => {
-  it('reutiliza o mesmo mapeamento para preencher a edição', () => {
+  it('reutiliza o mesmo mapeamento para preencher a edição sem carregar contrato legado', () => {
     const values = createCollaboratorFormValues(collaborator);
     expect(values).toMatchObject({
       name: 'Colaborador Teste',
       email: 'COLLABORATOR@example.com',
       collaboratorFunctionId: 'function-1',
       operationalRoleIds: ['function-1'],
-      hasSignedContract: true,
       avatar: '/uploads/professores/avatar.webp',
       hourlyRates: { personal: '100,00', consulting: '80,00', evaluation: '120,00' },
     });
+    expect(values).not.toHaveProperty('hasSignedContract');
+    expect(values).not.toHaveProperty('signedContractDocumentUrl');
     expect(collaboratorFormSchema.safeParse(values).success).toBe(true);
   });
 
-  it('preserva os campos atuais nos payloads de criação e edição', () => {
+  it('preserva os campos cadastrais nos payloads sem enviar contrato legado', () => {
     const values = { ...createCollaboratorFormValues(collaborator), password: '12345678' };
-    expect(toCreateProfessorRequest(values)).toMatchObject({
+    const createPayload = toCreateProfessorRequest(values);
+    const updatePayload = toUpdateProfessorRequest(values);
+
+    expect(createPayload).toMatchObject({
       name: 'Colaborador Teste',
       email: 'collaborator@example.com',
       password: '12345678',
       collaboratorFunctionId: 'function-1',
       operationalRoleIds: ['function-1'],
       hourlyRates: { personal: 100, consulting: 80, evaluation: 120 },
-      hasSignedContract: true,
-      signedContractDocumentUrl: 'https://example.com/contract.pdf',
     });
-    expect(toUpdateProfessorRequest(values)).toMatchObject({
+    expect(updatePayload).toMatchObject({
       collaboratorFunctionId: 'function-1',
       currentStatus: 'Ativo',
-      hasSignedContract: true,
     });
+    expect(createPayload).not.toHaveProperty('hasSignedContract');
+    expect(createPayload).not.toHaveProperty('signedContractDocumentUrl');
+    expect(updatePayload).not.toHaveProperty('hasSignedContract');
+    expect(updatePayload).not.toHaveProperty('signedContractDocumentUrl');
   });
 
   it('aceita separadores monetários em português e decimal técnico', () => {
@@ -101,15 +106,20 @@ describe('collaborator model', () => {
     expect(payload).toMatchObject({ name: 'Colaborador Teste', email: 'collaborator@example.com' });
   });
 
-  it('exige o PDF quando o contrato é marcado como assinado', () => {
+  it('ignora campos contratuais legados recebidos em objetos externos', () => {
     const result = collaboratorFormSchema.safeParse({
       ...createCollaboratorFormValues(),
       name: 'Colaborador Teste',
       email: 'teste@example.com',
       collaboratorFunctionId: 'function-1',
       hasSignedContract: true,
-      signedContractDocumentUrl: '',
+      signedContractDocumentUrl: 'https://example.com/legado.pdf',
     });
-    expect(result.success).toBe(false);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).not.toHaveProperty('hasSignedContract');
+      expect(result.data).not.toHaveProperty('signedContractDocumentUrl');
+    }
   });
 });

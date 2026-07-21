@@ -30,7 +30,6 @@ export function CollaboratorsList() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<'all' | 'active' | 'inactive'>('all');
   const [functionId, setFunctionId] = useState('all');
-  const [contractStatus, setContractStatus] = useState<'all' | 'signed' | 'pending'>('all');
   const [legalStatus, setLegalStatus] = useState<'all' | 'validated' | 'pending' | 'missing'>('all');
   const hasRegistrationAccess = canAccessScreen(user, 'collaborators.registration');
   const registrationScope = getDataScopeForScreen(user, 'collaborators.registration');
@@ -72,21 +71,19 @@ export function CollaboratorsList() {
       ].some((value) => normalize(value).includes(term));
       const matchesStatus = status === 'all' || (status === 'active' ? item.user.isActive !== false : item.user.isActive === false);
       const matchesFunction = functionId === 'all' || item.collaboratorFunction.id === functionId;
-      const matchesContract = contractStatus === 'all' || (contractStatus === 'signed' ? item.hasSignedContract : !item.hasSignedContract);
       const matchesLegal = legalStatus === 'all'
         || (legalStatus === 'validated' && legal === 'Validado')
         || (legalStatus === 'pending' && legal === 'Pendente de validação')
         || (legalStatus === 'missing' && legal === 'Não informado');
-      return matchesSearch && matchesStatus && matchesFunction && matchesContract && matchesLegal;
+      return matchesSearch && matchesStatus && matchesFunction && matchesLegal;
     });
-  }, [contractStatus, functionId, items, legalStatus, search, status]);
+  }, [functionId, items, legalStatus, search, status]);
 
-  const hasFilters = search.trim() || status !== 'all' || functionId !== 'all' || contractStatus !== 'all' || legalStatus !== 'all';
+  const hasFilters = search.trim() || status !== 'all' || functionId !== 'all' || legalStatus !== 'all';
   const clearFilters = () => {
     setSearch('');
     setStatus('all');
     setFunctionId('all');
-    setContractStatus('all');
     setLegalStatus('all');
   };
 
@@ -125,9 +122,6 @@ export function CollaboratorsList() {
             <select aria-label="Filtrar por função" className={selectClassName} value={functionId} onChange={(event) => setFunctionId(event.target.value)}>
               <option value="all">Todas as funções</option>{functions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
-            <select aria-label="Filtrar por contrato" className={selectClassName} value={contractStatus} onChange={(event) => setContractStatus(event.target.value as typeof contractStatus)}>
-              <option value="all">Todos os contratos</option><option value="signed">Contrato assinado</option><option value="pending">Contrato pendente</option>
-            </select>
             <select aria-label="Filtrar dados jurídicos e financeiros" className={selectClassName} value={legalStatus} onChange={(event) => setLegalStatus(event.target.value as typeof legalStatus)}>
               <option value="all">Todos os dados financeiros</option><option value="validated">Validados</option><option value="pending">Pendentes</option><option value="missing">Não informados</option>
             </select>
@@ -164,7 +158,6 @@ export function CollaboratorsList() {
                     </div>
                     <div className="mt-3 flex flex-wrap gap-2 text-xs">
                       <span className="rounded-full bg-primary/10 px-2.5 py-1 text-primary">{item.collaboratorFunction.name}</span>
-                      <span className="rounded-full bg-muted px-2.5 py-1 text-muted-foreground">{item.hasSignedContract ? 'Contrato assinado' : 'Contrato pendente'}</span>
                       <span className="rounded-full bg-muted px-2.5 py-1 text-muted-foreground">{getLegalFinancialStatus(item)}</span>
                     </div>
                   </div>

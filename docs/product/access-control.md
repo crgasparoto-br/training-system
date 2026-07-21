@@ -51,6 +51,27 @@ Aplique escopo de dados quando uma tela pode ser acessada por varias funcoes, ma
 
 Exemplo: a funcao professor pode abrir Consulta de Colaboradores, mas deve ver somente o proprio cadastro.
 
+## Contratos de colaboradores
+
+O controle contratual aparece na pagina individual do colaborador. Na consulta, protegida por `collaborators.consultation`, o bloco e estritamente somente leitura. Na edicao, protegida por `collaborators.registration`, as acoes administrativas sao liberadas conforme permissao.
+
+As APIs de leitura aceitam `collaborators.consultation` ou `collaborators.registration` e usam o escopo mais permissivo disponivel entre essas telas. A leitura de vigente, candidatos, historico e legado respeita o `dataScope` calculado:
+
+- `self`: somente o proprio colaborador;
+- `managed`: colaboradores sob gestao do usuario;
+- `contract`: todos os colaboradores do tenant autenticado.
+
+As acoes de previa, geracao, PDF, envio, cancelamento e vigencia exigem `collaborators.registration` e o bloco `collaborators.actions.uploadSignedContract`. A chave foi mantida para compatibilidade com configuracoes existentes, mas seu significado funcional passa a ser **gerenciar contrato do colaborador**, e nao apenas enviar um PDF legado.
+
+Regras obrigatorias:
+
+- a API valida tela, bloco, escopo e `contractId` antes de qualquer escrita;
+- a consulta individual nao apresenta acoes de mutacao;
+- a interface de edicao oculta as acoes quando o bloco nao esta liberado;
+- registros legados continuam visiveis somente para leitura;
+- permissao de contrato nao amplia o escopo de dados da tela;
+- nenhum usuario pode consultar ou alterar contrato de outro tenant.
+
 ## PRNT
 
 O PRNT usa a tela `physicalAssessment.protocol` e blocos especificos para liberar partes do prontuario:

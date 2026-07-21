@@ -52,7 +52,6 @@ export function CollaboratorFormPage({ mode }: { mode: 'create' | 'edit' }) {
   const [submitting, setSubmitting] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const [uploadingContract, setUploadingContract] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [administrativeSuccess, setAdministrativeSuccess] = useState<string | null>(null);
   const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
@@ -84,8 +83,6 @@ export function CollaboratorFormPage({ mode }: { mode: 'create' | 'edit' }) {
   const administrativeFieldsEnabled = mode === 'create'
     ? canCreate && showManagerBlock
     : canEditRecord && !editingOwnRecord && showManagerBlock;
-  const signedContractUploadEnabled = administrativeFieldsEnabled
-    && canAccessBlock(user, 'collaborators.actions.uploadSignedContract');
   const canUseAdministrativeActions = mode === 'edit' && canEditRecord && dataScope === 'contract';
   const canValidateLegal = canUseAdministrativeActions
     && canAccessBlock(user, 'collaborators.actions.validateLegalFinancial');
@@ -271,25 +268,6 @@ export function CollaboratorFormPage({ mode }: { mode: 'create' | 'edit' }) {
     }
   };
 
-  const handleContractFile = async (file: File) => {
-    if (file.type !== 'application/pdf') {
-      setError('Selecione um arquivo PDF válido.');
-      return;
-    }
-
-    setUploadingContract(true);
-    setError(null);
-    try {
-      const url = await professorService.uploadSignedContract(file);
-      setValue('signedContractDocumentUrl', url, { shouldDirty: true, shouldValidate: true });
-      setValue('hasSignedContract', true, { shouldDirty: true, shouldValidate: true });
-    } catch (uploadError) {
-      setError(uploadError instanceof Error ? uploadError.message : 'Não foi possível enviar o contrato.');
-    } finally {
-      setUploadingContract(false);
-    }
-  };
-
   if (loading) {
     return <div className="rounded-2xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">Carregando formulário...</div>;
   }
@@ -402,11 +380,8 @@ export function CollaboratorFormPage({ mode }: { mode: 'create' | 'edit' }) {
         showCollaboratorBlock={showCollaboratorBlock}
         showManagerBlock={showManagerBlock}
         administrativeFieldsEnabled={administrativeFieldsEnabled}
-        signedContractUploadEnabled={signedContractUploadEnabled}
         uploadingAvatar={uploadingAvatar}
-        uploadingContract={uploadingContract}
         onAvatarFile={(file) => void handleAvatarFile(file)}
-        onContractFile={(file) => void handleContractFile(file)}
         onCancel={handleCancel}
         submitting={submitting || actionLoading}
       />

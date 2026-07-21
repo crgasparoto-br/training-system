@@ -1,7 +1,12 @@
 import crypto from 'crypto';
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { contractPublicAccessService } from '../contracts/contract-public-access.service.js';
-import { prepareOrActivateStudentContractInTransaction } from './student-contract-lifecycle-transaction.js';
+import { contractPartyLinkService } from '../contracts/contract-party-link.service.js';
+import { contractRecordRepository } from '../contracts/contract-record.repository.js';
+import {
+  prepareOrActivateCollaboratorContractInTransaction,
+  prepareOrActivateStudentContractInTransaction,
+} from './student-contract-lifecycle-transaction.js';
 
 const prisma = new PrismaClient();
 
@@ -19,10 +24,7 @@ type PublicSignatureInput = {
 
 const hashToken = (token: string) =>
   crypto.createHash('sha256').update(token).digest('hex');
-
-const normalizeDocument = (value?: string | null) =>
-  value?.replace(/\D/g, '') || '';
-
+const normalizeDocument = (value?: string | null) => value?.replace(/\D/gu, '') || '';
 const hashDocument = (html: string) =>
   crypto.createHash('sha256').update(html).digest('hex');
 
@@ -36,75 +38,38 @@ export const studentContractLifecycleService = {
     const signerCpf = normalizeDocument(data?.signerCpf);
     const signerEmail = String(data?.signerEmail || '').trim() || null;
 
-    if (!signerName) {
-      throw new Error('Informe o nome completo para assinar');
-    }
-
-    if (signerCpf.length !== 11) {
-      throw new Error('Informe um CPF válido para assinar');
-    }
+    if (!signerName) throw new Error('Informe o nome completo para assinar');
+    if (signerCpf.length !== 11) throw new Error('Informe um CPF válido para assinar');
 
     const tokenDigest = hashToken(token);
-    const contract = await prisma.contract.findUnique({
-      where: { publicTokenHash: tokenDigest },
-      include: {
-        studentContracts: {
-          take: 1,
-        },
-      },
-    });
-
-    if (!contract) {
-      throw new Error('Link inválido ou já utilizado');
-    }
+    const contract = await contractRecordRepository.findByPublicTokenHash(tokenDigest, prisma);
+    if (!contract) throw new Error('Link inválido ou já utilizado');
 
     if (contract.publicTokenExpiresAt && contract.publicTokenExpiresAt < new Date()) {
       await contractPublicAccessService.open(token, actor, prisma, new Date());
       throw new Error('Link expirado');
     }
-
-    if (contract.status === 'SIGNED') {
-      throw new Error('Contrato já assinado');
-    }
-
+    if (contract.status === 'SIGNED') throw new Error('Contrato já assinado');
     if (contract.status === 'CANCELLED' || contract.status === 'EXPIRED') {
       throw new Error('Contrato não está disponível para assinatura');
     }
 
-    const studentContract = contract.studentContracts[0];
-    if (!studentContract) {
-      throw new Error('Vínculo do contrato com o aluno não encontrado');
-    }
+    const link = await contractPartyLinkService.resolveByGeneratedContractId(contract.id, prisma);
+    if (!link) throw new Error('Vínculo do documento contratual não encontrado');
 
     const signedAt = new Date();
     const documentHash = contract.documentHash || hashDocument(contract.renderedHtml);
 
     const result = await prisma.$transaction(async (tx) => {
-      const freshContract = await tx.contract.findUnique({
-        where: { id: contract.id },
-        select: {
-          id: true,
-          status: true,
-          publicTokenHash: true,
-          publicTokenExpiresAt: true,
-        },
-      });
+      const freshContract = await contractRecordRepository.findById(contract.id, tx);
 
       if (!freshContract || freshContract.publicTokenHash !== tokenDigest) {
         throw new Error('Link inválido ou já utilizado');
       }
-
-      if (
-        freshContract.publicTokenExpiresAt &&
-        freshContract.publicTokenExpiresAt < signedAt
-      ) {
+      if (freshContract.publicTokenExpiresAt && freshContract.publicTokenExpiresAt < signedAt) {
         return { kind: 'expired' as const };
       }
-
-      if (freshContract.status === 'SIGNED') {
-        throw new Error('Contrato já assinado');
-      }
-
+      if (freshContract.status === 'SIGNED') throw new Error('Contrato já assinado');
       if (freshContract.status === 'CANCELLED' || freshContract.status === 'EXPIRED') {
         throw new Error('Contrato não está disponível para assinatura');
       }
@@ -123,10 +88,7 @@ export const studentContractLifecycleService = {
           publicTokenExpiresAt: null,
         },
       });
-
-      if (claimed.count !== 1) {
-        throw new Error('Link inválido ou já utilizado');
-      }
+      if (claimed.count !== 1) throw new Error('Link inválido ou já utilizado');
 
       const signature = await tx.contractSignature.create({
         data: {
@@ -141,13 +103,29 @@ export const studentContractLifecycleService = {
         },
       });
 
-      const lifecycle = await prepareOrActivateStudentContractInTransaction(
-        tx,
-        studentContract.id,
-        signedAt
-      );
-      const effectiveAt = lifecycle.effectiveAt ?? signedAt;
-      const scheduled = lifecycle.reason === 'scheduled_start';
+      let effectiveAt: Date;
+      let scheduled: boolean;
+      let linkStatus: string;
+
+      if (link.partyType === 'STUDENT') {
+        const lifecycle = await prepareOrActivateStudentContractInTransaction(
+          tx,
+          link.linkId,
+          signedAt
+        );
+        effectiveAt = lifecycle.effectiveAt ?? signedAt;
+        scheduled = lifecycle.reason === 'scheduled_start';
+        linkStatus = lifecycle.studentContract.status;
+      } else {
+        const lifecycle = await prepareOrActivateCollaboratorContractInTransaction(
+          tx,
+          link.linkId,
+          signedAt
+        );
+        effectiveAt = lifecycle.effectiveAt ?? signedAt;
+        scheduled = lifecycle.reason === 'scheduled_start';
+        linkStatus = lifecycle.collaboratorContract.status;
+      }
 
       await tx.contractAuditLog.create({
         data: {
@@ -158,6 +136,8 @@ export const studentContractLifecycleService = {
           userAgent: actor.userAgent,
           details: {
             signatureId: signature.id,
+            partyType: link.partyType,
+            partyId: link.partyId,
             effectiveAt: effectiveAt.toISOString(),
             scheduled,
           },
@@ -171,7 +151,9 @@ export const studentContractLifecycleService = {
           activation: {
             effectiveAt: effectiveAt.toISOString(),
             scheduled,
-            studentContractStatus: lifecycle.studentContract.status,
+            partyType: link.partyType,
+            linkStatus,
+            ...(link.partyType === 'STUDENT' ? { studentContractStatus: linkStatus } : {}),
           },
         },
       };
@@ -181,7 +163,6 @@ export const studentContractLifecycleService = {
       await contractPublicAccessService.open(token, actor, prisma, signedAt);
       throw new Error('Link expirado');
     }
-
     return result.value;
   },
 
@@ -191,67 +172,69 @@ export const studentContractLifecycleService = {
     );
   },
 
+  async prepareOrActivateCollaboratorContract(collaboratorContractId: string, now = new Date()) {
+    return prisma.$transaction((tx) =>
+      prepareOrActivateCollaboratorContractInTransaction(tx, collaboratorContractId, now)
+    );
+  },
+
   async activateDueSignedContracts(now = new Date()) {
-    const candidates = await prisma.studentContract.findMany({
+    const studentCandidates = await prisma.studentContract.findMany({
       where: {
         status: 'pending_signature',
         signedAt: { not: null },
         startDate: { lte: now },
-        contract: {
-          status: 'SIGNED',
-        },
+        contract: { status: 'SIGNED' },
       },
-      select: {
-        id: true,
-      },
+      select: { id: true },
       orderBy: [{ startDate: 'asc' }, { createdAt: 'asc' }],
     });
+    const collaboratorCandidates = await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT cc."id"
+      FROM "CollaboratorContract" cc
+      JOIN "GeneratedContract" gc ON gc."id" = cc."contractId"
+      WHERE cc."status" = 'pending_signature'::"CollaboratorContractStatus"
+        AND cc."signedAt" IS NOT NULL
+        AND cc."startDate" <= ${now}
+        AND gc."status" = 'SIGNED'::"ContractStatus"
+      ORDER BY cc."startDate" ASC, cc."createdAt" ASC
+    `);
 
     let activated = 0;
-    const failures: Array<{ studentContractId: string; error: string }> = [];
+    const failures: Array<{ partyType: 'STUDENT' | 'COLLABORATOR'; linkId: string; error: string }> = [];
 
-    for (const candidate of candidates) {
+    for (const candidate of studentCandidates) {
       try {
-        const changed = await prisma.$transaction(async (tx) => {
-          const current = await tx.studentContract.findUnique({
-            where: { id: candidate.id },
-            include: {
-              contract: {
-                select: { status: true },
-              },
-            },
-          });
-
-          if (
-            !current ||
-            current.status !== 'pending_signature' ||
-            !current.signedAt ||
-            !current.startDate ||
-            current.startDate > now ||
-            current.contract.status !== 'SIGNED'
-          ) {
-            return false;
-          }
-
-          const lifecycle = await prepareOrActivateStudentContractInTransaction(
-            tx,
-            current.id,
-            now
-          );
-          return lifecycle.reason === 'activated';
-        });
-
-        if (changed) activated += 1;
+        const result = await prisma.$transaction((tx) =>
+          prepareOrActivateStudentContractInTransaction(tx, candidate.id, now)
+        );
+        if (result.reason === 'activated') activated += 1;
       } catch (error) {
         failures.push({
-          studentContractId: candidate.id,
+          partyType: 'STUDENT',
+          linkId: candidate.id,
+          error: error instanceof Error ? error.message : 'Erro desconhecido',
+        });
+      }
+    }
+
+    for (const candidate of collaboratorCandidates) {
+      try {
+        const result = await prisma.$transaction((tx) =>
+          prepareOrActivateCollaboratorContractInTransaction(tx, candidate.id, now)
+        );
+        if (result.reason === 'activated') activated += 1;
+      } catch (error) {
+        failures.push({
+          partyType: 'COLLABORATOR',
+          linkId: candidate.id,
           error: error instanceof Error ? error.message : 'Erro desconhecido',
         });
       }
     }
 
     return {
-      checked: candidates.length,
+      checked: studentCandidates.length + collaboratorCandidates.length,
       activated,
       failures,
     };

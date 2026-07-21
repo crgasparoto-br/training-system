@@ -56,6 +56,8 @@ export const studentAccessScopeService = {
       where: {
         id: contractDocumentId,
         companyContractId,
+        partyType: 'STUDENT',
+        alunoId: { not: null },
       },
       select: {
         id: true,
@@ -63,8 +65,8 @@ export const studentAccessScopeService = {
       },
     });
 
-    if (!contract) {
-      throw new Error('Contrato não encontrado');
+    if (!contract?.alunoId) {
+      throw new Error('Contrato do aluno não encontrado');
     }
 
     await this.assertAlunoAccess(contract.alunoId, context, client);

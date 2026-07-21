@@ -41,7 +41,6 @@ vi.mock('../services/professor.service', () => ({
     deactivate: (...args: unknown[]) => mocks.deactivate(...args),
     create: vi.fn(),
     uploadAvatar: vi.fn(),
-    uploadSignedContract: vi.fn(),
   },
 }));
 

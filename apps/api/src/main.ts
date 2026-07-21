@@ -17,6 +17,7 @@ import { contractRoutes } from './modules/contracts/index.js';
 import { hourlyRateLevelRoutes } from './modules/hourly-rate-levels/index.js';
 import { planRoutes } from './modules/plans/index.js';
 import { professorRoutes } from './modules/professores/index.js';
+import { legacyCollaboratorContractMiddleware } from './modules/professores/legacy-collaborator-contract.middleware.js';
 import { serviceRoutes } from './modules/services/index.js';
 import { startProfileReviewScheduler } from './modules/alunos/profile-review.scheduler.js';
 import studentContractLifecycleRoutes from './modules/student-contracts/student-contract-lifecycle.routes.js';
@@ -59,18 +60,15 @@ function isAllowedVercelPreviewOrigin(origin: string) {
 // MIDDLEWARE
 // ============================================================================
 
-// Seguranca
 app.use(
   helmet({
     crossOriginResourcePolicy: { policy: 'cross-origin' },
   })
 );
 
-// CORS
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Requests server-to-server or via curl/healthchecks may not send Origin.
       if (!origin) {
         callback(null, true);
         return;
@@ -87,7 +85,6 @@ app.use(
   })
 );
 
-// Body Parser
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 app.use('/uploads', express.static(getUploadStorageRoot(), {
@@ -105,7 +102,7 @@ app.use('/api/v1/uploads', express.static(getUploadStorageRoot(), {
 // HEALTH CHECK
 // ============================================================================
 
-app.get('/health', (req, res) => {
+app.get('/health', (_req, res) => {
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
@@ -117,7 +114,7 @@ app.get('/health', (req, res) => {
 // API ROUTES
 // ============================================================================
 
-app.get('/api/v1', (req, res) => {
+app.get('/api/v1', (_req, res) => {
   res.json({
     message: 'Sistema Acesso Saude e Performance API',
     version: '0.1.0',
@@ -139,62 +136,39 @@ app.get('/api/v1', (req, res) => {
   });
 });
 
-// Rotas de Autenticacao
 app.use('/api/v1/auth', authRoutes);
-
-// Rotas de Tipos de Avaliacao
 app.use('/api/v1/assessment-types', assessmentTypeRoutes);
 
-// Upload publico de avatar de aluno deve usar storage externo antes do modulo legado.
+// Public student avatar upload must use external storage before the legacy module.
 app.use('/api/v1/alunos', alunoAvatarUploadRoutes);
-
-// A ativacao contratual segura deve interceptar a rota legada antes do modulo de alunos.
+// Safe activation must intercept the legacy student route.
 app.use('/api/v1/alunos', studentContractLifecycleRoutes);
-
-// Rotas de Alunos
 app.use('/api/v1/alunos', alunoRoutes);
 
-// Rotas de Avaliacao Antropometrica
 app.use('/api/v1/anthropometry', anthropometryRoutes);
-
-// Rotas do PRNT
 app.use('/api/v1/prontuario', prontuarioRoutes);
-
-// Rotas de Bancos
 app.use('/api/v1/banks', bankRoutes);
-
-// Rotas de Funcoes de Colaboradores
 app.use('/api/v1/collaborator-functions', collaboratorFunctionRoutes);
 
-// A assinatura com controle de vigencia deve ser registrada antes do modulo principal.
+// Contract lifecycle and rejection guards must run before the main contract module.
 app.use('/api/v1/contracts', contractLifecycleRoutes);
-
-// Rotas de recusa devem ser registradas antes do modulo principal para proteger reenvios.
 app.use('/api/v1/contracts', contractRejectionRoutes);
-
-// Rotas de Contratos
 app.use('/api/v1/contracts', contractRoutes);
 
-// Rotas de Niveis de Valor/Hora
 app.use('/api/v1/hourly-rate-levels', hourlyRateLevelRoutes);
-
-// Rotas de Planos
 app.use('/api/v1/plans', planRoutes);
 
-// Rotas de Professores
+// Legacy collaborator contract fields remain readable for migration/history only.
+app.use('/api/v1/professores', legacyCollaboratorContractMiddleware);
 app.use('/api/v1/professores', professorRoutes);
 
-// Rotas de Servicos
 app.use('/api/v1/services', serviceRoutes);
-
-// Rotas do aluno autenticado
 app.use('/api/v1/student', studentRoutes);
 
 // ============================================================================
 // ERROR HANDLING
 // ============================================================================
 
-// 404 Handler
 app.use((req, res) => {
   res.status(404).json({
     error: 'Route not found',
@@ -203,8 +177,7 @@ app.use((req, res) => {
   });
 });
 
-// Global Error Handler
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('Error:', err);
 
   const statusCode = err.statusCode || 500;

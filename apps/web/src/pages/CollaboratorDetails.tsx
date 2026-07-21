@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
-import { ArrowLeft, Edit3, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Edit3 } from 'lucide-react';
 import type { CollaboratorFunctionOption, ProfessorSummary } from '@corrida/types';
 import { professorService } from '../services/professor.service';
 import { collaboratorFunctionService } from '../services/collaborator-function.service';
 import { useAuthStore } from '../stores/useAuthStore';
 import { canAccessScreen, getDataScopeForScreen } from '../access/access-control';
+import { CollaboratorContractControl } from '../features/collaborators/CollaboratorContractControl';
 import { CollaboratorSection, ReadonlyField } from '../features/collaborators/CollaboratorSection';
 import { canWriteCollaborator } from '../features/collaborators/collaborator-access';
 import { formatMaritalStatus } from '../features/collaborators/collaborator-formatters';
@@ -98,7 +99,6 @@ export function CollaboratorDetails() {
               <div className="mt-2 flex flex-wrap gap-2 text-xs">
                 <span className="rounded-full bg-primary/10 px-2.5 py-1 text-primary">{collaborator.collaboratorFunction.name}</span>
                 <span className={`rounded-full px-2.5 py-1 ${collaborator.user.isActive === false ? 'bg-destructive/10 text-destructive' : 'bg-emerald-100 text-emerald-700'}`}>{collaborator.user.isActive === false ? 'Inativo' : 'Ativo'}</span>
-                <span className="rounded-full bg-muted px-2.5 py-1 text-muted-foreground">{collaborator.hasSignedContract ? 'Contrato assinado' : 'Contrato pendente'}</span>
               </div>
             </div>
           </div>
@@ -170,15 +170,7 @@ export function CollaboratorDetails() {
         </div>
       </CollaboratorSection>
 
-      <CollaboratorSection title="Contrato legado" description="Este bloco será substituído pelo ciclo contratual da issue #263.">
-        <div className="flex flex-col gap-3 rounded-xl border border-border p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="font-medium text-foreground">{collaborator.hasSignedContract ? 'Contrato assinado' : 'Contrato pendente'}</p>
-            <p className="text-sm text-muted-foreground">Consulta somente leitura do documento atualmente vinculado.</p>
-          </div>
-          {collaborator.signedContractDocumentUrl ? <a className={outlineLinkButtonClassName} href={collaborator.signedContractDocumentUrl} target="_blank" rel="noreferrer">Visualizar PDF <ExternalLink size={16} /></a> : null}
-        </div>
-      </CollaboratorSection>
+      <CollaboratorContractControl collaboratorId={collaborator.id} readOnly />
     </div>
   );
 }

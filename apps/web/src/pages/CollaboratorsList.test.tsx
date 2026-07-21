@@ -29,7 +29,7 @@ vi.mock('../access/access-control', () => ({
 
 import { CollaboratorsList } from './CollaboratorsList';
 
-function collaborator(id: string, name: string, managerId?: string) {
+function collaborator(id: string, name: string, managerId?: string, hasSignedContract = false) {
   return {
     id,
     role: 'professor',
@@ -38,7 +38,8 @@ function collaborator(id: string, name: string, managerId?: string) {
       ? { id: managerId, user: { profile: { name: 'Gestor' } } }
       : null,
     operationalRoleIds: ['function-1'],
-    hasSignedContract: false,
+    hasSignedContract,
+    signedContractDocumentUrl: hasSignedContract ? 'https://example.com/legado.pdf' : null,
     user: { id: `user-${id}`, email: `${id}@example.com`, isActive: true, profile: { name } },
     contract: { id: 'contract-1', type: 'academy', document: '123' },
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -51,7 +52,7 @@ describe('CollaboratorsList', () => {
     mocks.canRegister = false;
     mocks.scope = 'self';
     mocks.list.mockResolvedValue([
-      collaborator('actor', 'Próprio cadastro'),
+      collaborator('actor', 'Próprio cadastro', undefined, true),
       collaborator('managed', 'Colaborador gerenciado', 'actor'),
       collaborator('unrelated', 'Outro colaborador', 'other'),
     ]);
@@ -81,5 +82,15 @@ describe('CollaboratorsList', () => {
       '/consultas/colaboradores/managed/edit',
     ]);
     expect(screen.queryByRole('link', { name: /novo colaborador/i })).not.toBeInTheDocument();
+  });
+
+  it('não usa o booleano legado como filtro ou status contratual', async () => {
+    render(<MemoryRouter><CollaboratorsList /></MemoryRouter>);
+
+    expect(await screen.findByText('Próprio cadastro')).toBeInTheDocument();
+    expect(screen.queryByLabelText(/filtrar por contrato/i)).not.toBeInTheDocument();
+    expect(screen.queryByText('Contrato assinado')).not.toBeInTheDocument();
+    expect(screen.queryByText('Contrato pendente')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: /consultar/i })).toHaveLength(3);
   });
 });

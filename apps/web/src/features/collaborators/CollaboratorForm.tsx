@@ -6,7 +6,7 @@ import type {
   ProfessorSummary,
 } from '@corrida/types';
 import type { FieldErrors, UseFormRegister, UseFormSetValue, UseFormWatch } from 'react-hook-form';
-import { ExternalLink, Upload, X } from 'lucide-react';
+import { Upload, X } from 'lucide-react';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { resolveAssetUrl } from '../../utils/assetUrl';
@@ -74,11 +74,8 @@ export function CollaboratorForm({
   showCollaboratorBlock,
   showManagerBlock,
   administrativeFieldsEnabled,
-  signedContractUploadEnabled,
   uploadingAvatar,
-  uploadingContract,
   onAvatarFile,
-  onContractFile,
   onCancel,
   submitting,
 }: {
@@ -94,18 +91,13 @@ export function CollaboratorForm({
   showCollaboratorBlock: boolean;
   showManagerBlock: boolean;
   administrativeFieldsEnabled: boolean;
-  signedContractUploadEnabled: boolean;
   uploadingAvatar: boolean;
-  uploadingContract: boolean;
   onAvatarFile: (file: File) => void;
-  onContractFile: (file: File) => void;
   onCancel: () => void;
   submitting: boolean;
 }) {
   const [cepError, setCepError] = useState<string | null>(null);
   const avatar = watch('avatar');
-  const hasSignedContract = watch('hasSignedContract');
-  const signedContractDocumentUrl = watch('signedContractDocumentUrl');
   const currentStatus = watch('currentStatus');
   const dismissalDate = watch('dismissalDate');
   const collaboratorFunctionId = watch('collaboratorFunctionId');
@@ -115,12 +107,6 @@ export function CollaboratorForm({
   const showResponsibleManager = selectedFunction?.code !== 'manager';
   const avatarUrl = resolveAssetUrl(avatar);
   const zipCodeField = register('addressZipCode');
-
-  useEffect(() => {
-    if (!hasSignedContract && signedContractDocumentUrl) {
-      setValue('signedContractDocumentUrl', '', { shouldDirty: true, shouldValidate: true });
-    }
-  }, [hasSignedContract, setValue, signedContractDocumentUrl]);
 
   useEffect(() => {
     if (currentStatus !== 'Desligado' && dismissalDate) {
@@ -384,52 +370,12 @@ export function CollaboratorForm({
               disabled={!administrativeFieldsEnabled}
             />
           </CollaboratorSection>
-
-          <CollaboratorSection title="Contrato legado" description="Este bloco permanece disponível até a migração para o ciclo contratual da issue #263.">
-            <label className="flex items-center gap-3 rounded-xl border border-border p-4 text-sm font-medium text-foreground">
-              <input type="checkbox" disabled={!administrativeFieldsEnabled} {...register('hasSignedContract')} />
-              O colaborador possui contrato assinado
-            </label>
-
-            {hasSignedContract ? (
-              <div className="mt-4 rounded-xl border border-dashed border-border p-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-foreground">{signedContractDocumentUrl ? 'PDF anexado' : 'Nenhum PDF enviado'}</p>
-                    {signedContractDocumentUrl ? (
-                      <a href={signedContractDocumentUrl} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline">
-                        Visualizar contrato <ExternalLink size={14} />
-                      </a>
-                    ) : null}
-                  </div>
-                  {signedContractUploadEnabled ? (
-                    <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
-                      <Upload size={16} />
-                      {uploadingContract ? 'Enviando...' : signedContractDocumentUrl ? 'Substituir PDF' : 'Enviar PDF'}
-                      <input
-                        type="file"
-                        accept="application/pdf"
-                        className="sr-only"
-                        disabled={uploadingContract}
-                        onChange={(event) => {
-                          const file = event.target.files?.[0];
-                          if (file) onContractFile(file);
-                          event.target.value = '';
-                        }}
-                      />
-                    </label>
-                  ) : null}
-                </div>
-                {errorMessage(errors.signedContractDocumentUrl) ? <p className="mt-2 text-sm text-destructive">{errorMessage(errors.signedContractDocumentUrl)}</p> : null}
-              </div>
-            ) : null}
-          </CollaboratorSection>
         </>
       ) : null}
 
       <div className="sticky bottom-4 z-10 flex flex-wrap justify-end gap-3 rounded-2xl border border-border bg-background/95 p-4 shadow-lg backdrop-blur">
         <Button type="button" variant="outline" onClick={onCancel} disabled={submitting}>Cancelar</Button>
-        <Button type="submit" disabled={submitting || uploadingAvatar || uploadingContract}>
+        <Button type="submit" disabled={submitting || uploadingAvatar}>
           {submitting ? 'Salvando...' : mode === 'create' ? 'Cadastrar colaborador' : 'Salvar alterações'}
         </Button>
       </div>
