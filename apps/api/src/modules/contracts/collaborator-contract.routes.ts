@@ -18,6 +18,15 @@ import { contractRecordRepository } from './contract-record.repository.js';
 
 const router: Router = Router();
 const prisma = new PrismaClient();
+
+const collaboratorReadScreens = [
+  'collaborators.consultation',
+  'collaborators.registration',
+] as const;
+const collaboratorWriteScreens = ['collaborators.registration'] as const;
+
+const readContractAccess = screenAccessMiddleware([...collaboratorReadScreens]);
+const writeContractAccess = screenAccessMiddleware('collaborators.registration');
 const manageContractAccess = blockAccessMiddleware('collaborators.actions.uploadSignedContract');
 
 const tokenHash = (token: string) =>
@@ -39,14 +48,18 @@ function getActorProfessor(req: Request) {
   };
 }
 
-async function assertCollaboratorAccess(req: Request, collaboratorId: string) {
+async function assertCollaboratorAccess(
+  req: Request,
+  collaboratorId: string,
+  screens: Array<'collaborators.consultation' | 'collaborators.registration'>
+) {
   const companyContractId = (req as any).user.contractId as string | undefined;
   const actorProfessorId = (req as any).user.professorId as string | undefined;
   if (!companyContractId) throw new Error('Contrato autenticado não encontrado');
 
   const dataScope = await getMostPermissiveDataScopeForProfessor(
     getActorProfessor(req),
-    ['collaborators.registration']
+    screens
   );
   if (!dataScope) throw new Error('Colaborador não encontrado');
 
@@ -60,36 +73,48 @@ async function assertCollaboratorAccess(req: Request, collaboratorId: string) {
   return { companyContractId, collaborator };
 }
 
+const assertCollaboratorReadAccess = (req: Request, collaboratorId: string) =>
+  assertCollaboratorAccess(req, collaboratorId, [...collaboratorReadScreens]);
+
+const assertCollaboratorWriteAccess = (req: Request, collaboratorId: string) =>
+  assertCollaboratorAccess(req, collaboratorId, [...collaboratorWriteScreens]);
+
 const handleError = (res: Response, error: unknown, fallback: string) => {
   const message = error instanceof Error ? error.message : fallback;
   const notFound = message.includes('não encontrado') || message.includes('não pertence');
   return sendError(res, message, notFound ? 404 : 400);
 };
 
-router.use(
-  '/collaborators/:collaboratorId',
-  screenAccessMiddleware('collaborators.registration')
-);
-
-router.get('/collaborators/:collaboratorId/summary', async (req: Request, res: Response) => {
-  try {
-    const { companyContractId } = await assertCollaboratorAccess(req, req.params.collaboratorId);
-    const summary = await collaboratorContractService.summary(
-      companyContractId,
-      req.params.collaboratorId
-    );
-    return sendSuccess(res, summary, 'Controle contratual do colaborador recuperado com sucesso');
-  } catch (error) {
-    return handleError(res, error, 'Erro ao consultar contratos do colaborador');
+router.get(
+  '/collaborators/:collaboratorId/summary',
+  readContractAccess,
+  async (req: Request, res: Response) => {
+    try {
+      const { companyContractId } = await assertCollaboratorReadAccess(
+        req,
+        req.params.collaboratorId
+      );
+      const summary = await collaboratorContractService.summary(
+        companyContractId,
+        req.params.collaboratorId
+      );
+      return sendSuccess(res, summary, 'Controle contratual do colaborador recuperado com sucesso');
+    } catch (error) {
+      return handleError(res, error, 'Erro ao consultar contratos do colaborador');
+    }
   }
-});
+);
 
 router.post(
   '/collaborators/:collaboratorId/preview',
+  writeContractAccess,
   manageContractAccess,
   async (req: Request, res: Response) => {
     try {
-      const { companyContractId } = await assertCollaboratorAccess(req, req.params.collaboratorId);
+      const { companyContractId } = await assertCollaboratorWriteAccess(
+        req,
+        req.params.collaboratorId
+      );
       const preview = await collaboratorContractService.preview(companyContractId, {
         ...req.body,
         collaboratorId: req.params.collaboratorId,
@@ -103,10 +128,14 @@ router.post(
 
 router.post(
   '/collaborators/:collaboratorId/generate',
+  writeContractAccess,
   manageContractAccess,
   async (req: Request, res: Response) => {
     try {
-      const { companyContractId } = await assertCollaboratorAccess(req, req.params.collaboratorId);
+      const { companyContractId } = await assertCollaboratorWriteAccess(
+        req,
+        req.params.collaboratorId
+      );
       const generated = await collaboratorContractService.generate(
         companyContractId,
         { ...req.body, collaboratorId: req.params.collaboratorId },
@@ -121,9 +150,13 @@ router.post(
 
 router.get(
   '/collaborators/:collaboratorId/documents/:documentId',
+  readContractAccess,
   async (req: Request, res: Response) => {
     try {
-      const { companyContractId } = await assertCollaboratorAccess(req, req.params.collaboratorId);
+      const { companyContractId } = await assertCollaboratorReadAccess(
+        req,
+        req.params.collaboratorId
+      );
       await collaboratorContractService.assertDocumentBelongsToCollaborator(
         companyContractId,
         req.params.collaboratorId,
@@ -143,9 +176,13 @@ router.get(
 
 router.get(
   '/collaborators/:collaboratorId/documents/:documentId/pdf',
+  readContractAccess,
   async (req: Request, res: Response) => {
     try {
-      const { companyContractId } = await assertCollaboratorAccess(req, req.params.collaboratorId);
+      const { companyContractId } = await assertCollaboratorReadAccess(
+        req,
+        req.params.collaboratorId
+      );
       await collaboratorContractService.assertDocumentBelongsToCollaborator(
         companyContractId,
         req.params.collaboratorId,
@@ -174,10 +211,14 @@ router.get(
 
 router.post(
   '/collaborators/:collaboratorId/documents/:documentId/pdf',
+  writeContractAccess,
   manageContractAccess,
   async (req: Request, res: Response) => {
     try {
-      const { companyContractId } = await assertCollaboratorAccess(req, req.params.collaboratorId);
+      const { companyContractId } = await assertCollaboratorWriteAccess(
+        req,
+        req.params.collaboratorId
+      );
       await collaboratorContractService.assertDocumentBelongsToCollaborator(
         companyContractId,
         req.params.collaboratorId,
@@ -197,10 +238,14 @@ router.post(
 
 router.post(
   '/collaborators/:collaboratorId/documents/:documentId/send',
+  writeContractAccess,
   manageContractAccess,
   async (req: Request, res: Response) => {
     try {
-      const { companyContractId } = await assertCollaboratorAccess(req, req.params.collaboratorId);
+      const { companyContractId } = await assertCollaboratorWriteAccess(
+        req,
+        req.params.collaboratorId
+      );
       await collaboratorContractService.assertDocumentBelongsToCollaborator(
         companyContractId,
         req.params.collaboratorId,
@@ -273,10 +318,14 @@ router.post(
 
 router.post(
   '/collaborators/:collaboratorId/documents/:documentId/cancel',
+  writeContractAccess,
   manageContractAccess,
   async (req: Request, res: Response) => {
     try {
-      const { companyContractId } = await assertCollaboratorAccess(req, req.params.collaboratorId);
+      const { companyContractId } = await assertCollaboratorWriteAccess(
+        req,
+        req.params.collaboratorId
+      );
       await collaboratorContractService.assertDocumentBelongsToCollaborator(
         companyContractId,
         req.params.collaboratorId,
@@ -344,10 +393,14 @@ router.post(
 
 router.post(
   '/collaborators/:collaboratorId/links/:linkId/activate',
+  writeContractAccess,
   manageContractAccess,
   async (req: Request, res: Response) => {
     try {
-      const { companyContractId } = await assertCollaboratorAccess(req, req.params.collaboratorId);
+      const { companyContractId } = await assertCollaboratorWriteAccess(
+        req,
+        req.params.collaboratorId
+      );
       const summary = await collaboratorContractService.summary(
         companyContractId,
         req.params.collaboratorId
