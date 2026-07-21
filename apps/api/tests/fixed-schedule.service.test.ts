@@ -378,4 +378,93 @@ describe('fixed schedule canonical validation', () => {
       data: { schedulePlan: 'fixed' },
     });
   });
+
+  it('rejects duplicate persisted slot ids before acquiring locks or writing', async () => {
+    const db = databaseMock();
+
+    await expect(
+      syncStudentFixedSchedule(db as never, 'contract-1', 'aluno-1', 'fixed', [
+        slot({ id: 'slot-1', clientKey: 'row-1' }),
+        slot({ id: 'slot-1', clientKey: 'row-2', dayOfWeek: 2 }),
+      ])
+    ).rejects.toMatchObject({
+      code: 'FIXED_SLOT_ID_DUPLICATE',
+      rowIndex: 0,
+      stage: 'student',
+    });
+
+    expect(db.$executeRaw).not.toHaveBeenCalled();
+    expect(db.fixedScheduleSlot.findMany).not.toHaveBeenCalled();
+    expect(db.fixedScheduleSlot.update).not.toHaveBeenCalled();
+    expect(db.fixedScheduleSlot.create).not.toHaveBeenCalled();
+    expect(db.fixedScheduleSlot.updateMany).not.toHaveBeenCalled();
+    expect(db.aluno.update).not.toHaveBeenCalled();
+  });
+
+  it('reports duplicate ids on every affected availability row', async () => {
+    const db = databaseMock();
+    db.fixedScheduleSlot.findMany.mockResolvedValue([
+      {
+        id: 'slot-1',
+        alunoId: 'aluno-1',
+        professorId: 'professor-1',
+        spaceId: 'space-1',
+        dayOfWeek: 1,
+        startTime: '08:00',
+        endTime: '09:00',
+        notes: null,
+        isActive: true,
+      },
+    ]);
+
+    const results = await checkFixedScheduleAvailability(
+      db as never,
+      'contract-1',
+      'aluno-1',
+      [
+        slot({ id: 'slot-1', clientKey: 'row-1' }),
+        slot({ id: 'slot-1', clientKey: 'row-2', dayOfWeek: 2 }),
+      ]
+    );
+
+    expect(results).toEqual([
+      expect.objectContaining({ rowIndex: 0, code: 'FIXED_SLOT_ID_DUPLICATE', available: false }),
+      expect.objectContaining({ rowIndex: 1, code: 'FIXED_SLOT_ID_DUPLICATE', available: false }),
+    ]);
+    expect(db.trainingSpace.findFirst).not.toHaveBeenCalled();
+    expect(db.professor.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('rejects an inactive historical slot id without mutating the schedule', async () => {
+    const db = databaseMock();
+    db.fixedScheduleSlot.findMany.mockResolvedValue([
+      {
+        id: 'slot-1',
+        alunoId: 'aluno-1',
+        professorId: 'professor-1',
+        spaceId: 'space-1',
+        dayOfWeek: 1,
+        startTime: '08:00',
+        endTime: '09:00',
+        notes: null,
+        isActive: false,
+      },
+    ]);
+
+    await expect(
+      syncStudentFixedSchedule(db as never, 'contract-1', 'aluno-1', 'fixed', [
+        slot({ id: 'slot-1' }),
+      ])
+    ).rejects.toMatchObject({
+      code: 'FIXED_SLOT_INACTIVE',
+      rowIndex: 0,
+      stage: 'student',
+    });
+
+    expect(db.fixedScheduleSlot.update).not.toHaveBeenCalled();
+    expect(db.fixedScheduleSlot.create).not.toHaveBeenCalled();
+    expect(db.fixedScheduleSlot.updateMany).not.toHaveBeenCalled();
+    expect(db.aluno.update).not.toHaveBeenCalled();
+  });
+
 });

@@ -1,6 +1,8 @@
 ﻿import { PrismaClient, type AgendaBookingStatus, type AgendaBookingType } from '@prisma/client';
 import {
   checkFixedScheduleAvailability,
+  FixedScheduleError,
+  fixedScheduleMessages,
   syncStudentFixedSchedule,
   type FixedScheduleSlotInput,
 } from './fixed-schedule.service.js';
@@ -227,9 +229,16 @@ export const agendaService = {
     return prisma.$transaction(async (tx) => {
       const current = await tx.fixedScheduleSlot.findFirst({
         where: { id, professor: { contractId } },
-        select: { alunoId: true },
+        select: { alunoId: true, isActive: true },
       });
       if (!current) throw new Error('Horario fixo nao encontrado');
+      if (!current.isActive) {
+        throw new FixedScheduleError(
+          'FIXED_SLOT_INACTIVE',
+          fixedScheduleMessages.FIXED_SLOT_INACTIVE,
+          { stage: 'student' }
+        );
+      }
 
       const active = await tx.fixedScheduleSlot.findMany({
         where: { alunoId: current.alunoId, isActive: true, professor: { contractId } },

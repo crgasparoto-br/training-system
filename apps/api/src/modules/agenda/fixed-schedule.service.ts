@@ -16,6 +16,8 @@ export type FixedScheduleErrorCode =
   | 'PROFESSOR_BOOKING_CONFLICT'
   | 'STUDENT_FIXED_SLOT_CONFLICT'
   | 'FIXED_SLOT_NOT_FOUND'
+  | 'FIXED_SLOT_INACTIVE'
+  | 'FIXED_SLOT_ID_DUPLICATE'
   | 'FIXED_TO_FREE_CONFIRMATION_REQUIRED'
   | 'FUTURE_BOOKINGS_CONFIRMATION_REQUIRED'
   | 'FIXED_SCHEDULE_CHANGED';
@@ -87,6 +89,10 @@ const MESSAGES: Record<FixedScheduleErrorCode, string> = {
   PROFESSOR_BOOKING_CONFLICT: 'O professor já possui agendamento ativo nesse período.',
   STUDENT_FIXED_SLOT_CONFLICT: 'O aluno possui horários fixos sobrepostos no mesmo dia.',
   FIXED_SLOT_NOT_FOUND: 'O horário fixo informado não pertence a este aluno.',
+  FIXED_SLOT_INACTIVE:
+    'O horário fixo informado está inativo e não pode ser reutilizado. Crie uma nova recorrência.',
+  FIXED_SLOT_ID_DUPLICATE:
+    'Cada horário fixo existente pode aparecer apenas uma vez no conjunto enviado.',
   FIXED_TO_FREE_CONFIRMATION_REQUIRED:
     'Confirme a mudança do plano de agenda fixa para agenda livre.',
   FUTURE_BOOKINGS_CONFIRMATION_REQUIRED:
@@ -281,6 +287,24 @@ function findStudentRowConflictIndexes(slots: FixedScheduleSlotInput[]): Set<num
     }
   }
   return conflicts;
+}
+
+function findDuplicateSlotIdRowIndexes(slots: FixedScheduleSlotInput[]): Set<number> {
+  const firstRowById = new Map<string, number>();
+  const duplicates = new Set<number>();
+
+  slots.forEach((slot, rowIndex) => {
+    if (!slot.id) return;
+    const firstRowIndex = firstRowById.get(slot.id);
+    if (firstRowIndex === undefined) {
+      firstRowById.set(slot.id, rowIndex);
+      return;
+    }
+    duplicates.add(firstRowIndex);
+    duplicates.add(rowIndex);
+  });
+
+  return duplicates;
 }
 
 function validateStudentRows(slots: FixedScheduleSlotInput[]) {
@@ -486,18 +510,43 @@ export async function checkFixedScheduleAvailability(
       )
     );
   });
+  findDuplicateSlotIdRowIndexes(validRows).forEach((validRowIndex) => {
+    const originalIndex = validRowsWithIndexes[validRowIndex].originalIndex;
+    earlyErrors.set(
+      originalIndex,
+      new FixedScheduleError('FIXED_SLOT_ID_DUPLICATE', MESSAGES.FIXED_SLOT_ID_DUPLICATE, {
+        stage: 'student',
+        rowIndex: originalIndex,
+        statusCode: 400,
+      })
+    );
+  });
 
   const existing = alunoId ? await loadStudentSlots(db, contractId, alunoId) : [];
   const existingById = new Map(existing.map((item) => [item.id, item]));
-  const submittedIds = validRows.map((slot) => slot.id).filter((id): id is string => Boolean(id));
+  const submittedIds = [
+    ...new Set(validRows.map((slot) => slot.id).filter((id): id is string => Boolean(id))),
+  ];
   normalized.forEach((slot, rowIndex) => {
-    if (slot?.id && (!alunoId || !existingById.has(slot.id))) {
+    if (earlyErrors.has(rowIndex) || !slot?.id) return;
+    const existingSlot = alunoId ? existingById.get(slot.id) : undefined;
+    if (!existingSlot) {
       earlyErrors.set(
         rowIndex,
         new FixedScheduleError('FIXED_SLOT_NOT_FOUND', MESSAGES.FIXED_SLOT_NOT_FOUND, {
           stage: 'student',
           rowIndex,
           statusCode: 404,
+        })
+      );
+      return;
+    }
+    if (!existingSlot.isActive) {
+      earlyErrors.set(
+        rowIndex,
+        new FixedScheduleError('FIXED_SLOT_INACTIVE', MESSAGES.FIXED_SLOT_INACTIVE, {
+          stage: 'student',
+          rowIndex,
         })
       );
     }
@@ -601,8 +650,36 @@ export async function syncStudentFixedSchedule(
 
   const slots = rawSlots.map(normalizeSlot);
   validateStudentRows(slots);
+  const duplicateRowIndex = [...findDuplicateSlotIdRowIndexes(slots)].sort((a, b) => a - b)[0];
+  if (duplicateRowIndex !== undefined) {
+    throw new FixedScheduleError(
+      'FIXED_SLOT_ID_DUPLICATE',
+      MESSAGES.FIXED_SLOT_ID_DUPLICATE,
+      { stage: 'student', rowIndex: duplicateRowIndex, statusCode: 400 }
+    );
+  }
+
   await acquireScheduleLocks(tx, contractId, alunoId, slots);
   const existing = await loadStudentSlots(tx, contractId, alunoId);
+  const existingById = new Map(existing.map((item) => [item.id, item]));
+  slots.forEach((slot, rowIndex) => {
+    if (!slot.id) return;
+    const existingSlot = existingById.get(slot.id);
+    if (!existingSlot) {
+      throw new FixedScheduleError('FIXED_SLOT_NOT_FOUND', MESSAGES.FIXED_SLOT_NOT_FOUND, {
+        stage: 'student',
+        rowIndex,
+        statusCode: 404,
+      });
+    }
+    if (!existingSlot.isActive) {
+      throw new FixedScheduleError('FIXED_SLOT_INACTIVE', MESSAGES.FIXED_SLOT_INACTIVE, {
+        stage: 'student',
+        rowIndex,
+      });
+    }
+  });
+
   const results = await checkFixedScheduleAvailability(tx, contractId, alunoId, slots);
   const firstFailure = results.find((result) => !result.available);
   if (firstFailure) {
@@ -625,14 +702,19 @@ export async function syncStudentFixedSchedule(
     });
   }
 
-  const existingById = new Map(existing.map((item) => [item.id, item]));
   const retainedIds: string[] = [];
   for (const slot of slots) {
     if (slot.id) {
-      if (!existingById.has(slot.id)) {
+      const existingSlot = existingById.get(slot.id);
+      if (!existingSlot) {
         throw new FixedScheduleError('FIXED_SLOT_NOT_FOUND', MESSAGES.FIXED_SLOT_NOT_FOUND, {
           stage: 'student',
           statusCode: 404,
+        });
+      }
+      if (!existingSlot.isActive) {
+        throw new FixedScheduleError('FIXED_SLOT_INACTIVE', MESSAGES.FIXED_SLOT_INACTIVE, {
+          stage: 'student',
         });
       }
       await tx.fixedScheduleSlot.update({

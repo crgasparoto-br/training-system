@@ -244,4 +244,114 @@ describeDatabase('fixed schedule transactional behavior', () => {
     expect(allSlots.find((item) => item.id === removed.id)?.isActive).toBe(false);
     expect(allSlots.filter((item) => item.isActive)).toHaveLength(2);
   });
+
+  it('rejects duplicate ids and preserves the persisted active recurrence unchanged', async () => {
+    const fixture = await seedFixture(2);
+    const initial = await prisma.$transaction((tx) =>
+      syncStudentFixedSchedule(tx, contractId, fixture.first.aluno.id, 'fixed', [
+        fixedSlot(fixture.first.professor.id, fixture.space.id),
+      ])
+    );
+    const original = initial.slots[0];
+
+    await expect(
+      prisma.$transaction((tx) =>
+        syncStudentFixedSchedule(tx, contractId, fixture.first.aluno.id, 'fixed', [
+          fixedSlot(fixture.first.professor.id, fixture.space.id, {
+            id: original.id,
+            clientKey: 'duplicate-row-1',
+            startTime: '09:00',
+            endTime: '10:00',
+          }),
+          fixedSlot(fixture.first.professor.id, fixture.space.id, {
+            id: original.id,
+            clientKey: 'duplicate-row-2',
+            dayOfWeek: 2,
+          }),
+        ])
+      )
+    ).rejects.toEqual(expect.objectContaining({ code: 'FIXED_SLOT_ID_DUPLICATE' }));
+
+    const [persisted, activeCount, aluno] = await Promise.all([
+      prisma.fixedScheduleSlot.findUniqueOrThrow({ where: { id: original.id } }),
+      prisma.fixedScheduleSlot.count({
+        where: { alunoId: fixture.first.aluno.id, isActive: true },
+      }),
+      prisma.aluno.findUniqueOrThrow({ where: { id: fixture.first.aluno.id } }),
+    ]);
+    expect(persisted).toMatchObject({
+      dayOfWeek: 1,
+      startTime: '08:00',
+      endTime: '09:00',
+      isActive: true,
+    });
+    expect(activeCount).toBe(1);
+    expect(aluno.schedulePlan).toBe('fixed');
+  });
+
+  it('rejects reuse of an inactive historical id and creates a new id when the recurrence returns', async () => {
+    const fixture = await seedFixture(2);
+    const initial = await prisma.$transaction((tx) =>
+      syncStudentFixedSchedule(tx, contractId, fixture.first.aluno.id, 'fixed', [
+        fixedSlot(fixture.first.professor.id, fixture.space.id),
+      ])
+    );
+    const historical = initial.slots[0];
+
+    await prisma.$transaction((tx) =>
+      syncStudentFixedSchedule(tx, contractId, fixture.first.aluno.id, 'free', [], {
+        confirmKeepFutureBookings: true,
+      })
+    );
+
+    await expect(
+      prisma.$transaction((tx) =>
+        syncStudentFixedSchedule(tx, contractId, fixture.first.aluno.id, 'fixed', [
+          fixedSlot(fixture.first.professor.id, fixture.space.id, {
+            id: historical.id,
+            clientKey: historical.id,
+            startTime: '09:00',
+            endTime: '10:00',
+          }),
+        ])
+      )
+    ).rejects.toEqual(expect.objectContaining({ code: 'FIXED_SLOT_INACTIVE' }));
+
+    const [afterRejectedReuse, alunoAfterRejectedReuse, activeAfterRejectedReuse] =
+      await Promise.all([
+        prisma.fixedScheduleSlot.findUniqueOrThrow({ where: { id: historical.id } }),
+        prisma.aluno.findUniqueOrThrow({ where: { id: fixture.first.aluno.id } }),
+        prisma.fixedScheduleSlot.count({
+          where: { alunoId: fixture.first.aluno.id, isActive: true },
+        }),
+      ]);
+    expect(afterRejectedReuse).toMatchObject({
+      startTime: '08:00',
+      endTime: '09:00',
+      isActive: false,
+    });
+    expect(alunoAfterRejectedReuse.schedulePlan).toBe('free');
+    expect(activeAfterRejectedReuse).toBe(0);
+
+    const recreated = await prisma.$transaction((tx) =>
+      syncStudentFixedSchedule(tx, contractId, fixture.first.aluno.id, 'fixed', [
+        fixedSlot(fixture.first.professor.id, fixture.space.id, {
+          clientKey: 'new-recurrence',
+          startTime: '09:00',
+          endTime: '10:00',
+        }),
+      ])
+    );
+
+    expect(recreated.slots).toHaveLength(1);
+    expect(recreated.slots[0].id).not.toBe(historical.id);
+    const allSlots = await prisma.fixedScheduleSlot.findMany({
+      where: { alunoId: fixture.first.aluno.id },
+      orderBy: { createdAt: 'asc' },
+    });
+    expect(allSlots).toHaveLength(2);
+    expect(allSlots.find((item) => item.id === historical.id)?.isActive).toBe(false);
+    expect(allSlots.find((item) => item.id === recreated.slots[0].id)?.isActive).toBe(true);
+  });
+
 });
