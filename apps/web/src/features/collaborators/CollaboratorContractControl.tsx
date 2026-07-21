@@ -61,6 +61,7 @@ function ContractRecordCard({
   onCancel: (item: CollaboratorContractRecord) => void;
 }) {
   const electronic = item.origin === 'ELECTRONIC' && Boolean(item.contractId);
+
   return (
     <div className="rounded-xl border border-border bg-card p-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -145,9 +146,15 @@ function ContractRecordCard({
   );
 }
 
-export function CollaboratorContractControl({ collaboratorId }: { collaboratorId: string }) {
+export function CollaboratorContractControl({
+  collaboratorId,
+  readOnly = false,
+}: {
+  collaboratorId: string;
+  readOnly?: boolean;
+}) {
   const { user } = useAuthStore();
-  const canManage = canAccessBlock(user, 'collaborators.actions.uploadSignedContract');
+  const canManage = !readOnly && canAccessBlock(user, 'collaborators.actions.uploadSignedContract');
   const [summary, setSummary] = useState<CollaboratorContractSummary>(emptySummary);
   const [templates, setTemplates] = useState<CollaboratorContractTemplate[]>([]);
   const [draft, setDraft] = useState<CollaboratorContractDraftInput>({
@@ -170,10 +177,11 @@ export function CollaboratorContractControl({ collaboratorId }: { collaboratorId
   const load = async () => {
     setLoading(true);
     try {
-      const [nextSummary, nextTemplates] = await Promise.all([
-        collaboratorContractService.summary(collaboratorId),
-        collaboratorContractService.listTemplates(),
-      ]);
+      const nextSummary = await collaboratorContractService.summary(collaboratorId);
+      const nextTemplates = canManage
+        ? await collaboratorContractService.listTemplates()
+        : [];
+
       setSummary(nextSummary);
       setTemplates(nextTemplates);
       setDraft((current) => ({
@@ -191,7 +199,7 @@ export function CollaboratorContractControl({ collaboratorId }: { collaboratorId
 
   useEffect(() => {
     void load();
-  }, [collaboratorId]);
+  }, [collaboratorId, canManage]);
 
   const run = async (action: () => Promise<void>) => {
     setBusy(true);
@@ -270,7 +278,9 @@ export function CollaboratorContractControl({ collaboratorId }: { collaboratorId
   return (
     <CollaboratorSection
       title="Controle contratual"
-      description="Acompanhe o contrato vigente, prepare substituições e consulte todo o histórico do colaborador."
+      description={readOnly
+        ? 'Consulte o contrato vigente, os candidatos e todo o histórico contratual do colaborador.'
+        : 'Acompanhe o contrato vigente, prepare substituições e consulte todo o histórico do colaborador.'}
     >
       <div className="space-y-5">
         {message ? (
