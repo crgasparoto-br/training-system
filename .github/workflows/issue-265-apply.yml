@@ -1,0 +1,47 @@
+name: Apply issue 265 source patch
+
+on:
+  push:
+    branches:
+      - feat/265-fixed-schedule-student-form
+    paths:
+      - scripts/issue-265-apply.mjs
+      - .github/workflows/issue-265-apply.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/265-fixed-schedule-student-form
+          fetch-depth: 0
+
+      - name: Apply patch
+        run: node scripts/issue-265-apply.mjs
+
+      - name: Verify patch formatting
+        run: git diff --check
+
+      - name: Commit generated source changes
+        run: |
+          if git diff --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packages/utils/validations.ts \
+            apps/api/src/modules/alunos/aluno.service.ts \
+            apps/api/src/modules/alunos/aluno.routes.ts \
+            apps/api/src/modules/agenda/agenda.service.ts \
+            apps/api/src/modules/agenda/agenda.routes.ts \
+            apps/web/src/services/agenda.service.ts \
+            apps/web/src/services/aluno.service.ts \
+            apps/web/src/pages/AlunoForm.tsx
+          git commit -m "feat(issue-265): integrate fixed schedule with student form"
+          git push origin HEAD:feat/265-fixed-schedule-student-form
