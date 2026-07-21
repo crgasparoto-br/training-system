@@ -51,6 +51,14 @@ const createBlankRow = (professorId = '', spaceId = ''): FixedScheduleSlotDraft 
   availability: null,
 });
 
+export const serializeFixedScheduleSlots = (
+  rows: FixedScheduleSlotDraft[]
+): FixedScheduleSlotInput[] =>
+  rows.map(({ availability, ...slot }) => ({
+    ...slot,
+    availabilityConfirmed: availability?.available === true,
+  }));
+
 function availabilityClass(result?: FixedScheduleAvailabilityResult | null) {
   if (!result) return 'border-slate-200 bg-slate-50 text-slate-600';
   return result.available
@@ -70,6 +78,7 @@ export function FixedScheduleEditor({
   const [loading, setLoading] = useState(false);
   const [checking, setChecking] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [checkError, setCheckError] = useState<string | null>(null);
 
   useEffect(() => {
     if (plan !== 'fixed') return;
@@ -165,6 +174,7 @@ export function FixedScheduleEditor({
 
   const checkRows = async (targetClientKey?: string) => {
     setChecking(true);
+    setCheckError(null);
     try {
       const results = await agendaService.checkFixedScheduleAvailability({
         alunoId,
@@ -181,6 +191,7 @@ export function FixedScheduleEditor({
       );
     } catch (error: any) {
       const message = error.response?.data?.error || 'Não foi possível verificar os horários.';
+      setCheckError(message);
       if (targetClientKey) {
         onChange(
           value.map((row, rowIndex) =>
@@ -199,6 +210,8 @@ export function FixedScheduleEditor({
               : row
           )
         );
+      } else {
+        onChange(value.map((row) => ({ ...row, availability: null })));
       }
     } finally {
       setChecking(false);
@@ -232,6 +245,7 @@ export function FixedScheduleEditor({
 
       {loading && <p className="text-sm text-muted-foreground">Carregando agenda...</p>}
       {loadError && <p className="text-sm text-destructive">{loadError}</p>}
+      {checkError && <p className="text-sm text-destructive">{checkError}</p>}
       {!loading && spaces.length === 0 && (
         <p className="text-sm text-amber-700">
           Cadastre e ative ao menos um espaço da academia antes de usar a agenda fixa.

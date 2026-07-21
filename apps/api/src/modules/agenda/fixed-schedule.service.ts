@@ -16,6 +16,7 @@ export type FixedScheduleErrorCode =
   | 'PROFESSOR_BOOKING_CONFLICT'
   | 'STUDENT_FIXED_SLOT_CONFLICT'
   | 'FIXED_SLOT_NOT_FOUND'
+  | 'FIXED_TO_FREE_CONFIRMATION_REQUIRED'
   | 'FUTURE_BOOKINGS_CONFIRMATION_REQUIRED'
   | 'FIXED_SCHEDULE_CHANGED';
 
@@ -86,6 +87,8 @@ const MESSAGES: Record<FixedScheduleErrorCode, string> = {
   PROFESSOR_BOOKING_CONFLICT: 'O professor já possui agendamento ativo nesse período.',
   STUDENT_FIXED_SLOT_CONFLICT: 'O aluno possui horários fixos sobrepostos no mesmo dia.',
   FIXED_SLOT_NOT_FOUND: 'O horário fixo informado não pertence a este aluno.',
+  FIXED_TO_FREE_CONFIRMATION_REQUIRED:
+    'Confirme a mudança do plano de agenda fixa para agenda livre.',
   FUTURE_BOOKINGS_CONFIRMATION_REQUIRED:
     'Existem agendamentos futuros vinculados aos horários fixos. Confirme que eles serão mantidos antes de mudar para agenda livre.',
   FIXED_SCHEDULE_CHANGED:
@@ -560,26 +563,26 @@ export async function syncStudentFixedSchedule(
     await acquireScheduleLocks(tx, contractId, alunoId, []);
     const aluno = await loadStudent(tx, contractId, alunoId);
     const existing = await loadStudentSlots(tx, contractId, alunoId);
-    if (aluno.schedulePlan === 'fixed') {
+    if (aluno.schedulePlan === 'fixed' && !options.confirmKeepFutureBookings) {
       const activeIds = existing.filter((item) => item.isActive).map((item) => item.id);
-      if (activeIds.length) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const futureBookings = await tx.agendaBooking.count({
-          where: {
-            fixedSlotId: { in: activeIds },
-            bookingDate: { gte: today },
-            status: { in: ACTIVE_BOOKING_STATUSES },
-          },
-        });
-        if (futureBookings > 0 && !options.confirmKeepFutureBookings) {
-          throw new FixedScheduleError(
-            'FUTURE_BOOKINGS_CONFIRMATION_REQUIRED',
-            MESSAGES.FUTURE_BOOKINGS_CONFIRMATION_REQUIRED,
-            { stage: 'schedule' }
-          );
-        }
-      }
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const futureBookings = activeIds.length
+        ? await tx.agendaBooking.count({
+            where: {
+              fixedSlotId: { in: activeIds },
+              bookingDate: { gte: today },
+              status: { in: ACTIVE_BOOKING_STATUSES },
+            },
+          })
+        : 0;
+      const confirmationCode =
+        futureBookings > 0
+          ? 'FUTURE_BOOKINGS_CONFIRMATION_REQUIRED'
+          : 'FIXED_TO_FREE_CONFIRMATION_REQUIRED';
+      throw new FixedScheduleError(confirmationCode, MESSAGES[confirmationCode], {
+        stage: 'schedule',
+      });
     }
     await tx.fixedScheduleSlot.updateMany({
       where: { alunoId, isActive: true },

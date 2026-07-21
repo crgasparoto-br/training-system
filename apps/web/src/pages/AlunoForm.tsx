@@ -21,6 +21,7 @@ import { Input } from '../components/ui/Input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
 import {
   FixedScheduleEditor,
+  serializeFixedScheduleSlots,
   type FixedScheduleSlotDraft,
 } from '../components/alunos/FixedScheduleEditor';
 import { ArrowLeft, ClipboardList, FileText, HeartPulse, Sparkles, Upload, User, Wallet, X } from 'lucide-react';
@@ -1115,9 +1116,7 @@ export function AlunoForm() {
         if (!confirmKeepFutureBookings) return;
       }
 
-      const serializedFixedScheduleSlots = fixedScheduleSlots.map(
-        ({ availability: _availability, ...slot }) => slot
-      );
+      const serializedFixedScheduleSlots = serializeFixedScheduleSlots(fixedScheduleSlots);
 
       const updatePayload: UpdateAlunoDTO = {
         avatar: data.avatar || undefined,
@@ -1198,7 +1197,28 @@ export function AlunoForm() {
       });
     } catch (error: any) {
       console.error('Erro ao salvar aluno:', error);
-      alert(error.response?.data?.error || alunoFormCopy.saveError);
+      const scheduleError = error.response?.data;
+      if (typeof scheduleError?.rowIndex === 'number') {
+        setFixedScheduleSlots((current) =>
+          current.map((slot, rowIndex) =>
+            rowIndex === scheduleError.rowIndex
+              ? {
+                  ...slot,
+                  availability: {
+                    rowIndex,
+                    clientKey: slot.clientKey,
+                    slotId: slot.id,
+                    available: false,
+                    code: scheduleError.code || 'FIXED_SCHEDULE_CHANGED',
+                    message: scheduleError.error || alunoFormCopy.saveError,
+                    stage: scheduleError.stage || 'schedule',
+                  },
+                }
+              : slot
+          )
+        );
+      }
+      alert(scheduleError?.error || alunoFormCopy.saveError);
     } finally {
       setLoading(false);
     }

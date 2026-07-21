@@ -152,6 +152,34 @@ describeDatabase('fixed schedule transactional behavior', () => {
     ).resolves.toBe(1);
   });
 
+  it('allows editing the own slot at capacity one without treating it as a competitor', async () => {
+    const fixture = await seedFixture(1);
+    const initial = await prisma.$transaction((tx) =>
+      syncStudentFixedSchedule(tx, contractId, fixture.first.aluno.id, 'fixed', [
+        fixedSlot(fixture.first.professor.id, fixture.space.id),
+      ])
+    );
+
+    await expect(
+      prisma.$transaction((tx) =>
+        syncStudentFixedSchedule(tx, contractId, fixture.first.aluno.id, 'fixed', [
+          fixedSlot(fixture.first.professor.id, fixture.space.id, {
+            id: initial.slots[0].id,
+            clientKey: initial.slots[0].id,
+            startTime: '08:15',
+            endTime: '09:15',
+          }),
+        ])
+      )
+    ).resolves.toMatchObject({ schedulePlan: 'fixed' });
+
+    await expect(
+      prisma.fixedScheduleSlot.count({
+        where: { alunoId: fixture.first.aluno.id, isActive: true },
+      })
+    ).resolves.toBe(1);
+  });
+
   it('rolls back the complete set when one desired row becomes invalid', async () => {
     const fixture = await seedFixture(2);
 

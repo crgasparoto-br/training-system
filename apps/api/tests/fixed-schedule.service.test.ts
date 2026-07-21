@@ -1,3 +1,4 @@
+import { CreateAlunoSchema, UpdateAlunoSchema } from '@corrida/utils';
 import {
   checkFixedScheduleAvailability,
   fixedScheduleOverlaps,
@@ -180,6 +181,46 @@ describe('fixed schedule canonical validation', () => {
     expect(result).toMatchObject({ available: true, code: 'AVAILABLE' });
   });
 
+  it('preserves the availability confirmation flag through the shared HTTP schemas', () => {
+    const createPayload = CreateAlunoSchema.parse({
+      name: 'Aluno Teste',
+      email: 'aluno@example.com',
+      schedulePlan: 'fixed',
+      age: 30,
+      fixedScheduleSlots: [slot({ availabilityConfirmed: true })],
+    });
+    const updatePayload = UpdateAlunoSchema.parse({
+      fixedScheduleSlots: [slot({ availabilityConfirmed: true })],
+    });
+
+    expect(createPayload.fixedScheduleSlots?.[0].availabilityConfirmed).toBe(true);
+    expect(updatePayload.fixedScheduleSlots?.[0].availabilityConfirmed).toBe(true);
+  });
+
+  it('requires explicit confirmation before changing fixed to free without future bookings', async () => {
+    const db = databaseMock();
+    db.fixedScheduleSlot.findMany.mockResolvedValue([
+      {
+        id: 'slot-1',
+        alunoId: 'aluno-1',
+        professorId: 'professor-1',
+        spaceId: 'space-1',
+        dayOfWeek: 1,
+        startTime: '08:00',
+        endTime: '09:00',
+        notes: null,
+        isActive: true,
+      },
+    ]);
+    db.agendaBooking.count.mockResolvedValue(0);
+
+    await expect(
+      syncStudentFixedSchedule(db as never, 'contract-1', 'aluno-1', 'free', [])
+    ).rejects.toMatchObject({ code: 'FIXED_TO_FREE_CONFIRMATION_REQUIRED' });
+    expect(db.fixedScheduleSlot.updateMany).not.toHaveBeenCalled();
+    expect(db.aluno.update).not.toHaveBeenCalled();
+  });
+
   it('requires explicit confirmation before changing fixed to free with future bookings', async () => {
     const db = databaseMock();
     db.fixedScheduleSlot.findMany.mockResolvedValue([
@@ -201,6 +242,78 @@ describe('fixed schedule canonical validation', () => {
       syncStudentFixedSchedule(db as never, 'contract-1', 'aluno-1', 'free', [])
     ).rejects.toMatchObject({ code: 'FUTURE_BOOKINGS_CONFIRMATION_REQUIRED' });
     expect(db.fixedScheduleSlot.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('changes fixed to free after explicit confirmation without deleting bookings', async () => {
+    const db = databaseMock();
+    db.fixedScheduleSlot.findMany.mockResolvedValue([
+      {
+        id: 'slot-1',
+        alunoId: 'aluno-1',
+        professorId: 'professor-1',
+        spaceId: 'space-1',
+        dayOfWeek: 1,
+        startTime: '08:00',
+        endTime: '09:00',
+        notes: null,
+        isActive: true,
+      },
+    ]);
+
+    await syncStudentFixedSchedule(db as never, 'contract-1', 'aluno-1', 'free', [], {
+      confirmKeepFutureBookings: true,
+    });
+
+    expect(db.fixedScheduleSlot.updateMany).toHaveBeenCalledWith({
+      where: { alunoId: 'aluno-1', isActive: true },
+      data: { isActive: false },
+    });
+    expect(db.aluno.update).toHaveBeenCalledWith({
+      where: { id: 'aluno-1' },
+      data: { schedulePlan: 'free' },
+    });
+    expect(db.agendaBooking.findMany).not.toHaveBeenCalled();
+  });
+
+  it('reports a professor fixed-slot conflict with a stable code', async () => {
+    const db = databaseMock();
+    db.fixedScheduleSlot.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ startTime: '08:30', endTime: '09:30' }]);
+
+    const [result] = await checkFixedScheduleAvailability(
+      db as never,
+      'contract-1',
+      'aluno-1',
+      [slot()]
+    );
+
+    expect(result).toMatchObject({
+      available: false,
+      code: 'PROFESSOR_FIXED_SLOT_CONFLICT',
+      stage: 'professor',
+    });
+  });
+
+  it('reports an active professor booking conflict with a stable code', async () => {
+    const db = databaseMock();
+    db.agendaBooking.findMany.mockResolvedValue([
+      { bookingDate: new Date('2030-01-07T12:00:00Z'), startTime: '08:30', endTime: '09:30' },
+    ]);
+
+    const [result] = await checkFixedScheduleAvailability(
+      db as never,
+      'contract-1',
+      'aluno-1',
+      [slot()]
+    );
+
+    expect(result).toMatchObject({
+      available: false,
+      code: 'PROFESSOR_BOOKING_CONFLICT',
+      stage: 'professor',
+    });
   });
 
   it('does not write plan or slots when the final validation fails', async () => {

@@ -741,6 +741,7 @@ router.post('/', async (req: Request, res: Response) => {
         code: error.code,
         stage: error.stage,
         rowIndex: error.rowIndex,
+        reasonCode: error.reasonCode,
       });
     }
     console.error('Erro ao criar aluno:', error);
@@ -1140,6 +1141,7 @@ router.put('/:id', blockAccessMiddleware('students.actions.editProfile'), async 
         code: error.code,
         stage: error.stage,
         rowIndex: error.rowIndex,
+        reasonCode: error.reasonCode,
       });
     }
     console.error('Erro ao atualizar aluno:', error);

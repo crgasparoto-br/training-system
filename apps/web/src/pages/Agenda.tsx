@@ -212,16 +212,33 @@ export function Agenda() {
 
   const handleDeactivateFixedSlot = async (id: string) => {
     clearMessages();
+    const selectedSlot = fixedSlots.find((slot) => slot.id === id);
+    const isLastActiveSlotForStudent =
+      selectedSlot != null &&
+      fixedSlots.filter((slot) => slot.alunoId === selectedSlot.alunoId && slot.isActive).length === 1;
+
+    let confirmedPlanChange = false;
+    if (isLastActiveSlotForStudent) {
+      confirmedPlanChange = window.confirm(
+        'Este é o último horário fixo ativo. Ao inativá-lo, o aluno passará para a agenda livre. Agendamentos futuros já criados serão mantidos para cancelamento separado. Deseja continuar?'
+      );
+      if (!confirmedPlanChange) return;
+    }
+
     try {
-      await agendaService.deactivateFixedSlot(id);
+      await agendaService.deactivateFixedSlot(id, confirmedPlanChange);
     } catch (err: any) {
-      if (err?.response?.data?.code !== 'FUTURE_BOOKINGS_CONFIRMATION_REQUIRED') {
+      const code = err?.response?.data?.code;
+      if (
+        code !== 'FIXED_TO_FREE_CONFIRMATION_REQUIRED' &&
+        code !== 'FUTURE_BOOKINGS_CONFIRMATION_REQUIRED'
+      ) {
         setError(err?.response?.data?.error || agendaCopy.fixedSlotDeactivateError);
         return;
       }
 
       const confirmed = window.confirm(
-        'Este é o último horário fixo ativo e existem agendamentos futuros vinculados. Os agendamentos serão mantidos para cancelamento separado. Deseja continuar?'
+        'Ao inativar este horário, o aluno passará para a agenda livre. Agendamentos futuros já criados serão mantidos para cancelamento separado. Deseja continuar?'
       );
       if (!confirmed) return;
       try {

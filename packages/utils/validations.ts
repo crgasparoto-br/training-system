@@ -361,6 +361,7 @@ const fixedScheduleSlotSchema = z.object({
   startTime: z.string().regex(/^\d{2}:\d{2}$/, 'Horário inicial inválido'),
   endTime: z.string().regex(/^\d{2}:\d{2}$/, 'Horário final inválido'),
   notes: z.string().trim().nullable().optional(),
+  availabilityConfirmed: z.boolean().optional(),
 });
 
 export const CreateAlunoSchema = z.object({

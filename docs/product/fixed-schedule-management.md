@@ -20,7 +20,7 @@ Quando a etapa do espaço falha, o retorno contém somente o motivo principal de
 
 - `free -> fixed`: exige ao menos uma recorrência válida.
 - edição de `fixed`: o payload representa o conjunto completo. Linhas com `id` são atualizadas, linhas novas são criadas e linhas removidas são inativadas.
-- `fixed -> free`: exige confirmação explícita quando existirem agendamentos futuros materializados. As recorrências são inativadas, mas os agendamentos futuros são preservados para decisão operacional separada.
+- `fixed -> free`: exige confirmação explícita em qualquer transição. Quando existirem agendamentos futuros materializados, a mensagem também informa que eles serão preservados para decisão operacional separada.
 - recorrências nunca são excluídas fisicamente pelo fluxo do cadastro.
 - qualquer falha cancela toda a transação; plano e recorrências não ficam parcialmente gravados.
 
@@ -45,4 +45,6 @@ A API retorna mensagem em português e código estável, entre eles:
 - `PROFESSOR_BOOKING_CONFLICT`
 - `STUDENT_FIXED_SLOT_CONFLICT`
 - `FIXED_SLOT_NOT_FOUND`
+- `FIXED_TO_FREE_CONFIRMATION_REQUIRED`
 - `FUTURE_BOOKINGS_CONFIRMATION_REQUIRED`
+- `FIXED_SCHEDULE_CHANGED`
