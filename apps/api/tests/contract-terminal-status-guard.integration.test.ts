@@ -33,7 +33,7 @@ describeDatabase('terminal generated contract status protection', () => {
     await prisma.$disconnect();
   });
 
-  it('rejects reclassification of signed, cancelled and expired collaborator documents', async () => {
+  it('rejects lifecycle changes after collaborator signature, cancellation, expiration or rejection', async () => {
     await prisma.companyContract.create({
       data: {
         id: companyContractId,
@@ -95,32 +95,51 @@ describeDatabase('terminal generated contract status protection', () => {
     const signed = await createDocument('issue-263-terminal-signed', ContractStatus.SIGNED);
     const cancelled = await createDocument('issue-263-terminal-cancelled', ContractStatus.CANCELLED);
     const expired = await createDocument('issue-263-terminal-expired', ContractStatus.EXPIRED);
+    const rejected = await createDocument('issue-263-terminal-rejected', ContractStatus.SENT);
+    await prisma.contractAuditLog.create({
+      data: {
+        contractId: rejected.id,
+        action: 'UPDATED',
+        details: {
+          kind: 'STUDENT_REJECTION',
+          rejectedAt: '2026-07-21T10:00:00.000Z',
+          rejectionReason: 'Condições recusadas',
+          partyType: 'COLLABORATOR',
+          partyId: collaborator.id,
+        },
+      },
+    });
 
     await expect(prisma.contract.update({
       where: { id: signed.id },
-      data: { status: ContractStatus.CANCELLED },
-    })).rejects.toThrow('Terminal collaborator contract status cannot be changed');
+      data: { status: ContractStatus.CANCELLED, cancelledAt: new Date() },
+    })).rejects.toThrow('Terminal collaborator contract lifecycle cannot be changed');
     await expect(prisma.contract.update({
       where: { id: cancelled.id },
-      data: { status: ContractStatus.SENT },
-    })).rejects.toThrow('Terminal collaborator contract status cannot be changed');
+      data: { status: ContractStatus.CANCELLED, cancelledAt: new Date() },
+    })).rejects.toThrow('Terminal collaborator contract lifecycle cannot be changed');
     await expect(prisma.contract.update({
       where: { id: expired.id },
-      data: { status: ContractStatus.CANCELLED },
-    })).rejects.toThrow('Terminal collaborator contract status cannot be changed');
+      data: { status: ContractStatus.CANCELLED, cancelledAt: new Date() },
+    })).rejects.toThrow('Terminal collaborator contract lifecycle cannot be changed');
+    await expect(prisma.contract.update({
+      where: { id: rejected.id },
+      data: { status: ContractStatus.CANCELLED, cancelledAt: new Date() },
+    })).rejects.toThrow('Rejected collaborator contract lifecycle cannot be changed');
 
     await prisma.contract.update({
       where: { id: expired.id },
       data: { title: 'Documento expirado preservado' },
     });
     const statuses = await prisma.contract.findMany({
-      where: { id: { in: [signed.id, cancelled.id, expired.id] } },
+      where: { id: { in: [signed.id, cancelled.id, expired.id, rejected.id] } },
       select: { id: true, status: true },
     });
     expect(new Map(statuses.map((item) => [item.id, item.status]))).toEqual(new Map([
       [signed.id, ContractStatus.SIGNED],
       [cancelled.id, ContractStatus.CANCELLED],
       [expired.id, ContractStatus.EXPIRED],
+      [rejected.id, ContractStatus.SENT],
     ]));
   });
 });
