@@ -100,11 +100,8 @@ async function resolveAlunoContractContext(
     throw new Error('Aluno não encontrado no contrato');
   }
 
-  // Issue #268: contractId direto em Aluno é a fonte tenant-scoped correta.
-  const resolvedContractId =
-    aluno.contractId ||
-    aluno.currentStudentContract?.contract.companyContractId ||
-    aluno.professor?.contractId;
+  // Issue #268: contractId direto em Aluno é obrigatório e canônico.
+  const resolvedContractId = aluno.contractId;
 
   if (fallbackContractId && resolvedContractId !== fallbackContractId) {
     throw new Error('Aluno não encontrado no contrato');

@@ -142,14 +142,10 @@ export const assessmentPlanNotificationService = {
       },
       select: {
         id: true,
+        contractId: true,
         user: {
           select: {
             id: true,
-          },
-        },
-        professor: {
-          select: {
-            contractId: true,
           },
         },
       },
