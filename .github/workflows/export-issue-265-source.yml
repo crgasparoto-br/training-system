@@ -1,0 +1,20 @@
+name: Export issue 265 source
+
+on:
+  push:
+    branches:
+      - feat/265-fixed-schedule-student-form
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create source archive
+        run: |
+          zip -rq issue-265-source.zip . -x '.git/*' 'node_modules/*'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: issue-265-source-${{ github.run_id }}
+          path: issue-265-source.zip
+          retention-days: 1
