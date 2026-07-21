@@ -192,6 +192,7 @@ const run = async () => {
     select: {
       id: true,
       serviceId: true,
+      contractId: true,
       currentStudentContractId: true,
       professor: {
         select: {
@@ -255,9 +256,10 @@ const run = async () => {
       continue;
     }
 
+    const alunoContractId = aluno.professor?.contractId ?? aluno.contractId;
     const generatedContracts = aluno.contracts.filter(
       (contract) =>
-        contract.companyContractId === aluno.professor.contractId &&
+        contract.companyContractId === alunoContractId &&
         contract.studentContracts.length === 0
     );
 

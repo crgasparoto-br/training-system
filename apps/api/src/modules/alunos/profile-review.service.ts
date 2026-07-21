@@ -667,6 +667,9 @@ export const profileReviewService = {
     if (!aluno) {
       throw new Error('Aluno não encontrado');
     }
+    if (!aluno.professor) {
+      throw new Error('Aluno ainda não possui professor vinculado (registro incompleto)');
+    }
 
     const [settings, policy] = await Promise.all([
       prisma.alunoProfileReviewSettings.findUnique({
@@ -828,6 +831,9 @@ export const profileReviewService = {
     if (review.status !== StudentProfileReviewStatus.pending) {
       throw new Error('A revisão cadastral não está pendente');
     }
+    if (!review.aluno.professor) {
+      throw new Error('Aluno ainda não possui professor vinculado (registro incompleto)');
+    }
 
     const now = new Date();
     const [settings, policy, freshSnapshot] = await Promise.all([
@@ -942,7 +948,7 @@ export const profileReviewService = {
     const hasSensitiveChanges = changedFields.some((field) => field.requiresApproval);
 
     const updated = await prisma.$transaction(async (tx) => {
-      await applyAlunoPatch(tx, review.alunoId, review.aluno.user.id, directPatch);
+      await applyAlunoPatch(tx, review.alunoId, review.aluno.user!.id, directPatch);
 
       await tx.alunoProfileReviewSettings.upsert({
         where: { alunoId: review.alunoId },
@@ -1039,7 +1045,7 @@ export const profileReviewService = {
     });
 
     const updated = await prisma.$transaction(async (tx) => {
-      await applyAlunoPatch(tx, review.alunoId, review.aluno.user.id, sensitivePatch);
+      await applyAlunoPatch(tx, review.alunoId, review.aluno.user!.id, sensitivePatch);
 
       return tx.studentProfileReview.update({
         where: { id: review.id },

@@ -134,6 +134,7 @@ export const assessmentPlanNotificationService = {
 
     const alunos = await prisma.aluno.findMany({
       where: {
+        status: 'ACTIVE_STUDENT',
         user: {
           isActive: true,
         },
@@ -162,6 +163,9 @@ export const assessmentPlanNotificationService = {
     };
 
     for (const aluno of alunos) {
+      // Issue #268: aluno ativo sempre tem professor; leads (sem professor)
+      // já são excluídos pelo filtro status: ACTIVE_STUDENT acima.
+      if (!aluno.professor) continue;
       try {
         const created = await this.dispatchForAluno(aluno.id, aluno.professor.contractId, {
           now,

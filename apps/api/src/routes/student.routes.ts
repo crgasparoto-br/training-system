@@ -36,8 +36,14 @@ async function requireAlunoByUserId(userId: string) {
   if (!aluno) {
     throw Object.assign(new Error('Aluno não encontrado'), { status: 404 });
   }
+  if (!aluno.user) {
+    // Impossível na prática: a busca já foi feita por userId, então a conta
+    // sempre existe. Guarda apenas para satisfazer a nulidade introduzida
+    // pela issue #268 (Aluno.userId agora é opcional para representar leads).
+    throw Object.assign(new Error('Aluno não encontrado'), { status: 404 });
+  }
 
-  return aluno;
+  return aluno as typeof aluno & { user: NonNullable<typeof aluno.user> };
 }
 
 const router: Router = Router();
@@ -621,7 +627,7 @@ router.get('/me/assessment-plan', async (req: Request, res: Response) => {
     const userId = (req as any).user.userId as string;
     const aluno = await requireAlunoByUserId(userId);
 
-    const contractId = aluno.professor.contractId;
+    const contractId = aluno.professor?.contractId ?? aluno.contractId;
     const plan = await alunoAssessmentPlanService.getByAluno(aluno.id, contractId);
 
     return sendSuccess(res, plan);
@@ -675,7 +681,7 @@ router.get('/me/summary', async (req: Request, res: Response) => {
     const aluno = await requireAlunoByUserId(userId);
     const contractSummary = await getStudentContractSummary(aluno.id);
 
-    const contractId = aluno.professor.contractId;
+    const contractId = aluno.professor?.contractId ?? aluno.contractId;
 
     const [pendingReview, assessmentPlan, lastWorkout, notifications] = await Promise.all([
       prisma.studentProfileReview.findFirst({

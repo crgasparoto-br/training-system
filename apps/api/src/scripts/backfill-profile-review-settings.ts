@@ -145,11 +145,13 @@ const run = async () => {
   const alunosWithoutSettings = await prisma.aluno.findMany({
     where: {
       profileReviewSettings: null,
+      status: 'ACTIVE_STUDENT',
     },
     select: {
       id: true,
       createdAt: true,
       updatedAt: true,
+      contractId: true,
       professor: {
         select: {
           contractId: true,
@@ -172,13 +174,15 @@ const run = async () => {
     },
   });
 
-  const settingsToCreate = alunosWithoutSettings.map((aluno) => {
-    const contractId = aluno.professor.contractId;
+  const settingsToCreate = alunosWithoutSettings
+    .filter((aluno) => aluno.user)
+    .map((aluno) => {
+    const contractId = aluno.professor?.contractId ?? aluno.contractId;
     const effectivePeriod = effectivePeriodByContract.get(contractId) ?? defaultReviewPeriodMonths;
 
     const baselineDate =
       latestDate([
-        aluno.user.profile?.updatedAt,
+        aluno.user!.profile?.updatedAt,
         aluno.updatedAt,
         aluno.intakeForm?.updatedAt,
         aluno.createdAt,

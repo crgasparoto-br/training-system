@@ -175,6 +175,7 @@ export const profileReviewDispatchService = {
 
     const activeAlunos = await prisma.aluno.findMany({
       where: {
+        status: 'ACTIVE_STUDENT',
         user: {
           isActive: true,
         },
@@ -206,6 +207,9 @@ export const profileReviewDispatchService = {
     };
 
     for (const aluno of activeAlunos) {
+      // Issue #268: aluno ativo sempre tem professor e conta vinculados;
+      // filtro status: ACTIVE_STUDENT acima já exclui leads incompletos.
+      if (!aluno.professor || !aluno.user) continue;
       try {
         const [settings, policy, latestReview, pendingReview] = await Promise.all([
           prisma.alunoProfileReviewSettings.findUnique({

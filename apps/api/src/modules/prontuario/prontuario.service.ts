@@ -82,6 +82,7 @@ async function resolveAlunoContractContext(
     select: {
       id: true,
       professorId: true,
+      contractId: true,
       professor: { select: { contractId: true } },
       currentStudentContract: {
         select: {
@@ -99,9 +100,11 @@ async function resolveAlunoContractContext(
     throw new Error('Aluno não encontrado no contrato');
   }
 
+  // Issue #268: contractId direto em Aluno é a fonte tenant-scoped correta.
   const resolvedContractId =
     aluno.currentStudentContract?.contract.companyContractId ||
-    aluno.professor.contractId;
+    aluno.professor?.contractId ||
+    aluno.contractId;
 
   if (fallbackContractId && resolvedContractId !== fallbackContractId) {
     throw new Error('Aluno não encontrado no contrato');

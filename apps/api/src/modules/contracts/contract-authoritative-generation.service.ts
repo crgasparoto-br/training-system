@@ -78,7 +78,7 @@ const isDbClient = (value: ContractGenerationActor | DbClient | undefined): valu
   Boolean(value && typeof value === 'object' && ('contractTemplate' in value || '$transaction' in value));
 
 const assertActorCanAccessAluno = (
-  aluno: { professorId: string },
+  aluno: { professorId: string | null },
   actor?: ContractGenerationActor
 ) => {
   if (!actor?.professorId || actor.professorRole === 'master') return;
@@ -135,8 +135,14 @@ async function resolveGenerationData(
       : 'Modelo de contrato não encontrado para o contrato autenticado');
   }
   if (!company) throw new Error('Contrato autenticado não encontrado');
-  if (!aluno || aluno.professor.contractId !== companyContractId) {
+  // Issue #268: contractId direto em Aluno é a fonte tenant-scoped correta.
+  if (!aluno || aluno.contractId !== companyContractId) {
     throw new Error('Aluno não pertence ao contrato autenticado');
+  }
+  if (!aluno.user) {
+    throw new Error(
+      'Aluno ainda não possui conta vinculada; não é possível gerar contrato para um registro incompleto (lead)'
+    );
   }
 
   const applicability: ContractTemplateApplicability = template.applicability ?? 'STUDENT';

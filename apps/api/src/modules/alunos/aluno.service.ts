@@ -284,6 +284,13 @@ export const alunoService = {
         data: {
           userId: user.id,
           professorId: data.professorId,
+          // Cadastro administrativo legado: sempre cria um aluno já ativo,
+          // com conta e professor completos (issue #268 não altera este
+          // fluxo). contractId é derivado do professor responsável para
+          // preservar o isolamento multi-tenant já existente.
+          contractId: professor.contractId,
+          status: 'ACTIVE_STUDENT',
+          activatedAt: new Date(),
           serviceId,
           schedulePlan: data.schedulePlan,
           age: data.age,
@@ -420,10 +427,14 @@ export const alunoService = {
     const skip = (page - 1) * limit;
     const statusFilter =
       status === 'all' ? {} : { user: { isActive: status === 'active' } };
+    // Issue #268: esta listagem sempre representou alunos ativos (fluxo
+    // legado só cria Aluno já com status ACTIVE_STUDENT). Explicitar o
+    // filtro para que leads futuros (#269+) nunca apareçam aqui por acidente.
+    const lifecycleFilter = { status: 'ACTIVE_STUDENT' as const };
 
     const [alunos, total] = await Promise.all([
       prisma.aluno.findMany({
-        where: { professorId, ...statusFilter },
+        where: { professorId, ...statusFilter, ...lifecycleFilter },
         include: {
           user: {
             include: {
@@ -449,7 +460,7 @@ export const alunoService = {
         take: limit,
       }),
       prisma.aluno.count({
-        where: { professorId, ...statusFilter },
+        where: { professorId, ...statusFilter, ...lifecycleFilter },
       }),
     ]);
 
@@ -486,8 +497,11 @@ export const alunoService = {
     const statusFilter =
       status === 'all' ? {} : { user: { isActive: status === 'active' } };
 
+    // Issue #268: filtro explícito para que leads futuros (#269+) nunca
+    // apareçam nesta listagem de alunos ativos.
     const where = {
       professorId: { in: professorIds },
+      status: 'ACTIVE_STUDENT' as const,
       ...statusFilter,
     };
 
@@ -547,14 +561,19 @@ export const alunoService = {
     const skip = (page - 1) * limit;
     const statusFilter =
       status === 'all' ? {} : { user: { isActive: status === 'active' } };
+    // Issue #268: contractId agora vive diretamente em Aluno (fonte de
+    // verdade tenant-scoped) e o filtro de status evita que leads futuros
+    // (#269+) apareçam como aluno ativo nesta listagem.
     const where: any = professorId
       ? {
           professorId,
-          professor: { contractId },
+          contractId,
+          status: 'ACTIVE_STUDENT',
           ...statusFilter,
         }
       : {
-          professor: { contractId },
+          contractId,
+          status: 'ACTIVE_STUDENT',
           ...statusFilter,
         };
 
@@ -726,7 +745,7 @@ export const alunoService = {
         data: alunoData,
       });
 
-      if (avatar !== undefined || birthDate !== undefined || gender !== undefined) {
+      if (aluno.userId && (avatar !== undefined || birthDate !== undefined || gender !== undefined)) {
         await tx.profile.update({
           where: { userId: aluno.userId },
           data: {
@@ -924,7 +943,11 @@ export const alunoService = {
     status?: 'active' | 'inactive' | 'all';
   }) {
     const { query, professorId, professorIds, contractId, status = 'active' } = params;
+    // Issue #268: busca de aluno continua restrita a quem já tem conta/perfil
+    // (leads pré-cadastro não são indexados aqui) e explicitamente a
+    // ACTIVE_STUDENT, para não confundir lead com aluno ativo.
     const where: any = {
+      status: 'ACTIVE_STUDENT',
       user: {
         profile: {
           name: {
