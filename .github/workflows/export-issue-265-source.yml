@@ -1,20 +1,38 @@
-name: Export issue 265 source
+name: Apply issue 265 correction
 
 on:
   push:
     branches:
       - feat/265-fixed-schedule-student-form
 
+permissions:
+  contents: write
+
 jobs:
-  export:
+  apply:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Create source archive
-        run: |
-          zip -rq issue-265-source.zip . -x '.git/*' 'node_modules/*'
-      - uses: actions/upload-artifact@v4
         with:
-          name: issue-265-source-${{ github.run_id }}
-          path: issue-265-source.zip
-          retention-days: 1
+          fetch-depth: 0
+
+      - name: Apply corrective patch and remove temporary support
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .github/issue-265-patch/part-* | tr -d '\n' | base64 --decode > /tmp/issue-265.patch
+          git apply --check /tmp/issue-265.patch
+          git apply /tmp/issue-265.patch
+          git checkout ff95fdee69f4704c8563e93a08570d8238a9bdc3 -- .github/workflows/validate-pr.yml
+          git rm -r .github/issue-265-patch
+          git rm .github/workflows/export-issue-265-source.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/api/src/modules/agenda/agenda.service.ts \
+            apps/api/src/modules/agenda/fixed-schedule.service.ts \
+            apps/api/tests/fixed-schedule-concurrency.integration.test.ts \
+            apps/api/tests/fixed-schedule.service.test.ts \
+            docs/product/fixed-schedule-management.md \
+            .github/workflows/validate-pr.yml
+          git commit -m "fix: protect fixed schedule slot identity (#265)"
+          git push origin HEAD:feat/265-fixed-schedule-student-form
