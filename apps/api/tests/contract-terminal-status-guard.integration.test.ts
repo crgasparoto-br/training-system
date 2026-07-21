@@ -33,7 +33,7 @@ describeDatabase('terminal generated contract status protection', () => {
     await prisma.$disconnect();
   });
 
-  it('rejects reclassification of signed, cancelled and expired documents', async () => {
+  it('rejects reclassification of signed, cancelled and expired collaborator documents', async () => {
     await prisma.companyContract.create({
       data: {
         id: companyContractId,
@@ -99,15 +99,15 @@ describeDatabase('terminal generated contract status protection', () => {
     await expect(prisma.contract.update({
       where: { id: signed.id },
       data: { status: ContractStatus.CANCELLED },
-    })).rejects.toThrow('Terminal contract status cannot be changed');
+    })).rejects.toThrow('Terminal collaborator contract status cannot be changed');
     await expect(prisma.contract.update({
       where: { id: cancelled.id },
       data: { status: ContractStatus.SENT },
-    })).rejects.toThrow('Terminal contract status cannot be changed');
+    })).rejects.toThrow('Terminal collaborator contract status cannot be changed');
     await expect(prisma.contract.update({
       where: { id: expired.id },
       data: { status: ContractStatus.CANCELLED },
-    })).rejects.toThrow('Terminal contract status cannot be changed');
+    })).rejects.toThrow('Terminal collaborator contract status cannot be changed');
 
     await prisma.contract.update({
       where: { id: expired.id },
