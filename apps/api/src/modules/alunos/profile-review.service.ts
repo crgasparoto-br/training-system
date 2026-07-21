@@ -144,9 +144,11 @@ const positiveParqItems = (responses: Record<string, unknown>) =>
     .map(([key, label]) => ({ key, label }));
 
 const resolveAlunoCompanyContractId = (alunoLike: {
+  contractId?: string | null;
   professor?: { contractId?: string | null } | null;
   currentStudentContract?: { contract?: { companyContractId?: string | null } | null } | null;
 }) =>
+  alunoLike.contractId ||
   alunoLike.currentStudentContract?.contract?.companyContractId ||
   alunoLike.professor?.contractId ||
   null;
@@ -528,6 +530,7 @@ const applyAlunoPatch = async (
       const aluno = await tx.aluno.findUnique({
         where: { id: alunoId },
         select: {
+          contractId: true,
           professor: { select: { contractId: true } },
           currentStudentContract: {
             select: {

@@ -9,8 +9,15 @@ const mockTx = {
     create: jest.fn(),
     update: jest.fn(),
     findUniqueOrThrow: jest.fn(),
-  },
-  profile: {
+      findFirst: jest.fn(),
+    },
+    studentProfile: {
+      upsert: jest.fn(),
+    },
+    studentLifecycleEvent: {
+      create: jest.fn(),
+    },
+    profile: {
     update: jest.fn(),
   },
   macronutrients: {
@@ -85,6 +92,42 @@ describe('alunoService assessment boundary', () => {
     mockTx.aluno.create.mockResolvedValue({ id: 'aluno-1' });
     mockTx.aluno.update.mockResolvedValue({ id: 'aluno-1', userId: 'user-1' });
     mockTx.aluno.findUniqueOrThrow.mockResolvedValue({ id: 'aluno-1' });
+    mockTx.aluno.findFirst.mockResolvedValue({
+      id: 'aluno-1',
+      contractId: 'contract-1',
+      userId: 'user-1',
+      leadName: null,
+      leadEmail: null,
+      leadEmailNormalized: null,
+      leadPhone: null,
+      leadPhoneNormalized: null,
+      leadCpf: null,
+      leadCpfNormalized: null,
+      birthDate: null,
+      studentProfile: null,
+      user: {
+        email: 'novo@example.com',
+        profile: {
+          name: 'Aluno Novo',
+          phone: null,
+          cpf: null,
+          birthDate: null,
+          gender: null,
+          rg: null,
+          maritalStatus: null,
+          addressStreet: null,
+          addressNumber: null,
+          addressComplement: null,
+          addressNeighborhood: null,
+          addressCity: null,
+          addressState: null,
+          addressZipCode: null,
+          instagramHandle: null,
+        },
+      },
+    });
+    mockTx.studentProfile.upsert.mockResolvedValue({});
+    mockTx.studentLifecycleEvent.create.mockResolvedValue({});
   });
 
   it('cria aluno sem macronutrientes ou métrica de progresso quando o formulário não envia avaliação', async () => {

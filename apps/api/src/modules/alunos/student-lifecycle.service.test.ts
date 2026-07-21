@@ -396,7 +396,7 @@ describeDb('student-lifecycle integration (banco real)', () => {
     const secondInSameTenant = await createStudentLead({
       contractId,
       name,
-      phone: '11988887778',
+      phone,
       origin: 'test-suite',
     });
     await expect(
