@@ -25,21 +25,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ls -l .issue268-payload.part*
           cat .issue268-payload.part* | base64 -d > /tmp/issue268-changes.tar.gz
-          sha256sum /tmp/issue268-changes.tar.gz
           echo "b9bdab9cd4cff598ee305a6abca942e045ddab0c34bf21f84911dc3fdc1d37d7  /tmp/issue268-changes.tar.gz" | sha256sum -c -
 
-      - name: Extract package
+      - name: Extract code package
         shell: bash
         run: |
           set -euo pipefail
-          tar -tzf /tmp/issue268-changes.tar.gz
-          tar -xzf /tmp/issue268-changes.tar.gz -C .
+          tar --exclude='.github/workflows/validate-pr.yml' -xzf /tmp/issue268-changes.tar.gz -C .
           rm -f .issue268-payload.part*
           git status --short
 
-      - name: Commit package
+      - name: Commit code package
         shell: bash
         run: |
           set -euo pipefail
@@ -48,6 +45,6 @@ jobs:
           git add -A
           git commit -m "fix(alunos): resolve issue 268 audit findings"
 
-      - name: Push package
+      - name: Push code package
         shell: bash
         run: git push origin HEAD:feature/268-student-lifecycle-domain
