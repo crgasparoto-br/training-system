@@ -7,6 +7,7 @@ import legacyContractRoutes from './contract.routes.js';
 import collaboratorContractRoutes from './collaborator-contract.routes.js';
 import contractTemplateApplicabilityRoutes from './contract-template-applicability.routes.js';
 import { contractAuthoritativeGenerationService } from './contract-authoritative-generation.service.js';
+import { normalizeContractDateFields } from './contract-date-input.js';
 import { contractPreviewAccessMiddleware } from './contract-preview-access.middleware.js';
 import { contractPublicAccessService } from './contract-public-access.service.js';
 
@@ -72,6 +73,10 @@ router.get('/public/:token', async (req: Request, res: Response) => {
 
 router.use(authMiddleware);
 router.use(professorMiddleware);
+router.use((req: Request, _res: Response, next: NextFunction) => {
+  req.body = normalizeContractDateFields(req.body);
+  return next();
+});
 router.use(contractTemplateApplicabilityRoutes);
 
 router.post(
