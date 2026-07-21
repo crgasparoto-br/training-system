@@ -46,7 +46,7 @@ async function seedBase() {
       profile: {
         create: {
           name: 'Aluno Geração Autoritativa',
-          cpf: '12345678901',
+          cpf: '11122233396',
         },
       },
     },
