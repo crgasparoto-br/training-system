@@ -37,7 +37,12 @@ campos `lead*` enquanto não houver conta vinculada.
   de pré-cadastro. Este documento proíbe qualquer dual-write permanente.
 - A API antiga (`aluno.service.ts` `create`/`update`) nunca escreve nos
   campos `lead*`: ela sempre cria um aluno já `ACTIVE_STUDENT` com conta e
-  perfil completos, preservando o comportamento anterior a #268.
+  perfil completos, preservando o comportamento anterior a #268. Mesmo essa
+  criação direta não escreve o literal `'ACTIVE_STUDENT'` livremente: ela
+  chama `legacyDirectActiveStudentCreationFields()` (exportado por
+  `student-lifecycle.service.ts`), que é o único ponto que decide os campos
+  de status/ativação desse fluxo legado — nenhum arquivo fora do service
+  escreve `Aluno.status` como literal solto.
 
 ## Conta, tenant e unicidade
 
@@ -88,6 +93,28 @@ LEAD -> INVITED -> PRE_REGISTRATION_IN_PROGRESS -> PRE_REGISTRATION_COMPLETED
      -> READY_FOR_ENROLLMENT -> ACTIVE_STUDENT
 Qualquer estado (exceto ACTIVE_STUDENT) -> DISCARDED -> LEAD (reabertura explícita)
 ```
+
+### Persistência do onboarding e auditoria por transição
+
+Cada transição relevante em `transitionStudentLifecycleStatus` também
+atualiza `StudentOnboardingProcess` (não apenas cria a linha vazia):
+`PRE_REGISTRATION_IN_PROGRESS` grava `startedAt`; `PRE_REGISTRATION_COMPLETED`
+grava `completedAt` (junto com `privacyNoticeVersion`/`privacyAcceptedAt`,
+gravados por `completeStudentPreRegistration`); `READY_FOR_ENROLLMENT` grava
+`reviewedAt`/`reviewedByProfessorId` e emite o evento `ADMIN_REVIEWED`;
+`ACTIVE_STUDENT` grava `convertedAt`. `recordStudentOnboardingProgress`
+existe para salvamento incremental (`lastSavedAt`/`formVersion`) fora de uma
+transição de estado, para uso das telas de pré-cadastro (#270+).
+
+Cobertura de eventos de auditoria nesta issue: `LEAD_CREATED`,
+`STATUS_CHANGED`, `ADMIN_REVIEWED`, `CONVERTED_TO_ACTIVE_STUDENT`,
+`ACCOUNT_LINKED`, `DISCARDED`, `REOPENED` são emitidos por esta issue.
+`IDENTIFIER_NORMALIZED_CHANGED` e `ACCOUNT_UNLINKED` estão definidos no
+contrato compartilhado mas **não são emitidos por nenhuma função desta
+issue**, porque #268 não implementa edição de identificadores de um lead já
+criado nem desvínculo de conta — esses fluxos pertencem às subissues de
+pré-cadastro/administração (#270+), que devem emitir esses eventos ao
+implementar as respectivas ações.
 
 `ACTIVE_STUDENT` e `DISCARDED` (exceto para reabertura) são estados
 terminais nesta issue; a conversão administrativa final e a UI de

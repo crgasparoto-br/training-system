@@ -2,6 +2,7 @@ import { PrismaClient, type Prisma } from '@prisma/client';
 import bcryptjs from 'bcryptjs';
 import crypto from 'crypto';
 import { assertStudentInterestServiceSelectable } from './aluno.service-selection.js';
+import { legacyDirectActiveStudentCreationFields } from './student-lifecycle.service.js';
 import type { CreateAlunoDTO, UpdateAlunoDTO } from './aluno.service.js';
 import { contractDocumentService } from '../contracts/contract-document.service.js';
 import { loadContractServiceVariableContext } from '../contracts/contract-service-context.js';
@@ -258,8 +259,7 @@ const createAlunoRecord = async (
       // Fluxo comercial legado: aluno já nasce ativo, com conta e professor
       // completos (issue #268 não altera este fluxo).
       contractId: professor.contractId,
-      status: 'ACTIVE_STUDENT',
-      activatedAt: new Date(),
+      ...legacyDirectActiveStudentCreationFields(),
       serviceId,
       schedulePlan: data.schedulePlan,
       age: data.age,

@@ -3,6 +3,7 @@ import bcryptjs from 'bcryptjs';
 import crypto from 'crypto';
 import { getServiceForContract } from '../services/service.service.js';
 import { assertStudentInterestServiceSelectable } from './aluno.service-selection.js';
+import { legacyDirectActiveStudentCreationFields } from './student-lifecycle.service.js';
 import {
   syncStudentFixedSchedule,
   type FixedScheduleSlotInput,
@@ -289,8 +290,7 @@ export const alunoService = {
           // fluxo). contractId é derivado do professor responsável para
           // preservar o isolamento multi-tenant já existente.
           contractId: professor.contractId,
-          status: 'ACTIVE_STUDENT',
-          activatedAt: new Date(),
+          ...legacyDirectActiveStudentCreationFields(),
           serviceId,
           schedulePlan: data.schedulePlan,
           age: data.age,

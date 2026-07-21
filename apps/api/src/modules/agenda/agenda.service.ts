@@ -67,7 +67,9 @@ export const agendaService = {
         orderBy: { createdAt: 'asc' },
       }),
       prisma.aluno.findMany({
-        where: { professor: { contractId }, user: { isActive: true } },
+        // Issue #268: filtro explícito para não exibir leads futuros (sem
+        // conta/professor) como alunos ativos na agenda.
+        where: { professor: { contractId }, user: { isActive: true }, status: 'ACTIVE_STUDENT' },
         include: {
           user: { include: { profile: true } },
           professor: { include: { user: { include: { profile: true } } } },

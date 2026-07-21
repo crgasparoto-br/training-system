@@ -201,7 +201,27 @@ export async function transitionStudentLifecycleStatus(
 
     const updated = await tx.aluno.update({ where: { id: alunoId }, data: updateData });
 
+    // Issue #268 (achado de auditoria): a tabela de processo
+    // (StudentOnboardingProcess) precisa refletir os marcos do ciclo, não
+    // apenas existir. Cada transição relevante atualiza o timestamp de
+    // processo correspondente.
+    const onboardingUpdate: Prisma.StudentOnboardingProcessUpdateManyMutationInput = {};
+    if (to === 'PRE_REGISTRATION_IN_PROGRESS') onboardingUpdate.startedAt = new Date();
+    if (to === 'PRE_REGISTRATION_COMPLETED') onboardingUpdate.completedAt = new Date();
+    if (to === 'READY_FOR_ENROLLMENT') onboardingUpdate.reviewedAt = new Date();
+    if (to === 'READY_FOR_ENROLLMENT' && actor.professorId) {
+      onboardingUpdate.reviewedByProfessorId = actor.professorId;
+    }
+    if (to === 'ACTIVE_STUDENT') onboardingUpdate.convertedAt = new Date();
+    if (Object.keys(onboardingUpdate).length > 0) {
+      await tx.studentOnboardingProcess.updateMany({
+        where: { alunoId },
+        data: onboardingUpdate,
+      });
+    }
+
     const events: StudentLifecycleEventType[] = ['STATUS_CHANGED'];
+    if (to === 'READY_FOR_ENROLLMENT') events.push('ADMIN_REVIEWED');
     if (to === 'ACTIVE_STUDENT') events.push('CONVERTED_TO_ACTIVE_STUDENT');
 
     for (const eventType of events) {
@@ -218,6 +238,31 @@ export async function transitionStudentLifecycleStatus(
     }
 
     return updated;
+  });
+}
+
+/**
+ * Registra progresso incremental do pré-cadastro (salvamento parcial) sem
+ * mudar de estado. Usado pelas telas de onboarding (#270+) para manter
+ * `lastSavedAt`/`formVersion`/consentimento atualizados durante o
+ * preenchimento, antes da conclusão.
+ */
+export async function recordStudentOnboardingProgress(
+  alunoId: string,
+  contractId: string,
+  progress: {
+    formVersion?: string;
+    privacyNoticeVersion?: string;
+    privacyAcceptedAt?: Date;
+  }
+): Promise<void> {
+  await findAlunoInContractOrThrow(alunoId, contractId);
+  await prisma.studentOnboardingProcess.updateMany({
+    where: { alunoId },
+    data: {
+      ...progress,
+      lastSavedAt: new Date(),
+    },
   });
 }
 
@@ -311,6 +356,16 @@ export async function completeStudentPreRegistration(
     );
   }
 
+  if (data.privacyNoticeVersion || data.privacyAcceptedAt) {
+    await prisma.studentOnboardingProcess.updateMany({
+      where: { alunoId },
+      data: {
+        privacyNoticeVersion: data.privacyNoticeVersion ?? undefined,
+        privacyAcceptedAt: data.privacyAcceptedAt ?? undefined,
+      },
+    });
+  }
+
   return transitionStudentLifecycleStatus(alunoId, contractId, 'PRE_REGISTRATION_COMPLETED');
 }
 
@@ -388,3 +443,18 @@ export async function reopenDiscardedStudentLead(
 
 /** Filtro padrão para queries que devem enxergar somente alunos ativos. */
 export const ACTIVE_STUDENT_WHERE = { status: 'ACTIVE_STUDENT' as const };
+
+/**
+ * Único ponto autorizado a decidir os campos de status/ativação para o
+ * fluxo de criação administrativa/comercial LEGADO (que sempre cria o aluno
+ * já com conta, professor e dados completos — não passa pelo ciclo
+ * lead -> aluno desta issue). Nenhum outro arquivo deve escrever
+ * `status`/`activatedAt` de Aluno diretamente: mesmo esta criação direta
+ * consulta este helper para que a decisão fique centralizada aqui.
+ */
+export function legacyDirectActiveStudentCreationFields(): {
+  status: 'ACTIVE_STUDENT';
+  activatedAt: Date;
+} {
+  return { status: 'ACTIVE_STUDENT', activatedAt: new Date() };
+}

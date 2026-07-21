@@ -12,6 +12,7 @@ import {
   discardStudentLead,
   reopenDiscardedStudentLead,
   completeStudentPreRegistration,
+  legacyDirectActiveStudentCreationFields,
   StudentLifecycleError,
 } from './student-lifecycle.service.js';
 
@@ -36,6 +37,14 @@ describe('student-lifecycle normalization', () => {
     expect(deriveAgeFromBirthDate(new Date('2000-06-15'), new Date('2026-06-14'))).toBe(25);
     expect(deriveAgeFromBirthDate(new Date('2000-06-15'), new Date('2026-06-15'))).toBe(26);
     expect(deriveAgeFromBirthDate(new Date('2000-06-15'), new Date('2026-06-16'))).toBe(26);
+  });
+});
+
+describe('legacyDirectActiveStudentCreationFields', () => {
+  it('centraliza a decisao de status/ativacao do fluxo de criacao legado', () => {
+    const fields = legacyDirectActiveStudentCreationFields();
+    expect(fields.status).toBe('ACTIVE_STUDENT');
+    expect(fields.activatedAt).toBeInstanceOf(Date);
   });
 });
 
@@ -233,12 +242,35 @@ describeDb('student-lifecycle integration (banco real)', () => {
     });
     expect(completed.id).toBe(originalId);
 
-    await transitionStudentLifecycleStatus(originalId, contractId, 'READY_FOR_ENROLLMENT');
+    await transitionStudentLifecycleStatus(originalId, contractId, 'READY_FOR_ENROLLMENT', {
+      professorId,
+    });
     const active = await transitionStudentLifecycleStatus(originalId, contractId, 'ACTIVE_STUDENT');
 
     expect(active.id).toBe(originalId);
     expect(active.status).toBe('ACTIVE_STUDENT');
     expect(active.activatedAt).not.toBeNull();
+
+    // Auditoria (achado de auditoria corrigido): a tabela de processo deve
+    // refletir os marcos do ciclo, não apenas existir vazia.
+    const onboarding = await prisma.studentOnboardingProcess.findUnique({
+      where: { alunoId: originalId },
+    });
+    expect(onboarding?.startedAt).not.toBeNull();
+    expect(onboarding?.completedAt).not.toBeNull();
+    expect(onboarding?.reviewedAt).not.toBeNull();
+    expect(onboarding?.reviewedByProfessorId).toBe(professorId);
+    expect(onboarding?.convertedAt).not.toBeNull();
+    expect(onboarding?.privacyNoticeVersion).toBe('v1');
+    expect(onboarding?.privacyAcceptedAt).not.toBeNull();
+
+    const events = await prisma.studentLifecycleEvent.findMany({
+      where: { alunoId: originalId },
+      select: { eventType: true },
+    });
+    const eventTypes = events.map((e) => e.eventType);
+    expect(eventTypes).toContain('ADMIN_REVIEWED');
+    expect(eventTypes).toContain('CONVERTED_TO_ACTIVE_STUDENT');
   });
 
   it('rejeita transição inválida (ex.: LEAD direto para ACTIVE_STUDENT)', async () => {
