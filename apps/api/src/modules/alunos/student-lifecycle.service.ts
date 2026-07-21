@@ -652,7 +652,7 @@ export async function discardStudentLead(
   return prisma.$transaction(async (tx) => {
     const aluno = await findAlunoInContractOrThrow(alunoId, contractId, tx);
     await assertProfessorInContract(actorProfessorId, contractId, tx);
-    return transitionStudentLifecycleStatusInTransaction(
+    await transitionStudentLifecycleStatusInTransaction(
       tx,
       alunoId,
       contractId,
@@ -663,12 +663,16 @@ export async function discardStudentLead(
         alunoUpdate: {
           discardedAt: new Date(),
           discardReason: normalizedReason,
-          discardedByProfessorId: actorProfessorId,
         },
         metadata: { reason: normalizedReason },
         additionalEvents: ['DISCARDED'],
       }
     );
+
+    return tx.aluno.update({
+      where: { id: alunoId },
+      data: { discardedByProfessor: { connect: { id: actorProfessorId } } },
+    });
   });
 }
 
