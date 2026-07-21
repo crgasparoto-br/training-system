@@ -44,5 +44,5 @@ Integrar o conjunto semanal de horários fixos ao cadastro e à edição do alun
 - `pnpm arch:check`;
 - `pnpm access:check`;
 - `pnpm docs:check`;
-- CI oficial `Validate PR` #2227 aprovado no commit `8e024258894b27882e8319b2c8a30309fe9d368b`;
+- CI oficial `Validate PR` aprovado no commit final da branch;
 - auditoria funcional e passagem adversarial aprovadas sem ressalvas.
