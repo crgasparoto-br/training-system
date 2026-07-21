@@ -11,160 +11,123 @@ function replaceRequired(content, search, replacement, label) {
 }
 
 {
-  const file = 'apps/web/src/components/alunos/FixedScheduleEditor.tsx';
-  let content = read(file);
-  content = replaceRequired(
-    content,
-    `    // O refreshKey é incrementado somente após uma gravação concluída.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [alunoId, plan, refreshKey]);`,
-    `  }, [alunoId, plan, refreshKey]);`,
-    'unsupported eslint directive'
-  );
-  write(file, content);
-}
-
-{
   const file = 'apps/api/src/modules/agenda/fixed-schedule.service.ts';
   let content = read(file);
   content = replaceRequired(
     content,
-    `function validateStudentRows(slots: FixedScheduleSlotInput[]) {
-  for (let left = 0; left < slots.length; left += 1) {
-    for (let right = left + 1; right < slots.length; right += 1) {
-      if (
-        slots[left].dayOfWeek === slots[right].dayOfWeek &&
-        fixedScheduleOverlaps(
-          slots[left].startTime,
-          slots[left].endTime,
-          slots[right].startTime,
-          slots[right].endTime
-        )
-      ) {
-        throw new FixedScheduleError(
-          'STUDENT_FIXED_SLOT_CONFLICT',
-          MESSAGES.STUDENT_FIXED_SLOT_CONFLICT,
-          { stage: 'student', rowIndex: right }
-        );
-      }
-    }
-  }
+    `  notes?: string | null;
 }`,
-    `function findStudentRowConflictIndexes(slots: FixedScheduleSlotInput[]): Set<number> {
-  const conflicts = new Set<number>();
-  for (let left = 0; left < slots.length; left += 1) {
-    for (let right = left + 1; right < slots.length; right += 1) {
-      if (
-        slots[left].dayOfWeek === slots[right].dayOfWeek &&
-        fixedScheduleOverlaps(
-          slots[left].startTime,
-          slots[left].endTime,
-          slots[right].startTime,
-          slots[right].endTime
-        )
-      ) {
-        conflicts.add(left);
-        conflicts.add(right);
-      }
-    }
-  }
-  return conflicts;
-}
-
-function validateStudentRows(slots: FixedScheduleSlotInput[]) {
-  const firstConflict = [...findStudentRowConflictIndexes(slots)].sort((a, b) => a - b)[0];
-  if (firstConflict !== undefined) {
-    throw new FixedScheduleError(
-      'STUDENT_FIXED_SLOT_CONFLICT',
-      MESSAGES.STUDENT_FIXED_SLOT_CONFLICT,
-      { stage: 'student', rowIndex: firstConflict }
-    );
-  }
+    `  notes?: string | null;
+  availabilityConfirmed?: boolean;
 }`,
-    'all desired row conflict detection'
+    'backend availability confirmation contract'
   );
   content = replaceRequired(
     content,
-    `  const validRows = normalized.filter((slot): slot is FixedScheduleSlotInput => Boolean(slot));
-  try {
-    validateStudentRows(validRows);
-  } catch (error) {
-    if (error instanceof FixedScheduleError && error.rowIndex !== undefined) {
-      const originalIndex = normalized.findIndex((row) => row === validRows[error.rowIndex!]);
-      earlyErrors.set(originalIndex, error);
-    } else throw error;
+    `  readonly rowIndex?: number;
+  readonly statusCode: number;`,
+    `  readonly rowIndex?: number;
+  readonly statusCode: number;
+  readonly reasonCode?: FixedScheduleErrorCode;`,
+    'fixed schedule reason code property'
+  );
+  content = replaceRequired(
+    content,
+    `      rowIndex?: number;
+      statusCode?: number;
+    }`,
+    `      rowIndex?: number;
+      statusCode?: number;
+      reasonCode?: FixedScheduleErrorCode;
+    }`,
+    'fixed schedule reason code option'
+  );
+  content = replaceRequired(
+    content,
+    `    this.rowIndex = options.rowIndex;
+    this.statusCode = options.statusCode ?? 409;`,
+    `    this.rowIndex = options.rowIndex;
+    this.statusCode = options.statusCode ?? 409;
+    this.reasonCode = options.reasonCode;`,
+    'fixed schedule reason code assignment'
+  );
+  content = replaceRequired(
+    content,
+    `    await tx.$queryRaw\`SELECT pg_advisory_xact_lock(hashtext(\${key}))\`;`,
+    `    await tx.$executeRaw\`SELECT pg_advisory_xact_lock(hashtext(\${key}))\`;`,
+    'advisory lock execute without result'
+  );
+  content = replaceRequired(
+    content,
+    `  if (firstFailure) {
+    throw new FixedScheduleError(firstFailure.code as FixedScheduleErrorCode, firstFailure.message, {
+      stage: firstFailure.stage,
+      rowIndex: firstFailure.rowIndex,
+    });
   }`,
-    `  const validRowsWithIndexes = normalized
-    .map((slot, originalIndex) => ({ slot, originalIndex }))
-    .filter(
-      (item): item is { slot: FixedScheduleSlotInput; originalIndex: number } =>
-        Boolean(item.slot)
-    );
-  const validRows = validRowsWithIndexes.map((item) => item.slot);
-  findStudentRowConflictIndexes(validRows).forEach((validRowIndex) => {
-    const originalIndex = validRowsWithIndexes[validRowIndex].originalIndex;
-    earlyErrors.set(
-      originalIndex,
-      new FixedScheduleError(
-        'STUDENT_FIXED_SLOT_CONFLICT',
-        MESSAGES.STUDENT_FIXED_SLOT_CONFLICT,
-        { stage: 'student', rowIndex: originalIndex }
-      )
-    );
-  });`,
-    'per-line desired conflict feedback'
-  );
-  content = replaceRequired(
-    content,
-    `  const excludedSlotIds = [...submittedIds, ...removedIds];
-
-  return Promise.all(`,
-    `  // Existing submitted rows are replaced by their desired versions above; they are
-  // excluded from the persisted snapshot, while every desired row remains represented
-  // in the complete-set conflict validation.
-  const excludedSlotIds = [...submittedIds, ...removedIds];
-
-  return Promise.all(`,
-    'complete set exclusion rationale'
+    `  if (firstFailure) {
+    const reasonCode = firstFailure.code as FixedScheduleErrorCode;
+    const checkedRow = slots[firstFailure.rowIndex];
+    if (checkedRow?.availabilityConfirmed) {
+      throw new FixedScheduleError(
+        'FIXED_SCHEDULE_CHANGED',
+        \`\${MESSAGES.FIXED_SCHEDULE_CHANGED} \${firstFailure.message}\`,
+        {
+          stage: firstFailure.stage,
+          rowIndex: firstFailure.rowIndex,
+          reasonCode,
+        }
+      );
+    }
+    throw new FixedScheduleError(reasonCode, firstFailure.message, {
+      stage: firstFailure.stage,
+      rowIndex: firstFailure.rowIndex,
+    });
+  }`,
+    'availability changed classification'
   );
   write(file, content);
 }
 
 {
-  const file = 'apps/api/src/modules/agenda/agenda.service.ts';
+  const file = 'apps/api/src/modules/alunos/aluno.service.ts';
   let content = read(file);
   content = replaceRequired(
     content,
-    `      isActive?: boolean;
-    }
-  ) {`,
-    `      isActive?: boolean;
-    },
-    options: { confirmKeepFutureBookings?: boolean } = {}
-  ) {`,
-    'update fixed slot transition options'
+    `      await syncStudentFixedSchedule(
+        tx,
+        professor.contractId,
+        aluno.id,
+        data.schedulePlan,
+        data.schedulePlan === 'fixed' ? data.fixedScheduleSlots ?? [] : [],
+        { confirmKeepFutureBookings: data.confirmKeepFutureBookings }
+      );`,
+    `      if (data.schedulePlan === 'fixed') {
+        await syncStudentFixedSchedule(
+          tx,
+          professor.contractId,
+          aluno.id,
+          'fixed',
+          data.fixedScheduleSlots ?? [],
+          { confirmKeepFutureBookings: data.confirmKeepFutureBookings }
+        );
+      }`,
+    'skip no-op free schedule synchronization on create'
   );
+  write(file, content);
+}
+
+{
+  const file = 'packages/utils/validations.ts';
+  let content = read(file);
   content = replaceRequired(
     content,
-    `        { confirmKeepFutureBookings: false }
-      );`,
-    `        { confirmKeepFutureBookings: options.confirmKeepFutureBookings }
-      );`,
-    'forward fixed to free confirmation'
-  );
-  content = replaceRequired(
-    content,
-    `  async deactivateFixedSlot(contractId: string, id: string) {
-    return this.updateFixedSlot(contractId, id, { isActive: false });
-  },`,
-    `  async deactivateFixedSlot(
-    contractId: string,
-    id: string,
-    options: { confirmKeepFutureBookings?: boolean } = {}
-  ) {
-    return agendaService.updateFixedSlot(contractId, id, { isActive: false }, options);
-  },`,
-    'explicit agenda deactivation confirmation'
+    `  notes: z.string().trim().nullable().optional(),
+});`,
+    `  notes: z.string().trim().nullable().optional(),
+  availabilityConfirmed: z.boolean().optional(),
+});`,
+    'shared availability confirmation schema'
   );
   write(file, content);
 }
@@ -174,46 +137,39 @@ function validateStudentRows(slots: FixedScheduleSlotInput[]) {
   let content = read(file);
   content = replaceRequired(
     content,
-    `const checkFixedScheduleSchema = z.object({
-  alunoId: z.string().cuid().optional(),
-  slots: z.array(fixedScheduleSlotInputSchema).min(1),
+    `  notes: z.string().nullable().optional(),
 });`,
-    `const checkFixedScheduleSchema = z.object({
-  alunoId: z.string().cuid().optional(),
-  slots: z.array(fixedScheduleSlotInputSchema).min(1),
-});
+    `  notes: z.string().nullable().optional(),
+  availabilityConfirmed: z.boolean().optional(),
+});`,
+    'agenda availability confirmation schema'
+  );
+  content = replaceRequired(
+    content,
+    `      rowIndex: error.rowIndex,
+    });`,
+    `      rowIndex: error.rowIndex,
+      reasonCode: error.reasonCode,
+    });`,
+    'agenda fixed schedule reason response'
+  );
+  write(file, content);
+}
 
-const deactivateFixedSlotSchema = z.object({
-  confirmKeepFutureBookings: z.boolean().optional(),
-});`,
-    'deactivate fixed slot schema'
-  );
-  content = replaceRequired(
-    content,
-    `    const item = await agendaService.deactivateFixedSlot(contractId, req.params.id);`,
-    `    const validated = deactivateFixedSlotSchema.parse(req.body ?? {});
-    const item = await agendaService.deactivateFixedSlot(
-      contractId,
-      req.params.id,
-      validated
-    );`,
-    'deactivate fixed slot payload'
-  );
-  content = replaceRequired(
-    content,
-    `  } catch (error: any) {
-    return sendFixedScheduleError(res, error, 'Erro ao inativar horario fixo');
-  }
-});`,
-    `  } catch (error: any) {
-    if (error instanceof z.ZodError) {
-      return sendError(res, 'Dados inválidos', 400, error.errors);
-    }
-    return sendFixedScheduleError(res, error, 'Erro ao inativar horario fixo');
-  }
-});`,
-    'deactivate fixed slot validation error'
-  );
+{
+  const file = 'apps/api/src/modules/alunos/aluno.routes.ts';
+  let content = read(file);
+  const search = `        rowIndex: error.rowIndex,
+      });`;
+  const replacement = `        rowIndex: error.rowIndex,
+        reasonCode: error.reasonCode,
+      });`;
+  const first = content.indexOf(search);
+  if (first < 0) throw new Error('Anchor not found: first student reason response');
+  content = content.slice(0, first) + replacement + content.slice(first + search.length);
+  const second = content.indexOf(search, first + replacement.length);
+  if (second < 0) throw new Error('Anchor not found: second student reason response');
+  content = content.slice(0, second) + replacement + content.slice(second + search.length);
   write(file, content);
 }
 
@@ -222,61 +178,69 @@ const deactivateFixedSlotSchema = z.object({
   let content = read(file);
   content = replaceRequired(
     content,
-    `  async deactivateFixedSlot(id: string): Promise<FixedScheduleSlot> {
-    const response = await api.delete<{ success: boolean; data: FixedScheduleSlot }>(\`/agenda/fixed-slots/\${id}\`);
-    return response.data.data;
-  },`,
-    `  async deactivateFixedSlot(
-    id: string,
-    confirmKeepFutureBookings = false
-  ): Promise<FixedScheduleSlot> {
-    const response = await api.delete<{ success: boolean; data: FixedScheduleSlot }>(
-      \`/agenda/fixed-slots/\${id}\`,
-      { data: { confirmKeepFutureBookings } }
-    );
-    return response.data.data;
-  },`,
-    'web explicit fixed slot deactivation'
+    `  notes?: string | null;
+}`,
+    `  notes?: string | null;
+  availabilityConfirmed?: boolean;
+}`,
+    'web availability confirmation contract'
   );
   write(file, content);
 }
 
 {
-  const file = 'apps/web/src/pages/Agenda.tsx';
+  const file = 'apps/web/src/pages/AlunoForm.tsx';
   let content = read(file);
   content = replaceRequired(
     content,
-    `  const handleDeactivateFixedSlot = async (id: string) => {
-    clearMessages();
-    try {
-      await agendaService.deactivateFixedSlot(id);
-      await reloadData();
-      setSuccess(agendaCopy.fixedSlotDeactivateSuccess);
-    } catch (err: any) {
-      setError(err?.response?.data?.error || agendaCopy.fixedSlotDeactivateError);
-    }
-  };`,
-    `  const handleDeactivateFixedSlot = async (id: string) => {
-    clearMessages();
-    try {
-      await agendaService.deactivateFixedSlot(id);
-    } catch (err: any) {
-      if (err?.response?.data?.code !== 'FUTURE_BOOKINGS_CONFIRMATION_REQUIRED') {
-        setError(err?.response?.data?.error || agendaCopy.fixedSlotDeactivateError);
-        return;
+    `      const serializedFixedScheduleSlots = fixedScheduleSlots.map(
+        ({ availability: _availability, ...slot }) => slot
+      );`,
+    `      const serializedFixedScheduleSlots = fixedScheduleSlots.map(
+        ({ availability, ...slot }) => ({
+          ...slot,
+          availabilityConfirmed: availability?.available === true,
+        })
+      );`,
+    'serialize positive availability check'
+  );
+  content = replaceRequired(
+    content,
+    `    } catch (error: any) {
+      console.error('Erro ao salvar aluno:', error);
+      alert(error.response?.data?.error || alunoFormCopy.saveError);
+    } finally {`,
+    `    } catch (error: any) {
+      console.error('Erro ao salvar aluno:', error);
+      const scheduleError = error.response?.data;
+      if (
+        data.schedulePlan === 'fixed' &&
+        Number.isInteger(scheduleError?.rowIndex) &&
+        fixedScheduleSlots[scheduleError.rowIndex]
+      ) {
+        setFixedScheduleSlots((current) =>
+          current.map((row, rowIndex) =>
+            rowIndex === scheduleError.rowIndex
+              ? {
+                  ...row,
+                  availability: {
+                    rowIndex,
+                    slotId: row.id,
+                    clientKey: row.clientKey,
+                    available: false,
+                    code: scheduleError.reasonCode || scheduleError.code,
+                    message: scheduleError.error || alunoFormCopy.saveError,
+                    stage: scheduleError.stage || 'schedule',
+                  },
+                }
+              : row
+          )
+        );
+        setActiveTab('anamneseInicial');
       }
-
-      const confirmed = window.confirm(
-        'Este é o último horário fixo ativo e existem agendamentos futuros vinculados. Os agendamentos serão mantidos para cancelamento separado. Deseja continuar?'
-      );
-      if (!confirmed) return;
-      await agendaService.deactivateFixedSlot(id, true);
-    }
-
-    await reloadData();
-    setSuccess(agendaCopy.fixedSlotDeactivateSuccess);
-  };`,
-    'agenda future booking decision'
+      alert(scheduleError?.error || alunoFormCopy.saveError);
+    } finally {`,
+    'surface save-time schedule conflict on row'
   );
   write(file, content);
 }
@@ -286,33 +250,20 @@ const deactivateFixedSlotSchema = z.object({
   let content = read(file);
   content = replaceRequired(
     content,
-    `    expect(results[1]).toMatchObject({
-      available: false,
-      code: 'STUDENT_FIXED_SLOT_CONFLICT',
-      stage: 'student',
-    });`,
-    `    expect(results).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          rowIndex: 0,
-          available: false,
-          code: 'STUDENT_FIXED_SLOT_CONFLICT',
-          stage: 'student',
-        }),
-        expect.objectContaining({
-          rowIndex: 1,
-          available: false,
-          code: 'STUDENT_FIXED_SLOT_CONFLICT',
-          stage: 'student',
-        }),
-      ])
-    );`,
-    'both conflicting rows fail'
+    `    $queryRaw: jest.fn().mockResolvedValue([]),`,
+    `    $executeRaw: jest.fn().mockResolvedValue(0),`,
+    'unit transaction execute raw mock'
+  );
+  content = replaceRequired(
+    content,
+    `    expect(db.$queryRaw).toHaveBeenCalled();`,
+    `    expect(db.$executeRaw).toHaveBeenCalled();`,
+    'unit transaction execute raw expectation'
   );
   content = replaceRequired(
     content,
     `  it('locks competing resources before the final validation and persists the complete set', async () => {`,
-    `  it('does not write plan or slots when the final validation fails', async () => {
+    `  it('distinguishes a save-time availability change from its original reason', async () => {
     const db = databaseMock();
     db.trainingSpace.findFirst.mockResolvedValue({ id: 'space-1', capacity: 1, isActive: true });
     db.fixedScheduleSlot.findMany
@@ -321,19 +272,19 @@ const deactivateFixedSlotSchema = z.object({
       .mockResolvedValueOnce([{ startTime: '08:30', endTime: '09:30' }]);
 
     await expect(
-      syncStudentFixedSchedule(db as never, 'contract-1', 'aluno-1', 'fixed', [slot()])
-    ).rejects.toMatchObject({ code: 'SPACE_CAPACITY_FULL' });
-
-    expect(db.fixedScheduleSlot.create).not.toHaveBeenCalled();
-    expect(db.fixedScheduleSlot.update).not.toHaveBeenCalled();
-    expect(db.fixedScheduleSlot.updateMany).not.toHaveBeenCalled();
-    expect(db.aluno.update).not.toHaveBeenCalled();
+      syncStudentFixedSchedule(db as never, 'contract-1', 'aluno-1', 'fixed', [
+        slot({ availabilityConfirmed: true }),
+      ])
+    ).rejects.toMatchObject({
+      code: 'FIXED_SCHEDULE_CHANGED',
+      reasonCode: 'SPACE_CAPACITY_FULL',
+    });
   });
 
   it('locks competing resources before the final validation and persists the complete set', async () => {`,
-    'rollback unit coverage'
+    'availability change unit coverage'
   );
   write(file, content);
 }
 
-console.log('Final issue 265 audit corrections applied successfully.');
+console.log('Issue 265 lock and availability change corrections applied successfully.');
