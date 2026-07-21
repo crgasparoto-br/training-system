@@ -12,7 +12,7 @@ A parte é explícita no documento e no vínculo de vigência. Aluno e colaborad
 1. Acesse `Configurações > Contratos`.
 2. Crie ou edite um modelo e defina a aplicabilidade: **Aluno**, **Colaborador** ou **Aluno e colaborador**.
 3. Use a prévia preenchida para validar conteúdo e variáveis sem criar documento.
-4. Na edição individual do aluno ou do colaborador, gere um contrato candidato.
+4. Na edição individual do aluno ou do colaborador, gere um contrato candidato; a consulta individual permanece somente leitura.
 5. Gere o PDF e prepare o link público de assinatura.
 6. Compartilhe manualmente `/assinatura/contrato/:token` com a parte contratada.
 7. A assinatura eletrônica decide quando o candidato pode entrar em vigor.
@@ -184,7 +184,7 @@ Modelos exclusivos de colaborador não aparecem nas opções do aluno.
 
 ## Ciclo do colaborador
 
-A página individual de edição do colaborador contém **Controle contratual**:
+A página individual do colaborador contém **Controle contratual**. Na consulta, o bloco é somente leitura; na edição, as ações administrativas são liberadas conforme permissão:
 
 - contrato vigente;
 - candidatos;
@@ -198,7 +198,7 @@ A página individual de edição do colaborador contém **Controle contratual**:
 - cancelamento do candidato;
 - processamento da vigência.
 
-As escritas exigem a permissão administrativa de contrato do colaborador e respeitam o escopo `self`, `managed` ou `contract` da tela de cadastro. A consulta também exige acesso ao colaborador dentro do tenant.
+As leituras aceitam acesso por `collaborators.consultation` ou `collaborators.registration` e usam o escopo mais permissivo disponível entre essas telas. As escritas exigem `collaborators.registration`, a permissão administrativa de contrato do colaborador e o escopo `self`, `managed` ou `contract` da tela de cadastro.
 
 O antigo checkbox e upload editáveis do cadastro não são mais a fonte de verdade. O histórico legado aparece somente para consulta.
 
@@ -313,7 +313,7 @@ Compartilhado:
 
 ## Consulta de documentos persistidos
 
-Na edição do colaborador, a ação **Consultar** abre o HTML persistido do documento em modo somente leitura. Quando o PDF já foi gerado, **Abrir PDF** usa uma rota autenticada que valida tenant, escopo do colaborador e vínculo do documento antes de retornar o arquivo. Caminhos locais de storage não são expostos diretamente ao navegador.
+Na consulta e na edição do colaborador, a ação **Consultar** abre o HTML persistido do documento em modo somente leitura. Quando o PDF já foi gerado, **Abrir PDF** usa uma rota autenticada que valida tenant, escopo do colaborador e vínculo do documento antes de retornar o arquivo. Caminhos locais de storage não são expostos diretamente ao navegador.
 
 Recusas aparecem explicitamente como **Recusado**, com data e motivo quando informado. Cancelamento administrativo e recusa da parte contratante permanecem distinguíveis no histórico.
 
