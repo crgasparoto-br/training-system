@@ -2,7 +2,7 @@
 
 ## Status
 
-Implementação concluída na branch da issue, com pull request aberta contra `develop` e sem merge. A validação e a auditoria finais devem considerar o commit atual da PR.
+Implementação concluída, validada e auditada sem ressalvas na branch da issue. Pull request aberta contra `develop`, sem merge.
 
 ## Objetivo
 
@@ -35,12 +35,14 @@ Integrar o conjunto semanal de horários fixos ao cadastro e à edição do alun
 - a validação de agendamentos do professor ignora apenas reservas ligadas à própria recorrência editada;
 - a consulta positiva é informativa e somente gera `FIXED_SCHEDULE_CHANGED` quando a mesma linha, ainda não alterada, falha na revalidação transacional.
 
-## Portões de validação
+## Validação concluída
 
 - `pnpm type-check`;
 - `pnpm lint`;
-- `pnpm test`, incluindo integração PostgreSQL;
+- `pnpm test` — web: 56 arquivos/229 testes; API: 83 suítes/375 testes;
+- testes PostgreSQL para concorrência, rollback, sincronização, ID duplicado, preservação de histórico inativo e recriação com novo ID;
 - `pnpm arch:check`;
 - `pnpm access:check`;
 - `pnpm docs:check`;
-- auditoria funcional requisito a requisito e passagem adversarial sobre o commit final.
+- CI oficial `Validate PR` #2227 aprovado no commit `8e024258894b27882e8319b2c8a30309fe9d368b`;
+- auditoria funcional e passagem adversarial aprovadas sem ressalvas.
