@@ -54,6 +54,10 @@ const checkFixedScheduleSchema = z.object({
   slots: z.array(fixedScheduleSlotInputSchema).min(1),
 });
 
+const deactivateFixedSlotSchema = z.object({
+  confirmKeepFutureBookings: z.boolean().optional(),
+});
+
 const updateFixedSlotSchema = z.object({
   dayOfWeek: z.number().int().min(1).max(7).optional(),
   startTime: hhmm.optional(),
@@ -260,9 +264,17 @@ router.delete('/fixed-slots/:id', async (req: Request, res: Response) => {
   try {
     const contractId = (req as any).user.contractId as string | undefined;
     if (!contractId) return sendError(res, 'Contrato nao encontrado', 404);
-    const item = await agendaService.deactivateFixedSlot(contractId, req.params.id);
+    const validated = deactivateFixedSlotSchema.parse(req.body ?? {});
+    const item = await agendaService.deactivateFixedSlot(
+      contractId,
+      req.params.id,
+      validated
+    );
     return sendSuccess(res, item, 'Horario fixo inativado com sucesso');
   } catch (error: any) {
+    if (error instanceof z.ZodError) {
+      return sendError(res, 'Dados inválidos', 400, error.errors);
+    }
     return sendFixedScheduleError(res, error, 'Erro ao inativar horario fixo');
   }
 });

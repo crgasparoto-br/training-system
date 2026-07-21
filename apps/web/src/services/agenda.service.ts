@@ -205,8 +205,14 @@ export const agendaService = {
     return response.data.data;
   },
 
-  async deactivateFixedSlot(id: string): Promise<FixedScheduleSlot> {
-    const response = await api.delete<{ success: boolean; data: FixedScheduleSlot }>(`/agenda/fixed-slots/${id}`);
+  async deactivateFixedSlot(
+    id: string,
+    confirmKeepFutureBookings = false
+  ): Promise<FixedScheduleSlot> {
+    const response = await api.delete<{ success: boolean; data: FixedScheduleSlot }>(
+      `/agenda/fixed-slots/${id}`,
+      { data: { confirmKeepFutureBookings } }
+    );
     return response.data.data;
   },
 

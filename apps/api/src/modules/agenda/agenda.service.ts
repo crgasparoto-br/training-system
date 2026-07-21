@@ -221,7 +221,8 @@ export const agendaService = {
       spaceId?: string | null;
       notes?: string | null;
       isActive?: boolean;
-    }
+    },
+    options: { confirmKeepFutureBookings?: boolean } = {}
   ) {
     return prisma.$transaction(async (tx) => {
       const current = await tx.fixedScheduleSlot.findFirst({
@@ -261,7 +262,7 @@ export const agendaService = {
         current.alunoId,
         desired.length > 0 ? 'fixed' : 'free',
         desired,
-        { confirmKeepFutureBookings: false }
+        { confirmKeepFutureBookings: options.confirmKeepFutureBookings }
       );
       return (
         result.slots.find((slot) => slot.id === id) ??
@@ -270,8 +271,12 @@ export const agendaService = {
     });
   },
 
-  async deactivateFixedSlot(contractId: string, id: string) {
-    return this.updateFixedSlot(contractId, id, { isActive: false });
+  async deactivateFixedSlot(
+    contractId: string,
+    id: string,
+    options: { confirmKeepFutureBookings?: boolean } = {}
+  ) {
+    return agendaService.updateFixedSlot(contractId, id, { isActive: false }, options);
   },
 
   async listBookings(

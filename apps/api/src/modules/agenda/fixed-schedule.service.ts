@@ -255,7 +255,8 @@ async function loadStudentSlots(db: FixedScheduleDb, contractId: string, alunoId
   });
 }
 
-function validateStudentRows(slots: FixedScheduleSlotInput[]) {
+function findStudentRowConflictIndexes(slots: FixedScheduleSlotInput[]): Set<number> {
+  const conflicts = new Set<number>();
   for (let left = 0; left < slots.length; left += 1) {
     for (let right = left + 1; right < slots.length; right += 1) {
       if (
@@ -267,13 +268,22 @@ function validateStudentRows(slots: FixedScheduleSlotInput[]) {
           slots[right].endTime
         )
       ) {
-        throw new FixedScheduleError(
-          'STUDENT_FIXED_SLOT_CONFLICT',
-          MESSAGES.STUDENT_FIXED_SLOT_CONFLICT,
-          { stage: 'student', rowIndex: right }
-        );
+        conflicts.add(left);
+        conflicts.add(right);
       }
     }
+  }
+  return conflicts;
+}
+
+function validateStudentRows(slots: FixedScheduleSlotInput[]) {
+  const firstConflict = [...findStudentRowConflictIndexes(slots)].sort((a, b) => a - b)[0];
+  if (firstConflict !== undefined) {
+    throw new FixedScheduleError(
+      'STUDENT_FIXED_SLOT_CONFLICT',
+      MESSAGES.STUDENT_FIXED_SLOT_CONFLICT,
+      { stage: 'student', rowIndex: firstConflict }
+    );
   }
 }
 
@@ -451,15 +461,24 @@ export async function checkFixedScheduleAvailability(
     }
   });
 
-  const validRows = normalized.filter((slot): slot is FixedScheduleSlotInput => Boolean(slot));
-  try {
-    validateStudentRows(validRows);
-  } catch (error) {
-    if (error instanceof FixedScheduleError && error.rowIndex !== undefined) {
-      const originalIndex = normalized.findIndex((row) => row === validRows[error.rowIndex!]);
-      earlyErrors.set(originalIndex, error);
-    } else throw error;
-  }
+  const validRowsWithIndexes = normalized
+    .map((slot, originalIndex) => ({ slot, originalIndex }))
+    .filter(
+      (item): item is { slot: FixedScheduleSlotInput; originalIndex: number } =>
+        Boolean(item.slot)
+    );
+  const validRows = validRowsWithIndexes.map((item) => item.slot);
+  findStudentRowConflictIndexes(validRows).forEach((validRowIndex) => {
+    const originalIndex = validRowsWithIndexes[validRowIndex].originalIndex;
+    earlyErrors.set(
+      originalIndex,
+      new FixedScheduleError(
+        'STUDENT_FIXED_SLOT_CONFLICT',
+        MESSAGES.STUDENT_FIXED_SLOT_CONFLICT,
+        { stage: 'student', rowIndex: originalIndex }
+      )
+    );
+  });
 
   const existing = alunoId ? await loadStudentSlots(db, contractId, alunoId) : [];
   const existingById = new Map(existing.map((item) => [item.id, item]));
@@ -480,6 +499,9 @@ export async function checkFixedScheduleAvailability(
   const removedIds = existing
     .filter((item) => item.isActive && !submittedIds.includes(item.id))
     .map((item) => item.id);
+  // Existing submitted rows are replaced by their desired versions above; they are
+  // excluded from the persisted snapshot, while every desired row remains represented
+  // in the complete-set conflict validation.
   const excludedSlotIds = [...submittedIds, ...removedIds];
 
   return Promise.all(

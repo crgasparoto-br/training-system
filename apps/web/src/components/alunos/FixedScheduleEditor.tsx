@@ -121,8 +121,6 @@ export function FixedScheduleEditor({
     return () => {
       active = false;
     };
-    // O refreshKey é incrementado somente após uma gravação concluída.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [alunoId, plan, refreshKey]);
 
   const hasIncompleteRows = useMemo(

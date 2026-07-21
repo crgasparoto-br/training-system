@@ -214,11 +214,21 @@ export function Agenda() {
     clearMessages();
     try {
       await agendaService.deactivateFixedSlot(id);
-      await reloadData();
-      setSuccess(agendaCopy.fixedSlotDeactivateSuccess);
     } catch (err: any) {
-      setError(err?.response?.data?.error || agendaCopy.fixedSlotDeactivateError);
+      if (err?.response?.data?.code !== 'FUTURE_BOOKINGS_CONFIRMATION_REQUIRED') {
+        setError(err?.response?.data?.error || agendaCopy.fixedSlotDeactivateError);
+        return;
+      }
+
+      const confirmed = window.confirm(
+        'Este é o último horário fixo ativo e existem agendamentos futuros vinculados. Os agendamentos serão mantidos para cancelamento separado. Deseja continuar?'
+      );
+      if (!confirmed) return;
+      await agendaService.deactivateFixedSlot(id, true);
     }
+
+    await reloadData();
+    setSuccess(agendaCopy.fixedSlotDeactivateSuccess);
   };
 
   const handleCreateSpace = async () => {

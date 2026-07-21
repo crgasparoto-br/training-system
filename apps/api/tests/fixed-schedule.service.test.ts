@@ -106,11 +106,22 @@ describe('fixed schedule canonical validation', () => {
       ]
     );
 
-    expect(results[1]).toMatchObject({
-      available: false,
-      code: 'STUDENT_FIXED_SLOT_CONFLICT',
-      stage: 'student',
-    });
+    expect(results).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          rowIndex: 0,
+          available: false,
+          code: 'STUDENT_FIXED_SLOT_CONFLICT',
+          stage: 'student',
+        }),
+        expect.objectContaining({
+          rowIndex: 1,
+          available: false,
+          code: 'STUDENT_FIXED_SLOT_CONFLICT',
+          stage: 'student',
+        }),
+      ])
+    );
   });
 
   it('returns available only after space and professor validations pass', async () => {
@@ -190,6 +201,24 @@ describe('fixed schedule canonical validation', () => {
       syncStudentFixedSchedule(db as never, 'contract-1', 'aluno-1', 'free', [])
     ).rejects.toMatchObject({ code: 'FUTURE_BOOKINGS_CONFIRMATION_REQUIRED' });
     expect(db.fixedScheduleSlot.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('does not write plan or slots when the final validation fails', async () => {
+    const db = databaseMock();
+    db.trainingSpace.findFirst.mockResolvedValue({ id: 'space-1', capacity: 1, isActive: true });
+    db.fixedScheduleSlot.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ startTime: '08:30', endTime: '09:30' }]);
+
+    await expect(
+      syncStudentFixedSchedule(db as never, 'contract-1', 'aluno-1', 'fixed', [slot()])
+    ).rejects.toMatchObject({ code: 'SPACE_CAPACITY_FULL' });
+
+    expect(db.fixedScheduleSlot.create).not.toHaveBeenCalled();
+    expect(db.fixedScheduleSlot.update).not.toHaveBeenCalled();
+    expect(db.fixedScheduleSlot.updateMany).not.toHaveBeenCalled();
+    expect(db.aluno.update).not.toHaveBeenCalled();
   });
 
   it('locks competing resources before the final validation and persists the complete set', async () => {
