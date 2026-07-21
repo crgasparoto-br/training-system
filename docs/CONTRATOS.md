@@ -250,10 +250,12 @@ O status administrativo `REJECTED` continua derivado do evento de auditoria exis
 
 ## Legado do colaborador
 
-A migração lê:
+A migração lê os campos atuais da entidade `Professor`:
 
-- `Educator.hasSignedContract`;
-- `Educator.signedContractDocumentUrl`.
+- `Professor.hasSignedContract`;
+- `Professor.signedContractDocumentUrl`.
+
+Identificadores de constraints e índices que ainda usam o prefixo `Educator` são nomes legados do banco de dados. Eles não representam uma entidade ativa diferente de `Professor` e não devem ser usados na documentação funcional ou em novas implementações.
 
 O backfill é idempotente por `legacySourceKey` e cria um `CollaboratorContract` com origem:
 
