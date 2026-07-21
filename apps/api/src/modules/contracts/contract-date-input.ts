@@ -30,7 +30,7 @@ const datePartsInTimeZone = (date: Date, timeZone: string) => {
 
 export const dateOnlyAtStartOfDayInTimeZone = (
   value: string,
-  timeZone = process.env.CONTRACT_TIME_ZONE || DEFAULT_CONTRACT_TIME_ZONE
+  timeZone = DEFAULT_CONTRACT_TIME_ZONE
 ) => {
   const match = DATE_ONLY_PATTERN.exec(value.trim());
   if (!match) throw new Error('Data de contrato inválida');
