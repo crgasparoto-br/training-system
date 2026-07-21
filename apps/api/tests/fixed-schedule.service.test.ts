@@ -40,7 +40,7 @@ function databaseMock() {
       findMany: jest.fn().mockResolvedValue([]),
       count: jest.fn().mockResolvedValue(0),
     },
-    $queryRaw: jest.fn().mockResolvedValue([]),
+    $executeRaw: jest.fn().mockResolvedValue(0),
   };
 }
 
@@ -221,6 +221,24 @@ describe('fixed schedule canonical validation', () => {
     expect(db.aluno.update).not.toHaveBeenCalled();
   });
 
+  it('distinguishes a save-time availability change from its original reason', async () => {
+    const db = databaseMock();
+    db.trainingSpace.findFirst.mockResolvedValue({ id: 'space-1', capacity: 1, isActive: true });
+    db.fixedScheduleSlot.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ startTime: '08:30', endTime: '09:30' }]);
+
+    await expect(
+      syncStudentFixedSchedule(db as never, 'contract-1', 'aluno-1', 'fixed', [
+        slot({ availabilityConfirmed: true }),
+      ])
+    ).rejects.toMatchObject({
+      code: 'FIXED_SCHEDULE_CHANGED',
+      reasonCode: 'SPACE_CAPACITY_FULL',
+    });
+  });
+
   it('locks competing resources before the final validation and persists the complete set', async () => {
     const db = databaseMock();
 
@@ -232,7 +250,7 @@ describe('fixed schedule canonical validation', () => {
       [slot()]
     );
 
-    expect(db.$queryRaw).toHaveBeenCalled();
+    expect(db.$executeRaw).toHaveBeenCalled();
     expect(db.fixedScheduleSlot.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({

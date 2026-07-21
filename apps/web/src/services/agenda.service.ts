@@ -66,6 +66,7 @@ export interface FixedScheduleSlotInput {
   startTime: string;
   endTime: string;
   notes?: string | null;
+  availabilityConfirmed?: boolean;
 }
 
 export interface FixedScheduleAvailabilityResult {

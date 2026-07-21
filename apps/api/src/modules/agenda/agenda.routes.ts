@@ -43,6 +43,7 @@ const fixedScheduleSlotInputSchema = z.object({
   startTime: hhmm,
   endTime: hhmm,
   notes: z.string().nullable().optional(),
+  availabilityConfirmed: z.boolean().optional(),
 });
 
 const createFixedSlotSchema = fixedScheduleSlotInputSchema.extend({
@@ -92,6 +93,7 @@ const sendFixedScheduleError = (res: Response, error: unknown, fallback: string)
       code: error.code,
       stage: error.stage,
       rowIndex: error.rowIndex,
+      reasonCode: error.reasonCode,
     });
   }
   const message = error instanceof Error ? error.message : fallback;

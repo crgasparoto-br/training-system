@@ -30,6 +30,7 @@ export interface FixedScheduleSlotInput {
   startTime: string;
   endTime: string;
   notes?: string | null;
+  availabilityConfirmed?: boolean;
 }
 
 export interface FixedScheduleAvailabilityResult {
@@ -47,6 +48,7 @@ export class FixedScheduleError extends Error {
   readonly stage: FixedScheduleValidationStage;
   readonly rowIndex?: number;
   readonly statusCode: number;
+  readonly reasonCode?: FixedScheduleErrorCode;
 
   constructor(
     code: FixedScheduleErrorCode,
@@ -55,6 +57,7 @@ export class FixedScheduleError extends Error {
       stage: FixedScheduleValidationStage;
       rowIndex?: number;
       statusCode?: number;
+      reasonCode?: FixedScheduleErrorCode;
     }
   ) {
     super(message);
@@ -63,6 +66,7 @@ export class FixedScheduleError extends Error {
     this.stage = options.stage;
     this.rowIndex = options.rowIndex;
     this.statusCode = options.statusCode ?? 409;
+    this.reasonCode = options.reasonCode;
   }
 }
 
@@ -540,7 +544,7 @@ async function acquireScheduleLocks(
     keys.add(`fixed-schedule:${contractId}:professor:${slot.professorId}:day:${slot.dayOfWeek}`);
   });
   for (const key of [...keys].sort()) {
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${key}))`;
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${key}))`;
   }
 }
 
@@ -599,7 +603,20 @@ export async function syncStudentFixedSchedule(
   const results = await checkFixedScheduleAvailability(tx, contractId, alunoId, slots);
   const firstFailure = results.find((result) => !result.available);
   if (firstFailure) {
-    throw new FixedScheduleError(firstFailure.code as FixedScheduleErrorCode, firstFailure.message, {
+    const reasonCode = firstFailure.code as FixedScheduleErrorCode;
+    const checkedRow = slots[firstFailure.rowIndex];
+    if (checkedRow?.availabilityConfirmed) {
+      throw new FixedScheduleError(
+        'FIXED_SCHEDULE_CHANGED',
+        `${MESSAGES.FIXED_SCHEDULE_CHANGED} ${firstFailure.message}`,
+        {
+          stage: firstFailure.stage,
+          rowIndex: firstFailure.rowIndex,
+          reasonCode,
+        }
+      );
+    }
+    throw new FixedScheduleError(reasonCode, firstFailure.message, {
       stage: firstFailure.stage,
       rowIndex: firstFailure.rowIndex,
     });
