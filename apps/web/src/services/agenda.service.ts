@@ -1,4 +1,4 @@
-﻿import api from './api';
+import api from './api';
 
 export type AgendaBookingType = 'free' | 'fixed_makeup';
 export type AgendaBookingStatus = 'scheduled' | 'completed' | 'canceled' | 'no_show';
@@ -54,6 +54,8 @@ export type FixedScheduleErrorCode =
   | 'PROFESSOR_BOOKING_CONFLICT'
   | 'STUDENT_FIXED_SLOT_CONFLICT'
   | 'FIXED_SLOT_NOT_FOUND'
+  | 'FIXED_SLOT_INACTIVE'
+  | 'FIXED_SLOT_ID_DUPLICATE'
   | 'FIXED_TO_FREE_CONFIRMATION_REQUIRED'
   | 'FUTURE_BOOKINGS_CONFIRMATION_REQUIRED'
   | 'FIXED_SCHEDULE_CHANGED';
@@ -228,5 +230,3 @@ export const agendaService = {
     return response.data.data;
   },
 };
-
-
