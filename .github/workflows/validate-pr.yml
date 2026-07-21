@@ -1,40 +1,124 @@
-name: Apply Issue 268 Canonical Tenant Fixes
+name: Validate PR
 
 on:
   pull_request:
-    types:
-      - reopened
     branches:
+      - main
       - develop
-
-permissions:
-  contents: write
+  push:
+    branches:
+      - main
+      - develop
+      - 'chore/**'
+      - 'feat/**'
+      - 'fix/**'
 
 jobs:
-  apply:
-    name: Apply canonical tenant source fixes
+  validate:
+    name: Validate repository
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/training_system_test?schema=public
+      RUN_DATABASE_INTEGRATION_TESTS: 'true'
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: training_system_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d training_system_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
         with:
-          fetch-depth: 0
-          ref: feature/268-student-lifecycle-domain
+          version: 9
 
-      - name: Apply corrections
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 .issue268-tenant-source-fixes.py
-          rm .issue268-tenant-source-fixes.py
-          git diff --check
-          git status --short
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
 
-      - name: Commit and push
-        shell: bash
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma Client (api)
+        run: pnpm --filter @corrida/api exec prisma generate
+
+      - name: Apply test database migrations
+        run: pnpm --filter @corrida/api exec prisma migrate deploy
+
+      - name: Verify lifecycle migration rerun
         run: |
-          git config user.name "chatgpt-issue-268"
-          git config user.email "actions@users.noreply.github.com"
-          git add -A
-          git commit -m "fix(alunos): use Aluno.contractId as canonical tenant source"
-          git push origin HEAD:feature/268-student-lifecycle-domain
+          docker run --rm --network host \
+            -v "$GITHUB_WORKSPACE:/workspace" \
+            -e PGPASSWORD=postgres \
+            postgres:16-alpine \
+            psql -h localhost -U postgres -d training_system_test -v ON_ERROR_STOP=1 \
+            -f /workspace/apps/api/prisma/migrations/20260721120000_student_lifecycle_domain/migration.sql
+
+      - name: Type check
+        run: |
+          set -o pipefail
+          pnpm type-check 2>&1 | tee type-check-output.log
+
+      - name: Upload type-check output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: type-check-output-${{ github.run_id }}
+          path: type-check-output.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Test
+        run: |
+          set -o pipefail
+          pnpm test 2>&1 | tee test-output.log
+
+      - name: Upload test output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-output-${{ github.run_id }}
+          path: test-output.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Build
+        run: pnpm build
+
+      - name: Architecture checks
+        run: pnpm arch:check
+
+      - name: Access catalog checks
+        run: pnpm access:check
+
+      - name: Documentation checks
+        run: |
+          set -o pipefail
+          pnpm docs:check 2>&1 | tee docs-check-output.log
+
+      - name: Upload documentation check output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs-check-output-${{ github.run_id }}
+          path: docs-check-output.log
+          if-no-files-found: ignore
+          retention-days: 7
