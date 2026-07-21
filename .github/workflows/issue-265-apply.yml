@@ -40,8 +40,7 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add apps/web/src/components/alunos/FixedScheduleEditor.tsx \
-            apps/web/src/pages/Agenda.tsx \
-            apps/api/src/modules/alunos/aluno.routes.ts
-          git commit -m "fix(issue-265): address first audit findings"
+          git add apps/api/src/modules/agenda/fixed-schedule.service.ts \
+            apps/api/tests/fixed-schedule.service.test.ts
+          git commit -m "fix(issue-265): strengthen interval validation and locking"
           git push origin HEAD:feat/265-fixed-schedule-student-form
