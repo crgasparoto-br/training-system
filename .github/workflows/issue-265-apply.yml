@@ -21,7 +21,21 @@ jobs:
           show-progress: false
 
       - name: Apply corrections
-        run: node scripts/issue-265-apply.mjs
+        run: |
+          if ! node scripts/issue-265-apply.mjs > issue-265-final-patch.log 2>&1; then
+            cat issue-265-final-patch.log
+            exit 1
+          fi
+          cat issue-265-final-patch.log
+
+      - name: Upload patch diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-265-final-patch-${{ github.run_id }}
+          path: issue-265-final-patch.log
+          if-no-files-found: error
+          retention-days: 1
 
       - name: Verify patch formatting
         run: git diff --check
