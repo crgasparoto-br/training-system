@@ -224,7 +224,14 @@ export function Agenda() {
         'Este é o último horário fixo ativo e existem agendamentos futuros vinculados. Os agendamentos serão mantidos para cancelamento separado. Deseja continuar?'
       );
       if (!confirmed) return;
-      await agendaService.deactivateFixedSlot(id, true);
+      try {
+        await agendaService.deactivateFixedSlot(id, true);
+      } catch (retryError: any) {
+        setError(
+          retryError?.response?.data?.error || agendaCopy.fixedSlotDeactivateError
+        );
+        return;
+      }
     }
 
     await reloadData();
