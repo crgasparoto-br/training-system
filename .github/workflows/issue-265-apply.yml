@@ -26,7 +26,12 @@ jobs:
           fetch-depth: 0
 
       - name: Apply patch
-        run: node scripts/issue-265-apply.mjs
+        run: |
+          if ! node scripts/issue-265-apply.mjs > issue-265-patch.log 2>&1; then
+            tail -80 issue-265-patch.log
+            exit 1
+          fi
+          cat issue-265-patch.log
 
       - name: Verify patch formatting
         run: git diff --check
