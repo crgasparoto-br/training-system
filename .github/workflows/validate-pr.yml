@@ -91,9 +91,6 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Build
-        run: pnpm build
-
       - name: Architecture checks
         run: pnpm arch:check
 
