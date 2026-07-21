@@ -35,6 +35,7 @@ export const assessmentPlanNotificationService = {
       where: { id: alunoId },
       select: {
         id: true,
+        contractId: true,
         user: {
           select: {
             id: true,
@@ -163,11 +164,8 @@ export const assessmentPlanNotificationService = {
     };
 
     for (const aluno of alunos) {
-      // Issue #268: aluno ativo sempre tem professor; leads (sem professor)
-      // já são excluídos pelo filtro status: ACTIVE_STUDENT acima.
-      if (!aluno.professor) continue;
       try {
-        const created = await this.dispatchForAluno(aluno.id, aluno.professor.contractId, {
+        const created = await this.dispatchForAluno(aluno.id, aluno.contractId, {
           now,
           upcomingWindowDays,
           dryRun,

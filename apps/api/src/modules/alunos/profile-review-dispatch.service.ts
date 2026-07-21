@@ -182,6 +182,7 @@ export const profileReviewDispatchService = {
       },
       select: {
         id: true,
+        contractId: true,
         createdAt: true,
         user: {
           select: {
@@ -207,9 +208,7 @@ export const profileReviewDispatchService = {
     };
 
     for (const aluno of activeAlunos) {
-      // Issue #268: aluno ativo sempre tem professor e conta vinculados;
-      // filtro status: ACTIVE_STUDENT acima já exclui leads incompletos.
-      if (!aluno.professor || !aluno.user) continue;
+      if (!aluno.user) continue;
       try {
         const [settings, policy, latestReview, pendingReview] = await Promise.all([
           prisma.alunoProfileReviewSettings.findUnique({
@@ -217,7 +216,7 @@ export const profileReviewDispatchService = {
           }),
           prisma.profileReviewPolicy.findFirst({
             where: {
-              contractId: aluno.professor.contractId,
+              contractId: aluno.contractId,
               isActive: true,
             },
             orderBy: {

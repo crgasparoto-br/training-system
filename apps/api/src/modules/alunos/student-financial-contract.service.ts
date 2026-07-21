@@ -377,9 +377,9 @@ const updateAlunoRecord = async (
   // Issue #268: contractId agora vive diretamente em Aluno; preferi-lo
   // evita depender de professor estar vinculado (registro pré-ativação).
   const scopedContractId =
+    currentAluno.contractId ||
     currentAluno.currentStudentContract?.contract.companyContractId ||
-    currentAluno.professor?.contractId ||
-    currentAluno.contractId;
+    currentAluno.professor?.contractId;
   if (scopedContractId !== options.companyContractId) {
     throw new Error('Aluno não pertence ao contrato autenticado');
   }

@@ -680,17 +680,13 @@ export const profileReviewService = {
     if (!aluno) {
       throw new Error('Aluno não encontrado');
     }
-    if (!aluno.professor) {
-      throw new Error('Aluno ainda não possui professor vinculado (registro incompleto)');
-    }
-
     const [settings, policy] = await Promise.all([
       prisma.alunoProfileReviewSettings.findUnique({
         where: { alunoId },
       }),
       prisma.profileReviewPolicy.findFirst({
         where: {
-          contractId: aluno.professor.contractId,
+          contractId: aluno.contractId,
           isActive: true,
         },
         orderBy: {
@@ -844,10 +840,6 @@ export const profileReviewService = {
     if (review.status !== StudentProfileReviewStatus.pending) {
       throw new Error('A revisão cadastral não está pendente');
     }
-    if (!review.aluno.professor) {
-      throw new Error('Aluno ainda não possui professor vinculado (registro incompleto)');
-    }
-
     const now = new Date();
     const [settings, policy, freshSnapshot] = await Promise.all([
       prisma.alunoProfileReviewSettings.findUnique({
@@ -855,7 +847,7 @@ export const profileReviewService = {
       }),
       prisma.profileReviewPolicy.findFirst({
         where: {
-          contractId: review.aluno.professor.contractId,
+          contractId: review.aluno.contractId,
           isActive: true,
         },
         orderBy: {
