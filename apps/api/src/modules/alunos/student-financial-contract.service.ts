@@ -3,6 +3,7 @@ import bcryptjs from 'bcryptjs';
 import crypto from 'crypto';
 import { assertStudentInterestServiceSelectable } from './aluno.service-selection.js';
 import { legacyDirectActiveStudentCreationFields } from './student-lifecycle.service.js';
+import { upsertStudentIdentity } from './student-identity.service.js';
 import type { CreateAlunoDTO, UpdateAlunoDTO } from './aluno.service.js';
 import { contractDocumentService } from '../contracts/contract-document.service.js';
 import { loadContractServiceVariableContext } from '../contracts/contract-service-context.js';
@@ -275,6 +276,24 @@ const createAlunoRecord = async (
     },
   });
 
+  await upsertStudentIdentity(
+    aluno.id,
+    options.companyContractId,
+    {
+      name: data.name,
+      email: data.email,
+      phone: data.phone,
+      birthDate: data.birthDate,
+      gender: data.gender,
+    },
+    {
+      client: tx,
+      sourceType: 'professional',
+      sourceReference: 'financial_contract_create',
+      syncLegacyProfile: true,
+    }
+  );
+
   if (data.macronutrients && hasAnyValue(data.macronutrients)) {
     await tx.macronutrients.create({
       data: {
@@ -395,15 +414,25 @@ const updateAlunoRecord = async (
 
   const aluno = await tx.aluno.update({ where: { id: alunoId }, data: alunoData });
 
-  if (aluno.userId && (avatar !== undefined || birthDate !== undefined || gender !== undefined)) {
-    await tx.profile.update({
-      where: { userId: aluno.userId },
-      data: {
-        ...(avatar !== undefined ? { avatar } : {}),
+  if (birthDate !== undefined || gender !== undefined) {
+    await upsertStudentIdentity(
+      aluno.id,
+      options.companyContractId,
+      {
         ...(birthDate !== undefined ? { birthDate } : {}),
         ...(gender !== undefined ? { gender } : {}),
       },
-    });
+      {
+        client: tx,
+        sourceType: 'professional',
+        sourceReference: 'financial_contract_update',
+        syncLegacyProfile: true,
+      }
+    );
+  }
+
+  if (aluno.userId && avatar !== undefined) {
+    await tx.profile.update({ where: { userId: aluno.userId }, data: { avatar } });
   }
 
   if (macronutrients && hasAnyValue(macronutrients)) {

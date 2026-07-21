@@ -16,7 +16,7 @@ model User {
   updatedAt               DateTime                 @updatedAt
   isActive                Boolean                  @default(true)
   lastLoginAt             DateTime?
-  aluno                   Aluno?
+  alunos                  Aluno[]
   notifications           Notification[]
   notificationPreferences NotificationPreferences?
   profileReviewsRequested StudentProfileReview[]   @relation("StudentProfileReviewRequestedBy")
@@ -388,7 +388,7 @@ model ContractDataCloneLog {
 
 model Aluno {
   id                            String                         @id(map: "Athlete_pkey") @default(cuid())
-  userId                        String?                        @unique(map: "Athlete_userId_key")
+  userId                        String?
   professorId                   String?
   age                           Int?
   weight                        Float?
@@ -410,10 +410,9 @@ model Aluno {
   // contractId e o unico dado sempre presente, desde a criacao do lead.
   contractId                    String
   status                        StudentLifecycleStatus         @default(LEAD)
-  // Dados de contato/identificacao canonicos ENQUANTO NAO HOUVER User/Profile vinculado
-  // (fonte canonica de escrita = Aluno.lead*). Apos o vinculo de conta (claim), Profile
-  // passa a ser a fonte canonica e estes campos deixam de ser escritos (ver
-  // docs/architecture/student-lifecycle-data-ownership.md).
+  // Projecoes normalizadas da identidade canonica mantida em StudentProfile.
+  // Sao usadas para busca, deduplicacao e compatibilidade; nao constituem
+  // uma segunda fonte editavel (ver student-identity.service.ts).
   leadName                      String?
   leadPhone                     String?
   leadPhoneNormalized           String?
@@ -468,9 +467,10 @@ model Aluno {
   onboarding                    StudentOnboardingProcess?
   lifecycleEvents               StudentLifecycleEvent[]
 
-  @@unique([contractId, leadEmailNormalized])
-  @@unique([contractId, leadPhoneNormalized])
+  @@unique([contractId, userId])
   @@unique([contractId, leadCpfNormalized])
+  @@index([contractId, leadEmailNormalized])
+  @@index([contractId, leadPhoneNormalized])
   @@index([serviceId])
   @@index([currentStudentContractId])
   @@index([contractId, status])
@@ -506,6 +506,7 @@ enum StudentLifecycleEventType {
   ACCOUNT_LINKED
   ACCOUNT_UNLINKED
   PRE_REGISTRATION_COMPLETED
+  PRIVACY_CONSENT_RECORDED
   ADMIN_REVIEWED
   DISCARDED
   REOPENED

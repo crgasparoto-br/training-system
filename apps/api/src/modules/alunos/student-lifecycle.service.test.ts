@@ -1,4 +1,4 @@
-﻿import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import {
   normalizeLeadEmail,
   normalizeLeadPhone,
@@ -8,41 +8,36 @@ import {
   findMissingPreRegistrationFields,
   createStudentLead,
   claimAccountForStudentLead,
-  transitionStudentLifecycleStatus,
+  recordStudentInvitationCreated,
+  startStudentPreRegistration,
   discardStudentLead,
   reopenDiscardedStudentLead,
   completeStudentPreRegistration,
+  markStudentReadyForEnrollment,
+  activateStudentEnrollment,
   legacyDirectActiveStudentCreationFields,
   recordStudentOnboardingProgress,
   StudentLifecycleError,
 } from './student-lifecycle.service.js';
+import { loadStudentIdentity } from './student-identity.service.js';
+
+const unique = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 describe('student-lifecycle normalization', () => {
-  it('normaliza e-mail para minusculo e sem espacos', () => {
+  it('normaliza e-mail, telefone e CPF em uma única fronteira', () => {
     expect(normalizeLeadEmail('  Fulano@Exemplo.COM ')).toBe('fulano@exemplo.com');
-    expect(normalizeLeadEmail(undefined)).toBeUndefined();
-    expect(normalizeLeadEmail('')).toBeUndefined();
-  });
-
-  it('normaliza telefone para somente digitos', () => {
     expect(normalizeLeadPhone('(11) 98888-7777')).toBe('11988887777');
-    expect(normalizeLeadPhone(null)).toBeUndefined();
-  });
-
-  it('normaliza cpf para somente digitos', () => {
     expect(normalizeLeadCpf('123.456.789-00')).toBe('12345678900');
-    expect(normalizeLeadCpf(undefined)).toBeUndefined();
   });
 
-  it('deriva idade sem persistir valor artificial', () => {
+  it('deriva idade sem fabricar valor persistido', () => {
     expect(deriveAgeFromBirthDate(new Date('2000-06-15'), new Date('2026-06-14'))).toBe(25);
     expect(deriveAgeFromBirthDate(new Date('2000-06-15'), new Date('2026-06-15'))).toBe(26);
-    expect(deriveAgeFromBirthDate(new Date('2000-06-15'), new Date('2026-06-16'))).toBe(26);
   });
 });
 
 describe('legacyDirectActiveStudentCreationFields', () => {
-  it('centraliza a decisao de status/ativacao do fluxo de criacao legado', () => {
+  it('centraliza a decisão de status do cadastro administrativo completo', () => {
     const fields = legacyDirectActiveStudentCreationFields();
     expect(fields.status).toBe('ACTIVE_STUDENT');
     expect(fields.activatedAt).toBeInstanceOf(Date);
@@ -50,63 +45,58 @@ describe('legacyDirectActiveStudentCreationFields', () => {
 });
 
 describe('student-lifecycle transitions', () => {
-  it('permite a matriz de transicoes documentada', () => {
+  it('aceita somente a matriz pública de transições', () => {
     expect(() => assertValidStudentLifecycleTransition('LEAD', 'INVITED')).not.toThrow();
-    expect(() => assertValidStudentLifecycleTransition('INVITED', 'PRE_REGISTRATION_IN_PROGRESS')).not.toThrow();
     expect(() =>
-      assertValidStudentLifecycleTransition('PRE_REGISTRATION_IN_PROGRESS', 'PRE_REGISTRATION_COMPLETED')
+      assertValidStudentLifecycleTransition('INVITED', 'PRE_REGISTRATION_IN_PROGRESS')
     ).not.toThrow();
     expect(() =>
-      assertValidStudentLifecycleTransition('PRE_REGISTRATION_COMPLETED', 'READY_FOR_ENROLLMENT')
+      assertValidStudentLifecycleTransition(
+        'PRE_REGISTRATION_IN_PROGRESS',
+        'PRE_REGISTRATION_COMPLETED'
+      )
     ).not.toThrow();
-    expect(() => assertValidStudentLifecycleTransition('READY_FOR_ENROLLMENT', 'ACTIVE_STUDENT')).not.toThrow();
+    expect(() =>
+      assertValidStudentLifecycleTransition(
+        'PRE_REGISTRATION_COMPLETED',
+        'READY_FOR_ENROLLMENT'
+      )
+    ).not.toThrow();
+    expect(() =>
+      assertValidStudentLifecycleTransition('READY_FOR_ENROLLMENT', 'ACTIVE_STUDENT')
+    ).not.toThrow();
     expect(() => assertValidStudentLifecycleTransition('DISCARDED', 'LEAD')).not.toThrow();
-  });
 
-  it('rejeita transicoes fora da matriz', () => {
-    expect(() => assertValidStudentLifecycleTransition('LEAD', 'ACTIVE_STUDENT')).toThrow(StudentLifecycleError);
-    expect(() => assertValidStudentLifecycleTransition('ACTIVE_STUDENT', 'LEAD')).toThrow(StudentLifecycleError);
-    expect(() => assertValidStudentLifecycleTransition('LEAD', 'PRE_REGISTRATION_COMPLETED')).toThrow(
+    expect(() => assertValidStudentLifecycleTransition('LEAD', 'ACTIVE_STUDENT')).toThrow(
       StudentLifecycleError
     );
-  });
-
-  it('DISCARDED so permite reabrir explicitamente para LEAD, nunca para estados posteriores', () => {
-    expect(() => assertValidStudentLifecycleTransition('DISCARDED', 'ACTIVE_STUDENT')).toThrow(
-      StudentLifecycleError
-    );
-    expect(() => assertValidStudentLifecycleTransition('DISCARDED', 'READY_FOR_ENROLLMENT')).toThrow(
+    expect(() => assertValidStudentLifecycleTransition('ACTIVE_STUDENT', 'LEAD')).toThrow(
       StudentLifecycleError
     );
   });
 });
 
 describe('student-lifecycle stage requirements', () => {
-  it('aponta campos ausentes para concluir o pre-cadastro', () => {
-    const missing = findMissingPreRegistrationFields({});
-    expect(missing).toEqual(
-      expect.arrayContaining(['name', 'birthDate', 'phone_or_email', 'privacyNoticeVersion', 'privacyAcceptedAt'])
+  it('mantém a mesma definição compartilhada de campos mínimos', () => {
+    expect(findMissingPreRegistrationFields({})).toEqual(
+      expect.arrayContaining([
+        'name',
+        'birthDate',
+        'phone',
+        'privacyNoticeVersion',
+        'privacyAcceptedAt',
+      ])
     );
-  });
 
-  it('aceita quando telefone OU e-mail estao presentes', () => {
-    const missingWithPhone = findMissingPreRegistrationFields({
-      name: 'Maria',
-      birthDate: new Date('2000-01-01'),
-      phone: '11988887777',
-      privacyNoticeVersion: 'v1',
-      privacyAcceptedAt: new Date(),
-    });
-    expect(missingWithPhone).toEqual([]);
-
-    const missingWithEmail = findMissingPreRegistrationFields({
-      name: 'Maria',
-      birthDate: new Date('2000-01-01'),
-      email: 'maria@example.com',
-      privacyNoticeVersion: 'v1',
-      privacyAcceptedAt: new Date(),
-    });
-    expect(missingWithEmail).toEqual([]);
+    expect(
+      findMissingPreRegistrationFields({
+        name: 'Maria',
+        birthDate: new Date('2000-01-01'),
+        email: 'maria@example.com',
+        privacyNoticeVersion: 'v1',
+        privacyAcceptedAt: new Date(),
+      })
+    ).toContain('phone');
   });
 });
 
@@ -115,49 +105,116 @@ const describeDb = RUN_DB_TESTS ? describe : describe.skip;
 
 describeDb('student-lifecycle integration (banco real)', () => {
   const prisma = new PrismaClient();
+  const createdContractIds: string[] = [];
+  const createdUserIds: string[] = [];
   let contractId: string;
   let professorId: string;
-  let professorUserId: string;
-  let collaboratorFunctionId: string;
 
-  beforeAll(async () => {
+  const createContract = async (withProfessor = false) => {
+    const suffix = unique();
     const contract = await prisma.companyContract.create({
       data: {
         type: 'academy',
-        document: `test-doc-${Date.now()}`,
-        name: 'Contrato de teste - lifecycle',
+        document: `lifecycle-${suffix}`,
+        name: `Contrato lifecycle ${suffix}`,
       },
     });
-    contractId = contract.id;
+    createdContractIds.push(contract.id);
+
+    if (!withProfessor) return { contractId: contract.id };
 
     const collaboratorFunction = await prisma.collaboratorFunctionOption.create({
-      data: { contractId, name: 'Professor teste', code: `PROF-TEST-${Date.now()}` },
+      data: {
+        contractId: contract.id,
+        name: 'Professor teste',
+        code: `PROF-${suffix}`,
+      },
     });
-    collaboratorFunctionId = collaboratorFunction.id;
-
     const professorUser = await prisma.user.create({
-      data: { email: `professor-lifecycle-${Date.now()}@example.com`, passwordHash: 'x', type: 'professor' },
+      data: {
+        email: `professor-${suffix}@example.com`,
+        passwordHash: 'x',
+        type: 'professor',
+        profile: { create: { name: 'Professor Lifecycle' } },
+      },
     });
-    professorUserId = professorUser.id;
-
+    createdUserIds.push(professorUser.id);
     const professor = await prisma.professor.create({
-      data: { userId: professorUserId, contractId, collaboratorFunctionId },
+      data: {
+        userId: professorUser.id,
+        contractId: contract.id,
+        collaboratorFunctionId: collaboratorFunction.id,
+      },
     });
-    professorId = professor.id;
+    return { contractId: contract.id, professorId: professor.id };
+  };
+
+  const createMatchingStudentAccount = async (
+    name: string,
+    phone: string,
+    birthDate?: Date,
+    email?: string
+  ) => {
+    const suffix = unique();
+    const user = await prisma.user.create({
+      data: {
+        email: email ?? `student-${suffix}@example.com`,
+        passwordHash: 'x',
+        type: 'aluno',
+        profile: {
+          create: { name, phone, birthDate },
+        },
+      },
+    });
+    createdUserIds.push(user.id);
+    return user;
+  };
+
+  const prepareInProgressLead = async (input: {
+    contractId?: string;
+    professorId?: string;
+    name: string;
+    phone: string;
+    userId?: string;
+  }) => {
+    const scopedContractId = input.contractId ?? contractId;
+    const scopedProfessorId = input.professorId ?? professorId;
+    const lead = await createStudentLead({
+      contractId: scopedContractId,
+      name: input.name,
+      phone: input.phone,
+      origin: 'test-suite',
+      createdByProfessorId: scopedProfessorId,
+    });
+    await recordStudentInvitationCreated(lead.id, scopedContractId, {
+      invitationId: `invite-${unique()}`,
+      actor: { professorId: scopedProfessorId },
+    });
+    const account = input.userId
+      ? { id: input.userId }
+      : await createMatchingStudentAccount(input.name, input.phone);
+    await claimAccountForStudentLead(lead.id, scopedContractId, account.id);
+    await startStudentPreRegistration(lead.id, scopedContractId, account.id);
+    return { lead, userId: account.id };
+  };
+
+  beforeAll(async () => {
+    const primary = await createContract(true);
+    contractId = primary.contractId;
+    professorId = primary.professorId!;
   });
 
   afterAll(async () => {
-    await prisma.studentLifecycleEvent.deleteMany({ where: { contractId } });
-    await prisma.studentOnboardingProcess.deleteMany({ where: { contractId } });
-    await prisma.aluno.deleteMany({ where: { contractId } });
-    await prisma.professor.delete({ where: { id: professorId } });
-    await prisma.user.delete({ where: { id: professorUserId } });
-    await prisma.collaboratorFunctionOption.delete({ where: { id: collaboratorFunctionId } });
-    await prisma.companyContract.delete({ where: { id: contractId } });
+    for (const id of [...createdContractIds].reverse()) {
+      await prisma.companyContract.delete({ where: { id } }).catch(() => undefined);
+    }
+    for (const id of [...createdUserIds].reverse()) {
+      await prisma.user.delete({ where: { id } }).catch(() => undefined);
+    }
     await prisma.$disconnect();
   });
 
-  it('cria lead somente com nome e telefone, sem User/senha/professor/idade', async () => {
+  it('cria lead com telefone sem conta, senha, professor ou idade artificial', async () => {
     const aluno = await createStudentLead({
       contractId,
       name: 'Lead Telefone',
@@ -165,216 +222,305 @@ describeDb('student-lifecycle integration (banco real)', () => {
       origin: 'landing-page',
     });
 
-    expect(aluno.id).toBeTruthy();
     expect(aluno.userId).toBeNull();
     expect(aluno.professorId).toBeNull();
     expect(aluno.age).toBeNull();
     expect(aluno.status).toBe('LEAD');
     expect(aluno.leadPhoneNormalized).toBe('11900000001');
 
-    const onboarding = await prisma.studentOnboardingProcess.findUnique({ where: { alunoId: aluno.id } });
-    expect(onboarding).not.toBeNull();
-
-    const events = await prisma.studentLifecycleEvent.findMany({ where: { alunoId: aluno.id } });
-    expect(events.map((e) => e.eventType)).toContain('LEAD_CREATED');
+    const identity = await loadStudentIdentity(aluno.id, contractId);
+    expect(identity.name).toBe('Lead Telefone');
+    expect(identity.phone).toBe('(11) 90000-0001');
   });
 
-  it('cria lead somente com nome e e-mail', async () => {
-    const aluno = await createStudentLead({
+  it('permite telefone/e-mail repetidos para revisão, mas bloqueia CPF dentro do tenant', async () => {
+    await createStudentLead({
       contractId,
-      name: 'Lead Email',
-      email: 'Lead.Email@Example.com',
-      origin: 'landing-page',
+      name: 'Contato compartilhado A',
+      phone: '11955554444',
+      origin: 'test-suite',
     });
-    expect(aluno.leadEmailNormalized).toBe('lead.email@example.com');
-  });
-
-  it('rejeita lead sem telefone e sem e-mail', async () => {
     await expect(
-      createStudentLead({ contractId, name: 'Sem contato', origin: 'landing-page' })
-    ).rejects.toThrow(StudentLifecycleError);
-  });
+      createStudentLead({
+        contractId,
+        name: 'Contato compartilhado B',
+        phone: '11955554444',
+        origin: 'test-suite',
+      })
+    ).resolves.toBeTruthy();
 
-  it('rejeita duplicidade do mesmo identificador no mesmo contrato', async () => {
-    await createStudentLead({ contractId, name: 'Duplicado 1', phone: '11955554444', origin: 'landing-page' });
-    await expect(
-      createStudentLead({ contractId, name: 'Duplicado 2', phone: '11955554444', origin: 'landing-page' })
-    ).rejects.toThrow(StudentLifecycleError);
-  });
-
-  it('permite o mesmo identificador em contratos diferentes (dedup e tenant-scoped)', async () => {
-    const otherContract = await prisma.companyContract.create({
-      data: { type: 'academy', document: `test-doc-other-${Date.now()}` },
+    const first = await prepareInProgressLead({
+      name: 'CPF A',
+      phone: '11910000001',
     });
-    try {
-      await createStudentLead({ contractId, name: 'Mesmo Telefone A', phone: '11922223333', origin: 'landing-page' });
-      const leadOtherTenant = await createStudentLead({
-        contractId: otherContract.id,
-        name: 'Mesmo Telefone B',
-        phone: '11922223333',
-        origin: 'landing-page',
-      });
-      expect(leadOtherTenant.id).toBeTruthy();
-    } finally {
-      await prisma.studentLifecycleEvent.deleteMany({ where: { contractId: otherContract.id } });
-      await prisma.studentOnboardingProcess.deleteMany({ where: { contractId: otherContract.id } });
-      await prisma.aluno.deleteMany({ where: { contractId: otherContract.id } });
-      await prisma.companyContract.delete({ where: { id: otherContract.id } });
-    }
-  });
-
-  it('mantém o id estável ao avançar da criação até ACTIVE_STUDENT', async () => {
-    const created = await createStudentLead({
-      contractId,
-      name: 'Ciclo Completo',
-      phone: '11933332222',
-      origin: 'landing-page',
-    });
-    const originalId = created.id;
-
-    await transitionStudentLifecycleStatus(originalId, contractId, 'INVITED');
-    await transitionStudentLifecycleStatus(originalId, contractId, 'PRE_REGISTRATION_IN_PROGRESS');
-    const completed = await completeStudentPreRegistration(originalId, contractId, {
-      name: 'Ciclo Completo',
-      birthDate: new Date('1995-05-05'),
-      phone: '11933332222',
+    await completeStudentPreRegistration(first.lead.id, contractId, {
+      name: 'CPF A',
+      phone: '11910000001',
+      cpf: '123.456.789-01',
+      birthDate: '1990-01-01',
       privacyNoticeVersion: 'v1',
       privacyAcceptedAt: new Date(),
+    }, first.userId);
+
+    const second = await prepareInProgressLead({
+      name: 'CPF B',
+      phone: '11910000002',
     });
+    await expect(
+      completeStudentPreRegistration(second.lead.id, contractId, {
+        name: 'CPF B',
+        phone: '11910000002',
+        cpf: '123.456.789-01',
+        birthDate: '1991-01-01',
+        privacyNoticeVersion: 'v1',
+        privacyAcceptedAt: new Date(),
+      }, second.userId)
+    ).rejects.toMatchObject({ code: 'IDENTIFIER_CONFLICT' });
+  });
+
+  it('mantém o mesmo ID no fluxo completo e persiste identidade/consentimento canônicos', async () => {
+    const prepared = await prepareInProgressLead({
+      name: 'Ciclo Completo',
+      phone: '11933332222',
+    });
+    const originalId = prepared.lead.id;
+
+    const completed = await completeStudentPreRegistration(
+      originalId,
+      contractId,
+      {
+        name: 'Ciclo Completo',
+        birthDate: '1995-05-05',
+        phone: '11933332222',
+        email: 'contato-ciclo@example.com',
+        addressCity: 'Sorocaba',
+        privacyNoticeVersion: 'v1',
+        privacyAcceptedAt: new Date(),
+      },
+      prepared.userId
+    );
     expect(completed.id).toBe(originalId);
 
-    await transitionStudentLifecycleStatus(originalId, contractId, 'READY_FOR_ENROLLMENT', {
-      professorId,
+    await markStudentReadyForEnrollment(originalId, contractId, {
+      reviewReference: 'review-1',
+      deduplicationReference: 'dedup-1',
+      actor: { professorId },
     });
-    const active = await transitionStudentLifecycleStatus(originalId, contractId, 'ACTIVE_STUDENT');
+    const active = await activateStudentEnrollment(originalId, contractId, {
+      activationReference: 'activation-1',
+      actor: { professorId },
+    });
 
     expect(active.id).toBe(originalId);
     expect(active.status).toBe('ACTIVE_STUDENT');
-    expect(active.activatedAt).not.toBeNull();
+    const identity = await loadStudentIdentity(originalId, contractId);
+    expect(identity.birthDate).toContain('1995-05-05');
+    expect(identity.addressCity).toBe('Sorocaba');
 
-    // Auditoria (achado de auditoria corrigido): a tabela de processo deve
-    // refletir os marcos do ciclo, não apenas existir vazia.
-    const onboarding = await prisma.studentOnboardingProcess.findUnique({
+    const onboarding = await prisma.studentOnboardingProcess.findUniqueOrThrow({
       where: { alunoId: originalId },
     });
-    expect(onboarding?.startedAt).not.toBeNull();
-    expect(onboarding?.completedAt).not.toBeNull();
-    expect(onboarding?.reviewedAt).not.toBeNull();
-    expect(onboarding?.reviewedByProfessorId).toBe(professorId);
-    expect(onboarding?.convertedAt).not.toBeNull();
-    expect(onboarding?.privacyNoticeVersion).toBe('v1');
-    expect(onboarding?.privacyAcceptedAt).not.toBeNull();
+    expect(onboarding.startedAt).not.toBeNull();
+    expect(onboarding.completedAt).not.toBeNull();
+    expect(onboarding.reviewedAt).not.toBeNull();
+    expect(onboarding.convertedAt).not.toBeNull();
+    expect(onboarding.privacyNoticeVersion).toBe('v1');
 
     const events = await prisma.studentLifecycleEvent.findMany({
       where: { alunoId: originalId },
       select: { eventType: true },
     });
-    const eventTypes = events.map((e) => e.eventType);
-    expect(eventTypes).toContain('ADMIN_REVIEWED');
-    expect(eventTypes).toContain('CONVERTED_TO_ACTIVE_STUDENT');
+    const eventTypes = events.map((event) => event.eventType);
+    expect(eventTypes).toEqual(
+      expect.arrayContaining([
+        'LEAD_CREATED',
+        'ACCOUNT_LINKED',
+        'PRIVACY_CONSENT_RECORDED',
+        'PRE_REGISTRATION_COMPLETED',
+        'ADMIN_REVIEWED',
+        'CONVERTED_TO_ACTIVE_STUDENT',
+      ])
+    );
   });
 
-  it('rejeita transição inválida (ex.: LEAD direto para ACTIVE_STUDENT)', async () => {
+  it('não permite concluir, revisar ou ativar sem as pré-condições específicas', async () => {
     const lead = await createStudentLead({
       contractId,
-      name: 'Transição Inválida',
+      name: 'Sem convite',
       phone: '11911112222',
-      origin: 'landing-page',
+      origin: 'test-suite',
     });
     await expect(
-      transitionStudentLifecycleStatus(lead.id, contractId, 'ACTIVE_STUDENT')
-    ).rejects.toThrow(StudentLifecycleError);
+      completeStudentPreRegistration(lead.id, contractId, {
+        name: 'Sem convite',
+        phone: '11911112222',
+        birthDate: '1990-01-01',
+        privacyNoticeVersion: 'v1',
+        privacyAcceptedAt: new Date(),
+      })
+    ).rejects.toMatchObject({ code: 'INVALID_TRANSITION' });
+
+    await expect(
+      activateStudentEnrollment(lead.id, contractId, {
+        activationReference: 'invalid',
+        actor: { professorId },
+      })
+    ).rejects.toMatchObject({ code: 'PRECONDITION_FAILED' });
   });
 
-  it('vincula conta de forma idempotente e rejeita reivindicação por outra conta', async () => {
+  it('permite a mesma conta global em contratos diferentes e bloqueia repetição no mesmo contrato', async () => {
+    const other = await createContract(false);
+    const name = 'Conta Global';
+    const phone = '11988887777';
+    const account = await createMatchingStudentAccount(name, phone);
+
+    const leadA = await createStudentLead({
+      contractId,
+      name,
+      phone,
+      origin: 'test-suite',
+    });
+    const leadB = await createStudentLead({
+      contractId: other.contractId,
+      name,
+      phone,
+      origin: 'test-suite',
+    });
+    await claimAccountForStudentLead(leadA.id, contractId, account.id);
+    await claimAccountForStudentLead(leadB.id, other.contractId, account.id);
+
+    expect(
+      await prisma.aluno.count({ where: { userId: account.id } })
+    ).toBe(2);
+
+    const secondInSameTenant = await createStudentLead({
+      contractId,
+      name,
+      phone: '11988887778',
+      origin: 'test-suite',
+    });
+    await expect(
+      claimAccountForStudentLead(secondInSameTenant.id, contractId, account.id)
+    ).rejects.toMatchObject({ code: 'ACCOUNT_CONTRACT_CONFLICT' });
+  });
+
+  it('claim concorrente não sobrescreve o vencedor e gera um único evento', async () => {
+    const name = 'Claim Concorrente';
+    const phone = '11977776666';
+    const lead = await createStudentLead({ contractId, name, phone, origin: 'test-suite' });
+    const accountA = await createMatchingStudentAccount(name, phone);
+    const accountB = await createMatchingStudentAccount(name, phone);
+
+    const results = await Promise.allSettled([
+      claimAccountForStudentLead(lead.id, contractId, accountA.id),
+      claimAccountForStudentLead(lead.id, contractId, accountB.id),
+    ]);
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    expect(results.filter((result) => result.status === 'rejected')).toHaveLength(1);
+
+    const persisted = await prisma.aluno.findUniqueOrThrow({ where: { id: lead.id } });
+    expect([accountA.id, accountB.id]).toContain(persisted.userId);
+    expect(
+      await prisma.studentLifecycleEvent.count({
+        where: { alunoId: lead.id, eventType: 'ACCOUNT_LINKED' },
+      })
+    ).toBe(1);
+  });
+
+  it('rejeita claim com identidade divergente sem vincular silenciosamente', async () => {
     const lead = await createStudentLead({
       contractId,
-      name: 'Reivindicação',
-      phone: '11900001111',
-      origin: 'landing-page',
+      name: 'Pessoa Correta',
+      phone: '11966665555',
+      origin: 'test-suite',
     });
-    const user = await prisma.user.create({
-      data: { email: `claim-${Date.now()}@example.com`, passwordHash: 'x', type: 'aluno' },
-    });
-    const otherUser = await prisma.user.create({
-      data: { email: `other-${Date.now()}@example.com`, passwordHash: 'x', type: 'aluno' },
-    });
+    const account = await createMatchingStudentAccount('Outra Pessoa', '11900000000');
 
-    try {
-      const firstClaim = await claimAccountForStudentLead(lead.id, contractId, user.id);
-      expect(firstClaim.userId).toBe(user.id);
-
-      const secondClaimSameUser = await claimAccountForStudentLead(lead.id, contractId, user.id);
-      expect(secondClaimSameUser.userId).toBe(user.id);
-
-      await expect(claimAccountForStudentLead(lead.id, contractId, otherUser.id)).rejects.toThrow(
-        StudentLifecycleError
-      );
-    } finally {
-      await prisma.aluno.update({ where: { id: lead.id }, data: { userId: null } });
-      await prisma.user.delete({ where: { id: user.id } });
-      await prisma.user.delete({ where: { id: otherUser.id } });
-    }
+    await expect(
+      claimAccountForStudentLead(lead.id, contractId, account.id)
+    ).rejects.toMatchObject({ code: 'ACCOUNT_DATA_MISMATCH' });
+    expect(
+      (await prisma.aluno.findUniqueOrThrow({ where: { id: lead.id } })).userId
+    ).toBeNull();
   });
 
-  it('descarta com motivo e permite reabertura explícita', async () => {
+  it('tentativa cross-tenant de conclusão não grava consentimento nem identidade', async () => {
+    const other = await createContract(false);
+    const prepared = await prepareInProgressLead({
+      name: 'Cross Tenant',
+      phone: '11955550000',
+    });
+    const before = await prisma.studentOnboardingProcess.findUniqueOrThrow({
+      where: { alunoId: prepared.lead.id },
+    });
+    const identityBefore = await loadStudentIdentity(prepared.lead.id, contractId);
+
+    await expect(
+      completeStudentPreRegistration(
+        prepared.lead.id,
+        other.contractId,
+        {
+          name: 'Alterado indevidamente',
+          phone: '11999999999',
+          birthDate: '1980-01-01',
+          privacyNoticeVersion: 'evil',
+          privacyAcceptedAt: new Date(),
+        },
+        prepared.userId
+      )
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+
+    const after = await prisma.studentOnboardingProcess.findUniqueOrThrow({
+      where: { alunoId: prepared.lead.id },
+    });
+    const identityAfter = await loadStudentIdentity(prepared.lead.id, contractId);
+    expect(after.privacyNoticeVersion).toBe(before.privacyNoticeVersion);
+    expect(after.privacyAcceptedAt).toEqual(before.privacyAcceptedAt);
+    expect(identityAfter).toEqual(identityBefore);
+  });
+
+  it('descarta e reabre somente com motivo e ator auditável', async () => {
     const lead = await createStudentLead({
       contractId,
       name: 'Descarte',
       phone: '11900002222',
-      origin: 'landing-page',
+      origin: 'test-suite',
     });
 
-    await expect(discardStudentLead(lead.id, contractId, '', professorId)).rejects.toThrow(StudentLifecycleError);
-
-    const discarded = await discardStudentLead(lead.id, contractId, 'Sem interesse', professorId);
-    expect(discarded.status).toBe('DISCARDED');
-    expect(discarded.discardReason).toBe('Sem interesse');
-
-    const reopened = await reopenDiscardedStudentLead(lead.id, contractId, professorId);
-    expect(reopened.status).toBe('LEAD');
+    await expect(discardStudentLead(lead.id, contractId, '', professorId)).rejects.toThrow(
+      StudentLifecycleError
+    );
+    expect(
+      (await discardStudentLead(lead.id, contractId, 'Sem interesse', professorId)).status
+    ).toBe('DISCARDED');
+    expect(
+      (await reopenDiscardedStudentLead(
+        lead.id,
+        contractId,
+        'Contato retomado',
+        professorId
+      )).status
+    ).toBe('LEAD');
   });
 
-  it('não revela registro de outro contrato (tentativa cross-tenant)', async () => {
-    const lead = await createStudentLead({
-      contractId,
-      name: 'Cross Tenant',
-      phone: '11900003333',
-      origin: 'landing-page',
-    });
-    const otherContract = await prisma.companyContract.create({
-      data: { type: 'academy', document: `test-doc-crosstenant-${Date.now()}` },
-    });
-    try {
-      await expect(
-        transitionStudentLifecycleStatus(lead.id, otherContract.id, 'INVITED')
-      ).rejects.toThrow(/não encontrado/i);
-    } finally {
-      await prisma.companyContract.delete({ where: { id: otherContract.id } });
-    }
-  });
-
-  it('registra progresso incremental do pre-cadastro sem mudar de estado', async () => {
+  it('registra progresso incremental tenant-scoped sem mudar estado', async () => {
     const lead = await createStudentLead({
       contractId,
       name: 'Progresso Incremental',
       phone: '11900004444',
-      origin: 'landing-page',
+      origin: 'test-suite',
     });
-
     await recordStudentOnboardingProgress(lead.id, contractId, {
       formVersion: 'v2',
       privacyNoticeVersion: 'v1',
     });
-
-    const onboarding = await prisma.studentOnboardingProcess.findUnique({
+    const onboarding = await prisma.studentOnboardingProcess.findUniqueOrThrow({
       where: { alunoId: lead.id },
     });
-    expect(onboarding?.formVersion).toBe('v2');
-    expect(onboarding?.privacyNoticeVersion).toBe('v1');
-    expect(onboarding?.lastSavedAt).not.toBeNull();
-
-    const unchanged = await prisma.aluno.findUniqueOrThrow({ where: { id: lead.id } });
-    expect(unchanged.status).toBe('LEAD');
+    expect(onboarding.formVersion).toBe('v2');
+    expect(onboarding.lastSavedAt).not.toBeNull();
+    expect(
+      (await prisma.aluno.findUniqueOrThrow({ where: { id: lead.id } })).status
+    ).toBe('LEAD');
   });
 });

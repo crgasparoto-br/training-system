@@ -1,6 +1,7 @@
 import { Prisma, PrismaClient, StudentProfileReviewStatus } from '@prisma/client';
 import { notificationService } from '../notifications/notification.service.js';
 import { profileAuditService } from './profile-audit.service.js';
+import { loadStudentIdentity, upsertStudentIdentity } from './student-identity.service.js';
 
 const prisma = new PrismaClient();
 
@@ -430,18 +431,26 @@ const applyAlunoPatch = async (
       : null;
 
   if (hasOwnValues(profilePatch)) {
-    const profileData: Prisma.ProfileUpdateInput = {
-      ...(profilePatch as Prisma.ProfileUpdateInput),
-    };
-
-    if ('birthDate' in profilePatch) {
-      profileData.birthDate = toDateOrNull(profilePatch.birthDate as string | null | undefined);
+    const scopedAluno = await tx.aluno.findUnique({
+      where: { id: alunoId },
+      select: { contractId: true, userId: true },
+    });
+    if (!scopedAluno || scopedAluno.userId !== alunoUserId) {
+      throw new Error('Aluno não encontrado para aplicar revisão cadastral');
     }
 
-    await tx.profile.update({
-      where: { userId: alunoUserId },
-      data: profileData,
-    });
+    await upsertStudentIdentity(
+      alunoId,
+      scopedAluno.contractId,
+      profilePatch,
+      {
+        client: tx,
+        actor: { userId: alunoUserId },
+        sourceType: 'student',
+        sourceReference: 'profile_review',
+        syncLegacyProfile: true,
+      }
+    );
   }
 
   if (hasOwnValues(alunoPatch)) {
@@ -605,27 +614,28 @@ export const profileReviewService = {
       },
     });
 
-    if (!aluno || !aluno.user?.profile) {
+    if (!aluno?.user) {
       throw new Error('Aluno não encontrado para snapshot da revisão');
     }
+    const identity = await loadStudentIdentity(alunoId, aluno.contractId, client);
 
     return castJson({
       profile: {
-        name: aluno.user.profile.name,
-        phone: aluno.user.profile.phone,
-        birthDate: aluno.user.profile.birthDate,
-        gender: aluno.user.profile.gender,
-        cpf: aluno.user.profile.cpf,
-        rg: aluno.user.profile.rg,
-        maritalStatus: aluno.user.profile.maritalStatus,
-        addressStreet: aluno.user.profile.addressStreet,
-        addressNumber: aluno.user.profile.addressNumber,
-        addressComplement: aluno.user.profile.addressComplement,
-        addressNeighborhood: aluno.user.profile.addressNeighborhood,
-        addressCity: aluno.user.profile.addressCity,
-        addressState: aluno.user.profile.addressState,
-        addressZipCode: aluno.user.profile.addressZipCode,
-        instagramHandle: aluno.user.profile.instagramHandle,
+        name: identity.name,
+        phone: identity.phone,
+        birthDate: identity.birthDate,
+        gender: identity.gender,
+        cpf: identity.cpf,
+        rg: identity.rg,
+        maritalStatus: identity.maritalStatus,
+        addressStreet: identity.addressStreet,
+        addressNumber: identity.addressNumber,
+        addressComplement: identity.addressComplement,
+        addressNeighborhood: identity.addressNeighborhood,
+        addressCity: identity.addressCity,
+        addressState: identity.addressState,
+        addressZipCode: identity.addressZipCode,
+        instagramHandle: identity.instagramHandle,
       },
       aluno: {
         age: aluno.age,

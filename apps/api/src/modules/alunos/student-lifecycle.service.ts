@@ -1,67 +1,54 @@
-﻿import { Prisma, PrismaClient, type Aluno } from '@prisma/client';
+import { Prisma, PrismaClient, type Aluno } from '@prisma/client';
 import {
+  PRE_REGISTRATION_REQUIRED_FIELDS,
   STUDENT_LIFECYCLE_TRANSITIONS,
   isValidStudentLifecycleTransition,
-  type StudentLifecycleStatus,
+  type CreateStudentLeadDTO,
+  type StudentActivationTransitionDTO,
+  type StudentAdministrativeReviewTransitionDTO,
+  type StudentInvitationTransitionDTO,
+  type StudentLifecycleActorDTO,
+  type StudentLifecycleErrorCode,
   type StudentLifecycleEventType,
+  type StudentLifecycleStatus,
+  type UpdateStudentPreRegistrationDTO,
 } from '@corrida/types';
+import {
+  deriveAgeFromBirthDate,
+  findStudentAccountIdentityMismatches,
+  normalizeStudentCpf,
+  normalizeStudentEmail,
+  normalizeStudentPhone,
+  upsertStudentIdentity,
+} from './student-identity.service.js';
 
 const prisma = new PrismaClient();
+type DbClient = Prisma.TransactionClient | PrismaClient;
+
+export {
+  deriveAgeFromBirthDate,
+  normalizeStudentCpf as normalizeLeadCpf,
+  normalizeStudentEmail as normalizeLeadEmail,
+  normalizeStudentPhone as normalizeLeadPhone,
+};
 
 /**
- * Service de dominio do ciclo unico lead -> aluno (issue #268).
+ * Service de domínio do ciclo único lead -> aluno (issue #268).
  *
- * Regra inegociavel: nenhuma alteracao de `Aluno.status` pode acontecer fora
- * deste arquivo. Handlers HTTP e outros services devem chamar as funcoes
- * abaixo em vez de escrever `status` diretamente via Prisma.
+ * Nenhuma alteração de `Aluno.status` pode acontecer fora deste arquivo.
+ * Transições que possuem pré-condições próprias são expostas apenas por funções
+ * específicas; não existe mutação genérica pública capaz de contorná-las.
  */
-
 export class StudentLifecycleError extends Error {
   constructor(
     message: string,
-    public readonly code:
-      | 'INVALID_TRANSITION'
-      | 'MISSING_REQUIRED_FIELDS'
-      | 'IDENTIFIER_CONFLICT'
-      | 'NOT_FOUND'
-      | 'ACCOUNT_ALREADY_LINKED'
+    public readonly code: StudentLifecycleErrorCode,
+    public readonly details?: Record<string, unknown>
   ) {
     super(message);
     this.name = 'StudentLifecycleError';
   }
 }
-
-// --- Normalizacao de identificadores (fonte unica para todo o dominio) ---
-
-export function normalizeLeadEmail(email?: string | null): string | undefined {
-  if (typeof email !== 'string') return undefined;
-  const trimmed = email.trim().toLowerCase();
-  return trimmed.length > 0 ? trimmed : undefined;
-}
-
-export function normalizeLeadPhone(phone?: string | null): string | undefined {
-  if (typeof phone !== 'string') return undefined;
-  const digits = phone.replace(/\D/g, '');
-  return digits.length > 0 ? digits : undefined;
-}
-
-export function normalizeLeadCpf(cpf?: string | null): string | undefined {
-  if (typeof cpf !== 'string') return undefined;
-  const digits = cpf.replace(/\D/g, '');
-  return digits.length > 0 ? digits : undefined;
-}
-
-/** Deriva idade a partir do nascimento. Nunca persistir um valor inventado. */
-export function deriveAgeFromBirthDate(birthDate: Date, referenceDate: Date = new Date()): number {
-  let age = referenceDate.getFullYear() - birthDate.getFullYear();
-  const monthDiff = referenceDate.getMonth() - birthDate.getMonth();
-  if (monthDiff < 0 || (monthDiff === 0 && referenceDate.getDate() < birthDate.getDate())) {
-    age -= 1;
-  }
-  return age;
-}
-
-// --- Transicoes de estado ---
 
 export function assertValidStudentLifecycleTransition(
   from: StudentLifecycleStatus,
@@ -75,82 +62,105 @@ export function assertValidStudentLifecycleTransition(
   }
 }
 
-const UNIQUE_FIELD_BY_CONSTRAINT: Record<string, 'email' | 'phone' | 'cpf'> = {
-  Aluno_contractId_leadEmailNormalized_key: 'email',
-  Aluno_contractId_leadPhoneNormalized_key: 'phone',
+const UNIQUE_FIELD_BY_TARGET: Record<string, 'cpf' | 'account'> = {
   Aluno_contractId_leadCpfNormalized_key: 'cpf',
+  Aluno_contractId_userId_key: 'account',
+  contractId_leadCpfNormalized: 'cpf',
+  contractId_userId: 'account',
 };
 
-function toIdentifierConflict(error: unknown): StudentLifecycleError | null {
-  if (
-    error instanceof Prisma.PrismaClientKnownRequestError &&
-    error.code === 'P2002'
-  ) {
-    const target = Array.isArray(error.meta?.target)
-      ? (error.meta?.target as string[]).join('_')
-      : String(error.meta?.target ?? '');
-    const matchedField = Object.entries(UNIQUE_FIELD_BY_CONSTRAINT).find(([constraint]) =>
-      target.includes(constraint)
-    )?.[1];
+function toDomainConflict(error: unknown): StudentLifecycleError | null {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') {
+    return null;
+  }
+
+  const target = Array.isArray(error.meta?.target)
+    ? (error.meta?.target as string[]).join('_')
+    : String(error.meta?.target ?? '');
+  const field = Object.entries(UNIQUE_FIELD_BY_TARGET).find(([key]) => target.includes(key))?.[1];
+
+  if (field === 'account') {
     return new StudentLifecycleError(
-      `Já existe um registro com este ${matchedField ?? 'identificador'} neste contrato.`,
-      'IDENTIFIER_CONFLICT'
+      'Esta conta já está vinculada a outro cadastro neste contrato.',
+      'ACCOUNT_CONTRACT_CONFLICT'
     );
   }
-  return null;
+
+  return new StudentLifecycleError(
+    'Já existe um cadastro com este CPF neste contrato.',
+    'IDENTIFIER_CONFLICT',
+    { field: 'cpf' }
+  );
 }
 
-// --- Criacao de lead ---
-
-export interface CreateLeadInput {
-  contractId: string;
-  name: string;
-  phone?: string;
-  email?: string;
-  origin: string;
-  createdByProfessorId?: string;
-}
-
-export async function createStudentLead(input: CreateLeadInput): Promise<Aluno> {
-  const leadPhoneNormalized = normalizeLeadPhone(input.phone);
-  const leadEmailNormalized = normalizeLeadEmail(input.email);
-
-  const trimmedName = input.name.trim();
-  if (trimmedName.length === 0) {
-    throw new StudentLifecycleError('Nome é obrigatório para criar um lead.', 'MISSING_REQUIRED_FIELDS');
+const requiredText = (value: string | undefined, field: string) => {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    throw new StudentLifecycleError(`${field} é obrigatório.`, 'MISSING_REQUIRED_FIELDS', {
+      fields: [field],
+    });
   }
-  if (!leadPhoneNormalized && !leadEmailNormalized) {
+  return trimmed;
+};
+
+async function assertProfessorInContract(
+  professorId: string | undefined,
+  contractId: string,
+  client: DbClient
+) {
+  if (!professorId) return;
+  const professor = await client.professor.findFirst({
+    where: { id: professorId, contractId },
+    select: { id: true },
+  });
+  if (!professor) {
+    throw new StudentLifecycleError('Responsável não encontrado.', 'NOT_FOUND');
+  }
+}
+
+export async function createStudentLead(input: CreateStudentLeadDTO): Promise<Aluno> {
+  const name = requiredText(input.name, 'name');
+  const origin = requiredText(input.origin, 'origin');
+  const phoneNormalized = normalizeStudentPhone(input.phone);
+  const emailNormalized = normalizeStudentEmail(input.email);
+
+  if (!phoneNormalized && !emailNormalized) {
     throw new StudentLifecycleError(
       'É necessário informar ao menos telefone ou e-mail para criar um lead.',
-      'MISSING_REQUIRED_FIELDS'
+      'MISSING_REQUIRED_FIELDS',
+      { fields: ['phone_or_email'] }
     );
-  }
-  if (!input.origin || input.origin.trim().length === 0) {
-    throw new StudentLifecycleError('Origem do lead é obrigatória.', 'MISSING_REQUIRED_FIELDS');
   }
 
   try {
     return await prisma.$transaction(async (tx) => {
+      await assertProfessorInContract(input.createdByProfessorId, input.contractId, tx);
+
       const aluno = await tx.aluno.create({
         data: {
           contractId: input.contractId,
           status: 'LEAD',
-          leadName: trimmedName,
-          leadPhone: input.phone?.trim() || undefined,
-          leadPhoneNormalized,
-          leadEmail: input.email?.trim() || undefined,
-          leadEmailNormalized,
-          leadOrigin: input.origin.trim(),
+          leadOrigin: origin,
           createdByProfessorId: input.createdByProfessorId,
         },
       });
 
       await tx.studentOnboardingProcess.create({
-        data: {
-          alunoId: aluno.id,
-          contractId: input.contractId,
-        },
+        data: { alunoId: aluno.id, contractId: input.contractId },
       });
+
+      await upsertStudentIdentity(
+        aluno.id,
+        input.contractId,
+        { name, phone: input.phone, email: input.email },
+        {
+          client: tx,
+          actor: { professorId: input.createdByProfessorId },
+          sourceType: 'professional',
+          sourceReference: 'lead_creation',
+          emitAuditEvent: false,
+        }
+      );
 
       await tx.studentLifecycleEvent.create({
         data: {
@@ -158,95 +168,120 @@ export async function createStudentLead(input: CreateLeadInput): Promise<Aluno> 
           contractId: input.contractId,
           eventType: 'LEAD_CREATED',
           actorProfessorId: input.createdByProfessorId,
-          metadata: { origin: input.origin.trim() },
+          metadata: { origin },
         },
       });
 
-      return aluno;
+      return tx.aluno.findUniqueOrThrow({ where: { id: aluno.id } });
     });
   } catch (error) {
-    const conflict = toIdentifierConflict(error);
+    const conflict = toDomainConflict(error);
     if (conflict) throw conflict;
     throw error;
   }
 }
 
-// --- Busca tenant-scoped (evita revelar existencia cross-tenant) ---
-
-async function findAlunoInContractOrThrow(alunoId: string, contractId: string) {
-  const aluno = await prisma.aluno.findFirst({ where: { id: alunoId, contractId } });
+async function findAlunoInContractOrThrow(
+  alunoId: string,
+  contractId: string,
+  client: DbClient = prisma
+) {
+  const aluno = await client.aluno.findFirst({ where: { id: alunoId, contractId } });
   if (!aluno) {
     throw new StudentLifecycleError('Registro não encontrado.', 'NOT_FOUND');
   }
   return aluno;
 }
 
-// --- Transicao generica de status ---
+type TransitionOptions = {
+  actor?: StudentLifecycleActorDTO;
+  metadata?: Record<string, unknown>;
+  alunoUpdate?: Prisma.AlunoUpdateManyMutationInput;
+  onboardingUpdate?: Prisma.StudentOnboardingProcessUpdateManyMutationInput;
+  additionalEvents?: StudentLifecycleEventType[];
+};
 
-export async function transitionStudentLifecycleStatus(
+async function transitionStudentLifecycleStatusInTransaction(
+  tx: Prisma.TransactionClient,
   alunoId: string,
   contractId: string,
+  from: StudentLifecycleStatus,
   to: StudentLifecycleStatus,
-  actor: { userId?: string; professorId?: string } = {},
-  metadata?: Record<string, unknown>
+  options: TransitionOptions = {}
 ): Promise<Aluno> {
-  const aluno = await findAlunoInContractOrThrow(alunoId, contractId);
-  assertValidStudentLifecycleTransition(aluno.status as StudentLifecycleStatus, to);
+  assertValidStudentLifecycleTransition(from, to);
 
+  const updated = await tx.aluno.updateMany({
+    where: { id: alunoId, contractId, status: from },
+    data: { status: to, ...options.alunoUpdate },
+  });
+
+  if (updated.count !== 1) {
+    const current = await tx.aluno.findFirst({ where: { id: alunoId, contractId } });
+    if (!current) {
+      throw new StudentLifecycleError('Registro não encontrado.', 'NOT_FOUND');
+    }
+    throw new StudentLifecycleError(
+      'O cadastro foi alterado por outra operação. Recarregue antes de continuar.',
+      'CONCURRENT_MODIFICATION',
+      { expectedStatus: from, currentStatus: current.status }
+    );
+  }
+
+  if (options.onboardingUpdate && Object.keys(options.onboardingUpdate).length > 0) {
+    const onboarding = await tx.studentOnboardingProcess.updateMany({
+      where: { alunoId, contractId },
+      data: options.onboardingUpdate,
+    });
+    if (onboarding.count !== 1) {
+      throw new StudentLifecycleError('Processo de pré-matrícula não encontrado.', 'NOT_FOUND');
+    }
+  }
+
+  const events: StudentLifecycleEventType[] = [
+    'STATUS_CHANGED',
+    ...(options.additionalEvents ?? []),
+  ];
+  for (const eventType of events) {
+    await tx.studentLifecycleEvent.create({
+      data: {
+        alunoId,
+        contractId,
+        eventType,
+        actorUserId: options.actor?.userId,
+        actorProfessorId: options.actor?.professorId,
+        metadata: { from, to, ...options.metadata },
+      },
+    });
+  }
+
+  return tx.aluno.findUniqueOrThrow({ where: { id: alunoId } });
+}
+
+export async function recordStudentInvitationCreated(
+  alunoId: string,
+  contractId: string,
+  input: StudentInvitationTransitionDTO
+): Promise<Aluno> {
+  const invitationId = requiredText(input.invitationId, 'invitationId');
   return prisma.$transaction(async (tx) => {
-    const updateData: Prisma.AlunoUpdateInput = { status: to };
-    if (to === 'READY_FOR_ENROLLMENT') updateData.readyForEnrollmentAt = new Date();
-    if (to === 'ACTIVE_STUDENT') updateData.activatedAt = new Date();
-    if (to === 'INVITED') updateData.invitedAt = new Date();
-
-    const updated = await tx.aluno.update({ where: { id: alunoId }, data: updateData });
-
-    // Issue #268 (achado de auditoria): a tabela de processo
-    // (StudentOnboardingProcess) precisa refletir os marcos do ciclo, não
-    // apenas existir. Cada transição relevante atualiza o timestamp de
-    // processo correspondente.
-    const onboardingUpdate: Prisma.StudentOnboardingProcessUpdateManyMutationInput = {};
-    if (to === 'PRE_REGISTRATION_IN_PROGRESS') onboardingUpdate.startedAt = new Date();
-    if (to === 'PRE_REGISTRATION_COMPLETED') onboardingUpdate.completedAt = new Date();
-    if (to === 'READY_FOR_ENROLLMENT') onboardingUpdate.reviewedAt = new Date();
-    if (to === 'READY_FOR_ENROLLMENT' && actor.professorId) {
-      onboardingUpdate.reviewedByProfessorId = actor.professorId;
-    }
-    if (to === 'ACTIVE_STUDENT') onboardingUpdate.convertedAt = new Date();
-    if (Object.keys(onboardingUpdate).length > 0) {
-      await tx.studentOnboardingProcess.updateMany({
-        where: { alunoId },
-        data: onboardingUpdate,
-      });
-    }
-
-    const events: StudentLifecycleEventType[] = ['STATUS_CHANGED'];
-    if (to === 'READY_FOR_ENROLLMENT') events.push('ADMIN_REVIEWED');
-    if (to === 'ACTIVE_STUDENT') events.push('CONVERTED_TO_ACTIVE_STUDENT');
-
-    for (const eventType of events) {
-      await tx.studentLifecycleEvent.create({
-        data: {
-          alunoId,
-          contractId,
-          eventType,
-          actorUserId: actor.userId,
-          actorProfessorId: actor.professorId,
-          metadata: { from: aluno.status, to, ...metadata },
-        },
-      });
-    }
-
-    return updated;
+    const aluno = await findAlunoInContractOrThrow(alunoId, contractId, tx);
+    await assertProfessorInContract(input.actor.professorId, contractId, tx);
+    return transitionStudentLifecycleStatusInTransaction(
+      tx,
+      alunoId,
+      contractId,
+      aluno.status as StudentLifecycleStatus,
+      'INVITED',
+      {
+        actor: input.actor,
+        alunoUpdate: { invitedAt: new Date() },
+        metadata: { invitationId },
+      }
+    );
   });
 }
 
-/**
- * Registra progresso incremental do pré-cadastro (salvamento parcial) sem
- * mudar de estado. Usado pelas telas de onboarding (#270+) para manter
- * `lastSavedAt`/`formVersion`/consentimento atualizados durante o
- * preenchimento, antes da conclusão.
- */
 export async function recordStudentOnboardingProgress(
   alunoId: string,
   contractId: string,
@@ -256,48 +291,81 @@ export async function recordStudentOnboardingProgress(
     privacyAcceptedAt?: Date;
   }
 ): Promise<void> {
-  await findAlunoInContractOrThrow(alunoId, contractId);
-  await prisma.studentOnboardingProcess.updateMany({
-    where: { alunoId },
-    data: {
-      ...progress,
-      lastSavedAt: new Date(),
-    },
+  await prisma.$transaction(async (tx) => {
+    await findAlunoInContractOrThrow(alunoId, contractId, tx);
+    const updated = await tx.studentOnboardingProcess.updateMany({
+      where: { alunoId, contractId },
+      data: { ...progress, lastSavedAt: new Date() },
+    });
+    if (updated.count !== 1) {
+      throw new StudentLifecycleError('Processo de pré-matrícula não encontrado.', 'NOT_FOUND');
+    }
   });
 }
-
-// --- Vinculo de conta (claim) — transacional e idempotente ---
 
 export async function claimAccountForStudentLead(
   alunoId: string,
   contractId: string,
   userId: string
 ): Promise<Aluno> {
-  const aluno = await findAlunoInContractOrThrow(alunoId, contractId);
-
-  if (aluno.userId === userId) {
-    // Idempotente: reivindicação repetida pela mesma conta não é erro.
-    return aluno;
-  }
-
-  if (aluno.userId && aluno.userId !== userId) {
-    throw new StudentLifecycleError(
-      'Este registro já possui uma conta vinculada.',
-      'ACCOUNT_ALREADY_LINKED'
-    );
-  }
-
   try {
     return await prisma.$transaction(async (tx) => {
-      const updated = await tx.aluno.update({
-        where: { id: alunoId },
+      const aluno = await findAlunoInContractOrThrow(alunoId, contractId, tx);
+
+      if (aluno.userId === userId) return aluno;
+      if (aluno.userId) {
+        throw new StudentLifecycleError(
+          'Este cadastro já possui uma conta vinculada.',
+          'ACCOUNT_ALREADY_LINKED'
+        );
+      }
+
+      const mismatches = await findStudentAccountIdentityMismatches(
+        alunoId,
+        contractId,
+        userId,
+        tx
+      );
+      if (mismatches.length > 0) {
+        throw new StudentLifecycleError(
+          'Os dados da conta divergem do cadastro. A reconciliação deve ser confirmada explicitamente.',
+          'ACCOUNT_DATA_MISMATCH',
+          { fields: mismatches }
+        );
+      }
+
+      const existingInContract = await tx.aluno.findFirst({
+        where: { contractId, userId, id: { not: alunoId } },
+        select: { id: true },
+      });
+      if (existingInContract) {
+        throw new StudentLifecycleError(
+          'Esta conta já está vinculada a outro cadastro neste contrato.',
+          'ACCOUNT_CONTRACT_CONFLICT'
+        );
+      }
+
+      const claimed = await tx.aluno.updateMany({
+        where: { id: alunoId, contractId, userId: null },
         data: { userId },
       });
 
-      await tx.studentOnboardingProcess.updateMany({
-        where: { alunoId },
+      if (claimed.count !== 1) {
+        const current = await findAlunoInContractOrThrow(alunoId, contractId, tx);
+        if (current.userId === userId) return current;
+        throw new StudentLifecycleError(
+          'Este cadastro foi reivindicado por outra conta.',
+          'ACCOUNT_ALREADY_LINKED'
+        );
+      }
+
+      const onboarding = await tx.studentOnboardingProcess.updateMany({
+        where: { alunoId, contractId },
         data: { claimedByUserId: userId, claimedAt: new Date() },
       });
+      if (onboarding.count !== 1) {
+        throw new StudentLifecycleError('Processo de pré-matrícula não encontrado.', 'NOT_FOUND');
+      }
 
       await tx.studentLifecycleEvent.create({
         data: {
@@ -308,68 +376,271 @@ export async function claimAccountForStudentLead(
         },
       });
 
-      return updated;
+      return tx.aluno.findUniqueOrThrow({ where: { id: alunoId } });
     });
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-      // Corrida concorrente: outra transação já vinculou este userId primeiro.
-      throw new StudentLifecycleError(
-        'Esta conta já está vinculada a outro registro.',
-        'ACCOUNT_ALREADY_LINKED'
-      );
-    }
+    if (error instanceof StudentLifecycleError) throw error;
+    const conflict = toDomainConflict(error);
+    if (conflict) throw conflict;
     throw error;
   }
 }
 
-// --- Requisitos minimos por estagio ---
+export async function startStudentPreRegistration(
+  alunoId: string,
+  contractId: string,
+  userId: string
+): Promise<Aluno> {
+  return prisma.$transaction(async (tx) => {
+    const aluno = await tx.aluno.findFirst({
+      where: { id: alunoId, contractId },
+      include: { onboarding: true },
+    });
+    if (!aluno) throw new StudentLifecycleError('Registro não encontrado.', 'NOT_FOUND');
+    if (aluno.userId !== userId || aluno.onboarding?.claimedByUserId !== userId) {
+      throw new StudentLifecycleError(
+        'A conta autenticada não reivindicou este cadastro.',
+        'PRECONDITION_FAILED'
+      );
+    }
 
-export interface PreRegistrationData {
-  name?: string | null;
-  birthDate?: Date | null;
-  phone?: string | null;
-  email?: string | null;
-  privacyNoticeVersion?: string | null;
-  privacyAcceptedAt?: Date | null;
+    return transitionStudentLifecycleStatusInTransaction(
+      tx,
+      alunoId,
+      contractId,
+      aluno.status as StudentLifecycleStatus,
+      'PRE_REGISTRATION_IN_PROGRESS',
+      {
+        actor: { userId },
+        onboardingUpdate: { startedAt: aluno.onboarding.startedAt ?? new Date() },
+      }
+    );
+  });
 }
+
+export type PreRegistrationData = Omit<
+  UpdateStudentPreRegistrationDTO,
+  'birthDate' | 'privacyAcceptedAt'
+> & {
+  birthDate?: string | Date;
+  privacyAcceptedAt?: string | Date;
+};
 
 export function findMissingPreRegistrationFields(data: PreRegistrationData): string[] {
   const missing: string[] = [];
-  if (!data.name || data.name.trim().length === 0) missing.push('name');
+  if (!data.name?.trim()) missing.push('name');
   if (!data.birthDate) missing.push('birthDate');
-  if (!normalizeLeadPhone(data.phone) && !normalizeLeadEmail(data.email)) missing.push('phone_or_email');
-  if (!data.privacyNoticeVersion) missing.push('privacyNoticeVersion');
+  if (!normalizeStudentPhone(data.phone)) missing.push('phone');
+  if (!data.privacyNoticeVersion?.trim()) missing.push('privacyNoticeVersion');
   if (!data.privacyAcceptedAt) missing.push('privacyAcceptedAt');
-  return missing;
+  return missing.filter((field) =>
+    (PRE_REGISTRATION_REQUIRED_FIELDS as readonly string[]).includes(field)
+  );
 }
 
 export async function completeStudentPreRegistration(
   alunoId: string,
   contractId: string,
-  data: PreRegistrationData
+  data: PreRegistrationData,
+  actorUserId?: string
 ): Promise<Aluno> {
   const missing = findMissingPreRegistrationFields(data);
   if (missing.length > 0) {
     throw new StudentLifecycleError(
       `Campos obrigatórios ausentes para concluir o pré-cadastro: ${missing.join(', ')}.`,
-      'MISSING_REQUIRED_FIELDS'
+      'MISSING_REQUIRED_FIELDS',
+      { fields: missing }
     );
   }
 
-  if (data.privacyNoticeVersion || data.privacyAcceptedAt) {
-    await prisma.studentOnboardingProcess.updateMany({
-      where: { alunoId },
-      data: {
-        privacyNoticeVersion: data.privacyNoticeVersion ?? undefined,
-        privacyAcceptedAt: data.privacyAcceptedAt ?? undefined,
-      },
-    });
-  }
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const aluno = await findAlunoInContractOrThrow(alunoId, contractId, tx);
+      if (actorUserId && aluno.userId !== actorUserId) {
+        throw new StudentLifecycleError('Registro não encontrado.', 'NOT_FOUND');
+      }
 
-  return transitionStudentLifecycleStatus(alunoId, contractId, 'PRE_REGISTRATION_COMPLETED');
+      const privacyAcceptedAt = new Date(data.privacyAcceptedAt!);
+      if (Number.isNaN(privacyAcceptedAt.getTime())) {
+        throw new StudentLifecycleError(
+          'Data do aceite de privacidade inválida.',
+          'MISSING_REQUIRED_FIELDS',
+          { fields: ['privacyAcceptedAt'] }
+        );
+      }
+
+      await upsertStudentIdentity(
+        alunoId,
+        contractId,
+        {
+          name: data.name,
+          birthDate: data.birthDate,
+          phone: data.phone,
+          email: data.email,
+          cpf: data.cpf,
+          addressStreet: data.addressStreet,
+          addressNumber: data.addressNumber,
+          addressComplement: data.addressComplement,
+          addressNeighborhood: data.addressNeighborhood,
+          addressCity: data.addressCity,
+          addressState: data.addressState,
+          addressZipCode: data.addressZipCode,
+          guardianName: data.guardianName,
+          guardianCpf: data.guardianCpf,
+          guardianPhone: data.guardianPhone,
+          guardianEmail: data.guardianEmail,
+        },
+        {
+          client: tx,
+          actor: { userId: actorUserId },
+          sourceType: 'student',
+          sourceReference: 'pre_registration',
+          syncLegacyProfile: true,
+        }
+      );
+
+      const onboarding = await tx.studentOnboardingProcess.updateMany({
+        where: { alunoId, contractId },
+        data: {
+          privacyNoticeVersion: data.privacyNoticeVersion!.trim(),
+          privacyAcceptedAt,
+          lastSavedAt: new Date(),
+        },
+      });
+      if (onboarding.count !== 1) {
+        throw new StudentLifecycleError('Processo de pré-matrícula não encontrado.', 'NOT_FOUND');
+      }
+
+      await tx.studentLifecycleEvent.create({
+        data: {
+          alunoId,
+          contractId,
+          eventType: 'PRIVACY_CONSENT_RECORDED',
+          actorUserId,
+          metadata: { noticeVersion: data.privacyNoticeVersion!.trim() },
+        },
+      });
+
+      return transitionStudentLifecycleStatusInTransaction(
+        tx,
+        alunoId,
+        contractId,
+        aluno.status as StudentLifecycleStatus,
+        'PRE_REGISTRATION_COMPLETED',
+        {
+          actor: { userId: actorUserId },
+          onboardingUpdate: { completedAt: new Date() },
+          additionalEvents: ['PRE_REGISTRATION_COMPLETED'],
+        }
+      );
+    });
+  } catch (error) {
+    if (error instanceof StudentLifecycleError) throw error;
+    const conflict = toDomainConflict(error);
+    if (conflict) throw conflict;
+    throw error;
+  }
 }
 
-// --- Descarte e reabertura ---
+export async function markStudentReadyForEnrollment(
+  alunoId: string,
+  contractId: string,
+  input: StudentAdministrativeReviewTransitionDTO
+): Promise<Aluno> {
+  const reviewReference = requiredText(input.reviewReference, 'reviewReference');
+  const deduplicationReference = requiredText(
+    input.deduplicationReference,
+    'deduplicationReference'
+  );
+
+  return prisma.$transaction(async (tx) => {
+    const aluno = await tx.aluno.findFirst({
+      where: { id: alunoId, contractId },
+      include: { onboarding: true, studentProfile: true },
+    });
+    if (!aluno) throw new StudentLifecycleError('Registro não encontrado.', 'NOT_FOUND');
+    await assertProfessorInContract(input.actor.professorId, contractId, tx);
+
+    if (!aluno.onboarding?.privacyAcceptedAt || !aluno.onboarding.privacyNoticeVersion) {
+      throw new StudentLifecycleError(
+        'O consentimento vigente deve estar registrado antes da revisão.',
+        'PRECONDITION_FAILED'
+      );
+    }
+
+    const identity =
+      aluno.studentProfile?.identificationData &&
+      typeof aluno.studentProfile.identificationData === 'object' &&
+      !Array.isArray(aluno.studentProfile.identificationData)
+        ? (aluno.studentProfile.identificationData as Record<string, unknown>)
+        : {};
+    const missing = findMissingPreRegistrationFields({
+      name: typeof identity.name === 'string' ? identity.name : undefined,
+      phone: typeof identity.phone === 'string' ? identity.phone : undefined,
+      birthDate: typeof identity.birthDate === 'string' ? identity.birthDate : undefined,
+      privacyNoticeVersion: aluno.onboarding.privacyNoticeVersion,
+      privacyAcceptedAt: aluno.onboarding.privacyAcceptedAt,
+    });
+    if (missing.length > 0) {
+      throw new StudentLifecycleError(
+        'O cadastro ainda possui campos obrigatórios pendentes.',
+        'MISSING_REQUIRED_FIELDS',
+        { fields: missing }
+      );
+    }
+
+    return transitionStudentLifecycleStatusInTransaction(
+      tx,
+      alunoId,
+      contractId,
+      aluno.status as StudentLifecycleStatus,
+      'READY_FOR_ENROLLMENT',
+      {
+        actor: input.actor,
+        alunoUpdate: { readyForEnrollmentAt: new Date() },
+        onboardingUpdate: {
+          reviewedAt: new Date(),
+          reviewedByProfessorId: input.actor.professorId,
+        },
+        metadata: { reviewReference, deduplicationReference },
+        additionalEvents: ['ADMIN_REVIEWED'],
+      }
+    );
+  });
+}
+
+export async function activateStudentEnrollment(
+  alunoId: string,
+  contractId: string,
+  input: StudentActivationTransitionDTO
+): Promise<Aluno> {
+  const activationReference = requiredText(input.activationReference, 'activationReference');
+  return prisma.$transaction(async (tx) => {
+    const aluno = await findAlunoInContractOrThrow(alunoId, contractId, tx);
+    await assertProfessorInContract(input.actor.professorId, contractId, tx);
+    if (!aluno.userId) {
+      throw new StudentLifecycleError(
+        'É necessário vincular uma conta válida antes da ativação.',
+        'PRECONDITION_FAILED'
+      );
+    }
+
+    return transitionStudentLifecycleStatusInTransaction(
+      tx,
+      alunoId,
+      contractId,
+      aluno.status as StudentLifecycleStatus,
+      'ACTIVE_STUDENT',
+      {
+        actor: input.actor,
+        alunoUpdate: { activatedAt: new Date() },
+        onboardingUpdate: { convertedAt: new Date() },
+        metadata: { activationReference },
+        additionalEvents: ['CONVERTED_TO_ACTIVE_STUDENT'],
+      }
+    );
+  });
+}
 
 export async function discardStudentLead(
   alunoId: string,
@@ -377,81 +648,58 @@ export async function discardStudentLead(
   reason: string,
   actorProfessorId: string
 ): Promise<Aluno> {
-  if (!reason || reason.trim().length === 0) {
-    throw new StudentLifecycleError('Motivo do descarte é obrigatório.', 'MISSING_REQUIRED_FIELDS');
-  }
-
-  const aluno = await findAlunoInContractOrThrow(alunoId, contractId);
-  assertValidStudentLifecycleTransition(aluno.status as StudentLifecycleStatus, 'DISCARDED');
-
+  const normalizedReason = requiredText(reason, 'reason');
   return prisma.$transaction(async (tx) => {
-    const updated = await tx.aluno.update({
-      where: { id: alunoId },
-      data: {
-        status: 'DISCARDED',
-        discardedAt: new Date(),
-        discardReason: reason.trim(),
-        discardedByProfessorId: actorProfessorId,
-      },
-    });
-
-    await tx.studentLifecycleEvent.create({
-      data: {
-        alunoId,
-        contractId,
-        eventType: 'DISCARDED',
-        actorProfessorId,
-        metadata: { reason: reason.trim(), from: aluno.status },
-      },
-    });
-
-    return updated;
+    const aluno = await findAlunoInContractOrThrow(alunoId, contractId, tx);
+    await assertProfessorInContract(actorProfessorId, contractId, tx);
+    return transitionStudentLifecycleStatusInTransaction(
+      tx,
+      alunoId,
+      contractId,
+      aluno.status as StudentLifecycleStatus,
+      'DISCARDED',
+      {
+        actor: { professorId: actorProfessorId },
+        alunoUpdate: {
+          discardedAt: new Date(),
+          discardReason: normalizedReason,
+          discardedByProfessorId: actorProfessorId,
+        },
+        metadata: { reason: normalizedReason },
+        additionalEvents: ['DISCARDED'],
+      }
+    );
   });
 }
 
 export async function reopenDiscardedStudentLead(
   alunoId: string,
   contractId: string,
+  reason: string,
   actorProfessorId: string
 ): Promise<Aluno> {
-  const aluno = await findAlunoInContractOrThrow(alunoId, contractId);
-  assertValidStudentLifecycleTransition(aluno.status as StudentLifecycleStatus, 'LEAD');
-
+  const normalizedReason = requiredText(reason, 'reason');
   return prisma.$transaction(async (tx) => {
-    const updated = await tx.aluno.update({
-      where: { id: alunoId },
-      data: { status: 'LEAD' },
-    });
-
-    await tx.studentOnboardingProcess.updateMany({
-      where: { alunoId },
-      data: { reopenedAt: new Date() },
-    });
-
-    await tx.studentLifecycleEvent.create({
-      data: {
-        alunoId,
-        contractId,
-        eventType: 'REOPENED',
-        actorProfessorId,
-      },
-    });
-
-    return updated;
+    const aluno = await findAlunoInContractOrThrow(alunoId, contractId, tx);
+    await assertProfessorInContract(actorProfessorId, contractId, tx);
+    return transitionStudentLifecycleStatusInTransaction(
+      tx,
+      alunoId,
+      contractId,
+      aluno.status as StudentLifecycleStatus,
+      'LEAD',
+      {
+        actor: { professorId: actorProfessorId },
+        onboardingUpdate: { reopenedAt: new Date(), reopenReason: normalizedReason },
+        metadata: { reason: normalizedReason },
+        additionalEvents: ['REOPENED'],
+      }
+    );
   });
 }
 
-/** Filtro padrão para queries que devem enxergar somente alunos ativos. */
 export const ACTIVE_STUDENT_WHERE = { status: 'ACTIVE_STUDENT' as const };
 
-/**
- * Único ponto autorizado a decidir os campos de status/ativação para o
- * fluxo de criação administrativa/comercial LEGADO (que sempre cria o aluno
- * já com conta, professor e dados completos — não passa pelo ciclo
- * lead -> aluno desta issue). Nenhum outro arquivo deve escrever
- * `status`/`activatedAt` de Aluno diretamente: mesmo esta criação direta
- * consulta este helper para que a decisão fique centralizada aqui.
- */
 export function legacyDirectActiveStudentCreationFields(): {
   status: 'ACTIVE_STUDENT';
   activatedAt: Date;

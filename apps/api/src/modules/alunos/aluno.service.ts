@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import { getServiceForContract } from '../services/service.service.js';
 import { assertStudentInterestServiceSelectable } from './aluno.service-selection.js';
 import { legacyDirectActiveStudentCreationFields } from './student-lifecycle.service.js';
+import { upsertStudentIdentity } from './student-identity.service.js';
 import {
   syncStudentFixedSchedule,
   type FixedScheduleSlotInput,
@@ -324,6 +325,24 @@ export const alunoService = {
           intakeForm: true,
         },
       });
+
+      await upsertStudentIdentity(
+        aluno.id,
+        professor.contractId,
+        {
+          name: data.name,
+          email: data.email,
+          phone: data.phone,
+          birthDate: data.birthDate,
+          gender: data.gender,
+        },
+        {
+          client: tx,
+          sourceType: 'professional',
+          sourceReference: 'legacy_admin_create',
+          syncLegacyProfile: true,
+        }
+      );
 
       if (data.macronutrients && hasAnyValue(data.macronutrients)) {
         await tx.macronutrients.create({
@@ -745,14 +764,27 @@ export const alunoService = {
         data: alunoData,
       });
 
-      if (aluno.userId && (avatar !== undefined || birthDate !== undefined || gender !== undefined)) {
-        await tx.profile.update({
-          where: { userId: aluno.userId },
-          data: {
-            ...(avatar !== undefined ? { avatar } : {}),
+      if (birthDate !== undefined || gender !== undefined) {
+        await upsertStudentIdentity(
+          aluno.id,
+          alunoContractId,
+          {
             ...(birthDate !== undefined ? { birthDate } : {}),
             ...(gender !== undefined ? { gender } : {}),
           },
+          {
+            client: tx,
+            sourceType: 'professional',
+            sourceReference: 'legacy_admin_update',
+            syncLegacyProfile: true,
+          }
+        );
+      }
+
+      if (aluno.userId && avatar !== undefined) {
+        await tx.profile.update({
+          where: { userId: aluno.userId },
+          data: { avatar },
         });
       }
 

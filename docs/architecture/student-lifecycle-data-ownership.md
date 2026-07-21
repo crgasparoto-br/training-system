@@ -1,152 +1,151 @@
-# Ciclo único lead -> aluno: propriedade dos dados pessoais (issue #268)
+# Ciclo único lead -> aluno: identidade e propriedade dos dados (issue #268)
 
-Este documento é a matriz obrigatória de propriedade de dados pessoais exigida
-pelo épico #267. Define, para cada dado, qual é a **fonte canônica de
-escrita**, a compatibilidade com o modelo legado e a regra de
-leitura/migração. Não existem duas fontes canônicas editáveis
-simultaneamente para o mesmo dado.
+Este documento define a única fronteira de escrita dos dados pessoais no ciclo
+`LEAD` até `ACTIVE_STUDENT`. O identificador de `Aluno` permanece estável em
+todo o processo; conta, onboarding e auditoria são associações desse mesmo
+registro, não pessoas paralelas.
 
-## Identidade canônica
+## Representação canônica
 
-O identificador de `Aluno` é o identificador canônico da pessoa no domínio de
-alunos desde `LEAD` até `ACTIVE_STUDENT`. Não existe uma tabela `Lead`
-paralela com nome/documento/contato editáveis: o próprio `Aluno` carrega os
-campos `lead*` enquanto não houver conta vinculada.
+- `User` e `Profile` representam a conta global de autenticação e sua projeção
+  de acesso.
+- `Aluno` representa a participação operacional da pessoa em um `contractId`.
+- `StudentProfile.identificationData` é a fonte canônica tenant-scoped de
+  identificação, contato, endereço e responsável.
+- `Aluno.lead*`, `Aluno.birthDate` e `Aluno.age` são projeções derivadas para
+  busca, constraints e compatibilidade. Não são uma segunda API de escrita.
+- `StudentOnboardingProcess` contém somente estado do processo, versões,
+  consentimento, progresso e timestamps. Não armazena respostas cadastrais ou
+  clínicas.
+
+Toda escrita do domínio do aluno passa por
+`student-identity.service.ts#upsertStudentIdentity`. Os fluxos administrativos
+legados, o aplicativo do aluno e a revisão cadastral também usam essa mesma
+fronteira. Durante o rollout, o service atualiza `Profile` como projeção de
+compatibilidade quando há conta vinculada; nenhum consumidor do domínio do
+aluno deve escrever os mesmos campos diretamente em `Profile`.
 
 ## Matriz de propriedade
 
-| Dado | Fonte canônica de escrita | Compatibilidade legada | Regra de leitura/migração |
+| Dado | Fonte canônica | Projeção/legado | Regra |
 | --- | --- | --- | --- |
-| nome | `Aluno.leadName` **antes** do vínculo de conta; `Profile.name` **depois** do vínculo (claim) | `Profile.name` para todo aluno já ativo | Ao vincular conta (`claimAccountForStudentLead`), `Aluno.leadName` deixa de ser escrito; leitura de exibição prioriza `Profile.name` quando existir, senão `Aluno.leadName`. Não há dual-write permanente: a cópia para `Profile` acontece uma única vez, no momento do claim, dentro das subissues que implementam o pré-cadastro (#270+) |
-| CPF/documento | `Aluno.leadCpf`/`leadCpfNormalized` antes da conta; `Profile.cpf` depois | `Profile.cpf` (`@unique` global, inalterado) | Normalização somente dígitos (`normalizeLeadCpf`). Unicidade do lead é **tenant-scoped** (`@@unique([contractId, leadCpfNormalized])`); `Profile.cpf` continua globalmente único porque representa uma conta de autenticação, não uma pessoa por contrato — ver seção "Conta, tenant e unicidade" |
-| e-mail (contato da pessoa) | `Aluno.leadEmail`/`leadEmailNormalized` | `Profile` não tem e-mail próprio hoje (usa `User.email`) | Não confundir com e-mail de login. O lead pode ter e-mail de contato sem nunca ter conta |
-| e-mail (conta) | `User.email` | inalterado | Vínculo com a pessoa é sempre via `Aluno.userId` (associação opcional, nunca fabricada) |
-| telefone | `Aluno.leadPhone`/`leadPhoneNormalized` antes da conta; `Profile.phone` depois | `Profile.phone` | Normalização somente dígitos (`normalizeLeadPhone`). Unicidade tenant-scoped em `Aluno`, sem constraint equivalente em `Profile` (histórico não normalizado) |
-| nascimento | `Aluno.birthDate` (persistido assim que informado, em qualquer estágio) | `Profile.birthDate` / `Aluno.age` (legado) | Idade nunca é persistida como valor livre a partir de #268 nos novos fluxos: `deriveAgeFromBirthDate` calcula a idade sob demanda. `Aluno.age` continua existindo apenas para compatibilidade com alunos já ativos migrados (não é mais escrito por novos fluxos baseados em `birthDate`) |
-| endereço | Formulário de pré-cadastro (JSON/DTO `UpdateStudentPreRegistrationDTO`), persistido nas subissues de pré-cadastro (#270) usando `Profile.address*` como destino final pós-claim | `Profile.address*` | Antes do claim, endereço fica apenas no processo de onboarding (não duplicado em `Aluno`); a persistência definitiva ocorre em `Profile` no momento da conclusão do pré-cadastro |
-| responsável (menor de idade) | Formulário de pré-cadastro, campos `guardian*` do DTO compartilhado | Não existe hoje no legado | Novo dado; fonte única desde a criação, sem legado a conciliar |
+| nome | `StudentProfile.identificationData.name` | `Aluno.leadName`, `Profile.name` | `Profile` é projeção temporária da conta; leitura do domínio usa `StudentProfile` |
+| CPF/documento | `StudentProfile.identificationData.cpf` | `Aluno.leadCpf` e normalizado, `Profile.cpf` | CPF normalizado é bloqueante somente dentro do tenant por `@@unique([contractId, leadCpfNormalized])` |
+| e-mail de contato | `StudentProfile.identificationData.email` | `Aluno.leadEmail` e normalizado | Pode ser diferente do e-mail de login e não bloqueia sozinho a criação |
+| e-mail de login | `User.email` | nenhuma | Globalmente único e usado apenas para autenticação |
+| telefone | `StudentProfile.identificationData.phone` | `Aluno.leadPhone` e normalizado, `Profile.phone` | Duplicidade exige revisão; não há unicidade de telefone |
+| nascimento | `StudentProfile.identificationData.birthDate` | `Aluno.birthDate`, `Profile.birthDate` | `Aluno.age` é derivada por `deriveAgeFromBirthDate`; fluxos novos não inventam idade |
+| endereço | campos `address*` de `StudentProfile.identificationData` | `Profile.address*` | Persistido no registro tenant-scoped mesmo antes de haver conta |
+| responsável | campos `guardian*` de `StudentProfile.identificationData` | sem legado canônico | Não é copiado para onboarding nem logs |
+| avatar | `Profile.avatar` | nenhuma | Atributo da conta, não da identidade operacional tenant-scoped |
 
-## Regra geral
+## Conta global e vínculos tenant-scoped
 
-- Cada atributo tem **uma única fonte canônica editável** em cada momento do
-  ciclo (antes/depois do claim). Nunca duas.
-- Projeções ou caches (ex.: exibir nome em uma listagem) são sempre
-  derivadas e somente leitura — nunca uma segunda fonte de escrita.
-- Dual-write só existe como cópia **pontual e não recorrente** no instante do
-  claim de conta (`Aluno.lead*` → `Profile.*`), implementada pelas subissues
-  de pré-cadastro. Este documento proíbe qualquer dual-write permanente.
-- A API antiga (`aluno.service.ts` `create`/`update`) nunca escreve nos
-  campos `lead*`: ela sempre cria um aluno já `ACTIVE_STUDENT` com conta e
-  perfil completos, preservando o comportamento anterior a #268. Mesmo essa
-  criação direta não escreve o literal `'ACTIVE_STUDENT'` livremente: ela
-  chama `legacyDirectActiveStudentCreationFields()` (exportado por
-  `student-lifecycle.service.ts`), que é o único ponto que decide os campos
-  de status/ativação desse fluxo legado — nenhum arquivo fora do service
-  escreve `Aluno.status` como literal solto.
+A mesma conta global pode estar vinculada simultaneamente a um `Aluno` de
+contratos distintos. O banco aplica `@@unique([contractId, userId])`, que
+impede duas pessoas operacionais com a mesma conta dentro do mesmo tenant sem
+bloquear uso legítimo em outro contrato.
 
-## Conta, tenant e unicidade
+Quando uma conta possui mais de um vínculo ativo, rotas legadas não escolhem
+um tenant silenciosamente. O cliente deve enviar `x-contract-id`; ausência de
+contexto retorna conflito seguro. Contrato externo retorna a mesma resposta de
+recurso inexistente.
 
-- **Conta de autenticação (`User`) é global e reutilizável entre contratos.**
-  `User.email` permanece `@unique` sem escopo de tenant — uma pessoa com
-  conta pode, em tese, estar associada a `Aluno`s de contratos diferentes ao
-  longo do tempo (não simultaneamente, pois `Aluno.userId` é `@unique`: uma
-  conta só pode estar vinculada a um `Aluno` por vez).
-- **O registro comercial/clínico (`Aluno`, `StudentProfile`,
-  `StudentHealthIntake`, `StudentOnboardingProcess`) é sempre tenant-scoped
-  por `contractId`.** Um mesmo CPF/e-mail/telefone pode existir como leads
-  distintos em contratos diferentes sem conflito — a deduplicação
-  administrativa (#274) atua **dentro do tenant**, nunca cross-tenant.
-- **Mesmo CPF/e-mail/telefone em contratos diferentes:** permitido. Os
-  índices únicos (`@@unique([contractId, leadEmailNormalized])` etc.) são
-  compostos com `contractId`, então o mesmo identificador em dois contratos
-  não colide.
-- **Pessoa já ativa em outro contrato:** não impede a criação de um novo
-  lead no contrato atual (são registros `Aluno` distintos); a conta de
-  autenticação, se reaproveitada, precisa passar pelo fluxo de claim
-  (idempotente) no novo `Aluno`.
-- **Pessoa já existente no mesmo contrato sem conta vinculada:** é
-  justamente o estado `LEAD`/`INVITED` — a claim account associa a conta ao
-  registro já existente, sem criar um segundo `Aluno`.
-- **Usuário autenticado que reivindica convite de outra pessoa:**
-  `claimAccountForStudentLead` rejeita quando `Aluno.userId` já pertence a
-  outra conta (`ACCOUNT_ALREADY_LINKED`) e trata corrida concorrente via a
-  constraint `@unique` de `Aluno.userId` (P2002 vira o mesmo erro de
-  domínio).
-- **Tentativa cross-tenant:** toda leitura/mutação de ciclo de vida busca o
-  `Aluno` filtrando por `id` **e** `contractId` na mesma query
-  (`findAlunoInContractOrThrow`). Se não casar, a resposta é idêntica à de
-  "não encontrado" — nunca revela se o registro existe em outro tenant.
-- **Vínculo de conta é transacional e idempotente:** `claimAccountForStudentLead`
-  roda dentro de `prisma.$transaction`, retorna sem erro se a mesma conta
-  reivindicar duas vezes, e rejeita explicitamente uma segunda conta
-  diferente.
+CPF, e-mail e telefone de contato podem existir em contratos diferentes sem
+consulta ou exposição cross-tenant. Dentro do tenant:
 
-## Estados e transições
+- CPF normalizado idêntico é bloqueado pela constraint;
+- telefone/e-mail repetidos permanecem candidatos à revisão da #274;
+- nome isolado nunca é chave de unicidade.
 
-Centralizados em `packages/types/student-lifecycle.ts`
-(`STUDENT_LIFECYCLE_TRANSITIONS`) e aplicados exclusivamente por
-`apps/api/src/modules/alunos/student-lifecycle.service.ts`. Nenhum outro
-ponto do código deve escrever `Aluno.status` diretamente.
+## Reivindicação da conta
 
-```
-LEAD -> INVITED -> PRE_REGISTRATION_IN_PROGRESS -> PRE_REGISTRATION_COMPLETED
-     -> READY_FOR_ENROLLMENT -> ACTIVE_STUDENT
-Qualquer estado (exceto ACTIVE_STUDENT) -> DISCARDED -> LEAD (reabertura explícita)
-```
+`claimAccountForStudentLead` executa em transação e:
 
-### Persistência do onboarding e auditoria por transição
+1. localiza o `Aluno` por `id + contractId`;
+2. rejeita conta de tipo incompatível;
+3. compara os identificadores disponíveis e retorna
+   `ACCOUNT_DATA_MISMATCH` quando há divergência, sem reconciliar
+   silenciosamente;
+4. rejeita a mesma conta em outro `Aluno` do mesmo contrato;
+5. grava somente quando `userId IS NULL`;
+6. trata retry da mesma conta como idempotente;
+7. registra um único evento `ACCOUNT_LINKED`.
 
-Cada transição relevante em `transitionStudentLifecycleStatus` também
-atualiza `StudentOnboardingProcess` (não apenas cria a linha vazia):
-`PRE_REGISTRATION_IN_PROGRESS` grava `startedAt`; `PRE_REGISTRATION_COMPLETED`
-grava `completedAt` (junto com `privacyNoticeVersion`/`privacyAcceptedAt`,
-gravados por `completeStudentPreRegistration`); `READY_FOR_ENROLLMENT` grava
-`reviewedAt`/`reviewedByProfessorId` e emite o evento `ADMIN_REVIEWED`;
-`ACTIVE_STUDENT` grava `convertedAt`. `recordStudentOnboardingProgress`
-existe para salvamento incremental (`lastSavedAt`/`formVersion`) fora de uma
-transição de estado, para uso das telas de pré-cadastro (#270+).
+Duas contas disputando o mesmo lead não podem sobrescrever a vencedora.
 
-Cobertura de eventos de auditoria nesta issue: `LEAD_CREATED`,
-`STATUS_CHANGED`, `ADMIN_REVIEWED`, `CONVERTED_TO_ACTIVE_STUDENT`,
-`ACCOUNT_LINKED`, `DISCARDED`, `REOPENED` são emitidos por esta issue.
-`IDENTIFIER_NORMALIZED_CHANGED` e `ACCOUNT_UNLINKED` estão definidos no
-contrato compartilhado mas **não são emitidos por nenhuma função desta
-issue**, porque #268 não implementa edição de identificadores de um lead já
-criado nem desvínculo de conta — esses fluxos pertencem às subissues de
-pré-cadastro/administração (#270+), que devem emitir esses eventos ao
-implementar as respectivas ações.
+## Estados e operações guardadas
 
-`ACTIVE_STUDENT` e `DISCARDED` (exceto para reabertura) são estados
-terminais nesta issue; a conversão administrativa final e a UI de
-reabertura ficam a cargo de #269-#274.
+Os estados e a matriz pública ficam em
+`packages/types/student-lifecycle.ts`. A alteração persistida ocorre apenas em
+`student-lifecycle.service.ts`, por operações específicas:
 
-## Migration e rollback
+- `recordStudentInvitationCreated`: exige referência do convite e ator válido;
+- `claimAccountForStudentLead`: vincula a conta sem mudar identidade;
+- `startStudentPreRegistration`: exige conta que reivindicou o processo;
+- `completeStudentPreRegistration`: valida e persiste dados/consentimento na
+  mesma transação;
+- `markStudentReadyForEnrollment`: exige consentimento, dados completos,
+  referência de revisão e deduplicação;
+- `activateStudentEnrollment`: exige estado pronto, conta e referência de
+  ativação;
+- `discardStudentLead` e `reopenDiscardedStudentLead`: exigem motivo e ator.
 
-- Migration: `apps/api/prisma/migrations/20260721120000_student_lifecycle_domain/`.
-- Backfill: todo `Aluno` existente é classificado `ACTIVE_STUDENT`,
-  `contractId` é derivado do `professor.contractId` (que já era
-  obrigatório), e `activatedAt` reaproveita `createdAt` — nenhuma data ou
-  origem é inventada. Uma guarda (`DO $$ ... RAISE EXCEPTION`) impede a
-  migration de seguir se sobrar algum `Aluno` sem `contractId` resolvível.
-- Idempotência: a migration só altera linhas cujo `contractId` ainda esteja
-  nulo; reexecuções não duplicam nem corrompem dado.
-- Rollback de aplicação: como todos os alunos legados viram
-  `ACTIVE_STUDENT` e os novos campos são opcionais (exceto `contractId` e
-  `status`, que têm default seguro), o código anterior a #268 continua
-  funcionando após rollback de aplicação sem precisar reverter a migration
-  nem apagar dados gerados por ela.
+Não existe mutação genérica pública de status. Toda atualização usa condição
+sobre tenant e estado anterior, impedindo que operações concorrentes avancem
+sobre uma versão já alterada.
 
-## Compatibilidade de aplicação
+Anamnese e PAR-Q não participam das pré-condições comerciais.
 
-- `aluno.service.ts#create` e `student-financial-contract.service.ts` (fluxo
-  comercial legado) continuam criando `Aluno` sempre `ACTIVE_STUDENT`, com
-  `contractId` derivado do professor.
-- As listagens `findByProfessor`, `findByProfessorIds`, `findByContract` e
-  `search` em `aluno.service.ts` agora filtram explicitamente
-  `status: 'ACTIVE_STUDENT'` para não exibir leads futuros como alunos
-  ativos.
-- Módulos que assumiam `Aluno.professor`/`Aluno.user` sempre presentes
-  (contratos, prontuário, antropometria, financeiro, rotas `/me`) foram
-  ajustados para preferir `Aluno.contractId` direto (tenant-safe mesmo sem
-  professor) e para rejeitar explicitamente operações que exigem conta
-  (ex.: gerar contrato) quando o registro ainda é um lead incompleto.
+## Auditoria
+
+`StudentLifecycleEvent` registra `contractId`, pessoa, ator, timestamp e
+metadados seguros. A implementação emite:
+
+- `LEAD_CREATED`;
+- `IDENTIFIER_NORMALIZED_CHANGED`;
+- `STATUS_CHANGED`;
+- `ACCOUNT_LINKED`;
+- `PRIVACY_CONSENT_RECORDED`;
+- `PRE_REGISTRATION_COMPLETED`;
+- `ADMIN_REVIEWED`;
+- `DISCARDED`;
+- `REOPENED`;
+- `CONVERTED_TO_ACTIVE_STUDENT`.
+
+`ACCOUNT_UNLINKED` permanece no contrato compartilhado para o fluxo futuro que
+implementar desvínculo autorizado; nenhuma função desta issue permite a ação.
+
+## Migration, backfill e rollback
+
+A migration `20260721120000_student_lifecycle_domain` é convergente e pode ser
+reexecutada no mesmo banco:
+
+- criação de enums, colunas, tabelas, índices e constraints possui guarda;
+- alunos legados recebem `contractId` derivado do professor e
+  `ACTIVE_STUDENT`, preservando `id` e relacionamentos;
+- `StudentProfile` é criado somente quando ausente, usando dados inferíveis de
+  `User`/`Profile`/`Aluno`;
+- origem, consentimento, ator ou fatos históricos desconhecidos não são
+  inventados;
+- registros de onboarding legados são criados sem simular etapas que não
+  ocorreram;
+- qualquer aluno sem tenant derivável interrompe a migration explicitamente.
+
+Para rollback temporário da aplicação, um trigger anterior ao insert/update
+deriva `contractId` de `professorId` e classifica como `ACTIVE_STUDENT` o
+cadastro completo produzido pela versão antiga. O rollout não exige remover os
+dados novos nem reverter a migration. O trigger e a projeção de `Profile`
+devem ser removidos pela #275 após o encerramento da janela de rollback e a
+confirmação de convergência dos consumidores.
+
+## Compatibilidade dos módulos
+
+Listagens administrativas, agenda, contratos, PRNT, avaliação, antropometria,
+relatórios e treino devem:
+
+- filtrar `ACTIVE_STUDENT` quando a tela representa alunos ativos;
+- usar `Aluno.contractId` como barreira tenant-scoped;
+- aceitar relações opcionais antes da ativação;
+- negar de forma explícita operações que exigem conta/professor/dados completos;
+- nunca escolher um vínculo de contrato por ordem acidental.

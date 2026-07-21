@@ -68,6 +68,7 @@ export const STUDENT_LIFECYCLE_EVENT_TYPES = [
   'ACCOUNT_LINKED',
   'ACCOUNT_UNLINKED',
   'PRE_REGISTRATION_COMPLETED',
+  'PRIVACY_CONSENT_RECORDED',
   'ADMIN_REVIEWED',
   'DISCARDED',
   'REOPENED',
@@ -133,9 +134,49 @@ export interface StudentLifecycleProgressSummary {
 
 /** Resposta padronizada para tentativas de duplicidade/conflito (sem vazar dado cross-tenant). */
 export interface StudentIdentifierConflictResponse {
-  code: 'STUDENT_IDENTIFIER_CONFLICT';
+  code: 'IDENTIFIER_CONFLICT';
   field: 'email' | 'phone' | 'cpf';
   message: string;
+}
+
+
+
+export type StudentLifecycleErrorCode =
+  | 'INVALID_TRANSITION'
+  | 'MISSING_REQUIRED_FIELDS'
+  | 'IDENTIFIER_CONFLICT'
+  | 'NOT_FOUND'
+  | 'ACCOUNT_ALREADY_LINKED'
+  | 'ACCOUNT_DATA_MISMATCH'
+  | 'ACCOUNT_CONTRACT_CONFLICT'
+  | 'CONCURRENT_MODIFICATION'
+  | 'PRECONDITION_FAILED';
+
+export interface ClaimStudentAccountConflictResponse {
+  code: 'ACCOUNT_DATA_MISMATCH';
+  fields: string[];
+  message: string;
+}
+
+export interface StudentLifecycleActorDTO {
+  userId?: string;
+  professorId?: string;
+}
+
+export interface StudentInvitationTransitionDTO {
+  invitationId: string;
+  actor: StudentLifecycleActorDTO;
+}
+
+export interface StudentAdministrativeReviewTransitionDTO {
+  reviewReference: string;
+  deduplicationReference: string;
+  actor: StudentLifecycleActorDTO & { professorId: string };
+}
+
+export interface StudentActivationTransitionDTO {
+  activationReference: string;
+  actor: StudentLifecycleActorDTO & { professorId: string };
 }
 
 export interface StudentLifecycleAuditEventDTO {

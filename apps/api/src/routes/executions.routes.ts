@@ -1,8 +1,11 @@
 ﻿import { Router, Request, Response } from 'express';
 import { authMiddleware, professorMiddleware, alunoMiddleware } from '../modules/auth/auth.middleware.js';
-import { authService } from '../modules/auth/auth.service.js';
 import { alunoService } from '../modules/alunos/aluno.service.js';
 import { workoutService } from '../modules/workout/workout.service.js';
+import {
+  normalizeRequestedStudentContractId,
+  resolveActiveStudentMembership,
+} from '../modules/alunos/student-account-context.service.js';
 
 const router: Router = Router();
 
@@ -11,8 +14,15 @@ router.use(authMiddleware);
 const getAlunoId = async (req: Request) => {
   const userId = req.user?.userId;
   if (!userId) return null;
-  const user = await authService.getUserById(userId);
-  return user?.aluno?.id ?? null;
+  try {
+    const membership = await resolveActiveStudentMembership(
+      userId,
+      normalizeRequestedStudentContractId(req.header('x-contract-id'))
+    );
+    return membership.id;
+  } catch {
+    return null;
+  }
 };
 
 // Get workout day by id

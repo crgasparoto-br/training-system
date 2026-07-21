@@ -26,19 +26,24 @@ O `contractId` e a barreira principal entre clientes/contratos. Rotas, services 
 
 ## Ciclo unico lead -> aluno (issue #268)
 
-`Aluno` agora representa o registro canonico da pessoa desde `LEAD` ate
-`ACTIVE_STUDENT` (`Aluno.status`), com `userId`, `professorId` e `age`
-opcionais para admitir um lead incompleto sem conta, professor ou idade
-fabricada. `Aluno.contractId` e obrigatorio desde a criacao do lead e e a
-fonte tenant-scoped preferida em vez de navegar por `professor.contractId`
-(que pode ser nulo antes da ativacao).
+`Aluno` e o identificador canonico da participacao da pessoa no dominio de
+alunos desde `LEAD` ate `ACTIVE_STUDENT`. `contractId` e obrigatorio e
+`userId`, `professorId` e `age` sao opcionais nos estados pre-ativos.
 
-Ver `docs/architecture/student-lifecycle-data-ownership.md` para a matriz de
-propriedade de dados pessoais, a regra de conta global vs. tenant-scoped e a
-documentacao de migration/rollback. Transicoes de estado ficam centralizadas
-em `apps/api/src/modules/alunos/student-lifecycle.service.ts` e nos contratos
-compartilhados de `packages/types/student-lifecycle.ts` -- nenhum outro
-ponto do codigo deve escrever `Aluno.status` diretamente.
+A identidade pessoal tenant-scoped fica em `StudentProfile.identificationData`.
+Campos `Aluno.lead*`, `birthDate` e `age` sao projecoes derivadas para
+busca/compatibilidade. `User`/`Profile` representam a conta global e podem ser
+associados a um `Aluno` por contrato; a constraint e
+`@@unique([contractId, userId])`, nao global.
+
+A migration `20260721120000_student_lifecycle_domain` possui guards de
+reexecucao, backfill convergente e trigger temporario de compatibilidade para
+rollback da aplicacao anterior. O CI deve aplicar todas as migrations e
+reexecutar essa migration no mesmo banco para comprovar idempotencia.
+
+Ver `docs/architecture/student-lifecycle-data-ownership.md` para ownership,
+claim concorrente, contexto de tenant, transicoes guardadas, auditoria e
+estrategia de remocao da compatibilidade na #275.
 
 ## PRNT
 
