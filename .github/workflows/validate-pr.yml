@@ -1,145 +1,124 @@
-name: Apply Issue 268 Test Corrections
+name: Validate PR
 
 on:
   pull_request:
-    types:
-      - reopened
     branches:
+      - main
       - develop
-
-permissions:
-  contents: write
+  push:
+    branches:
+      - main
+      - develop
+      - 'chore/**'
+      - 'feat/**'
+      - 'fix/**'
 
 jobs:
-  apply:
-    name: Align lifecycle test fixtures
+  validate:
+    name: Validate repository
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/training_system_test?schema=public
+      RUN_DATABASE_INTEGRATION_TESTS: 'true'
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: training_system_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d training_system_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
         with:
-          fetch-depth: 0
-          ref: feature/268-student-lifecycle-domain
+          version: 9
 
-      - name: Patch fixtures and tenant resolution
-        shell: bash
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma Client (api)
+        run: pnpm --filter @corrida/api exec prisma generate
+
+      - name: Apply test database migrations
+        run: pnpm --filter @corrida/api exec prisma migrate deploy
+
+      - name: Verify lifecycle migration rerun
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
+          docker run --rm --network host \
+            -v "$GITHUB_WORKSPACE:/workspace" \
+            -e PGPASSWORD=postgres \
+            postgres:16-alpine \
+            psql -h localhost -U postgres -d training_system_test -v ON_ERROR_STOP=1 \
+            -f /workspace/apps/api/prisma/migrations/20260721120000_student_lifecycle_domain/migration.sql
 
-          path = Path('apps/api/tests/profile-review.service.test.ts')
-          source = path.read_text()
-          replacements = [
-              ("  const aluno = { findUnique: jest.fn() };", "  const aluno = { findUnique: jest.fn(), findFirst: jest.fn(), update: jest.fn() };"),
-              ("  const profile = { update: jest.fn() };\n  const alunoModel = { update: jest.fn() };", "  const profile = { update: jest.fn() };\n  const studentProfile = { upsert: jest.fn() };\n  const studentLifecycleEvent = { create: jest.fn() };\n  const alunoModel = { update: aluno.update };"),
-              ("    profile,\n    aluno_update: alunoModel,", "    profile,\n    studentProfile,\n    studentLifecycleEvent,\n    aluno_update: alunoModel,"),
-              ("  aluno: { findUnique: jest.Mock; update: jest.Mock };", "  aluno: { findUnique: jest.Mock; findFirst: jest.Mock; update: jest.Mock };"),
-              ("  profile: { update: jest.Mock };\n  alunoIntakeForm", "  profile: { update: jest.Mock };\n  studentProfile: { upsert: jest.Mock };\n  studentLifecycleEvent: { create: jest.Mock };\n  alunoIntakeForm"),
-              ("    id: ALUNO_ID,\n    userId: ALUNO_USER_ID,", "    id: ALUNO_ID,\n    contractId: CONTRACT_ID,\n    userId: ALUNO_USER_ID,\n    leadName: null,\n    leadEmail: null,\n    leadEmailNormalized: null,\n    leadPhone: null,\n    leadPhoneNormalized: null,\n    leadCpf: null,\n    leadCpfNormalized: null,\n    birthDate: null,\n    studentProfile: null,"),
-              ("  notificationService.create.mockResolvedValue(true);\n});", "  notificationService.create.mockResolvedValue(true);\n  db.aluno.findFirst.mockImplementation((args: unknown) => db.aluno.findUnique(args));\n  db.studentProfile.upsert.mockResolvedValue({});\n  db.studentLifecycleEvent.create.mockResolvedValue({});\n});"),
-          ]
-          for old, new in replacements:
-              if old not in source:
-                  raise SystemExit(f'profile review fixture target missing: {old[:60]}')
-              source = source.replace(old, new)
-          path.write_text(source)
-
-          path = Path('apps/api/tests/aluno-assessment-boundary.service.test.ts')
-          source = path.read_text()
-          old = """    findUniqueOrThrow: jest.fn(),
-            },
-            profile"""
-          new = """    findUniqueOrThrow: jest.fn(),
-                findFirst: jest.fn(),
-              },
-              studentProfile: {
-                upsert: jest.fn(),
-              },
-              studentLifecycleEvent: {
-                create: jest.fn(),
-              },
-              profile"""
-          if old not in source:
-              raise SystemExit('assessment delegate target missing')
-          source = source.replace(old, new)
-          old = """    mockTx.aluno.create.mockResolvedValue({ id: 'aluno-1' });
-              mockTx.aluno.update.mockResolvedValue({ id: 'aluno-1', userId: 'user-1' });
-              mockTx.aluno.findUniqueOrThrow.mockResolvedValue({ id: 'aluno-1' });
-          """
-          new = """    mockTx.aluno.create.mockResolvedValue({ id: 'aluno-1' });
-              mockTx.aluno.update.mockResolvedValue({ id: 'aluno-1', userId: 'user-1' });
-              mockTx.aluno.findUniqueOrThrow.mockResolvedValue({ id: 'aluno-1' });
-              mockTx.aluno.findFirst.mockResolvedValue({
-                id: 'aluno-1',
-                contractId: 'contract-1',
-                userId: 'user-1',
-                leadName: null,
-                leadEmail: null,
-                leadEmailNormalized: null,
-                leadPhone: null,
-                leadPhoneNormalized: null,
-                leadCpf: null,
-                leadCpfNormalized: null,
-                birthDate: null,
-                studentProfile: null,
-                user: {
-                  email: 'novo@example.com',
-                  profile: {
-                    name: 'Aluno Novo',
-                    phone: null,
-                    cpf: null,
-                    birthDate: null,
-                    gender: null,
-                    rg: null,
-                    maritalStatus: null,
-                    addressStreet: null,
-                    addressNumber: null,
-                    addressComplement: null,
-                    addressNeighborhood: null,
-                    addressCity: null,
-                    addressState: null,
-                    addressZipCode: null,
-                    instagramHandle: null,
-                  },
-                },
-              });
-              mockTx.studentProfile.upsert.mockResolvedValue({});
-              mockTx.studentLifecycleEvent.create.mockResolvedValue({});
-          """
-          if old not in source:
-              raise SystemExit('assessment setup target missing')
-          path.write_text(source.replace(old, new))
-
-          path = Path('apps/api/src/modules/alunos/student-lifecycle.service.test.ts')
-          source = path.read_text()
-          old = "      phone: '11988887778',"
-          if old not in source:
-              raise SystemExit('lifecycle account-conflict fixture target missing')
-          path.write_text(source.replace(old, "      phone,"))
-
-          path = Path('apps/api/src/modules/alunos/profile-review.service.ts')
-          source = path.read_text()
-          replacements = [
-              ("const resolveAlunoCompanyContractId = (alunoLike: {\n  professor?:", "const resolveAlunoCompanyContractId = (alunoLike: {\n  contractId?: string | null;\n  professor?:"),
-              ("  alunoLike.currentStudentContract?.contract?.companyContractId ||\n  alunoLike.professor?.contractId ||", "  alunoLike.contractId ||\n  alunoLike.currentStudentContract?.contract?.companyContractId ||\n  alunoLike.professor?.contractId ||"),
-              ("        select: {\n          professor: { select: { contractId: true } },", "        select: {\n          contractId: true,\n          professor: { select: { contractId: true } },"),
-          ]
-          for old, new in replacements:
-              if old not in source:
-                  raise SystemExit(f'profile review service target missing: {old[:60]}')
-              source = source.replace(old, new)
-          path.write_text(source)
-          PY
-          git diff --check
-
-      - name: Commit and push
-        shell: bash
+      - name: Type check
         run: |
-          git config user.name "chatgpt-issue-268"
-          git config user.email "actions@users.noreply.github.com"
-          git add apps/api/tests/profile-review.service.test.ts \
-            apps/api/tests/aluno-assessment-boundary.service.test.ts \
-            apps/api/src/modules/alunos/student-lifecycle.service.test.ts \
-            apps/api/src/modules/alunos/profile-review.service.ts
-          git commit -m "test(alunos): align tenant identity fixtures and conflict scenario"
-          git push origin HEAD:feature/268-student-lifecycle-domain
+          set -o pipefail
+          pnpm type-check 2>&1 | tee type-check-output.log
+
+      - name: Upload type-check output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: type-check-output-${{ github.run_id }}
+          path: type-check-output.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Test
+        run: |
+          set -o pipefail
+          pnpm test 2>&1 | tee test-output.log
+
+      - name: Upload test output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-output-${{ github.run_id }}
+          path: test-output.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Build
+        run: pnpm build
+
+      - name: Architecture checks
+        run: pnpm arch:check
+
+      - name: Access catalog checks
+        run: pnpm access:check
+
+      - name: Documentation checks
+        run: |
+          set -o pipefail
+          pnpm docs:check 2>&1 | tee docs-check-output.log
+
+      - name: Upload documentation check output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs-check-output-${{ github.run_id }}
+          path: docs-check-output.log
+          if-no-files-found: ignore
+          retention-days: 7
