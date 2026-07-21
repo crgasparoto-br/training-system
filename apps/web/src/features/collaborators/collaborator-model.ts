@@ -33,59 +33,47 @@ const hourlyRateField = z
     'Informe um valor monetário válido e não negativo'
   );
 
-export const collaboratorFormSchema = z
-  .object({
-    name: z.string().trim().min(3, 'O nome deve ter no mínimo 3 caracteres'),
-    email: z.string().trim().email('Informe um e-mail válido'),
-    password: z.string().optional().refine(
-      (value) => !value?.trim() || value.trim().length >= 8,
-      'A senha deve ter no mínimo 8 caracteres'
-    ),
-    phone: z.string().optional(),
-    birthDate: z.string().optional(),
-    cpf: z.string().optional(),
-    rg: z.string().optional(),
-    maritalStatus: z.string().optional(),
-    addressStreet: z.string().optional(),
-    addressNumber: z.string().optional(),
-    addressNeighborhood: z.string().optional(),
-    addressCity: z.string().optional(),
-    addressState: z.string().optional(),
-    addressComplement: z.string().optional(),
-    addressZipCode: z.string().optional(),
-    instagramHandle: z.string().optional(),
-    cref: z.string().optional(),
-    professionalSummary: z.string().optional(),
-    lattesUrl: optionalUrl,
-    companyDocument: z.string().optional(),
-    bankCode: z.string().optional(),
-    bankBranch: z.string().optional(),
-    bankAccount: z.string().optional(),
-    pixKey: z.string().optional(),
-    avatar: z.string().optional(),
-    admissionDate: z.string().optional(),
-    dismissalDate: z.string().optional(),
-    currentStatus: z.string().optional(),
-    collaboratorFunctionId: z.string().trim().min(1, 'Selecione uma função'),
-    responsibleManagerId: z.string().optional(),
-    operationalRoleIds: z.array(z.string()).default([]),
-    hourlyRates: z.object({
-      personal: hourlyRateField,
-      consulting: hourlyRateField,
-      evaluation: hourlyRateField,
-    }),
-    hasSignedContract: z.boolean().default(false),
-    signedContractDocumentUrl: optionalUrl,
-  })
-  .superRefine((data, context) => {
-    if (data.hasSignedContract && !data.signedContractDocumentUrl?.trim()) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['signedContractDocumentUrl'],
-        message: 'Envie o PDF do contrato assinado',
-      });
-    }
-  });
+export const collaboratorFormSchema = z.object({
+  name: z.string().trim().min(3, 'O nome deve ter no mínimo 3 caracteres'),
+  email: z.string().trim().email('Informe um e-mail válido'),
+  password: z.string().optional().refine(
+    (value) => !value?.trim() || value.trim().length >= 8,
+    'A senha deve ter no mínimo 8 caracteres'
+  ),
+  phone: z.string().optional(),
+  birthDate: z.string().optional(),
+  cpf: z.string().optional(),
+  rg: z.string().optional(),
+  maritalStatus: z.string().optional(),
+  addressStreet: z.string().optional(),
+  addressNumber: z.string().optional(),
+  addressNeighborhood: z.string().optional(),
+  addressCity: z.string().optional(),
+  addressState: z.string().optional(),
+  addressComplement: z.string().optional(),
+  addressZipCode: z.string().optional(),
+  instagramHandle: z.string().optional(),
+  cref: z.string().optional(),
+  professionalSummary: z.string().optional(),
+  lattesUrl: optionalUrl,
+  companyDocument: z.string().optional(),
+  bankCode: z.string().optional(),
+  bankBranch: z.string().optional(),
+  bankAccount: z.string().optional(),
+  pixKey: z.string().optional(),
+  avatar: z.string().optional(),
+  admissionDate: z.string().optional(),
+  dismissalDate: z.string().optional(),
+  currentStatus: z.string().optional(),
+  collaboratorFunctionId: z.string().trim().min(1, 'Selecione uma função'),
+  responsibleManagerId: z.string().optional(),
+  operationalRoleIds: z.array(z.string()).default([]),
+  hourlyRates: z.object({
+    personal: hourlyRateField,
+    consulting: hourlyRateField,
+    evaluation: hourlyRateField,
+  }),
+});
 
 export type CollaboratorFormValues = z.infer<typeof collaboratorFormSchema>;
 
@@ -130,8 +118,6 @@ export function createCollaboratorFormValues(professor?: ProfessorSummary): Coll
       consulting: toRateInput(hourlyRates?.consulting),
       evaluation: toRateInput(hourlyRates?.evaluation),
     },
-    hasSignedContract: professor?.hasSignedContract ?? false,
-    signedContractDocumentUrl: professor?.signedContractDocumentUrl ?? '',
   };
 }
 
@@ -204,10 +190,6 @@ export function toCreateProfessorRequest(values: CollaboratorFormValues): Create
     responsibleManagerId: emptyToUndefined(values.responsibleManagerId),
     operationalRoleIds: values.operationalRoleIds,
     hourlyRates: mapHourlyRates(values),
-    hasSignedContract: values.hasSignedContract,
-    signedContractDocumentUrl: values.hasSignedContract
-      ? emptyToUndefined(values.signedContractDocumentUrl)
-      : undefined,
   };
 }
 
@@ -245,10 +227,6 @@ export function toUpdateProfessorRequest(values: CollaboratorFormValues): Update
     responsibleManagerId: emptyToUndefined(values.responsibleManagerId),
     operationalRoleIds: values.operationalRoleIds,
     hourlyRates: mapHourlyRates(values),
-    hasSignedContract: values.hasSignedContract,
-    signedContractDocumentUrl: values.hasSignedContract
-      ? emptyToNull(values.signedContractDocumentUrl)
-      : null,
   };
 }
 
