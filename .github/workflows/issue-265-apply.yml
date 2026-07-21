@@ -26,58 +26,8 @@ jobs:
           fetch-depth: 1
           show-progress: false
 
-      - name: Apply patch
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-
-          source = Path('scripts/issue-265-apply.mjs').read_text()
-          replace_once = """function replaceOnce(content, search, replacement, label) {
-            const index = content.indexOf(search);
-            if (index < 0) throw new Error(`Anchor not found: ${label}`);
-            if (content.indexOf(search, index + search.length) >= 0) {
-              throw new Error(`Anchor is not unique: ${label}`);
-            }
-            return content.slice(0, index) + replacement + content.slice(index + search.length);
-          }
-          """
-          replace_first = """
-          function replaceFirst(content, search, replacement, label) {
-            const index = content.indexOf(search);
-            if (index < 0) throw new Error(`Anchor not found: ${label}`);
-            return content.slice(0, index) + replacement + content.slice(index + search.length);
-          }
-          """
-          if replace_once not in source:
-              raise SystemExit('replaceOnce helper anchor not found')
-          source = source.replace(replace_once, replace_once + replace_first, 1)
-          label = "'update payload schedule fields'"
-          label_position = source.index(label)
-          call_position = source.rfind('content = replaceOnce(', 0, label_position)
-          if call_position < 0:
-              raise SystemExit('update payload call not found')
-          source = source[:call_position] + source[call_position:].replace(
-              'content = replaceOnce(',
-              'content = replaceFirst(',
-              1,
-          )
-          Path('/tmp/issue-265-apply.mjs').write_text(source)
-          PY
-
-          if ! node /tmp/issue-265-apply.mjs > issue-265-patch.log 2>&1; then
-            tail -80 issue-265-patch.log
-            exit 1
-          fi
-          cat issue-265-patch.log
-
-      - name: Publish patch diagnostics
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: issue-265-patch-log-${{ github.run_id }}
-          path: issue-265-patch.log
-          if-no-files-found: error
-          retention-days: 1
+      - name: Apply audit corrections
+        run: node scripts/issue-265-apply.mjs
 
       - name: Verify patch formatting
         run: git diff --check
@@ -90,13 +40,8 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add packages/utils/validations.ts \
-            apps/api/src/modules/alunos/aluno.service.ts \
-            apps/api/src/modules/alunos/aluno.routes.ts \
-            apps/api/src/modules/agenda/agenda.service.ts \
-            apps/api/src/modules/agenda/agenda.routes.ts \
-            apps/web/src/services/agenda.service.ts \
-            apps/web/src/services/aluno.service.ts \
-            apps/web/src/pages/AlunoForm.tsx
-          git commit -m "feat(issue-265): integrate fixed schedule with student form"
+          git add apps/web/src/components/alunos/FixedScheduleEditor.tsx \
+            apps/web/src/pages/Agenda.tsx \
+            apps/api/src/modules/alunos/aluno.routes.ts
+          git commit -m "fix(issue-265): address first audit findings"
           git push origin HEAD:feat/265-fixed-schedule-student-form
