@@ -132,6 +132,43 @@ describe('fixed schedule canonical validation', () => {
     );
   });
 
+  it('uses maximum concurrent occupancy instead of counting disjoint overlaps', async () => {
+    const db = databaseMock();
+    db.trainingSpace.findFirst.mockResolvedValue({ id: 'space-1', capacity: 2, isActive: true });
+    db.fixedScheduleSlot.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        { startTime: '08:00', endTime: '08:30' },
+        { startTime: '08:30', endTime: '09:00' },
+      ]);
+
+    const [result] = await checkFixedScheduleAvailability(
+      db as never,
+      'contract-1',
+      'aluno-1',
+      [slot()]
+    );
+
+    expect(result).toMatchObject({ available: true, code: 'AVAILABLE' });
+  });
+
+  it('accepts contiguous availability blocks that cover the complete interval', async () => {
+    const db = databaseMock();
+    db.professorAvailability.findMany.mockResolvedValue([
+      { startTime: '08:00', endTime: '08:30' },
+      { startTime: '08:30', endTime: '09:00' },
+    ]);
+
+    const [result] = await checkFixedScheduleAvailability(
+      db as never,
+      'contract-1',
+      'aluno-1',
+      [slot()]
+    );
+
+    expect(result).toMatchObject({ available: true, code: 'AVAILABLE' });
+  });
+
   it('requires explicit confirmation before changing fixed to free with future bookings', async () => {
     const db = databaseMock();
     db.fixedScheduleSlot.findMany.mockResolvedValue([

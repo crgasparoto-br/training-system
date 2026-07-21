@@ -123,6 +123,59 @@ export function fixedScheduleOverlaps(
   );
 }
 
+function hasCapacityForInterval(
+  startTime: string,
+  endTime: string,
+  capacity: number,
+  intervals: Array<{ startTime: string; endTime: string }>
+): boolean {
+  const candidateStart = fixedScheduleTimeToMinutes(startTime);
+  const candidateEnd = fixedScheduleTimeToMinutes(endTime);
+  const events: Array<{ minute: number; delta: number }> = [];
+
+  intervals.forEach((interval) => {
+    const intervalStart = Math.max(candidateStart, fixedScheduleTimeToMinutes(interval.startTime));
+    const intervalEnd = Math.min(candidateEnd, fixedScheduleTimeToMinutes(interval.endTime));
+    if (intervalStart < intervalEnd) {
+      events.push({ minute: intervalStart, delta: 1 });
+      events.push({ minute: intervalEnd, delta: -1 });
+    }
+  });
+
+  events.sort((left, right) => left.minute - right.minute || left.delta - right.delta);
+  let occupancy = 0;
+  for (const event of events) {
+    occupancy += event.delta;
+    if (occupancy >= capacity) return false;
+  }
+  return true;
+}
+
+function isIntervalFullyCovered(
+  startTime: string,
+  endTime: string,
+  intervals: Array<{ startTime: string; endTime: string }>
+): boolean {
+  const targetStart = fixedScheduleTimeToMinutes(startTime);
+  const targetEnd = fixedScheduleTimeToMinutes(endTime);
+  let coveredUntil = targetStart;
+
+  const ordered = intervals
+    .map((interval) => ({
+      start: fixedScheduleTimeToMinutes(interval.startTime),
+      end: fixedScheduleTimeToMinutes(interval.endTime),
+    }))
+    .sort((left, right) => left.start - right.start || left.end - right.end);
+
+  for (const interval of ordered) {
+    if (interval.end <= coveredUntil) continue;
+    if (interval.start > coveredUntil) return false;
+    coveredUntil = Math.max(coveredUntil, interval.end);
+    if (coveredUntil >= targetEnd) return true;
+  }
+  return coveredUntil >= targetEnd;
+}
+
 function isoDayOfWeek(value: Date): number {
   const day = value.getDay();
   return day === 0 ? 7 : day;
@@ -261,10 +314,14 @@ async function validateSingleSlot(
     },
     select: { startTime: true, endTime: true },
   });
-  const occupancy = competingSpaceSlots.filter((item) =>
-    fixedScheduleOverlaps(slot.startTime, slot.endTime, item.startTime, item.endTime)
-  ).length;
-  if (occupancy >= space.capacity) {
+  if (
+    !hasCapacityForInterval(
+      slot.startTime,
+      slot.endTime,
+      space.capacity,
+      competingSpaceSlots
+    )
+  ) {
     throw new FixedScheduleError('SPACE_CAPACITY_FULL', MESSAGES.SPACE_CAPACITY_FULL, {
       stage: 'space',
       rowIndex,
@@ -294,12 +351,7 @@ async function validateSingleSlot(
     where: { professorId: slot.professorId, dayOfWeek: slot.dayOfWeek, isActive: true },
     select: { startTime: true, endTime: true },
   });
-  const covered = availability.some(
-    (item) =>
-      fixedScheduleTimeToMinutes(item.startTime) <= fixedScheduleTimeToMinutes(slot.startTime) &&
-      fixedScheduleTimeToMinutes(item.endTime) >= fixedScheduleTimeToMinutes(slot.endTime)
-  );
-  if (!covered) {
+  if (!isIntervalFullyCovered(slot.startTime, slot.endTime, availability)) {
     throw new FixedScheduleError(
       'PROFESSOR_OUTSIDE_AVAILABILITY',
       MESSAGES.PROFESSOR_OUTSIDE_AVAILABILITY,
@@ -478,10 +530,10 @@ export async function syncStudentFixedSchedule(
   rawSlots: FixedScheduleSlotInput[],
   options: { confirmKeepFutureBookings?: boolean } = {}
 ) {
-  const aluno = await loadStudent(tx, contractId, alunoId);
-  const existing = await loadStudentSlots(tx, contractId, alunoId);
-
   if (schedulePlan === 'free') {
+    await acquireScheduleLocks(tx, contractId, alunoId, []);
+    const aluno = await loadStudent(tx, contractId, alunoId);
+    const existing = await loadStudentSlots(tx, contractId, alunoId);
     if (aluno.schedulePlan === 'fixed') {
       const activeIds = existing.filter((item) => item.isActive).map((item) => item.id);
       if (activeIds.length) {
@@ -521,6 +573,7 @@ export async function syncStudentFixedSchedule(
   const slots = rawSlots.map(normalizeSlot);
   validateStudentRows(slots);
   await acquireScheduleLocks(tx, contractId, alunoId, slots);
+  const existing = await loadStudentSlots(tx, contractId, alunoId);
   const results = await checkFixedScheduleAvailability(tx, contractId, alunoId, slots);
   const firstFailure = results.find((result) => !result.available);
   if (firstFailure) {
