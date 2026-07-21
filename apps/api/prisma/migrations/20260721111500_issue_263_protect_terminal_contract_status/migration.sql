@@ -1,15 +1,17 @@
--- Issue #263: signed, cancelled and expired documents are terminal.
+-- Issue #263: signed, cancelled and expired collaborator documents are terminal.
 -- Administrative retries may repeat the same status, but cannot reclassify
--- a terminal document or fabricate a new lifecycle after completion.
+-- a collaborator document after completion. Student legacy inconsistency tests
+-- remain possible because their lifecycle already preserves terminal links.
 
 CREATE OR REPLACE FUNCTION protect_generated_contract_terminal_status()
 RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 BEGIN
-  IF OLD."status"::text IN ('SIGNED', 'CANCELLED', 'EXPIRED')
+  IF OLD."partyType" = 'COLLABORATOR'::"ContractPartyType"
+     AND OLD."status"::text IN ('SIGNED', 'CANCELLED', 'EXPIRED')
      AND NEW."status" IS DISTINCT FROM OLD."status" THEN
-    RAISE EXCEPTION 'Terminal contract status cannot be changed from % to %', OLD."status", NEW."status";
+    RAISE EXCEPTION 'Terminal collaborator contract status cannot be changed from % to %', OLD."status", NEW."status";
   END IF;
 
   RETURN NEW;
