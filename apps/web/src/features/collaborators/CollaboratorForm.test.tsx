@@ -41,11 +41,8 @@ function Fixture() {
       showCollaboratorBlock
       showManagerBlock
       administrativeFieldsEnabled
-      signedContractUploadEnabled
       uploadingAvatar={false}
-      uploadingContract={false}
       onAvatarFile={vi.fn()}
-      onContractFile={vi.fn()}
       onCancel={vi.fn()}
       submitting={false}
     />
