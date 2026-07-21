@@ -74,11 +74,8 @@ export function CollaboratorForm({
   showCollaboratorBlock,
   showManagerBlock,
   administrativeFieldsEnabled,
-  signedContractUploadEnabled: _signedContractUploadEnabled,
   uploadingAvatar,
-  uploadingContract,
   onAvatarFile,
-  onContractFile: _onContractFile,
   onCancel,
   submitting,
 }: {
@@ -94,11 +91,8 @@ export function CollaboratorForm({
   showCollaboratorBlock: boolean;
   showManagerBlock: boolean;
   administrativeFieldsEnabled: boolean;
-  signedContractUploadEnabled: boolean;
   uploadingAvatar: boolean;
-  uploadingContract: boolean;
   onAvatarFile: (file: File) => void;
-  onContractFile: (file: File) => void;
   onCancel: () => void;
   submitting: boolean;
 }) {
@@ -381,7 +375,7 @@ export function CollaboratorForm({
 
       <div className="sticky bottom-4 z-10 flex flex-wrap justify-end gap-3 rounded-2xl border border-border bg-background/95 p-4 shadow-lg backdrop-blur">
         <Button type="button" variant="outline" onClick={onCancel} disabled={submitting}>Cancelar</Button>
-        <Button type="submit" disabled={submitting || uploadingAvatar || uploadingContract}>
+        <Button type="submit" disabled={submitting || uploadingAvatar}>
           {submitting ? 'Salvando...' : mode === 'create' ? 'Cadastrar colaborador' : 'Salvar alterações'}
         </Button>
       </div>
