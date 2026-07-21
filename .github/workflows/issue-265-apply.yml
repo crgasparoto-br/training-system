@@ -7,12 +7,16 @@ on:
     paths:
       - scripts/issue-265-apply.mjs
       - .github/workflows/issue-265-apply.yml
+  pull_request:
+    branches:
+      - develop
 
 permissions:
   contents: write
 
 jobs:
   apply:
+    if: github.head_ref == 'feat/265-fixed-schedule-student-form' || github.ref_name == 'feat/265-fixed-schedule-student-form'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout branch
@@ -45,5 +49,3 @@ jobs:
             apps/web/src/pages/AlunoForm.tsx
           git commit -m "feat(issue-265): integrate fixed schedule with student form"
           git push origin HEAD:feat/265-fixed-schedule-student-form
-
-# Triggered after the workflow became available on the branch.
