@@ -189,6 +189,10 @@ export function Agenda() {
 
   const handleCreateFixedSlot = async () => {
     clearMessages();
+    if (!fixedSlotForm.spaceId) {
+      setError('Selecione o espaço da academia antes de criar o horário fixo.');
+      return;
+    }
     try {
       await agendaService.createFixedSlot({
         alunoId: fixedSlotForm.alunoId,
@@ -196,7 +200,7 @@ export function Agenda() {
         dayOfWeek: fixedSlotForm.dayOfWeek,
         startTime: fixedSlotForm.startTime,
         endTime: fixedSlotForm.endTime,
-        spaceId: fixedSlotForm.spaceId || undefined,
+        spaceId: fixedSlotForm.spaceId,
         notes: fixedSlotForm.notes || undefined,
       });
       await reloadData();

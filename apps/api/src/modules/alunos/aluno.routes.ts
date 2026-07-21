@@ -744,7 +744,7 @@ router.post('/', async (req: Request, res: Response) => {
       });
     }
     console.error('Erro ao criar aluno:', error);
-    return sendError(res, error?.message || 'Erro ao criar aluno', 500);
+    return sendError(res, 'Erro ao criar aluno', 500);
   }
 });
 
@@ -1143,7 +1143,7 @@ router.put('/:id', blockAccessMiddleware('students.actions.editProfile'), async 
       });
     }
     console.error('Erro ao atualizar aluno:', error);
-    return sendError(res, error?.message || 'Erro ao atualizar aluno', 500);
+    return sendError(res, 'Erro ao atualizar aluno', 500);
   }
 });
 

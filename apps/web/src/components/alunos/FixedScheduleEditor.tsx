@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, CircleAlert, Clock3, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Clock3, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import {
   agendaService,
