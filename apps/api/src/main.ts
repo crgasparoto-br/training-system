@@ -23,11 +23,14 @@ import { startProfileReviewScheduler } from './modules/alunos/profile-review.sch
 import studentContractLifecycleRoutes from './modules/student-contracts/student-contract-lifecycle.routes.js';
 import {
   preRegistrationInviteAdminRoutes,
+  preRegistrationInvitePublicErrorHandler,
+  preRegistrationInvitePublicHeaders,
   preRegistrationInvitePublicRoutes,
 } from './modules/pre-registration-invites/index.js';
 import { startStudentContractLifecycleScheduler } from './modules/student-contracts/student-contract-lifecycle.scheduler.js';
 import studentRoutes from './routes/student.routes.js';
 import { getUploadStorageRoot } from './common/asset-storage.js';
+import { createApiCorsOptions } from './common/api-cors.js';
 import { getJwtSecret, resolveCorsConfig } from './common/runtime-config.js';
 
 const app: express.Express = express();
@@ -39,26 +42,6 @@ getJwtSecret(process.env);
 app.set('trust proxy', 1);
 
 const corsConfig = resolveCorsConfig(process.env);
-const allowedOrigins = corsConfig.allowedOrigins;
-const allowedVercelPreviewProjects = new Set(corsConfig.allowedVercelPreviewProjects);
-
-function isAllowedVercelPreviewOrigin(origin: string) {
-  let hostname: string;
-
-  try {
-    hostname = new URL(origin).hostname;
-  } catch {
-    return false;
-  }
-
-  if (!hostname.endsWith('.vercel.app')) {
-    return false;
-  }
-
-  return Array.from(allowedVercelPreviewProjects).some((project) =>
-    project && hostname.startsWith(`${project}-`)
-  );
-}
 
 // ============================================================================
 // MIDDLEWARE
@@ -70,29 +53,23 @@ app.use(
   })
 );
 
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      if (!origin) {
-        callback(null, true);
-        return;
-      }
+// O namespace público recebe os headers de proteção antes de qualquer middleware
+// que possa falhar. Assim, inclusive rejeições de CORS permanecem no-store e não
+// enviam referrer contendo o token.
+app.use('/api/v1/pre-cadastro', preRegistrationInvitePublicHeaders);
 
-      if (allowedOrigins.includes(origin) || isAllowedVercelPreviewOrigin(origin)) {
-        callback(null, true);
-        return;
-      }
+// O preflight continua para os handlers de domínio. Origens rejeitadas geram uma
+// mensagem interna constante, sem incorporar o valor bruto do cabeçalho Origin.
+app.use(cors(createApiCorsOptions(corsConfig)));
 
-      callback(new Error(`CORS blocked for origin: ${origin}`));
-    },
-    credentials: true,
-  })
-);
-
-// O roteador público de convites deve interceptar qualquer método ou variação
-// tokenizada antes dos parsers globais. Assim, até payload inválido ou excessivo
-// recebe a resposta genérica, no-store, no-referrer e rate limit do domínio.
+// O roteador público deve interceptar qualquer método ou variação tokenizada
+// antes dos parsers globais. Assim, até payload inválido ou excessivo recebe a
+// resposta genérica e o rate limit do domínio.
 app.use('/api/v1', preRegistrationInvitePublicRoutes);
+
+// Captura falhas ocorridas antes ou dentro do roteador público, incluindo CORS,
+// sem registrar nem devolver detalhes que possam carregar o token.
+app.use('/api/v1/pre-cadastro', preRegistrationInvitePublicErrorHandler);
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
