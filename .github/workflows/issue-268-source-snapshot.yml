@@ -1,0 +1,30 @@
+name: Issue 268 source snapshot
+
+on:
+  pull_request:
+    types: [reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    if: github.event.pull_request.number == 278
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Create source archive
+        run: |
+          git archive --format=zip --output=training-system-source.zip HEAD
+
+      - name: Upload source archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-268-source-${{ github.event.pull_request.head.sha }}
+          path: training-system-source.zip
+          retention-days: 1
