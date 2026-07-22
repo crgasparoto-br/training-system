@@ -13,6 +13,7 @@ compartilhando a inspiração de rota pública.
 - Contratos compartilhados de API/frontend: `packages/types/pre-registration-invite.ts`.
 - Domínio/serviço: `apps/api/src/modules/pre-registration-invites/`.
 - Geração/hash de token: `pre-registration-invite-token.ts`.
+- Sanitização do contexto público de auditoria: `pre-registration-invite-audit.ts`.
 - Rotas administrativas (autenticadas) e pública:
   `pre-registration-invite.routes.ts`.
 - Rate limit dedicado da rota pública: `pre-registration-invite-rate-limit.middleware.ts`.
@@ -32,8 +33,14 @@ compartilhando a inspiração de rota pública.
 - Padrão de 30 dias, configurável pela variável de ambiente
   `PRE_REGISTRATION_INVITE_TTL_DAYS` (ver `.env.example`).
 - A expiração é calculada no backend (`computeInviteExpiresAt`) no momento da
-  criação e **reconhecida na leitura**: `openPublicInvite` marca o convite
-  como `EXPIRED` ao detectar `expiresAt < now`, sem depender de nenhum job.
+  criação.
+- O convite deixa de ser utilizável no instante em que `expiresAt <= now`.
+- A expiração é consolidada tanto na resolução pública quanto nas leituras e
+  ações administrativas. Resumo, histórico, ações permitidas, geração,
+  regeneração e revogação não dependem de scheduler para reconhecer um
+  convite vencido.
+- A transição para `EXPIRED` e o evento `EXPIRED_ON_READ` são condicionais ao
+  estado `ACTIVE`, evitando eventos duplicados em leituras concorrentes.
 
 ## Estados
 
@@ -43,6 +50,9 @@ compartilhando a inspiração de rota pública.
   (`purpose`) ao mesmo tempo - garantido por índice único parcial no banco
   (`PreRegistrationInvite_active_person_purpose_key`, criado via SQL na
   migration porque o Prisma não expressa índice parcial na DSL).
+- Gerar o primeiro convite e alterar o ciclo `LEAD -> INVITED` usam o mesmo
+  `Prisma.TransactionClient`. Se o commit do convite falhar, o status, a data
+  de convite e os eventos do ciclo também são revertidos.
 - Regenerar cria o novo convite e marca o anterior como `SUPERSEDED` na
   mesma transação; se a criação do novo falhar, a transação inteira é
   revertida e o convite anterior permanece `ACTIVE` e utilizável.
@@ -58,20 +68,24 @@ Rota pública própria: `GET /api/v1/pre-cadastro/:token` (sem autenticação).
   erro genérico HTTP 404 (`PRE_REGISTRATION_INVITE_GENERIC_PUBLIC_ERROR`).
 - Cabeçalhos aplicados em toda resposta da rota pública:
   `Cache-Control: no-store, private` e `Referrer-Policy: no-referrer`.
-- Rate limit dedicado por IP (`preRegistrationInviteRateLimit`), **em memória
-  por processo**. Limitação conhecida: em uma implantação com múltiplas
-  réplicas da API, cada réplica mantém sua própria contagem, então o limite
-  efetivo se multiplica pelo número de réplicas. O projeto não possui hoje
-  um cliente Redis integrado e em uso (existe apenas o serviço `redis` no
-  `docker-compose.yml` e a dependência `redis` no `package.json`, sem
-  nenhuma integração real no código-fonte); introduzir essa integração do
-  zero está fora do escopo da issue #269. Fica registrado como limitação
-  conhecida a ser resolvida quando houver necessidade real de múltiplas
-  réplicas (migrar para um contador compartilhado, ex.: Redis).
-- Primeiro acesso é registrado uma única vez (`firstAccessedAt` +
-  evento `FIRST_ACCESSED`); acessos subsequentes atualizam `lastAccessAt`
-  mas só geram novo evento de auditoria fora de uma janela de throttle de 5
-  minutos, para não gerar spam de auditoria.
+- Rate limit dedicado por IP (`preRegistrationInviteRateLimit`), em memória
+  por processo, com limpeza periódica de janelas expiradas e limite padrão de
+  10.000 chaves rastreadas. Ao atingir a capacidade sem entradas expiradas, o
+  middleware falha fechado com HTTP 429, impedindo crescimento ilimitado de
+  memória por rotação de IPs.
+- Limitação conhecida: em uma implantação com múltiplas réplicas da API, cada
+  réplica mantém sua própria contagem, então o limite efetivo se multiplica
+  pelo número de réplicas. Quando houver escala horizontal, o contador deve
+  migrar para armazenamento compartilhado (ex.: Redis) sem alterar o contrato
+  HTTP do middleware.
+- O primeiro acesso usa atualização condicional de `firstAccessedAt = null`.
+  Somente uma transação concorrente registra `FIRST_ACCESSED`; as demais são
+  tratadas como acessos posteriores e atualizam `lastAccessAt`.
+- Acessos subsequentes só geram novo evento de auditoria fora de uma janela de
+  throttle de 5 minutos, evitando spam de eventos.
+- IP é aceito somente no formato IPv4/IPv6, com limite de tamanho. User-Agent
+  tem controles removidos, espaços normalizados e tamanho limitado antes da
+  persistência.
 - A resposta pública contém **apenas** `purpose` e `expiresAt` - nunca
   `alunoId`, `contractId` ou qualquer outro identificador interno, dado
   clínico, histórico comercial, contrato, observação administrativa ou o
@@ -86,9 +100,9 @@ recurso inexistente, sem vazar existência em outro tenant):
 - `POST /api/v1/alunos/:alunoId/pre-registration-invites` - gera o primeiro
   convite; exige que a pessoa esteja em um estado compatível do ciclo
   (`LEAD`, `INVITED` ou `PRE_REGISTRATION_IN_PROGRESS`), que exista ao menos
-  um canal de contato e que não haja convite ativo. Quando o lead está em
-  `LEAD`, a criação também move o ciclo para `INVITED`
-  (`recordStudentInvitationCreated`, issue #268).
+  um canal de contato e que não haja convite ativo utilizável. Quando o lead
+  está em `LEAD`, a criação também move o ciclo para `INVITED` dentro da mesma
+  transação (`recordStudentInvitationCreatedInTransaction`, issue #268).
 - `POST /api/v1/alunos/:alunoId/pre-registration-invites/regenerate` - invalida
   o convite ativo (`SUPERSEDED`) e cria um novo, atomicamente.
 - `POST /api/v1/alunos/:alunoId/pre-registration-invites/revoke` - revoga o
