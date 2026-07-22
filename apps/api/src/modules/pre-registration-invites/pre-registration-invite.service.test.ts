@@ -15,6 +15,22 @@ import { createStudentLead } from '../alunos/student-lifecycle.service.js';
 const prisma = new PrismaClient();
 const unique = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
+const makeRateLimitResponse = () => {
+  const res: any = { headers: {} as Record<string, unknown> };
+  res.setHeader = (key: string, value: unknown) => {
+    res.headers[key] = value;
+  };
+  res.status = (code: number) => {
+    res.statusCode = code;
+    return res;
+  };
+  res.json = (body: unknown) => {
+    res.body = body;
+    return res;
+  };
+  return res;
+};
+
 describe('pre-registration-invite service', () => {
   const createdContractIds: string[] = [];
 
@@ -68,6 +84,57 @@ describe('pre-registration-invite service', () => {
 
     const aluno = await prisma.aluno.findUniqueOrThrow({ where: { id: lead.id } });
     expect(aluno.status).toBe('INVITED');
+  });
+
+  it('reverte convite e transição para INVITED quando o commit da geração inicial falha', async () => {
+    const contractId = await createContract();
+    const lead = await createLeadWithContact(contractId);
+    const functionName = 'test_fail_invite_commit_269';
+    const triggerName = 'test_fail_invite_commit_269_trigger';
+    const escapedLeadId = lead.id.replace(/'/g, "''");
+
+    await prisma.$executeRawUnsafe(
+      `DROP TRIGGER IF EXISTS "${triggerName}" ON "PreRegistrationInvite"`
+    );
+    await prisma.$executeRawUnsafe(`DROP FUNCTION IF EXISTS "${functionName}"()`);
+    await prisma.$executeRawUnsafe(`
+      CREATE FUNCTION "${functionName}"()
+      RETURNS trigger AS $$
+      BEGIN
+        IF NEW."alunoId" = '${escapedLeadId}' THEN
+          RAISE EXCEPTION 'forced deferred invite commit failure';
+        END IF;
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE CONSTRAINT TRIGGER "${triggerName}"
+      AFTER INSERT ON "PreRegistrationInvite"
+      DEFERRABLE INITIALLY DEFERRED
+      FOR EACH ROW EXECUTE FUNCTION "${functionName}"()
+    `);
+
+    try {
+      await expect(
+        preRegistrationInviteService.generateFirstInvite(lead.id, contractId, {})
+      ).rejects.toBeTruthy();
+    } finally {
+      await prisma.$executeRawUnsafe(
+        `DROP TRIGGER IF EXISTS "${triggerName}" ON "PreRegistrationInvite"`
+      );
+      await prisma.$executeRawUnsafe(`DROP FUNCTION IF EXISTS "${functionName}"()`);
+    }
+
+    const aluno = await prisma.aluno.findUniqueOrThrow({ where: { id: lead.id } });
+    expect(aluno.status).toBe('LEAD');
+    expect(aluno.invitedAt).toBeNull();
+    expect(await prisma.preRegistrationInvite.count({ where: { alunoId: lead.id } })).toBe(0);
+    expect(
+      await prisma.studentLifecycleEvent.count({
+        where: { alunoId: lead.id, eventType: 'STATUS_CHANGED' },
+      })
+    ).toBe(0);
   });
 
   it('recusa gerar primeiro convite quando já existe um ativo (no máximo um por pessoa/finalidade)', async () => {
@@ -248,7 +315,7 @@ describe('pre-registration-invite service', () => {
     );
   });
 
-  it('expiração é aplicada na leitura, sem depender de scheduler (limite temporal)', async () => {
+  it('expiração pública é aplicada no instante exato de expiresAt, sem depender de scheduler', async () => {
     const contractId = await createContract();
     const lead = await createLeadWithContact(contractId);
     const invite = await preRegistrationInviteService.generateFirstInvite(lead.id, contractId, {});
@@ -257,21 +324,52 @@ describe('pre-registration-invite service', () => {
       where: { id: invite.summary.id },
     });
 
-    // No exato instante de expiração, ainda válido (expiresAt < now é que expira).
     await expect(
       preRegistrationInviteService.openPublicInvite(invite.token, {}, stored.expiresAt)
-    ).resolves.toBeTruthy();
-
-    // Um milissegundo depois, expirado.
-    const afterExpiry = new Date(stored.expiresAt.getTime() + 1);
-    await expect(
-      preRegistrationInviteService.openPublicInvite(invite.token, {}, afterExpiry)
     ).rejects.toBeInstanceOf(PreRegistrationInvitePublicAccessError);
 
     const afterRead = await prisma.preRegistrationInvite.findUniqueOrThrow({
       where: { id: invite.summary.id },
     });
     expect(afterRead.status).toBe('EXPIRED');
+  });
+
+  it('consolida expiração também nas leituras administrativas e permite novo convite', async () => {
+    const contractId = await createContract();
+    const lead = await createLeadWithContact(contractId);
+    const first = await preRegistrationInviteService.generateFirstInvite(lead.id, contractId, {});
+
+    await prisma.preRegistrationInvite.update({
+      where: { id: first.summary.id },
+      data: { expiresAt: new Date(Date.now() - 1_000), status: 'ACTIVE' },
+    });
+
+    const summary = await preRegistrationInviteService.getSummary(lead.id, contractId);
+    expect(summary?.status).toBe('EXPIRED');
+    expect(summary?.allowedActions).toEqual({
+      canGenerateFirst: true,
+      canRegenerate: false,
+      canRevoke: false,
+    });
+
+    const history = await preRegistrationInviteService.getHistory(lead.id, contractId);
+    expect(history[0].status).toBe('EXPIRED');
+    expect(await preRegistrationInviteService.getAllowedActions(lead.id, contractId)).toEqual(
+      summary?.allowedActions
+    );
+
+    const expirationEvents = await prisma.preRegistrationInviteEvent.findMany({
+      where: { inviteId: first.summary.id, eventType: 'EXPIRED_ON_READ' },
+    });
+    expect(expirationEvents).toHaveLength(1);
+    expect(expirationEvents[0].actorIsPublic).toBe(false);
+    expect(expirationEvents[0].metadata).toEqual({ source: 'administrative_access' });
+
+    const replacement = await preRegistrationInviteService.generateFirstInvite(lead.id, contractId, {});
+    expect(replacement.summary.status).toBe('ACTIVE');
+    await expect(preRegistrationInviteService.openPublicInvite(first.token)).rejects.toBeInstanceOf(
+      PreRegistrationInvitePublicAccessError
+    );
   });
 
   it('token inválido e inexistente resultam no mesmo erro público genérico', async () => {
@@ -306,8 +404,8 @@ describe('pre-registration-invite service', () => {
     const invite = await preRegistrationInviteService.generateFirstInvite(lead.id, contractId, {});
 
     await preRegistrationInviteService.openPublicInvite(invite.token, {
-      ipAddress: '1.2.3.4',
-      userAgent: 'jest',
+      ipAddress: '  1.2.3.4  ',
+      userAgent: `jest\u0000agent\n${'x'.repeat(400)}`,
     });
     await preRegistrationInviteService.openPublicInvite(invite.token, {
       ipAddress: '1.2.3.4',
@@ -320,15 +418,44 @@ describe('pre-registration-invite service', () => {
     });
 
     const firstAccessEvents = events.filter((e) => e.eventType === 'FIRST_ACCESSED');
-    expect(firstAccessEvents.length).toBe(1);
+    expect(firstAccessEvents).toHaveLength(1);
+    expect(firstAccessEvents[0].ipAddress).toBe('1.2.3.4');
+    expect(firstAccessEvents[0].userAgent).not.toMatch(/[\u0000-\u001f\u007f]/);
+    expect(firstAccessEvents[0].userAgent?.length).toBeLessThanOrEqual(256);
+
     // Segundo acesso dentro da janela de throttle não deve gerar novo evento ACCESSED.
     const accessedEvents = events.filter((e) => e.eventType === 'ACCESSED');
-    expect(accessedEvents.length).toBe(0);
+    expect(accessedEvents).toHaveLength(0);
 
     for (const event of events) {
       expect(JSON.stringify(event)).not.toContain(invite.token);
     }
     expect(JSON.stringify(invite.summary)).not.toContain(invite.token);
+  });
+
+  it('dois acessos públicos concorrentes registram FIRST_ACCESSED uma única vez', async () => {
+    const contractId = await createContract();
+    const lead = await createLeadWithContact(contractId);
+    const invite = await preRegistrationInviteService.generateFirstInvite(lead.id, contractId, {});
+    const now = new Date();
+
+    const views = await Promise.all([
+      preRegistrationInviteService.openPublicInvite(invite.token, { ipAddress: '10.0.0.1' }, now),
+      preRegistrationInviteService.openPublicInvite(invite.token, { ipAddress: '10.0.0.2' }, now),
+    ]);
+    expect(views).toHaveLength(2);
+    expect(views.every((view) => view.purpose === 'PRE_REGISTRATION')).toBe(true);
+
+    const firstAccessEvents = await prisma.preRegistrationInviteEvent.findMany({
+      where: { inviteId: invite.summary.id, eventType: 'FIRST_ACCESSED' },
+    });
+    expect(firstAccessEvents).toHaveLength(1);
+
+    const stored = await prisma.preRegistrationInvite.findUniqueOrThrow({
+      where: { id: invite.summary.id },
+    });
+    expect(stored.firstAccessedAt?.toISOString()).toBe(now.toISOString());
+    expect(stored.lastAccessAt?.toISOString()).toBe(now.toISOString());
   });
 
   it('não retorna hash do token na resposta administrativa (resumo/histórico)', async () => {
@@ -373,38 +500,54 @@ describe('pre-registration-invite service', () => {
     void invite;
   });
 
-  it('rate limit bloqueia após o limite de tentativas na janela e libera fora dela', () => {
-    const limiter = createPreRegistrationInviteRateLimiter({ windowMs: 1000, maxRequests: 2 });
+  it('rate limit bloqueia após o limite e libera quando a janela expira', () => {
+    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(1_000);
+    const limiter = createPreRegistrationInviteRateLimiter({ windowMs: 1_000, maxRequests: 2 });
     const req = { ip: '9.9.9.9' } as any;
-    const makeRes = () => {
-      const res: any = { headers: {} as Record<string, unknown> };
-      res.setHeader = (key: string, value: unknown) => {
-        res.headers[key] = value;
-      };
-      res.status = (code: number) => {
-        res.statusCode = code;
-        return res;
-      };
-      res.json = (body: unknown) => {
-        res.body = body;
-        return res;
-      };
-      return res;
-    };
+    const next = jest.fn();
 
-    let nextCalled = 0;
-    const next = () => {
-      nextCalled += 1;
-    };
+    try {
+      limiter(req, makeRateLimitResponse(), next);
+      limiter(req, makeRateLimitResponse(), next);
+      expect(next).toHaveBeenCalledTimes(2);
 
-    limiter(req, makeRes(), next);
-    limiter(req, makeRes(), next);
-    expect(nextCalled).toBe(2);
+      const blockedRes = makeRateLimitResponse();
+      limiter(req, blockedRes, next);
+      expect(next).toHaveBeenCalledTimes(2);
+      expect(blockedRes.statusCode).toBe(429);
+      expect(blockedRes.headers['Retry-After']).toBeDefined();
 
-    const blockedRes = makeRes();
-    limiter(req, blockedRes, next);
-    expect(nextCalled).toBe(2);
-    expect(blockedRes.statusCode).toBe(429);
-    expect(blockedRes.headers['Retry-After']).toBeDefined();
+      nowSpy.mockReturnValue(2_001);
+      limiter(req, makeRateLimitResponse(), next);
+      expect(next).toHaveBeenCalledTimes(3);
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+
+  it('rate limiter limita chaves distintas e remove janelas expiradas', () => {
+    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(5_000);
+    const limiter = createPreRegistrationInviteRateLimiter({
+      windowMs: 1_000,
+      maxRequests: 10,
+      maxTrackedKeys: 1,
+    });
+    const next = jest.fn();
+
+    try {
+      limiter({ ip: '192.0.2.1' } as any, makeRateLimitResponse(), next);
+      expect(next).toHaveBeenCalledTimes(1);
+
+      const capacityRes = makeRateLimitResponse();
+      limiter({ ip: '192.0.2.2' } as any, capacityRes, next);
+      expect(capacityRes.statusCode).toBe(429);
+      expect(next).toHaveBeenCalledTimes(1);
+
+      nowSpy.mockReturnValue(6_001);
+      limiter({ ip: '192.0.2.2' } as any, makeRateLimitResponse(), next);
+      expect(next).toHaveBeenCalledTimes(2);
+    } finally {
+      nowSpy.mockRestore();
+    }
   });
 });
