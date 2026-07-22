@@ -113,7 +113,7 @@ END $$;
 -- convites ativos): a segunda transacao que tentar inserir um segundo
 -- convite ACTIVE para a mesma pessoa/finalidade falha com violacao de
 -- unicidade e deve tratar isso como conflito de concorrencia
--- (ver isUniqueConstraintViolation em pre-registration-invite.service.ts).
+-- (ver isUniqueConstraintViolation em pre-registration-invite-admin.helpers.ts).
 DO $$
 BEGIN
   IF NOT EXISTS (
