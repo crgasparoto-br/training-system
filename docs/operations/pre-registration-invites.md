@@ -13,6 +13,7 @@ compartilhando a inspiração de rota pública.
 - Geração e hash: `pre-registration-invite-token.ts`.
 - Sanitização e redação de auditoria: `pre-registration-invite-audit.ts`.
 - Rate limit público: `pre-registration-invite-rate-limit.middleware.ts`.
+- Política CORS segura da API: `apps/api/src/common/api-cors.ts`.
 
 ## Token
 
@@ -89,6 +90,12 @@ Rota própria: `GET /api/v1/pre-cadastro/:token`.
 - Métodos diferentes de `GET` e variações adicionais sob
   `/api/v1/pre-cadastro` encerram no mesmo fallback seguro, sem refletir o
   caminho ou o token na resposta.
+- Rejeições de CORS no namespace público são convertidas para a mesma resposta
+  genérica. O valor bruto de `Origin` não é incluído em erros nem logs.
+- Preflights `OPTIONS` permitidos continuam até o fallback seguro, recebendo
+  `no-store`, `no-referrer` e o rate limit do domínio.
+- Os headers de proteção são aplicados antes do CORS para cobrir também falhas
+  anteriores ao roteador público.
 - A resposta contém apenas `purpose` e `expiresAt`.
 - Todas as respostas aplicam `Cache-Control: no-store, private` e
   `Referrer-Policy: no-referrer`.
@@ -101,7 +108,7 @@ Rota própria: `GET /api/v1/pre-cadastro/:token`.
 ## Rate limit
 
 A resolução pública possui rate limit dedicado por IP, inclusive no fallback
-seguro de métodos ou caminhos inválidos, com:
+seguro de métodos, caminhos e preflights permitidos, com:
 
 - janela padrão de 60 segundos;
 - até 20 requisições por janela;
