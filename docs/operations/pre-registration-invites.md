@@ -86,6 +86,9 @@ Rota própria: `GET /api/v1/pre-cadastro/:token`.
 - Não exige autenticação para apresentar a resposta inicial segura.
 - Token inexistente, alterado, expirado, revogado ou substituído produz o mesmo
   erro genérico HTTP 404.
+- Métodos diferentes de `GET` e variações adicionais sob
+  `/api/v1/pre-cadastro` encerram no mesmo fallback seguro, sem refletir o
+  caminho ou o token na resposta.
 - A resposta contém apenas `purpose` e `expiresAt`.
 - Todas as respostas aplicam `Cache-Control: no-store, private` e
   `Referrer-Policy: no-referrer`.
@@ -97,7 +100,8 @@ Rota própria: `GET /api/v1/pre-cadastro/:token`.
 
 ## Rate limit
 
-A resolução pública possui rate limit dedicado por IP, com:
+A resolução pública possui rate limit dedicado por IP, inclusive no fallback
+seguro de métodos ou caminhos inválidos, com:
 
 - janela padrão de 60 segundos;
 - até 20 requisições por janela;
