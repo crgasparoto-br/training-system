@@ -2,7 +2,6 @@ import { isIP } from 'node:net';
 
 const MAX_AUDIT_IP_LENGTH = 64;
 const MAX_AUDIT_USER_AGENT_LENGTH = 256;
-const MAX_TOKEN_LIKE_LENGTH = 128;
 const MIN_TOKEN_LIKE_LENGTH = 40;
 const REDACTED_VALUE = '[REDACTED]';
 
@@ -23,7 +22,7 @@ function redactInviteSecrets(value: string, currentToken?: string): string {
   );
 
   const tokenLikePattern = new RegExp(
-    `(^|[^A-Za-z0-9_-])([A-Za-z0-9_-]{${MIN_TOKEN_LIKE_LENGTH},${MAX_TOKEN_LIKE_LENGTH}})(?=$|[^A-Za-z0-9_-])`,
+    `(^|[^A-Za-z0-9_-])([A-Za-z0-9_-]{${MIN_TOKEN_LIKE_LENGTH},})(?=$|[^A-Za-z0-9_-])`,
     'g'
   );
   return redacted.replace(tokenLikePattern, `$1${REDACTED_VALUE}`);
