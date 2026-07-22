@@ -69,6 +69,7 @@ const baseLead: PreRegistrationAdminLeadDetailDTO = {
     purpose: 'PRE_REGISTRATION',
     expiresAt: '2026-07-23T12:00:00.000Z',
     createdAt: '2026-07-22T12:00:00.000Z',
+    linkRecoverable: false,
     allowedActions: {
       canGenerateFirst: false,
       canRegenerate: true,
