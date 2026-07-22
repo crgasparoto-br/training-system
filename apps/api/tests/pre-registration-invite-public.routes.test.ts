@@ -23,6 +23,10 @@ const {
 } = require('../src/modules/pre-registration-invites/pre-registration-invite.routes');
 
 const ALLOWED_ORIGIN = 'https://allowed.example';
+const corsConfig = {
+  allowedOrigins: [ALLOWED_ORIGIN],
+  allowedVercelPreviewProjects: [],
+};
 
 const expectSafeGenericPublicError = (res: any, token: string) => {
   expect(res.status).toBe(404);
@@ -37,15 +41,11 @@ describe('pre-registration invite public route', () => {
   app.set('trust proxy', 1);
 
   // Mesma composição relevante usada em main.ts: headers antes do CORS,
-  // preflight contínuo, roteador público e barreira de erro específica.
+  // preflight contínuo somente neste namespace, roteador e barreira de erro.
   app.use('/api/v1/pre-cadastro', preRegistrationInvitePublicHeaders);
   app.use(
-    cors(
-      createApiCorsOptions({
-        allowedOrigins: [ALLOWED_ORIGIN],
-        allowedVercelPreviewProjects: [],
-      })
-    )
+    '/api/v1/pre-cadastro',
+    cors(createApiCorsOptions(corsConfig, { preflightContinue: true }))
   );
   app.use('/api/v1', preRegistrationInvitePublicRoutes);
   app.use('/api/v1/pre-cadastro', preRegistrationInvitePublicErrorHandler);
@@ -154,6 +154,20 @@ describe('pre-registration invite public route', () => {
     expectSafeGenericPublicError(res, token);
     expect(res.headers['access-control-allow-origin']).toBe(ALLOWED_ORIGIN);
     expect(mockOpenPublicInvite).not.toHaveBeenCalled();
+  });
+
+  it('preserva o preflight automático padrão nas demais rotas da API', async () => {
+    const genericApp = express();
+    genericApp.use(cors(createApiCorsOptions(corsConfig)));
+    genericApp.get('/api/v1/outra-rota', (_req, res) => res.sendStatus(200));
+
+    const res = await request(genericApp)
+      .options('/api/v1/outra-rota')
+      .set('Origin', ALLOWED_ORIGIN)
+      .set('Access-Control-Request-Method', 'GET');
+
+    expect(res.status).toBe(204);
+    expect(res.headers['access-control-allow-origin']).toBe(ALLOWED_ORIGIN);
   });
 
   it('aplica rate limit específico à rota pública após muitas tentativas', async () => {
