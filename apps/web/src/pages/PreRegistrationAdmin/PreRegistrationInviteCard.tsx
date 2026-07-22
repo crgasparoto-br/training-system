@@ -35,6 +35,11 @@ export function PreRegistrationInviteCard({
   const [revokeReason, setRevokeReason] = useState('');
   const [revokeConfirmed, setRevokeConfirmed] = useState(false);
   const isRegeneration = lead.allowedActions.canRegenerateInvite;
+  const inviteExpiredWhileOpen = Boolean(
+    lead.invite?.status === 'ACTIVE' &&
+      lead.invite.expiresAt &&
+      new Date(lead.invite.expiresAt).getTime() <= Date.now()
+  );
 
   const revoke = async () => {
     await onRevoke(revokeReason.trim());
@@ -50,11 +55,11 @@ export function PreRegistrationInviteCard({
           Convite de pré-cadastro
         </CardTitle>
         <CardDescription>
-          O link bruto aparece somente nesta sessão, logo após gerar ou substituir o convite.
+          O link bruto aparece somente nesta sessão. O sistema não envia mensagens automaticamente.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-3">
           <div>
             <p className="text-xs text-muted-foreground">Status</p>
             <p className="mt-1 font-medium">{lead.invite?.status || 'Ainda não gerado'}</p>
@@ -63,7 +68,29 @@ export function PreRegistrationInviteCard({
             <p className="text-xs text-muted-foreground">Validade</p>
             <p className="mt-1 font-medium">{formatDate(lead.invite?.expiresAt)}</p>
           </div>
+          <div>
+            <p className="text-xs text-muted-foreground">Primeiro acesso</p>
+            <p className="mt-1 font-medium">{formatDate(lead.invite?.firstAccessedAt)}</p>
+          </div>
         </div>
+
+        {inviteExpiredWhileOpen && (
+          <div
+            className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm"
+            role="status"
+          >
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
+            <span>
+              Este convite expirou enquanto a ficha estava aberta. Atualize a ficha antes de executar outra ação.
+            </span>
+          </div>
+        )}
+
+        {lead.invite?.status === 'ACTIVE' && !generatedUrl && (
+          <p className="rounded-lg bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+            O link anterior não pode ser recuperado. Caso ele tenha sido perdido, confirme abaixo para gerar um novo link e invalidar o anterior.
+          </p>
+        )}
 
         {generatedUrl && (
           <div className="rounded-xl border border-success/40 bg-success/10 p-4">
@@ -75,7 +102,10 @@ export function PreRegistrationInviteCard({
               </p>
             )}
             {copyState === 'failed' && (
-              <p className="mt-2 flex items-start gap-2 text-xs font-medium text-warning" role="alert">
+              <p
+                className="mt-2 flex items-start gap-2 text-xs font-medium text-warning"
+                role="alert"
+              >
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
                 A cópia automática não funcionou. Use o botão abaixo para tentar novamente ou selecione o link.
               </p>
@@ -105,11 +135,11 @@ export function PreRegistrationInviteCard({
           <Button
             type="button"
             isLoading={actionLoading}
-            disabled={isRegeneration && !regenerateConfirmed}
+            disabled={(isRegeneration && !regenerateConfirmed) || inviteExpiredWhileOpen}
             onClick={onGenerate}
           >
             <Link2 className="h-4 w-4" aria-hidden="true" />
-            {isRegeneration ? 'Substituir convite' : 'Gerar link'}
+            {isRegeneration ? 'Gerar novo link' : 'Gerar link de pré-cadastro'}
           </Button>
         )}
 
@@ -138,7 +168,7 @@ export function PreRegistrationInviteCard({
               size="sm"
               className="mt-3"
               isLoading={actionLoading}
-              disabled={!revokeReason.trim() || !revokeConfirmed}
+              disabled={!revokeReason.trim() || !revokeConfirmed || inviteExpiredWhileOpen}
               onClick={revoke}
             >
               <Trash2 className="h-4 w-4" aria-hidden="true" />
