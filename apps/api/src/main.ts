@@ -21,6 +21,10 @@ import { legacyCollaboratorContractMiddleware } from './modules/professores/lega
 import { serviceRoutes } from './modules/services/index.js';
 import { startProfileReviewScheduler } from './modules/alunos/profile-review.scheduler.js';
 import studentContractLifecycleRoutes from './modules/student-contracts/student-contract-lifecycle.routes.js';
+import {
+  preRegistrationInviteAdminRoutes,
+  preRegistrationInvitePublicRoutes,
+} from './modules/pre-registration-invites/index.js';
 import { startStudentContractLifecycleScheduler } from './modules/student-contracts/student-contract-lifecycle.scheduler.js';
 import studentRoutes from './routes/student.routes.js';
 import { getUploadStorageRoot } from './common/asset-storage.js';
@@ -132,6 +136,8 @@ app.get('/api/v1', (_req, res) => {
       professores: '/api/v1/professores',
       services: '/api/v1/services',
       student: '/api/v1/student',
+      preRegistrationInvites: '/api/v1/alunos/:alunoId/pre-registration-invites',
+      preRegistrationInvitePublic: '/api/v1/pre-cadastro/:token',
     },
   });
 });
@@ -143,7 +149,9 @@ app.use('/api/v1/assessment-types', assessmentTypeRoutes);
 app.use('/api/v1/alunos', alunoAvatarUploadRoutes);
 // Safe activation must intercept the legacy student route.
 app.use('/api/v1/alunos', studentContractLifecycleRoutes);
+app.use('/api/v1/alunos', preRegistrationInviteAdminRoutes);
 app.use('/api/v1/alunos', alunoRoutes);
+app.use('/api/v1', preRegistrationInvitePublicRoutes);
 
 app.use('/api/v1/anthropometry', anthropometryRoutes);
 app.use('/api/v1/prontuario', prontuarioRoutes);
