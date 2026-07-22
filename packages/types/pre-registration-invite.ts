@@ -43,6 +43,12 @@ export interface PreRegistrationInviteActorDTO {
   professorId?: string;
 }
 
+/** Identifica explicitamente a versao alvo para manter revogacao idempotente. */
+export interface PreRegistrationInviteRevocationDTO {
+  inviteId: string;
+  reason: string;
+}
+
 /** Acoes administrativas atualmente permitidas para a pessoa/convite. */
 export interface PreRegistrationInviteAllowedActions {
   canGenerateFirst: boolean;
