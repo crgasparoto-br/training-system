@@ -669,19 +669,23 @@ export const preRegistrationAdminService = {
     const parqFilter = parqReviewWhere(query.parqRequiresProfessionalReview);
     if (parqFilter) conditions.push(parqFilter);
 
+    const statusFilter: Prisma.AlunoWhereInput['status'] =
+      query.pendingReview === true
+        ? 'PRE_REGISTRATION_COMPLETED'
+        : query.pendingReview === false
+          ? { notIn: ['PRE_REGISTRATION_COMPLETED', ACTIVE_STATUS] }
+          : statuses?.length
+            ? { in: statuses }
+            : { not: ACTIVE_STATUS };
+
     const where: Prisma.AlunoWhereInput = {
       contractId: actor.contractId,
-      status: statuses?.length ? { in: statuses } : { not: ACTIVE_STATUS },
+      status: statusFilter,
       ...(query.origin ? { leadOrigin: query.origin } : {}),
       ...(query.responsibleProfessorId
         ? { professorId: query.responsibleProfessorId }
         : {}),
       ...(created ? { createdAt: created } : {}),
-      ...(query.pendingReview === true
-        ? { status: 'PRE_REGISTRATION_COMPLETED' }
-        : query.pendingReview === false
-          ? { status: { notIn: ['PRE_REGISTRATION_COMPLETED', ACTIVE_STATUS] } }
-          : {}),
       AND: conditions,
     };
 
