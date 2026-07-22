@@ -2311,6 +2311,11 @@ enum PreRegistrationInviteStatus {
   EXPIRED
   REVOKED
   SUPERSEDED
+  // Reservado pelo modelo do convite (issue #269 pede "data de conclusao").
+  // Nenhum caminho de codigo desta issue produz este estado: preencher
+  // dados pessoais/de saude e a conversao em aluno ativo sao explicitamente
+  // fora de escopo aqui. Sera setado pela subissue que implementar a
+  // conclusao real do pre-cadastro.
   COMPLETED
 }
 
@@ -2321,6 +2326,8 @@ enum PreRegistrationInviteEventType {
   FIRST_ACCESSED
   ACCESSED
   EXPIRED_ON_READ
+  // Ver nota em PreRegistrationInviteStatus.COMPLETED: reservado para a
+  // subissue que implementar a conclusao real do pre-cadastro.
   COMPLETED
 }
 

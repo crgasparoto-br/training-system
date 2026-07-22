@@ -1,4 +1,4 @@
-import { Router, type Request, type Response, type NextFunction } from 'express';
+import { Router, type Request, type RequestHandler, type Response, type NextFunction } from 'express';
 import { sendError, sendSuccess } from '@corrida/utils';
 import { PRE_REGISTRATION_INVITE_GENERIC_PUBLIC_ERROR } from '@corrida/types';
 import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js';
@@ -12,7 +12,6 @@ import { preRegistrationInviteRateLimit } from './pre-registration-invite-rate-l
 
 const adminRouter: Router = Router();
 const publicRouter: Router = Router();
-const router = adminRouter;
 
 const ERROR_STATUS_BY_CODE: Record<string, number> = {
   NOT_FOUND: 404,
@@ -31,6 +30,11 @@ function actorFromRequest(req: Request) {
   };
 }
 
+/** contractId do professor autenticado; sempre presente após professorMiddleware. */
+function contractIdOf(req: Request): string {
+  return req.user!.contractId as string;
+}
+
 function handleDomainError(res: Response, error: unknown) {
   if (error instanceof PreRegistrationInviteError) {
     const status = ERROR_STATUS_BY_CODE[error.code] ?? 400;
@@ -40,118 +44,98 @@ function handleDomainError(res: Response, error: unknown) {
   return sendError(res, message, 500);
 }
 
+/** Encapsula o try/catch repetido de todas as rotas administrativas. */
+function withDomainErrorHandling(
+  handler: (req: Request, res: Response) => Promise<Response>
+): RequestHandler {
+  return async (req, res) => {
+    try {
+      await handler(req, res);
+    } catch (error) {
+      handleDomainError(res, error);
+    }
+  };
+}
+
+// Toda mutação administrativa exige professor autenticado do tenant e o
+// bloco de acesso dedicado; as consultas (GET) exigem apenas professor
+// autenticado do tenant, sem o bloco de ação.
+const requireProfessor = [authMiddleware, professorMiddleware];
+const requireInviteManagementAccess = [
+  ...requireProfessor,
+  blockAccessMiddleware('students.actions.manageEnrollmentInvite'),
+];
+
 // ============================================================================
 // ADMINISTRATIVO (autenticado, escopado ao tenant do professor)
 // ============================================================================
 
-router.post(
+adminRouter.post(
   '/:alunoId/pre-registration-invites',
-  authMiddleware,
-  professorMiddleware,
-  blockAccessMiddleware('students.actions.manageEnrollmentInvite'),
-  async (req: Request, res: Response) => {
-    try {
-      const result = await preRegistrationInviteService.generateFirstInvite(
-        req.params.alunoId,
-        req.user!.contractId as string,
-        actorFromRequest(req)
-      );
-      return sendSuccess(res, result, 'Convite de pré-cadastro gerado com sucesso');
-    } catch (error) {
-      return handleDomainError(res, error);
-    }
-  }
+  ...requireInviteManagementAccess,
+  withDomainErrorHandling(async (req, res) => {
+    const result = await preRegistrationInviteService.generateFirstInvite(
+      req.params.alunoId,
+      contractIdOf(req),
+      actorFromRequest(req)
+    );
+    return sendSuccess(res, result, 'Convite de pré-cadastro gerado com sucesso');
+  })
 );
 
-router.post(
+adminRouter.post(
   '/:alunoId/pre-registration-invites/regenerate',
-  authMiddleware,
-  professorMiddleware,
-  blockAccessMiddleware('students.actions.manageEnrollmentInvite'),
-  async (req: Request, res: Response) => {
-    try {
-      const result = await preRegistrationInviteService.regenerateInvite(
-        req.params.alunoId,
-        req.user!.contractId as string,
-        actorFromRequest(req)
-      );
-      return sendSuccess(res, result, 'Novo convite gerado; o link anterior foi invalidado');
-    } catch (error) {
-      return handleDomainError(res, error);
-    }
-  }
+  ...requireInviteManagementAccess,
+  withDomainErrorHandling(async (req, res) => {
+    const result = await preRegistrationInviteService.regenerateInvite(
+      req.params.alunoId,
+      contractIdOf(req),
+      actorFromRequest(req)
+    );
+    return sendSuccess(res, result, 'Novo convite gerado; o link anterior foi invalidado');
+  })
 );
 
-router.post(
+adminRouter.post(
   '/:alunoId/pre-registration-invites/revoke',
-  authMiddleware,
-  professorMiddleware,
-  blockAccessMiddleware('students.actions.manageEnrollmentInvite'),
-  async (req: Request, res: Response) => {
-    try {
-      const reason = typeof req.body?.reason === 'string' ? req.body.reason : '';
-      const summary = await preRegistrationInviteService.revokeInvite(
-        req.params.alunoId,
-        req.user!.contractId as string,
-        reason,
-        actorFromRequest(req)
-      );
-      return sendSuccess(res, summary, 'Convite revogado');
-    } catch (error) {
-      return handleDomainError(res, error);
-    }
-  }
+  ...requireInviteManagementAccess,
+  withDomainErrorHandling(async (req, res) => {
+    const reason = typeof req.body?.reason === 'string' ? req.body.reason : '';
+    const summary = await preRegistrationInviteService.revokeInvite(
+      req.params.alunoId,
+      contractIdOf(req),
+      reason,
+      actorFromRequest(req)
+    );
+    return sendSuccess(res, summary, 'Convite revogado');
+  })
 );
 
-router.get(
+adminRouter.get(
   '/:alunoId/pre-registration-invites/summary',
-  authMiddleware,
-  professorMiddleware,
-  async (req: Request, res: Response) => {
-    try {
-      const summary = await preRegistrationInviteService.getSummary(
-        req.params.alunoId,
-        req.user!.contractId as string
-      );
-      return sendSuccess(res, summary);
-    } catch (error) {
-      return handleDomainError(res, error);
-    }
-  }
+  ...requireProfessor,
+  withDomainErrorHandling(async (req, res) => {
+    const summary = await preRegistrationInviteService.getSummary(req.params.alunoId, contractIdOf(req));
+    return sendSuccess(res, summary);
+  })
 );
 
-router.get(
+adminRouter.get(
   '/:alunoId/pre-registration-invites/history',
-  authMiddleware,
-  professorMiddleware,
-  async (req: Request, res: Response) => {
-    try {
-      const history = await preRegistrationInviteService.getHistory(
-        req.params.alunoId,
-        req.user!.contractId as string
-      );
-      return sendSuccess(res, history);
-    } catch (error) {
-      return handleDomainError(res, error);
-    }
-  }
+  ...requireProfessor,
+  withDomainErrorHandling(async (req, res) => {
+    const history = await preRegistrationInviteService.getHistory(req.params.alunoId, contractIdOf(req));
+    return sendSuccess(res, history);
+  })
 );
 
-router.get(
+adminRouter.get(
   '/:alunoId/pre-registration-invites/allowed-actions',
-  authMiddleware,
-  professorMiddleware,
-  async (req: Request, res: Response) => {
-    try {
-      const actions = await preRegistrationInviteService.getAllowedActions(
-        req.params.alunoId,
-        req.user!.contractId as string
-      );
-      return sendSuccess(res, actions);
-    } catch (error) {
-      return handleDomainError(res, error);
-    }
-  }
+  ...requireProfessor,
+  withDomainErrorHandling(async (req, res) => {
+    const actions = await preRegistrationInviteService.getAllowedActions(req.params.alunoId, contractIdOf(req));
+    return sendSuccess(res, actions);
+  })
 );
 
 // ============================================================================
