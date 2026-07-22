@@ -49,4 +49,12 @@ describe('pre-registration invite audit sanitization', () => {
     expect(reason).not.toContain(token);
     expect(reason).toContain('[REDACTED]');
   });
+
+  it('remove sequências base64url longas sem limite superior explorável', () => {
+    const oversizedTokenLikeValue = `prefix ${'A'.repeat(300)} suffix`;
+    const reason = sanitizePreRegistrationInviteRevocationReason(oversizedTokenLikeValue);
+
+    expect(reason).not.toContain('A'.repeat(43));
+    expect(reason).toBe('prefix [REDACTED] suffix');
+  });
 });
