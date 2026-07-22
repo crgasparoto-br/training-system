@@ -63,8 +63,7 @@ function isUniqueConstraintViolation(error: unknown, indexName: string): boolean
 async function expireActiveInviteIfNeeded(
   alunoId: string,
   client: DbClient,
-  now: Date = new Date(),
-  source: 'administrative_access' | 'public_resolution' = 'administrative_access'
+  now: Date = new Date()
 ): Promise<boolean> {
   const candidate = await client.preRegistrationInvite.findFirst({
     where: {
@@ -91,8 +90,8 @@ async function expireActiveInviteIfNeeded(
       data: {
         inviteId: candidate.id,
         eventType: 'EXPIRED_ON_READ',
-        actorIsPublic: source === 'public_resolution',
-        metadata: { source },
+        actorIsPublic: false,
+        metadata: { source: 'administrative_access' },
       },
     });
   }
@@ -174,6 +173,27 @@ async function toSummary(
     linkRecoverable: false,
     allowedActions,
   };
+}
+
+async function loadCommittedInviteOrThrow(
+  inviteId: string,
+  token: string
+): Promise<PreRegistrationInvite> {
+  const persisted = await prisma.preRegistrationInvite.findUnique({ where: { id: inviteId } });
+  const expectedHash = hashInviteToken(token);
+
+  if (
+    !persisted ||
+    persisted.status !== 'ACTIVE' ||
+    !timingSafeEqualHash(persisted.tokenHash, expectedHash)
+  ) {
+    throw new PreRegistrationInviteError(
+      'Não foi possível confirmar a persistência do convite. Tente novamente.',
+      'CONCURRENT_MODIFICATION'
+    );
+  }
+
+  return persisted;
 }
 
 /**
@@ -278,7 +298,8 @@ export const preRegistrationInviteService = {
       return { invite, token };
     });
 
-    const summary = await toSummary(result.invite, prisma);
+    const committedInvite = await loadCommittedInviteOrThrow(result.invite.id, result.token);
+    const summary = await toSummary(committedInvite, prisma);
     return { summary, token: result.token, url: buildInviteUrl(result.token) };
   },
 
@@ -326,7 +347,8 @@ export const preRegistrationInviteService = {
       return { invite, token };
     });
 
-    const summary = await toSummary(result.invite, prisma);
+    const committedInvite = await loadCommittedInviteOrThrow(result.invite.id, result.token);
+    const summary = await toSummary(committedInvite, prisma);
     return { summary, token: result.token, url: buildInviteUrl(result.token) };
   },
 
