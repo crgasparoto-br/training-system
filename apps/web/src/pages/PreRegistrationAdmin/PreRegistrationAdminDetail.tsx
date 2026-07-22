@@ -14,7 +14,7 @@ import {
   Trash2,
   UserCheck,
 } from 'lucide-react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import {
   Card,
@@ -47,6 +47,11 @@ type ApiFailure = {
   message?: string;
 };
 
+type InviteHandoffState = {
+  generatedInviteUrl?: string;
+  inviteCopyState?: Exclude<InviteCopyState, 'idle'>;
+};
+
 function parseError(error: unknown) {
   const value = error as ApiFailure;
   return {
@@ -62,17 +67,29 @@ function parseError(error: unknown) {
 export function PreRegistrationAdminDetail() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const inviteHandoff = (location.state || null) as InviteHandoffState | null;
   const [lead, setLead] = useState<PreRegistrationAdminLeadDetailDTO | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [generatedUrl, setGeneratedUrl] = useState<string | null>(null);
-  const [copyState, setCopyState] = useState<InviteCopyState>('idle');
+  const [generatedUrl, setGeneratedUrl] = useState<string | null>(
+    inviteHandoff?.generatedInviteUrl || null
+  );
+  const [copyState, setCopyState] = useState<InviteCopyState>(
+    inviteHandoff?.inviteCopyState || 'idle'
+  );
   const [controlReason, setControlReason] = useState('');
   const [discardConfirmed, setDiscardConfirmed] = useState(false);
   const [reviewReference, setReviewReference] = useState('');
   const [deduplicationReference, setDeduplicationReference] = useState('');
+
+  useEffect(() => {
+    if (inviteHandoff?.generatedInviteUrl) {
+      navigate(location.pathname, { replace: true, state: null });
+    }
+  }, [inviteHandoff?.generatedInviteUrl, location.pathname, navigate]);
 
   const handleFailure = (failure: unknown) => {
     const parsed = parseError(failure);
@@ -394,7 +411,10 @@ export function PreRegistrationAdminDetail() {
               <ProgressState label="PAR-Q" status={lead.progress.parqModuleStatus} />
               {lead.progress.parqRequiresProfessionalReview && (
                 <div className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm">
-                  <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
+                  <ShieldAlert
+                    className="mt-0.5 h-4 w-4 shrink-0 text-warning"
+                    aria-hidden="true"
+                  />
                   <span>
                     O PAR-Q possui alerta para análise profissional. Esta indicação não bloqueia a revisão comercial.
                   </span>
