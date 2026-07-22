@@ -258,28 +258,37 @@ async function transitionStudentLifecycleStatusInTransaction(
   return tx.aluno.findUniqueOrThrow({ where: { id: alunoId } });
 }
 
-export async function recordStudentInvitationCreated(
+export async function recordStudentInvitationCreatedInTransaction(
+  tx: Prisma.TransactionClient,
   alunoId: string,
   contractId: string,
   input: StudentInvitationTransitionDTO
 ): Promise<Aluno> {
   const invitationId = requiredText(input.invitationId, 'invitationId');
-  return prisma.$transaction(async (tx) => {
-    const aluno = await findAlunoInContractOrThrow(alunoId, contractId, tx);
-    await assertProfessorInContract(input.actor.professorId, contractId, tx);
-    return transitionStudentLifecycleStatusInTransaction(
-      tx,
-      alunoId,
-      contractId,
-      aluno.status as StudentLifecycleStatus,
-      'INVITED',
-      {
-        actor: input.actor,
-        alunoUpdate: { invitedAt: new Date() },
-        metadata: { invitationId },
-      }
-    );
-  });
+  const aluno = await findAlunoInContractOrThrow(alunoId, contractId, tx);
+  await assertProfessorInContract(input.actor.professorId, contractId, tx);
+  return transitionStudentLifecycleStatusInTransaction(
+    tx,
+    alunoId,
+    contractId,
+    aluno.status as StudentLifecycleStatus,
+    'INVITED',
+    {
+      actor: input.actor,
+      alunoUpdate: { invitedAt: new Date() },
+      metadata: { invitationId },
+    }
+  );
+}
+
+export async function recordStudentInvitationCreated(
+  alunoId: string,
+  contractId: string,
+  input: StudentInvitationTransitionDTO
+): Promise<Aluno> {
+  return prisma.$transaction((tx) =>
+    recordStudentInvitationCreatedInTransaction(tx, alunoId, contractId, input)
+  );
 }
 
 export async function recordStudentOnboardingProgress(
