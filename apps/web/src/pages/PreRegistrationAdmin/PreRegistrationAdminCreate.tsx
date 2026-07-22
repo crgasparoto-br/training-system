@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import type { PreRegistrationDuplicateCheckResultDTO } from '@corrida/types';
-import { AlertTriangle, Link2 } from 'lucide-react';
+import { AlertTriangle, ExternalLink, Link2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { canAccessBlock } from '../../access/access-control';
+import { Button } from '../../components/ui/Button';
 import {
   Card,
   CardContent,
@@ -138,7 +139,18 @@ export function PreRegistrationAdminCreate() {
                 <p className="text-muted-foreground">
                   Correspondência: {candidate.matchingFields.join(', ')}
                 </p>
-                {!candidate.accessible && (
+                {candidate.accessible && candidate.alunoId ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-3"
+                    onClick={() => navigate(`/pre-matriculas/${candidate.alunoId}`)}
+                  >
+                    <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                    Abrir cadastro existente
+                  </Button>
+                ) : (
                   <p className="mt-1 text-xs text-muted-foreground">
                     O cadastro existe no contrato, mas não pertence ao seu escopo de consulta.
                   </p>
