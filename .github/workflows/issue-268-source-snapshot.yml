@@ -19,12 +19,19 @@ jobs:
           fetch-depth: 0
 
       - name: Decode and apply audited patch
+        id: patch
         run: |
           base64 --decode .github/issue-268.patch.gz.b64 | gzip -d > /tmp/issue-268.patch
-          git apply --check /tmp/issue-268.patch
-          git apply /tmp/issue-268.patch
+          if git apply --check /tmp/issue-268.patch; then
+            git apply /tmp/issue-268.patch
+            echo "applied=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Audited patch is already applied."
+            echo "applied=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Commit corrections
+        if: steps.patch.outputs.applied == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
