@@ -38,10 +38,11 @@ describe('pre-registration invite security regressions', () => {
 
   it('não persiste token bruto vindo de User-Agent ou motivo de revogação', async () => {
     const { contract, lead } = await createLead();
-    const invite = await preRegistrationInviteService.generateFirstInvite(lead.id, contract.id, {
-      userId: 'admin-user',
-      professorId: 'admin-professor',
-    });
+    const invite = await preRegistrationInviteService.generateFirstInvite(
+      lead.id,
+      contract.id,
+      {}
+    );
 
     await preRegistrationInviteService.openPublicInvite(invite.token, {
       ipAddress: '203.0.113.20',
