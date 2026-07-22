@@ -35,9 +35,9 @@ function sendRateLimitResponse(res: Response, retryAfterSeconds: number) {
 }
 
 export function createPreRegistrationInviteRateLimiter(options: RateLimiterOptions = {}) {
-  const windowMs = options.windowMs ?? DEFAULT_WINDOW_MS;
-  const maxRequests = options.maxRequests ?? DEFAULT_MAX_REQUESTS;
-  const maxTrackedKeys = options.maxTrackedKeys ?? DEFAULT_MAX_TRACKED_KEYS;
+  const windowMs = Math.max(1, options.windowMs ?? DEFAULT_WINDOW_MS);
+  const maxRequests = Math.max(1, options.maxRequests ?? DEFAULT_MAX_REQUESTS);
+  const maxTrackedKeys = Math.max(1, options.maxTrackedKeys ?? DEFAULT_MAX_TRACKED_KEYS);
   const hits = new Map<string, WindowState>();
   let requestsSinceCleanup = 0;
 
