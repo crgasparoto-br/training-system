@@ -26,6 +26,7 @@ const expectSafeGenericPublicError = (res: any, token: string) => {
 
 describe('pre-registration invite public route', () => {
   const app = express();
+  app.set('trust proxy', 1);
   app.use(express.json());
   app.use('/api/v1', preRegistrationInvitePublicRoutes);
 
@@ -82,6 +83,7 @@ describe('pre-registration invite public route', () => {
 
     const res = await request(app)
       .post(`/api/v1/pre-cadastro/${token}`)
+      .set('X-Forwarded-For', '203.0.113.51')
       .send({ ignored: true });
 
     expectSafeGenericPublicError(res, token);
@@ -91,7 +93,9 @@ describe('pre-registration invite public route', () => {
   it('sufixo adicional no caminho não reflete o token nem chega ao 404 global', async () => {
     const token = 'ZyXwVuTsRqPoNmLkJiHgFeDcBa9876543210_-TOKEN';
 
-    const res = await request(app).get(`/api/v1/pre-cadastro/${token}/qualquer-coisa`);
+    const res = await request(app)
+      .get(`/api/v1/pre-cadastro/${token}/qualquer-coisa`)
+      .set('X-Forwarded-For', '203.0.113.52');
 
     expectSafeGenericPublicError(res, token);
     expect(mockOpenPublicInvite).not.toHaveBeenCalled();
@@ -111,5 +115,25 @@ describe('pre-registration invite public route', () => {
     }
 
     expect(lastStatus).toBe(429);
+  });
+
+  it('aplica rate limit também a métodos inválidos tratados pelo fallback seguro', async () => {
+    const token = 'FallbackRateLimitToken0123456789_ABCDEFGHIJKLMNOP';
+    let lastResponse: any;
+
+    for (let i = 0; i < 25; i += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      lastResponse = await request(app)
+        .post(`/api/v1/pre-cadastro/${token}`)
+        .set('X-Forwarded-For', '203.0.113.53')
+        .send({ ignored: true });
+      if (lastResponse.status === 429) break;
+    }
+
+    expect(lastResponse.status).toBe(429);
+    expect(lastResponse.headers['cache-control']).toContain('no-store');
+    expect(lastResponse.headers['referrer-policy']).toBe('no-referrer');
+    expect(JSON.stringify(lastResponse.body)).not.toContain(token);
+    expect(mockOpenPublicInvite).not.toHaveBeenCalled();
   });
 });
