@@ -45,14 +45,14 @@ export function administrativeAuditData(
   actor: PreRegistrationInviteActorDTO | undefined,
   source: string
 ) {
+  const hasAuthenticatedActor = Boolean(actor?.userId || actor?.professorId);
   return {
     actorUserId: actor?.userId,
     actorProfessorId: actor?.professorId,
     actorIsPublic: false,
-    metadata: {
-      source,
-      actorType: actor?.userId || actor?.professorId ? 'authenticated' : 'system',
-    },
+    metadata: hasAuthenticatedActor
+      ? { source, actorType: 'authenticated' }
+      : { source },
   } as const;
 }
 
