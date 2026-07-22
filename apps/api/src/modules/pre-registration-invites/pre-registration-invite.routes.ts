@@ -5,7 +5,6 @@ import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js'
 import { blockAccessMiddleware } from '../access-control/access-control.middleware.js';
 import {
   PreRegistrationInviteError,
-  PreRegistrationInvitePublicAccessError,
   preRegistrationInviteService,
 } from './pre-registration-invite.service.js';
 import { preRegistrationInviteRateLimit } from './pre-registration-invite-rate-limit.middleware.js';
@@ -148,6 +147,10 @@ function noPublicCache(_req: Request, res: Response, next: NextFunction) {
   next();
 }
 
+function sendGenericPublicInviteError(res: Response) {
+  return sendError(res, PRE_REGISTRATION_INVITE_GENERIC_PUBLIC_ERROR, 404);
+}
+
 publicRouter.get(
   '/pre-cadastro/:token',
   noPublicCache,
@@ -159,13 +162,20 @@ publicRouter.get(
         userAgent: req.get('user-agent') || undefined,
       });
       return sendSuccess(res, view);
-    } catch (error) {
-      if (error instanceof PreRegistrationInvitePublicAccessError) {
-        return sendError(res, error.message, 404);
-      }
-      return sendError(res, PRE_REGISTRATION_INVITE_GENERIC_PUBLIC_ERROR, 404);
+    } catch {
+      return sendGenericPublicInviteError(res);
     }
   }
+);
+
+// Qualquer método ou variação de caminho sob /pre-cadastro deve encerrar dentro
+// do domínio público seguro. Isso evita que o 404 global reflita o token por
+// meio de req.path e garante os mesmos headers e rate limit da rota nominal.
+publicRouter.use(
+  '/pre-cadastro',
+  noPublicCache,
+  preRegistrationInviteRateLimit,
+  (_req: Request, res: Response) => sendGenericPublicInviteError(res)
 );
 
 export default adminRouter;
