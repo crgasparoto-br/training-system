@@ -96,7 +96,7 @@ describe('PreRegistrationInviteCard', () => {
       />
     );
 
-    const replaceButton = screen.getByRole('button', { name: /substituir convite/i });
+    const replaceButton = screen.getByRole('button', { name: /gerar novo link/i });
     expect(replaceButton).toBeDisabled();
 
     fireEvent.click(
