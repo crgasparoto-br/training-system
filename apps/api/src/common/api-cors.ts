@@ -5,6 +5,10 @@ interface ApiCorsConfig {
   allowedVercelPreviewProjects: string[];
 }
 
+interface ApiCorsOptionsOverrides {
+  preflightContinue?: boolean;
+}
+
 const CORS_REJECTED_MESSAGE = 'CORS origin not allowed';
 
 function isAllowedVercelPreviewOrigin(origin: string, allowedProjects: Set<string>) {
@@ -21,16 +25,19 @@ function isAllowedVercelPreviewOrigin(origin: string, allowedProjects: Set<strin
   }
 
   return Array.from(allowedProjects).some(
-    (project) => project && hostname.startsWith(`${project}-`)
+    (project) => project.length > 0 && hostname.startsWith(`${project}-`)
   );
 }
 
 /**
  * Cria a política CORS da API sem incorporar a origem recebida em erros.
- * O preflight continua até os handlers de domínio para que namespaces
- * sensíveis possam aplicar headers, rate limit e resposta segura próprios.
+ * Namespaces sensíveis podem optar por continuar o preflight até seus próprios
+ * handlers sem alterar o comportamento padrão das demais rotas.
  */
-export function createApiCorsOptions(config: ApiCorsConfig): CorsOptions {
+export function createApiCorsOptions(
+  config: ApiCorsConfig,
+  overrides: ApiCorsOptionsOverrides = {}
+): CorsOptions {
   const allowedProjects = new Set(config.allowedVercelPreviewProjects);
 
   return {
@@ -47,6 +54,6 @@ export function createApiCorsOptions(config: ApiCorsConfig): CorsOptions {
       callback(new Error(CORS_REJECTED_MESSAGE));
     },
     credentials: true,
-    preflightContinue: true,
+    preflightContinue: overrides.preflightContinue ?? false,
   };
 }
