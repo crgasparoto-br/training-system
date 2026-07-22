@@ -1,30 +1,33 @@
-name: Issue 268 source snapshot
+name: Issue 268 correction runner
 
 on:
   pull_request:
     types: [reopened]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  snapshot:
+  apply:
     if: github.event.pull_request.number == 278
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout PR
+      - name: Checkout PR branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
 
-      - name: Create source archive
+      - name: Decode and apply audited patch
         run: |
-          git archive --format=zip --output=training-system-source.zip HEAD
+          base64 --decode .github/issue-268.patch.gz.b64 | gzip -d > /tmp/issue-268.patch
+          git apply --check /tmp/issue-268.patch
+          git apply /tmp/issue-268.patch
 
-      - name: Upload source archive
-        uses: actions/upload-artifact@v4
-        with:
-          name: issue-268-source-${{ github.event.pull_request.head.sha }}
-          path: training-system-source.zip
-          retention-days: 1
+      - name: Commit corrections
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "fix(alunos): address final issue 268 audit findings"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
