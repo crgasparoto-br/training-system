@@ -135,6 +135,7 @@ export interface CreatePreRegistrationLeadDTO {
   responsibleProfessorId?: string;
   commercialNotes?: string;
   unit?: string;
+  confirmPossibleDuplicate?: boolean;
 }
 
 export interface UpdatePreRegistrationLeadCommercialDTO {
@@ -156,7 +157,7 @@ export interface PreRegistrationDuplicateCandidateDTO {
   createdAt: string;
 }
 
-export interface PreRegistrationDuplicateCheckResultDTO {
+export interface PreRegistrationDuplicateCheckResultDTO extends Record<string, unknown> {
   candidates: PreRegistrationDuplicateCandidateDTO[];
   hasBlockingCpfConflict: boolean;
 }
