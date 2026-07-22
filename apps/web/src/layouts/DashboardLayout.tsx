@@ -12,6 +12,29 @@ import { resolveAssetUrl } from '../utils/assetUrl';
 
 const ACCESS_REFRESH_SIGNAL_KEY = 'auth-permissions-updated-at';
 
+const appMenuItems = sidebarMenuItems.map((item) => {
+  if (item.id !== 'atendimento') return item;
+
+  return {
+    ...item,
+    children: item.children?.map((group) => {
+      if (group.id !== 'atendimento-consultas') return group;
+      return {
+        ...group,
+        children: [
+          ...(group.children ?? []),
+          {
+            id: 'pre-matriculas',
+            label: 'Leads e pré-matrículas',
+            path: '/pre-matriculas',
+            screenKey: 'students.preRegistration',
+          },
+        ],
+      };
+    }),
+  };
+});
+
 export function DashboardLayout() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -71,10 +94,8 @@ export function DashboardLayout() {
     navigate('/login');
   };
 
-
-
   const visibleMenuItems = useMemo(
-    () => filterSidebarItemsByAccess(sidebarMenuItems, user),
+    () => filterSidebarItemsByAccess(appMenuItems, user),
     [user]
   );
 
