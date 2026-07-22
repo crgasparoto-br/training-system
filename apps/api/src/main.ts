@@ -58,9 +58,12 @@ app.use(
 // enviam referrer contendo o token.
 app.use('/api/v1/pre-cadastro', preRegistrationInvitePublicHeaders);
 
-// O preflight continua para os handlers de domínio. Origens rejeitadas geram uma
-// mensagem interna constante, sem incorporar o valor bruto do cabeçalho Origin.
-app.use(cors(createApiCorsOptions(corsConfig)));
+// Somente o namespace público mantém o preflight em fluxo para que OPTIONS
+// também alcance o fallback seguro e o rate limit do domínio.
+app.use(
+  '/api/v1/pre-cadastro',
+  cors(createApiCorsOptions(corsConfig, { preflightContinue: true }))
+);
 
 // O roteador público deve interceptar qualquer método ou variação tokenizada
 // antes dos parsers globais. Assim, até payload inválido ou excessivo recebe a
@@ -70,6 +73,10 @@ app.use('/api/v1', preRegistrationInvitePublicRoutes);
 // Captura falhas ocorridas antes ou dentro do roteador público, incluindo CORS,
 // sem registrar nem devolver detalhes que possam carregar o token.
 app.use('/api/v1/pre-cadastro', preRegistrationInvitePublicErrorHandler);
+
+// As demais rotas preservam o comportamento CORS anterior, inclusive o retorno
+// automático de preflight, mas sem incorporar a origem rejeitada na mensagem.
+app.use(cors(createApiCorsOptions(corsConfig)));
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
