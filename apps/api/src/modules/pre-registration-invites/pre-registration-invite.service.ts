@@ -455,8 +455,6 @@ export const preRegistrationInviteService = {
 
       return {
         kind: 'ok' as const,
-        alunoId: candidate.alunoId,
-        contractId: candidate.contractId,
         purpose: candidate.purpose,
         expiresAt: candidate.expiresAt,
       };
@@ -466,9 +464,9 @@ export const preRegistrationInviteService = {
       throw new PreRegistrationInvitePublicAccessError();
     }
 
+    // NUNCA incluir alunoId/contractId (ou qualquer outro identificador
+    // interno) na resposta pública - critério de aceite da issue #269.
     return {
-      alunoId: invite.alunoId,
-      contractId: invite.contractId,
       purpose: invite.purpose,
       expiresAt: invite.expiresAt.toISOString(),
     };

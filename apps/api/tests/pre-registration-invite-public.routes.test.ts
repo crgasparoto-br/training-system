@@ -23,10 +23,8 @@ describe('pre-registration invite public route', () => {
 
   beforeEach(() => jest.clearAllMocks());
 
-  it('retorna dados mínimos e cabeçalhos anti-abuso em caso de sucesso', async () => {
+  it('retorna somente o mínimo necessário, sem IDs internos, e cabeçalhos anti-abuso em caso de sucesso', async () => {
     mockOpenPublicInvite.mockResolvedValue({
-      alunoId: 'aluno-1',
-      contractId: 'contract-1',
       purpose: 'PRE_REGISTRATION',
       expiresAt: '2026-08-21T00:00:00.000Z',
     });
@@ -34,16 +32,18 @@ describe('pre-registration invite public route', () => {
     const res = await request(app).get('/api/v1/pre-cadastro/some-token');
 
     expect(res.status).toBe(200);
+    // Critério de aceite da issue #269: a resposta pública não deve conter
+    // IDs internos, histórico comercial, contratos ou dados clínicos - apenas
+    // o mínimo estritamente necessário para a tela pública.
     expect(res.body.data).toEqual({
-      alunoId: 'aluno-1',
-      contractId: 'contract-1',
       purpose: 'PRE_REGISTRATION',
       expiresAt: '2026-08-21T00:00:00.000Z',
     });
     expect(res.headers['cache-control']).toContain('no-store');
     expect(res.headers['referrer-policy']).toBe('no-referrer');
-    // Não deve haver ID interno de contrato/aluno adicional além do necessário,
-    // nem dados clínicos/comerciais na resposta.
+    expect(res.body.data).not.toHaveProperty('alunoId');
+    expect(res.body.data).not.toHaveProperty('contractId');
+    expect(res.body.data).not.toHaveProperty('id');
     expect(res.body.data).not.toHaveProperty('cpf');
     expect(res.body.data).not.toHaveProperty('email');
   });

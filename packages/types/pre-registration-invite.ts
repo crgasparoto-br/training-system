@@ -83,10 +83,15 @@ export interface PreRegistrationInviteCreationResultDTO {
   url: string;
 }
 
-/** Resposta publica da abertura do convite - somente o minimo necessario. */
+/**
+ * Resposta publica da abertura do convite - somente o minimo necessario.
+ *
+ * NUNCA inclui alunoId, contractId ou qualquer outro identificador interno,
+ * dado clinico, historico comercial, contrato ou observacao administrativa
+ * (criterio de aceite da issue #269: "nao retornar dados clinicos, IDs
+ * internos, historico comercial, contratos ou observacoes administrativas").
+ */
 export interface PreRegistrationInvitePublicViewDTO {
-  alunoId: string;
-  contractId: string;
   purpose: PreRegistrationInvitePurpose;
   expiresAt: string;
 }

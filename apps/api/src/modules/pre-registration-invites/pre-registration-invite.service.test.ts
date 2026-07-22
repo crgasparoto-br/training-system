@@ -1,42 +1,19 @@
 import crypto from 'crypto';
 import { PrismaClient } from '@prisma/client';
+import { hashInviteToken } from './pre-registration-invite-token.js';
 import {
-  hashInviteToken,
-  generateInviteToken,
-  timingSafeEqualHash,
-} from './pre-registration-invite-token.js';
-import {
-  PreRegistrationInviteError,
   PreRegistrationInvitePublicAccessError,
   preRegistrationInviteService,
 } from './pre-registration-invite.service.js';
 import { createPreRegistrationInviteRateLimiter } from './pre-registration-invite-rate-limit.middleware.js';
 import { createStudentLead } from '../alunos/student-lifecycle.service.js';
 
+// Testes unitários de geração/hash/comparação de token (funções puras, sem
+// dependência de banco) vivem em pre-registration-invite-token.test.ts. Este
+// arquivo cobre apenas o comportamento do serviço com Postgres real.
+
 const prisma = new PrismaClient();
 const unique = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-
-describe('pre-registration-invite token', () => {
-  it('gera token URL-safe e persiste apenas o hash (nunca o token bruto)', () => {
-    const token = generateInviteToken();
-    expect(token).toMatch(/^[A-Za-z0-9_-]+$/);
-    const hash = hashInviteToken(token);
-    expect(hash).not.toBe(token);
-    expect(hash).toMatch(/^[a-f0-9]{64}$/);
-  });
-
-  it('token com um caractere alterado produz hash diferente', () => {
-    const token = generateInviteToken();
-    const altered = token[0] === 'a' ? `b${token.slice(1)}` : `a${token.slice(1)}`;
-    expect(hashInviteToken(altered)).not.toBe(hashInviteToken(token));
-  });
-
-  it('compara hashes em tempo constante e rejeita tamanhos diferentes', () => {
-    const a = hashInviteToken('token-a');
-    expect(timingSafeEqualHash(a, a)).toBe(true);
-    expect(timingSafeEqualHash(a, 'ab')).toBe(false);
-  });
-});
 
 describe('pre-registration-invite service', () => {
   const createdContractIds: string[] = [];
@@ -127,9 +104,11 @@ describe('pre-registration-invite service', () => {
       PreRegistrationInvitePublicAccessError
     );
 
-    // Novo link funciona.
+    // Novo link funciona e não vaza IDs internos na resposta pública.
     const view = await preRegistrationInviteService.openPublicInvite(second.token);
-    expect(view.alunoId).toBe(lead.id);
+    expect(view.purpose).toBe('PRE_REGISTRATION');
+    expect(view).not.toHaveProperty('alunoId');
+    expect(view).not.toHaveProperty('contractId');
   });
 
   it('duas regenerações concorrentes não produzem dois convites ativos', async () => {
@@ -229,9 +208,12 @@ describe('pre-registration-invite service', () => {
     expect(activeInvitesForLead).toHaveLength(1);
     expect(activeInvitesForLead[0].id).toBe(first.summary.id);
 
-    // O link original continua funcionando normalmente após a falha.
+    // O link original continua funcionando normalmente após a falha, sem
+    // vazar IDs internos na resposta pública.
     const view = await preRegistrationInviteService.openPublicInvite(first.token);
-    expect(view.alunoId).toBe(lead.id);
+    expect(view.purpose).toBe('PRE_REGISTRATION');
+    expect(view).not.toHaveProperty('alunoId');
+    expect(view).not.toHaveProperty('contractId');
   });
 
   it('revogação exige motivo, é imediata e idempotente', async () => {

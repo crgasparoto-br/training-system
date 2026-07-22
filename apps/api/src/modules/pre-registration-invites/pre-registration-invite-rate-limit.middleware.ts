@@ -3,7 +3,15 @@ import type { NextFunction, Request, Response } from 'express';
 // Rate limit dedicado para a resolução pública de token de pré-cadastro
 // (issue #269). Implementação em memória, por processo: suficiente para o
 // requisito funcional de limitar tentativas de enumeração/força bruta em um
-// único endpoint público de baixo tráfego; caso o serviço passe a rodar em
+// único endpoint público de baixo tráfego.
+//
+// LIMITAÇÃO CONHECIDA: este contador é por processo. Em uma implantação com
+// múltiplas réplicas da API, cada réplica aplica seu próprio limite,
+// multiplicando o limite efetivo pelo número de réplicas. O repositório não
+// possui hoje um cliente Redis integrado e em uso em nenhum outro módulo
+// (há apenas o serviço `redis` no docker-compose e a dependência `redis` no
+// package.json, sem uso real no código) - introduzir essa integração do
+// zero está fora do escopo desta issue. Quando o serviço passar a rodar em
 // múltiplas réplicas, este contador deve migrar para um armazenamento
 // compartilhado (ex.: Redis) sem mudar o contrato do middleware.
 

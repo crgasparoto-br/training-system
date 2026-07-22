@@ -58,15 +58,24 @@ Rota pública própria: `GET /api/v1/pre-cadastro/:token` (sem autenticação).
   erro genérico HTTP 404 (`PRE_REGISTRATION_INVITE_GENERIC_PUBLIC_ERROR`).
 - Cabeçalhos aplicados em toda resposta da rota pública:
   `Cache-Control: no-store, private` e `Referrer-Policy: no-referrer`.
-- Rate limit dedicado por IP (`preRegistrationInviteRateLimit`), em memória
-  por processo; documentado no próprio middleware como candidato a migrar
-  para um armazenamento compartilhado caso a API rode em múltiplas réplicas.
+- Rate limit dedicado por IP (`preRegistrationInviteRateLimit`), **em memória
+  por processo**. Limitação conhecida: em uma implantação com múltiplas
+  réplicas da API, cada réplica mantém sua própria contagem, então o limite
+  efetivo se multiplica pelo número de réplicas. O projeto não possui hoje
+  um cliente Redis integrado e em uso (existe apenas o serviço `redis` no
+  `docker-compose.yml` e a dependência `redis` no `package.json`, sem
+  nenhuma integração real no código-fonte); introduzir essa integração do
+  zero está fora do escopo da issue #269. Fica registrado como limitação
+  conhecida a ser resolvida quando houver necessidade real de múltiplas
+  réplicas (migrar para um contador compartilhado, ex.: Redis).
 - Primeiro acesso é registrado uma única vez (`firstAccessedAt` +
   evento `FIRST_ACCESSED`); acessos subsequentes atualizam `lastAccessAt`
   mas só geram novo evento de auditoria fora de uma janela de throttle de 5
   minutos, para não gerar spam de auditoria.
-- A resposta pública contém apenas `alunoId`, `contractId`, `purpose` e
-  `expiresAt` - nunca dados clínicos, comerciais ou o hash do token.
+- A resposta pública contém **apenas** `purpose` e `expiresAt` - nunca
+  `alunoId`, `contractId` ou qualquer outro identificador interno, dado
+  clínico, histórico comercial, contrato, observação administrativa ou o
+  hash do token.
 
 ## Operações administrativas
 
@@ -91,8 +100,10 @@ recurso inexistente, sem vazar existência em outro tenant):
 - `GET /api/v1/alunos/:alunoId/pre-registration-invites/allowed-actions` -
   ações atualmente permitidas (`canGenerateFirst`/`canRegenerate`/`canRevoke`).
 
-As três operações de mutação exigem o bloco de acesso
-`students.actions.manageEnrollmentInvite` (`packages/types/access-control.ts`).
+Todas as seis rotas administrativas acima (as três mutações e as três
+consultas) exigem o bloco de acesso `students.actions.manageEnrollmentInvite`
+(`packages/types/access-control.ts`), por consistência - autenticação de
+professor do tenant sozinha não é suficiente para nenhuma rota do módulo.
 
 ## Auditoria
 

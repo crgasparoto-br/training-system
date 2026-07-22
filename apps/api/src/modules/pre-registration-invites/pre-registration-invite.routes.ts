@@ -57,9 +57,9 @@ function withDomainErrorHandling(
   };
 }
 
-// Toda mutação administrativa exige professor autenticado do tenant e o
-// bloco de acesso dedicado; as consultas (GET) exigem apenas professor
-// autenticado do tenant, sem o bloco de ação.
+// Toda rota administrativa (mutação e consulta) exige professor autenticado
+// do tenant e a permissão dedicada, por consistência com as demais rotas
+// administrativas do módulo.
 const requireProfessor = [authMiddleware, professorMiddleware];
 const requireInviteManagementAccess = [
   ...requireProfessor,
@@ -113,7 +113,7 @@ adminRouter.post(
 
 adminRouter.get(
   '/:alunoId/pre-registration-invites/summary',
-  ...requireProfessor,
+  ...requireInviteManagementAccess,
   withDomainErrorHandling(async (req, res) => {
     const summary = await preRegistrationInviteService.getSummary(req.params.alunoId, contractIdOf(req));
     return sendSuccess(res, summary);
@@ -122,7 +122,7 @@ adminRouter.get(
 
 adminRouter.get(
   '/:alunoId/pre-registration-invites/history',
-  ...requireProfessor,
+  ...requireInviteManagementAccess,
   withDomainErrorHandling(async (req, res) => {
     const history = await preRegistrationInviteService.getHistory(req.params.alunoId, contractIdOf(req));
     return sendSuccess(res, history);
@@ -131,7 +131,7 @@ adminRouter.get(
 
 adminRouter.get(
   '/:alunoId/pre-registration-invites/allowed-actions',
-  ...requireProfessor,
+  ...requireInviteManagementAccess,
   withDomainErrorHandling(async (req, res) => {
     const actions = await preRegistrationInviteService.getAllowedActions(req.params.alunoId, contractIdOf(req));
     return sendSuccess(res, actions);
