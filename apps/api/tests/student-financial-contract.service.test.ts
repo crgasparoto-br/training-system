@@ -100,6 +100,7 @@ describe('student financial contract service', () => {
     tx.aluno.findUniqueOrThrow
       .mockResolvedValueOnce({
         id: 'student-1',
+        contractId: 'company-1',
         userId: 'user-1',
         professorId: 'professor-1',
         serviceId: 'interest-service',
@@ -115,6 +116,7 @@ describe('student financial contract service', () => {
         },
       })
       .mockResolvedValueOnce({
+        contractId: 'company-1',
         serviceId: 'interest-service',
         professor: { contractId: 'company-1' },
       })
@@ -241,6 +243,7 @@ describe('student financial contract service', () => {
     tx.aluno.findUniqueOrThrow
       .mockResolvedValueOnce({
         id: 'student-1',
+        contractId: 'company-1',
         userId: 'user-1',
         professorId: 'professor-1',
         serviceId: 'foreign-service',
@@ -249,6 +252,7 @@ describe('student financial contract service', () => {
         intakeForm: null,
       })
       .mockResolvedValueOnce({
+        contractId: 'company-1',
         serviceId: 'foreign-service',
         professor: { contractId: 'company-1' },
       });
@@ -279,6 +283,7 @@ describe('student financial contract service', () => {
   it('rejects the whole transaction when the selected contract cannot be resolved', async () => {
     tx.aluno.findUniqueOrThrow.mockResolvedValue({
       id: 'student-1',
+      contractId: 'company-1',
       userId: 'user-1',
       professorId: 'professor-1',
       serviceId: 'interest-service',
@@ -306,6 +311,7 @@ describe('student financial contract service', () => {
   it('rejects an aluno owned by another company contract before writing the profile', async () => {
     tx.aluno.findUniqueOrThrow.mockResolvedValue({
       id: 'student-other-company',
+      contractId: 'company-other',
       userId: 'user-other-company',
       professorId: 'professor-other-company',
       serviceId: null,
@@ -331,6 +337,7 @@ describe('student financial contract service', () => {
   it('rejects a generated contract from another company contract', async () => {
     tx.aluno.findUniqueOrThrow.mockResolvedValue({
       id: 'student-1',
+      contractId: 'company-1',
       userId: 'user-1',
       professorId: 'professor-1',
       serviceId: null,

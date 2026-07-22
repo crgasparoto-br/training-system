@@ -54,6 +54,7 @@ describe('student contract authority and lifecycle', () => {
       status: 'GENERATED',
     });
     db.aluno.findUnique.mockResolvedValue({
+      contractId: 'company-1',
       serviceId: 'interest-service',
       professor: { contractId: 'company-1' },
     });
@@ -104,6 +105,7 @@ describe('student contract authority and lifecycle', () => {
       status: 'GENERATED',
     });
     db.aluno.findUnique.mockResolvedValue({
+      contractId: 'company-1',
       serviceId: 'interest-service',
       professor: { contractId: 'company-1' },
     });
