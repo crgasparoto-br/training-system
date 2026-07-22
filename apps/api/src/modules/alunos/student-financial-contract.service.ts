@@ -366,7 +366,6 @@ const updateAlunoRecord = async (
   const currentAluno = await tx.aluno.findUniqueOrThrow({
     where: { id: alunoId },
     include: {
-      professor: { select: { contractId: true } },
       currentStudentContract: {
         select: { contract: { select: { companyContractId: true } } },
       },
@@ -374,12 +373,8 @@ const updateAlunoRecord = async (
     },
   });
 
-  // Issue #268: contractId agora vive diretamente em Aluno; preferi-lo
-  // evita depender de professor estar vinculado (registro pré-ativação).
-  const scopedContractId =
-    currentAluno.contractId ||
-    currentAluno.currentStudentContract?.contract.companyContractId ||
-    currentAluno.professor?.contractId;
+  // Issue #268: Aluno.contractId é a barreira tenant-scoped canônica.
+  const scopedContractId = currentAluno.contractId;
   if (scopedContractId !== options.companyContractId) {
     throw new Error('Aluno não pertence ao contrato autenticado');
   }
@@ -741,12 +736,11 @@ const loadAuthoritativeStudentContractServiceId = async (
     select: {
       serviceId: true,
       contractId: true,
-      professor: { select: { contractId: true } },
     },
   });
   // Issue #268: contractId direto em Aluno evita depender de professor
   // estar vinculado.
-  if ((aluno.professor?.contractId ?? aluno.contractId) !== companyContractId) {
+  if (aluno.contractId !== companyContractId) {
     throw new Error('Aluno não pertence ao contrato autenticado');
   }
 

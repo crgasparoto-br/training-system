@@ -6,7 +6,7 @@ readonly TARGET_MIGRATION="20260721120000_student_lifecycle_domain"
 readonly ROOT_DIR="${GITHUB_WORKSPACE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 
 psql_admin() {
-  docker run --rm --network host \
+  docker run --rm -i --network host \
     -v "$ROOT_DIR:/workspace" \
     -e PGPASSWORD="${PGPASSWORD:-postgres}" \
     postgres:16-alpine \

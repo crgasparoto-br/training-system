@@ -256,7 +256,7 @@ const run = async () => {
       continue;
     }
 
-    const alunoContractId = aluno.professor?.contractId ?? aluno.contractId;
+    const alunoContractId = aluno.contractId;
     const generatedContracts = aluno.contracts.filter(
       (contract) =>
         contract.companyContractId === alunoContractId &&

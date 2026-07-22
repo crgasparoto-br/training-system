@@ -99,12 +99,11 @@ async function resolveAuthoritativeFinancialServiceId(
     select: {
       serviceId: true,
       contractId: true,
-      professor: { select: { contractId: true } },
     },
   });
 
   // Issue #268: contractId direto em Aluno é a fonte tenant-scoped correta.
-  if (!aluno || (aluno.professor?.contractId ?? aluno.contractId) !== companyContractId) {
+  if (!aluno || aluno.contractId !== companyContractId) {
     throw new Error('Aluno não pertence ao contrato autenticado');
   }
 

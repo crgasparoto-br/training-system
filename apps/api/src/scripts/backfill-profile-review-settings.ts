@@ -177,7 +177,7 @@ const run = async () => {
   const settingsToCreate = alunosWithoutSettings
     .filter((aluno) => aluno.user)
     .map((aluno) => {
-    const contractId = aluno.professor?.contractId ?? aluno.contractId;
+    const contractId = aluno.contractId;
     const effectivePeriod = effectivePeriodByContract.get(contractId) ?? defaultReviewPeriodMonths;
 
     const baselineDate =

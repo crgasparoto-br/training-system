@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+﻿import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { sendError, sendSuccess } from '@corrida/utils';
 import { PrismaClient } from '@prisma/client';
@@ -649,7 +649,7 @@ router.get('/me/assessment-plan', async (req: Request, res: Response) => {
     const userId = (req as any).user.userId as string;
     const aluno = await requireAlunoByUserId(req, userId);
 
-    const contractId = aluno.professor?.contractId ?? aluno.contractId;
+    const contractId = aluno.contractId;
     const plan = await alunoAssessmentPlanService.getByAluno(aluno.id, contractId);
 
     return sendSuccess(res, plan);
@@ -707,7 +707,7 @@ router.get('/me/summary', async (req: Request, res: Response) => {
     const aluno = await requireAlunoByUserId(req, userId);
     const contractSummary = await getStudentContractSummary(aluno.id);
 
-    const contractId = aluno.professor?.contractId ?? aluno.contractId;
+    const contractId = aluno.contractId;
 
     const [pendingReview, assessmentPlan, lastWorkout, notifications] = await Promise.all([
       prisma.studentProfileReview.findFirst({
