@@ -225,17 +225,23 @@ export const preRegistrationInviteAdminService = {
   async getSummary(
     alunoId: string,
     contractId: string,
-    actor?: PreRegistrationInviteActorDTO
+    actor?: PreRegistrationInviteActorDTO,
+    now: Date = new Date()
   ): Promise<PreRegistrationInviteSummaryDTO | null> {
     return preRegistrationInvitePrisma.$transaction(async (tx) => {
       await findAlunoInContractOrThrow(alunoId, contractId, tx);
-      await expireActiveInviteIfNeeded(alunoId, contractId, tx, new Date(), actor);
-      const invite = await tx.preRegistrationInvite.findFirst({
-        where: { alunoId, contractId, purpose: 'PRE_REGISTRATION' },
-        orderBy: { createdAt: 'desc' },
-      });
+      await expireActiveInviteIfNeeded(alunoId, contractId, tx, now, actor);
+
+      const [invite, allowedActions] = await Promise.all([
+        tx.preRegistrationInvite.findFirst({
+          where: { alunoId, contractId, purpose: 'PRE_REGISTRATION' },
+          orderBy: { createdAt: 'desc' },
+        }),
+        computeAllowedActions(alunoId, contractId, tx, now, actor),
+      ]);
+
       if (!invite) return null;
-      return toSummary(invite, tx, { actor });
+      return toSummary(invite, tx, { allowedActions, actor });
     });
   },
 
