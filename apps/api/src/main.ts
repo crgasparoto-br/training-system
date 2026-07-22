@@ -21,9 +21,16 @@ import { legacyCollaboratorContractMiddleware } from './modules/professores/lega
 import { serviceRoutes } from './modules/services/index.js';
 import { startProfileReviewScheduler } from './modules/alunos/profile-review.scheduler.js';
 import studentContractLifecycleRoutes from './modules/student-contracts/student-contract-lifecycle.routes.js';
+import {
+  preRegistrationInviteAdminRoutes,
+  preRegistrationInvitePublicErrorHandler,
+  preRegistrationInvitePublicHeaders,
+  preRegistrationInvitePublicRoutes,
+} from './modules/pre-registration-invites/index.js';
 import { startStudentContractLifecycleScheduler } from './modules/student-contracts/student-contract-lifecycle.scheduler.js';
 import studentRoutes from './routes/student.routes.js';
 import { getUploadStorageRoot } from './common/asset-storage.js';
+import { createApiCorsOptions } from './common/api-cors.js';
 import { getJwtSecret, resolveCorsConfig } from './common/runtime-config.js';
 
 const app: express.Express = express();
@@ -35,26 +42,6 @@ getJwtSecret(process.env);
 app.set('trust proxy', 1);
 
 const corsConfig = resolveCorsConfig(process.env);
-const allowedOrigins = corsConfig.allowedOrigins;
-const allowedVercelPreviewProjects = new Set(corsConfig.allowedVercelPreviewProjects);
-
-function isAllowedVercelPreviewOrigin(origin: string) {
-  let hostname: string;
-
-  try {
-    hostname = new URL(origin).hostname;
-  } catch {
-    return false;
-  }
-
-  if (!hostname.endsWith('.vercel.app')) {
-    return false;
-  }
-
-  return Array.from(allowedVercelPreviewProjects).some((project) =>
-    project && hostname.startsWith(`${project}-`)
-  );
-}
 
 // ============================================================================
 // MIDDLEWARE
@@ -66,24 +53,30 @@ app.use(
   })
 );
 
+// O namespace público recebe os headers de proteção antes de qualquer middleware
+// que possa falhar. Assim, inclusive rejeições de CORS permanecem no-store e não
+// enviam referrer contendo o token.
+app.use('/api/v1/pre-cadastro', preRegistrationInvitePublicHeaders);
+
+// Somente o namespace público mantém o preflight em fluxo para que OPTIONS
+// também alcance o fallback seguro e o rate limit do domínio.
 app.use(
-  cors({
-    origin: (origin, callback) => {
-      if (!origin) {
-        callback(null, true);
-        return;
-      }
-
-      if (allowedOrigins.includes(origin) || isAllowedVercelPreviewOrigin(origin)) {
-        callback(null, true);
-        return;
-      }
-
-      callback(new Error(`CORS blocked for origin: ${origin}`));
-    },
-    credentials: true,
-  })
+  '/api/v1/pre-cadastro',
+  cors(createApiCorsOptions(corsConfig, { preflightContinue: true }))
 );
+
+// O roteador público deve interceptar qualquer método ou variação tokenizada
+// antes dos parsers globais. Assim, até payload inválido ou excessivo recebe a
+// resposta genérica e o rate limit do domínio.
+app.use('/api/v1', preRegistrationInvitePublicRoutes);
+
+// Captura falhas ocorridas antes ou dentro do roteador público, incluindo CORS,
+// sem registrar nem devolver detalhes que possam carregar o token.
+app.use('/api/v1/pre-cadastro', preRegistrationInvitePublicErrorHandler);
+
+// As demais rotas preservam o comportamento CORS anterior, inclusive o retorno
+// automático de preflight, mas sem incorporar a origem rejeitada na mensagem.
+app.use(cors(createApiCorsOptions(corsConfig)));
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
@@ -132,6 +125,8 @@ app.get('/api/v1', (_req, res) => {
       professores: '/api/v1/professores',
       services: '/api/v1/services',
       student: '/api/v1/student',
+      preRegistrationInvites: '/api/v1/alunos/:alunoId/pre-registration-invites',
+      preRegistrationInvitePublic: '/api/v1/pre-cadastro/:token',
     },
   });
 });
@@ -143,6 +138,7 @@ app.use('/api/v1/assessment-types', assessmentTypeRoutes);
 app.use('/api/v1/alunos', alunoAvatarUploadRoutes);
 // Safe activation must intercept the legacy student route.
 app.use('/api/v1/alunos', studentContractLifecycleRoutes);
+app.use('/api/v1/alunos', preRegistrationInviteAdminRoutes);
 app.use('/api/v1/alunos', alunoRoutes);
 
 app.use('/api/v1/anthropometry', anthropometryRoutes);
@@ -169,12 +165,9 @@ app.use('/api/v1/student', studentRoutes);
 // ERROR HANDLING
 // ============================================================================
 
-app.use((req, res) => {
-  res.status(404).json({
-    error: 'Route not found',
-    path: req.path,
-    method: req.method,
-  });
+// Não ecoar a URL recebida: caminhos podem conter tokens ou outras credenciais.
+app.use((_req, res) => {
+  res.status(404).json({ error: 'Route not found' });
 });
 
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

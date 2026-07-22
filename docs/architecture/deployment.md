@@ -19,6 +19,7 @@ Este documento registra as regras minimas para publicar o Sistema Acesso.
 - `FRONTEND_URL`
 - `CORS_ORIGINS`: obrigatoria em producao e deve listar somente origins produtivas explicitamente permitidas. Origins locais nao sao incluidas por padrao em `NODE_ENV=production`.
 - `JWT_SECRET`: obrigatoria em producao. Nao use placeholders como `dev-secret` ou `your-super-secret-jwt-key-change-in-production`.
+- `PRE_REGISTRATION_INVITE_TTL_DAYS`: validade dos convites publicos de pre-cadastro em dias. Usa `30` quando ausente ou invalida; configure o mesmo valor em todas as replicas da API.
 - `UPLOAD_STORAGE_ROOT`: caminho absoluto no host da API para armazenamento persistente de uploads locais. Em Render, deve apontar para o mount path do Persistent Disk quando o provider de assets for `local`.
 - `ASSET_BASE_URL`: URL publica preferencial para servir assets gravados no storage local/persistente.
 - `API_PUBLIC_URL`: URL publica da API usada como fallback para montar URLs de uploads locais quando `ASSET_BASE_URL` nao estiver configurada.

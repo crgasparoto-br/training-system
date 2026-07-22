@@ -211,6 +211,11 @@ export const ACCESS_BLOCK_CATALOG = [
     label: 'Acao: Gerenciar plano de avaliacoes',
   },
   {
+    key: 'students.actions.manageEnrollmentInvite',
+    screenKey: 'students.details',
+    label: 'Acao: Gerenciar convite de pre-cadastro',
+  },
+  {
     key: 'collaborators.registration.collaborator',
     screenKey: 'collaborators.registration',
     label: 'Aba Colaborador',
@@ -460,6 +465,7 @@ export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
       'students.actions.manageFinancialContract',
       'students.actions.manageProfileReviews',
       'students.actions.manageAssessmentPlan',
+      'students.actions.manageEnrollmentInvite',
       'collaborators.registration.collaborator',
       'collaborators.registration.manager',
       'collaborators.actions.validateLegalFinancial',
@@ -511,6 +517,7 @@ export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
       'students.details.profileReviews',
       'students.actions.manageFinancialContract',
       'students.actions.manageProfileReviews',
+      'students.actions.manageEnrollmentInvite',
     ],
     dataScopes: {
       'collaborators.registration': 'self',

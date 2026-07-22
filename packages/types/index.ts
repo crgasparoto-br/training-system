@@ -11,3 +11,4 @@ export * from './capacity-prescription.js';
 export * from './consolidated-prescription.js';
 export * from './post-workout-feedback.js';
 export * from './student-lifecycle.js';
+export * from './pre-registration-invite.js';

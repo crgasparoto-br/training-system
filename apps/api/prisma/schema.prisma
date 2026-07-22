@@ -133,6 +133,7 @@ model CompanyContract {
   alunos                        Aluno[]                        @relation("AlunoContract")
   studentOnboardingProcesses    StudentOnboardingProcess[]
   studentLifecycleEvents        StudentLifecycleEvent[]
+  preRegistrationInvites        PreRegistrationInvite[]
 
   @@index([type])
   @@map("Contract")
@@ -467,6 +468,7 @@ model Aluno {
   prontuarioDiscomfortSnapshots ProntuarioDiscomfortSnapshot[]
   onboarding                    StudentOnboardingProcess?
   lifecycleEvents               StudentLifecycleEvent[]
+  preRegistrationInvites        PreRegistrationInvite[]
 
   @@unique([contractId, userId])
   @@unique([contractId, leadCpfNormalized])
@@ -2293,4 +2295,92 @@ enum StudentContractStatus {
   expired
   canceled
   terminated
+}
+
+// --- Convites de pre-cadastro (issue #269 / epico #267) ---
+// Dominio proprio: NAO reutiliza token, hash, endpoint, status ou tabela de
+// contrato. Serve apenas para entrada inicial de uma pessoa canonica (Aluno)
+// em um tenant (CompanyContract); dados pessoais/de saude nao dependem
+// somente da posse do token apos a validacao de identidade.
+enum PreRegistrationInvitePurpose {
+  PRE_REGISTRATION
+}
+
+enum PreRegistrationInviteStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+  SUPERSEDED
+  // Reservado pelo modelo do convite (issue #269 pede "data de conclusao").
+  // Nenhum caminho de codigo desta issue produz este estado: preencher
+  // dados pessoais/de saude e a conversao em aluno ativo sao explicitamente
+  // fora de escopo aqui. Sera setado pela subissue que implementar a
+  // conclusao real do pre-cadastro.
+  COMPLETED
+}
+
+enum PreRegistrationInviteEventType {
+  CREATED
+  SUPERSEDED
+  REVOKED
+  FIRST_ACCESSED
+  ACCESSED
+  EXPIRED_ON_READ
+  // Ver nota em PreRegistrationInviteStatus.COMPLETED: reservado para a
+  // subissue que implementar a conclusao real do pre-cadastro.
+  COMPLETED
+}
+
+model PreRegistrationInvite {
+  id                   String                       @id @default(cuid())
+  alunoId              String
+  contractId           String
+  purpose              PreRegistrationInvitePurpose @default(PRE_REGISTRATION)
+  tokenHash            String                       @unique
+  status               PreRegistrationInviteStatus  @default(ACTIVE)
+  createdAt            DateTime                     @default(now())
+  expiresAt            DateTime
+  createdByProfessorId String?
+  createdByUserId      String?
+  firstAccessedAt      DateTime?
+  lastAccessAt         DateTime?
+  completedAt          DateTime?
+  revokedAt            DateTime?
+  revokedByProfessorId String?
+  revocationReason     String?
+  supersededAt         DateTime?
+  // Convite anterior que este substitui (regeneracao). A referencia inversa
+  // (qual convite substituiu este) e obtida por meio dessa relacao.
+  replacesInviteId     String?                      @unique
+  replacesInvite       PreRegistrationInvite?       @relation("PreRegistrationInviteReplacement", fields: [replacesInviteId], references: [id], onDelete: SetNull)
+  replacedByInvite     PreRegistrationInvite?       @relation("PreRegistrationInviteReplacement")
+  aluno                Aluno                        @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  contract             CompanyContract              @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  events               PreRegistrationInviteEvent[]
+
+  // Aplicacao efetiva de "no maximo um convite utilizavel por pessoa e
+  // finalidade" e feita por indice unico parcial (WHERE status = 'ACTIVE'),
+  // criado via SQL na migration (Prisma nao suporta indice parcial na DSL).
+  @@index([alunoId, purpose, status])
+  @@index([contractId, status])
+  @@index([expiresAt])
+}
+
+// Trilha de auditoria dos convites de pre-cadastro. Eventos administrativos
+// carregam ator autenticado; eventos publicos usam ator sistema/publico e
+// nunca armazenam token bruto ou conteudo de formularios.
+model PreRegistrationInviteEvent {
+  id               String                         @id @default(cuid())
+  inviteId         String
+  eventType        PreRegistrationInviteEventType
+  actorUserId      String?
+  actorProfessorId String?
+  actorIsPublic    Boolean                        @default(false)
+  ipAddress        String?
+  userAgent        String?
+  metadata         Json?
+  createdAt        DateTime                       @default(now())
+  invite           PreRegistrationInvite          @relation(fields: [inviteId], references: [id], onDelete: Cascade)
+
+  @@index([inviteId, createdAt])
 }
