@@ -1,4 +1,9 @@
-export { preRegistrationInviteAdminRoutes, preRegistrationInvitePublicRoutes } from './pre-registration-invite.routes.js';
+export {
+  preRegistrationInviteAdminRoutes,
+  preRegistrationInvitePublicErrorHandler,
+  preRegistrationInvitePublicHeaders,
+  preRegistrationInvitePublicRoutes,
+} from './pre-registration-invite.routes.js';
 export {
   preRegistrationInviteService,
   PreRegistrationInviteError,
