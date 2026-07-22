@@ -60,6 +60,9 @@ jobs:
       - name: Apply test database migrations
         run: pnpm --filter @corrida/api exec prisma migrate deploy
 
+      - name: Verify lifecycle legacy backfill
+        run: bash scripts/verify-student-lifecycle-legacy-backfill.sh
+
       - name: Verify lifecycle migration rerun
         run: |
           docker run --rm --network host \
