@@ -1,0 +1,54 @@
+name: Visual Audit Issue 270
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - 'apps/web/src/pages/PreRegistrationAdmin/**'
+      - 'apps/web/src/services/pre-registration-admin.service.ts'
+      - 'packages/types/pre-registration-admin.ts'
+      - 'apps/api/scripts/visual-audit-issue-270.mjs'
+      - '.github/workflows/visual-audit-issue-270.yml'
+  workflow_dispatch:
+
+jobs:
+  screenshots:
+    name: Capture desktop and mobile routes
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build web application
+        run: |
+          pnpm --filter @corrida/types build
+          pnpm --filter @corrida/utils build
+          pnpm --filter @corrida/web build
+
+      - name: Capture routes
+        run: pnpm --filter @corrida/api exec node scripts/visual-audit-issue-270.mjs
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-270-visual-${{ github.run_id }}
+          path: artifacts/issue-270-visual/*.png
+          if-no-files-found: warn
+          retention-days: 14
