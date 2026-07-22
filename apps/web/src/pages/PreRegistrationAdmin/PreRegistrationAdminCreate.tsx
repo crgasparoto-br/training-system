@@ -3,7 +3,13 @@ import type { PreRegistrationDuplicateCheckResultDTO } from '@corrida/types';
 import { AlertTriangle, Link2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { canAccessBlock } from '../../access/access-control';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/Card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '../../components/ui/Card';
 import { preRegistrationAdminService } from '../../services/pre-registration-admin.service';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { LeadForm, type LeadFormValues } from './LeadForm';
@@ -13,12 +19,26 @@ function errorMessage(error: unknown) {
   return value.response?.data?.error || value.message || 'Não foi possível criar o lead.';
 }
 
+async function copyGeneratedInvite(url: string) {
+  try {
+    if (!navigator.clipboard?.writeText) throw new Error('Clipboard API indisponível');
+    await navigator.clipboard.writeText(url);
+    return 'copied' as const;
+  } catch {
+    return 'failed' as const;
+  }
+}
+
 export function PreRegistrationAdminCreate() {
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
-  const canGenerateInvite = canAccessBlock(user, 'students.preRegistration.generateInvite');
+  const canGenerateInvite = canAccessBlock(
+    user,
+    'students.preRegistration.generateInvite'
+  );
   const [responsibles, setResponsibles] = useState<Array<{ id: string; name: string }>>([]);
-  const [duplicates, setDuplicates] = useState<PreRegistrationDuplicateCheckResultDTO | null>(null);
+  const [duplicates, setDuplicates] =
+    useState<PreRegistrationDuplicateCheckResultDTO | null>(null);
   const [confirmDuplicate, setConfirmDuplicate] = useState(false);
   const [generateInvite, setGenerateInvite] = useState(canGenerateInvite);
   const [submitting, setSubmitting] = useState(false);
@@ -39,10 +59,13 @@ export function PreRegistrationAdminCreate() {
         setError('Informe pelo menos telefone ou e-mail para criar o lead.');
         return;
       }
+
       const duplicateResult = await preRegistrationAdminService.checkDuplicates(values);
       if (duplicateResult.hasBlockingCpfConflict) {
         setDuplicates(duplicateResult);
-        setError('Já existe um cadastro com este CPF. Abra o registro existente antes de continuar.');
+        setError(
+          'Já existe um cadastro com este CPF. Abra o registro existente antes de continuar.'
+        );
         return;
       }
       if (duplicateResult.candidates.length > 0 && !confirmDuplicate) {
@@ -50,6 +73,7 @@ export function PreRegistrationAdminCreate() {
         setError('Revise os possíveis cadastros semelhantes e confirme antes de continuar.');
         return;
       }
+
       const lead = await preRegistrationAdminService.create({
         name: values.name,
         phone: values.phone || undefined,
@@ -61,10 +85,20 @@ export function PreRegistrationAdminCreate() {
         unit: values.unit || undefined,
         confirmPossibleDuplicate: confirmDuplicate,
       });
+
+      let generatedInviteUrl: string | undefined;
+      let inviteCopyState: 'copied' | 'failed' | undefined;
       if (generateInvite && canGenerateInvite && lead.allowedActions.canGenerateInvite) {
-        await preRegistrationAdminService.generateInvite(lead.id);
+        const invite = await preRegistrationAdminService.generateInvite(lead.id);
+        generatedInviteUrl = invite.url;
+        inviteCopyState = await copyGeneratedInvite(invite.url);
       }
-      navigate(`/pre-matriculas/${lead.id}`);
+
+      navigate(`/pre-matriculas/${lead.id}`, {
+        state: generatedInviteUrl
+          ? { generatedInviteUrl, inviteCopyState }
+          : undefined,
+      });
     } catch (submissionError) {
       setError(errorMessage(submissionError));
     } finally {
@@ -90,14 +124,25 @@ export function PreRegistrationAdminCreate() {
               Possíveis cadastros semelhantes
             </CardTitle>
             <CardDescription>
-              Os resultados consideram somente o seu escopo de acesso. Nenhum dado de outro contrato é exibido.
+              A verificação considera todo o contrato. Registros fora do seu escopo aparecem
+              sem identificação para preservar a privacidade.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {duplicates.candidates.map((candidate) => (
-              <div key={candidate.alunoId} className="rounded-lg border border-border px-3 py-2 text-sm">
+            {duplicates.candidates.map((candidate, index) => (
+              <div
+                key={candidate.alunoId || `${candidate.matchingFields.join('-')}-${index}`}
+                className="rounded-lg border border-border px-3 py-2 text-sm"
+              >
                 <p className="font-medium text-foreground">{candidate.name}</p>
-                <p className="text-muted-foreground">Correspondência: {candidate.matchingFields.join(', ')}</p>
+                <p className="text-muted-foreground">
+                  Correspondência: {candidate.matchingFields.join(', ')}
+                </p>
+                {!candidate.accessible && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    O cadastro existe no contrato, mas não pertence ao seu escopo de consulta.
+                  </p>
+                )}
               </div>
             ))}
             {!duplicates.hasBlockingCpfConflict && (
@@ -129,7 +174,7 @@ export function PreRegistrationAdminCreate() {
               Gerar convite após criar
             </span>
             <span className="mt-1 block text-muted-foreground">
-              O link será criado uma única vez e ficará disponível na ficha recém-aberta.
+              O sistema tentará copiar o link automaticamente e o mostrará na ficha recém-aberta.
             </span>
           </span>
         </label>
