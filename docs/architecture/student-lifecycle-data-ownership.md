@@ -132,11 +132,16 @@ reexecutada no mesmo banco:
   inventados;
 - registros de onboarding legados são criados sem simular etapas que não
   ocorreram;
-- qualquer aluno sem tenant derivável interrompe a migration explicitamente.
+- qualquer aluno sem tenant derivável interrompe a migration explicitamente;
+- o CI aplica a migration sobre uma base anterior à #268 populada com vínculos de
+  contrato, PRNT, avaliação, agenda, treino, intake e PAR-Q, confirma a preservação
+  dos IDs/relacionamentos e reexecuta o SQL para provar convergência.
 
-Para rollback temporário da aplicação, um trigger anterior ao insert/update
+Para rollback temporário da aplicação, um trigger executado somente em `INSERT`
 deriva `contractId` de `professorId` e classifica como `ACTIVE_STUDENT` o
-cadastro completo produzido pela versão antiga. O rollout não exige remover os
+cadastro completo produzido pela versão antiga. O trigger não executa em `UPDATE`
+para não interceptar transições explícitas, como reabertura `DISCARDED -> LEAD`,
+nem alterar `Aluno.status` fora do serviço de ciclo. O rollout não exige remover os
 dados novos nem reverter a migration. O trigger e a projeção de `Profile`
 devem ser removidos pela #275 após o encerramento da janela de rollback e a
 confirmação de convergência dos consumidores.
@@ -147,7 +152,14 @@ Listagens administrativas, agenda, contratos, PRNT, avaliação, antropometria,
 relatórios e treino devem:
 
 - filtrar `ACTIVE_STUDENT` quando a tela representa alunos ativos;
-- usar `Aluno.contractId` como barreira tenant-scoped;
+- usar `Aluno.contractId` diretamente como barreira tenant-scoped, inclusive quando
+  o aluno ainda não possui professor responsável;
+- usar `Professor.contractId` somente para validar o professor ou recurso que
+  efetivamente pertence ao professor, nunca para inferir o tenant do aluno;
 - aceitar relações opcionais antes da ativação;
 - negar de forma explícita operações que exigem conta/professor/dados completos;
 - nunca escolher um vínculo de contrato por ordem acidental.
+
+As rotas segmentadas também passam o `contractId` ao serviço de domínio. O serviço
+filtra o registro raiz por `Aluno.id + Aluno.contractId`, de modo que uma chamada
+interna ou futura rota não possa depender apenas da autorização feita na borda.

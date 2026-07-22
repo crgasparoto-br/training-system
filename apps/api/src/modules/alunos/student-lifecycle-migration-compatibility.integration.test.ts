@@ -84,4 +84,19 @@ describeDb('student lifecycle migration compatibility', () => {
     expect(aluno.status).toBe('ACTIVE_STUDENT');
     expect(aluno.activatedAt).not.toBeNull();
   });
+
+  it('não reclassifica updates da aplicação nova pela compatibilidade de rollback', async () => {
+    await prisma.$executeRawUnsafe(
+      `UPDATE "Aluno" SET "status" = 'DISCARDED' WHERE "id" = $1`,
+      alunoId
+    );
+    await prisma.$executeRawUnsafe(
+      `UPDATE "Aluno" SET "status" = 'LEAD' WHERE "id" = $1`,
+      alunoId
+    );
+
+    const aluno = await prisma.aluno.findUniqueOrThrow({ where: { id: alunoId } });
+    expect(aluno.status).toBe('LEAD');
+    expect(aluno.contractId).toBe(contractId);
+  });
 });

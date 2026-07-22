@@ -1008,7 +1008,7 @@ export const alunoService = {
     }
 
     if (contractId) {
-      where.professor = { contractId };
+      where.contractId = contractId;
     }
 
     return await prisma.aluno.findMany({
@@ -1038,10 +1038,7 @@ export const alunoService = {
    */
   async belongsToContract(alunoId: string, contractId: string): Promise<boolean> {
     const aluno = await prisma.aluno.findFirst({
-      where: {
-        id: alunoId,
-        professor: { contractId },
-      },
+      where: { id: alunoId, contractId },
     });
     return !!aluno;
   },

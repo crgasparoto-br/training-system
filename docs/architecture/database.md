@@ -64,3 +64,20 @@ Snapshots de desconforto corporal ficam em `ProntuarioDiscomfortSnapshot` e `Pro
 - `pnpm type-check`
 - `pnpm test`
 - `pnpm arch:check`
+
+
+## Student lifecycle migration compatibility
+
+A migration `20260721120000_student_lifecycle_domain` preserva o mesmo `Aluno.id` e
+seus relacionamentos. O isolamento de tenant usa `Aluno.contractId` diretamente; a
+relação com professor é opcional e não pode ser usada como substituta da barreira
+tenant-scoped.
+
+Durante a janela de rollback, o trigger `student_lifecycle_legacy_aluno_defaults`
+atende somente `INSERT` da aplicação anterior, derivando o contrato e classificando
+o cadastro administrativo completo como `ACTIVE_STUDENT`. Updates não são
+interceptados, preservando a autoridade do serviço de ciclo sobre transições.
+
+O workflow de validação monta uma base pré-#268 populada, aplica a migration,
+confirma a preservação de contrato, PRNT, avaliações, agenda, treino, dados clínicos
+e IDs e, em seguida, reexecuta a migration para validar convergência.

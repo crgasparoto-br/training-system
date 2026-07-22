@@ -3,8 +3,8 @@
 -- A migration e deliberadamente reexecutavel: todo objeto usa guarda de
 -- existencia e todos os backfills usam UPSERT/condicoes convergentes. Ela
 -- preserva os IDs e relacionamentos dos alunos existentes e suporta uma
--- janela de rollback da aplicacao anterior por meio de triggers de
--- compatibilidade para inserts/updates legados.
+-- janela de rollback da aplicacao anterior por meio de trigger de
+-- compatibilidade exclusivo para inserts legados.
 
 -- CreateEnum (idempotente)
 DO $$
@@ -283,8 +283,10 @@ BEGIN
 END $$;
 
 -- Compatibilidade para rollback da aplicacao anterior: o codigo antigo ainda
--- insere Aluno sem contractId/status. O trigger deriva o tenant do professor e
--- classifica o cadastro completo como ACTIVE_STUDENT antes das constraints.
+-- insere Aluno sem contractId/status. O trigger atua somente em INSERT, deriva
+-- o tenant do professor e classifica o cadastro completo como ACTIVE_STUDENT.
+-- Updates da aplicacao nova nunca passam por esta compatibilidade, preservando
+-- a maquina de estados de student-lifecycle.service.ts.
 CREATE OR REPLACE FUNCTION "student_lifecycle_legacy_aluno_defaults"()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -308,7 +310,7 @@ $$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS "student_lifecycle_legacy_aluno_defaults_trigger" ON "Aluno";
 CREATE TRIGGER "student_lifecycle_legacy_aluno_defaults_trigger"
-BEFORE INSERT OR UPDATE OF "professorId", "userId", "age", "contractId", "status"
+BEFORE INSERT
 ON "Aluno"
 FOR EACH ROW
 EXECUTE FUNCTION "student_lifecycle_legacy_aluno_defaults"();

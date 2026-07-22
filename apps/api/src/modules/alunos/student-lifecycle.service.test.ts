@@ -20,6 +20,10 @@ import {
   StudentLifecycleError,
 } from './student-lifecycle.service.js';
 import { loadStudentIdentity } from './student-identity.service.js';
+import { alunoService } from './aluno.service.js';
+import { agendaService } from '../agenda/agenda.service.js';
+import { libraryService } from '../library/library.service.js';
+import { checkFixedScheduleAvailability } from '../agenda/fixed-schedule.service.js';
 
 const unique = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
@@ -363,6 +367,39 @@ describeDb('student-lifecycle integration (banco real)', () => {
 
     expect(active.id).toBe(originalId);
     expect(active.status).toBe('ACTIVE_STUDENT');
+    expect(active.professorId).toBeNull();
+
+    // Regressão da auditoria final: o tenant do aluno é `Aluno.contractId`.
+    // Um aluno ativado sem professor precisa continuar acessível nos módulos
+    // que não exigem essa atribuição funcional.
+    await expect(alunoService.belongsToContract(originalId, contractId)).resolves.toBe(true);
+    await expect(
+      alunoService.belongsToContract(originalId, 'contract-inexistente')
+    ).resolves.toBe(false);
+
+    const searchResult = await alunoService.search({
+      query: 'Ciclo Completo',
+      contractId,
+      status: 'all',
+    });
+    expect(searchResult.map((item) => item.id)).toContain(originalId);
+
+    const agendaMetadata = await agendaService.getMetadata(contractId);
+    expect(agendaMetadata.alunos.map((item) => item.id)).toContain(originalId);
+
+    const exercise = await prisma.exerciseLibrary.create({
+      data: { contractId, name: `Exercício lifecycle ${unique()}` },
+    });
+    await expect(
+      libraryService.updateAlunoProgress(contractId, originalId, exercise.id, { lastLoad: 20 })
+    ).resolves.toMatchObject({ alunoId: originalId, exerciseId: exercise.id, lastLoad: 20 });
+    await expect(libraryService.listAlunoProgress(contractId, originalId)).resolves.toEqual(
+      expect.arrayContaining([expect.objectContaining({ exerciseId: exercise.id })])
+    );
+    await expect(
+      checkFixedScheduleAvailability(prisma, contractId, originalId, [])
+    ).resolves.toEqual([]);
+
     const identity = await loadStudentIdentity(originalId, contractId);
     expect(identity.birthDate).toContain('1995-05-05');
     expect(identity.addressCity).toBe('Sorocaba');
@@ -616,6 +653,50 @@ describeDb('student-lifecycle integration (banco real)', () => {
         professorId
       )).status
     ).toBe('LEAD');
+  });
+
+  it('reabre registro completo como LEAD sem o trigger legado contornar a máquina de estados', async () => {
+    const prepared = await prepareInProgressLead({
+      name: 'Reabertura Completa',
+      phone: '11900003333',
+    });
+
+    await prisma.aluno.update({
+      where: { id: prepared.lead.id },
+      data: { professorId, age: 31 },
+    });
+
+    await discardStudentLead(
+      prepared.lead.id,
+      contractId,
+      'Cadastro pausado',
+      professorId
+    );
+    const reopened = await reopenDiscardedStudentLead(
+      prepared.lead.id,
+      contractId,
+      'Retomada confirmada',
+      professorId
+    );
+
+    expect(reopened.status).toBe('LEAD');
+    expect(reopened.userId).toBe(prepared.userId);
+    expect(reopened.professorId).toBe(professorId);
+    expect(reopened.age).toBe(31);
+
+    const events = await prisma.studentLifecycleEvent.findMany({
+      where: { alunoId: prepared.lead.id },
+      orderBy: { createdAt: 'asc' },
+    });
+    expect(events.at(-1)).toMatchObject({
+      eventType: 'REOPENED',
+      metadata: expect.objectContaining({
+        from: 'DISCARDED',
+        to: 'LEAD',
+        reason: 'Retomada confirmada',
+      }),
+    });
+    expect(events.filter((event) => event.eventType === 'CONVERTED_TO_ACTIVE_STUDENT')).toHaveLength(0);
   });
 
   it('registra progresso incremental tenant-scoped sem mudar estado', async () => {
