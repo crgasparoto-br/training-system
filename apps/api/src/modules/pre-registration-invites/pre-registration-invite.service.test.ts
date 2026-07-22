@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { PrismaClient } from '@prisma/client';
 import {
   hashInviteToken,
@@ -176,6 +177,63 @@ describe('pre-registration-invite service', () => {
     expect(invites.length).toBe(0);
   });
 
+  it('falha transacional durante a regeneração (criação do novo convite) preserva o anterior ACTIVE', async () => {
+    const contractId = await createContract();
+    const lead = await createLeadWithContact(contractId);
+    const first = await preRegistrationInviteService.generateFirstInvite(lead.id, contractId, {});
+
+    // Prepara uma colisão real de tokenHash: insere um convite "decoy" em outro
+    // tenant com um tokenHash conhecido e força crypto.randomBytes a produzir,
+    // na próxima chamada, exatamente os mesmos bytes usados para gerar aquele
+    // token - assim a etapa de INSERT do novo convite (dentro da transação de
+    // regeneração) falha por violação de unicidade de tokenHash, depois que o
+    // convite antigo já foi marcado SUPERSEDED na mesma transação.
+    const decoyContractId = await createContract();
+    const decoyLead = await createLeadWithContact(decoyContractId);
+    const collidingBytes = crypto.randomBytes(32);
+    const collidingToken = collidingBytes.toString('base64url');
+    await prisma.preRegistrationInvite.create({
+      data: {
+        alunoId: decoyLead.id,
+        contractId: decoyContractId,
+        purpose: 'PRE_REGISTRATION',
+        tokenHash: hashInviteToken(collidingToken),
+        status: 'SUPERSEDED',
+        expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      },
+    });
+
+    const randomBytesSpy = jest
+      .spyOn(crypto, 'randomBytes')
+      .mockImplementationOnce(() => collidingBytes as unknown as Buffer);
+
+    try {
+      await expect(
+        preRegistrationInviteService.regenerateInvite(lead.id, contractId, {})
+      ).rejects.toBeTruthy();
+    } finally {
+      randomBytesSpy.mockRestore();
+    }
+
+    // A transação inteira reverteu: o convite original continua ACTIVE e
+    // utilizável, e nenhum segundo convite ACTIVE foi criado para o lead.
+    const originalAfterFailure = await prisma.preRegistrationInvite.findUniqueOrThrow({
+      where: { id: first.summary.id },
+    });
+    expect(originalAfterFailure.status).toBe('ACTIVE');
+    expect(originalAfterFailure.supersededAt).toBeNull();
+
+    const activeInvitesForLead = await prisma.preRegistrationInvite.findMany({
+      where: { alunoId: lead.id, purpose: 'PRE_REGISTRATION', status: 'ACTIVE' },
+    });
+    expect(activeInvitesForLead).toHaveLength(1);
+    expect(activeInvitesForLead[0].id).toBe(first.summary.id);
+
+    // O link original continua funcionando normalmente após a falha.
+    const view = await preRegistrationInviteService.openPublicInvite(first.token);
+    expect(view.alunoId).toBe(lead.id);
+  });
+
   it('revogação exige motivo, é imediata e idempotente', async () => {
     const contractId = await createContract();
     const lead = await createLeadWithContact(contractId);
@@ -301,6 +359,36 @@ describe('pre-registration-invite service', () => {
     expect(JSON.stringify(summary)).not.toContain(invite.token);
     expect(JSON.stringify(summary)).not.toMatch(/tokenHash/i);
     expect(JSON.stringify(history)).not.toMatch(/tokenHash/i);
+  });
+
+  it('allowedActions do resumo reflete o estado real, inclusive canGenerateFirst quando não há convite ativo', async () => {
+    const contractId = await createContract();
+    const lead = await createLeadWithContact(contractId);
+    const invite = await preRegistrationInviteService.generateFirstInvite(lead.id, contractId, {});
+
+    const activeSummary = await preRegistrationInviteService.getSummary(lead.id, contractId);
+    expect(activeSummary?.allowedActions).toEqual({
+      canGenerateFirst: false,
+      canRegenerate: true,
+      canRevoke: true,
+    });
+
+    await preRegistrationInviteService.revokeInvite(lead.id, contractId, 'motivo', {});
+
+    // Sem convite ativo, mas com lead ainda em ciclo compatível e canal de
+    // contato: o resumo deve refletir que um novo convite pode ser gerado -
+    // e não mais hardcoded como false independentemente do estado real.
+    const revokedSummary = await preRegistrationInviteService.getSummary(lead.id, contractId);
+    expect(revokedSummary?.allowedActions).toEqual({
+      canGenerateFirst: true,
+      canRegenerate: false,
+      canRevoke: false,
+    });
+
+    // Consistente com o endpoint dedicado de ações permitidas.
+    const dedicated = await preRegistrationInviteService.getAllowedActions(lead.id, contractId);
+    expect(dedicated).toEqual(revokedSummary?.allowedActions);
+    void invite;
   });
 
   it('rate limit bloqueia após o limite de tentativas na janela e libera fora dela', () => {

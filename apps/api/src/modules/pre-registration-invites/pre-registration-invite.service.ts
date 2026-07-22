@@ -75,20 +75,31 @@ async function findAlunoInContractOrThrow(alunoId: string, contractId: string, c
   return aluno;
 }
 
+async function computeAllowedActions(alunoId: string, contractId: string, client: DbClient) {
+  const aluno = await client.aluno.findFirst({ where: { id: alunoId, contractId } });
+  if (!aluno) {
+    return { canGenerateFirst: false, canRegenerate: false, canRevoke: false };
+  }
+  const active = await findActiveInvite(alunoId, client);
+  return {
+    canGenerateFirst:
+      !active && INVITE_COMPATIBLE_STATUSES.has(aluno.status) && Boolean(aluno.leadPhone || aluno.leadEmail),
+    canRegenerate: Boolean(active),
+    canRevoke: Boolean(active),
+  };
+}
+
 async function toSummary(
   invite: PreRegistrationInvite,
   client: DbClient
 ): Promise<PreRegistrationInviteSummaryDTO> {
-  const replacedBy = await client.preRegistrationInvite.findFirst({
-    where: { replacesInviteId: invite.id },
-    select: { id: true },
-  });
-
-  const allowedActions = {
-    canGenerateFirst: false,
-    canRegenerate: invite.status === 'ACTIVE',
-    canRevoke: invite.status === 'ACTIVE',
-  };
+  const [replacedBy, allowedActions] = await Promise.all([
+    client.preRegistrationInvite.findFirst({
+      where: { replacesInviteId: invite.id },
+      select: { id: true },
+    }),
+    computeAllowedActions(invite.alunoId, invite.contractId, client),
+  ]);
 
   return {
     id: invite.id,
@@ -352,14 +363,8 @@ export const preRegistrationInviteService = {
 
   /** Ações administrativas atualmente permitidas para a pessoa. */
   async getAllowedActions(alunoId: string, contractId: string) {
-    const aluno = await findAlunoInContractOrThrow(alunoId, contractId, prisma);
-    const active = await findActiveInvite(alunoId, prisma);
-    return {
-      canGenerateFirst:
-        !active && INVITE_COMPATIBLE_STATUSES.has(aluno.status) && Boolean(aluno.leadPhone || aluno.leadEmail),
-      canRegenerate: Boolean(active),
-      canRevoke: Boolean(active),
-    };
+    await findAlunoInContractOrThrow(alunoId, contractId, prisma);
+    return computeAllowedActions(alunoId, contractId, prisma);
   },
 
   /**
