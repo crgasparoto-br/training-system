@@ -5,6 +5,11 @@ import { alunoService } from '../alunos/aluno.service.js';
 import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js';
 import { sendSuccess, sendError } from '@corrida/utils';
 import { z } from 'zod';
+import {
+  normalizeRequestedStudentContractId,
+  resolveActiveStudentMembership,
+  StudentAccountContextError,
+} from '../alunos/student-account-context.service.js';
 
 const router: Router = Router();
 
@@ -156,20 +161,23 @@ router.get('/', async (req: Request, res: Response) => {
       }
     } else {
 
-      // Buscar alunoId do banco
-      const { authService } = await import('../auth/auth.service.js');
-      const userWithAluno = await authService.getUserById(user.userId);
-      
-      if (!userWithAluno?.aluno) {
-        return sendError(res, 'Aluno não encontrado', 404);
-      }
-      
-      const plans = await planService.findByAluno(userWithAluno.aluno.id, status, query);
+      const membership = await resolveActiveStudentMembership(
+        user.userId,
+        normalizeRequestedStudentContractId(req.header('x-contract-id'))
+      );
+      const plans = await planService.findByAluno(membership.id, status, query);
       result = { plans, pagination: { page: 1, limit: plans.length, total: plans.length, totalPages: 1 } };
     }
 
     return sendSuccess(res, result, 'Planos recuperados com sucesso');
   } catch (error) {
+    if (error instanceof StudentAccountContextError) {
+      return sendError(
+        res,
+        error.message,
+        error.code === 'STUDENT_CONTRACT_CONTEXT_REQUIRED' ? 409 : 404
+      );
+    }
     console.error('Erro ao listar planos:', error);
     return sendError(res, 'Erro ao listar planos', 500);
   }

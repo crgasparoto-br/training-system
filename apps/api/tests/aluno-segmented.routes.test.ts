@@ -91,6 +91,20 @@ describe('segmented aluno routes', () => {
     });
   });
 
+  it('passes the authenticated contract to segmented profile reads', async () => {
+    (studentDomainService.getProfile as jest.Mock).mockResolvedValue({
+      alunoId: 'aluno-1',
+      identification: { name: 'Aluno Teste' },
+    });
+
+    const response = await request(app).get('/alunos/aluno-1/profile');
+
+    expect(response.status).toBe(200);
+    expect(studentDomainService.getProfile).toHaveBeenCalledWith('aluno-1', {
+      companyContractId: 'contract-1',
+    });
+  });
+
   it('blocks segmented profile when the professor does not have access to the aluno', async () => {
     (alunoService.belongsToContract as jest.Mock).mockResolvedValue(false);
 
@@ -131,8 +145,12 @@ describe('segmented aluno routes', () => {
     expect(integrationsResponse.status).toBe(200);
     expect(activitiesResponse.status).toBe(200);
     expect(mockBlockAccessMiddleware).toHaveBeenCalledWith('students.details.integrations');
-    expect(studentDomainService.getIntegrations).toHaveBeenCalledWith('aluno-1');
-    expect(studentDomainService.listExternalActivities).toHaveBeenCalledWith('aluno-1');
+    expect(studentDomainService.getIntegrations).toHaveBeenCalledWith('aluno-1', {
+      companyContractId: 'contract-1',
+    });
+    expect(studentDomainService.listExternalActivities).toHaveBeenCalledWith('aluno-1', {
+      companyContractId: 'contract-1',
+    });
   });
 
   it('protects the timeline with the audit block permission and contract scope', async () => {

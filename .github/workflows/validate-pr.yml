@@ -60,6 +60,29 @@ jobs:
       - name: Apply test database migrations
         run: pnpm --filter @corrida/api exec prisma migrate deploy
 
+      - name: Verify lifecycle legacy backfill
+        run: |
+          set -o pipefail
+          bash scripts/verify-student-lifecycle-legacy-backfill.sh 2>&1 | tee lifecycle-backfill-output.log
+
+      - name: Upload lifecycle legacy backfill output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lifecycle-backfill-output-${{ github.run_id }}
+          path: lifecycle-backfill-output.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Verify lifecycle migration rerun
+        run: |
+          docker run --rm --network host \
+            -v "$GITHUB_WORKSPACE:/workspace" \
+            -e PGPASSWORD=postgres \
+            postgres:16-alpine \
+            psql -h localhost -U postgres -d training_system_test -v ON_ERROR_STOP=1 \
+            -f /workspace/apps/api/prisma/migrations/20260721120000_student_lifecycle_domain/migration.sql
+
       - name: Type check
         run: |
           set -o pipefail
@@ -90,6 +113,9 @@ jobs:
           path: test-output.log
           if-no-files-found: ignore
           retention-days: 7
+
+      - name: Build
+        run: pnpm build
 
       - name: Architecture checks
         run: pnpm arch:check

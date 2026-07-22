@@ -325,7 +325,7 @@ async function countManagedCollaborators(responsibleManagerId: string, excludePr
 }
 
 async function ensureCpfAvailable(cpf: string, currentUserId?: string) {
-  const existingProfile = await prisma.profile.findUnique({
+  const existingProfile = await prisma.profile.findFirst({
     where: { cpf },
     select: { userId: true },
   });

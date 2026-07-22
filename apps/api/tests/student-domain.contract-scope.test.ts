@@ -1,7 +1,7 @@
-const findUniqueMock = jest.fn();
+const findFirstMock = jest.fn();
 const mockPrisma = {
   aluno: {
-    findUnique: findUniqueMock,
+    findFirst: findFirstMock,
   },
 };
 
@@ -161,12 +161,12 @@ const createContractScopedSnapshot = () => ({
 
 describe('studentDomainService contract scope', () => {
   beforeEach(() => {
-    findUniqueMock.mockReset();
+    findFirstMock.mockReset();
     (studentContractService.listByAluno as jest.Mock).mockReset();
   });
 
   it('drops segmented records from other contracts when a companyContractId is provided', async () => {
-    findUniqueMock.mockResolvedValue(createContractScopedSnapshot());
+    findFirstMock.mockResolvedValue(createContractScopedSnapshot());
     (studentContractService.listByAluno as jest.Mock).mockResolvedValue([
       {
         id: 'student-contract-1',
@@ -187,6 +187,11 @@ describe('studentDomainService contract scope', () => {
       companyContractId: 'contract-1',
     });
 
+    expect(findFirstMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'aluno-1', contractId: 'contract-1' },
+      })
+    );
     expect(summary).not.toBeNull();
     expect(summary?.profile.source).toEqual({
       type: 'student',
@@ -199,4 +204,21 @@ describe('studentDomainService contract scope', () => {
     expect(summary?.financial.currentServiceName).toBe('Premium');
     expect(summary?.intake.observations).toBeNull();
   });
+
+  it('retorna nulo quando o registro raiz não pertence ao contrato solicitado', async () => {
+    findFirstMock.mockResolvedValue(null);
+
+    await expect(
+      studentDomainService.getProfile('aluno-other', {
+        companyContractId: 'contract-1',
+      })
+    ).resolves.toBeNull();
+
+    expect(findFirstMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'aluno-other', contractId: 'contract-1' },
+      })
+    );
+  });
+
 });

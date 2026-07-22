@@ -69,11 +69,14 @@ router.get(
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
+      const { contractId } = getProfessorContext(req);
       if (!(await ensureAlunoAccess(req, res, id))) {
         return;
       }
 
-      const profile = await studentDomainService.getProfile(id);
+      const profile = await studentDomainService.getProfile(id, {
+        companyContractId: contractId,
+      });
       if (!profile) {
         return sendError(res, 'Aluno não encontrado', 404);
       }
@@ -92,11 +95,14 @@ router.get(
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
+      const { contractId } = getProfessorContext(req);
       if (!(await ensureAlunoAccess(req, res, id))) {
         return;
       }
 
-      const intake = await studentDomainService.getHealthIntake(id);
+      const intake = await studentDomainService.getHealthIntake(id, {
+        companyContractId: contractId,
+      });
       if (!intake) {
         return sendError(res, 'Aluno não encontrado', 404);
       }
@@ -115,11 +121,14 @@ router.get(
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
+      const { contractId } = getProfessorContext(req);
       if (!(await ensureAlunoAccess(req, res, id))) {
         return;
       }
 
-      const assessments = await studentDomainService.listAssessmentRecords(id);
+      const assessments = await studentDomainService.listAssessmentRecords(id, {
+        companyContractId: contractId,
+      });
       if (!assessments) {
         return sendError(res, 'Aluno não encontrado', 404);
       }
@@ -164,11 +173,14 @@ router.get(
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
+      const { contractId } = getProfessorContext(req);
       if (!(await ensureAlunoAccess(req, res, id))) {
         return;
       }
 
-      const integrations = await studentDomainService.getIntegrations(id);
+      const integrations = await studentDomainService.getIntegrations(id, {
+        companyContractId: contractId,
+      });
       if (!integrations) {
         return sendError(res, 'Aluno não encontrado', 404);
       }
@@ -187,11 +199,14 @@ router.get(
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
+      const { contractId } = getProfessorContext(req);
       if (!(await ensureAlunoAccess(req, res, id))) {
         return;
       }
 
-      const activities = await studentDomainService.listExternalActivities(id);
+      const activities = await studentDomainService.listExternalActivities(id, {
+        companyContractId: contractId,
+      });
       if (!activities) {
         return sendError(res, 'Aluno não encontrado', 404);
       }

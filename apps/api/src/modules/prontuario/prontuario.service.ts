@@ -82,6 +82,7 @@ async function resolveAlunoContractContext(
     select: {
       id: true,
       professorId: true,
+      contractId: true,
       professor: { select: { contractId: true } },
       currentStudentContract: {
         select: {
@@ -99,9 +100,8 @@ async function resolveAlunoContractContext(
     throw new Error('Aluno não encontrado no contrato');
   }
 
-  const resolvedContractId =
-    aluno.currentStudentContract?.contract.companyContractId ||
-    aluno.professor.contractId;
+  // Issue #268: contractId direto em Aluno é obrigatório e canônico.
+  const resolvedContractId = aluno.contractId;
 
   if (fallbackContractId && resolvedContractId !== fallbackContractId) {
     throw new Error('Aluno não encontrado no contrato');

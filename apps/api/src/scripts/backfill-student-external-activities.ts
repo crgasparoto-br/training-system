@@ -47,6 +47,7 @@ type ExecutionWithExternalReferences = {
   garminActivityId: string | null;
   stravaActivityId: string | null;
   aluno: {
+    contractId: string;
     professor: {
       contractId: string;
     } | null;
@@ -116,6 +117,7 @@ const run = async () => {
         stravaActivityId: true,
         aluno: {
           select: {
+            contractId: true,
             professor: {
               select: {
                 contractId: true,
@@ -186,7 +188,7 @@ const run = async () => {
   report.summary.executionReferencesScanned = references.length;
 
   for (const reference of references) {
-    const contractId = reference.execution.aluno.professor?.contractId ?? null;
+    const contractId = reference.execution.aluno.contractId;
     const externalAccount = reference.execution.aluno.studentExternalAccounts.find(
       (account) => normalizeProvider(account.provider) === reference.provider
     );

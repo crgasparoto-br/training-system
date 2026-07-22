@@ -162,12 +162,7 @@ export const libraryService = {
         where: { id: exerciseId, contractId },
       }),
       prisma.aluno.findFirst({
-        where: {
-          id: alunoId,
-          professor: {
-            contractId,
-          },
-        },
+        where: { id: alunoId, contractId },
       }),
     ]);
 
@@ -202,12 +197,7 @@ export const libraryService = {
         where: { id: exerciseId, contractId },
       }),
       prisma.aluno.findFirst({
-        where: {
-          id: alunoId,
-          professor: {
-            contractId,
-          },
-        },
+        where: { id: alunoId, contractId },
       }),
     ]);
 
@@ -239,12 +229,7 @@ export const libraryService = {
    */
   async listAlunoProgress(contractId: string, alunoId: string) {
     const aluno = await prisma.aluno.findFirst({
-      where: {
-        id: alunoId,
-        professor: {
-          contractId,
-        },
-      },
+      where: { id: alunoId, contractId },
     });
 
     if (!aluno) {

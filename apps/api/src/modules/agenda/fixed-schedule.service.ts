@@ -239,7 +239,7 @@ function failure(
 
 async function loadStudent(db: FixedScheduleDb, contractId: string, alunoId: string) {
   const aluno = await db.aluno.findFirst({
-    where: { id: alunoId, professor: { contractId } },
+    where: { id: alunoId, contractId },
     select: { id: true, schedulePlan: true },
   });
   if (!aluno) {
@@ -253,7 +253,7 @@ async function loadStudent(db: FixedScheduleDb, contractId: string, alunoId: str
 
 async function loadStudentSlots(db: FixedScheduleDb, contractId: string, alunoId: string) {
   return db.fixedScheduleSlot.findMany({
-    where: { alunoId, professor: { contractId } },
+    where: { alunoId, aluno: { contractId } },
     select: {
       id: true,
       alunoId: true,
@@ -455,7 +455,7 @@ async function validateSingleSlot(
         dayOfWeek: slot.dayOfWeek,
         isActive: true,
         ...(excludedSlotIds.length ? { id: { notIn: excludedSlotIds } } : {}),
-        professor: { contractId },
+        aluno: { contractId },
       },
       select: { startTime: true, endTime: true },
     });

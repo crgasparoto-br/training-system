@@ -16,7 +16,7 @@ model User {
   updatedAt               DateTime                 @updatedAt
   isActive                Boolean                  @default(true)
   lastLoginAt             DateTime?
-  aluno                   Aluno?
+  alunos                  Aluno[]
   notifications           Notification[]
   notificationPreferences NotificationPreferences?
   profileReviewsRequested StudentProfileReview[]   @relation("StudentProfileReviewRequestedBy")
@@ -38,7 +38,7 @@ model Profile {
   updatedAt                            DateTime       @updatedAt
   birthDate                            DateTime?
   gender                               Gender?
-  cpf                                  String?        @unique
+  cpf                                  String?
   rg                                   String?
   maritalStatus                        MaritalStatus?
   addressStreet                        String?
@@ -69,6 +69,7 @@ model Profile {
   @@index([legalFinancialProvidedByProfessorId])
   @@index([legalFinancialValidatedByProfessorId])
   @@index([bankCode])
+  @@index([cpf])
 }
 
 model Bank {
@@ -129,28 +130,31 @@ model CompanyContract {
   studentParqSubmissions        StudentParqSubmission[]
   prontuarioRecords             ProntuarioRecord[]
   prontuarioDiscomfortSnapshots ProntuarioDiscomfortSnapshot[]
+  alunos                        Aluno[]                        @relation("AlunoContract")
+  studentOnboardingProcesses    StudentOnboardingProcess[]
+  studentLifecycleEvents        StudentLifecycleEvent[]
 
   @@index([type])
   @@map("Contract")
 }
 
 model ContractTemplate {
-  id          String                   @id @default(cuid())
-  contractId  String
-  name        String
-  description String?
-  serviceId   String?
-  version     Int                      @default(1)
-  status      ContractTemplateStatus   @default(DRAFT)
+  id            String                        @id @default(cuid())
+  contractId    String
+  name          String
+  description   String?
+  serviceId     String?
+  version       Int                           @default(1)
+  status        ContractTemplateStatus        @default(DRAFT)
   applicability ContractTemplateApplicability @default(STUDENT)
-  headerHtml  String                   @default("")
-  footerHtml  String                   @default("")
-  createdAt   DateTime                 @default(now())
-  updatedAt   DateTime                 @updatedAt
-  contract    CompanyContract          @relation(fields: [contractId], references: [id], onDelete: Cascade)
-  service     ServiceOption?           @relation(fields: [serviceId], references: [id], onDelete: SetNull)
-  clauses     ContractTemplateClause[]
-  contracts   Contract[]
+  headerHtml    String                        @default("")
+  footerHtml    String                        @default("")
+  createdAt     DateTime                      @default(now())
+  updatedAt     DateTime                      @updatedAt
+  contract      CompanyContract               @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  service       ServiceOption?                @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  clauses       ContractTemplateClause[]
+  contracts     Contract[]
 
   @@index([contractId, status])
   @@index([serviceId])
@@ -173,39 +177,39 @@ model ContractTemplateClause {
 }
 
 model Contract {
-  id                   String              @id(map: "GeneratedContract_pkey") @default(cuid())
+  id                   String                @id(map: "GeneratedContract_pkey") @default(cuid())
   companyContractId    String
   templateId           String
   templateVersion      Int
   alunoId              String?
   collaboratorId       String?
-  partyType            ContractPartyType @default(STUDENT)
-  origin               ContractLinkOrigin @default(ELECTRONIC)
+  partyType            ContractPartyType     @default(STUDENT)
+  origin               ContractLinkOrigin    @default(ELECTRONIC)
   responsavelName      String?
   responsavelCpf       String?
   responsavelEmail     String?
   serviceId            String?
   professorId          String?
-  status               ContractStatus      @default(DRAFT)
+  status               ContractStatus        @default(DRAFT)
   title                String
   renderedHtml         String
   dataSnapshot         Json
   pdfPath              String?
-  publicTokenHash      String?             @unique
+  publicTokenHash      String?               @unique
   publicTokenExpiresAt DateTime?
   externalProvider     String?
   externalEnvelopeId   String?
   documentHash         String?
   signedAt             DateTime?
   cancelledAt          DateTime?
-  createdAt            DateTime            @default(now())
-  updatedAt            DateTime            @updatedAt
-  companyContract      CompanyContract     @relation(fields: [companyContractId], references: [id], onDelete: Cascade)
-  template             ContractTemplate    @relation(fields: [templateId], references: [id])
-  aluno                Aluno?              @relation(fields: [alunoId], references: [id], onDelete: Cascade)
-  collaborator         Professor?          @relation("ContractCollaborator", fields: [collaboratorId], references: [id], onDelete: Restrict)
-  service              ServiceOption?      @relation(fields: [serviceId], references: [id], onDelete: SetNull)
-  professor            Professor?          @relation("ContractResponsibleProfessor", fields: [professorId], references: [id], onDelete: SetNull)
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  companyContract      CompanyContract       @relation(fields: [companyContractId], references: [id], onDelete: Cascade)
+  template             ContractTemplate      @relation(fields: [templateId], references: [id])
+  aluno                Aluno?                @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  collaborator         Professor?            @relation("ContractCollaborator", fields: [collaboratorId], references: [id], onDelete: Restrict)
+  service              ServiceOption?        @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  professor            Professor?            @relation("ContractResponsibleProfessor", fields: [professorId], references: [id], onDelete: SetNull)
   signatures           ContractSignature[]
   auditLogs            ContractAuditLog[]
   studentContracts     StudentContract[]
@@ -332,14 +336,16 @@ model Professor {
   dismissalDate                   DateTime?
   agendaBookings                  AgendaBooking[]
   alunos                          Aluno[]
+  alunosCreated                   Aluno[]                    @relation("AlunoCreatedByProfessor")
+  alunosDiscarded                 Aluno[]                    @relation("AlunoDiscardedByProfessor")
   anthropometryAssessments        AnthropometryAssessment[]
   prontuarioRecords               ProntuarioRecord[]
   assessmentAuditLogs             AssessmentAuditLog[]
   cloneLogs                       ContractDataCloneLog[]
-  generatedContracts              Contract[]                  @relation("ContractResponsibleProfessor")
-  generatedCollaboratorContracts  Contract[]                  @relation("ContractCollaborator")
-  collaboratorContracts           CollaboratorContract[]      @relation("CollaboratorContracts")
-  currentCollaboratorContract     CollaboratorContract?       @relation("CurrentCollaboratorContract", fields: [currentCollaboratorContractId], references: [id], onDelete: SetNull)
+  generatedContracts              Contract[]                 @relation("ContractResponsibleProfessor")
+  generatedCollaboratorContracts  Contract[]                 @relation("ContractCollaborator")
+  collaboratorContracts           CollaboratorContract[]     @relation("CollaboratorContracts")
+  currentCollaboratorContract     CollaboratorContract?      @relation("CurrentCollaboratorContract", fields: [currentCollaboratorContractId], references: [id], onDelete: SetNull)
   fixedSlots                      FixedScheduleSlot[]
   contract                        CompanyContract            @relation(fields: [contractId], references: [id], onDelete: Cascade, map: "Educator_contractId_fkey")
   user                            User                       @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Educator_userId_fkey")
@@ -383,9 +389,9 @@ model ContractDataCloneLog {
 
 model Aluno {
   id                            String                         @id(map: "Athlete_pkey") @default(cuid())
-  userId                        String                         @unique(map: "Athlete_userId_key")
-  professorId                   String
-  age                           Int
+  userId                        String?
+  professorId                   String?
+  age                           Int?
   weight                        Float?
   height                        Float?
   bodyFatPercentage             Float?
@@ -401,12 +407,38 @@ model Aluno {
   diastolicPressure             Int?
   serviceId                     String?
   currentStudentContractId      String?
+  // --- Ciclo unico lead -> aluno (issue #268) ---
+  // contractId e o unico dado sempre presente, desde a criacao do lead.
+  contractId                    String
+  status                        StudentLifecycleStatus         @default(LEAD)
+  // Projecoes normalizadas da identidade canonica mantida em StudentProfile.
+  // Sao usadas para busca, deduplicacao e compatibilidade; nao constituem
+  // uma segunda fonte editavel (ver student-identity.service.ts).
+  leadName                      String?
+  leadPhone                     String?
+  leadPhoneNormalized           String?
+  leadEmail                     String?
+  leadEmailNormalized           String?
+  leadCpf                       String?
+  leadCpfNormalized             String?
+  birthDate                     DateTime?
+  leadOrigin                    String?
+  createdByProfessorId          String?
+  invitedAt                     DateTime?
+  readyForEnrollmentAt          DateTime?
+  activatedAt                   DateTime?
+  discardedAt                   DateTime?
+  discardReason                 String?
+  discardedByProfessorId        String?
   agendaBookings                AgendaBooking[]
   anthropometryAssessments      AnthropometryAssessment[]
   service                       ServiceOption?                 @relation(fields: [serviceId], references: [id])
   currentStudentContract        StudentContract?               @relation("AlunoCurrentStudentContract", fields: [currentStudentContractId], references: [id], onDelete: SetNull)
-  professor                     Professor                      @relation(fields: [professorId], references: [id], onDelete: Cascade, map: "Athlete_educatorId_fkey")
-  user                          User                           @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Athlete_userId_fkey")
+  professor                     Professor?                     @relation(fields: [professorId], references: [id], onDelete: Cascade, map: "Athlete_educatorId_fkey")
+  user                          User?                          @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Athlete_userId_fkey")
+  contract                      CompanyContract                @relation("AlunoContract", fields: [contractId], references: [id], onDelete: Cascade)
+  createdByProfessor            Professor?                     @relation("AlunoCreatedByProfessor", fields: [createdByProfessorId], references: [id], onDelete: SetNull)
+  discardedByProfessor          Professor?                     @relation("AlunoDiscardedByProfessor", fields: [discardedByProfessorId], references: [id], onDelete: SetNull)
   exerciseProgress              AlunoExerciseProgress[]
   intakeForm                    AlunoIntakeForm?
   profileReviewSettings         AlunoProfileReviewSettings?
@@ -433,10 +465,102 @@ model Aluno {
   parqSubmissions               StudentParqSubmission[]
   prontuarioRecords             ProntuarioRecord[]
   prontuarioDiscomfortSnapshots ProntuarioDiscomfortSnapshot[]
+  onboarding                    StudentOnboardingProcess?
+  lifecycleEvents               StudentLifecycleEvent[]
 
+  @@unique([contractId, userId])
+  @@unique([contractId, leadCpfNormalized])
+  @@index([contractId, leadEmailNormalized])
+  @@index([contractId, leadPhoneNormalized])
   @@index([serviceId])
   @@index([currentStudentContractId])
+  @@index([contractId, status])
+  @@index([createdByProfessorId])
+  @@index([discardedByProfessorId])
   @@index([professorId], map: "Athlete_educatorId_idx")
+}
+
+// --- Ciclo unico lead -> aluno (issue #268) ---
+// Estados e transicoes ficam centralizados em student-lifecycle.service.ts (apps/api)
+// e no contrato compartilhado packages/types/student-lifecycle.ts. Nao alterar
+// `Aluno.status` fora desse service.
+enum StudentLifecycleStatus {
+  LEAD
+  INVITED
+  PRE_REGISTRATION_IN_PROGRESS
+  PRE_REGISTRATION_COMPLETED
+  READY_FOR_ENROLLMENT
+  ACTIVE_STUDENT
+  DISCARDED
+}
+
+enum StudentOnboardingModuleStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum StudentLifecycleEventType {
+  LEAD_CREATED
+  IDENTIFIER_NORMALIZED_CHANGED
+  STATUS_CHANGED
+  ACCOUNT_LINKED
+  ACCOUNT_UNLINKED
+  PRE_REGISTRATION_COMPLETED
+  PRIVACY_CONSENT_RECORDED
+  ADMIN_REVIEWED
+  DISCARDED
+  REOPENED
+  CONVERTED_TO_ACTIVE_STUDENT
+}
+
+// Processo de pre-matricula: 1:1 com Aluno, contem somente dados de PROCESSO
+// (progresso, versao de formulario/consentimento, timestamps). Nao duplica
+// respostas cadastrais ou clinicas -- essas continuam em StudentProfile e
+// StudentHealthIntake/StudentParqSubmission.
+model StudentOnboardingProcess {
+  id                    String                        @id @default(cuid())
+  alunoId               String                        @unique
+  contractId            String
+  formVersion           String?
+  privacyNoticeVersion  String?
+  privacyAcceptedAt     DateTime?
+  startedAt             DateTime?
+  lastSavedAt           DateTime?
+  completedAt           DateTime?
+  reviewedAt            DateTime?
+  reviewedByProfessorId String?
+  convertedAt           DateTime?
+  claimedByUserId       String?
+  claimedAt             DateTime?
+  reopenedAt            DateTime?
+  reopenReason          String?
+  healthModuleStatus    StudentOnboardingModuleStatus @default(NOT_STARTED)
+  parqModuleStatus      StudentOnboardingModuleStatus @default(NOT_STARTED)
+  createdAt             DateTime                      @default(now())
+  updatedAt             DateTime                      @updatedAt
+  aluno                 Aluno                         @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  contract              CompanyContract               @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([contractId])
+  @@index([claimedByUserId])
+}
+
+// Trilha de auditoria dos eventos criticos do ciclo lead -> aluno ativo.
+model StudentLifecycleEvent {
+  id               String                    @id @default(cuid())
+  alunoId          String
+  contractId       String
+  eventType        StudentLifecycleEventType
+  actorUserId      String?
+  actorProfessorId String?
+  metadata         Json?
+  createdAt        DateTime                  @default(now())
+  aluno            Aluno                     @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  contract         CompanyContract           @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([alunoId, createdAt])
+  @@index([contractId, createdAt])
 }
 
 model StudentContract {

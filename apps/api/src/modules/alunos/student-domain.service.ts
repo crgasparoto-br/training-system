@@ -501,8 +501,11 @@ const buildTimeline = ({
 
 export const studentDomainService = {
   async loadAlunoDomainSnapshot(alunoId: string, options: StudentDomainQueryOptions = {}) {
-    const aluno = await prisma.aluno.findUnique({
-      where: { id: alunoId },
+    const aluno = await prisma.aluno.findFirst({
+      where: {
+        id: alunoId,
+        ...(options.companyContractId ? { contractId: options.companyContractId } : {}),
+      },
       include: {
         user: {
           include: {

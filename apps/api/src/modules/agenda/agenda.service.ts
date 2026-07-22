@@ -67,7 +67,10 @@ export const agendaService = {
         orderBy: { createdAt: 'asc' },
       }),
       prisma.aluno.findMany({
-        where: { professor: { contractId }, user: { isActive: true } },
+        // Issue #268: `Aluno.contractId` é a barreira tenant canônica.
+        // O professor pode ser atribuído depois da ativação e não participa
+        // da decisão de pertencimento do aluno ao contrato.
+        where: { contractId, user: { isActive: true }, status: 'ACTIVE_STUDENT' },
         include: {
           user: { include: { profile: true } },
           professor: { include: { user: { include: { profile: true } } } },
@@ -158,7 +161,7 @@ export const agendaService = {
   },
 
   async listFixedSlots(contractId: string, filters: { professorId?: string; alunoId?: string }) {
-    const where: any = { professor: { contractId }, isActive: true };
+    const where: any = { aluno: { contractId }, professor: { contractId }, isActive: true };
     if (filters.professorId) where.professorId = filters.professorId;
     if (filters.alunoId) where.alunoId = filters.alunoId;
 
@@ -186,7 +189,7 @@ export const agendaService = {
   ) {
     return prisma.$transaction(async (tx) => {
       const current = await tx.fixedScheduleSlot.findMany({
-        where: { alunoId: data.alunoId, isActive: true, professor: { contractId } },
+        where: { alunoId: data.alunoId, isActive: true, aluno: { contractId } },
         select: {
           id: true,
           professorId: true,
@@ -228,7 +231,7 @@ export const agendaService = {
   ) {
     return prisma.$transaction(async (tx) => {
       const current = await tx.fixedScheduleSlot.findFirst({
-        where: { id, professor: { contractId } },
+        where: { id, aluno: { contractId } },
         select: { alunoId: true, isActive: true },
       });
       if (!current) throw new Error('Horario fixo nao encontrado');
@@ -241,7 +244,7 @@ export const agendaService = {
       }
 
       const active = await tx.fixedScheduleSlot.findMany({
-        where: { alunoId: current.alunoId, isActive: true, professor: { contractId } },
+        where: { alunoId: current.alunoId, isActive: true, aluno: { contractId } },
         select: {
           id: true,
           professorId: true,
@@ -342,7 +345,7 @@ export const agendaService = {
 
     const [aluno, professor] = await Promise.all([
       prisma.aluno.findFirst({
-        where: { id: data.alunoId, professor: { contractId } },
+        where: { id: data.alunoId, contractId },
         select: { id: true, professorId: true, schedulePlan: true },
       }),
       prisma.professor.findFirst({
@@ -352,6 +355,9 @@ export const agendaService = {
     ]);
     if (!aluno) throw new Error('Aluno não encontrado');
     if (!professor) throw new Error('Professor não encontrado');
+    if (!aluno.professorId) {
+      throw new Error('Aluno não possui professor responsável');
+    }
     if (aluno.professorId !== data.professorId) {
       throw new Error('Aluno não pertence ao professor informado');
     }

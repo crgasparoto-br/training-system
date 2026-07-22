@@ -55,9 +55,10 @@ const CONTRACT_ID = 'contract-1';
 function makeActiveAluno(id = 'aluno-1', overrides: Record<string, unknown> = {}) {
   return {
     id,
+    contractId: CONTRACT_ID,
     createdAt: new Date('2025-01-01'),
     user: { id: `user-${id}` },
-    professor: { contractId: CONTRACT_ID },
+    professor: { contractId: 'legacy-professor-contract' },
     ...overrides,
   };
 }

@@ -3,6 +3,8 @@ import bcryptjs from 'bcryptjs';
 import crypto from 'crypto';
 import { getServiceForContract } from '../services/service.service.js';
 import { assertStudentInterestServiceSelectable } from './aluno.service-selection.js';
+import { legacyDirectActiveStudentCreationFields } from './student-lifecycle.service.js';
+import { upsertStudentIdentity } from './student-identity.service.js';
 import {
   syncStudentFixedSchedule,
   type FixedScheduleSlotInput,
@@ -51,9 +53,11 @@ const positiveParqItems = (responses: ParqResponseShape) =>
     .map(([key, label]) => ({ key, label }));
 
 const resolveAlunoCompanyContractId = (alunoLike: {
+  contractId?: string | null;
   professor?: { contractId?: string | null } | null;
   currentStudentContract?: { contract?: { companyContractId?: string | null } | null } | null;
 }) =>
+  alunoLike.contractId ||
   alunoLike.currentStudentContract?.contract?.companyContractId ||
   alunoLike.professor?.contractId ||
   null;
@@ -284,6 +288,12 @@ export const alunoService = {
         data: {
           userId: user.id,
           professorId: data.professorId,
+          // Cadastro administrativo legado: sempre cria um aluno já ativo,
+          // com conta e professor completos (issue #268 não altera este
+          // fluxo). contractId é derivado do professor responsável para
+          // preservar o isolamento multi-tenant já existente.
+          contractId: professor.contractId,
+          ...legacyDirectActiveStudentCreationFields(),
           serviceId,
           schedulePlan: data.schedulePlan,
           age: data.age,
@@ -317,6 +327,24 @@ export const alunoService = {
           intakeForm: true,
         },
       });
+
+      await upsertStudentIdentity(
+        aluno.id,
+        professor.contractId,
+        {
+          name: data.name,
+          email: data.email,
+          phone: data.phone,
+          birthDate: data.birthDate,
+          gender: data.gender,
+        },
+        {
+          client: tx,
+          sourceType: 'professional',
+          sourceReference: 'legacy_admin_create',
+          syncLegacyProfile: true,
+        }
+      );
 
       if (data.macronutrients && hasAnyValue(data.macronutrients)) {
         await tx.macronutrients.create({
@@ -420,10 +448,14 @@ export const alunoService = {
     const skip = (page - 1) * limit;
     const statusFilter =
       status === 'all' ? {} : { user: { isActive: status === 'active' } };
+    // Issue #268: esta listagem sempre representou alunos ativos (fluxo
+    // legado só cria Aluno já com status ACTIVE_STUDENT). Explicitar o
+    // filtro para que leads futuros (#269+) nunca apareçam aqui por acidente.
+    const lifecycleFilter = { status: 'ACTIVE_STUDENT' as const };
 
     const [alunos, total] = await Promise.all([
       prisma.aluno.findMany({
-        where: { professorId, ...statusFilter },
+        where: { professorId, ...statusFilter, ...lifecycleFilter },
         include: {
           user: {
             include: {
@@ -449,7 +481,7 @@ export const alunoService = {
         take: limit,
       }),
       prisma.aluno.count({
-        where: { professorId, ...statusFilter },
+        where: { professorId, ...statusFilter, ...lifecycleFilter },
       }),
     ]);
 
@@ -486,8 +518,11 @@ export const alunoService = {
     const statusFilter =
       status === 'all' ? {} : { user: { isActive: status === 'active' } };
 
+    // Issue #268: filtro explícito para que leads futuros (#269+) nunca
+    // apareçam nesta listagem de alunos ativos.
     const where = {
       professorId: { in: professorIds },
+      status: 'ACTIVE_STUDENT' as const,
       ...statusFilter,
     };
 
@@ -547,14 +582,19 @@ export const alunoService = {
     const skip = (page - 1) * limit;
     const statusFilter =
       status === 'all' ? {} : { user: { isActive: status === 'active' } };
+    // Issue #268: contractId agora vive diretamente em Aluno (fonte de
+    // verdade tenant-scoped) e o filtro de status evita que leads futuros
+    // (#269+) apareçam como aluno ativo nesta listagem.
     const where: any = professorId
       ? {
           professorId,
-          professor: { contractId },
+          contractId,
+          status: 'ACTIVE_STUDENT',
           ...statusFilter,
         }
       : {
-          professor: { contractId },
+          contractId,
+          status: 'ACTIVE_STUDENT',
           ...statusFilter,
         };
 
@@ -726,14 +766,27 @@ export const alunoService = {
         data: alunoData,
       });
 
-      if (avatar !== undefined || birthDate !== undefined || gender !== undefined) {
-        await tx.profile.update({
-          where: { userId: aluno.userId },
-          data: {
-            ...(avatar !== undefined ? { avatar } : {}),
+      if (birthDate !== undefined || gender !== undefined) {
+        await upsertStudentIdentity(
+          aluno.id,
+          alunoContractId,
+          {
             ...(birthDate !== undefined ? { birthDate } : {}),
             ...(gender !== undefined ? { gender } : {}),
           },
+          {
+            client: tx,
+            sourceType: 'professional',
+            sourceReference: 'legacy_admin_update',
+            syncLegacyProfile: true,
+          }
+        );
+      }
+
+      if (aluno.userId && avatar !== undefined) {
+        await tx.profile.update({
+          where: { userId: aluno.userId },
+          data: { avatar },
         });
       }
 
@@ -924,7 +977,11 @@ export const alunoService = {
     status?: 'active' | 'inactive' | 'all';
   }) {
     const { query, professorId, professorIds, contractId, status = 'active' } = params;
+    // Issue #268: busca de aluno continua restrita a quem já tem conta/perfil
+    // (leads pré-cadastro não são indexados aqui) e explicitamente a
+    // ACTIVE_STUDENT, para não confundir lead com aluno ativo.
     const where: any = {
+      status: 'ACTIVE_STUDENT',
       user: {
         profile: {
           name: {
@@ -951,7 +1008,7 @@ export const alunoService = {
     }
 
     if (contractId) {
-      where.professor = { contractId };
+      where.contractId = contractId;
     }
 
     return await prisma.aluno.findMany({
@@ -981,10 +1038,7 @@ export const alunoService = {
    */
   async belongsToContract(alunoId: string, contractId: string): Promise<boolean> {
     const aluno = await prisma.aluno.findFirst({
-      where: {
-        id: alunoId,
-        professor: { contractId },
-      },
+      where: { id: alunoId, contractId },
     });
     return !!aluno;
   },

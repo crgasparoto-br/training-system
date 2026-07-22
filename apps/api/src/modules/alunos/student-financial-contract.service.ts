@@ -2,6 +2,8 @@ import { PrismaClient, type Prisma } from '@prisma/client';
 import bcryptjs from 'bcryptjs';
 import crypto from 'crypto';
 import { assertStudentInterestServiceSelectable } from './aluno.service-selection.js';
+import { legacyDirectActiveStudentCreationFields } from './student-lifecycle.service.js';
+import { upsertStudentIdentity } from './student-identity.service.js';
 import type { CreateAlunoDTO, UpdateAlunoDTO } from './aluno.service.js';
 import { contractDocumentService } from '../contracts/contract-document.service.js';
 import { loadContractServiceVariableContext } from '../contracts/contract-service-context.js';
@@ -255,6 +257,10 @@ const createAlunoRecord = async (
     data: {
       userId: user.id,
       professorId: options.professorId,
+      // Fluxo comercial legado: aluno já nasce ativo, com conta e professor
+      // completos (issue #268 não altera este fluxo).
+      contractId: professor.contractId,
+      ...legacyDirectActiveStudentCreationFields(),
       serviceId,
       schedulePlan: data.schedulePlan,
       age: data.age,
@@ -269,6 +275,24 @@ const createAlunoRecord = async (
       diastolicPressure: data.diastolicPressure,
     },
   });
+
+  await upsertStudentIdentity(
+    aluno.id,
+    options.companyContractId,
+    {
+      name: data.name,
+      email: data.email,
+      phone: data.phone,
+      birthDate: data.birthDate,
+      gender: data.gender,
+    },
+    {
+      client: tx,
+      sourceType: 'professional',
+      sourceReference: 'financial_contract_create',
+      syncLegacyProfile: true,
+    }
+  );
 
   if (data.macronutrients && hasAnyValue(data.macronutrients)) {
     await tx.macronutrients.create({
@@ -342,7 +366,6 @@ const updateAlunoRecord = async (
   const currentAluno = await tx.aluno.findUniqueOrThrow({
     where: { id: alunoId },
     include: {
-      professor: { select: { contractId: true } },
       currentStudentContract: {
         select: { contract: { select: { companyContractId: true } } },
       },
@@ -350,9 +373,8 @@ const updateAlunoRecord = async (
     },
   });
 
-  const scopedContractId =
-    currentAluno.currentStudentContract?.contract.companyContractId ||
-    currentAluno.professor.contractId;
+  // Issue #268: Aluno.contractId é a barreira tenant-scoped canônica.
+  const scopedContractId = currentAluno.contractId;
   if (scopedContractId !== options.companyContractId) {
     throw new Error('Aluno não pertence ao contrato autenticado');
   }
@@ -387,15 +409,25 @@ const updateAlunoRecord = async (
 
   const aluno = await tx.aluno.update({ where: { id: alunoId }, data: alunoData });
 
-  if (avatar !== undefined || birthDate !== undefined || gender !== undefined) {
-    await tx.profile.update({
-      where: { userId: aluno.userId },
-      data: {
-        ...(avatar !== undefined ? { avatar } : {}),
+  if (birthDate !== undefined || gender !== undefined) {
+    await upsertStudentIdentity(
+      aluno.id,
+      options.companyContractId,
+      {
         ...(birthDate !== undefined ? { birthDate } : {}),
         ...(gender !== undefined ? { gender } : {}),
       },
-    });
+      {
+        client: tx,
+        sourceType: 'professional',
+        sourceReference: 'financial_contract_update',
+        syncLegacyProfile: true,
+      }
+    );
+  }
+
+  if (aluno.userId && avatar !== undefined) {
+    await tx.profile.update({ where: { userId: aluno.userId }, data: { avatar } });
   }
 
   if (macronutrients && hasAnyValue(macronutrients)) {
@@ -541,6 +573,12 @@ const buildTemplateContext = async (
       include: { user: { include: { profile: true } } },
     }),
   ]);
+
+  if (!aluno.user) {
+    throw new Error(
+      'Aluno ainda não possui conta vinculada; não é possível gerar contrato financeiro para um registro incompleto (lead)'
+    );
+  }
 
   const selectedService = await loadScopedFinancialService(
     tx,
@@ -697,10 +735,12 @@ const loadAuthoritativeStudentContractServiceId = async (
     where: { id: alunoId },
     select: {
       serviceId: true,
-      professor: { select: { contractId: true } },
+      contractId: true,
     },
   });
-  if (aluno.professor.contractId !== companyContractId) {
+  // Issue #268: contractId direto em Aluno evita depender de professor
+  // estar vinculado.
+  if (aluno.contractId !== companyContractId) {
     throw new Error('Aluno não pertence ao contrato autenticado');
   }
 

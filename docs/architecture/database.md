@@ -24,6 +24,27 @@ O projeto usa Prisma para modelagem e acesso ao banco.
 
 O `contractId` e a barreira principal entre clientes/contratos. Rotas, services e consultas devem preservar esse filtro.
 
+## Ciclo unico lead -> aluno (issue #268)
+
+`Aluno` e o identificador canonico da participacao da pessoa no dominio de
+alunos desde `LEAD` ate `ACTIVE_STUDENT`. `contractId` e obrigatorio e
+`userId`, `professorId` e `age` sao opcionais nos estados pre-ativos.
+
+A identidade pessoal tenant-scoped fica em `StudentProfile.identificationData`.
+Campos `Aluno.lead*`, `birthDate` e `age` sao projecoes derivadas para
+busca/compatibilidade. `User`/`Profile` representam a conta global e podem ser
+associados a um `Aluno` por contrato; a constraint e
+`@@unique([contractId, userId])`, nao global.
+
+A migration `20260721120000_student_lifecycle_domain` possui guards de
+reexecucao, backfill convergente e trigger temporario de compatibilidade para
+rollback da aplicacao anterior. O CI deve aplicar todas as migrations e
+reexecutar essa migration no mesmo banco para comprovar idempotencia.
+
+Ver `docs/architecture/student-lifecycle-data-ownership.md` para ownership,
+claim concorrente, contexto de tenant, transicoes guardadas, auditoria e
+estrategia de remocao da compatibilidade na #275.
+
 ## PRNT
 
 O PRNT possui historico proprio em `ProntuarioRecord` e tabelas filhas por bloco. `StudentParqSubmission` registra cada envio historico do PAR-Q; o prontuario le a submissao mais recente e mantem acompanhamentos antigos em `ProntuarioAnamnesisFollowUp`.
@@ -43,3 +64,20 @@ Snapshots de desconforto corporal ficam em `ProntuarioDiscomfortSnapshot` e `Pro
 - `pnpm type-check`
 - `pnpm test`
 - `pnpm arch:check`
+
+
+## Student lifecycle migration compatibility
+
+A migration `20260721120000_student_lifecycle_domain` preserva o mesmo `Aluno.id` e
+seus relacionamentos. O isolamento de tenant usa `Aluno.contractId` diretamente; a
+relação com professor é opcional e não pode ser usada como substituta da barreira
+tenant-scoped.
+
+Durante a janela de rollback, o trigger `student_lifecycle_legacy_aluno_defaults`
+atende somente `INSERT` da aplicação anterior, derivando o contrato e classificando
+o cadastro administrativo completo como `ACTIVE_STUDENT`. Updates não são
+interceptados, preservando a autoridade do serviço de ciclo sobre transições.
+
+O workflow de validação monta uma base pré-#268 populada, aplica a migration,
+confirma a preservação de contrato, PRNT, avaliações, agenda, treino, dados clínicos
+e IDs e, em seguida, reexecuta a migration para validar convergência.

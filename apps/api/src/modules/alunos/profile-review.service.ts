@@ -1,6 +1,7 @@
 import { Prisma, PrismaClient, StudentProfileReviewStatus } from '@prisma/client';
 import { notificationService } from '../notifications/notification.service.js';
 import { profileAuditService } from './profile-audit.service.js';
+import { loadStudentIdentity, upsertStudentIdentity } from './student-identity.service.js';
 
 const prisma = new PrismaClient();
 
@@ -143,9 +144,11 @@ const positiveParqItems = (responses: Record<string, unknown>) =>
     .map(([key, label]) => ({ key, label }));
 
 const resolveAlunoCompanyContractId = (alunoLike: {
+  contractId?: string | null;
   professor?: { contractId?: string | null } | null;
   currentStudentContract?: { contract?: { companyContractId?: string | null } | null } | null;
 }) =>
+  alunoLike.contractId ||
   alunoLike.currentStudentContract?.contract?.companyContractId ||
   alunoLike.professor?.contractId ||
   null;
@@ -430,18 +433,26 @@ const applyAlunoPatch = async (
       : null;
 
   if (hasOwnValues(profilePatch)) {
-    const profileData: Prisma.ProfileUpdateInput = {
-      ...(profilePatch as Prisma.ProfileUpdateInput),
-    };
-
-    if ('birthDate' in profilePatch) {
-      profileData.birthDate = toDateOrNull(profilePatch.birthDate as string | null | undefined);
+    const scopedAluno = await tx.aluno.findUnique({
+      where: { id: alunoId },
+      select: { contractId: true, userId: true },
+    });
+    if (!scopedAluno || scopedAluno.userId !== alunoUserId) {
+      throw new Error('Aluno não encontrado para aplicar revisão cadastral');
     }
 
-    await tx.profile.update({
-      where: { userId: alunoUserId },
-      data: profileData,
-    });
+    await upsertStudentIdentity(
+      alunoId,
+      scopedAluno.contractId,
+      profilePatch,
+      {
+        client: tx,
+        actor: { userId: alunoUserId },
+        sourceType: 'student',
+        sourceReference: 'profile_review',
+        syncLegacyProfile: true,
+      }
+    );
   }
 
   if (hasOwnValues(alunoPatch)) {
@@ -519,6 +530,7 @@ const applyAlunoPatch = async (
       const aluno = await tx.aluno.findUnique({
         where: { id: alunoId },
         select: {
+          contractId: true,
           professor: { select: { contractId: true } },
           currentStudentContract: {
             select: {
@@ -605,27 +617,28 @@ export const profileReviewService = {
       },
     });
 
-    if (!aluno || !aluno.user?.profile) {
+    if (!aluno?.user) {
       throw new Error('Aluno não encontrado para snapshot da revisão');
     }
+    const identity = await loadStudentIdentity(alunoId, aluno.contractId, client);
 
     return castJson({
       profile: {
-        name: aluno.user.profile.name,
-        phone: aluno.user.profile.phone,
-        birthDate: aluno.user.profile.birthDate,
-        gender: aluno.user.profile.gender,
-        cpf: aluno.user.profile.cpf,
-        rg: aluno.user.profile.rg,
-        maritalStatus: aluno.user.profile.maritalStatus,
-        addressStreet: aluno.user.profile.addressStreet,
-        addressNumber: aluno.user.profile.addressNumber,
-        addressComplement: aluno.user.profile.addressComplement,
-        addressNeighborhood: aluno.user.profile.addressNeighborhood,
-        addressCity: aluno.user.profile.addressCity,
-        addressState: aluno.user.profile.addressState,
-        addressZipCode: aluno.user.profile.addressZipCode,
-        instagramHandle: aluno.user.profile.instagramHandle,
+        name: identity.name,
+        phone: identity.phone,
+        birthDate: identity.birthDate,
+        gender: identity.gender,
+        cpf: identity.cpf,
+        rg: identity.rg,
+        maritalStatus: identity.maritalStatus,
+        addressStreet: identity.addressStreet,
+        addressNumber: identity.addressNumber,
+        addressComplement: identity.addressComplement,
+        addressNeighborhood: identity.addressNeighborhood,
+        addressCity: identity.addressCity,
+        addressState: identity.addressState,
+        addressZipCode: identity.addressZipCode,
+        instagramHandle: identity.instagramHandle,
       },
       aluno: {
         age: aluno.age,
@@ -667,14 +680,13 @@ export const profileReviewService = {
     if (!aluno) {
       throw new Error('Aluno não encontrado');
     }
-
     const [settings, policy] = await Promise.all([
       prisma.alunoProfileReviewSettings.findUnique({
         where: { alunoId },
       }),
       prisma.profileReviewPolicy.findFirst({
         where: {
-          contractId: aluno.professor.contractId,
+          contractId: aluno.contractId,
           isActive: true,
         },
         orderBy: {
@@ -828,7 +840,6 @@ export const profileReviewService = {
     if (review.status !== StudentProfileReviewStatus.pending) {
       throw new Error('A revisão cadastral não está pendente');
     }
-
     const now = new Date();
     const [settings, policy, freshSnapshot] = await Promise.all([
       prisma.alunoProfileReviewSettings.findUnique({
@@ -836,7 +847,7 @@ export const profileReviewService = {
       }),
       prisma.profileReviewPolicy.findFirst({
         where: {
-          contractId: review.aluno.professor.contractId,
+          contractId: review.aluno.contractId,
           isActive: true,
         },
         orderBy: {
@@ -942,7 +953,7 @@ export const profileReviewService = {
     const hasSensitiveChanges = changedFields.some((field) => field.requiresApproval);
 
     const updated = await prisma.$transaction(async (tx) => {
-      await applyAlunoPatch(tx, review.alunoId, review.aluno.user.id, directPatch);
+      await applyAlunoPatch(tx, review.alunoId, review.aluno.user!.id, directPatch);
 
       await tx.alunoProfileReviewSettings.upsert({
         where: { alunoId: review.alunoId },
@@ -1039,7 +1050,7 @@ export const profileReviewService = {
     });
 
     const updated = await prisma.$transaction(async (tx) => {
-      await applyAlunoPatch(tx, review.alunoId, review.aluno.user.id, sensitivePatch);
+      await applyAlunoPatch(tx, review.alunoId, review.aluno.user!.id, sensitivePatch);
 
       return tx.studentProfileReview.update({
         where: { id: review.id },

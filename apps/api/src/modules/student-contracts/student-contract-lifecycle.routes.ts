@@ -71,7 +71,7 @@ router.post(
       const canManageAluno =
         professorRole === 'master' ||
         candidate.aluno.professorId === professorId ||
-        candidate.aluno.professor.responsibleManagerId === professorId;
+        candidate.aluno.professor?.responsibleManagerId === professorId;
 
       if (!canManageAluno) {
         return sendError(res, 'Aluno não encontrado ou não pertence ao seu acesso', 404);

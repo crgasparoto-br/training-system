@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+﻿import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { sendError, sendSuccess } from '@corrida/utils';
 import { PrismaClient } from '@prisma/client';
@@ -7,16 +7,23 @@ import { profileReviewService } from '../modules/alunos/profile-review.service.j
 import { profileAuditService } from '../modules/alunos/profile-audit.service.js';
 import { assessmentService } from '../modules/assessments/assessment.service.js';
 import { alunoAssessmentPlanService } from '../modules/alunos/aluno-assessment-plan.service.js';
+import {
+  normalizeRequestedStudentContractId,
+  resolveActiveStudentMembership,
+  StudentAccountContextError,
+} from '../modules/alunos/student-account-context.service.js';
+import { loadStudentIdentity, upsertStudentIdentity } from '../modules/alunos/student-identity.service.js';
 
 const prisma = new PrismaClient();
 
-/**
- * Retorna o Aluno com relacionamentos básicos pelo userId autenticado.
- * Lança erro 404 se o aluno não existir.
- */
-async function requireAlunoByUserId(userId: string) {
-  const aluno = await prisma.aluno.findUnique({
-    where: { userId },
+/** Resolve o cadastro ativo da conta dentro do tenant explicitamente selecionado. */
+async function requireAlunoByUserId(req: Request, userId: string) {
+  const requestedContractId = normalizeRequestedStudentContractId(
+    req.header('x-contract-id')
+  );
+  const membership = await resolveActiveStudentMembership(userId, requestedContractId);
+  const aluno = await prisma.aluno.findFirst({
+    where: { id: membership.id, contractId: membership.contractId },
     include: {
       user: {
         select: {
@@ -25,19 +32,17 @@ async function requireAlunoByUserId(userId: string) {
           profile: true,
         },
       },
-      professor: {
-        select: { contractId: true },
-      },
+      studentProfile: true,
+      professor: { select: { contractId: true } },
       intakeForm: true,
       profileReviewSettings: true,
     },
   });
 
-  if (!aluno) {
+  if (!aluno?.user) {
     throw Object.assign(new Error('Aluno não encontrado'), { status: 404 });
   }
-
-  return aluno;
+  return aluno as typeof aluno & { user: NonNullable<typeof aluno.user> };
 }
 
 const router: Router = Router();
@@ -414,28 +419,27 @@ export default router;
 router.get('/me/profile', async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.userId as string;
-    const aluno = await requireAlunoByUserId(userId);
+    const aluno = await requireAlunoByUserId(req, userId);
     const contractSummary = await getStudentContractSummary(aluno.id);
-    const p = aluno.user.profile;
+    const identity = await loadStudentIdentity(aluno.id, aluno.contractId);
+    const accountProfile = aluno.user.profile;
 
-    const profile = p
-      ? {
-          name: p.name,
-          avatar: p.avatar,
-          phone: p.phone,
-          birthDate: p.birthDate,
-          gender: p.gender,
-          maritalStatus: p.maritalStatus,
-          addressStreet: p.addressStreet,
-          addressNumber: p.addressNumber,
-          addressComplement: p.addressComplement,
-          addressNeighborhood: p.addressNeighborhood,
-          addressCity: p.addressCity,
-          addressState: p.addressState,
-          addressZipCode: p.addressZipCode,
-          instagramHandle: p.instagramHandle,
-        }
-      : null;
+    const profile = {
+      name: identity.name ?? '',
+      avatar: accountProfile?.avatar ?? null,
+      phone: identity.phone ?? null,
+      birthDate: identity.birthDate ?? null,
+      gender: identity.gender ?? null,
+      maritalStatus: identity.maritalStatus ?? null,
+      addressStreet: identity.addressStreet ?? null,
+      addressNumber: identity.addressNumber ?? null,
+      addressComplement: identity.addressComplement ?? null,
+      addressNeighborhood: identity.addressNeighborhood ?? null,
+      addressCity: identity.addressCity ?? null,
+      addressState: identity.addressState ?? null,
+      addressZipCode: identity.addressZipCode ?? null,
+      instagramHandle: identity.instagramHandle ?? null,
+    };
 
     const intakeForm = aluno.intakeForm
       ? {
@@ -459,6 +463,10 @@ router.get('/me/profile', async (req: Request, res: Response) => {
       intakeForm,
     });
   } catch (error: any) {
+    if (error instanceof StudentAccountContextError) {
+      const status = error.code === 'STUDENT_CONTRACT_CONTEXT_REQUIRED' ? 409 : 404;
+      return sendError(res, error.message, status);
+    }
     if (error?.status === 404) {
       return sendError(res, error.message, 404);
     }
@@ -499,7 +507,7 @@ router.put('/me/profile', async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.userId as string;
     const validated = updateProfileSchema.parse(req.body);
-    const aluno = await requireAlunoByUserId(userId);
+    const aluno = await requireAlunoByUserId(req, userId);
 
     const { intakeForm: intakeFormPatch, ...profilePatch } = validated;
 
@@ -514,11 +522,19 @@ router.put('/me/profile', async (req: Request, res: Response) => {
 
     await prisma.$transaction(async (tx) => {
       if (Object.keys(profileData).length > 0) {
-        await tx.profile.update({
-          where: { userId },
-          data: profileData,
-        });
-        changedFieldNames.push(...Object.keys(profileData).map((k) => `profile.${k}`));
+        await upsertStudentIdentity(
+          aluno.id,
+          aluno.contractId,
+          profileData,
+          {
+            client: tx,
+            actor: { userId },
+            sourceType: 'student',
+            sourceReference: 'student_app_profile',
+            syncLegacyProfile: true,
+          }
+        );
+        changedFieldNames.push(...Object.keys(profileData).map((k) => `identity.${k}`));
       }
 
       if (intakeFormPatch && Object.keys(intakeFormPatch).length > 0) {
@@ -556,6 +572,10 @@ router.put('/me/profile', async (req: Request, res: Response) => {
     if (error instanceof z.ZodError) {
       return sendError(res, 'Dados inválidos', 400, error.errors);
     }
+    if (error instanceof StudentAccountContextError) {
+      const status = error.code === 'STUDENT_CONTRACT_CONTEXT_REQUIRED' ? 409 : 404;
+      return sendError(res, error.message, status);
+    }
     if (error?.status === 404) {
       return sendError(res, error.message, 404);
     }
@@ -571,7 +591,7 @@ router.put('/me/profile', async (req: Request, res: Response) => {
 router.get('/me/profile-review', async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.userId as string;
-    const aluno = await requireAlunoByUserId(userId);
+    const aluno = await requireAlunoByUserId(req, userId);
 
     const review = await prisma.studentProfileReview.findFirst({
       where: {
@@ -583,6 +603,10 @@ router.get('/me/profile-review', async (req: Request, res: Response) => {
 
     return sendSuccess(res, review ?? null);
   } catch (error: any) {
+    if (error instanceof StudentAccountContextError) {
+      const status = error.code === 'STUDENT_CONTRACT_CONTEXT_REQUIRED' ? 409 : 404;
+      return sendError(res, error.message, status);
+    }
     if (error?.status === 404) {
       return sendError(res, error.message, 404);
     }
@@ -598,12 +622,16 @@ router.get('/me/profile-review', async (req: Request, res: Response) => {
 router.get('/me/assessments', async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.userId as string;
-    const aluno = await requireAlunoByUserId(userId);
+    const aluno = await requireAlunoByUserId(req, userId);
 
     const assessments = await assessmentService.listByAluno(aluno.id);
 
     return sendSuccess(res, assessments);
   } catch (error: any) {
+    if (error instanceof StudentAccountContextError) {
+      const status = error.code === 'STUDENT_CONTRACT_CONTEXT_REQUIRED' ? 409 : 404;
+      return sendError(res, error.message, status);
+    }
     if (error?.status === 404) {
       return sendError(res, error.message, 404);
     }
@@ -619,13 +647,17 @@ router.get('/me/assessments', async (req: Request, res: Response) => {
 router.get('/me/assessment-plan', async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.userId as string;
-    const aluno = await requireAlunoByUserId(userId);
+    const aluno = await requireAlunoByUserId(req, userId);
 
-    const contractId = aluno.professor.contractId;
+    const contractId = aluno.contractId;
     const plan = await alunoAssessmentPlanService.getByAluno(aluno.id, contractId);
 
     return sendSuccess(res, plan);
   } catch (error: any) {
+    if (error instanceof StudentAccountContextError) {
+      const status = error.code === 'STUDENT_CONTRACT_CONTEXT_REQUIRED' ? 409 : 404;
+      return sendError(res, error.message, status);
+    }
     if (error?.status === 404) {
       return sendError(res, error.message, 404);
     }
@@ -672,10 +704,10 @@ router.get('/me/notifications', async (req: Request, res: Response) => {
 router.get('/me/summary', async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.userId as string;
-    const aluno = await requireAlunoByUserId(userId);
+    const aluno = await requireAlunoByUserId(req, userId);
     const contractSummary = await getStudentContractSummary(aluno.id);
 
-    const contractId = aluno.professor.contractId;
+    const contractId = aluno.contractId;
 
     const [pendingReview, assessmentPlan, lastWorkout, notifications] = await Promise.all([
       prisma.studentProfileReview.findFirst({
@@ -733,6 +765,10 @@ router.get('/me/summary', async (req: Request, res: Response) => {
       recentNotifications: notifications,
     });
   } catch (error: any) {
+    if (error instanceof StudentAccountContextError) {
+      const status = error.code === 'STUDENT_CONTRACT_CONTEXT_REQUIRED' ? 409 : 404;
+      return sendError(res, error.message, status);
+    }
     if (error?.status === 404) {
       return sendError(res, error.message, 404);
     }
@@ -748,11 +784,15 @@ router.get('/me/summary', async (req: Request, res: Response) => {
 router.get('/me/contract', async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.userId as string;
-    const aluno = await requireAlunoByUserId(userId);
+    const aluno = await requireAlunoByUserId(req, userId);
     const contractSummary = await getStudentContractSummary(aluno.id);
 
     return sendSuccess(res, contractSummary);
   } catch (error: any) {
+    if (error instanceof StudentAccountContextError) {
+      const status = error.code === 'STUDENT_CONTRACT_CONTEXT_REQUIRED' ? 409 : 404;
+      return sendError(res, error.message, status);
+    }
     if (error?.status === 404) {
       return sendError(res, error.message, 404);
     }
