@@ -7,129 +7,138 @@ hash, status e rotas próprios. Ele **não reutiliza** token, hash, endpoint,
 status ou tabela de contrato (`Contract`/`ContractDocument`), mesmo
 compartilhando a inspiração de rota pública.
 
-- Persistência: `PreRegistrationInvite` (convite) e
-  `PreRegistrationInviteEvent` (auditoria), em
-  `apps/api/prisma/schema.prisma`.
-- Contratos compartilhados de API/frontend: `packages/types/pre-registration-invite.ts`.
-- Domínio/serviço: `apps/api/src/modules/pre-registration-invites/`.
-- Geração/hash de token: `pre-registration-invite-token.ts`.
-- Sanitização do contexto público de auditoria: `pre-registration-invite-audit.ts`.
-- Rotas administrativas (autenticadas) e pública:
-  `pre-registration-invite.routes.ts`.
-- Rate limit dedicado da rota pública: `pre-registration-invite-rate-limit.middleware.ts`.
+- Persistência: `PreRegistrationInvite` e `PreRegistrationInviteEvent`.
+- Contratos compartilhados: `packages/types/pre-registration-invite.ts`.
+- Serviço e rotas: `apps/api/src/modules/pre-registration-invites/`.
+- Geração e hash: `pre-registration-invite-token.ts`.
+- Sanitização e redação de auditoria: `pre-registration-invite-audit.ts`.
+- Rate limit público: `pre-registration-invite-rate-limit.middleware.ts`.
 
 ## Token
 
-- Gerado com `crypto.randomBytes(32)` (256 bits de entropia), codificado em
-  base64url (URL-safe).
-- Somente o hash SHA-256 do token é persistido (`PreRegistrationInvite.tokenHash`).
-- O token bruto é retornado apenas na resposta de criação/regeneração
-  (`PreRegistrationInviteCreationResultDTO.token`) e nunca pode ser
-  recuperado posteriormente - não existe endpoint para isso.
-- A comparação de hash na abertura pública usa `crypto.timingSafeEqual`.
+- Gerado com `crypto.randomBytes(32)` e codificado em base64url.
+- Somente o hash SHA-256 é persistido.
+- O token bruto é retornado apenas na geração ou regeneração.
+- Não existe endpoint para recuperar token ou link posteriormente.
+- A comparação do hash usa `crypto.timingSafeEqual`.
+- URLs, User-Agent e textos administrativos passam por redação antes de serem
+  persistidos. Tokens base64url e segmentos `/pre-cadastro/:token` são
+  substituídos por `[REDACTED]`.
 
 ## Validade
 
-- Padrão de 30 dias, configurável pela variável de ambiente
-  `PRE_REGISTRATION_INVITE_TTL_DAYS` (ver `.env.example`).
-- A expiração é calculada no backend (`computeInviteExpiresAt`) no momento da
-  criação.
-- O convite deixa de ser utilizável no instante em que `expiresAt <= now`.
-- A expiração é consolidada tanto na resolução pública quanto nas leituras e
-  ações administrativas. Resumo, histórico, ações permitidas, geração,
-  regeneração e revogação não dependem de scheduler para reconhecer um
-  convite vencido.
-- A transição para `EXPIRED` e o evento `EXPIRED_ON_READ` são condicionais ao
-  estado `ACTIVE`, evitando eventos duplicados em leituras concorrentes.
+- Padrão de 30 dias, configurável por
+  `PRE_REGISTRATION_INVITE_TTL_DAYS`.
+- A expiração é calculada no backend.
+- O convite deixa de ser utilizável quando `expiresAt <= now`.
+- Resumo, histórico, ações permitidas, geração, regeneração e revogação
+  reconhecem a expiração sem depender de scheduler.
+- A consolidação administrativa registra o usuário e o professor autenticados.
+  Quando uma execução interna não possui ator, o evento é identificado como
+  ator de sistema nos metadados.
 
-## Estados
+## Estados e concorrência
 
-`ACTIVE` → `EXPIRED` | `REVOKED` | `SUPERSEDED` | `COMPLETED`.
+`ACTIVE` pode evoluir para `EXPIRED`, `REVOKED`, `SUPERSEDED` ou `COMPLETED`.
 
-- No máximo um convite `ACTIVE` por pessoa (`alunoId`) e finalidade
-  (`purpose`) ao mesmo tempo - garantido por índice único parcial no banco
-  (`PreRegistrationInvite_active_person_purpose_key`, criado via SQL na
-  migration porque o Prisma não expressa índice parcial na DSL).
-- Gerar o primeiro convite e alterar o ciclo `LEAD -> INVITED` usam o mesmo
-  `Prisma.TransactionClient`. Se o commit do convite falhar, o status, a data
-  de convite e os eventos do ciclo também são revertidos.
-- Regenerar cria o novo convite e marca o anterior como `SUPERSEDED` na
-  mesma transação; se a criação do novo falhar, a transação inteira é
-  revertida e o convite anterior permanece `ACTIVE` e utilizável.
-- Revogar exige motivo (até 500 caracteres) e é idempotente: revogar um
-  convite que já não está mais ativo apenas retorna o estado atual, sem erro.
+- O índice único parcial
+  `PreRegistrationInvite_active_person_purpose_key` impede mais de um convite
+  `ACTIVE` por pessoa e finalidade.
+- Geração inicial e transição `LEAD -> INVITED` usam a mesma transação.
+- A regeneração marca o anterior como `SUPERSEDED` e cria o novo na mesma
+  transação. Falha na criação preserva o anterior.
+- A criação é confirmada após o commit antes de token e URL serem devolvidos.
+- O primeiro acesso usa atualização condicional de `firstAccessedAt = null`.
+- Acessos posteriores adquirem bloqueio de linha no convite antes de consultar
+  e criar o evento `ACCESSED`. Assim, transações simultâneas não criam mais de
+  um evento dentro da janela de cinco minutos.
+
+## Revogação
+
+A rota recebe obrigatoriamente:
+
+```json
+{
+  "inviteId": "identificador-da-versao-alvo",
+  "reason": "motivo administrativo"
+}
+```
+
+O `inviteId` evita que a repetição de uma requisição antiga revogue uma versão
+nova criada posteriormente.
+
+- O motivo é obrigatório e possui limite de 500 caracteres após normalização e
+  redação de tokens/links.
+- Revogar novamente o mesmo `inviteId` já `REVOKED` retorna a mesma versão sem
+  criar outro evento.
+- Uma versão `EXPIRED`, `SUPERSEDED` ou `COMPLETED` não é apresentada como
+  revogada; a API retorna conflito de concorrência.
+- A compatibilidade interna com a assinatura antiga é limitada a históricos
+  com somente uma versão. Havendo mais de uma versão, a chamada é recusada e o
+  consumidor deve informar o `inviteId`.
+- O motivo é armazenado uma única vez em `revocationReason`; o evento registra
+  a ação e o ator sem duplicar o texto.
 
 ## Abertura pública
 
-Rota pública própria: `GET /api/v1/pre-cadastro/:token` (sem autenticação).
+Rota própria: `GET /api/v1/pre-cadastro/:token`.
 
-- Respostas de token inexistente, hash divergente, expirado, revogado,
-  substituído ou de outro tenant são **indistinguíveis**: sempre o mesmo
-  erro genérico HTTP 404 (`PRE_REGISTRATION_INVITE_GENERIC_PUBLIC_ERROR`).
-- Cabeçalhos aplicados em toda resposta da rota pública:
-  `Cache-Control: no-store, private` e `Referrer-Policy: no-referrer`.
-- Rate limit dedicado por IP (`preRegistrationInviteRateLimit`), em memória
-  por processo, com limpeza periódica de janelas expiradas e limite padrão de
-  10.000 chaves rastreadas. Ao atingir a capacidade sem entradas expiradas, o
-  middleware falha fechado com HTTP 429, impedindo crescimento ilimitado de
-  memória por rotação de IPs.
-- Limitação conhecida: em uma implantação com múltiplas réplicas da API, cada
-  réplica mantém sua própria contagem, então o limite efetivo se multiplica
-  pelo número de réplicas. Quando houver escala horizontal, o contador deve
-  migrar para armazenamento compartilhado (ex.: Redis) sem alterar o contrato
-  HTTP do middleware.
-- O primeiro acesso usa atualização condicional de `firstAccessedAt = null`.
-  Somente uma transação concorrente registra `FIRST_ACCESSED`; as demais são
-  tratadas como acessos posteriores e atualizam `lastAccessAt`.
-- Acessos subsequentes só geram novo evento de auditoria fora de uma janela de
-  throttle de 5 minutos, evitando spam de eventos.
-- IP é aceito somente no formato IPv4/IPv6, com limite de tamanho. User-Agent
-  tem controles removidos, espaços normalizados e tamanho limitado antes da
-  persistência.
-- A resposta pública contém **apenas** `purpose` e `expiresAt` - nunca
-  `alunoId`, `contractId` ou qualquer outro identificador interno, dado
-  clínico, histórico comercial, contrato, observação administrativa ou o
-  hash do token.
+- Não exige autenticação para apresentar a resposta inicial segura.
+- Token inexistente, alterado, expirado, revogado ou substituído produz o mesmo
+  erro genérico HTTP 404.
+- A resposta contém apenas `purpose` e `expiresAt`.
+- Todas as respostas aplicam `Cache-Control: no-store, private` e
+  `Referrer-Policy: no-referrer`.
+- O primeiro acesso registra `FIRST_ACCESSED` uma única vez.
+- Acessos posteriores atualizam `lastAccessAt` e geram `ACCESSED` no máximo uma
+  vez por janela de cinco minutos.
+- IP inválido é descartado. User-Agent tem controles removidos, espaços
+  normalizados, limite de tamanho e redação do token antes da persistência.
+
+## Rate limit
+
+A resolução pública possui rate limit dedicado por IP, com:
+
+- janela padrão de 60 segundos;
+- até 20 requisições por janela;
+- limpeza periódica de janelas expiradas;
+- limite padrão de 10.000 chaves em memória;
+- falha fechada com HTTP 429 quando a capacidade é atingida.
+
+Em múltiplas réplicas, cada processo mantém sua própria contagem. Escala
+horizontal exige contador compartilhado, como Redis, sem alteração do contrato
+HTTP.
 
 ## Operações administrativas
 
-Todas exigem `authMiddleware` + `professorMiddleware`, escopadas ao
-`contractId` do professor autenticado (tentativa cross-tenant responde como
-recurso inexistente, sem vazar existência em outro tenant):
+Todas exigem professor autenticado, `contractId` da sessão e o bloco
+`students.actions.manageEnrollmentInvite`.
 
-- `POST /api/v1/alunos/:alunoId/pre-registration-invites` - gera o primeiro
-  convite; exige que a pessoa esteja em um estado compatível do ciclo
-  (`LEAD`, `INVITED` ou `PRE_REGISTRATION_IN_PROGRESS`), que exista ao menos
-  um canal de contato e que não haja convite ativo utilizável. Quando o lead
-  está em `LEAD`, a criação também move o ciclo para `INVITED` dentro da mesma
-  transação (`recordStudentInvitationCreatedInTransaction`, issue #268).
-- `POST /api/v1/alunos/:alunoId/pre-registration-invites/regenerate` - invalida
-  o convite ativo (`SUPERSEDED`) e cria um novo, atomicamente.
-- `POST /api/v1/alunos/:alunoId/pre-registration-invites/revoke` - revoga o
-  convite ativo (motivo obrigatório no corpo `{ reason }`).
-- `GET /api/v1/alunos/:alunoId/pre-registration-invites/summary` - resumo do
-  convite mais recente (nunca inclui hash do token).
-- `GET /api/v1/alunos/:alunoId/pre-registration-invites/history` - histórico
-  completo, do mais recente ao mais antigo.
-- `GET /api/v1/alunos/:alunoId/pre-registration-invites/allowed-actions` -
-  ações atualmente permitidas (`canGenerateFirst`/`canRegenerate`/`canRevoke`).
+- `POST /api/v1/alunos/:alunoId/pre-registration-invites`
+- `POST /api/v1/alunos/:alunoId/pre-registration-invites/regenerate`
+- `POST /api/v1/alunos/:alunoId/pre-registration-invites/revoke`
+- `GET /api/v1/alunos/:alunoId/pre-registration-invites/summary`
+- `GET /api/v1/alunos/:alunoId/pre-registration-invites/history`
+- `GET /api/v1/alunos/:alunoId/pre-registration-invites/allowed-actions`
 
-Todas as seis rotas administrativas acima (as três mutações e as três
-consultas) exigem o bloco de acesso `students.actions.manageEnrollmentInvite`
-(`packages/types/access-control.ts`), por consistência - autenticação de
-professor do tenant sozinha não é suficiente para nenhuma rota do módulo.
+As leituras também encaminham o ator autenticado, pois podem consolidar uma
+expiração e gerar auditoria.
 
 ## Auditoria
 
 `PreRegistrationInviteEvent` registra `CREATED`, `SUPERSEDED`, `REVOKED`,
-`FIRST_ACCESSED`, `ACCESSED`, `EXPIRED_ON_READ` e `COMPLETED`. Eventos
-administrativos carregam `actorUserId`/`actorProfessorId`; eventos públicos
-usam `actorIsPublic: true` e nunca armazenam token bruto ou conteúdo de
-formulários.
+`FIRST_ACCESSED`, `ACCESSED`, `EXPIRED_ON_READ` e `COMPLETED`.
+
+- Eventos administrativos registram `actorUserId` e `actorProfessorId` quando
+  a operação vem de rota autenticada.
+- Eventos públicos usam `actorIsPublic: true`.
+- Token bruto, URL completa com token e conteúdo de formulários não são
+  persistidos.
+- Motivos e User-Agent são normalizados e redigidos antes da gravação.
 
 ## Fora de escopo
 
-Tela administrativa completa de leads, envio automático de
-WhatsApp/e-mail/SMS, criação de conta e preenchimento do cadastro, Anamnese e
-PAR-Q, conversão em aluno ativo e reutilização da assinatura pública de
-contratos. O compartilhamento do link permanece manual (issue #269).
+Permanecem fora desta issue a tela completa de leads, envio automático,
+reivindicação autenticada, cadastro retomável, Anamnese, PAR-Q, conversão em
+aluno ativo e assinatura pública de contratos. O compartilhamento do link
+permanece manual.
