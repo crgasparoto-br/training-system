@@ -6,6 +6,14 @@ readonly TARGET_MIGRATION="20260721120000_student_lifecycle_domain"
 readonly ROOT_DIR="${GITHUB_WORKSPACE:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 
 psql_admin() {
+  docker run --rm --network host \
+    -v "$ROOT_DIR:/workspace" \
+    -e PGPASSWORD="${PGPASSWORD:-postgres}" \
+    postgres:16-alpine \
+    psql -h localhost -U "${PGUSER:-postgres}" -d "${1}" -v ON_ERROR_STOP=1 "${@:2}"
+}
+
+psql_admin_stdin() {
   docker run --rm -i --network host \
     -v "$ROOT_DIR:/workspace" \
     -e PGPASSWORD="${PGPASSWORD:-postgres}" \
@@ -31,7 +39,7 @@ while IFS= read -r migration; do
   psql_admin "$DB_NAME" -f "/workspace/${relative_path}" >/dev/null
 done < <(find "$ROOT_DIR/apps/api/prisma/migrations" -mindepth 2 -maxdepth 2 -name migration.sql | sort)
 
-psql_admin "$DB_NAME" <<'SQL'
+psql_admin_stdin "$DB_NAME" <<'SQL'
 INSERT INTO "Contract" ("id", "type", "document", "name", "createdAt", "updatedAt")
 VALUES ('legacy-contract', 'academy', 'legacy-contract-document', 'Academia legada', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 
@@ -154,7 +162,7 @@ SQL
 psql_admin "$DB_NAME" \
   -f "/workspace/apps/api/prisma/migrations/${TARGET_MIGRATION}/migration.sql" >/dev/null
 
-psql_admin "$DB_NAME" <<'SQL'
+psql_admin_stdin "$DB_NAME" <<'SQL'
 DO $$
 DECLARE
   aluno_row record;
