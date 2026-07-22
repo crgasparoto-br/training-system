@@ -20,11 +20,13 @@ export const PRE_REGISTRATION_ADMIN_STATUSES = [
 ] as const satisfies readonly StudentLifecycleStatus[];
 
 export type PreRegistrationAdminStatus = (typeof PRE_REGISTRATION_ADMIN_STATUSES)[number];
+export type PreRegistrationAdminInviteFilter = PreRegistrationInviteStatus | 'NONE';
 
 export type PreRegistrationAdminSort =
   | 'createdAt:desc'
   | 'createdAt:asc'
   | 'lastActivityAt:desc'
+  | 'lastActivityAt:asc'
   | 'name:asc';
 
 export interface PreRegistrationAdminListQueryDTO {
@@ -32,10 +34,15 @@ export interface PreRegistrationAdminListQueryDTO {
   pageSize?: number;
   search?: string;
   statuses?: PreRegistrationAdminStatus[];
+  inviteStatus?: PreRegistrationAdminInviteFilter;
   origin?: string;
   responsibleProfessorId?: string;
   createdFrom?: string;
   createdTo?: string;
+  activityFrom?: string;
+  activityTo?: string;
+  pendingReview?: boolean;
+  parqRequiresProfessionalReview?: boolean;
   sort?: PreRegistrationAdminSort;
 }
 
@@ -43,6 +50,7 @@ export interface PreRegistrationAdminContactDTO {
   phone?: string;
   email?: string;
   cpf?: string;
+  masked: boolean;
 }
 
 export interface PreRegistrationAdminProfessorDTO {
@@ -54,6 +62,7 @@ export interface PreRegistrationAdminProgressDTO {
   basicRegistration: StudentOnboardingModuleStatus;
   healthModuleStatus: StudentOnboardingModuleStatus;
   parqModuleStatus: StudentOnboardingModuleStatus;
+  parqRequiresProfessionalReview: boolean;
   completedFields: number;
   totalFields: number;
   missingRequiredFields: string[];
@@ -64,12 +73,13 @@ export interface PreRegistrationAdminProgressDTO {
 
 export const PRE_REGISTRATION_ADMIN_NEXT_ACTION_CODES = [
   'CREATE_INVITE',
-  'COPY_RECENT_LINK',
   'WAIT_FOR_ACCESS',
   'FOLLOW_UP_REGISTRATION',
   'REVIEW_REGISTRATION',
+  'REVIEW_PARQ',
   'WAIT_FOR_CONVERSION',
   'REOPEN',
+  'OPEN_STUDENT_CENTRAL',
   'NONE',
 ] as const;
 export type PreRegistrationAdminNextActionCode =
@@ -150,11 +160,12 @@ export interface UpdatePreRegistrationLeadCommercialDTO {
 }
 
 export interface PreRegistrationDuplicateCandidateDTO {
-  alunoId: string;
+  alunoId?: string;
   name: string;
-  status: StudentLifecycleStatus;
+  status?: StudentLifecycleStatus;
   matchingFields: Array<'cpf' | 'email' | 'phone'>;
-  createdAt: string;
+  createdAt?: string;
+  accessible: boolean;
 }
 
 export interface PreRegistrationDuplicateCheckResultDTO extends Record<string, unknown> {
