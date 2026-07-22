@@ -4,6 +4,15 @@ const request = require('supertest');
 
 let mockHasAccess = true;
 
+class MockDomainError extends Error {
+  constructor(
+    message: string,
+    public readonly code: string
+  ) {
+    super(message);
+  }
+}
+
 const preRegistrationInviteServiceMock = {
   generateFirstInvite: jest.fn(),
   regenerateInvite: jest.fn(),
@@ -40,7 +49,7 @@ jest.mock('../src/modules/access-control/access-control.middleware', () => ({
 }));
 
 jest.mock('../src/modules/pre-registration-invites/pre-registration-invite.service', () => ({
-  PreRegistrationInviteError: class extends Error {},
+  PreRegistrationInviteError: MockDomainError,
   PreRegistrationInvitePublicAccessError: class extends Error {},
   preRegistrationInviteService: preRegistrationInviteServiceMock,
 }));
@@ -48,7 +57,7 @@ jest.mock('../src/modules/pre-registration-invites/pre-registration-invite.servi
 const preRegistrationInviteAdminRoutes =
   require('../src/modules/pre-registration-invites/pre-registration-invite.routes').default;
 
-describe('pre-registration invite admin routes - permissão dedicada', () => {
+describe('pre-registration invite admin routes', () => {
   const app = express();
   app.use(express.json());
   app.use('/api/v1/alunos', preRegistrationInviteAdminRoutes);
@@ -63,12 +72,12 @@ describe('pre-registration invite admin routes - permissão dedicada', () => {
       canRegenerate: true,
       canRevoke: true,
     });
+    preRegistrationInviteServiceMock.revokeInvite.mockResolvedValue({
+      id: 'invite-1',
+      status: 'REVOKED',
+    });
   });
 
-  // Critério de consistência: as rotas GET administrativas do módulo (summary,
-  // history, allowed-actions) devem exigir a mesma permissão dedicada
-  // students.actions.manageEnrollmentInvite que as mutações, e não apenas
-  // autenticação de professor do tenant.
   it.each([
     ['/api/v1/alunos/aluno-1/pre-registration-invites/summary'],
     ['/api/v1/alunos/aluno-1/pre-registration-invites/history'],
@@ -86,10 +95,35 @@ describe('pre-registration invite admin routes - permissão dedicada', () => {
     ['/api/v1/alunos/aluno-1/pre-registration-invites/history'],
     ['/api/v1/alunos/aluno-1/pre-registration-invites/allowed-actions'],
   ])('permite acesso a %s quando a permissão dedicada está presente', async (path) => {
-    mockHasAccess = true;
-
     const res = await request(app).get(path);
 
     expect(res.status).toBe(200);
+  });
+
+  it('encaminha o ator autenticado nas leituras administrativas', async () => {
+    const res = await request(app).get(
+      '/api/v1/alunos/aluno-1/pre-registration-invites/summary'
+    );
+
+    expect(res.status).toBe(200);
+    expect(preRegistrationInviteServiceMock.getSummary).toHaveBeenCalledWith(
+      'aluno-1',
+      'contract-1',
+      { userId: 'user-1', professorId: 'professor-1' }
+    );
+  });
+
+  it('exige versão alvo na revogação e encaminha inviteId, motivo e ator', async () => {
+    const res = await request(app)
+      .post('/api/v1/alunos/aluno-1/pre-registration-invites/revoke')
+      .send({ inviteId: 'invite-1', reason: 'Solicitação administrativa' });
+
+    expect(res.status).toBe(200);
+    expect(preRegistrationInviteServiceMock.revokeInvite).toHaveBeenCalledWith(
+      'aluno-1',
+      'contract-1',
+      { inviteId: 'invite-1', reason: 'Solicitação administrativa' },
+      { userId: 'user-1', professorId: 'professor-1' }
+    );
   });
 });
