@@ -30,7 +30,6 @@ function actorFromRequest(req: Request) {
   };
 }
 
-/** contractId do professor autenticado; sempre presente após professorMiddleware. */
 function contractIdOf(req: Request): string {
   return req.user!.contractId as string;
 }
@@ -44,7 +43,6 @@ function handleDomainError(res: Response, error: unknown) {
   return sendError(res, message, 500);
 }
 
-/** Encapsula o try/catch repetido de todas as rotas administrativas. */
 function withDomainErrorHandling(
   handler: (req: Request, res: Response) => Promise<Response>
 ): RequestHandler {
@@ -57,18 +55,11 @@ function withDomainErrorHandling(
   };
 }
 
-// Toda rota administrativa (mutação e consulta) exige professor autenticado
-// do tenant e a permissão dedicada, por consistência com as demais rotas
-// administrativas do módulo.
 const requireProfessor = [authMiddleware, professorMiddleware];
 const requireInviteManagementAccess = [
   ...requireProfessor,
   blockAccessMiddleware('students.actions.manageEnrollmentInvite'),
 ];
-
-// ============================================================================
-// ADMINISTRATIVO (autenticado, escopado ao tenant do professor)
-// ============================================================================
 
 adminRouter.post(
   '/:alunoId/pre-registration-invites',
@@ -100,11 +91,12 @@ adminRouter.post(
   '/:alunoId/pre-registration-invites/revoke',
   ...requireInviteManagementAccess,
   withDomainErrorHandling(async (req, res) => {
+    const inviteId = typeof req.body?.inviteId === 'string' ? req.body.inviteId : '';
     const reason = typeof req.body?.reason === 'string' ? req.body.reason : '';
     const summary = await preRegistrationInviteService.revokeInvite(
       req.params.alunoId,
       contractIdOf(req),
-      reason,
+      { inviteId, reason },
       actorFromRequest(req)
     );
     return sendSuccess(res, summary, 'Convite revogado');
@@ -115,7 +107,11 @@ adminRouter.get(
   '/:alunoId/pre-registration-invites/summary',
   ...requireInviteManagementAccess,
   withDomainErrorHandling(async (req, res) => {
-    const summary = await preRegistrationInviteService.getSummary(req.params.alunoId, contractIdOf(req));
+    const summary = await preRegistrationInviteService.getSummary(
+      req.params.alunoId,
+      contractIdOf(req),
+      actorFromRequest(req)
+    );
     return sendSuccess(res, summary);
   })
 );
@@ -124,7 +120,11 @@ adminRouter.get(
   '/:alunoId/pre-registration-invites/history',
   ...requireInviteManagementAccess,
   withDomainErrorHandling(async (req, res) => {
-    const history = await preRegistrationInviteService.getHistory(req.params.alunoId, contractIdOf(req));
+    const history = await preRegistrationInviteService.getHistory(
+      req.params.alunoId,
+      contractIdOf(req),
+      actorFromRequest(req)
+    );
     return sendSuccess(res, history);
   })
 );
@@ -133,18 +133,16 @@ adminRouter.get(
   '/:alunoId/pre-registration-invites/allowed-actions',
   ...requireInviteManagementAccess,
   withDomainErrorHandling(async (req, res) => {
-    const actions = await preRegistrationInviteService.getAllowedActions(req.params.alunoId, contractIdOf(req));
+    const actions = await preRegistrationInviteService.getAllowedActions(
+      req.params.alunoId,
+      contractIdOf(req),
+      actorFromRequest(req)
+    );
     return sendSuccess(res, actions);
   })
 );
 
-// ============================================================================
-// PÚBLICO (rota própria, conceitualmente /pre-cadastro/:token)
-// ============================================================================
-
 function noPublicCache(_req: Request, res: Response, next: NextFunction) {
-  // Impede cache público de respostas associadas ao token e evita
-  // vazamento do token via cabeçalho Referer em navegação subsequente.
   res.setHeader('Cache-Control', 'no-store, private');
   res.setHeader('Referrer-Policy', 'no-referrer');
   next();
@@ -163,8 +161,6 @@ publicRouter.get(
       return sendSuccess(res, view);
     } catch (error) {
       if (error instanceof PreRegistrationInvitePublicAccessError) {
-        // Resposta genérica: inválido, expirado, revogado, substituído ou de
-        // outro tenant produzem exatamente a mesma resposta pública.
         return sendError(res, error.message, 404);
       }
       return sendError(res, PRE_REGISTRATION_INVITE_GENERIC_PUBLIC_ERROR, 404);
