@@ -327,7 +327,6 @@ export const preRegistrationInviteService = {
       });
 
       if (superseded.count !== 1) {
-        // Outra regeneração/revogação concorrente já alterou este convite.
         throw new PreRegistrationInviteError(
           'O convite foi alterado por outra operação. Recarregue antes de continuar.',
           'CONCURRENT_MODIFICATION'
@@ -376,8 +375,6 @@ export const preRegistrationInviteService = {
 
       const current = await findActiveInvite(alunoId, tx, now);
       if (!current) {
-        // Idempotência: se já não há convite ativo, considere a operação
-        // bem-sucedida e devolva o estado mais recente (revogado ou não).
         const mostRecent = await tx.preRegistrationInvite.findFirst({
           where: { alunoId, purpose: 'PRE_REGISTRATION' },
           orderBy: { createdAt: 'desc' },
@@ -398,17 +395,28 @@ export const preRegistrationInviteService = {
         },
       });
 
-      if (revoked.count === 1) {
-        await tx.preRegistrationInviteEvent.create({
-          data: {
-            inviteId: current.id,
-            eventType: 'REVOKED',
-            actorUserId: actor.userId,
-            actorProfessorId: actor.professorId,
-            metadata: { reason: trimmedReason },
-          },
+      if (revoked.count !== 1) {
+        const concurrentlyChanged = await tx.preRegistrationInvite.findUniqueOrThrow({
+          where: { id: current.id },
         });
+        if (concurrentlyChanged.status === 'REVOKED') {
+          return concurrentlyChanged;
+        }
+        throw new PreRegistrationInviteError(
+          'O convite foi alterado por outra operação. Recarregue antes de continuar.',
+          'CONCURRENT_MODIFICATION'
+        );
       }
+
+      await tx.preRegistrationInviteEvent.create({
+        data: {
+          inviteId: current.id,
+          eventType: 'REVOKED',
+          actorUserId: actor.userId,
+          actorProfessorId: actor.professorId,
+          metadata: { reason: trimmedReason },
+        },
+      });
 
       return tx.preRegistrationInvite.findUniqueOrThrow({ where: { id: current.id } });
     });
@@ -473,9 +481,6 @@ export const preRegistrationInviteService = {
     const auditActor = sanitizePublicInviteAuditActor(actor);
 
     const invite = await prisma.$transaction(async (tx) => {
-      // Busca por igualdade de hash (índice único); alterar um caractere do
-      // token produz um hash diferente. A comparação em tempo constante evita
-      // diferenças de timing após localizar um candidato.
       const candidate = await tx.preRegistrationInvite.findUnique({ where: { tokenHash } });
       if (!candidate || !timingSafeEqualHash(candidate.tokenHash, tokenHash)) {
         return null;
@@ -524,10 +529,6 @@ export const preRegistrationInviteService = {
           },
         });
       } else {
-        // A atualização condicional acima é a arbitragem do primeiro acesso:
-        // somente uma transação consegue trocar NULL por timestamp. As demais
-        // seguem como acessos posteriores, desde que o convite ainda esteja
-        // ativo e dentro da validade.
         const subsequentAccess = await tx.preRegistrationInvite.updateMany({
           where: {
             id: candidate.id,
@@ -548,8 +549,6 @@ export const preRegistrationInviteService = {
             createdAt: { gt: new Date(now.getTime() - PUBLIC_ACCESS_AUDIT_THROTTLE_MS) },
           },
         });
-        // Acessos subsequentes são registrados de forma limitada: sem spam
-        // de auditoria dentro da janela de throttle.
         if (!recentAccessEvent) {
           await tx.preRegistrationInviteEvent.create({
             data: {
@@ -574,8 +573,6 @@ export const preRegistrationInviteService = {
       throw new PreRegistrationInvitePublicAccessError();
     }
 
-    // NUNCA incluir alunoId/contractId (ou qualquer outro identificador
-    // interno) na resposta pública - critério de aceite da issue #269.
     return {
       purpose: invite.purpose,
       expiresAt: invite.expiresAt.toISOString(),
