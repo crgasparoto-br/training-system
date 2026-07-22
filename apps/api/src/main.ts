@@ -181,12 +181,9 @@ app.use('/api/v1/student', studentRoutes);
 // ERROR HANDLING
 // ============================================================================
 
-app.use((req, res) => {
-  res.status(404).json({
-    error: 'Route not found',
-    path: req.path,
-    method: req.method,
-  });
+// Não ecoar a URL recebida: caminhos podem conter tokens ou outras credenciais.
+app.use((_req, res) => {
+  res.status(404).json({ error: 'Route not found' });
 });
 
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
