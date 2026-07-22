@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import type {
   CreatePreRegistrationLeadDTO,
+  PreRegistrationAdminInviteFilter,
   PreRegistrationAdminListQueryDTO,
   PreRegistrationAdminStatus,
   UpdatePreRegistrationLeadCommercialDTO,
@@ -28,62 +29,98 @@ const revokeAccess = blockAccessMiddleware('students.preRegistration.revokeInvit
 const reviewAccess = blockAccessMiddleware('students.preRegistration.review');
 const discardAccess = blockAccessMiddleware('students.preRegistration.discardReopen');
 
+type AuthUser = {
+  userId?: string;
+  professorId?: string;
+  contractId?: string;
+};
+
+type DomainError = {
+  code?: string;
+  details?: Record<string, unknown>;
+};
+
 function actorFrom(req: Request): PreRegistrationAdminActor {
-  const user = req.user as any;
+  const user = req.user as AuthUser | undefined;
   return {
     userId: user?.userId,
-    professorId: user?.professorId,
-    contractId: user?.contractId,
+    professorId: user?.professorId || '',
+    contractId: user?.contractId || '',
   };
 }
 
 function statusFor(error: unknown) {
-  const code = (error as any)?.code;
+  const code = (error as DomainError)?.code;
   if (code === 'NOT_FOUND') return 404;
   if (code === 'FORBIDDEN') return 403;
-  if (code === 'IDENTIFIER_CONFLICT' || code === 'POSSIBLE_DUPLICATE') return 409;
   if (code === 'INVALID_INPUT') return 400;
+  if (
+    code === 'IDENTIFIER_CONFLICT' ||
+    code === 'POSSIBLE_DUPLICATE' ||
+    code === 'CONCURRENT_MODIFICATION' ||
+    code === 'ACTIVE_INVITE_EXISTS' ||
+    code === 'ACTIVE_STUDENT'
+  ) {
+    return 409;
+  }
   if (
     code === 'INVALID_TRANSITION' ||
     code === 'PRECONDITION_FAILED' ||
     code === 'MISSING_REQUIRED_FIELDS'
-  ) return 422;
-  if (code === 'CONCURRENT_MODIFICATION' || code === 'ACTIVE_INVITE_EXISTS') return 409;
+  ) {
+    return 422;
+  }
   return 500;
 }
 
 function respondError(res: Response, error: unknown) {
   const status = statusFor(error);
+  const domainError = error as DomainError;
   if (status === 500) console.error('Erro na gestão de pré-matrículas:', error);
   return res.status(status).json({
     success: false,
     error: error instanceof Error ? error.message : 'Erro ao processar a solicitação.',
-    code: (error as any)?.code || 'INTERNAL_ERROR',
-    details: (error as any)?.details,
+    code: domainError.code || 'INTERNAL_ERROR',
+    details: domainError.details,
   });
 }
 
+function queryText(req: Request, key: string) {
+  const value = req.query[key];
+  return typeof value === 'string' ? value : undefined;
+}
+
+function queryBoolean(req: Request, key: string) {
+  const value = queryText(req, key);
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  return undefined;
+}
+
 function parseListQuery(req: Request): PreRegistrationAdminListQueryDTO {
-  const statuses =
-    typeof req.query.status === 'string'
-      ? (req.query.status.split(',').filter(Boolean) as PreRegistrationAdminStatus[])
-      : undefined;
+  const statuses = queryText(req, 'status')
+    ?.split(',')
+    .filter(Boolean) as PreRegistrationAdminStatus[] | undefined;
   return {
     page: Number(req.query.page) || 1,
     pageSize: Number(req.query.pageSize) || 20,
-    search: typeof req.query.search === 'string' ? req.query.search : undefined,
+    search: queryText(req, 'search'),
     statuses,
-    origin: typeof req.query.origin === 'string' ? req.query.origin : undefined,
-    responsibleProfessorId:
-      typeof req.query.responsibleProfessorId === 'string'
-        ? req.query.responsibleProfessorId
-        : undefined,
-    createdFrom: typeof req.query.createdFrom === 'string' ? req.query.createdFrom : undefined,
-    createdTo: typeof req.query.createdTo === 'string' ? req.query.createdTo : undefined,
-    sort:
-      typeof req.query.sort === 'string'
-        ? (req.query.sort as PreRegistrationAdminListQueryDTO['sort'])
-        : undefined,
+    inviteStatus: queryText(req, 'inviteStatus') as
+      | PreRegistrationAdminInviteFilter
+      | undefined,
+    origin: queryText(req, 'origin'),
+    responsibleProfessorId: queryText(req, 'responsibleProfessorId'),
+    createdFrom: queryText(req, 'createdFrom'),
+    createdTo: queryText(req, 'createdTo'),
+    activityFrom: queryText(req, 'activityFrom'),
+    activityTo: queryText(req, 'activityTo'),
+    pendingReview: queryBoolean(req, 'pendingReview'),
+    parqRequiresProfessionalReview: queryBoolean(
+      req,
+      'parqRequiresProfessionalReview'
+    ),
+    sort: queryText(req, 'sort') as PreRegistrationAdminListQueryDTO['sort'],
   };
 }
 
@@ -107,9 +144,7 @@ preRegistrationAdminRoutes.post('/leads/duplicates', createAccess, async (req, r
 
 preRegistrationAdminRoutes.post('/leads', createAccess, async (req, res) => {
   try {
-    const input = req.body as CreatePreRegistrationLeadDTO & {
-      confirmPossibleDuplicate?: boolean;
-    };
+    const input = req.body as CreatePreRegistrationLeadDTO;
     if (
       !input?.name?.trim() ||
       !input?.origin?.trim() ||
@@ -175,33 +210,47 @@ preRegistrationAdminRoutes.post('/leads/:id/invites', inviteAccess, async (req, 
   }
 });
 
-preRegistrationAdminRoutes.post('/leads/:id/invites/revoke', revokeAccess, async (req, res) => {
-  try {
-    const actor = actorFrom(req);
-    await preRegistrationAdminService.getDetail(actor, req.params.id);
-    const reason = String(req.body?.reason || '').trim();
-    if (!reason) {
-      throw new PreRegistrationAdminError('Informe o motivo da revogação.', 'INVALID_INPUT');
+preRegistrationAdminRoutes.post(
+  '/leads/:id/invites/revoke',
+  revokeAccess,
+  async (req, res) => {
+    try {
+      const actor = actorFrom(req);
+      await preRegistrationAdminService.getDetail(actor, req.params.id);
+      const reason = String(req.body?.reason || '').trim();
+      if (!reason) {
+        throw new PreRegistrationAdminError(
+          'Informe o motivo da revogação.',
+          'INVALID_INPUT'
+        );
+      }
+      const data = await preRegistrationInviteAdminService.revokeInvite(
+        req.params.id,
+        actor.contractId,
+        { inviteId: req.body?.inviteId, reason },
+        actor
+      );
+      return res.json({ success: true, data });
+    } catch (error) {
+      return respondError(res, error);
     }
-    const data = await preRegistrationInviteAdminService.revokeInvite(
-      req.params.id,
-      actor.contractId,
-      { inviteId: req.body?.inviteId, reason },
-      actor
-    );
-    return res.json({ success: true, data });
-  } catch (error) {
-    return respondError(res, error);
   }
-});
+);
 
 preRegistrationAdminRoutes.post('/leads/:id/discard', discardAccess, async (req, res) => {
   try {
     const reason = String(req.body?.reason || '').trim();
     if (!reason) {
-      throw new PreRegistrationAdminError('Informe o motivo do descarte.', 'INVALID_INPUT');
+      throw new PreRegistrationAdminError(
+        'Informe o motivo do descarte.',
+        'INVALID_INPUT'
+      );
     }
-    const data = await preRegistrationAdminService.discard(actorFrom(req), req.params.id, reason);
+    const data = await preRegistrationAdminService.discard(
+      actorFrom(req),
+      req.params.id,
+      reason
+    );
     return res.json({ success: true, data });
   } catch (error) {
     return respondError(res, error);
@@ -212,9 +261,16 @@ preRegistrationAdminRoutes.post('/leads/:id/reopen', discardAccess, async (req, 
   try {
     const reason = String(req.body?.reason || '').trim();
     if (!reason) {
-      throw new PreRegistrationAdminError('Informe o motivo da reabertura.', 'INVALID_INPUT');
+      throw new PreRegistrationAdminError(
+        'Informe o motivo da reabertura.',
+        'INVALID_INPUT'
+      );
     }
-    const data = await preRegistrationAdminService.reopen(actorFrom(req), req.params.id, reason);
+    const data = await preRegistrationAdminService.reopen(
+      actorFrom(req),
+      req.params.id,
+      reason
+    );
     return res.json({ success: true, data });
   } catch (error) {
     return respondError(res, error);
