@@ -33,9 +33,9 @@ compartilhando a inspiração de rota pública.
 - O convite deixa de ser utilizável quando `expiresAt <= now`.
 - Resumo, histórico, ações permitidas, geração, regeneração e revogação
   reconhecem a expiração sem depender de scheduler.
-- A consolidação administrativa registra o usuário e o professor autenticados.
-  Quando uma execução interna não possui ator, o evento é identificado como
-  ator de sistema nos metadados.
+- A consolidação originada nas rotas administrativas registra o usuário e o
+  professor autenticados. Execuções internas sem ator preservam a origem da
+  operação nos metadados, sem fabricar uma identidade.
 
 ## Estados e concorrência
 
