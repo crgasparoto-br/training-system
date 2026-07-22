@@ -16,6 +16,14 @@ jest.mock('../src/modules/pre-registration-invites/pre-registration-invite.servi
 
 const { preRegistrationInvitePublicRoutes } = require('../src/modules/pre-registration-invites/pre-registration-invite.routes');
 
+const expectSafeGenericPublicError = (res: any, token: string) => {
+  expect(res.status).toBe(404);
+  expect(res.body.error).toBe('Link inválido ou expirado.');
+  expect(res.headers['cache-control']).toContain('no-store');
+  expect(res.headers['referrer-policy']).toBe('no-referrer');
+  expect(JSON.stringify(res.body)).not.toContain(token);
+};
+
 describe('pre-registration invite public route', () => {
   const app = express();
   app.use(express.json());
@@ -67,6 +75,26 @@ describe('pre-registration invite public route', () => {
     expect(res.status).toBe(404);
     expect(res.body.error).toBe('Link inválido ou expirado.');
     expect(res.body.error).not.toContain('banco');
+  });
+
+  it('método diferente de GET não reflete o token nem escapa dos controles públicos', async () => {
+    const token = 'AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-TOKEN';
+
+    const res = await request(app)
+      .post(`/api/v1/pre-cadastro/${token}`)
+      .send({ ignored: true });
+
+    expectSafeGenericPublicError(res, token);
+    expect(mockOpenPublicInvite).not.toHaveBeenCalled();
+  });
+
+  it('sufixo adicional no caminho não reflete o token nem chega ao 404 global', async () => {
+    const token = 'ZyXwVuTsRqPoNmLkJiHgFeDcBa9876543210_-TOKEN';
+
+    const res = await request(app).get(`/api/v1/pre-cadastro/${token}/qualquer-coisa`);
+
+    expectSafeGenericPublicError(res, token);
+    expect(mockOpenPublicInvite).not.toHaveBeenCalled();
   });
 
   it('aplica rate limit específico à rota pública após muitas tentativas', async () => {
