@@ -13,10 +13,12 @@ import {
   hashInviteToken,
   timingSafeEqualHash,
 } from './pre-registration-invite-token.js';
-import { recordStudentInvitationCreated } from '../alunos/student-lifecycle.service.js';
+import { sanitizePublicInviteAuditActor } from './pre-registration-invite-audit.js';
+import { recordStudentInvitationCreatedInTransaction } from '../alunos/student-lifecycle.service.js';
 
 const prisma = new PrismaClient();
 type DbClient = PrismaClient | Prisma.TransactionClient;
+type AllowedActions = PreRegistrationInviteSummaryDTO['allowedActions'];
 
 const REASON_MAX_LENGTH = 500;
 const PUBLIC_ACCESS_AUDIT_THROTTLE_MS = 5 * 60 * 1000;
@@ -58,10 +60,52 @@ function isUniqueConstraintViolation(error: unknown, indexName: string): boolean
   );
 }
 
+async function expireActiveInviteIfNeeded(
+  alunoId: string,
+  client: DbClient,
+  now: Date = new Date(),
+  source: 'administrative_access' | 'public_resolution' = 'administrative_access'
+): Promise<boolean> {
+  const candidate = await client.preRegistrationInvite.findFirst({
+    where: {
+      alunoId,
+      purpose: 'PRE_REGISTRATION',
+      status: 'ACTIVE',
+      expiresAt: { lte: now },
+    },
+    select: { id: true },
+  });
+  if (!candidate) return false;
+
+  const expired = await client.preRegistrationInvite.updateMany({
+    where: {
+      id: candidate.id,
+      status: 'ACTIVE',
+      expiresAt: { lte: now },
+    },
+    data: { status: 'EXPIRED' },
+  });
+
+  if (expired.count === 1) {
+    await client.preRegistrationInviteEvent.create({
+      data: {
+        inviteId: candidate.id,
+        eventType: 'EXPIRED_ON_READ',
+        actorIsPublic: source === 'public_resolution',
+        metadata: { source },
+      },
+    });
+  }
+
+  return expired.count === 1;
+}
+
 async function findActiveInvite(
   alunoId: string,
-  client: DbClient
+  client: DbClient,
+  now: Date = new Date()
 ): Promise<PreRegistrationInvite | null> {
+  await expireActiveInviteIfNeeded(alunoId, client, now);
   return client.preRegistrationInvite.findFirst({
     where: { alunoId, purpose: 'PRE_REGISTRATION', status: 'ACTIVE' },
   });
@@ -75,12 +119,17 @@ async function findAlunoInContractOrThrow(alunoId: string, contractId: string, c
   return aluno;
 }
 
-async function computeAllowedActions(alunoId: string, contractId: string, client: DbClient) {
+async function computeAllowedActions(
+  alunoId: string,
+  contractId: string,
+  client: DbClient,
+  now: Date = new Date()
+): Promise<AllowedActions> {
   const aluno = await client.aluno.findFirst({ where: { id: alunoId, contractId } });
   if (!aluno) {
     return { canGenerateFirst: false, canRegenerate: false, canRevoke: false };
   }
-  const active = await findActiveInvite(alunoId, client);
+  const active = await findActiveInvite(alunoId, client, now);
   return {
     canGenerateFirst:
       !active && INVITE_COMPATIBLE_STATUSES.has(aluno.status) && Boolean(aluno.leadPhone || aluno.leadEmail),
@@ -91,14 +140,17 @@ async function computeAllowedActions(alunoId: string, contractId: string, client
 
 async function toSummary(
   invite: PreRegistrationInvite,
-  client: DbClient
+  client: DbClient,
+  allowedActionsOverride?: AllowedActions
 ): Promise<PreRegistrationInviteSummaryDTO> {
   const [replacedBy, allowedActions] = await Promise.all([
     client.preRegistrationInvite.findFirst({
       where: { replacesInviteId: invite.id },
       select: { id: true },
     }),
-    computeAllowedActions(invite.alunoId, invite.contractId, client),
+    allowedActionsOverride
+      ? Promise.resolve(allowedActionsOverride)
+      : computeAllowedActions(invite.alunoId, invite.contractId, client),
   ]);
 
   return {
@@ -217,7 +269,7 @@ export const preRegistrationInviteService = {
       const { invite, token } = await createInviteRow(tx, alunoId, contractId, actor);
 
       if (aluno.status === 'LEAD') {
-        await recordStudentInvitationCreated(alunoId, contractId, {
+        await recordStudentInvitationCreatedInTransaction(tx, alunoId, contractId, {
           invitationId: invite.id,
           actor,
         });
@@ -238,8 +290,9 @@ export const preRegistrationInviteService = {
   ): Promise<PreRegistrationInviteCreationResultDTO> {
     const result = await prisma.$transaction(async (tx) => {
       await findAlunoInContractOrThrow(alunoId, contractId, tx);
+      const now = new Date();
 
-      const current = await findActiveInvite(alunoId, tx);
+      const current = await findActiveInvite(alunoId, tx, now);
       if (!current) {
         throw new PreRegistrationInviteError(
           'Não existe convite ativo para regenerar.',
@@ -248,8 +301,8 @@ export const preRegistrationInviteService = {
       }
 
       const superseded = await tx.preRegistrationInvite.updateMany({
-        where: { id: current.id, status: 'ACTIVE' },
-        data: { status: 'SUPERSEDED', supersededAt: new Date() },
+        where: { id: current.id, status: 'ACTIVE', expiresAt: { gt: now } },
+        data: { status: 'SUPERSEDED', supersededAt: now },
       });
 
       if (superseded.count !== 1) {
@@ -297,8 +350,9 @@ export const preRegistrationInviteService = {
 
     const invite = await prisma.$transaction(async (tx) => {
       await findAlunoInContractOrThrow(alunoId, contractId, tx);
+      const now = new Date();
 
-      const current = await findActiveInvite(alunoId, tx);
+      const current = await findActiveInvite(alunoId, tx, now);
       if (!current) {
         // Idempotência: se já não há convite ativo, considere a operação
         // bem-sucedida e devolva o estado mais recente (revogado ou não).
@@ -313,10 +367,10 @@ export const preRegistrationInviteService = {
       }
 
       const revoked = await tx.preRegistrationInvite.updateMany({
-        where: { id: current.id, status: 'ACTIVE' },
+        where: { id: current.id, status: 'ACTIVE', expiresAt: { gt: now } },
         data: {
           status: 'REVOKED',
-          revokedAt: new Date(),
+          revokedAt: now,
           revokedByProfessorId: actor.professorId,
           revocationReason: trimmedReason,
         },
@@ -342,29 +396,41 @@ export const preRegistrationInviteService = {
 
   /** Resumo do convite mais recente da pessoa (histórico completo via getHistory). */
   async getSummary(alunoId: string, contractId: string): Promise<PreRegistrationInviteSummaryDTO | null> {
-    await findAlunoInContractOrThrow(alunoId, contractId, prisma);
-    const invite = await prisma.preRegistrationInvite.findFirst({
-      where: { alunoId, contractId, purpose: 'PRE_REGISTRATION' },
-      orderBy: { createdAt: 'desc' },
+    return prisma.$transaction(async (tx) => {
+      await findAlunoInContractOrThrow(alunoId, contractId, tx);
+      await expireActiveInviteIfNeeded(alunoId, tx);
+      const invite = await tx.preRegistrationInvite.findFirst({
+        where: { alunoId, contractId, purpose: 'PRE_REGISTRATION' },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (!invite) return null;
+      return toSummary(invite, tx);
     });
-    if (!invite) return null;
-    return toSummary(invite, prisma);
   },
 
   /** Histórico completo de convites da pessoa, do mais recente ao mais antigo. */
   async getHistory(alunoId: string, contractId: string): Promise<PreRegistrationInviteSummaryDTO[]> {
-    await findAlunoInContractOrThrow(alunoId, contractId, prisma);
-    const invites = await prisma.preRegistrationInvite.findMany({
-      where: { alunoId, contractId, purpose: 'PRE_REGISTRATION' },
-      orderBy: { createdAt: 'desc' },
+    return prisma.$transaction(async (tx) => {
+      await findAlunoInContractOrThrow(alunoId, contractId, tx);
+      const now = new Date();
+      await expireActiveInviteIfNeeded(alunoId, tx, now);
+      const [invites, allowedActions] = await Promise.all([
+        tx.preRegistrationInvite.findMany({
+          where: { alunoId, contractId, purpose: 'PRE_REGISTRATION' },
+          orderBy: { createdAt: 'desc' },
+        }),
+        computeAllowedActions(alunoId, contractId, tx, now),
+      ]);
+      return Promise.all(invites.map((invite) => toSummary(invite, tx, allowedActions)));
     });
-    return Promise.all(invites.map((invite) => toSummary(invite, prisma)));
   },
 
   /** Ações administrativas atualmente permitidas para a pessoa. */
   async getAllowedActions(alunoId: string, contractId: string) {
-    await findAlunoInContractOrThrow(alunoId, contractId, prisma);
-    return computeAllowedActions(alunoId, contractId, prisma);
+    return prisma.$transaction(async (tx) => {
+      await findAlunoInContractOrThrow(alunoId, contractId, tx);
+      return computeAllowedActions(alunoId, contractId, tx);
+    });
   },
 
   /**
@@ -382,14 +448,12 @@ export const preRegistrationInviteService = {
       throw new PreRegistrationInvitePublicAccessError();
     }
     const tokenHash = hashInviteToken(token);
+    const auditActor = sanitizePublicInviteAuditActor(actor);
 
     const invite = await prisma.$transaction(async (tx) => {
-      // Busca por igualdade de hash (índice único); a comparação relevante
-      // contra manipulação de string acontece no próprio hash - alterar um
-      // caractere do token produz um hash completamente diferente, então
-      // não há necessidade de escanear e comparar linha a linha. Ainda
-      // assim, valida com timingSafeEqualHash para não expor timing entre
-      // "não encontrado" e "encontrado, mas divergente".
+      // Busca por igualdade de hash (índice único); alterar um caractere do
+      // token produz um hash diferente. A comparação em tempo constante evita
+      // diferenças de timing após localizar um candidato.
       const candidate = await tx.preRegistrationInvite.findUnique({ where: { tokenHash } });
       if (!candidate || !timingSafeEqualHash(candidate.tokenHash, tokenHash)) {
         return null;
@@ -399,37 +463,61 @@ export const preRegistrationInviteService = {
         return { kind: 'unavailable' as const };
       }
 
-      if (candidate.expiresAt < now) {
-        await tx.preRegistrationInvite.updateMany({
-          where: { id: candidate.id, status: 'ACTIVE' },
+      if (candidate.expiresAt <= now) {
+        const expired = await tx.preRegistrationInvite.updateMany({
+          where: { id: candidate.id, status: 'ACTIVE', expiresAt: { lte: now } },
           data: { status: 'EXPIRED' },
         });
-        await tx.preRegistrationInviteEvent.create({
-          data: { inviteId: candidate.id, eventType: 'EXPIRED_ON_READ', actorIsPublic: true },
-        });
+        if (expired.count === 1) {
+          await tx.preRegistrationInviteEvent.create({
+            data: {
+              inviteId: candidate.id,
+              eventType: 'EXPIRED_ON_READ',
+              actorIsPublic: true,
+              metadata: { source: 'public_resolution' },
+            },
+          });
+        }
         return { kind: 'unavailable' as const };
       }
 
-      const isFirstAccess = !candidate.firstAccessedAt;
-      if (isFirstAccess) {
-        await tx.preRegistrationInvite.update({
-          where: { id: candidate.id },
-          data: { firstAccessedAt: now, lastAccessAt: now },
-        });
+      const firstAccess = await tx.preRegistrationInvite.updateMany({
+        where: {
+          id: candidate.id,
+          status: 'ACTIVE',
+          firstAccessedAt: null,
+          expiresAt: { gt: now },
+        },
+        data: { firstAccessedAt: now, lastAccessAt: now },
+      });
+
+      if (firstAccess.count === 1) {
         await tx.preRegistrationInviteEvent.create({
           data: {
             inviteId: candidate.id,
             eventType: 'FIRST_ACCESSED',
             actorIsPublic: true,
-            ipAddress: actor.ipAddress,
-            userAgent: actor.userAgent,
+            ipAddress: auditActor.ipAddress,
+            userAgent: auditActor.userAgent,
           },
         });
       } else {
-        await tx.preRegistrationInvite.update({
-          where: { id: candidate.id },
+        // A atualização condicional acima é a arbitragem do primeiro acesso:
+        // somente uma transação consegue trocar NULL por timestamp. As demais
+        // seguem como acessos posteriores, desde que o convite ainda esteja
+        // ativo e dentro da validade.
+        const subsequentAccess = await tx.preRegistrationInvite.updateMany({
+          where: {
+            id: candidate.id,
+            status: 'ACTIVE',
+            firstAccessedAt: { not: null },
+            expiresAt: { gt: now },
+          },
           data: { lastAccessAt: now },
         });
+        if (subsequentAccess.count !== 1) {
+          return { kind: 'unavailable' as const };
+        }
 
         const recentAccessEvent = await tx.preRegistrationInviteEvent.findFirst({
           where: {
@@ -446,8 +534,8 @@ export const preRegistrationInviteService = {
               inviteId: candidate.id,
               eventType: 'ACCESSED',
               actorIsPublic: true,
-              ipAddress: actor.ipAddress,
-              userAgent: actor.userAgent,
+              ipAddress: auditActor.ipAddress,
+              userAgent: auditActor.userAgent,
             },
           });
         }
