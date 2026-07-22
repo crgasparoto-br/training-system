@@ -1,4 +1,6 @@
+import cors from 'cors';
 import express from 'express';
+import { createApiCorsOptions } from '../src/common/api-cors';
 
 const request = require('supertest');
 
@@ -14,7 +16,13 @@ jest.mock('../src/modules/pre-registration-invites/pre-registration-invite.servi
   },
 }));
 
-const { preRegistrationInvitePublicRoutes } = require('../src/modules/pre-registration-invites/pre-registration-invite.routes');
+const {
+  preRegistrationInvitePublicErrorHandler,
+  preRegistrationInvitePublicHeaders,
+  preRegistrationInvitePublicRoutes,
+} = require('../src/modules/pre-registration-invites/pre-registration-invite.routes');
+
+const ALLOWED_ORIGIN = 'https://allowed.example';
 
 const expectSafeGenericPublicError = (res: any, token: string) => {
   expect(res.status).toBe(404);
@@ -27,8 +35,21 @@ const expectSafeGenericPublicError = (res: any, token: string) => {
 describe('pre-registration invite public route', () => {
   const app = express();
   app.set('trust proxy', 1);
-  app.use(express.json());
+
+  // Mesma composição relevante usada em main.ts: headers antes do CORS,
+  // preflight contínuo, roteador público e barreira de erro específica.
+  app.use('/api/v1/pre-cadastro', preRegistrationInvitePublicHeaders);
+  app.use(
+    cors(
+      createApiCorsOptions({
+        allowedOrigins: [ALLOWED_ORIGIN],
+        allowedVercelPreviewProjects: [],
+      })
+    )
+  );
   app.use('/api/v1', preRegistrationInvitePublicRoutes);
+  app.use('/api/v1/pre-cadastro', preRegistrationInvitePublicErrorHandler);
+  app.use(express.json());
 
   beforeEach(() => jest.clearAllMocks());
 
@@ -78,6 +99,26 @@ describe('pre-registration invite public route', () => {
     expect(res.body.error).not.toContain('banco');
   });
 
+  it('origem CORS rejeitada não reflete nem registra token enviado no cabeçalho', async () => {
+    const token = 'OriginTokenAbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-';
+    const blockedOrigin = `https://blocked.example/pre-cadastro/${token}`;
+    const consoleError = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    try {
+      const res = await request(app)
+        .get(`/api/v1/pre-cadastro/${token}`)
+        .set('Origin', blockedOrigin)
+        .set('X-Forwarded-For', '203.0.113.54');
+
+      expectSafeGenericPublicError(res, token);
+      expect(JSON.stringify(res.body)).not.toContain(blockedOrigin);
+      expect(consoleError).not.toHaveBeenCalled();
+      expect(mockOpenPublicInvite).not.toHaveBeenCalled();
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
   it('método diferente de GET não reflete o token nem escapa dos controles públicos', async () => {
     const token = 'AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-TOKEN';
 
@@ -98,6 +139,20 @@ describe('pre-registration invite public route', () => {
       .set('X-Forwarded-For', '203.0.113.52');
 
     expectSafeGenericPublicError(res, token);
+    expect(mockOpenPublicInvite).not.toHaveBeenCalled();
+  });
+
+  it('preflight OPTIONS permitido continua até o fallback seguro do convite', async () => {
+    const token = 'OptionsTokenAbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-';
+
+    const res = await request(app)
+      .options(`/api/v1/pre-cadastro/${token}`)
+      .set('Origin', ALLOWED_ORIGIN)
+      .set('Access-Control-Request-Method', 'GET')
+      .set('X-Forwarded-For', '203.0.113.55');
+
+    expectSafeGenericPublicError(res, token);
+    expect(res.headers['access-control-allow-origin']).toBe(ALLOWED_ORIGIN);
     expect(mockOpenPublicInvite).not.toHaveBeenCalled();
   });
 
@@ -127,6 +182,27 @@ describe('pre-registration invite public route', () => {
         .post(`/api/v1/pre-cadastro/${token}`)
         .set('X-Forwarded-For', '203.0.113.53')
         .send({ ignored: true });
+      if (lastResponse.status === 429) break;
+    }
+
+    expect(lastResponse.status).toBe(429);
+    expect(lastResponse.headers['cache-control']).toContain('no-store');
+    expect(lastResponse.headers['referrer-policy']).toBe('no-referrer');
+    expect(JSON.stringify(lastResponse.body)).not.toContain(token);
+    expect(mockOpenPublicInvite).not.toHaveBeenCalled();
+  });
+
+  it('aplica rate limit também ao preflight OPTIONS do namespace público', async () => {
+    const token = 'OptionsRateLimitToken0123456789_ABCDEFGHIJKLMNOP';
+    let lastResponse: any;
+
+    for (let i = 0; i < 25; i += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      lastResponse = await request(app)
+        .options(`/api/v1/pre-cadastro/${token}`)
+        .set('Origin', ALLOWED_ORIGIN)
+        .set('Access-Control-Request-Method', 'GET')
+        .set('X-Forwarded-For', '203.0.113.56');
       if (lastResponse.status === 429) break;
     }
 
