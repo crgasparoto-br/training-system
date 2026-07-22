@@ -17,7 +17,7 @@ import {
   type PreRegistrationAdminActor,
 } from './pre-registration-admin.service.js';
 
-export const preRegistrationAdminRoutes = Router();
+export const preRegistrationAdminRoutes: Router = Router();
 preRegistrationAdminRoutes.use(authMiddleware);
 preRegistrationAdminRoutes.use(screenAccessMiddleware('students.preRegistration'));
 
