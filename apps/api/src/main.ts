@@ -89,6 +89,11 @@ app.use(
   })
 );
 
+// O roteador público de convites deve interceptar qualquer método ou variação
+// tokenizada antes dos parsers globais. Assim, até payload inválido ou excessivo
+// recebe a resposta genérica, no-store, no-referrer e rate limit do domínio.
+app.use('/api/v1', preRegistrationInvitePublicRoutes);
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 app.use('/uploads', express.static(getUploadStorageRoot(), {
@@ -151,7 +156,6 @@ app.use('/api/v1/alunos', alunoAvatarUploadRoutes);
 app.use('/api/v1/alunos', studentContractLifecycleRoutes);
 app.use('/api/v1/alunos', preRegistrationInviteAdminRoutes);
 app.use('/api/v1/alunos', alunoRoutes);
-app.use('/api/v1', preRegistrationInvitePublicRoutes);
 
 app.use('/api/v1/anthropometry', anthropometryRoutes);
 app.use('/api/v1/prontuario', prontuarioRoutes);
