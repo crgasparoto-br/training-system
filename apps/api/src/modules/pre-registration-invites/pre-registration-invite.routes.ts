@@ -1,4 +1,11 @@
-import { Router, type Request, type RequestHandler, type Response, type NextFunction } from 'express';
+import {
+  Router,
+  type ErrorRequestHandler,
+  type NextFunction,
+  type Request,
+  type RequestHandler,
+  type Response,
+} from 'express';
 import { sendError, sendSuccess } from '@corrida/utils';
 import { PRE_REGISTRATION_INVITE_GENERIC_PUBLIC_ERROR } from '@corrida/types';
 import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js';
@@ -141,9 +148,17 @@ adminRouter.get(
   })
 );
 
-function noPublicCache(_req: Request, res: Response, next: NextFunction) {
+function setPublicInviteSecurityHeaders(res: Response) {
   res.setHeader('Cache-Control', 'no-store, private');
   res.setHeader('Referrer-Policy', 'no-referrer');
+}
+
+export function preRegistrationInvitePublicHeaders(
+  _req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  setPublicInviteSecurityHeaders(res);
   next();
 }
 
@@ -151,9 +166,23 @@ function sendGenericPublicInviteError(res: Response) {
   return sendError(res, PRE_REGISTRATION_INVITE_GENERIC_PUBLIC_ERROR, 404);
 }
 
+/**
+ * Última barreira do namespace público. Erros de CORS, parsing de rota ou
+ * middlewares anteriores são convertidos sem logar nem devolver detalhes.
+ */
+export const preRegistrationInvitePublicErrorHandler: ErrorRequestHandler = (
+  _error,
+  _req,
+  res,
+  _next
+) => {
+  setPublicInviteSecurityHeaders(res);
+  sendGenericPublicInviteError(res);
+};
+
 publicRouter.get(
   '/pre-cadastro/:token',
-  noPublicCache,
+  preRegistrationInvitePublicHeaders,
   preRegistrationInviteRateLimit,
   async (req: Request, res: Response) => {
     try {
@@ -173,7 +202,7 @@ publicRouter.get(
 // meio de req.path e garante os mesmos headers e rate limit da rota nominal.
 publicRouter.use(
   '/pre-cadastro',
-  noPublicCache,
+  preRegistrationInvitePublicHeaders,
   preRegistrationInviteRateLimit,
   (_req: Request, res: Response) => sendGenericPublicInviteError(res)
 );
