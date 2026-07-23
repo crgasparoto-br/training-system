@@ -155,10 +155,11 @@ export const preRegistrationDuplicateReviewService = {
         data: {
           alunoId: aluno.id,
           contractId: aluno.contractId,
-          eventType: 'DUPLICATE_REVIEW_REQUESTED',
+          eventType: 'ADMIN_REVIEWED',
           actorUserId: userId,
           metadata: {
             source: 'public_pre_registration',
+            action: 'duplicate_review_requested',
             field: 'cpf',
             draftPreserved: true,
           },
