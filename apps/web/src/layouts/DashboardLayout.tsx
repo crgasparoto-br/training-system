@@ -102,28 +102,30 @@ export function DashboardLayout() {
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-40 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/90">
-        <div className="ts-container flex h-16 max-w-full items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="ts-container flex h-16 min-w-0 max-w-full items-center gap-2">
+          <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-4">
             <button
               onClick={() => setIsSidebarOpen((prev) => !prev)}
-              className="rounded-md p-1 text-foreground lg:hidden"
+              className="shrink-0 rounded-md p-1 text-foreground lg:hidden"
               aria-label="Abrir menu lateral"
             >
               {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
-            <div className="flex items-center gap-3 min-w-0">
+            <div className="flex min-w-0 flex-1 items-center gap-3">
               {companyLogoUrl ? (
                 <img
                   src={companyLogoUrl}
                   alt={companyDisplayName}
-                  className="h-10 w-auto max-w-[120px] rounded-md border border-border bg-white p-1.5 object-contain"
+                  className="h-10 w-auto max-w-[120px] shrink-0 rounded-md border border-border bg-white p-1.5 object-contain"
                 />
               ) : null}
-              <h1 className="truncate text-lg font-semibold">{companyDisplayName}</h1>
+              <h1 className="min-w-0 truncate text-sm font-semibold sm:text-lg">
+                {companyDisplayName}
+              </h1>
             </div>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex shrink-0 items-center gap-1 sm:gap-4">
             <div className="hidden flex-col items-end md:flex">
               <span className="text-sm font-semibold text-foreground">{user?.name}</span>
               <span className="text-xs text-muted-foreground">
@@ -134,15 +136,21 @@ export function DashboardLayout() {
                   : 'Aluno'}
               </span>
             </div>
-            <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-border bg-muted text-muted-foreground">
+            <div className="hidden h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-muted text-muted-foreground sm:flex">
               {userAvatarUrl ? (
                 <img src={userAvatarUrl} alt={user?.name || 'Usuário'} className="h-full w-full object-cover" />
               ) : (
                 <User size={18} aria-hidden="true" />
               )}
             </div>
-            <Button variant="ghost" size="icon" onClick={handleLogout} className="text-muted-foreground hover:text-foreground">
-              <LogOut size={18} />
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleLogout}
+              className="shrink-0 text-muted-foreground hover:text-foreground"
+              aria-label="Sair"
+            >
+              <LogOut size={18} aria-hidden="true" />
             </Button>
           </div>
         </div>
