@@ -15,6 +15,7 @@ import {
   preRegistrationInvitePublicHeaders,
 } from '../pre-registration-invites/pre-registration-invite.routes.js';
 import { preRegistrationInviteRateLimit } from '../pre-registration-invites/pre-registration-invite-rate-limit.middleware.js';
+import { assertPreRegistrationClaimRoleEligibility } from './pre-registration-claim-role.guard.js';
 import { preRegistrationDuplicateReviewService } from './pre-registration-duplicate-review.service.js';
 import {
   PreRegistrationPublicError,
@@ -132,6 +133,7 @@ publicRouter.post(
   async (req, res) => {
     try {
       const input = parseInput<PreRegistrationAccountRegistrationDTO>(invitedAccountSchema, req.body);
+      await assertPreRegistrationClaimRoleEligibility(req.params.token, input.role);
       const result = await preRegistrationPublicService.registerAndClaim(
         req.params.token,
         input
@@ -147,10 +149,9 @@ authenticatedRouter.use(authMiddleware, alunoMiddleware);
 
 authenticatedRouter.post('/claim', async (req, res) => {
   try {
-    const result = await preRegistrationPublicService.claim(
-      userIdOf(req),
-      parseInput<PreRegistrationClaimDTO>(claimSchema, req.body)
-    );
+    const input = parseInput<PreRegistrationClaimDTO>(claimSchema, req.body);
+    await assertPreRegistrationClaimRoleEligibility(input.token, input.role);
+    const result = await preRegistrationPublicService.claim(userIdOf(req), input);
     return sendSuccess(res, result, 'Convite vinculado à sua conta');
   } catch (error) {
     return handleError(res, error);
