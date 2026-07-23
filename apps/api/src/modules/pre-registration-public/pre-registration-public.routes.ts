@@ -1,4 +1,4 @@
-import { Router, express, type Request, type Response } from 'express';
+import express, { Router, type Request, type Response } from 'express';
 import { sendError, sendSuccess } from '@corrida/utils';
 import type {
   CompletePreRegistrationDTO,
