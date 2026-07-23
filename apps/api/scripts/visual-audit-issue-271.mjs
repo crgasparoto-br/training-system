@@ -171,7 +171,10 @@ async function capture(browser, { name, route, viewport, scenario }) {
   });
   page.on('pageerror', (error) => errors.push(error.message));
 
-  await page.goto(`${baseUrl}${route}`, { waitUntil: 'networkidle0' });
+  await page.goto(`${baseUrl}${route}`, {
+    waitUntil: 'domcontentloaded',
+    timeout: 20_000,
+  });
   await page.waitForSelector('h1', { timeout: 20_000 });
   await new Promise((resolve) => setTimeout(resolve, 250));
 
