@@ -16,7 +16,7 @@ import {
 
 const prisma = new PrismaClient();
 
-type LockedStudentRow = {
+type StudentRow = {
   id: string;
   status: StudentLifecycleStatus;
 };
@@ -109,7 +109,7 @@ export async function startGuardianPreRegistrationInTransaction(
     );
   }
 
-  const rows = await tx.$queryRaw<LockedStudentRow[]>`
+  const rows = await tx.$queryRaw<StudentRow[]>`
     SELECT "id", "status"
     FROM "Aluno"
     WHERE "id" = ${alunoId} AND "contractId" = ${contractId}
@@ -215,28 +215,27 @@ export async function completePublicStudentPreRegistration(input: {
   userAgent?: string;
 }): Promise<void> {
   await prisma.$transaction(async (tx) => {
-    const studentRows = await tx.$queryRaw<LockedStudentRow[]>`
-      SELECT "id", "status"
-      FROM "Aluno"
-      WHERE "id" = ${input.alunoId} AND "contractId" = ${input.contractId}
-      FOR UPDATE
-    `;
-    const aluno = studentRows[0];
-    if (!aluno) {
-      throw new StudentLifecycleError('Registro não encontrado.', 'NOT_FOUND');
-    }
-
-    // A leitura de versao nao bloqueia onboarding antes da identidade canônica.
-    // A atualizacao condicional posterior e a autoridade de concorrencia e faz a
-    // transacao inteira reverter se uma edicao administrativa intervier.
+    // Todas as gravacoes publicas serializam primeiro pelo onboarding. A ordem
+    // segue onboarding -> Aluno -> identidade, igual ao salvamento incremental.
     const onboardingRows = await tx.$queryRaw<OnboardingVersionRow[]>`
       SELECT "version"
       FROM "StudentOnboardingProcess"
       WHERE "alunoId" = ${input.alunoId} AND "contractId" = ${input.contractId}
+      FOR UPDATE
     `;
     const onboarding = onboardingRows[0];
     if (!onboarding) {
       throw new StudentLifecycleError('Processo de pré-matrícula não encontrado.', 'NOT_FOUND');
+    }
+
+    const studentRows = await tx.$queryRaw<StudentRow[]>`
+      SELECT "id", "status"
+      FROM "Aluno"
+      WHERE "id" = ${input.alunoId} AND "contractId" = ${input.contractId}
+    `;
+    const aluno = studentRows[0];
+    if (!aluno) {
+      throw new StudentLifecycleError('Registro não encontrado.', 'NOT_FOUND');
     }
 
     const alreadyCompleted = aluno.status === 'PRE_REGISTRATION_COMPLETED';
