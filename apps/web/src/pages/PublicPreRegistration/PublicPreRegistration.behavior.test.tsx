@@ -5,8 +5,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   routeToken: undefined as string | undefined,
+  listProcesses: vi.fn(),
   getSession: vi.fn(),
   saveStep: vi.fn(),
+  confirmGuardianAuthorization: vi.fn(),
+  complete: vi.fn(),
   lookupCep: vi.fn(),
 }));
 
@@ -16,6 +19,7 @@ vi.mock('react-router-dom', async () => {
     ...actual,
     useNavigate: () => mocks.navigate,
     useParams: () => (mocks.routeToken ? { token: mocks.routeToken } : {}),
+    useLocation: () => ({ state: null }),
   };
 });
 
@@ -28,8 +32,11 @@ vi.mock('../../stores/useAuthStore', () => ({
 
 vi.mock('../../services/pre-registration-public.service', () => ({
   preRegistrationPublicService: {
+    listProcesses: mocks.listProcesses,
     getSession: mocks.getSession,
     saveStep: mocks.saveStep,
+    confirmGuardianAuthorization: mocks.confirmGuardianAuthorization,
+    complete: mocks.complete,
   },
 }));
 
@@ -43,7 +50,22 @@ vi.mock('../../services/cep.service', async () => {
 import { PublicPreRegistration } from './PublicPreRegistration';
 import { DRAFT_STORAGE_KEY as DRAFT_KEY } from './preRegistrationDraft';
 
+const baseProcess = {
+  alunoId: 'student-1',
+  status: 'PRE_REGISTRATION_IN_PROGRESS',
+  claimRole: 'STUDENT',
+  currentStep: 'IDENTIFICATION',
+  displayName: 'Aluno Teste',
+  tenant: {
+    name: 'Academia Teste',
+    privacyNoticeUrl: 'https://example.com/privacy',
+  },
+  guardianAuthorizationStatus: 'NOT_REQUIRED',
+  requiresGuardianConfirmation: false,
+};
+
 const baseSession = {
+  alunoId: 'student-1',
   status: 'PRE_REGISTRATION_IN_PROGRESS',
   version: 1,
   currentStep: 'IDENTIFICATION',
@@ -51,18 +73,27 @@ const baseSession = {
   claimRole: 'STUDENT',
   identity: { name: 'Aluno Teste' },
   tenant: { name: 'Academia Teste', privacyNoticeUrl: 'https://example.com/privacy' },
+  guardianAuthorization: { status: 'NOT_REQUIRED', role: 'STUDENT' },
   privacy: { noticeUrl: 'https://example.com/privacy', noticeVersion: '2026-07' },
   missingRequiredFields: [],
   duplicateWarnings: [],
   nextSteps: [],
 };
 
-describe('PublicPreRegistration - resiliência de rede e sessão', () => {
+const scopedDraftKey = `${DRAFT_KEY}:${baseSession.alunoId}`;
+
+describe('PublicPreRegistration - resiliência, seleção e autorização', () => {
   beforeEach(() => {
     mocks.navigate.mockReset();
+    mocks.listProcesses.mockReset();
     mocks.getSession.mockReset();
     mocks.saveStep.mockReset();
+    mocks.confirmGuardianAuthorization.mockReset();
+    mocks.complete.mockReset();
     mocks.lookupCep.mockReset();
+    mocks.routeToken = undefined;
+    mocks.listProcesses.mockResolvedValue([baseProcess]);
+    mocks.getSession.mockResolvedValue(baseSession);
     window.sessionStorage.clear();
   });
 
@@ -73,7 +104,6 @@ describe('PublicPreRegistration - resiliência de rede e sessão', () => {
   }
 
   it('preserves the typed field and allows retry when saving fails due to a network error', async () => {
-    mocks.getSession.mockResolvedValue(baseSession);
     mocks.saveStep.mockRejectedValueOnce(new Error('Network Error'));
 
     render(
@@ -84,22 +114,16 @@ describe('PublicPreRegistration - resiliência de rede e sessão', () => {
 
     const nameInput = await screen.findByLabelText(/Nome completo/i);
     fireEvent.change(nameInput, { target: { value: 'Novo Nome Digitado' } });
-
     fireEvent.click(screen.getByRole('button', { name: /Salvar e avançar/i }));
 
     await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
-
-    // O campo preenchido continua visível e editável para nova tentativa --
-    // a falha de rede não deve descartar o que já foi digitado.
     expect((screen.getByLabelText(/Nome completo/i) as HTMLInputElement).value).toBe(
       'Novo Nome Digitado'
     );
     expect(screen.getByRole('button', { name: /Salvar e avançar/i })).not.toBeDisabled();
   });
 
-  it('persists an unsaved draft to sessionStorage and restores it on the next mount (session expiry)', async () => {
-    mocks.getSession.mockResolvedValue(baseSession);
-
+  it('persists an unsaved draft per process and restores it on the next mount', async () => {
     const first = render(
       <MemoryRouter>
         <PublicPreRegistration />
@@ -110,16 +134,12 @@ describe('PublicPreRegistration - resiliência de rede e sessão', () => {
     fireEvent.change(nameInput, { target: { value: 'Rascunho Não Salvo' } });
 
     await waitFor(() => {
-      const raw = window.sessionStorage.getItem(DRAFT_KEY);
+      const raw = window.sessionStorage.getItem(scopedDraftKey);
       expect(raw).toBeTruthy();
       expect(JSON.parse(raw as string).form.name).toBe('Rascunho Não Salvo');
     });
 
-    // Simula reautenticação após expiração de sessão: novo mount, mesma
-    // sessionStorage (um redirecionamento de página inteira preserva
-    // sessionStorage, ao contrário do estado React em memória).
     first.unmount();
-
     render(
       <MemoryRouter>
         <PublicPreRegistration />
@@ -134,7 +154,6 @@ describe('PublicPreRegistration - resiliência de rede e sessão', () => {
   });
 
   it('autofills street, neighborhood, city and state when the CEP lookup succeeds', async () => {
-    mocks.getSession.mockResolvedValue(baseSession);
     mocks.lookupCep.mockResolvedValue({
       street: 'Rua das Flores',
       neighborhood: 'Centro',
@@ -161,7 +180,6 @@ describe('PublicPreRegistration - resiliência de rede e sessão', () => {
   });
 
   it('shows an error but keeps address fields editable when the CEP lookup fails', async () => {
-    mocks.getSession.mockResolvedValue(baseSession);
     mocks.lookupCep.mockRejectedValue(new Error('Não foi possível consultar o CEP'));
 
     render(
@@ -184,9 +202,7 @@ describe('PublicPreRegistration - resiliência de rede e sessão', () => {
     expect(streetInput.value).toBe('Preenchimento manual');
   });
 
-  it('never persists cpf or birthDate to sessionStorage while editing the identification step', async () => {
-    mocks.getSession.mockResolvedValue(baseSession);
-
+  it('never persists cpf or birthDate to sessionStorage', async () => {
     render(
       <MemoryRouter>
         <PublicPreRegistration />
@@ -195,18 +211,87 @@ describe('PublicPreRegistration - resiliência de rede e sessão', () => {
 
     const cpfInput = await screen.findByLabelText(/^CPF/i);
     fireEvent.change(cpfInput, { target: { value: '123.456.789-00' } });
-
     const birthDateInput = screen.getByLabelText(/Data de nascimento/i);
     fireEvent.change(birthDateInput, { target: { value: '1990-01-01' } });
 
     await waitFor(() => {
-      const raw = window.sessionStorage.getItem(DRAFT_KEY);
+      const raw = window.sessionStorage.getItem(scopedDraftKey);
       expect(raw).toBeTruthy();
       expect(raw).not.toContain('123.456.789-00');
       expect(raw).not.toContain('1990-01-01');
       const stored = JSON.parse(raw as string);
       expect(stored.form.cpf).toBeUndefined();
       expect(stored.form.birthDate).toBeUndefined();
+    });
+  });
+
+  it('requires an explicit process selection when one account has multiple dependents', async () => {
+    mocks.listProcesses.mockResolvedValue([
+      baseProcess,
+      {
+        ...baseProcess,
+        alunoId: 'student-2',
+        claimRole: 'GUARDIAN',
+        displayName: 'Dependente Dois',
+        guardianAuthorizationStatus: 'ACTIVE',
+      },
+    ]);
+
+    render(
+      <MemoryRouter>
+        <PublicPreRegistration />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByRole('heading', { name: /Escolha o cadastro/i })).toBeInTheDocument();
+    expect(mocks.getSession).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: /Dependente Dois/i }));
+    await waitFor(() => expect(mocks.getSession).toHaveBeenCalledWith('student-2'));
+  });
+
+  it('does not request personal data before a guardian confirms the relationship', async () => {
+    const pendingProcess = {
+      ...baseProcess,
+      alunoId: 'minor-1',
+      claimRole: 'GUARDIAN',
+      displayName: 'Dependente convidado',
+      guardianAuthorizationStatus: 'PENDING',
+      requiresGuardianConfirmation: true,
+    };
+    mocks.listProcesses.mockResolvedValue([pendingProcess]);
+    mocks.confirmGuardianAuthorization.mockResolvedValue({
+      ...baseSession,
+      alunoId: 'minor-1',
+      isMinor: true,
+      claimRole: 'GUARDIAN',
+      guardianAuthorization: {
+        status: 'ACTIVE',
+        role: 'GUARDIAN',
+        relationship: 'Mãe',
+      },
+    });
+
+    render(
+      <MemoryRouter>
+        <PublicPreRegistration />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByRole('heading', { name: /Confirme seu vínculo/i })).toBeInTheDocument();
+    expect(mocks.getSession).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText(/Vínculo com o menor/i), {
+      target: { value: 'Mãe' },
+    });
+    fireEvent.click(screen.getByRole('checkbox'));
+    fireEvent.click(screen.getByRole('button', { name: /Confirmar e continuar/i }));
+
+    await waitFor(() => {
+      expect(mocks.confirmGuardianAuthorization).toHaveBeenCalledWith('minor-1', {
+        relationship: 'Mãe',
+        declarationAccepted: true,
+      });
     });
   });
 });
