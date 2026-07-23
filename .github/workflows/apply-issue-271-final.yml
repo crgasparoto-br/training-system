@@ -58,9 +58,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git restore --source=f13653d110c8bdaabc748851bea9458981f1b400 --staged --worktree .github/workflows/visual-audit-issue-271.yml
-          git apply --check /tmp/issue271.patch
-          git apply --index /tmp/issue271.patch
+          git apply --check --exclude=.github/workflows/visual-audit-issue-271.yml /tmp/issue271.patch
+          git apply --index --exclude=.github/workflows/visual-audit-issue-271.yml /tmp/issue271.patch
           rm -rf .github/issue271 .github/issue271-bin
           rm -f .github/workflows/apply-issue-271-final.yml
           rm -f .github/workflows/orchestrate-issue-271.yml
