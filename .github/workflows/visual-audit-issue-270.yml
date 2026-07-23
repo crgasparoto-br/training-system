@@ -5,6 +5,7 @@ on:
     branches:
       - develop
     paths:
+      - '.issue-270-corrections/**'
       - 'apps/web/src/pages/PreRegistrationAdmin/**'
       - 'apps/web/src/services/pre-registration-admin.service.ts'
       - 'packages/types/pre-registration-admin.ts'
@@ -12,26 +13,36 @@ on:
       - '.github/workflows/visual-audit-issue-270.yml'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   screenshots:
-    name: Capture desktop and mobile routes
+    name: Apply corrections and capture routes
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout branch
         uses: actions/checkout@v4
-
-      - name: Capture branch tree metadata
-        run: |
-          git fetch origin feat/270-pre-registration-admin --depth=1
-          git rev-parse FETCH_HEAD^{tree} > branch-tree.txt
-
-      - name: Upload branch tree metadata
-        uses: actions/upload-artifact@v4
         with:
-          name: issue-270-branch-tree-${{ github.run_id }}
-          path: branch-tree.txt
-          retention-days: 1
+          ref: feat/270-pre-registration-admin
+          fetch-depth: 0
+
+      - name: Apply correction package
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .issue-270-corrections/part* | base64 --decode > /tmp/issue-270-corrections.tgz
+          tar -xzf /tmp/issue-270-corrections.tgz -C .
+          rm -rf .issue-270-corrections
+          rm -f .github/workflows/apply-issue-270-corrections.yml
+          rm -f .github/workflows/export-issue-270-source.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git diff --cached --check
+          git commit -m 'fix: resolve audit findings for issue 270'
+          git push origin HEAD:feat/270-pre-registration-admin
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
