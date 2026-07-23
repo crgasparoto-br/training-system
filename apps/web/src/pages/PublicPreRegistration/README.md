@@ -8,9 +8,13 @@ Este diretório contém a experiência pública autenticada da pré-matrícula d
 - Após a reivindicação, o fluxo continua em `/pre-cadastro`, sem token na URL.
 - Dados pessoais são persistidos na identidade canônica do aluno e nunca em `localStorage` ou query string.
 - O salvamento é incremental, versionado e exige a seleção explícita do dependente quando uma conta possui mais de um vínculo.
-- Responsáveis legais precisam comprovar o vínculo com dados previamente cadastrados; a simples posse do link ou o preenchimento de campos textuais não concede autorização.
+- Cada operação autenticada informa o `alunoId` selecionado e o backend revalida conta, tenant, processo e autorização.
+- O convite de responsável cria um vínculo `PENDING`; nenhum dado pessoal do menor é carregado antes da confirmação da declaração e do vínculo.
+- O acesso como responsável somente é aceito quando a data de nascimento canônica já caracteriza menoridade.
+- Alterações administrativas na identidade canônica incrementam a versão do onboarding e invalidam formulários públicos desatualizados.
 - A conclusão registra o consentimento vigente e não ativa matrícula, contrato, cobrança, plano, agenda ou liberação para treino.
+- Anamnese e PAR-Q são apresentados como módulos opcionais independentes e encaminhados para suas etapas específicas.
 
 ## Validação
 
-Mudanças neste diretório devem executar o workflow visual da issue #271 em desktop, tablet e mobile, além dos gates gerais de type-check, lint, testes, build, arquitetura, catálogo de acesso e documentação.
+Mudanças neste diretório devem executar o workflow visual da issue #271 em desktop de baixa altura, desktop amplo e mobile, incluindo landing, seleção de processo, confirmação do responsável, formulário, conclusão e encaminhamento para módulos opcionais, além dos gates gerais de type-check, lint, testes, build, arquitetura, catálogo de acesso e documentação.
