@@ -1,0 +1,62 @@
+name: Visual Audit Issue 271
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - 'apps/web/src/pages/PublicPreRegistration/**'
+      - 'apps/web/src/services/pre-registration-public.service.ts'
+      - 'apps/web/src/App.tsx'
+      - 'apps/api/scripts/visual-audit-issue-271.mjs'
+      - '.github/workflows/visual-audit-issue-271.yml'
+  workflow_dispatch:
+
+jobs:
+  screenshots:
+    name: Audit public pre-registration responsive states
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chrome for Puppeteer
+        run: pnpm --filter @corrida/api exec puppeteer browsers install chrome
+
+      - name: Build web application
+        run: |
+          pnpm --filter @corrida/types build
+          pnpm --filter @corrida/utils build
+          pnpm --filter @corrida/web build
+
+      - name: Audit routes, states and responsive layouts
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @corrida/api exec node scripts/visual-audit-issue-271.mjs 2>&1 | tee visual-audit.log
+
+      - name: Upload screenshots and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-271-visual-${{ github.run_id }}
+          path: |
+            artifacts/issue-271-visual/*.png
+            visual-audit.log
+          if-no-files-found: warn
+          retention-days: 14
