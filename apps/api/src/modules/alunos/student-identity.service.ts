@@ -243,7 +243,13 @@ export async function upsertStudentIdentity(
     emitAuditEvent?: boolean;
   } = {}
 ): Promise<StudentIdentitySnapshot> {
-  const client = options.client ?? prisma;
+  if (!options.client) {
+    return prisma.$transaction((tx) =>
+      upsertStudentIdentity(alunoId, contractId, patch, { ...options, client: tx })
+    );
+  }
+
+  const client = options.client;
   const aluno = await client.aluno.findFirst({
     where: { id: alunoId, contractId },
     include: {
