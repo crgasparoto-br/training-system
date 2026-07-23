@@ -21,6 +21,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Package source snapshot
+        run: tar --exclude=.git --exclude=node_modules --exclude=artifacts -czf issue-271-source.tgz .
+
+      - name: Upload source snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-271-source-${{ github.run_id }}
+          path: issue-271-source.tgz
+          retention-days: 1
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
