@@ -11,6 +11,7 @@ import {
   preRegistrationInvitePublicHeaders,
 } from '../pre-registration-invites/pre-registration-invite.routes.js';
 import { preRegistrationInviteRateLimit } from '../pre-registration-invites/pre-registration-invite-rate-limit.middleware.js';
+import { preRegistrationDuplicateReviewService } from './pre-registration-duplicate-review.service.js';
 import {
   PreRegistrationPublicError,
   preRegistrationPublicService,
@@ -88,13 +89,39 @@ authenticatedRouter.get('/session', async (req, res) => {
 });
 
 authenticatedRouter.patch('/steps', async (req, res) => {
+  const input = req.body as SavePreRegistrationStepDTO;
   try {
-    const session = await preRegistrationPublicService.saveStep(
-      userIdOf(req),
-      req.body as SavePreRegistrationStepDTO
-    );
+    const session = await preRegistrationPublicService.saveStep(userIdOf(req), input);
     return sendSuccess(res, session, 'Etapa salva');
   } catch (error) {
+    if (
+      error instanceof PreRegistrationPublicError &&
+      error.code === 'DUPLICATE_REVIEW_REQUIRED' &&
+      error.details?.field === 'cpf'
+    ) {
+      try {
+        await preRegistrationDuplicateReviewService.preserveCpfConflict(userIdOf(req), input);
+        return handleError(
+          res,
+          new PreRegistrationPublicError(
+            'Este CPF já pertence a outro cadastro. Os demais dados foram salvos e enviados para revisão da academia.',
+            'DUPLICATE_REVIEW_REQUIRED',
+            { field: 'cpf', draftPreserved: true, reviewRequired: true }
+          )
+        );
+      } catch (preservationError) {
+        const message = preservationError instanceof Error
+          ? preservationError.message
+          : 'Não foi possível preservar o rascunho.';
+        if (message.includes('alterado em outro acesso')) {
+          return handleError(
+            res,
+            new PreRegistrationPublicError(message, 'CONCURRENT_MODIFICATION')
+          );
+        }
+        return handleError(res, preservationError);
+      }
+    }
     return handleError(res, error);
   }
 });
