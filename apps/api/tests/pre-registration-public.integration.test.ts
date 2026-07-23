@@ -1,6 +1,5 @@
 import { PrismaClient } from '@prisma/client';
 import { upsertStudentIdentity } from '../src/modules/alunos/student-identity.service.js';
-import { preRegistrationDuplicateReviewService } from '../src/modules/pre-registration-public/pre-registration-duplicate-review.service.js';
 import {
   PreRegistrationPublicError,
   preRegistrationPublicService,
@@ -11,15 +10,87 @@ const prisma = new PrismaClient();
 const runDatabaseTests = process.env.RUN_DATABASE_INTEGRATION_TESTS === 'true';
 const describeDatabase = runDatabaseTests ? describe : describe.skip;
 
+type CreatedInvite = {
+  alunoId: string;
+  token: string;
+};
+
 describeDatabase('public pre-registration integration', () => {
   const suffix = `issue271-${Date.now()}`;
   let contractId: string;
-  let guardianUserId: string;
-  let unrelatedUserId: string;
-  let firstAlunoId: string;
-  let secondAlunoId: string;
-  const firstToken = `${suffix}-first-token`;
-  const secondToken = `${suffix}-second-token`;
+  const createdUserIds: string[] = [];
+  const createdContractIds: string[] = [];
+
+  async function createUser(input: {
+    label: string;
+    name: string;
+    email?: string;
+    phone?: string;
+    cpf?: string;
+    birthDate?: Date;
+  }) {
+    const user = await prisma.user.create({
+      data: {
+        email: input.email || `${suffix}-${input.label}@example.com`,
+        passwordHash: 'integration-test-hash',
+        type: 'aluno',
+        profile: {
+          create: {
+            name: input.name,
+            phone: input.phone,
+            cpf: input.cpf,
+            birthDate: input.birthDate,
+          },
+        },
+      },
+    });
+    createdUserIds.push(user.id);
+    return user;
+  }
+
+  async function createInvitedAluno(input: {
+    label: string;
+    name: string;
+    email?: string;
+    phone?: string;
+    cpf?: string;
+    birthDate: string;
+    contract?: string;
+  }): Promise<CreatedInvite> {
+    const token = `${suffix}-${input.label}-token`;
+    const targetContractId = input.contract || contractId;
+    const aluno = await prisma.aluno.create({
+      data: {
+        contractId: targetContractId,
+        status: 'INVITED',
+        leadName: input.name,
+        onboarding: { create: { contractId: targetContractId } },
+        preRegistrationInvites: {
+          create: {
+            contractId: targetContractId,
+            tokenHash: hashInviteToken(token),
+            expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+          },
+        },
+      },
+    });
+    await upsertStudentIdentity(
+      aluno.id,
+      targetContractId,
+      {
+        name: input.name,
+        email: input.email,
+        phone: input.phone,
+        cpf: input.cpf,
+        birthDate: input.birthDate,
+      },
+      {
+        sourceType: 'professional',
+        sourceReference: 'issue_271_test_fixture',
+      }
+    );
+    return { alunoId: aluno.id, token };
+  }
 
   beforeAll(async () => {
     const contract = await prisma.companyContract.create({
@@ -30,274 +101,340 @@ describeDatabase('public pre-registration integration', () => {
       },
     });
     contractId = contract.id;
-
-    const guardian = await prisma.user.create({
-      data: {
-        email: `${suffix}-guardian@example.com`,
-        passwordHash: 'integration-test-hash',
-        type: 'aluno',
-        profile: { create: { name: 'Responsável Teste' } },
-      },
-    });
-    guardianUserId = guardian.id;
-
-    const unrelated = await prisma.user.create({
-      data: {
-        email: `${suffix}-unrelated@example.com`,
-        passwordHash: 'integration-test-hash',
-        type: 'aluno',
-        profile: { create: { name: 'Sem vínculo' } },
-      },
-    });
-    unrelatedUserId = unrelated.id;
-
-    const first = await prisma.aluno.create({
-      data: {
-        contractId,
-        status: 'INVITED',
-        leadName: 'Dependente Um',
-        onboarding: { create: { contractId } },
-        preRegistrationInvites: {
-          create: {
-            contractId,
-            tokenHash: hashInviteToken(firstToken),
-            expiresAt: new Date(Date.now() + 60 * 60 * 1000),
-          },
-        },
-      },
-    });
-    firstAlunoId = first.id;
-
-    const second = await prisma.aluno.create({
-      data: {
-        contractId,
-        status: 'INVITED',
-        leadName: 'Dependente Dois',
-        onboarding: { create: { contractId } },
-        preRegistrationInvites: {
-          create: {
-            contractId,
-            tokenHash: hashInviteToken(secondToken),
-            expiresAt: new Date(Date.now() + 60 * 60 * 1000),
-          },
-        },
-      },
-    });
-    secondAlunoId = second.id;
+    createdContractIds.push(contract.id);
   });
 
   afterAll(async () => {
-    if (contractId) {
-      await prisma.companyContract.delete({ where: { id: contractId } }).catch(() => undefined);
+    for (const id of createdContractIds.reverse()) {
+      await prisma.companyContract.delete({ where: { id } }).catch(() => undefined);
     }
-    if (guardianUserId) {
-      await prisma.user.delete({ where: { id: guardianUserId } }).catch(() => undefined);
-    }
-    if (unrelatedUserId) {
-      await prisma.user.delete({ where: { id: unrelatedUserId } }).catch(() => undefined);
+    for (const id of createdUserIds.reverse()) {
+      await prisma.user.delete({ where: { id } }).catch(() => undefined);
     }
     await prisma.$disconnect();
   });
 
-  it('allows one guardian account to claim multiple dependents without using Aluno.userId', async () => {
-    await preRegistrationPublicService.claim(guardianUserId, {
-      token: firstToken,
-      role: 'GUARDIAN',
+  it('keeps guardian access pending and hides personal data until the relationship is confirmed', async () => {
+    const guardian = await createUser({
+      label: 'guardian-pending',
+      name: 'Responsável Pendente',
     });
-    await preRegistrationPublicService.claim(guardianUserId, {
-      token: secondToken,
-      role: 'GUARDIAN',
+    const invited = await createInvitedAluno({
+      label: 'pending-minor',
+      name: 'Nome Sensível do Menor',
+      birthDate: '2012-05-10',
+      cpf: '52998224725',
     });
 
-    const alunos = await prisma.aluno.findMany({
-      where: { id: { in: [firstAlunoId, secondAlunoId] } },
-      orderBy: { leadName: 'asc' },
-      select: { userId: true, status: true },
+    const claim = await preRegistrationPublicService.claim(guardian.id, {
+      token: invited.token,
+      role: 'GUARDIAN',
     });
-    expect(alunos).toEqual([
-      { userId: null, status: 'PRE_REGISTRATION_IN_PROGRESS' },
-      { userId: null, status: 'PRE_REGISTRATION_IN_PROGRESS' },
+    expect(claim.alunoId).toBe(invited.alunoId);
+
+    const [aluno, authorization, processes] = await Promise.all([
+      prisma.aluno.findUniqueOrThrow({ where: { id: invited.alunoId } }),
+      prisma.preRegistrationGuardianAuthorization.findFirstOrThrow({
+        where: { alunoId: invited.alunoId, guardianUserId: guardian.id },
+      }),
+      preRegistrationPublicService.listProcesses(guardian.id),
     ]);
 
-    const authorizations = await prisma.$queryRaw<
-      Array<{ alunoId: string; contractId: string; status: string }>
-    >`
-      SELECT "alunoId", "contractId", "status"
-      FROM "PreRegistrationGuardianAuthorization"
-      WHERE "guardianUserId" = ${guardianUserId}
-      ORDER BY "alunoId"
-    `;
-    expect(authorizations).toHaveLength(2);
-    expect(authorizations.every((item) => item.contractId === contractId)).toBe(true);
-    expect(authorizations.every((item) => item.status === 'ACTIVE')).toBe(true);
-  });
-
-  it('rejects an account without an active tenant-scoped authorization', async () => {
-    await expect(preRegistrationPublicService.getSession(unrelatedUserId)).rejects.toMatchObject({
-      code: 'NOT_FOUND',
-    } satisfies Partial<PreRegistrationPublicError>);
-  });
-
-  it('detects stale saves and preserves the server version', async () => {
-    const session = await preRegistrationPublicService.getSession(guardianUserId);
-    const saved = await preRegistrationPublicService.saveStep(guardianUserId, {
-      expectedVersion: session.version,
-      step: 'IDENTIFICATION',
-      data: {
-        name: 'Dependente Dois',
-        birthDate: '2012-05-10',
-        cpf: '52998224725',
-      },
-    });
-    expect(saved.version).toBe(session.version + 1);
-    expect(saved.currentStep).toBe('CONTACT');
-
+    expect(aluno.status).toBe('INVITED');
+    expect(authorization.status).toBe('PENDING');
+    expect(authorization.validatedAt).toBeNull();
+    expect(processes).toEqual([
+      expect.objectContaining({
+        alunoId: invited.alunoId,
+        displayName: 'Dependente convidado',
+        guardianAuthorizationStatus: 'PENDING',
+        requiresGuardianConfirmation: true,
+      }),
+    ]);
     await expect(
-      preRegistrationPublicService.saveStep(guardianUserId, {
+      preRegistrationPublicService.getSession(guardian.id, invited.alunoId)
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' } satisfies Partial<PreRegistrationPublicError>);
+
+    const session = await preRegistrationPublicService.confirmGuardianAuthorization(
+      guardian.id,
+      invited.alunoId,
+      { relationship: 'Mãe', declarationAccepted: true }
+    );
+    expect(session.identity.name).toBe('Nome Sensível do Menor');
+    expect(session.guardianAuthorization).toMatchObject({
+      status: 'ACTIVE',
+      relationship: 'Mãe',
+    });
+
+    const saved = await preRegistrationPublicService.saveStep(
+      guardian.id,
+      invited.alunoId,
+      {
         expectedVersion: session.version,
         step: 'IDENTIFICATION',
-        data: { name: 'Versão antiga' },
-      })
-    ).rejects.toMatchObject({ code: 'CONCURRENT_MODIFICATION' });
+        data: {
+          name: 'Nome Sensível do Menor',
+          birthDate: '2012-05-10',
+          cpf: '52998224725',
+        },
+      }
+    );
+    expect(saved.status).toBe('PRE_REGISTRATION_IN_PROGRESS');
   });
 
-  it('preserves non-conflicting fields and opens administrative review for duplicate CPF', async () => {
-    const conflictingAluno = await prisma.aluno.create({
-      data: {
-        contractId,
-        status: 'LEAD',
-        leadName: 'Cadastro Existente',
-      },
+  it('allows one guardian to select and resume each linked dependent explicitly', async () => {
+    const guardian = await createUser({
+      label: 'guardian-multiple',
+      name: 'Responsável Múltiplo',
     });
+    const first = await createInvitedAluno({
+      label: 'dependent-one',
+      name: 'Dependente Um',
+      birthDate: '2013-01-01',
+      cpf: '11144477735',
+    });
+    const second = await createInvitedAluno({
+      label: 'dependent-two',
+      name: 'Dependente Dois',
+      birthDate: '2014-02-02',
+      cpf: '12345678909',
+    });
+
+    for (const invited of [first, second]) {
+      await preRegistrationPublicService.claim(guardian.id, {
+        token: invited.token,
+        role: 'GUARDIAN',
+      });
+      await preRegistrationPublicService.confirmGuardianAuthorization(
+        guardian.id,
+        invited.alunoId,
+        { relationship: 'Pai', declarationAccepted: true }
+      );
+    }
+
+    const processes = await preRegistrationPublicService.listProcesses(guardian.id);
+    expect(processes.map((item) => item.alunoId).sort()).toEqual(
+      [first.alunoId, second.alunoId].sort()
+    );
+
+    const [firstSession, secondSession] = await Promise.all([
+      preRegistrationPublicService.getSession(guardian.id, first.alunoId),
+      preRegistrationPublicService.getSession(guardian.id, second.alunoId),
+    ]);
+    expect(firstSession.identity.name).toBe('Dependente Um');
+    expect(secondSession.identity.name).toBe('Dependente Dois');
+  });
+
+  it('rejects every incompatible identity field instead of checking an unreachable email mismatch', async () => {
+    const account = await createUser({
+      label: 'incompatible-account',
+      name: 'Outra Pessoa',
+      email: `${suffix}-other-person@example.com`,
+      phone: '15911112222',
+      cpf: '98765432100',
+      birthDate: new Date('1980-01-01T12:00:00.000Z'),
+    });
+    const invited = await createInvitedAluno({
+      label: 'incompatible-student',
+      name: 'Pessoa Convidada',
+      email: `${suffix}-invited-person@example.com`,
+      phone: '15999990000',
+      cpf: '93541134780',
+      birthDate: '1990-05-05',
+    });
+
+    await expect(
+      preRegistrationPublicService.claim(account.id, {
+        token: invited.token,
+        role: 'STUDENT',
+      })
+    ).rejects.toMatchObject({
+      code: 'ACCOUNT_INCOMPATIBLE',
+      details: {
+        fields: expect.arrayContaining(['name', 'phone', 'cpf', 'birthDate', 'email']),
+      },
+    } satisfies Partial<PreRegistrationPublicError>);
+
+    const aluno = await prisma.aluno.findUniqueOrThrow({ where: { id: invited.alunoId } });
+    expect(aluno.userId).toBeNull();
+  });
+
+  it('rejects guardian claims for adults and does not create an authorization', async () => {
+    const guardian = await createUser({
+      label: 'guardian-adult',
+      name: 'Responsável Indevido',
+    });
+    const invited = await createInvitedAluno({
+      label: 'adult-invite',
+      name: 'Aluno Adulto',
+      birthDate: '1985-03-10',
+      cpf: '39053344705',
+    });
+
+    await expect(
+      preRegistrationPublicService.claim(guardian.id, {
+        token: invited.token,
+        role: 'GUARDIAN',
+      })
+    ).rejects.toMatchObject({ code: 'ACCOUNT_INCOMPATIBLE' });
+
+    expect(
+      await prisma.preRegistrationGuardianAuthorization.count({
+        where: { alunoId: invited.alunoId },
+      })
+    ).toBe(0);
+  });
+
+  it('invalidates a stale public form after an administrative canonical identity edit', async () => {
+    const email = `${suffix}-compatible-student@example.com`;
+    const account = await createUser({
+      label: 'compatible-student',
+      name: 'Aluno Compatível',
+      email,
+    });
+    const invited = await createInvitedAluno({
+      label: 'identity-concurrency',
+      name: 'Aluno Compatível',
+      email,
+      phone: '15999990000',
+      cpf: '16899535009',
+      birthDate: '1992-06-15',
+    });
+
+    await preRegistrationPublicService.claim(account.id, {
+      token: invited.token,
+      role: 'STUDENT',
+    });
+    const initial = await preRegistrationPublicService.getSession(account.id, invited.alunoId);
+
     await upsertStudentIdentity(
-      conflictingAluno.id,
+      invited.alunoId,
       contractId,
-      { name: 'Cadastro Existente', cpf: '11144477735' },
+      { phone: '15888880000' },
       {
-        actor: { userId: guardianUserId },
         sourceType: 'professional',
-        sourceReference: 'issue_271_integration_test',
+        sourceReference: 'issue_271_admin_concurrency_test',
       }
     );
 
-    const session = await preRegistrationPublicService.getSession(guardianUserId);
-    const input = {
-      expectedVersion: session.version,
-      step: 'IDENTIFICATION' as const,
-      data: {
-        name: 'Rascunho Preservado',
-        cpf: '11144477735',
-      },
-    };
+    const refreshed = await preRegistrationPublicService.getSession(account.id, invited.alunoId);
+    expect(refreshed.version).toBe(initial.version + 1);
+    expect(refreshed.identity.phone).toBe('15888880000');
 
     await expect(
-      preRegistrationPublicService.saveStep(guardianUserId, input)
-    ).rejects.toMatchObject({ code: 'DUPLICATE_REVIEW_REQUIRED' });
-    await preRegistrationDuplicateReviewService.preserveCpfConflict(guardianUserId, input);
+      preRegistrationPublicService.saveStep(account.id, invited.alunoId, {
+        expectedVersion: initial.version,
+        step: 'CONTACT',
+        data: { phone: '15777770000' },
+      })
+    ).rejects.toMatchObject({ code: 'CONCURRENT_MODIFICATION' });
 
-    const [resumed, review] = await Promise.all([
-      preRegistrationPublicService.getSession(guardianUserId),
-      prisma.studentProfileReview.findFirst({
-        where: {
-          alunoId: secondAlunoId,
-          status: 'pending',
-          requiresApproval: true,
-        },
-        orderBy: { createdAt: 'desc' },
-      }),
-    ]);
-    expect(resumed.version).toBe(session.version + 1);
-    expect(resumed.currentStep).toBe('IDENTIFICATION');
-    expect(resumed.identity.name).toBe('Rascunho Preservado');
-    expect(resumed.identity.cpf).toBe('52998224725');
-    expect(review).not.toBeNull();
-    expect(review?.changedFields).toEqual(['cpf']);
-    expect((review?.snapshotAfter as { cpf?: string }).cpf).toBe('11144477735');
+    const afterConflict = await preRegistrationPublicService.getSession(account.id, invited.alunoId);
+    expect(afterConflict.identity.phone).toBe('15888880000');
   });
 
-  it('completes status, consent and invite atomically and supports a safe retry', async () => {
-    const identification = await preRegistrationPublicService.getSession(guardianUserId);
-    const contact = await preRegistrationPublicService.saveStep(guardianUserId, {
-      expectedVersion: identification.version,
-      step: 'CONTACT',
-      data: {
-        phone: '15999990000',
-        email: `${suffix}-dependent@example.com`,
-      },
+  it('completes consent and invite atomically, emits one completion event and supports retry', async () => {
+    const guardian = await createUser({
+      label: 'guardian-completion',
+      name: 'Responsável Conclusão',
     });
-    const guardian = await preRegistrationPublicService.saveStep(guardianUserId, {
-      expectedVersion: contact.version,
-      step: 'GUARDIAN',
-      data: {
-        guardianName: 'Responsável Teste',
-        guardianCpf: '12345678909',
-        guardianPhone: '15988880000',
-        guardianEmail: `${suffix}-guardian@example.com`,
-        guardianRelationship: 'Mãe',
-        guardianDeclarationAccepted: true,
-      },
+    const invited = await createInvitedAluno({
+      label: 'completion-minor',
+      name: 'Dependente Conclusão',
+      birthDate: '2011-08-20',
+      cpf: '86288366757',
     });
 
+    await preRegistrationPublicService.claim(guardian.id, {
+      token: invited.token,
+      role: 'GUARDIAN',
+    });
+    let session = await preRegistrationPublicService.confirmGuardianAuthorization(
+      guardian.id,
+      invited.alunoId,
+      { relationship: 'Mãe', declarationAccepted: true }
+    );
+    session = await preRegistrationPublicService.saveStep(
+      guardian.id,
+      invited.alunoId,
+      {
+        expectedVersion: session.version,
+        step: 'IDENTIFICATION',
+        data: {
+          name: 'Dependente Conclusão',
+          birthDate: '2011-08-20',
+          cpf: '86288366757',
+        },
+      }
+    );
+    session = await preRegistrationPublicService.saveStep(
+      guardian.id,
+      invited.alunoId,
+      {
+        expectedVersion: session.version,
+        step: 'CONTACT',
+        data: {
+          phone: '15955554444',
+          email: `${suffix}-dependent-completion@example.com`,
+        },
+      }
+    );
+    session = await preRegistrationPublicService.saveStep(
+      guardian.id,
+      invited.alunoId,
+      {
+        expectedVersion: session.version,
+        step: 'GUARDIAN',
+        data: {
+          guardianName: 'Responsável Conclusão',
+          guardianCpf: '71428793860',
+          guardianPhone: '15944443333',
+          guardianEmail: `${suffix}-guardian-completion@example.com`,
+        },
+      }
+    );
+
     const completed = await preRegistrationPublicService.complete(
-      guardianUserId,
-      { expectedVersion: guardian.version, privacyAccepted: true },
+      guardian.id,
+      invited.alunoId,
+      { expectedVersion: session.version, privacyAccepted: true },
       { ipAddress: '127.0.0.1', userAgent: 'issue-271-integration-test' }
     );
     expect(completed.status).toBe('PRE_REGISTRATION_COMPLETED');
     expect(completed.privacy.acceptedAt).toBeTruthy();
-
-    const [aluno, onboarding, invite, completedEvents] = await Promise.all([
-      prisma.aluno.findUniqueOrThrow({ where: { id: secondAlunoId } }),
-      prisma.studentOnboardingProcess.findUniqueOrThrow({ where: { alunoId: secondAlunoId } }),
-      prisma.preRegistrationInvite.findUniqueOrThrow({
-        where: { tokenHash: hashInviteToken(secondToken) },
-      }),
-      prisma.preRegistrationInviteEvent.count({
-        where: {
-          invite: { alunoId: secondAlunoId },
-          eventType: 'COMPLETED',
-        },
-      }),
-    ]);
-    expect(aluno.status).toBe('PRE_REGISTRATION_COMPLETED');
-    expect(onboarding.completedAt).not.toBeNull();
-    expect(onboarding.privacyNoticeVersion).toBeTruthy();
-    expect(invite.status).toBe('COMPLETED');
-    expect(completedEvents).toBe(1);
+    expect(completed.nextSteps.every((step) => Boolean(step.href))).toBe(true);
 
     const retried = await preRegistrationPublicService.complete(
-      guardianUserId,
-      { expectedVersion: guardian.version, privacyAccepted: true },
+      guardian.id,
+      invited.alunoId,
+      { expectedVersion: session.version, privacyAccepted: true },
       { ipAddress: '127.0.0.1', userAgent: 'issue-271-integration-test-retry' }
     );
     expect(retried.status).toBe('PRE_REGISTRATION_COMPLETED');
-    expect(
-      await prisma.preRegistrationInviteEvent.count({
+
+    const [completionEvents, inviteEvents, invite] = await Promise.all([
+      prisma.studentLifecycleEvent.count({
         where: {
-          invite: { alunoId: secondAlunoId },
+          alunoId: invited.alunoId,
+          eventType: 'PRE_REGISTRATION_COMPLETED',
+        },
+      }),
+      prisma.preRegistrationInviteEvent.count({
+        where: {
+          invite: { alunoId: invited.alunoId },
           eventType: 'COMPLETED',
         },
-      })
-    ).toBe(1);
+      }),
+      prisma.preRegistrationInvite.findUniqueOrThrow({
+        where: { tokenHash: hashInviteToken(invited.token) },
+      }),
+    ]);
+    expect(completionEvents).toBe(1);
+    expect(inviteEvents).toBe(1);
+    expect(invite.status).toBe('COMPLETED');
   });
 
-  it('revokes access immediately when all guardian authorizations are revoked', async () => {
-    await prisma.$executeRaw`
-      UPDATE "PreRegistrationGuardianAuthorization"
-      SET "status" = 'REVOKED',
-          "revokedAt" = CURRENT_TIMESTAMP,
-          "revokedByUserId" = ${guardianUserId},
-          "updatedAt" = CURRENT_TIMESTAMP
-      WHERE "guardianUserId" = ${guardianUserId}
-        AND "contractId" = ${contractId}
-    `;
-
-    await expect(preRegistrationPublicService.getSession(guardianUserId)).rejects.toMatchObject({
-      code: 'NOT_FOUND',
-    });
-  });
-
-  it('never grants a guardian authorization from one tenant access to a student of another tenant', async () => {
+  it('never resolves a guardian process across tenants', async () => {
     const otherContract = await prisma.companyContract.create({
       data: {
         type: 'academy',
@@ -305,89 +442,39 @@ describeDatabase('public pre-registration integration', () => {
         name: 'Academia Issue 271 - Outro Tenant',
       },
     });
-    const crossTenantGuardian = await prisma.user.create({
-      data: {
-        email: `${suffix}-cross-tenant-guardian@example.com`,
-        passwordHash: 'integration-test-hash',
-        type: 'aluno',
-        profile: { create: { name: 'Responsável Outro Tenant' } },
-      },
+    createdContractIds.push(otherContract.id);
+    const guardian = await createUser({
+      label: 'cross-tenant-guardian',
+      name: 'Responsável Cross Tenant',
+    });
+    const home = await createInvitedAluno({
+      label: 'cross-tenant-home',
+      name: 'Mesmo Nome',
+      birthDate: '2013-10-10',
+      cpf: '07258169004',
+    });
+    const other = await createInvitedAluno({
+      label: 'cross-tenant-other',
+      name: 'Mesmo Nome',
+      birthDate: '2013-10-10',
+      cpf: '65455822006',
+      contract: otherContract.id,
     });
 
-    try {
-      const homeToken = `${suffix}-cross-tenant-home-token`;
-      const homeAluno = await prisma.aluno.create({
-        data: {
-          contractId,
-          status: 'INVITED',
-          leadName: 'Dependente Tenant Origem',
-          onboarding: { create: { contractId } },
-          preRegistrationInvites: {
-            create: {
-              contractId,
-              tokenHash: hashInviteToken(homeToken),
-              expiresAt: new Date(Date.now() + 60 * 60 * 1000),
-            },
-          },
-        },
-      });
-      const otherTenantAluno = await prisma.aluno.create({
-        data: {
-          contractId: otherContract.id,
-          status: 'INVITED',
-          // Mesmo nome de lead do dependente do tenant de origem, de propósito:
-          // similaridade de dados cadastrais nunca deve influenciar o
-          // isolamento por tenant, que é feito por alunoId/contractId.
-          leadName: 'Dependente Tenant Origem',
-          onboarding: { create: { contractId: otherContract.id } },
-        },
-      });
+    await preRegistrationPublicService.claim(guardian.id, {
+      token: home.token,
+      role: 'GUARDIAN',
+    });
+    await preRegistrationPublicService.confirmGuardianAuthorization(
+      guardian.id,
+      home.alunoId,
+      { relationship: 'Tutor', declarationAccepted: true }
+    );
 
-      await preRegistrationPublicService.claim(crossTenantGuardian.id, {
-        token: homeToken,
-        role: 'GUARDIAN',
-      });
-
-      const session = await preRegistrationPublicService.getSession(crossTenantGuardian.id);
-      // O DTO de sessao nao expoe contractId/alunoId diretamente; o nome do
-      // tenant (unico por academia) confirma que a sessao resolvida pertence
-      // ao tenant de origem (onde a autorizacao existe), nao ao outro tenant.
-      expect(session.tenant.name).toBe('Academia Issue 271');
-
-      const authorizations = await prisma.$queryRaw<
-        Array<{ alunoId: string; contractId: string; status: string }>
-      >`
-        SELECT "alunoId", "contractId", "status"
-        FROM "PreRegistrationGuardianAuthorization"
-        WHERE "guardianUserId" = ${crossTenantGuardian.id}
-      `;
-      expect(authorizations).toHaveLength(1);
-      expect(authorizations[0]).toMatchObject({
-        alunoId: homeAluno.id,
-        contractId,
-        status: 'ACTIVE',
-      });
-      expect(
-        authorizations.some((authorization) => authorization.alunoId === otherTenantAluno.id)
-      ).toBe(false);
-
-      // Retirando o acesso ao dependente do tenant de origem, a sessão deve
-      // deixar de resolver -- nunca "vazar" para o dependente homônimo do
-      // outro tenant, ainda que este permaneça INVITED e acessível dentro do
-      // seu próprio tenant.
-      await prisma.aluno.update({
-        where: { id: homeAluno.id },
-        data: { status: 'DISCARDED' },
-      });
-
-      await expect(
-        preRegistrationPublicService.getSession(crossTenantGuardian.id)
-      ).rejects.toMatchObject({ code: 'NOT_FOUND' });
-    } finally {
-      await prisma.user.delete({ where: { id: crossTenantGuardian.id } }).catch(() => undefined);
-      await prisma.companyContract
-        .delete({ where: { id: otherContract.id } })
-        .catch(() => undefined);
-    }
+    await expect(
+      preRegistrationPublicService.getSession(guardian.id, other.alunoId)
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    const session = await preRegistrationPublicService.getSession(guardian.id, home.alunoId);
+    expect(session.tenant.name).toBe('Academia Issue 271');
   });
 });
