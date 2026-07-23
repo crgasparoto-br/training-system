@@ -21,7 +21,7 @@ type LockedStudentRow = {
   status: StudentLifecycleStatus;
 };
 
-type LockedOnboardingRow = {
+type OnboardingVersionRow = {
   version: number;
 };
 
@@ -226,11 +226,13 @@ export async function completePublicStudentPreRegistration(input: {
       throw new StudentLifecycleError('Registro não encontrado.', 'NOT_FOUND');
     }
 
-    const onboardingRows = await tx.$queryRaw<LockedOnboardingRow[]>`
+    // A leitura de versao nao bloqueia onboarding antes da identidade canônica.
+    // A atualizacao condicional posterior e a autoridade de concorrencia e faz a
+    // transacao inteira reverter se uma edicao administrativa intervier.
+    const onboardingRows = await tx.$queryRaw<OnboardingVersionRow[]>`
       SELECT "version"
       FROM "StudentOnboardingProcess"
       WHERE "alunoId" = ${input.alunoId} AND "contractId" = ${input.contractId}
-      FOR UPDATE
     `;
     const onboarding = onboardingRows[0];
     if (!onboarding) {
