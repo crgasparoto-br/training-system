@@ -12,7 +12,9 @@ type IdentityActor = {
 export interface StudentIdentityData {
   name?: string | null;
   email?: string | null;
+  additionalEmail?: string | null;
   phone?: string | null;
+  additionalPhone?: string | null;
   cpf?: string | null;
   birthDate?: string | Date | null;
   gender?: 'male' | 'female' | 'other' | null;
@@ -125,7 +127,9 @@ const buildLegacyFallback = (aluno: {
 }): StudentIdentitySnapshot => ({
   name: aluno.leadName ?? aluno.user?.profile?.name ?? null,
   email: aluno.leadEmail ?? aluno.user?.email ?? null,
+  additionalEmail: null,
   phone: aluno.leadPhone ?? aluno.user?.profile?.phone ?? null,
+  additionalPhone: null,
   cpf: aluno.leadCpf ?? aluno.user?.profile?.cpf ?? null,
   birthDate:
     aluno.birthDate?.toISOString() ?? aluno.user?.profile?.birthDate?.toISOString() ?? null,
@@ -278,8 +282,12 @@ export async function upsertStudentIdentity(
       leadName: cleanText(identity.name) ?? null,
       leadEmail: cleanText(identity.email) ?? null,
       leadEmailNormalized: normalizeStudentEmail(identity.email) ?? null,
+      leadAdditionalEmail: cleanText(identity.additionalEmail) ?? null,
+      leadAdditionalEmailNormalized: normalizeStudentEmail(identity.additionalEmail) ?? null,
       leadPhone: cleanText(identity.phone) ?? null,
       leadPhoneNormalized: normalizeStudentPhone(identity.phone) ?? null,
+      leadAdditionalPhone: cleanText(identity.additionalPhone) ?? null,
+      leadAdditionalPhoneNormalized: normalizeStudentPhone(identity.additionalPhone) ?? null,
       leadCpf: cleanText(identity.cpf) ?? null,
       leadCpfNormalized: normalizeStudentCpf(identity.cpf) ?? null,
       birthDate,

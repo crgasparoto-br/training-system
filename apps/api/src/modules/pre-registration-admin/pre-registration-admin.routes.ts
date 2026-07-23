@@ -28,6 +28,7 @@ const inviteAccess = blockAccessMiddleware('students.preRegistration.generateInv
 const revokeAccess = blockAccessMiddleware('students.preRegistration.revokeInvite');
 const reviewAccess = blockAccessMiddleware('students.preRegistration.review');
 const discardAccess = blockAccessMiddleware('students.preRegistration.discardReopen');
+const convertAccess = blockAccessMiddleware('students.preRegistration.convert');
 
 type AuthUser = {
   userId?: string;
@@ -291,6 +292,25 @@ preRegistrationAdminRoutes.post('/leads/:id/review', reviewAccess, async (req, r
       reviewReference,
       deduplicationReference,
     });
+    return res.json({ success: true, data });
+  } catch (error) {
+    return respondError(res, error);
+  }
+});
+preRegistrationAdminRoutes.post('/leads/:id/convert', convertAccess, async (req, res) => {
+  try {
+    const activationReference = String(req.body?.activationReference || '').trim();
+    if (!activationReference) {
+      throw new PreRegistrationAdminError(
+        'Informe a referência da matrícula.',
+        'INVALID_INPUT'
+      );
+    }
+    const data = await preRegistrationAdminService.convert(
+      actorFrom(req),
+      req.params.id,
+      activationReference
+    );
     return res.json({ success: true, data });
   } catch (error) {
     return respondError(res, error);

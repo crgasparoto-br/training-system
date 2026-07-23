@@ -40,7 +40,9 @@ export function PreRegistrationAdminEdit() {
       await preRegistrationAdminService.update(id, {
         name: values.name,
         phone: values.phone || undefined,
+        additionalPhone: values.additionalPhone || undefined,
         email: values.email || undefined,
+        additionalEmail: values.additionalEmail || undefined,
         cpf: values.cpf || undefined,
         origin: values.origin,
         responsibleProfessorId: values.responsibleProfessorId || null,
@@ -70,7 +72,9 @@ export function PreRegistrationAdminEdit() {
       initialValues={{
         name: lead.name,
         phone: lead.contacts.phone || '',
+        additionalPhone: lead.contacts.additionalPhone || '',
         email: lead.contacts.email || '',
+        additionalEmail: lead.contacts.additionalEmail || '',
         cpf: lead.contacts.cpf || '',
         origin: lead.origin,
         responsibleProfessorId: lead.responsible?.id || '',

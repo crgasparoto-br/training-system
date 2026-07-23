@@ -15,8 +15,19 @@ import { preRegistrationAdminService } from '../../services/pre-registration-adm
 import { useAuthStore } from '../../stores/useAuthStore';
 import { LeadForm, type LeadFormValues } from './LeadForm';
 
+type SubmissionFailure = {
+  response?: {
+    data?: {
+      error?: string;
+      code?: string;
+      details?: PreRegistrationDuplicateCheckResultDTO;
+    };
+  };
+  message?: string;
+};
+
 function errorMessage(error: unknown) {
-  const value = error as { response?: { data?: { error?: string } }; message?: string };
+  const value = error as SubmissionFailure;
   return value.response?.data?.error || value.message || 'Não foi possível criar o lead.';
 }
 
@@ -78,13 +89,18 @@ export function PreRegistrationAdminCreate() {
       const lead = await preRegistrationAdminService.create({
         name: values.name,
         phone: values.phone || undefined,
+        additionalPhone: values.additionalPhone || undefined,
         email: values.email || undefined,
+        additionalEmail: values.additionalEmail || undefined,
         cpf: values.cpf || undefined,
         origin: values.origin,
         responsibleProfessorId: values.responsibleProfessorId || undefined,
         commercialNotes: values.commercialNotes || undefined,
         unit: values.unit || undefined,
-        confirmPossibleDuplicate: confirmDuplicate,
+        confirmedDuplicateFingerprint:
+          confirmDuplicate && duplicates?.fingerprint === duplicateResult.fingerprint
+            ? duplicateResult.fingerprint
+            : undefined,
       });
 
       let generatedInviteUrl: string | undefined;
@@ -101,6 +117,11 @@ export function PreRegistrationAdminCreate() {
           : undefined,
       });
     } catch (submissionError) {
+      const failure = submissionError as SubmissionFailure;
+      if (failure.response?.data?.code === 'POSSIBLE_DUPLICATE' && failure.response.data.details) {
+        setDuplicates(failure.response.data.details);
+        setConfirmDuplicate(false);
+      }
       setError(errorMessage(submissionError));
     } finally {
       setSubmitting(false);
@@ -115,6 +136,11 @@ export function PreRegistrationAdminCreate() {
       submitLabel="Criar lead"
       submitting={submitting}
       error={error}
+      onIdentityChange={() => {
+        setDuplicates(null);
+        setConfirmDuplicate(false);
+        setError(null);
+      }}
       onSubmit={submit}
     >
       {duplicates?.candidates.length ? (

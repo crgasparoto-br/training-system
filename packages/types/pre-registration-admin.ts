@@ -48,7 +48,9 @@ export interface PreRegistrationAdminListQueryDTO {
 
 export interface PreRegistrationAdminContactDTO {
   phone?: string;
+  additionalPhone?: string;
   email?: string;
+  additionalEmail?: string;
   cpf?: string;
   masked: boolean;
 }
@@ -134,24 +136,31 @@ export interface PreRegistrationAdminListResultDTO {
     origins: string[];
     responsibleProfessors: PreRegistrationAdminProfessorDTO[];
   };
+  capabilities: {
+    canSearchCpf: boolean;
+  };
 }
 
 export interface CreatePreRegistrationLeadDTO {
   name: string;
   phone?: string;
+  additionalPhone?: string;
   email?: string;
+  additionalEmail?: string;
   cpf?: string;
   origin: string;
   responsibleProfessorId?: string;
   commercialNotes?: string;
   unit?: string;
-  confirmPossibleDuplicate?: boolean;
+  confirmedDuplicateFingerprint?: string;
 }
 
 export interface UpdatePreRegistrationLeadCommercialDTO {
   name?: string;
   phone?: string;
+  additionalPhone?: string;
   email?: string;
+  additionalEmail?: string;
   cpf?: string;
   origin?: string;
   responsibleProfessorId?: string | null;
@@ -169,6 +178,7 @@ export interface PreRegistrationDuplicateCandidateDTO {
 }
 
 export interface PreRegistrationDuplicateCheckResultDTO extends Record<string, unknown> {
+  fingerprint: string;
   candidates: PreRegistrationDuplicateCandidateDTO[];
   hasBlockingCpfConflict: boolean;
 }
@@ -208,4 +218,14 @@ export interface PreRegistrationAdminReviewDTO {
 
 export interface PreRegistrationAdminReasonDTO {
   reason: string;
+}
+
+export interface PreRegistrationAdminConversionDTO {
+  activationReference: string;
+}
+
+export interface PreRegistrationAdminConversionResultDTO {
+  alunoId: string;
+  status: 'ACTIVE_STUDENT';
+  redirectTo: string;
 }

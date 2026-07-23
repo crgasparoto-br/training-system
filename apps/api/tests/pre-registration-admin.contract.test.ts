@@ -66,6 +66,12 @@ describe('pre-registration admin access contract', () => {
     }
   );
 
+
+  it('keeps conversion as a dedicated action instead of reusing contract permissions', () => {
+    expect(actionKeys).toContain('students.preRegistration.convert');
+    expect(actionKeys).not.toContain('students.actions.manageFinancialContract' as never);
+  });
+
   it('keeps the intern profile read-only and self-scoped', () => {
     const defaults = DEFAULT_ACCESS_BY_PROFILE_CODE.intern;
     expect(defaults.screens).toContain('students.preRegistration');

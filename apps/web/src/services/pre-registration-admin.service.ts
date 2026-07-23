@@ -1,5 +1,6 @@
 import type {
   CreatePreRegistrationLeadDTO,
+  PreRegistrationAdminConversionResultDTO,
   PreRegistrationAdminLeadDetailDTO,
   PreRegistrationAdminListQueryDTO,
   PreRegistrationAdminListResultDTO,
@@ -36,7 +37,12 @@ export const preRegistrationAdminService = {
     return response.data.data;
   },
 
-  async checkDuplicates(input: Pick<CreatePreRegistrationLeadDTO, 'phone' | 'email' | 'cpf'>) {
+  async checkDuplicates(
+    input: Pick<
+      CreatePreRegistrationLeadDTO,
+      'phone' | 'additionalPhone' | 'email' | 'additionalEmail' | 'cpf'
+    >
+  ) {
     const response = await api.post<ApiEnvelope<PreRegistrationDuplicateCheckResultDTO>>(
       '/pre-registration-admin/leads/duplicates',
       input
@@ -44,7 +50,7 @@ export const preRegistrationAdminService = {
     return response.data.data;
   },
 
-  async create(input: CreatePreRegistrationLeadDTO & { confirmPossibleDuplicate?: boolean }) {
+  async create(input: CreatePreRegistrationLeadDTO) {
     const response = await api.post<ApiEnvelope<PreRegistrationAdminLeadDetailDTO>>(
       '/pre-registration-admin/leads',
       input
@@ -87,6 +93,14 @@ export const preRegistrationAdminService = {
     const response = await api.post<ApiEnvelope<PreRegistrationAdminLeadDetailDTO>>(
       `/pre-registration-admin/leads/${id}/reopen`,
       { reason }
+    );
+    return response.data.data;
+  },
+
+  async convert(id: string, activationReference: string) {
+    const response = await api.post<ApiEnvelope<PreRegistrationAdminConversionResultDTO>>(
+      `/pre-registration-admin/leads/${id}/convert`,
+      { activationReference }
     );
     return response.data.data;
   },

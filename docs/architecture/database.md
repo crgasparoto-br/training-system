@@ -81,3 +81,24 @@ interceptados, preservando a autoridade do serviço de ciclo sobre transições.
 O workflow de validação monta uma base pré-#268 populada, aplica a migration,
 confirma a preservação de contrato, PRNT, avaliações, agenda, treino, dados clínicos
 e IDs e, em seguida, reexecuta a migration para validar convergência.
+
+## Projeções administrativas da pré-matrícula (issue #270)
+
+A migration `20260723011500_issue_270_admin_consistency` adiciona projeções em
+`Aluno` para que a listagem administrativa filtre, ordene e exiba a mesma fonte de
+verdade:
+
+- `lastActivityAt`: maior atividade observada no registro, onboarding, ciclo,
+  convite atual ou PAR-Q;
+- `currentPreRegistrationInviteStatus` e
+  `currentPreRegistrationInviteExpiresAt`: convite de pré-cadastro mais recente;
+- `parqRequiresProfessionalReview`: resultado calculado exclusivamente a partir da
+  submissão PAR-Q mais recente e de seus acompanhamentos ativos;
+- contatos adicionais normalizados para busca e deduplicação tenant-scoped.
+
+Triggers atualizam as projeções quando as tabelas de origem mudam. As projeções não
+são fontes editáveis: identidade continua sendo escrita somente por
+`student-identity.service.ts`, convites pelo domínio de convites e PAR-Q pelo módulo
+clínico. A criação administrativa usa transação serializável para que deduplicação,
+registro canônico, responsável e identidade sejam confirmados ou revertidos como
+uma única operação.

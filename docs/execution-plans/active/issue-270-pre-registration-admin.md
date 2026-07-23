@@ -44,3 +44,19 @@ Branch: `feat/270-pre-registration-admin`
 Pull request: #280
 
 A pull request deve permanecer sem merge até autorização explícita.
+
+## Ciclo de correção após auditoria independente
+
+A auditoria do commit `745b8018` reprovou a entrega por inconsistências entre permissões, filtros, ordenação, deduplicação e transações. O ciclo corretivo mantém a mesma branch e o PR #280 e inclui:
+
+- conversão de pré-matrícula por endpoint próprio protegido por `students.preRegistration.convert`;
+- projeção persistida `lastActivityAt`, usada igualmente na exibição, nos filtros e na ordenação;
+- projeções do convite atual e do alerta da submissão PAR-Q mais recente;
+- criação integral em transação serializável, com confirmação de duplicidade vinculada a fingerprint dos identificadores e candidatos;
+- descarte e revogação do convite dentro da mesma transação;
+- telefone e e-mail adicionais na identidade canônica e nas projeções de busca;
+- pesquisa por CPF habilitada somente para perfis que podem consultar contatos sensíveis;
+- testes discriminantes para filtros combinados, fontes de verdade e invalidação da confirmação de duplicidade;
+- auditoria visual ampliada para 1440x900, 1366x768 e 390x844, com lista extensa, vazio, erro, perfil restrito, conteúdo longo, teclado e falha do clipboard.
+
+O plano somente será considerado concluído depois de `pnpm validate`, auditorias funcional e visual finais e higienização sem pendências materiais.

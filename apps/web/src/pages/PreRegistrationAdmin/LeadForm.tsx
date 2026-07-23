@@ -9,7 +9,9 @@ import { Input } from '../../components/ui/Input';
 export interface LeadFormValues {
   name: string;
   phone: string;
+  additionalPhone: string;
   email: string;
+  additionalEmail: string;
   cpf: string;
   origin: string;
   responsibleProfessorId: string;
@@ -20,7 +22,9 @@ export interface LeadFormValues {
 const EMPTY_VALUES: LeadFormValues = {
   name: '',
   phone: '',
+  additionalPhone: '',
   email: '',
+  additionalEmail: '',
   cpf: '',
   origin: '',
   responsibleProfessorId: '',
@@ -38,6 +42,7 @@ export function LeadForm({
   error,
   children,
   onSubmit,
+  onIdentityChange,
 }: {
   title: string;
   description: string;
@@ -48,11 +53,15 @@ export function LeadForm({
   error?: string | null;
   children?: ReactNode;
   onSubmit: (values: LeadFormValues) => Promise<void>;
+  onIdentityChange?: () => void;
 }) {
   const [values, setValues] = useState<LeadFormValues>({ ...EMPTY_VALUES, ...initialValues });
 
   const update = (field: keyof LeadFormValues, value: string) => {
     setValues((current) => ({ ...current, [field]: value }));
+    if (['phone', 'additionalPhone', 'email', 'additionalEmail', 'cpf'].includes(field)) {
+      onIdentityChange?.();
+    }
   };
 
   const submit = async (event: FormEvent) => {
@@ -93,8 +102,16 @@ export function LeadForm({
             <Input value={values.phone} onChange={(event) => update('phone', event.target.value)} placeholder="(15) 99999-9999" />
           </label>
           <label className="space-y-2">
+            <span className="text-sm font-medium">Telefone adicional</span>
+            <Input value={values.additionalPhone} onChange={(event) => update('additionalPhone', event.target.value)} placeholder="Outro telefone para contato" />
+          </label>
+          <label className="space-y-2">
             <span className="text-sm font-medium">E-mail</span>
             <Input type="email" value={values.email} onChange={(event) => update('email', event.target.value)} placeholder="nome@exemplo.com" />
+          </label>
+          <label className="space-y-2">
+            <span className="text-sm font-medium">E-mail adicional</span>
+            <Input type="email" value={values.additionalEmail} onChange={(event) => update('additionalEmail', event.target.value)} placeholder="Outro e-mail para contato" />
           </label>
           <label className="space-y-2">
             <span className="text-sm font-medium">CPF</span>

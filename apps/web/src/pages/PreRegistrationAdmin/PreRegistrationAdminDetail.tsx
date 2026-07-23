@@ -5,7 +5,7 @@ import {
   ArrowLeft,
   CheckCircle2,
   Edit3,
-  ExternalLink,
+  GraduationCap,
   History,
   RefreshCcw,
   RotateCcw,
@@ -84,6 +84,8 @@ export function PreRegistrationAdminDetail() {
   const [discardConfirmed, setDiscardConfirmed] = useState(false);
   const [reviewReference, setReviewReference] = useState('');
   const [deduplicationReference, setDeduplicationReference] = useState('');
+  const [activationReference, setActivationReference] = useState('');
+  const [conversionConfirmed, setConversionConfirmed] = useState(false);
 
   useEffect(() => {
     if (inviteHandoff?.generatedInviteUrl) {
@@ -180,6 +182,34 @@ export function PreRegistrationAdminDetail() {
       ) {
         await refreshAfterConflict(
           'O convite foi alterado em outra sessão. O estado atual foi recarregado.'
+        );
+      } else {
+        handleFailure(actionError);
+      }
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const convertToStudent = async () => {
+    setActionLoading(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const result = await preRegistrationAdminService.convert(
+        id,
+        activationReference.trim()
+      );
+      navigate(result.redirectTo, { replace: true });
+    } catch (actionError) {
+      const parsed = parseError(actionError);
+      if (
+        parsed.code === 'CONCURRENT_MODIFICATION' ||
+        parsed.code === 'INVALID_TRANSITION' ||
+        parsed.code === 'PRECONDITION_FAILED'
+      ) {
+        await refreshAfterConflict(
+          'A conversão não pôde ser concluída com o estado atual. Os dados foram atualizados.'
         );
       } else {
         handleFailure(actionError);
@@ -326,8 +356,16 @@ export function PreRegistrationAdminDetail() {
                 <p className="mt-1 font-medium">{lead.contacts.phone || 'Não informado'}</p>
               </div>
               <div>
+                <p className="text-xs text-muted-foreground">Telefone adicional</p>
+                <p className="mt-1 font-medium">{lead.contacts.additionalPhone || 'Não informado'}</p>
+              </div>
+              <div>
                 <p className="text-xs text-muted-foreground">E-mail</p>
                 <p className="mt-1 break-all font-medium">{lead.contacts.email || 'Não informado'}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">E-mail adicional</p>
+                <p className="mt-1 break-all font-medium">{lead.contacts.additionalEmail || 'Não informado'}</p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">CPF</p>
@@ -561,18 +599,39 @@ export function PreRegistrationAdminDetail() {
           {lead.allowedActions.canConvert && (
             <Card className="border-success/40">
               <CardHeader>
-                <CardTitle className="text-lg">Pronto para matrícula</CardTitle>
+                <CardTitle className="text-lg">Confirmar matrícula</CardTitle>
                 <CardDescription>
-                  Abra a etapa seguinte para configurar contrato, serviço e ativação.
+                  A conversão ativa o mesmo registro canônico como aluno. A conta de acesso deve estar vinculada antes desta ação.
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <Link to={`/alunos/${lead.id}/contracts`}>
-                  <Button variant="success">
-                    <ExternalLink className="h-4 w-4" aria-hidden="true" />
-                    Abrir fluxo de matrícula
-                  </Button>
-                </Link>
+              <CardContent className="space-y-3">
+                <label className="space-y-2">
+                  <span className="text-sm font-medium">Referência da ativação *</span>
+                  <Input
+                    value={activationReference}
+                    onChange={(event) => setActivationReference(event.target.value)}
+                    placeholder="Contrato, atendimento ou decisão que autoriza a matrícula"
+                  />
+                </label>
+                <label className="flex items-start gap-3 text-sm">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 h-4 w-4"
+                    checked={conversionConfirmed}
+                    onChange={(event) => setConversionConfirmed(event.target.checked)}
+                  />
+                  <span>Confirmo que a revisão administrativa foi concluída e que este registro deve se tornar um aluno ativo.</span>
+                </label>
+                <Button
+                  type="button"
+                  variant="success"
+                  isLoading={actionLoading}
+                  disabled={!activationReference.trim() || !conversionConfirmed}
+                  onClick={convertToStudent}
+                >
+                  <GraduationCap className="h-4 w-4" aria-hidden="true" />
+                  Confirmar matrícula
+                </Button>
               </CardContent>
             </Card>
           )}

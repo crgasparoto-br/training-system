@@ -44,6 +44,7 @@ const EMPTY_RESULT: PreRegistrationAdminListResultDTO = {
   items: [],
   pagination: { page: 1, pageSize: 20, total: 0, totalPages: 1 },
   filterOptions: { origins: [], responsibleProfessors: [] },
+  capabilities: { canSearchCpf: false },
 };
 
 const INVITE_OPTIONS: Array<[PreRegistrationAdminInviteFilter, string]> = [
@@ -296,7 +297,7 @@ export function PreRegistrationAdminList() {
                   setSearch(event.target.value);
                   setPage(1);
                 }}
-                placeholder="Nome, CPF, telefone ou e-mail"
+                placeholder={result.capabilities.canSearchCpf ? 'Nome, CPF, telefone ou e-mail' : 'Nome, telefone ou e-mail'}
               />
             </div>
           </label>

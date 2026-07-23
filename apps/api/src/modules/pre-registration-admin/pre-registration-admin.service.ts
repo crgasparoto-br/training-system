@@ -1,9 +1,11 @@
+import { createHash } from 'node:crypto';
 import { Prisma, PrismaClient } from '@prisma/client';
 import {
   PRE_REGISTRATION_ADMIN_STATUSES,
   type AccessDataScope,
   type CreatePreRegistrationLeadDTO,
   type PreRegistrationAdminAllowedActionsDTO,
+  type PreRegistrationAdminConversionResultDTO,
   type PreRegistrationAdminInviteFilter,
   type PreRegistrationAdminLeadDetailDTO,
   type PreRegistrationAdminLeadSummaryDTO,
@@ -20,8 +22,9 @@ import {
   getEffectiveDataScopeForProfessor,
 } from '../access-control/access-control.service.js';
 import {
-  createStudentLead,
-  discardStudentLead,
+  activateStudentEnrollment,
+  createStudentLeadInTransaction,
+  discardStudentLeadInTransaction,
   findMissingPreRegistrationFields,
   markStudentReadyForEnrollment,
   reopenDiscardedStudentLead,
@@ -35,6 +38,7 @@ import {
   type StudentIdentityData,
 } from '../alunos/student-identity.service.js';
 import { preRegistrationInviteAdminService } from '../pre-registration-invites/pre-registration-invite-admin.service.js';
+import { revokeUsableInviteForDiscardInTransaction } from '../pre-registration-invites/pre-registration-invite-admin.helpers.js';
 
 const prisma = new PrismaClient();
 const SCREEN_KEY = 'students.preRegistration';
@@ -69,6 +73,7 @@ export class PreRegistrationAdminError extends Error {
       | 'POSSIBLE_DUPLICATE'
       | 'IDENTIFIER_CONFLICT'
       | 'PRECONDITION_FAILED'
+      | 'CONCURRENT_MODIFICATION'
       | 'ACTIVE_STUDENT',
     public readonly details?: Record<string, unknown>
   ) {
@@ -92,6 +97,12 @@ type AccessContext = {
 
 type CommercialMetadata = { notes?: string; unit?: string };
 type DateRange = { gte?: Date; lte?: Date };
+type DbClient = PrismaClient | Prisma.TransactionClient;
+type DuplicateInput = Pick<
+  CreatePreRegistrationLeadDTO,
+  'phone' | 'additionalPhone' | 'email' | 'additionalEmail' | 'cpf'
+>;
+
 
 const leadInclude = Prisma.validator<Prisma.AlunoInclude>()({
   onboarding: true,
@@ -102,20 +113,6 @@ const leadInclude = Prisma.validator<Prisma.AlunoInclude>()({
     where: { purpose: 'PRE_REGISTRATION' },
     orderBy: { createdAt: 'desc' },
     take: 1,
-  },
-  parqSubmissions: {
-    orderBy: { submittedAt: 'desc' },
-    take: 1,
-    select: {
-      id: true,
-      submittedAt: true,
-      positiveItems: true,
-      followUps: {
-        where: { status: 'active' },
-        select: { id: true },
-        take: 1,
-      },
-    },
   },
 });
 
@@ -181,7 +178,13 @@ function identityPatch(
   return {
     ...(patch.name !== undefined ? { name: patch.name } : {}),
     ...(patch.phone !== undefined ? { phone: patch.phone } : {}),
+    ...(patch.additionalPhone !== undefined
+      ? { additionalPhone: patch.additionalPhone }
+      : {}),
     ...(patch.email !== undefined ? { email: patch.email } : {}),
+    ...(patch.additionalEmail !== undefined
+      ? { additionalEmail: patch.additionalEmail }
+      : {}),
     ...(patch.cpf !== undefined ? { cpf: patch.cpf } : {}),
     _leadCommercial: {
       notes: has('commercialNotes') ? clean(patch.commercialNotes) : current.notes,
@@ -314,20 +317,8 @@ function inviteCapabilities(lead: LeadRecord, invite?: InviteRecord) {
   };
 }
 
-function hasPositiveParqItems(value: Prisma.JsonValue | null | undefined) {
-  if (!value) return false;
-  if (Array.isArray(value)) return value.length > 0;
-  if (typeof value === 'object') return Object.keys(value).length > 0;
-  if (typeof value === 'string') return value.trim().length > 0;
-  return Boolean(value);
-}
-
 function parqRequiresProfessionalReview(lead: LeadRecord) {
-  const latest = lead.parqSubmissions[0];
-  return Boolean(
-    latest &&
-      (hasPositiveParqItems(latest.positiveItems) || latest.followUps.length > 0)
-  );
+  return lead.parqRequiresProfessionalReview;
 }
 
 function progressOf(lead: LeadRecord) {
@@ -454,28 +445,25 @@ function nextAction(
 }
 
 function latestActivityAt(lead: LeadRecord) {
-  const values = [
-    lead.updatedAt,
-    lead.onboarding?.lastSavedAt,
-    lead.preRegistrationInvites[0]?.lastAccessAt,
-    lead.preRegistrationInvites[0]?.createdAt,
-    lead.parqSubmissions[0]?.submittedAt,
-  ].filter((value): value is Date => Boolean(value));
-  return new Date(Math.max(...values.map((value) => value.getTime())));
+  return lead.lastActivityAt;
 }
 
 function contactsOf(lead: LeadRecord, reveal: boolean) {
   if (reveal) {
     return {
       phone: lead.leadPhone || undefined,
+      additionalPhone: lead.leadAdditionalPhone || undefined,
       email: lead.leadEmail || undefined,
+      additionalEmail: lead.leadAdditionalEmail || undefined,
       cpf: lead.leadCpf || undefined,
       masked: false,
     };
   }
   return {
     phone: maskPhone(lead.leadPhone),
+    additionalPhone: maskPhone(lead.leadAdditionalPhone),
     email: maskEmail(lead.leadEmail),
+    additionalEmail: maskEmail(lead.leadAdditionalEmail),
     cpf: maskCpf(lead.leadCpf),
     masked: true,
   };
@@ -538,92 +526,211 @@ async function leadOrThrow(
   return lead;
 }
 
-function inviteFilterWhere(
+export function inviteFilterWhere(
   filter: PreRegistrationAdminInviteFilter | undefined,
   now: Date
 ): Prisma.AlunoWhereInput | undefined {
   if (!filter || !INVITE_FILTERS.has(filter)) return undefined;
   if (filter === 'NONE') {
-    return {
-      preRegistrationInvites: { none: { purpose: 'PRE_REGISTRATION' } },
-    };
+    return { currentPreRegistrationInviteStatus: null };
   }
   if (filter === 'ACTIVE') {
     return {
-      preRegistrationInvites: {
-        some: {
-          purpose: 'PRE_REGISTRATION',
-          status: 'ACTIVE',
-          expiresAt: { gt: now },
-        },
-      },
+      currentPreRegistrationInviteStatus: 'ACTIVE',
+      currentPreRegistrationInviteExpiresAt: { gt: now },
     };
   }
   if (filter === 'EXPIRED') {
     return {
-      preRegistrationInvites: {
-        some: {
-          purpose: 'PRE_REGISTRATION',
-          OR: [
-            { status: 'EXPIRED' },
-            { status: 'ACTIVE', expiresAt: { lte: now } },
-          ],
+      OR: [
+        { currentPreRegistrationInviteStatus: 'EXPIRED' },
+        {
+          currentPreRegistrationInviteStatus: 'ACTIVE',
+          currentPreRegistrationInviteExpiresAt: { lte: now },
         },
-      },
+      ],
     };
   }
-  return {
-    preRegistrationInvites: {
-      some: { purpose: 'PRE_REGISTRATION', status: filter },
-    },
-  };
+  return { currentPreRegistrationInviteStatus: filter };
 }
 
-function parqReviewWhere(required: boolean | undefined): Prisma.AlunoWhereInput | undefined {
-  if (required === undefined) return undefined;
-  const positive: Prisma.AlunoWhereInput = {
-    parqSubmissions: {
-      some: {
-        OR: [
-          { positiveItems: { not: Prisma.JsonNull } },
-          { followUps: { some: { status: 'active' } } },
-        ],
-      },
-    },
-  };
-  return required ? positive : { NOT: positive };
+export function parqReviewWhere(
+  required: boolean | undefined
+): Prisma.AlunoWhereInput | undefined {
+  return required === undefined
+    ? undefined
+    : { parqRequiresProfessionalReview: required };
 }
 
-function activityWhere(range: DateRange | undefined): Prisma.AlunoWhereInput | undefined {
-  if (!range) return undefined;
-  return {
-    OR: [
-      { updatedAt: range },
-      { onboarding: { is: { lastSavedAt: range } } },
-      { lifecycleEvents: { some: { createdAt: range } } },
-      {
-        preRegistrationInvites: {
-          some: {
-            purpose: 'PRE_REGISTRATION',
-            OR: [{ createdAt: range }, { lastAccessAt: range }],
-          },
-        },
-      },
-      { parqSubmissions: { some: { submittedAt: range } } },
-    ],
-  };
+export function activityWhere(
+  range: DateRange | undefined
+): Prisma.AlunoWhereInput | undefined {
+  return range ? { lastActivityAt: range } : undefined;
 }
 
-function orderByFor(
+export function orderByFor(
   sort: PreRegistrationAdminListQueryDTO['sort']
 ): Prisma.AlunoOrderByWithRelationInput[] {
-  if (sort === 'createdAt:asc') return [{ createdAt: 'asc' }];
-  if (sort === 'createdAt:desc') return [{ createdAt: 'desc' }];
-  if (sort === 'name:asc') return [{ leadName: 'asc' }];
+  if (sort === 'createdAt:asc') return [{ createdAt: 'asc' }, { id: 'asc' }];
+  if (sort === 'createdAt:desc') return [{ createdAt: 'desc' }, { id: 'desc' }];
+  if (sort === 'name:asc') return [{ leadName: 'asc' }, { id: 'asc' }];
   if (sort === 'lastActivityAt:asc') {
-    return [{ onboarding: { lastSavedAt: 'asc' } }, { updatedAt: 'asc' }];
+    return [{ lastActivityAt: 'asc' }, { id: 'asc' }];
   }
-  return [{ onboarding: { lastSavedAt: 'desc' } }, { updatedAt: 'desc' }];
+  return [{ lastActivityAt: 'desc' }, { id: 'desc' }];
+}
+
+export function statusWhere(
+  statuses: PreRegistrationAdminStatus[] | undefined,
+  pendingReview: boolean | undefined
+): Prisma.AlunoWhereInput[] {
+  const conditions: Prisma.AlunoWhereInput[] = [
+    statuses?.length
+      ? { status: { in: statuses } }
+      : { status: { not: ACTIVE_STATUS } },
+  ];
+  if (pendingReview === true) {
+    conditions.push({ status: 'PRE_REGISTRATION_COMPLETED' });
+  } else if (pendingReview === false) {
+    conditions.push({ status: { not: 'PRE_REGISTRATION_COMPLETED' } });
+  }
+  return conditions;
+}
+
+function normalizeDuplicateInput(input: DuplicateInput) {
+  return {
+    phones: [...new Set([input.phone, input.additionalPhone]
+      .map((value) => normalizeStudentPhone(value))
+      .filter((value): value is string => Boolean(value)))].sort(),
+    emails: [...new Set([input.email, input.additionalEmail]
+      .map((value) => normalizeStudentEmail(value))
+      .filter((value): value is string => Boolean(value)))].sort(),
+    cpf: normalizeStudentCpf(input.cpf),
+  };
+}
+
+function duplicateFingerprint(
+  normalized: ReturnType<typeof normalizeDuplicateInput>,
+  rows: Array<{ id: string; updatedAt: Date; matchingFields: string[] }>
+) {
+  return createHash('sha256')
+    .update(
+      JSON.stringify({
+        normalized,
+        rows: [...rows]
+          .sort((a, b) => a.id.localeCompare(b.id))
+          .map((row) => ({
+            id: row.id,
+            updatedAt: row.updatedAt.toISOString(),
+            matchingFields: [...row.matchingFields].sort(),
+          })),
+      })
+    )
+    .digest('hex');
+}
+
+async function checkDuplicatesWithClient(
+  actor: PreRegistrationAdminActor,
+  input: DuplicateInput,
+  access: AccessContext,
+  excludeAlunoId: string | undefined,
+  client: DbClient
+): Promise<PreRegistrationDuplicateCheckResultDTO> {
+  const normalized = normalizeDuplicateInput(input);
+  const { phones, emails, cpf } = normalized;
+  if (!phones.length && !emails.length && !cpf) {
+    return {
+      fingerprint: duplicateFingerprint(normalized, []),
+      candidates: [],
+      hasBlockingCpfConflict: false,
+    };
+  }
+
+  const rows = await client.aluno.findMany({
+    where: {
+      contractId: actor.contractId,
+      ...(excludeAlunoId ? { id: { not: excludeAlunoId } } : {}),
+      OR: [
+        ...(cpf ? [{ leadCpfNormalized: cpf }] : []),
+        ...(emails.length
+          ? [
+              { leadEmailNormalized: { in: emails } },
+              { leadAdditionalEmailNormalized: { in: emails } },
+            ]
+          : []),
+        ...(phones.length
+          ? [
+              { leadPhoneNormalized: { in: phones } },
+              { leadAdditionalPhoneNormalized: { in: phones } },
+            ]
+          : []),
+      ],
+    },
+    select: {
+      id: true,
+      leadName: true,
+      leadCpfNormalized: true,
+      leadEmailNormalized: true,
+      leadAdditionalEmailNormalized: true,
+      leadPhoneNormalized: true,
+      leadAdditionalPhoneNormalized: true,
+      status: true,
+      createdAt: true,
+      updatedAt: true,
+      professorId: true,
+      createdByProfessorId: true,
+    },
+    orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+  });
+
+  const matchedRows = rows.map((row) => {
+    const matchingFields: Array<'cpf' | 'email' | 'phone'> = [
+      ...(cpf && row.leadCpfNormalized === cpf ? (['cpf'] as const) : []),
+      ...(emails.some(
+        (email) =>
+          row.leadEmailNormalized === email ||
+          row.leadAdditionalEmailNormalized === email
+      )
+        ? (['email'] as const)
+        : []),
+      ...(phones.some(
+        (phone) =>
+          row.leadPhoneNormalized === phone ||
+          row.leadAdditionalPhoneNormalized === phone
+      )
+        ? (['phone'] as const)
+        : []),
+    ];
+    return { row, matchingFields };
+  });
+
+  const fingerprint = duplicateFingerprint(
+    normalized,
+    matchedRows.map(({ row, matchingFields }) => ({
+      id: row.id,
+      updatedAt: row.updatedAt,
+      matchingFields,
+    }))
+  );
+
+  const candidates = matchedRows.slice(0, 25).map(({ row, matchingFields }) => {
+    const accessible = isVisibleRow(row, access);
+    return {
+      ...(accessible ? { alunoId: row.id, status: row.status } : {}),
+      name: accessible ? row.leadName || 'Pessoa sem nome' : 'Cadastro existente no contrato',
+      matchingFields,
+      ...(accessible ? { createdAt: row.createdAt.toISOString() } : {}),
+      accessible,
+    };
+  });
+
+  return {
+    fingerprint,
+    candidates,
+    hasBlockingCpfConflict: matchedRows.some(({ matchingFields }) =>
+      matchingFields.includes('cpf')
+    ),
+  };
 }
 
 export const preRegistrationAdminService = {
@@ -645,22 +752,20 @@ export const preRegistrationAdminService = {
     const conditions: Prisma.AlunoWhereInput[] = [scopedWhere(access)];
 
     if (search) {
-      conditions.push({
-        OR: [
-          { leadName: { contains: search, mode: 'insensitive' } },
-          { leadEmail: { contains: search, mode: 'insensitive' } },
-          {
-            leadPhoneNormalized: {
-              contains: normalizeStudentPhone(search) || search,
-            },
-          },
-          {
-            leadCpfNormalized: {
-              contains: normalizeStudentCpf(search) || search,
-            },
-          },
-        ],
-      });
+      const normalizedPhone = normalizeStudentPhone(search) || search;
+      const searchOptions: Prisma.AlunoWhereInput[] = [
+        { leadName: { contains: search, mode: 'insensitive' } },
+        { leadEmail: { contains: search, mode: 'insensitive' } },
+        { leadAdditionalEmail: { contains: search, mode: 'insensitive' } },
+        { leadPhoneNormalized: { contains: normalizedPhone } },
+        { leadAdditionalPhoneNormalized: { contains: normalizedPhone } },
+      ];
+      if (access.canViewSensitiveContacts) {
+        searchOptions.push({
+          leadCpfNormalized: { contains: normalizeStudentCpf(search) || search },
+        });
+      }
+      conditions.push({ OR: searchOptions });
     }
     const inviteFilter = inviteFilterWhere(query.inviteStatus, now);
     if (inviteFilter) conditions.push(inviteFilter);
@@ -669,18 +774,10 @@ export const preRegistrationAdminService = {
     const parqFilter = parqReviewWhere(query.parqRequiresProfessionalReview);
     if (parqFilter) conditions.push(parqFilter);
 
-    const statusFilter: Prisma.AlunoWhereInput['status'] =
-      query.pendingReview === true
-        ? 'PRE_REGISTRATION_COMPLETED'
-        : query.pendingReview === false
-          ? { notIn: ['PRE_REGISTRATION_COMPLETED', ACTIVE_STATUS] }
-          : statuses?.length
-            ? { in: statuses }
-            : { not: ACTIVE_STATUS };
+    conditions.push(...statusWhere(statuses, query.pendingReview));
 
     const where: Prisma.AlunoWhereInput = {
       contractId: actor.contractId,
-      status: statusFilter,
       ...(query.origin ? { leadOrigin: query.origin } : {}),
       ...(query.responsibleProfessorId
         ? { professorId: query.responsibleProfessorId }
@@ -736,117 +833,107 @@ export const preRegistrationAdminService = {
           name: item.user.profile?.name || item.user.email,
         })),
       },
+      capabilities: {
+        canSearchCpf: access.canViewSensitiveContacts,
+      },
     };
   },
 
   async checkDuplicates(
     actor: PreRegistrationAdminActor,
-    input: Pick<CreatePreRegistrationLeadDTO, 'phone' | 'email' | 'cpf'>,
+    input: DuplicateInput,
     excludeAlunoId?: string
   ): Promise<PreRegistrationDuplicateCheckResultDTO> {
     const access = await accessFor(actor);
-    const phone = normalizeStudentPhone(input.phone);
-    const email = normalizeStudentEmail(input.email);
-    const cpf = normalizeStudentCpf(input.cpf);
-    if (!phone && !email && !cpf) {
-      return { candidates: [], hasBlockingCpfConflict: false };
-    }
-
-    const rows = await prisma.aluno.findMany({
-      where: {
-        contractId: actor.contractId,
-        ...(excludeAlunoId ? { id: { not: excludeAlunoId } } : {}),
-        OR: [
-          ...(cpf ? [{ leadCpfNormalized: cpf }] : []),
-          ...(email ? [{ leadEmailNormalized: email }] : []),
-          ...(phone ? [{ leadPhoneNormalized: phone }] : []),
-        ],
-      },
-      select: {
-        id: true,
-        leadName: true,
-        leadCpfNormalized: true,
-        leadEmailNormalized: true,
-        leadPhoneNormalized: true,
-        status: true,
-        createdAt: true,
-        professorId: true,
-        createdByProfessorId: true,
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 10,
-    });
-
-    const candidates = rows.map((row) => {
-      const accessible = isVisibleRow(row, access);
-      return {
-        ...(accessible ? { alunoId: row.id, status: row.status } : {}),
-        name: accessible ? row.leadName || 'Pessoa sem nome' : 'Cadastro existente no contrato',
-        matchingFields: [
-          ...(cpf && row.leadCpfNormalized === cpf ? (['cpf'] as const) : []),
-          ...(email && row.leadEmailNormalized === email ? (['email'] as const) : []),
-          ...(phone && row.leadPhoneNormalized === phone ? (['phone'] as const) : []),
-        ],
-        ...(accessible ? { createdAt: row.createdAt.toISOString() } : {}),
-        accessible,
-      };
-    });
-
-    return {
-      candidates,
-      hasBlockingCpfConflict: candidates.some((item) =>
-        item.matchingFields.includes('cpf')
-      ),
-    };
+    return checkDuplicatesWithClient(actor, input, access, excludeAlunoId, prisma);
   },
 
   async create(actor: PreRegistrationAdminActor, input: CreatePreRegistrationLeadDTO) {
     const access = await accessFor(actor);
-    const duplicates = await this.checkDuplicates(actor, input);
-    if (duplicates.hasBlockingCpfConflict) {
-      throw new PreRegistrationAdminError(
-        'Já existe uma pessoa com este CPF no contrato.',
-        'IDENTIFIER_CONFLICT',
-        duplicates
-      );
-    }
-    if (duplicates.candidates.length && !input.confirmPossibleDuplicate) {
-      throw new PreRegistrationAdminError(
-        'Encontramos cadastros semelhantes. Revise antes de continuar.',
-        'POSSIBLE_DUPLICATE',
-        duplicates
-      );
-    }
-
     const responsibleProfessorId = input.responsibleProfessorId || actor.professorId;
     if (!access.visibleProfessorIds.includes(responsibleProfessorId)) {
       throw new PreRegistrationAdminError('Responsável fora do seu escopo.', 'FORBIDDEN');
     }
 
-    const lead = await createStudentLead({
-      contractId: actor.contractId,
-      name: input.name,
-      phone: input.phone,
-      email: input.email,
-      origin: input.origin,
-      createdByProfessorId: actor.professorId,
-    });
-    await prisma.aluno.update({
-      where: { id: lead.id },
-      data: { professorId: responsibleProfessorId },
-    });
-    const identity = await loadStudentIdentity(lead.id, actor.contractId);
-    await upsertStudentIdentity(
-      lead.id,
-      actor.contractId,
-      identityPatch(identity as unknown as Record<string, unknown>, input),
-      {
-        actor: { userId: actor.userId, professorId: actor.professorId },
-        sourceType: 'professional',
-        sourceReference: 'pre_registration_admin_create',
+    try {
+      const leadId = await prisma.$transaction(
+        async (tx) => {
+          const duplicates = await checkDuplicatesWithClient(
+            actor,
+            input,
+            access,
+            undefined,
+            tx
+          );
+          if (duplicates.hasBlockingCpfConflict) {
+            throw new PreRegistrationAdminError(
+              'Já existe uma pessoa com este CPF no contrato.',
+              'IDENTIFIER_CONFLICT',
+              duplicates
+            );
+          }
+          if (
+            duplicates.candidates.length > 0 &&
+            input.confirmedDuplicateFingerprint !== duplicates.fingerprint
+          ) {
+            throw new PreRegistrationAdminError(
+              'Encontramos cadastros semelhantes. Revise novamente antes de continuar.',
+              'POSSIBLE_DUPLICATE',
+              duplicates
+            );
+          }
+
+          const lead = await createStudentLeadInTransaction(tx, {
+            contractId: actor.contractId,
+            name: input.name,
+            phone: input.phone,
+            email: input.email,
+            origin: input.origin,
+            createdByProfessorId: actor.professorId,
+          });
+          await tx.aluno.update({
+            where: { id: lead.id },
+            data: { professorId: responsibleProfessorId },
+          });
+          const identity = await loadStudentIdentity(lead.id, actor.contractId, tx);
+          await upsertStudentIdentity(
+            lead.id,
+            actor.contractId,
+            identityPatch(identity as unknown as Record<string, unknown>, input),
+            {
+              client: tx,
+              actor: { userId: actor.userId, professorId: actor.professorId },
+              sourceType: 'professional',
+              sourceReference: 'pre_registration_admin_create',
+            }
+          );
+          return lead.id;
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+      );
+      return this.getDetail(actor, leadId);
+    } catch (error) {
+      if (error instanceof PreRegistrationAdminError) throw error;
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new PreRegistrationAdminError(
+          'Já existe uma pessoa com este CPF no contrato.',
+          'IDENTIFIER_CONFLICT'
+        );
       }
-    );
-    return this.getDetail(actor, lead.id);
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2034'
+      ) {
+        throw new PreRegistrationAdminError(
+          'O cadastro foi alterado por outra operação. Revise as duplicidades e tente novamente.',
+          'CONCURRENT_MODIFICATION'
+        );
+      }
+      throw error;
+    }
   },
 
   async getDetail(
@@ -975,8 +1062,8 @@ export const preRegistrationAdminService = {
         duplicates
       );
     }
-    const identity = await loadStudentIdentity(id, actor.contractId);
     await prisma.$transaction(async (tx) => {
+      const identity = await loadStudentIdentity(id, actor.contractId, tx);
       await tx.aluno.update({
         where: { id },
         data: {
@@ -1024,19 +1111,23 @@ export const preRegistrationAdminService = {
         'FORBIDDEN'
       );
     }
-    const lead = await leadOrThrow(id, actor, access);
-    const activeInvite = lead.preRegistrationInvites.find(
-      (item) => effectiveInviteStatus(item) === 'ACTIVE'
-    );
-    if (activeInvite) {
-      await preRegistrationInviteAdminService.revokeInvite(
+    await leadOrThrow(id, actor, access);
+    await prisma.$transaction(async (tx) => {
+      await revokeUsableInviteForDiscardInTransaction(
+        tx,
         id,
         actor.contractId,
-        { inviteId: activeInvite.id, reason: `Lead descartado: ${reason}` },
+        `Lead descartado: ${reason}`,
         actor
       );
-    }
-    await discardStudentLead(id, actor.contractId, reason, actor.professorId);
+      await discardStudentLeadInTransaction(
+        tx,
+        id,
+        actor.contractId,
+        reason,
+        actor.professorId
+      );
+    });
     return this.getDetail(actor, id);
   },
 
@@ -1071,5 +1162,43 @@ export const preRegistrationAdminService = {
       actor: { userId: actor.userId, professorId: actor.professorId },
     });
     return this.getDetail(actor, id);
+  },
+
+  async convert(
+    actor: PreRegistrationAdminActor,
+    id: string,
+    activationReference: string
+  ): Promise<PreRegistrationAdminConversionResultDTO> {
+    const access = await accessFor(actor);
+    if (!access.permissions.canConvert) {
+      throw new PreRegistrationAdminError(
+        'Sem permissão para confirmar esta matrícula.',
+        'FORBIDDEN'
+      );
+    }
+    const lead = await leadOrThrow(id, actor, access);
+    if (lead.status !== 'READY_FOR_ENROLLMENT') {
+      throw new PreRegistrationAdminError(
+        'A pré-matrícula ainda não está pronta para confirmação.',
+        'PRECONDITION_FAILED'
+      );
+    }
+    const normalizedReference = clean(activationReference);
+    if (!normalizedReference) {
+      throw new PreRegistrationAdminError(
+        'Informe a referência da matrícula.',
+        'INVALID_INPUT'
+      );
+    }
+
+    const activated = await activateStudentEnrollment(id, actor.contractId, {
+      activationReference: normalizedReference,
+      actor: { userId: actor.userId, professorId: actor.professorId },
+    });
+    return {
+      alunoId: activated.id,
+      status: 'ACTIVE_STUDENT',
+      redirectTo: `/central-do-aluno/${activated.id}`,
+    };
   },
 };

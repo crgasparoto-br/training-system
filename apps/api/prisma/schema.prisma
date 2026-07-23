@@ -402,6 +402,7 @@ model Aluno {
   restingHeartRate              Int?
   createdAt                     DateTime                       @default(now())
   updatedAt                     DateTime                       @updatedAt
+  lastActivityAt                DateTime                       @default(now())
   lastPasswordResetAt           DateTime?
   schedulePlan                  AlunoSchedulePlan              @default(free)
   systolicPressure              Int?
@@ -422,6 +423,13 @@ model Aluno {
   leadEmailNormalized           String?
   leadCpf                       String?
   leadCpfNormalized             String?
+  leadAdditionalPhone           String?
+  leadAdditionalPhoneNormalized String?
+  leadAdditionalEmail           String?
+  leadAdditionalEmailNormalized String?
+  currentPreRegistrationInviteStatus    PreRegistrationInviteStatus?
+  currentPreRegistrationInviteExpiresAt DateTime?
+  parqRequiresProfessionalReview Boolean                        @default(false)
   birthDate                     DateTime?
   leadOrigin                    String?
   createdByProfessorId          String?
@@ -474,6 +482,11 @@ model Aluno {
   @@unique([contractId, leadCpfNormalized])
   @@index([contractId, leadEmailNormalized])
   @@index([contractId, leadPhoneNormalized])
+  @@index([contractId, leadAdditionalEmailNormalized])
+  @@index([contractId, leadAdditionalPhoneNormalized])
+  @@index([contractId, lastActivityAt])
+  @@index([contractId, currentPreRegistrationInviteStatus])
+  @@index([contractId, parqRequiresProfessionalReview])
   @@index([serviceId])
   @@index([currentStudentContractId])
   @@index([contractId, status])
