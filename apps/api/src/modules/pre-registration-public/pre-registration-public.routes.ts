@@ -16,8 +16,8 @@ import {
   preRegistrationPublicService,
 } from './pre-registration-public.service.js';
 
-const publicRouter = Router();
-const authenticatedRouter = Router();
+const publicRouter: Router = Router();
+const authenticatedRouter: Router = Router();
 
 const STATUS_BY_CODE: Record<string, number> = {
   INVALID_INVITE: 404,
