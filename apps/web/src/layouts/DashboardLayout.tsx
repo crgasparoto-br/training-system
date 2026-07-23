@@ -162,7 +162,7 @@ export function DashboardLayout() {
           onNavigate={() => setIsSidebarOpen(false)}
         />
 
-        <main className={cn('flex-1 py-6 transition-all duration-200', isSidebarCollapsed ? 'lg:pl-4' : 'lg:pl-6')}>
+        <main className={cn('min-w-0 flex-1 py-6 transition-all duration-200', isSidebarCollapsed ? 'lg:pl-4' : 'lg:pl-6')}>
           <Outlet />
         </main>
       </div>

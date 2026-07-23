@@ -530,14 +530,13 @@ export function PreRegistrationAdminList() {
                 <table className="w-full table-fixed text-left text-sm">
                   <thead className="border-b border-border text-xs uppercase tracking-wide text-muted-foreground">
                     <tr>
-                      <th className="px-3 py-3">Pessoa</th>
-                      <th className="px-3 py-3">Etapa e convite</th>
-                      <th className="px-3 py-3">Progresso</th>
-                      <th className="px-3 py-3">Origem</th>
-                      <th className="px-3 py-3">Responsável</th>
-                      <th className="px-3 py-3">Última atividade</th>
-                      <th className="px-3 py-3">Próxima ação</th>
-                      <th className="w-12 px-3 py-3">
+                      <th className="w-[23%] px-3 py-3">Pessoa</th>
+                      <th className="w-[15%] px-3 py-3">Etapa e convite</th>
+                      <th className="w-[14%] px-3 py-3">Progresso</th>
+                      <th className="w-[14%] px-3 py-3">Responsável</th>
+                      <th className="w-[13%] px-3 py-3">Última atividade</th>
+                      <th className="w-[17%] px-3 py-3">Próxima ação</th>
+                      <th className="w-[4%] px-2 py-3">
                         <span className="sr-only">Abrir</span>
                       </th>
                     </tr>
@@ -545,15 +544,18 @@ export function PreRegistrationAdminList() {
                   <tbody className="divide-y divide-border">
                     {result.items.map((lead) => (
                       <tr key={lead.id} className="hover:bg-muted/40">
-                        <td className="px-2 py-3 align-top">
+                        <td className="min-w-0 px-3 py-3 align-top">
                           <Link
-                            className="font-medium text-foreground hover:text-primary"
+                            className="block truncate font-medium text-foreground hover:text-primary"
                             to={`/pre-matriculas/${lead.id}`}
                           >
                             {lead.name}
                           </Link>
-                          <p className="mt-0.5 max-w-xs truncate text-xs text-muted-foreground">
+                          <p className="mt-0.5 truncate text-xs text-muted-foreground">
                             {contactLine(lead)}
+                          </p>
+                          <p className="mt-1 truncate text-[11px] text-muted-foreground">
+                            Origem: {lead.origin}
                           </p>
                           {lead.contacts.masked && (
                             <p className="mt-1 text-[11px] text-muted-foreground">
@@ -561,7 +563,7 @@ export function PreRegistrationAdminList() {
                             </p>
                           )}
                         </td>
-                        <td className="px-3 py-3">
+                        <td className="px-3 py-3 align-top">
                           <span className={statusClass(lead.status)}>
                             {STATUS_LABELS[lead.status]}
                           </span>
@@ -569,11 +571,13 @@ export function PreRegistrationAdminList() {
                             Convite: {inviteLabel(lead)}
                           </p>
                         </td>
-                        <td className="px-3 py-3">
+                        <td className="px-3 py-3 align-top">
                           <ProgressSummary lead={lead} />
                         </td>
                         <td className="px-3 py-3 align-top text-muted-foreground">
-                          {lead.responsible?.name || 'Não definido'}
+                          <span className="line-clamp-3">
+                            {lead.responsible?.name || 'Não definido'}
+                          </span>
                         </td>
                         <td className="px-3 py-3 align-top text-muted-foreground">
                           {formatDate(lead.lastActivityAt)}
