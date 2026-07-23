@@ -118,7 +118,10 @@ async function assertProfessorInContract(
   }
 }
 
-export async function createStudentLead(input: CreateStudentLeadDTO): Promise<Aluno> {
+export async function createStudentLeadInTransaction(
+  tx: Prisma.TransactionClient,
+  input: CreateStudentLeadDTO
+): Promise<Aluno> {
   const name = requiredText(input.name, 'name');
   const origin = requiredText(input.origin, 'origin');
   const phoneNormalized = normalizeStudentPhone(input.phone);
@@ -132,48 +135,50 @@ export async function createStudentLead(input: CreateStudentLeadDTO): Promise<Al
     );
   }
 
+  await assertProfessorInContract(input.createdByProfessorId, input.contractId, tx);
+
+  const aluno = await tx.aluno.create({
+    data: {
+      contractId: input.contractId,
+      status: 'LEAD',
+      leadOrigin: origin,
+      createdByProfessorId: input.createdByProfessorId,
+    },
+  });
+
+  await tx.studentOnboardingProcess.create({
+    data: { alunoId: aluno.id, contractId: input.contractId },
+  });
+
+  await upsertStudentIdentity(
+    aluno.id,
+    input.contractId,
+    { name, phone: input.phone, email: input.email },
+    {
+      client: tx,
+      actor: { professorId: input.createdByProfessorId },
+      sourceType: 'professional',
+      sourceReference: 'lead_creation',
+      emitAuditEvent: false,
+    }
+  );
+
+  await tx.studentLifecycleEvent.create({
+    data: {
+      alunoId: aluno.id,
+      contractId: input.contractId,
+      eventType: 'LEAD_CREATED',
+      actorProfessorId: input.createdByProfessorId,
+      metadata: { origin },
+    },
+  });
+
+  return tx.aluno.findUniqueOrThrow({ where: { id: aluno.id } });
+}
+
+export async function createStudentLead(input: CreateStudentLeadDTO): Promise<Aluno> {
   try {
-    return await prisma.$transaction(async (tx) => {
-      await assertProfessorInContract(input.createdByProfessorId, input.contractId, tx);
-
-      const aluno = await tx.aluno.create({
-        data: {
-          contractId: input.contractId,
-          status: 'LEAD',
-          leadOrigin: origin,
-          createdByProfessorId: input.createdByProfessorId,
-        },
-      });
-
-      await tx.studentOnboardingProcess.create({
-        data: { alunoId: aluno.id, contractId: input.contractId },
-      });
-
-      await upsertStudentIdentity(
-        aluno.id,
-        input.contractId,
-        { name, phone: input.phone, email: input.email },
-        {
-          client: tx,
-          actor: { professorId: input.createdByProfessorId },
-          sourceType: 'professional',
-          sourceReference: 'lead_creation',
-          emitAuditEvent: false,
-        }
-      );
-
-      await tx.studentLifecycleEvent.create({
-        data: {
-          alunoId: aluno.id,
-          contractId: input.contractId,
-          eventType: 'LEAD_CREATED',
-          actorProfessorId: input.createdByProfessorId,
-          metadata: { origin },
-        },
-      });
-
-      return tx.aluno.findUniqueOrThrow({ where: { id: aluno.id } });
-    });
+    return await prisma.$transaction((tx) => createStudentLeadInTransaction(tx, input));
   } catch (error) {
     const conflict = toDomainConflict(error);
     if (conflict) throw conflict;
@@ -650,38 +655,48 @@ export async function activateStudentEnrollment(
   });
 }
 
-export async function discardStudentLead(
+export async function discardStudentLeadInTransaction(
+  tx: Prisma.TransactionClient,
   alunoId: string,
   contractId: string,
   reason: string,
   actorProfessorId: string
 ): Promise<Aluno> {
   const normalizedReason = requiredText(reason, 'reason');
-  return prisma.$transaction(async (tx) => {
-    const aluno = await findAlunoInContractOrThrow(alunoId, contractId, tx);
-    await assertProfessorInContract(actorProfessorId, contractId, tx);
-    await transitionStudentLifecycleStatusInTransaction(
-      tx,
-      alunoId,
-      contractId,
-      aluno.status as StudentLifecycleStatus,
-      'DISCARDED',
-      {
-        actor: { professorId: actorProfessorId },
-        alunoUpdate: {
-          discardedAt: new Date(),
-          discardReason: normalizedReason,
-        },
-        metadata: { reason: normalizedReason },
-        additionalEvents: ['DISCARDED'],
-      }
-    );
+  const aluno = await findAlunoInContractOrThrow(alunoId, contractId, tx);
+  await assertProfessorInContract(actorProfessorId, contractId, tx);
+  await transitionStudentLifecycleStatusInTransaction(
+    tx,
+    alunoId,
+    contractId,
+    aluno.status as StudentLifecycleStatus,
+    'DISCARDED',
+    {
+      actor: { professorId: actorProfessorId },
+      alunoUpdate: {
+        discardedAt: new Date(),
+        discardReason: normalizedReason,
+      },
+      metadata: { reason: normalizedReason },
+      additionalEvents: ['DISCARDED'],
+    }
+  );
 
-    return tx.aluno.update({
-      where: { id: alunoId },
-      data: { discardedByProfessor: { connect: { id: actorProfessorId } } },
-    });
+  return tx.aluno.update({
+    where: { id: alunoId },
+    data: { discardedByProfessor: { connect: { id: actorProfessorId } } },
   });
+}
+
+export async function discardStudentLead(
+  alunoId: string,
+  contractId: string,
+  reason: string,
+  actorProfessorId: string
+): Promise<Aluno> {
+  return prisma.$transaction((tx) =>
+    discardStudentLeadInTransaction(tx, alunoId, contractId, reason, actorProfessorId)
+  );
 }
 
 export async function reopenDiscardedStudentLead(

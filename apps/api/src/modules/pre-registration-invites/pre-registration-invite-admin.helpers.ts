@@ -340,3 +340,70 @@ export async function findRevocationTarget(
   }
   return recent[0] ?? null;
 }
+
+/**
+ * Revoga o convite utilizável dentro da mesma transação do descarte do lead.
+ * Ausência de convite ativo é válida; qualquer conflito interrompe e reverte toda a operação.
+ */
+export async function revokeUsableInviteForDiscardInTransaction(
+  tx: Prisma.TransactionClient,
+  alunoId: string,
+  contractId: string,
+  reason: string,
+  actor: PreRegistrationInviteActorDTO
+): Promise<PreRegistrationInvite | null> {
+  const normalizedReason = sanitizePreRegistrationInviteRevocationReason(reason);
+  if (!normalizedReason) {
+    throw new PreRegistrationInviteError(
+      'O motivo da revogação é obrigatório.',
+      'INVALID_REASON'
+    );
+  }
+  if (normalizedReason.length > REASON_MAX_LENGTH) {
+    throw new PreRegistrationInviteError(
+      `O motivo da revogação deve ter no máximo ${REASON_MAX_LENGTH} caracteres.`,
+      'INVALID_REASON'
+    );
+  }
+
+  await findAlunoInContractOrThrow(alunoId, contractId, tx);
+  const now = new Date();
+  const active = await findActiveInvite(alunoId, contractId, tx, now, actor);
+  if (!active) return null;
+
+  const revoked = await tx.preRegistrationInvite.updateMany({
+    where: {
+      id: active.id,
+      alunoId,
+      contractId,
+      purpose: 'PRE_REGISTRATION',
+      status: 'ACTIVE',
+      expiresAt: { gt: now },
+    },
+    data: {
+      status: 'REVOKED',
+      revokedAt: now,
+      revokedByProfessorId: actor.professorId,
+      revocationReason: normalizedReason,
+    },
+  });
+
+  if (revoked.count !== 1) {
+    throw new PreRegistrationInviteError(
+      'O convite foi alterado por outra operação. Recarregue antes de continuar.',
+      'CONCURRENT_MODIFICATION'
+    );
+  }
+
+  await tx.preRegistrationInviteEvent.create({
+    data: {
+      inviteId: active.id,
+      eventType: 'REVOKED',
+      actorUserId: actor.userId,
+      actorProfessorId: actor.professorId,
+      metadata: { source: 'lead_discard' },
+    },
+  });
+
+  return tx.preRegistrationInvite.findUniqueOrThrow({ where: { id: active.id } });
+}
