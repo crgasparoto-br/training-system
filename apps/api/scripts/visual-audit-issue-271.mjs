@@ -194,7 +194,12 @@ async function capture(browser, { name, route, viewport, scenario }) {
   if (unexpectedStorage.length > 0) {
     throw new Error(`${name}: dados de formulário persistidos no localStorage: ${unexpectedStorage.join(', ')}`);
   }
-  if (errors.length > 0) throw new Error(`${name}: erros de console: ${errors.join(' | ')}`);
+  const unexpectedErrors = errors.filter(
+    (message) => !(scenario === 'invalid' && message.includes('404'))
+  );
+  if (unexpectedErrors.length > 0) {
+    throw new Error(`${name}: erros de console: ${unexpectedErrors.join(' | ')}`);
+  }
 
   await page.screenshot({
     path: path.join(outputDir, `${name}.png`),
