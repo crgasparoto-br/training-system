@@ -13,9 +13,6 @@ on:
       - 'feat/**'
       - 'fix/**'
 
-permissions:
-  contents: write
-
 jobs:
   validate:
     name: Validate repository
@@ -42,20 +39,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: feat/270-pre-registration-admin
-          fetch-depth: 0
-
-      - name: Refine issue 270 error-state audit
-        if: github.event_name == 'pull_request'
-        run: |
-          python3 scripts/refine-issue-270-error-state-audit.py
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add apps/api/scripts/visual-audit-issue-270.mjs
-          git diff --cached --check
-          git commit -m 'test: allow expected 500 in issue 270 error scenario'
-          git push origin HEAD:feat/270-pre-registration-admin
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
