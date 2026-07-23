@@ -15,7 +15,7 @@ on:
 
 jobs:
   screenshots:
-    name: Audit issue 270 interface states
+    name: Diagnose issue 270 mobile overflow
     runs-on: ubuntu-latest
 
     steps:
@@ -44,6 +44,48 @@ jobs:
           pnpm --filter @corrida/types build
           pnpm --filter @corrida/utils build
           pnpm --filter @corrida/web build
+
+      - name: Instrument overflow diagnostics
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('apps/api/scripts/visual-audit-issue-270.mjs')
+          s = p.read_text()
+          needle = "  const overflow = await page.evaluate(() => ({\n"
+          replacement = """  const offenders = await page.evaluate(() =>
+    Array.from(document.querySelectorAll('*'))
+      .map((element) => {
+        const rect = element.getBoundingClientRect();
+        return {
+          tag: element.tagName,
+          className: typeof element.className === 'string' ? element.className : '',
+          left: Math.round(rect.left),
+          right: Math.round(rect.right),
+          width: Math.round(rect.width),
+          scrollWidth: element.scrollWidth,
+          text: (element.textContent || '').trim().slice(0, 80),
+        };
+      })
+      .filter((item) => item.right > window.innerWidth + 1 || item.left < -1)
+      .sort((a, b) => Math.max(b.right - window.innerWidth, -b.left) - Math.max(a.right - window.innerWidth, -a.left))
+      .slice(0, 20)
+  );
+  await page.screenshot({
+    path: path.join(outputDir, `${name}-diagnostico.png`),
+    fullPage: true,
+  });
+  const overflow = await page.evaluate(() => ({
+"""
+          if needle not in s:
+              raise SystemExit('Overflow marker not found')
+          s = s.replace(needle, replacement, 1)
+          s = s.replace(
+              "`${name}: overflow horizontal (${overflow.scrollWidth}px > ${overflow.width}px)`",
+              "`${name}: overflow horizontal (${overflow.scrollWidth}px > ${overflow.width}px); offenders=${JSON.stringify(offenders)}`",
+              1,
+          )
+          p.write_text(s)
+          PY
 
       - name: Audit routes, states and interactions
         shell: bash
