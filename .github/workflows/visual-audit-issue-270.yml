@@ -5,7 +5,6 @@ on:
     branches:
       - develop
     paths:
-      - '.issue-270-corrections/**'
       - 'apps/web/src/pages/PreRegistrationAdmin/**'
       - 'apps/web/src/services/pre-registration-admin.service.ts'
       - 'packages/types/pre-registration-admin.ts'
@@ -13,37 +12,14 @@ on:
       - '.github/workflows/visual-audit-issue-270.yml'
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
   screenshots:
-    name: Apply corrections and capture routes
+    name: Audit issue 270 interface states
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout branch
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: feat/270-pre-registration-admin
-          fetch-depth: 0
-
-      - name: Apply correction package
-        shell: bash
-        run: |
-          set -euo pipefail
-          cat .issue-270-corrections/part* | base64 --decode > /tmp/issue-270-corrections.tgz
-          tar -xzf /tmp/issue-270-corrections.tgz -C .
-          git checkout -- .github/workflows/visual-audit-issue-270.yml
-          git checkout -- .github/workflows/apply-issue-270-corrections.yml
-          git checkout -- .github/workflows/export-issue-270-source.yml
-          rm -rf .issue-270-corrections
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
-          git diff --cached --check
-          git commit -m 'fix: resolve audit findings for issue 270'
-          git push origin HEAD:feat/270-pre-registration-admin
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -59,13 +35,16 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Install Chrome for Puppeteer
+        run: pnpm --filter @corrida/api exec puppeteer browsers install chrome
+
       - name: Build web application
         run: |
           pnpm --filter @corrida/types build
           pnpm --filter @corrida/utils build
           pnpm --filter @corrida/web build
 
-      - name: Capture routes
+      - name: Audit routes, states and interactions
         shell: bash
         run: |
           set -o pipefail
