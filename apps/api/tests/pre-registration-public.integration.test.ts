@@ -209,7 +209,7 @@ describeDatabase('public pre-registration integration', () => {
     expect(resumed.version).toBe(session.version + 1);
     expect(resumed.currentStep).toBe('IDENTIFICATION');
     expect(resumed.identity.name).toBe('Rascunho Preservado');
-    expect(resumed.identity.cpf).toBe('529.982.247-25');
+    expect(resumed.identity.cpf).toBe('52998224725');
     expect(review).not.toBeNull();
     expect(review?.changedFields).toEqual(['cpf']);
     expect((review?.snapshotAfter as { cpf?: string }).cpf).toBe('11144477735');
