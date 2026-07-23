@@ -2,12 +2,15 @@ import crypto from 'crypto';
 import { Prisma, PrismaClient } from '@prisma/client';
 import type {
   PreRegistrationClaimRole,
-  PreRegistrationIdentityDTO,
   StudentLifecycleStatus,
 } from '@corrida/types';
-import { upsertStudentIdentity } from './student-identity.service.js';
+import {
+  loadStudentIdentity,
+  normalizeStudentPhone,
+} from './student-identity.service.js';
 import {
   assertValidStudentLifecycleTransition,
+  findMissingPreRegistrationFields,
   StudentLifecycleError,
 } from './student-lifecycle.service.js';
 
@@ -22,12 +25,90 @@ type LockedOnboardingRow = {
   version: number;
 };
 
+function isMinorBirthDate(value?: string | Date | null, now = new Date()): boolean {
+  if (!value) return false;
+  const birthDate = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(birthDate.getTime())) return false;
+  let age = now.getFullYear() - birthDate.getFullYear();
+  const month = now.getMonth() - birthDate.getMonth();
+  if (month < 0 || (month === 0 && now.getDate() < birthDate.getDate())) age -= 1;
+  return age < 18;
+}
+
+async function assertActiveGuardianAuthorization(
+  tx: Prisma.TransactionClient,
+  input: {
+    alunoId: string;
+    contractId: string;
+    actorUserId: string;
+    accessRole: PreRegistrationClaimRole;
+  }
+): Promise<void> {
+  const identity = await loadStudentIdentity(input.alunoId, input.contractId, tx);
+  const isMinor = isMinorBirthDate(identity.birthDate);
+
+  if (input.accessRole === 'GUARDIAN' && !isMinor) {
+    throw new StudentLifecycleError(
+      'O acesso como responsável legal está disponível somente para cadastro de menor de idade.',
+      'PRECONDITION_FAILED'
+    );
+  }
+
+  if (!isMinor) return;
+
+  const rows = input.accessRole === 'GUARDIAN'
+    ? await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT "id"
+        FROM "PreRegistrationGuardianAuthorization"
+        WHERE "alunoId" = ${input.alunoId}
+          AND "contractId" = ${input.contractId}
+          AND "guardianUserId" = ${input.actorUserId}
+          AND "purpose" = 'PRE_REGISTRATION'
+          AND "status" = 'ACTIVE'
+        LIMIT 1
+      `
+    : await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT "id"
+        FROM "PreRegistrationGuardianAuthorization"
+        WHERE "alunoId" = ${input.alunoId}
+          AND "contractId" = ${input.contractId}
+          AND "purpose" = 'PRE_REGISTRATION'
+          AND "status" = 'ACTIVE'
+        LIMIT 1
+      `;
+
+  if (!rows[0]) {
+    throw new StudentLifecycleError(
+      'A autorização do responsável legal deve estar válida antes da conclusão.',
+      'PRECONDITION_FAILED',
+      { fields: ['guardianAuthorization'] }
+    );
+  }
+}
+
 export async function startGuardianPreRegistrationInTransaction(
   tx: Prisma.TransactionClient,
   alunoId: string,
   contractId: string,
   actorUserId: string
 ): Promise<void> {
+  const authorization = await tx.$queryRaw<Array<{ id: string }>>`
+    SELECT "id"
+    FROM "PreRegistrationGuardianAuthorization"
+    WHERE "alunoId" = ${alunoId}
+      AND "contractId" = ${contractId}
+      AND "guardianUserId" = ${actorUserId}
+      AND "purpose" = 'PRE_REGISTRATION'
+      AND "status" = 'ACTIVE'
+    LIMIT 1
+  `;
+  if (!authorization[0]) {
+    throw new StudentLifecycleError(
+      'Confirme o vínculo com o menor antes de preencher os dados pessoais.',
+      'PRECONDITION_FAILED'
+    );
+  }
+
   const rows = await tx.$queryRaw<LockedStudentRow[]>`
     SELECT "id", "status"
     FROM "Aluno"
@@ -75,10 +156,51 @@ export async function startGuardianPreRegistrationInTransaction(
       metadata: {
         from: 'INVITED',
         to: 'PRE_REGISTRATION_IN_PROGRESS',
-        source: 'guardian_invite_claim',
+        source: 'guardian_first_authenticated_save',
       },
     },
   });
+}
+
+async function reconcileCompletedInvites(
+  tx: Prisma.TransactionClient,
+  input: {
+    alunoId: string;
+    contractId: string;
+    actorUserId: string;
+    completedAt: Date;
+  }
+): Promise<void> {
+  const activeInvites = await tx.preRegistrationInvite.findMany({
+    where: {
+      alunoId: input.alunoId,
+      contractId: input.contractId,
+      status: 'ACTIVE',
+    },
+    select: { id: true },
+  });
+
+  for (const invite of activeInvites) {
+    await tx.preRegistrationInvite.update({
+      where: { id: invite.id },
+      data: { status: 'COMPLETED', completedAt: input.completedAt },
+    });
+    const existingEvent = await tx.preRegistrationInviteEvent.findFirst({
+      where: { inviteId: invite.id, eventType: 'COMPLETED' },
+      select: { id: true },
+    });
+    if (!existingEvent) {
+      await tx.preRegistrationInviteEvent.create({
+        data: {
+          id: crypto.randomUUID(),
+          inviteId: invite.id,
+          eventType: 'COMPLETED',
+          actorUserId: input.actorUserId,
+          metadata: { source: 'public_pre_registration' },
+        },
+      });
+    }
+  }
 }
 
 export async function completePublicStudentPreRegistration(input: {
@@ -87,7 +209,6 @@ export async function completePublicStudentPreRegistration(input: {
   actorUserId: string;
   accessRole: PreRegistrationClaimRole;
   expectedVersion: number;
-  identity: PreRegistrationIdentityDTO;
   privacyNoticeVersion: string;
   privacyAcceptedAt: Date;
   ipAddress?: string;
@@ -125,20 +246,31 @@ export async function completePublicStudentPreRegistration(input: {
           { currentVersion: onboarding.version }
         );
       }
-      assertValidStudentLifecycleTransition(aluno.status, 'PRE_REGISTRATION_COMPLETED');
 
-      await upsertStudentIdentity(
-        input.alunoId,
-        input.contractId,
-        input.identity,
-        {
-          client: tx,
-          actor: { userId: input.actorUserId },
-          sourceType: 'student',
-          sourceReference: 'public_pre_registration_completion',
-          syncLegacyProfile: input.accessRole === 'STUDENT',
-        }
-      );
+      assertValidStudentLifecycleTransition(aluno.status, 'PRE_REGISTRATION_COMPLETED');
+      const identity = await loadStudentIdentity(input.alunoId, input.contractId, tx);
+      const missing = findMissingPreRegistrationFields({
+        name: identity.name || undefined,
+        birthDate: identity.birthDate || undefined,
+        phone: identity.phone || undefined,
+        privacyNoticeVersion: input.privacyNoticeVersion,
+        privacyAcceptedAt: input.privacyAcceptedAt,
+      });
+      if (!identity.cpf) missing.push('cpf');
+      if (isMinorBirthDate(identity.birthDate)) {
+        if (!identity.guardianName) missing.push('guardianName');
+        if (!identity.guardianCpf) missing.push('guardianCpf');
+      }
+      if (!normalizeStudentPhone(identity.phone)) missing.push('phone');
+      if (missing.length > 0) {
+        throw new StudentLifecycleError(
+          'Revise os campos obrigatórios antes de concluir.',
+          'MISSING_REQUIRED_FIELDS',
+          { fields: Array.from(new Set(missing)) }
+        );
+      }
+
+      await assertActiveGuardianAuthorization(tx, input);
 
       const changed = await tx.aluno.updateMany({
         where: {
@@ -177,32 +309,42 @@ export async function completePublicStudentPreRegistration(input: {
         );
       }
 
-      await tx.studentLifecycleEvent.create({
-        data: {
-          alunoId: input.alunoId,
-          contractId: input.contractId,
-          eventType: 'STATUS_CHANGED',
-          actorUserId: input.actorUserId,
-          metadata: {
-            from: aluno.status,
-            to: 'PRE_REGISTRATION_COMPLETED',
-            source: 'public_pre_registration',
-            accessRole: input.accessRole,
+      await tx.studentLifecycleEvent.createMany({
+        data: [
+          {
+            alunoId: input.alunoId,
+            contractId: input.contractId,
+            eventType: 'STATUS_CHANGED',
+            actorUserId: input.actorUserId,
+            metadata: {
+              from: aluno.status,
+              to: 'PRE_REGISTRATION_COMPLETED',
+              source: 'public_pre_registration',
+              accessRole: input.accessRole,
+            },
           },
-        },
-      });
-      await tx.studentLifecycleEvent.create({
-        data: {
-          alunoId: input.alunoId,
-          contractId: input.contractId,
-          eventType: 'PRIVACY_CONSENT_RECORDED',
-          actorUserId: input.actorUserId,
-          metadata: {
-            source: 'public_pre_registration',
-            noticeVersion: input.privacyNoticeVersion,
-            accessRole: input.accessRole,
+          {
+            alunoId: input.alunoId,
+            contractId: input.contractId,
+            eventType: 'PRE_REGISTRATION_COMPLETED',
+            actorUserId: input.actorUserId,
+            metadata: {
+              source: 'public_pre_registration',
+              accessRole: input.accessRole,
+            },
           },
-        },
+          {
+            alunoId: input.alunoId,
+            contractId: input.contractId,
+            eventType: 'PRIVACY_CONSENT_RECORDED',
+            actorUserId: input.actorUserId,
+            metadata: {
+              source: 'public_pre_registration',
+              noticeVersion: input.privacyNoticeVersion,
+              accessRole: input.accessRole,
+            },
+          },
+        ],
       });
     } else {
       await tx.$executeRaw`
@@ -218,34 +360,11 @@ export async function completePublicStudentPreRegistration(input: {
       `;
     }
 
-    const activeInvites = await tx.preRegistrationInvite.findMany({
-      where: {
-        alunoId: input.alunoId,
-        contractId: input.contractId,
-        status: 'ACTIVE',
-      },
-      select: { id: true },
+    await reconcileCompletedInvites(tx, {
+      alunoId: input.alunoId,
+      contractId: input.contractId,
+      actorUserId: input.actorUserId,
+      completedAt: input.privacyAcceptedAt,
     });
-    for (const invite of activeInvites) {
-      await tx.preRegistrationInvite.update({
-        where: { id: invite.id },
-        data: { status: 'COMPLETED', completedAt: input.privacyAcceptedAt },
-      });
-      const existingEvent = await tx.preRegistrationInviteEvent.findFirst({
-        where: { inviteId: invite.id, eventType: 'COMPLETED' },
-        select: { id: true },
-      });
-      if (!existingEvent) {
-        await tx.preRegistrationInviteEvent.create({
-          data: {
-            id: crypto.randomUUID(),
-            inviteId: invite.id,
-            eventType: 'COMPLETED',
-            actorUserId: input.actorUserId,
-            metadata: { source: 'public_pre_registration' },
-          },
-        });
-      }
-    }
   });
 }
