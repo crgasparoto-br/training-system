@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -44,6 +44,12 @@ type FormData = PreRegistrationIdentityDTO & {
 };
 
 const emptyForm: FormData = {};
+
+function stepsForSession(session: Pick<PreRegistrationSessionDTO, 'isMinor' | 'claimRole'>) {
+  return STEPS.filter(
+    (step) => step.key !== 'GUARDIAN' || session.isMinor || session.claimRole === 'GUARDIAN'
+  );
+}
 
 function apiErrorMessage(error: unknown): string {
   if (error && typeof error === 'object') {
@@ -254,22 +260,28 @@ function AuthenticatedFlow() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [savedMessage, setSavedMessage] = useState('');
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
       const value = await preRegistrationPublicService.getSession();
       setSession(value);
       setForm((current) => ({ ...current, ...value.identity }));
-      const stepIndex = Math.max(0, STEPS.findIndex((step) => step.key === value.currentStep));
+      const availableSteps = stepsForSession(value);
+      const stepIndex = Math.max(
+        0,
+        availableSteps.findIndex((step) => step.key === value.currentStep)
+      );
       setActiveStep(stepIndex);
+      setPrivacyAccepted(false);
     } catch (reason) {
       setError(apiErrorMessage(reason));
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -277,7 +289,7 @@ function AuthenticatedFlow() {
       return;
     }
     void load();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, load, navigate]);
 
   const setValue = (key: keyof FormData, value: string | boolean) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -285,8 +297,8 @@ function AuthenticatedFlow() {
   };
 
   const visibleSteps = useMemo(
-    () => STEPS.filter((step) => step.key !== 'GUARDIAN' || session?.isMinor || session?.claimRole === 'GUARDIAN'),
-    [session?.claimRole, session?.isMinor]
+    () => (session ? stepsForSession(session) : STEPS),
+    [session]
   );
 
   const currentStep = visibleSteps[Math.min(activeStep, visibleSteps.length - 1)] || visibleSteps[0];
@@ -314,12 +326,16 @@ function AuthenticatedFlow() {
 
   const complete = async () => {
     if (!session) return;
+    if (!privacyAccepted) {
+      setError('Confirme que leu e aceitou o aviso de privacidade antes de concluir.');
+      return;
+    }
     setSaving(true);
     setError('');
     try {
       const completed = await preRegistrationPublicService.complete({
         expectedVersion: session.version,
-        privacyAccepted: true,
+        privacyAccepted,
       });
       setSession(completed);
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -382,7 +398,7 @@ function AuthenticatedFlow() {
             {session.tenant.logoUrl ? <img src={session.tenant.logoUrl} alt="" className="h-10 w-10 rounded-lg object-contain" /> : <HeartPulse className="h-9 w-9 text-blue-600" />}
             <div><p className="text-xs text-slate-500">Pré-matrícula</p><p className="font-semibold text-slate-950">{session.tenant.name}</p></div>
           </div>
-          <p className="mt-4 text-sm text-slate-600">Etapa {activeStep + 1} de {visibleSteps.length}: <strong>{currentStep?.title}</strong></p>
+          <p className="mt-4 text-sm text-slate-600">Etapa {Math.min(activeStep + 1, visibleSteps.length)} de {visibleSteps.length}: <strong>{currentStep?.title}</strong></p>
           <ol className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5 lg:grid-cols-1" aria-label="Progresso do pré-cadastro">
             {visibleSteps.map((step, index) => {
               const Icon = step.icon;
@@ -482,8 +498,17 @@ function AuthenticatedFlow() {
                     Ainda existem campos obrigatórios pendentes: {session.missingRequiredFields.join(', ')}.
                   </div>
                 ) : null}
-                <label className="flex gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950">
-                  <input type="checkbox" required className="mt-1" />
+                <label htmlFor="privacy-consent" className="flex gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950">
+                  <input
+                    id="privacy-consent"
+                    type="checkbox"
+                    checked={privacyAccepted}
+                    onChange={(event) => {
+                      setPrivacyAccepted(event.target.checked);
+                      setError('');
+                    }}
+                    className="mt-1"
+                  />
                   <span>Li e aceito o <a href={session.privacy.noticeUrl} target="_blank" rel="noreferrer" className="font-semibold underline">aviso de privacidade vigente</a>. O aceite registrará a versão {session.privacy.noticeVersion}, data, hora e minha identidade autenticada.</span>
                 </label>
                 <p className="text-sm text-slate-600">A conclusão não ativa matrícula, contrato, cobrança, plano, agenda ou liberação para treino.</p>
@@ -496,7 +521,7 @@ function AuthenticatedFlow() {
             <div className="flex flex-col gap-3 sm:flex-row">
               <button type="button" disabled={saving} onClick={() => void saveCurrent(false)} className="min-h-11 rounded-xl border border-blue-600 px-4 font-semibold text-blue-700 disabled:opacity-50">Salvar e continuar depois</button>
               {currentStep?.key === 'PRIVACY' ? (
-                <button type="button" disabled={saving} onClick={() => void complete()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 font-semibold text-white disabled:opacity-50">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}Concluir pré-cadastro</button>
+                <button type="button" disabled={saving || !privacyAccepted} onClick={() => void complete()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}Concluir pré-cadastro</button>
               ) : (
                 <button type="button" disabled={saving} onClick={() => void saveCurrent(true)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 font-semibold text-white disabled:opacity-50">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}Salvar e avançar</button>
               )}
