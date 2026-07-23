@@ -45,10 +45,8 @@ type FormData = PreRegistrationIdentityDTO & {
 
 const emptyForm: FormData = {};
 
-function stepsForSession(session: Pick<PreRegistrationSessionDTO, 'isMinor' | 'claimRole'>) {
-  return STEPS.filter(
-    (step) => step.key !== 'GUARDIAN' || session.isMinor || session.claimRole === 'GUARDIAN'
-  );
+function stepsForSession(session: Pick<PreRegistrationSessionDTO, 'isMinor'>) {
+  return STEPS.filter((step) => step.key !== 'GUARDIAN' || session.isMinor);
 }
 
 function apiErrorMessage(error: unknown): string {
@@ -406,9 +404,15 @@ function AuthenticatedFlow() {
               const active = index === activeStep;
               return (
                 <li key={step.key}>
-                  <button type="button" onClick={() => setActiveStep(index)} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm ${active ? 'bg-blue-50 text-blue-900 ring-1 ring-blue-200' : 'text-slate-600 hover:bg-slate-50'}`}>
+                  <button
+                    type="button"
+                    aria-label={`${step.title}: ${step.description}`}
+                    aria-current={active ? 'step' : undefined}
+                    onClick={() => setActiveStep(index)}
+                    className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2 ${active ? 'bg-blue-50 text-blue-900 ring-1 ring-blue-200' : 'text-slate-600 hover:bg-slate-50'}`}
+                  >
                     <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-full ${completed ? 'bg-emerald-100 text-emerald-700' : active ? 'bg-blue-600 text-white' : 'bg-slate-100'}`}>
-                      {completed ? <Check className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
+                      {completed ? <Check className="h-4 w-4" aria-hidden="true" /> : <Icon className="h-4 w-4" aria-hidden="true" />}
                     </span>
                     <span className="hidden lg:block"><span className="block font-medium">{step.title}</span><span className="block text-xs opacity-75">{step.description}</span></span>
                   </button>
