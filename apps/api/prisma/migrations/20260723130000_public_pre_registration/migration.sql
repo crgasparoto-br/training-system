@@ -35,7 +35,7 @@ CREATE TABLE "PreRegistrationGuardianAuthorization" (
   CONSTRAINT "PreRegistrationGuardianAuthorization_purpose_check"
     CHECK ("purpose" = 'PRE_REGISTRATION'),
   CONSTRAINT "PreRegistrationGuardianAuthorization_contractId_fkey"
-    FOREIGN KEY ("contractId") REFERENCES "CompanyContract"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    FOREIGN KEY ("contractId") REFERENCES "Contract"("id") ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT "PreRegistrationGuardianAuthorization_alunoId_fkey"
     FOREIGN KEY ("alunoId") REFERENCES "Aluno"("id") ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT "PreRegistrationGuardianAuthorization_guardianUserId_fkey"
