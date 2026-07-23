@@ -450,7 +450,9 @@ async function buildSession(userId: string): Promise<PreRegistrationSessionDTO> 
     role
   );
   const missing = findMissingPreRegistrationFields({
-    ...identity,
+    name: identity.name || undefined,
+    birthDate: identity.birthDate || undefined,
+    phone: identity.phone || undefined,
     privacyNoticeVersion: onboarding.privacyNoticeVersion || undefined,
     privacyAcceptedAt: onboarding.privacyAcceptedAt || undefined,
   });
