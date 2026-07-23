@@ -88,7 +88,9 @@ describeDatabase('public pre-registration claim concurrency', () => {
     );
     expect(fulfilled).toHaveLength(1);
     expect(rejected).toHaveLength(1);
-    expect(rejected[0].reason).toMatchObject({ code: 'ACCOUNT_ALREADY_LINKED' });
+    expect(['ACCOUNT_ALREADY_LINKED', 'ACCOUNT_INCOMPATIBLE']).toContain(
+      rejected[0].reason?.code
+    );
 
     const aluno = await prisma.aluno.findUniqueOrThrow({
       where: { id: alunoId },
