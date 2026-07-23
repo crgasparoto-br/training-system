@@ -178,13 +178,31 @@ async function capture(browser, { name, route, viewport, scenario }) {
   await page.waitForSelector('h1', { timeout: 20_000 });
   await new Promise((resolve) => setTimeout(resolve, 250));
 
-  const diagnostics = await page.evaluate(() => ({
-    title: document.querySelector('h1')?.textContent?.trim(),
-    viewport: document.documentElement.clientWidth,
-    scrollWidth: document.documentElement.scrollWidth,
-    storageKeys: Object.keys(localStorage),
-    containsInternalId: document.body.textContent?.includes('internal-student-id') || false,
-  }));
+  const diagnostics = await page.evaluate(() => {
+    const focusable = Array.from(document.querySelectorAll(
+      'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled])'
+    )).filter((element) => {
+      const style = window.getComputedStyle(element);
+      return style.display !== 'none' && style.visibility !== 'hidden';
+    });
+    const progressButtons = Array.from(
+      document.querySelectorAll('ol[aria-label="Progresso do pré-cadastro"] button')
+    );
+    return {
+      title: document.querySelector('h1')?.textContent?.trim(),
+      viewport: document.documentElement.clientWidth,
+      scrollWidth: document.documentElement.scrollWidth,
+      storageKeys: Object.keys(localStorage),
+      containsInternalId: document.body.textContent?.includes('internal-student-id') || false,
+      focusableCount: focusable.length,
+      unnamedProgressButtons: progressButtons.filter(
+        (button) => !button.getAttribute('aria-label')?.trim()
+      ).length,
+      currentProgressButtons: progressButtons.filter(
+        (button) => button.getAttribute('aria-current') === 'step'
+      ).length,
+    };
+  });
 
   if (!diagnostics.title) throw new Error(`${name}: título principal ausente`);
   if (diagnostics.scrollWidth > diagnostics.viewport + 1) {
@@ -196,6 +214,17 @@ async function capture(browser, { name, route, viewport, scenario }) {
   const unexpectedStorage = diagnostics.storageKeys.filter((key) => !['token', 'user'].includes(key));
   if (unexpectedStorage.length > 0) {
     throw new Error(`${name}: dados de formulário persistidos no localStorage: ${unexpectedStorage.join(', ')}`);
+  }
+  if (diagnostics.unnamedProgressButtons > 0) {
+    throw new Error(`${name}: existem passos sem nome acessível`);
+  }
+  if (diagnostics.currentProgressButtons > 1) {
+    throw new Error(`${name}: mais de um passo está marcado como atual`);
+  }
+  if (diagnostics.focusableCount > 0) {
+    await page.keyboard.press('Tab');
+    const focused = await page.evaluate(() => document.activeElement?.tagName || 'BODY');
+    if (focused === 'BODY') throw new Error(`${name}: navegação por teclado não moveu o foco`);
   }
   const unexpectedErrors = errors.filter(
     (message) => !(scenario === 'invalid' && message.includes('404'))
