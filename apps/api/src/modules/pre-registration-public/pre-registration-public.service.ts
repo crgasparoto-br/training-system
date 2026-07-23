@@ -4,10 +4,13 @@ import { Prisma, PrismaClient } from '@prisma/client';
 import type {
   AuthResponse,
   CompletePreRegistrationDTO,
+  ConfirmGuardianAuthorizationDTO,
   PreRegistrationAccountRegistrationDTO,
   PreRegistrationClaimDTO,
+  PreRegistrationClaimResultDTO,
   PreRegistrationClaimRole,
   PreRegistrationGuardianAuthorizationDTO,
+  PreRegistrationProcessSummaryDTO,
   PreRegistrationPublicErrorCode,
   PreRegistrationPublicTenantDTO,
   PreRegistrationSessionDTO,
@@ -70,6 +73,7 @@ type OnboardingRow = {
   version: number;
   currentStep: string;
   claimRole: string;
+  claimedByUserId: string | null;
   lastSavedAt: Date | null;
   completedAt: Date | null;
   privacyNoticeVersion: string | null;
@@ -90,6 +94,21 @@ type AccessibleAluno = {
   contractId: string;
   status: StudentLifecycleStatus;
   accessRole: PreRegistrationClaimRole;
+  authorizationStatus?: GuardianAuthorizationRow['status'];
+};
+
+type ProcessAccessRow = {
+  alunoId: string;
+  contractId: string;
+  status: StudentLifecycleStatus;
+  claimRole: PreRegistrationClaimRole;
+  currentStep: string;
+  lastSavedAt: Date | null;
+  authorizationStatus: GuardianAuthorizationRow['status'] | 'NOT_REQUIRED';
+  displayName: string | null;
+  contractName: string | null;
+  contractTradeName: string | null;
+  contractLogoUrl: string | null;
 };
 
 const normalizeText = (value: unknown): string | undefined =>
@@ -163,12 +182,33 @@ async function resolveInviteForClaim(
   return invite;
 }
 
+async function accountIdentityMismatches(
+  tx: Prisma.TransactionClient,
+  alunoId: string,
+  contractId: string,
+  userId: string,
+  accountEmail: string
+): Promise<string[]> {
+  const [identity, baseMismatches] = await Promise.all([
+    loadStudentIdentity(alunoId, contractId, tx),
+    findStudentAccountIdentityMismatches(alunoId, contractId, userId, tx),
+  ]);
+  const mismatches = new Set(baseMismatches);
+  if (
+    identity.email &&
+    normalizeStudentEmail(identity.email) !== normalizeStudentEmail(accountEmail)
+  ) {
+    mismatches.add('email');
+  }
+  return Array.from(mismatches);
+}
+
 async function claimInviteInTransaction(
   tx: Prisma.TransactionClient,
   invite: InviteRow,
   userId: string,
   role: PreRegistrationClaimRole
-) {
+): Promise<string> {
   const user = await tx.user.findFirst({
     where: { id: userId, isActive: true, type: 'aluno' },
     include: { profile: true },
@@ -184,9 +224,26 @@ async function claimInviteInTransaction(
     where: { id: invite.alunoId, contractId: invite.contractId },
     include: { onboarding: true },
   });
-  if (!aluno || !ALLOWED_PRE_REGISTRATION_STATUSES.includes(aluno.status)) {
+  if (!aluno || !aluno.onboarding || !ALLOWED_PRE_REGISTRATION_STATUSES.includes(aluno.status)) {
     throw new PreRegistrationPublicError('Cadastro não disponível.', 'NOT_FOUND');
   }
+  if (aluno.onboarding.claimedByUserId && aluno.onboarding.claimedByUserId !== userId) {
+    throw new PreRegistrationPublicError(
+      'Este convite já foi vinculado a outra conta. Solicite um novo acesso à academia.',
+      'ACCOUNT_ALREADY_LINKED'
+    );
+  }
+  if (
+    aluno.onboarding.claimedByUserId === userId &&
+    aluno.onboarding.claimRole !== role
+  ) {
+    throw new PreRegistrationPublicError(
+      'Este processo já foi vinculado com outro perfil de acesso.',
+      'ACCOUNT_INCOMPATIBLE'
+    );
+  }
+
+  const wasAlreadyClaimed = aluno.onboarding.claimedByUserId === userId;
 
   if (role === 'STUDENT') {
     if (aluno.userId && aluno.userId !== userId) {
@@ -208,17 +265,18 @@ async function claimInviteInTransaction(
     }
 
     if (!aluno.userId) {
-      const mismatches = await findStudentAccountIdentityMismatches(
+      const mismatches = await accountIdentityMismatches(
+        tx,
         invite.alunoId,
         invite.contractId,
         userId,
-        tx
+        user.email
       );
-      if (mismatches.includes('email')) {
+      if (mismatches.length > 0) {
         throw new PreRegistrationPublicError(
           'Os dados da conta não correspondem ao convite. Entre em contato com a academia.',
           'ACCOUNT_INCOMPATIBLE',
-          { fields: ['email'] }
+          { fields: mismatches }
         );
       }
 
@@ -232,42 +290,51 @@ async function claimInviteInTransaction(
           'ACCOUNT_ALREADY_LINKED'
         );
       }
-
-      await tx.studentLifecycleEvent.create({
-        data: {
-          alunoId: invite.alunoId,
-          contractId: invite.contractId,
-          eventType: 'ACCOUNT_LINKED',
-          actorUserId: userId,
-          metadata: { source: 'public_pre_registration', role },
-        },
-      });
     }
   } else {
-    await tx.$executeRaw`
-      INSERT INTO "PreRegistrationGuardianAuthorization" (
-        "id", "contractId", "alunoId", "guardianUserId", "purpose", "status",
-        "validatedAt", "validatedByUserId", "createdAt", "updatedAt"
-      ) VALUES (
-        ${crypto.randomUUID()}, ${invite.contractId}, ${invite.alunoId}, ${userId},
-        'PRE_REGISTRATION', 'ACTIVE', CURRENT_TIMESTAMP, ${userId},
-        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-      )
-      ON CONFLICT ("alunoId", "guardianUserId", "purpose")
-      DO UPDATE SET
-        "status" = 'ACTIVE',
-        "validatedAt" = CURRENT_TIMESTAMP,
-        "validatedByUserId" = ${userId},
-        "revokedAt" = NULL,
-        "revokedByUserId" = NULL,
-        "updatedAt" = CURRENT_TIMESTAMP
+    if (aluno.userId === userId) {
+      throw new PreRegistrationPublicError(
+        'Use o acesso do próprio aluno para este cadastro.',
+        'ACCOUNT_INCOMPATIBLE'
+      );
+    }
+    const identity = await loadStudentIdentity(invite.alunoId, invite.contractId, tx);
+    if (!identity.birthDate || !isMinorBirthDate(identity.birthDate)) {
+      throw new PreRegistrationPublicError(
+        'O acesso como responsável legal está disponível somente para cadastro de menor de idade confirmado pela academia.',
+        'ACCOUNT_INCOMPATIBLE'
+      );
+    }
+
+    const currentAuthorization = await tx.$queryRaw<GuardianAuthorizationRow[]>`
+      SELECT "status", "relationship", "validatedAt", "revokedAt"
+      FROM "PreRegistrationGuardianAuthorization"
+      WHERE "alunoId" = ${invite.alunoId}
+        AND "contractId" = ${invite.contractId}
+        AND "guardianUserId" = ${userId}
+        AND "purpose" = 'PRE_REGISTRATION'
+      LIMIT 1
     `;
-    await startGuardianPreRegistrationInTransaction(
-      tx,
-      invite.alunoId,
-      invite.contractId,
-      userId
-    );
+    if (currentAuthorization[0]?.status !== 'ACTIVE') {
+      await tx.$executeRaw`
+        INSERT INTO "PreRegistrationGuardianAuthorization" (
+          "id", "contractId", "alunoId", "guardianUserId", "purpose", "status",
+          "createdAt", "updatedAt"
+        ) VALUES (
+          ${crypto.randomUUID()}, ${invite.contractId}, ${invite.alunoId}, ${userId},
+          'PRE_REGISTRATION', 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        )
+        ON CONFLICT ("alunoId", "guardianUserId", "purpose")
+        DO UPDATE SET
+          "status" = 'PENDING',
+          "relationship" = NULL,
+          "validatedAt" = NULL,
+          "validatedByUserId" = NULL,
+          "revokedAt" = NULL,
+          "revokedByUserId" = NULL,
+          "updatedAt" = CURRENT_TIMESTAMP
+      `;
+    }
   }
 
   const updated = await tx.$executeRaw`
@@ -287,44 +354,86 @@ async function claimInviteInTransaction(
       'ACCOUNT_ALREADY_LINKED'
     );
   }
+
+  if (!wasAlreadyClaimed) {
+    await tx.studentLifecycleEvent.create({
+      data: {
+        alunoId: invite.alunoId,
+        contractId: invite.contractId,
+        eventType: 'ACCOUNT_LINKED',
+        actorUserId: userId,
+        metadata: {
+          source: 'public_pre_registration',
+          role,
+          guardianAuthorizationStatus: role === 'GUARDIAN' ? 'PENDING' : undefined,
+        },
+      },
+    });
+  }
+
+  return invite.alunoId;
 }
 
-async function findAccessibleAluno(userId: string): Promise<AccessibleAluno> {
-  const aluno = await prisma.aluno.findFirst({
+async function findAccessibleAluno(
+  userId: string,
+  alunoId: string,
+  options: { allowPendingGuardian?: boolean } = {}
+): Promise<AccessibleAluno> {
+  const direct = await prisma.aluno.findFirst({
     where: {
+      id: alunoId,
       userId,
       status: { in: ALLOWED_PRE_REGISTRATION_STATUSES },
+      onboarding: { claimedByUserId: userId },
     },
-    orderBy: { updatedAt: 'desc' },
     select: { id: true, contractId: true, status: true },
   });
-  if (aluno) return { ...aluno, accessRole: 'STUDENT' };
+  if (direct) return { ...direct, accessRole: 'STUDENT' };
 
+  const allowedAuthorizationStatuses = options.allowPendingGuardian
+    ? Prisma.sql`('PENDING', 'ACTIVE')`
+    : Prisma.sql`('ACTIVE')`;
   const guardianRows = await prisma.$queryRaw<
-    Array<{ alunoId: string; contractId: string; status: StudentLifecycleStatus }>
+    Array<{
+      alunoId: string;
+      contractId: string;
+      status: StudentLifecycleStatus;
+      authorizationStatus: GuardianAuthorizationRow['status'];
+    }>
   >`
-    SELECT auth."alunoId", auth."contractId", student."status"
+    SELECT auth."alunoId", auth."contractId", student."status",
+           auth."status" AS "authorizationStatus"
     FROM "PreRegistrationGuardianAuthorization" AS auth
     JOIN "Aluno" AS student ON student."id" = auth."alunoId"
+    JOIN "StudentOnboardingProcess" AS onboarding ON onboarding."alunoId" = student."id"
     WHERE auth."guardianUserId" = ${userId}
-      AND auth."status" = 'ACTIVE'
+      AND auth."alunoId" = ${alunoId}
+      AND auth."purpose" = 'PRE_REGISTRATION'
+      AND auth."status" IN ${allowedAuthorizationStatuses}
+      AND onboarding."claimedByUserId" = ${userId}
       AND student."status" IN ('INVITED', 'PRE_REGISTRATION_IN_PROGRESS', 'PRE_REGISTRATION_COMPLETED')
-    ORDER BY auth."updatedAt" DESC
     LIMIT 1
   `;
   const guardian = guardianRows[0];
   if (!guardian) throw new PreRegistrationPublicError('Cadastro não encontrado.', 'NOT_FOUND');
+  if (guardian.authorizationStatus !== 'ACTIVE' && !options.allowPendingGuardian) {
+    throw new PreRegistrationPublicError(
+      'Confirme o vínculo com o menor antes de acessar os dados pessoais.',
+      'GUARDIAN_AUTHORIZATION_REQUIRED'
+    );
+  }
   return {
     id: guardian.alunoId,
     contractId: guardian.contractId,
     status: guardian.status,
     accessRole: 'GUARDIAN',
+    authorizationStatus: guardian.authorizationStatus,
   };
 }
 
 async function onboardingRow(alunoId: string, contractId: string): Promise<OnboardingRow> {
   const rows = await prisma.$queryRaw<OnboardingRow[]>`
-    SELECT "version", "currentStep", "claimRole", "lastSavedAt", "completedAt",
+    SELECT "version", "currentStep", "claimRole", "claimedByUserId", "lastSavedAt", "completedAt",
            "privacyNoticeVersion", "privacyAcceptedAt", "healthModuleStatus", "parqModuleStatus"
     FROM "StudentOnboardingProcess"
     WHERE "alunoId" = ${alunoId} AND "contractId" = ${contractId}
@@ -385,15 +494,28 @@ async function guardianAuthorization(
   isMinor: boolean,
   role: PreRegistrationClaimRole
 ): Promise<PreRegistrationGuardianAuthorizationDTO> {
-  const rows = await prisma.$queryRaw<GuardianAuthorizationRow[]>`
-    SELECT "status", "relationship", "validatedAt", "revokedAt"
-    FROM "PreRegistrationGuardianAuthorization"
-    WHERE "alunoId" = ${alunoId}
-      AND "contractId" = ${contractId}
-      AND "guardianUserId" = ${userId}
-      AND "purpose" = 'PRE_REGISTRATION'
-    LIMIT 1
-  `;
+  if (!isMinor && role !== 'GUARDIAN') return { status: 'NOT_REQUIRED', role };
+
+  const rows = role === 'GUARDIAN'
+    ? await prisma.$queryRaw<GuardianAuthorizationRow[]>`
+        SELECT "status", "relationship", "validatedAt", "revokedAt"
+        FROM "PreRegistrationGuardianAuthorization"
+        WHERE "alunoId" = ${alunoId}
+          AND "contractId" = ${contractId}
+          AND "guardianUserId" = ${userId}
+          AND "purpose" = 'PRE_REGISTRATION'
+        LIMIT 1
+      `
+    : await prisma.$queryRaw<GuardianAuthorizationRow[]>`
+        SELECT "status", NULL::text AS "relationship", "validatedAt", "revokedAt"
+        FROM "PreRegistrationGuardianAuthorization"
+        WHERE "alunoId" = ${alunoId}
+          AND "contractId" = ${contractId}
+          AND "purpose" = 'PRE_REGISTRATION'
+          AND "status" = 'ACTIVE'
+        ORDER BY "validatedAt" DESC NULLS LAST
+        LIMIT 1
+      `;
   const authorization = rows[0];
   if (authorization) {
     return {
@@ -404,13 +526,13 @@ async function guardianAuthorization(
       revokedAt: authorization.revokedAt?.toISOString(),
     };
   }
-  return isMinor
+  return isMinor || role === 'GUARDIAN'
     ? { status: 'PENDING', role }
     : { status: 'NOT_REQUIRED', role };
 }
 
-async function buildSession(userId: string): Promise<PreRegistrationSessionDTO> {
-  const aluno = await findAccessibleAluno(userId);
+async function buildSession(userId: string, alunoId: string): Promise<PreRegistrationSessionDTO> {
+  const aluno = await findAccessibleAluno(userId, alunoId);
   const [identity, onboarding, tenant, warnings] = await Promise.all([
     loadStudentIdentity(aluno.id, aluno.contractId),
     onboardingRow(aluno.id, aluno.contractId),
@@ -454,6 +576,7 @@ async function buildSession(userId: string): Promise<PreRegistrationSessionDTO> 
           : onboarding.healthModuleStatus === 'IN_PROGRESS'
             ? 'CONTINUE'
             : 'START',
+      href: '/pre-cadastro/anamnese',
     },
     {
       key: 'PARQ',
@@ -467,6 +590,7 @@ async function buildSession(userId: string): Promise<PreRegistrationSessionDTO> 
           : onboarding.parqModuleStatus === 'IN_PROGRESS'
             ? 'CONTINUE'
             : 'START',
+      href: '/pre-cadastro/par-q',
     },
   ];
 
@@ -493,15 +617,90 @@ async function buildSession(userId: string): Promise<PreRegistrationSessionDTO> 
   };
 }
 
+function processSummary(row: ProcessAccessRow): PreRegistrationProcessSummaryDTO {
+  const tenant: PreRegistrationPublicTenantDTO = {
+    name: row.contractTradeName || row.contractName || 'Academia',
+    logoUrl: row.contractLogoUrl || undefined,
+    privacyNoticeUrl: privacyNoticeUrl(),
+  };
+  return {
+    alunoId: row.alunoId,
+    status: row.status,
+    claimRole: row.claimRole,
+    currentStep: row.currentStep as PreRegistrationStep,
+    lastSavedAt: row.lastSavedAt?.toISOString(),
+    displayName:
+      row.claimRole === 'GUARDIAN' && row.authorizationStatus !== 'ACTIVE'
+        ? 'Dependente convidado'
+        : row.displayName || (row.claimRole === 'STUDENT' ? 'Seu cadastro' : 'Dependente'),
+    tenant,
+    guardianAuthorizationStatus: row.authorizationStatus,
+    requiresGuardianConfirmation:
+      row.claimRole === 'GUARDIAN' && row.authorizationStatus !== 'ACTIVE',
+  };
+}
+
+async function listProcesses(userId: string): Promise<PreRegistrationProcessSummaryDTO[]> {
+  const directRows = await prisma.$queryRaw<ProcessAccessRow[]>`
+    SELECT student."id" AS "alunoId", student."contractId", student."status",
+           'STUDENT'::text AS "claimRole", onboarding."currentStep",
+           onboarding."lastSavedAt", 'NOT_REQUIRED'::text AS "authorizationStatus",
+           COALESCE(profile."identificationData"->>'name', student."leadName") AS "displayName",
+           contract."name" AS "contractName", contract."tradeName" AS "contractTradeName",
+           contract."logoUrl" AS "contractLogoUrl"
+    FROM "Aluno" AS student
+    JOIN "StudentOnboardingProcess" AS onboarding ON onboarding."alunoId" = student."id"
+    JOIN "Contract" AS contract ON contract."id" = student."contractId"
+    LEFT JOIN "StudentProfile" AS profile ON profile."alunoId" = student."id"
+    WHERE student."userId" = ${userId}
+      AND onboarding."claimedByUserId" = ${userId}
+      AND student."status" IN ('INVITED', 'PRE_REGISTRATION_IN_PROGRESS', 'PRE_REGISTRATION_COMPLETED')
+  `;
+  const guardianRows = await prisma.$queryRaw<ProcessAccessRow[]>`
+    SELECT student."id" AS "alunoId", student."contractId", student."status",
+           'GUARDIAN'::text AS "claimRole", onboarding."currentStep",
+           onboarding."lastSavedAt", auth."status" AS "authorizationStatus",
+           CASE WHEN auth."status" = 'ACTIVE'
+             THEN COALESCE(profile."identificationData"->>'name', student."leadName")
+             ELSE NULL
+           END AS "displayName",
+           contract."name" AS "contractName", contract."tradeName" AS "contractTradeName",
+           contract."logoUrl" AS "contractLogoUrl"
+    FROM "PreRegistrationGuardianAuthorization" AS auth
+    JOIN "Aluno" AS student ON student."id" = auth."alunoId"
+    JOIN "StudentOnboardingProcess" AS onboarding ON onboarding."alunoId" = student."id"
+    JOIN "Contract" AS contract ON contract."id" = student."contractId"
+    LEFT JOIN "StudentProfile" AS profile ON profile."alunoId" = student."id"
+    WHERE auth."guardianUserId" = ${userId}
+      AND auth."purpose" = 'PRE_REGISTRATION'
+      AND auth."status" IN ('PENDING', 'ACTIVE')
+      AND onboarding."claimedByUserId" = ${userId}
+      AND student."status" IN ('INVITED', 'PRE_REGISTRATION_IN_PROGRESS', 'PRE_REGISTRATION_COMPLETED')
+  `;
+
+  const unique = new Map<string, PreRegistrationProcessSummaryDTO>();
+  for (const row of [...directRows, ...guardianRows]) {
+    unique.set(row.alunoId, processSummary(row));
+  }
+  return Array.from(unique.values()).sort((left, right) =>
+    (right.lastSavedAt || '').localeCompare(left.lastSavedAt || '')
+  );
+}
+
 function mapLifecycleError(error: unknown): never {
   if (error instanceof PreRegistrationPublicError) throw error;
   if (error instanceof StudentLifecycleError) {
-    const code =
+    const fields = Array.isArray(error.details?.fields) ? error.details?.fields : [];
+    const code: PreRegistrationPublicErrorCode =
       error.code === 'CONCURRENT_MODIFICATION'
         ? 'CONCURRENT_MODIFICATION'
         : error.code === 'MISSING_REQUIRED_FIELDS'
           ? 'MISSING_REQUIRED_FIELDS'
-          : 'ACCOUNT_INCOMPATIBLE';
+          : error.code === 'NOT_FOUND'
+            ? 'NOT_FOUND'
+            : fields.includes('guardianAuthorization') || error.message.includes('responsável')
+              ? 'GUARDIAN_AUTHORIZATION_REQUIRED'
+              : 'ACCOUNT_INCOMPATIBLE';
     throw new PreRegistrationPublicError(error.message, code, error.details);
   }
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -518,7 +717,7 @@ export const preRegistrationPublicService = {
   async registerAndClaim(
     token: string,
     input: PreRegistrationAccountRegistrationDTO
-  ): Promise<AuthResponse & { redirectTo: string }> {
+  ): Promise<AuthResponse & PreRegistrationClaimResultDTO> {
     assertClaimRole(input.role);
     const email = normalizeStudentEmail(input.email);
     const name = normalizeText(input.name);
@@ -529,8 +728,9 @@ export const preRegistrationPublicService = {
       );
     }
 
+    let alunoId = '';
     try {
-      await prisma.$transaction(async (tx) => {
+      alunoId = await prisma.$transaction(async (tx) => {
         const invite = await resolveInviteForClaim(tx, token);
         const existing = await tx.user.findUnique({ where: { email } });
         if (existing) {
@@ -548,35 +748,110 @@ export const preRegistrationPublicService = {
             profile: { create: { name } },
           },
         });
-        await claimInviteInTransaction(tx, invite, user.id, input.role);
+        return claimInviteInTransaction(tx, invite, user.id, input.role);
       });
     } catch (error) {
       mapLifecycleError(error);
     }
 
     const auth = await authService.login({ email, password: input.password });
-    return { ...auth, redirectTo: '/pre-cadastro' };
+    return { ...auth, alunoId, redirectTo: '/pre-cadastro' };
   },
 
-  async claim(userId: string, input: PreRegistrationClaimDTO) {
+  async claim(userId: string, input: PreRegistrationClaimDTO): Promise<PreRegistrationClaimResultDTO> {
     assertClaimRole(input.role);
     try {
-      await prisma.$transaction(async (tx) => {
+      const alunoId = await prisma.$transaction(async (tx) => {
         const invite = await resolveInviteForClaim(tx, input.token);
-        await claimInviteInTransaction(tx, invite, userId, input.role);
+        return claimInviteInTransaction(tx, invite, userId, input.role);
       });
-      return { redirectTo: '/pre-cadastro' };
+      return { alunoId, redirectTo: '/pre-cadastro' };
     } catch (error) {
       mapLifecycleError(error);
     }
   },
 
-  async getSession(userId: string) {
-    return buildSession(userId);
+  async listProcesses(userId: string) {
+    return listProcesses(userId);
   },
 
-  async saveStep(userId: string, input: SavePreRegistrationStepDTO) {
-    const aluno = await findAccessibleAluno(userId);
+  async confirmGuardianAuthorization(
+    userId: string,
+    alunoId: string,
+    input: ConfirmGuardianAuthorizationDTO
+  ) {
+    const relationship = normalizeText(input.relationship);
+    if (input.declarationAccepted !== true || !relationship) {
+      throw new PreRegistrationPublicError(
+        'Confirme a declaração e informe o vínculo com o menor.',
+        'GUARDIAN_AUTHORIZATION_REQUIRED'
+      );
+    }
+    const accessible = await findAccessibleAluno(userId, alunoId, { allowPendingGuardian: true });
+    if (accessible.accessRole !== 'GUARDIAN') {
+      throw new PreRegistrationPublicError(
+        'Este cadastro não utiliza acesso de responsável legal.',
+        'ACCOUNT_INCOMPATIBLE'
+      );
+    }
+
+    try {
+      await prisma.$transaction(async (tx) => {
+        const identity = await loadStudentIdentity(alunoId, accessible.contractId, tx);
+        if (!identity.birthDate || !isMinorBirthDate(identity.birthDate)) {
+          throw new PreRegistrationPublicError(
+            'A academia precisa confirmar a menoridade antes de liberar este acesso.',
+            'GUARDIAN_AUTHORIZATION_REQUIRED'
+          );
+        }
+        const updated = await tx.$executeRaw`
+          UPDATE "PreRegistrationGuardianAuthorization"
+          SET "relationship" = ${relationship},
+              "status" = 'ACTIVE',
+              "validatedAt" = CURRENT_TIMESTAMP,
+              "validatedByUserId" = ${userId},
+              "revokedAt" = NULL,
+              "revokedByUserId" = NULL,
+              "updatedAt" = CURRENT_TIMESTAMP
+          WHERE "alunoId" = ${alunoId}
+            AND "contractId" = ${accessible.contractId}
+            AND "guardianUserId" = ${userId}
+            AND "purpose" = 'PRE_REGISTRATION'
+            AND "status" IN ('PENDING', 'ACTIVE')
+        `;
+        if (updated !== 1) {
+          throw new PreRegistrationPublicError(
+            'O vínculo não está disponível para confirmação.',
+            'GUARDIAN_AUTHORIZATION_REQUIRED'
+          );
+        }
+        await tx.studentLifecycleEvent.create({
+          data: {
+            alunoId,
+            contractId: accessible.contractId,
+            eventType: 'ACCOUNT_LINKED',
+            actorUserId: userId,
+            metadata: {
+              source: 'public_pre_registration',
+              role: 'GUARDIAN',
+              action: 'guardian_authorization_confirmed',
+              relationship,
+            },
+          },
+        });
+      });
+      return buildSession(userId, alunoId);
+    } catch (error) {
+      mapLifecycleError(error);
+    }
+  },
+
+  async getSession(userId: string, alunoId: string) {
+    return buildSession(userId, alunoId);
+  },
+
+  async saveStep(userId: string, alunoId: string, input: SavePreRegistrationStepDTO) {
+    const aluno = await findAccessibleAluno(userId, alunoId);
     if (aluno.status === 'PRE_REGISTRATION_COMPLETED') {
       throw new PreRegistrationPublicError(
         'O pré-cadastro já foi concluído.',
@@ -586,11 +861,16 @@ export const preRegistrationPublicService = {
     if (aluno.status === 'INVITED' && aluno.accessRole === 'STUDENT') {
       await startStudentPreRegistration(aluno.id, aluno.contractId, userId);
     }
+    if (aluno.status === 'INVITED' && aluno.accessRole === 'GUARDIAN') {
+      await prisma.$transaction((tx) =>
+        startGuardianPreRegistrationInTransaction(tx, aluno.id, aluno.contractId, userId)
+      );
+    }
 
     try {
       await prisma.$transaction(async (tx) => {
         const rows = await tx.$queryRaw<OnboardingRow[]>`
-          SELECT "version", "currentStep", "claimRole", "lastSavedAt", "completedAt",
+          SELECT "version", "currentStep", "claimRole", "claimedByUserId", "lastSavedAt", "completedAt",
                  "privacyNoticeVersion", "privacyAcceptedAt", "healthModuleStatus", "parqModuleStatus"
           FROM "StudentOnboardingProcess"
           WHERE "alunoId" = ${aluno.id} AND "contractId" = ${aluno.contractId}
@@ -618,34 +898,6 @@ export const preRegistrationPublicService = {
           }
         );
 
-        if (
-          aluno.accessRole === 'GUARDIAN' &&
-          input.data.guardianDeclarationAccepted === true
-        ) {
-          const relationship = normalizeText(input.data.guardianRelationship);
-          if (!relationship) {
-            throw new PreRegistrationPublicError(
-              'Informe o vínculo com o menor para validar o acesso do responsável.',
-              'GUARDIAN_AUTHORIZATION_REQUIRED'
-            );
-          }
-          await tx.$executeRaw`
-            UPDATE "PreRegistrationGuardianAuthorization"
-            SET "relationship" = ${relationship},
-                "status" = 'ACTIVE',
-                "validatedAt" = COALESCE("validatedAt", CURRENT_TIMESTAMP),
-                "validatedByUserId" = COALESCE("validatedByUserId", ${userId}),
-                "revokedAt" = NULL,
-                "revokedByUserId" = NULL,
-                "updatedAt" = CURRENT_TIMESTAMP
-            WHERE "alunoId" = ${aluno.id}
-              AND "contractId" = ${aluno.contractId}
-              AND "guardianUserId" = ${userId}
-              AND "purpose" = 'PRE_REGISTRATION'
-              AND "status" = 'ACTIVE'
-          `;
-        }
-
         const nextStep = nextStepAfter(input.step, identity, aluno.accessRole);
         const updated = await tx.$executeRaw`
           UPDATE "StudentOnboardingProcess"
@@ -669,16 +921,16 @@ export const preRegistrationPublicService = {
       mapLifecycleError(error);
     }
 
-    return buildSession(userId);
+    return buildSession(userId, alunoId);
   },
 
   async complete(
     userId: string,
+    alunoId: string,
     input: CompletePreRegistrationDTO,
     audit: { ipAddress?: string; userAgent?: string } = {}
   ) {
-    const accessible = await findAccessibleAluno(userId);
-    const session = await buildSession(userId);
+    const accessible = await findAccessibleAluno(userId, alunoId);
     if (input.privacyAccepted !== true) {
       throw new PreRegistrationPublicError(
         'Confirme o aviso de privacidade para concluir.',
@@ -686,31 +938,14 @@ export const preRegistrationPublicService = {
         { fields: ['privacyAccepted'] }
       );
     }
-    const remaining = session.missingRequiredFields.filter(
-      (field) => field !== 'privacyNoticeVersion' && field !== 'privacyAcceptedAt'
-    );
-    if (remaining.length > 0) {
-      throw new PreRegistrationPublicError(
-        'Revise os campos obrigatórios antes de concluir.',
-        'MISSING_REQUIRED_FIELDS',
-        { fields: remaining }
-      );
-    }
-    if (session.isMinor && session.guardianAuthorization.status !== 'ACTIVE') {
-      throw new PreRegistrationPublicError(
-        'A autorização do responsável legal deve estar válida antes da conclusão.',
-        'GUARDIAN_AUTHORIZATION_REQUIRED'
-      );
-    }
 
     try {
       await completePublicStudentPreRegistration({
-        alunoId: session.alunoId,
+        alunoId,
         contractId: accessible.contractId,
         actorUserId: userId,
         accessRole: accessible.accessRole,
         expectedVersion: input.expectedVersion,
-        identity: session.identity,
         privacyNoticeVersion: PRIVACY_NOTICE_VERSION,
         privacyAcceptedAt: new Date(),
         ipAddress: audit.ipAddress,
@@ -720,6 +955,6 @@ export const preRegistrationPublicService = {
       mapLifecycleError(error);
     }
 
-    return buildSession(userId);
+    return buildSession(userId, alunoId);
   },
 };
