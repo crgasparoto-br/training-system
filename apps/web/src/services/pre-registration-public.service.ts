@@ -3,8 +3,11 @@ import { authService } from './auth.service';
 import type {
   AuthResponse,
   CompletePreRegistrationDTO,
+  ConfirmGuardianAuthorizationDTO,
   PreRegistrationAccountRegistrationDTO,
   PreRegistrationClaimDTO,
+  PreRegistrationClaimResultDTO,
+  PreRegistrationProcessSummaryDTO,
   PreRegistrationPublicLandingDTO,
   PreRegistrationSessionDTO,
   SavePreRegistrationStepDTO,
@@ -26,33 +29,64 @@ export const preRegistrationPublicService = {
   async registerAndClaim(
     token: string,
     input: PreRegistrationAccountRegistrationDTO
-  ): Promise<AuthResponse> {
+  ): Promise<AuthResponse & PreRegistrationClaimResultDTO> {
     const response = await api.post(
       `/pre-cadastro/${encodeURIComponent(token)}/register`,
       input
     );
-    const auth = extractData<AuthResponse>(response.data);
+    const auth = extractData<AuthResponse & PreRegistrationClaimResultDTO>(response.data);
     authService.setToken(auth.token);
     authService.setUser(auth.user);
     return auth;
   },
 
-  async claim(input: PreRegistrationClaimDTO): Promise<void> {
-    await api.post('/pre-registration/claim', input);
+  async claim(input: PreRegistrationClaimDTO): Promise<PreRegistrationClaimResultDTO> {
+    const response = await api.post('/pre-registration/claim', input);
+    return extractData<PreRegistrationClaimResultDTO>(response.data);
   },
 
-  async getSession(): Promise<PreRegistrationSessionDTO> {
-    const response = await api.get('/pre-registration/session');
+  async listProcesses(): Promise<PreRegistrationProcessSummaryDTO[]> {
+    const response = await api.get('/pre-registration/processes');
+    return extractData<PreRegistrationProcessSummaryDTO[]>(response.data);
+  },
+
+  async confirmGuardianAuthorization(
+    alunoId: string,
+    input: ConfirmGuardianAuthorizationDTO
+  ): Promise<PreRegistrationSessionDTO> {
+    const response = await api.post(
+      `/pre-registration/processes/${encodeURIComponent(alunoId)}/guardian-authorization`,
+      input
+    );
     return extractData<PreRegistrationSessionDTO>(response.data);
   },
 
-  async saveStep(input: SavePreRegistrationStepDTO): Promise<PreRegistrationSessionDTO> {
-    const response = await api.patch('/pre-registration/steps', input);
+  async getSession(alunoId: string): Promise<PreRegistrationSessionDTO> {
+    const response = await api.get(
+      `/pre-registration/processes/${encodeURIComponent(alunoId)}/session`
+    );
     return extractData<PreRegistrationSessionDTO>(response.data);
   },
 
-  async complete(input: CompletePreRegistrationDTO): Promise<PreRegistrationSessionDTO> {
-    const response = await api.post('/pre-registration/complete', input);
+  async saveStep(
+    alunoId: string,
+    input: SavePreRegistrationStepDTO
+  ): Promise<PreRegistrationSessionDTO> {
+    const response = await api.patch(
+      `/pre-registration/processes/${encodeURIComponent(alunoId)}/steps`,
+      input
+    );
+    return extractData<PreRegistrationSessionDTO>(response.data);
+  },
+
+  async complete(
+    alunoId: string,
+    input: CompletePreRegistrationDTO
+  ): Promise<PreRegistrationSessionDTO> {
+    const response = await api.post(
+      `/pre-registration/processes/${encodeURIComponent(alunoId)}/complete`,
+      input
+    );
     return extractData<PreRegistrationSessionDTO>(response.data);
   },
 };
