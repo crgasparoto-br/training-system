@@ -1,5 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FocusEvent, type FormEvent } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FocusEvent,
+  type FormEvent,
+  type ReactNode,
+} from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
   ArrowRight,
@@ -18,6 +27,7 @@ import {
 import type {
   PreRegistrationClaimRole,
   PreRegistrationIdentityDTO,
+  PreRegistrationProcessSummaryDTO,
   PreRegistrationPublicLandingDTO,
   PreRegistrationSessionDTO,
   PreRegistrationStep,
@@ -100,10 +110,26 @@ function Field({
         inputMode={inputMode}
         onChange={(event) => onChange(event.target.value)}
         onBlur={onBlur}
+        aria-invalid={Boolean(error)}
         className="min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-base text-slate-950 outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-200"
       />
       {error ? <span className="block text-sm text-red-600">{error}</span> : null}
     </label>
+  );
+}
+
+function PublicShell({ children }: { children: ReactNode }) {
+  return <div className="min-h-screen bg-slate-100 px-4 py-5 text-slate-950 sm:px-6 sm:py-8">{children}</div>;
+}
+
+function FullPageLoading({ text }: { text: string }) {
+  return (
+    <PublicShell>
+      <div className="mx-auto flex min-h-[70vh] max-w-md flex-col items-center justify-center text-center">
+        <Loader2 className="h-10 w-10 animate-spin text-blue-600" aria-hidden="true" />
+        <p className="mt-4 font-medium text-slate-700">{text}</p>
+      </div>
+    </PublicShell>
   );
 }
 
@@ -139,12 +165,23 @@ function PublicLanding({ token }: { token: string }) {
     try {
       if (mode === 'login') {
         await login({ email, password });
-        await preRegistrationPublicService.claim({ token, role });
-        navigate('/pre-cadastro', { replace: true });
+        const result = await preRegistrationPublicService.claim({ token, role });
+        navigate('/pre-cadastro', {
+          replace: true,
+          state: { preferredAlunoId: result.alunoId },
+        });
         return;
       }
-      await preRegistrationPublicService.registerAndClaim(token, { name, email, password, role });
-      window.location.replace('/pre-cadastro');
+      const result = await preRegistrationPublicService.registerAndClaim(token, {
+        name,
+        email,
+        password,
+        role,
+      });
+      navigate('/pre-cadastro', {
+        replace: true,
+        state: { preferredAlunoId: result.alunoId },
+      });
     } catch (reason) {
       setError(apiErrorMessage(reason));
     } finally {
@@ -152,9 +189,7 @@ function PublicLanding({ token }: { token: string }) {
     }
   };
 
-  if (loading) {
-    return <FullPageLoading text="Validando seu convite..." />;
-  }
+  if (loading) return <FullPageLoading text="Validando seu convite..." />;
 
   if (!landing) {
     return (
@@ -198,15 +233,23 @@ function PublicLanding({ token }: { token: string }) {
                 </span>
                 <div>
                   <p className="font-medium">{stage.title}</p>
-                  <p className="text-sm text-slate-300">{stage.optional ? 'Etapa opcional e independente' : 'Necessário para concluir o pré-cadastro'}</p>
+                  <p className="text-sm text-slate-300">
+                    {stage.optional ? 'Etapa opcional e independente' : 'Necessário para concluir o pré-cadastro'}
+                  </p>
                 </div>
               </li>
             ))}
           </ol>
 
           <div className="mt-8 grid gap-3 text-sm text-slate-300 sm:grid-cols-2">
-            <div className="flex items-center gap-2"><Clock3 className="h-4 w-4" />{landing.approximateDuration}</div>
-            <div className="flex items-center gap-2"><ShieldCheck className="h-4 w-4" />Válido até {new Date(landing.expiresAt).toLocaleDateString('pt-BR')}</div>
+            <div className="flex items-center gap-2">
+              <Clock3 className="h-4 w-4" aria-hidden="true" />
+              {landing.approximateDuration}
+            </div>
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+              Válido até {new Date(landing.expiresAt).toLocaleDateString('pt-BR')}
+            </div>
           </div>
         </section>
 
@@ -216,10 +259,22 @@ function PublicLanding({ token }: { token: string }) {
           </div>
 
           <div className="mt-6 grid grid-cols-2 rounded-xl bg-slate-100 p-1" role="tablist" aria-label="Escolha como continuar">
-            <button type="button" role="tab" aria-selected={mode === 'login'} onClick={() => setMode('login')} className={`rounded-lg px-3 py-2 text-sm font-medium ${mode === 'login' ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-600'}`}>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === 'login'}
+              onClick={() => setMode('login')}
+              className={`rounded-lg px-3 py-2 text-sm font-medium ${mode === 'login' ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-600'}`}
+            >
               Já tenho conta
             </button>
-            <button type="button" role="tab" aria-selected={mode === 'register'} onClick={() => setMode('register')} className={`rounded-lg px-3 py-2 text-sm font-medium ${mode === 'register' ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-600'}`}>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === 'register'}
+              onClick={() => setMode('register')}
+              className={`rounded-lg px-3 py-2 text-sm font-medium ${mode === 'register' ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-600'}`}
+            >
               Criar acesso
             </button>
           </div>
@@ -237,6 +292,11 @@ function PublicLanding({ token }: { token: string }) {
                   </label>
                 ))}
               </div>
+              {role === 'GUARDIAN' ? (
+                <p className="mt-2 text-xs leading-5 text-slate-500">
+                  O acesso de responsável somente será liberado para menor de idade já identificado pela academia e após a confirmação do vínculo.
+                </p>
+              ) : null}
             </fieldset>
 
             {mode === 'register' ? <Field label="Nome completo" name="name" value={name} required autoComplete="name" onChange={setName} /> : null}
@@ -259,9 +319,105 @@ function PublicLanding({ token }: { token: string }) {
   );
 }
 
-function AuthenticatedFlow() {
+function OptionalModuleHandoff({ module }: { module: 'ANAMNESIS' | 'PARQ' }) {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuthStore();
+
+  useEffect(() => {
+    if (!isAuthenticated) navigate('/login', { replace: true });
+  }, [isAuthenticated, navigate]);
+
+  const isAnamnesis = module === 'ANAMNESIS';
+  return (
+    <PublicShell>
+      <main className="mx-auto max-w-2xl rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-9">
+        <HeartPulse className="h-11 w-11 text-blue-600" aria-hidden="true" />
+        <p className="mt-5 text-sm font-medium text-blue-700">Próxima etapa opcional</p>
+        <h1 className="mt-1 text-3xl font-semibold text-slate-950">
+          {isAnamnesis ? 'Anamnese Inicial' : 'PAR-Q'}
+        </h1>
+        <p className="mt-4 leading-7 text-slate-600">
+          {isAnamnesis
+            ? 'Esta etapa reúne informações de saúde para apoiar o acompanhamento profissional.'
+            : 'Este questionário registra informações de prontidão para atividade física.'}
+          {' '}Ela é independente do pré-cadastro básico e não representa diagnóstico ou liberação para treino.
+        </p>
+        <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950">
+          O módulo específico será disponibilizado pela etapa correspondente do fluxo. Seu pré-cadastro básico permanece concluído e você pode continuar depois.
+        </div>
+        <button
+          type="button"
+          onClick={() => navigate('/pre-cadastro', { replace: true })}
+          className="mt-7 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 font-semibold text-white"
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          Voltar aos pré-cadastros
+        </button>
+      </main>
+    </PublicShell>
+  );
+}
+
+function ProcessSelector({
+  processes,
+  onSelect,
+}: {
+  processes: PreRegistrationProcessSummaryDTO[];
+  onSelect: (process: PreRegistrationProcessSummaryDTO) => void;
+}) {
+  return (
+    <PublicShell>
+      <main className="mx-auto w-full max-w-4xl">
+        <header className="mb-6">
+          <p className="text-sm font-medium text-blue-700">Pré-matrícula</p>
+          <h1 className="mt-1 text-3xl font-semibold text-slate-950">Escolha o cadastro</h1>
+          <p className="mt-2 max-w-2xl text-slate-600">
+            Sua conta possui mais de um processo vinculado. Escolha qual deseja continuar.
+          </p>
+        </header>
+        <div className="grid gap-4 md:grid-cols-2">
+          {processes.map((process) => (
+            <button
+              key={process.alunoId}
+              type="button"
+              onClick={() => onSelect(process)}
+              className="rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:border-blue-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
+            >
+              <div className="flex items-start gap-3">
+                {process.tenant.logoUrl ? (
+                  <img src={process.tenant.logoUrl} alt="" className="h-11 w-11 rounded-xl object-contain" />
+                ) : (
+                  <span className="grid h-11 w-11 place-items-center rounded-xl bg-blue-50 text-blue-700">
+                    {process.claimRole === 'GUARDIAN' ? <UsersRound className="h-6 w-6" /> : <UserRound className="h-6 w-6" />}
+                  </span>
+                )}
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-lg font-semibold text-slate-950">{process.displayName}</span>
+                  <span className="mt-1 block text-sm text-slate-600">{process.tenant.name}</span>
+                  <span className="mt-3 inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                    {process.requiresGuardianConfirmation
+                      ? 'Confirmar vínculo de responsável'
+                      : process.status === 'PRE_REGISTRATION_COMPLETED'
+                        ? 'Pré-cadastro concluído'
+                        : 'Continuar preenchimento'}
+                  </span>
+                </span>
+                <ArrowRight className="mt-2 h-5 w-5 text-slate-400" aria-hidden="true" />
+              </div>
+            </button>
+          ))}
+        </div>
+      </main>
+    </PublicShell>
+  );
+}
+
+function AuthenticatedFlow() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { isAuthenticated } = useAuthStore();
+  const [processes, setProcesses] = useState<PreRegistrationProcessSummaryDTO[]>([]);
+  const [selectedAlunoId, setSelectedAlunoId] = useState<string | null>(null);
   const [session, setSession] = useState<PreRegistrationSessionDTO | null>(null);
   const [form, setForm] = useState<FormData>(emptyForm);
   const [activeStep, setActiveStep] = useState(0);
@@ -270,64 +426,113 @@ function AuthenticatedFlow() {
   const [error, setError] = useState('');
   const [savedMessage, setSavedMessage] = useState('');
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
+  const [guardianRelationship, setGuardianRelationship] = useState('');
+  const [guardianDeclarationAccepted, setGuardianDeclarationAccepted] = useState(false);
   const errorRef = useRef<HTMLDivElement>(null);
   const stepHeadingRef = useRef<HTMLHeadingElement>(null);
 
-  const load = useCallback(async () => {
+  const selectedProcess = useMemo(
+    () => processes.find((process) => process.alunoId === selectedAlunoId) || null,
+    [processes, selectedAlunoId]
+  );
+
+  const applySession = useCallback((value: PreRegistrationSessionDTO) => {
+    setSession(value);
+    setSelectedAlunoId(value.alunoId);
+    const availableSteps = stepsForSession(value);
+    const draft = readDraft<FormData>(value.alunoId);
+    const hasUsableDraft = Boolean(draft && availableSteps.some((step) => step.key === draft.step));
+    setForm({
+      ...value.identity,
+      ...(hasUsableDraft ? draft!.form : {}),
+    });
+    setActiveStep(Math.max(0, availableSteps.findIndex(
+      (step) => step.key === (hasUsableDraft ? draft!.step : value.currentStep)
+    )));
+    setPrivacyAccepted(false);
+    if (hasUsableDraft) {
+      setSavedMessage('Sua sessão havia expirado. Restauramos os dados não sensíveis preenchidos nesta aba.');
+    }
+  }, []);
+
+  const openProcess = useCallback(async (process: PreRegistrationProcessSummaryDTO) => {
+    setSelectedAlunoId(process.alunoId);
+    setSession(null);
+    setError('');
+    setSavedMessage('');
+    if (process.requiresGuardianConfirmation) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    try {
+      applySession(await preRegistrationPublicService.getSession(process.alunoId));
+    } catch (reason) {
+      setError(apiErrorMessage(reason));
+    } finally {
+      setLoading(false);
+    }
+  }, [applySession]);
+
+  const loadProcesses = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const value = await preRegistrationPublicService.getSession();
-      setSession(value);
-      const availableSteps = stepsForSession(value);
-      // Sessao expirada preserva o rascunho: se houver edicoes locais ainda
-      // nao salvas (persistidas antes do redirecionamento para /login),
-      // restaura-as por cima dos dados confirmados no servidor e avisa a
-      // pessoa usuaria, em vez de simplesmente descartar o que foi digitado.
-      const draft = readDraft<FormData>();
-      const hasUsableDraft = !!draft && availableSteps.some((step) => step.key === draft.step);
-      setForm((current) => ({
-        ...current,
-        ...value.identity,
-        ...(hasUsableDraft ? draft!.form : {}),
-      }));
-      const stepIndex = Math.max(
-        0,
-        availableSteps.findIndex(
-          (step) => step.key === (hasUsableDraft ? draft!.step : value.currentStep)
-        )
-      );
-      setActiveStep(stepIndex);
-      setPrivacyAccepted(false);
-      if (hasUsableDraft) {
-        setSavedMessage(
-          'Sua sessão havia expirado. Restauramos os dados que você preencheu antes de sair.'
-        );
+      const values = await preRegistrationPublicService.listProcesses();
+      setProcesses(values);
+      const preferredAlunoId = (location.state as { preferredAlunoId?: string } | null)?.preferredAlunoId;
+      const preferred = values.find((process) => process.alunoId === preferredAlunoId);
+      const target = preferred || (values.length === 1 ? values[0] : undefined);
+      if (target) {
+        setSelectedAlunoId(target.alunoId);
+        if (target.requiresGuardianConfirmation) {
+          setSession(null);
+        } else {
+          applySession(await preRegistrationPublicService.getSession(target.alunoId));
+        }
+      } else {
+        setSelectedAlunoId(null);
+        setSession(null);
       }
     } catch (reason) {
       setError(apiErrorMessage(reason));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [applySession, location.state]);
 
   useEffect(() => {
     if (!isAuthenticated) {
       navigate('/login', { replace: true });
       return;
     }
-    void load();
-  }, [isAuthenticated, load, navigate]);
+    void loadProcesses();
+  }, [isAuthenticated, loadProcesses, navigate]);
+
+  const visibleSteps = useMemo(
+    () => (session ? stepsForSession(session) : STEPS),
+    [session]
+  );
+  const currentStep = visibleSteps[Math.min(activeStep, visibleSteps.length - 1)] || visibleSteps[0];
+
+  useEffect(() => {
+    if (error) errorRef.current?.focus();
+  }, [error]);
+
+  useEffect(() => {
+    if (!loading && currentStep && session) stepHeadingRef.current?.focus();
+  }, [currentStep, loading, session]);
+
+  useEffect(() => {
+    if (!session || !currentStep || loading) return;
+    writeDraft({ form, step: currentStep.key }, session.alunoId);
+  }, [form, currentStep, session, loading]);
 
   const setValue = (key: keyof FormData, value: string | boolean) => {
     setForm((current) => ({ ...current, [key]: value }));
     setSavedMessage('');
   };
 
-  // Preenchimento assistido de CEP: mesmo comportamento usado em
-  // AlunoForm.tsx, via hook compartilhado useCepAutofill (formata ao digitar,
-  // consulta ao perder o foco, autopreenche rua/bairro/cidade/UF e nunca
-  // bloqueia o preenchimento manual em caso de falha na consulta).
   const { cepError, formatZipCodeInput, handleZipCodeBlur } = useCepAutofill((address) => {
     setForm((current) => ({
       ...current,
@@ -338,42 +543,46 @@ function AuthenticatedFlow() {
     }));
   });
 
-  const handleZipCodeChange = (value: string) => {
-    setValue('addressZipCode', formatZipCodeInput(value));
+  const confirmGuardian = async () => {
+    if (!selectedProcess) return;
+    if (!guardianDeclarationAccepted || !guardianRelationship.trim()) {
+      setError('Confirme a declaração e informe o vínculo com o menor.');
+      return;
+    }
+    setSaving(true);
+    setError('');
+    try {
+      const value = await preRegistrationPublicService.confirmGuardianAuthorization(
+        selectedProcess.alunoId,
+        {
+          relationship: guardianRelationship,
+          declarationAccepted: true,
+        }
+      );
+      setProcesses((current) => current.map((process) =>
+        process.alunoId === selectedProcess.alunoId
+          ? {
+              ...process,
+              guardianAuthorizationStatus: 'ACTIVE',
+              requiresGuardianConfirmation: false,
+            }
+          : process
+      ));
+      applySession(value);
+      setSavedMessage('Vínculo confirmado. Agora você pode continuar o pré-cadastro deste dependente.');
+    } catch (reason) {
+      setError(apiErrorMessage(reason));
+    } finally {
+      setSaving(false);
+    }
   };
-
-  const visibleSteps = useMemo(
-    () => (session ? stepsForSession(session) : STEPS),
-    [session]
-  );
-
-  const currentStep = visibleSteps[Math.min(activeStep, visibleSteps.length - 1)] || visibleSteps[0];
-
-  useEffect(() => {
-    if (error) errorRef.current?.focus();
-  }, [error]);
-
-  // Move o foco para o titulo da etapa a cada troca de passo (avanco,
-  // retrocesso ou clique direto no indicador de progresso), sinalizando a
-  // mudanca de contexto para leitores de tela e navegacao por teclado.
-  useEffect(() => {
-    if (!loading && currentStep) stepHeadingRef.current?.focus();
-  }, [currentStep, loading]);
-
-  // Persiste o rascunho a cada alteracao de campo/etapa enquanto ha um passo
-  // valido carregado, para sobreviver a um redirecionamento forcado de pagina
-  // (sessao expirada) sem perder o que ainda nao foi salvo no servidor.
-  useEffect(() => {
-    if (!session || !currentStep || loading) return;
-    writeDraft({ form, step: currentStep.key });
-  }, [form, currentStep, session, loading]);
 
   const saveCurrent = async (goForward: boolean) => {
     if (!session || !currentStep) return;
     setSaving(true);
     setError('');
     try {
-      const next = await preRegistrationPublicService.saveStep({
+      const next = await preRegistrationPublicService.saveStep(session.alunoId, {
         expectedVersion: session.version,
         step: currentStep.key,
         data: form,
@@ -381,7 +590,7 @@ function AuthenticatedFlow() {
       setSession(next);
       setForm((current) => ({ ...current, ...next.identity }));
       setSavedMessage('Alterações salvas. Você pode continuar depois com a mesma conta.');
-      clearDraft();
+      clearDraft(session.alunoId);
       if (goForward) setActiveStep((index) => Math.min(index + 1, visibleSteps.length - 1));
     } catch (reason) {
       setError(apiErrorMessage(reason));
@@ -399,12 +608,12 @@ function AuthenticatedFlow() {
     setSaving(true);
     setError('');
     try {
-      const completed = await preRegistrationPublicService.complete({
+      const completed = await preRegistrationPublicService.complete(session.alunoId, {
         expectedVersion: session.version,
-        privacyAccepted,
+        privacyAccepted: true,
       });
       setSession(completed);
-      clearDraft();
+      clearDraft(session.alunoId);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (reason) {
       setError(apiErrorMessage(reason));
@@ -413,14 +622,80 @@ function AuthenticatedFlow() {
     }
   };
 
-  if (loading) return <FullPageLoading text="Carregando seu pré-cadastro..." />;
+  if (loading) return <FullPageLoading text="Carregando seus pré-cadastros..." />;
+
+  if (processes.length === 0) {
+    return (
+      <PublicShell>
+        <div className="mx-auto max-w-lg rounded-2xl bg-white p-6 text-center shadow-sm">
+          <h1 className="text-2xl font-semibold">Não foi possível abrir o pré-cadastro</h1>
+          <p className="mt-2 text-slate-600">{error || 'Nenhum processo está vinculado a esta conta.'}</p>
+          <button onClick={() => void loadProcesses()} className="mt-5 rounded-xl bg-blue-600 px-4 py-3 font-semibold text-white">Tentar novamente</button>
+        </div>
+      </PublicShell>
+    );
+  }
+
+  if (!selectedAlunoId) {
+    return <ProcessSelector processes={processes} onSelect={(process) => void openProcess(process)} />;
+  }
+
+  if (selectedProcess?.requiresGuardianConfirmation) {
+    return (
+      <PublicShell>
+        <main className="mx-auto max-w-2xl rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-9">
+          <ShieldCheck className="h-11 w-11 text-blue-600" aria-hidden="true" />
+          <p className="mt-5 text-sm font-medium text-blue-700">Acesso de responsável</p>
+          <h1 className="mt-1 text-3xl font-semibold text-slate-950">Confirme seu vínculo</h1>
+          <p className="mt-3 leading-7 text-slate-600">
+            Antes de mostrar dados pessoais do menor, precisamos registrar em qual qualidade você responde por este dependente.
+          </p>
+          {error ? <div ref={errorRef} tabIndex={-1} role="alert" className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 outline-none">{error}</div> : null}
+          <div className="mt-6 space-y-4">
+            <Field
+              label="Vínculo com o menor"
+              name="guardianRelationship"
+              value={guardianRelationship}
+              required
+              placeholder="Ex.: mãe, pai, tutor"
+              onChange={setGuardianRelationship}
+            />
+            <label className="flex gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-800">
+              <input
+                type="checkbox"
+                checked={guardianDeclarationAccepted}
+                onChange={(event) => setGuardianDeclarationAccepted(event.target.checked)}
+                className="mt-1"
+              />
+              <span>Declaro que sou responsável legal por este menor e que as informações fornecidas são verdadeiras. O vínculo ficará registrado e poderá ser revogado pela academia.</span>
+            </label>
+          </div>
+          <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
+            {processes.length > 1 ? (
+              <button type="button" onClick={() => setSelectedAlunoId(null)} className="min-h-11 rounded-xl border border-slate-300 px-4 font-medium text-slate-700">Escolher outro cadastro</button>
+            ) : <span />}
+            <button
+              type="button"
+              disabled={saving || !guardianDeclarationAccepted || !guardianRelationship.trim()}
+              onClick={() => void confirmGuardian()}
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+              Confirmar e continuar
+            </button>
+          </div>
+        </main>
+      </PublicShell>
+    );
+  }
+
   if (!session) {
     return (
       <PublicShell>
         <div className="mx-auto max-w-lg rounded-2xl bg-white p-6 text-center shadow-sm">
           <h1 className="text-2xl font-semibold">Não foi possível abrir o pré-cadastro</h1>
           <p className="mt-2 text-slate-600">{error}</p>
-          <button onClick={() => void load()} className="mt-5 rounded-xl bg-blue-600 px-4 py-3 font-semibold text-white">Tentar novamente</button>
+          <button onClick={() => selectedProcess && void openProcess(selectedProcess)} className="mt-5 rounded-xl bg-blue-600 px-4 py-3 font-semibold text-white">Tentar novamente</button>
         </div>
       </PublicShell>
     );
@@ -435,6 +710,9 @@ function AuthenticatedFlow() {
             <h1 className="mt-4 text-3xl font-semibold text-slate-950">Pré-cadastro concluído</h1>
             <p className="mt-2 max-w-2xl text-slate-600">Seus dados foram enviados para revisão da {session.tenant.name}. Isso não significa liberação automática para treino.</p>
             {session.completedAt ? <p className="mt-4 text-sm text-slate-500">Concluído em {new Date(session.completedAt).toLocaleString('pt-BR')}</p> : null}
+            {processes.length > 1 ? (
+              <button type="button" onClick={() => { setSelectedAlunoId(null); setSession(null); }} className="mt-5 rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700">Escolher outro cadastro</button>
+            ) : null}
           </section>
           <section aria-labelledby="next-steps-title">
             <h2 id="next-steps-title" className="text-xl font-semibold text-slate-950">Próximos passos opcionais</h2>
@@ -445,9 +723,9 @@ function AuthenticatedFlow() {
                   <h3 className="mt-4 font-semibold text-slate-950">{step.title}</h3>
                   <p className="mt-2 text-sm text-slate-600">{step.description}</p>
                   <p className="mt-4 text-xs font-medium uppercase tracking-wide text-slate-500">Estado: {step.status === 'NOT_STARTED' ? 'Não iniciado' : step.status === 'IN_PROGRESS' ? 'Em andamento' : 'Concluído'}</p>
-                  <button disabled={!step.href} className="mt-4 min-h-11 w-full rounded-xl border border-blue-600 px-4 text-sm font-semibold text-blue-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400">
+                  <a href={step.href} className="mt-4 flex min-h-11 w-full items-center justify-center rounded-xl border border-blue-600 px-4 text-sm font-semibold text-blue-700">
                     {step.action === 'START' ? 'Iniciar' : step.action === 'CONTINUE' ? 'Continuar' : 'Consultar conclusão'}
-                  </button>
+                  </a>
                 </article>
               ))}
             </div>
@@ -463,8 +741,11 @@ function AuthenticatedFlow() {
         <aside className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:sticky lg:top-5 lg:self-start">
           <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
             {session.tenant.logoUrl ? <img src={session.tenant.logoUrl} alt="" className="h-10 w-10 rounded-lg object-contain" /> : <HeartPulse className="h-9 w-9 text-blue-600" />}
-            <div><p className="text-xs text-slate-500">Pré-matrícula</p><p className="font-semibold text-slate-950">{session.tenant.name}</p></div>
+            <div className="min-w-0"><p className="text-xs text-slate-500">Pré-matrícula</p><p className="truncate font-semibold text-slate-950">{session.tenant.name}</p></div>
           </div>
+          {processes.length > 1 ? (
+            <button type="button" onClick={() => { setSelectedAlunoId(null); setSession(null); }} className="mt-4 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700">Trocar cadastro</button>
+          ) : null}
           <p className="mt-4 text-sm text-slate-600">Etapa {Math.min(activeStep + 1, visibleSteps.length)} de {visibleSteps.length}: <strong>{currentStep?.title}</strong></p>
           <ol className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5 lg:grid-cols-1" aria-label="Progresso do pré-cadastro">
             {visibleSteps.map((step, index) => {
@@ -526,19 +807,7 @@ function AuthenticatedFlow() {
 
             {currentStep?.key === 'ADDRESS' ? (
               <div className="grid gap-4 sm:grid-cols-6">
-                <div className="sm:col-span-2">
-                  <Field
-                    label="CEP"
-                    name="addressZipCode"
-                    value={form.addressZipCode}
-                    autoComplete="postal-code"
-                    inputMode="numeric"
-                    placeholder="00000-000"
-                    error={cepError || undefined}
-                    onChange={handleZipCodeChange}
-                    onBlur={handleZipCodeBlur}
-                  />
-                </div>
+                <div className="sm:col-span-2"><Field label="CEP" name="addressZipCode" value={form.addressZipCode} autoComplete="postal-code" inputMode="numeric" placeholder="00000-000" error={cepError || undefined} onChange={(value) => setValue('addressZipCode', formatZipCodeInput(value))} onBlur={handleZipCodeBlur} /></div>
                 <div className="sm:col-span-4"><Field label="Rua" name="addressStreet" value={form.addressStreet} autoComplete="address-line1" onChange={(value) => setValue('addressStreet', value)} /></div>
                 <div className="sm:col-span-2"><Field label="Número" name="addressNumber" value={form.addressNumber} autoComplete="address-line2" onChange={(value) => setValue('addressNumber', value)} /></div>
                 <div className="sm:col-span-4"><Field label="Complemento" name="addressComplement" value={form.addressComplement} onChange={(value) => setValue('addressComplement', value)} /></div>
@@ -556,13 +825,11 @@ function AuthenticatedFlow() {
                   <Field label="CPF do responsável" name="guardianCpf" value={form.guardianCpf} required inputMode="numeric" onChange={(value) => setValue('guardianCpf', value)} />
                   <Field label="Telefone do responsável" name="guardianPhone" type="tel" value={form.guardianPhone} onChange={(value) => setValue('guardianPhone', value)} />
                   <Field label="E-mail do responsável" name="guardianEmail" type="email" value={form.guardianEmail} onChange={(value) => setValue('guardianEmail', value)} />
-                  {session.claimRole === 'GUARDIAN' ? <Field label="Vínculo com o menor" name="guardianRelationship" value={form.guardianRelationship} required placeholder="Ex.: mãe, pai, tutor" onChange={(value) => setValue('guardianRelationship', value)} /> : null}
                 </div>
-                {session.claimRole === 'GUARDIAN' ? (
-                  <label className="flex gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-800">
-                    <input type="checkbox" checked={form.guardianDeclarationAccepted === true} onChange={(event) => setValue('guardianDeclarationAccepted', event.target.checked)} className="mt-1" />
-                    <span>Declaro que sou responsável legal e autorizo o preenchimento deste pré-cadastro. Este vínculo será registrado e poderá ser revogado pela academia.</span>
-                  </label>
+                {session.claimRole === 'STUDENT' && session.guardianAuthorization.status !== 'ACTIVE' ? (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+                    Para concluir o cadastro de menor, a academia precisa vincular uma conta de responsável legal. Os dados preenchidos podem ser salvos enquanto essa validação é realizada.
+                  </div>
                 ) : null}
               </div>
             ) : null}
@@ -578,22 +845,9 @@ function AuthenticatedFlow() {
                     <div><dt className="text-slate-500">E-mail</dt><dd className="font-medium text-slate-900">{form.email || 'Pendente'}</dd></div>
                   </dl>
                 </div>
-                {session.missingRequiredFields.length ? (
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-                    Ainda existem campos obrigatórios pendentes: {session.missingRequiredFields.join(', ')}.
-                  </div>
-                ) : null}
+                {session.missingRequiredFields.length ? <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Ainda existem campos obrigatórios pendentes: {session.missingRequiredFields.join(', ')}.</div> : null}
                 <label htmlFor="privacy-consent" className="flex gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950">
-                  <input
-                    id="privacy-consent"
-                    type="checkbox"
-                    checked={privacyAccepted}
-                    onChange={(event) => {
-                      setPrivacyAccepted(event.target.checked);
-                      setError('');
-                    }}
-                    className="mt-1"
-                  />
+                  <input id="privacy-consent" type="checkbox" checked={privacyAccepted} onChange={(event) => { setPrivacyAccepted(event.target.checked); setError(''); }} className="mt-1" />
                   <span>Li e aceito o <a href={session.privacy.noticeUrl} target="_blank" rel="noreferrer" className="font-semibold underline">aviso de privacidade vigente</a>. O aceite registrará a versão {session.privacy.noticeVersion}, data, hora e minha identidade autenticada.</span>
                 </label>
                 <p className="text-sm text-slate-600">A conclusão não ativa matrícula, contrato, cobrança, plano, agenda ou liberação para treino.</p>
@@ -618,22 +872,9 @@ function AuthenticatedFlow() {
   );
 }
 
-function PublicShell({ children }: { children: React.ReactNode }) {
-  return <div className="min-h-screen bg-slate-100 px-4 py-5 text-slate-950 sm:px-6 sm:py-8">{children}</div>;
-}
-
-function FullPageLoading({ text }: { text: string }) {
-  return (
-    <PublicShell>
-      <div className="mx-auto flex min-h-[70vh] max-w-md flex-col items-center justify-center text-center">
-        <Loader2 className="h-10 w-10 animate-spin text-blue-600" aria-hidden="true" />
-        <p className="mt-4 font-medium text-slate-700">{text}</p>
-      </div>
-    </PublicShell>
-  );
-}
-
 export function PublicPreRegistration() {
   const { token } = useParams<{ token?: string }>();
+  if (token === 'anamnese') return <OptionalModuleHandoff module="ANAMNESIS" />;
+  if (token === 'par-q') return <OptionalModuleHandoff module="PARQ" />;
   return token ? <PublicLanding token={token} /> : <AuthenticatedFlow />;
 }
