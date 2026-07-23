@@ -47,6 +47,10 @@ jobs:
           set -o pipefail
           pnpm --filter @corrida/api exec node scripts/visual-audit-issue-270.mjs 2>&1 | tee visual-audit.log
 
+      - name: Package source for isolated validation
+        if: always()
+        run: tar --exclude=.git --exclude=node_modules --exclude=artifacts -czf issue-270-source.tgz .
+
       - name: Upload screenshots and diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -55,5 +59,6 @@ jobs:
           path: |
             artifacts/issue-270-visual/*.png
             visual-audit.log
+            issue-270-source.tgz
           if-no-files-found: warn
-          retention-days: 14
+          retention-days: 1
