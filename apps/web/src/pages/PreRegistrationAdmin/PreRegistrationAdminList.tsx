@@ -492,7 +492,7 @@ export function PreRegistrationAdminList() {
         </Card>
       )}
 
-      <Card>
+      <Card className="min-w-0">
         <CardHeader className="pb-4">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
@@ -505,7 +505,7 @@ export function PreRegistrationAdminList() {
             </span>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="min-w-0">
           {loading ? (
             <div className="py-14 text-center">
               <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
@@ -526,8 +526,8 @@ export function PreRegistrationAdminList() {
                   <LeadCard key={lead.id} lead={lead} />
                 ))}
               </div>
-              <div className="hidden overflow-x-auto md:block">
-                <table className="w-full min-w-[1120px] text-left text-sm">
+              <div className="hidden w-full min-w-0 max-w-full overflow-x-auto md:block">
+                <table className="w-full table-fixed text-left text-sm">
                   <thead className="border-b border-border text-xs uppercase tracking-wide text-muted-foreground">
                     <tr>
                       <th className="px-3 py-3">Pessoa</th>
@@ -545,7 +545,7 @@ export function PreRegistrationAdminList() {
                   <tbody className="divide-y divide-border">
                     {result.items.map((lead) => (
                       <tr key={lead.id} className="hover:bg-muted/40">
-                        <td className="px-3 py-3">
+                        <td className="px-2 py-3 align-top">
                           <Link
                             className="font-medium text-foreground hover:text-primary"
                             to={`/pre-matriculas/${lead.id}`}
@@ -572,18 +572,17 @@ export function PreRegistrationAdminList() {
                         <td className="px-3 py-3">
                           <ProgressSummary lead={lead} />
                         </td>
-                        <td className="px-3 py-3 text-muted-foreground">{lead.origin}</td>
-                        <td className="px-3 py-3 text-muted-foreground">
+                        <td className="px-3 py-3 align-top text-muted-foreground">
                           {lead.responsible?.name || 'Não definido'}
                         </td>
-                        <td className="px-3 py-3 text-muted-foreground">
+                        <td className="px-3 py-3 align-top text-muted-foreground">
                           {formatDate(lead.lastActivityAt)}
                         </td>
-                        <td className="px-3 py-3">
-                          <span className="font-medium text-foreground">
+                        <td className="min-w-0 px-3 py-3 align-top">
+                          <span className="block font-medium text-foreground">
                             {lead.nextAction.label}
                           </span>
-                          <p className="mt-0.5 max-w-xs text-xs text-muted-foreground">
+                          <p className="mt-0.5 line-clamp-3 text-xs text-muted-foreground">
                             {lead.nextAction.description}
                           </p>
                           {lead.progress.parqRequiresProfessionalReview && (
@@ -593,7 +592,7 @@ export function PreRegistrationAdminList() {
                             </p>
                           )}
                         </td>
-                        <td className="px-3 py-3">
+                        <td className="px-2 py-3 align-top">
                           <Link
                             aria-label={`Abrir ${lead.name}`}
                             to={`/pre-matriculas/${lead.id}`}
