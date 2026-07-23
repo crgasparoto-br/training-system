@@ -38,13 +38,13 @@ async function findAccessibleStudent(userId: string): Promise<AccessibleStudent>
   if (direct) return { ...direct, accessRole: 'STUDENT' };
 
   const guardianRows = await prisma.$queryRaw<Array<{ alunoId: string; contractId: string }>>`
-    SELECT authorization."alunoId", authorization."contractId"
-    FROM "PreRegistrationGuardianAuthorization" AS authorization
-    JOIN "Aluno" AS aluno ON aluno.id = authorization."alunoId"
-    WHERE authorization."guardianUserId" = ${userId}
-      AND authorization."status" = 'ACTIVE'
-      AND aluno.status IN ('INVITED', 'PRE_REGISTRATION_IN_PROGRESS', 'PRE_REGISTRATION_COMPLETED')
-    ORDER BY authorization."updatedAt" DESC
+    SELECT auth."alunoId", auth."contractId"
+    FROM "PreRegistrationGuardianAuthorization" AS auth
+    JOIN "Aluno" AS student ON student."id" = auth."alunoId"
+    WHERE auth."guardianUserId" = ${userId}
+      AND auth."status" = 'ACTIVE'
+      AND student."status" IN ('INVITED', 'PRE_REGISTRATION_IN_PROGRESS', 'PRE_REGISTRATION_COMPLETED')
+    ORDER BY auth."updatedAt" DESC
     LIMIT 1
   `;
   const guardian = guardianRows[0];
