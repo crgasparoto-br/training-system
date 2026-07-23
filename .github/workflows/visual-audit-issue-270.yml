@@ -34,9 +34,10 @@ jobs:
           set -euo pipefail
           cat .issue-270-corrections/part* | base64 --decode > /tmp/issue-270-corrections.tgz
           tar -xzf /tmp/issue-270-corrections.tgz -C .
+          git checkout -- .github/workflows/visual-audit-issue-270.yml
+          git checkout -- .github/workflows/apply-issue-270-corrections.yml
+          git checkout -- .github/workflows/export-issue-270-source.yml
           rm -rf .issue-270-corrections
-          rm -f .github/workflows/apply-issue-270-corrections.yml
-          rm -f .github/workflows/export-issue-270-source.yml
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
