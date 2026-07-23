@@ -21,14 +21,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Package source for isolated validation
-        run: git archive --format=tar.gz --output=issue-270-source.tgz HEAD
+      - name: Capture branch tree metadata
+        run: |
+          git fetch origin feat/270-pre-registration-admin --depth=1
+          git rev-parse FETCH_HEAD^{tree} > branch-tree.txt
 
-      - name: Upload source snapshot
+      - name: Upload branch tree metadata
         uses: actions/upload-artifact@v4
         with:
-          name: issue-270-source-${{ github.run_id }}
-          path: issue-270-source.tgz
+          name: issue-270-branch-tree-${{ github.run_id }}
+          path: branch-tree.txt
           retention-days: 1
 
       - name: Setup pnpm
