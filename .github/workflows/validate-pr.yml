@@ -13,9 +13,6 @@ on:
       - 'feat/**'
       - 'fix/**'
 
-permissions:
-  contents: write
-
 jobs:
   validate:
     name: Validate repository
@@ -42,20 +39,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: feat/270-pre-registration-admin
-          fetch-depth: 0
-
-      - name: Serialize student scheduler batch
-        if: github.event_name == 'pull_request'
-        run: |
-          python3 scripts/apply-student-scheduler-lock-fix.py
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add apps/api/src/modules/student-contracts/student-contract-lifecycle.service.ts
-          git diff --cached --check
-          git commit -m 'fix: serialize concurrent student scheduler runs'
-          git push origin HEAD:feat/270-pre-registration-admin
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
