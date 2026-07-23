@@ -1,11 +1,14 @@
 import express, { Router, type Request, type Response } from 'express';
+import { z } from 'zod';
 import { RegisterSchema, sendError, sendSuccess } from '@corrida/utils';
-import type {
-  CompletePreRegistrationDTO,
-  ConfirmGuardianAuthorizationDTO,
-  PreRegistrationAccountRegistrationDTO,
-  PreRegistrationClaimDTO,
-  SavePreRegistrationStepDTO,
+import {
+  PRE_REGISTRATION_CLAIM_ROLES,
+  PRE_REGISTRATION_STEPS,
+  type CompletePreRegistrationDTO,
+  type ConfirmGuardianAuthorizationDTO,
+  type PreRegistrationAccountRegistrationDTO,
+  type PreRegistrationClaimDTO,
+  type SavePreRegistrationStepDTO,
 } from '@corrida/types';
 import { authMiddleware, alunoMiddleware } from '../auth/auth.middleware.js';
 import {
@@ -20,11 +23,53 @@ import {
 
 const publicRouter: Router = Router();
 const authenticatedRouter: Router = Router();
+const claimRoleSchema = z.enum(PRE_REGISTRATION_CLAIM_ROLES);
+const stepSchema = z.enum(PRE_REGISTRATION_STEPS);
 const invitedAccountSchema = RegisterSchema.pick({
   name: true,
   email: true,
   password: true,
-});
+}).extend({
+  role: claimRoleSchema,
+}).strict();
+const claimSchema = z.object({
+  token: z.string().min(1, 'Token inválido').max(512, 'Token inválido'),
+  role: claimRoleSchema,
+}).strict();
+const guardianAuthorizationSchema = z.object({
+  relationship: z.string().trim().min(2, 'Informe o vínculo com o menor').max(100),
+  declarationAccepted: z.literal(true),
+}).strict();
+const publicIdentitySchema = z.object({
+  name: z.string().trim().min(3).max(200).optional(),
+  phone: z.string().trim().max(40).optional(),
+  email: z.string().trim().email('E-mail inválido').max(320).optional(),
+  cpf: z.string().trim().max(20).optional(),
+  birthDate: z.string().trim().max(40).optional(),
+  gender: z.enum(['male', 'female', 'other']).optional(),
+  addressStreet: z.string().trim().max(200).optional(),
+  addressNumber: z.string().trim().max(40).optional(),
+  addressComplement: z.string().trim().max(200).optional(),
+  addressNeighborhood: z.string().trim().max(150).optional(),
+  addressCity: z.string().trim().max(150).optional(),
+  addressState: z.string().trim().max(10).optional(),
+  addressZipCode: z.string().trim().max(20).optional(),
+  guardianName: z.string().trim().max(200).optional(),
+  guardianCpf: z.string().trim().max(20).optional(),
+  guardianPhone: z.string().trim().max(40).optional(),
+  guardianEmail: z.string().trim().email('E-mail do responsável inválido').max(320).optional(),
+  guardianRelationship: z.string().trim().max(100).optional(),
+  guardianDeclarationAccepted: z.boolean().optional(),
+}).strict();
+const saveStepSchema = z.object({
+  expectedVersion: z.number().int().min(1),
+  step: stepSchema,
+  data: publicIdentitySchema,
+}).strict();
+const completeSchema = z.object({
+  expectedVersion: z.number().int().min(1),
+  privacyAccepted: z.literal(true),
+}).strict();
 
 const STATUS_BY_CODE: Record<string, number> = {
   INVALID_INVITE: 404,
@@ -48,6 +93,17 @@ function handleError(res: Response, error: unknown) {
   }
   const message = error instanceof Error ? error.message : 'Não foi possível continuar.';
   return sendError(res, message, 500);
+}
+
+function parseInput<T>(schema: z.ZodType<T>, value: unknown): T {
+  const validation = schema.safeParse(value);
+  if (!validation.success) {
+    throw new PreRegistrationPublicError(
+      validation.error.errors.map((item) => item.message).join(', '),
+      'MISSING_REQUIRED_FIELDS'
+    );
+  }
+  return validation.data;
 }
 
 function userIdOf(req: Request): string {
@@ -75,17 +131,10 @@ publicRouter.post(
   express.json({ limit: '32kb' }),
   async (req, res) => {
     try {
-      const input = req.body as PreRegistrationAccountRegistrationDTO;
-      const validation = invitedAccountSchema.safeParse(input);
-      if (!validation.success) {
-        throw new PreRegistrationPublicError(
-          validation.error.errors.map((item) => item.message).join(', '),
-          'MISSING_REQUIRED_FIELDS'
-        );
-      }
+      const input = parseInput<PreRegistrationAccountRegistrationDTO>(invitedAccountSchema, req.body);
       const result = await preRegistrationPublicService.registerAndClaim(
         req.params.token,
-        { ...validation.data, role: input.role }
+        input
       );
       return sendSuccess(res, result, 'Acesso criado e convite vinculado', 201);
     } catch (error) {
@@ -100,7 +149,7 @@ authenticatedRouter.post('/claim', async (req, res) => {
   try {
     const result = await preRegistrationPublicService.claim(
       userIdOf(req),
-      req.body as PreRegistrationClaimDTO
+      parseInput<PreRegistrationClaimDTO>(claimSchema, req.body)
     );
     return sendSuccess(res, result, 'Convite vinculado à sua conta');
   } catch (error) {
@@ -121,7 +170,7 @@ authenticatedRouter.post('/processes/:alunoId/guardian-authorization', async (re
     const session = await preRegistrationPublicService.confirmGuardianAuthorization(
       userIdOf(req),
       req.params.alunoId,
-      req.body as ConfirmGuardianAuthorizationDTO
+      parseInput<ConfirmGuardianAuthorizationDTO>(guardianAuthorizationSchema, req.body)
     );
     return sendSuccess(res, session, 'Vínculo do responsável confirmado');
   } catch (error) {
@@ -187,12 +236,12 @@ async function saveStepForProcess(
 }
 
 authenticatedRouter.patch('/processes/:alunoId/steps', async (req, res) => {
-  return saveStepForProcess(
-    req,
-    res,
-    req.params.alunoId,
-    req.body as SavePreRegistrationStepDTO
-  );
+  try {
+    const input = parseInput<SavePreRegistrationStepDTO>(saveStepSchema, req.body);
+    return saveStepForProcess(req, res, req.params.alunoId, input);
+  } catch (error) {
+    return handleError(res, error);
+  }
 });
 
 authenticatedRouter.post('/processes/:alunoId/complete', async (req, res) => {
@@ -200,7 +249,7 @@ authenticatedRouter.post('/processes/:alunoId/complete', async (req, res) => {
     const session = await preRegistrationPublicService.complete(
       userIdOf(req),
       req.params.alunoId,
-      req.body as CompletePreRegistrationDTO,
+      parseInput<CompletePreRegistrationDTO>(completeSchema, req.body),
       { ipAddress: req.ip, userAgent: req.get('user-agent') || undefined }
     );
     return sendSuccess(res, session, 'Pré-cadastro concluído');
@@ -224,7 +273,8 @@ authenticatedRouter.get('/session', async (req, res) => {
 authenticatedRouter.patch('/steps', async (req, res) => {
   try {
     const alunoId = await singleProcessId(userIdOf(req));
-    return saveStepForProcess(req, res, alunoId, req.body as SavePreRegistrationStepDTO);
+    const input = parseInput<SavePreRegistrationStepDTO>(saveStepSchema, req.body);
+    return saveStepForProcess(req, res, alunoId, input);
   } catch (error) {
     return handleError(res, error);
   }
@@ -236,7 +286,7 @@ authenticatedRouter.post('/complete', async (req, res) => {
     const session = await preRegistrationPublicService.complete(
       userIdOf(req),
       alunoId,
-      req.body as CompletePreRegistrationDTO,
+      parseInput<CompletePreRegistrationDTO>(completeSchema, req.body),
       { ipAddress: req.ip, userAgent: req.get('user-agent') || undefined }
     );
     return sendSuccess(res, session, 'Pré-cadastro concluído');
