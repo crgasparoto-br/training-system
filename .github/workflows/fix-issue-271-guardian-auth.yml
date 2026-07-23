@@ -1,0 +1,149 @@
+name: Harden issue 271 guardian authorization
+
+on:
+  push:
+    branches:
+      - feat/271-public-pre-registration
+    paths:
+      - '.github/workflows/fix-issue-271-guardian-auth.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/271-public-pre-registration
+          fetch-depth: 0
+
+      - name: Require pre-validated guardian identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          service_path = Path('apps/api/src/modules/pre-registration-public/pre-registration-public.service.ts')
+          service = service_path.read_text()
+          service = service.replace(
+              '  normalizeStudentEmail,\n  upsertStudentIdentity,',
+              '  normalizeStudentCpf,\n  normalizeStudentEmail,\n  normalizeStudentPhone,\n  upsertStudentIdentity,',
+              1,
+          )
+          old = '''  } else {
+    await tx.$executeRaw`
+      INSERT INTO "PreRegistrationGuardianAuthorization" (
+        "id", "contractId", "alunoId", "guardianUserId", "purpose", "status",
+        "validatedAt", "validatedByUserId", "createdAt", "updatedAt"
+      ) VALUES (
+        ${crypto.randomUUID()}, ${invite.contractId}, ${invite.alunoId}, ${userId},
+        'PRE_REGISTRATION', 'ACTIVE', CURRENT_TIMESTAMP, ${userId},
+        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+      )
+      ON CONFLICT ("alunoId", "guardianUserId", "purpose")
+      DO UPDATE SET
+        "status" = 'ACTIVE',
+        "validatedAt" = CURRENT_TIMESTAMP,
+        "validatedByUserId" = ${userId},
+        "revokedAt" = NULL,
+        "revokedByUserId" = NULL,
+        "updatedAt" = CURRENT_TIMESTAMP
+    `;
+    await startGuardianPreRegistrationInTransaction(
+'''
+          new = '''  } else {
+    const identity = await loadStudentIdentity(invite.alunoId, invite.contractId, tx);
+    const guardianEmailMatches = Boolean(
+      identity.guardianEmail &&
+      normalizeStudentEmail(identity.guardianEmail) === normalizeStudentEmail(user.email)
+    );
+    const guardianCpfMatches = Boolean(
+      identity.guardianCpf &&
+      user.profile?.cpf &&
+      normalizeStudentCpf(identity.guardianCpf) === normalizeStudentCpf(user.profile.cpf)
+    );
+    const guardianPhoneMatches = Boolean(
+      identity.guardianPhone &&
+      user.profile?.phone &&
+      normalizeStudentPhone(identity.guardianPhone) === normalizeStudentPhone(user.profile.phone)
+    );
+    if (!guardianEmailMatches && !guardianCpfMatches && !guardianPhoneMatches) {
+      throw new PreRegistrationPublicError(
+        'Não foi possível validar seu vínculo com o menor. Solicite a revisão da academia.',
+        'GUARDIAN_AUTHORIZATION_REQUIRED'
+      );
+    }
+
+    await tx.$executeRaw`
+      INSERT INTO "PreRegistrationGuardianAuthorization" (
+        "id", "contractId", "alunoId", "guardianUserId", "purpose", "status",
+        "validatedAt", "validatedByUserId", "createdAt", "updatedAt"
+      ) VALUES (
+        ${crypto.randomUUID()}, ${invite.contractId}, ${invite.alunoId}, ${userId},
+        'PRE_REGISTRATION', 'ACTIVE', CURRENT_TIMESTAMP, ${userId},
+        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+      )
+      ON CONFLICT ("alunoId", "guardianUserId", "purpose")
+      DO UPDATE SET
+        "status" = 'ACTIVE',
+        "validatedAt" = CURRENT_TIMESTAMP,
+        "validatedByUserId" = ${userId},
+        "revokedAt" = NULL,
+        "revokedByUserId" = NULL,
+        "updatedAt" = CURRENT_TIMESTAMP
+    `;
+    await startGuardianPreRegistrationInTransaction(
+'''
+          if old not in service:
+              raise SystemExit('guardian claim anchor not found')
+          service_path.write_text(service.replace(old, new, 1))
+
+          test_path = Path('apps/api/tests/pre-registration-public.integration.test.ts')
+          tests = test_path.read_text()
+          first_anchor = '''    firstAlunoId = first.id;
+
+    const second = await prisma.aluno.create({'''
+          first_replacement = '''    firstAlunoId = first.id;
+    await upsertStudentIdentity(
+      first.id,
+      contractId,
+      { guardianEmail: `${suffix}-guardian@example.com` },
+      {
+        actor: { userId: guardianUserId },
+        sourceType: 'professional',
+        sourceReference: 'issue_271_guardian_validation_fixture',
+      }
+    );
+
+    const second = await prisma.aluno.create({'''
+          second_anchor = '''    secondAlunoId = second.id;
+  });'''
+          second_replacement = '''    secondAlunoId = second.id;
+    await upsertStudentIdentity(
+      second.id,
+      contractId,
+      { guardianEmail: `${suffix}-guardian@example.com` },
+      {
+        actor: { userId: guardianUserId },
+        sourceType: 'professional',
+        sourceReference: 'issue_271_guardian_validation_fixture',
+      }
+    );
+  });'''
+          if first_anchor not in tests or second_anchor not in tests:
+              raise SystemExit('guardian fixture anchors not found')
+          tests = tests.replace(first_anchor, first_replacement, 1)
+          tests = tests.replace(second_anchor, second_replacement, 1)
+          test_path.write_text(tests)
+          PY
+
+          rm -f .github/workflows/fix-issue-271-guardian-auth.yml
+          git add -A
+          git diff --cached --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix: exigir identidade pré-validada do responsável na issue 271'
+          git push origin HEAD:feat/271-public-pre-registration
