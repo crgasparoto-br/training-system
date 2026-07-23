@@ -1,4 +1,6 @@
 import { PrismaClient } from '@prisma/client';
+import { upsertStudentIdentity } from '../src/modules/alunos/student-identity.service.js';
+import { preRegistrationDuplicateReviewService } from '../src/modules/pre-registration-public/pre-registration-duplicate-review.service.js';
 import {
   PreRegistrationPublicError,
   preRegistrationPublicService,
@@ -159,6 +161,60 @@ describeDatabase('public pre-registration integration', () => {
     ).rejects.toMatchObject({ code: 'CONCURRENT_MODIFICATION' });
   });
 
+  it('preserves non-conflicting fields and opens administrative review for duplicate CPF', async () => {
+    const conflictingAluno = await prisma.aluno.create({
+      data: {
+        contractId,
+        status: 'LEAD',
+        leadName: 'Cadastro Existente',
+      },
+    });
+    await upsertStudentIdentity(
+      conflictingAluno.id,
+      contractId,
+      { name: 'Cadastro Existente', cpf: '11144477735' },
+      {
+        actor: { userId: guardianUserId },
+        sourceType: 'professional',
+        sourceReference: 'issue_271_integration_test',
+      }
+    );
+
+    const session = await preRegistrationPublicService.getSession(guardianUserId);
+    const input = {
+      expectedVersion: session.version,
+      step: 'IDENTIFICATION' as const,
+      data: {
+        name: 'Rascunho Preservado',
+        cpf: '11144477735',
+      },
+    };
+
+    await expect(
+      preRegistrationPublicService.saveStep(guardianUserId, input)
+    ).rejects.toMatchObject({ code: 'DUPLICATE_REVIEW_REQUIRED' });
+    await preRegistrationDuplicateReviewService.preserveCpfConflict(guardianUserId, input);
+
+    const [resumed, review] = await Promise.all([
+      preRegistrationPublicService.getSession(guardianUserId),
+      prisma.studentProfileReview.findFirst({
+        where: {
+          alunoId: secondAlunoId,
+          status: 'pending',
+          requiresApproval: true,
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+    expect(resumed.version).toBe(session.version + 1);
+    expect(resumed.currentStep).toBe('IDENTIFICATION');
+    expect(resumed.identity.name).toBe('Rascunho Preservado');
+    expect(resumed.identity.cpf).toBe('52998224725');
+    expect(review).not.toBeNull();
+    expect(review?.changedFields).toEqual(['cpf']);
+    expect((review?.snapshotAfter as { cpf?: string }).cpf).toBe('11144477735');
+  });
+
   it('completes status, consent and invite atomically and supports a safe retry', async () => {
     const identification = await preRegistrationPublicService.getSession(guardianUserId);
     const contact = await preRegistrationPublicService.saveStep(guardianUserId, {
@@ -174,7 +230,7 @@ describeDatabase('public pre-registration integration', () => {
       step: 'GUARDIAN',
       data: {
         guardianName: 'Responsável Teste',
-        guardianCpf: '11144477735',
+        guardianCpf: '12345678909',
         guardianPhone: '15988880000',
         guardianEmail: `${suffix}-guardian@example.com`,
         guardianRelationship: 'Mãe',
