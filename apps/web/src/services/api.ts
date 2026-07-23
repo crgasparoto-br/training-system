@@ -13,6 +13,13 @@ function resolveApiBaseUrl(value?: string) {
   return normalized.endsWith('/api/v1') ? normalized : `${normalized}/api/v1`;
 }
 
+function currentLocalReturnPath() {
+  const path = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  return path.startsWith('/') && !path.startsWith('//') && !path.startsWith('/login')
+    ? path
+    : '/';
+}
+
 // Criar instância do Axios
 export const api = axios.create({
   baseURL: resolveApiBaseUrl(API_URL),
@@ -54,13 +61,15 @@ api.interceptors.response.use(
     if (status === 401 && !isAuthRequest) {
       const hasToken = !!localStorage.getItem('token');
 
-      // Evita logout em loop para requisições públicas e evita redirecionamento redundante.
+      // Evita logout em loop para requisições públicas e preserva somente uma
+      // rota local para retomada após a nova autenticação.
       if (hasToken) {
+        const returnTo = currentLocalReturnPath();
         localStorage.removeItem('token');
         localStorage.removeItem('user');
 
         if (window.location.pathname !== '/login') {
-          window.location.href = '/login';
+          window.location.href = `/login?returnTo=${encodeURIComponent(returnTo)}`;
         }
       }
     }
