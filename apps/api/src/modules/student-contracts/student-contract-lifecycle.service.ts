@@ -11,6 +11,40 @@ import {
 const prisma = new PrismaClient();
 const STUDENT_SCHEDULER_LOCK_ID = 742703001;
 
+/**
+ * Executa `fn` sob um SAVEPOINT proprio dentro da transacao externa `tx`.
+ *
+ * Necessario quando varios itens independentes precisam rodar na MESMA
+ * transacao (ex.: para preservar um advisory lock via
+ * pg_try_advisory_xact_lock que so vale para a transacao corrente): em
+ * Postgres, um erro real de SQL aborta a transacao inteira ate um
+ * ROLLBACK/ROLLBACK TO SAVEPOINT. Sem savepoint por item, a falha de um item
+ * derrubaria silenciosamente os demais itens ja processados com sucesso no
+ * mesmo lote.
+ *
+ * Em caso de falha, reverte apenas ate o savepoint (preservando o trabalho
+ * anterior da mesma transacao) e retorna o resultado de falha construido por
+ * `onError`, em vez de propagar a excecao.
+ */
+async function withSavepoint<TSuccess, TFailure>(
+  tx: Prisma.TransactionClient,
+  savepointName: string,
+  fn: () => Promise<TSuccess>,
+  onError: (error: unknown) => TFailure
+): Promise<{ ok: true; value: TSuccess } | { ok: false; value: TFailure }> {
+  const quotedName = `"${savepointName}"`;
+  await tx.$executeRawUnsafe(`SAVEPOINT ${quotedName}`);
+  try {
+    const value = await fn();
+    await tx.$executeRawUnsafe(`RELEASE SAVEPOINT ${quotedName}`);
+    return { ok: true, value };
+  } catch (error) {
+    await tx.$executeRawUnsafe(`ROLLBACK TO SAVEPOINT ${quotedName}`);
+    await tx.$executeRawUnsafe(`RELEASE SAVEPOINT ${quotedName}`);
+    return { ok: false, value: onError(error) };
+  }
+}
+
 type ContractActor = {
   userId?: string;
   ipAddress?: string;
@@ -216,20 +250,28 @@ export const studentContractLifecycleService = {
           error: string;
         }> = [];
 
+        // Todos os candidatos do lote rodam dentro desta unica transacao externa
+        // (necessaria para manter o advisory lock via pg_try_advisory_xact_lock,
+        // que serializa execucoes concorrentes do scheduler) -- por isso cada
+        // candidato roda sob um SAVEPOINT proprio via withSavepoint, isolando a
+        // falha de um candidato dos demais candidatos validos do mesmo lote.
+        let savepointSequence = 0;
         for (const candidate of studentCandidates) {
-          try {
-            const result = await prepareOrActivateStudentContractInTransaction(
-              tx,
-              candidate.id,
-              now
-            );
-            if (result.reason === 'activated') activated += 1;
-          } catch (error) {
-            failures.push({
-              partyType: 'STUDENT',
+          savepointSequence += 1;
+          const outcome = await withSavepoint(
+            tx,
+            `sp_student_activation_${savepointSequence}`,
+            () => prepareOrActivateStudentContractInTransaction(tx, candidate.id, now),
+            (error) => ({
+              partyType: 'STUDENT' as const,
               linkId: candidate.id,
               error: error instanceof Error ? error.message : 'Erro desconhecido',
-            });
+            })
+          );
+          if (outcome.ok) {
+            if (outcome.value.reason === 'activated') activated += 1;
+          } else {
+            failures.push(outcome.value);
           }
         }
 

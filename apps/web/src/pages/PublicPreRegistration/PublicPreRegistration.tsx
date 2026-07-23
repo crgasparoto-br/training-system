@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FocusEvent, type FormEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -24,6 +24,8 @@ import type {
 } from '@corrida/types';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { preRegistrationPublicService } from '../../services/pre-registration-public.service';
+import { useCepAutofill } from '../../hooks/useCepAutofill';
+import { clearDraft, readDraft, writeDraft } from './preRegistrationDraft';
 
 const STEPS: Array<{
   key: PreRegistrationStep;
@@ -65,7 +67,10 @@ function Field({
   required,
   autoComplete,
   placeholder,
+  inputMode,
+  error,
   onChange,
+  onBlur,
 }: {
   label: string;
   name: string;
@@ -74,7 +79,10 @@ function Field({
   required?: boolean;
   autoComplete?: string;
   placeholder?: string;
+  inputMode?: 'text' | 'numeric' | 'tel' | 'email' | 'decimal';
+  error?: string;
   onChange: (value: string) => void;
+  onBlur?: (event: FocusEvent<HTMLInputElement>) => void;
 }) {
   return (
     <label className="block space-y-2 text-sm font-medium text-slate-800">
@@ -89,9 +97,12 @@ function Field({
         required={required}
         autoComplete={autoComplete}
         placeholder={placeholder}
+        inputMode={inputMode}
         onChange={(event) => onChange(event.target.value)}
+        onBlur={onBlur}
         className="min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-base text-slate-950 outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-200"
       />
+      {error ? <span className="block text-sm text-red-600">{error}</span> : null}
     </label>
   );
 }
@@ -259,6 +270,8 @@ function AuthenticatedFlow() {
   const [error, setError] = useState('');
   const [savedMessage, setSavedMessage] = useState('');
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
+  const errorRef = useRef<HTMLDivElement>(null);
+  const stepHeadingRef = useRef<HTMLHeadingElement>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -266,14 +279,31 @@ function AuthenticatedFlow() {
     try {
       const value = await preRegistrationPublicService.getSession();
       setSession(value);
-      setForm((current) => ({ ...current, ...value.identity }));
       const availableSteps = stepsForSession(value);
+      // Sessao expirada preserva o rascunho: se houver edicoes locais ainda
+      // nao salvas (persistidas antes do redirecionamento para /login),
+      // restaura-as por cima dos dados confirmados no servidor e avisa a
+      // pessoa usuaria, em vez de simplesmente descartar o que foi digitado.
+      const draft = readDraft<FormData>();
+      const hasUsableDraft = !!draft && availableSteps.some((step) => step.key === draft.step);
+      setForm((current) => ({
+        ...current,
+        ...value.identity,
+        ...(hasUsableDraft ? draft!.form : {}),
+      }));
       const stepIndex = Math.max(
         0,
-        availableSteps.findIndex((step) => step.key === value.currentStep)
+        availableSteps.findIndex(
+          (step) => step.key === (hasUsableDraft ? draft!.step : value.currentStep)
+        )
       );
       setActiveStep(stepIndex);
       setPrivacyAccepted(false);
+      if (hasUsableDraft) {
+        setSavedMessage(
+          'Sua sessão havia expirado. Restauramos os dados que você preencheu antes de sair.'
+        );
+      }
     } catch (reason) {
       setError(apiErrorMessage(reason));
     } finally {
@@ -294,12 +324,49 @@ function AuthenticatedFlow() {
     setSavedMessage('');
   };
 
+  // Preenchimento assistido de CEP: mesmo comportamento usado em
+  // AlunoForm.tsx, via hook compartilhado useCepAutofill (formata ao digitar,
+  // consulta ao perder o foco, autopreenche rua/bairro/cidade/UF e nunca
+  // bloqueia o preenchimento manual em caso de falha na consulta).
+  const { cepError, formatZipCodeInput, handleZipCodeBlur } = useCepAutofill((address) => {
+    setForm((current) => ({
+      ...current,
+      addressStreet: address.street,
+      addressNeighborhood: address.neighborhood,
+      addressCity: address.city,
+      addressState: address.state,
+    }));
+  });
+
+  const handleZipCodeChange = (value: string) => {
+    setValue('addressZipCode', formatZipCodeInput(value));
+  };
+
   const visibleSteps = useMemo(
     () => (session ? stepsForSession(session) : STEPS),
     [session]
   );
 
   const currentStep = visibleSteps[Math.min(activeStep, visibleSteps.length - 1)] || visibleSteps[0];
+
+  useEffect(() => {
+    if (error) errorRef.current?.focus();
+  }, [error]);
+
+  // Move o foco para o titulo da etapa a cada troca de passo (avanco,
+  // retrocesso ou clique direto no indicador de progresso), sinalizando a
+  // mudanca de contexto para leitores de tela e navegacao por teclado.
+  useEffect(() => {
+    if (!loading && currentStep) stepHeadingRef.current?.focus();
+  }, [currentStep, loading]);
+
+  // Persiste o rascunho a cada alteracao de campo/etapa enquanto ha um passo
+  // valido carregado, para sobreviver a um redirecionamento forcado de pagina
+  // (sessao expirada) sem perder o que ainda nao foi salvo no servidor.
+  useEffect(() => {
+    if (!session || !currentStep || loading) return;
+    writeDraft({ form, step: currentStep.key });
+  }, [form, currentStep, session, loading]);
 
   const saveCurrent = async (goForward: boolean) => {
     if (!session || !currentStep) return;
@@ -314,6 +381,7 @@ function AuthenticatedFlow() {
       setSession(next);
       setForm((current) => ({ ...current, ...next.identity }));
       setSavedMessage('Alterações salvas. Você pode continuar depois com a mesma conta.');
+      clearDraft();
       if (goForward) setActiveStep((index) => Math.min(index + 1, visibleSteps.length - 1));
     } catch (reason) {
       setError(apiErrorMessage(reason));
@@ -336,6 +404,7 @@ function AuthenticatedFlow() {
         privacyAccepted,
       });
       setSession(completed);
+      clearDraft();
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (reason) {
       setError(apiErrorMessage(reason));
@@ -425,11 +494,11 @@ function AuthenticatedFlow() {
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
           <header className="border-b border-slate-100 pb-5">
             <p className="text-sm font-medium text-blue-700">{currentStep?.description}</p>
-            <h1 className="mt-1 text-2xl font-semibold text-slate-950">{currentStep?.title}</h1>
+            <h1 ref={stepHeadingRef} tabIndex={-1} className="mt-1 text-2xl font-semibold text-slate-950 outline-none">{currentStep?.title}</h1>
             <p className="mt-2 text-sm text-slate-600">Preencha os campos abaixo. Salve para retomar com segurança em qualquer dispositivo.</p>
           </header>
 
-          {error ? <div role="alert" className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"><strong>Revise antes de continuar.</strong><br />{error}</div> : null}
+          {error ? <div ref={errorRef} tabIndex={-1} role="alert" className="mt-5 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 outline-none"><strong>Revise antes de continuar.</strong><br />{error}</div> : null}
           {savedMessage ? <div role="status" className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{savedMessage}</div> : null}
           {session.duplicateWarnings.length ? <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">A academia precisará revisar possíveis cadastros semelhantes por {session.duplicateWarnings.join(' e ')}. Seu rascunho foi preservado.</div> : null}
 
@@ -438,7 +507,7 @@ function AuthenticatedFlow() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="sm:col-span-2"><Field label="Nome completo" name="name" value={form.name} required autoComplete="name" onChange={(value) => setValue('name', value)} /></div>
                 <Field label="Data de nascimento" name="birthDate" type="date" value={form.birthDate?.slice(0, 10)} required autoComplete="bday" onChange={(value) => setValue('birthDate', value)} />
-                <Field label="CPF" name="cpf" value={form.cpf} required autoComplete="off" placeholder="000.000.000-00" onChange={(value) => setValue('cpf', value)} />
+                <Field label="CPF" name="cpf" value={form.cpf} required autoComplete="off" placeholder="000.000.000-00" inputMode="numeric" onChange={(value) => setValue('cpf', value)} />
                 <label className="block space-y-2 text-sm font-medium text-slate-800">
                   <span>Sexo/gênero</span>
                   <select value={form.gender || ''} onChange={(event) => setValue('gender', event.target.value)} className="min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 text-base">
@@ -457,7 +526,19 @@ function AuthenticatedFlow() {
 
             {currentStep?.key === 'ADDRESS' ? (
               <div className="grid gap-4 sm:grid-cols-6">
-                <div className="sm:col-span-2"><Field label="CEP" name="addressZipCode" value={form.addressZipCode} autoComplete="postal-code" onChange={(value) => setValue('addressZipCode', value)} /></div>
+                <div className="sm:col-span-2">
+                  <Field
+                    label="CEP"
+                    name="addressZipCode"
+                    value={form.addressZipCode}
+                    autoComplete="postal-code"
+                    inputMode="numeric"
+                    placeholder="00000-000"
+                    error={cepError || undefined}
+                    onChange={handleZipCodeChange}
+                    onBlur={handleZipCodeBlur}
+                  />
+                </div>
                 <div className="sm:col-span-4"><Field label="Rua" name="addressStreet" value={form.addressStreet} autoComplete="address-line1" onChange={(value) => setValue('addressStreet', value)} /></div>
                 <div className="sm:col-span-2"><Field label="Número" name="addressNumber" value={form.addressNumber} autoComplete="address-line2" onChange={(value) => setValue('addressNumber', value)} /></div>
                 <div className="sm:col-span-4"><Field label="Complemento" name="addressComplement" value={form.addressComplement} onChange={(value) => setValue('addressComplement', value)} /></div>
@@ -472,7 +553,7 @@ function AuthenticatedFlow() {
               <div className="space-y-5">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Field label="Nome do responsável legal" name="guardianName" value={form.guardianName} required onChange={(value) => setValue('guardianName', value)} />
-                  <Field label="CPF do responsável" name="guardianCpf" value={form.guardianCpf} required onChange={(value) => setValue('guardianCpf', value)} />
+                  <Field label="CPF do responsável" name="guardianCpf" value={form.guardianCpf} required inputMode="numeric" onChange={(value) => setValue('guardianCpf', value)} />
                   <Field label="Telefone do responsável" name="guardianPhone" type="tel" value={form.guardianPhone} onChange={(value) => setValue('guardianPhone', value)} />
                   <Field label="E-mail do responsável" name="guardianEmail" type="email" value={form.guardianEmail} onChange={(value) => setValue('guardianEmail', value)} />
                   {session.claimRole === 'GUARDIAN' ? <Field label="Vínculo com o menor" name="guardianRelationship" value={form.guardianRelationship} required placeholder="Ex.: mãe, pai, tutor" onChange={(value) => setValue('guardianRelationship', value)} /> : null}

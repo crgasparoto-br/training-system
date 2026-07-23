@@ -15,7 +15,8 @@ import {
 import { professorService } from '../services/professor.service';
 import { serviceCatalogService } from '../services/service.service';
 import { contractService, type AvailableStudentContract } from '../services/contract.service';
-import { formatCep, getCepLookupFeedbackMessage, lookupCep, onlyCepDigits } from '../services/cep.service';
+import { formatCep } from '../services/cep.service';
+import { useCepAutofill } from '../hooks/useCepAutofill';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
@@ -371,7 +372,6 @@ export function AlunoForm() {
   const [availableContractsError, setAvailableContractsError] = useState<string | null>(null);
   const [activeStudentContract, setActiveStudentContract] = useState<StudentContractLink | null>(null);
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
-  const [cepError, setCepError] = useState<string | null>(null);
   const [originalResponsibleProfessorId, setOriginalResponsibleProfessorId] = useState('');
   const [originalSchedulePlan, setOriginalSchedulePlan] = useState<'free' | 'fixed'>('free');
   const [fixedScheduleSlots, setFixedScheduleSlots] = useState<FixedScheduleSlotDraft[]>([]);
@@ -884,32 +884,8 @@ export function AlunoForm() {
     '';
   const zipCodeField = register('intakeForm.personalInfo.zipCode');
 
-  const handleZipCodeChange = (event: ChangeEvent<HTMLInputElement>) => {
-    setCepError(null);
-    setValue('intakeForm.personalInfo.zipCode', formatCep(event.target.value), {
-      shouldDirty: true,
-      shouldValidate: true,
-    });
-  };
-
-  const handleZipCodeBlur = async (event: FocusEvent<HTMLInputElement>) => {
-    zipCodeField.onBlur(event);
-
-    const cep = onlyCepDigits(event.target.value);
-
-    if (cep.length < 8) {
-      return;
-    }
-
-    setCepError(null);
-
-    try {
-      const address = await lookupCep(cep);
-
-      if (!address) {
-        return;
-      }
-
+  const { cepError, formatZipCodeInput, handleZipCodeBlur: onCepAutofillBlur } = useCepAutofill(
+    (address) => {
       setValue('intakeForm.personalInfo.address', address.street, {
         shouldDirty: true,
         shouldValidate: true,
@@ -926,9 +902,19 @@ export function AlunoForm() {
         shouldDirty: true,
         shouldValidate: true,
       });
-    } catch (error) {
-      setCepError(getCepLookupFeedbackMessage(error));
     }
+  );
+
+  const handleZipCodeChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setValue('intakeForm.personalInfo.zipCode', formatZipCodeInput(event.target.value), {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+  };
+
+  const handleZipCodeBlur = async (event: FocusEvent<HTMLInputElement>) => {
+    zipCodeField.onBlur(event);
+    await onCepAutofillBlur(event);
   };
 
   const loadAlunoData = async (alunoId: string) => {

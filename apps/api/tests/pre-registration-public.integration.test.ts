@@ -296,4 +296,98 @@ describeDatabase('public pre-registration integration', () => {
       code: 'NOT_FOUND',
     });
   });
+
+  it('never grants a guardian authorization from one tenant access to a student of another tenant', async () => {
+    const otherContract = await prisma.companyContract.create({
+      data: {
+        type: 'academy',
+        document: `${Date.now()}271b`,
+        name: 'Academia Issue 271 - Outro Tenant',
+      },
+    });
+    const crossTenantGuardian = await prisma.user.create({
+      data: {
+        email: `${suffix}-cross-tenant-guardian@example.com`,
+        passwordHash: 'integration-test-hash',
+        type: 'aluno',
+        profile: { create: { name: 'Responsável Outro Tenant' } },
+      },
+    });
+
+    try {
+      const homeToken = `${suffix}-cross-tenant-home-token`;
+      const homeAluno = await prisma.aluno.create({
+        data: {
+          contractId,
+          status: 'INVITED',
+          leadName: 'Dependente Tenant Origem',
+          onboarding: { create: { contractId } },
+          preRegistrationInvites: {
+            create: {
+              contractId,
+              tokenHash: hashInviteToken(homeToken),
+              expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+            },
+          },
+        },
+      });
+      const otherTenantAluno = await prisma.aluno.create({
+        data: {
+          contractId: otherContract.id,
+          status: 'INVITED',
+          // Mesmo nome de lead do dependente do tenant de origem, de propósito:
+          // similaridade de dados cadastrais nunca deve influenciar o
+          // isolamento por tenant, que é feito por alunoId/contractId.
+          leadName: 'Dependente Tenant Origem',
+          onboarding: { create: { contractId: otherContract.id } },
+        },
+      });
+
+      await preRegistrationPublicService.claim(crossTenantGuardian.id, {
+        token: homeToken,
+        role: 'GUARDIAN',
+      });
+
+      const session = await preRegistrationPublicService.getSession(crossTenantGuardian.id);
+      // O DTO de sessao nao expoe contractId/alunoId diretamente; o nome do
+      // tenant (unico por academia) confirma que a sessao resolvida pertence
+      // ao tenant de origem (onde a autorizacao existe), nao ao outro tenant.
+      expect(session.tenant.name).toBe('Academia Issue 271');
+
+      const authorizations = await prisma.$queryRaw<
+        Array<{ alunoId: string; contractId: string; status: string }>
+      >`
+        SELECT "alunoId", "contractId", "status"
+        FROM "PreRegistrationGuardianAuthorization"
+        WHERE "guardianUserId" = ${crossTenantGuardian.id}
+      `;
+      expect(authorizations).toHaveLength(1);
+      expect(authorizations[0]).toMatchObject({
+        alunoId: homeAluno.id,
+        contractId,
+        status: 'ACTIVE',
+      });
+      expect(
+        authorizations.some((authorization) => authorization.alunoId === otherTenantAluno.id)
+      ).toBe(false);
+
+      // Retirando o acesso ao dependente do tenant de origem, a sessão deve
+      // deixar de resolver -- nunca "vazar" para o dependente homônimo do
+      // outro tenant, ainda que este permaneça INVITED e acessível dentro do
+      // seu próprio tenant.
+      await prisma.aluno.update({
+        where: { id: homeAluno.id },
+        data: { status: 'DISCARDED' },
+      });
+
+      await expect(
+        preRegistrationPublicService.getSession(crossTenantGuardian.id)
+      ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    } finally {
+      await prisma.user.delete({ where: { id: crossTenantGuardian.id } }).catch(() => undefined);
+      await prisma.companyContract
+        .delete({ where: { id: otherContract.id } })
+        .catch(() => undefined);
+    }
+  });
 });
