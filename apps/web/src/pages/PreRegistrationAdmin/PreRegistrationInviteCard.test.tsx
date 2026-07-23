@@ -110,6 +110,66 @@ describe('PreRegistrationInviteCard', () => {
     expect(onGenerate).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    ['EXPIRED', 'Expirado'],
+    ['REVOKED', 'Revogado'],
+    ['SUPERSEDED', 'Substituído'],
+    ['COMPLETED', 'Concluído'],
+  ] as const)(
+    'allows a new invite after %s without requiring replacement confirmation',
+    (status, label) => {
+      const onGenerate = vi.fn();
+      const lead: PreRegistrationAdminLeadDetailDTO = {
+        ...baseLead,
+        inviteStatus: status,
+        allowedActions: {
+          ...baseLead.allowedActions,
+          canGenerateInvite: false,
+          canRegenerateInvite: false,
+          canRevokeInvite: false,
+        },
+        invite: {
+          ...baseLead.invite!,
+          status,
+          allowedActions: {
+            canGenerateFirst: true,
+            canRegenerate: false,
+            canRevoke: false,
+          },
+        },
+      };
+
+      render(
+        <PreRegistrationInviteCard
+          lead={lead}
+          actionLoading={false}
+          generatedUrl={null}
+          copyState="idle"
+          onGenerate={onGenerate}
+          onCopy={vi.fn()}
+          onRevoke={vi.fn()}
+        />
+      );
+
+      expect(screen.getByText(label)).toBeInTheDocument();
+      expect(screen.queryByText(status)).not.toBeInTheDocument();
+      expect(
+        screen.getByText(/o convite anterior não está mais disponível/i)
+      ).toBeInTheDocument();
+
+      const generateButton = screen.getByRole('button', { name: /gerar novo link/i });
+      expect(generateButton).toBeEnabled();
+      expect(
+        screen.queryByRole('checkbox', {
+          name: /confirmo que o link atual deixará de funcionar/i,
+        })
+      ).not.toBeInTheDocument();
+
+      fireEvent.click(generateButton);
+      expect(onGenerate).toHaveBeenCalledTimes(1);
+    }
+  );
+
   it('requires a reason and confirmation before revocation', () => {
     const onRevoke = vi.fn().mockResolvedValue(undefined);
 
