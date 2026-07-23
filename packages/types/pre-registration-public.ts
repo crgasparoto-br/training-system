@@ -48,6 +48,16 @@ export interface PreRegistrationClaimDTO {
   role: PreRegistrationClaimRole;
 }
 
+export interface PreRegistrationClaimResultDTO {
+  alunoId: string;
+  redirectTo: '/pre-cadastro';
+}
+
+export interface ConfirmGuardianAuthorizationDTO {
+  relationship: string;
+  declarationAccepted: true;
+}
+
 export interface PreRegistrationGuardianAuthorizationDTO {
   status: 'NOT_REQUIRED' | 'PENDING' | 'ACTIVE' | 'REVOKED';
   role?: PreRegistrationClaimRole;
@@ -67,7 +77,19 @@ export interface PreRegistrationNextStepDTO {
   optional: true;
   status: StudentOnboardingModuleStatus;
   action: 'START' | 'CONTINUE' | 'VIEW';
-  href?: string;
+  href: string;
+}
+
+export interface PreRegistrationProcessSummaryDTO {
+  alunoId: string;
+  status: StudentLifecycleStatus;
+  claimRole: PreRegistrationClaimRole;
+  currentStep: PreRegistrationStep;
+  lastSavedAt?: string;
+  displayName: string;
+  tenant: PreRegistrationPublicTenantDTO;
+  guardianAuthorizationStatus: PreRegistrationGuardianAuthorizationDTO['status'];
+  requiresGuardianConfirmation: boolean;
 }
 
 export interface PreRegistrationSessionDTO {
