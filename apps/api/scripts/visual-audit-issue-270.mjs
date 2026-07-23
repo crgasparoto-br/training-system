@@ -386,8 +386,16 @@ async function capture(browser, { route, viewport, name, scenario = 'default', i
       `${name}: largura intrínseca contida (${overflow.scrollWidth}px > ${overflow.width}px), sem elemento visível fora da viewport`
     );
   }
-  if (consoleErrors.length) {
-    throw new Error(`${name}: erros no navegador: ${consoleErrors.join(' | ')}`);
+  const unexpectedConsoleErrors = consoleErrors.filter(
+    (message) =>
+      !(
+        scenario === 'error' &&
+        message.includes('Failed to load resource') &&
+        message.includes('500')
+      )
+  );
+  if (unexpectedConsoleErrors.length) {
+    throw new Error(`${name}: erros no navegador: ${unexpectedConsoleErrors.join(' | ')}`);
   }
 
   await page.screenshot({ path: path.join(outputDir, `${name}.png`), fullPage: true });
