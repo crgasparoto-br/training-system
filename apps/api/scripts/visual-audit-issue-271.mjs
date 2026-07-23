@@ -215,29 +215,34 @@ await mkdir(outputDir, { recursive: true });
 const preview = spawn(
   'pnpm',
   ['--filter', '@corrida/web', 'preview', '--host', '127.0.0.1', '--port', '4173'],
-  { cwd: repoRoot, stdio: ['ignore', 'pipe', 'pipe'] }
+  { cwd: repoRoot, stdio: 'inherit', detached: true }
 );
-preview.stdout.on('data', (chunk) => process.stdout.write(chunk));
-preview.stderr.on('data', (chunk) => process.stderr.write(chunk));
 
+let browser;
 try {
   await waitForServer(baseUrl);
-  const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox'] });
-  try {
-    const scenarios = [
-      { name: 'landing-desktop', route: '/pre-cadastro/token-safe', viewport: { width: 1440, height: 900 }, scenario: 'landing' },
-      { name: 'landing-mobile', route: '/pre-cadastro/token-safe', viewport: { width: 390, height: 844 }, scenario: 'landing' },
-      { name: 'invalid-link-mobile', route: '/pre-cadastro/invalid-token', viewport: { width: 390, height: 844 }, scenario: 'invalid' },
-      { name: 'identification-desktop', route: '/pre-cadastro', viewport: { width: 1366, height: 768 }, scenario: 'identification' },
-      { name: 'guardian-mobile', route: '/pre-cadastro', viewport: { width: 390, height: 844 }, scenario: 'guardian' },
-      { name: 'privacy-mobile', route: '/pre-cadastro', viewport: { width: 390, height: 844 }, scenario: 'privacy' },
-      { name: 'completed-desktop', route: '/pre-cadastro', viewport: { width: 1440, height: 900 }, scenario: 'completed' },
-    ];
-    for (const item of scenarios) await capture(browser, item);
-  } finally {
-    await browser.close();
-  }
+  browser = await puppeteer.launch({
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+  });
+  const scenarios = [
+    { name: 'landing-desktop', route: '/pre-cadastro/token-safe', viewport: { width: 1440, height: 900 }, scenario: 'landing' },
+    { name: 'landing-mobile', route: '/pre-cadastro/token-safe', viewport: { width: 390, height: 844 }, scenario: 'landing' },
+    { name: 'invalid-link-mobile', route: '/pre-cadastro/invalid-token', viewport: { width: 390, height: 844 }, scenario: 'invalid' },
+    { name: 'identification-desktop', route: '/pre-cadastro', viewport: { width: 1366, height: 768 }, scenario: 'identification' },
+    { name: 'guardian-mobile', route: '/pre-cadastro', viewport: { width: 390, height: 844 }, scenario: 'guardian' },
+    { name: 'privacy-mobile', route: '/pre-cadastro', viewport: { width: 390, height: 844 }, scenario: 'privacy' },
+    { name: 'completed-desktop', route: '/pre-cadastro', viewport: { width: 1440, height: 900 }, scenario: 'completed' },
+  ];
+  for (const item of scenarios) await capture(browser, item);
   console.log('Issue 271 visual audit completed successfully.');
 } finally {
-  preview.kill('SIGTERM');
+  if (browser) await browser.close();
+  if (preview.pid) {
+    try {
+      process.kill(-preview.pid, 'SIGTERM');
+    } catch {
+      preview.kill('SIGTERM');
+    }
+  }
 }
