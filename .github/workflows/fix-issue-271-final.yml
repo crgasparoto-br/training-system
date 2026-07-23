@@ -1,0 +1,73 @@
+name: Finalize issue 271 corrections
+
+on:
+  push:
+    branches:
+      - feat/271-public-pre-registration
+    paths:
+      - '.github/workflows/fix-issue-271-final.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/271-public-pre-registration
+          fetch-depth: 0
+
+      - name: Fix guardian SQL aliases and clean temporary transport
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          paths = [
+              Path('apps/api/src/modules/pre-registration-public/pre-registration-public.service.ts'),
+              Path('apps/api/src/modules/pre-registration-public/pre-registration-duplicate-review.service.ts'),
+          ]
+
+          replacements = {
+              'SELECT authorization."alunoId", authorization."contractId", aluno.status':
+                  'SELECT auth."alunoId", auth."contractId", student."status"',
+              'SELECT authorization."alunoId", authorization."contractId"':
+                  'SELECT auth."alunoId", auth."contractId"',
+              'FROM "PreRegistrationGuardianAuthorization" AS authorization':
+                  'FROM "PreRegistrationGuardianAuthorization" AS auth',
+              'JOIN "Aluno" AS aluno ON aluno.id = authorization."alunoId"':
+                  'JOIN "Aluno" AS student ON student."id" = auth."alunoId"',
+              'WHERE authorization."guardianUserId"':
+                  'WHERE auth."guardianUserId"',
+              'AND authorization."status"':
+                  'AND auth."status"',
+              'AND aluno.status IN':
+                  'AND student."status" IN',
+              'ORDER BY authorization."updatedAt" DESC':
+                  'ORDER BY auth."updatedAt" DESC',
+          }
+
+          for path in paths:
+              text = path.read_text()
+              original = text
+              for old, new in replacements.items():
+                  text = text.replace(old, new)
+              if text == original:
+                  raise SystemExit(f'No SQL alias replacement applied in {path}')
+              path.write_text(text)
+          PY
+
+          rm -rf .github/issue271 .github/issue271-bin
+          rm -f .github/workflows/apply-issue-271-final.yml
+          rm -f .github/workflows/orchestrate-issue-271.yml
+          rm -f .github/workflows/fix-issue-271-final.yml
+
+          git add -A
+          git diff --cached --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix: corrigir consultas e higienizar entrega da issue 271'
+          git push origin HEAD:feat/271-public-pre-registration
