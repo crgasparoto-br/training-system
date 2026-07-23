@@ -1,5 +1,8 @@
 import { useState } from 'react';
-import type { PreRegistrationAdminLeadDetailDTO } from '@corrida/types';
+import type {
+  PreRegistrationAdminLeadDetailDTO,
+  PreRegistrationInviteStatus,
+} from '@corrida/types';
 import { AlertTriangle, ClipboardCopy, Link2, Trash2 } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import {
@@ -13,6 +16,14 @@ import { Input } from '../../components/ui/Input';
 import { formatDate } from './pre-registration-ui';
 
 export type InviteCopyState = 'idle' | 'copied' | 'failed';
+
+const INVITE_STATUS_LABELS: Record<PreRegistrationInviteStatus, string> = {
+  ACTIVE: 'Ativo',
+  EXPIRED: 'Expirado',
+  REVOKED: 'Revogado',
+  SUPERSEDED: 'Substituído',
+  COMPLETED: 'Concluído',
+};
 
 export function PreRegistrationInviteCard({
   lead,
@@ -34,7 +45,14 @@ export function PreRegistrationInviteCard({
   const [regenerateConfirmed, setRegenerateConfirmed] = useState(false);
   const [revokeReason, setRevokeReason] = useState('');
   const [revokeConfirmed, setRevokeConfirmed] = useState(false);
-  const isRegeneration = lead.allowedActions.canRegenerateInvite;
+  const canReplaceActiveInvite = lead.allowedActions.canRegenerateInvite;
+  const canGenerateAfterClosedInvite = Boolean(
+    lead.invite && lead.invite.allowedActions.canGenerateFirst
+  );
+  const canGenerateInvite =
+    lead.allowedActions.canGenerateInvite ||
+    canReplaceActiveInvite ||
+    canGenerateAfterClosedInvite;
   const inviteExpiredWhileOpen = Boolean(
     lead.invite?.status === 'ACTIVE' &&
       lead.invite.expiresAt &&
@@ -62,7 +80,9 @@ export function PreRegistrationInviteCard({
         <div className="grid gap-3 sm:grid-cols-3">
           <div>
             <p className="text-xs text-muted-foreground">Status</p>
-            <p className="mt-1 font-medium">{lead.invite?.status || 'Ainda não gerado'}</p>
+            <p className="mt-1 font-medium">
+              {lead.invite ? INVITE_STATUS_LABELS[lead.invite.status] : 'Ainda não gerado'}
+            </p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Validade</p>
@@ -92,6 +112,12 @@ export function PreRegistrationInviteCard({
           </p>
         )}
 
+        {lead.invite && lead.invite.status !== 'ACTIVE' && !generatedUrl && (
+          <p className="rounded-lg bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+            O convite anterior não está mais disponível. Gere um novo link para retomar o pré-cadastro.
+          </p>
+        )}
+
         {generatedUrl && (
           <div className="rounded-xl border border-success/40 bg-success/10 p-4">
             <p className="text-sm font-medium text-foreground">Novo link gerado</p>
@@ -117,7 +143,7 @@ export function PreRegistrationInviteCard({
           </div>
         )}
 
-        {isRegeneration && (
+        {canReplaceActiveInvite && (
           <label className="flex items-start gap-3 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm">
             <input
               type="checkbox"
@@ -131,15 +157,15 @@ export function PreRegistrationInviteCard({
           </label>
         )}
 
-        {(lead.allowedActions.canGenerateInvite || isRegeneration) && (
+        {canGenerateInvite && (
           <Button
             type="button"
             isLoading={actionLoading}
-            disabled={(isRegeneration && !regenerateConfirmed) || inviteExpiredWhileOpen}
+            disabled={(canReplaceActiveInvite && !regenerateConfirmed) || inviteExpiredWhileOpen}
             onClick={onGenerate}
           >
             <Link2 className="h-4 w-4" aria-hidden="true" />
-            {isRegeneration ? 'Gerar novo link' : 'Gerar link de pré-cadastro'}
+            {lead.invite ? 'Gerar novo link' : 'Gerar link de pré-cadastro'}
           </Button>
         )}
 
