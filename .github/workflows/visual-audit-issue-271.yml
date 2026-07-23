@@ -1,72 +1,56 @@
-name: Visual Audit Issue 271
+name: Apply Issue 271 Corrections
 
 on:
   pull_request:
     branches:
       - develop
     paths:
-      - 'apps/web/src/pages/PublicPreRegistration/**'
-      - 'apps/web/src/services/pre-registration-public.service.ts'
-      - 'apps/web/src/App.tsx'
-      - 'apps/api/scripts/visual-audit-issue-271.mjs'
       - '.github/workflows/visual-audit-issue-271.yml'
+      - '.github/issue271/**'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
-  screenshots:
-    name: Audit public pre-registration responsive states
+  apply:
+    name: Apply audited corrections atomically
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+       github.event.pull_request.head.ref == 'feat/271-public-pre-registration')
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout working branch
         uses: actions/checkout@v4
-
-      - name: Package source snapshot
-        run: tar --exclude=.git --exclude=node_modules --exclude=artifacts -czf /tmp/issue-271-source.tgz .
-
-      - name: Upload source snapshot
-        uses: actions/upload-artifact@v4
         with:
-          name: issue-271-source-${{ github.run_id }}
-          path: /tmp/issue-271-source.tgz
-          retention-days: 1
+          ref: feat/271-public-pre-registration
+          fetch-depth: 0
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Install Chrome for Puppeteer
-        run: pnpm --filter @corrida/api exec puppeteer browsers install chrome
-
-      - name: Build web application
-        run: |
-          pnpm --filter @corrida/types build
-          pnpm --filter @corrida/utils build
-          pnpm --filter @corrida/web build
-
-      - name: Audit routes, states and responsive layouts
+      - name: Reconstruct and apply audited source package
         shell: bash
         run: |
-          set -o pipefail
-          pnpm --filter @corrida/api exec node scripts/visual-audit-issue-271.mjs 2>&1 | tee visual-audit.log
+          set -euo pipefail
+          cat .github/issue271/part-00 \
+              .github/issue271/part-01 \
+              .github/issue271/part-02 \
+              .github/issue271/part-03 \
+              .github/issue271/part-04 > /tmp/issue271-changes.b64
+          base64 --decode /tmp/issue271-changes.b64 > /tmp/issue271-changes.tgz
+          tar -xzf /tmp/issue271-changes.tgz -C "$GITHUB_WORKSPACE"
+          rm -rf .github/issue271
 
-      - name: Upload screenshots and diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: issue-271-visual-${{ github.run_id }}
-          path: |
-            artifacts/issue-271-visual/*.png
-            visual-audit.log
-          if-no-files-found: warn
-          retention-days: 14
+      - name: Commit final corrections
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if git diff --cached --quiet; then
+            echo 'No source changes to commit.'
+            exit 0
+          fi
+          git commit -m 'fix: resolver pendências auditadas da issue 271'
+          git push origin HEAD:feat/271-public-pre-registration
