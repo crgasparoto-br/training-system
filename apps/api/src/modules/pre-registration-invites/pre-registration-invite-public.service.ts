@@ -1,11 +1,18 @@
 import type { Prisma } from '@prisma/client';
-import type { PreRegistrationInvitePublicViewDTO } from '@corrida/types';
+import type { PreRegistrationPublicLandingDTO } from '@corrida/types';
 import { sanitizePublicInviteAuditActor } from './pre-registration-invite-audit.js';
 import { PreRegistrationInvitePublicAccessError } from './pre-registration-invite-errors.js';
 import { preRegistrationInvitePrisma } from './pre-registration-invite-store.js';
 import { hashInviteToken, timingSafeEqualHash } from './pre-registration-invite-token.js';
 
 const PUBLIC_ACCESS_AUDIT_THROTTLE_MS = 5 * 60 * 1000;
+
+function privacyNoticeUrl(): string {
+  const configured = process.env.PRIVACY_NOTICE_URL?.trim();
+  if (configured) return configured;
+  const frontend = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
+  return `${frontend}/privacidade`;
+}
 
 async function lockInviteForAccessAudit(
   tx: Prisma.TransactionClient,
@@ -25,7 +32,7 @@ export const preRegistrationInvitePublicService = {
     token: string,
     actor: { ipAddress?: string; userAgent?: string } = {},
     now: Date = new Date()
-  ): Promise<PreRegistrationInvitePublicViewDTO> {
+  ): Promise<PreRegistrationPublicLandingDTO> {
     if (!token || typeof token !== 'string') {
       throw new PreRegistrationInvitePublicAccessError();
     }
@@ -34,7 +41,14 @@ export const preRegistrationInvitePublicService = {
     const auditActor = sanitizePublicInviteAuditActor(actor, token);
 
     const invite = await preRegistrationInvitePrisma.$transaction(async (tx) => {
-      const candidate = await tx.preRegistrationInvite.findUnique({ where: { tokenHash } });
+      const candidate = await tx.preRegistrationInvite.findUnique({
+        where: { tokenHash },
+        include: {
+          contract: {
+            select: { name: true, tradeName: true, logoUrl: true },
+          },
+        },
+      });
       if (!candidate || !timingSafeEqualHash(candidate.tokenHash, tokenHash)) return null;
       if (candidate.status !== 'ACTIVE') return { kind: 'unavailable' as const };
 
@@ -115,6 +129,10 @@ export const preRegistrationInvitePublicService = {
         kind: 'ok' as const,
         purpose: candidate.purpose,
         expiresAt: candidate.expiresAt,
+        tenant: {
+          name: candidate.contract.tradeName || candidate.contract.name || 'Academia',
+          logoUrl: candidate.contract.logoUrl || undefined,
+        },
       };
     });
 
@@ -125,6 +143,16 @@ export const preRegistrationInvitePublicService = {
     return {
       purpose: invite.purpose,
       expiresAt: invite.expiresAt.toISOString(),
+      tenant: {
+        ...invite.tenant,
+        privacyNoticeUrl: privacyNoticeUrl(),
+      },
+      stages: [
+        { key: 'BASIC_DATA', title: 'Dados básicos', optional: false },
+        { key: 'ANAMNESIS', title: 'Anamnese Inicial', optional: true },
+        { key: 'PARQ', title: 'PAR-Q', optional: true },
+      ],
+      approximateDuration: 'Poucos minutos. Você pode salvar e continuar depois.',
     };
   },
 };
