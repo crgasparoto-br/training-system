@@ -15,7 +15,7 @@ on:
 
 jobs:
   screenshots:
-    name: Audit issue 270 responsive states
+    name: Final audit of issue 270 responsive states
     runs-on: ubuntu-latest
 
     steps:
