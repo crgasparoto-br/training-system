@@ -21,6 +21,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Package source for isolated validation
+        run: tar --exclude=.git --exclude=node_modules --exclude=artifacts -czf issue-270-source.tgz .
+
+      - name: Upload source snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-270-source-${{ github.run_id }}
+          path: issue-270-source.tgz
+          retention-days: 1
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
@@ -47,10 +57,6 @@ jobs:
           set -o pipefail
           pnpm --filter @corrida/api exec node scripts/visual-audit-issue-270.mjs 2>&1 | tee visual-audit.log
 
-      - name: Package source for isolated validation
-        if: always()
-        run: tar --exclude=.git --exclude=node_modules --exclude=artifacts -czf issue-270-source.tgz .
-
       - name: Upload screenshots and diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -59,6 +65,5 @@ jobs:
           path: |
             artifacts/issue-270-visual/*.png
             visual-audit.log
-            issue-270-source.tgz
           if-no-files-found: warn
-          retention-days: 1
+          retention-days: 14
