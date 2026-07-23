@@ -117,10 +117,7 @@ export interface PreRegistrationSessionDTO {
 export interface SavePreRegistrationStepDTO {
   expectedVersion: number;
   step: PreRegistrationStep;
-  data: PreRegistrationIdentityDTO & {
-    guardianRelationship?: string;
-    guardianDeclarationAccepted?: boolean;
-  };
+  data: PreRegistrationIdentityDTO;
 }
 
 export interface CompletePreRegistrationDTO {
