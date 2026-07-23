@@ -13,6 +13,7 @@ import type {
   PreRegistrationSessionDTO,
   PreRegistrationStep,
   SavePreRegistrationStepDTO,
+  StudentLifecycleStatus,
 } from '@corrida/types';
 import { authService } from '../auth/auth.service.js';
 import {
@@ -25,20 +26,22 @@ import {
   findStudentAccountIdentityMismatches,
   loadStudentIdentity,
   normalizeStudentEmail,
-  normalizeStudentPhone,
   upsertStudentIdentity,
 } from '../alunos/student-identity.service.js';
-import { hashInviteToken, timingSafeEqualHash } from '../pre-registration-invites/pre-registration-invite-token.js';
+import {
+  hashInviteToken,
+  timingSafeEqualHash,
+} from '../pre-registration-invites/pre-registration-invite-token.js';
 
 const prisma = new PrismaClient();
 const PRIVACY_NOTICE_VERSION = process.env.PRIVACY_NOTICE_VERSION?.trim() || '2026-07';
 const FORM_VERSION = 'pre-registration-v1';
 
-const ALLOWED_PRE_REGISTRATION_STATUSES = [
+const ALLOWED_PRE_REGISTRATION_STATUSES: StudentLifecycleStatus[] = [
   'INVITED',
   'PRE_REGISTRATION_IN_PROGRESS',
   'PRE_REGISTRATION_COMPLETED',
-] as const;
+];
 
 export class PreRegistrationPublicError extends Error {
   constructor(
@@ -79,8 +82,21 @@ type GuardianAuthorizationRow = {
   revokedAt: Date | null;
 };
 
+type AccessibleAluno = {
+  id: string;
+  contractId: string;
+  status: StudentLifecycleStatus;
+  accessRole: PreRegistrationClaimRole;
+};
+
 const normalizeText = (value: unknown): string | undefined =>
   typeof value === 'string' && value.trim() ? value.trim() : undefined;
+
+function assertClaimRole(role: unknown): asserts role is PreRegistrationClaimRole {
+  if (role !== 'STUDENT' && role !== 'GUARDIAN') {
+    throw new PreRegistrationPublicError('Perfil de acesso inválido.', 'ACCOUNT_INCOMPATIBLE');
+  }
+}
 
 function privacyNoticeUrl(): string {
   const configured = process.env.PRIVACY_NOTICE_URL?.trim();
@@ -97,6 +113,24 @@ function isMinorBirthDate(value?: string | Date | null, now = new Date()): boole
   const month = now.getMonth() - birthDate.getMonth();
   if (month < 0 || (month === 0 && now.getDate() < birthDate.getDate())) age -= 1;
   return age < 18;
+}
+
+function nextStepAfter(
+  step: PreRegistrationStep,
+  identity: { birthDate?: string | null },
+  role: PreRegistrationClaimRole
+): PreRegistrationStep {
+  switch (step) {
+    case 'IDENTIFICATION':
+      return 'CONTACT';
+    case 'CONTACT':
+      return 'ADDRESS';
+    case 'ADDRESS':
+      return isMinorBirthDate(identity.birthDate) || role === 'GUARDIAN' ? 'GUARDIAN' : 'PRIVACY';
+    case 'GUARDIAN':
+    case 'PRIVACY':
+      return 'PRIVACY';
+  }
 }
 
 async function resolveInviteForClaim(
@@ -126,6 +160,37 @@ async function resolveInviteForClaim(
   return invite;
 }
 
+async function startGuardianFlowInTransaction(
+  tx: Prisma.TransactionClient,
+  alunoId: string,
+  contractId: string,
+  userId: string
+) {
+  const changed = await tx.aluno.updateMany({
+    where: { id: alunoId, contractId, status: 'INVITED' },
+    data: { status: 'PRE_REGISTRATION_IN_PROGRESS' },
+  });
+  if (changed.count !== 1) return;
+
+  await tx.studentOnboardingProcess.updateMany({
+    where: { alunoId, contractId },
+    data: { startedAt: new Date() },
+  });
+  await tx.studentLifecycleEvent.create({
+    data: {
+      alunoId,
+      contractId,
+      eventType: 'STATUS_CHANGED',
+      actorUserId: userId,
+      metadata: {
+        from: 'INVITED',
+        to: 'PRE_REGISTRATION_IN_PROGRESS',
+        source: 'guardian_invite_claim',
+      },
+    },
+  });
+}
+
 async function claimInviteInTransaction(
   tx: Prisma.TransactionClient,
   invite: InviteRow,
@@ -147,63 +212,85 @@ async function claimInviteInTransaction(
     where: { id: invite.alunoId, contractId: invite.contractId },
     include: { onboarding: true },
   });
-  if (!aluno || !ALLOWED_PRE_REGISTRATION_STATUSES.includes(aluno.status as never)) {
+  if (!aluno || !ALLOWED_PRE_REGISTRATION_STATUSES.includes(aluno.status)) {
     throw new PreRegistrationPublicError('Cadastro não disponível.', 'NOT_FOUND');
   }
-  if (aluno.userId && aluno.userId !== userId) {
-    throw new PreRegistrationPublicError(
-      'Este convite já foi vinculado a outra conta. Solicite um novo acesso à academia.',
-      'ACCOUNT_ALREADY_LINKED'
-    );
-  }
 
-  const existing = await tx.aluno.findFirst({
-    where: { contractId: invite.contractId, userId, id: { not: invite.alunoId } },
-    select: { id: true },
-  });
-  if (existing) {
-    throw new PreRegistrationPublicError(
-      'Esta conta já está vinculada a outro cadastro nesta academia.',
-      'ACCOUNT_INCOMPATIBLE'
-    );
-  }
-
-  if (!aluno.userId) {
-    const mismatches = await findStudentAccountIdentityMismatches(
-      invite.alunoId,
-      invite.contractId,
-      userId,
-      tx
-    );
-    const blocking = mismatches.filter((field) => field === 'email');
-    if (blocking.length > 0) {
+  if (role === 'STUDENT') {
+    if (aluno.userId && aluno.userId !== userId) {
       throw new PreRegistrationPublicError(
-        'Os dados da conta não correspondem ao convite. Entre em contato com a academia.',
-        'ACCOUNT_INCOMPATIBLE',
-        { fields: blocking }
-      );
-    }
-
-    const linked = await tx.aluno.updateMany({
-      where: { id: invite.alunoId, contractId: invite.contractId, userId: null },
-      data: { userId },
-    });
-    if (linked.count !== 1) {
-      throw new PreRegistrationPublicError(
-        'Este convite já foi vinculado a outra conta.',
+        'Este convite já foi vinculado a outra conta. Solicite um novo acesso à academia.',
         'ACCOUNT_ALREADY_LINKED'
       );
     }
 
-    await tx.studentLifecycleEvent.create({
-      data: {
-        alunoId: invite.alunoId,
-        contractId: invite.contractId,
-        eventType: 'ACCOUNT_LINKED',
-        actorUserId: userId,
-        metadata: { source: 'public_pre_registration', role },
-      },
+    const existing = await tx.aluno.findFirst({
+      where: { contractId: invite.contractId, userId, id: { not: invite.alunoId } },
+      select: { id: true },
     });
+    if (existing) {
+      throw new PreRegistrationPublicError(
+        'Esta conta já está vinculada a outro cadastro nesta academia.',
+        'ACCOUNT_INCOMPATIBLE'
+      );
+    }
+
+    if (!aluno.userId) {
+      const mismatches = await findStudentAccountIdentityMismatches(
+        invite.alunoId,
+        invite.contractId,
+        userId,
+        tx
+      );
+      if (mismatches.includes('email')) {
+        throw new PreRegistrationPublicError(
+          'Os dados da conta não correspondem ao convite. Entre em contato com a academia.',
+          'ACCOUNT_INCOMPATIBLE',
+          { fields: ['email'] }
+        );
+      }
+
+      const linked = await tx.aluno.updateMany({
+        where: { id: invite.alunoId, contractId: invite.contractId, userId: null },
+        data: { userId },
+      });
+      if (linked.count !== 1) {
+        throw new PreRegistrationPublicError(
+          'Este convite já foi vinculado a outra conta.',
+          'ACCOUNT_ALREADY_LINKED'
+        );
+      }
+
+      await tx.studentLifecycleEvent.create({
+        data: {
+          alunoId: invite.alunoId,
+          contractId: invite.contractId,
+          eventType: 'ACCOUNT_LINKED',
+          actorUserId: userId,
+          metadata: { source: 'public_pre_registration', role },
+        },
+      });
+    }
+  } else {
+    await tx.$executeRaw`
+      INSERT INTO "PreRegistrationGuardianAuthorization" (
+        "id", "contractId", "alunoId", "guardianUserId", "purpose", "status",
+        "validatedAt", "validatedByUserId", "createdAt", "updatedAt"
+      ) VALUES (
+        ${crypto.randomUUID()}, ${invite.contractId}, ${invite.alunoId}, ${userId},
+        'PRE_REGISTRATION', 'ACTIVE', CURRENT_TIMESTAMP, ${userId},
+        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+      )
+      ON CONFLICT ("alunoId", "guardianUserId", "purpose")
+      DO UPDATE SET
+        "status" = 'ACTIVE',
+        "validatedAt" = CURRENT_TIMESTAMP,
+        "validatedByUserId" = ${userId},
+        "revokedAt" = NULL,
+        "revokedByUserId" = NULL,
+        "updatedAt" = CURRENT_TIMESTAMP
+    `;
+    await startGuardianFlowInTransaction(tx, invite.alunoId, invite.contractId, userId);
   }
 
   const updated = await tx.$executeRaw`
@@ -223,36 +310,23 @@ async function claimInviteInTransaction(
       'ACCOUNT_ALREADY_LINKED'
     );
   }
-
-  if (role === 'GUARDIAN') {
-    await tx.$executeRaw`
-      INSERT INTO "PreRegistrationGuardianAuthorization" (
-        "id", "contractId", "alunoId", "guardianUserId", "purpose", "status", "createdAt", "updatedAt"
-      ) VALUES (
-        ${crypto.randomUUID()}, ${invite.contractId}, ${invite.alunoId}, ${userId},
-        'PRE_REGISTRATION', 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-      )
-      ON CONFLICT ("alunoId", "guardianUserId", "purpose")
-      DO UPDATE SET "updatedAt" = CURRENT_TIMESTAMP
-    `;
-  }
-
-  return aluno;
 }
 
-async function findAccessibleAluno(userId: string) {
+async function findAccessibleAluno(userId: string): Promise<AccessibleAluno> {
   const aluno = await prisma.aluno.findFirst({
     where: {
       userId,
-      status: { in: [...ALLOWED_PRE_REGISTRATION_STATUSES] },
+      status: { in: ALLOWED_PRE_REGISTRATION_STATUSES },
     },
     orderBy: { updatedAt: 'desc' },
     select: { id: true, contractId: true, status: true },
   });
-  if (aluno) return aluno;
+  if (aluno) return { ...aluno, accessRole: 'STUDENT' };
 
-  const guardianRows = await prisma.$queryRaw<Array<{ alunoId: string; contractId: string }>>`
-    SELECT authorization."alunoId", authorization."contractId"
+  const guardianRows = await prisma.$queryRaw<
+    Array<{ alunoId: string; contractId: string; status: StudentLifecycleStatus }>
+  >`
+    SELECT authorization."alunoId", authorization."contractId", aluno.status
     FROM "PreRegistrationGuardianAuthorization" AS authorization
     JOIN "Aluno" AS aluno ON aluno.id = authorization."alunoId"
     WHERE authorization."guardianUserId" = ${userId}
@@ -263,10 +337,12 @@ async function findAccessibleAluno(userId: string) {
   `;
   const guardian = guardianRows[0];
   if (!guardian) throw new PreRegistrationPublicError('Cadastro não encontrado.', 'NOT_FOUND');
-  return prisma.aluno.findFirstOrThrow({
-    where: { id: guardian.alunoId, contractId: guardian.contractId },
-    select: { id: true, contractId: true, status: true },
-  });
+  return {
+    id: guardian.alunoId,
+    contractId: guardian.contractId,
+    status: guardian.status,
+    accessRole: 'GUARDIAN',
+  };
 }
 
 async function onboardingRow(alunoId: string, contractId: string): Promise<OnboardingRow> {
@@ -332,7 +408,6 @@ async function guardianAuthorization(
   isMinor: boolean,
   role: PreRegistrationClaimRole
 ): Promise<PreRegistrationGuardianAuthorizationDTO> {
-  if (!isMinor) return { status: 'NOT_REQUIRED', role };
   const rows = await prisma.$queryRaw<GuardianAuthorizationRow[]>`
     SELECT "status", "relationship", "validatedAt", "revokedAt"
     FROM "PreRegistrationGuardianAuthorization"
@@ -343,15 +418,18 @@ async function guardianAuthorization(
     LIMIT 1
   `;
   const authorization = rows[0];
-  return authorization
-    ? {
-        status: authorization.status,
-        role,
-        relationship: authorization.relationship || undefined,
-        validatedAt: authorization.validatedAt?.toISOString(),
-        revokedAt: authorization.revokedAt?.toISOString(),
-      }
-    : { status: 'PENDING', role };
+  if (authorization) {
+    return {
+      status: authorization.status,
+      role,
+      relationship: authorization.relationship || undefined,
+      validatedAt: authorization.validatedAt?.toISOString(),
+      revokedAt: authorization.revokedAt?.toISOString(),
+    };
+  }
+  return isMinor
+    ? { status: 'PENDING', role }
+    : { status: 'NOT_REQUIRED', role };
 }
 
 async function buildSession(userId: string): Promise<PreRegistrationSessionDTO> {
@@ -363,7 +441,7 @@ async function buildSession(userId: string): Promise<PreRegistrationSessionDTO> 
     duplicateWarnings(aluno.id, aluno.contractId),
   ]);
   const isMinor = isMinorBirthDate(identity.birthDate);
-  const role = (onboarding.claimRole === 'GUARDIAN' ? 'GUARDIAN' : 'STUDENT') as PreRegistrationClaimRole;
+  const role = aluno.accessRole;
   const authorization = await guardianAuthorization(
     aluno.id,
     aluno.contractId,
@@ -381,6 +459,7 @@ async function buildSession(userId: string): Promise<PreRegistrationSessionDTO> 
     if (!identity.guardianName) missing.push('guardianName');
     if (!identity.guardianCpf) missing.push('guardianCpf');
     if (authorization.status !== 'ACTIVE') missing.push('guardianAuthorization');
+    if (role === 'GUARDIAN' && !authorization.relationship) missing.push('guardianRelationship');
   }
 
   const nextSteps: PreRegistrationSessionDTO['nextSteps'] = [
@@ -390,7 +469,12 @@ async function buildSession(userId: string): Promise<PreRegistrationSessionDTO> 
       description: 'Conte informações importantes para orientar seu acompanhamento.',
       optional: true,
       status: onboarding.healthModuleStatus,
-      action: onboarding.healthModuleStatus === 'COMPLETED' ? 'VIEW' : onboarding.healthModuleStatus === 'IN_PROGRESS' ? 'CONTINUE' : 'START',
+      action:
+        onboarding.healthModuleStatus === 'COMPLETED'
+          ? 'VIEW'
+          : onboarding.healthModuleStatus === 'IN_PROGRESS'
+            ? 'CONTINUE'
+            : 'START',
     },
     {
       key: 'PARQ',
@@ -398,7 +482,12 @@ async function buildSession(userId: string): Promise<PreRegistrationSessionDTO> 
       description: 'Responda o questionário de prontidão para atividade física.',
       optional: true,
       status: onboarding.parqModuleStatus,
-      action: onboarding.parqModuleStatus === 'COMPLETED' ? 'VIEW' : onboarding.parqModuleStatus === 'IN_PROGRESS' ? 'CONTINUE' : 'START',
+      action:
+        onboarding.parqModuleStatus === 'COMPLETED'
+          ? 'VIEW'
+          : onboarding.parqModuleStatus === 'IN_PROGRESS'
+            ? 'CONTINUE'
+            : 'START',
     },
   ];
 
@@ -416,7 +505,7 @@ async function buildSession(userId: string): Promise<PreRegistrationSessionDTO> 
     guardianAuthorization: authorization,
     privacy: {
       noticeVersion: PRIVACY_NOTICE_VERSION,
-      noticeUrl: privacy.privacyNoticeUrl,
+      noticeUrl: tenant.privacyNoticeUrl,
       acceptedAt: onboarding.privacyAcceptedAt?.toISOString(),
     },
     missingRequiredFields: Array.from(new Set(missing)),
@@ -428,11 +517,12 @@ async function buildSession(userId: string): Promise<PreRegistrationSessionDTO> 
 function mapLifecycleError(error: unknown): never {
   if (error instanceof PreRegistrationPublicError) throw error;
   if (error instanceof StudentLifecycleError) {
-    const code = error.code === 'CONCURRENT_MODIFICATION'
-      ? 'CONCURRENT_MODIFICATION'
-      : error.code === 'MISSING_REQUIRED_FIELDS'
-        ? 'MISSING_REQUIRED_FIELDS'
-        : 'ACCOUNT_INCOMPATIBLE';
+    const code =
+      error.code === 'CONCURRENT_MODIFICATION'
+        ? 'CONCURRENT_MODIFICATION'
+        : error.code === 'MISSING_REQUIRED_FIELDS'
+          ? 'MISSING_REQUIRED_FIELDS'
+          : 'ACCOUNT_INCOMPATIBLE';
     throw new PreRegistrationPublicError(error.message, code, error.details);
   }
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -445,11 +535,61 @@ function mapLifecycleError(error: unknown): never {
   throw error;
 }
 
+async function reconcileCompletedInvite(
+  userId: string,
+  alunoId: string,
+  contractId: string,
+  audit: { ipAddress?: string; userAgent?: string },
+  incrementVersion: boolean
+) {
+  const now = new Date();
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`
+      UPDATE "StudentOnboardingProcess"
+      SET "version" = "version" + ${incrementVersion ? 1 : 0},
+          "currentStep" = 'PRIVACY',
+          "privacyAcceptedIp" = COALESCE("privacyAcceptedIp", ${audit.ipAddress || null}),
+          "privacyAcceptedUserAgent" = COALESCE(
+            "privacyAcceptedUserAgent",
+            ${audit.userAgent?.slice(0, 512) || null}
+          ),
+          "updatedAt" = CURRENT_TIMESTAMP
+      WHERE "alunoId" = ${alunoId} AND "contractId" = ${contractId}
+    `;
+
+    const invites = await tx.preRegistrationInvite.findMany({
+      where: { alunoId, contractId, status: 'ACTIVE' },
+      select: { id: true },
+    });
+    for (const invite of invites) {
+      await tx.preRegistrationInvite.update({
+        where: { id: invite.id },
+        data: { status: 'COMPLETED', completedAt: now },
+      });
+      const existingEvent = await tx.preRegistrationInviteEvent.findFirst({
+        where: { inviteId: invite.id, eventType: 'COMPLETED' },
+        select: { id: true },
+      });
+      if (!existingEvent) {
+        await tx.preRegistrationInviteEvent.create({
+          data: {
+            inviteId: invite.id,
+            eventType: 'COMPLETED',
+            actorUserId: userId,
+            metadata: { source: 'public_pre_registration' },
+          },
+        });
+      }
+    }
+  });
+}
+
 export const preRegistrationPublicService = {
   async registerAndClaim(
     token: string,
     input: PreRegistrationAccountRegistrationDTO
   ): Promise<AuthResponse & { redirectTo: string }> {
+    assertClaimRole(input.role);
     const email = normalizeStudentEmail(input.email);
     const name = normalizeText(input.name);
     if (!email || !name || typeof input.password !== 'string' || input.password.length < 8) {
@@ -457,9 +597,6 @@ export const preRegistrationPublicService = {
         'Informe nome, e-mail válido e uma senha com pelo menos 8 caracteres.',
         'MISSING_REQUIRED_FIELDS'
       );
-    }
-    if (input.role !== 'STUDENT' && input.role !== 'GUARDIAN') {
-      throw new PreRegistrationPublicError('Perfil de acesso inválido.', 'ACCOUNT_INCOMPATIBLE');
     }
 
     try {
@@ -492,6 +629,7 @@ export const preRegistrationPublicService = {
   },
 
   async claim(userId: string, input: PreRegistrationClaimDTO) {
+    assertClaimRole(input.role);
     try {
       await prisma.$transaction(async (tx) => {
         const invite = await resolveInviteForClaim(tx, input.token);
@@ -515,7 +653,7 @@ export const preRegistrationPublicService = {
         'PRE_REGISTRATION_COMPLETED'
       );
     }
-    if (aluno.status === 'INVITED') {
+    if (aluno.status === 'INVITED' && aluno.accessRole === 'STUDENT') {
       await startStudentPreRegistration(aluno.id, aluno.contractId, userId);
     }
 
@@ -537,7 +675,7 @@ export const preRegistrationPublicService = {
           );
         }
 
-        await upsertStudentIdentity(
+        const identity = await upsertStudentIdentity(
           aluno.id,
           aluno.contractId,
           input.data,
@@ -546,12 +684,12 @@ export const preRegistrationPublicService = {
             actor: { userId },
             sourceType: 'student',
             sourceReference: 'public_pre_registration',
-            syncLegacyProfile: true,
+            syncLegacyProfile: aluno.accessRole === 'STUDENT',
           }
         );
 
         if (
-          current.claimRole === 'GUARDIAN' &&
+          aluno.accessRole === 'GUARDIAN' &&
           input.data.guardianDeclarationAccepted === true
         ) {
           const relationship = normalizeText(input.data.guardianRelationship);
@@ -565,8 +703,8 @@ export const preRegistrationPublicService = {
             UPDATE "PreRegistrationGuardianAuthorization"
             SET "relationship" = ${relationship},
                 "status" = 'ACTIVE',
-                "validatedAt" = CURRENT_TIMESTAMP,
-                "validatedByUserId" = ${userId},
+                "validatedAt" = COALESCE("validatedAt", CURRENT_TIMESTAMP),
+                "validatedByUserId" = COALESCE("validatedByUserId", ${userId}),
                 "revokedAt" = NULL,
                 "revokedByUserId" = NULL,
                 "updatedAt" = CURRENT_TIMESTAMP
@@ -574,13 +712,15 @@ export const preRegistrationPublicService = {
               AND "contractId" = ${aluno.contractId}
               AND "guardianUserId" = ${userId}
               AND "purpose" = 'PRE_REGISTRATION'
+              AND "status" = 'ACTIVE'
           `;
         }
 
+        const nextStep = nextStepAfter(input.step, identity, aluno.accessRole);
         const updated = await tx.$executeRaw`
           UPDATE "StudentOnboardingProcess"
           SET "version" = "version" + 1,
-              "currentStep" = ${input.step},
+              "currentStep" = ${nextStep},
               "lastSavedAt" = CURRENT_TIMESTAMP,
               "formVersion" = ${FORM_VERSION},
               "updatedAt" = CURRENT_TIMESTAMP
@@ -607,8 +747,8 @@ export const preRegistrationPublicService = {
     input: CompletePreRegistrationDTO,
     audit: { ipAddress?: string; userAgent?: string } = {}
   ) {
+    const accessible = await findAccessibleAluno(userId);
     const session = await buildSession(userId);
-    if (session.status === 'PRE_REGISTRATION_COMPLETED') return session;
     if (input.privacyAccepted !== true) {
       throw new PreRegistrationPublicError(
         'Confirme o aviso de privacidade para concluir.',
@@ -623,11 +763,14 @@ export const preRegistrationPublicService = {
         { currentVersion: session.version }
       );
     }
-    if (session.missingRequiredFields.filter((field) => field !== 'privacyNoticeVersion' && field !== 'privacyAcceptedAt').length > 0) {
+    const remaining = session.missingRequiredFields.filter(
+      (field) => field !== 'privacyNoticeVersion' && field !== 'privacyAcceptedAt'
+    );
+    if (remaining.length > 0) {
       throw new PreRegistrationPublicError(
         'Revise os campos obrigatórios antes de concluir.',
         'MISSING_REQUIRED_FIELDS',
-        { fields: session.missingRequiredFields }
+        { fields: remaining }
       );
     }
     if (session.isMinor && session.guardianAuthorization.status !== 'ACTIVE') {
@@ -637,58 +780,45 @@ export const preRegistrationPublicService = {
       );
     }
 
-    const now = new Date();
-    try {
-      await completeStudentPreRegistration(
-        session.alunoId,
-        (await findAccessibleAluno(userId)).contractId,
-        {
-          ...session.identity,
-          privacyNoticeVersion: PRIVACY_NOTICE_VERSION,
-          privacyAcceptedAt: now,
-        },
-        userId
-      );
-
-      await prisma.$transaction(async (tx) => {
-        const aluno = await tx.aluno.findUniqueOrThrow({
-          where: { id: session.alunoId },
-          select: { contractId: true },
-        });
-        await tx.$executeRaw`
-          UPDATE "StudentOnboardingProcess"
-          SET "version" = "version" + 1,
-              "currentStep" = 'PRIVACY',
-              "privacyAcceptedIp" = ${audit.ipAddress || null},
-              "privacyAcceptedUserAgent" = ${audit.userAgent?.slice(0, 512) || null},
-              "updatedAt" = CURRENT_TIMESTAMP
-          WHERE "alunoId" = ${session.alunoId}
-            AND "contractId" = ${aluno.contractId}
-        `;
-        const invites = await tx.preRegistrationInvite.findMany({
-          where: { alunoId: session.alunoId, contractId: aluno.contractId, status: 'ACTIVE' },
-          select: { id: true },
-        });
-        if (invites.length > 0) {
-          await tx.preRegistrationInvite.updateMany({
-            where: { id: { in: invites.map((invite) => invite.id) }, status: 'ACTIVE' },
-            data: { status: 'COMPLETED', completedAt: now },
-          });
-          await tx.preRegistrationInviteEvent.createMany({
-            data: invites.map((invite) => ({
-              inviteId: invite.id,
-              eventType: 'COMPLETED',
+    const alreadyCompleted = session.status === 'PRE_REGISTRATION_COMPLETED';
+    if (!alreadyCompleted) {
+      try {
+        await completeStudentPreRegistration(
+          session.alunoId,
+          accessible.contractId,
+          {
+            ...session.identity,
+            privacyNoticeVersion: PRIVACY_NOTICE_VERSION,
+            privacyAcceptedAt: new Date(),
+          },
+          accessible.accessRole === 'STUDENT' ? userId : undefined
+        );
+        if (accessible.accessRole === 'GUARDIAN') {
+          await prisma.studentLifecycleEvent.create({
+            data: {
+              alunoId: session.alunoId,
+              contractId: accessible.contractId,
+              eventType: 'PRIVACY_CONSENT_RECORDED',
               actorUserId: userId,
-              metadata: { source: 'public_pre_registration' },
-            })),
-            skipDuplicates: true,
+              metadata: {
+                source: 'guardian_pre_registration',
+                authorizationPurpose: 'PRE_REGISTRATION',
+              },
+            },
           });
         }
-      });
-    } catch (error) {
-      mapLifecycleError(error);
+      } catch (error) {
+        mapLifecycleError(error);
+      }
     }
 
+    await reconcileCompletedInvite(
+      userId,
+      session.alunoId,
+      accessible.contractId,
+      audit,
+      !alreadyCompleted
+    );
     return buildSession(userId);
   },
 };
