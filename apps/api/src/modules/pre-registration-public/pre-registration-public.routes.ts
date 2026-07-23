@@ -59,8 +59,6 @@ const publicIdentitySchema = z.object({
   guardianCpf: z.string().trim().max(20).optional(),
   guardianPhone: z.string().trim().max(40).optional(),
   guardianEmail: z.string().trim().email('E-mail do responsável inválido').max(320).optional(),
-  guardianRelationship: z.string().trim().max(100).optional(),
-  guardianDeclarationAccepted: z.boolean().optional(),
 }).strict();
 const saveStepSchema = z.object({
   expectedVersion: z.number().int().min(1),
