@@ -39,7 +39,7 @@ Transformar o convite seguro de pré-cadastro em uma experiência pública que i
 8. `pnpm docs:check`;
 9. auditoria funcional requisito a requisito;
 10. auditoria visual independente em desktop e mobile;
-11. higienização final do diff.
+11. higienização final do diff, incluindo remoção dos arquivos temporários de transporte e correção das consultas SQL de autorização do responsável.
 
 ## Entrega
 
