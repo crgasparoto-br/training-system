@@ -22,7 +22,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Package source for isolated validation
-        run: tar --exclude=.git --exclude=node_modules --exclude=artifacts -czf issue-270-source.tgz .
+        run: git archive --format=tar.gz --output=issue-270-source.tgz HEAD
 
       - name: Upload source snapshot
         uses: actions/upload-artifact@v4
