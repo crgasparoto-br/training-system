@@ -17,11 +17,14 @@ import type {
 } from '@corrida/types';
 import { authService } from '../auth/auth.service.js';
 import {
-  completeStudentPreRegistration,
   findMissingPreRegistrationFields,
   startStudentPreRegistration,
   StudentLifecycleError,
 } from '../alunos/student-lifecycle.service.js';
+import {
+  completePublicStudentPreRegistration,
+  startGuardianPreRegistrationInTransaction,
+} from '../alunos/student-public-pre-registration.service.js';
 import {
   findStudentAccountIdentityMismatches,
   loadStudentIdentity,
@@ -160,37 +163,6 @@ async function resolveInviteForClaim(
   return invite;
 }
 
-async function startGuardianFlowInTransaction(
-  tx: Prisma.TransactionClient,
-  alunoId: string,
-  contractId: string,
-  userId: string
-) {
-  const changed = await tx.aluno.updateMany({
-    where: { id: alunoId, contractId, status: 'INVITED' },
-    data: { status: 'PRE_REGISTRATION_IN_PROGRESS' },
-  });
-  if (changed.count !== 1) return;
-
-  await tx.studentOnboardingProcess.updateMany({
-    where: { alunoId, contractId },
-    data: { startedAt: new Date() },
-  });
-  await tx.studentLifecycleEvent.create({
-    data: {
-      alunoId,
-      contractId,
-      eventType: 'STATUS_CHANGED',
-      actorUserId: userId,
-      metadata: {
-        from: 'INVITED',
-        to: 'PRE_REGISTRATION_IN_PROGRESS',
-        source: 'guardian_invite_claim',
-      },
-    },
-  });
-}
-
 async function claimInviteInTransaction(
   tx: Prisma.TransactionClient,
   invite: InviteRow,
@@ -290,7 +262,12 @@ async function claimInviteInTransaction(
         "revokedByUserId" = NULL,
         "updatedAt" = CURRENT_TIMESTAMP
     `;
-    await startGuardianFlowInTransaction(tx, invite.alunoId, invite.contractId, userId);
+    await startGuardianPreRegistrationInTransaction(
+      tx,
+      invite.alunoId,
+      invite.contractId,
+      userId
+    );
   }
 
   const updated = await tx.$executeRaw`
@@ -537,55 +514,6 @@ function mapLifecycleError(error: unknown): never {
   throw error;
 }
 
-async function reconcileCompletedInvite(
-  userId: string,
-  alunoId: string,
-  contractId: string,
-  audit: { ipAddress?: string; userAgent?: string },
-  incrementVersion: boolean
-) {
-  const now = new Date();
-  await prisma.$transaction(async (tx) => {
-    await tx.$executeRaw`
-      UPDATE "StudentOnboardingProcess"
-      SET "version" = "version" + ${incrementVersion ? 1 : 0},
-          "currentStep" = 'PRIVACY',
-          "privacyAcceptedIp" = COALESCE("privacyAcceptedIp", ${audit.ipAddress || null}),
-          "privacyAcceptedUserAgent" = COALESCE(
-            "privacyAcceptedUserAgent",
-            ${audit.userAgent?.slice(0, 512) || null}
-          ),
-          "updatedAt" = CURRENT_TIMESTAMP
-      WHERE "alunoId" = ${alunoId} AND "contractId" = ${contractId}
-    `;
-
-    const invites = await tx.preRegistrationInvite.findMany({
-      where: { alunoId, contractId, status: 'ACTIVE' },
-      select: { id: true },
-    });
-    for (const invite of invites) {
-      await tx.preRegistrationInvite.update({
-        where: { id: invite.id },
-        data: { status: 'COMPLETED', completedAt: now },
-      });
-      const existingEvent = await tx.preRegistrationInviteEvent.findFirst({
-        where: { inviteId: invite.id, eventType: 'COMPLETED' },
-        select: { id: true },
-      });
-      if (!existingEvent) {
-        await tx.preRegistrationInviteEvent.create({
-          data: {
-            inviteId: invite.id,
-            eventType: 'COMPLETED',
-            actorUserId: userId,
-            metadata: { source: 'public_pre_registration' },
-          },
-        });
-      }
-    }
-  });
-}
-
 export const preRegistrationPublicService = {
   async registerAndClaim(
     token: string,
@@ -758,13 +686,6 @@ export const preRegistrationPublicService = {
         { fields: ['privacyAccepted'] }
       );
     }
-    if (session.version !== input.expectedVersion) {
-      throw new PreRegistrationPublicError(
-        'Os dados foram alterados em outro local. Recarregue antes de concluir.',
-        'CONCURRENT_MODIFICATION',
-        { currentVersion: session.version }
-      );
-    }
     const remaining = session.missingRequiredFields.filter(
       (field) => field !== 'privacyNoticeVersion' && field !== 'privacyAcceptedAt'
     );
@@ -782,45 +703,23 @@ export const preRegistrationPublicService = {
       );
     }
 
-    const alreadyCompleted = session.status === 'PRE_REGISTRATION_COMPLETED';
-    if (!alreadyCompleted) {
-      try {
-        await completeStudentPreRegistration(
-          session.alunoId,
-          accessible.contractId,
-          {
-            ...session.identity,
-            privacyNoticeVersion: PRIVACY_NOTICE_VERSION,
-            privacyAcceptedAt: new Date(),
-          },
-          accessible.accessRole === 'STUDENT' ? userId : undefined
-        );
-        if (accessible.accessRole === 'GUARDIAN') {
-          await prisma.studentLifecycleEvent.create({
-            data: {
-              alunoId: session.alunoId,
-              contractId: accessible.contractId,
-              eventType: 'PRIVACY_CONSENT_RECORDED',
-              actorUserId: userId,
-              metadata: {
-                source: 'guardian_pre_registration',
-                authorizationPurpose: 'PRE_REGISTRATION',
-              },
-            },
-          });
-        }
-      } catch (error) {
-        mapLifecycleError(error);
-      }
+    try {
+      await completePublicStudentPreRegistration({
+        alunoId: session.alunoId,
+        contractId: accessible.contractId,
+        actorUserId: userId,
+        accessRole: accessible.accessRole,
+        expectedVersion: input.expectedVersion,
+        identity: session.identity,
+        privacyNoticeVersion: PRIVACY_NOTICE_VERSION,
+        privacyAcceptedAt: new Date(),
+        ipAddress: audit.ipAddress,
+        userAgent: audit.userAgent,
+      });
+    } catch (error) {
+      mapLifecycleError(error);
     }
 
-    await reconcileCompletedInvite(
-      userId,
-      session.alunoId,
-      accessible.contractId,
-      audit,
-      !alreadyCompleted
-    );
     return buildSession(userId);
   },
 };
