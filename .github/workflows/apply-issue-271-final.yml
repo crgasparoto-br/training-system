@@ -100,7 +100,10 @@ jobs:
         run: pnpm lint
 
       - name: Test with database integrations
-        run: pnpm test
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm test 2>&1 | tee /tmp/issue271-test.log
 
       - name: Build
         run: pnpm build
@@ -118,7 +121,10 @@ jobs:
         run: pnpm --filter @corrida/api exec puppeteer browsers install chrome
 
       - name: Run responsive visual audit
-        run: pnpm --filter @corrida/api exec node scripts/visual-audit-issue-271.mjs
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @corrida/api exec node scripts/visual-audit-issue-271.mjs 2>&1 | tee /tmp/issue271-visual.log
 
       - name: Hygiene checks
         shell: bash
@@ -137,7 +143,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: issue-271-final-visual-${{ github.run_id }}
-          path: artifacts/issue-271-visual/*.png
+          path: |
+            artifacts/issue-271-visual/*.png
+            /tmp/issue271-test.log
+            /tmp/issue271-visual.log
           if-no-files-found: warn
           retention-days: 14
 
@@ -154,4 +163,25 @@ jobs:
         if: failure()
         shell: bash
         run: |
-          gh pr comment 281 --body "## Orquestração com pendência — issue #271\n\nA aplicação ou um dos gates falhou antes da publicação. Consulte: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}. A PR permanece em rascunho e nenhum commit funcional não validado foi enviado."
+          {
+            echo '## Orquestração com pendência — issue #271'
+            echo
+            echo "Execução: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo
+            if test -f /tmp/issue271-test.log; then
+              echo '### Trecho final dos testes'
+              echo '```text'
+              tail -n 160 /tmp/issue271-test.log
+              echo '```'
+            elif test -f /tmp/issue271-visual.log; then
+              echo '### Trecho final da auditoria visual'
+              echo '```text'
+              tail -n 160 /tmp/issue271-visual.log
+              echo '```'
+            else
+              echo 'A falha ocorreu antes da geração dos diagnósticos de testes.'
+            fi
+            echo
+            echo 'A PR permanece em rascunho e nenhum commit funcional não validado foi enviado.'
+          } > /tmp/issue271-failure.md
+          gh pr comment 281 --body-file /tmp/issue271-failure.md
