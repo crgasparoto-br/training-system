@@ -114,7 +114,7 @@ export const preRegistrationDuplicateReviewService = {
         await tx.studentProfileReview.update({
           where: { id: pendingReview.id },
           data: {
-            requestedBy: { connect: { id: userId } },
+            requestedByUserId: userId,
             requestedAt: new Date(),
             sectionsRequested: asJson(['identification']),
             snapshotBefore: asJson(before),
@@ -126,8 +126,8 @@ export const preRegistrationDuplicateReviewService = {
       } else {
         await tx.studentProfileReview.create({
           data: {
-            aluno: { connect: { id: aluno.id } },
-            requestedBy: { connect: { id: userId } },
+            alunoId: aluno.id,
+            requestedByUserId: userId,
             sectionsRequested: asJson(['identification']),
             snapshotBefore: asJson(before),
             snapshotAfter: asJson(after),
