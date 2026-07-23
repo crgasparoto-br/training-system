@@ -19,6 +19,7 @@ import { PreRegistrationAdminList } from './pages/PreRegistrationAdmin/PreRegist
 import { PreRegistrationAdminCreate } from './pages/PreRegistrationAdmin/PreRegistrationAdminCreate';
 import { PreRegistrationAdminDetail } from './pages/PreRegistrationAdmin/PreRegistrationAdminDetail';
 import { PreRegistrationAdminEdit } from './pages/PreRegistrationAdmin/PreRegistrationAdminEdit';
+import { PublicPreRegistration } from './pages/PublicPreRegistration/PublicPreRegistration';
 import { Plans } from './pages/Plans';
 import { PlanForm } from './pages/PlanForm';
 import { PlanDetails } from './pages/PlanDetails';
@@ -96,6 +97,8 @@ function App() {
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/register" element={<Register />} />
           <Route path="/assinatura/contrato/:token" element={<PublicContractSignature />} />
+          <Route path="/pre-cadastro/:token" element={<PublicPreRegistration />} />
+          <Route path="/pre-cadastro" element={<PublicPreRegistration />} />
 
           {/* Protected Routes */}
           <Route
