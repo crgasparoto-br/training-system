@@ -144,7 +144,7 @@ describeDatabase('public pre-registration integration', () => {
       data: {
         name: 'Dependente Dois',
         birthDate: '2012-05-10',
-        cpf: '12345678901',
+        cpf: '52998224725',
       },
     });
     expect(saved.version).toBe(session.version + 1);
@@ -157,6 +157,72 @@ describeDatabase('public pre-registration integration', () => {
         data: { name: 'Versão antiga' },
       })
     ).rejects.toMatchObject({ code: 'CONCURRENT_MODIFICATION' });
+  });
+
+  it('completes status, consent and invite atomically and supports a safe retry', async () => {
+    const identification = await preRegistrationPublicService.getSession(guardianUserId);
+    const contact = await preRegistrationPublicService.saveStep(guardianUserId, {
+      expectedVersion: identification.version,
+      step: 'CONTACT',
+      data: {
+        phone: '15999990000',
+        email: `${suffix}-dependent@example.com`,
+      },
+    });
+    const guardian = await preRegistrationPublicService.saveStep(guardianUserId, {
+      expectedVersion: contact.version,
+      step: 'GUARDIAN',
+      data: {
+        guardianName: 'Responsável Teste',
+        guardianCpf: '11144477735',
+        guardianPhone: '15988880000',
+        guardianEmail: `${suffix}-guardian@example.com`,
+        guardianRelationship: 'Mãe',
+        guardianDeclarationAccepted: true,
+      },
+    });
+
+    const completed = await preRegistrationPublicService.complete(
+      guardianUserId,
+      { expectedVersion: guardian.version, privacyAccepted: true },
+      { ipAddress: '127.0.0.1', userAgent: 'issue-271-integration-test' }
+    );
+    expect(completed.status).toBe('PRE_REGISTRATION_COMPLETED');
+    expect(completed.privacy.acceptedAt).toBeTruthy();
+
+    const [aluno, onboarding, invite, completedEvents] = await Promise.all([
+      prisma.aluno.findUniqueOrThrow({ where: { id: secondAlunoId } }),
+      prisma.studentOnboardingProcess.findUniqueOrThrow({ where: { alunoId: secondAlunoId } }),
+      prisma.preRegistrationInvite.findUniqueOrThrow({
+        where: { tokenHash: hashInviteToken(secondToken) },
+      }),
+      prisma.preRegistrationInviteEvent.count({
+        where: {
+          invite: { alunoId: secondAlunoId },
+          eventType: 'COMPLETED',
+        },
+      }),
+    ]);
+    expect(aluno.status).toBe('PRE_REGISTRATION_COMPLETED');
+    expect(onboarding.completedAt).not.toBeNull();
+    expect(onboarding.privacyNoticeVersion).toBeTruthy();
+    expect(invite.status).toBe('COMPLETED');
+    expect(completedEvents).toBe(1);
+
+    const retried = await preRegistrationPublicService.complete(
+      guardianUserId,
+      { expectedVersion: guardian.version, privacyAccepted: true },
+      { ipAddress: '127.0.0.1', userAgent: 'issue-271-integration-test-retry' }
+    );
+    expect(retried.status).toBe('PRE_REGISTRATION_COMPLETED');
+    expect(
+      await prisma.preRegistrationInviteEvent.count({
+        where: {
+          invite: { alunoId: secondAlunoId },
+          eventType: 'COMPLETED',
+        },
+      })
+    ).toBe(1);
   });
 
   it('revokes access immediately when all guardian authorizations are revoked', async () => {
