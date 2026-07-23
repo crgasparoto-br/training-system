@@ -26,13 +26,17 @@ type LockedOnboarding = {
   version: number;
 };
 
-async function findAccessibleStudent(userId: string): Promise<AccessibleStudent> {
+async function findAccessibleStudent(
+  userId: string,
+  alunoId: string
+): Promise<AccessibleStudent> {
   const direct = await prisma.aluno.findFirst({
     where: {
+      id: alunoId,
       userId,
       status: { in: ACCESSIBLE_STATUSES },
+      onboarding: { claimedByUserId: userId },
     },
-    orderBy: { updatedAt: 'desc' },
     select: { id: true, contractId: true },
   });
   if (direct) return { ...direct, accessRole: 'STUDENT' };
@@ -41,10 +45,13 @@ async function findAccessibleStudent(userId: string): Promise<AccessibleStudent>
     SELECT auth."alunoId", auth."contractId"
     FROM "PreRegistrationGuardianAuthorization" AS auth
     JOIN "Aluno" AS student ON student."id" = auth."alunoId"
+    JOIN "StudentOnboardingProcess" AS onboarding ON onboarding."alunoId" = student."id"
     WHERE auth."guardianUserId" = ${userId}
+      AND auth."alunoId" = ${alunoId}
+      AND auth."purpose" = 'PRE_REGISTRATION'
       AND auth."status" = 'ACTIVE'
+      AND onboarding."claimedByUserId" = ${userId}
       AND student."status" IN ('INVITED', 'PRE_REGISTRATION_IN_PROGRESS', 'PRE_REGISTRATION_COMPLETED')
-    ORDER BY auth."updatedAt" DESC
     LIMIT 1
   `;
   const guardian = guardianRows[0];
@@ -63,9 +70,10 @@ function asJson(value: unknown): Prisma.InputJsonValue {
 export const preRegistrationDuplicateReviewService = {
   async preserveCpfConflict(
     userId: string,
+    alunoId: string,
     input: SavePreRegistrationStepDTO
   ): Promise<{ version: number }> {
-    const aluno = await findAccessibleStudent(userId);
+    const aluno = await findAccessibleStudent(userId, alunoId);
 
     return prisma.$transaction(async (tx) => {
       const rows = await tx.$queryRaw<LockedOnboarding[]>`
