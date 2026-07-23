@@ -22,7 +22,7 @@ const baseLead: PreRegistrationAdminLeadDetailDTO = {
   updatedAt: '2026-07-22T12:00:00.000Z',
   lastActivityAt: '2026-07-22T12:00:00.000Z',
   inviteStatus: 'ACTIVE',
-  inviteExpiresAt: '2026-07-23T12:00:00.000Z',
+  inviteExpiresAt: '2099-07-23T12:00:00.000Z',
   inviteAllowedActions: {
     canGenerateFirst: false,
     canRegenerate: true,
@@ -67,7 +67,7 @@ const baseLead: PreRegistrationAdminLeadDetailDTO = {
     alunoId: 'lead-1',
     status: 'ACTIVE',
     purpose: 'PRE_REGISTRATION',
-    expiresAt: '2026-07-23T12:00:00.000Z',
+    expiresAt: '2099-07-23T12:00:00.000Z',
     createdAt: '2026-07-22T12:00:00.000Z',
     linkRecoverable: false,
     allowedActions: {
