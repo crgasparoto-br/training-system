@@ -1,30 +1,20 @@
 // Rascunho local do pré-cadastro público (issue #271): preserva o passo atual
 // e os campos ainda não salvos no servidor em sessionStorage.
 //
-// Isso evita perda de digitação quando a sessão expira -- o interceptor
-// global de 401 (apps/web/src/services/api.ts) redireciona a página inteira
-// para /login via window.location.href, o que descarta qualquer estado React
-// em memória. sessionStorage sobrevive a esse redirecionamento (ao contrário
-// do estado do componente), mas é limpo ao fechar a aba, diferente de
-// localStorage.
-//
-// Dados já confirmados via "Salvar" continuam vindo do servidor
-// normalmente; este rascunho cobre apenas edições ainda não persistidas.
-//
-// Redução de exposição de dados sensíveis: sessionStorage é acessível via
-// devtools/extensões do navegador na mesma aba, então os campos mais
-// sensíveis (CPF do aluno, CPF do responsável legal, data de nascimento
-// completa) nunca são gravados no rascunho -- permanecem apenas em memória
-// (estado React) durante a vida da aba. Caso a sessão expire com esses
-// campos ainda não salvos no servidor, a pessoa usuária precisa digitá-los
-// novamente; os demais campos (incluindo qual etapa estava em andamento)
-// continuam sendo restaurados normalmente.
+// O identificador do processo participa da chave para impedir que uma conta de
+// responsável com múltiplos dependentes restaure dados no cadastro incorreto.
+// Dados já confirmados continuam vindo do servidor; este rascunho cobre apenas
+// edições ainda não persistidas na aba atual.
 const DRAFT_STORAGE_KEY = 'pre-registration-draft-v1';
 
 /** Campos sensíveis que nunca são persistidos no rascunho de sessionStorage. */
 const SENSITIVE_DRAFT_FIELDS = ['cpf', 'birthDate', 'guardianCpf'] as const;
 
 export type PreRegistrationDraft<TForm> = { form: TForm; step: string };
+
+function storageKey(scope?: string): string {
+  return scope ? `${DRAFT_STORAGE_KEY}:${scope}` : DRAFT_STORAGE_KEY;
+}
 
 function omitSensitiveFields<TForm>(form: TForm): TForm {
   const redacted = { ...(form as Record<string, unknown>) };
@@ -34,31 +24,30 @@ function omitSensitiveFields<TForm>(form: TForm): TForm {
   return redacted as TForm;
 }
 
-export function readDraft<TForm>(): PreRegistrationDraft<TForm> | null {
+export function readDraft<TForm>(scope?: string): PreRegistrationDraft<TForm> | null {
   try {
-    const raw = window.sessionStorage.getItem(DRAFT_STORAGE_KEY);
+    const raw = window.sessionStorage.getItem(storageKey(scope));
     return raw ? (JSON.parse(raw) as PreRegistrationDraft<TForm>) : null;
   } catch {
     return null;
   }
 }
 
-export function writeDraft<TForm>(draft: PreRegistrationDraft<TForm>) {
+export function writeDraft<TForm>(draft: PreRegistrationDraft<TForm>, scope?: string) {
   try {
     const redactedDraft: PreRegistrationDraft<TForm> = {
       ...draft,
       form: omitSensitiveFields(draft.form),
     };
-    window.sessionStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(redactedDraft));
+    window.sessionStorage.setItem(storageKey(scope), JSON.stringify(redactedDraft));
   } catch {
-    // Armazenamento indisponível (modo privado, quota etc.): degrada
-    // silenciosamente para o comportamento sem rascunho persistido.
+    // Armazenamento indisponível: degrada para o comportamento sem rascunho.
   }
 }
 
-export function clearDraft() {
+export function clearDraft(scope?: string) {
   try {
-    window.sessionStorage.removeItem(DRAFT_STORAGE_KEY);
+    window.sessionStorage.removeItem(storageKey(scope));
   } catch {
     // ignore
   }
