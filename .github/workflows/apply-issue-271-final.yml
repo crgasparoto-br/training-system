@@ -1,61 +1,13 @@
-name: Apply Issue 271 Final Package
+name: Issue 271 final package staging
 
 on:
-  push:
-    branches:
-      - feat/271-public-pre-registration
-    paths:
-      - '.github/workflows/apply-issue-271-final.yml'
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  apply:
-    name: Apply final audited package
+  staging:
     runs-on: ubuntu-latest
-    env:
-      GH_TOKEN: ${{ github.token }}
     steps:
-      - name: Checkout branch
-        uses: actions/checkout@v4
-        with:
-          ref: feat/271-public-pre-registration
-          fetch-depth: 0
-
-      - name: Reconstruct package from verified Git blobs
-        shell: bash
-        run: |
-          set -euo pipefail
-          fetch_blob() {
-            local sha="$1"
-            local target="$2"
-            gh api "repos/${GITHUB_REPOSITORY}/git/blobs/${sha}" --jq '.content' \
-              | tr -d '\n' \
-              | base64 --decode > "${target}"
-          }
-          fetch_blob 8d856856bf7420d677243958c66fdf4500658582 /tmp/chunk-00
-          fetch_blob 61a8d726c3eed2af321a5e2330b48eead4d1900f /tmp/chunk-01
-          fetch_blob ec544bd0040d9bdda06f32b676e95868dd6873eb /tmp/chunk-02
-          cat /tmp/chunk-00 /tmp/chunk-01 /tmp/chunk-02 > /tmp/issue271-changes.tgz
-          test "$(wc -c < /tmp/issue271-changes.tgz)" = '27039'
-          tar -tzf /tmp/issue271-changes.tgz > /tmp/issue271-files.txt
-          tar -xzf /tmp/issue271-changes.tgz -C "$GITHUB_WORKSPACE"
-          rm -rf .github/issue271 .github/issue271-bin
-          rm -f .github/workflows/apply-issue-271-final.yml
-
-      - name: Commit corrected source
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
-          git diff --cached --check
-          if git diff --cached --quiet; then
-            echo 'No source changes to commit.'
-            exit 0
-          fi
-          git commit -m 'fix: resolver pendências auditadas da issue 271'
-          git push origin HEAD:feat/271-public-pre-registration
+      - run: echo "Waiting for the verified package chunks."
