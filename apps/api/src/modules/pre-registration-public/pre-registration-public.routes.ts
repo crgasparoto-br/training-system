@@ -1,5 +1,5 @@
 import express, { Router, type Request, type Response } from 'express';
-import { sendError, sendSuccess } from '@corrida/utils';
+import { RegisterSchema, sendError, sendSuccess } from '@corrida/utils';
 import type {
   CompletePreRegistrationDTO,
   ConfirmGuardianAuthorizationDTO,
@@ -20,6 +20,11 @@ import {
 
 const publicRouter: Router = Router();
 const authenticatedRouter: Router = Router();
+const invitedAccountSchema = RegisterSchema.pick({
+  name: true,
+  email: true,
+  password: true,
+});
 
 const STATUS_BY_CODE: Record<string, number> = {
   INVALID_INVITE: 404,
@@ -70,9 +75,17 @@ publicRouter.post(
   express.json({ limit: '32kb' }),
   async (req, res) => {
     try {
+      const input = req.body as PreRegistrationAccountRegistrationDTO;
+      const validation = invitedAccountSchema.safeParse(input);
+      if (!validation.success) {
+        throw new PreRegistrationPublicError(
+          validation.error.errors.map((item) => item.message).join(', '),
+          'MISSING_REQUIRED_FIELDS'
+        );
+      }
       const result = await preRegistrationPublicService.registerAndClaim(
         req.params.token,
-        req.body as PreRegistrationAccountRegistrationDTO
+        { ...validation.data, role: input.role }
       );
       return sendSuccess(res, result, 'Acesso criado e convite vinculado', 201);
     } catch (error) {
