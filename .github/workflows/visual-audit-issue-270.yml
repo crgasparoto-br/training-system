@@ -51,7 +51,7 @@ jobs:
           set -o pipefail
           pnpm --filter @corrida/api exec node scripts/visual-audit-issue-270.mjs 2>&1 | tee visual-audit.log
 
-      - name: Upload screenshots, diagnostics and build
+      - name: Upload screenshots and diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -59,6 +59,5 @@ jobs:
           path: |
             artifacts/issue-270-visual/*.png
             visual-audit.log
-            apps/web/dist/**
           if-no-files-found: warn
-          retention-days: 1
+          retention-days: 14
