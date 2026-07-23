@@ -76,13 +76,13 @@ export const preRegistrationDuplicateReviewService = {
     const aluno = await findAccessibleStudent(userId, alunoId);
 
     return prisma.$transaction(async (tx) => {
-      // A leitura nao bloqueia onboarding antes de StudentProfile. A escrita
-      // condicional ao final continua sendo a autoridade de concorrencia e evita
-      // ordem de locks inversa com o trigger de edicao administrativa.
+      // Todas as gravacoes publicas seguem onboarding -> Aluno -> identidade.
+      // O lock serializa a preservacao do rascunho com salvamento e conclusao.
       const rows = await tx.$queryRaw<OnboardingVersion[]>`
         SELECT "version"
         FROM "StudentOnboardingProcess"
         WHERE "alunoId" = ${aluno.id} AND "contractId" = ${aluno.contractId}
+        FOR UPDATE
       `;
       const onboarding = rows[0];
       if (!onboarding || onboarding.version !== input.expectedVersion) {
