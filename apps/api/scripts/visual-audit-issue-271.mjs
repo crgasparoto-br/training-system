@@ -26,6 +26,21 @@ const landing = {
   approximateDuration: 'Poucos minutos. Você pode salvar e continuar depois.',
 };
 
+function processSummary(overrides = {}) {
+  return {
+    alunoId: 'internal-student-id',
+    status: 'PRE_REGISTRATION_IN_PROGRESS',
+    claimRole: 'GUARDIAN',
+    currentStep: 'IDENTIFICATION',
+    lastSavedAt: '2026-07-23T12:30:00.000Z',
+    displayName: 'Mariana Ferreira dos Santos',
+    tenant,
+    guardianAuthorizationStatus: 'ACTIVE',
+    requiresGuardianConfirmation: false,
+    ...overrides,
+  };
+}
+
 function session(overrides = {}) {
   return {
     alunoId: 'internal-student-id',
@@ -73,6 +88,7 @@ function session(overrides = {}) {
         optional: true,
         status: 'NOT_STARTED',
         action: 'START',
+        href: '/pre-cadastro/anamnese',
       },
       {
         key: 'PARQ',
@@ -81,6 +97,7 @@ function session(overrides = {}) {
         optional: true,
         status: 'IN_PROGRESS',
         action: 'CONTINUE',
+        href: '/pre-cadastro/par-q',
       },
     ],
     ...overrides,
@@ -105,8 +122,36 @@ async function waitForServer(url, timeoutMs = 60_000) {
   throw new Error(`Preview não iniciou em ${url}`);
 }
 
+function processesForScenario(scenario) {
+  if (scenario === 'selector') {
+    return [
+      processSummary({
+        alunoId: 'student-self',
+        claimRole: 'STUDENT',
+        displayName: 'Cadastro do próprio aluno com nome propositalmente longo para auditoria',
+        guardianAuthorizationStatus: 'NOT_REQUIRED',
+      }),
+      processSummary({
+        alunoId: 'dependent-two',
+        displayName: 'Dependente Dois',
+      }),
+    ];
+  }
+  if (scenario === 'pending-guardian') {
+    return [
+      processSummary({
+        displayName: 'Dependente convidado',
+        guardianAuthorizationStatus: 'PENDING',
+        requiresGuardianConfirmation: true,
+      }),
+    ];
+  }
+  return [processSummary()];
+}
+
 async function installMocking(page, scenario) {
-  if (scenario !== 'landing' && scenario !== 'invalid') {
+  const publicScenarios = new Set(['landing', 'invalid']);
+  if (!publicScenarios.has(scenario)) {
     await page.evaluateOnNewDocument((storedUser) => {
       localStorage.setItem('token', 'visual-audit-token');
       localStorage.setItem('user', JSON.stringify(storedUser));
@@ -133,7 +178,15 @@ async function installMocking(page, scenario) {
       void request.respond(json({ success: false, error: 'Link inválido ou expirado.' }, 404));
       return;
     }
-    if (pathname === '/api/v1/pre-registration/session' && method === 'GET') {
+    if (pathname === '/api/v1/pre-registration/processes' && method === 'GET') {
+      void request.respond(json({ success: true, data: processesForScenario(scenario) }));
+      return;
+    }
+    if (
+      pathname.startsWith('/api/v1/pre-registration/processes/') &&
+      pathname.endsWith('/session') &&
+      method === 'GET'
+    ) {
       const payload = scenario === 'completed'
         ? session({
             status: 'PRE_REGISTRATION_COMPLETED',
@@ -258,10 +311,13 @@ try {
     { name: 'landing-desktop', route: '/pre-cadastro/token-safe', viewport: { width: 1440, height: 900 }, scenario: 'landing' },
     { name: 'landing-mobile', route: '/pre-cadastro/token-safe', viewport: { width: 390, height: 844 }, scenario: 'landing' },
     { name: 'invalid-link-mobile', route: '/pre-cadastro/invalid-token', viewport: { width: 390, height: 844 }, scenario: 'invalid' },
-    { name: 'identification-desktop', route: '/pre-cadastro', viewport: { width: 1366, height: 768 }, scenario: 'identification' },
+    { name: 'process-selector-desktop', route: '/pre-cadastro', viewport: { width: 1440, height: 900 }, scenario: 'selector' },
+    { name: 'guardian-confirmation-mobile', route: '/pre-cadastro', viewport: { width: 390, height: 844 }, scenario: 'pending-guardian' },
+    { name: 'identification-low-height', route: '/pre-cadastro', viewport: { width: 1366, height: 768 }, scenario: 'identification' },
     { name: 'guardian-mobile', route: '/pre-cadastro', viewport: { width: 390, height: 844 }, scenario: 'guardian' },
     { name: 'privacy-mobile', route: '/pre-cadastro', viewport: { width: 390, height: 844 }, scenario: 'privacy' },
     { name: 'completed-desktop', route: '/pre-cadastro', viewport: { width: 1440, height: 900 }, scenario: 'completed' },
+    { name: 'anamnese-handoff-mobile', route: '/pre-cadastro/anamnese', viewport: { width: 390, height: 844 }, scenario: 'optional' },
   ];
   for (const item of scenarios) await capture(browser, item);
   console.log('Issue 271 visual audit completed successfully.');
