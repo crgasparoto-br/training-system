@@ -60,6 +60,28 @@ jobs:
           set -euo pipefail
           git apply --check --exclude=.github/workflows/visual-audit-issue-271.yml /tmp/issue271.patch
           git apply --index --exclude=.github/workflows/visual-audit-issue-271.yml /tmp/issue271.patch
+          python3 - <<'PY'
+          from pathlib import Path
+
+          identity_path = Path('apps/api/src/modules/alunos/student-identity.service.ts')
+          identity = identity_path.read_text()
+          old_signature = "  client: DbClient = prisma\n): Promise<string[]> {"
+          new_signature = "  client: DbClient = prisma,\n  options: { compareEmail?: boolean } = {}\n): Promise<string[]> {"
+          old_email = "  if (\n    identity.email &&\n    normalizeStudentEmail(identity.email) !== normalizeStudentEmail(account.email)\n  ) {"
+          new_email = "  if (\n    options.compareEmail &&\n    identity.email &&\n    normalizeStudentEmail(identity.email) !== normalizeStudentEmail(account.email)\n  ) {"
+          if old_signature not in identity or old_email not in identity:
+              raise SystemExit('student identity hotfix anchors not found')
+          identity = identity.replace(old_signature, new_signature, 1).replace(old_email, new_email, 1)
+          identity_path.write_text(identity)
+
+          public_path = Path('apps/api/src/modules/pre-registration-public/pre-registration-public.service.ts')
+          public = public_path.read_text()
+          old_call = "        userId,\n        tx\n      );"
+          new_call = "        userId,\n        tx,\n        { compareEmail: true }\n      );"
+          if old_call not in public:
+              raise SystemExit('public pre-registration hotfix anchor not found')
+          public_path.write_text(public.replace(old_call, new_call, 1))
+          PY
           rm -rf .github/issue271 .github/issue271-bin
           rm -f .github/workflows/apply-issue-271-final.yml
           rm -f .github/workflows/orchestrate-issue-271.yml
