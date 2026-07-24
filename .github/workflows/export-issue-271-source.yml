@@ -17,11 +17,11 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Package source
-        run: tar --exclude=.git -czf issue-271-source.tar.gz .
+        run: tar --exclude=.git -czf /tmp/issue-271-source.tar.gz .
 
       - name: Upload source artifact
         uses: actions/upload-artifact@v4
         with:
           name: issue-271-source-${{ github.run_id }}
-          path: issue-271-source.tar.gz
+          path: /tmp/issue-271-source.tar.gz
           retention-days: 1
