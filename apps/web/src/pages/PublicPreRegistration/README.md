@@ -26,4 +26,4 @@ Mudanças neste diretório devem executar o workflow visual da issue #271 em des
 
 Mudanças de autorização devem incluir cenários discriminantes em que a revogação vence o lock antes de `getSession`, primeiro salvamento ou preservação de duplicidade, comprovando ausência de PII e de mutações residuais.
 
-Mudanças no rascunho de aba devem distinguir troca de usuário, logout e negação autoritativa de falhas temporárias, preservando dados somente quando a mesma conta ainda puder retomar o processo com segurança.
+Mudanças no rascunho de aba devem distinguir troca de usuário, logout e negação autoritativa de falhas temporárias, preservando dados somente quando a mesma conta ainda puder retomar o processo com segurança. Fixtures unitárias e visuais devem semear a mesma identidade autenticada no store e no `localStorage`, incluindo a versão vigente da chave de rascunho.
