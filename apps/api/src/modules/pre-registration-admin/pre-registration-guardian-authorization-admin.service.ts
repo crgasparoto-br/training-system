@@ -18,6 +18,10 @@ type GuardianAuthorizationRecord = Prisma.PreRegistrationGuardianAuthorizationGe
   };
 }>;
 
+type GuardianAuthorizationRequestEventRow = {
+  createdAt: Date;
+};
+
 const authorizationInclude = Prisma.validator<Prisma.PreRegistrationGuardianAuthorizationInclude>()({
   guardianUser: { include: { profile: true } },
   validatedByUser: { include: { profile: true } },
@@ -28,16 +32,37 @@ function userName(user: { email: string; profile?: { name: string } | null }) {
   return user.profile?.name || user.email;
 }
 
-function serialize(
+async function requestedAtOf(
   authorization: GuardianAuthorizationRecord
-): PreRegistrationGuardianAuthorizationAdminDTO {
+): Promise<Date> {
+  const rows = await prisma.$queryRaw<GuardianAuthorizationRequestEventRow[]>`
+    SELECT "createdAt"
+    FROM "StudentLifecycleEvent"
+    WHERE "alunoId" = ${authorization.alunoId}
+      AND "contractId" = ${authorization.contractId}
+      AND "actorUserId" = ${authorization.guardianUserId}
+      AND "eventType" = 'ACCOUNT_LINKED'
+      AND "metadata"->>'action' = 'guardian_authorization_requested'
+    ORDER BY "createdAt" ASC
+    LIMIT 1
+  `;
+
+  // Registros legados anteriores ao evento específico mantêm uma referência
+  // estável. Nunca usamos updatedAt, pois aprovação e revogação o alteram.
+  return rows[0]?.createdAt || authorization.createdAt;
+}
+
+async function serialize(
+  authorization: GuardianAuthorizationRecord
+): Promise<PreRegistrationGuardianAuthorizationAdminDTO> {
+  const requestedAt = await requestedAtOf(authorization);
   return {
     id: authorization.id,
     alunoId: authorization.alunoId,
     contractId: authorization.contractId,
     status: authorization.status as PreRegistrationGuardianAuthorizationAdminDTO['status'],
     relationship: authorization.relationship || undefined,
-    requestedAt: authorization.updatedAt.toISOString(),
+    requestedAt: requestedAt.toISOString(),
     validatedAt: authorization.validatedAt?.toISOString(),
     revokedAt: authorization.revokedAt?.toISOString(),
     guardian: {
