@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - feat/271-public-pre-registration
+  pull_request:
+    branches:
+      - develop
 
 permissions:
   contents: write
