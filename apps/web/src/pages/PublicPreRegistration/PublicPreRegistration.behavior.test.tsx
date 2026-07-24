@@ -113,6 +113,8 @@ describe('PublicPreRegistration - resiliência, seleção e autorização', () =
     mocks.login.mockResolvedValue(undefined);
     mocks.listProcesses.mockResolvedValue([baseProcess]);
     mocks.getSession.mockResolvedValue(baseSession);
+    window.localStorage.clear();
+    window.localStorage.setItem('user', JSON.stringify({ id: 'guardian-1' }));
     window.sessionStorage.clear();
   });
 

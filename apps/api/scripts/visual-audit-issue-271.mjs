@@ -278,7 +278,7 @@ async function installMocking(page, scenario) {
     if (scenario === 'conflict') {
       await page.evaluateOnNewDocument(() => {
         sessionStorage.setItem(
-          'pre-registration-draft-v2:internal-student-id',
+          'pre-registration-draft-v3:guardian-user:internal-student-id',
           JSON.stringify({
             form: { name: 'Nome preservado no rascunho local' },
             step: 'IDENTIFICATION',
