@@ -7,9 +7,14 @@ on:
     paths:
       - 'apps/web/src/pages/PublicPreRegistration/**'
       - 'apps/web/src/services/pre-registration-public.service.ts'
+      - 'apps/web/src/stores/useAuthStore.ts'
       - 'apps/web/src/index.css'
       - 'apps/web/src/App.tsx'
+      - 'apps/api/src/modules/pre-registration-public/**'
+      - 'apps/api/src/modules/alunos/student-public-pre-registration.service.ts'
       - 'apps/api/scripts/visual-audit-issue-271.mjs'
+      - 'apps/api/scripts/visual-audit-issue-271-integrated.ts'
+      - 'apps/api/prisma/migrations/**issue_271**'
       - '.github/workflows/visual-audit-issue-271.yml'
   workflow_dispatch:
 
@@ -17,6 +22,25 @@ jobs:
   screenshots:
     name: Audit public pre-registration responsive states
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/training_system_visual_271?schema=public
+      VITE_API_URL: http://127.0.0.1:3000
+      RUN_DATABASE_INTEGRATION_TESTS: 'true'
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: training_system_visual_271
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d training_system_visual_271"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - name: Checkout
@@ -36,16 +60,28 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Generate Prisma Client
+        run: pnpm --filter @corrida/api exec prisma generate
+
+      - name: Apply visual audit database migrations
+        run: pnpm --filter @corrida/api exec prisma migrate deploy
+
       - name: Install Chrome for Puppeteer
         run: pnpm --filter @corrida/api exec puppeteer browsers install chrome
 
-      - name: Build web application
+      - name: Build web application for the real API
         run: |
           pnpm --filter @corrida/types build
           pnpm --filter @corrida/utils build
           pnpm --filter @corrida/web build
 
-      - name: Audit routes, states and responsive layouts
+      - name: Execute integrated browser flow against API and PostgreSQL
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @corrida/api exec tsx scripts/visual-audit-issue-271-integrated.ts 2>&1 | tee integrated-visual-audit.log
+
+      - name: Audit additional routes, states and responsive layouts
         shell: bash
         run: |
           set -o pipefail
@@ -57,7 +93,9 @@ jobs:
         with:
           name: issue-271-visual-${{ github.run_id }}
           path: |
+            artifacts/issue-271-integrated/*
             artifacts/issue-271-visual/*.png
+            integrated-visual-audit.log
             visual-audit.log
           if-no-files-found: warn
           retention-days: 14
