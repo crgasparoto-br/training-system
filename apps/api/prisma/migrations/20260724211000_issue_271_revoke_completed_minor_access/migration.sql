@@ -30,9 +30,11 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Backfill rows that may have been completed and retained a claim after a
--- guardian authorization had already been revoked before this migration.
-WITH minor_processes_without_active_guardian AS (
+-- Backfill only claims that are demonstrably stale because a related
+-- authorization is REVOKED. Pending guardian declarations remain claimed so
+-- the responsible account can keep the redacted process visible while waiting
+-- for independent academy validation.
+WITH revoked_minor_processes AS (
   SELECT onboarding."alunoId", onboarding."contractId"
   FROM "StudentOnboardingProcess" AS onboarding
   JOIN "Aluno" AS student
@@ -44,7 +46,7 @@ WITH minor_processes_without_active_guardian AS (
     AND COALESCE(
       CASE
         WHEN COALESCE(profile."identificationData"->>'birthDate', '')
-             ~ '^\d{4}-\d{2}-\d{2}'
+             ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
           THEN LEFT(profile."identificationData"->>'birthDate', 10)::date
         ELSE NULL
       END,
@@ -52,11 +54,36 @@ WITH minor_processes_without_active_guardian AS (
     ) > (CURRENT_DATE - INTERVAL '18 years')::date
     AND NOT EXISTS (
       SELECT 1
-      FROM "PreRegistrationGuardianAuthorization" AS authorization
-      WHERE authorization."alunoId" = onboarding."alunoId"
-        AND authorization."contractId" = onboarding."contractId"
-        AND authorization."purpose" = 'PRE_REGISTRATION'
-        AND authorization."status" = 'ACTIVE'
+      FROM "PreRegistrationGuardianAuthorization" AS active_authorization
+      WHERE active_authorization."alunoId" = onboarding."alunoId"
+        AND active_authorization."contractId" = onboarding."contractId"
+        AND active_authorization."purpose" = 'PRE_REGISTRATION'
+        AND active_authorization."status" = 'ACTIVE'
+    )
+    AND (
+      (
+        onboarding."claimRole" = 'GUARDIAN'
+        AND EXISTS (
+          SELECT 1
+          FROM "PreRegistrationGuardianAuthorization" AS revoked_authorization
+          WHERE revoked_authorization."alunoId" = onboarding."alunoId"
+            AND revoked_authorization."contractId" = onboarding."contractId"
+            AND revoked_authorization."guardianUserId" = onboarding."claimedByUserId"
+            AND revoked_authorization."purpose" = 'PRE_REGISTRATION'
+            AND revoked_authorization."status" = 'REVOKED'
+        )
+      )
+      OR (
+        onboarding."claimRole" = 'STUDENT'
+        AND EXISTS (
+          SELECT 1
+          FROM "PreRegistrationGuardianAuthorization" AS revoked_authorization
+          WHERE revoked_authorization."alunoId" = onboarding."alunoId"
+            AND revoked_authorization."contractId" = onboarding."contractId"
+            AND revoked_authorization."purpose" = 'PRE_REGISTRATION'
+            AND revoked_authorization."status" = 'REVOKED'
+        )
+      )
     )
 )
 UPDATE "StudentOnboardingProcess" AS onboarding
@@ -64,6 +91,6 @@ SET "version" = onboarding."version" + 1,
     "claimedByUserId" = NULL,
     "claimedAt" = NULL,
     "updatedAt" = CURRENT_TIMESTAMP
-FROM minor_processes_without_active_guardian AS stale
+FROM revoked_minor_processes AS stale
 WHERE onboarding."alunoId" = stale."alunoId"
   AND onboarding."contractId" = stale."contractId";
