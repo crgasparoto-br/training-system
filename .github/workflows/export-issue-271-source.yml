@@ -1,0 +1,27 @@
+name: Export Issue 271 Source
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - '.github/workflows/export-issue-271-source.yml'
+  workflow_dispatch:
+
+jobs:
+  export:
+    name: Package branch source
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Package source
+        run: tar --exclude=.git -czf issue-271-source.tar.gz .
+
+      - name: Upload source artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-271-source-${{ github.run_id }}
+          path: issue-271-source.tar.gz
+          retention-days: 1
