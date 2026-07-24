@@ -19,6 +19,7 @@ Transformar o convite seguro de pré-cadastro em uma experiência pública que i
 - relação explícita e tenant-scoped entre conta do responsável e dependente;
 - reivindicação de responsável inicialmente `PENDING`, sem leitura de dados pessoais até validação independente por usuário autorizado da academia;
 - acesso de responsável permitido somente para menoridade confirmada pela data canônica e autorização `ACTIVE` validada por conta diferente da conta responsável;
+- revogação de responsável remove o claim autenticado do menor inclusive após a conclusão do pré-cadastro, impedindo nova sessão e ocultando o processo da listagem;
 - suporte a múltiplos dependentes por conta de responsável sem reutilizar `Aluno.userId`;
 - edição administrativa da identidade canônica invalida versões públicas desatualizadas por trigger de banco;
 - conclusão revalida os dados canônicos dentro da transação bloqueada, sem regravar snapshot antigo;
@@ -36,6 +37,7 @@ Transformar o convite seguro de pré-cadastro em uma experiência pública que i
 5. **Conclusão:** validação ocorre sobre a identidade canônica lida dentro da transação e emite evento específico uma única vez.
 6. **Etapas:** contratos discriminados e allowlists de backend impedem que uma etapa altere campos pertencentes a outra.
 7. **Próximos passos:** cards deixam de ficar desabilitados e encaminham para a etapa opcional correspondente.
+8. **Revogação pós-conclusão:** a mudança de autorização invalida e remove o claim do processo em qualquer estado, e a migration corrige registros históricos concluídos sem autorização ativa.
 
 ## Limites preservados
 
@@ -87,8 +89,8 @@ Validação oficial repetida após alinhar as fixtures antigas à regra comparti
 - um usuário com permissão `students.preRegistration.review` valida o vínculo na ficha administrativa, após confirmação de verificação por fonte independente;
 - a constraint `PreRegistrationGuardianAuthorization_independent_validation_check` impede `ACTIVE` sem relacionamento, data, validador e separação entre responsável e validador;
 - autorizações antigas autovalidadas são rebaixadas para `PENDING` pela migration;
-- revogação remove imediatamente o vínculo do processo incompleto e impede autorreativação pelo mesmo convite;
-- testes cobrem responsável não vinculado, autovalidação bloqueada, aprovação administrativa, múltiplos dependentes, revogação e tentativa cross-tenant;
+- revogação remove imediatamente o vínculo do processo, inclusive quando o pré-cadastro básico já foi concluído, e impede autorreativação pelo mesmo convite;
+- testes cobrem responsável não vinculado, autovalidação bloqueada, aprovação administrativa, múltiplos dependentes, revogação, tentativa cross-tenant e revogação pós-conclusão;
 - o schema de salvamento é uma união discriminada por etapa e rejeita campos fora da allowlist da etapa selecionada;
 - a auditoria visual inclui solicitação, espera de aprovação, validação administrativa em desktop/mobile e continuação após liberação.
 
@@ -100,5 +102,14 @@ Validação oficial repetida após alinhar as fixtures antigas à regra comparti
 - a mensagem técnica original permanece restrita ao log do servidor associado ao identificador de correlação;
 - testes HTTP comparam divergências distintas e exigem payload externo idêntico;
 - teste HTTP injeta uma falha técnica e confirma que nomes de tabela, campos e mensagem original não aparecem na resposta.
+
+## Remediação do achado AUD-271-003
+
+- a função de trigger de autorização não limita mais a invalidação a processos com `completedAt` nulo;
+- a revogação incrementa a versão, limpa `claimedByUserId` e `claimedAt` na mesma transação, mantendo o status cadastral concluído sem preservar acesso autenticado indevido;
+- a migration executa backfill de processos de menores que ainda possuam claim, mas não tenham autorização `ACTIVE`;
+- a listagem deixa de retornar o processo porque depende do claim vigente, e a consulta process-scoped responde `NOT_FOUND` sem carregar a identidade;
+- o teste de integração cobre conclusão seguida de revogação e confirma ausência de processo e sessão;
+- um segundo cenário disputa conclusão e revogação simultaneamente e exige que o estado final permaneça sem claim e sem leitura de dados pessoais.
 
 Qualquer alteração posterior ao SHA corrigido exige nova auditoria independente funcional e documental antes do merge.
