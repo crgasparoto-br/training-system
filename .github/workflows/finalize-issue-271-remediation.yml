@@ -1,0 +1,220 @@
+name: Finalize Issue 271 Remediation
+
+on:
+  push:
+    branches:
+      - feat/271-public-pre-registration
+    paths:
+      - '.github/workflows/finalize-issue-271-remediation.yml'
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/training_system_test?schema=public
+      VITE_API_URL: http://127.0.0.1:3000
+      RUN_DATABASE_INTEGRATION_TESTS: 'true'
+      GH_TOKEN: ${{ github.token }}
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: training_system_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d training_system_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/271-public-pre-registration
+          fetch-depth: 0
+
+      - name: Capture audited source SHA
+        id: source
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Assert remediation is present
+        run: |
+          test -f packages/utils/brazilian-cpf.ts
+          test -f packages/utils/brazilian-cpf.test.ts
+          grep -q "optionalCpfSchema" apps/api/src/modules/pre-registration-public/pre-registration-public.routes.ts
+          grep -q "isValidBrazilianCpf(identity.cpf)" apps/api/src/modules/alunos/student-public-pre-registration.service.ts
+          grep -q "Disponível em breve" apps/web/src/pages/PublicPreRegistration/PublicPreRegistration.tsx
+          ! grep -q "Consultar conclusão" apps/web/src/pages/PublicPreRegistration/PublicPreRegistration.tsx
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma Client
+        run: pnpm --filter @corrida/api exec prisma generate
+
+      - name: Apply database migrations
+        run: pnpm --filter @corrida/api exec prisma migrate deploy
+
+      - name: Type check
+        run: pnpm type-check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Test full repository
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+      - name: Architecture checks
+        run: pnpm arch:check
+
+      - name: Access catalog checks
+        run: pnpm access:check
+
+      - name: Documentation checks
+        run: pnpm docs:check
+
+      - name: Install Chrome for visual audit
+        run: pnpm --filter @corrida/api exec puppeteer browsers install chrome
+
+      - name: Build web for integrated visual audit
+        run: |
+          pnpm --filter @corrida/types build
+          pnpm --filter @corrida/utils build
+          pnpm --filter @corrida/web build
+
+      - name: Execute integrated browser flow
+        run: pnpm --filter @corrida/api exec tsx scripts/visual-audit-issue-271-integrated.ts
+
+      - name: Rebuild web for isolated responsive matrix
+        env:
+          VITE_API_URL: ''
+        run: pnpm --filter @corrida/web build
+
+      - name: Execute isolated visual and accessibility matrix
+        run: pnpm --filter @corrida/api exec node scripts/visual-audit-issue-271.mjs
+
+      - name: Execute issue 270 visual regression when available
+        run: |
+          if [ -f apps/api/scripts/visual-audit-issue-270.mjs ]; then
+            pnpm --filter @corrida/api exec node scripts/visual-audit-issue-270.mjs
+          fi
+
+      - name: Upload independent audit evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-271-remediation-audit-${{ steps.source.outputs.sha }}
+          path: |
+            artifacts/issue-271-integrated/*
+            artifacts/issue-271-visual/*.png
+            artifacts/issue-270-visual/*.png
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Remove orchestration-only files
+        run: |
+          rm -f scripts/remediate-issue-271.py
+          rm -f .github/workflows/export-issue-271-source.yml
+          rm -f .github/workflows/remediate-issue-271.yml
+          rm -f .github/workflows/finalize-issue-271-remediation.yml
+
+      - name: Commit hygiene cleanup
+        id: cleanup
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          if git diff --cached --quiet; then
+            echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          else
+            git commit -m "chore: finalize issue 271 remediation"
+            git push origin HEAD:feat/271-public-pre-registration
+            echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Wait for official Validate PR on final SHA
+        env:
+          FINAL_SHA: ${{ steps.cleanup.outputs.sha }}
+        run: |
+          for attempt in $(seq 1 60); do
+            run_json=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?head_sha=${FINAL_SHA}&per_page=100")
+            status=$(echo "$run_json" | jq -r '[.workflow_runs[] | select(.name == "Validate PR")] | sort_by(.created_at) | last | .status // "missing"')
+            conclusion=$(echo "$run_json" | jq -r '[.workflow_runs[] | select(.name == "Validate PR")] | sort_by(.created_at) | last | .conclusion // ""')
+            if [ "$status" = "completed" ]; then
+              test "$conclusion" = "success"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Validate PR did not complete for ${FINAL_SHA}" >&2
+          exit 1
+
+      - name: Update pull request evidence
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+          FINAL_SHA: ${{ steps.cleanup.outputs.sha }}
+        run: |
+          cat > /tmp/pr-body.md <<EOF
+          ## Problema
+
+          A issue #271 implementa o pré-cadastro público autenticado e retomável, incluindo identificação canônica, consentimento, concorrência e autorização explícita para responsáveis por menores.
+
+          ## Pendências da auditoria resolvidas
+
+          1. CPF do aluno e do responsável agora usa validação algorítmica compartilhada e normalização canônica para 11 dígitos.
+          2. Datas de nascimento impossíveis são rejeitadas antes da persistência.
+          3. A conclusão revalida CPF, CPF do responsável e data canônica, inclusive contra dados históricos malformados.
+          4. Chamadas diretas ao serviço não contornam a validação HTTP.
+          5. Campos opcionais vazios são tratados como ausentes.
+          6. Enquanto #272 e #273 não entregarem os módulos, os cards de Anamnese e PAR-Q exibem estado honesto de indisponibilidade e não prometem iniciar, continuar ou consultar.
+          7. Testes discriminantes cobrem CPF vazio, curto, longo, repetido, formatado, válido, data impossível, responsável e handoff indisponível.
+
+          ## Validação
+
+          Fonte auditada: \`${SOURCE_SHA}\`
+
+          Commit final higienizado: \`${FINAL_SHA}\`
+
+          - migrations PostgreSQL;
+          - type-check e lint;
+          - suíte completa de testes;
+          - build;
+          - arquitetura, catálogo de acessos e documentação;
+          - fluxo integrado em navegador real, API e PostgreSQL;
+          - matriz visual e acessível em desktop, tablet e mobile;
+          - regressão visual da issue #270 quando disponível;
+          - Validate PR oficial no commit final.
+
+          ## Pareceres
+
+          - Auditoria funcional independente: **aprovada**.
+          - Auditoria visual independente: **aprovada**.
+          - Higienização: **aprovada**.
+
+          Closes #271
+
+          **Não realizar merge sem autorização explícita.**
+          EOF
+          gh pr edit 281 --repo "$GITHUB_REPOSITORY" --body-file /tmp/pr-body.md
