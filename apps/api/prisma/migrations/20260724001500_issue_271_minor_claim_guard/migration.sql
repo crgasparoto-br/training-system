@@ -26,11 +26,11 @@ BEGIN
 
   SELECT EXISTS (
     SELECT 1
-    FROM "PreRegistrationGuardianAuthorization" AS authorization
-    WHERE authorization."alunoId" = NEW."alunoId"
-      AND authorization."contractId" = NEW."contractId"
-      AND authorization."purpose" = 'PRE_REGISTRATION'
-      AND authorization."status" = 'ACTIVE'
+    FROM "PreRegistrationGuardianAuthorization" AS guardian_auth
+    WHERE guardian_auth."alunoId" = NEW."alunoId"
+      AND guardian_auth."contractId" = NEW."contractId"
+      AND guardian_auth."purpose" = 'PRE_REGISTRATION'
+      AND guardian_auth."status" = 'ACTIVE'
   )
   INTO has_active_guardian;
 
