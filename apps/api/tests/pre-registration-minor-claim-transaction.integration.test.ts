@@ -13,6 +13,7 @@ describeDatabase('minor self-claim transaction guard', () => {
   let alunoId: string;
   let minorUserId: string;
   let guardianUserId: string;
+  let validatorUserId: string;
   const token = `${suffix}-token`;
 
   beforeAll(async () => {
@@ -25,7 +26,7 @@ describeDatabase('minor self-claim transaction guard', () => {
     });
     contractId = contract.id;
 
-    const [minor, guardian] = await Promise.all([
+    const [minor, guardian, validator] = await Promise.all([
       prisma.user.create({
         data: {
           email: `${suffix}-minor@example.com`,
@@ -48,9 +49,18 @@ describeDatabase('minor self-claim transaction guard', () => {
           profile: { create: { name: 'Responsável Transacional' } },
         },
       }),
+      prisma.user.create({
+        data: {
+          email: `${suffix}-validator@example.com`,
+          passwordHash: 'integration-test-hash',
+          type: 'professor',
+          profile: { create: { name: 'Validador Transacional' } },
+        },
+      }),
     ]);
     minorUserId = minor.id;
     guardianUserId = guardian.id;
+    validatorUserId = validator.id;
 
     const aluno = await prisma.aluno.create({
       data: {
@@ -87,7 +97,7 @@ describeDatabase('minor self-claim transaction guard', () => {
     if (contractId) {
       await prisma.companyContract.delete({ where: { id: contractId } }).catch(() => undefined);
     }
-    for (const userId of [minorUserId, guardianUserId]) {
+    for (const userId of [minorUserId, guardianUserId, validatorUserId]) {
       if (userId) await prisma.user.delete({ where: { id: userId } }).catch(() => undefined);
     }
     await prisma.$disconnect();
@@ -113,7 +123,7 @@ describeDatabase('minor self-claim transaction guard', () => {
         relationship: 'Mãe',
         status: 'ACTIVE',
         validatedAt: new Date(),
-        validatedByUserId: guardianUserId,
+        validatedByUserId: validatorUserId,
       },
     });
 
