@@ -7,6 +7,7 @@ on:
     paths:
       - 'apps/web/src/pages/PublicPreRegistration/**'
       - 'apps/web/src/services/pre-registration-public.service.ts'
+      - 'apps/web/src/index.css'
       - 'apps/web/src/App.tsx'
       - 'apps/api/scripts/visual-audit-issue-271.mjs'
       - '.github/workflows/visual-audit-issue-271.yml'
