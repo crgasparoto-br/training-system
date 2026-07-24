@@ -20,6 +20,7 @@ Transformar o convite seguro de pré-cadastro em uma experiência pública que i
 - reivindicação de responsável inicialmente `PENDING`, sem leitura de dados pessoais até validação independente por usuário autorizado da academia;
 - acesso de responsável permitido somente para menoridade confirmada pela data canônica e autorização `ACTIVE` validada por conta diferente da conta responsável;
 - revogação de responsável remove o claim autenticado do menor inclusive após a conclusão do pré-cadastro, impedindo nova sessão e ocultando o processo da listagem;
+- revogação de solicitação de outro responsável não remove o claim do próprio aluno quando outra autorização `ACTIVE` continua válida;
 - suporte a múltiplos dependentes por conta de responsável sem reutilizar `Aluno.userId`;
 - edição administrativa da identidade canônica invalida versões públicas desatualizadas por trigger de banco;
 - conclusão revalida os dados canônicos dentro da transação bloqueada, sem regravar snapshot antigo;
@@ -38,6 +39,7 @@ Transformar o convite seguro de pré-cadastro em uma experiência pública que i
 6. **Etapas:** contratos discriminados e allowlists de backend impedem que uma etapa altere campos pertencentes a outra.
 7. **Próximos passos:** cards deixam de ficar desabilitados e encaminham para a etapa opcional correspondente.
 8. **Revogação pós-conclusão:** a mudança de autorização invalida e remove o claim do processo em qualquer estado, e a migration corrige registros históricos concluídos com autorização revogada.
+9. **Múltiplos responsáveis:** o trigger diferencia o claim do responsável e o claim do aluno; uma revogação paralela não derruba o aluno enquanto existir autorização ativa aplicável.
 
 ## Limites preservados
 
@@ -90,7 +92,7 @@ Validação oficial repetida após alinhar as fixtures antigas à regra comparti
 - a constraint `PreRegistrationGuardianAuthorization_independent_validation_check` impede `ACTIVE` sem relacionamento, data, validador e separação entre responsável e validador;
 - autorizações antigas autovalidadas são rebaixadas para `PENDING` pela migration;
 - revogação remove imediatamente o vínculo do processo, inclusive quando o pré-cadastro básico já foi concluído, e impede autorreativação pelo mesmo convite;
-- testes cobrem responsável não vinculado, autovalidação bloqueada, aprovação administrativa, múltiplos dependentes, revogação, tentativa cross-tenant e revogação pós-conclusão;
+- testes cobrem responsável não vinculado, autovalidação bloqueada, aprovação administrativa, múltiplos dependentes, múltiplos responsáveis, revogação, tentativa cross-tenant e revogação pós-conclusão;
 - o schema de salvamento é uma união discriminada por etapa e rejeita campos fora da allowlist da etapa selecionada;
 - a auditoria visual inclui solicitação, espera de aprovação, validação administrativa em desktop/mobile e continuação após liberação.
 
@@ -106,10 +108,13 @@ Validação oficial repetida após alinhar as fixtures antigas à regra comparti
 ## Remediação do achado AUD-271-003
 
 - a função de trigger de autorização não limita mais a invalidação a processos com `completedAt` nulo;
-- a revogação incrementa a versão, limpa `claimedByUserId` e `claimedAt` na mesma transação, mantendo o status cadastral concluído sem preservar acesso autenticado indevido;
+- para claim de responsável, apenas a revogação ou substituição da autorização vinculada àquela conta remove o acesso;
+- para claim do próprio aluno, o acesso somente é removido quando não resta nenhuma autorização `ACTIVE` tenant-scoped;
+- a revogação efetiva incrementa a versão, limpa `claimedByUserId` e `claimedAt` na mesma transação, mantendo o status cadastral concluído sem preservar acesso autenticado indevido;
 - a migration executa backfill apenas de processos de menores com autorização `REVOKED`, claim residual e nenhuma autorização `ACTIVE`, preservando declarações `PENDING`;
 - a listagem deixa de retornar o processo porque depende do claim vigente, e a consulta process-scoped responde `NOT_FOUND` sem carregar a identidade;
 - o teste de integração cobre conclusão seguida de revogação e confirma ausência de processo e sessão;
-- um segundo cenário disputa conclusão e revogação simultaneamente e exige que o estado final permaneça sem claim e sem leitura de dados pessoais.
+- um segundo cenário disputa conclusão e revogação simultaneamente e exige que o estado final permaneça sem claim e sem leitura de dados pessoais;
+- um terceiro cenário revoga uma solicitação `PENDING` paralela e confirma que o claim do aluno permanece quando outra autorização `ACTIVE` continua válida.
 
 Qualquer alteração posterior ao SHA corrigido exige nova auditoria independente funcional e documental antes do merge.
