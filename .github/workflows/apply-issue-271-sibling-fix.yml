@@ -1,0 +1,171 @@
+name: Apply Issue 271 Sibling Fix
+
+on:
+  push:
+    branches:
+      - feat/271-public-pre-registration
+    paths:
+      - '.github/workflows/apply-issue-271-sibling-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/271-public-pre-registration
+          fetch-depth: 0
+
+      - name: Patch atomic duplicate-review transition
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          atomic_path = Path('apps/api/src/modules/pre-registration-public/pre-registration-public-atomic.service.ts')
+          atomic = atomic_path.read_text(encoding='utf-8')
+          atomic = atomic.replace(
+              "  loadStudentIdentity,\n  normalizeStudentEmail,\n  normalizeStudentPhone,\n  upsertStudentIdentity,",
+              "  loadStudentIdentity,\n  upsertStudentIdentity,",
+              1,
+          )
+          descriptor = """async function resolveDescriptor(
+            userId: string,
+            alunoId: string
+          ): Promise<Pick<LockedPreRegistrationAccess, 'contractId' | 'accessRole'>> {""".replace('          ', '')
+          helper = """export async function startAuthorizedPreRegistrationInTransaction(
+            tx: Prisma.TransactionClient,
+            access: LockedPreRegistrationAccess,
+            userId: string
+          ): Promise<LockedPreRegistrationAccess> {
+            if (access.status !== 'INVITED') return access;
+            if (access.accessRole === 'STUDENT') {
+              await startStudentPreRegistrationInTransaction(tx, access, userId);
+            } else {
+              await startGuardianPreRegistrationInTransaction(
+                tx,
+                access.alunoId,
+                access.contractId,
+                userId
+              );
+            }
+            return { ...access, status: 'PRE_REGISTRATION_IN_PROGRESS' };
+          }
+
+          async function resolveDescriptor(
+            userId: string,
+            alunoId: string
+          ): Promise<Pick<LockedPreRegistrationAccess, 'contractId' | 'accessRole'>> {""".replace('          ', '')
+          if descriptor not in atomic:
+              raise RuntimeError('descriptor insertion point not found')
+          atomic = atomic.replace(descriptor, helper, 1)
+          old_start = """        if (access.status === 'INVITED') {
+            if (access.accessRole === 'STUDENT') {
+              await startStudentPreRegistrationInTransaction(tx, access, userId);
+            } else {
+              await startGuardianPreRegistrationInTransaction(
+                tx,
+                access.alunoId,
+                access.contractId,
+                userId
+              );
+            }
+            access = { ...access, status: 'PRE_REGISTRATION_IN_PROGRESS' };
+          }
+          """.replace('          ', '')
+          new_start = "        access = await startAuthorizedPreRegistrationInTransaction(tx, access, userId);\n"
+          if old_start not in atomic:
+              raise RuntimeError('atomic first-save block not found')
+          atomic = atomic.replace(old_start, new_start, 1)
+          atomic_path.write_text(atomic, encoding='utf-8')
+
+          duplicate_path = Path('apps/api/src/modules/pre-registration-public/pre-registration-duplicate-review.service.ts')
+          duplicate = duplicate_path.read_text(encoding='utf-8')
+          duplicate = duplicate.replace(
+              "  lockAndAuthorizePreRegistrationProcess,\n} from './pre-registration-public-atomic.service.js';",
+              "  lockAndAuthorizePreRegistrationProcess,\n  startAuthorizedPreRegistrationInTransaction,\n} from './pre-registration-public-atomic.service.js';",
+              1,
+          )
+          before = """      if (access.onboarding.version !== input.expectedVersion) {
+            throw new Error('O rascunho foi alterado em outro acesso. Recarregue antes de continuar.');
+          }
+
+          const before = await loadStudentIdentity(access.alunoId, access.contractId, tx);""".replace('          ', '')
+          after = """      if (access.onboarding.version !== input.expectedVersion) {
+            throw new Error('O rascunho foi alterado em outro acesso. Recarregue antes de continuar.');
+          }
+
+          access = await startAuthorizedPreRegistrationInTransaction(tx, access, userId);
+          const before = await loadStudentIdentity(access.alunoId, access.contractId, tx);""".replace('          ', '')
+          if before not in duplicate:
+              raise RuntimeError('duplicate-review insertion point not found')
+          duplicate = duplicate.replace(before, after, 1)
+          duplicate_path.write_text(duplicate, encoding='utf-8')
+
+          test_path = Path('apps/api/tests/pre-registration-atomic-authorization.integration.test.ts')
+          test = test_path.read_text(encoding='utf-8')
+          test = test.replace(
+              "import { preRegistrationPublicAtomicService } from '../src/modules/pre-registration-public/pre-registration-public-atomic.service.js';",
+              "import { preRegistrationPublicAtomicService } from '../src/modules/pre-registration-public/pre-registration-public-atomic.service.js';\nimport { preRegistrationDuplicateReviewService } from '../src/modules/pre-registration-public/pre-registration-duplicate-review.service.js';",
+              1,
+          )
+          marker = "  it('rolls back the first-save lifecycle transition when authorization is revoked first', async () => {"
+          sibling = """  it('preserves the first-save lifecycle transition atomically when CPF requires review', async () => {
+            const fixture = await createGuardianFixture('duplicidade');
+            const session = await preRegistrationPublicAtomicService.getSession(
+              fixture.guardianUserId,
+              fixture.alunoId
+            );
+
+            await preRegistrationDuplicateReviewService.preserveCpfConflict(
+              fixture.guardianUserId,
+              fixture.alunoId,
+              {
+                expectedVersion: session.version,
+                step: 'IDENTIFICATION',
+                data: { name: 'Dependente preservado', cpf: '12345678909' },
+              }
+            );
+
+            const [student, onboarding, transitionEvents, review] = await Promise.all([
+              prisma.aluno.findUniqueOrThrow({ where: { id: fixture.alunoId } }),
+              prisma.studentOnboardingProcess.findUniqueOrThrow({ where: { alunoId: fixture.alunoId } }),
+              prisma.studentLifecycleEvent.count({
+                where: {
+                  alunoId: fixture.alunoId,
+                  contractId: fixture.contractId,
+                  actorUserId: fixture.guardianUserId,
+                  eventType: 'STATUS_CHANGED',
+                },
+              }),
+              prisma.studentProfileReview.findFirst({
+                where: { alunoId: fixture.alunoId, status: 'pending', requiresApproval: true },
+              }),
+            ]);
+            expect(student.status).toBe('PRE_REGISTRATION_IN_PROGRESS');
+            expect(onboarding.startedAt).not.toBeNull();
+            expect(onboarding.version).toBe(session.version + 1);
+            expect(transitionEvents).toBe(1);
+            expect(review).not.toBeNull();
+          });
+
+          """.replace('          ', '') + marker
+          if marker not in test:
+              raise RuntimeError('test insertion point not found')
+          test = test.replace(marker, sibling, 1)
+          test_path.write_text(test, encoding='utf-8')
+
+          Path('.github/workflows/apply-issue-271-sibling-fix.yml').unlink()
+          PY
+
+      - name: Commit sibling remediation
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'fix(issue-271): preserve duplicate-review first save'
+          git push origin HEAD:feat/271-public-pre-registration
