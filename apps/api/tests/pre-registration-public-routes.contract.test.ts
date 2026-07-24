@@ -11,6 +11,7 @@ import {
 } from '../src/modules/pre-registration-public/pre-registration-public.service.js';
 
 type ErrorResponseBody = {
+  success?: boolean;
   error?: string;
   details?: Record<string, unknown>;
   timestamp?: string;
@@ -120,6 +121,7 @@ describe('public pre-registration route contracts', () => {
     expect(second.status).toBe(409);
     expect(secondPayload).toEqual(firstPayload);
     expect(firstPayload).toEqual({
+      success: false,
       error: 'Os dados da conta não correspondem ao convite. Entre em contato com a academia.',
       details: { code: 'ACCOUNT_INCOMPATIBLE' },
     });
@@ -127,15 +129,17 @@ describe('public pre-registration route contracts', () => {
   });
 
   it('returns a generic correlated response for unexpected failures', async () => {
+    const technicalMessage = 'relation "User" does not exist';
     jest
       .spyOn(claimRoleGuard, 'assertPreRegistrationClaimRoleEligibility')
       .mockResolvedValue(undefined);
     jest
       .spyOn(preRegistrationPublicService, 'registerAndClaim')
-      .mockRejectedValueOnce(new Error('relation "User" does not exist'));
+      .mockRejectedValueOnce(new Error(technicalMessage));
     const consoleError = jest.spyOn(console, 'error').mockImplementation(() => undefined);
 
     const response = await postRegistration(validRegistration);
+    const serializedResponse = JSON.stringify(response.body);
 
     expect(response.status).toBe(500);
     expect(response.body.error).toBe('Não foi possível continuar.');
@@ -143,7 +147,9 @@ describe('public pre-registration route contracts', () => {
       code: 'INTERNAL_ERROR',
       correlationId: expect.any(String),
     });
-    expect(JSON.stringify(response.body)).not.toMatch(/relation|User|does not exist/i);
+    expect(serializedResponse).not.toContain(technicalMessage);
+    expect(serializedResponse).not.toContain('does not exist');
+    expect(serializedResponse).not.toContain('"User"');
     expect(consoleError).toHaveBeenCalledWith(
       'Erro inesperado no pré-cadastro público',
       expect.objectContaining({
