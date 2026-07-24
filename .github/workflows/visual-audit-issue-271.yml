@@ -6,11 +6,14 @@ on:
       - develop
     paths:
       - 'apps/web/src/pages/PublicPreRegistration/**'
+      - 'apps/web/src/pages/PreRegistrationAdmin/**'
       - 'apps/web/src/services/pre-registration-public.service.ts'
+      - 'apps/web/src/services/pre-registration-admin.service.ts'
       - 'apps/web/src/stores/useAuthStore.ts'
       - 'apps/web/src/index.css'
       - 'apps/web/src/App.tsx'
       - 'apps/api/src/modules/pre-registration-public/**'
+      - 'apps/api/src/modules/pre-registration-admin/**'
       - 'apps/api/src/modules/alunos/student-public-pre-registration.service.ts'
       - 'apps/api/scripts/visual-audit-issue-271.mjs'
       - 'apps/api/scripts/visual-audit-issue-271-integrated.ts'
