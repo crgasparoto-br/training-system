@@ -14,30 +14,36 @@ interface AuthState {
   // Actions
   login: (data: LoginRequest) => Promise<void>;
   register: (data: RegisterRequest) => Promise<void>;
+  setAuthenticatedSession: (response: AuthResponse) => void;
   logout: () => Promise<void>;
   loadUser: () => Promise<void>;
   clearError: () => void;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   user: authService.getUser(),
   token: authService.getToken(),
   isAuthenticated: authService.isAuthenticated(),
   isLoading: false,
   error: null,
 
+  setAuthenticatedSession: (response: AuthResponse) => {
+    authService.setToken(response.token);
+    authService.setUser(response.user);
+    set({
+      user: response.user,
+      token: response.token,
+      isAuthenticated: true,
+      isLoading: false,
+      error: null,
+    });
+  },
+
   login: async (data: LoginRequest) => {
     set({ isLoading: true, error: null });
     try {
       const response = await authService.login(data);
-      authService.setToken(response.token);
-      authService.setUser(response.user);
-      set({
-        user: response.user,
-        token: response.token,
-        isAuthenticated: true,
-        isLoading: false,
-      });
+      get().setAuthenticatedSession(response);
     } catch (error: any) {
       const errorMessage = error.response?.data?.error || error.message || 'Erro ao fazer login';
       set({ error: errorMessage, isLoading: false });
@@ -49,14 +55,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ isLoading: true, error: null });
     try {
       const response = await authService.register(data);
-      authService.setToken(response.token);
-      authService.setUser(response.user);
-      set({
-        user: response.user,
-        token: response.token,
-        isAuthenticated: true,
-        isLoading: false,
-      });
+      get().setAuthenticatedSession(response);
     } catch (error: any) {
       const errorMessage = error.response?.data?.error || error.message || 'Erro ao registrar';
       set({ error: errorMessage, isLoading: false });
@@ -116,4 +115,3 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   clearError: () => set({ error: null }),
 }));
-
