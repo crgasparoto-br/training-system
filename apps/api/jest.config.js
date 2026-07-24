@@ -9,12 +9,12 @@ export default {
   // testes unitários executados fora desse modo.
   maxWorkers: process.env.RUN_DATABASE_INTEGRATION_TESTS === 'true' ? 2 : undefined,
   moduleNameMapper: {
-    '^\.\./\.\./bootstrap-env\.js$': '<rootDir>/tests/bootstrap-env.mock.ts',
-     '^@corrida/types$': '<rootDir>/../../packages/types/index.ts',
-     '^@corrida/utils$': '<rootDir>/../../packages/utils/index.ts',
-    // Remove a extensão dos imports TypeScript escritos como .js sem capturar
-    // dependências CommonJS/ESM que terminam em .cjs ou .mjs.
-    '^(\.{1,2}/.*?)(?<!\.[cm])\.js$': '$1',
+    '^\\.\\./\\.\\./bootstrap-env\\.js$': '<rootDir>/tests/bootstrap-env.mock.ts',
+    '^@corrida/types$': '<rootDir>/../../packages/types/index.ts',
+    '^@corrida/utils$': '<rootDir>/../../packages/utils/index.ts',
+    // Remove somente a extensão .js de imports relativos TypeScript. O lookahead
+    // exclui explicitamente dependências que terminam em .cjs ou .mjs.
+    '^(\\.{1,2}/)(?!.*\\.[cm]js$)(.*)\\.js$': '$1$2',
   },
   collectCoverageFrom: [
     'src/**/*.ts',
