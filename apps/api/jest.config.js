@@ -8,6 +8,7 @@ export default {
   // limitar workers evita esgotar max_connections sem reduzir o paralelismo dos
   // testes unitários executados fora desse modo.
   maxWorkers: process.env.RUN_DATABASE_INTEGRATION_TESTS === 'true' ? 2 : undefined,
+  testTimeout: process.env.RUN_DATABASE_INTEGRATION_TESTS === 'true' ? 15_000 : 5_000,
   moduleNameMapper: {
     '^\\.\\./\\.\\./bootstrap-env\\.js$': '<rootDir>/tests/bootstrap-env.mock.ts',
     '^@corrida/types$': '<rootDir>/../../packages/types/index.ts',
