@@ -259,10 +259,27 @@
   }
 }
 
-/* Issue #271: o nome identifica o processo e nao pode ficar oculto por ellipsis. */
-main.max-w-4xl > div.grid > button > div.flex > span.min-w-0 > span.truncate.text-lg {
+/* Issue #271: identificadores do processo devem permanecer integralmente legiveis. */
+main.max-w-4xl > div.grid > button > div.flex > span.min-w-0 > span.truncate.text-lg,
+main.max-w-6xl aside > div.flex > div.min-w-0 > p.truncate.font-semibold {
   white-space: normal;
   overflow: visible;
   text-overflow: clip;
   overflow-wrap: anywhere;
+}
+
+/* Issue #271: foco de checkbox compacto e visivel, sem contorno nativo alongado. */
+#privacy-consent,
+main.max-w-2xl input[type='checkbox'] {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: 0 0 auto;
+  accent-color: rgb(37 99 235);
+  outline: none;
+}
+
+#privacy-consent:focus-visible,
+main.max-w-2xl input[type='checkbox']:focus-visible {
+  box-shadow: 0 0 0 2px rgb(255 255 255), 0 0 0 4px rgb(37 99 235);
+  border-radius: 0.25rem;
 }
