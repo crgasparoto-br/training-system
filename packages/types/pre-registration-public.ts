@@ -58,6 +58,13 @@ export interface ConfirmGuardianAuthorizationDTO {
   declarationAccepted: true;
 }
 
+export interface RequestGuardianAuthorizationResultDTO {
+  status: 'PENDING' | 'ACTIVE';
+  relationship: string;
+  requestedAt?: string;
+  approvalRequired: boolean;
+}
+
 export interface PreRegistrationGuardianAuthorizationDTO {
   status: 'NOT_REQUIRED' | 'PENDING' | 'ACTIVE' | 'REVOKED';
   role?: PreRegistrationClaimRole;
@@ -89,6 +96,8 @@ export interface PreRegistrationProcessSummaryDTO {
   displayName: string;
   tenant: PreRegistrationPublicTenantDTO;
   guardianAuthorizationStatus: PreRegistrationGuardianAuthorizationDTO['status'];
+  guardianAuthorizationRelationship?: string;
+  guardianAuthorizationRequestedAt?: string;
   requiresGuardianConfirmation: boolean;
 }
 
@@ -114,11 +123,60 @@ export interface PreRegistrationSessionDTO {
   nextSteps: PreRegistrationNextStepDTO[];
 }
 
-export interface SavePreRegistrationStepDTO {
-  expectedVersion: number;
-  step: PreRegistrationStep;
-  data: PreRegistrationIdentityDTO;
-}
+export type PreRegistrationIdentificationStepDTO = Partial<
+  Pick<PreRegistrationIdentityDTO, 'name' | 'birthDate' | 'cpf' | 'gender'>
+>;
+
+export type PreRegistrationContactStepDTO = Partial<
+  Pick<PreRegistrationIdentityDTO, 'phone' | 'additionalPhone' | 'email' | 'additionalEmail'>
+>;
+
+export type PreRegistrationAddressStepDTO = Partial<
+  Pick<
+    PreRegistrationIdentityDTO,
+    | 'addressZipCode'
+    | 'addressStreet'
+    | 'addressNumber'
+    | 'addressComplement'
+    | 'addressNeighborhood'
+    | 'addressCity'
+    | 'addressState'
+  >
+>;
+
+export type PreRegistrationGuardianStepDTO = Partial<
+  Pick<
+    PreRegistrationIdentityDTO,
+    'guardianName' | 'guardianCpf' | 'guardianPhone' | 'guardianEmail'
+  >
+>;
+
+export type SavePreRegistrationStepDTO =
+  | {
+      expectedVersion: number;
+      step: 'IDENTIFICATION';
+      data: PreRegistrationIdentificationStepDTO;
+    }
+  | {
+      expectedVersion: number;
+      step: 'CONTACT';
+      data: PreRegistrationContactStepDTO;
+    }
+  | {
+      expectedVersion: number;
+      step: 'ADDRESS';
+      data: PreRegistrationAddressStepDTO;
+    }
+  | {
+      expectedVersion: number;
+      step: 'GUARDIAN';
+      data: PreRegistrationGuardianStepDTO;
+    }
+  | {
+      expectedVersion: number;
+      step: 'PRIVACY';
+      data: Record<string, never>;
+    };
 
 export interface CompletePreRegistrationDTO {
   expectedVersion: number;

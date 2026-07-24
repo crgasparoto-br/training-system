@@ -9,6 +9,7 @@ import type {
   PreRegistrationClaimResultDTO,
   PreRegistrationProcessSummaryDTO,
   PreRegistrationPublicLandingDTO,
+  RequestGuardianAuthorizationResultDTO,
   PreRegistrationSessionDTO,
   SavePreRegistrationStepDTO,
 } from '@corrida/types';
@@ -49,15 +50,15 @@ export const preRegistrationPublicService = {
     return extractData<PreRegistrationProcessSummaryDTO[]>(response.data);
   },
 
-  async confirmGuardianAuthorization(
+  async requestGuardianAuthorization(
     alunoId: string,
     input: ConfirmGuardianAuthorizationDTO
-  ): Promise<PreRegistrationSessionDTO> {
+  ): Promise<RequestGuardianAuthorizationResultDTO> {
     const response = await api.post(
       `/pre-registration/processes/${encodeURIComponent(alunoId)}/guardian-authorization`,
       input
     );
-    return extractData<PreRegistrationSessionDTO>(response.data);
+    return extractData<RequestGuardianAuthorizationResultDTO>(response.data);
   },
 
   async getSession(alunoId: string): Promise<PreRegistrationSessionDTO> {

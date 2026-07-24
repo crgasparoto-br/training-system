@@ -1,6 +1,7 @@
 import type { Server } from 'node:http';
 import express from 'express';
 import { preRegistrationPublicEntryRoutes } from '../src/modules/pre-registration-public/index.js';
+import { parsePreRegistrationSaveStep } from '../src/modules/pre-registration-public/pre-registration-public.routes.js';
 
 describe('public pre-registration route contracts', () => {
   const app = express();
@@ -67,4 +68,36 @@ describe('public pre-registration route contracts', () => {
     expect(response.status).toBe(400);
     expect(response.body.error).toMatch(/Unrecognized key|não reconhecid/i);
   });
+  it('accepts only the fields owned by the selected step', () => {
+    expect(
+      parsePreRegistrationSaveStep({
+        expectedVersion: 1,
+        step: 'CONTACT',
+        data: { phone: '15999990000', email: 'contato@example.com' },
+      })
+    ).toEqual({
+      expectedVersion: 1,
+      step: 'CONTACT',
+      data: { phone: '15999990000', email: 'contato@example.com' },
+    });
+
+    expect(() =>
+      parsePreRegistrationSaveStep({
+        expectedVersion: 1,
+        step: 'CONTACT',
+        data: { phone: '15999990000', cpf: '52998224725' },
+      })
+    ).toThrow(/Unrecognized key|não reconhecid/i);
+  });
+
+  it('rejects a privacy payload that attempts to mutate identity data', () => {
+    expect(() =>
+      parsePreRegistrationSaveStep({
+        expectedVersion: 1,
+        step: 'PRIVACY',
+        data: { name: 'Mutação indevida' },
+      })
+    ).toThrow(/Unrecognized key|não reconhecid/i);
+  });
+
 });

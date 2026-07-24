@@ -13,6 +13,7 @@ import type {
   PreRegistrationProcessSummaryDTO,
   PreRegistrationPublicErrorCode,
   PreRegistrationPublicTenantDTO,
+  RequestGuardianAuthorizationResultDTO,
   PreRegistrationSessionDTO,
   PreRegistrationStep,
   SavePreRegistrationStepDTO,
@@ -87,6 +88,7 @@ type GuardianAuthorizationRow = {
   relationship: string | null;
   validatedAt: Date | null;
   revokedAt: Date | null;
+  updatedAt: Date;
 };
 
 type AccessibleAluno = {
@@ -105,6 +107,8 @@ type ProcessAccessRow = {
   currentStep: string;
   lastSavedAt: Date | null;
   authorizationStatus: GuardianAuthorizationRow['status'] | 'NOT_REQUIRED';
+  authorizationRelationship: string | null;
+  authorizationUpdatedAt: Date | null;
   displayName: string | null;
   contractName: string | null;
   contractTradeName: string | null;
@@ -324,7 +328,7 @@ async function claimInviteInTransaction(
     }
 
     const currentAuthorization = await tx.$queryRaw<GuardianAuthorizationRow[]>`
-      SELECT "status", "relationship", "validatedAt", "revokedAt"
+      SELECT "status", "relationship", "validatedAt", "revokedAt", "updatedAt"
       FROM "PreRegistrationGuardianAuthorization"
       WHERE "alunoId" = ${invite.alunoId}
         AND "contractId" = ${invite.contractId}
@@ -332,7 +336,13 @@ async function claimInviteInTransaction(
         AND "purpose" = 'PRE_REGISTRATION'
       LIMIT 1
     `;
-    if (currentAuthorization[0]?.status !== 'ACTIVE') {
+    if (currentAuthorization[0]?.status === 'REVOKED') {
+      throw new PreRegistrationPublicError(
+        'O vínculo de responsável foi revogado. Solicite nova validação diretamente à academia.',
+        'GUARDIAN_AUTHORIZATION_REQUIRED'
+      );
+    }
+    if (!currentAuthorization[0]) {
       await tx.$executeRaw`
         INSERT INTO "PreRegistrationGuardianAuthorization" (
           "id", "contractId", "alunoId", "guardianUserId", "purpose", "status",
@@ -341,15 +351,7 @@ async function claimInviteInTransaction(
           ${crypto.randomUUID()}, ${invite.contractId}, ${invite.alunoId}, ${userId},
           'PRE_REGISTRATION', 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
         )
-        ON CONFLICT ("alunoId", "guardianUserId", "purpose")
-        DO UPDATE SET
-          "status" = 'PENDING',
-          "relationship" = NULL,
-          "validatedAt" = NULL,
-          "validatedByUserId" = NULL,
-          "revokedAt" = NULL,
-          "revokedByUserId" = NULL,
-          "updatedAt" = CURRENT_TIMESTAMP
+        ON CONFLICT ("alunoId", "guardianUserId", "purpose") DO NOTHING
       `;
     }
   }
@@ -515,7 +517,7 @@ async function guardianAuthorization(
 
   const rows = role === 'GUARDIAN'
     ? await prisma.$queryRaw<GuardianAuthorizationRow[]>`
-        SELECT "status", "relationship", "validatedAt", "revokedAt"
+        SELECT "status", "relationship", "validatedAt", "revokedAt", "updatedAt"
         FROM "PreRegistrationGuardianAuthorization"
         WHERE "alunoId" = ${alunoId}
           AND "contractId" = ${contractId}
@@ -524,7 +526,7 @@ async function guardianAuthorization(
         LIMIT 1
       `
     : await prisma.$queryRaw<GuardianAuthorizationRow[]>`
-        SELECT "status", NULL::text AS "relationship", "validatedAt", "revokedAt"
+        SELECT "status", NULL::text AS "relationship", "validatedAt", "revokedAt", "updatedAt"
         FROM "PreRegistrationGuardianAuthorization"
         WHERE "alunoId" = ${alunoId}
           AND "contractId" = ${contractId}
@@ -653,6 +655,8 @@ function processSummary(row: ProcessAccessRow): PreRegistrationProcessSummaryDTO
         : row.displayName || (row.claimRole === 'STUDENT' ? 'Seu cadastro' : 'Dependente'),
     tenant,
     guardianAuthorizationStatus: row.authorizationStatus,
+    guardianAuthorizationRelationship: row.authorizationRelationship || undefined,
+    guardianAuthorizationRequestedAt: row.authorizationUpdatedAt?.toISOString(),
     requiresGuardianConfirmation:
       row.claimRole === 'GUARDIAN' && row.authorizationStatus !== 'ACTIVE',
   };
@@ -663,6 +667,8 @@ async function listProcesses(userId: string): Promise<PreRegistrationProcessSumm
     SELECT student."id" AS "alunoId", student."contractId", student."status",
            'STUDENT'::text AS "claimRole", onboarding."currentStep",
            onboarding."lastSavedAt", 'NOT_REQUIRED'::text AS "authorizationStatus",
+           NULL::text AS "authorizationRelationship",
+           NULL::timestamp AS "authorizationUpdatedAt",
            COALESCE(profile."identificationData"->>'name', student."leadName") AS "displayName",
            contract."name" AS "contractName", contract."tradeName" AS "contractTradeName",
            contract."logoUrl" AS "contractLogoUrl"
@@ -678,6 +684,8 @@ async function listProcesses(userId: string): Promise<PreRegistrationProcessSumm
     SELECT student."id" AS "alunoId", student."contractId", student."status",
            'GUARDIAN'::text AS "claimRole", onboarding."currentStep",
            onboarding."lastSavedAt", auth."status" AS "authorizationStatus",
+           auth."relationship" AS "authorizationRelationship",
+           auth."updatedAt" AS "authorizationUpdatedAt",
            CASE WHEN auth."status" = 'ACTIVE'
              THEN COALESCE(profile."identificationData"->>'name', student."leadName")
              ELSE NULL
@@ -793,11 +801,11 @@ export const preRegistrationPublicService = {
     return listProcesses(userId);
   },
 
-  async confirmGuardianAuthorization(
+  async requestGuardianAuthorization(
     userId: string,
     alunoId: string,
     input: ConfirmGuardianAuthorizationDTO
-  ) {
+  ): Promise<RequestGuardianAuthorizationResultDTO> {
     const relationship = normalizeText(input.relationship);
     if (input.declarationAccepted !== true || !relationship) {
       throw new PreRegistrationPublicError(
@@ -814,30 +822,51 @@ export const preRegistrationPublicService = {
     }
 
     try {
-      await prisma.$transaction(async (tx) => {
+      return await prisma.$transaction(async (tx) => {
         const identity = await loadStudentIdentity(alunoId, accessible.contractId, tx);
         if (!identity.birthDate || !isMinorBirthDate(identity.birthDate)) {
           throw new PreRegistrationPublicError(
-            'A academia precisa confirmar a menoridade antes de liberar este acesso.',
+            'A academia precisa confirmar a menoridade antes de validar este acesso.',
             'GUARDIAN_AUTHORIZATION_REQUIRED'
           );
         }
-        const updated = await tx.$executeRaw`
+        const rows = await tx.$queryRaw<GuardianAuthorizationRow[]>`
+          SELECT "status", "relationship", "validatedAt", "revokedAt", "updatedAt"
+          FROM "PreRegistrationGuardianAuthorization"
+          WHERE "alunoId" = ${alunoId}
+            AND "contractId" = ${accessible.contractId}
+            AND "guardianUserId" = ${userId}
+            AND "purpose" = 'PRE_REGISTRATION'
+          FOR UPDATE
+        `;
+        const authorization = rows[0];
+        if (!authorization || authorization.status === 'REVOKED') {
+          throw new PreRegistrationPublicError(
+            'O vínculo não está disponível para confirmação. Entre em contato com a academia.',
+            'GUARDIAN_AUTHORIZATION_REQUIRED'
+          );
+        }
+        if (authorization.status === 'ACTIVE') {
+          return {
+            status: 'ACTIVE',
+            relationship: authorization.relationship || relationship,
+            requestedAt: authorization.updatedAt.toISOString(),
+            approvalRequired: false,
+          };
+        }
+
+        const updatedRows = await tx.$queryRaw<Array<{ updatedAt: Date }>>`
           UPDATE "PreRegistrationGuardianAuthorization"
           SET "relationship" = ${relationship},
-              "status" = 'ACTIVE',
-              "validatedAt" = CURRENT_TIMESTAMP,
-              "validatedByUserId" = ${userId},
-              "revokedAt" = NULL,
-              "revokedByUserId" = NULL,
               "updatedAt" = CURRENT_TIMESTAMP
           WHERE "alunoId" = ${alunoId}
             AND "contractId" = ${accessible.contractId}
             AND "guardianUserId" = ${userId}
             AND "purpose" = 'PRE_REGISTRATION'
-            AND "status" IN ('PENDING', 'ACTIVE')
+            AND "status" = 'PENDING'
+          RETURNING "updatedAt"
         `;
-        if (updated !== 1) {
+        if (!updatedRows[0]) {
           throw new PreRegistrationPublicError(
             'O vínculo não está disponível para confirmação.',
             'GUARDIAN_AUTHORIZATION_REQUIRED'
@@ -852,13 +881,19 @@ export const preRegistrationPublicService = {
             metadata: {
               source: 'public_pre_registration',
               role: 'GUARDIAN',
-              action: 'guardian_authorization_confirmed',
+              action: 'guardian_authorization_requested',
               relationship,
+              authorizationStatus: 'PENDING',
             },
           },
         });
+        return {
+          status: 'PENDING',
+          relationship,
+          requestedAt: updatedRows[0].updatedAt.toISOString(),
+          approvalRequired: true,
+        };
       });
-      return buildSession(userId, alunoId);
     } catch (error) {
       mapLifecycleError(error);
     }

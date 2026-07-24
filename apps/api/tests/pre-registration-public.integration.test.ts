@@ -18,6 +18,7 @@ type CreatedInvite = {
 describeDatabase('public pre-registration integration', () => {
   const suffix = `issue271-${Date.now()}`;
   let contractId: string;
+  let validatorUserId: string;
   const createdUserIds: string[] = [];
   const createdContractIds: string[] = [];
 
@@ -92,6 +93,46 @@ describeDatabase('public pre-registration integration', () => {
     return { alunoId: aluno.id, token };
   }
 
+  async function approveGuardianAuthorization(
+    alunoId: string,
+    guardianUserId: string
+  ) {
+    const changed = await prisma.preRegistrationGuardianAuthorization.updateMany({
+      where: {
+        alunoId,
+        contractId,
+        guardianUserId,
+        status: 'PENDING',
+        relationship: { not: null },
+      },
+      data: {
+        status: 'ACTIVE',
+        validatedAt: new Date(),
+        validatedByUserId: validatorUserId,
+      },
+    });
+    expect(changed.count).toBe(1);
+  }
+
+  async function requestAndApproveGuardian(
+    guardianUserId: string,
+    alunoId: string,
+    relationship: string
+  ) {
+    const request = await preRegistrationPublicService.requestGuardianAuthorization(
+      guardianUserId,
+      alunoId,
+      { relationship, declarationAccepted: true }
+    );
+    expect(request).toMatchObject({
+      status: 'PENDING',
+      relationship,
+      approvalRequired: true,
+    });
+    await approveGuardianAuthorization(alunoId, guardianUserId);
+    return preRegistrationPublicService.getSession(guardianUserId, alunoId);
+  }
+
   beforeAll(async () => {
     const contract = await prisma.companyContract.create({
       data: {
@@ -102,6 +143,11 @@ describeDatabase('public pre-registration integration', () => {
     });
     contractId = contract.id;
     createdContractIds.push(contract.id);
+    const validator = await createUser({
+      label: 'guardian-validator',
+      name: 'Validador da Academia',
+    });
+    validatorUserId = validator.id;
   });
 
   afterAll(async () => {
@@ -114,7 +160,7 @@ describeDatabase('public pre-registration integration', () => {
     await prisma.$disconnect();
   });
 
-  it('keeps guardian access pending and hides personal data until the relationship is confirmed', async () => {
+  it('keeps guardian access pending until an independent academy validation', async () => {
     const guardian = await createUser({
       label: 'guardian-pending',
       name: 'Responsável Pendente',
@@ -155,11 +201,39 @@ describeDatabase('public pre-registration integration', () => {
       preRegistrationPublicService.getSession(guardian.id, invited.alunoId)
     ).rejects.toMatchObject({ code: 'NOT_FOUND' } satisfies Partial<PreRegistrationPublicError>);
 
-    const session = await preRegistrationPublicService.confirmGuardianAuthorization(
+    const request = await preRegistrationPublicService.requestGuardianAuthorization(
       guardian.id,
       invited.alunoId,
       { relationship: 'Mãe', declarationAccepted: true }
     );
+    expect(request).toMatchObject({
+      status: 'PENDING',
+      relationship: 'Mãe',
+      approvalRequired: true,
+    });
+    const pending = await prisma.preRegistrationGuardianAuthorization.findFirstOrThrow({
+      where: { alunoId: invited.alunoId, guardianUserId: guardian.id },
+    });
+    expect(pending.validatedAt).toBeNull();
+    expect(pending.validatedByUserId).toBeNull();
+    await expect(
+      preRegistrationPublicService.getSession(guardian.id, invited.alunoId)
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+
+    const unrelated = await createUser({
+      label: 'unrelated-guardian',
+      name: 'Pessoa Não Vinculada',
+    });
+    await expect(
+      preRegistrationPublicService.requestGuardianAuthorization(
+        unrelated.id,
+        invited.alunoId,
+        { relationship: 'Pai', declarationAccepted: true }
+      )
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+
+    await approveGuardianAuthorization(invited.alunoId, guardian.id);
+    const session = await preRegistrationPublicService.getSession(guardian.id, invited.alunoId);
     expect(session.identity.name).toBe('Nome Sensível do Menor');
     expect(session.guardianAuthorization).toMatchObject({
       status: 'ACTIVE',
@@ -205,11 +279,7 @@ describeDatabase('public pre-registration integration', () => {
         token: invited.token,
         role: 'GUARDIAN',
       });
-      await preRegistrationPublicService.confirmGuardianAuthorization(
-        guardian.id,
-        invited.alunoId,
-        { relationship: 'Pai', declarationAccepted: true }
-      );
+      await requestAndApproveGuardian(guardian.id, invited.alunoId, 'Pai');
     }
 
     const processes = await preRegistrationPublicService.listProcesses(guardian.id);
@@ -454,10 +524,10 @@ describeDatabase('public pre-registration integration', () => {
       token: invited.token,
       role: 'GUARDIAN',
     });
-    let session = await preRegistrationPublicService.confirmGuardianAuthorization(
+    let session = await requestAndApproveGuardian(
       guardian.id,
       invited.alunoId,
-      { relationship: 'Mãe', declarationAccepted: true }
+      'Mãe'
     );
     session = await preRegistrationPublicService.saveStep(
       guardian.id,
@@ -570,11 +640,7 @@ describeDatabase('public pre-registration integration', () => {
       token: home.token,
       role: 'GUARDIAN',
     });
-    await preRegistrationPublicService.confirmGuardianAuthorization(
-      guardian.id,
-      home.alunoId,
-      { relationship: 'Tutor', declarationAccepted: true }
-    );
+    await requestAndApproveGuardian(guardian.id, home.alunoId, 'Tutor');
 
     await expect(
       preRegistrationPublicService.getSession(guardian.id, other.alunoId)

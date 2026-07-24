@@ -264,6 +264,7 @@ async function accessFor(actor: PreRegistrationAdminActor): Promise<AccessContex
     canRegenerateInvite: invite,
     canRevokeInvite: revoke,
     canReview: review,
+    canValidateGuardianAuthorization: review,
     canDiscard: discard,
     canReopen: discard,
     canConvert: convert,
@@ -363,6 +364,8 @@ function allowedFor(lead: LeadRecord, invite: InviteRecord | undefined, access: 
     canRevokeInvite: access.permissions.canRevokeInvite && inviteActions.canRevoke,
     canReview:
       access.permissions.canReview && lead.status === 'PRE_REGISTRATION_COMPLETED',
+    canValidateGuardianAuthorization:
+      access.permissions.canValidateGuardianAuthorization && !discarded,
     canDiscard: access.permissions.canDiscard && !discarded,
     canReopen: access.permissions.canReopen && discarded,
     canConvert:

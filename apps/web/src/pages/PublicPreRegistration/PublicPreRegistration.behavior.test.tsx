@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
   listProcesses: vi.fn(),
   getSession: vi.fn(),
   saveStep: vi.fn(),
-  confirmGuardianAuthorization: vi.fn(),
+  requestGuardianAuthorization: vi.fn(),
   complete: vi.fn(),
   lookupCep: vi.fn(),
 }));
@@ -43,7 +43,7 @@ vi.mock('../../services/pre-registration-public.service', () => ({
     listProcesses: mocks.listProcesses,
     getSession: mocks.getSession,
     saveStep: mocks.saveStep,
-    confirmGuardianAuthorization: mocks.confirmGuardianAuthorization,
+    requestGuardianAuthorization: mocks.requestGuardianAuthorization,
     complete: mocks.complete,
   },
 }));
@@ -106,7 +106,7 @@ describe('PublicPreRegistration - resiliência, seleção e autorização', () =
     mocks.listProcesses.mockReset();
     mocks.getSession.mockReset();
     mocks.saveStep.mockReset();
-    mocks.confirmGuardianAuthorization.mockReset();
+    mocks.requestGuardianAuthorization.mockReset();
     mocks.complete.mockReset();
     mocks.lookupCep.mockReset();
     mocks.routeToken = undefined;
@@ -378,7 +378,7 @@ describe('PublicPreRegistration - resiliência, seleção e autorização', () =
     await waitFor(() => expect(mocks.getSession).toHaveBeenCalledWith('student-2'));
   });
 
-  it('does not request personal data before a guardian confirms the relationship', async () => {
+  it('keeps minor data blocked after declaration until academy approval', async () => {
     const pendingProcess = {
       ...baseProcess,
       alunoId: 'minor-1',
@@ -388,16 +388,11 @@ describe('PublicPreRegistration - resiliência, seleção e autorização', () =
       requiresGuardianConfirmation: true,
     };
     mocks.listProcesses.mockResolvedValue([pendingProcess]);
-    mocks.confirmGuardianAuthorization.mockResolvedValue({
-      ...baseSession,
-      alunoId: 'minor-1',
-      isMinor: true,
-      claimRole: 'GUARDIAN',
-      guardianAuthorization: {
-        status: 'ACTIVE',
-        role: 'GUARDIAN',
-        relationship: 'Mãe',
-      },
+    mocks.requestGuardianAuthorization.mockResolvedValue({
+      status: 'PENDING',
+      relationship: 'Mãe',
+      requestedAt: '2026-07-24T12:00:00.000Z',
+      approvalRequired: true,
     });
 
     render(
@@ -406,20 +401,25 @@ describe('PublicPreRegistration - resiliência, seleção e autorização', () =
       </MemoryRouter>
     );
 
-    expect(await screen.findByRole('heading', { name: /Confirme seu vínculo/i })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /Informe seu vínculo/i })).toBeInTheDocument();
     expect(mocks.getSession).not.toHaveBeenCalled();
 
     fireEvent.change(screen.getByLabelText(/Vínculo com o menor/i), {
       target: { value: 'Mãe' },
     });
     fireEvent.click(screen.getByRole('checkbox'));
-    fireEvent.click(screen.getByRole('button', { name: /Confirmar e continuar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Enviar para validação/i }));
 
     await waitFor(() => {
-      expect(mocks.confirmGuardianAuthorization).toHaveBeenCalledWith('minor-1', {
+      expect(mocks.requestGuardianAuthorization).toHaveBeenCalledWith('minor-1', {
         relationship: 'Mãe',
         declarationAccepted: true,
       });
     });
+    expect(
+      await screen.findByRole('heading', { name: /Aguardando validação da academia/i })
+    ).toBeInTheDocument();
+    expect(screen.getByText(/dados pessoais do menor continuarão protegidos/i)).toBeInTheDocument();
+    expect(mocks.getSession).not.toHaveBeenCalled();
   });
 });

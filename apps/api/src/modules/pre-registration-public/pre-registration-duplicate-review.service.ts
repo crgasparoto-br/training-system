@@ -73,6 +73,9 @@ export const preRegistrationDuplicateReviewService = {
     alunoId: string,
     input: SavePreRegistrationStepDTO
   ): Promise<{ version: number }> {
+    if (input.step !== 'IDENTIFICATION') {
+      throw new Error('Conflito de CPF recebido fora da etapa de identificação.');
+    }
     const aluno = await findAccessibleStudent(userId, alunoId);
 
     return prisma.$transaction(async (tx) => {

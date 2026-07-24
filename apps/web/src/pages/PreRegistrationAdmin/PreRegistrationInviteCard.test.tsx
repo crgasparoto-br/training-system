@@ -49,6 +49,7 @@ const baseLead: PreRegistrationAdminLeadDetailDTO = {
     canRegenerateInvite: true,
     canRevokeInvite: true,
     canReview: false,
+    canValidateGuardianAuthorization: false,
     canDiscard: true,
     canReopen: false,
     canConvert: false,

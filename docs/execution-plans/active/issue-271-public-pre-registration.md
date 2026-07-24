@@ -17,8 +17,8 @@ Transformar o convite seguro de pré-cadastro em uma experiência pública que i
 - rascunho persistido no servidor com versão otimista e próxima etapa;
 - rascunho temporário de aba isolado por processo e sem CPF, data de nascimento ou CPF do responsável;
 - relação explícita e tenant-scoped entre conta do responsável e dependente;
-- reivindicação de responsável inicialmente `PENDING`, sem leitura de dados pessoais até confirmação do vínculo;
-- acesso de responsável permitido somente para menoridade confirmada pela data canônica;
+- reivindicação de responsável inicialmente `PENDING`, sem leitura de dados pessoais até validação independente por usuário autorizado da academia;
+- acesso de responsável permitido somente para menoridade confirmada pela data canônica e autorização `ACTIVE` validada por conta diferente da conta responsável;
 - suporte a múltiplos dependentes por conta de responsável sem reutilizar `Aluno.userId`;
 - edição administrativa da identidade canônica invalida versões públicas desatualizadas por trigger de banco;
 - conclusão revalida os dados canônicos dentro da transação bloqueada, sem regravar snapshot antigo;
@@ -32,16 +32,17 @@ Transformar o convite seguro de pré-cadastro em uma experiência pública que i
 1. **Conta incompatível:** todas as divergências de nome, e-mail, telefone, CPF e data de nascimento bloqueiam a reivindicação.
 2. **Múltiplos dependentes:** sessão, salvamento, duplicidade, consentimento e conclusão recebem o processo selecionado explicitamente.
 3. **Concorrência administrativa:** atualização profissional de `StudentProfile.identificationData` incrementa `StudentOnboardingProcess.version`.
-4. **Responsável:** claim cria autorização pendente; confirmação e menoridade são exigidas antes da leitura dos dados.
+4. **Responsável:** claim cria autorização pendente; a autodeclaração apenas registra o vínculo informado e a liberação exige validação administrativa independente, auditável e reforçada por constraint de banco.
 5. **Conclusão:** validação ocorre sobre a identidade canônica lida dentro da transação e emite evento específico uma única vez.
-6. **Próximos passos:** cards deixam de ficar desabilitados e encaminham para a etapa opcional correspondente.
+6. **Etapas:** contratos discriminados e allowlists de backend impedem que uma etapa altere campos pertencentes a outra.
+7. **Próximos passos:** cards deixam de ficar desabilitados e encaminham para a etapa opcional correspondente.
 
 ## Limites preservados
 
 - a conclusão do pré-cadastro não ativa matrícula, contrato, cobrança, agenda, plano ou liberação para treino;
 - Anamnese e PAR-Q permanecem opcionais e não bloqueiam o cadastro básico;
 - os formulários completos de Anamnese e PAR-Q continuam pertencendo às issues #272 e #273;
-- campos textuais de responsável não concedem acesso sem a relação de autorização;
+- campos textuais e a declaração do responsável não concedem acesso sem a relação `ACTIVE` validada por usuário administrativo diferente;
 - o frontend não persiste respostas do formulário em URL, query string ou `localStorage`;
 - a landing pública não retorna CPF, e-mail, telefone, IDs internos, dados clínicos ou informações comerciais.
 
@@ -79,3 +80,13 @@ A PR deve permanecer sem merge até autorização explícita.
 - testes de regressão cobrem rascunho obsoleto, reconciliação, e-mail obrigatório, contatos alternativos, aluno ativo e fallback de convite.
 
 Validação oficial repetida após alinhar as fixtures antigas à regra compartilhada de e-mail obrigatório.
+## Remediação da auditoria de segurança de 24/07/2026
+
+- a declaração pública do responsável permanece `PENDING` e não grava mais `validatedAt` nem `validatedByUserId`;
+- um usuário com permissão `students.preRegistration.review` valida o vínculo na ficha administrativa, após confirmação de verificação por fonte independente;
+- a constraint `PreRegistrationGuardianAuthorization_independent_validation_check` impede `ACTIVE` sem relacionamento, data, validador e separação entre responsável e validador;
+- autorizações antigas autovalidadas são rebaixadas para `PENDING` pela migration;
+- revogação remove imediatamente o vínculo do processo incompleto e impede autorreativação pelo mesmo convite;
+- testes cobrem responsável não vinculado, autovalidação bloqueada, aprovação administrativa, múltiplos dependentes, revogação e tentativa cross-tenant;
+- o schema de salvamento é uma união discriminada por etapa e rejeita campos fora da allowlist da etapa selecionada;
+- a auditoria visual inclui solicitação, espera de aprovação, validação administrativa em desktop/mobile e continuação após liberação.

@@ -11,6 +11,7 @@ describeDatabase('public pre-registration guardian revocation concurrency', () =
   const suffix = `issue271-revocation-${Date.now()}`;
   let contractId: string;
   let guardianUserId: string;
+  let validatorUserId: string;
   let alunoId: string;
   const token = `${suffix}-token`;
 
@@ -33,6 +34,15 @@ describeDatabase('public pre-registration guardian revocation concurrency', () =
       },
     });
     guardianUserId = guardian.id;
+    const validator = await prisma.user.create({
+      data: {
+        email: `${suffix}-validator@example.com`,
+        passwordHash: 'integration-test-hash',
+        type: 'professor',
+        profile: { create: { name: 'Validador Independente' } },
+      },
+    });
+    validatorUserId = validator.id;
 
     const aluno = await prisma.aluno.create({
       data: {
@@ -72,6 +82,9 @@ describeDatabase('public pre-registration guardian revocation concurrency', () =
     if (guardianUserId) {
       await prisma.user.delete({ where: { id: guardianUserId } }).catch(() => undefined);
     }
+    if (validatorUserId) {
+      await prisma.user.delete({ where: { id: validatorUserId } }).catch(() => undefined);
+    }
     await prisma.$disconnect();
   });
 
@@ -80,11 +93,20 @@ describeDatabase('public pre-registration guardian revocation concurrency', () =
       token,
       role: 'GUARDIAN',
     });
-    const active = await preRegistrationPublicService.confirmGuardianAuthorization(
+    await preRegistrationPublicService.requestGuardianAuthorization(
       guardianUserId,
       alunoId,
       { relationship: 'Tutor', declarationAccepted: true }
     );
+    await prisma.preRegistrationGuardianAuthorization.updateMany({
+      where: { alunoId, contractId, guardianUserId, status: 'PENDING' },
+      data: {
+        status: 'ACTIVE',
+        validatedAt: new Date(),
+        validatedByUserId: validatorUserId,
+      },
+    });
+    const active = await preRegistrationPublicService.getSession(guardianUserId, alunoId);
 
     await prisma.preRegistrationGuardianAuthorization.updateMany({
       where: {
@@ -96,7 +118,7 @@ describeDatabase('public pre-registration guardian revocation concurrency', () =
       data: {
         status: 'REVOKED',
         revokedAt: new Date(),
-        revokedByUserId: guardianUserId,
+        revokedByUserId: validatorUserId,
       },
     });
 
@@ -112,6 +134,10 @@ describeDatabase('public pre-registration guardian revocation concurrency', () =
         data: { name: 'Alteração após revogação' },
       })
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+
+    await expect(
+      preRegistrationPublicService.claim(guardianUserId, { token, role: 'GUARDIAN' })
+    ).rejects.toMatchObject({ code: 'GUARDIAN_AUTHORIZATION_REQUIRED' });
 
     const identity = await prisma.studentProfile.findUniqueOrThrow({ where: { alunoId } });
     expect((identity.identificationData as { name?: string }).name).toBe('Dependente Revogável');

@@ -100,6 +100,7 @@ export interface PreRegistrationAdminAllowedActionsDTO {
   canRegenerateInvite: boolean;
   canRevokeInvite: boolean;
   canReview: boolean;
+  canValidateGuardianAuthorization: boolean;
   canDiscard: boolean;
   canReopen: boolean;
   canConvert: boolean;
@@ -209,6 +210,41 @@ export interface PreRegistrationAdminLeadDetailDTO
   invite?: PreRegistrationInviteSummaryDTO;
   pendencies: PreRegistrationAdminPendingItemDTO[];
   history: PreRegistrationAdminHistoryItemDTO[];
+}
+
+
+export interface PreRegistrationGuardianAuthorizationAdminDTO {
+  id: string;
+  alunoId: string;
+  contractId: string;
+  status: 'PENDING' | 'ACTIVE' | 'REVOKED';
+  relationship?: string;
+  requestedAt: string;
+  validatedAt?: string;
+  revokedAt?: string;
+  guardian: {
+    userId: string;
+    name: string;
+    email: string;
+    phone?: string;
+  };
+  validatedBy?: {
+    userId: string;
+    name: string;
+  };
+  revokedBy?: {
+    userId: string;
+    name: string;
+  };
+  revocationReason?: string;
+}
+
+export interface ApprovePreRegistrationGuardianAuthorizationDTO {
+  confirmationAccepted: true;
+}
+
+export interface RevokePreRegistrationGuardianAuthorizationDTO {
+  reason: string;
 }
 
 export interface PreRegistrationAdminReviewDTO {

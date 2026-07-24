@@ -604,10 +604,11 @@ model PreRegistrationGuardianAuthorization {
   validatedByUser User?           @relation("GuardianAuthorizationValidatedBy", fields: [validatedByUserId], references: [id], onDelete: SetNull)
   revokedByUser   User?           @relation("GuardianAuthorizationRevokedBy", fields: [revokedByUserId], references: [id], onDelete: SetNull)
 
-  // "No maximo uma autorizacao ACTIVE por aluno" e aplicado por indice unico
-  // parcial (WHERE status = 'ACTIVE'), criado via SQL na migration (Prisma
-  // nao suporta indice parcial na DSL) -- ver
-  // PreRegistrationGuardianAuthorization_one_active_per_student.
+  // ACTIVE exige relacionamento preenchido e validacao por uma conta diferente
+  // do responsavel. A regra e reforcada por CHECK constraint na migration
+  // 20260724133000_issue_271_guardian_admin_approval. "No maximo uma autorizacao
+  // ACTIVE por aluno" e aplicado por indice unico parcial (Prisma nao suporta
+  // indice parcial na DSL).
   @@unique([alunoId, guardianUserId, purpose], map: "PreRegistrationGuardianAuthorization_aluno_guardian_purpose_key")
   @@index([guardianUserId, contractId, status], map: "PreRegistrationGuardianAuthorization_guardian_contract_idx")
   @@index([alunoId, contractId, status], map: "PreRegistrationGuardianAuthorization_aluno_contract_idx")

@@ -154,8 +154,10 @@ const suffix = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
 const token = `issue-271-${crypto.randomBytes(24).toString('base64url')}`;
 const guardianEmail = `issue-271-${suffix}@example.com`;
 const guardianPassword = 'Senha-segura-271';
+const validatorEmail = `issue-271-validator-${suffix}@example.com`;
 let contractId = '';
 let alunoId = '';
+let validatorUserId = '';
 let apiProcess: ChildProcess | undefined;
 let previewProcess: ChildProcess | undefined;
 let browser: Awaited<ReturnType<typeof puppeteer.launch>> | undefined;
@@ -169,6 +171,16 @@ try {
     },
   });
   contractId = contract.id;
+
+  const validator = await prisma.user.create({
+    data: {
+      email: validatorEmail,
+      passwordHash: 'visual-audit-validator',
+      type: 'professor',
+      profile: { create: { name: 'Validador Independente Issue 271' } },
+    },
+  });
+  validatorUserId = validator.id;
 
   const aluno = await prisma.aluno.create({
     data: {
@@ -256,7 +268,7 @@ try {
   await fillByLabel(page, 'Senha', guardianPassword);
   await clickByText(page, 'button', 'Criar acesso e continuar');
 
-  await waitForHeading(page, 'Confirme seu vínculo');
+  await waitForHeading(page, 'Informe seu vínculo');
   if (new URL(page.url()).pathname !== '/pre-cadastro') {
     throw new Error(`Token permaneceu na navegação após claim: ${page.url()}`);
   }
@@ -275,7 +287,40 @@ try {
 
   await fillByLabel(page, 'Vínculo com o menor', 'Mãe');
   await checkByLabelText(page, 'Declaro que sou responsável legal');
-  await clickByText(page, 'button', 'Confirmar e continuar');
+  await clickByText(page, 'button', 'Enviar para validação');
+  await waitForHeading(page, 'Aguardando validação da academia');
+  await assertNoHorizontalOverflow(page, 'guardian-awaiting-approval-mobile-real');
+  await page.screenshot({
+    path: path.join(outputDir, 'guardian-awaiting-approval-mobile-real.png'),
+    fullPage: true,
+  });
+
+  const blockedSessionResponse = await fetch(
+    `${apiUrl}/api/v1/pre-registration/processes/${encodeURIComponent(alunoId)}/session`,
+    { headers: { Authorization: `Bearer ${storage.token}` } }
+  );
+  if (blockedSessionResponse.status !== 404) {
+    throw new Error(`Dados do menor foram liberados antes da aprovação (${blockedSessionResponse.status}).`);
+  }
+
+  const approved = await prisma.preRegistrationGuardianAuthorization.updateMany({
+    where: {
+      alunoId,
+      contractId,
+      status: 'PENDING',
+      relationship: 'Mãe',
+    },
+    data: {
+      status: 'ACTIVE',
+      validatedAt: new Date(),
+      validatedByUserId: validatorUserId,
+    },
+  });
+  if (approved.count !== 1) {
+    throw new Error('A validação administrativa independente não encontrou o vínculo pendente.');
+  }
+
+  await page.reload({ waitUntil: 'networkidle0', timeout: 30_000 });
   await waitForHeading(page, 'Identificação');
 
   await page.setViewport({ width: 1366, height: 768 });
@@ -374,6 +419,16 @@ try {
   if (invite.status !== 'COMPLETED' || completionEvents !== 1) {
     throw new Error(`Conclusão não idempotente: convite=${invite.status}, eventos=${completionEvents}`);
   }
+  const guardianAuthorization = await prisma.preRegistrationGuardianAuthorization.findFirstOrThrow({
+    where: { alunoId, contractId },
+  });
+  if (
+    guardianAuthorization.status !== 'ACTIVE' ||
+    guardianAuthorization.validatedByUserId !== validatorUserId ||
+    guardianAuthorization.validatedByUserId === guardianAuthorization.guardianUserId
+  ) {
+    throw new Error('O vínculo do responsável não possui validação administrativa independente.');
+  }
   if (browserErrors.length > 0) {
     throw new Error(`Erros no navegador: ${browserErrors.join(' | ')}`);
   }
@@ -383,7 +438,8 @@ try {
     scenarios: [
       'guardian registration and same-SPA authenticated redirect',
       'pending guardian privacy barrier',
-      'guardian relationship confirmation in the real browser',
+      'guardian declaration remains blocked before independent academy approval',
+      'independent academy approval unlocks the authenticated process',
       'incremental server persistence with the issued JWT',
       'versioned privacy consent and completion rendered after reload',
     ],
@@ -399,6 +455,9 @@ try {
   const createdUser = await prisma.user.findUnique({ where: { email: guardianEmail } }).catch(() => null);
   if (createdUser) {
     await prisma.user.delete({ where: { id: createdUser.id } }).catch(() => undefined);
+  }
+  if (validatorUserId) {
+    await prisma.user.delete({ where: { id: validatorUserId } }).catch(() => undefined);
   }
   await prisma.$disconnect();
 }

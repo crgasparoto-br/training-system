@@ -26,6 +26,105 @@ const landing = {
   approximateDuration: 'Poucos minutos. Você pode salvar e continuar depois.',
 };
 
+const adminUser = {
+  id: 'admin-user',
+  email: 'gestor@example.com',
+  name: 'Gestor Validador',
+  type: 'professor',
+  profile: { name: 'Gestor Validador' },
+  accessControl: { isMaster: true, permissions: [] },
+  professor: {
+    id: 'admin-professor',
+    role: 'master',
+    collaboratorFunction: { id: 'manager-function', name: 'Gestor', code: 'manager' },
+    contract: {
+      id: 'contract-visual',
+      type: 'academy',
+      document: '00000000000191',
+      name: 'Acesso Saúde & Performance',
+      tradeName: 'Acesso Saúde & Performance',
+    },
+  },
+};
+
+const adminLead = {
+  id: 'internal-student-id',
+  name: 'Dependente convidado',
+  contacts: { phone: '(**) *****-0000', email: 'm***@example.com', masked: false },
+  origin: 'Indicação',
+  status: 'INVITED',
+  responsible: { id: 'admin-professor', name: 'Gestor Validador' },
+  createdAt: '2026-07-23T10:00:00.000Z',
+  updatedAt: '2026-07-24T12:00:00.000Z',
+  lastActivityAt: '2026-07-24T12:00:00.000Z',
+  inviteStatus: 'ACTIVE',
+  inviteExpiresAt: '2026-08-23T12:00:00.000Z',
+  inviteAllowedActions: { canGenerateFirst: false, canRegenerate: true, canRevoke: true },
+  progress: {
+    basicRegistration: 'NOT_STARTED',
+    healthModuleStatus: 'NOT_STARTED',
+    parqModuleStatus: 'NOT_STARTED',
+    parqRequiresProfessionalReview: false,
+    completedFields: 2,
+    totalFields: 7,
+    missingRequiredFields: ['guardianAuthorization'],
+  },
+  nextAction: {
+    code: 'WAIT_FOR_ACCESS',
+    label: 'Validar vínculo do responsável',
+    description: 'A declaração foi enviada e os dados permanecem protegidos.',
+    enabled: true,
+  },
+  allowedActions: {
+    canEditCommercialData: true,
+    canGenerateInvite: false,
+    canRegenerateInvite: true,
+    canRevokeInvite: true,
+    canReview: false,
+    canValidateGuardianAuthorization: true,
+    canDiscard: true,
+    canReopen: false,
+    canConvert: false,
+    canOpenStudentCentral: false,
+  },
+  commercial: {},
+  lifecycleProgress: {
+    alunoId: 'internal-student-id',
+    status: 'INVITED',
+    healthModuleStatus: 'NOT_STARTED',
+    parqModuleStatus: 'NOT_STARTED',
+    missingRequiredFields: ['guardianAuthorization'],
+  },
+  invite: {
+    id: 'invite-visual',
+    alunoId: 'internal-student-id',
+    status: 'ACTIVE',
+    purpose: 'PRE_REGISTRATION',
+    expiresAt: '2026-08-23T12:00:00.000Z',
+    createdAt: '2026-07-23T10:00:00.000Z',
+    firstAccessedAt: '2026-07-24T11:30:00.000Z',
+    linkRecoverable: false,
+    allowedActions: { canGenerateFirst: false, canRegenerate: true, canRevoke: true },
+  },
+  pendencies: [{ code: 'guardianAuthorization', label: 'Validação do responsável', blocking: true }],
+  history: [],
+};
+
+const adminGuardianAuthorization = {
+  id: 'guardian-authorization-visual',
+  alunoId: 'internal-student-id',
+  contractId: 'contract-visual',
+  status: 'PENDING',
+  relationship: 'Mãe',
+  requestedAt: '2026-07-24T12:00:00.000Z',
+  guardian: {
+    userId: 'guardian-user',
+    name: 'Ana Ferreira',
+    email: 'ana.ferreira@example.com',
+    phone: '(15) 98888-0000',
+  },
+};
+
 function processSummary(overrides = {}) {
   return {
     alunoId: 'internal-student-id',
@@ -146,22 +245,36 @@ function processesForScenario(scenario) {
       }),
     ];
   }
+  if (scenario === 'awaiting-guardian') {
+    return [
+      processSummary({
+        displayName: 'Dependente convidado',
+        guardianAuthorizationStatus: 'PENDING',
+        guardianAuthorizationRelationship: 'Mãe',
+        guardianAuthorizationRequestedAt: '2026-07-24T12:00:00.000Z',
+        requiresGuardianConfirmation: true,
+      }),
+    ];
+  }
   return [processSummary()];
 }
 
 async function installMocking(page, scenario) {
   const publicScenarios = new Set(['landing', 'invalid']);
   if (!publicScenarios.has(scenario)) {
-    await page.evaluateOnNewDocument((storedUser) => {
+    const storedUser = scenario.startsWith('admin-')
+      ? adminUser
+      : {
+          id: 'guardian-user',
+          email: 'responsavel@example.com',
+          name: 'Ana Ferreira',
+          type: 'aluno',
+          profile: { name: 'Ana Ferreira' },
+        };
+    await page.evaluateOnNewDocument((user) => {
       localStorage.setItem('token', 'visual-audit-token');
-      localStorage.setItem('user', JSON.stringify(storedUser));
-    }, {
-      id: 'guardian-user',
-      email: 'responsavel@example.com',
-      name: 'Ana Ferreira',
-      type: 'aluno',
-      profile: { name: 'Ana Ferreira' },
-    });
+      localStorage.setItem('user', JSON.stringify(user));
+    }, storedUser);
     if (scenario === 'conflict') {
       await page.evaluateOnNewDocument(() => {
         sessionStorage.setItem(
@@ -188,6 +301,20 @@ async function installMocking(page, scenario) {
     }
     if (pathname === '/api/v1/pre-cadastro/invalid-token' && method === 'GET') {
       void request.respond(json({ success: false, error: 'Link inválido ou expirado.' }, 404));
+      return;
+    }
+    if (
+      pathname === '/api/v1/pre-registration-admin/leads/internal-student-id' &&
+      method === 'GET'
+    ) {
+      void request.respond(json({ success: true, data: adminLead }));
+      return;
+    }
+    if (
+      pathname === '/api/v1/pre-registration-admin/leads/internal-student-id/guardian-authorization' &&
+      method === 'GET'
+    ) {
+      void request.respond(json({ success: true, data: adminGuardianAuthorization }));
       return;
     }
     if (pathname === '/api/v1/pre-registration/processes' && method === 'GET') {
@@ -218,12 +345,15 @@ async function installMocking(page, scenario) {
       return;
     }
     if (pathname === '/api/v1/auth/me' && method === 'GET') {
-      void request.respond(json({ success: true, data: {
-        id: 'guardian-user',
-        email: 'responsavel@example.com',
-        name: 'Ana Ferreira',
-        type: 'aluno',
-      } }));
+      const user = scenario.startsWith('admin-')
+        ? adminUser
+        : {
+            id: 'guardian-user',
+            email: 'responsavel@example.com',
+            name: 'Ana Ferreira',
+            type: 'aluno',
+          };
+      void request.respond(json({ success: true, data: user }));
       return;
     }
     void request.continue();
@@ -347,7 +477,10 @@ try {
     { name: 'landing-mobile', route: '/pre-cadastro/token-safe', viewport: { width: 390, height: 844 }, scenario: 'landing' },
     { name: 'invalid-link-mobile', route: '/pre-cadastro/invalid-token', viewport: { width: 390, height: 844 }, scenario: 'invalid' },
     { name: 'process-selector-desktop', route: '/pre-cadastro', viewport: { width: 1440, height: 900 }, scenario: 'selector' },
-    { name: 'guardian-confirmation-mobile', route: '/pre-cadastro', viewport: { width: 390, height: 844 }, scenario: 'pending-guardian' },
+    { name: 'admin-guardian-validation-desktop', route: '/pre-matriculas/internal-student-id', viewport: { width: 1440, height: 900 }, scenario: 'admin-guardian' },
+    { name: 'admin-guardian-validation-mobile', route: '/pre-matriculas/internal-student-id', viewport: { width: 390, height: 844 }, scenario: 'admin-guardian' },
+    { name: 'guardian-request-mobile', route: '/pre-cadastro', viewport: { width: 390, height: 844 }, scenario: 'pending-guardian' },
+    { name: 'guardian-awaiting-approval-mobile', route: '/pre-cadastro', viewport: { width: 390, height: 844 }, scenario: 'awaiting-guardian' },
     { name: 'identification-low-height', route: '/pre-cadastro', viewport: { width: 1366, height: 768 }, scenario: 'identification' },
     { name: 'identification-tablet', route: '/pre-cadastro', viewport: { width: 768, height: 1024 }, scenario: 'identification' },
     { name: 'contact-mobile', route: '/pre-cadastro', viewport: { width: 390, height: 844 }, scenario: 'contact' },

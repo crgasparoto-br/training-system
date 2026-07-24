@@ -125,6 +125,52 @@ const REQUIRED_FIELD_LABELS: Record<string, string> = {
   privacyAcceptedAt: 'aceite de privacidade',
 };
 
+function buildStepData(step: PreRegistrationStep, form: FormData): SavePreRegistrationStepDTO['data'] {
+  switch (step) {
+    case 'IDENTIFICATION':
+      return {
+        name: form.name,
+        birthDate: form.birthDate,
+        cpf: form.cpf,
+        gender: form.gender,
+      };
+    case 'CONTACT':
+      return {
+        phone: form.phone,
+        additionalPhone: form.additionalPhone,
+        email: form.email,
+        additionalEmail: form.additionalEmail,
+      };
+    case 'ADDRESS':
+      return {
+        addressZipCode: form.addressZipCode,
+        addressStreet: form.addressStreet,
+        addressNumber: form.addressNumber,
+        addressComplement: form.addressComplement,
+        addressNeighborhood: form.addressNeighborhood,
+        addressCity: form.addressCity,
+        addressState: form.addressState,
+      };
+    case 'GUARDIAN':
+      return {
+        guardianName: form.guardianName,
+        guardianCpf: form.guardianCpf,
+        guardianPhone: form.guardianPhone,
+        guardianEmail: form.guardianEmail,
+      };
+    case 'PRIVACY':
+      return {};
+  }
+}
+
+function buildSaveStepInput(
+  expectedVersion: number,
+  step: PreRegistrationStep,
+  form: FormData
+): SavePreRegistrationStepDTO {
+  return { expectedVersion, step, data: buildStepData(step, form) } as SavePreRegistrationStepDTO;
+}
+
 function stepsForSession(session: Pick<PreRegistrationSessionDTO, 'isMinor'>) {
   return STEPS.filter((step) => step.key !== 'GUARDIAN' || session.isMinor);
 }
@@ -408,7 +454,7 @@ function PublicLanding({ token }: { token: string }) {
               </div>
               {role === 'GUARDIAN' ? (
                 <p className="mt-2 text-xs leading-5 text-slate-500">
-                  O acesso de responsável somente será liberado para menor de idade já identificado pela academia e após a confirmação do vínculo.
+                  O acesso de responsável somente será liberado para menor de idade já identificado e após validação independente do vínculo pela academia.
                 </p>
               ) : null}
             </fieldset>
@@ -510,7 +556,9 @@ function ProcessSelector({
                   <span className="mt-1 block text-sm text-slate-600">{process.tenant.name}</span>
                   <span className="mt-3 inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
                     {process.requiresGuardianConfirmation
-                      ? 'Confirmar vínculo de responsável'
+                      ? process.guardianAuthorizationRelationship
+                        ? 'Aguardando validação da academia'
+                        : 'Informar vínculo de responsável'
                       : process.status === 'PRE_REGISTRATION_COMPLETED'
                         ? 'Pré-cadastro concluído'
                         : 'Continuar preenchimento'}
@@ -711,6 +759,8 @@ function AuthenticatedFlow() {
       setConflict(null);
       setError('');
       setSavedMessage('');
+      setGuardianRelationship(process.guardianAuthorizationRelationship || '');
+      setGuardianDeclarationAccepted(false);
       if (process.requiresGuardianConfirmation) {
         setLoading(false);
         return;
@@ -798,7 +848,7 @@ function AuthenticatedFlow() {
     }));
   });
 
-  const confirmGuardian = async () => {
+  const requestGuardianValidation = async () => {
     if (!selectedProcess) return;
     if (!guardianDeclarationAccepted || !guardianRelationship.trim()) {
       setError('Confirme a declaração e informe o vínculo com o menor.');
@@ -807,7 +857,7 @@ function AuthenticatedFlow() {
     setSaving(true);
     setError('');
     try {
-      const value = await preRegistrationPublicService.confirmGuardianAuthorization(
+      const value = await preRegistrationPublicService.requestGuardianAuthorization(
         selectedProcess.alunoId,
         {
           relationship: guardianRelationship,
@@ -819,16 +869,25 @@ function AuthenticatedFlow() {
           process.alunoId === selectedProcess.alunoId
             ? {
                 ...process,
-                guardianAuthorizationStatus: 'ACTIVE',
-                requiresGuardianConfirmation: false,
+                guardianAuthorizationStatus: value.status,
+                guardianAuthorizationRelationship: value.relationship,
+                guardianAuthorizationRequestedAt: value.requestedAt,
+                requiresGuardianConfirmation: value.approvalRequired,
               }
             : process
         )
       );
-      applySession(value);
+      setGuardianDeclarationAccepted(false);
       setSavedMessage(
-        'Vínculo confirmado. Agora você pode continuar o pré-cadastro deste dependente.'
+        value.approvalRequired
+          ? 'Solicitação enviada. A academia precisa validar o vínculo antes de liberar os dados.'
+          : 'O vínculo já está validado.'
       );
+      if (!value.approvalRequired) {
+        applySession(
+          await preRegistrationPublicService.getSession(selectedProcess.alunoId)
+        );
+      }
     } catch (reason) {
       setError(apiErrorMessage(reason));
     } finally {
@@ -889,11 +948,10 @@ function AuthenticatedFlow() {
     setSaving(true);
     setError('');
     try {
-      const next = await preRegistrationPublicService.saveStep(session.alunoId, {
-        expectedVersion: session.version,
-        step: currentStep.key,
-        data: form,
-      });
+      const next = await preRegistrationPublicService.saveStep(
+        session.alunoId,
+        buildSaveStepInput(session.version, currentStep.key, form)
+      );
       setSession(next);
       setForm((current) => ({ ...current, ...next.identity }));
       setSavedMessage('Alterações salvas. Você pode continuar depois com a mesma conta.');
@@ -1016,15 +1074,19 @@ function AuthenticatedFlow() {
   }
 
   if (selectedProcess?.requiresGuardianConfirmation) {
+    const awaitingApproval = Boolean(selectedProcess.guardianAuthorizationRelationship);
     return (
       <PublicShell>
         <main className="mx-auto max-w-2xl rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-9">
           <ShieldCheck className="h-11 w-11 text-blue-600" aria-hidden="true" />
           <p className="mt-5 text-sm font-medium text-blue-700">Acesso de responsável</p>
-          <h1 className="mt-1 text-3xl font-semibold text-slate-950">Confirme seu vínculo</h1>
+          <h1 className="mt-1 text-3xl font-semibold text-slate-950">
+            {awaitingApproval ? 'Aguardando validação da academia' : 'Informe seu vínculo'}
+          </h1>
           <p className="mt-3 leading-7 text-slate-600">
-            Antes de mostrar dados pessoais do menor, precisamos registrar em qual qualidade você
-            responde por este dependente.
+            {awaitingApproval
+              ? 'Sua declaração foi registrada. Os dados pessoais do menor continuarão protegidos até que um usuário autorizado da academia valide o vínculo por uma fonte independente.'
+              : 'Antes de solicitar acesso aos dados do menor, informe em qual qualidade você responde por este dependente. A declaração será enviada para validação da academia.'}
           </p>
           {error ? (
             <div
@@ -1036,28 +1098,52 @@ function AuthenticatedFlow() {
               {error}
             </div>
           ) : null}
-          <div className="mt-6 space-y-4">
-            <Field
-              label="Vínculo com o menor"
-              name="guardianRelationship"
-              value={guardianRelationship}
-              required
-              placeholder="Ex.: mãe, pai, tutor"
-              onChange={setGuardianRelationship}
-            />
-            <label className="flex gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-800">
-              <input
-                type="checkbox"
-                checked={guardianDeclarationAccepted}
-                onChange={(event) => setGuardianDeclarationAccepted(event.target.checked)}
-                className="mt-1"
+          {savedMessage ? (
+            <div
+              role="status"
+              className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800"
+            >
+              {savedMessage}
+            </div>
+          ) : null}
+
+          {awaitingApproval ? (
+            <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950">
+              <p className="font-semibold">Vínculo declarado: {selectedProcess.guardianAuthorizationRelationship}</p>
+              <p className="mt-2 leading-6">
+                A posse do convite e a declaração não concedem acesso por si só. Você poderá continuar quando a academia concluir a validação.
+              </p>
+              {selectedProcess.guardianAuthorizationRequestedAt ? (
+                <p className="mt-3 text-xs text-amber-800">
+                  Solicitação registrada em{' '}
+                  {new Date(selectedProcess.guardianAuthorizationRequestedAt).toLocaleString('pt-BR')}
+                </p>
+              ) : null}
+            </div>
+          ) : (
+            <div className="mt-6 space-y-4">
+              <Field
+                label="Vínculo com o menor"
+                name="guardianRelationship"
+                value={guardianRelationship}
+                required
+                placeholder="Ex.: mãe, pai, tutor"
+                onChange={setGuardianRelationship}
               />
-              <span>
-                Declaro que sou responsável legal por este menor e que as informações fornecidas são
-                verdadeiras. O vínculo ficará registrado e poderá ser revogado pela academia.
-              </span>
-            </label>
-          </div>
+              <label className="flex gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-800">
+                <input
+                  type="checkbox"
+                  checked={guardianDeclarationAccepted}
+                  onChange={(event) => setGuardianDeclarationAccepted(event.target.checked)}
+                  className="mt-1"
+                />
+                <span>
+                  Declaro que sou responsável legal por este menor e que as informações fornecidas são verdadeiras. Estou ciente de que a academia validará o vínculo antes de liberar os dados.
+                </span>
+              </label>
+            </div>
+          )}
+
           <div className="mt-7 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
             {processes.length > 1 ? (
               <button
@@ -1070,19 +1156,31 @@ function AuthenticatedFlow() {
             ) : (
               <span />
             )}
-            <button
-              type="button"
-              disabled={saving || !guardianDeclarationAccepted || !guardianRelationship.trim()}
-              onClick={() => void confirmGuardian()}
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {saving ? (
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-              ) : (
-                <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-              )}
-              Confirmar e continuar
-            </button>
+            {awaitingApproval ? (
+              <button
+                type="button"
+                disabled={loading}
+                onClick={() => void loadProcesses()}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 font-semibold text-white disabled:opacity-50"
+              >
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
+                Atualizar situação
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled={saving || !guardianDeclarationAccepted || !guardianRelationship.trim()}
+                onClick={() => void requestGuardianValidation()}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {saving ? (
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                ) : (
+                  <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+                )}
+                Enviar para validação
+              </button>
+            )}
           </div>
         </main>
       </PublicShell>
