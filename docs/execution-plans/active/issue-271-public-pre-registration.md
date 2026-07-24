@@ -29,7 +29,7 @@ Transformar o convite seguro de pré-cadastro em uma experiência pública que i
 
 ## Correções da auditoria
 
-1. **Conta incompatível:** todas as divergências de nome, e-mail, telefone, CPF e data de nascimento bloqueiam a reivindicação.
+1. **Conta incompatível:** todas as divergências de nome, e-mail, telefone, CPF e data de nascimento bloqueiam a reivindicação sem revelar ao cliente quais atributos divergiram.
 2. **Múltiplos dependentes:** sessão, salvamento, duplicidade, consentimento e conclusão recebem o processo selecionado explicitamente.
 3. **Concorrência administrativa:** atualização profissional de `StudentProfile.identificationData` incrementa `StudentOnboardingProcess.version`.
 4. **Responsável:** claim cria autorização pendente; a autodeclaração apenas registra o vínculo informado e a liberação exige validação administrativa independente, auditável e reforçada por constraint de banco.
@@ -80,6 +80,7 @@ A PR deve permanecer sem merge até autorização explícita.
 - testes de regressão cobrem rascunho obsoleto, reconciliação, e-mail obrigatório, contatos alternativos, aluno ativo e fallback de convite.
 
 Validação oficial repetida após alinhar as fixtures antigas à regra compartilhada de e-mail obrigatório.
+
 ## Remediação da auditoria de segurança de 24/07/2026
 
 - a declaração pública do responsável permanece `PENDING` e não grava mais `validatedAt` nem `validatedByUserId`;
@@ -90,3 +91,14 @@ Validação oficial repetida após alinhar as fixtures antigas à regra comparti
 - testes cobrem responsável não vinculado, autovalidação bloqueada, aprovação administrativa, múltiplos dependentes, revogação e tentativa cross-tenant;
 - o schema de salvamento é uma união discriminada por etapa e rejeita campos fora da allowlist da etapa selecionada;
 - a auditoria visual inclui solicitação, espera de aprovação, validação administrativa em desktop/mobile e continuação após liberação.
+
+## Remediação da pré-auditoria da fronteira pública de 24/07/2026
+
+- os detalhes de erros públicos usam allowlist por código; campos internos não autorizados deixam de ser serializados por expansão de objetos;
+- `ACCOUNT_INCOMPATIBLE` retorna somente o código público e uma mensagem estável, sem listar nome, CPF, telefone, e-mail ou data de nascimento divergentes;
+- falhas inesperadas retornam mensagem genérica, código `INTERNAL_ERROR` e identificador de correlação não sensível;
+- a mensagem técnica original permanece restrita ao log do servidor associado ao identificador de correlação;
+- testes HTTP comparam divergências distintas e exigem payload externo idêntico;
+- teste HTTP injeta uma falha técnica e confirma que nomes de tabela, campos e mensagem original não aparecem na resposta.
+
+Qualquer alteração posterior ao SHA corrigido exige nova auditoria independente funcional e documental antes do merge.
