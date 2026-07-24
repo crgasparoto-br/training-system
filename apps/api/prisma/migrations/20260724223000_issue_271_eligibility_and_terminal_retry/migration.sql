@@ -6,20 +6,32 @@
 CREATE OR REPLACE FUNCTION bump_pre_registration_version_on_identity_change()
 RETURNS TRIGGER AS $$
 DECLARE
-  old_birth_date DATE;
   new_birth_date DATE;
   new_is_minor BOOLEAN;
-  old_is_minor BOOLEAN;
   has_active_guardian BOOLEAN;
   linked_student_user_id TEXT;
+  locked_onboarding_id TEXT;
 BEGIN
   IF NEW."identificationData" IS NOT DISTINCT FROM OLD."identificationData" THEN
     RETURN NEW;
   END IF;
 
-  IF COALESCE(OLD."identificationData"->>'birthDate', '')
-       ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' THEN
-    old_birth_date := LEFT(OLD."identificationData"->>'birthDate', 10)::date;
+  -- Administrative identity writes hold Aluno before reaching this trigger,
+  -- while public writes hold onboarding first. Preserve the established NOWAIT
+  -- guard so the inverse order fails fast instead of waiting or deadlocking.
+  IF COALESCE(NEW."sourceType"::text, '') <> 'student' THEN
+    BEGIN
+      SELECT "id"
+      INTO locked_onboarding_id
+      FROM "StudentOnboardingProcess"
+      WHERE "alunoId" = NEW."alunoId"
+        AND "contractId" = NEW."contractId"
+      FOR UPDATE NOWAIT;
+    EXCEPTION
+      WHEN lock_not_available THEN
+        RAISE EXCEPTION 'O pré-cadastro está sendo alterado em outro acesso.'
+          USING ERRCODE = '40001';
+    END;
   END IF;
 
   IF COALESCE(NEW."identificationData"->>'birthDate', '')
@@ -27,8 +39,6 @@ BEGIN
     new_birth_date := LEFT(NEW."identificationData"->>'birthDate', 10)::date;
   END IF;
 
-  old_is_minor := old_birth_date IS NOT NULL
-    AND old_birth_date > (CURRENT_DATE - INTERVAL '18 years')::date;
   new_is_minor := new_birth_date IS NOT NULL
     AND new_birth_date > (CURRENT_DATE - INTERVAL '18 years')::date;
 
@@ -59,9 +69,9 @@ BEGIN
              AND NOT COALESCE(has_active_guardian, FALSE)
           THEN NULL
         WHEN onboarding."claimRole" = 'STUDENT'
-             AND COALESCE(old_is_minor, FALSE)
              AND NOT COALESCE(new_is_minor, FALSE)
              AND onboarding."claimedByUserId" IS NULL
+             AND linked_student_user_id IS NOT NULL
           THEN linked_student_user_id
         ELSE onboarding."claimedByUserId"
       END,
@@ -71,7 +81,6 @@ BEGIN
              AND NOT COALESCE(has_active_guardian, FALSE)
           THEN NULL
         WHEN onboarding."claimRole" = 'STUDENT'
-             AND COALESCE(old_is_minor, FALSE)
              AND NOT COALESCE(new_is_minor, FALSE)
              AND onboarding."claimedByUserId" IS NULL
              AND linked_student_user_id IS NOT NULL
@@ -79,8 +88,14 @@ BEGIN
         ELSE onboarding."claimedAt"
       END,
       "updatedAt" = CURRENT_TIMESTAMP
-  WHERE onboarding."alunoId" = NEW."alunoId"
-    AND onboarding."contractId" = NEW."contractId";
+  WHERE (
+      COALESCE(NEW."sourceType"::text, '') <> 'student'
+      AND onboarding."id" = locked_onboarding_id
+    ) OR (
+      COALESCE(NEW."sourceType"::text, '') = 'student'
+      AND onboarding."alunoId" = NEW."alunoId"
+      AND onboarding."contractId" = NEW."contractId"
+    );
 
   RETURN NEW;
 END;
