@@ -60,7 +60,7 @@ export async function assertPreRegistrationClaimRoleEligibility(
   if (activeGuardian) return;
 
   throw new PreRegistrationPublicError(
-    'Este convite pertence a um menor de idade. Continue com a conta do responsável legal.',
+    'Este convite pertence a um menor de idade. O responsável legal deve usar a própria conta e aguardar a validação da academia.',
     'GUARDIAN_AUTHORIZATION_REQUIRED',
     { recommendedRole: 'GUARDIAN' }
   );
