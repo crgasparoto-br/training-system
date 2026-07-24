@@ -8,11 +8,14 @@ const describeDatabase = runDatabaseTests ? describe : describe.skip;
 
 describeDatabase('guardian authorization independent admin approval', () => {
   const suffix = `issue271-guardian-admin-${Date.now()}`;
+  const authorizationCreatedAt = new Date('2026-07-23T09:00:00.000Z');
+  const requestedAt = new Date('2026-07-23T10:15:00.000Z');
   let contractId: string;
   let professorId: string;
   let adminUserId: string;
   let guardianUserId: string;
   let alunoId: string;
+  let validatedAt: string;
 
   beforeAll(async () => {
     const contract = await prisma.companyContract.create({
@@ -81,6 +84,8 @@ describeDatabase('guardian authorization independent admin approval', () => {
             guardianUserId: guardian.id,
             relationship: 'Mãe',
             status: 'PENDING',
+            createdAt: authorizationCreatedAt,
+            updatedAt: authorizationCreatedAt,
           },
         },
       },
@@ -96,6 +101,36 @@ describeDatabase('guardian authorization independent admin approval', () => {
       },
       { sourceType: 'professional', sourceReference: 'issue_271_guardian_admin_fixture' }
     );
+
+    await prisma.studentLifecycleEvent.createMany({
+      data: [
+        {
+          alunoId,
+          contractId,
+          eventType: 'ACCOUNT_LINKED',
+          actorUserId: guardianUserId,
+          createdAt: requestedAt,
+          metadata: {
+            source: 'public_pre_registration',
+            role: 'GUARDIAN',
+            action: 'guardian_authorization_requested',
+            relationship: 'Mãe',
+            authorizationStatus: 'PENDING',
+          },
+        },
+        {
+          alunoId,
+          contractId,
+          eventType: 'ACCOUNT_LINKED',
+          actorUserId: guardianUserId,
+          createdAt: new Date('2026-07-23T11:30:00.000Z'),
+          metadata: {
+            source: 'unrelated_test_event',
+            role: 'GUARDIAN',
+          },
+        },
+      ],
+    });
   });
 
   afterAll(async () => {
@@ -132,13 +167,15 @@ describeDatabase('guardian authorization independent admin approval', () => {
     expect(authorization.validatedByUserId).toBeNull();
   });
 
-  it('allows an authorized academy user to approve and records an independent validator', async () => {
+  it('allows an authorized academy user to approve and preserves the request date', async () => {
     const pending = await preRegistrationGuardianAuthorizationAdminService.get(actor(), alunoId);
     expect(pending).toMatchObject({
       status: 'PENDING',
       relationship: 'Mãe',
       guardian: { userId: guardianUserId, name: 'Responsável Declarado' },
+      requestedAt: requestedAt.toISOString(),
     });
+    expect(pending?.requestedAt).not.toBe(authorizationCreatedAt.toISOString());
 
     const approved = await preRegistrationGuardianAuthorizationAdminService.approve(
       actor(),
@@ -147,9 +184,12 @@ describeDatabase('guardian authorization independent admin approval', () => {
     expect(approved).toMatchObject({
       status: 'ACTIVE',
       relationship: 'Mãe',
+      requestedAt: requestedAt.toISOString(),
       validatedBy: { userId: adminUserId, name: 'Gestor Validador' },
     });
     expect(approved.validatedAt).toBeTruthy();
+    expect(approved.validatedAt).not.toBe(approved.requestedAt);
+    validatedAt = approved.validatedAt!;
 
     const event = await prisma.studentLifecycleEvent.findFirst({
       where: {
@@ -164,13 +204,20 @@ describeDatabase('guardian authorization independent admin approval', () => {
     expect(event?.metadata).toMatchObject({ action: 'guardian_authorization_approved' });
   });
 
-  it('revokes the relationship, removes process access and never reactivates implicitly', async () => {
+  it('revokes the relationship without rewriting request or validation dates', async () => {
     const revoked = await preRegistrationGuardianAuthorizationAdminService.revoke(
       actor(),
       alunoId,
       'Documento de tutela deixou de ser válido.'
     );
-    expect(revoked).toMatchObject({ status: 'REVOKED' });
+    expect(revoked).toMatchObject({
+      status: 'REVOKED',
+      requestedAt: requestedAt.toISOString(),
+      validatedAt,
+    });
+    expect(revoked.revokedAt).toBeTruthy();
+    expect(revoked.revokedAt).not.toBe(revoked.requestedAt);
+    expect(revoked.revokedAt).not.toBe(revoked.validatedAt);
 
     const onboarding = await prisma.studentOnboardingProcess.findUniqueOrThrow({
       where: { alunoId },
