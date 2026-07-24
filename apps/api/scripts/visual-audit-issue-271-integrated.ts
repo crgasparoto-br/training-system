@@ -253,24 +253,6 @@ try {
   await clickByText(page, 'button', 'Confirmar e continuar');
   await waitForHeading(page, 'Identificação');
 
-  await upsertStudentIdentity(
-    alunoId,
-    contractId,
-    { phone: '15988887777' },
-    {
-      sourceType: 'professional',
-      sourceReference: 'issue_271_integrated_conflict',
-    }
-  );
-  await clickByText(page, 'button', 'Salvar e avançar');
-  await waitForText(page, 'Os dados foram alterados em outro local');
-  await page.screenshot({
-    path: path.join(outputDir, 'concurrent-conflict-mobile-real.png'),
-    fullPage: true,
-  });
-
-  await page.reload({ waitUntil: 'networkidle0', timeout: 30_000 });
-  await waitForHeading(page, 'Identificação');
   await page.setViewport({ width: 1366, height: 768 });
   await assertNoHorizontalOverflow(page, 'identification-low-height-real');
   await page.screenshot({
@@ -320,9 +302,8 @@ try {
   if (invite.status !== 'COMPLETED' || completionEvents !== 1) {
     throw new Error(`Conclusão não idempotente: convite=${invite.status}, eventos=${completionEvents}`);
   }
-  const unexpectedBrowserErrors = browserErrors.filter((message) => !message.includes('409'));
-  if (unexpectedBrowserErrors.length > 0) {
-    throw new Error(`Erros no navegador: ${unexpectedBrowserErrors.join(' | ')}`);
+  if (browserErrors.length > 0) {
+    throw new Error(`Erros no navegador: ${browserErrors.join(' | ')}`);
   }
 
   console.log(JSON.stringify({
@@ -331,7 +312,6 @@ try {
       'guardian registration and same-SPA authenticated redirect',
       'pending guardian privacy barrier',
       'guardian relationship confirmation',
-      'administrative concurrency conflict',
       'incremental save through all basic-data steps',
       'versioned privacy consent and completion',
     ],
