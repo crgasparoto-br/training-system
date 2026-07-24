@@ -119,12 +119,9 @@ Validação oficial repetida após alinhar as fixtures antigas à regra comparti
 
 ## Verificação interna final
 
-- SHA verificado: `0295c6effbfcfd851bcf38b418190a8b2eba20e1`;
 - Passagem A: rastreabilidade direta entre trigger, backfill, listagem, sessão, status concluído e testes de integração;
 - Passagem B: ataque fresco sobre pós-conclusão, concorrência, múltiplos responsáveis, autorização pendente, caminho process-scoped e registros históricos;
-- `Validate PR` `30126526294`: sucesso, incluindo migrations, backfill, rerun, type-check, lint, 105 suítes e 503 testes, build, arquitetura, catálogo de acessos e documentação;
-- `Visual Audit Issue 271` `30126526311`: sucesso;
-- `Visual Audit Issue 270` `30126526222`: sucesso;
-- estado: pronto para auditoria independente; esta verificação interna não reivindica aprovação independente.
+- os gates oficiais devem ser repetidos no head final da PR e seus identificadores devem ser registrados na descrição da PR e no comentário de handoff da issue;
+- estado esperado após gates verdes: pronto para auditoria independente; a verificação interna não reivindica aprovação independente.
 
 Qualquer alteração posterior ao SHA corrigido exige nova auditoria independente funcional e documental antes do merge.
