@@ -24,3 +24,5 @@ Este diretório contém a experiência pública autenticada da pré-matrícula d
 Mudanças neste diretório devem executar o workflow visual da issue #271 em desktop de baixa altura, desktop amplo e mobile, incluindo landing, seleção de processo, solicitação e espera de validação do responsável, validação administrativa, formulário, conclusão e encaminhamento para módulos opcionais, além dos gates gerais de type-check, lint, testes, build, arquitetura, catálogo de acesso e documentação.
 
 Mudanças de autorização devem incluir cenários discriminantes em que a revogação vence o lock antes de `getSession`, primeiro salvamento ou preservação de duplicidade, comprovando ausência de PII e de mutações residuais.
+
+Mudanças no rascunho de aba devem distinguir troca de usuário, logout e negação autoritativa de falhas temporárias, preservando dados somente quando a mesma conta ainda puder retomar o processo com segurança.
