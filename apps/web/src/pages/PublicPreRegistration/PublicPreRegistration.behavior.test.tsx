@@ -94,7 +94,7 @@ const baseSession = {
   nextSteps: [],
 };
 
-const scopedDraftKey = `${DRAFT_KEY}:${baseSession.alunoId}`;
+const scopedDraftKey = `${DRAFT_KEY}:guardian-1:${baseSession.alunoId}`;
 
 describe('PublicPreRegistration - resiliência, seleção e autorização', () => {
   beforeEach(() => {
