@@ -18,7 +18,12 @@ jobs:
     name: Validate repository
     runs-on: ubuntu-latest
     env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/training_system_test?schema=public
+      # A suíte de integração instancia clientes Prisma em vários módulos. Cada
+      # pool usa uma única conexão no CI para preservar a cobertura completa sem
+      # disputar o max_connections do PostgreSQL efêmero.
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/training_system_test?schema=public&connection_limit=1&pool_timeout=30
+      PRISMA_CONNECTION_LIMIT: '1'
+      PRISMA_POOL_TIMEOUT_SECONDS: '30'
       RUN_DATABASE_INTEGRATION_TESTS: 'true'
 
     services:
