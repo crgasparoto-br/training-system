@@ -12,7 +12,9 @@ export default {
     '^\.\./\.\./bootstrap-env\.js$': '<rootDir>/tests/bootstrap-env.mock.ts',
      '^@corrida/types$': '<rootDir>/../../packages/types/index.ts',
      '^@corrida/utils$': '<rootDir>/../../packages/utils/index.ts',
-    '^(\.{1,2}/.*)\.js$': '$1',
+    // Remove a extensão dos imports TypeScript escritos como .js sem capturar
+    // dependências CommonJS/ESM que terminam em .cjs ou .mjs.
+    '^(\.{1,2}/.*?)(?<!\.[cm])\.js$': '$1',
   },
   collectCoverageFrom: [
     'src/**/*.ts',
