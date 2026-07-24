@@ -37,7 +37,7 @@ Transformar o convite seguro de pré-cadastro em uma experiência pública que i
 5. **Conclusão:** validação ocorre sobre a identidade canônica lida dentro da transação e emite evento específico uma única vez.
 6. **Etapas:** contratos discriminados e allowlists de backend impedem que uma etapa altere campos pertencentes a outra.
 7. **Próximos passos:** cards deixam de ficar desabilitados e encaminham para a etapa opcional correspondente.
-8. **Revogação pós-conclusão:** a mudança de autorização invalida e remove o claim do processo em qualquer estado, e a migration corrige registros históricos concluídos sem autorização ativa.
+8. **Revogação pós-conclusão:** a mudança de autorização invalida e remove o claim do processo em qualquer estado, e a migration corrige registros históricos concluídos com autorização revogada.
 
 ## Limites preservados
 
@@ -107,7 +107,7 @@ Validação oficial repetida após alinhar as fixtures antigas à regra comparti
 
 - a função de trigger de autorização não limita mais a invalidação a processos com `completedAt` nulo;
 - a revogação incrementa a versão, limpa `claimedByUserId` e `claimedAt` na mesma transação, mantendo o status cadastral concluído sem preservar acesso autenticado indevido;
-- a migration executa backfill de processos de menores que ainda possuam claim, mas não tenham autorização `ACTIVE`;
+- a migration executa backfill apenas de processos de menores com autorização `REVOKED`, claim residual e nenhuma autorização `ACTIVE`, preservando declarações `PENDING`;
 - a listagem deixa de retornar o processo porque depende do claim vigente, e a consulta process-scoped responde `NOT_FOUND` sem carregar a identidade;
 - o teste de integração cobre conclusão seguida de revogação e confirma ausência de processo e sessão;
 - um segundo cenário disputa conclusão e revogação simultaneamente e exige que o estado final permaneça sem claim e sem leitura de dados pessoais.
