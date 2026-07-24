@@ -4,6 +4,7 @@ import { preRegistrationPublicService } from '../src/modules/pre-registration-pu
 import { hashInviteToken } from '../src/modules/pre-registration-invites/pre-registration-invite-token.js';
 
 const prisma = new PrismaClient();
+const administrativePrisma = new PrismaClient();
 const runDatabaseTests = process.env.RUN_DATABASE_INTEGRATION_TESTS === 'true';
 const describeDatabase = runDatabaseTests ? describe : describe.skip;
 
@@ -75,7 +76,7 @@ describeDatabase('public pre-registration identity lock order', () => {
     if (userId) {
       await prisma.user.delete({ where: { id: userId } }).catch(() => undefined);
     }
-    await prisma.$disconnect();
+    await Promise.all([prisma.$disconnect(), administrativePrisma.$disconnect()]);
   });
 
   it('rolls back an administrative edit immediately while onboarding is locked', async () => {
@@ -102,7 +103,10 @@ describeDatabase('public pre-registration identity lock order', () => {
 
     await lockAcquired;
 
-    const administrativeAttempt = prisma.$transaction((tx) =>
+    // Use an independent client so this operation reaches PostgreSQL through a
+    // second connection and exercises the database lock rather than waiting for
+    // a free slot in the same Prisma pool.
+    const administrativeAttempt = administrativePrisma.$transaction((tx) =>
       upsertStudentIdentity(
         alunoId,
         contractId,
