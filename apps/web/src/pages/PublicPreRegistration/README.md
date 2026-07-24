@@ -12,6 +12,7 @@ Este diretório contém a experiência pública autenticada da pré-matrícula d
 - O convite de responsável cria um vínculo `PENDING`; a declaração apenas solicita acesso e nenhum dado pessoal do menor é carregado antes da validação independente pela academia.
 - O acesso como responsável somente é aceito quando a data de nascimento canônica caracteriza menoridade e a autorização está `ACTIVE`, validada por uma conta administrativa diferente.
 - Perda de autoridade depois do preflight não pode produzir resposta sensível, transição de lifecycle, revisão, evento ou timestamp residual; a operação deve falhar por inteiro.
+- Quando o primeiro salvamento encontra CPF duplicado, a transição para `PRE_REGISTRATION_IN_PROGRESS`, o rascunho seguro, a revisão administrativa, a versão e os eventos são preservados na mesma transação.
 - Cada etapa envia somente seus próprios campos; o backend usa uma união discriminada e rejeita mass assignment entre etapas.
 - Alterações administrativas na identidade canônica incrementam a versão do onboarding e invalidam formulários públicos desatualizados.
 - O rascunho temporário de aba é isolado pela combinação `userId + alunoId`, não contém CPF, data de nascimento ou CPF do responsável e é removido na troca de conta, logout ou negação autoritativa de acesso.
