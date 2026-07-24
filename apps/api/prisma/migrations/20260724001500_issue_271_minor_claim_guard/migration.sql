@@ -13,7 +13,8 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  SELECT student."age" IS NOT NULL AND student."age" < 18
+  SELECT student."birthDate" IS NOT NULL
+         AND student."birthDate"::date > (CURRENT_DATE - INTERVAL '18 years')::date
   INTO is_minor
   FROM "Aluno" AS student
   WHERE student."id" = NEW."alunoId"
