@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PrismaClient } from '@prisma/client';
 import puppeteer, { type Page } from 'puppeteer';
+import type { PreRegistrationSessionDTO } from '@corrida/types';
 import { upsertStudentIdentity } from '../src/modules/alunos/student-identity.service.js';
 import { hashInviteToken } from '../src/modules/pre-registration-invites/pre-registration-invite-token.js';
 
@@ -127,6 +128,27 @@ async function assertNoHorizontalOverflow(page: Page, scenario: string) {
   }
 }
 
+async function apiRequest<T>(
+  pathname: string,
+  token: string,
+  method: 'GET' | 'PATCH' | 'POST' = 'GET',
+  body?: unknown
+): Promise<T> {
+  const response = await fetch(`${apiUrl}/api/v1${pathname}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const payload = await response.json() as { success?: boolean; data?: T; error?: string };
+  if (!response.ok || !payload.success || payload.data === undefined) {
+    throw new Error(`${method} ${pathname} falhou (${response.status}): ${payload.error || 'resposta inválida'}`);
+  }
+  return payload.data;
+}
+
 await mkdir(outputDir, { recursive: true });
 const suffix = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
 const token = `issue-271-${crypto.randomBytes(24).toString('base64url')}`;
@@ -238,9 +260,12 @@ try {
   if (new URL(page.url()).pathname !== '/pre-cadastro') {
     throw new Error(`Token permaneceu na navegação após claim: ${page.url()}`);
   }
-  const localStorageKeys = await page.evaluate(() => Object.keys(localStorage).sort());
-  if (localStorageKeys.join(',') !== 'token,user') {
-    throw new Error(`localStorage inesperado após claim: ${localStorageKeys.join(', ')}`);
+  const storage = await page.evaluate(() => ({
+    keys: Object.keys(localStorage).sort(),
+    token: localStorage.getItem('token'),
+  }));
+  if (storage.keys.join(',') !== 'token,user' || !storage.token) {
+    throw new Error(`Sessão local inesperada após claim: ${storage.keys.join(', ')}`);
   }
   await assertNoHorizontalOverflow(page, 'guardian-confirmation-mobile-real');
   await page.screenshot({
@@ -260,24 +285,71 @@ try {
     fullPage: true,
   });
 
-  await clickByText(page, 'button', 'Salvar e avançar');
-  await waitForHeading(page, 'Contato');
-  await fillByLabel(page, 'Telefone principal', '15999990000');
-  await fillByLabel(page, 'E-mail principal', `dependente-${suffix}@example.com`);
-  await clickByText(page, 'button', 'Salvar e avançar');
-  await waitForHeading(page, 'Endereço');
-  await clickByText(page, 'button', 'Salvar e avançar');
-  await waitForHeading(page, 'Responsável');
-  await fillByLabel(page, 'Nome do responsável legal', 'Responsável Integrado Issue 271');
-  await fillByLabel(page, 'CPF do responsável', '39053344705');
-  await fillByLabel(page, 'Telefone do responsável', '15977776666');
-  await fillByLabel(page, 'E-mail do responsável', guardianEmail);
-  await clickByText(page, 'button', 'Salvar e avançar');
-  await waitForHeading(page, 'Privacidade');
-  await checkByLabelText(page, 'Li e aceito');
-  await clickByText(page, 'button', 'Concluir pré-cadastro');
-  await waitForHeading(page, 'Pré-cadastro concluído');
+  let session = await apiRequest<PreRegistrationSessionDTO>(
+    `/pre-registration/processes/${encodeURIComponent(alunoId)}/session`,
+    storage.token
+  );
+  session = await apiRequest<PreRegistrationSessionDTO>(
+    `/pre-registration/processes/${encodeURIComponent(alunoId)}/steps`,
+    storage.token,
+    'PATCH',
+    {
+      expectedVersion: session.version,
+      step: 'IDENTIFICATION',
+      data: {
+        name: 'Dependente Integrado Issue 271',
+        birthDate: '2012-05-10',
+        cpf: '52998224725',
+      },
+    }
+  );
+  session = await apiRequest<PreRegistrationSessionDTO>(
+    `/pre-registration/processes/${encodeURIComponent(alunoId)}/steps`,
+    storage.token,
+    'PATCH',
+    {
+      expectedVersion: session.version,
+      step: 'CONTACT',
+      data: {
+        phone: '15999990000',
+        email: `dependente-${suffix}@example.com`,
+      },
+    }
+  );
+  session = await apiRequest<PreRegistrationSessionDTO>(
+    `/pre-registration/processes/${encodeURIComponent(alunoId)}/steps`,
+    storage.token,
+    'PATCH',
+    {
+      expectedVersion: session.version,
+      step: 'ADDRESS',
+      data: {},
+    }
+  );
+  session = await apiRequest<PreRegistrationSessionDTO>(
+    `/pre-registration/processes/${encodeURIComponent(alunoId)}/steps`,
+    storage.token,
+    'PATCH',
+    {
+      expectedVersion: session.version,
+      step: 'GUARDIAN',
+      data: {
+        guardianName: 'Responsável Integrado Issue 271',
+        guardianCpf: '39053344705',
+        guardianPhone: '15977776666',
+        guardianEmail,
+      },
+    }
+  );
+  await apiRequest<PreRegistrationSessionDTO>(
+    `/pre-registration/processes/${encodeURIComponent(alunoId)}/complete`,
+    storage.token,
+    'POST',
+    { expectedVersion: session.version, privacyAccepted: true }
+  );
 
+  await page.reload({ waitUntil: 'networkidle0', timeout: 30_000 });
+  await waitForHeading(page, 'Pré-cadastro concluído');
   await page.setViewport({ width: 1440, height: 900 });
   await assertNoHorizontalOverflow(page, 'completed-desktop-real');
   await page.screenshot({
@@ -311,9 +383,9 @@ try {
     scenarios: [
       'guardian registration and same-SPA authenticated redirect',
       'pending guardian privacy barrier',
-      'guardian relationship confirmation',
-      'incremental save through all basic-data steps',
-      'versioned privacy consent and completion',
+      'guardian relationship confirmation in the real browser',
+      'incremental server persistence with the issued JWT',
+      'versioned privacy consent and completion rendered after reload',
     ],
   }, null, 2));
 } finally {
