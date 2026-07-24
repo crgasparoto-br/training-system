@@ -241,6 +241,9 @@ async function capture(browser, { name, route, viewport, scenario }) {
     const progressButtons = Array.from(
       document.querySelectorAll('ol[aria-label="Progresso do pré-cadastro"] button')
     );
+    const processNames = Array.from(
+      document.querySelectorAll('main.max-w-4xl > div.grid > button span.text-lg')
+    );
     return {
       title: document.querySelector('h1')?.textContent?.trim(),
       viewport: document.documentElement.clientWidth,
@@ -253,6 +256,9 @@ async function capture(browser, { name, route, viewport, scenario }) {
       ).length,
       currentProgressButtons: progressButtons.filter(
         (button) => button.getAttribute('aria-current') === 'step'
+      ).length,
+      clippedProcessNames: processNames.filter(
+        (element) => element.scrollWidth > element.clientWidth + 1
       ).length,
     };
   });
@@ -273,6 +279,9 @@ async function capture(browser, { name, route, viewport, scenario }) {
   }
   if (diagnostics.currentProgressButtons > 1) {
     throw new Error(`${name}: mais de um passo está marcado como atual`);
+  }
+  if (diagnostics.clippedProcessNames > 0) {
+    throw new Error(`${name}: nome de processo truncado sem leitura completa`);
   }
   if (diagnostics.focusableCount > 0) {
     await page.keyboard.press('Tab');
@@ -314,6 +323,7 @@ try {
     { name: 'process-selector-desktop', route: '/pre-cadastro', viewport: { width: 1440, height: 900 }, scenario: 'selector' },
     { name: 'guardian-confirmation-mobile', route: '/pre-cadastro', viewport: { width: 390, height: 844 }, scenario: 'pending-guardian' },
     { name: 'identification-low-height', route: '/pre-cadastro', viewport: { width: 1366, height: 768 }, scenario: 'identification' },
+    { name: 'identification-tablet', route: '/pre-cadastro', viewport: { width: 768, height: 1024 }, scenario: 'identification' },
     { name: 'guardian-mobile', route: '/pre-cadastro', viewport: { width: 390, height: 844 }, scenario: 'guardian' },
     { name: 'privacy-mobile', route: '/pre-cadastro', viewport: { width: 390, height: 844 }, scenario: 'privacy' },
     { name: 'completed-desktop', route: '/pre-cadastro', viewport: { width: 1440, height: 900 }, scenario: 'completed' },
