@@ -25,9 +25,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat .github/issue-271-payload/chunk-* > /tmp/issue-271-changes.b64
+          cat .github/issue-271-payload/chunk-* | tr -d '\r\n ' > /tmp/issue-271-changes.b64
+          echo "Encoded bytes: $(wc -c < /tmp/issue-271-changes.b64)"
           base64 --decode /tmp/issue-271-changes.b64 > /tmp/issue-271-changes.tar.gz
+          sha256sum /tmp/issue-271-changes.tar.gz
           echo "31b798b7ea6a8bacf82f5c412243ec7d49c62b102cf59d6107249e20f92e61cc  /tmp/issue-271-changes.tar.gz" | sha256sum --check
+          tar -tzf /tmp/issue-271-changes.tar.gz > /tmp/issue-271-files.txt
+          cat /tmp/issue-271-files.txt
           tar -xzf /tmp/issue-271-changes.tar.gz -C .
 
       - name: Remove orchestration transport files
