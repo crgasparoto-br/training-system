@@ -17,13 +17,22 @@ import {
 
 const prisma = new PrismaClient();
 
+const ALLOWED_PRE_REGISTRATION_STATUSES: StudentLifecycleStatus[] = [
+  'INVITED',
+  'PRE_REGISTRATION_IN_PROGRESS',
+  'PRE_REGISTRATION_COMPLETED',
+];
+
 type StudentRow = {
   id: string;
   status: StudentLifecycleStatus;
+  userId: string | null;
 };
 
 type OnboardingVersionRow = {
   version: number;
+  claimedByUserId: string | null;
+  claimRole: string;
 };
 
 function isMinorBirthDate(value?: string | Date | null, now = new Date()): boolean {
@@ -36,15 +45,29 @@ function isMinorBirthDate(value?: string | Date | null, now = new Date()): boole
   return age < 18;
 }
 
-async function assertActiveGuardianAuthorization(
+async function assertCurrentPublicAccess(
   tx: Prisma.TransactionClient,
   input: {
     alunoId: string;
     contractId: string;
     actorUserId: string;
     accessRole: PreRegistrationClaimRole;
-  }
+  },
+  onboarding: OnboardingVersionRow,
+  aluno: StudentRow
 ): Promise<void> {
+  if (
+    onboarding.claimedByUserId !== input.actorUserId ||
+    onboarding.claimRole !== input.accessRole ||
+    !ALLOWED_PRE_REGISTRATION_STATUSES.includes(aluno.status)
+  ) {
+    throw new StudentLifecycleError('Registro não encontrado.', 'NOT_FOUND');
+  }
+
+  if (input.accessRole === 'STUDENT' && aluno.userId !== input.actorUserId) {
+    throw new StudentLifecycleError('Registro não encontrado.', 'NOT_FOUND');
+  }
+
   const identity = await loadStudentIdentity(input.alunoId, input.contractId, tx);
   const isMinor = isMinorBirthDate(identity.birthDate);
 
@@ -111,7 +134,7 @@ export async function startGuardianPreRegistrationInTransaction(
   }
 
   const rows = await tx.$queryRaw<StudentRow[]>`
-    SELECT "id", "status"
+    SELECT "id", "status", "userId"
     FROM "Aluno"
     WHERE "id" = ${alunoId} AND "contractId" = ${contractId}
     FOR UPDATE
@@ -219,7 +242,7 @@ export async function completePublicStudentPreRegistration(input: {
     // Todas as gravacoes publicas serializam primeiro pelo onboarding. A ordem
     // segue onboarding -> Aluno -> identidade, igual ao salvamento incremental.
     const onboardingRows = await tx.$queryRaw<OnboardingVersionRow[]>`
-      SELECT "version"
+      SELECT "version", "claimedByUserId", "claimRole"
       FROM "StudentOnboardingProcess"
       WHERE "alunoId" = ${input.alunoId} AND "contractId" = ${input.contractId}
       FOR UPDATE
@@ -230,7 +253,7 @@ export async function completePublicStudentPreRegistration(input: {
     }
 
     const studentRows = await tx.$queryRaw<StudentRow[]>`
-      SELECT "id", "status"
+      SELECT "id", "status", "userId"
       FROM "Aluno"
       WHERE "id" = ${input.alunoId} AND "contractId" = ${input.contractId}
     `;
@@ -239,130 +262,125 @@ export async function completePublicStudentPreRegistration(input: {
       throw new StudentLifecycleError('Registro não encontrado.', 'NOT_FOUND');
     }
 
+    // O preflight da rota é apenas uma otimização. A autorização definitiva é
+    // reavaliada após o lock do onboarding para fechar a janela TOCTOU com
+    // revogação, troca de claim e mudança canônica de maioridade.
+    await assertCurrentPublicAccess(tx, input, onboarding, aluno);
+
     const alreadyCompleted = aluno.status === 'PRE_REGISTRATION_COMPLETED';
-    if (!alreadyCompleted) {
-      if (onboarding.version !== input.expectedVersion) {
-        throw new StudentLifecycleError(
-          'Os dados foram alterados em outro local. Recarregue antes de concluir.',
-          'CONCURRENT_MODIFICATION',
-          { currentVersion: onboarding.version }
-        );
-      }
-
-      assertValidStudentLifecycleTransition(aluno.status, 'PRE_REGISTRATION_COMPLETED');
-      const identity = await loadStudentIdentity(input.alunoId, input.contractId, tx);
-      const missing = findMissingPreRegistrationFields({
-        name: identity.name || undefined,
-        birthDate: identity.birthDate || undefined,
-        phone: identity.phone || undefined,
-        email: identity.email || undefined,
-        privacyNoticeVersion: input.privacyNoticeVersion,
-        privacyAcceptedAt: input.privacyAcceptedAt,
-      });
-      if (!identity.cpf) missing.push('cpf');
-      if (isMinorBirthDate(identity.birthDate)) {
-        if (!identity.guardianName) missing.push('guardianName');
-        if (!identity.guardianCpf) missing.push('guardianCpf');
-      }
-      if (!normalizeStudentPhone(identity.phone)) missing.push('phone');
-      if (!normalizeStudentEmail(identity.email)) missing.push('email');
-      if (missing.length > 0) {
-        throw new StudentLifecycleError(
-          'Revise os campos obrigatórios antes de concluir.',
-          'MISSING_REQUIRED_FIELDS',
-          { fields: Array.from(new Set(missing)) }
-        );
-      }
-
-      await assertActiveGuardianAuthorization(tx, input);
-
-      const changed = await tx.aluno.updateMany({
-        where: {
-          id: input.alunoId,
-          contractId: input.contractId,
-          status: 'PRE_REGISTRATION_IN_PROGRESS',
-        },
-        data: { status: 'PRE_REGISTRATION_COMPLETED' },
-      });
-      if (changed.count !== 1) {
-        throw new StudentLifecycleError(
-          'O cadastro foi alterado em outro acesso.',
-          'CONCURRENT_MODIFICATION'
-        );
-      }
-
-      const onboardingUpdated = await tx.$executeRaw`
-        UPDATE "StudentOnboardingProcess"
-        SET "version" = "version" + 1,
-            "currentStep" = 'PRIVACY',
-            "privacyNoticeVersion" = ${input.privacyNoticeVersion},
-            "privacyAcceptedAt" = ${input.privacyAcceptedAt},
-            "privacyAcceptedIp" = ${input.ipAddress || null},
-            "privacyAcceptedUserAgent" = ${input.userAgent?.slice(0, 512) || null},
-            "completedAt" = ${input.privacyAcceptedAt},
-            "lastSavedAt" = ${input.privacyAcceptedAt},
-            "updatedAt" = CURRENT_TIMESTAMP
-        WHERE "alunoId" = ${input.alunoId}
-          AND "contractId" = ${input.contractId}
-          AND "version" = ${input.expectedVersion}
-      `;
-      if (onboardingUpdated !== 1) {
-        throw new StudentLifecycleError(
-          'Os dados foram alterados em outro local. Recarregue antes de concluir.',
-          'CONCURRENT_MODIFICATION'
-        );
-      }
-
-      await tx.studentLifecycleEvent.createMany({
-        data: [
-          {
-            alunoId: input.alunoId,
-            contractId: input.contractId,
-            eventType: 'STATUS_CHANGED',
-            actorUserId: input.actorUserId,
-            metadata: {
-              from: aluno.status,
-              to: 'PRE_REGISTRATION_COMPLETED',
-              source: 'public_pre_registration',
-              accessRole: input.accessRole,
-            },
-          },
-          {
-            alunoId: input.alunoId,
-            contractId: input.contractId,
-            eventType: 'PRE_REGISTRATION_COMPLETED',
-            actorUserId: input.actorUserId,
-            metadata: {
-              source: 'public_pre_registration',
-              accessRole: input.accessRole,
-            },
-          },
-          {
-            alunoId: input.alunoId,
-            contractId: input.contractId,
-            eventType: 'PRIVACY_CONSENT_RECORDED',
-            actorUserId: input.actorUserId,
-            metadata: {
-              source: 'public_pre_registration',
-              noticeVersion: input.privacyNoticeVersion,
-              accessRole: input.accessRole,
-            },
-          },
-        ],
-      });
-    } else {
-      await tx.$executeRaw`
-        UPDATE "StudentOnboardingProcess"
-        SET "currentStep" = 'PRIVACY',
-            "privacyAcceptedIp" = COALESCE("privacyAcceptedIp", ${input.ipAddress || null}),
-            "privacyAcceptedUserAgent" = COALESCE(
-              "privacyAcceptedUserAgent",
-              ${input.userAgent?.slice(0, 512) || null}
-            ),
-            "updatedAt" = CURRENT_TIMESTAMP
-        WHERE "alunoId" = ${input.alunoId} AND "contractId" = ${input.contractId}
-      `;
+    if (alreadyCompleted) {
+      // Retry terminal verdadeiramente idempotente: depois da revalidação não
+      // altera timestamps, consentimento, convites ou eventos.
+      return;
     }
+
+    if (onboarding.version !== input.expectedVersion) {
+      throw new StudentLifecycleError(
+        'Os dados foram alterados em outro local. Recarregue antes de concluir.',
+        'CONCURRENT_MODIFICATION',
+        { currentVersion: onboarding.version }
+      );
+    }
+
+    assertValidStudentLifecycleTransition(aluno.status, 'PRE_REGISTRATION_COMPLETED');
+    const identity = await loadStudentIdentity(input.alunoId, input.contractId, tx);
+    const missing = findMissingPreRegistrationFields({
+      name: identity.name || undefined,
+      birthDate: identity.birthDate || undefined,
+      phone: identity.phone || undefined,
+      email: identity.email || undefined,
+      privacyNoticeVersion: input.privacyNoticeVersion,
+      privacyAcceptedAt: input.privacyAcceptedAt,
+    });
+    if (!identity.cpf) missing.push('cpf');
+    if (isMinorBirthDate(identity.birthDate)) {
+      if (!identity.guardianName) missing.push('guardianName');
+      if (!identity.guardianCpf) missing.push('guardianCpf');
+    }
+    if (!normalizeStudentPhone(identity.phone)) missing.push('phone');
+    if (!normalizeStudentEmail(identity.email)) missing.push('email');
+    if (missing.length > 0) {
+      throw new StudentLifecycleError(
+        'Revise os campos obrigatórios antes de concluir.',
+        'MISSING_REQUIRED_FIELDS',
+        { fields: Array.from(new Set(missing)) }
+      );
+    }
+
+    const changed = await tx.aluno.updateMany({
+      where: {
+        id: input.alunoId,
+        contractId: input.contractId,
+        status: 'PRE_REGISTRATION_IN_PROGRESS',
+      },
+      data: { status: 'PRE_REGISTRATION_COMPLETED' },
+    });
+    if (changed.count !== 1) {
+      throw new StudentLifecycleError(
+        'O cadastro foi alterado em outro acesso.',
+        'CONCURRENT_MODIFICATION'
+      );
+    }
+
+    const onboardingUpdated = await tx.$executeRaw`
+      UPDATE "StudentOnboardingProcess"
+      SET "version" = "version" + 1,
+          "currentStep" = 'PRIVACY',
+          "privacyNoticeVersion" = ${input.privacyNoticeVersion},
+          "privacyAcceptedAt" = ${input.privacyAcceptedAt},
+          "privacyAcceptedIp" = ${input.ipAddress || null},
+          "privacyAcceptedUserAgent" = ${input.userAgent?.slice(0, 512) || null},
+          "completedAt" = ${input.privacyAcceptedAt},
+          "lastSavedAt" = ${input.privacyAcceptedAt},
+          "updatedAt" = CURRENT_TIMESTAMP
+      WHERE "alunoId" = ${input.alunoId}
+        AND "contractId" = ${input.contractId}
+        AND "version" = ${input.expectedVersion}
+    `;
+    if (onboardingUpdated !== 1) {
+      throw new StudentLifecycleError(
+        'Os dados foram alterados em outro local. Recarregue antes de concluir.',
+        'CONCURRENT_MODIFICATION'
+      );
+    }
+
+    await tx.studentLifecycleEvent.createMany({
+      data: [
+        {
+          alunoId: input.alunoId,
+          contractId: input.contractId,
+          eventType: 'STATUS_CHANGED',
+          actorUserId: input.actorUserId,
+          metadata: {
+            from: aluno.status,
+            to: 'PRE_REGISTRATION_COMPLETED',
+            source: 'public_pre_registration',
+            accessRole: input.accessRole,
+          },
+        },
+        {
+          alunoId: input.alunoId,
+          contractId: input.contractId,
+          eventType: 'PRE_REGISTRATION_COMPLETED',
+          actorUserId: input.actorUserId,
+          metadata: {
+            source: 'public_pre_registration',
+            accessRole: input.accessRole,
+          },
+        },
+        {
+          alunoId: input.alunoId,
+          contractId: input.contractId,
+          eventType: 'PRIVACY_CONSENT_RECORDED',
+          actorUserId: input.actorUserId,
+          metadata: {
+            source: 'public_pre_registration',
+            noticeVersion: input.privacyNoticeVersion,
+            accessRole: input.accessRole,
+          },
+        },
+      ],
+    });
 
     await reconcileCompletedInvites(tx, {
       alunoId: input.alunoId,
