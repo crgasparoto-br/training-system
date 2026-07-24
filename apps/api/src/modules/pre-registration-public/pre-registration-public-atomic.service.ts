@@ -21,8 +21,6 @@ import {
 } from '../alunos/student-public-pre-registration.service.js';
 import {
   loadStudentIdentity,
-  normalizeStudentEmail,
-  normalizeStudentPhone,
   upsertStudentIdentity,
 } from '../alunos/student-identity.service.js';
 import { PreRegistrationPublicError } from './pre-registration-public.service.js';
@@ -480,6 +478,25 @@ async function startStudentPreRegistrationInTransaction(
   });
 }
 
+export async function startAuthorizedPreRegistrationInTransaction(
+  tx: Prisma.TransactionClient,
+  access: LockedPreRegistrationAccess,
+  userId: string
+): Promise<LockedPreRegistrationAccess> {
+  if (access.status !== 'INVITED') return access;
+  if (access.accessRole === 'STUDENT') {
+    await startStudentPreRegistrationInTransaction(tx, access, userId);
+  } else {
+    await startGuardianPreRegistrationInTransaction(
+      tx,
+      access.alunoId,
+      access.contractId,
+      userId
+    );
+  }
+  return { ...access, status: 'PRE_REGISTRATION_IN_PROGRESS' };
+}
+
 async function resolveDescriptor(
   userId: string,
   alunoId: string
@@ -521,19 +538,7 @@ export const preRegistrationPublicAtomicService = {
           );
         }
 
-        if (access.status === 'INVITED') {
-          if (access.accessRole === 'STUDENT') {
-            await startStudentPreRegistrationInTransaction(tx, access, userId);
-          } else {
-            await startGuardianPreRegistrationInTransaction(
-              tx,
-              access.alunoId,
-              access.contractId,
-              userId
-            );
-          }
-          access = { ...access, status: 'PRE_REGISTRATION_IN_PROGRESS' };
-        }
+        access = await startAuthorizedPreRegistrationInTransaction(tx, access, userId);
 
         const identity = await upsertStudentIdentity(
           access.alunoId,

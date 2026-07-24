@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { upsertStudentIdentity } from '../src/modules/alunos/student-identity.service.js';
 import { preRegistrationPublicAtomicService } from '../src/modules/pre-registration-public/pre-registration-public-atomic.service.js';
+import { preRegistrationDuplicateReviewService } from '../src/modules/pre-registration-public/pre-registration-duplicate-review.service.js';
 import { preRegistrationPublicService } from '../src/modules/pre-registration-public/pre-registration-public.service.js';
 import { hashInviteToken } from '../src/modules/pre-registration-invites/pre-registration-invite-token.js';
 
@@ -179,6 +180,45 @@ describeDatabase('pre-registration atomic authorization boundary', () => {
     held.release();
     await held.transaction;
     await expect(sessionPromise).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+
+  it('preserves the first-save lifecycle transition atomically when CPF requires review', async () => {
+    const fixture = await createGuardianFixture('duplicidade');
+    const session = await preRegistrationPublicAtomicService.getSession(
+      fixture.guardianUserId,
+      fixture.alunoId
+    );
+
+    await preRegistrationDuplicateReviewService.preserveCpfConflict(
+      fixture.guardianUserId,
+      fixture.alunoId,
+      {
+        expectedVersion: session.version,
+        step: 'IDENTIFICATION',
+        data: { name: 'Dependente preservado', cpf: '12345678909' },
+      }
+    );
+
+    const [student, onboarding, transitionEvents, review] = await Promise.all([
+      prisma.aluno.findUniqueOrThrow({ where: { id: fixture.alunoId } }),
+      prisma.studentOnboardingProcess.findUniqueOrThrow({ where: { alunoId: fixture.alunoId } }),
+      prisma.studentLifecycleEvent.count({
+        where: {
+          alunoId: fixture.alunoId,
+          contractId: fixture.contractId,
+          actorUserId: fixture.guardianUserId,
+          eventType: 'STATUS_CHANGED',
+        },
+      }),
+      prisma.studentProfileReview.findFirst({
+        where: { alunoId: fixture.alunoId, status: 'pending', requiresApproval: true },
+      }),
+    ]);
+    expect(student.status).toBe('PRE_REGISTRATION_IN_PROGRESS');
+    expect(onboarding.startedAt).not.toBeNull();
+    expect(onboarding.version).toBe(session.version + 1);
+    expect(transitionEvents).toBe(1);
+    expect(review).not.toBeNull();
   });
 
   it('rolls back the first-save lifecycle transition when authorization is revoked first', async () => {

@@ -6,6 +6,7 @@ import {
 } from '../alunos/student-identity.service.js';
 import {
   lockAndAuthorizePreRegistrationProcess,
+  startAuthorizedPreRegistrationInTransaction,
 } from './pre-registration-public-atomic.service.js';
 
 const prisma = new PrismaClient();
@@ -30,6 +31,7 @@ export const preRegistrationDuplicateReviewService = {
         throw new Error('O rascunho foi alterado em outro acesso. Recarregue antes de continuar.');
       }
 
+      access = await startAuthorizedPreRegistrationInTransaction(tx, access, userId);
       const before = await loadStudentIdentity(access.alunoId, access.contractId, tx);
       const { cpf: proposedCpf, ...safeData } = input.data;
 
