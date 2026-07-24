@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import express, { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { RegisterSchema, sendError, sendSuccess } from '@corrida/utils';
@@ -7,6 +8,7 @@ import {
   type ConfirmGuardianAuthorizationDTO,
   type PreRegistrationAccountRegistrationDTO,
   type PreRegistrationClaimDTO,
+  type PreRegistrationPublicErrorCode,
   type SavePreRegistrationStepDTO,
 } from '@corrida/types';
 import { authMiddleware, alunoMiddleware } from '../auth/auth.middleware.js';
@@ -112,15 +114,45 @@ const STATUS_BY_CODE: Record<string, number> = {
   NOT_FOUND: 404,
 };
 
+const PUBLIC_ERROR_DETAIL_KEYS: Partial<
+  Record<PreRegistrationPublicErrorCode, readonly string[]>
+> = {
+  CONCURRENT_MODIFICATION: ['currentVersion'],
+  DUPLICATE_REVIEW_REQUIRED: ['field', 'draftPreserved', 'reviewRequired'],
+  MISSING_REQUIRED_FIELDS: ['fields'],
+  GUARDIAN_AUTHORIZATION_REQUIRED: ['recommendedRole'],
+  ACTIVE_STUDENT: ['redirectTo'],
+};
+
+function publicErrorDetails(error: PreRegistrationPublicError): Record<string, unknown> {
+  const details: Record<string, unknown> = { code: error.code };
+  const allowedKeys = PUBLIC_ERROR_DETAIL_KEYS[error.code];
+  if (!allowedKeys || !error.details) return details;
+
+  for (const key of allowedKeys) {
+    if (Object.prototype.hasOwnProperty.call(error.details, key)) {
+      details[key] = error.details[key];
+    }
+  }
+  return details;
+}
+
 function handleError(res: Response, error: unknown) {
   if (error instanceof PreRegistrationPublicError) {
-    return sendError(res, error.message, STATUS_BY_CODE[error.code] ?? 400, {
-      code: error.code,
-      ...error.details,
-    });
+    return sendError(
+      res,
+      error.message,
+      STATUS_BY_CODE[error.code] ?? 400,
+      publicErrorDetails(error)
+    );
   }
-  const message = error instanceof Error ? error.message : 'Não foi possível continuar.';
-  return sendError(res, message, 500);
+
+  const correlationId = crypto.randomUUID();
+  console.error('Erro inesperado no pré-cadastro público', { correlationId, error });
+  return sendError(res, 'Não foi possível continuar.', 500, {
+    code: 'INTERNAL_ERROR',
+    correlationId,
+  });
 }
 
 function parseInput<T>(schema: z.ZodType<T>, value: unknown): T {
