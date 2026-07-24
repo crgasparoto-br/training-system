@@ -66,6 +66,7 @@ Transformar o convite seguro de pré-cadastro em uma experiência pública que i
 - Base: `develop`
 
 A PR deve permanecer sem merge até autorização explícita.
+
 ## Correções da auditoria independente de 24/07/2026
 
 - rascunhos locais agora registram a versão-base do servidor e não são restaurados automaticamente quando a versão mudou;
@@ -76,3 +77,5 @@ A PR deve permanecer sem merge até autorização explícita.
 - contas já vinculadas a aluno ativo recebem resposta tipada e encaminhamento seguro ao sistema autenticado;
 - mensagens de erro de campo usam associação programática por `aria-describedby`;
 - testes de regressão cobrem rascunho obsoleto, reconciliação, e-mail obrigatório, contatos alternativos, aluno ativo e fallback de convite.
+
+Validação oficial em andamento sobre o commit corretivo.
