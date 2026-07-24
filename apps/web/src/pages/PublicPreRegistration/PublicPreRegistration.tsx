@@ -33,6 +33,7 @@ import type {
   PreRegistrationPublicLandingDTO,
   PreRegistrationSessionDTO,
   PreRegistrationStep,
+  SavePreRegistrationStepDTO,
 } from '@corrida/types';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { preRegistrationPublicService } from '../../services/pre-registration-public.service';
