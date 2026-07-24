@@ -342,7 +342,7 @@ describeDatabase('public pre-registration integration', () => {
       label: 'missing-email-student',
       name: 'Aluno Sem Email de Contato',
       birthDate: '1991-02-03',
-      cpf: '52998224725',
+      cpf: '12345679034',
     });
 
     await preRegistrationPublicService.claim(account.id, {
@@ -356,7 +356,7 @@ describeDatabase('public pre-registration integration', () => {
       data: {
         name: 'Aluno Sem Email de Contato',
         birthDate: '1991-02-03',
-        cpf: '52998224725',
+        cpf: '12345679034',
       },
     });
     session = await preRegistrationPublicService.saveStep(account.id, invited.alunoId, {
@@ -385,7 +385,6 @@ describeDatabase('public pre-registration integration', () => {
       label: 'alternative-contact-student',
       name: 'Aluno Contato Alternativo',
       birthDate: '1990-04-05',
-      cpf: '16899535009',
     });
 
     await preRegistrationPublicService.claim(account.id, {
@@ -426,7 +425,6 @@ describeDatabase('public pre-registration integration', () => {
       label: 'active-student-new-invite',
       name: 'Aluno Já Ativo',
       birthDate: '1988-07-08',
-      cpf: '39053344705',
     });
 
     await expect(
