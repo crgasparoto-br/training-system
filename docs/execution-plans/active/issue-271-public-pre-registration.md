@@ -121,6 +121,7 @@ Validação oficial repetida após alinhar as fixtures antigas à regra comparti
 
 - Passagem A: rastreabilidade direta entre trigger, backfill, listagem, sessão, status concluído e testes de integração;
 - Passagem B: ataque fresco sobre pós-conclusão, concorrência, múltiplos responsáveis, autorização pendente, caminho process-scoped e registros históricos;
+- o workflow oficial limita cada pool Prisma a uma conexão no banco efêmero e o teste de lock usa clientes independentes para exercitar concorrência real sem esgotar `max_connections`;
 - os gates oficiais devem ser repetidos no head final da PR e seus identificadores devem ser registrados na descrição da PR e no comentário de handoff da issue;
 - estado esperado após gates verdes: pronto para auditoria independente; a verificação interna não reivindica aprovação independente.
 
