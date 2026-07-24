@@ -1,5 +1,5 @@
 import api from './api';
-import { authService } from './auth.service';
+import { useAuthStore } from '../stores/useAuthStore';
 import type {
   AuthResponse,
   CompletePreRegistrationDTO,
@@ -35,8 +35,7 @@ export const preRegistrationPublicService = {
       input
     );
     const auth = extractData<AuthResponse & PreRegistrationClaimResultDTO>(response.data);
-    authService.setToken(auth.token);
-    authService.setUser(auth.user);
+    useAuthStore.getState().setAuthenticatedSession(auth);
     return auth;
   },
 
