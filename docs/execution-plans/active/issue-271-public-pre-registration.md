@@ -20,10 +20,13 @@ Transformar o convite seguro de pré-cadastro em uma experiência pública que i
 - reivindicação de responsável inicialmente `PENDING`, sem leitura de dados pessoais até validação independente por usuário autorizado da academia;
 - acesso de responsável permitido somente para menoridade confirmada pela data canônica e autorização `ACTIVE` validada por conta diferente da conta responsável;
 - revogação de responsável remove o claim autenticado do menor inclusive após a conclusão do pré-cadastro, impedindo nova sessão e ocultando o processo da listagem;
+- alteração da data de nascimento canônica de adulto para menor suspende o claim do próprio aluno quando não existir autorização `ACTIVE`, em qualquer estado do processo;
+- o claim do próprio aluno é restaurado somente quando a elegibilidade retorna, por maioridade canônica ou autorização `ACTIVE` tenant-scoped;
 - revogação de solicitação de outro responsável não remove o claim do próprio aluno quando outra autorização `ACTIVE` continua válida;
 - suporte a múltiplos dependentes por conta de responsável sem reutilizar `Aluno.userId`;
-- edição administrativa da identidade canônica invalida versões públicas desatualizadas por trigger de banco;
-- conclusão revalida os dados canônicos dentro da transação bloqueada, sem regravar snapshot antigo;
+- edição administrativa da identidade canônica invalida versões públicas desatualizadas por trigger de banco, inclusive em processo concluído;
+- conclusão revalida claim, papel, conta vinculada, identidade canônica e autorização dentro da transação, depois do lock do onboarding;
+- retry de conclusão já terminal é idempotente e não altera timestamps, consentimento, convites ou eventos;
 - consentimento com versão, data/hora, identidade autenticada, IP e user-agent quando disponíveis;
 - conclusão idempotente, evento `PRE_REGISTRATION_COMPLETED` único e convite reconciliado como concluído;
 - cards independentes e acionáveis para o encaminhamento às etapas opcionais de Anamnese e PAR-Q;
@@ -40,6 +43,9 @@ Transformar o convite seguro de pré-cadastro em uma experiência pública que i
 7. **Próximos passos:** cards deixam de ficar desabilitados e encaminham para a etapa opcional correspondente.
 8. **Revogação pós-conclusão:** a mudança de autorização invalida e remove o claim do processo em qualquer estado, e a migration corrige registros históricos concluídos com autorização revogada.
 9. **Múltiplos responsáveis:** o trigger diferencia o claim do responsável e o claim do aluno; uma revogação paralela não derruba o aluno enquanto existir autorização ativa aplicável.
+10. **Transição de elegibilidade:** mudança canônica adulto → menor suspende acesso e listagem sem depender do estado do processo; menor → adulto ou ativação de autorização válida restaura o claim do aluno vinculado.
+11. **TOCTOU na conclusão:** a autorização definitiva é reavaliada após o lock do onboarding; uma revogação concorrente vence antes do lock ou aguarda o commit, sem permitir escrita pós-revogação.
+12. **Retry terminal:** repetição de conclusão já processada retorna sem atualizar metadados nem reconciliar novamente convites e eventos.
 
 ## Limites preservados
 
@@ -60,8 +66,8 @@ Transformar o convite seguro de pré-cadastro em uma experiência pública que i
 6. `pnpm arch:check`;
 7. `pnpm access:check`;
 8. `pnpm docs:check`;
-9. auditoria funcional requisito a requisito e passagem adversarial;
-10. auditoria visual independente em desktop amplo, desktop de baixa altura e mobile;
+9. pré-auditoria funcional requisito a requisito e passagem adversarial;
+10. verificação visual interna em desktop amplo, desktop de baixa altura e mobile;
 11. higienização final do diff e nova rodada completa de validação.
 
 ## Entrega
@@ -117,12 +123,22 @@ Validação oficial repetida após alinhar as fixtures antigas à regra comparti
 - um segundo cenário disputa conclusão e revogação simultaneamente e exige que o estado final permaneça sem claim e sem leitura de dados pessoais;
 - um terceiro cenário revoga uma solicitação `PENDING` paralela e confirma que o claim do aluno permanece quando outra autorização `ACTIVE` continua válida.
 
+## Remediação dos achados AUD-271-004 e AUD-271-005
+
+- a data de nascimento canônica passou a ser uma fonte explícita de elegibilidade: adulto → menor sem autorização ativa limpa `claimedByUserId` e `claimedAt` atomicamente;
+- a regra vale para `INVITED`, `PRE_REGISTRATION_IN_PROGRESS` e `PRE_REGISTRATION_COMPLETED`, sem exceção baseada em `completedAt`;
+- menor → adulto restaura o claim do próprio aluno usando o `Aluno.userId` tenant-scoped; para menor, a ativação de autorização `ACTIVE` também restaura o claim elegível;
+- o backfill reconcilia claims de menores com a existência real de autorização ativa, cobrindo dados históricos anteriores à migration;
+- `completePublicStudentPreRegistration` bloqueia o onboarding e então revalida claim, papel, conta vinculada, lifecycle, idade canônica e autorização ativa;
+- o branch já concluído é somente leitura: não altera `updatedAt`, IP, user-agent, consentimento, convites ou eventos;
+- testes discriminantes cobrem transição adulto → menor em andamento, transição após conclusão, restauração por autorização, restauração por maioridade e retry terminal após revogação com controle negativo de todas as mutações.
+
 ## Verificação interna final
 
-- Passagem A: rastreabilidade direta entre trigger, backfill, listagem, sessão, status concluído e testes de integração;
-- Passagem B: ataque fresco sobre pós-conclusão, concorrência, múltiplos responsáveis, autorização pendente, caminho process-scoped e registros históricos;
-- o workflow oficial limita cada pool Prisma a uma conexão no banco efêmero e o teste de lock usa clientes independentes para exercitar concorrência real sem esgotar `max_connections`;
-- os gates oficiais devem ser repetidos no head final da PR e seus identificadores devem ser registrados na descrição da PR e no comentário de handoff da issue;
+- Passagem A: rastreabilidade direta entre identidade canônica, autorização, claim, listagem, sessão, conclusão e testes de integração;
+- Passagem B: ataque fresco sobre transições de elegibilidade, estados em andamento/concluído, perda e restauração de autoridade, retry terminal e ausência de efeitos colaterais;
+- o workflow oficial deve aplicar a migration, executar os testes de banco e repetir type-check, lint, build, arquitetura, catálogo de acessos e documentação no SHA final;
+- os identificadores dos gates e o SHA final devem ser registrados na descrição da PR e no comentário de handoff da issue;
 - estado esperado após gates verdes: pronto para auditoria independente; a verificação interna não reivindica aprovação independente.
 
 Qualquer alteração posterior ao SHA corrigido exige nova auditoria independente funcional e documental antes do merge.
