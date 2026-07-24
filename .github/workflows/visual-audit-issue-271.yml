@@ -81,6 +81,11 @@ jobs:
           set -o pipefail
           pnpm --filter @corrida/api exec tsx scripts/visual-audit-issue-271-integrated.ts 2>&1 | tee integrated-visual-audit.log
 
+      - name: Rebuild web application for isolated state matrix
+        env:
+          VITE_API_URL: ''
+        run: pnpm --filter @corrida/web build
+
       - name: Audit additional routes, states and responsive layouts
         shell: bash
         run: |
