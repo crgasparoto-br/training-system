@@ -15,6 +15,7 @@ type Fixture = {
   guardianUserId: string;
   validatorUserId: string;
   token: string;
+  extraUserIds: string[];
 };
 
 describeDatabase('minor self access follows guardian authorization', () => {
@@ -119,6 +120,7 @@ describeDatabase('minor self access follows guardian authorization', () => {
       guardianUserId: guardian.id,
       validatorUserId: validator.id,
       token,
+      extraUserIds: [],
     };
     return fixture;
   }
@@ -164,6 +166,7 @@ describeDatabase('minor self access follows guardian authorization', () => {
       fixture.minorUserId,
       fixture.guardianUserId,
       fixture.validatorUserId,
+      ...fixture.extraUserIds,
     ]) {
       await prisma.user.delete({ where: { id: userId } }).catch(() => undefined);
     }
@@ -206,6 +209,59 @@ describeDatabase('minor self access follows guardian authorization', () => {
     await expect(
       assertPreRegistrationClaimRoleEligibility(current.token, 'STUDENT')
     ).rejects.toMatchObject({ code: 'GUARDIAN_AUTHORIZATION_REQUIRED' });
+  });
+
+  it('preserves the minor claim when another pending guardian request is revoked', async () => {
+    const current = await prepareMinor();
+    const started = await claimAndStart(current);
+    const pendingGuardian = await prisma.user.create({
+      data: {
+        email: `issue271-pending-guardian-${Date.now()}@example.com`,
+        passwordHash: 'integration-test-hash',
+        type: 'aluno',
+        profile: { create: { name: 'Responsável Pendente' } },
+      },
+    });
+    current.extraUserIds.push(pendingGuardian.id);
+
+    await prisma.preRegistrationGuardianAuthorization.create({
+      data: {
+        contractId: current.contractId,
+        alunoId: current.alunoId,
+        guardianUserId: pendingGuardian.id,
+        relationship: 'Tutor',
+        status: 'PENDING',
+      },
+    });
+
+    const revoked = await prisma.preRegistrationGuardianAuthorization.updateMany({
+      where: {
+        alunoId: current.alunoId,
+        contractId: current.contractId,
+        guardianUserId: pendingGuardian.id,
+        status: 'PENDING',
+      },
+      data: {
+        status: 'REVOKED',
+        revokedAt: new Date(),
+        revokedByUserId: current.validatorUserId,
+      },
+    });
+    expect(revoked.count).toBe(1);
+
+    const [onboarding, processes, session] = await Promise.all([
+      prisma.studentOnboardingProcess.findUniqueOrThrow({
+        where: { alunoId: current.alunoId },
+      }),
+      preRegistrationPublicService.listProcesses(current.minorUserId),
+      preRegistrationPublicService.getSession(current.minorUserId, current.alunoId),
+    ]);
+
+    expect(onboarding.claimedByUserId).toBe(current.minorUserId);
+    expect(onboarding.claimedAt).not.toBeNull();
+    expect(onboarding.version).toBe(started.version + 1);
+    expect(processes).toHaveLength(1);
+    expect(session.guardianAuthorization.status).toBe('ACTIVE');
   });
 
   it('removes the authenticated claim after revocation even when pre-registration is completed', async () => {
