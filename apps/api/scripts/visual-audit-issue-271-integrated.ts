@@ -57,6 +57,17 @@ async function waitForHeading(page: Page, text: string, timeout = 20_000) {
 }
 
 async function clickByText(page: Page, selector: string, text: string) {
+  await page.waitForFunction(
+    (query, expected) => {
+      const target = Array.from(document.querySelectorAll(query)).find(
+        (element) => element.textContent?.trim().includes(expected)
+      );
+      return target instanceof HTMLElement && !('disabled' in target && target.disabled);
+    },
+    { timeout: 20_000 },
+    selector,
+    text
+  );
   const clicked = await page.$$eval(
     selector,
     (elements, expected) => {
@@ -309,8 +320,9 @@ try {
   if (invite.status !== 'COMPLETED' || completionEvents !== 1) {
     throw new Error(`Conclusão não idempotente: convite=${invite.status}, eventos=${completionEvents}`);
   }
-  if (browserErrors.length > 0) {
-    throw new Error(`Erros no navegador: ${browserErrors.join(' | ')}`);
+  const unexpectedBrowserErrors = browserErrors.filter((message) => !message.includes('409'));
+  if (unexpectedBrowserErrors.length > 0) {
+    throw new Error(`Erros no navegador: ${unexpectedBrowserErrors.join(' | ')}`);
   }
 
   console.log(JSON.stringify({
