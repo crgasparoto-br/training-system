@@ -14,6 +14,7 @@ describeDatabase('minor self access follows guardian authorization', () => {
   let alunoId: string;
   let minorUserId: string;
   let guardianUserId: string;
+  let validatorUserId: string;
   const token = `${suffix}-token`;
 
   beforeAll(async () => {
@@ -26,7 +27,7 @@ describeDatabase('minor self access follows guardian authorization', () => {
     });
     contractId = contract.id;
 
-    const [minor, guardian] = await Promise.all([
+    const [minor, guardian, validator] = await Promise.all([
       prisma.user.create({
         data: {
           email: `${suffix}-minor@example.com`,
@@ -49,9 +50,18 @@ describeDatabase('minor self access follows guardian authorization', () => {
           profile: { create: { name: 'Responsável Ativo' } },
         },
       }),
+      prisma.user.create({
+        data: {
+          email: `${suffix}-validator@example.com`,
+          passwordHash: 'integration-test-hash',
+          type: 'professor',
+          profile: { create: { name: 'Validador Independente' } },
+        },
+      }),
     ]);
     minorUserId = minor.id;
     guardianUserId = guardian.id;
+    validatorUserId = validator.id;
 
     const aluno = await prisma.aluno.create({
       data: {
@@ -90,7 +100,7 @@ describeDatabase('minor self access follows guardian authorization', () => {
         relationship: 'Mãe',
         status: 'ACTIVE',
         validatedAt: new Date(),
-        validatedByUserId: guardianUserId,
+        validatedByUserId: validatorUserId,
       },
     });
   });
@@ -99,7 +109,7 @@ describeDatabase('minor self access follows guardian authorization', () => {
     if (contractId) {
       await prisma.companyContract.delete({ where: { id: contractId } }).catch(() => undefined);
     }
-    for (const userId of [minorUserId, guardianUserId]) {
+    for (const userId of [minorUserId, guardianUserId, validatorUserId]) {
       if (userId) await prisma.user.delete({ where: { id: userId } }).catch(() => undefined);
     }
     await prisma.$disconnect();
@@ -119,7 +129,7 @@ describeDatabase('minor self access follows guardian authorization', () => {
       data: {
         status: 'REVOKED',
         revokedAt: new Date(),
-        revokedByUserId: guardianUserId,
+        revokedByUserId: validatorUserId,
       },
     });
 
