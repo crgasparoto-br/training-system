@@ -6,21 +6,20 @@
 CREATE OR REPLACE FUNCTION enforce_minor_student_claim_authorization()
 RETURNS TRIGGER AS $$
 DECLARE
-  canonical_birth_date DATE;
+  is_minor BOOLEAN;
   has_active_guardian BOOLEAN;
 BEGIN
   IF NEW."claimedByUserId" IS NULL OR NEW."claimRole" <> 'STUDENT' THEN
     RETURN NEW;
   END IF;
 
-  SELECT NULLIF(profile."identificationData"->>'birthDate', '')::timestamptz::date
-  INTO canonical_birth_date
-  FROM "StudentProfile" AS profile
-  WHERE profile."alunoId" = NEW."alunoId"
-    AND profile."contractId" = NEW."contractId";
+  SELECT student."age" IS NOT NULL AND student."age" < 18
+  INTO is_minor
+  FROM "Aluno" AS student
+  WHERE student."id" = NEW."alunoId"
+    AND student."contractId" = NEW."contractId";
 
-  IF canonical_birth_date IS NULL
-     OR date_part('year', age(CURRENT_DATE, canonical_birth_date)) >= 18 THEN
+  IF NOT COALESCE(is_minor, FALSE) THEN
     RETURN NEW;
   END IF;
 
