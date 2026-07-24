@@ -224,7 +224,17 @@ async function claimInviteInTransaction(
     where: { id: invite.alunoId, contractId: invite.contractId },
     include: { onboarding: true },
   });
-  if (!aluno || !aluno.onboarding || !ALLOWED_PRE_REGISTRATION_STATUSES.includes(aluno.status)) {
+  if (!aluno || !aluno.onboarding) {
+    throw new PreRegistrationPublicError('Cadastro não disponível.', 'NOT_FOUND');
+  }
+  if (!ALLOWED_PRE_REGISTRATION_STATUSES.includes(aluno.status)) {
+    if (role === 'STUDENT' && aluno.status === 'ACTIVE_STUDENT' && aluno.userId === userId) {
+      throw new PreRegistrationPublicError(
+        'Sua conta já está vinculada a um cadastro ativo nesta academia.',
+        'ACTIVE_STUDENT',
+        { redirectTo: '/inicio' }
+      );
+    }
     throw new PreRegistrationPublicError('Cadastro não disponível.', 'NOT_FOUND');
   }
   if (aluno.onboarding.claimedByUserId && aluno.onboarding.claimedByUserId !== userId) {
@@ -255,8 +265,15 @@ async function claimInviteInTransaction(
 
     const existing = await tx.aluno.findFirst({
       where: { contractId: invite.contractId, userId, id: { not: invite.alunoId } },
-      select: { id: true },
+      select: { id: true, status: true },
     });
+    if (existing?.status === 'ACTIVE_STUDENT') {
+      throw new PreRegistrationPublicError(
+        'Sua conta já está vinculada a um cadastro ativo nesta academia.',
+        'ACTIVE_STUDENT',
+        { redirectTo: '/inicio' }
+      );
+    }
     if (existing) {
       throw new PreRegistrationPublicError(
         'Esta conta já está vinculada a outro cadastro nesta academia.',
@@ -552,6 +569,7 @@ async function buildSession(userId: string, alunoId: string): Promise<PreRegistr
     name: identity.name || undefined,
     birthDate: identity.birthDate || undefined,
     phone: identity.phone || undefined,
+    email: identity.email || undefined,
     privacyNoticeVersion: onboarding.privacyNoticeVersion || undefined,
     privacyAcceptedAt: onboarding.privacyAcceptedAt || undefined,
   });

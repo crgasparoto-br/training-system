@@ -6,6 +6,7 @@ import type {
 } from '@corrida/types';
 import {
   loadStudentIdentity,
+  normalizeStudentEmail,
   normalizeStudentPhone,
 } from './student-identity.service.js';
 import {
@@ -254,6 +255,7 @@ export async function completePublicStudentPreRegistration(input: {
         name: identity.name || undefined,
         birthDate: identity.birthDate || undefined,
         phone: identity.phone || undefined,
+        email: identity.email || undefined,
         privacyNoticeVersion: input.privacyNoticeVersion,
         privacyAcceptedAt: input.privacyAcceptedAt,
       });
@@ -263,6 +265,7 @@ export async function completePublicStudentPreRegistration(input: {
         if (!identity.guardianCpf) missing.push('guardianCpf');
       }
       if (!normalizeStudentPhone(identity.phone)) missing.push('phone');
+      if (!normalizeStudentEmail(identity.email)) missing.push('email');
       if (missing.length > 0) {
         throw new StudentLifecycleError(
           'Revise os campos obrigatórios antes de concluir.',

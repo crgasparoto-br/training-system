@@ -18,14 +18,32 @@ describe('preRegistrationDraft', () => {
     expect(readDraft()).toBeNull();
   });
 
-  it('round-trips a draft through sessionStorage', () => {
-    writeDraft({ form: { name: 'Fulano' }, step: 'IDENTIFICATION' });
-    expect(readDraft()).toEqual({ form: { name: 'Fulano' }, step: 'IDENTIFICATION' });
+  it('round-trips a versioned draft through sessionStorage', () => {
+    writeDraft({ form: { name: 'Fulano' }, step: 'IDENTIFICATION', baseVersion: 4 });
+    expect(readDraft()).toEqual({
+      form: { name: 'Fulano' },
+      step: 'IDENTIFICATION',
+      baseVersion: 4,
+    });
     expect(window.sessionStorage.getItem(DRAFT_STORAGE_KEY)).toBeTruthy();
   });
 
+  it('rejects legacy or malformed drafts without a positive baseVersion', () => {
+    window.sessionStorage.setItem(
+      DRAFT_STORAGE_KEY,
+      JSON.stringify({ form: { name: 'Legado' }, step: 'IDENTIFICATION' })
+    );
+    expect(readDraft()).toBeNull();
+
+    window.sessionStorage.setItem(
+      DRAFT_STORAGE_KEY,
+      JSON.stringify({ form: {}, step: 'IDENTIFICATION', baseVersion: 0 })
+    );
+    expect(readDraft()).toBeNull();
+  });
+
   it('removes the draft on clearDraft', () => {
-    writeDraft({ form: { name: 'Fulano' }, step: 'IDENTIFICATION' });
+    writeDraft({ form: { name: 'Fulano' }, step: 'IDENTIFICATION', baseVersion: 2 });
     clearDraft();
     expect(readDraft()).toBeNull();
     expect(window.sessionStorage.getItem(DRAFT_STORAGE_KEY)).toBeNull();
@@ -41,6 +59,7 @@ describe('preRegistrationDraft', () => {
         guardianCpf: '987.654.321-00',
       },
       step: 'IDENTIFICATION',
+      baseVersion: 3,
     });
 
     const raw = window.sessionStorage.getItem(DRAFT_STORAGE_KEY);
@@ -51,6 +70,7 @@ describe('preRegistrationDraft', () => {
 
     const stored = readDraft<FormWithSensitiveFields>();
     expect(stored?.form).toEqual({ name: 'Fulano', guardianName: 'Responsável' });
+    expect(stored?.baseVersion).toBe(3);
     expect(stored?.form.cpf).toBeUndefined();
     expect(stored?.form.birthDate).toBeUndefined();
     expect(stored?.form.guardianCpf).toBeUndefined();

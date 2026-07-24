@@ -87,6 +87,7 @@ describe('student-lifecycle stage requirements', () => {
         'name',
         'birthDate',
         'phone',
+        'email',
         'privacyNoticeVersion',
         'privacyAcceptedAt',
       ])

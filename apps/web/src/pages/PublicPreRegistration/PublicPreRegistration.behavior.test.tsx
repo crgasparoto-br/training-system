@@ -5,6 +5,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   routeToken: undefined as string | undefined,
+  open: vi.fn(),
+  claim: vi.fn(),
+  registerAndClaim: vi.fn(),
+  login: vi.fn(),
   listProcesses: vi.fn(),
   getSession: vi.fn(),
   saveStep: vi.fn(),
@@ -26,12 +30,16 @@ vi.mock('react-router-dom', async () => {
 vi.mock('../../stores/useAuthStore', () => ({
   useAuthStore: () => ({
     isAuthenticated: true,
+    login: mocks.login,
     user: { id: 'guardian-1', email: 'guardian@example.com', type: 'aluno' },
   }),
 }));
 
 vi.mock('../../services/pre-registration-public.service', () => ({
   preRegistrationPublicService: {
+    open: mocks.open,
+    claim: mocks.claim,
+    registerAndClaim: mocks.registerAndClaim,
     listProcesses: mocks.listProcesses,
     getSession: mocks.getSession,
     saveStep: mocks.saveStep,
@@ -71,7 +79,13 @@ const baseSession = {
   currentStep: 'IDENTIFICATION',
   isMinor: false,
   claimRole: 'STUDENT',
-  identity: { name: 'Aluno Teste' },
+  identity: {
+    name: 'Aluno Teste',
+    birthDate: '1990-01-01',
+    cpf: '52998224725',
+    phone: '15999990000',
+    email: 'aluno@example.com',
+  },
   tenant: { name: 'Academia Teste', privacyNoticeUrl: 'https://example.com/privacy' },
   guardianAuthorization: { status: 'NOT_REQUIRED', role: 'STUDENT' },
   privacy: { noticeUrl: 'https://example.com/privacy', noticeVersion: '2026-07' },
@@ -85,6 +99,10 @@ const scopedDraftKey = `${DRAFT_KEY}:${baseSession.alunoId}`;
 describe('PublicPreRegistration - resiliência, seleção e autorização', () => {
   beforeEach(() => {
     mocks.navigate.mockReset();
+    mocks.open.mockReset();
+    mocks.claim.mockReset();
+    mocks.registerAndClaim.mockReset();
+    mocks.login.mockReset();
     mocks.listProcesses.mockReset();
     mocks.getSession.mockReset();
     mocks.saveStep.mockReset();
@@ -92,6 +110,7 @@ describe('PublicPreRegistration - resiliência, seleção e autorização', () =
     mocks.complete.mockReset();
     mocks.lookupCep.mockReset();
     mocks.routeToken = undefined;
+    mocks.login.mockResolvedValue(undefined);
     mocks.listProcesses.mockResolvedValue([baseProcess]);
     mocks.getSession.mockResolvedValue(baseSession);
     window.sessionStorage.clear();
@@ -136,7 +155,10 @@ describe('PublicPreRegistration - resiliência, seleção e autorização', () =
     await waitFor(() => {
       const raw = window.sessionStorage.getItem(scopedDraftKey);
       expect(raw).toBeTruthy();
-      expect(JSON.parse(raw as string).form.name).toBe('Rascunho Não Salvo');
+      expect(JSON.parse(raw as string)).toMatchObject({
+        form: { name: 'Rascunho Não Salvo' },
+        baseVersion: 1,
+      });
     });
 
     first.unmount();
@@ -196,6 +218,8 @@ describe('PublicPreRegistration - resiliência, seleção e autorização', () =
       expect(screen.getByText(/Não foi possível consultar o CEP/i)).toBeInTheDocument();
     });
 
+    expect(cepInput).toHaveAttribute('aria-describedby', 'pre-registration-addressZipCode-error');
+
     const streetInput = screen.getByLabelText(/^Rua$/i) as HTMLInputElement;
     expect(streetInput).not.toBeDisabled();
     fireEvent.change(streetInput, { target: { value: 'Preenchimento manual' } });
@@ -223,6 +247,110 @@ describe('PublicPreRegistration - resiliência, seleção e autorização', () =
       expect(stored.form.cpf).toBeUndefined();
       expect(stored.form.birthDate).toBeUndefined();
     });
+  });
+
+
+  it('does not restore a stale draft over a newer server version without explicit reconciliation', async () => {
+    window.sessionStorage.setItem(
+      scopedDraftKey,
+      JSON.stringify({
+        form: { name: 'Nome local antigo' },
+        step: 'IDENTIFICATION',
+        baseVersion: 1,
+      })
+    );
+    mocks.getSession.mockResolvedValueOnce({
+      ...baseSession,
+      version: 2,
+      identity: { ...baseSession.identity, name: 'Nome alterado pela academia' },
+    });
+
+    render(
+      <MemoryRouter>
+        <PublicPreRegistration />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByRole('heading', { name: /Escolha quais dados/i })).toBeInTheDocument();
+    expect(screen.getByText('Nome alterado pela academia')).toBeInTheDocument();
+    expect(screen.getByText('Nome local antigo')).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Nome completo/i)).not.toBeInTheDocument();
+  });
+
+  it('reconciles a concurrent change field by field and saves with the fresh version', async () => {
+    mocks.saveStep
+      .mockRejectedValueOnce({
+        response: {
+          data: {
+            error: 'Os dados foram alterados em outro local.',
+            details: { code: 'CONCURRENT_MODIFICATION' },
+          },
+        },
+      })
+      .mockResolvedValueOnce({ ...baseSession, version: 3 });
+    mocks.getSession
+      .mockResolvedValueOnce(baseSession)
+      .mockResolvedValueOnce({
+        ...baseSession,
+        version: 2,
+        identity: { ...baseSession.identity, name: 'Nome da academia' },
+      });
+
+    render(
+      <MemoryRouter>
+        <PublicPreRegistration />
+      </MemoryRouter>
+    );
+
+    const nameInput = await screen.findByLabelText(/Nome completo/i);
+    fireEvent.change(nameInput, { target: { value: 'Nome escolhido pelo aluno' } });
+    fireEvent.click(screen.getByRole('button', { name: /Salvar e avançar/i }));
+
+    expect(await screen.findByRole('heading', { name: /Escolha quais dados/i })).toBeInTheDocument();
+    const localOption = screen.getByRole('radio', { name: /Meu rascunho/i });
+    fireEvent.click(localOption);
+    fireEvent.click(screen.getByRole('button', { name: /Aplicar minhas escolhas/i }));
+
+    expect((await screen.findByLabelText(/Nome completo/i) as HTMLInputElement).value).toBe(
+      'Nome escolhido pelo aluno'
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Salvar e avançar/i }));
+
+    await waitFor(() => {
+      expect(mocks.saveStep).toHaveBeenLastCalledWith(
+        'student-1',
+        expect.objectContaining({
+          expectedVersion: 2,
+          data: expect.objectContaining({ name: 'Nome escolhido pelo aluno' }),
+        })
+      );
+    });
+  });
+
+  it('shows optional alternative contact fields', async () => {
+    render(
+      <MemoryRouter>
+        <PublicPreRegistration />
+      </MemoryRouter>
+    );
+    await screen.findByLabelText(/Nome completo/i);
+    fireEvent.click(screen.getByRole('button', { name: /Contato/i }));
+    expect(await screen.findByLabelText(/Telefone alternativo/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/E-mail alternativo/i)).toBeInTheDocument();
+  });
+
+  it('keeps invalid invite messaging actionable', async () => {
+    mocks.routeToken = 'invalid-token';
+    mocks.open.mockRejectedValueOnce({ response: { data: { error: 'Link inválido ou expirado.' } } });
+
+    render(
+      <MemoryRouter>
+        <PublicPreRegistration />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText(/Link inválido ou expirado/i)).toBeInTheDocument();
+    expect(screen.getByText(/Solicite um novo convite à academia/i)).toBeInTheDocument();
   });
 
   it('requires an explicit process selection when one account has multiple dependents', async () => {

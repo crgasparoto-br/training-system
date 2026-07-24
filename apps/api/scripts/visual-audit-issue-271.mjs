@@ -162,6 +162,18 @@ async function installMocking(page, scenario) {
       type: 'aluno',
       profile: { name: 'Ana Ferreira' },
     });
+    if (scenario === 'conflict') {
+      await page.evaluateOnNewDocument(() => {
+        sessionStorage.setItem(
+          'pre-registration-draft-v2:internal-student-id',
+          JSON.stringify({
+            form: { name: 'Nome preservado no rascunho local' },
+            step: 'IDENTIFICATION',
+            baseVersion: 1,
+          })
+        );
+      });
+    }
   }
 
   await page.setRequestInterception(true);
@@ -197,7 +209,11 @@ async function installMocking(page, scenario) {
           ? session({ currentStep: 'GUARDIAN' })
           : scenario === 'privacy'
             ? session({ currentStep: 'PRIVACY' })
-            : session();
+            : scenario === 'contact'
+              ? session({ currentStep: 'CONTACT' })
+              : scenario === 'conflict'
+                ? session({ version: 2, identity: { ...session().identity, name: 'Nome atualizado pela academia' } })
+                : session();
       void request.respond(json({ success: true, data: payload }));
       return;
     }
@@ -260,6 +276,10 @@ async function capture(browser, { name, route, viewport, scenario }) {
       clippedProcessNames: processNames.filter(
         (element) => element.scrollWidth > element.clientWidth + 1
       ).length,
+      hasConflictResolution: document.body.textContent?.includes('Escolha quais dados devem ser mantidos') || false,
+      hasAlternativeContacts:
+        Boolean(document.querySelector('#pre-registration-additionalPhone')) &&
+        Boolean(document.querySelector('#pre-registration-additionalEmail')),
     };
   });
 
@@ -282,6 +302,12 @@ async function capture(browser, { name, route, viewport, scenario }) {
   }
   if (diagnostics.clippedProcessNames > 0) {
     throw new Error(`${name}: nome de processo truncado sem leitura completa`);
+  }
+  if (scenario === 'conflict' && !diagnostics.hasConflictResolution) {
+    throw new Error(`${name}: reconciliação explícita de conflito não foi exibida`);
+  }
+  if (scenario === 'contact' && !diagnostics.hasAlternativeContacts) {
+    throw new Error(`${name}: contatos alternativos não foram exibidos`);
   }
   if (diagnostics.focusableCount > 0) {
     await page.keyboard.press('Tab');
@@ -324,6 +350,8 @@ try {
     { name: 'guardian-confirmation-mobile', route: '/pre-cadastro', viewport: { width: 390, height: 844 }, scenario: 'pending-guardian' },
     { name: 'identification-low-height', route: '/pre-cadastro', viewport: { width: 1366, height: 768 }, scenario: 'identification' },
     { name: 'identification-tablet', route: '/pre-cadastro', viewport: { width: 768, height: 1024 }, scenario: 'identification' },
+    { name: 'contact-mobile', route: '/pre-cadastro', viewport: { width: 390, height: 844 }, scenario: 'contact' },
+    { name: 'conflict-mobile', route: '/pre-cadastro', viewport: { width: 390, height: 844 }, scenario: 'conflict' },
     { name: 'guardian-mobile', route: '/pre-cadastro', viewport: { width: 390, height: 844 }, scenario: 'guardian' },
     { name: 'privacy-mobile', route: '/pre-cadastro', viewport: { width: 390, height: 844 }, scenario: 'privacy' },
     { name: 'completed-desktop', route: '/pre-cadastro', viewport: { width: 1440, height: 900 }, scenario: 'completed' },

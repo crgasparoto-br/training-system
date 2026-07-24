@@ -333,6 +333,113 @@ describeDatabase('public pre-registration integration', () => {
     expect(afterConflict.identity.phone).toBe('15888880000');
   });
 
+  it('requires a normalized primary email before completion', async () => {
+    const account = await createUser({
+      label: 'missing-email-account',
+      name: 'Aluno Sem Email de Contato',
+    });
+    const invited = await createInvitedAluno({
+      label: 'missing-email-student',
+      name: 'Aluno Sem Email de Contato',
+      birthDate: '1991-02-03',
+      cpf: '52998224725',
+    });
+
+    await preRegistrationPublicService.claim(account.id, {
+      token: invited.token,
+      role: 'STUDENT',
+    });
+    let session = await preRegistrationPublicService.getSession(account.id, invited.alunoId);
+    session = await preRegistrationPublicService.saveStep(account.id, invited.alunoId, {
+      expectedVersion: session.version,
+      step: 'IDENTIFICATION',
+      data: {
+        name: 'Aluno Sem Email de Contato',
+        birthDate: '1991-02-03',
+        cpf: '52998224725',
+      },
+    });
+    session = await preRegistrationPublicService.saveStep(account.id, invited.alunoId, {
+      expectedVersion: session.version,
+      step: 'CONTACT',
+      data: { phone: '15999990000' },
+    });
+
+    await expect(
+      preRegistrationPublicService.complete(account.id, invited.alunoId, {
+        expectedVersion: session.version,
+        privacyAccepted: true,
+      })
+    ).rejects.toMatchObject({
+      code: 'MISSING_REQUIRED_FIELDS',
+      details: { fields: expect.arrayContaining(['email']) },
+    });
+  });
+
+  it('persists alternative phone and email in the canonical identity', async () => {
+    const account = await createUser({
+      label: 'alternative-contact-account',
+      name: 'Aluno Contato Alternativo',
+    });
+    const invited = await createInvitedAluno({
+      label: 'alternative-contact-student',
+      name: 'Aluno Contato Alternativo',
+      birthDate: '1990-04-05',
+      cpf: '16899535009',
+    });
+
+    await preRegistrationPublicService.claim(account.id, {
+      token: invited.token,
+      role: 'STUDENT',
+    });
+    const initial = await preRegistrationPublicService.getSession(account.id, invited.alunoId);
+    const saved = await preRegistrationPublicService.saveStep(account.id, invited.alunoId, {
+      expectedVersion: initial.version,
+      step: 'CONTACT',
+      data: {
+        phone: '15999990000',
+        email: `${suffix}-main-contact@example.com`,
+        additionalPhone: '15888880000',
+        additionalEmail: `${suffix}-alternative-contact@example.com`,
+      },
+    });
+
+    expect(saved.identity).toMatchObject({
+      additionalPhone: '15888880000',
+      additionalEmail: `${suffix}-alternative-contact@example.com`,
+    });
+  });
+
+  it('redirects a compatible account already linked to an active student instead of starting another cycle', async () => {
+    const account = await createUser({
+      label: 'active-student-account',
+      name: 'Aluno Já Ativo',
+    });
+    await prisma.aluno.create({
+      data: {
+        contractId,
+        status: 'ACTIVE_STUDENT',
+        userId: account.id,
+      },
+    });
+    const invited = await createInvitedAluno({
+      label: 'active-student-new-invite',
+      name: 'Aluno Já Ativo',
+      birthDate: '1988-07-08',
+      cpf: '39053344705',
+    });
+
+    await expect(
+      preRegistrationPublicService.claim(account.id, {
+        token: invited.token,
+        role: 'STUDENT',
+      })
+    ).rejects.toMatchObject({
+      code: 'ACTIVE_STUDENT',
+      details: { redirectTo: '/inicio' },
+    });
+  });
+
   it('completes consent and invite atomically, emits one completion event and supports retry', async () => {
     const guardian = await createUser({
       label: 'guardian-completion',

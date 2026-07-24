@@ -44,7 +44,9 @@ const guardianAuthorizationSchema = z.object({
 const publicIdentitySchema = z.object({
   name: z.string().trim().min(3).max(200).optional(),
   phone: z.string().trim().max(40).optional(),
+  additionalPhone: z.string().trim().max(40).optional(),
   email: z.string().trim().email('E-mail inválido').max(320).optional(),
+  additionalEmail: z.string().trim().email('E-mail alternativo inválido').max(320).optional(),
   cpf: z.string().trim().max(20).optional(),
   birthDate: z.string().trim().max(40).optional(),
   gender: z.enum(['male', 'female', 'other']).optional(),
@@ -80,6 +82,7 @@ const STATUS_BY_CODE: Record<string, number> = {
   MISSING_REQUIRED_FIELDS: 400,
   GUARDIAN_AUTHORIZATION_REQUIRED: 409,
   PRE_REGISTRATION_COMPLETED: 409,
+  ACTIVE_STUDENT: 409,
   NOT_FOUND: 404,
 };
 

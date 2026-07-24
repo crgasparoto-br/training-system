@@ -326,12 +326,13 @@ function progressOf(lead: LeadRecord) {
   const missing = findMissingPreRegistrationFields({
     name: typeof data.name === 'string' ? data.name : lead.leadName || undefined,
     phone: typeof data.phone === 'string' ? data.phone : lead.leadPhone || undefined,
+    email: typeof data.email === 'string' ? data.email : lead.leadEmail || undefined,
     birthDate:
       typeof data.birthDate === 'string' ? data.birthDate : lead.birthDate || undefined,
     privacyNoticeVersion: lead.onboarding?.privacyNoticeVersion || undefined,
     privacyAcceptedAt: lead.onboarding?.privacyAcceptedAt || undefined,
   });
-  const totalFields = 5;
+  const totalFields = 6;
   return {
     basicRegistration: lead.onboarding?.completedAt
       ? 'COMPLETED'
