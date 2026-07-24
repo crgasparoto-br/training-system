@@ -1,67 +1,14 @@
 import { Prisma, PrismaClient } from '@prisma/client';
-import type {
-  PreRegistrationClaimRole,
-  SavePreRegistrationStepDTO,
-  StudentLifecycleStatus,
-} from '@corrida/types';
+import type { SavePreRegistrationStepDTO } from '@corrida/types';
 import {
   loadStudentIdentity,
   upsertStudentIdentity,
 } from '../alunos/student-identity.service.js';
+import {
+  lockAndAuthorizePreRegistrationProcess,
+} from './pre-registration-public-atomic.service.js';
 
 const prisma = new PrismaClient();
-const ACCESSIBLE_STATUSES: StudentLifecycleStatus[] = [
-  'INVITED',
-  'PRE_REGISTRATION_IN_PROGRESS',
-  'PRE_REGISTRATION_COMPLETED',
-];
-
-type OnboardingVersion = {
-  version: number;
-};
-
-type AccessibleStudent = {
-  id: string;
-  contractId: string;
-  accessRole: PreRegistrationClaimRole;
-};
-
-async function findAccessibleStudent(
-  userId: string,
-  alunoId: string
-): Promise<AccessibleStudent> {
-  const direct = await prisma.aluno.findFirst({
-    where: {
-      id: alunoId,
-      userId,
-      status: { in: ACCESSIBLE_STATUSES },
-      onboarding: { claimedByUserId: userId },
-    },
-    select: { id: true, contractId: true },
-  });
-  if (direct) return { ...direct, accessRole: 'STUDENT' };
-
-  const guardianRows = await prisma.$queryRaw<Array<{ alunoId: string; contractId: string }>>`
-    SELECT auth."alunoId", auth."contractId"
-    FROM "PreRegistrationGuardianAuthorization" AS auth
-    JOIN "Aluno" AS student ON student."id" = auth."alunoId"
-    JOIN "StudentOnboardingProcess" AS onboarding ON onboarding."alunoId" = student."id"
-    WHERE auth."guardianUserId" = ${userId}
-      AND auth."alunoId" = ${alunoId}
-      AND auth."purpose" = 'PRE_REGISTRATION'
-      AND auth."status" = 'ACTIVE'
-      AND onboarding."claimedByUserId" = ${userId}
-      AND student."status" IN ('INVITED', 'PRE_REGISTRATION_IN_PROGRESS', 'PRE_REGISTRATION_COMPLETED')
-    LIMIT 1
-  `;
-  const guardian = guardianRows[0];
-  if (!guardian) throw new Error('Cadastro não encontrado para preservar o rascunho.');
-  return {
-    id: guardian.alunoId,
-    contractId: guardian.contractId,
-    accessRole: 'GUARDIAN',
-  };
-}
 
 function asJson(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
@@ -76,37 +23,35 @@ export const preRegistrationDuplicateReviewService = {
     if (input.step !== 'IDENTIFICATION') {
       throw new Error('Conflito de CPF recebido fora da etapa de identificação.');
     }
-    const aluno = await findAccessibleStudent(userId, alunoId);
 
     return prisma.$transaction(async (tx) => {
-      // Todas as gravacoes publicas seguem onboarding -> Aluno -> identidade.
-      // O lock serializa a preservacao do rascunho com salvamento e conclusao.
-      const rows = await tx.$queryRaw<OnboardingVersion[]>`
-        SELECT "version"
-        FROM "StudentOnboardingProcess"
-        WHERE "alunoId" = ${aluno.id} AND "contractId" = ${aluno.contractId}
-        FOR UPDATE
-      `;
-      const onboarding = rows[0];
-      if (!onboarding || onboarding.version !== input.expectedVersion) {
+      let access = await lockAndAuthorizePreRegistrationProcess(tx, userId, alunoId);
+      if (access.onboarding.version !== input.expectedVersion) {
         throw new Error('O rascunho foi alterado em outro acesso. Recarregue antes de continuar.');
       }
 
-      const before = await loadStudentIdentity(aluno.id, aluno.contractId, tx);
+      const before = await loadStudentIdentity(access.alunoId, access.contractId, tx);
       const { cpf: proposedCpf, ...safeData } = input.data;
 
       await upsertStudentIdentity(
-        aluno.id,
-        aluno.contractId,
+        access.alunoId,
+        access.contractId,
         safeData,
         {
           client: tx,
           actor: { userId },
           sourceType: 'student',
           sourceReference: 'public_pre_registration_duplicate_review',
-          syncLegacyProfile: aluno.accessRole === 'STUDENT',
+          syncLegacyProfile: access.accessRole === 'STUDENT',
         }
       );
+
+      // Data de nascimento também pode mudar nesta etapa. Revalide a autoridade
+      // depois da escrita canônica e antes de preservar qualquer revisão ou evento.
+      access = await lockAndAuthorizePreRegistrationProcess(tx, userId, alunoId);
+      if (access.onboarding.version !== input.expectedVersion) {
+        throw new Error('O rascunho foi alterado em outro acesso. Recarregue antes de continuar.');
+      }
 
       const after = {
         ...before,
@@ -115,7 +60,7 @@ export const preRegistrationDuplicateReviewService = {
       };
       const pendingReview = await tx.studentProfileReview.findFirst({
         where: {
-          alunoId: aluno.id,
+          alunoId: access.alunoId,
           status: 'pending',
           requiresApproval: true,
         },
@@ -139,7 +84,7 @@ export const preRegistrationDuplicateReviewService = {
       } else {
         await tx.studentProfileReview.create({
           data: {
-            alunoId: aluno.id,
+            alunoId: access.alunoId,
             requestedByUserId: userId,
             sectionsRequested: asJson(['identification']),
             snapshotBefore: asJson(before),
@@ -156,8 +101,10 @@ export const preRegistrationDuplicateReviewService = {
             "currentStep" = ${input.step},
             "lastSavedAt" = CURRENT_TIMESTAMP,
             "updatedAt" = CURRENT_TIMESTAMP
-        WHERE "alunoId" = ${aluno.id}
-          AND "contractId" = ${aluno.contractId}
+        WHERE "alunoId" = ${access.alunoId}
+          AND "contractId" = ${access.contractId}
+          AND "claimedByUserId" = ${userId}
+          AND "claimRole" = ${access.accessRole}
           AND "version" = ${input.expectedVersion}
       `;
       if (updated !== 1) {
@@ -166,8 +113,8 @@ export const preRegistrationDuplicateReviewService = {
 
       await tx.studentLifecycleEvent.create({
         data: {
-          alunoId: aluno.id,
-          contractId: aluno.contractId,
+          alunoId: access.alunoId,
+          contractId: access.contractId,
           eventType: 'ADMIN_REVIEWED',
           actorUserId: userId,
           metadata: {

@@ -15,7 +15,7 @@ Transformar o convite seguro de pré-cadastro em uma experiência pública que i
 - formulário em etapas para identificação, contato, endereço, responsável e privacidade;
 - identidade canônica mantida em `StudentProfile` por meio de `student-identity.service.ts`;
 - rascunho persistido no servidor com versão otimista e próxima etapa;
-- rascunho temporário de aba isolado por processo e sem CPF, data de nascimento ou CPF do responsável;
+- rascunho temporário de aba isolado por conta autenticada e processo, sem CPF, data de nascimento ou CPF do responsável;
 - relação explícita e tenant-scoped entre conta do responsável e dependente;
 - reivindicação de responsável inicialmente `PENDING`, sem leitura de dados pessoais até validação independente por usuário autorizado da academia;
 - acesso de responsável permitido somente para menoridade confirmada pela data canônica e autorização `ACTIVE` validada por conta diferente da conta responsável;
@@ -25,7 +25,7 @@ Transformar o convite seguro de pré-cadastro em uma experiência pública que i
 - revogação de solicitação de outro responsável não remove o claim do próprio aluno quando outra autorização `ACTIVE` continua válida;
 - suporte a múltiplos dependentes por conta de responsável sem reutilizar `Aluno.userId`;
 - edição administrativa da identidade canônica invalida versões públicas desatualizadas por trigger de banco, inclusive em processo concluído;
-- conclusão revalida claim, papel, conta vinculada, identidade canônica e autorização dentro da transação, depois do lock do onboarding;
+- leitura da sessão, primeiro salvamento, preservação de conflito e conclusão bloqueiam primeiro o onboarding e revalidam claim, papel, conta vinculada, identidade canônica e autorização dentro da transação;
 - retry de conclusão já terminal é idempotente e não altera timestamps, consentimento, convites ou eventos;
 - consentimento com versão, data/hora, identidade autenticada, IP e user-agent quando disponíveis;
 - conclusão idempotente, evento `PRE_REGISTRATION_COMPLETED` único e convite reconciliado como concluído;
@@ -132,6 +132,17 @@ Validação oficial repetida após alinhar as fixtures antigas à regra comparti
 - `completePublicStudentPreRegistration` bloqueia o onboarding e então revalida claim, papel, conta vinculada, lifecycle, idade canônica e autorização ativa;
 - o branch já concluído é somente leitura: não altera `updatedAt`, IP, user-agent, consentimento, convites ou eventos;
 - testes discriminantes cobrem transição adulto → menor em andamento, transição após conclusão, restauração por autorização, restauração por maioridade e retry terminal após revogação com controle negativo de todas as mutações.
+
+
+## Remediação dos achados AUD-271-006, AUD-271-007 e AUD-271-008
+
+- `getSession` passou a adquirir `FOR UPDATE` sobre o onboarding antes de validar claim, papel, idade canônica e autorização; identidade, tenant, duplicidade e resposta são montados no mesmo snapshot transacional;
+- quando uma revogação já detém o lock do onboarding, a leitura aguarda o commit e retorna `NOT_FOUND`, sem carregar nem serializar dados pessoais;
+- o primeiro salvamento agora reúne autorização definitiva, transição `INVITED -> PRE_REGISTRATION_IN_PROGRESS`, identidade, versão, evento e resposta na mesma transação;
+- perda de autoridade antes do lock ou causada pela própria alteração canônica reverte status, `startedAt`, identidade, revisão, eventos e timestamps;
+- a preservação de conflito de CPF reutiliza a mesma barreira transacional e revalida a elegibilidade depois de qualquer alteração de data de nascimento;
+- rascunhos de aba usam chave `userId + alunoId`, são removidos em troca de conta, logout e negação autoritativa, mas permanecem em falha temporária de rede;
+- testes discriminantes mantêm uma revogação não confirmada com o lock do onboarding, comprovam que leitura e salvamento aguardam o desfecho e verificam ausência de PII ou mutações residuais.
 
 ## Verificação interna final
 

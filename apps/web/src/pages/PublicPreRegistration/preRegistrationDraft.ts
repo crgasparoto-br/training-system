@@ -1,11 +1,11 @@
 // Rascunho local do pré-cadastro público (issue #271): preserva o passo atual
 // e os campos ainda não salvos no servidor em sessionStorage.
 //
-// O identificador do processo participa da chave para impedir que uma conta de
-// responsável com múltiplos dependentes restaure dados no cadastro incorreto.
-// A versão-base impede que um rascunho antigo seja mesclado automaticamente
-// sobre dados alterados pela academia.
-const DRAFT_STORAGE_KEY = 'pre-registration-draft-v2';
+// A chave combina conta autenticada e processo para impedir que um responsável
+// substituto ou outra conta no mesmo navegador restaure dados do usuário anterior.
+// A versão-base impede mescla automática sobre dados alterados pela academia.
+const DRAFT_STORAGE_KEY = 'pre-registration-draft-v3';
+const LEGACY_DRAFT_STORAGE_KEYS = ['pre-registration-draft-v2', 'pre-registration-draft-v1'];
 
 /** Campos sensíveis que nunca são persistidos no rascunho de sessionStorage. */
 const SENSITIVE_DRAFT_FIELDS = ['cpf', 'birthDate', 'guardianCpf'] as const;
@@ -16,8 +16,23 @@ export type PreRegistrationDraft<TForm> = {
   baseVersion: number;
 };
 
-function storageKey(scope?: string): string {
-  return scope ? `${DRAFT_STORAGE_KEY}:${scope}` : DRAFT_STORAGE_KEY;
+type StoredAuthUser = { id?: unknown };
+
+function currentUserId(): string | null {
+  try {
+    const raw = window.localStorage.getItem('user');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as StoredAuthUser | null;
+    return typeof parsed?.id === 'string' && parsed.id ? parsed.id : null;
+  } catch {
+    return null;
+  }
+}
+
+function storageKey(scope?: string): string | null {
+  const userId = currentUserId();
+  if (!userId) return null;
+  return scope ? `${DRAFT_STORAGE_KEY}:${userId}:${scope}` : `${DRAFT_STORAGE_KEY}:${userId}`;
 }
 
 function omitSensitiveFields<TForm>(form: TForm): TForm {
@@ -43,7 +58,9 @@ function isStoredDraft<TForm>(value: unknown): value is PreRegistrationDraft<TFo
 
 export function readDraft<TForm>(scope?: string): PreRegistrationDraft<TForm> | null {
   try {
-    const raw = window.sessionStorage.getItem(storageKey(scope));
+    const key = storageKey(scope);
+    if (!key) return null;
+    const raw = window.sessionStorage.getItem(key);
     if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
     return isStoredDraft<TForm>(parsed) ? parsed : null;
@@ -54,11 +71,13 @@ export function readDraft<TForm>(scope?: string): PreRegistrationDraft<TForm> | 
 
 export function writeDraft<TForm>(draft: PreRegistrationDraft<TForm>, scope?: string) {
   try {
+    const key = storageKey(scope);
+    if (!key) return;
     const redactedDraft: PreRegistrationDraft<TForm> = {
       ...draft,
       form: omitSensitiveFields(draft.form),
     };
-    window.sessionStorage.setItem(storageKey(scope), JSON.stringify(redactedDraft));
+    window.sessionStorage.setItem(key, JSON.stringify(redactedDraft));
   } catch {
     // Armazenamento indisponível: degrada para o comportamento sem rascunho.
   }
@@ -66,7 +85,24 @@ export function writeDraft<TForm>(draft: PreRegistrationDraft<TForm>, scope?: st
 
 export function clearDraft(scope?: string) {
   try {
-    window.sessionStorage.removeItem(storageKey(scope));
+    const key = storageKey(scope);
+    if (key) window.sessionStorage.removeItem(key);
+  } catch {
+    // ignore
+  }
+}
+
+export function clearAllPreRegistrationDrafts() {
+  try {
+    const prefixes = [DRAFT_STORAGE_KEY, ...LEGACY_DRAFT_STORAGE_KEYS];
+    const keys: string[] = [];
+    for (let index = 0; index < window.sessionStorage.length; index += 1) {
+      const key = window.sessionStorage.key(index);
+      if (key && prefixes.some((prefix) => key === prefix || key.startsWith(`${prefix}:`))) {
+        keys.push(key);
+      }
+    }
+    for (const key of keys) window.sessionStorage.removeItem(key);
   } catch {
     // ignore
   }

@@ -1,5 +1,6 @@
 ﻿import { create } from 'zustand';
 import { authService } from '../services/auth.service';
+import { clearAllPreRegistrationDrafts } from '../pages/PublicPreRegistration/preRegistrationDraft';
 import type { AuthResponse, LoginRequest, RegisterRequest } from '@corrida/types';
 
 type User = AuthResponse['user'];
@@ -28,6 +29,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   error: null,
 
   setAuthenticatedSession: (response: AuthResponse) => {
+    const previousUserId = get().user?.id;
+    if (previousUserId !== response.user.id) {
+      clearAllPreRegistrationDrafts();
+    }
     authService.setToken(response.token);
     authService.setUser(response.user);
     set({
@@ -65,6 +70,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   logout: async () => {
     set({ isLoading: true });
+    clearAllPreRegistrationDrafts();
     try {
       await authService.logout();
       set({
@@ -100,6 +106,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch (error: any) {
       // Só derruba sessão quando o token realmente é inválido/expirado.
       if (error?.response?.status === 401) {
+        clearAllPreRegistrationDrafts();
         set({
           user: null,
           token: null,

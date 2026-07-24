@@ -18,6 +18,7 @@ import {
 import { preRegistrationInviteRateLimit } from '../pre-registration-invites/pre-registration-invite-rate-limit.middleware.js';
 import { assertPreRegistrationClaimRoleEligibility } from './pre-registration-claim-role.guard.js';
 import { preRegistrationDuplicateReviewService } from './pre-registration-duplicate-review.service.js';
+import { preRegistrationPublicAtomicService } from './pre-registration-public-atomic.service.js';
 import {
   PreRegistrationPublicError,
   preRegistrationPublicService,
@@ -128,7 +129,6 @@ function publicErrorDetails(error: PreRegistrationPublicError): Record<string, u
   const details: Record<string, unknown> = { code: error.code };
   const allowedKeys = PUBLIC_ERROR_DETAIL_KEYS[error.code];
   if (!allowedKeys || !error.details) return details;
-
   for (const key of allowedKeys) {
     if (Object.prototype.hasOwnProperty.call(error.details, key)) {
       details[key] = error.details[key];
@@ -146,7 +146,6 @@ function handleError(res: Response, error: unknown) {
       publicErrorDetails(error)
     );
   }
-
   const correlationId = crypto.randomUUID();
   console.error('Erro inesperado no pré-cadastro público', { correlationId, error });
   return sendError(res, 'Não foi possível continuar.', 500, {
@@ -193,10 +192,7 @@ publicRouter.post(
     try {
       const input = parseInput<PreRegistrationAccountRegistrationDTO>(invitedAccountSchema, req.body);
       await assertPreRegistrationClaimRoleEligibility(req.params.token, input.role);
-      const result = await preRegistrationPublicService.registerAndClaim(
-        req.params.token,
-        input
-      );
+      const result = await preRegistrationPublicService.registerAndClaim(req.params.token, input);
       return sendSuccess(res, result, 'Acesso criado e convite vinculado', 201);
     } catch (error) {
       return handleError(res, error);
@@ -242,7 +238,7 @@ authenticatedRouter.get('/processes/:alunoId/session', async (req, res) => {
   try {
     return sendSuccess(
       res,
-      await preRegistrationPublicService.getSession(userIdOf(req), req.params.alunoId)
+      await preRegistrationPublicAtomicService.getSession(userIdOf(req), req.params.alunoId)
     );
   } catch (error) {
     return handleError(res, error);
@@ -256,7 +252,11 @@ async function saveStepForProcess(
   input: SavePreRegistrationStepDTO
 ) {
   try {
-    const session = await preRegistrationPublicService.saveStep(userIdOf(req), alunoId, input);
+    const session = await preRegistrationPublicAtomicService.saveStep(
+      userIdOf(req),
+      alunoId,
+      input
+    );
     return sendSuccess(res, session, 'Etapa salva');
   } catch (error) {
     if (
@@ -306,7 +306,7 @@ authenticatedRouter.patch('/processes/:alunoId/steps', async (req, res) => {
 
 authenticatedRouter.post('/processes/:alunoId/complete', async (req, res) => {
   try {
-    const session = await preRegistrationPublicService.complete(
+    const session = await preRegistrationPublicAtomicService.complete(
       userIdOf(req),
       req.params.alunoId,
       parseInput<CompletePreRegistrationDTO>(completeSchema, req.body),
@@ -324,7 +324,10 @@ authenticatedRouter.post('/processes/:alunoId/complete', async (req, res) => {
 authenticatedRouter.get('/session', async (req, res) => {
   try {
     const alunoId = await singleProcessId(userIdOf(req));
-    return sendSuccess(res, await preRegistrationPublicService.getSession(userIdOf(req), alunoId));
+    return sendSuccess(
+      res,
+      await preRegistrationPublicAtomicService.getSession(userIdOf(req), alunoId)
+    );
   } catch (error) {
     return handleError(res, error);
   }
@@ -343,7 +346,7 @@ authenticatedRouter.patch('/steps', async (req, res) => {
 authenticatedRouter.post('/complete', async (req, res) => {
   try {
     const alunoId = await singleProcessId(userIdOf(req));
-    const session = await preRegistrationPublicService.complete(
+    const session = await preRegistrationPublicAtomicService.complete(
       userIdOf(req),
       alunoId,
       parseInput<CompletePreRegistrationDTO>(completeSchema, req.body),
