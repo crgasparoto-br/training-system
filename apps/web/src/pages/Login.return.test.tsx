@@ -40,10 +40,10 @@ describe('Login local return path', () => {
         <Login />
       </MemoryRouter>
     );
-    fireEvent.change(screen.getByLabelText(/e-mail/i), {
+    fireEvent.change(screen.getByLabelText(/^E-mail$/i), {
       target: { value: 'aluno@example.com' },
     });
-    fireEvent.change(screen.getByLabelText(/senha/i), {
+    fireEvent.change(screen.getByLabelText(/^Senha$/i), {
       target: { value: 'senha-segura' },
     });
     fireEvent.submit(document.querySelector('#login-form') as HTMLFormElement);
