@@ -7,23 +7,63 @@ BEGIN
   IF NEW."status" IS DISTINCT FROM OLD."status"
      OR NEW."guardianUserId" IS DISTINCT FROM OLD."guardianUserId"
      OR NEW."contractId" IS DISTINCT FROM OLD."contractId" THEN
-    UPDATE "StudentOnboardingProcess"
-    SET "version" = "version" + 1,
+    UPDATE "StudentOnboardingProcess" AS onboarding
+    SET "version" = onboarding."version" + 1,
         "claimedByUserId" = CASE
-          WHEN NEW."status" <> 'ACTIVE' THEN NULL
-          WHEN NEW."guardianUserId" IS DISTINCT FROM OLD."guardianUserId"
-               AND "claimRole" = 'GUARDIAN' THEN NULL
-          ELSE "claimedByUserId"
+          WHEN onboarding."claimRole" = 'GUARDIAN'
+               AND (
+                 (
+                   onboarding."claimedByUserId" = OLD."guardianUserId"
+                   AND (
+                     NEW."guardianUserId" IS DISTINCT FROM OLD."guardianUserId"
+                     OR NEW."status" <> 'ACTIVE'
+                   )
+                 )
+                 OR (
+                   onboarding."claimedByUserId" = NEW."guardianUserId"
+                   AND NEW."status" <> 'ACTIVE'
+                 )
+               ) THEN NULL
+          WHEN onboarding."claimRole" = 'STUDENT'
+               AND NOT EXISTS (
+                 SELECT 1
+                 FROM "PreRegistrationGuardianAuthorization" AS active_authorization
+                 WHERE active_authorization."alunoId" = NEW."alunoId"
+                   AND active_authorization."contractId" = NEW."contractId"
+                   AND active_authorization."purpose" = 'PRE_REGISTRATION'
+                   AND active_authorization."status" = 'ACTIVE'
+               ) THEN NULL
+          ELSE onboarding."claimedByUserId"
         END,
         "claimedAt" = CASE
-          WHEN NEW."status" <> 'ACTIVE' THEN NULL
-          WHEN NEW."guardianUserId" IS DISTINCT FROM OLD."guardianUserId"
-               AND "claimRole" = 'GUARDIAN' THEN NULL
-          ELSE "claimedAt"
+          WHEN onboarding."claimRole" = 'GUARDIAN'
+               AND (
+                 (
+                   onboarding."claimedByUserId" = OLD."guardianUserId"
+                   AND (
+                     NEW."guardianUserId" IS DISTINCT FROM OLD."guardianUserId"
+                     OR NEW."status" <> 'ACTIVE'
+                   )
+                 )
+                 OR (
+                   onboarding."claimedByUserId" = NEW."guardianUserId"
+                   AND NEW."status" <> 'ACTIVE'
+                 )
+               ) THEN NULL
+          WHEN onboarding."claimRole" = 'STUDENT'
+               AND NOT EXISTS (
+                 SELECT 1
+                 FROM "PreRegistrationGuardianAuthorization" AS active_authorization
+                 WHERE active_authorization."alunoId" = NEW."alunoId"
+                   AND active_authorization."contractId" = NEW."contractId"
+                   AND active_authorization."purpose" = 'PRE_REGISTRATION'
+                   AND active_authorization."status" = 'ACTIVE'
+               ) THEN NULL
+          ELSE onboarding."claimedAt"
         END,
         "updatedAt" = CURRENT_TIMESTAMP
-    WHERE "alunoId" = NEW."alunoId"
-      AND "contractId" = NEW."contractId";
+    WHERE onboarding."alunoId" = NEW."alunoId"
+      AND onboarding."contractId" = NEW."contractId";
   END IF;
 
   RETURN NEW;
