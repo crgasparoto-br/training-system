@@ -1,0 +1,26 @@
+name: Export Issue 271 Orchestration Source
+
+on:
+  push:
+    branches:
+      - feat/271-public-pre-registration
+
+permissions:
+  contents: read
+
+jobs:
+  export-source:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+
+      - name: Archive tracked source
+        run: git archive --format=tar.gz --output=training-system-source.tar.gz HEAD
+
+      - name: Upload source artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-271-orchestration-source-${{ github.sha }}
+          path: training-system-source.tar.gz
+          retention-days: 1
