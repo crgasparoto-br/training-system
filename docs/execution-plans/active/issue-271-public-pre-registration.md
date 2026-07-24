@@ -78,4 +78,4 @@ A PR deve permanecer sem merge até autorização explícita.
 - mensagens de erro de campo usam associação programática por `aria-describedby`;
 - testes de regressão cobrem rascunho obsoleto, reconciliação, e-mail obrigatório, contatos alternativos, aluno ativo e fallback de convite.
 
-Validação oficial em andamento sobre o commit corretivo.
+Validação oficial repetida após alinhar as fixtures antigas à regra compartilhada de e-mail obrigatório.
