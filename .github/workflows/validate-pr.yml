@@ -58,7 +58,18 @@ jobs:
         run: pnpm --filter @corrida/api exec prisma generate
 
       - name: Apply test database migrations
-        run: pnpm --filter @corrida/api exec prisma migrate deploy
+        run: |
+          set -o pipefail
+          pnpm --filter @corrida/api exec prisma migrate deploy 2>&1 | tee migration-output.log
+
+      - name: Upload migration output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: migration-output-${{ github.run_id }}
+          path: migration-output.log
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Verify lifecycle legacy backfill
         run: |
