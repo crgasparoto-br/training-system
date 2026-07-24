@@ -1,7 +1,27 @@
 import type { Server } from 'node:http';
 import express from 'express';
+import * as claimRoleGuard from '../src/modules/pre-registration-public/pre-registration-claim-role.guard.js';
 import { preRegistrationPublicEntryRoutes } from '../src/modules/pre-registration-public/index.js';
-import { parsePreRegistrationSaveStep } from '../src/modules/pre-registration-public/pre-registration-public.routes.js';
+import {
+  parsePreRegistrationSaveStep,
+} from '../src/modules/pre-registration-public/pre-registration-public.routes.js';
+import {
+  PreRegistrationPublicError,
+  preRegistrationPublicService,
+} from '../src/modules/pre-registration-public/pre-registration-public.service.js';
+
+type ErrorResponseBody = {
+  error?: string;
+  details?: Record<string, unknown>;
+  timestamp?: string;
+};
+
+const validRegistration = {
+  name: 'Pessoa Teste',
+  email: 'pessoa@example.com',
+  password: 'senha-segura',
+  role: 'STUDENT',
+};
 
 describe('public pre-registration route contracts', () => {
   const app = express();
@@ -22,6 +42,10 @@ describe('public pre-registration route contracts', () => {
     });
   });
 
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   afterAll(async () => {
     await new Promise<void>((resolve, reject) => {
       server.close((error) => (error ? reject(error) : resolve()));
@@ -39,7 +63,7 @@ describe('public pre-registration route contracts', () => {
     );
     return {
       status: response.status,
-      body: await response.json() as { error?: string },
+      body: await response.json() as ErrorResponseBody,
     };
   }
 
@@ -57,10 +81,7 @@ describe('public pre-registration route contracts', () => {
 
   it('rejects unknown fields instead of allowing account mass assignment', async () => {
     const response = await postRegistration({
-      name: 'Pessoa Teste',
-      email: 'pessoa@example.com',
-      password: 'senha-segura',
-      role: 'STUDENT',
+      ...validRegistration,
       isActive: true,
       type: 'professor',
     });
@@ -68,6 +89,70 @@ describe('public pre-registration route contracts', () => {
     expect(response.status).toBe(400);
     expect(response.body.error).toMatch(/Unrecognized key|não reconhecid/i);
   });
+
+  it('does not expose which identity fields differ through the public endpoint', async () => {
+    jest
+      .spyOn(claimRoleGuard, 'assertPreRegistrationClaimRoleEligibility')
+      .mockResolvedValue(undefined);
+    jest
+      .spyOn(preRegistrationPublicService, 'registerAndClaim')
+      .mockRejectedValueOnce(
+        new PreRegistrationPublicError(
+          'Os dados da conta não correspondem ao convite. Entre em contato com a academia.',
+          'ACCOUNT_INCOMPATIBLE',
+          { fields: ['cpf'] }
+        )
+      )
+      .mockRejectedValueOnce(
+        new PreRegistrationPublicError(
+          'Os dados da conta não correspondem ao convite. Entre em contato com a academia.',
+          'ACCOUNT_INCOMPATIBLE',
+          { fields: ['name', 'email', 'birthDate'] }
+        )
+      );
+
+    const first = await postRegistration(validRegistration);
+    const second = await postRegistration(validRegistration);
+    const { timestamp: _firstTimestamp, ...firstPayload } = first.body;
+    const { timestamp: _secondTimestamp, ...secondPayload } = second.body;
+
+    expect(first.status).toBe(409);
+    expect(second.status).toBe(409);
+    expect(secondPayload).toEqual(firstPayload);
+    expect(firstPayload).toEqual({
+      error: 'Os dados da conta não correspondem ao convite. Entre em contato com a academia.',
+      details: { code: 'ACCOUNT_INCOMPATIBLE' },
+    });
+    expect(JSON.stringify(firstPayload)).not.toMatch(/cpf|email|birthDate|fields/i);
+  });
+
+  it('returns a generic correlated response for unexpected failures', async () => {
+    jest
+      .spyOn(claimRoleGuard, 'assertPreRegistrationClaimRoleEligibility')
+      .mockResolvedValue(undefined);
+    jest
+      .spyOn(preRegistrationPublicService, 'registerAndClaim')
+      .mockRejectedValueOnce(new Error('relation "User" does not exist'));
+    const consoleError = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    const response = await postRegistration(validRegistration);
+
+    expect(response.status).toBe(500);
+    expect(response.body.error).toBe('Não foi possível continuar.');
+    expect(response.body.details).toEqual({
+      code: 'INTERNAL_ERROR',
+      correlationId: expect.any(String),
+    });
+    expect(JSON.stringify(response.body)).not.toMatch(/relation|User|does not exist/i);
+    expect(consoleError).toHaveBeenCalledWith(
+      'Erro inesperado no pré-cadastro público',
+      expect.objectContaining({
+        correlationId: response.body.details?.correlationId,
+        error: expect.any(Error),
+      })
+    );
+  });
+
   it('accepts only the fields owned by the selected step', () => {
     expect(
       parsePreRegistrationSaveStep({
@@ -99,5 +184,4 @@ describe('public pre-registration route contracts', () => {
       })
     ).toThrow(/Unrecognized key|não reconhecid/i);
   });
-
 });
