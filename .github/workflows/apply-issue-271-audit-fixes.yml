@@ -1,0 +1,95 @@
+name: Apply Issue 271 Audit Fixes
+
+on:
+  push:
+    branches:
+      - feat/271-public-pre-registration
+    paths:
+      - '.github/workflows/apply-issue-271-audit-fixes.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/271-public-pre-registration
+          fetch-depth: 0
+
+      - name: Materialize audited remediation
+        shell: bash
+        run: |
+          python - <<'PY'
+          from __future__ import annotations
+          import base64
+          import io
+          from pathlib import Path
+          import tarfile
+
+          root = Path.cwd()
+          chunks = sorted((root / '.orchestrator').glob('issue-271-payload-*.txt'))
+          if len(chunks) != 5:
+              raise RuntimeError(f'Expected 5 payload chunks, found {len(chunks)}')
+          payload = ''.join(path.read_text(encoding='utf-8').strip() for path in chunks)
+          archive = base64.b64decode(payload, validate=True)
+          with tarfile.open(fileobj=io.BytesIO(archive), mode='r:gz') as tar:
+              tar.extractall(root)
+
+          plan_path = root / 'docs/execution-plans/active/issue-271-public-pre-registration.md'
+          plan = plan_path.read_text(encoding='utf-8')
+
+          def replace_once(text: str, old: str, new: str, label: str) -> str:
+              if old not in text:
+                  raise RuntimeError(f'Missing expected plan fragment: {label}')
+              return text.replace(old, new, 1)
+
+          plan = replace_once(
+              plan,
+              '- rascunho temporário de aba isolado por processo e sem CPF, data de nascimento ou CPF do responsável;',
+              '- rascunho temporário de aba isolado por conta autenticada e processo, sem CPF, data de nascimento ou CPF do responsável;',
+              'browser draft isolation',
+          )
+          plan = replace_once(
+              plan,
+              '- conclusão revalida claim, papel, conta vinculada, identidade canônica e autorização dentro da transação, depois do lock do onboarding;',
+              '- leitura da sessão, primeiro salvamento, preservação de conflito e conclusão bloqueiam primeiro o onboarding e revalidam claim, papel, conta vinculada, identidade canônica e autorização dentro da transação;',
+              'transactional authorization barrier',
+          )
+          insertion = '''
+          ## Remediação dos achados AUD-271-006, AUD-271-007 e AUD-271-008
+
+          - `getSession` passou a adquirir `FOR UPDATE` sobre o onboarding antes de validar claim, papel, idade canônica e autorização; identidade, tenant, duplicidade e resposta são montados no mesmo snapshot transacional;
+          - quando uma revogação já detém o lock do onboarding, a leitura aguarda o commit e retorna `NOT_FOUND`, sem carregar nem serializar dados pessoais;
+          - o primeiro salvamento agora reúne autorização definitiva, transição `INVITED -> PRE_REGISTRATION_IN_PROGRESS`, identidade, versão, evento e resposta na mesma transação;
+          - perda de autoridade antes do lock ou causada pela própria alteração canônica reverte status, `startedAt`, identidade, revisão, eventos e timestamps;
+          - a preservação de conflito de CPF reutiliza a mesma barreira transacional e revalida a elegibilidade depois de qualquer alteração de data de nascimento;
+          - rascunhos de aba usam chave `userId + alunoId`, são removidos em troca de conta, logout e negação autoritativa, mas permanecem em falha temporária de rede;
+          - testes discriminantes mantêm uma revogação não confirmada com o lock do onboarding, comprovam que leitura e salvamento aguardam o desfecho e verificam ausência de PII ou mutações residuais.
+
+          '''.replace('          ', '')
+          marker = '\n## Verificação interna final\n'
+          if marker not in plan:
+              raise RuntimeError('Missing internal verification section')
+          plan = plan.replace(marker, '\n' + insertion + '## Verificação interna final\n', 1)
+          plan_path.write_text(plan, encoding='utf-8')
+
+          for path in chunks:
+              path.unlink()
+          workflow = root / '.github/workflows/apply-issue-271-audit-fixes.yml'
+          workflow.unlink()
+          payload_dir = root / '.orchestrator'
+          if payload_dir.exists() and not any(payload_dir.iterdir()):
+              payload_dir.rmdir()
+          PY
+
+      - name: Commit final remediation
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'fix(issue-271): close authorization audit findings'
+          git push origin HEAD:feat/271-public-pre-registration
