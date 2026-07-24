@@ -23,40 +23,24 @@ jobs:
           fetch-depth: 1
           show-progress: false
 
-      - name: Decode remediation patch
+      - name: Reassemble and validate remediation
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          import base64
-          import gzip
-          from pathlib import Path
-
-          workflow = Path('.github/workflows/apply-issue-271-remediation.yml').read_text()
-          marker = "<<'PATCH'\n"
-          if marker not in workflow or '\nPATCH\n' not in workflow:
-              raise SystemExit('embedded patch markers not found')
-          payload = workflow.split(marker, 1)[1].split('\nPATCH\n', 1)[0].strip()
-          compressed = base64.b64decode(payload, validate=True)
-          patch = gzip.decompress(compressed)
-          Path('/tmp/issue-271.patch').write_bytes(patch)
-          print(f'decoded remediation patch: {len(patch)} bytes')
-          PY
-
-      - name: Verify and apply remediation
-        shell: bash
-        run: |
-          set -euo pipefail
+          cat .github/issue-271-patch/part-*.txt > /tmp/issue-271.patch.gz.b64
+          echo '26246a98e3fec0ef0fedaa48363ae752e07b57555785dd0ec950740068d0d7d3  /tmp/issue-271.patch.gz.b64' | sha256sum --check --strict
+          base64 --decode /tmp/issue-271.patch.gz.b64 | gzip --decompress > /tmp/issue-271.patch
+          echo '2879fcc37cc17294093952f42f270b349f348fd1de7d82e2fe1e93ea00a96de8  /tmp/issue-271.patch' | sha256sum --check --strict
           git apply --check /tmp/issue-271.patch
+
+      - name: Apply and publish remediation
+        shell: bash
+        run: |
+          set -euo pipefail
           git apply /tmp/issue-271.patch
+          rm -rf .github/issue-271-patch
           rm -f .github/workflows/apply-issue-271-remediation.yml
           rm -f .github/workflows/apply-issue-271-trigger.yml
-          git status --short
-
-      - name: Commit remediation
-        shell: bash
-        run: |
-          set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
