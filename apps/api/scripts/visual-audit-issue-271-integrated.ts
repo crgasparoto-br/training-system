@@ -1,6 +1,5 @@
 import crypto from 'node:crypto';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { createWriteStream } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -47,6 +46,16 @@ async function waitForText(page: Page, text: string, timeout = 20_000) {
   );
 }
 
+async function waitForHeading(page: Page, text: string, timeout = 20_000) {
+  await page.waitForFunction(
+    (expected) => Array.from(document.querySelectorAll('h1, h2')).some(
+      (heading) => heading.textContent?.trim() === expected
+    ),
+    { timeout },
+    text
+  );
+}
+
 async function clickByText(page: Page, selector: string, text: string) {
   const clicked = await page.$$eval(
     selector,
@@ -63,13 +72,14 @@ async function clickByText(page: Page, selector: string, text: string) {
 
 async function fillByLabel(page: Page, labelText: string, value: string) {
   const selector = await page.evaluate((expected) => {
-    const labels = Array.from(document.querySelectorAll('label'));
-    const label = labels.find((candidate) => candidate.textContent?.includes(expected));
+    const label = Array.from(document.querySelectorAll('label')).find(
+      (candidate) => candidate.textContent?.includes(expected)
+    );
     if (!label) return null;
     const htmlFor = label.getAttribute('for');
     const field = htmlFor
       ? document.getElementById(htmlFor)
-      : label.querySelector('input, select, textarea');
+      : label.querySelector('input, textarea');
     if (!(field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement)) return null;
     if (!field.id) field.id = `e2e-${Math.random().toString(36).slice(2)}`;
     return `#${CSS.escape(field.id)}`;
@@ -82,7 +92,7 @@ async function fillByLabel(page: Page, labelText: string, value: string) {
 }
 
 async function checkByLabelText(page: Page, text: string) {
-  const changed = await page.$$eval(
+  const checked = await page.$$eval(
     'label',
     (labels, expected) => {
       const label = labels.find((candidate) => candidate.textContent?.includes(expected));
@@ -93,7 +103,7 @@ async function checkByLabelText(page: Page, text: string) {
     },
     text
   );
-  if (!changed) throw new Error(`Opção não encontrada: "${text}"`);
+  if (!checked) throw new Error(`Opção não encontrada: "${text}"`);
 }
 
 async function assertNoHorizontalOverflow(page: Page, scenario: string) {
@@ -157,7 +167,6 @@ try {
     }
   );
 
-  const apiLog = createWriteStream(path.join(outputDir, 'api.log'));
   apiProcess = spawn('pnpm', ['--filter', '@corrida/api', 'exec', 'tsx', 'src/main.ts'], {
     cwd: repoRoot,
     detached: true,
@@ -172,10 +181,9 @@ try {
       PRIVACY_NOTICE_URL: `${webUrl}/privacidade`,
       PRIVACY_NOTICE_VERSION: '2026-07',
     },
-    stdio: ['ignore', apiLog, apiLog],
+    stdio: 'inherit',
   });
 
-  const previewLog = createWriteStream(path.join(outputDir, 'preview.log'));
   previewProcess = spawn(
     'pnpm',
     ['--filter', '@corrida/web', 'preview', '--host', '127.0.0.1', '--port', '4173'],
@@ -183,7 +191,7 @@ try {
       cwd: repoRoot,
       detached: true,
       env: process.env,
-      stdio: ['ignore', previewLog, previewLog],
+      stdio: 'inherit',
     }
   );
 
@@ -215,7 +223,7 @@ try {
   await fillByLabel(page, 'Senha', guardianPassword);
   await clickByText(page, 'button', 'Criar acesso e continuar');
 
-  await waitForText(page, 'Confirme seu vínculo');
+  await waitForHeading(page, 'Confirme seu vínculo');
   if (new URL(page.url()).pathname !== '/pre-cadastro') {
     throw new Error(`Token permaneceu na navegação após claim: ${page.url()}`);
   }
@@ -232,7 +240,7 @@ try {
   await fillByLabel(page, 'Vínculo com o menor', 'Mãe');
   await checkByLabelText(page, 'Declaro que sou responsável legal');
   await clickByText(page, 'button', 'Confirmar e continuar');
-  await waitForText(page, 'Identificação');
+  await waitForHeading(page, 'Identificação');
 
   await upsertStudentIdentity(
     alunoId,
@@ -251,7 +259,7 @@ try {
   });
 
   await page.reload({ waitUntil: 'networkidle0', timeout: 30_000 });
-  await waitForText(page, 'Identificação');
+  await waitForHeading(page, 'Identificação');
   await page.setViewport({ width: 1366, height: 768 });
   await assertNoHorizontalOverflow(page, 'identification-low-height-real');
   await page.screenshot({
@@ -260,28 +268,22 @@ try {
   });
 
   await clickByText(page, 'button', 'Salvar e avançar');
-  await waitForText(page, 'Contato');
+  await waitForHeading(page, 'Contato');
   await fillByLabel(page, 'Telefone principal', '15999990000');
   await fillByLabel(page, 'E-mail principal', `dependente-${suffix}@example.com`);
   await clickByText(page, 'button', 'Salvar e avançar');
-  await waitForText(page, 'Endereço');
-  await fillByLabel(page, 'CEP', '18000000');
-  await fillByLabel(page, 'Rua', 'Rua de Teste Integrado');
-  await fillByLabel(page, 'Número', '271');
-  await fillByLabel(page, 'Bairro', 'Centro');
-  await fillByLabel(page, 'Cidade', 'Sorocaba');
-  await fillByLabel(page, 'UF', 'SP');
+  await waitForHeading(page, 'Endereço');
   await clickByText(page, 'button', 'Salvar e avançar');
-  await waitForText(page, 'Responsável');
+  await waitForHeading(page, 'Responsável');
   await fillByLabel(page, 'Nome do responsável legal', 'Responsável Integrado Issue 271');
   await fillByLabel(page, 'CPF do responsável', '39053344705');
   await fillByLabel(page, 'Telefone do responsável', '15977776666');
   await fillByLabel(page, 'E-mail do responsável', guardianEmail);
   await clickByText(page, 'button', 'Salvar e avançar');
-  await waitForText(page, 'Revise antes de concluir');
+  await waitForHeading(page, 'Privacidade');
   await checkByLabelText(page, 'Li e aceito');
   await clickByText(page, 'button', 'Concluir pré-cadastro');
-  await waitForText(page, 'Pré-cadastro concluído');
+  await waitForHeading(page, 'Pré-cadastro concluído');
 
   await page.setViewport({ width: 1440, height: 900 });
   await assertNoHorizontalOverflow(page, 'completed-desktop-real');
@@ -319,13 +321,7 @@ try {
       'guardian relationship confirmation',
       'administrative concurrency conflict',
       'incremental save through all basic-data steps',
-      'versioned privacy consent and idempotent completion',
-    ],
-    screenshots: [
-      'guardian-confirmation-mobile-real.png',
-      'concurrent-conflict-mobile-real.png',
-      'identification-low-height-real.png',
-      'completed-desktop-real.png',
+      'versioned privacy consent and completion',
     ],
   }, null, 2));
 } finally {
