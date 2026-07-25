@@ -49,6 +49,10 @@ type LockedProcessRow = {
   privacyNoticeVersion: string | null;
   privacyAcceptedAt: Date | null;
   healthModuleStatus: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
+  healthIntakeId: string | null;
+  healthStartedAt: Date | null;
+  healthLastSavedAt: Date | null;
+  healthCompletedAt: Date | null;
   parqModuleStatus: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
 };
 
@@ -181,7 +185,9 @@ export async function lockAndAuthorizePreRegistrationProcess(
            onboarding."version", onboarding."currentStep", onboarding."claimRole",
            onboarding."claimedByUserId", onboarding."lastSavedAt", onboarding."completedAt",
            onboarding."privacyNoticeVersion", onboarding."privacyAcceptedAt",
-           onboarding."healthModuleStatus", onboarding."parqModuleStatus"
+           onboarding."healthModuleStatus", onboarding."healthIntakeId",
+           onboarding."healthStartedAt", onboarding."healthLastSavedAt",
+           onboarding."healthCompletedAt", onboarding."parqModuleStatus"
     FROM "StudentOnboardingProcess" AS onboarding
     JOIN "Aluno" AS student
       ON student."id" = onboarding."alunoId"

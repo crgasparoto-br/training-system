@@ -158,9 +158,9 @@ export function AlunoSaudeAnamneseTab({
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle>Anamnese inicial e questionários</CardTitle>
+          <CardTitle>Anamnese Inicial</CardTitle>
           <CardDescription>
-            Esta aba reúne a anamnese inicial, PAR-Q e AHA da entrada do aluno, sem misturar avaliações profissionais de evolução.
+            Fonte canônica das informações de saúde declaradas na entrada do aluno. PAR-Q e AHA possuem registros independentes exibidos abaixo.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -219,6 +219,16 @@ export function AlunoSaudeAnamneseTab({
           </div>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="rounded-lg border border-gray-200 p-4">
+              <div className="text-xs text-muted-foreground">Status da Anamnese</div>
+              <div className="mt-1 text-sm font-semibold text-gray-900">
+                {segmentedIntake?.status === 'COMPLETED'
+                  ? 'Concluída'
+                  : segmentedIntake?.status === 'IN_PROGRESS'
+                    ? 'Em andamento'
+                    : 'Não iniciada'}
+              </div>
+            </div>
             <div className="rounded-lg border border-gray-200 p-4">
               <div className="text-xs text-muted-foreground">Data da anamnese inicial</div>
               <div className="mt-1 text-sm font-semibold text-gray-900">
@@ -331,7 +341,7 @@ export function AlunoSaudeAnamneseTab({
         <CardHeader>
           <CardTitle>Questionário PAR-Q</CardTitle>
           <CardDescription>
-            Registro das respostas de prontidão para atividade física preenchidas no cadastro inicial.
+            Registro independente das respostas de prontidão para atividade física. Sua conclusão não altera o status da Anamnese Inicial.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -365,38 +375,6 @@ export function AlunoSaudeAnamneseTab({
         </CardContent>
       </Card>
 
-      {aluno.macronutrients && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Referência nutricional inicial</CardTitle>
-            <CardDescription>
-              Distribuição registrada na anamnese inicial quando houver informação nutricional declarada.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <div className="rounded-lg bg-info/10 p-4 text-center">
-                <p className="text-sm text-muted-foreground">Carboidratos</p>
-                <p className="text-2xl font-bold text-info">{aluno.macronutrients.carbohydratesPercentage}%</p>
-              </div>
-              <div className="rounded-lg bg-success/10 p-4 text-center">
-                <p className="text-sm text-muted-foreground">Proteínas</p>
-                <p className="text-2xl font-bold text-success">{aluno.macronutrients.proteinsPercentage}%</p>
-              </div>
-              <div className="rounded-lg bg-warning/10 p-4 text-center">
-                <p className="text-sm text-muted-foreground">Lipídios</p>
-                <p className="text-2xl font-bold text-warning">{aluno.macronutrients.lipidsPercentage}%</p>
-              </div>
-            </div>
-            {aluno.macronutrients.dailyCalories && (
-              <div className="mt-4 text-center">
-                <p className="text-sm text-muted-foreground">Calorias diárias</p>
-                <p className="text-2xl font-bold">{aluno.macronutrients.dailyCalories} kcal</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { clearDraft } from '../pages/PublicPreRegistration/preRegistrationDraft'
 import type {
   AuthResponse,
   CompletePreRegistrationDTO,
+  CompleteHealthIntakeDTO,
   ConfirmGuardianAuthorizationDTO,
   PreRegistrationAccountRegistrationDTO,
   PreRegistrationClaimDTO,
@@ -12,6 +13,8 @@ import type {
   PreRegistrationPublicLandingDTO,
   RequestGuardianAuthorizationResultDTO,
   PreRegistrationSessionDTO,
+  HealthIntakeSessionDTO,
+  SaveHealthIntakeStepDTO,
   SavePreRegistrationStepDTO,
 } from '@corrida/types';
 
@@ -124,5 +127,34 @@ export const preRegistrationPublicService = {
       clearDraftAfterAuthoritativeDenial(error, alunoId);
       throw error;
     }
+  },
+
+  async getHealthIntake(alunoId: string): Promise<HealthIntakeSessionDTO> {
+    const response = await api.get(
+      `/pre-registration/processes/${encodeURIComponent(alunoId)}/health-intake`
+    );
+    return extractData<HealthIntakeSessionDTO>(response.data);
+  },
+
+  async saveHealthIntakeStep(
+    alunoId: string,
+    input: SaveHealthIntakeStepDTO
+  ): Promise<HealthIntakeSessionDTO> {
+    const response = await api.patch(
+      `/pre-registration/processes/${encodeURIComponent(alunoId)}/health-intake`,
+      input
+    );
+    return extractData<HealthIntakeSessionDTO>(response.data);
+  },
+
+  async completeHealthIntake(
+    alunoId: string,
+    input: CompleteHealthIntakeDTO
+  ): Promise<HealthIntakeSessionDTO> {
+    const response = await api.post(
+      `/pre-registration/processes/${encodeURIComponent(alunoId)}/health-intake/complete`,
+      input
+    );
+    return extractData<HealthIntakeSessionDTO>(response.data);
   },
 };

@@ -99,6 +99,24 @@ sobre uma versão já alterada.
 
 Anamnese e PAR-Q não participam das pré-condições comerciais.
 
+## Anamnese Inicial e PAR-Q
+
+`StudentHealthIntake` é a fonte canônica da Anamnese Inicial. O registro contém
+respostas de saúde, consentimento próprio, versão de concorrência, estado e
+timestamps de retomada/conclusão. `StudentOnboardingProcess` guarda apenas
+`healthIntakeId`, `healthModuleStatus` e timestamps do processo; nenhuma
+resposta clínica é copiada para o onboarding.
+
+`StudentParqSubmission` é a fonte independente do PAR-Q. Campos históricos de
+PAR-Q em `AlunoIntakeForm` ou `StudentHealthIntake.questionnaireParq` são
+compatibilidade somente leitura e não recebem novas escritas. O mesmo vale para
+`AlunoIntakeForm`, cujo cutover e backfill estão documentados em
+[`../operations/health-intake-cutover.md`](../operations/health-intake-cutover.md).
+
+O módulo público da Anamnese reutiliza a autorização autenticada e tenant-scoped
+do pré-cadastro. Convite não lê nem grava saúde; responsável exige autorização
+ativa validada; primeira persistência pública exige consentimento explícito.
+
 ## Auditoria
 
 `StudentLifecycleEvent` registra `contractId`, pessoa, ator, timestamp e

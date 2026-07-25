@@ -29,6 +29,13 @@ const mockTx = {
     create: jest.fn(),
     upsert: jest.fn(),
   },
+  studentHealthIntake: {
+    findUnique: jest.fn(),
+    upsert: jest.fn(),
+  },
+  studentOnboardingProcess: {
+    updateMany: jest.fn(),
+  },
   progressMetric: {
     create: jest.fn(),
   },
@@ -130,6 +137,12 @@ describe('alunoService assessment boundary', () => {
     });
     mockTx.studentProfile.upsert.mockResolvedValue({});
     mockTx.studentLifecycleEvent.create.mockResolvedValue({});
+    mockTx.studentHealthIntake.findUnique.mockResolvedValue(null);
+    mockTx.studentHealthIntake.upsert.mockResolvedValue({
+      id: 'health-intake-1',
+      status: 'IN_PROGRESS',
+      completedAt: null,
+    });
   });
 
   it('cria aluno sem macronutrientes ou métrica de progresso quando o formulário não envia avaliação', async () => {
@@ -215,15 +228,21 @@ describe('alunoService assessment boundary', () => {
     expect(mockTx.macronutrients.upsert).not.toHaveBeenCalled();
     expect(mockTx.progressMetric.create).not.toHaveBeenCalled();
 
-    const intakeUpsert = mockTx.alunoIntakeForm.upsert.mock.calls[0][0];
-    expect(intakeUpsert.update.assessmentDate).toBeUndefined();
-    expect(intakeUpsert.update).toMatchObject({
-      mainGoal: 'Objetivo atualizado',
-      medicalHistory: 'Histórico preservado',
-      currentMedications: 'Nenhuma',
-      injuriesHistory: 'Sem lesões',
-      trainingBackground: 'Treino atualizado',
-      observations: 'Observação atualizada',
-    });
+    expect(mockTx.alunoIntakeForm.upsert).not.toHaveBeenCalled();
+    expect(mockTx.studentHealthIntake.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { alunoId: 'aluno-1' },
+        create: expect.objectContaining({
+          clinicalHistoryData: expect.objectContaining({
+            mainGoal: 'Objetivo atualizado',
+            medicalHistory: 'Histórico preservado',
+            trainingBackground: 'Treino atualizado',
+          }),
+          medicationData: expect.objectContaining({ currentMedications: 'Nenhuma' }),
+          injuryData: expect.objectContaining({ injuriesHistory: 'Sem lesões' }),
+          observations: 'Observação atualizada',
+        }),
+      })
+    );
   });
 });

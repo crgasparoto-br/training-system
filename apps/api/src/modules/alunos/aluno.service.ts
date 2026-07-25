@@ -6,6 +6,11 @@ import { assertStudentInterestServiceSelectable } from './aluno.service-selectio
 import { legacyDirectActiveStudentCreationFields } from './student-lifecycle.service.js';
 import { upsertStudentIdentity } from './student-identity.service.js';
 import {
+  hasCanonicalHealthIntakeMutation,
+  hasCanonicalHealthIntakeValue,
+  upsertCanonicalStudentHealthIntake,
+} from './student-health-intake-write.service.js';
+import {
   syncStudentFixedSchedule,
   type FixedScheduleSlotInput,
 } from '../agenda/fixed-schedule.service.js';
@@ -216,8 +221,6 @@ const hasAnyValue = (payload: Record<string, unknown>) =>
     return true;
   });
 
-const toInputJson = (value?: Record<string, unknown>): Prisma.InputJsonValue | undefined =>
-  value as Prisma.InputJsonValue | undefined;
 
 const getResponsibleProfessorIdFromFormResponses = (
   formResponses?: Record<string, unknown>
@@ -358,21 +361,16 @@ export const alunoService = {
         });
       }
 
-      if (data.intakeForm && hasAnyValue(data.intakeForm)) {
-        await tx.alunoIntakeForm.create({
-          data: {
+      if (data.intakeForm) {
+        if (hasCanonicalHealthIntakeValue(data.intakeForm)) {
+          await upsertCanonicalStudentHealthIntake(tx, {
             alunoId: aluno.id,
-            assessmentDate: data.intakeForm.assessmentDate,
-            mainGoal: data.intakeForm.mainGoal,
-            medicalHistory: data.intakeForm.medicalHistory,
-            currentMedications: data.intakeForm.currentMedications,
-            injuriesHistory: data.intakeForm.injuriesHistory,
-            trainingBackground: data.intakeForm.trainingBackground,
-            observations: data.intakeForm.observations,
-            parqResponses: data.intakeForm.parqResponses,
-            formResponses: toInputJson(data.intakeForm.formResponses),
-          },
-        });
+            contractId: professor.contractId,
+            sourceType: 'professional',
+            sourceReference: 'legacy_admin_create',
+            health: data.intakeForm,
+          });
+        }
 
         await createParqSubmission(tx, {
           alunoId: aluno.id,
@@ -812,42 +810,23 @@ export const alunoService = {
       }
 
       if (intakeForm) {
-        if (hasAnyValue(intakeForm)) {
-          await tx.alunoIntakeForm.upsert({
-            where: { alunoId: id },
-            create: {
-              alunoId: id,
-              assessmentDate: intakeForm.assessmentDate,
-              mainGoal: intakeForm.mainGoal,
-              medicalHistory: intakeForm.medicalHistory,
-              currentMedications: intakeForm.currentMedications,
-              injuriesHistory: intakeForm.injuriesHistory,
-              trainingBackground: intakeForm.trainingBackground,
-              observations: intakeForm.observations,
-              parqResponses: intakeForm.parqResponses,
-              formResponses: toInputJson(intakeForm.formResponses),
-            },
-            update: {
-              assessmentDate: intakeForm.assessmentDate,
-              mainGoal: intakeForm.mainGoal,
-              medicalHistory: intakeForm.medicalHistory,
-              currentMedications: intakeForm.currentMedications,
-              injuriesHistory: intakeForm.injuriesHistory,
-              trainingBackground: intakeForm.trainingBackground,
-              observations: intakeForm.observations,
-              parqResponses: intakeForm.parqResponses,
-              formResponses: toInputJson(intakeForm.formResponses),
-            },
+        if (hasCanonicalHealthIntakeMutation(intakeForm)) {
+          await upsertCanonicalStudentHealthIntake(tx, {
+            alunoId: id,
+            contractId: alunoContractId,
+            sourceType: 'professional',
+            sourceReference: 'legacy_admin_update',
+            health: intakeForm,
           });
+        }
 
-          if (hasParqResponsesChanged(currentAluno.intakeForm?.parqResponses as Partial<ParqResponseShape> | null | undefined, intakeForm.parqResponses)) {
-            await createParqSubmission(tx, {
-              alunoId: id,
-              contractId: alunoContractId,
-              sourceType: 'professional',
-              responses: intakeForm.parqResponses,
-            });
-          }
+        if (hasParqResponsesChanged(currentAluno.intakeForm?.parqResponses as Partial<ParqResponseShape> | null | undefined, intakeForm.parqResponses)) {
+          await createParqSubmission(tx, {
+            alunoId: id,
+            contractId: alunoContractId,
+            sourceType: 'professional',
+            responses: intakeForm.parqResponses,
+          });
         }
       }
 
