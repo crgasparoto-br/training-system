@@ -15,7 +15,7 @@ BEGIN
   ) THEN
     ALTER TABLE "Assessment"
       ADD CONSTRAINT "Assessment_professorId_fkey"
-      FOREIGN KEY ("professorId") REFERENCES "Educator"("id")
+      FOREIGN KEY ("professorId") REFERENCES "Professor"("id")
       ON DELETE SET NULL ON UPDATE CASCADE;
   END IF;
 END $$;
