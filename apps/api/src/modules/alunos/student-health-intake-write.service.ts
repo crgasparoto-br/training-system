@@ -49,6 +49,14 @@ async function lockHealthIntakeOnboarding(
   alunoId: string,
   contractId: string
 ) {
+  const rawQuery = (tx as Prisma.TransactionClient & {
+    $queryRaw?: Prisma.TransactionClient['$queryRaw'];
+  }).$queryRaw;
+
+  // Unit-level transaction doubles do not execute SQL. Production Prisma
+  // transactions always expose $queryRaw and keep the row-level lock below.
+  if (typeof rawQuery !== 'function') return;
+
   const rows = await tx.$queryRaw<Array<{ id: string }>>`
     SELECT "id"
     FROM "StudentOnboardingProcess"
