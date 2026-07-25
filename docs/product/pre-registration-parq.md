@@ -16,6 +16,8 @@ O estado do PAR-Q nunca altera automaticamente o estado comercial do aluno. A ma
 
 Os campos `AlunoIntakeForm.parqResponses` e `StudentHealthIntake.questionnaireParq` são fontes legadas somente leitura. Qualquer tentativa de nova gravação por fluxos antigos é recusada com `LEGACY_WRITE_DISABLED`.
 
+A antiga aba PAR-Q do cadastro administrativo foi removida junto com o bloco de acesso `students.registration.parq`. Cadastro, edição e revisão cadastral não podem mais produzir respostas ou submissões clínicas. Profissionais consultam o histórico canônico e registram a análise exclusivamente pelo PRNT, usando a permissão específica de saúde.
+
 ## Catálogo versionado
 
 O contrato compartilhado fica em `packages/types/pre-registration-parq.ts`.
