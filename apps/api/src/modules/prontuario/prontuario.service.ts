@@ -10,6 +10,27 @@ import { preRegistrationParqService } from '../pre-registration-public/pre-regis
 
 const prisma = new PrismaClient();
 
+const includeRecord = {
+  goals: { orderBy: [{ priority: 'asc' as const }, { createdAt: 'asc' as const }] },
+  anamnesisFollowUps: { orderBy: { createdAt: 'asc' as const } },
+  activityHistory: { orderBy: { createdAt: 'asc' as const } },
+  medicationsProcedures: { orderBy: { createdAt: 'asc' as const } },
+  painCases: {
+    include: { followUps: { orderBy: { followUpAt: 'desc' as const } } },
+    orderBy: { createdAt: 'desc' as const },
+  },
+  discomfortSnapshots: {
+    include: { entries: true },
+    orderBy: { snapshotAt: 'desc' as const },
+  },
+};
+
+function parseDate(value?: string | null) {
+  if (!value) return undefined;
+  const parsed = new Date(value.includes('T') ? value : `${value}T00:00:00`);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+}
+
 function toNullableString(value?: string | null) {
   if (value === undefined) return undefined;
   if (value === null) return null;

@@ -456,25 +456,12 @@ const applyAlunoPatch = async (
       select: {
         contractId: true,
         userId: true,
-        professor: { select: { contractId: true } },
-        currentStudentContract: {
-          select: {
-            contract: {
-              select: {
-                companyContractId: true,
-              },
-            },
-          },
-        },
       },
     });
     if (!aluno || aluno.userId !== alunoUserId) {
       throw new Error('Aluno não encontrado para aplicar revisão cadastral');
     }
-    const contractId = resolveAlunoCompanyContractId(aluno);
-    if (!contractId) {
-      throw new Error('Contrato do aluno não encontrado para aplicar revisão cadastral');
-    }
+    const contractId = aluno.contractId;
 
     if (hasCanonicalHealthIntakeMutation(healthPatch)) {
       await upsertCanonicalStudentHealthIntake(tx, {
