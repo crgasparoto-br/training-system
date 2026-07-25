@@ -482,45 +482,6 @@ function PublicLanding({ token }: { token: string }) {
   );
 }
 
-function OptionalModuleHandoff({ module }: { module: 'ANAMNESIS' | 'PARQ' }) {
-  const navigate = useNavigate();
-  const { isAuthenticated } = useAuthStore();
-
-  useEffect(() => {
-    if (!isAuthenticated) navigate('/login', { replace: true });
-  }, [isAuthenticated, navigate]);
-
-  const isAnamnesis = module === 'ANAMNESIS';
-  return (
-    <PublicShell>
-      <main className="mx-auto max-w-2xl rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-9">
-        <HeartPulse className="h-11 w-11 text-blue-600" aria-hidden="true" />
-        <p className="mt-5 text-sm font-medium text-blue-700">Próxima etapa opcional</p>
-        <h1 className="mt-1 text-3xl font-semibold text-slate-950">
-          {isAnamnesis ? 'Anamnese Inicial' : 'PAR-Q'}
-        </h1>
-        <p className="mt-4 leading-7 text-slate-600">
-          {isAnamnesis
-            ? 'Esta etapa reúne informações de saúde para apoiar o acompanhamento profissional.'
-            : 'Este questionário registra informações de prontidão para atividade física.'}
-          {' '}Ela é independente do pré-cadastro básico e não representa diagnóstico ou liberação para treino.
-        </p>
-        <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950">
-          O módulo específico será disponibilizado pela etapa correspondente do fluxo. Seu pré-cadastro básico permanece concluído e você pode continuar depois.
-        </div>
-        <button
-          type="button"
-          onClick={() => navigate('/pre-cadastro', { replace: true })}
-          className="mt-7 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 font-semibold text-white"
-        >
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Voltar aos pré-cadastros
-        </button>
-      </main>
-    </PublicShell>
-  );
-}
-
 function ProcessSelector({
   processes,
   onSelect,

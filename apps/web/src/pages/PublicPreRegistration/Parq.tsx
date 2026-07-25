@@ -197,9 +197,10 @@ export function Parq() {
     );
   }
 
-  const showCompleted = session.latestSubmission && session.status !== 'IN_PROGRESS' && !respondAgain;
-  if (showCompleted) {
-    const hasAlert = session.latestSubmission.positiveCount > 0;
+  const latestSubmission = session.latestSubmission;
+  const showCompleted = latestSubmission && session.status !== 'IN_PROGRESS' && !respondAgain;
+  if (showCompleted && latestSubmission) {
+    const hasAlert = latestSubmission.positiveCount > 0;
     return (
       <PublicShell>
         <main className="mx-auto max-w-3xl space-y-5">
@@ -207,12 +208,12 @@ export function Parq() {
             <CheckCircle2 className="h-11 w-11 text-emerald-600" aria-hidden="true" />
             <h1 className="mt-4 text-3xl font-semibold text-slate-950">PAR-Q concluído</h1>
             <p className="mt-2 text-slate-600">
-              Registrado em {new Date(session.latestSubmission.submittedAt).toLocaleString('pt-BR')}.
+              Registrado em {new Date(latestSubmission.submittedAt).toLocaleString('pt-BR')}.
             </p>
             {hasAlert ? (
               <div className="mt-6 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-950" role="status">
                 <strong>Análise profissional necessária.</strong>
-                <p className="mt-1 text-sm leading-6">Foram identificadas {session.latestSubmission.positiveCount} resposta(s) positiva(s). A academia fará a análise apropriada. Isso não bloqueia a conclusão comercial do pré-cadastro.</p>
+                <p className="mt-1 text-sm leading-6">Foram identificadas {latestSubmission.positiveCount} resposta(s) positiva(s). A academia fará a análise apropriada. Isso não bloqueia a conclusão comercial do pré-cadastro.</p>
               </div>
             ) : (
               <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-950">

@@ -66,6 +66,8 @@ describe('AlunoDiscomfortSummaryCard', () => {
       currentRecord: null,
       latestParqSubmission: null,
       parqSubmissions: [],
+      parqState: 'NOT_STARTED',
+      parqLegacy: { preserved: false, needsRepeat: false },
     });
 
     renderCard();
@@ -115,6 +117,8 @@ describe('AlunoDiscomfortSummaryCard', () => {
       },
       latestParqSubmission: null,
       parqSubmissions: [],
+      parqState: 'NOT_STARTED',
+      parqLegacy: { preserved: false, needsRepeat: false },
     });
 
     renderCard();
