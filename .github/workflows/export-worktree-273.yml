@@ -1,4 +1,4 @@
-name: Export Worktree Issue 273
+name: Apply Issue 273 Worktree
 
 on:
   pull_request:
@@ -8,30 +8,32 @@ on:
       - '.github/workflows/export-worktree-273.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  export:
+  apply:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout PR head
+      - name: Checkout feature branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
 
-      - name: Package worktree
+      - name: Rebuild and apply implementation patch
         run: |
-          tar \
-            --exclude='.git' \
-            --exclude='node_modules' \
-            --exclude='apps/*/node_modules' \
-            --exclude='packages/*/node_modules' \
-            -czf /tmp/training-system-worktree.tar.gz .
+          cat .issue273/patch.*.b64 | base64 --decode | gunzip > /tmp/issue273.patch
+          patch -p1 --forward --batch < /tmp/issue273.patch
 
-      - name: Upload worktree
-        uses: actions/upload-artifact@v4
-        with:
-          name: training-system-worktree-${{ github.event.pull_request.head.sha }}
-          path: /tmp/training-system-worktree.tar.gz
-          if-no-files-found: error
-          retention-days: 1
+      - name: Remove transport-only files
+        run: |
+          rm -rf .issue273
+          rm -f .github/workflows/export-worktree-273.yml
+
+      - name: Commit implementation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: complete canonical PAR-Q implementation (#273)"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
