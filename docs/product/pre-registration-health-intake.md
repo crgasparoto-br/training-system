@@ -11,6 +11,7 @@ A Anamnese Inicial é um módulo opcional, autenticado e retomável após a conc
 - PAR-Q possui ciclo próprio em `StudentParqSubmission`; concluir ou alterar um módulo não altera o status do outro.
 - Antropometria, composição corporal, nutrição e dados cardiovasculares pertencem a avaliações e não fazem parte da Anamnese Inicial.
 - `AlunoIntakeForm` permanece disponível apenas para leitura histórica e migração.
+- Um registro `COMPLETED` é imutável para writers genéricos de cadastro, revisão de perfil e administração. Correções posteriores exigem um fluxo dedicado de revisão/reabertura com motivo, ator e auditoria; nenhum writer comum pode preservar a conclusão enquanto altera respostas.
 
 ## Acesso e privacidade
 
@@ -31,12 +32,16 @@ Cada etapa é salva de forma transacional e incrementa a versão do registro. Ou
 
 ## Estados
 
-- `NOT_STARTED`: nenhuma etapa de saúde persistida.
-- `IN_PROGRESS`: consentimento registrado e ao menos uma etapa salva.
+- `NOT_STARTED`: não existe conteúdo de Anamnese persistido na fonte canônica.
+- `IN_PROGRESS`: existe conteúdo canônico ainda não concluído, inclusive conteúdo anterior ao cutover que foi normalizado sem fabricar consentimento ou conclusão.
 - `COMPLETED`: validação final executada pelo backend e declaração aceita.
+
+O estado é calculado e persistido pelo backend. A migration de correção `20260725123000_issue_272_audit_fixes` transforma registros canônicos preexistentes com conteúdo real de `NOT_STARTED` para `IN_PROGRESS`, mantém registros vazios como `NOT_STARTED` e não infere consentimento, autoria ou conclusão.
 
 O pré-cadastro básico continua concluído mesmo quando a Anamnese não foi iniciada ou foi interrompida.
 
 ## Validação de conclusão
 
 O backend exige resposta explícita para condição de saúde, uso de medicamentos, lesões, alergias e restrições de exercício. Quando uma resposta é positiva, a descrição correspondente é obrigatória. Campos internos, PAR-Q, medidas corporais, nutrição e dados cardiovasculares são rejeitados pela allowlist do endpoint.
+
+A fronteira concluída é protegida também no writer compartilhado `upsertCanonicalStudentHealthIntake`: qualquer tentativa de mutação genérica retorna o erro reconhecível `HEALTH_INTAKE_COMPLETED` antes de executar `upsert` ou atualizar o onboarding.
