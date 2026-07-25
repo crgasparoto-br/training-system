@@ -13,16 +13,17 @@ describe('canonical student health-intake writer', () => {
     ).toBe(false);
   });
 
-  it('writes only StudentHealthIntake and advances onboarding metadata', async () => {
+  it('locks onboarding before reading or writing the canonical intake', async () => {
+    const queryRaw = jest.fn().mockResolvedValue([{ id: 'onboarding-1' }]);
+    const findUnique = jest.fn().mockResolvedValue(null);
+    const upsert = jest.fn().mockResolvedValue({
+      id: 'intake-1',
+      status: 'IN_PROGRESS',
+      completedAt: null,
+    });
     const tx = {
-      studentHealthIntake: {
-        findUnique: jest.fn().mockResolvedValue(null),
-        upsert: jest.fn().mockResolvedValue({
-          id: 'intake-1',
-          status: 'IN_PROGRESS',
-          completedAt: null,
-        }),
-      },
+      $queryRaw: queryRaw,
+      studentHealthIntake: { findUnique, upsert },
       studentOnboardingProcess: {
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
@@ -42,7 +43,14 @@ describe('canonical student health-intake writer', () => {
       },
     });
 
-    expect((tx as any).studentHealthIntake.upsert).toHaveBeenCalledWith(
+    expect(queryRaw).toHaveBeenCalledTimes(1);
+    expect(queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      findUnique.mock.invocationCallOrder[0]
+    );
+    expect(findUnique.mock.invocationCallOrder[0]).toBeLessThan(
+      upsert.mock.invocationCallOrder[0]
+    );
+    expect(upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { alunoId: 'aluno-1' },
         create: expect.objectContaining({
@@ -60,19 +68,22 @@ describe('canonical student health-intake writer', () => {
     expect((tx as any).alunoIntakeForm.upsert).not.toHaveBeenCalled();
   });
 
-  it('rejects generic mutation of a completed intake without changing data or onboarding', async () => {
+  it('rejects generic mutation of a completed intake after acquiring the shared lock', async () => {
     const completedAt = new Date('2026-07-25T10:00:00.000Z');
+    const queryRaw = jest.fn().mockResolvedValue([{ id: 'onboarding-1' }]);
+    const findUnique = jest.fn().mockResolvedValue({
+      id: 'intake-completed',
+      status: 'COMPLETED',
+      completedAt,
+      clinicalHistoryData: { mainGoal: 'Objetivo original' },
+      medicationData: {},
+      injuryData: {},
+      observations: null,
+    });
     const tx = {
+      $queryRaw: queryRaw,
       studentHealthIntake: {
-        findUnique: jest.fn().mockResolvedValue({
-          id: 'intake-completed',
-          status: 'COMPLETED',
-          completedAt,
-          clinicalHistoryData: { mainGoal: 'Objetivo original' },
-          medicationData: {},
-          injuryData: {},
-          observations: null,
-        }),
+        findUnique,
         upsert: jest.fn(),
       },
       studentOnboardingProcess: {
@@ -90,7 +101,37 @@ describe('canonical student health-intake writer', () => {
       })
     ).rejects.toEqual(expect.any(CompletedHealthIntakeMutationError));
 
+    expect(queryRaw).toHaveBeenCalledTimes(1);
+    expect(queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      findUnique.mock.invocationCallOrder[0]
+    );
     expect((tx as any).studentHealthIntake.upsert).not.toHaveBeenCalled();
     expect((tx as any).studentOnboardingProcess.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when no onboarding row can be locked', async () => {
+    const tx = {
+      $queryRaw: jest.fn().mockResolvedValue([]),
+      studentHealthIntake: {
+        findUnique: jest.fn(),
+        upsert: jest.fn(),
+      },
+      studentOnboardingProcess: {
+        updateMany: jest.fn(),
+      },
+    } as never;
+
+    await expect(
+      upsertCanonicalStudentHealthIntake(tx, {
+        alunoId: 'aluno-1',
+        contractId: 'contract-1',
+        sourceType: 'professional',
+        sourceReference: 'legacy_admin_update',
+        health: { mainGoal: 'Alteração indevida' },
+      })
+    ).rejects.toThrow('StudentOnboardingProcess não encontrado');
+
+    expect((tx as any).studentHealthIntake.findUnique).not.toHaveBeenCalled();
+    expect((tx as any).studentHealthIntake.upsert).not.toHaveBeenCalled();
   });
 });
