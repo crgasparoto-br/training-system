@@ -44,6 +44,24 @@ const jsonRecord = (value: Prisma.JsonValue | null | undefined): JsonRecord =>
     ? { ...(value as JsonRecord) }
     : {};
 
+async function lockHealthIntakeOnboarding(
+  tx: Prisma.TransactionClient,
+  alunoId: string,
+  contractId: string
+) {
+  const rows = await tx.$queryRaw<Array<{ id: string }>>`
+    SELECT "id"
+    FROM "StudentOnboardingProcess"
+    WHERE "alunoId" = ${alunoId}
+      AND "contractId" = ${contractId}
+    FOR UPDATE
+  `;
+
+  if (rows.length === 0) {
+    throw new Error('StudentOnboardingProcess não encontrado para a Anamnese canônica.');
+  }
+}
+
 export function hasCanonicalHealthIntakeValue(input?: LegacyHealthIntakeWriteInput | null) {
   if (!input) return false;
   return Boolean(
@@ -82,6 +100,8 @@ export async function upsertCanonicalStudentHealthIntake(
   }
 ) {
   if (!hasCanonicalHealthIntakeMutation(input.health)) return null;
+
+  await lockHealthIntakeOnboarding(tx, input.alunoId, input.contractId);
 
   const existing = await tx.studentHealthIntake.findUnique({
     where: { alunoId: input.alunoId },
