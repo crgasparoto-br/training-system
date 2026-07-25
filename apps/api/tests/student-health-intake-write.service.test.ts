@@ -1,4 +1,5 @@
 import {
+  CompletedHealthIntakeMutationError,
   hasCanonicalHealthIntakeMutation,
   upsertCanonicalStudentHealthIntake,
 } from '../src/modules/alunos/student-health-intake-write.service';
@@ -47,6 +48,7 @@ describe('canonical student health-intake writer', () => {
         create: expect.objectContaining({
           alunoId: 'aluno-1',
           contractId: 'contract-1',
+          status: 'IN_PROGRESS',
           clinicalHistoryData: expect.objectContaining({
             mainGoal: 'Melhorar condicionamento',
             medicalHistory: null,
@@ -56,5 +58,39 @@ describe('canonical student health-intake writer', () => {
     );
     expect((tx as any).studentOnboardingProcess.updateMany).toHaveBeenCalled();
     expect((tx as any).alunoIntakeForm.upsert).not.toHaveBeenCalled();
+  });
+
+  it('rejects generic mutation of a completed intake without changing data or onboarding', async () => {
+    const completedAt = new Date('2026-07-25T10:00:00.000Z');
+    const tx = {
+      studentHealthIntake: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'intake-completed',
+          status: 'COMPLETED',
+          completedAt,
+          clinicalHistoryData: { mainGoal: 'Objetivo original' },
+          medicationData: {},
+          injuryData: {},
+          observations: null,
+        }),
+        upsert: jest.fn(),
+      },
+      studentOnboardingProcess: {
+        updateMany: jest.fn(),
+      },
+    } as never;
+
+    await expect(
+      upsertCanonicalStudentHealthIntake(tx, {
+        alunoId: 'aluno-1',
+        contractId: 'contract-1',
+        sourceType: 'professional',
+        sourceReference: 'legacy_admin_update',
+        health: { mainGoal: 'Alteração indevida' },
+      })
+    ).rejects.toEqual(expect.any(CompletedHealthIntakeMutationError));
+
+    expect((tx as any).studentHealthIntake.upsert).not.toHaveBeenCalled();
+    expect((tx as any).studentOnboardingProcess.updateMany).not.toHaveBeenCalled();
   });
 });
