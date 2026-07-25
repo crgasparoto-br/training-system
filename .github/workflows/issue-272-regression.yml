@@ -1,0 +1,167 @@
+name: Issue 272 Regression Evidence
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - 'apps/api/prisma/migrations/**issue_272**'
+      - 'apps/api/src/modules/alunos/student-health-intake-write.service.ts'
+      - 'apps/api/src/modules/pre-registration-public/**'
+      - 'apps/api/tests/**issue-272**'
+      - 'apps/api/tests/student-health-intake-write.service.test.ts'
+      - 'apps/api/scripts/verify-issue-272-health-intake.ts'
+      - 'apps/web/src/pages/PublicPreRegistration/**'
+      - 'apps/web/src/services/pre-registration-public.service.ts'
+      - 'scripts/verify-issue-272-health-intake-migration.sh'
+      - 'docs/operations/health-intake-cutover.md'
+      - 'docs/product/pre-registration-health-intake.md'
+      - '.github/workflows/issue-272-regression.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    name: Verify canonical intake, public boundary and responsive flow
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/training_system_issue_272?schema=public&connection_limit=1&pool_timeout=30
+      PRISMA_CONNECTION_LIMIT: '1'
+      PRISMA_POOL_TIMEOUT_SECONDS: '30'
+      RUN_DATABASE_INTEGRATION_TESTS: 'true'
+      VITE_API_URL: http://127.0.0.1:3002
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: training_system_issue_272
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d training_system_issue_272"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma Client
+        run: pnpm --filter @corrida/api exec prisma generate
+
+      - name: Verify discriminant migration scenarios
+        shell: bash
+        run: |
+          set -o pipefail
+          bash scripts/verify-issue-272-health-intake-migration.sh 2>&1 | tee issue-272-migration.log
+
+      - name: Apply application migrations
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @corrida/api exec prisma migrate deploy 2>&1 | tee issue-272-migrate-deploy.log
+
+      - name: Run focused unit and contract tests
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @corrida/api test -- --runInBand \
+            student-health-intake-write.service.test.ts \
+            pre-registration-health-intake.routes.test.ts \
+            issue-272-health-intake-migration.contract.test.ts \
+            2>&1 | tee issue-272-focused-tests.log
+
+      - name: Install Chrome for Puppeteer
+        run: pnpm --filter @corrida/api exec puppeteer browsers install chrome
+
+      - name: Build application for the real API
+        run: |
+          pnpm --filter @corrida/types build
+          pnpm --filter @corrida/utils build
+          pnpm --filter @corrida/web build
+
+      - name: Execute real API, PostgreSQL and browser regression
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @corrida/api exec tsx scripts/verify-issue-272-health-intake.ts \
+            2>&1 | tee issue-272-runtime.log
+
+      - name: Create issue-scoped evidence manifest
+        if: always()
+        shell: bash
+        env:
+          EVIDENCE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          EVIDENCE_BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+          EVIDENCE_MERGE_PREVIEW_SHA: ${{ github.event_name == 'pull_request' && github.sha || '' }}
+        run: |
+          touch issue-272-results.sha256
+          for file in \
+            issue-272-migration.log \
+            issue-272-migrate-deploy.log \
+            issue-272-focused-tests.log \
+            issue-272-runtime.log \
+            artifacts/issue-272-regression/*.png; do
+            if [[ -f "$file" ]]; then
+              sha256sum "$file" >> issue-272-results.sha256
+            fi
+          done
+          cat > issue-272-evidence.json <<EOF
+          {
+            "schema_version": 1,
+            "kind": "issue-272-regression-evidence",
+            "repository": "${GITHUB_REPOSITORY}",
+            "workflow": "${GITHUB_WORKFLOW}",
+            "run_id": ${GITHUB_RUN_ID},
+            "run_attempt": ${GITHUB_RUN_ATTEMPT},
+            "event_name": "${GITHUB_EVENT_NAME}",
+            "head_sha": "${EVIDENCE_HEAD_SHA}",
+            "base_sha": "${EVIDENCE_BASE_SHA}",
+            "merge_preview_sha": "${EVIDENCE_MERGE_PREVIEW_SHA}",
+            "checks": [
+              "discriminant canonical/legacy migration",
+              "completed intake immutable writer boundary",
+              "authenticated public boundary and non-enumeration",
+              "versioned consent, resume and optimistic concurrency",
+              "administrative canonical read",
+              "mobile and low-height desktop browser flow"
+            ],
+            "hash_manifest": "issue-272-results.sha256"
+          }
+          EOF
+
+      - name: Upload issue 272 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-272-regression-${{ github.run_id }}
+          path: |
+            artifacts/issue-272-regression/*.png
+            issue-272-migration.log
+            issue-272-migrate-deploy.log
+            issue-272-focused-tests.log
+            issue-272-runtime.log
+            issue-272-results.sha256
+            issue-272-evidence.json
+          if-no-files-found: error
+          retention-days: 14
