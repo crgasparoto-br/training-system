@@ -6,64 +6,9 @@ import {
   type ProntuarioMedicationProcedureType,
   type ProntuarioPainCaseStatus,
 } from '@prisma/client';
+import { preRegistrationParqService } from '../pre-registration-public/pre-registration-parq.service.js';
 
 const prisma = new PrismaClient();
-
-export const PARQ_LABELS: Record<string, string> = {
-  q1: 'Algum médico já disse que você possui problema no coração e recomendou atividade física apenas sob supervisão?',
-  q2: 'Você sente dor no peito causada pela prática de atividade física?',
-  q3: 'Você sentiu dor no peito no último mês?',
-  q4: 'Você perde o equilíbrio por tontura ou já perdeu a consciência?',
-  q5: 'Você tem problema ósseo ou articular que poderia piorar com atividade física?',
-  q6: 'Algum médico prescreveu medicamento para pressão arterial ou condição cardíaca?',
-  q7: 'Você conhece outro motivo para não realizar atividade física?',
-};
-
-type JsonObject = Record<string, unknown>;
-type ParqResponses = {
-  q1: boolean;
-  q2: boolean;
-  q3: boolean;
-  q4: boolean;
-  q5: boolean;
-  q6: boolean;
-  q7: boolean;
-  q8: boolean;
-};
-
-const includeRecord = {
-  goals: { orderBy: [{ priority: 'asc' as const }, { createdAt: 'asc' as const }] },
-  anamnesisFollowUps: { orderBy: { createdAt: 'asc' as const } },
-  activityHistory: { orderBy: { createdAt: 'asc' as const } },
-  medicationsProcedures: { orderBy: { createdAt: 'asc' as const } },
-  painCases: { include: { followUps: { orderBy: { followUpAt: 'desc' as const } } }, orderBy: { createdAt: 'desc' as const } },
-  discomfortSnapshots: { include: { entries: true }, orderBy: { snapshotAt: 'desc' as const } },
-};
-
-function parseDate(value?: string | null) {
-  if (!value) return undefined;
-  const parsed = new Date(value.includes('T') ? value : `${value}T00:00:00`);
-  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
-}
-
-function positiveItemsFromResponses(responses: JsonObject) {
-  return Object.entries(PARQ_LABELS)
-    .filter(([key]) => responses[key] === true)
-    .map(([key, label]) => ({ key, label }));
-}
-
-function normalizeParqResponses(responses: JsonObject): ParqResponses {
-  return {
-    q1: responses.q1 === true,
-    q2: responses.q2 === true,
-    q3: responses.q3 === true,
-    q4: responses.q4 === true,
-    q5: responses.q5 === true,
-    q6: responses.q6 === true,
-    q7: responses.q7 === true,
-    q8: responses.q8 === true,
-  };
-}
 
 function toNullableString(value?: string | null) {
   if (value === undefined) return undefined;
@@ -178,51 +123,28 @@ function withSnapshotProfessorId<T extends { professorId?: string | null; discom
 
 export const prontuarioService = {
   async listParqSubmissions(contractId: string, alunoId: string) {
-    await assertAlunoInContract(alunoId, contractId);
-    return prisma.studentParqSubmission.findMany({
-      where: { contractId, alunoId },
-      orderBy: { submittedAt: 'desc' },
-    });
-  },
-
-  async createParqSubmission(contractId: string, alunoId: string, userId: string | undefined, responses: JsonObject, notes?: string | null) {
-    const aluno = await assertAlunoInContract(alunoId, contractId);
-    const normalizedResponses = normalizeParqResponses(responses);
-    return prisma.studentParqSubmission.create({
-      data: {
-        contractId: aluno.contractId,
-        alunoId,
-        submittedByUserId: userId,
-        sourceType: 'student',
-        responses: normalizedResponses as Prisma.InputJsonValue,
-        positiveItems: positiveItemsFromResponses(normalizedResponses) as Prisma.InputJsonValue,
-        declarationAccepted: normalizedResponses.q8,
-        notes: toNullableString(notes),
-      },
-    });
+    return preRegistrationParqService.listSubmissions(contractId, alunoId);
   },
 
   async overview(contractId: string, alunoId: string) {
     await assertAlunoInContract(alunoId, contractId);
-    const [records, parqSubmissions] = await Promise.all([
+    const [records, parq] = await Promise.all([
       prisma.prontuarioRecord.findMany({
         where: { contractId, alunoId },
         include: includeRecord,
         orderBy: [{ recordDate: 'desc' }, { createdAt: 'desc' }],
       }),
-      prisma.studentParqSubmission.findMany({
-        where: { contractId, alunoId },
-        orderBy: [{ submittedAt: 'desc' }, { createdAt: 'desc' }],
-      }),
+      preRegistrationParqService.overview(contractId, alunoId),
     ]);
 
     const normalizedRecords = records.map((record) => withSnapshotProfessorId(record));
-
     return {
       records: normalizedRecords,
       currentRecord: normalizedRecords[0] ?? null,
-      latestParqSubmission: parqSubmissions[0] ?? null,
-      parqSubmissions,
+      latestParqSubmission: parq.latestSubmission,
+      parqSubmissions: parq.submissions,
+      parqState: parq.state,
+      parqLegacy: parq.legacy,
     };
   },
 

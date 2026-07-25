@@ -12,22 +12,12 @@ import type { CreateAlunoDTO, UpdateAlunoDTO } from './aluno.service.js';
 import { contractDocumentService } from '../contracts/contract-document.service.js';
 import { loadContractServiceVariableContext } from '../contracts/contract-service-context.js';
 import { parseActiveContractTemplateReference } from '../student-contracts/student-contract-reference.js';
+import { assertNoLegacyParqWrite } from './student-parq-legacy-cutover.js';
 import { prepareOrActivateStudentContractInTransaction } from '../student-contracts/student-contract-lifecycle-transaction.js';
 
 const prisma = new PrismaClient();
 
 type DbClient = Prisma.TransactionClient;
-
-type ParqResponseShape = {
-  q1: boolean;
-  q2: boolean;
-  q3: boolean;
-  q4: boolean;
-  q5: boolean;
-  q6: boolean;
-  q7: boolean;
-  q8: boolean;
-};
 
 export type StudentFinancialContractInput = {
   contractId: string;
@@ -41,16 +31,6 @@ export type StudentFinancialContractInput = {
 export type StudentFinancialContractOperationOptions = {
   professorId: string;
   companyContractId: string;
-};
-
-const PARQ_LABELS: Record<string, string> = {
-  q1: 'Algum médico já disse que você possui problema no coração e recomendou atividade física apenas sob supervisão?',
-  q2: 'Você sente dor no peito causada pela prática de atividade física?',
-  q3: 'Você sentiu dor no peito no último mês?',
-  q4: 'Você perde o equilíbrio por tontura ou já perdeu a consciência?',
-  q5: 'Você tem problema ósseo ou articular que poderia piorar com atividade física?',
-  q6: 'Algum médico prescreveu medicamento para pressão arterial ou condição cardíaca?',
-  q7: 'Você conhece outro motivo para não realizar atividade física?',
 };
 
 const alunoInclude = {
@@ -85,60 +65,6 @@ const studentContractInclude = {
     },
   },
 } satisfies Prisma.StudentContractInclude;
-
-const normalizeParqResponses = (
-  responses?: Partial<ParqResponseShape> | null
-): ParqResponseShape | null => {
-  if (!responses) return null;
-  return {
-    q1: responses.q1 === true,
-    q2: responses.q2 === true,
-    q3: responses.q3 === true,
-    q4: responses.q4 === true,
-    q5: responses.q5 === true,
-    q6: responses.q6 === true,
-    q7: responses.q7 === true,
-    q8: responses.q8 === true,
-  };
-};
-
-const positiveParqItems = (responses: ParqResponseShape) =>
-  Object.entries(PARQ_LABELS)
-    .filter(([key]) => responses[key as keyof ParqResponseShape] === true)
-    .map(([key, label]) => ({ key, label }));
-
-const createParqSubmission = async (
-  tx: DbClient,
-  data: {
-    alunoId: string;
-    contractId: string;
-    responses?: Partial<ParqResponseShape> | null;
-  }
-) => {
-  const normalized = normalizeParqResponses(data.responses);
-  if (!normalized) return;
-
-  await tx.studentParqSubmission.create({
-    data: {
-      alunoId: data.alunoId,
-      contractId: data.contractId,
-      sourceType: 'professional',
-      responses: normalized as Prisma.InputJsonValue,
-      positiveItems: positiveParqItems(normalized) as Prisma.InputJsonValue,
-      declarationAccepted: normalized.q8,
-    },
-  });
-};
-
-const hasParqResponsesChanged = (
-  currentResponses: Partial<ParqResponseShape> | null | undefined,
-  nextResponses?: Partial<ParqResponseShape> | null
-) => {
-  const nextNormalized = normalizeParqResponses(nextResponses);
-  if (!nextNormalized) return false;
-  const currentNormalized = normalizeParqResponses(currentResponses);
-  return !currentNormalized || JSON.stringify(currentNormalized) !== JSON.stringify(nextNormalized);
-};
 
 const hasAnyValue = (payload: Record<string, unknown>) =>
   Object.values(payload).some((value) => {
@@ -311,11 +237,6 @@ const createAlunoRecord = async (
         health: data.intakeForm,
       });
     }
-    await createParqSubmission(tx, {
-      alunoId: aluno.id,
-      contractId: options.companyContractId,
-      responses: data.intakeForm.parqResponses,
-    });
   }
 
   if (data.intakeForm?.assessmentDate) {
@@ -447,23 +368,7 @@ const updateAlunoRecord = async (
         health: intakeForm,
       });
     }
-
-    if (
-      hasParqResponsesChanged(
-        currentAluno.intakeForm?.parqResponses as
-          | Partial<ParqResponseShape>
-          | null
-          | undefined,
-        intakeForm.parqResponses
-      )
-    ) {
-      await createParqSubmission(tx, {
-        alunoId,
-        contractId: options.companyContractId,
-        responses: intakeForm.parqResponses,
-      });
     }
-  }
 };
 
 const currency = new Intl.NumberFormat('pt-BR', {
@@ -779,6 +684,7 @@ export const studentFinancialContractService = {
     contractInput: StudentFinancialContractInput,
     options: StudentFinancialContractOperationOptions
   ) {
+    assertNoLegacyParqWrite(data);
     const tempPassword = `temp-${crypto.randomBytes(4).toString('hex')}`;
     const passwordHash = await bcryptjs.hash(tempPassword, 10);
 
@@ -804,6 +710,7 @@ export const studentFinancialContractService = {
     contractInput: StudentFinancialContractInput,
     options: StudentFinancialContractOperationOptions
   ) {
+    assertNoLegacyParqWrite(data);
     return prisma.$transaction(async (tx) => {
       await updateAlunoRecord(tx, alunoId, data, options);
       const studentContract = await persistStudentContractWithLifecycle(

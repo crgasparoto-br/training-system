@@ -24,6 +24,8 @@ model User {
   profileReviewsRejected  StudentProfileReview[]   @relation("StudentProfileReviewRejectedBy")
   professor               Professor?
   profile                 Profile?
+  parqSubmissionsSubmitted StudentParqSubmission[] @relation("StudentParqSubmittedBy")
+  parqDraftConsents        StudentParqDraft[] @relation("StudentParqDraftConsent")
 
   @@index([email])
 }
@@ -127,6 +129,9 @@ model CompanyContract {
   studentExternalActivities     StudentExternalActivity[]
   profileReviewPolicies         ProfileReviewPolicy[]
   studentParqSubmissions        StudentParqSubmission[]
+  studentParqDrafts              StudentParqDraft[]
+  studentParqProfessionalReviews StudentParqProfessionalReview[]
+  studentParqLegacyRecords       StudentParqLegacyRecord[]
   prontuarioRecords             ProntuarioRecord[]
   prontuarioDiscomfortSnapshots ProntuarioDiscomfortSnapshot[]
 
@@ -353,6 +358,7 @@ model Professor {
   library                         TrainingLibrary[]
   plans                           TrainingPlan[]
   Assessment                      Assessment[]
+  parqReviewsCompleted           StudentParqProfessionalReview[] @relation("StudentParqReviewedBy")
 
   @@index([collaboratorFunctionId])
   @@index([responsibleManagerId])
@@ -431,6 +437,9 @@ model Aluno {
   studentExternalAccounts       StudentExternalAccount[]
   studentExternalActivities     StudentExternalActivity[]
   parqSubmissions               StudentParqSubmission[]
+  parqDraft                     StudentParqDraft?
+  parqProfessionalReviews       StudentParqProfessionalReview[]
+  parqLegacyRecords             StudentParqLegacyRecord[]
   prontuarioRecords             ProntuarioRecord[]
   prontuarioDiscomfortSnapshots ProntuarioDiscomfortSnapshot[]
 
@@ -1530,24 +1539,103 @@ model StudentHealthIntake {
 }
 
 model StudentParqSubmission {
-  id                  String                        @id @default(cuid())
+  id                  String                  @id @default(cuid())
   alunoId             String
   contractId          String
-  sourceType          StudentRecordSourceType       @default(student)
+  sourceType          StudentRecordSourceType @default(student)
   submittedByUserId   String?
-  submittedAt         DateTime                      @default(now())
+  submittedAt         DateTime                @default(now())
+  catalogVersion      String
   responses           Json
   positiveItems       Json?
-  declarationAccepted Boolean                       @default(false)
+  positiveCount       Int                     @default(0)
+  declarationAccepted Boolean                 @default(false)
   notes               String?
-  createdAt           DateTime                      @default(now())
-  updatedAt           DateTime                      @updatedAt
-  aluno               Aluno                         @relation(fields: [alunoId], references: [id], onDelete: Cascade)
-  contract            CompanyContract               @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  legacySourceType    String?
+  legacySourceId      String?
+  idempotencyKey      String?
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+  aluno               Aluno                   @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  contract            CompanyContract         @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  submittedBy         User?                   @relation("StudentParqSubmittedBy", fields: [submittedByUserId], references: [id], onDelete: SetNull)
+  professionalReview  StudentParqProfessionalReview?
+  onboardingProcess   StudentOnboardingProcess? @relation("OnboardingParqSubmission")
   followUps           ProntuarioAnamnesisFollowUp[]
+  legacyRecords       StudentParqLegacyRecord[]
 
+  @@unique([alunoId, idempotencyKey])
+  @@unique([legacySourceType, legacySourceId])
   @@index([contractId, submittedAt])
   @@index([alunoId, submittedAt])
+  @@index([catalogVersion])
+}
+
+model StudentParqDraft {
+  id                      String          @id @default(cuid())
+  alunoId                 String          @unique
+  contractId              String
+  catalogVersion          String
+  responses               Json
+  version                 Int             @default(1)
+  consentNoticeVersion    String
+  consentAcceptedAt       DateTime
+  consentAcceptedByUserId String
+  lastSavedAt             DateTime        @default(now())
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
+  aluno                    Aluno           @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  contract                 CompanyContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  consentAcceptedBy        User            @relation("StudentParqDraftConsent", fields: [consentAcceptedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([contractId, lastSavedAt])
+}
+
+model StudentParqProfessionalReview {
+  id                    String          @id @default(cuid())
+  submissionId          String          @unique
+  alunoId               String
+  contractId            String
+  status                String          @default("PENDING")
+  positiveCount         Int
+  positiveItems         Json
+  reviewedByProfessorId String?
+  reviewedAt            DateTime?
+  reviewNotes           String?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  submission            StudentParqSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  aluno                 Aluno           @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  contract              CompanyContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  reviewedByProfessor   Professor?      @relation("StudentParqReviewedBy", fields: [reviewedByProfessorId], references: [id], onDelete: SetNull)
+
+  @@index([contractId, status, createdAt])
+  @@index([alunoId, createdAt])
+}
+
+model StudentParqLegacyRecord {
+  id                    String          @id @default(cuid())
+  sourceType            String
+  sourceId              String
+  alunoId               String
+  contractId            String
+  rawResponses          Json
+  observedAt            DateTime?
+  sourceActorUserId     String?
+  fingerprint           String
+  migrationStatus       String
+  migrationReason       String?
+  mappedSubmissionId    String?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  aluno                 Aluno           @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  contract              CompanyContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  mappedSubmission      StudentParqSubmission? @relation(fields: [mappedSubmissionId], references: [id], onDelete: SetNull)
+
+  @@unique([sourceType, sourceId])
+  @@index([alunoId, migrationStatus])
+  @@index([contractId, migrationStatus])
+  @@index([fingerprint])
 }
 
 model ProntuarioRecord {

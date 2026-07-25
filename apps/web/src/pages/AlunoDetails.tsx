@@ -1044,7 +1044,7 @@ export function AlunoDetails() {
     return 'Não informado';
   };
   const schedulePlanLabel = aluno?.schedulePlan === 'fixed' ? 'Fixo' : 'Livre';
-  const parqPositiveCount = Object.values(aluno?.intakeForm?.parqResponses || {}).filter(Boolean).length;
+  const parqPositiveCount = aluno?.parq?.latestSubmission?.positiveCount ?? 0;
   const identificationInfo = readAlunoFormResponses(aluno?.intakeForm?.formResponses).identification ?? {};
   const financialInfo = readAlunoFormResponses(aluno?.intakeForm?.formResponses).financial ?? {};
   const preferencesInfo = readAlunoFormResponses(aluno?.intakeForm?.formResponses).preferences ?? {};

@@ -40,7 +40,8 @@ type ProntuarioBlockName =
   | 'discomforts'
   | 'create'
   | 'edit'
-  | 'closeFollowUp';
+  | 'closeFollowUp'
+  | 'reviewParq';
 
 const prontuarioBlockKeys = {
   summary: 'physicalAssessment.prnt.summary',
@@ -53,6 +54,7 @@ const prontuarioBlockKeys = {
   create: 'physicalAssessment.prnt.actions.createRecord',
   edit: 'physicalAssessment.prnt.actions.editRecord',
   closeFollowUp: 'physicalAssessment.prnt.actions.closeFollowUp',
+  reviewParq: 'physicalAssessment.prnt.actions.reviewParq',
 } as const satisfies Record<ProntuarioBlockName, AccessBlockKey>;
 
 const prontuarioBlockEntries = Object.entries(prontuarioBlockKeys) as Array<[
@@ -163,6 +165,7 @@ export function ProntuarioScreen() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [parqReviewNotes, setParqReviewNotes] = useState('');
   const overviewRequestIdRef = useRef(0);
 
   const currentRecord = useMemo(() => {
@@ -302,6 +305,22 @@ export function ProntuarioScreen() {
   const handleAlunoSelectionChange = (alunoId: string) => {
     setSelectedAlunoId(alunoId);
     setSearchParams(alunoId ? { alunoId } : {}, { replace: true });
+  };
+
+  const reviewSelectedParq = async () => {
+    const reviewId = selectedParqSubmission?.review?.id;
+    if (!selectedAlunoId || !reviewId) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const data = await prontuarioService.reviewParq(selectedAlunoId, reviewId, parqReviewNotes || null);
+      setOverview(data);
+      setParqReviewNotes('');
+    } catch (err) {
+      setError(getProntuarioErrorMessage(err));
+    } finally {
+      setSaving(false);
+    }
   };
 
   const normalizeGoalsPayload = (goals: Drafts['goals']) =>
@@ -696,9 +715,35 @@ export function ProntuarioScreen() {
                     ))}
                   </select>
                 ) : null}
-                {selectedParqSubmission
-                  ? `${latestPositiveItems.length} item(ns) positivo(s) em ${toDateInput(selectedParqSubmission.submittedAt)}.`
-                  : 'Sem submissões históricas.'}
+                {selectedParqSubmission ? (
+                  <div className="space-y-3">
+                    <p>{latestPositiveItems.length} item(ns) positivo(s) em {toDateInput(selectedParqSubmission.submittedAt)}.</p>
+                    <p className="text-xs">Versão: {selectedParqSubmission.catalogVersion}</p>
+                    {selectedParqSubmission.review?.status === 'PENDING' ? (
+                      <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-amber-950">
+                        <p className="font-medium">Análise profissional pendente</p>
+                        {blocks.reviewParq ? (
+                          <>
+                            <textarea
+                              className="mt-3 min-h-[88px] w-full rounded-md border border-amber-300 bg-white px-3 py-2 text-sm text-foreground"
+                              placeholder="Observação permitida da análise"
+                              value={parqReviewNotes}
+                              onChange={(event) => setParqReviewNotes(event.target.value)}
+                              maxLength={4000}
+                            />
+                            <Button type="button" className="mt-3 w-full" onClick={reviewSelectedParq} disabled={saving}>
+                              Registrar análise
+                            </Button>
+                          </>
+                        ) : null}
+                      </div>
+                    ) : selectedParqSubmission.review?.status === 'REVIEWED' ? (
+                      <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-emerald-950">
+                        Analisado em {selectedParqSubmission.review.reviewedAt ? toDateInput(selectedParqSubmission.review.reviewedAt) : 'data não informada'}.
+                      </div>
+                    ) : null}
+                  </div>
+                ) : 'Sem submissões históricas.'}
               </CardContent>
             </Card>
           </aside>

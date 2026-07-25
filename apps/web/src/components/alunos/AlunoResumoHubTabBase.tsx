@@ -345,7 +345,7 @@ export function AlunoResumoHubTab({
   const allergies = getRecordText(intake?.allergies, ['allergies', 'description', 'notes']);
   const observations = normalizeText(intake?.observations) ?? normalizeText(aluno.intakeForm?.observations);
   const hasCadastroEssentials = Boolean(displayName && displayEmail && aluno.age);
-  const parqPositiveCount = Object.values(aluno.intakeForm?.parqResponses || {}).filter(Boolean).length;
+  const parqPositiveCount = aluno.parq?.latestSubmission?.positiveCount ?? 0;
   const hasHealthAlert = parqPositiveCount > 0;
   const hasPrntGoal = Boolean(displayMainGoal);
   const hasPrntIntake = Boolean(displayIntakeDate);

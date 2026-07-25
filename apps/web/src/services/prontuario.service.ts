@@ -29,8 +29,8 @@ export const prontuarioService = {
     return unwrap(await api.get(`/prontuario/alunos/${alunoId}/parq-submissions`));
   },
 
-  async createParqSubmission(alunoId: string, responses: Record<string, boolean>, notes?: string | null): Promise<StudentParqSubmission> {
-    return unwrap(await api.post(`/prontuario/alunos/${alunoId}/parq-submissions`, { responses, notes }));
+  async reviewParq(alunoId: string, reviewId: string, reviewNotes?: string | null): Promise<ProntuarioOverview> {
+    return unwrap(await api.post(`/prontuario/alunos/${alunoId}/parq-reviews/${reviewId}/review`, { reviewNotes }));
   },
 
   async createRecord(alunoId: string, data: ProntuarioRecordPayload): Promise<ProntuarioRecord> {

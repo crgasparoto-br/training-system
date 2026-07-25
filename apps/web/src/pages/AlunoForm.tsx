@@ -471,7 +471,6 @@ export function AlunoForm() {
   const cameFromReferral = watch('intakeForm.financialInfo.cameFromReferral');
   const selectedContractId = watch('intakeForm.financialInfo.selectedContractId');
   const calculatedAge = calculateAgeFromBirthDate(birthDate);
-  const parqDeclarationAccepted = watch('intakeForm.parqResponses.q8');
   const resolvedAvatar = resolveAssetUrl(avatar);
   const canSelectInactiveContract =
     user?.professor?.role === 'master' ||
@@ -484,7 +483,6 @@ export function AlunoForm() {
       'identificacao',
       'financeiro',
       'preferencias',
-      'parq',
       'aha',
     ];
     return tabs.filter((tab) => canAccessScreen(user, getBlockKeyForTab(tab)));
@@ -1050,17 +1048,6 @@ export function AlunoForm() {
       );
       const legacyContractLabel =
         selectedGeneratedContract?.title || data.intakeForm.financialInfo.contract;
-
-      const parqResponses = {
-        q1: data.intakeForm.parqResponses.q1,
-        q2: data.intakeForm.parqResponses.q2,
-        q3: data.intakeForm.parqResponses.q3,
-        q4: data.intakeForm.parqResponses.q4,
-        q5: data.intakeForm.parqResponses.q5,
-        q6: data.intakeForm.parqResponses.q6,
-        q7: data.intakeForm.parqResponses.q7,
-        q8: data.intakeForm.parqResponses.q8,
-      };
       const formResponses = {
         identification: data.intakeForm.personalInfo,
         financial: {
@@ -1074,7 +1061,6 @@ export function AlunoForm() {
             ) || data.intakeForm.financialInfo.contractDueDate,
         },
         preferences: data.intakeForm.preferencesInfo,
-        parqResponses,
         ahaResponses: data.intakeForm.ahaResponses,
       };
 
@@ -1121,8 +1107,7 @@ export function AlunoForm() {
           injuriesHistory: data.intakeForm.injuriesHistory || undefined,
           trainingBackground: data.intakeForm.trainingBackground || undefined,
           observations: data.intakeForm.observations || undefined,
-          parqResponses,
-          formResponses,
+            formResponses,
         },
       };
 
@@ -1171,8 +1156,7 @@ export function AlunoForm() {
           injuriesHistory: data.intakeForm.injuriesHistory || undefined,
           trainingBackground: data.intakeForm.trainingBackground || undefined,
           observations: data.intakeForm.observations || undefined,
-          parqResponses,
-          formResponses,
+            formResponses,
         },
       };
 
@@ -1237,11 +1221,6 @@ export function AlunoForm() {
 
     if (formErrors.intakeForm?.preferencesInfo) {
       setActiveTab('preferencias');
-      return;
-    }
-
-    if (formErrors.intakeForm?.parqResponses) {
-      setActiveTab('parq');
       return;
     }
 

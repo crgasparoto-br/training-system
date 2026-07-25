@@ -44,6 +44,8 @@ const STATUS_BY_CODE: Record<ParqErrorCode, number> = {
   CONCURRENT_MODIFICATION: 409,
   PARQ_ALREADY_COMPLETED: 409,
   FORBIDDEN_FIELD: 400,
+  LEGACY_WRITE_DISABLED: 410,
+  REVIEW_NOT_PENDING: 409,
 };
 
 function userIdOf(req: Request) {
@@ -129,5 +131,13 @@ router.post('/processes/:alunoId/parq/complete', async (req, res) => {
     return handleError(res, error);
   }
 });
+
+export function parseParqDraft(value: unknown): SaveParqDraftDTO {
+  return parse<SaveParqDraftDTO>(saveSchema, value);
+}
+
+export function parseParqCompletion(value: unknown): CompleteParqDTO {
+  return parse<CompleteParqDTO>(completeSchema, value);
+}
 
 export { router as preRegistrationParqRoutes };

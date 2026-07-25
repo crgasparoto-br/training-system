@@ -4,23 +4,9 @@ export type ProntuarioActivityType = 'running' | 'strength' | 'mobility' | 'spor
 export type ProntuarioMedicationProcedureType = 'medication' | 'supplement' | 'procedure' | 'exam' | 'therapy' | 'other';
 export type ProntuarioPainCaseStatus = 'active' | 'monitoring' | 'resolved' | 'archived';
 
-export type StudentParqResponses = Record<string, boolean>;
+export type { ParqResponses as StudentParqResponses, ParqPositiveItem as StudentParqPositiveItem, ParqSubmissionDTO as StudentParqSubmission } from './pre-registration-parq.js';
 
-export interface StudentParqPositiveItem {
-  key: string;
-  label: string;
-}
-
-export interface StudentParqSubmission {
-  id: string;
-  alunoId: string;
-  contractId: string;
-  submittedAt: string;
-  responses: StudentParqResponses;
-  positiveItems?: StudentParqPositiveItem[] | null;
-  declarationAccepted: boolean;
-  notes?: string | null;
-}
+import type { ParqFlowStatus, ParqSubmissionDTO } from './pre-registration-parq.js';
 
 export interface ProntuarioGoal {
   id: string;
@@ -133,8 +119,10 @@ export interface ProntuarioRecord {
 export interface ProntuarioOverview {
   records: ProntuarioRecord[];
   currentRecord: ProntuarioRecord | null;
-  latestParqSubmission: StudentParqSubmission | null;
-  parqSubmissions: StudentParqSubmission[];
+  latestParqSubmission: ParqSubmissionDTO | null;
+  parqSubmissions: ParqSubmissionDTO[];
+  parqState: ParqFlowStatus;
+  parqLegacy: { preserved: boolean; needsRepeat: boolean };
 }
 
 export type ProntuarioRecordPayload = {
