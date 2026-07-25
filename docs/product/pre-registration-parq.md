@@ -61,3 +61,9 @@ Listagens comerciais exibem somente estado resumido e indicador de análise. Res
 - schemas estritos recusam IDs, versão arbitrária, estado, positivos e flags profissionais enviados pelo cliente;
 - logs comuns não incluem respostas clínicas;
 - falha na pendência profissional aborta a conclusão pela transação.
+
+## Evidências de validação
+
+O workflow `Issue 273 Regression Evidence` deve comprovar, no mesmo SHA da entrega, a reconciliação e o rerun da migration, o fluxo autenticado em PostgreSQL, concorrência, idempotência, histórico, revisão profissional, isolamento de tenant e os estados responsivos do formulário. O workflow geral `Validate PR` continua responsável por migrations, type-check, lint, suítes completas, build, arquitetura, catálogo de acessos e documentação.
+
+Essas evidências constituem verificação interna do ciclo de implementação. A aprovação final exige auditoria independente em nova conversa, com o SHA congelado e sem alterações posteriores.
