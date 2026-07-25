@@ -27,6 +27,12 @@ Consolidar o PAR-Q em `StudentParqSubmission`, com catálogo compartilhado e ver
 - projeções administrativas não são fontes concorrentes de escrita.
 - compatibilidades legadas permanecem somente leitura até o encerramento do rollout #275.
 
-## Validação
+## Validação versionada
+
+- `scripts/verify-issue-273-parq-migration.sh`: banco pré-cutover com fonte canônica, fontes isoladas, equivalência, divergência, conjunto incompleto, ausência de data e rerun idempotente;
+- `apps/api/scripts/verify-issue-273-parq.ts`: runtime real com PostgreSQL para autenticação, rascunho, retomada, concorrência, idempotência, nova submissão histórica, isolamento de tenant e análise profissional;
+- `apps/api/scripts/visual-audit-issue-273.mjs`: formulário, retomada, `NEEDS_REPEAT`, conclusão com alerta e conclusão sem alerta em desktop, mobile e desktop de baixa altura;
+- `.github/workflows/issue-273-regression.yml`: produz logs, screenshots, manifesto de hashes e identidades de head, base e merge preview;
+- `pnpm validate`: validações gerais do repositório, migrations, tipos, lint, testes, build, arquitetura, catálogo de acessos e documentação.
 
 O handoff registra o SHA final, a base observada, o merge preview e os workflows executados. Toda validação deste ciclo é pré-auditoria interna; a aprovação final exige nova conversa e auditoria independente no SHA congelado.
