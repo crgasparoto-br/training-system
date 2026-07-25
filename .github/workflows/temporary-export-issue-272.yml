@@ -1,0 +1,24 @@
+name: Temporary source export for issue 272
+
+on:
+  pull_request:
+    branches: [develop]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  export-source:
+    if: github.head_ref == 'feat/272-canonical-health-intake'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+      - name: Upload source snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-272-source
+          path: .
+          retention-days: 1
+          if-no-files-found: error
