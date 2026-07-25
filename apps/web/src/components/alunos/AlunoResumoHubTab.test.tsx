@@ -10,7 +10,7 @@ const baseAluno = {
   age: 35,
   updatedAt: '2026-01-10T12:00:00.000Z',
   user: {
-    email: 'aluno@test.com',
+    email: 'aluno@teste.com',
     profile: {
       name: 'Aluno Teste',
       phone: '(15) 99999-0000',
@@ -46,7 +46,7 @@ function renderResumo(
 }
 
 describe('AlunoResumoHubTab PRNT card', () => {
-  it('mostra PRNT pendente quando nao ha anamnese nem objetivo', () => {
+  it('mostra PRNT pendente quando não há anamnese nem objetivo', () => {
     renderResumo(baseAluno);
 
     expect(screen.getAllByText('PRNT pendente').length).toBeGreaterThan(0);
@@ -54,35 +54,38 @@ describe('AlunoResumoHubTab PRNT card', () => {
     expect(screen.getAllByText('Iniciar PRNT').length).toBeGreaterThan(0);
   });
 
-  it('destaca alerta tecnico quando PAR-Q possui respostas positivas', () => {
+  it('destaca alerta técnico quando PAR-Q possui respostas positivas', () => {
     renderResumo({
       ...baseAluno,
       intakeForm: {
         assessmentDate: '2026-02-01T12:00:00.000Z',
         mainGoal: 'Correr 10 km sem dor',
-        parqResponses: {
-          chestPain: true,
-          dizziness: false,
+      },
+      parq: {
+        state: 'COMPLETED_REVIEW_REQUIRED',
+        latestSubmission: {
+          id: 'submission-1',
+          positiveCount: 1,
         },
       },
     } as unknown as Aluno);
 
     expect(screen.getAllByText('PRNT parcial').length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/1 alerta\(s\)/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/1 alerta\(s?\)/i).length).toBeGreaterThan(0);
     expect(screen.getByText('Atualizar PRNT')).toBeInTheDocument();
   });
 });
 
 describe('AlunoResumoHubTab assessment card', () => {
-  it('mostra estado pendente e acao de nova antropometria quando nao ha avaliacao', () => {
+  it('mostra estado pendente e ação de nova antropometria quando não há avaliação', () => {
     renderResumo(baseAluno);
 
     expect(screen.getAllByText('Avaliação pendente').length).toBeGreaterThan(0);
-    expect(screen.getByText(/Nenhuma avaliação física carregada/i)).toBeInTheDocument();
+    expect(screen.getByText(/Nenhuma avaliacao fisica carregada/i)).toBeInTheDocument();
     expect(screen.getAllByText('Nova antropometria').length).toBeGreaterThan(0);
   });
 
-  it('mostra ultima avaliacao, responsavel e comparacao quando ha multiplos registros', () => {
+  it('mostra última avaliação, responsável e comparação quando há múltiplos registros', () => {
     const assessments = [
       {
         id: 'assessment-2',
@@ -141,7 +144,7 @@ describe('AlunoResumoHubTab assessment card', () => {
       ],
     });
 
-    expect(screen.getAllByText('Avaliação em dia').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Avaliacao em dia').length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Antropometria/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Profa\. Maria/i).length).toBeGreaterThan(0);
     expect(screen.getByText('Base pronta para comparar')).toBeInTheDocument();
