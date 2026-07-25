@@ -7,6 +7,18 @@ jest.mock('../src/modules/auth/auth.middleware', () => ({
   alunoMiddleware: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
 
+jest.mock('../src/modules/pre-registration-public/pre-registration-public.service', () => ({
+  PreRegistrationPublicError: class PreRegistrationPublicError extends Error {
+    code: string;
+    details?: Record<string, unknown>;
+    constructor(message: string, code: string, details?: Record<string, unknown>) {
+      super(message);
+      this.code = code;
+      this.details = details;
+    }
+  },
+}));
+
 jest.mock('../src/modules/pre-registration-public/pre-registration-health-intake.service', () => ({
   HealthIntakeError: class HealthIntakeError extends Error {
     code: string;
