@@ -310,14 +310,26 @@ SET "parqRequiresProfessionalReview" = EXISTS (
 );
 
 DO $$ BEGIN
-  ALTER TABLE "StudentOnboardingProcess"
-    ADD CONSTRAINT "StudentOnboardingProcess_parqSubmissionId_key" UNIQUE ("parqSubmissionId");
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'StudentOnboardingProcess_parqSubmissionId_key'
+      AND conrelid = '"StudentOnboardingProcess"'::regclass
+  ) THEN
+    ALTER TABLE "StudentOnboardingProcess"
+      ADD CONSTRAINT "StudentOnboardingProcess_parqSubmissionId_key" UNIQUE ("parqSubmissionId");
+  END IF;
+END $$;
 DO $$ BEGIN
-  ALTER TABLE "StudentOnboardingProcess"
-    ADD CONSTRAINT "StudentOnboardingProcess_parqSubmissionId_fkey"
-    FOREIGN KEY ("parqSubmissionId") REFERENCES "StudentParqSubmission"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'StudentOnboardingProcess_parqSubmissionId_fkey'
+      AND conrelid = '"StudentOnboardingProcess"'::regclass
+  ) THEN
+    ALTER TABLE "StudentOnboardingProcess"
+      ADD CONSTRAINT "StudentOnboardingProcess_parqSubmissionId_fkey"
+      FOREIGN KEY ("parqSubmissionId") REFERENCES "StudentParqSubmission"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
 
 -- Defesa em profundidade: todas as novas linhas clínicas devem permanecer no tenant do Aluno.
 CREATE OR REPLACE FUNCTION "validate_student_parq_tenant"() RETURNS trigger AS $$
