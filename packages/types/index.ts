@@ -15,3 +15,4 @@ export * from './pre-registration-invite.js';
 export * from './pre-registration-admin.js';
 export * from './pre-registration-public.js';
 export * from './pre-registration-health-intake.js';
+export * from './pre-registration-parq.js';
