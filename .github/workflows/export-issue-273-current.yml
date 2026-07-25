@@ -1,0 +1,42 @@
+name: Export Current Issue 273 Tree
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - '.github/workflows/export-issue-273-current.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Remove transport workflow and commit clean tree
+        run: |
+          rm -f .github/workflows/export-issue-273-current.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: remove issue 273 export workflow"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
+
+      - name: Package clean worktree
+        run: |
+          tar --exclude='.git' --exclude='node_modules' -czf /tmp/training-system-issue-273.tar.gz .
+
+      - name: Upload clean worktree
+        uses: actions/upload-artifact@v4
+        with:
+          name: training-system-issue-273-${{ github.event.pull_request.head.sha }}
+          path: /tmp/training-system-issue-273.tar.gz
+          if-no-files-found: error
+          retention-days: 1
