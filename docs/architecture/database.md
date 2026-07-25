@@ -45,11 +45,22 @@ Ver `docs/architecture/student-lifecycle-data-ownership.md` para ownership,
 claim concorrente, contexto de tenant, transicoes guardadas, auditoria e
 estrategia de remocao da compatibilidade na #275.
 
-## PRNT
+## PRNT e PAR-Q canônico
 
-O PRNT possui historico proprio em `ProntuarioRecord` e tabelas filhas por bloco. `StudentParqSubmission` registra cada envio historico do PAR-Q; o prontuario le a submissao mais recente e mantem acompanhamentos antigos em `ProntuarioAnamnesisFollowUp`.
+O PRNT possui histórico próprio em `ProntuarioRecord` e tabelas filhas por bloco. O PAR-Q usa as seguintes entidades canônicas:
 
-Snapshots de desconforto corporal ficam em `ProntuarioDiscomfortSnapshot` e `ProntuarioDiscomfortEntry`. Dados legados de desconforto no cadastro do aluno nao sao migrados automaticamente.
+- `StudentParqDraft`: rascunho servidor-side, versionado e retomável. Nunca aparece como histórico clínico concluído.
+- `StudentParqSubmission`: submissão histórica imutável, com `catalogVersion`, respostas validadas, itens positivos calculados pelo backend, declaração, origem e chave de idempotência.
+- `StudentParqProfessionalReview`: pendência e análise profissional vinculadas à submissão, sem alterar as respostas históricas.
+- `StudentParqLegacyRecord`: inventário somente leitura das representações antigas, incluindo incompatibilidades, ausência de evidência temporal e divergências.
+
+A migration `20260725201000_issue_273_canonical_parq` importa legado somente quando existe mapeamento semântico completo para uma versão conhecida e data sustentável. Registros incompletos, divergentes ou sem evidência permanecem preservados em `StudentParqLegacyRecord` e produzem `NEEDS_REPEAT`; a migration não fabrica aceite, autoria, data ou versão. Chaves de origem e idempotência impedem duplicação em rerun.
+
+`StudentOnboardingProcess` armazena apenas `parqModuleStatus`, referência da última submissão e timestamps de processo. `Aluno.parqRequiresProfessionalReview` é uma projeção derivada e não uma fonte editável. PRNT, pré-matrícula e administração consultam o mesmo service canônico.
+
+A versão atual do catálogo é `parq-2026-01`, com sete chaves estáveis (`q1` a `q7`). O `q8` do formato legado conhecido representa declaração e não é reinterpretado como pergunta clínica.
+
+Snapshots de desconforto corporal ficam em `ProntuarioDiscomfortSnapshot` e `ProntuarioDiscomfortEntry`. Dados legados de desconforto no cadastro do aluno não são migrados automaticamente.
 
 ## Cuidados para agentes
 
