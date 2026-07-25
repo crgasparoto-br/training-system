@@ -5,88 +5,182 @@ on:
     branches:
       - develop
     paths:
+      - 'apps/api/prisma/migrations/**issue_273**'
+      - 'apps/api/src/modules/pre-registration-public/**parq**'
+      - 'apps/api/src/modules/alunos/student-parq-legacy-cutover.ts'
+      - 'apps/api/src/modules/prontuario/**'
+      - 'apps/api/tests/**parq**'
+      - 'apps/api/scripts/verify-issue-273-parq.ts'
+      - 'apps/api/scripts/visual-audit-issue-273.mjs'
+      - 'apps/web/src/pages/PublicPreRegistration/Parq*'
+      - 'apps/web/src/services/pre-registration-public.service.ts'
+      - 'packages/types/pre-registration-parq.ts'
+      - 'scripts/verify-issue-273-parq-migration.sh'
+      - 'docs/operations/parq-cutover.md'
+      - 'docs/product/pre-registration-parq.md'
       - '.github/workflows/issue-273-regression.yml'
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  repair:
-    name: Apply remaining API type corrections
+  regression:
+    name: Verify canonical PAR-Q, migration, runtime and responsive flow
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/training_system_issue_273?schema=public&connection_limit=1&pool_timeout=30
+      PRISMA_CONNECTION_LIMIT: '1'
+      PRISMA_POOL_TIMEOUT_SECONDS: '30'
+      RUN_DATABASE_INTEGRATION_TESTS: 'true'
+      PRIVACY_NOTICE_VERSION: '2026-07'
+      HEALTH_PRIVACY_NOTICE_VERSION: '2026-07'
+      VITE_API_URL: ''
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: training_system_issue_273
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d training_system_issue_273"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
-      - name: Checkout feature branch
+      - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
-          fetch-depth: 0
+          version: 9
 
-      - name: Repair source contracts
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma Client
+        run: pnpm --filter @corrida/api exec prisma generate
+
+      - name: Verify discriminant legacy reconciliation and rerun
+        shell: bash
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
+          set -o pipefail
+          bash scripts/verify-issue-273-parq-migration.sh 2>&1 | tee issue-273-migration.log
 
-          prontuario = Path('apps/api/src/modules/prontuario/prontuario.service.ts')
-          content = prontuario.read_text()
-          if 'const includeRecord = {' not in content:
-              marker = 'const prisma = new PrismaClient();\n'
-              helpers = '''const prisma = new PrismaClient();
+      - name: Apply application migrations
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @corrida/api exec prisma migrate deploy 2>&1 | tee issue-273-migrate-deploy.log
 
-          const includeRecord = {
-            goals: { orderBy: [{ priority: 'asc' as const }, { createdAt: 'asc' as const }] },
-            anamnesisFollowUps: { orderBy: { createdAt: 'asc' as const } },
-            activityHistory: { orderBy: { createdAt: 'asc' as const } },
-            medicationsProcedures: { orderBy: { createdAt: 'asc' as const } },
-            painCases: {
-              include: { followUps: { orderBy: { followUpAt: 'desc' as const } } },
-              orderBy: { createdAt: 'desc' as const },
-            },
-            discomfortSnapshots: {
-              include: { entries: true },
-              orderBy: { snapshotAt: 'desc' as const },
-            },
-          };
+      - name: Run focused unit, boundary and contract tests
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @corrida/api test -- --runInBand \
+            pre-registration-parq.domain.test.ts \
+            pre-registration-parq.routes.test.ts \
+            student-parq-legacy-cutover.test.ts \
+            issue-273-parq-migration.contract.test.ts \
+            prontuario.routes.test.ts \
+            2>&1 | tee issue-273-focused-tests.log
+          pnpm --filter @corrida/web test -- --run \
+            src/pages/PublicPreRegistration/Parq.behavior.test.tsx \
+            2>&1 | tee -a issue-273-focused-tests.log
 
-          function parseDate(value?: string | null) {
-            if (!value) return undefined;
-            const parsed = new Date(value.includes('T') ? value : `${value}T00:00:00`);
-            return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+      - name: Execute canonical runtime against PostgreSQL
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @corrida/api exec tsx scripts/verify-issue-273-parq.ts \
+            2>&1 | tee issue-273-runtime.log
+
+      - name: Install Chrome for Puppeteer
+        run: pnpm --filter @corrida/api exec puppeteer browsers install chrome
+
+      - name: Build web application
+        run: |
+          pnpm --filter @corrida/types build
+          pnpm --filter @corrida/utils build
+          pnpm --filter @corrida/web build
+
+      - name: Audit PAR-Q responsive and accessible states
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @corrida/api exec node scripts/visual-audit-issue-273.mjs \
+            2>&1 | tee issue-273-visual.log
+
+      - name: Create issue-scoped evidence manifest
+        if: always()
+        shell: bash
+        env:
+          EVIDENCE_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          EVIDENCE_BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+          EVIDENCE_MERGE_PREVIEW_SHA: ${{ github.event_name == 'pull_request' && github.sha || '' }}
+        run: |
+          touch issue-273-results.sha256
+          for file in \
+            issue-273-migration.log \
+            issue-273-migrate-deploy.log \
+            issue-273-focused-tests.log \
+            issue-273-runtime.log \
+            issue-273-visual.log \
+            artifacts/issue-273-visual/*.png; do
+            if [[ -f "$file" ]]; then
+              sha256sum "$file" >> issue-273-results.sha256
+            fi
+          done
+          cat > issue-273-evidence.json <<EOF_JSON
+          {
+            "schema_version": 1,
+            "kind": "issue-273-regression-evidence",
+            "repository": "${GITHUB_REPOSITORY}",
+            "workflow": "${GITHUB_WORKFLOW}",
+            "run_id": ${GITHUB_RUN_ID},
+            "run_attempt": ${GITHUB_RUN_ATTEMPT},
+            "event_name": "${GITHUB_EVENT_NAME}",
+            "head_sha": "${EVIDENCE_HEAD_SHA}",
+            "base_sha": "${EVIDENCE_BASE_SHA}",
+            "merge_preview_sha": "${EVIDENCE_MERGE_PREVIEW_SHA}",
+            "checks": [
+              "canonical and legacy migration reconciliation with rerun",
+              "authenticated server draft and cross-device resume",
+              "optimistic concurrency and idempotent completion",
+              "immutable history and deliberate resubmission",
+              "tenant isolation and legacy write cutover",
+              "professional review and derived projection",
+              "responsive and accessible PAR-Q states"
+            ],
+            "hash_manifest": "issue-273-results.sha256"
           }
-          '''
-              if marker not in content:
-                  raise SystemExit('PRNT Prisma marker not found')
-              content = content.replace(marker, helpers, 1)
-          prontuario.write_text(content)
+          EOF_JSON
 
-          profile = Path('apps/api/src/modules/alunos/profile-review.service.ts')
-          content = profile.read_text()
-          selection = re.compile(
-              r'''      select: \{\n        contractId: true,\n        userId: true,\n        professor: \{ select: \{ contractId: true \} \},\n        currentStudentContract: \{\n          select: \{\n            contract: \{\n              select: \{\n                companyContractId: true,\n              \},\n            \},\n          \},\n        \},\n      \},\n'''
-          )
-          content, count = selection.subn(
-              '      select: {\n        contractId: true,\n        userId: true,\n      },\n',
-              content,
-              count=1,
-          )
-          if count != 1:
-              raise SystemExit(f'profile review contract selection replacements: {count}')
-          resolver = re.compile(
-              r'''    const contractId = resolveAlunoCompanyContractId\(aluno\);\n    if \(!contractId\) \{\n      throw new Error\('Contrato do aluno não encontrado para aplicar revisão cadastral'\);\n    \}\n'''
-          )
-          content, count = resolver.subn('    const contractId = aluno.contractId;\n', content, count=1)
-          if count != 1:
-              raise SystemExit(f'profile review contract resolver replacements: {count}')
-          profile.write_text(content)
-          PY
-
-      - name: Commit source corrections
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add \
-            apps/api/src/modules/prontuario/prontuario.service.ts \
-            apps/api/src/modules/alunos/profile-review.service.ts
-          git commit -m "fix: restore PRNT helpers and canonical contract context"
-          git push origin HEAD:${{ github.event.pull_request.head.ref }}
+      - name: Upload issue 273 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-273-regression-${{ github.run_id }}
+          path: |
+            artifacts/issue-273-visual/*.png
+            issue-273-migration.log
+            issue-273-migrate-deploy.log
+            issue-273-focused-tests.log
+            issue-273-runtime.log
+            issue-273-visual.log
+            issue-273-results.sha256
+            issue-273-evidence.json
+          if-no-files-found: error
+          retention-days: 14
