@@ -104,6 +104,8 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
+          pnpm --filter @corrida/types build
+          pnpm --filter @corrida/utils build
           pnpm --filter @corrida/api exec tsx scripts/verify-issue-273-parq.ts \
             2>&1 | tee issue-273-runtime.log
 
@@ -111,10 +113,7 @@ jobs:
         run: pnpm --filter @corrida/api exec puppeteer browsers install chrome
 
       - name: Build web application
-        run: |
-          pnpm --filter @corrida/types build
-          pnpm --filter @corrida/utils build
-          pnpm --filter @corrida/web build
+        run: pnpm --filter @corrida/web build
 
       - name: Audit PAR-Q responsive and accessible states
         shell: bash
