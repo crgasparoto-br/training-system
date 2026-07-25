@@ -220,6 +220,34 @@ FROM "StudentHealthIntake" intake
 WHERE onboarding."alunoId" = intake."alunoId"
   AND onboarding."contractId" = intake."contractId";
 
+-- O valor financeiro corrente deixa de ser espelhado em AlunoIntakeForm.
+-- A autoridade permanece em GeneratedContract/StudentContract/Aluno e os
+-- gatilhos de contrato nao podem tentar atualizar a tabela historica.
+DROP TRIGGER IF EXISTS "StudentContract_sync_financial_service" ON "StudentContract";
+DROP TRIGGER IF EXISTS "StudentContract_sync_financial_service_insert" ON "StudentContract";
+DROP TRIGGER IF EXISTS "StudentContract_sync_financial_service_update" ON "StudentContract";
+DROP TRIGGER IF EXISTS "StudentContract_sync_financial_service_delete" ON "StudentContract";
+DROP FUNCTION IF EXISTS sync_active_student_contract_financial_service();
+DROP FUNCTION IF EXISTS refresh_student_financial_current_service(TEXT);
+
+-- Mantem a rotina de reparo publica usada operacionalmente, mas remove qualquer
+-- dependencia da tabela historica. O reparo passa a corrigir somente a relacao
+-- financeira canonica do contrato do aluno.
+CREATE OR REPLACE FUNCTION repair_student_contract_service_authority_data()
+RETURNS VOID AS $$
+BEGIN
+  UPDATE "StudentContract" AS student_contract
+  SET "serviceId" = COALESCE(generated_contract."serviceId", aluno."serviceId"),
+      "updatedAt" = CURRENT_TIMESTAMP
+  FROM "GeneratedContract" AS generated_contract,
+       "Aluno" AS aluno
+  WHERE student_contract."contractId" = generated_contract."id"
+    AND student_contract."alunoId" = aluno."id"
+    AND student_contract."serviceId"
+        IS DISTINCT FROM COALESCE(generated_contract."serviceId", aluno."serviceId");
+END;
+$$ LANGUAGE plpgsql;
+
 -- Enforcement pos-cutover: AlunoIntakeForm permanece somente leitura. O trigger
 -- transforma uma regressao de dual-write em erro explicito e transacional.
 CREATE OR REPLACE FUNCTION "reject_legacy_aluno_intake_write"()

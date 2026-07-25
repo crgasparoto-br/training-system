@@ -25,4 +25,14 @@ describe('issue #272 canonical health-intake migration contract', () => {
     expect(migration).toContain('reject_legacy_aluno_intake_write');
     expect(migration).toContain('BEFORE INSERT OR UPDATE ON "AlunoIntakeForm"');
   });
+
+  it('removes financial contract triggers that previously wrote the legacy intake table', () => {
+    expect(migration).toContain(
+      'DROP TRIGGER IF EXISTS "StudentContract_sync_financial_service_update"'
+    );
+    expect(migration).toContain(
+      'DROP FUNCTION IF EXISTS sync_active_student_contract_financial_service()'
+    );
+    expect(migration).toContain('CREATE OR REPLACE FUNCTION repair_student_contract_service_authority_data()');
+  });
 });

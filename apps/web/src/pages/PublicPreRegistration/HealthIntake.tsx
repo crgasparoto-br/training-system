@@ -272,7 +272,6 @@ export function HealthIntake() {
     }
     void load();
     // load is intentionally bound to the selected process only.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [alunoId, isAuthenticated, navigate]);
 
   const updateAnswer = <K extends keyof HealthIntakeAnswersDTO>(

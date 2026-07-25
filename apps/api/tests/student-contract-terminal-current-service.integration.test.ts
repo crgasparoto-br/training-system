@@ -14,6 +14,13 @@ const prisma = new PrismaClient();
 const companyContractId = 'terminal-current-service-company';
 const emailPrefix = 'terminal-current-service-';
 
+const resolvedCurrentService = async (alunoId: string) => {
+  const rows = await prisma.$queryRaw<Array<{ currentService: string }>>`
+    SELECT resolve_student_financial_current_service_name(${alunoId}) AS "currentService"
+  `;
+  return rows[0]?.currentService ?? '';
+};
+
 describeDatabase('student contract terminal current service with PostgreSQL', () => {
   beforeEach(async () => {
     await prisma.companyContract.deleteMany({ where: { id: companyContractId } });
@@ -41,7 +48,7 @@ describeDatabase('student contract terminal current service with PostgreSQL', ()
     await prisma.$disconnect();
   });
 
-  it('moves currentService to the prepared replacement and clears it after the last terminal transition', async () => {
+  it('resolves the prepared replacement and clears the service after the last terminal transition', async () => {
     const collaboratorFunction = await prisma.collaboratorFunctionOption.create({
       data: {
         contractId: companyContractId,
@@ -80,17 +87,6 @@ describeDatabase('student contract terminal current service with PostgreSQL', ()
         contractId: professor.contractId,
         schedulePlan: 'free',
         age: 30,
-      },
-    });
-    await prisma.alunoIntakeForm.create({
-      data: {
-        alunoId: aluno.id,
-        formResponses: {
-          financial: {
-            currentService: 'valor legado',
-            paymentDay: '10',
-          },
-        },
       },
     });
 
@@ -176,52 +172,19 @@ describeDatabase('student contract terminal current service with PostgreSQL', ()
       },
     });
 
-    const intakeWhileActive = await prisma.alunoIntakeForm.findUniqueOrThrow({
-      where: { alunoId: aluno.id },
-    });
-    expect(intakeWhileActive.formResponses).toEqual(
-      expect.objectContaining({
-        financial: expect.objectContaining({
-          currentService: activeService.name,
-          paymentDay: '10',
-        }),
-      })
-    );
+    expect(await resolvedCurrentService(aluno.id)).toBe(activeService.name);
 
     await prisma.studentContract.update({
       where: { id: activeLink.id },
       data: { status: 'canceled' },
     });
-
-    const intakeAfterActiveCancellation =
-      await prisma.alunoIntakeForm.findUniqueOrThrow({
-        where: { alunoId: aluno.id },
-      });
-    expect(intakeAfterActiveCancellation.formResponses).toEqual(
-      expect.objectContaining({
-        financial: expect.objectContaining({
-          currentService: replacementService.name,
-          paymentDay: '10',
-        }),
-      })
-    );
+    expect(await resolvedCurrentService(aluno.id)).toBe(replacementService.name);
 
     await prisma.studentContract.update({
       where: { id: replacementLink.id },
       data: { status: 'canceled' },
     });
-
-    const intakeAfterLastCancellation =
-      await prisma.alunoIntakeForm.findUniqueOrThrow({
-        where: { alunoId: aluno.id },
-      });
-    expect(intakeAfterLastCancellation.formResponses).toEqual(
-      expect.objectContaining({
-        financial: expect.objectContaining({
-          currentService: '',
-          paymentDay: '10',
-        }),
-      })
-    );
+    expect(await resolvedCurrentService(aluno.id)).toBe('');
+    expect(await prisma.alunoIntakeForm.findUnique({ where: { alunoId: aluno.id } })).toBeNull();
   });
 });

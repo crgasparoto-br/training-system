@@ -14,7 +14,8 @@ A migration é convergente e usa as seguintes regras:
 4. divergências não são sobrescritas: nomes de campos conflitantes ficam em `migrationReviewData`, com `migrationReviewRequired = true`;
 5. `parqResponses` e `formResponses` são explicitamente excluídos do backfill;
 6. sincroniza `StudentOnboardingProcess.healthIntakeId`, status e timestamps;
-7. bloqueia regressões de dual-write com o trigger `AlunoIntakeForm_read_only_after_issue_272`.
+7. remove os gatilhos financeiros de `StudentContract` que ainda espelhavam `currentService` em `AlunoIntakeForm`;
+8. bloqueia regressões de dual-write com o trigger `AlunoIntakeForm_read_only_after_issue_272`.
 
 ## Verificação pós-deploy
 
