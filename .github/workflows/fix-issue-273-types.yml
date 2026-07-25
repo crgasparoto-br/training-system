@@ -1,0 +1,63 @@
+name: Fix Issue 273 Type Check
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - '.github/workflows/fix-issue-273-types.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Apply deterministic type corrections
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          test_path = Path('apps/web/src/components/alunos/AlunoDiscomfortSummaryCard.test.tsx')
+          content = test_path.read_text()
+          needle = "      parqSubmissions: [],\n"
+          replacement = "      parqSubmissions: [],\n      parqState: 'NOT_STARTED',\n      parqLegacy: { preserved: false, needsRepeat: false },\n"
+          if content.count(needle) != 2:
+              raise SystemExit(f'expected 2 overview fixtures, found {content.count(needle)}')
+          test_path.write_text(content.replace(needle, replacement))
+
+          parq_path = Path('apps/web/src/pages/PublicPreRegistration/Parq.tsx')
+          content = parq_path.read_text()
+          old = """  const showCompleted = session.latestSubmission && session.status !== 'IN_PROGRESS' && !respondAgain;\n  if (showCompleted) {\n    const hasAlert = session.latestSubmission.positiveCount > 0;\n"""
+          new = """  const latestSubmission = session.latestSubmission;\n  const showCompleted = latestSubmission && session.status !== 'IN_PROGRESS' && !respondAgain;\n  if (showCompleted && latestSubmission) {\n    const hasAlert = latestSubmission.positiveCount > 0;\n"""
+          if old not in content:
+              raise SystemExit('completed PAR-Q block not found')
+          content = content.replace(old, new, 1)
+          content = content.replace('session.latestSubmission.submittedAt', 'latestSubmission.submittedAt')
+          content = content.replace('session.latestSubmission.positiveCount', 'latestSubmission.positiveCount')
+          parq_path.write_text(content)
+
+          public_path = Path('apps/web/src/pages/PublicPreRegistration/PublicPreRegistration.tsx')
+          content = public_path.read_text()
+          start = content.find('function OptionalModuleHandoff')
+          end = content.find('function ProcessSelector', start)
+          if start < 0 or end < 0 or end <= start:
+              raise SystemExit('unused OptionalModuleHandoff block not found')
+          public_path.write_text(content[:start] + content[end:])
+          PY
+
+      - name: Remove workflow and commit
+        run: |
+          rm -f .github/workflows/fix-issue-273-types.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: resolve issue 273 frontend type errors"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
