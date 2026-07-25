@@ -387,10 +387,8 @@ export const preRegistrationHealthIntakeService = {
         healthIntakeId: intake.id,
         step: input.step,
         version: intake.version,
+        ...(acceptedAt ? { consentNoticeVersion: HEALTH_NOTICE_VERSION } : {}),
       };
-      if (acceptedAt) {
-        eventMetadata.consentNoticeVersion = HEALTH_NOTICE_VERSION;
-      }
       await recordLifecycleEvent(
         tx,
         access,

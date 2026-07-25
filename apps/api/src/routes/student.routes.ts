@@ -555,7 +555,7 @@ router.put('/me/profile', async (req: Request, res: Response) => {
         changedFieldNames.push(...Object.keys(profileData).map((k) => `identity.${k}`));
       }
 
-      if (hasCanonicalHealthIntakeMutation(intakeFormPatch)) {
+      if (intakeFormPatch && hasCanonicalHealthIntakeMutation(intakeFormPatch)) {
         await upsertCanonicalStudentHealthIntake(tx, {
           alunoId: aluno.id,
           contractId: aluno.contractId,
@@ -565,7 +565,7 @@ router.put('/me/profile', async (req: Request, res: Response) => {
           health: intakeFormPatch,
         });
         changedFieldNames.push(
-          ...Object.keys(intakeFormPatch ?? {}).map((key) => `healthIntake.${key}`)
+          ...Object.keys(intakeFormPatch).map((key) => `healthIntake.${key}`)
         );
       }
     });
