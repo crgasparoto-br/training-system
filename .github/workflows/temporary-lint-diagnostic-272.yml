@@ -1,0 +1,51 @@
+name: Temporary lint diagnostic issue 272
+
+on:
+  pull_request:
+    branches: [develop]
+    types: [synchronize]
+
+permissions:
+  contents: write
+
+jobs:
+  lint-diagnostic:
+    if: github.head_ref == 'feat/272-canonical-health-intake'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/272-canonical-health-intake
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Capture lint output
+        shell: bash
+        run: |
+          set +e
+          pnpm lint > lint-output.log 2>&1
+          echo "$?" > lint-exit-code.txt
+          exit 0
+      - name: Upload lint output
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-272-lint-diagnostic
+          path: |
+            lint-output.log
+            lint-exit-code.txt
+          retention-days: 1
+      - name: Remove diagnostic workflow
+        shell: bash
+        run: |
+          rm .github/workflows/temporary-lint-diagnostic-272.yml
+          git add -A
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'chore(ci): remove issue 272 lint diagnostic'
+          git push origin HEAD:feat/272-canonical-health-intake
