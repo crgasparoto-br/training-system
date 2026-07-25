@@ -14,6 +14,7 @@ import {
 } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { formatDate } from './pre-registration-ui';
+import { PreRegistrationGuardianAuthorizationCard } from './PreRegistrationGuardianAuthorizationCard';
 
 export type InviteCopyState = 'idle' | 'copied' | 'failed';
 
@@ -66,6 +67,7 @@ export function PreRegistrationInviteCard({
   };
 
   return (
+    <>
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-lg">
@@ -204,5 +206,9 @@ export function PreRegistrationInviteCard({
         )}
       </CardContent>
     </Card>
+    {lead.allowedActions.canValidateGuardianAuthorization ? (
+      <PreRegistrationGuardianAuthorizationCard leadId={lead.id} />
+    ) : null}
+    </>
   );
 }

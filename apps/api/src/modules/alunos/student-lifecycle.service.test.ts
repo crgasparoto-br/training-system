@@ -87,6 +87,7 @@ describe('student-lifecycle stage requirements', () => {
         'name',
         'birthDate',
         'phone',
+        'email',
         'privacyNoticeVersion',
         'privacyAcceptedAt',
       ])
@@ -260,6 +261,7 @@ describeDb('student-lifecycle integration (banco real)', () => {
     await completeStudentPreRegistration(first.lead.id, contractId, {
       name: 'CPF A',
       phone: '11910000001',
+      email: 'cpf-a@example.test',
       cpf: '123.456.789-01',
       birthDate: '1990-01-01',
       privacyNoticeVersion: 'v1',
@@ -274,6 +276,7 @@ describeDb('student-lifecycle integration (banco real)', () => {
       completeStudentPreRegistration(second.lead.id, contractId, {
         name: 'CPF B',
         phone: '11910000002',
+        email: 'cpf-b@example.test',
         cpf: '123.456.789-01',
         birthDate: '1991-01-01',
         privacyNoticeVersion: 'v1',
@@ -302,6 +305,7 @@ describeDb('student-lifecycle integration (banco real)', () => {
       {
         name: 'CPF Cross Tenant A',
         phone: '11910101010',
+        email: 'cpf-cross-a@example.test',
         cpf,
         birthDate: '1990-01-01',
         privacyNoticeVersion: 'v1',
@@ -316,6 +320,7 @@ describeDb('student-lifecycle integration (banco real)', () => {
         {
           name: 'CPF Cross Tenant B',
           phone: '11920202020',
+          email: 'cpf-cross-b@example.test',
           cpf,
           birthDate: '1991-01-01',
           privacyNoticeVersion: 'v1',
@@ -441,6 +446,7 @@ describeDb('student-lifecycle integration (banco real)', () => {
       completeStudentPreRegistration(lead.id, contractId, {
         name: 'Sem convite',
         phone: '11911112222',
+        email: 'sem-convite@example.test',
         birthDate: '1990-01-01',
         privacyNoticeVersion: 'v1',
         privacyAcceptedAt: new Date(),
@@ -535,6 +541,7 @@ describeDb('student-lifecycle integration (banco real)', () => {
       {
         name: 'Nome Tenant Dois',
         phone: '11999990000',
+        email: 'tenant-dois@example.test',
         cpf: '987.654.321-00',
         birthDate: '1992-02-02',
         privacyNoticeVersion: 'v1',
@@ -614,6 +621,7 @@ describeDb('student-lifecycle integration (banco real)', () => {
         {
           name: 'Alterado indevidamente',
           phone: '11999999999',
+          email: 'cross-tenant@example.test',
           birthDate: '1980-01-01',
           privacyNoticeVersion: 'evil',
           privacyAcceptedAt: new Date(),

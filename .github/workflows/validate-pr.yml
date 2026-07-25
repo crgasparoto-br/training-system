@@ -18,7 +18,12 @@ jobs:
     name: Validate repository
     runs-on: ubuntu-latest
     env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/training_system_test?schema=public
+      # A suíte de integração instancia clientes Prisma em vários módulos. Cada
+      # pool usa uma única conexão no CI para preservar a cobertura completa sem
+      # disputar o max_connections do PostgreSQL efêmero.
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/training_system_test?schema=public&connection_limit=1&pool_timeout=30
+      PRISMA_CONNECTION_LIMIT: '1'
+      PRISMA_POOL_TIMEOUT_SECONDS: '30'
       RUN_DATABASE_INTEGRATION_TESTS: 'true'
 
     services:
@@ -40,6 +45,30 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Create workflow evidence attestation
+        shell: bash
+        env:
+          AUDIT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          AUDIT_BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+          AUDIT_MERGE_PREVIEW_SHA: ${{ github.event_name == 'pull_request' && github.sha || '' }}
+        run: |
+          cat > orquestrador-artifact.json <<EOF
+          {
+            "schemaVersion": 1,
+            "kind": "validate-pr-evidence",
+            "repository": "${GITHUB_REPOSITORY}",
+            "workflow": "${GITHUB_WORKFLOW}",
+            "runId": "${GITHUB_RUN_ID}",
+            "runAttempt": "${GITHUB_RUN_ATTEMPT}",
+            "eventName": "${GITHUB_EVENT_NAME}",
+            "headSha": "${AUDIT_HEAD_SHA}",
+            "baseSha": "${AUDIT_BASE_SHA}",
+            "mergePreviewSha": "${AUDIT_MERGE_PREVIEW_SHA}",
+            "ref": "${GITHUB_REF}",
+            "refName": "${GITHUB_REF_NAME}"
+          }
+          EOF
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
@@ -58,7 +87,20 @@ jobs:
         run: pnpm --filter @corrida/api exec prisma generate
 
       - name: Apply test database migrations
-        run: pnpm --filter @corrida/api exec prisma migrate deploy
+        run: |
+          set -o pipefail
+          pnpm --filter @corrida/api exec prisma migrate deploy 2>&1 | tee migration-output.log
+
+      - name: Upload migration output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: migration-output-${{ github.run_id }}
+          path: |
+            migration-output.log
+            orquestrador-artifact.json
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Verify lifecycle legacy backfill
         run: |
@@ -70,7 +112,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: lifecycle-backfill-output-${{ github.run_id }}
-          path: lifecycle-backfill-output.log
+          path: |
+            lifecycle-backfill-output.log
+            orquestrador-artifact.json
           if-no-files-found: ignore
           retention-days: 7
 
@@ -93,7 +137,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: type-check-output-${{ github.run_id }}
-          path: type-check-output.log
+          path: |
+            type-check-output.log
+            orquestrador-artifact.json
           if-no-files-found: ignore
           retention-days: 7
 
@@ -110,7 +156,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-output-${{ github.run_id }}
-          path: test-output.log
+          path: |
+            test-output.log
+            orquestrador-artifact.json
           if-no-files-found: ignore
           retention-days: 7
 
@@ -133,6 +181,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: docs-check-output-${{ github.run_id }}
-          path: docs-check-output.log
+          path: |
+            docs-check-output.log
+            orquestrador-artifact.json
           if-no-files-found: ignore
           retention-days: 7

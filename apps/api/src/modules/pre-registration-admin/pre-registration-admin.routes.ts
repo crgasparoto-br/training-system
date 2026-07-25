@@ -17,6 +17,7 @@ import {
   preRegistrationAdminService,
   type PreRegistrationAdminActor,
 } from './pre-registration-admin.service.js';
+import { preRegistrationGuardianAuthorizationAdminService } from './pre-registration-guardian-authorization-admin.service.js';
 
 export const preRegistrationAdminRoutes: Router = Router();
 preRegistrationAdminRoutes.use(authMiddleware);
@@ -230,6 +231,62 @@ preRegistrationAdminRoutes.post(
         actor.contractId,
         { inviteId: req.body?.inviteId, reason },
         actor
+      );
+      return res.json({ success: true, data });
+    } catch (error) {
+      return respondError(res, error);
+    }
+  }
+);
+
+preRegistrationAdminRoutes.get(
+  '/leads/:id/guardian-authorization',
+  reviewAccess,
+  async (req, res) => {
+    try {
+      const data = await preRegistrationGuardianAuthorizationAdminService.get(
+        actorFrom(req),
+        req.params.id
+      );
+      return res.json({ success: true, data });
+    } catch (error) {
+      return respondError(res, error);
+    }
+  }
+);
+
+preRegistrationAdminRoutes.post(
+  '/leads/:id/guardian-authorization/approve',
+  reviewAccess,
+  async (req, res) => {
+    try {
+      if (req.body?.confirmationAccepted !== true) {
+        throw new PreRegistrationAdminError(
+          'Confirme a validação do vínculo antes de aprovar.',
+          'INVALID_INPUT'
+        );
+      }
+      const data = await preRegistrationGuardianAuthorizationAdminService.approve(
+        actorFrom(req),
+        req.params.id
+      );
+      return res.json({ success: true, data });
+    } catch (error) {
+      return respondError(res, error);
+    }
+  }
+);
+
+preRegistrationAdminRoutes.post(
+  '/leads/:id/guardian-authorization/revoke',
+  reviewAccess,
+  async (req, res) => {
+    try {
+      const reason = String(req.body?.reason || '').trim();
+      const data = await preRegistrationGuardianAuthorizationAdminService.revoke(
+        actorFrom(req),
+        req.params.id,
+        reason
       );
       return res.json({ success: true, data });
     } catch (error) {

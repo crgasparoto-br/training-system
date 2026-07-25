@@ -264,6 +264,7 @@ async function accessFor(actor: PreRegistrationAdminActor): Promise<AccessContex
     canRegenerateInvite: invite,
     canRevokeInvite: revoke,
     canReview: review,
+    canValidateGuardianAuthorization: review,
     canDiscard: discard,
     canReopen: discard,
     canConvert: convert,
@@ -326,12 +327,13 @@ function progressOf(lead: LeadRecord) {
   const missing = findMissingPreRegistrationFields({
     name: typeof data.name === 'string' ? data.name : lead.leadName || undefined,
     phone: typeof data.phone === 'string' ? data.phone : lead.leadPhone || undefined,
+    email: typeof data.email === 'string' ? data.email : lead.leadEmail || undefined,
     birthDate:
       typeof data.birthDate === 'string' ? data.birthDate : lead.birthDate || undefined,
     privacyNoticeVersion: lead.onboarding?.privacyNoticeVersion || undefined,
     privacyAcceptedAt: lead.onboarding?.privacyAcceptedAt || undefined,
   });
-  const totalFields = 5;
+  const totalFields = 6;
   return {
     basicRegistration: lead.onboarding?.completedAt
       ? 'COMPLETED'
@@ -362,6 +364,8 @@ function allowedFor(lead: LeadRecord, invite: InviteRecord | undefined, access: 
     canRevokeInvite: access.permissions.canRevokeInvite && inviteActions.canRevoke,
     canReview:
       access.permissions.canReview && lead.status === 'PRE_REGISTRATION_COMPLETED',
+    canValidateGuardianAuthorization:
+      access.permissions.canValidateGuardianAuthorization && !discarded,
     canDiscard: access.permissions.canDiscard && !discarded,
     canReopen: access.permissions.canReopen && discarded,
     canConvert:

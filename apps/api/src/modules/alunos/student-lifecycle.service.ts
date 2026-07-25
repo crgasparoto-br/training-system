@@ -444,6 +444,7 @@ export function findMissingPreRegistrationFields(data: PreRegistrationData): str
   if (!data.name?.trim()) missing.push('name');
   if (!data.birthDate) missing.push('birthDate');
   if (!normalizeStudentPhone(data.phone)) missing.push('phone');
+  if (!normalizeStudentEmail(data.email)) missing.push('email');
   if (!data.privacyNoticeVersion?.trim()) missing.push('privacyNoticeVersion');
   if (!data.privacyAcceptedAt) missing.push('privacyAcceptedAt');
   return missing.filter((field) =>
@@ -590,6 +591,7 @@ export async function markStudentReadyForEnrollment(
     const missing = findMissingPreRegistrationFields({
       name: typeof identity.name === 'string' ? identity.name : undefined,
       phone: typeof identity.phone === 'string' ? identity.phone : undefined,
+      email: typeof identity.email === 'string' ? identity.email : undefined,
       birthDate: typeof identity.birthDate === 'string' ? identity.birthDate : undefined,
       privacyNoticeVersion: aluno.onboarding.privacyNoticeVersion,
       privacyAcceptedAt: aluno.onboarding.privacyAcceptedAt,

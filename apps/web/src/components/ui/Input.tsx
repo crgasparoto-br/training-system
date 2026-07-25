@@ -8,7 +8,10 @@ export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> 
 }
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, type, label, error, ...props }, ref) => {
+  ({ className, type, label, error, id, ...props }, ref) => {
+    const generatedId = React.useId();
+    const inputId = id || generatedId;
+    const errorId = error ? `${inputId}-error` : undefined;
     const [showPassword, setShowPassword] = React.useState(false);
     const isPassword = type === 'password';
     const inputType = isPassword && showPassword ? 'text' : type;
@@ -16,14 +19,17 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
     return (
       <div className="w-full">
         {label && (
-          <label className="mb-2 block text-sm font-medium text-foreground">
+          <label htmlFor={inputId} className="mb-2 block text-sm font-medium text-foreground">
             {label}
-            {props.required && <span className="text-destructive ml-1">*</span>}
+            {props.required && <span className="ml-1 text-destructive">*</span>}
           </label>
         )}
         <div className="relative">
           <input
+            id={inputId}
             type={inputType}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={errorId}
             className={cn(
               'flex h-11 w-full rounded-lg border border-input bg-card px-4 py-2.5 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:border-border disabled:bg-muted disabled:text-muted-foreground',
               isPassword && 'pr-10',
@@ -45,7 +51,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             </button>
           )}
         </div>
-        {error && <p className="text-sm text-destructive mt-1">{error}</p>}
+        {error && <p id={errorId} className="mt-1 text-sm text-destructive">{error}</p>}
       </div>
     );
   }

@@ -23,6 +23,10 @@ import { startProfileReviewScheduler } from './modules/alunos/profile-review.sch
 import studentContractLifecycleRoutes from './modules/student-contracts/student-contract-lifecycle.routes.js';
 import { preRegistrationAdminRoutes } from './modules/pre-registration-admin/index.js';
 import {
+  preRegistrationAuthenticatedRoutes,
+  preRegistrationPublicEntryRoutes,
+} from './modules/pre-registration-public/index.js';
+import {
   preRegistrationInviteAdminRoutes,
   preRegistrationInvitePublicErrorHandler,
   preRegistrationInvitePublicHeaders,
@@ -65,6 +69,11 @@ app.use(
   '/api/v1/pre-cadastro',
   cors(createApiCorsOptions(corsConfig, { preflightContinue: true }))
 );
+
+// A criação de conta vinculada ao convite usa um parser próprio e limitado. O
+// token existe somente nesta entrada pública; depois da reivindicação, o fluxo
+// continua em rotas autenticadas sem token.
+app.use('/api/v1', preRegistrationPublicEntryRoutes);
 
 // O roteador público deve interceptar qualquer método ou variação tokenizada
 // antes dos parsers globais. Assim, até payload inválido ou excessivo recebe a
@@ -129,6 +138,7 @@ app.get('/api/v1', (_req, res) => {
       preRegistrationAdmin: '/api/v1/pre-registration-admin/leads',
       preRegistrationInvites: '/api/v1/alunos/:alunoId/pre-registration-invites',
       preRegistrationInvitePublic: '/api/v1/pre-cadastro/:token',
+      preRegistrationAuthenticated: '/api/v1/pre-registration/session',
     },
   });
 });
@@ -136,6 +146,7 @@ app.get('/api/v1', (_req, res) => {
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/assessment-types', assessmentTypeRoutes);
 app.use('/api/v1/pre-registration-admin', preRegistrationAdminRoutes);
+app.use('/api/v1/pre-registration', preRegistrationAuthenticatedRoutes);
 
 // Public student avatar upload must use external storage before the legacy module.
 app.use('/api/v1/alunos', alunoAvatarUploadRoutes);

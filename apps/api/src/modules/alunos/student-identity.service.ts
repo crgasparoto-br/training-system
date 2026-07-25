@@ -223,6 +223,12 @@ const changedNormalizedFields = (
  * são projeções normalizadas para busca/constraints. `Profile` é atualizado apenas
  * como projeção legada temporária quando `syncLegacyProfile` estiver habilitado;
  * nenhum fluxo deve escrever esses campos diretamente fora deste service.
+ *
+ * A projeção em `Aluno` é atualizada antes de `StudentProfile`. Essa ordem é
+ * intencional: fluxos públicos já bloqueiam o onboarding e depois escrevem Aluno
+ * e identidade; fluxos administrativos normalmente bloqueiam Aluno primeiro. O
+ * trigger de versão da identidade usa NOWAIT sobre o onboarding para transformar
+ * uma disputa inversa em conflito transacional, nunca em deadlock.
  */
 export async function upsertStudentIdentity(
   alunoId: string,
@@ -237,7 +243,13 @@ export async function upsertStudentIdentity(
     emitAuditEvent?: boolean;
   } = {}
 ): Promise<StudentIdentitySnapshot> {
-  const client = options.client ?? prisma;
+  if (!options.client) {
+    return prisma.$transaction((tx) =>
+      upsertStudentIdentity(alunoId, contractId, patch, { ...options, client: tx })
+    );
+  }
+
+  const client = options.client;
   const aluno = await client.aluno.findFirst({
     where: { id: alunoId, contractId },
     include: {
@@ -257,25 +269,6 @@ export async function upsertStudentIdentity(
   const normalizedChanges = changedNormalizedFields(aluno, identity);
   const birthDate = identity.birthDate ? new Date(identity.birthDate) : null;
 
-  await client.studentProfile.upsert({
-    where: { alunoId },
-    create: {
-      alunoId,
-      contractId,
-      sourceType: options.sourceType ?? 'student',
-      sourceReference: options.sourceReference,
-      recordedByUserId: options.actor?.userId,
-      identificationData: identity as Prisma.InputJsonValue,
-    },
-    update: {
-      contractId,
-      sourceType: options.sourceType ?? aluno.studentProfile?.sourceType ?? 'student',
-      sourceReference: options.sourceReference ?? aluno.studentProfile?.sourceReference,
-      recordedByUserId: options.actor?.userId ?? aluno.studentProfile?.recordedByUserId,
-      identificationData: identity as Prisma.InputJsonValue,
-    },
-  });
-
   await client.aluno.update({
     where: { id: alunoId },
     data: {
@@ -292,6 +285,25 @@ export async function upsertStudentIdentity(
       leadCpfNormalized: normalizeStudentCpf(identity.cpf) ?? null,
       birthDate,
       age: birthDate ? deriveAgeFromBirthDate(birthDate) : null,
+    },
+  });
+
+  await client.studentProfile.upsert({
+    where: { alunoId },
+    create: {
+      alunoId,
+      contractId,
+      sourceType: options.sourceType ?? 'student',
+      sourceReference: options.sourceReference,
+      recordedByUserId: options.actor?.userId,
+      identificationData: identity as Prisma.InputJsonValue,
+    },
+    update: {
+      contractId,
+      sourceType: options.sourceType ?? aluno.studentProfile?.sourceType ?? 'student',
+      sourceReference: options.sourceReference ?? aluno.studentProfile?.sourceReference,
+      recordedByUserId: options.actor?.userId ?? aluno.studentProfile?.recordedByUserId,
+      identificationData: identity as Prisma.InputJsonValue,
     },
   });
 

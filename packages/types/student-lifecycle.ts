@@ -91,7 +91,9 @@ export interface CreateStudentLeadDTO {
 export interface UpdateStudentPreRegistrationDTO {
   name?: string;
   phone?: string;
+  additionalPhone?: string;
   email?: string;
+  additionalEmail?: string;
   cpf?: string;
   birthDate?: string;
   addressStreet?: string;
@@ -114,6 +116,7 @@ export const PRE_REGISTRATION_REQUIRED_FIELDS = [
   'name',
   'birthDate',
   'phone',
+  'email',
   'privacyNoticeVersion',
   'privacyAcceptedAt',
 ] as const;

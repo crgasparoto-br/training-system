@@ -7,6 +7,7 @@ import type {
   PreRegistrationDuplicateCheckResultDTO,
   PreRegistrationInviteCreationResultDTO,
   PreRegistrationInviteSummaryDTO,
+  PreRegistrationGuardianAuthorizationAdminDTO,
   UpdatePreRegistrationLeadCommercialDTO,
 } from '@corrida/types';
 import api from './api';
@@ -78,6 +79,30 @@ export const preRegistrationAdminService = {
       `/pre-registration-admin/leads/${id}/invites/revoke`,
       { inviteId, reason }
     );
+    return response.data.data;
+  },
+
+
+  async getGuardianAuthorization(id: string) {
+    const response = await api.get<
+      ApiEnvelope<PreRegistrationGuardianAuthorizationAdminDTO | null>
+    >(`/pre-registration-admin/leads/${id}/guardian-authorization`);
+    return response.data.data;
+  },
+
+  async approveGuardianAuthorization(id: string) {
+    const response = await api.post<
+      ApiEnvelope<PreRegistrationGuardianAuthorizationAdminDTO>
+    >(`/pre-registration-admin/leads/${id}/guardian-authorization/approve`, {
+      confirmationAccepted: true,
+    });
+    return response.data.data;
+  },
+
+  async revokeGuardianAuthorization(id: string, reason: string) {
+    const response = await api.post<
+      ApiEnvelope<PreRegistrationGuardianAuthorizationAdminDTO>
+    >(`/pre-registration-admin/leads/${id}/guardian-authorization/revoke`, { reason });
     return response.data.data;
   },
 
