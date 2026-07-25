@@ -82,11 +82,17 @@ function responseRecord(value: Prisma.JsonValue | null | undefined): ParqRespons
 
 function positiveItems(value: Prisma.JsonValue | null | undefined): ParqPositiveItem[] {
   if (!Array.isArray(value)) return [];
-  return value.filter((item): item is ParqPositiveItem => {
-    if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
-    const record = item as Record<string, unknown>;
-    return typeof record.key === 'string' && typeof record.label === 'string';
-  });
+  const items: ParqPositiveItem[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+    const record = item as Prisma.JsonObject;
+    if (typeof record.key !== 'string' || typeof record.label !== 'string') continue;
+    items.push({
+      key: record.key as ParqPositiveItem['key'],
+      label: record.label,
+    });
+  }
+  return items;
 }
 
 function requireConsent(input: SaveParqDraftDTO) {
