@@ -22,13 +22,13 @@ UPDATE "StudentParqSubmission"
 SET "catalogVersion" = CASE
       WHEN "declarationAccepted" = true
        AND jsonb_typeof("responses") = 'object'
-       AND jsonb_object_length("responses") = 8
+       AND (SELECT COUNT(*) FROM jsonb_object_keys("responses")) = 8
        AND "responses" ?& ARRAY['q1','q2','q3','q4','q5','q6','q7','q8']
        AND "responses"->>'q8' = 'true'
       THEN 'parq-legacy-8-declaration-v1'
       WHEN "declarationAccepted" = true
        AND jsonb_typeof("responses") = 'object'
-       AND jsonb_object_length("responses") = 7
+       AND (SELECT COUNT(*) FROM jsonb_object_keys("responses")) = 7
        AND "responses" ?& ARRAY['q1','q2','q3','q4','q5','q6','q7']
       THEN 'parq-2026-01'
       ELSE 'legacy-unknown'
@@ -156,7 +156,7 @@ SELECT
   md5(intake."parqResponses"::text || '|' || COALESCE(intake."assessmentDate"::text, '')),
   CASE WHEN intake."assessmentDate" IS NOT NULL
          AND jsonb_typeof(intake."parqResponses") = 'object'
-         AND jsonb_object_length(intake."parqResponses") = 8
+         AND (SELECT COUNT(*) FROM jsonb_object_keys(intake."parqResponses")) = 8
          AND intake."parqResponses" ?& ARRAY['q1','q2','q3','q4','q5','q6','q7','q8']
          AND intake."parqResponses"->>'q8' = 'true'
        THEN 'IMPORTABLE' ELSE 'INCOMPATIBLE' END,
@@ -182,7 +182,7 @@ SELECT
   md5(intake."questionnaireParq"::text || '|' || COALESCE(intake."assessmentDate"::text, '')),
   CASE WHEN intake."assessmentDate" IS NOT NULL
          AND jsonb_typeof(intake."questionnaireParq") = 'object'
-         AND jsonb_object_length(intake."questionnaireParq") = 8
+         AND (SELECT COUNT(*) FROM jsonb_object_keys(intake."questionnaireParq")) = 8
          AND intake."questionnaireParq" ?& ARRAY['q1','q2','q3','q4','q5','q6','q7','q8']
          AND intake."questionnaireParq"->>'q8' = 'true'
        THEN 'IMPORTABLE' ELSE 'INCOMPATIBLE' END,

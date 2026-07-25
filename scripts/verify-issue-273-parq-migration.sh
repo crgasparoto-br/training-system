@@ -39,6 +39,8 @@ while IFS= read -r migration; do
 done < <(find "$ROOT_DIR/apps/api/prisma/migrations" -mindepth 2 -maxdepth 2 -name migration.sql | sort)
 
 psql_admin_stdin "$DB_NAME" <<'SQL'
+SET session_replication_role = replica;
+
 INSERT INTO "Contract" ("id", "type", "document", "name", "createdAt", "updatedAt")
 VALUES ('issue-273-contract', 'academy', 'issue-273-contract-document', 'Academia Issue 273', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 
@@ -75,6 +77,9 @@ INSERT INTO "StudentParqSubmission" (
   ('existing-equivalent', 'issue-273-equivalent', 'issue-273-contract', 'student', '2026-02-10', '{"q1":false,"q2":false,"q3":false,"q4":false,"q5":false,"q6":false,"q7":false}'::jsonb, '[]'::jsonb, true, '2026-02-10', '2026-02-10'),
   ('existing-canonical', 'issue-273-canonical', 'issue-273-contract', 'student', '2026-06-10', '{"q1":false,"q2":false,"q3":false,"q4":false,"q5":false,"q6":false,"q7":false}'::jsonb, '[]'::jsonb, true, '2026-06-10', '2026-06-10'),
   ('existing-legacy-eight', 'issue-273-canonical-legacy', 'issue-273-contract', 'student', '2026-06-20', '{"q1":false,"q2":true,"q3":false,"q4":false,"q5":false,"q6":false,"q7":false,"q8":true}'::jsonb, '[{"key":"q2","label":"Dor no peito"}]'::jsonb, true, '2026-06-20', '2026-06-20');
+
+
+SET session_replication_role = origin;
 SQL
 
 psql_admin "$DB_NAME" -f "/workspace/apps/api/prisma/migrations/${TARGET_MIGRATION}/migration.sql" >/dev/null
