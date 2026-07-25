@@ -98,6 +98,10 @@ jobs:
       - name: Create visual evidence attestation
         if: always()
         shell: bash
+        env:
+          AUDIT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          AUDIT_BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+          AUDIT_MERGE_PREVIEW_SHA: ${{ github.event_name == 'pull_request' && github.sha || '' }}
         run: |
           cat > orquestrador-artifact.json <<EOF
           {
@@ -108,7 +112,9 @@ jobs:
             "runId": "${GITHUB_RUN_ID}",
             "runAttempt": "${GITHUB_RUN_ATTEMPT}",
             "eventName": "${GITHUB_EVENT_NAME}",
-            "headSha": "${GITHUB_SHA}",
+            "headSha": "${AUDIT_HEAD_SHA}",
+            "baseSha": "${AUDIT_BASE_SHA}",
+            "mergePreviewSha": "${AUDIT_MERGE_PREVIEW_SHA}",
             "ref": "${GITHUB_REF}",
             "refName": "${GITHUB_REF_NAME}"
           }
