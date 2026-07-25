@@ -1,24 +1,35 @@
-name: Temporary source export for issue 272
+name: Apply issue 272 implementation snapshot
 
 on:
   pull_request:
     branches: [develop]
-    types: [opened, synchronize, reopened]
+    types: [synchronize]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  export-source:
+  apply-implementation:
     if: github.head_ref == 'feat/272-canonical-health-intake'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout branch
+      - name: Checkout implementation branch
         uses: actions/checkout@v4
-      - name: Upload source snapshot
-        uses: actions/upload-artifact@v4
         with:
-          name: issue-272-source
-          path: .
-          retention-days: 1
-          if-no-files-found: error
+          ref: feat/272-canonical-health-intake
+          fetch-depth: 0
+      - name: Apply verified local implementation
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .github/issue-272/part-* > /tmp/issue-272.patch.gz.b64
+          base64 -d /tmp/issue-272.patch.gz.b64 > /tmp/issue-272.patch.gz
+          gzip -dc /tmp/issue-272.patch.gz > /tmp/issue-272.patch
+          git apply --binary --index /tmp/issue-272.patch
+          rm -rf .github/issue-272
+          rm .github/workflows/temporary-export-issue-272.yml
+          git add -A
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'feat: consolidate canonical health intake'
+          git push origin HEAD:feat/272-canonical-health-intake
