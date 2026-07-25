@@ -23,10 +23,18 @@ jobs:
       - name: Rebuild follow-up patch
         run: |
           set -euo pipefail
-          base64 --decode .issue273/followup.patch.gz.b64 > /tmp/issue273-followup.patch.gz
+          cat \
+            .issue273/followup.00.b64 \
+            .issue273/followup.01.b64 \
+            .issue273/followup.02a.b64 \
+            .issue273/followup.02b.b64 \
+            .issue273/followup.02c.b64 \
+            .issue273/followup.02d.b64 \
+            .issue273/followup.03.b64 \
+            | base64 --decode > /tmp/issue273-followup.patch.gz
           gzip --test /tmp/issue273-followup.patch.gz
           gunzip --stdout /tmp/issue273-followup.patch.gz > /tmp/issue273-followup.patch
-          wc -c /tmp/issue273-followup.patch
+          test "$(wc -c < /tmp/issue273-followup.patch)" -eq 18823
 
       - name: Validate and apply follow-up patch
         run: |
