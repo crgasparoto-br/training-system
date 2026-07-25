@@ -1,4 +1,3 @@
-import { describe, expect, it } from 'vitest';
 import { PARQ_CATALOG, PARQ_CATALOG_VERSION } from '@corrida/types';
 import {
   ParqDomainError,
