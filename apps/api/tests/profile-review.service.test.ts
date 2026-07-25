@@ -415,16 +415,7 @@ describe('profileReviewService', () => {
 
   // ── approveReview ─────────────────────────────────────────────────────────
   describe('approveReview', () => {
-    it('gera submissão histórica de PAR-Q aprovado usando Aluno.contractId como tenant canônico', async () => {
-      db.aluno.findUnique.mockResolvedValue(
-        makeAlunoRecord({
-          currentStudentContract: {
-            contract: {
-              companyContractId: 'contract-current',
-            },
-          },
-        })
-      );
+    it('rejeita a aprovação de alteração legada do PAR-Q sem criar dual-write', async () => {
       const reviewWithPending = {
         ...makePendingReview({
           status: 'completed_with_changes',
@@ -450,42 +441,21 @@ describe('profileReviewService', () => {
           aluno: {
             id: ALUNO_ID,
             user: { id: ALUNO_USER_ID },
-            professor: { contractId: CONTRACT_ID },
-            currentStudentContract: {
-              contract: {
-                companyContractId: 'contract-current',
-              },
-            },
           },
         }),
       };
       db.studentProfileReview.findUnique.mockResolvedValue(reviewWithPending);
-      db.alunoIntakeForm.upsert.mockResolvedValue({});
-      db.studentProfileReview.update.mockResolvedValue({
-        ...reviewWithPending,
-        approvedByUserId: 'prof-1',
-        approvedAt: new Date(),
-        requiresApproval: false,
-        changedFields: [
-          { path: 'intakeForm.parqResponses.q1', before: false, after: true, requiresApproval: true, status: 'approved' },
-          { path: 'intakeForm.parqResponses.q8', before: false, after: true, requiresApproval: true, status: 'approved' },
-        ],
-        rejectedByUserId: null,
-        rejectedAt: null,
-        rejectionReason: null,
+
+      await expect(
+        profileReviewService.approveReview(ALUNO_ID, REVIEW_ID, 'prof-1')
+      ).rejects.toMatchObject({
+        code: 'LEGACY_WRITE_DISABLED',
+        statusCode: 410,
       });
 
-      await profileReviewService.approveReview(ALUNO_ID, REVIEW_ID, 'prof-1');
-
-      expect(db.studentParqSubmission.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            alunoId: ALUNO_ID,
-            contractId: CONTRACT_ID,
-            declarationAccepted: true,
-          }),
-        })
-      );
+      expect(db.studentParqSubmission.create).not.toHaveBeenCalled();
+      expect(db.alunoIntakeForm.upsert).not.toHaveBeenCalled();
+      expect(db.studentProfileReview.update).not.toHaveBeenCalled();
     });
 
     it('aprova alteração sensível e aplica o patch', async () => {

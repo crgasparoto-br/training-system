@@ -25,7 +25,7 @@ import {
   serializeFixedScheduleSlots,
   type FixedScheduleSlotDraft,
 } from '../components/alunos/FixedScheduleEditor';
-import { ArrowLeft, ClipboardList, FileText, HeartPulse, Sparkles, Upload, User, Wallet, X } from 'lucide-react';
+import { ArrowLeft, FileText, HeartPulse, Sparkles, Upload, User, Wallet, X } from 'lucide-react';
 import { alunoFormCopy } from '../i18n/ptBR';
 import { useAuthStore } from '../stores/useAuthStore';
 import { canAccessScreen } from '../access/access-control';
@@ -112,16 +112,6 @@ const alunoSchema = z.object({
     personalInfo: identificationSchema,
     financialInfo: financialSchema,
     preferencesInfo: preferencesSchema,
-    parqResponses: z.object({
-      q1: z.boolean(),
-      q2: z.boolean(),
-      q3: z.boolean(),
-      q4: z.boolean(),
-      q5: z.boolean(),
-      q6: z.boolean(),
-      q7: z.boolean(),
-      q8: z.boolean(),
-    }),
     ahaResponses: z.record(ahaResponseSchema),
   }),
 });
@@ -150,39 +140,6 @@ const compactSelectClassName =
 
 const textareaClassName =
   'flex min-h-[120px] w-full rounded-xl border border-[#cbd5e1] bg-background px-4 py-3 text-base ring-offset-background placeholder:text-[#94a3b8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3b82f6] focus-visible:ring-offset-2 focus-visible:shadow-[0_0_0_6px_rgba(59,130,246,0.15)]';
-
-const parqQuestions = [
-  {
-    key: 'q1',
-    label:
-      '1. Algum médico já disse que você possui algum problema de coração e que só deveria realizar atividade física recomendada por um médico?',
-  },
-  { key: 'q2', label: '2. Você sente dor no tórax quando pratica uma atividade física?' },
-  {
-    key: 'q3',
-    label:
-      '3. No último mês, você sentiu dor no tórax quando não estava praticando atividade física?',
-  },
-  {
-    key: 'q4',
-    label: '4. Você perde o equilíbrio por causa de tontura ou já perdeu a consciência?',
-  },
-  {
-    key: 'q5',
-    label:
-      '5. Você tem algum problema ósseo ou articular que poderia piorar por uma mudança na sua atividade física?',
-  },
-  {
-    key: 'q6',
-    label:
-      '6. Algum médico está prescrevendo medicamento para sua pressão arterial ou condição cardíaca?',
-  },
-  {
-    key: 'q7',
-    label:
-      '7. Você sabe de qualquer outro motivo pelo qual não deveria praticar atividade física?',
-  },
-] as const;
 
 const ahaQuestionGroups = [
   {
@@ -257,13 +214,12 @@ const ahaAnswerOptions = [
   { value: 'unknown', label: 'Não sei' },
 ] as const;
 
-type AlunoFormTab = 'anamneseInicial' | 'identificacao' | 'financeiro' | 'preferencias' | 'parq' | 'aha';
+type AlunoFormTab = 'anamneseInicial' | 'identificacao' | 'financeiro' | 'preferencias' | 'aha';
 
 type AlunoFormResponses = {
   identification?: Partial<AlunoFormData['intakeForm']['personalInfo']>;
   financial?: Partial<AlunoFormData['intakeForm']['financialInfo']>;
   preferences?: Partial<AlunoFormData['intakeForm']['preferencesInfo']>;
-  parqResponses?: Partial<AlunoFormData['intakeForm']['parqResponses']>;
   ahaResponses?: Record<string, unknown>;
 };
 
@@ -321,7 +277,6 @@ const getBlockKeyForTab = (tab: AlunoFormTab): string => {
   const blockMap: Record<AlunoFormTab, string> = {
     anamneseInicial: 'students.registration.identification',
     identificacao: 'students.registration.initialAnamnesis',
-    parq: 'students.registration.parq',
     aha: 'students.registration.aha',
     financeiro: 'students.registration.financial',
     preferencias: 'students.registration.preferences',
@@ -447,16 +402,6 @@ export function AlunoForm() {
           favoriteMusicGenre: '',
           favoriteChocolate: '',
           preferredNickname: '',
-        },
-        parqResponses: {
-          q1: false,
-          q2: false,
-          q3: false,
-          q4: false,
-          q5: false,
-          q6: false,
-          q7: false,
-          q8: false,
         },
         ahaResponses: defaultAhaResponses,
       },
@@ -1007,14 +952,6 @@ export function AlunoForm() {
       setValue('intakeForm.preferencesInfo.favoriteMusicGenre', preferences.favoriteMusicGenre || '');
       setValue('intakeForm.preferencesInfo.favoriteChocolate', preferences.favoriteChocolate || '');
       setValue('intakeForm.preferencesInfo.preferredNickname', preferences.preferredNickname || '');
-      setValue('intakeForm.parqResponses.q1', aluno.intakeForm?.parqResponses?.q1 ?? false);
-      setValue('intakeForm.parqResponses.q2', aluno.intakeForm?.parqResponses?.q2 ?? false);
-      setValue('intakeForm.parqResponses.q3', aluno.intakeForm?.parqResponses?.q3 ?? false);
-      setValue('intakeForm.parqResponses.q4', aluno.intakeForm?.parqResponses?.q4 ?? false);
-      setValue('intakeForm.parqResponses.q5', aluno.intakeForm?.parqResponses?.q5 ?? false);
-      setValue('intakeForm.parqResponses.q6', aluno.intakeForm?.parqResponses?.q6 ?? false);
-      setValue('intakeForm.parqResponses.q7', aluno.intakeForm?.parqResponses?.q7 ?? false);
-      setValue('intakeForm.parqResponses.q8', aluno.intakeForm?.parqResponses?.q8 ?? false);
       Object.keys(defaultAhaResponses).forEach((key) => {
         setValue(
           `intakeForm.ahaResponses.${key}` as `intakeForm.ahaResponses.${string}`,
@@ -1299,13 +1236,6 @@ export function AlunoForm() {
                     panelId: 'aluno-panel-identificacao',
                     label: 'Anamnese Inicial',
                     Icon: FileText,
-                  },
-                  {
-                    key: 'parq' as AlunoFormTab,
-                    tabId: 'aluno-tab-parq',
-                    panelId: 'aluno-panel-parq',
-                    label: 'Questionário "PARQ"',
-                    Icon: ClipboardList,
                   },
                   {
                     key: 'aha' as AlunoFormTab,
@@ -2158,56 +2088,6 @@ export function AlunoForm() {
                   </div>
                 </section>
 
-              </div>
-            )}
-
-            {accessibleTabs.includes('parq') && activeTab === 'parq' && (
-              <div
-                id="aluno-panel-parq"
-                role="tabpanel"
-                aria-labelledby="aluno-tab-parq"
-                className="space-y-4"
-              >
-                <div>
-                  <h2 className="text-lg font-semibold text-foreground">Questionário "PARQ"</h2>
-                  <p className="text-sm text-muted-foreground">Questionário de prontidão para atividade física registrado junto ao cadastro.</p>
-                </div>
-                <div className="space-y-3">
-                  {parqQuestions.map((question) => (
-                    <label key={question.key} className="flex items-start gap-3 rounded-xl border border-[#e2e8f0] px-4 py-3 text-sm">
-                      <input type="checkbox" className="mt-1 h-4 w-4" {...register(`intakeForm.parqResponses.${question.key}` as const)} />
-                      <span>{question.label}</span>
-                    </label>
-                  ))}
-                </div>
-                <div className="rounded-xl border border-[#e2e8f0] px-4 py-4">
-                  <p className="text-sm leading-6 text-foreground">
-                    <span className="font-semibold">DECLARAÇÃO DE RESPONSABILIDADE:</span> Assumo a veracidade das informações prestadas no questionário &quot;PAR-Q&quot;.
-                  </p>
-                  <div className="mt-5 flex flex-wrap items-center gap-6">
-                    <label className="flex items-center gap-3 text-sm text-foreground">
-                      <input
-                        type="radio"
-                        name="parq-declaration"
-                        className="h-4 w-4"
-                        checked={parqDeclarationAccepted === true}
-                        onChange={() => setValue('intakeForm.parqResponses.q8', true, { shouldDirty: true, shouldTouch: true })}
-                      />
-                      <span>Sim</span>
-                    </label>
-                    <label className="flex items-center gap-3 text-sm text-foreground">
-                      <input
-                        type="radio"
-                        name="parq-declaration"
-                        className="h-4 w-4"
-                        checked={parqDeclarationAccepted === false}
-                        onChange={() => setValue('intakeForm.parqResponses.q8', false, { shouldDirty: true, shouldTouch: true })}
-                      />
-                      <span>Não</span>
-                    </label>
-                  </div>
-                </div>
-                <p className="text-sm text-muted-foreground">Marque as respostas positivas. Se todas permanecerem desmarcadas, o aluno não sinalizou restrições no PAR-Q.</p>
               </div>
             )}
 

@@ -98,7 +98,6 @@ export const ACCESS_PERMISSION_GROUPS = [
 
 export const ACCESS_BLOCK_CATALOG = [
   { key: 'students.registration.identification', screenKey: 'students.registration', label: 'Aba Identificação' },
-  { key: 'students.registration.parq', screenKey: 'students.registration', label: 'Aba Questionário PAR-Q' },
   { key: 'students.registration.aha', screenKey: 'students.registration', label: 'Aba Questionário American Heart Association' },
   { key: 'students.registration.financial', screenKey: 'students.registration', label: 'Aba Financeiro' },
   { key: 'students.registration.preferences', screenKey: 'students.registration', label: 'Aba Preferências' },
@@ -241,7 +240,6 @@ export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
     ],
     blocks: [
       'students.registration.identification',
-      'students.registration.parq',
       'students.registration.aha',
       'students.registration.financial',
       'students.registration.preferences',
@@ -294,7 +292,6 @@ export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
     ],
     blocks: [
       'students.registration.identification',
-      'students.registration.parq',
       'students.registration.aha',
       'students.registration.financial',
       'students.registration.preferences',
