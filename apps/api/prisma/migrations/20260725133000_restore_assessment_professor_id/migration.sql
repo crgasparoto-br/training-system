@@ -1,7 +1,9 @@
--- Restore the nullable Assessment.professorId column expected by the current Prisma schema.
--- The operation is idempotent so environments that already contain the column remain valid.
+-- Restore Assessment columns expected by the current Prisma schema.
+-- The operation is idempotent so environments that already contain the columns remain valid.
 ALTER TABLE "Assessment"
-  ADD COLUMN IF NOT EXISTS "professorId" TEXT;
+  ADD COLUMN IF NOT EXISTS "professorId" TEXT,
+  ADD COLUMN IF NOT EXISTS "title" TEXT,
+  ADD COLUMN IF NOT EXISTS "uploadSource" TEXT;
 
 CREATE INDEX IF NOT EXISTS "Assessment_professorId_idx"
   ON "Assessment"("professorId");
