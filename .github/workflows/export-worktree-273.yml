@@ -1,0 +1,37 @@
+name: Export Worktree Issue 273
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - '.github/workflows/export-worktree-273.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Package worktree
+        run: |
+          tar \
+            --exclude='.git' \
+            --exclude='node_modules' \
+            --exclude='apps/*/node_modules' \
+            --exclude='packages/*/node_modules' \
+            -czf /tmp/training-system-worktree.tar.gz .
+
+      - name: Upload worktree
+        uses: actions/upload-artifact@v4
+        with:
+          name: training-system-worktree-${{ github.event.pull_request.head.sha }}
+          path: /tmp/training-system-worktree.tar.gz
+          if-no-files-found: error
+          retention-days: 1
