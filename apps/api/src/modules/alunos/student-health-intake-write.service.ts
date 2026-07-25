@@ -10,6 +10,18 @@ export type LegacyHealthIntakeWriteInput = {
   observations?: string | null;
 };
 
+export class CompletedHealthIntakeMutationError extends Error {
+  readonly code = 'HEALTH_INTAKE_COMPLETED';
+  readonly statusCode = 409;
+
+  constructor() {
+    super(
+      'A Anamnese concluída não pode ser alterada por fluxos genéricos. Inicie uma revisão auditável para corrigir as respostas.'
+    );
+    this.name = 'CompletedHealthIntakeMutationError';
+  }
+}
+
 type JsonRecord = Record<string, unknown>;
 
 const cleanText = (value: unknown): string | undefined =>
@@ -74,6 +86,10 @@ export async function upsertCanonicalStudentHealthIntake(
   const existing = await tx.studentHealthIntake.findUnique({
     where: { alunoId: input.alunoId },
   });
+  if (existing?.status === 'COMPLETED' || existing?.completedAt) {
+    throw new CompletedHealthIntakeMutationError();
+  }
+
   const clinicalHistory = jsonRecord(existing?.clinicalHistoryData);
   const medication = jsonRecord(existing?.medicationData);
   const injury = jsonRecord(existing?.injuryData);
@@ -105,7 +121,7 @@ export async function upsertCanonicalStudentHealthIntake(
     sourceReference: input.sourceReference,
     recordedByUserId: input.recordedByUserId,
     formVersion: 'health-intake-v1',
-    status: existing?.status === 'COMPLETED' ? ('COMPLETED' as const) : ('IN_PROGRESS' as const),
+    status: 'IN_PROGRESS' as const,
     currentStep: 'REVIEW',
     ...(hasDefined(input.health, 'assessmentDate')
       ? { assessmentDate: input.health.assessmentDate }
@@ -143,7 +159,6 @@ export async function upsertCanonicalStudentHealthIntake(
       healthModuleStatus: intake.status,
       ...(!existing ? { healthStartedAt: now } : {}),
       healthLastSavedAt: now,
-      ...(intake.completedAt ? { healthCompletedAt: intake.completedAt } : {}),
     },
   });
 
