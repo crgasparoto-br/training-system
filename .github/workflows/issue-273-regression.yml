@@ -26,66 +26,51 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
           form_test = Path('apps/web/src/pages/AlunoForm.behavior.test.tsx')
           content = form_test.read_text()
-          empty_parq = '''const emptyParq = {
-            q1: false,
-            q2: false,
-            q3: false,
-            q4: false,
-            q5: false,
-            q6: false,
-            q7: false,
-            q8: false,
-          };
-
-          '''
-          if empty_parq not in content:
-              raise SystemExit('emptyParq fixture not found')
-          content = content.replace(empty_parq, '', 1)
-          old_expectation = '''      age: 30,
-                intakeForm: {
-                  parqResponses: emptyParq,
-                },
-              });
-              assertAssessmentFieldsAreAbsent(payload);
-          '''
-          new_expectation = '''      age: 30,
-              });
-              expect(payload.intakeForm).not.toHaveProperty('parqResponses');
-              assertAssessmentFieldsAreAbsent(payload);
-          '''
-          if old_expectation not in content:
-              raise SystemExit('legacy AlunoForm PAR-Q expectation not found')
-          form_test.write_text(content.replace(old_expectation, new_expectation, 1))
+          content, count = re.subn(
+              r'const emptyParq = \{.*?\};\n\n',
+              '',
+              content,
+              count=1,
+              flags=re.S,
+          )
+          if count != 1:
+              raise SystemExit(f'emptyParq replacements: {count}')
+          expectation = re.compile(
+              r'''      age: 30,\n      intakeForm: \{\n        parqResponses: emptyParq,\n      \},\n    \}\);\n    assertAssessmentFieldsAreAbsent\(payload\);'''
+          )
+          content, count = expectation.subn(
+              "      age: 30,\n    });\n    expect(payload.intakeForm).not.toHaveProperty('parqResponses');\n    assertAssessmentFieldsAreAbsent(payload);",
+              content,
+              count=1,
+          )
+          if count != 1:
+              raise SystemExit(f'AlunoForm expectation replacements: {count}')
+          form_test.write_text(content)
 
           resumo_test = Path('apps/web/src/components/alunos/AlunoResumoHubTab.test.tsx')
           content = resumo_test.read_text()
-          old_fixture = '''      intakeForm: {
-                assessmentDate: '2026-02-01T12:00:00.000Z',
-                mainGoal: 'Correr 10 km sem dor',
-                parqResponses: {
-                  chestPain: true,
-                  dizziness: false,
-                },
-              },
-          '''
-          new_fixture = '''      intakeForm: {
-                assessmentDate: '2026-02-01T12:00:00.000Z',
-                mainGoal: 'Correr 10 km sem dor',
-              },
-              parq: {
-                state: 'COMPLETED_REVIEW_REQUIRED',
-                latestSubmission: {
-                  id: 'submission-1',
-                  positiveCount: 1,
-                },
-              },
-          '''
-          if old_fixture not in content:
-              raise SystemExit('legacy AlunoResumoHubTab PAR-Q fixture not found')
-          resumo_test.write_text(content.replace(old_fixture, new_fixture, 1))
+          fixture = re.compile(
+              r'''      intakeForm: \{\n        assessmentDate: '2026-02-01T12:00:00.000Z',\n        mainGoal: 'Correr 10 km sem dor',\n        parqResponses: \{\n          chestPain: true,\n          dizziness: false,\n        \},\n      \},'''
+          )
+          replacement = '''      intakeForm: {
+        assessmentDate: '2026-02-01T12:00:00.000Z',
+        mainGoal: 'Correr 10 km sem dor',
+      },
+      parq: {
+        state: 'COMPLETED_REVIEW_REQUIRED',
+        latestSubmission: {
+          id: 'submission-1',
+          positiveCount: 1,
+        },
+      },'''
+          content, count = fixture.subn(replacement, content, count=1)
+          if count != 1:
+              raise SystemExit(f'AlunoResumoHubTab fixture replacements: {count}')
+          resumo_test.write_text(content)
           PY
 
       - name: Commit test corrections
