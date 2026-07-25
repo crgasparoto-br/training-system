@@ -40,12 +40,14 @@ Codigo, migrations e testes definem o comportamento efetivamente entregue. Plani
 - [`product/student-central-action-patterns.md`](product/student-central-action-patterns.md): padrao de pop-up, painel lateral e fluxo guiado.
 - [`product/student-central-domain-matrix.md`](product/student-central-domain-matrix.md): fronteira entre Central do Aluno, administracao geral e dominios hibridos.
 - [`product/prnt-discomfort-followup-flow.md`](product/prnt-discomfort-followup-flow.md): fluxo implementado de desconfortos e acompanhamentos do PRNT.
+- [`product/pre-registration-health-intake.md`](product/pre-registration-health-intake.md): Anamnese Inicial canônica, opcional, autenticada e retomável.
 
 ### Operacao e documentos complementares
 
 - [`operations/api-scripts.md`](operations/api-scripts.md): scripts oficiais de manutencao da API.
 - [`operations/services-commercial-catalog-rollout.md`](operations/services-commercial-catalog-rollout.md): rollout do catalogo comercial.
 - [`operations/student-financial-service-and-contract-history.md`](operations/student-financial-service-and-contract-history.md): autoridade, vigencia e historico contratual do aluno.
+- [`operations/health-intake-cutover.md`](operations/health-intake-cutover.md): backfill, precedencia, verificacao e rollback do corte da Anamnese.
 - [`internal-test-deploy.md`](internal-test-deploy.md): orientacao rapida complementar para testes internos.
 - [`ACCESS_CONTROL.md`](ACCESS_CONTROL.md): exemplos operacionais legados; as regras canonicas permanecem nos documentos de arquitetura e produto de acesso.
 
@@ -66,6 +68,7 @@ Planos ativos relevantes:
 - [`execution-plans/active/2026-06-navigation-information-architecture.md`](execution-plans/active/2026-06-navigation-information-architecture.md)
 - [`execution-plans/active/2026-07-student-central-roadmap.md`](execution-plans/active/2026-07-student-central-roadmap.md)
 - [`execution-plans/active/2026-07-services-commercial-catalog.md`](execution-plans/active/2026-07-services-commercial-catalog.md)
+- [`execution-plans/active/2026-07-issue-272-canonical-health-intake.md`](execution-plans/active/2026-07-issue-272-canonical-health-intake.md)
 
 Registros concluidos preservados:
 

@@ -528,6 +528,10 @@ enum StudentLifecycleEventType {
   ACCOUNT_UNLINKED
   PRE_REGISTRATION_COMPLETED
   PRIVACY_CONSENT_RECORDED
+  HEALTH_INTAKE_STARTED
+  HEALTH_INTAKE_SAVED
+  HEALTH_INTAKE_COMPLETED
+  HEALTH_INTAKE_MIGRATED
   ADMIN_REVIEWED
   DISCARDED
   REOPENED
@@ -556,6 +560,10 @@ model StudentOnboardingProcess {
   reopenedAt            DateTime?
   reopenReason          String?
   healthModuleStatus    StudentOnboardingModuleStatus @default(NOT_STARTED)
+  healthIntakeId        String?                       @unique
+  healthStartedAt       DateTime?
+  healthLastSavedAt     DateTime?
+  healthCompletedAt     DateTime?
   parqModuleStatus      StudentOnboardingModuleStatus @default(NOT_STARTED)
   // --- Pre-matricula publica autenticada e resumivel (issue #271) ---
   // version e usado para deteccao otimista de concorrencia (edicao simultanea
@@ -571,6 +579,7 @@ model StudentOnboardingProcess {
   updatedAt             DateTime                      @updatedAt
   aluno                 Aluno                         @relation(fields: [alunoId], references: [id], onDelete: Cascade)
   contract              CompanyContract               @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  healthIntake          StudentHealthIntake?           @relation("OnboardingHealthIntake", fields: [healthIntakeId], references: [id], onDelete: SetNull)
 
   @@index([contractId])
   @@index([claimedByUserId])
@@ -1696,29 +1705,55 @@ model StudentProfile {
 }
 
 model StudentHealthIntake {
-  id                  String                  @id @default(cuid())
-  alunoId             String                  @unique
-  contractId          String
-  sourceType          StudentRecordSourceType @default(student)
-  sourceReference     String?
-  recordedByUserId    String?
-  assessmentDate      DateTime?
-  questionnaireParq   Json?
-  questionnaireAha    Json?
-  clinicalHistoryData Json?
-  medicationData      Json?
-  injuryData          Json?
-  allergyData         Json?
-  rawFormResponses    Json?
-  observations        String?
-  createdAt           DateTime                @default(now())
-  updatedAt           DateTime                @updatedAt
-  aluno               Aluno                   @relation(fields: [alunoId], references: [id], onDelete: Cascade)
-  contract            CompanyContract         @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  id                        String                        @id @default(cuid())
+  alunoId                   String                        @unique
+  contractId                String
+  sourceType                StudentRecordSourceType       @default(student)
+  sourceReference           String?
+  recordedByUserId          String?
+  formVersion               String?
+  version                   Int                           @default(1)
+  status                    StudentOnboardingModuleStatus @default(NOT_STARTED)
+  currentStep               String                        @default("CONSENT")
+  assessmentDate            DateTime?
+  // Compatibilidade histórica somente leitura. Novas respostas PAR-Q pertencem
+  // exclusivamente a StudentParqSubmission (issue #273).
+  questionnaireParq         Json?
+  questionnaireAha          Json?
+  clinicalHistoryData       Json?
+  medicationData            Json?
+  injuryData                Json?
+  allergyData               Json?
+  rawFormResponses          Json?
+  observations              String?
+  consentNoticeVersion      String?
+  consentAcceptedAt         DateTime?
+  consentAcceptedByUserId   String?
+  consentAcceptedIp         String?
+  consentAcceptedUserAgent  String?
+  respondentRole            String?
+  respondentUserId          String?
+  lastSavedAt               DateTime?
+  completedAt               DateTime?
+  completedByUserId         String?
+  declarationAcceptedAt     DateTime?
+  legacyIntakeId            String?                        @unique
+  legacyMigratedAt          DateTime?
+  migrationStatus           String?
+  migrationProvenance       Json?
+  migrationReviewRequired   Boolean                        @default(false)
+  migrationReviewData       Json?
+  createdAt                 DateTime                       @default(now())
+  updatedAt                 DateTime                       @updatedAt
+  aluno                     Aluno                          @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  contract                  CompanyContract                @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  onboardingProcess         StudentOnboardingProcess?       @relation("OnboardingHealthIntake")
 
   @@index([contractId])
   @@index([assessmentDate])
   @@index([sourceType])
+  @@index([status])
+  @@index([migrationReviewRequired])
 }
 
 model StudentParqSubmission {

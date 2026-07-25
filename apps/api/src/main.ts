@@ -24,6 +24,7 @@ import studentContractLifecycleRoutes from './modules/student-contracts/student-
 import { preRegistrationAdminRoutes } from './modules/pre-registration-admin/index.js';
 import {
   preRegistrationAuthenticatedRoutes,
+  preRegistrationHealthIntakeRoutes,
   preRegistrationPublicEntryRoutes,
 } from './modules/pre-registration-public/index.js';
 import {
@@ -147,6 +148,7 @@ app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/assessment-types', assessmentTypeRoutes);
 app.use('/api/v1/pre-registration-admin', preRegistrationAdminRoutes);
 app.use('/api/v1/pre-registration', preRegistrationAuthenticatedRoutes);
+app.use('/api/v1/pre-registration', preRegistrationHealthIntakeRoutes);
 
 // Public student avatar upload must use external storage before the legacy module.
 app.use('/api/v1/alunos', alunoAvatarUploadRoutes);

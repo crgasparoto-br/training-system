@@ -2,6 +2,11 @@ import { Prisma, PrismaClient, StudentProfileReviewStatus } from '@prisma/client
 import { notificationService } from '../notifications/notification.service.js';
 import { profileAuditService } from './profile-audit.service.js';
 import { loadStudentIdentity, upsertStudentIdentity } from './student-identity.service.js';
+import {
+  hasCanonicalHealthIntakeMutation,
+  upsertCanonicalStudentHealthIntake,
+  type LegacyHealthIntakeWriteInput,
+} from './student-health-intake-write.service.js';
 
 const prisma = new PrismaClient();
 
@@ -463,22 +468,7 @@ const applyAlunoPatch = async (
   }
 
   if (hasOwnValues(intakePatch)) {
-    const intakeUpdateData: Prisma.AlunoIntakeFormUpdateInput = {};
-    const intakeCreateData: Prisma.AlunoIntakeFormUncheckedCreateInput = {
-      alunoId,
-    };
-
-    const intakeKeys: Array<
-      | 'assessmentDate'
-      | 'mainGoal'
-      | 'medicalHistory'
-      | 'currentMedications'
-      | 'injuriesHistory'
-      | 'trainingBackground'
-      | 'observations'
-      | 'parqResponses'
-      | 'formResponses'
-    > = [
+    const healthKeys = [
       'assessmentDate',
       'mainGoal',
       'medicalHistory',
@@ -486,79 +476,67 @@ const applyAlunoPatch = async (
       'injuriesHistory',
       'trainingBackground',
       'observations',
-      'parqResponses',
-      'formResponses',
-    ];
-
-    for (const key of intakeKeys) {
-      if (!(key in intakePatch)) {
-        continue;
-      }
-
+    ] as const;
+    const healthPatch: LegacyHealthIntakeWriteInput = {};
+    for (const key of healthKeys) {
+      if (!(key in intakePatch)) continue;
       if (key === 'assessmentDate') {
-        const parsedDate = toDateOrNull(intakePatch.assessmentDate as string | null | undefined);
-        intakeUpdateData.assessmentDate = parsedDate;
-        intakeCreateData.assessmentDate = parsedDate;
-        continue;
+        healthPatch.assessmentDate = toDateOrNull(
+          intakePatch.assessmentDate as string | null | undefined
+        );
+      } else {
+        healthPatch[key] = intakePatch[key] as string | null | undefined;
       }
-
-      if (key === 'parqResponses' || key === 'formResponses') {
-        const sourceValue = key === 'parqResponses' && normalizedParqResponses
-          ? normalizedParqResponses
-          : intakePatch[key];
-        const jsonValue =
-          sourceValue === null
-            ? Prisma.JsonNull
-            : (sourceValue as Prisma.InputJsonValue | undefined);
-        intakeUpdateData[key] = jsonValue;
-        intakeCreateData[key] = jsonValue;
-        continue;
-      }
-
-      const scalarValue = intakePatch[key] as string | null;
-      intakeUpdateData[key] = scalarValue;
-      intakeCreateData[key] = scalarValue;
     }
 
-    await tx.alunoIntakeForm.upsert({
-      where: { alunoId },
-      create: intakeCreateData,
-      update: intakeUpdateData,
-    });
-
-    if (normalizedParqResponses) {
-      const aluno = await tx.aluno.findUnique({
-        where: { id: alunoId },
-        select: {
-          contractId: true,
-          professor: { select: { contractId: true } },
-          currentStudentContract: {
-            select: {
-              contract: {
-                select: {
-                  companyContractId: true,
-                },
+    const aluno = await tx.aluno.findUnique({
+      where: { id: alunoId },
+      select: {
+        contractId: true,
+        userId: true,
+        professor: { select: { contractId: true } },
+        currentStudentContract: {
+          select: {
+            contract: {
+              select: {
+                companyContractId: true,
               },
             },
           },
         },
+      },
+    });
+    if (!aluno || aluno.userId !== alunoUserId) {
+      throw new Error('Aluno não encontrado para aplicar revisão cadastral');
+    }
+    const contractId = resolveAlunoCompanyContractId(aluno);
+    if (!contractId) {
+      throw new Error('Contrato do aluno não encontrado para aplicar revisão cadastral');
+    }
+
+    if (hasCanonicalHealthIntakeMutation(healthPatch)) {
+      await upsertCanonicalStudentHealthIntake(tx, {
+        alunoId,
+        contractId,
+        sourceType: 'student',
+        sourceReference: 'profile_review',
+        recordedByUserId: alunoUserId,
+        health: healthPatch,
       });
+    }
 
-      const contractId = aluno ? resolveAlunoCompanyContractId(aluno) : null;
-
-      if (contractId) {
-        await tx.studentParqSubmission.create({
-          data: {
-            alunoId,
-            contractId,
-            sourceType: 'student',
-            submittedByUserId: alunoUserId,
-            responses: normalizedParqResponses as Prisma.InputJsonValue,
-            positiveItems: positiveParqItems(normalizedParqResponses) as Prisma.InputJsonValue,
-            declarationAccepted: normalizedParqResponses.q8,
-          },
-        });
-      }
+    if (normalizedParqResponses) {
+      await tx.studentParqSubmission.create({
+        data: {
+          alunoId,
+          contractId,
+          sourceType: 'student',
+          submittedByUserId: alunoUserId,
+          responses: normalizedParqResponses as Prisma.InputJsonValue,
+          positiveItems: positiveParqItems(normalizedParqResponses) as Prisma.InputJsonValue,
+          declarationAccepted: normalizedParqResponses.q8,
+        },
+      });
     }
   }
 };

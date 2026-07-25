@@ -4,6 +4,10 @@ import crypto from 'crypto';
 import { assertStudentInterestServiceSelectable } from './aluno.service-selection.js';
 import { legacyDirectActiveStudentCreationFields } from './student-lifecycle.service.js';
 import { upsertStudentIdentity } from './student-identity.service.js';
+import {
+  hasCanonicalHealthIntakeMutation,
+  upsertCanonicalStudentHealthIntake,
+} from './student-health-intake-write.service.js';
 import type { CreateAlunoDTO, UpdateAlunoDTO } from './aluno.service.js';
 import { contractDocumentService } from '../contracts/contract-document.service.js';
 import { loadContractServiceVariableContext } from '../contracts/contract-service-context.js';
@@ -151,19 +155,10 @@ const hasAnyValue = (payload: Record<string, unknown>) =>
     return true;
   });
 
-const toInputJson = (value?: Record<string, unknown>): Prisma.InputJsonValue | undefined =>
-  value as Prisma.InputJsonValue | undefined;
-
 const asRecord = (value: unknown): Record<string, unknown> | null =>
   value && typeof value === 'object' && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null;
-
-const readPersistedFinancialCurrentService = (formResponses: unknown) => {
-  const financial = asRecord(asRecord(formResponses)?.financial);
-  const currentService = financial?.currentService;
-  return typeof currentService === 'string' ? currentService : undefined;
-};
 
 /**
  * currentService is a denormalized read model. During the atomic mutation the
@@ -306,23 +301,16 @@ const createAlunoRecord = async (
     });
   }
 
-  if (data.intakeForm && hasAnyValue(data.intakeForm)) {
-    await tx.alunoIntakeForm.create({
-      data: {
+  if (data.intakeForm) {
+    if (hasCanonicalHealthIntakeMutation(data.intakeForm)) {
+      await upsertCanonicalStudentHealthIntake(tx, {
         alunoId: aluno.id,
-        assessmentDate: data.intakeForm.assessmentDate,
-        mainGoal: data.intakeForm.mainGoal,
-        medicalHistory: data.intakeForm.medicalHistory,
-        currentMedications: data.intakeForm.currentMedications,
-        injuriesHistory: data.intakeForm.injuriesHistory,
-        trainingBackground: data.intakeForm.trainingBackground,
-        observations: data.intakeForm.observations,
-        parqResponses: data.intakeForm.parqResponses,
-        formResponses: toInputJson(
-          preserveAuthoritativeFinancialCurrentService(data.intakeForm.formResponses)
-        ),
-      },
-    });
+        contractId: options.companyContractId,
+        sourceType: 'professional',
+        sourceReference: 'financial_contract_create',
+        health: data.intakeForm,
+      });
+    }
     await createParqSubmission(tx, {
       alunoId: aluno.id,
       contractId: options.companyContractId,
@@ -369,7 +357,7 @@ const updateAlunoRecord = async (
       currentStudentContract: {
         select: { contract: { select: { companyContractId: true } } },
       },
-      intakeForm: { select: { parqResponses: true, formResponses: true } },
+      intakeForm: { select: { parqResponses: true } },
     },
   });
 
@@ -449,41 +437,16 @@ const updateAlunoRecord = async (
     });
   }
 
-  if (intakeForm && hasAnyValue(intakeForm)) {
-    const persistedCurrentService = readPersistedFinancialCurrentService(
-      currentAluno.intakeForm?.formResponses
-    );
-    const formResponses = preserveAuthoritativeFinancialCurrentService(
-      intakeForm.formResponses,
-      persistedCurrentService
-    );
-
-    await tx.alunoIntakeForm.upsert({
-      where: { alunoId },
-      create: {
+  if (intakeForm) {
+    if (hasCanonicalHealthIntakeMutation(intakeForm)) {
+      await upsertCanonicalStudentHealthIntake(tx, {
         alunoId,
-        assessmentDate: intakeForm.assessmentDate,
-        mainGoal: intakeForm.mainGoal,
-        medicalHistory: intakeForm.medicalHistory,
-        currentMedications: intakeForm.currentMedications,
-        injuriesHistory: intakeForm.injuriesHistory,
-        trainingBackground: intakeForm.trainingBackground,
-        observations: intakeForm.observations,
-        parqResponses: intakeForm.parqResponses,
-        formResponses: toInputJson(formResponses),
-      },
-      update: {
-        assessmentDate: intakeForm.assessmentDate,
-        mainGoal: intakeForm.mainGoal,
-        medicalHistory: intakeForm.medicalHistory,
-        currentMedications: intakeForm.currentMedications,
-        injuriesHistory: intakeForm.injuriesHistory,
-        trainingBackground: intakeForm.trainingBackground,
-        observations: intakeForm.observations,
-        parqResponses: intakeForm.parqResponses,
-        formResponses: toInputJson(formResponses),
-      },
-    });
+        contractId: options.companyContractId,
+        sourceType: 'professional',
+        sourceReference: 'financial_contract_update',
+        health: intakeForm,
+      });
+    }
 
     if (
       hasParqResponsesChanged(

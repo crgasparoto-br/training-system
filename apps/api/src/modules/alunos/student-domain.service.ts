@@ -84,6 +84,7 @@ const areSameInstants = (left: unknown, right: unknown) => {
 const hasIntakeTimelineData = (intake: any) =>
   Boolean(
     intake?.legacyIntakeId ||
+      intake?.status === 'COMPLETED' ||
       intake?.assessmentDate ||
       intake?.observations ||
       hasRecordContent(intake?.questionnaires?.parq) ||
@@ -556,6 +557,10 @@ export const studentDomainService = {
         },
         studentProfile: true,
         studentHealthIntake: true,
+        parqSubmissions: {
+          orderBy: { submittedAt: 'desc' },
+          take: 1,
+        },
         studentAssessmentRecords: {
           include: {
             measurements: {
@@ -615,13 +620,19 @@ export const studentDomainService = {
 
     const fallback = buildHealthIntakeFallback(aluno);
     const intake = aluno.studentHealthIntake;
+    const latestParq = aluno.parqSubmissions?.[0] ?? null;
 
     return {
       alunoId: aluno.id,
       source: buildSource(intake, 'student', aluno.intakeForm?.id ?? aluno.id),
       assessmentDate: intake?.assessmentDate ?? fallback.assessmentDate,
+      status: intake?.status ?? (intake ? 'IN_PROGRESS' : 'NOT_STARTED'),
+      version: intake?.version ?? 1,
+      currentStep: intake?.currentStep ?? null,
       questionnaires: {
-        parq: intake?.questionnaireParq ?? fallback.questionnaires.parq,
+        // PAR-Q possui ciclo próprio em StudentParqSubmission. O campo da
+        // Anamnese permanece somente como compatibilidade histórica de leitura.
+        parq: latestParq?.responses ?? intake?.questionnaireParq ?? fallback.questionnaires.parq,
         american: intake?.questionnaireAha ?? fallback.questionnaires.american,
       },
       clinicalHistory: intake?.clinicalHistoryData ?? fallback.clinicalHistory,
@@ -633,6 +644,9 @@ export const studentDomainService = {
       updatedAt: intake?.updatedAt ?? aluno.intakeForm?.updatedAt ?? aluno.updatedAt,
       createdAt: intake?.createdAt ?? aluno.intakeForm?.createdAt ?? aluno.createdAt,
       legacyIntakeId: aluno.intakeForm?.id ?? null,
+      migratedFromLegacy: Boolean(intake?.legacyIntakeId),
+      migrationReviewRequired: intake?.migrationReviewRequired ?? false,
+      migrationStatus: intake?.migrationStatus ?? null,
     };
   },
 

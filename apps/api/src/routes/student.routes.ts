@@ -13,6 +13,10 @@ import {
   StudentAccountContextError,
 } from '../modules/alunos/student-account-context.service.js';
 import { loadStudentIdentity, upsertStudentIdentity } from '../modules/alunos/student-identity.service.js';
+import {
+  hasCanonicalHealthIntakeMutation,
+  upsertCanonicalStudentHealthIntake,
+} from '../modules/alunos/student-health-intake-write.service.js';
 
 const prisma = new PrismaClient();
 
@@ -33,6 +37,7 @@ async function requireAlunoByUserId(req: Request, userId: string) {
         },
       },
       studentProfile: true,
+      studentHealthIntake: true,
       professor: { select: { contractId: true } },
       intakeForm: true,
       profileReviewSettings: true,
@@ -441,14 +446,27 @@ router.get('/me/profile', async (req: Request, res: Response) => {
       instagramHandle: identity.instagramHandle ?? null,
     };
 
-    const intakeForm = aluno.intakeForm
+    const clinicalHistory =
+      aluno.studentHealthIntake?.clinicalHistoryData &&
+      typeof aluno.studentHealthIntake.clinicalHistoryData === 'object' &&
+      !Array.isArray(aluno.studentHealthIntake.clinicalHistoryData)
+        ? (aluno.studentHealthIntake.clinicalHistoryData as Record<string, unknown>)
+        : null;
+    const intakeForm = aluno.studentHealthIntake
       ? {
-          assessmentDate: aluno.intakeForm.assessmentDate,
-          mainGoal: aluno.intakeForm.mainGoal,
-          trainingBackground: aluno.intakeForm.trainingBackground,
-          observations: aluno.intakeForm.observations,
+          assessmentDate: aluno.studentHealthIntake.assessmentDate,
+          mainGoal: clinicalHistory?.mainGoal ?? null,
+          trainingBackground: clinicalHistory?.trainingBackground ?? null,
+          observations: aluno.studentHealthIntake.observations,
         }
-      : null;
+      : aluno.intakeForm
+        ? {
+            assessmentDate: aluno.intakeForm.assessmentDate,
+            mainGoal: aluno.intakeForm.mainGoal,
+            trainingBackground: aluno.intakeForm.trainingBackground,
+            observations: aluno.intakeForm.observations,
+          }
+        : null;
 
     return sendSuccess(res, {
       id: aluno.id,
@@ -537,22 +555,18 @@ router.put('/me/profile', async (req: Request, res: Response) => {
         changedFieldNames.push(...Object.keys(profileData).map((k) => `identity.${k}`));
       }
 
-      if (intakeFormPatch && Object.keys(intakeFormPatch).length > 0) {
-        const intakeUpdate: Record<string, unknown> = {};
-        for (const [key, value] of Object.entries(intakeFormPatch)) {
-          if (value !== undefined) {
-            intakeUpdate[key] = value;
-          }
-        }
-
-        if (Object.keys(intakeUpdate).length > 0) {
-          await tx.alunoIntakeForm.upsert({
-            where: { alunoId: aluno.id },
-            create: { alunoId: aluno.id, ...intakeUpdate },
-            update: intakeUpdate,
-          });
-          changedFieldNames.push(...Object.keys(intakeUpdate).map((k) => `intakeForm.${k}`));
-        }
+      if (intakeFormPatch && hasCanonicalHealthIntakeMutation(intakeFormPatch)) {
+        await upsertCanonicalStudentHealthIntake(tx, {
+          alunoId: aluno.id,
+          contractId: aluno.contractId,
+          sourceType: 'student',
+          sourceReference: 'student_app_profile',
+          recordedByUserId: userId,
+          health: intakeFormPatch,
+        });
+        changedFieldNames.push(
+          ...Object.keys(intakeFormPatch).map((key) => `healthIntake.${key}`)
+        );
       }
     });
 

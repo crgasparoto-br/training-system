@@ -44,6 +44,7 @@ import {
   writeDraft,
   type PreRegistrationDraft,
 } from './preRegistrationDraft';
+import { HealthIntake } from './HealthIntake';
 
 const STEPS: Array<{
   key: PreRegistrationStep;
@@ -1767,7 +1768,7 @@ function AuthenticatedFlow() {
 
 export function PublicPreRegistration() {
   const { token } = useParams<{ token?: string }>();
-  if (token === 'anamnese') return <OptionalModuleHandoff module="ANAMNESIS" />;
+  if (token === 'anamnese') return <HealthIntake />;
   if (token === 'par-q') return <OptionalModuleHandoff module="PARQ" />;
   return token ? <PublicLanding token={token} /> : <AuthenticatedFlow />;
 }

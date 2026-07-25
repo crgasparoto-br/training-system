@@ -445,6 +445,9 @@ export interface StudentSegmentedProfile {
 export interface StudentSegmentedIntake {
   alunoId: string;
   source: StudentDomainSource;
+  status?: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
+  version?: number;
+  currentStep?: string | null;
   assessmentDate?: string | null;
   questionnaires: {
     parq?: Record<string, unknown> | null;
@@ -459,6 +462,9 @@ export interface StudentSegmentedIntake {
   updatedAt?: string | null;
   createdAt?: string | null;
   legacyIntakeId?: string | null;
+  migratedFromLegacy?: boolean;
+  migrationReviewRequired?: boolean;
+  migrationStatus?: string | null;
 }
 
 export interface StudentAssessmentMeasurement {

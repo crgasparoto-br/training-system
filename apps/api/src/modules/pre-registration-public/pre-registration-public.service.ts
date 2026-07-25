@@ -596,7 +596,7 @@ async function buildSession(userId: string, alunoId: string): Promise<PreRegistr
           : onboarding.healthModuleStatus === 'IN_PROGRESS'
             ? 'CONTINUE'
             : 'START',
-      href: '/pre-cadastro/anamnese',
+      href: `/pre-cadastro/anamnese?alunoId=${encodeURIComponent(aluno.id)}`,
     },
     {
       key: 'PARQ',
@@ -610,7 +610,7 @@ async function buildSession(userId: string, alunoId: string): Promise<PreRegistr
           : onboarding.parqModuleStatus === 'IN_PROGRESS'
             ? 'CONTINUE'
             : 'START',
-      href: '/pre-cadastro/par-q',
+      href: `/pre-cadastro/par-q?alunoId=${encodeURIComponent(aluno.id)}`,
     },
   ];
 
