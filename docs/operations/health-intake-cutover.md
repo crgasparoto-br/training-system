@@ -21,6 +21,14 @@ As migrations são convergentes e usam as seguintes regras:
 9. bloqueiam regressões de dual-write com o trigger `AlunoIntakeForm_read_only_after_issue_272`;
 10. writers genéricos rejeitam alterações em Anamnese `COMPLETED`; uma revisão futura precisa de fluxo explícito e auditável.
 
+## Concorrência e conclusão
+
+Toda gravação pública ou genérica da Anamnese deve ocorrer dentro de uma transação que bloqueie a linha correspondente de `StudentOnboardingProcess` com `FOR UPDATE` antes de ler `StudentHealthIntake`.
+
+Esse lock compartilhado é a fronteira de serialização do módulo: uma conclusão pública e uma alteração administrativa para o mesmo aluno e contrato não podem avançar simultaneamente. Depois de adquirir o lock, o writer deve reler o registro canônico e rejeitar a operação quando `status = COMPLETED` ou `completedAt` estiver preenchido. A ausência da linha de onboarding deve falhar de forma fechada, sem criar ou alterar a Anamnese.
+
+Não substituir esse protocolo por uma verificação anterior ao `upsert`, porque a leitura sem lock permite que outra transação conclua a Anamnese entre a verificação e a escrita.
+
 ## Verificação automatizada
 
 O comando oficial para reproduzir os cenários discriminantes em PostgreSQL é:
@@ -40,6 +48,8 @@ O script cria um banco efêmero e valida:
 - sincronização do onboarding;
 - bloqueio de escrita no legado;
 - reaplicação convergente das duas migrations.
+
+Os testes focados do writer também devem comprovar que o lock do onboarding ocorre antes da leitura e da escrita canônicas, que registros concluídos são rejeitados após o lock e que a ausência do onboarding impede qualquer mutação.
 
 O workflow `.github/workflows/issue-272-regression.yml` executa esse script, testes focados e o fluxo real de API, PostgreSQL e navegador, gerando o artefato `issue-272-regression-<run_id>` vinculado ao head/base/merge preview do run.
 
