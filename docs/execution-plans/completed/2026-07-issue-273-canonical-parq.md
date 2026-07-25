@@ -16,6 +16,8 @@ Consolidar o PAR-Q em `StudentParqSubmission`, com catálogo compartilhado e ver
 - backfill que importa somente legado semanticamente sustentável;
 - `NEEDS_REPEAT` para legado incompatível, divergente ou sem evidência;
 - PRNT, pré-matrícula e detalhes administrativos no service canônico;
+- PRNT mantém um único include tipado para histórico, acompanhamentos e snapshots, evitando leituras parciais divergentes;
+- revisão cadastral resolve o tenant diretamente por `Aluno.contractId`, sem fallback para professor ou contrato financeiro;
 - interface pública responsiva e acessível;
 - documentação de produto e runbook de operação.
 
