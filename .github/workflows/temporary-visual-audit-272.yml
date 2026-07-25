@@ -1,0 +1,86 @@
+name: Temporary visual audit issue 272
+
+on:
+  pull_request:
+    branches: [develop]
+    types: [synchronize]
+
+permissions:
+  contents: write
+
+jobs:
+  health-intake-visual:
+    if: github.head_ref == 'feat/272-canonical-health-intake'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/272-canonical-health-intake
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @corrida/api exec puppeteer browsers install chrome
+      - name: Build web application
+        env:
+          VITE_API_URL: ''
+        run: |
+          pnpm --filter @corrida/types build
+          pnpm --filter @corrida/utils build
+          pnpm --filter @corrida/web build
+      - name: Restore focused visual audit script
+        run: |
+          base64 -d .github/issue-272/visual-script.mjs.gz.b64 > /tmp/visual-script.mjs.gz
+          gzip -dc /tmp/visual-script.mjs.gz > apps/api/scripts/temporary-visual-audit-272.mjs
+      - name: Run focused visual audit
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @corrida/api exec node scripts/temporary-visual-audit-272.mjs 2>&1 | tee issue-272-visual.log
+      - name: Create visual evidence attestation
+        if: always()
+        shell: bash
+        env:
+          AUDIT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          AUDIT_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          AUDIT_MERGE_PREVIEW_SHA: ${{ github.sha }}
+        run: |
+          cat > issue-272-visual-attestation.json <<EOF
+          {
+            "schemaVersion": 1,
+            "kind": "issue-272-focused-visual-evidence",
+            "repository": "${GITHUB_REPOSITORY}",
+            "workflow": "${GITHUB_WORKFLOW}",
+            "runId": "${GITHUB_RUN_ID}",
+            "headSha": "${AUDIT_HEAD_SHA}",
+            "baseSha": "${AUDIT_BASE_SHA}",
+            "mergePreviewSha": "${AUDIT_MERGE_PREVIEW_SHA}"
+          }
+          EOF
+      - name: Upload focused screenshots and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-272-focused-visual
+          path: |
+            artifacts/issue-272-visual/*.png
+            issue-272-visual-attestation.json
+            issue-272-visual.log
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Remove temporary assets
+        if: always()
+        shell: bash
+        run: |
+          rm -f apps/api/scripts/temporary-visual-audit-272.mjs
+          git rm .github/workflows/temporary-visual-audit-272.yml
+          git rm .github/issue-272/visual-script.mjs.gz.b64
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'chore(ci): remove temporary visual audit issue 272'
+          git push origin HEAD:feat/272-canonical-health-intake
