@@ -62,10 +62,10 @@ jobs:
 
           profile = Path('apps/api/src/modules/alunos/profile-review.service.ts')
           content = profile.read_text()
-          pattern = re.compile(
+          selection = re.compile(
               r'''      select: \{\n        contractId: true,\n        userId: true,\n        professor: \{ select: \{ contractId: true \} \},\n        currentStudentContract: \{\n          select: \{\n            contract: \{\n              select: \{\n                companyContractId: true,\n              \},\n            \},\n          \},\n        \},\n      \},\n'''
           )
-          content, count = pattern.subn(
+          content, count = selection.subn(
               '      select: {\n        contractId: true,\n        userId: true,\n      },\n',
               content,
               count=1,
@@ -81,12 +81,12 @@ jobs:
           profile.write_text(content)
           PY
 
-      - name: Restore clean gate and commit repaired tree
+      - name: Commit source corrections
         run: |
-          git show HEAD~1:.github/workflows/issue-273-regression.yml > .github/workflows/issue-273-regression.yml
-          rm -f .github/workflows/fix-issue-273-api-types.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
+          git add \
+            apps/api/src/modules/prontuario/prontuario.service.ts \
+            apps/api/src/modules/alunos/profile-review.service.ts
           git commit -m "fix: restore PRNT helpers and canonical contract context"
           git push origin HEAD:${{ github.event.pull_request.head.ref }}
