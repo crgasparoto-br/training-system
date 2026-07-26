@@ -6,18 +6,26 @@ on:
       - develop
     paths:
       - '.github/workflows/issue-273-regression.yml'
+      - '.github/workflows/issue-273-runtime-diagnostic.yml'
       - 'apps/api/prisma/**'
       - 'prisma/**'
       - 'apps/api/src/modules/pre-registration-public/**'
       - 'apps/api/src/modules/alunos/aluno.service.ts'
+      - 'apps/api/src/modules/alunos/index.ts'
+      - 'apps/api/src/modules/alunos/student-domain.routes.ts'
+      - 'apps/api/src/modules/alunos/student-parq-boundary.*'
+      - 'apps/api/src/modules/alunos/student-parq-legacy-cutover.ts'
       - 'apps/api/src/modules/prontuario/**'
       - 'apps/api/scripts/verify-issue-273-parq.ts'
       - 'apps/api/tests/*parq*'
+      - 'apps/api/tests/aluno-segmented.routes.test.ts'
       - 'apps/web/src/pages/PublicPreRegistration/Parq*'
       - 'apps/web/src/services/pre-registration-public.service.ts'
       - 'apps/web/src/services/aluno.service.ts'
       - 'apps/web/src/components/alunos/AlunoResumoHubTab*'
       - 'packages/types/pre-registration-parq.ts'
+      - 'packages/utils/aluno-validations.ts'
+      - 'packages/utils/index.ts'
       - 'docs/product/pre-registration-parq.md'
       - 'docs/operations/parq-cutover.md'
       - 'docs/execution-plans/completed/2026-07-issue-273-canonical-parq.md'
@@ -92,6 +100,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Build shared packages
+        run: |
+          pnpm --filter @corrida/types build
+          pnpm --filter @corrida/utils build
+
       - name: Generate Prisma client
         run: pnpm --filter @corrida/api exec prisma generate
 
@@ -107,7 +120,11 @@ jobs:
             pre-registration-parq.domain.test.ts \
             pre-registration-parq.routes.test.ts \
             issue-273-parq-migration.test.ts \
-            aluno.service.test.ts 2>&1 | tee issue-273-api-tests.log
+            aluno.service.test.ts \
+            aluno-parq-write-contract.test.ts \
+            student-parq-boundary.service.test.ts \
+            student-parq-boundary.routes.test.ts \
+            aluno-segmented.routes.test.ts 2>&1 | tee issue-273-api-tests.log
 
       - name: Run PostgreSQL runtime verification
         run: |
@@ -140,21 +157,28 @@ jobs:
           pnpm --filter @corrida/api type-check 2>&1 | tee issue-273-api-type-check.log
           pnpm --filter @corrida/web type-check 2>&1 | tee issue-273-web-type-check.log
 
-      - name: Verify read-only workflow and payload cleanup
+      - name: Verify read-only workflows and payload cleanup
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
           from pathlib import Path
-          workflow = Path('.github/workflows/issue-273-regression.yml').read_text(encoding='utf-8')
-          forbidden = [
-              'contents:' + ' write',
-              'git ' + 'push',
-              'git ' + 'commit',
-          ]
-          for marker in forbidden:
-              if marker in workflow:
-                  raise SystemExit(f'write-capable workflow marker found: {marker}')
+
+          for name in (
+              '.github/workflows/issue-273-regression.yml',
+              '.github/workflows/issue-273-runtime-diagnostic.yml',
+          ):
+              workflow = Path(name).read_text(encoding='utf-8')
+              forbidden = [
+                  'contents:' + ' write',
+                  'git ' + 'push',
+                  'git ' + 'commit',
+                  'exit ' + '0',
+              ]
+              for marker in forbidden:
+                  if marker in workflow:
+                      raise SystemExit(f'{name}: write-capable or failure-masking marker found: {marker}')
+
           if Path('.issue273').exists():
               raise SystemExit('temporary .issue273 payload directory still exists')
           PY
