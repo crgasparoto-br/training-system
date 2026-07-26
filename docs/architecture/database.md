@@ -103,8 +103,9 @@ verdade:
   convite atual ou PAR-Q;
 - `currentPreRegistrationInviteStatus` e
   `currentPreRegistrationInviteExpiresAt`: convite de pré-cadastro mais recente;
-- `parqRequiresProfessionalReview`: resultado calculado exclusivamente a partir da
-  submissão PAR-Q mais recente e de seus acompanhamentos ativos;
+- `parqRequiresProfessionalReview`: resultado calculado pela existência de qualquer
+  `StudentParqProfessionalReview` em estado `PENDING` para o aluno no mesmo contrato;
+  uma submissão negativa mais recente não encerra pendências anteriores;
 - contatos adicionais normalizados para busca e deduplicação tenant-scoped.
 
 Triggers atualizam as projeções quando as tabelas de origem mudam. As projeções não
