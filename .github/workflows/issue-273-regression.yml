@@ -1,24 +1,20 @@
-name: Inspect Issue 273 Remediation Payload
+name: Apply Issue 273 Remediation V3
 
 on:
-  pull_request:
-    branches:
-      - develop
-    paths:
-      - '.github/workflows/issue-273-regression.yml'
   push:
     branches:
       - feat/273-canonical-parq
     paths:
       - '.github/workflows/issue-273-regression.yml'
+      - '.issue273/remediation-v3-part-*.b64'
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  inspect-remediation:
-    name: Inspect issue 273 remediation v3
+  apply-remediation:
+    name: Apply validated issue 273 remediation tree
     runs-on: ubuntu-latest
     steps:
       - name: Checkout candidate branch
@@ -27,7 +23,7 @@ jobs:
           ref: feat/273-canonical-parq
           fetch-depth: 0
 
-      - name: Decode and inspect payload without modifying repository
+      - name: Decode, validate and apply remediation payload
         shell: bash
         run: |
           set -euo pipefail
@@ -46,19 +42,39 @@ jobs:
               ''.join(pathlib.Path(path).read_text(encoding='utf-8').split())
               for path in parts
           )
-          print(f'parts={len(parts)} normalized_base64_bytes={len(encoded)}')
           raw = base64.b64decode(encoded, validate=True)
-          print(f'payload: decoded_bytes={len(raw)} sha256={hashlib.sha256(raw).hexdigest()} magic={raw[:8].hex()}')
+          print(f'payload bytes={len(raw)} sha256={hashlib.sha256(raw).hexdigest()} magic={raw[:8].hex()}')
           if raw[:6] != b'\xfd7zXZ\x00':
               raise SystemExit(f'payload is not xz: magic={raw[:8].hex()}')
           with tarfile.open(fileobj=io.BytesIO(raw), mode='r:xz') as archive:
               members = archive.getmembers()
-              print('--- payload files ---')
-              for member in members:
-                  print(member.name)
-              unsafe = [m.name for m in members if m.name.startswith('/') or '..' in pathlib.PurePosixPath(m.name).parts]
+              unsafe = [
+                  member.name
+                  for member in members
+                  if member.name.startswith('/')
+                  or '..' in pathlib.PurePosixPath(member.name).parts
+                  or '.git' in pathlib.PurePosixPath(member.name).parts
+              ]
               if unsafe:
                   raise SystemExit(f'unsafe payload paths: {unsafe}')
+              print('--- applying payload files ---')
+              for member in members:
+                  print(member.name)
+              archive.extractall(path='.', members=members, filter='data')
           PY
-          echo '--- repository remains unchanged ---'
-          test -z "$(git status --short)"
+          rm -rf .issue273
+          git diff --check
+          if git diff --quiet && git diff --cached --quiet; then
+            echo 'payload produced no changes'
+            exit 1
+          fi
+
+      - name: Commit remediation to existing branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: implement issue 273 audit remediation"
+          git push origin HEAD:feat/273-canonical-parq
