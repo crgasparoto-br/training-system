@@ -87,6 +87,24 @@ export interface ParqSubmissionDTO {
   };
 }
 
+export interface ParqSubmissionSummaryDTO {
+  id: string;
+  catalogVersion: ParqCatalogVersion;
+  submittedAt: string;
+  positiveCount: number;
+  review?: { status: ParqReviewStatus };
+}
+
+export interface ParqAdministrativeSummaryDTO {
+  state: ParqFlowStatus;
+  latestSubmission: ParqSubmissionSummaryDTO | null;
+  requiresProfessionalReview: boolean;
+  legacy: {
+    preserved: boolean;
+    needsRepeat: boolean;
+  };
+}
+
 export interface ParqSessionDTO {
   alunoId: string;
   catalog: ParqCatalog;
@@ -95,11 +113,14 @@ export interface ParqSessionDTO {
   responses: ParqResponses;
   consent: {
     requiredVersion: string;
+    version: number;
     acceptedVersion?: string;
     acceptedAt?: string;
+    revokedAt?: string;
   };
   lastSavedAt?: string;
   latestSubmission?: ParqSubmissionDTO;
+  replayedSubmission?: ParqSubmissionDTO;
   legacy: {
     preserved: boolean;
     needsRepeat: boolean;
@@ -113,12 +134,17 @@ export interface SaveParqDraftDTO {
   consent: {
     accepted: true;
     privacyNoticeVersion: string;
+    expectedVersion: number;
   };
 }
 
 export interface CompleteParqDTO extends SaveParqDraftDTO {
   declarationAccepted: true;
   idempotencyKey: string;
+}
+
+export interface RevokeParqConsentDTO {
+  expectedVersion: number;
 }
 
 export interface ReviewParqDTO {

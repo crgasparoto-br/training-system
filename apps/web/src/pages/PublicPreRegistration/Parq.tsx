@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { AlertTriangle, ArrowLeft, CheckCircle2, ClipboardCheck, Loader2, Save } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CheckCircle2, ClipboardCheck, Loader2, Save, ShieldOff } from 'lucide-react';
 import type { ParqQuestionKey, ParqResponses, ParqSessionDTO } from '@corrida/types';
 import { PARQ_CATALOG_VERSION } from '@corrida/types';
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -16,6 +16,14 @@ function apiError(error: unknown): { message: string; code?: string } {
     message: response?.data?.error || response?.data?.message || 'Não foi possível continuar. Tente novamente.',
     code: response?.data?.details?.code || response?.data?.code,
   };
+}
+
+function hasActiveConsent(session: ParqSessionDTO): boolean {
+  return Boolean(
+    session.consent.acceptedAt &&
+      !session.consent.revokedAt &&
+      session.consent.acceptedVersion === session.consent.requiredVersion
+  );
 }
 
 function AnswerChoice({
@@ -87,7 +95,7 @@ export function Parq() {
       const value = await preRegistrationPublicService.getParq(alunoId);
       setSession(value);
       setResponses(value.responses);
-      setConsentAccepted(Boolean(value.consent.acceptedAt));
+      setConsentAccepted(hasActiveConsent(value));
       setRespondAgain(false);
       setCompletionKey(crypto.randomUUID());
     } catch (reason) {
@@ -119,6 +127,7 @@ export function Parq() {
       consent: {
         accepted: true as const,
         privacyNoticeVersion: session.consent.requiredVersion,
+        expectedVersion: session.consent.version,
       },
     };
   };
@@ -136,6 +145,26 @@ export function Parq() {
       setSession(next);
       setResponses(next.responses);
       setRespondAgain(true);
+    } catch (reason) {
+      const parsed = apiError(reason);
+      setConflict(parsed.code === 'CONCURRENT_MODIFICATION');
+      setError(parsed.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const revokeConsent = async () => {
+    if (!session || !hasActiveConsent(session)) return;
+    setSaving(true);
+    setError('');
+    setConflict(false);
+    try {
+      const next = await preRegistrationPublicService.revokeParqConsent(alunoId, {
+        expectedVersion: session.consent.version,
+      });
+      setSession(next);
+      setConsentAccepted(false);
     } catch (reason) {
       const parsed = apiError(reason);
       setConflict(parsed.code === 'CONCURRENT_MODIFICATION');
@@ -221,8 +250,13 @@ export function Parq() {
               </div>
             )}
             <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-              <button type="button" onClick={() => { setRespondAgain(true); setResponses({}); setConsentAccepted(false); }} className="min-h-11 rounded-xl border border-blue-600 px-5 font-semibold text-blue-700">Responder novamente</button>
+              <button type="button" onClick={() => { setRespondAgain(true); setResponses({}); setConsentAccepted(hasActiveConsent(session)); }} className="min-h-11 rounded-xl border border-blue-600 px-5 font-semibold text-blue-700">Responder novamente</button>
               <button type="button" onClick={() => navigate('/pre-cadastro')} className="min-h-11 rounded-xl border border-slate-300 px-5 font-semibold text-slate-700">Voltar ao pré-cadastro</button>
+              {hasActiveConsent(session) ? (
+                <button type="button" disabled={saving} onClick={() => void revokeConsent()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-rose-300 px-5 font-semibold text-rose-700 disabled:opacity-50">
+                  <ShieldOff className="h-4 w-4" aria-hidden="true" /> Revogar consentimento
+                </button>
+              ) : null}
             </div>
           </section>
         </main>
@@ -253,6 +287,16 @@ export function Parq() {
             <input type="checkbox" className="mt-1 h-4 w-4" checked={consentAccepted} onChange={(event) => setConsentAccepted(event.target.checked)} />
             <span>Li e aceito o aviso de privacidade vigente para o tratamento destas informações de saúde.</span>
           </label>
+          {hasActiveConsent(session) ? (
+            <div className="mt-4 flex flex-col gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950 sm:flex-row sm:items-center sm:justify-between">
+              <span>Consentimento vigente registrado. Você pode revogá-lo para bloquear novas gravações.</span>
+              <button type="button" disabled={saving} onClick={() => void revokeConsent()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-emerald-700 px-4 font-semibold disabled:opacity-50">
+                <ShieldOff className="h-4 w-4" aria-hidden="true" /> Revogar consentimento
+              </button>
+            </div>
+          ) : session.consent.revokedAt ? (
+            <p className="mt-3 text-sm text-amber-800">Consentimento revogado. Aceite novamente o aviso vigente antes de uma nova gravação.</p>
+          ) : null}
         </section>
 
         <section className="space-y-4" aria-labelledby="parq-questions-title">

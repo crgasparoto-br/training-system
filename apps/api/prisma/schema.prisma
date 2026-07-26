@@ -29,6 +29,8 @@ model User {
   guardianAuthorizationsRevokedBy     PreRegistrationGuardianAuthorization[] @relation("GuardianAuthorizationRevokedBy")
   parqSubmissionsSubmitted             StudentParqSubmission[] @relation("StudentParqSubmittedBy")
   parqDraftConsents                    StudentParqDraft[] @relation("StudentParqDraftConsent")
+  parqConsentsAccepted                 StudentOnboardingProcess[] @relation("StudentParqConsentAcceptedBy")
+  parqConsentsRevoked                  StudentOnboardingProcess[] @relation("StudentParqConsentRevokedBy")
 
   @@index([email])
 }
@@ -546,6 +548,8 @@ enum StudentLifecycleEventType {
   PARQ_COMPLETED
   PARQ_MIGRATED
   PARQ_REVIEWED
+  PARQ_CONSENT_ACCEPTED
+  PARQ_CONSENT_REVOKED
   ADMIN_REVIEWED
   DISCARDED
   REOPENED
@@ -580,6 +584,12 @@ model StudentOnboardingProcess {
   healthCompletedAt     DateTime?
   parqModuleStatus      StudentOnboardingModuleStatus @default(NOT_STARTED)
   parqSubmissionId      String?                       @unique
+  parqConsentVersion              Int      @default(1)
+  parqConsentNoticeVersion        String?
+  parqConsentAcceptedAt           DateTime?
+  parqConsentAcceptedByUserId     String?
+  parqConsentRevokedAt            DateTime?
+  parqConsentRevokedByUserId      String?
   // --- Pre-matricula publica autenticada e resumivel (issue #271) ---
   // version e usado para deteccao otimista de concorrencia (edicao simultanea
   // em duas abas/dispositivos). currentStep e claimRole sao restritos por
@@ -596,6 +606,8 @@ model StudentOnboardingProcess {
   contract              CompanyContract               @relation(fields: [contractId], references: [id], onDelete: Cascade)
   healthIntake          StudentHealthIntake?           @relation("OnboardingHealthIntake", fields: [healthIntakeId], references: [id], onDelete: SetNull)
   parqSubmission        StudentParqSubmission?         @relation("OnboardingParqSubmission", fields: [parqSubmissionId], references: [id], onDelete: SetNull)
+  parqConsentAcceptedBy User? @relation("StudentParqConsentAcceptedBy", fields: [parqConsentAcceptedByUserId], references: [id], onDelete: Restrict)
+  parqConsentRevokedBy  User? @relation("StudentParqConsentRevokedBy", fields: [parqConsentRevokedByUserId], references: [id], onDelete: Restrict)
 
   @@index([contractId])
   @@index([claimedByUserId])

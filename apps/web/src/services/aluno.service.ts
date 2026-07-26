@@ -1,6 +1,6 @@
 ﻿import api from './api';
 import type { FixedScheduleSlotInput } from './agenda.service';
-import type { ParqFlowStatus, ParqSubmissionDTO } from '@corrida/types';
+import type { ParqAdministrativeSummaryDTO } from '@corrida/types';
 
 export interface Aluno {
   id: string;
@@ -49,12 +49,7 @@ export interface Aluno {
     lipidsPercentage: number;
     dailyCalories?: number;
   };
-  parq?: {
-    state: ParqFlowStatus;
-    latestSubmission: ParqSubmissionDTO | null;
-    submissions: ParqSubmissionDTO[];
-    legacy: { preserved: boolean; needsRepeat: boolean };
-  };
+  parq?: ParqAdministrativeSummaryDTO;
   intakeForm?: {
     assessmentDate?: string;
     mainGoal?: string;

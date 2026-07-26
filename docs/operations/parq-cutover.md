@@ -46,7 +46,7 @@ Legado incompleto, sem declaração, sem data ou divergente permanece em `Studen
 Depois do deploy:
 
 1. executar migrations antes de liberar a aplicação nova;
-2. comparar contagens de `StudentParqLegacyRecord` por `reconciliationStatus`;
+2. comparar contagens de `StudentParqLegacyRecord` por `migrationStatus`;
 3. confirmar que toda submissão com `positiveCount > 0` possui revisão vinculada;
 4. confirmar que não há onboarding com resposta clínica copiada;
 5. repetir o verificador de migration para provar idempotência;
@@ -56,9 +56,9 @@ Depois do deploy:
 Consultas úteis:
 
 ```sql
-SELECT "reconciliationStatus", count(*)
+SELECT "migrationStatus", count(*)
 FROM "StudentParqLegacyRecord"
-GROUP BY "reconciliationStatus";
+GROUP BY "migrationStatus";
 
 SELECT s.id
 FROM "StudentParqSubmission" s
@@ -69,3 +69,13 @@ WHERE s."positiveCount" > 0 AND r.id IS NULL;
 ## Rollback de aplicação
 
 A migration não deve ser revertida apagando dados. Uma versão anterior da aplicação pode continuar lendo as tabelas existentes, mas suas escritas de PAR-Q precisam permanecer bloqueadas durante o rollback para evitar novo dual-write. Rascunhos e submissões novas devem ser preservados até a reaplicação da versão atual.
+
+
+## Remediação da auditoria da issue 273
+
+- O resumo administrativo usa somente estado, versão/data, contagem e situação de análise; respostas, itens positivos e observações permanecem no PRNT autorizado.
+- A geração do rascunho é persistida mesmo após conclusão, impedindo que duas abas com a mesma geração concluam respostas diferentes.
+- Reenvio da mesma `idempotencyKey` identifica a submissão original sem alterar a submissão mais recente.
+- O consentimento de saúde é versionado no onboarding, registra aceite/revogação e bloqueia novas gravações até novo aceite válido.
+- A projeção `parqRequiresProfessionalReview` é recalculada pela existência de qualquer revisão `PENDING`.
+- O backfill valida tipos JSON booleanos, deduplica fontes equivalentes e preserva divergências contra submissões canônicas.

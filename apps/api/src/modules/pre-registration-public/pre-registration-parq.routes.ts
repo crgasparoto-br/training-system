@@ -2,7 +2,12 @@ import crypto from 'node:crypto';
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { sendError, sendSuccess } from '@corrida/utils';
-import type { CompleteParqDTO, ParqErrorCode, SaveParqDraftDTO } from '@corrida/types';
+import type {
+  CompleteParqDTO,
+  ParqErrorCode,
+  RevokeParqConsentDTO,
+  SaveParqDraftDTO,
+} from '@corrida/types';
 import { authMiddleware, alunoMiddleware } from '../auth/auth.middleware.js';
 import { ParqDomainError } from './pre-registration-parq.domain.js';
 import { ParqServiceError, preRegistrationParqService } from './pre-registration-parq.service.js';
@@ -21,6 +26,7 @@ const responsesSchema = z.object({
 const consentSchema = z.object({
   accepted: z.literal(true),
   privacyNoticeVersion: z.string().trim().min(1).max(80),
+  expectedVersion: z.number().int().min(1),
 }).strict();
 const saveSchema = z.object({
   catalogVersion: z.literal('parq-2026-01'),
@@ -31,6 +37,9 @@ const saveSchema = z.object({
 const completeSchema = saveSchema.extend({
   declarationAccepted: z.literal(true),
   idempotencyKey: z.string().trim().min(8).max(120),
+}).strict();
+const revokeConsentSchema = z.object({
+  expectedVersion: z.number().int().min(1),
 }).strict();
 
 const STATUS_BY_CODE: Record<ParqErrorCode, number> = {
@@ -132,12 +141,33 @@ router.post('/processes/:alunoId/parq/complete', async (req, res) => {
   }
 });
 
+router.post('/processes/:alunoId/parq/consent/revoke', async (req, res) => {
+  try {
+    const input = parse<RevokeParqConsentDTO>(revokeConsentSchema, req.body);
+    return sendSuccess(
+      res,
+      await preRegistrationParqService.revokeConsent(
+        userIdOf(req),
+        req.params.alunoId,
+        input.expectedVersion
+      ),
+      'Consentimento do PAR-Q revogado'
+    );
+  } catch (error) {
+    return handleError(res, error);
+  }
+});
+
 export function parseParqDraft(value: unknown): SaveParqDraftDTO {
   return parse<SaveParqDraftDTO>(saveSchema, value);
 }
 
 export function parseParqCompletion(value: unknown): CompleteParqDTO {
   return parse<CompleteParqDTO>(completeSchema, value);
+}
+
+export function parseParqConsentRevocation(value: unknown): RevokeParqConsentDTO {
+  return parse<RevokeParqConsentDTO>(revokeConsentSchema, value);
 }
 
 export { router as preRegistrationParqRoutes };

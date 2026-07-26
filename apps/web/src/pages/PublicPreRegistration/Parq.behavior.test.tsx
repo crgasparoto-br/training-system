@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   getParq: vi.fn(),
   saveParqDraft: vi.fn(),
   completeParq: vi.fn(),
+  revokeParqConsent: vi.fn(),
 }));
 
 vi.mock('react-router-dom', async () => {
@@ -24,6 +25,7 @@ vi.mock('../../services/pre-registration-public.service', () => ({
     getParq: mocks.getParq,
     saveParqDraft: mocks.saveParqDraft,
     completeParq: mocks.completeParq,
+    revokeParqConsent: mocks.revokeParqConsent,
   },
 }));
 
@@ -35,7 +37,7 @@ const baseSession = {
   status: 'NOT_STARTED',
   version: 1,
   responses: {},
-  consent: { requiredVersion: '2026-07' },
+  consent: { requiredVersion: '2026-07', version: 1 },
   legacy: { preserved: false, needsRepeat: false },
 };
 
@@ -53,13 +55,14 @@ describe('Parq', () => {
     mocks.getParq.mockReset();
     mocks.saveParqDraft.mockReset();
     mocks.completeParq.mockReset();
+    mocks.revokeParqConsent.mockReset();
     mocks.getParq.mockResolvedValue(baseSession);
     mocks.saveParqDraft.mockImplementation(async (_id, input) => ({
       ...baseSession,
       status: 'IN_PROGRESS',
       version: 2,
       responses: input.responses,
-      consent: { requiredVersion: '2026-07', acceptedVersion: '2026-07', acceptedAt: '2026-07-25T00:00:00.000Z' },
+      consent: { requiredVersion: '2026-07', version: 1, acceptedVersion: '2026-07', acceptedAt: '2026-07-25T00:00:00.000Z' },
       lastSavedAt: '2026-07-25T00:00:00.000Z',
     }));
   });
@@ -77,7 +80,7 @@ describe('Parq', () => {
       status: 'IN_PROGRESS',
       version: 4,
       responses: { q1: true, q2: false },
-      consent: { requiredVersion: '2026-07', acceptedVersion: '2026-07', acceptedAt: '2026-07-25T00:00:00.000Z' },
+      consent: { requiredVersion: '2026-07', version: 1, acceptedVersion: '2026-07', acceptedAt: '2026-07-25T00:00:00.000Z' },
     });
     renderPage();
     await screen.findByRole('heading', { name: /Questionário PAR-Q/i });
@@ -98,6 +101,28 @@ describe('Parq', () => {
     expect(await screen.findByRole('button', { name: /Recarregar alterações mais recentes/i })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Recarregar alterações mais recentes/i }));
     await waitFor(() => expect(mocks.getParq).toHaveBeenCalledTimes(2));
+  });
+
+  it('revokes active consent using the server consent generation', async () => {
+    const active = {
+      ...baseSession,
+      consent: {
+        requiredVersion: '2026-07',
+        version: 3,
+        acceptedVersion: '2026-07',
+        acceptedAt: '2026-07-25T00:00:00.000Z',
+      },
+    };
+    mocks.getParq.mockResolvedValue(active);
+    mocks.revokeParqConsent.mockResolvedValue({
+      ...active,
+      consent: { ...active.consent, version: 4, revokedAt: '2026-07-26T00:00:00.000Z' },
+    });
+    renderPage();
+    await screen.findByRole('heading', { name: /Questionário PAR-Q/i });
+    fireEvent.click(screen.getByRole('button', { name: /Revogar consentimento/i }));
+    await waitFor(() => expect(mocks.revokeParqConsent).toHaveBeenCalledWith('student-1', { expectedVersion: 3 }));
+    expect(await screen.findByText(/Consentimento revogado/i)).toBeInTheDocument();
   });
 
   it('explains that a positive completion requires review but is not a commercial block', async () => {

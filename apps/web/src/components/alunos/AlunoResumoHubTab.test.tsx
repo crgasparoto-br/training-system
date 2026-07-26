@@ -81,7 +81,7 @@ describe('AlunoResumoHubTab assessment card', () => {
     renderResumo(baseAluno);
 
     expect(screen.getAllByText('Avaliação pendente').length).toBeGreaterThan(0);
-    expect(screen.getByText(/Nenhuma avaliacao fisica carregada/i)).toBeInTheDocument();
+    expect(screen.getByText(/Aguardando primeira avaliação profissional/i)).toBeInTheDocument();
     expect(screen.getAllByText('Nova antropometria').length).toBeGreaterThan(0);
   });
 
@@ -144,7 +144,7 @@ describe('AlunoResumoHubTab assessment card', () => {
       ],
     });
 
-    expect(screen.getAllByText('Avaliacao em dia').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Avaliação em dia').length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Antropometria/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Profa\. Maria/i).length).toBeGreaterThan(0);
     expect(screen.getByText('Base pronta para comparar')).toBeInTheDocument();

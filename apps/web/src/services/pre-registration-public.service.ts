@@ -19,6 +19,7 @@ import type {
   ParqSessionDTO,
   SaveParqDraftDTO,
   CompleteParqDTO,
+  RevokeParqConsentDTO,
 } from '@corrida/types';
 
 function extractData<T>(payload: unknown): T {
@@ -168,6 +169,17 @@ export const preRegistrationPublicService = {
   async completeParq(alunoId: string, input: CompleteParqDTO): Promise<ParqSessionDTO> {
     const response = await api.post(
       `/pre-registration/processes/${encodeURIComponent(alunoId)}/parq/complete`,
+      input
+    );
+    return extractData<ParqSessionDTO>(response.data);
+  },
+
+  async revokeParqConsent(
+    alunoId: string,
+    input: RevokeParqConsentDTO
+  ): Promise<ParqSessionDTO> {
+    const response = await api.post(
+      `/pre-registration/processes/${encodeURIComponent(alunoId)}/parq/consent/revoke`,
       input
     );
     return extractData<ParqSessionDTO>(response.data);

@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { Prisma, PrismaClient } from '@prisma/client';
 import type {
   CompleteParqDTO,
+  ParqAdministrativeSummaryDTO,
   ParqErrorCode,
   ParqFlowStatus,
   ParqPositiveItem,
@@ -41,6 +42,7 @@ type DraftRow = {
   version: number;
   consentNoticeVersion: string;
   consentAcceptedAt: Date;
+  consentAcceptedByUserId: string;
   lastSavedAt: Date;
 };
 
@@ -63,6 +65,18 @@ type SubmissionRow = {
 };
 
 type LegacyStateRow = { preserved: boolean; needsRepeat: boolean };
+
+type ParqProcessStateRow = {
+  parqModuleStatus: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
+  parqConsentVersion: number;
+  parqConsentNoticeVersion: string | null;
+  parqConsentAcceptedAt: Date | null;
+  parqConsentAcceptedByUserId: string | null;
+  parqConsentRevokedAt: Date | null;
+  parqConsentRevokedByUserId: string | null;
+};
+
+type ConsentInput = SaveParqDraftDTO['consent'];
 
 export class ParqServiceError extends Error {
   constructor(
@@ -95,14 +109,14 @@ function positiveItems(value: Prisma.JsonValue | null | undefined): ParqPositive
   return items;
 }
 
-function requireConsent(input: SaveParqDraftDTO) {
-  if (!input.consent?.accepted) {
+function validateConsentPayload(input: ConsentInput) {
+  if (!input?.accepted) {
     throw new ParqServiceError(
       'Leia e aceite o aviso de privacidade antes de salvar informações de saúde.',
       'CONSENT_REQUIRED'
     );
   }
-  if (input.consent.privacyNoticeVersion !== NOTICE_VERSION) {
+  if (input.privacyNoticeVersion !== NOTICE_VERSION) {
     throw new ParqServiceError(
       'O aviso de privacidade foi atualizado. Revise a versão atual antes de continuar.',
       'CONSENT_VERSION_MISMATCH',
@@ -111,8 +125,13 @@ function requireConsent(input: SaveParqDraftDTO) {
   }
 }
 
-function statusOf(latest: SubmissionRow | undefined, draft: DraftRow | undefined, legacy: LegacyStateRow): ParqFlowStatus {
-  if (draft) return 'IN_PROGRESS';
+function statusOf(
+  latest: SubmissionRow | undefined,
+  draft: DraftRow | undefined,
+  process: ParqProcessStateRow,
+  legacy: LegacyStateRow
+): ParqFlowStatus {
+  if (process.parqModuleStatus === 'IN_PROGRESS' && draft) return 'IN_PROGRESS';
   if (latest) return latest.positiveCount > 0 ? 'COMPLETED_REVIEW_REQUIRED' : 'COMPLETED_NO_ALERT';
   return legacy.needsRepeat ? 'NEEDS_REPEAT' : 'NOT_STARTED';
 }
@@ -130,10 +149,27 @@ async function assertAlunoInContract(
   if (!rows[0]) throw new ParqServiceError('Cadastro não encontrado.', 'NOT_FOUND');
 }
 
+async function readParqProcessState(
+  tx: Prisma.TransactionClient,
+  alunoId: string,
+  contractId: string
+): Promise<ParqProcessStateRow> {
+  const rows = await tx.$queryRaw<ParqProcessStateRow[]>`
+    SELECT "parqModuleStatus", "parqConsentVersion", "parqConsentNoticeVersion",
+           "parqConsentAcceptedAt", "parqConsentAcceptedByUserId",
+           "parqConsentRevokedAt", "parqConsentRevokedByUserId"
+    FROM "StudentOnboardingProcess"
+    WHERE "alunoId" = ${alunoId} AND "contractId" = ${contractId}
+    LIMIT 1
+  `;
+  if (!rows[0]) throw new ParqServiceError('Cadastro não encontrado.', 'NOT_FOUND');
+  return rows[0];
+}
+
 async function readDraft(tx: Prisma.TransactionClient, alunoId: string): Promise<DraftRow | undefined> {
   const rows = await tx.$queryRaw<DraftRow[]>`
     SELECT "id", "alunoId", "contractId", "catalogVersion", "responses", "version",
-           "consentNoticeVersion", "consentAcceptedAt", "lastSavedAt"
+           "consentNoticeVersion", "consentAcceptedAt", "consentAcceptedByUserId", "lastSavedAt"
     FROM "StudentParqDraft"
     WHERE "alunoId" = ${alunoId}
     LIMIT 1
@@ -141,14 +177,8 @@ async function readDraft(tx: Prisma.TransactionClient, alunoId: string): Promise
   return rows[0];
 }
 
-async function readSubmissionRows(
-  tx: Prisma.TransactionClient,
-  contractId: string,
-  alunoId: string,
-  limit?: number
-): Promise<SubmissionRow[]> {
-  const limitFragment = limit ? Prisma.sql`LIMIT ${limit}` : Prisma.empty;
-  return tx.$queryRaw<SubmissionRow[]>(Prisma.sql`
+function submissionSelect(whereFragment: Prisma.Sql, limitFragment = Prisma.empty) {
+  return Prisma.sql`
     SELECT submission."id", submission."alunoId", submission."contractId",
            submission."sourceType"::text AS "sourceType", submission."catalogVersion",
            submission."responses", submission."positiveItems", submission."positiveCount",
@@ -158,13 +188,45 @@ async function readSubmissionRows(
     FROM "StudentParqSubmission" AS submission
     LEFT JOIN "StudentParqProfessionalReview" AS review
       ON review."submissionId" = submission."id"
-    WHERE submission."contractId" = ${contractId}
-      AND submission."alunoId" = ${alunoId}
-      AND submission."catalogVersion" IN (${Prisma.join([...KNOWN_CATALOGS])})
+    WHERE submission."catalogVersion" IN (${Prisma.join([...KNOWN_CATALOGS])})
       AND submission."declarationAccepted" = true
+      AND ${whereFragment}
     ORDER BY submission."submittedAt" DESC, submission."createdAt" DESC, submission."id" DESC
     ${limitFragment}
-  `);
+  `;
+}
+
+async function readSubmissionRows(
+  tx: Prisma.TransactionClient,
+  contractId: string,
+  alunoId: string,
+  limit?: number
+): Promise<SubmissionRow[]> {
+  const limitFragment = limit ? Prisma.sql`LIMIT ${limit}` : Prisma.empty;
+  return tx.$queryRaw<SubmissionRow[]>(
+    submissionSelect(
+      Prisma.sql`submission."contractId" = ${contractId} AND submission."alunoId" = ${alunoId}`,
+      limitFragment
+    )
+  );
+}
+
+async function readSubmissionByIdempotencyKey(
+  tx: Prisma.TransactionClient,
+  contractId: string,
+  alunoId: string,
+  idempotencyKey: string
+): Promise<SubmissionRow | undefined> {
+  return (
+    await tx.$queryRaw<SubmissionRow[]>(
+      submissionSelect(
+        Prisma.sql`submission."contractId" = ${contractId}
+          AND submission."alunoId" = ${alunoId}
+          AND submission."idempotencyKey" = ${idempotencyKey}`,
+        Prisma.sql`LIMIT 1`
+      )
+    )
+  )[0];
 }
 
 async function readLatestSubmission(
@@ -216,29 +278,39 @@ function mapSubmission(row: SubmissionRow): ParqSubmissionDTO {
   };
 }
 
+function consentView(process: ParqProcessStateRow): ParqSessionDTO['consent'] {
+  return {
+    requiredVersion: NOTICE_VERSION,
+    version: process.parqConsentVersion,
+    acceptedVersion: process.parqConsentNoticeVersion ?? undefined,
+    acceptedAt: process.parqConsentAcceptedAt?.toISOString(),
+    revokedAt: process.parqConsentRevokedAt?.toISOString(),
+  };
+}
+
 async function buildSession(
   tx: Prisma.TransactionClient,
   contractId: string,
-  alunoId: string
+  alunoId: string,
+  replayed?: SubmissionRow
 ): Promise<ParqSessionDTO> {
-  const [draft, latest, legacy] = await Promise.all([
+  const [draft, latest, legacy, process] = await Promise.all([
     readDraft(tx, alunoId),
     readLatestSubmission(tx, contractId, alunoId),
     readLegacyState(tx, alunoId),
+    readParqProcessState(tx, alunoId, contractId),
   ]);
+  const inProgress = process.parqModuleStatus === 'IN_PROGRESS';
   return {
     alunoId,
     catalog: getCanonicalParqCatalog(),
-    status: statusOf(latest, draft, legacy),
+    status: statusOf(latest, draft, process, legacy),
     version: draft?.version ?? 1,
-    responses: draft ? responseRecord(draft.responses) : {},
-    consent: {
-      requiredVersion: NOTICE_VERSION,
-      acceptedVersion: draft?.consentNoticeVersion,
-      acceptedAt: draft?.consentAcceptedAt?.toISOString(),
-    },
-    lastSavedAt: draft?.lastSavedAt?.toISOString(),
+    responses: inProgress && draft ? responseRecord(draft.responses) : {},
+    consent: consentView(process),
+    lastSavedAt: inProgress ? draft?.lastSavedAt?.toISOString() : undefined,
     latestSubmission: latest ? mapSubmission(latest) : undefined,
+    replayedSubmission: replayed ? mapSubmission(replayed) : undefined,
     legacy,
   };
 }
@@ -248,7 +320,13 @@ async function recordEvent(
   params: {
     alunoId: string;
     contractId: string;
-    eventType: 'PARQ_STARTED' | 'PARQ_SAVED' | 'PARQ_COMPLETED' | 'PARQ_REVIEWED';
+    eventType:
+      | 'PARQ_STARTED'
+      | 'PARQ_SAVED'
+      | 'PARQ_COMPLETED'
+      | 'PARQ_REVIEWED'
+      | 'PARQ_CONSENT_ACCEPTED'
+      | 'PARQ_CONSENT_REVOKED';
     actorUserId?: string;
     actorProfessorId?: string;
     metadata?: Prisma.InputJsonValue;
@@ -266,6 +344,116 @@ async function recordEvent(
   });
 }
 
+function activeConsent(process: ParqProcessStateRow) {
+  return Boolean(
+    process.parqConsentAcceptedAt &&
+    !process.parqConsentRevokedAt &&
+    process.parqConsentNoticeVersion === NOTICE_VERSION
+  );
+}
+
+async function acceptConsent(
+  tx: Prisma.TransactionClient,
+  process: ParqProcessStateRow,
+  alunoId: string,
+  contractId: string,
+  userId: string,
+  input: ConsentInput
+): Promise<ParqProcessStateRow> {
+  validateConsentPayload(input);
+  if (input.expectedVersion !== process.parqConsentVersion) {
+    throw new ParqServiceError(
+      'O consentimento do PAR-Q foi alterado em outro acesso. Recarregue antes de continuar.',
+      'CONCURRENT_MODIFICATION',
+      { currentVersion: process.parqConsentVersion }
+    );
+  }
+  if (activeConsent(process)) return process;
+
+  const nextVersion = process.parqConsentAcceptedAt
+    ? process.parqConsentVersion + 1
+    : process.parqConsentVersion;
+  const acceptedAt = new Date();
+  await tx.studentOnboardingProcess.update({
+    where: { alunoId },
+    data: {
+      parqConsentVersion: nextVersion,
+      parqConsentNoticeVersion: NOTICE_VERSION,
+      parqConsentAcceptedAt: acceptedAt,
+      parqConsentAcceptedByUserId: userId,
+      parqConsentRevokedAt: null,
+      parqConsentRevokedByUserId: null,
+    },
+  });
+  await recordEvent(tx, {
+    alunoId,
+    contractId,
+    actorUserId: userId,
+    eventType: 'PARQ_CONSENT_ACCEPTED',
+    metadata: { noticeVersion: NOTICE_VERSION, consentVersion: nextVersion },
+  });
+  return {
+    ...process,
+    parqConsentVersion: nextVersion,
+    parqConsentNoticeVersion: NOTICE_VERSION,
+    parqConsentAcceptedAt: acceptedAt,
+    parqConsentAcceptedByUserId: userId,
+    parqConsentRevokedAt: null,
+    parqConsentRevokedByUserId: null,
+  };
+}
+
+async function writeDraftState(
+  tx: Prisma.TransactionClient,
+  params: {
+    existing?: DraftRow;
+    alunoId: string;
+    contractId: string;
+    userId: string;
+    responses: ParqResponses;
+    version: number;
+  }
+) {
+  const id = params.existing?.id ?? crypto.randomUUID();
+  await tx.$executeRaw`
+    INSERT INTO "StudentParqDraft" (
+      "id", "alunoId", "contractId", "catalogVersion", "responses", "version",
+      "consentNoticeVersion", "consentAcceptedAt", "consentAcceptedByUserId",
+      "lastSavedAt", "createdAt", "updatedAt"
+    ) VALUES (
+      ${id}, ${params.alunoId}, ${params.contractId}, ${PARQ_CATALOG_VERSION},
+      ${JSON.stringify(params.responses)}::jsonb, ${params.version}, ${NOTICE_VERSION},
+      CURRENT_TIMESTAMP, ${params.userId}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+    )
+    ON CONFLICT ("alunoId") DO UPDATE SET
+      "contractId" = EXCLUDED."contractId",
+      "catalogVersion" = EXCLUDED."catalogVersion",
+      "responses" = EXCLUDED."responses",
+      "version" = EXCLUDED."version",
+      "consentNoticeVersion" = EXCLUDED."consentNoticeVersion",
+      "consentAcceptedAt" = EXCLUDED."consentAcceptedAt",
+      "consentAcceptedByUserId" = EXCLUDED."consentAcceptedByUserId",
+      "lastSavedAt" = CURRENT_TIMESTAMP,
+      "updatedAt" = CURRENT_TIMESTAMP
+  `;
+}
+
+async function pendingReviewExists(
+  tx: Prisma.TransactionClient,
+  contractId: string,
+  alunoId: string
+): Promise<boolean> {
+  const rows = await tx.$queryRaw<Array<{ exists: boolean }>>`
+    SELECT EXISTS (
+      SELECT 1 FROM "StudentParqProfessionalReview"
+      WHERE "alunoId" = ${alunoId}
+        AND "contractId" = ${contractId}
+        AND "status" = 'PENDING'
+    ) AS "exists"
+  `;
+  return rows[0]?.exists === true;
+}
+
 export const preRegistrationParqService = {
   async getSession(userId: string, alunoId: string) {
     return prisma.$transaction(async (tx) => {
@@ -280,43 +468,35 @@ export const preRegistrationParqService = {
   async saveDraft(userId: string, alunoId: string, input: SaveParqDraftDTO) {
     validateParqCatalogVersion(input.catalogVersion);
     validateParqResponses(input.responses, false);
-    requireConsent(input);
+    validateConsentPayload(input.consent);
 
     return prisma.$transaction(async (tx) => {
       const access = await lockAndAuthorizePreRegistrationProcess(tx, userId, alunoId);
       if (access.status !== 'PRE_REGISTRATION_COMPLETED') {
         throw new ParqServiceError('Conclua primeiro os dados básicos do pré-cadastro.', 'BASIC_PRE_REGISTRATION_REQUIRED');
       }
-      const existing = await readDraft(tx, alunoId);
-      if (input.expectedVersion !== (existing?.version ?? 1)) {
+      const [existing, process] = await Promise.all([
+        readDraft(tx, alunoId),
+        readParqProcessState(tx, alunoId, access.contractId),
+      ]);
+      const currentVersion = existing?.version ?? 1;
+      if (input.expectedVersion !== currentVersion) {
         throw new ParqServiceError(
           'Este PAR-Q foi alterado em outro acesso. Recarregue antes de continuar.',
           'CONCURRENT_MODIFICATION',
-          { currentVersion: existing?.version ?? 1 }
+          { currentVersion }
         );
       }
-      const id = existing?.id ?? crypto.randomUUID();
-      const nextVersion = existing ? existing.version + 1 : 1;
-      await tx.$executeRaw`
-        INSERT INTO "StudentParqDraft" (
-          "id", "alunoId", "contractId", "catalogVersion", "responses", "version",
-          "consentNoticeVersion", "consentAcceptedAt", "consentAcceptedByUserId",
-          "lastSavedAt", "createdAt", "updatedAt"
-        ) VALUES (
-          ${id}, ${alunoId}, ${access.contractId}, ${PARQ_CATALOG_VERSION},
-          ${JSON.stringify(input.responses)}::jsonb, ${nextVersion}, ${NOTICE_VERSION},
-          CURRENT_TIMESTAMP, ${userId}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-        )
-        ON CONFLICT ("alunoId") DO UPDATE SET
-          "catalogVersion" = EXCLUDED."catalogVersion",
-          "responses" = EXCLUDED."responses",
-          "version" = EXCLUDED."version",
-          "consentNoticeVersion" = EXCLUDED."consentNoticeVersion",
-          "consentAcceptedAt" = EXCLUDED."consentAcceptedAt",
-          "consentAcceptedByUserId" = EXCLUDED."consentAcceptedByUserId",
-          "lastSavedAt" = CURRENT_TIMESTAMP,
-          "updatedAt" = CURRENT_TIMESTAMP
-      `;
+      await acceptConsent(tx, process, alunoId, access.contractId, userId, input.consent);
+      const nextVersion = currentVersion + 1;
+      await writeDraftState(tx, {
+        existing,
+        alunoId,
+        contractId: access.contractId,
+        userId,
+        responses: input.responses,
+        version: nextVersion,
+      });
       await tx.studentOnboardingProcess.update({
         where: { alunoId },
         data: { parqModuleStatus: 'IN_PROGRESS', lastSavedAt: new Date() },
@@ -325,7 +505,7 @@ export const preRegistrationParqService = {
         alunoId,
         contractId: access.contractId,
         actorUserId: userId,
-        eventType: existing ? 'PARQ_SAVED' : 'PARQ_STARTED',
+        eventType: process.parqModuleStatus === 'IN_PROGRESS' ? 'PARQ_SAVED' : 'PARQ_STARTED',
         metadata: { catalogVersion: PARQ_CATALOG_VERSION, answeredCount: Object.keys(input.responses).length },
       });
       return buildSession(tx, access.contractId, alunoId);
@@ -335,7 +515,6 @@ export const preRegistrationParqService = {
   async complete(userId: string, alunoId: string, input: CompleteParqDTO) {
     validateParqCatalogVersion(input.catalogVersion);
     validateParqResponses(input.responses, true);
-    requireConsent(input);
     if (!input.declarationAccepted) {
       throw new ParqServiceError('Confirme a declaração antes de concluir.', 'INCOMPLETE_RESPONSES');
     }
@@ -346,21 +525,29 @@ export const preRegistrationParqService = {
       if (access.status !== 'PRE_REGISTRATION_COMPLETED') {
         throw new ParqServiceError('Conclua primeiro os dados básicos do pré-cadastro.', 'BASIC_PRE_REGISTRATION_REQUIRED');
       }
-      const repeated = await tx.$queryRaw<Array<{ id: string }>>`
-        SELECT "id" FROM "StudentParqSubmission"
-        WHERE "alunoId" = ${alunoId} AND "idempotencyKey" = ${input.idempotencyKey}
-        LIMIT 1
-      `;
-      if (repeated[0]) return buildSession(tx, access.contractId, alunoId);
 
-      const draft = await readDraft(tx, alunoId);
-      if (input.expectedVersion !== (draft?.version ?? 1)) {
+      const repeated = await readSubmissionByIdempotencyKey(
+        tx,
+        access.contractId,
+        alunoId,
+        input.idempotencyKey
+      );
+      if (repeated) return buildSession(tx, access.contractId, alunoId, repeated);
+
+      validateConsentPayload(input.consent);
+      const [draft, process] = await Promise.all([
+        readDraft(tx, alunoId),
+        readParqProcessState(tx, alunoId, access.contractId),
+      ]);
+      const currentVersion = draft?.version ?? 1;
+      if (input.expectedVersion !== currentVersion) {
         throw new ParqServiceError(
           'Este PAR-Q foi alterado em outro acesso. Recarregue antes de concluir.',
           'CONCURRENT_MODIFICATION',
-          { currentVersion: draft?.version ?? 1 }
+          { currentVersion }
         );
       }
+      await acceptConsent(tx, process, alunoId, access.contractId, userId, input.consent);
 
       const submissionId = crypto.randomUUID();
       await tx.$executeRaw`
@@ -389,14 +576,22 @@ export const preRegistrationParqService = {
         `;
       }
 
-      await tx.$executeRaw`DELETE FROM "StudentParqDraft" WHERE "alunoId" = ${alunoId}`;
+      const nextVersion = currentVersion + 1;
+      await writeDraftState(tx, {
+        existing: draft,
+        alunoId,
+        contractId: access.contractId,
+        userId,
+        responses: {},
+        version: nextVersion,
+      });
       await tx.studentOnboardingProcess.update({
         where: { alunoId },
         data: { parqModuleStatus: 'COMPLETED', parqSubmissionId: submissionId, lastSavedAt: new Date() },
       });
       await tx.aluno.update({
         where: { id: alunoId },
-        data: { parqRequiresProfessionalReview: evaluation.positiveCount > 0 },
+        data: { parqRequiresProfessionalReview: await pendingReviewExists(tx, access.contractId, alunoId) },
       });
       await recordEvent(tx, {
         alunoId,
@@ -413,10 +608,77 @@ export const preRegistrationParqService = {
     });
   },
 
+  async revokeConsent(userId: string, alunoId: string, expectedVersion: number) {
+    return prisma.$transaction(async (tx) => {
+      const access = await lockAndAuthorizePreRegistrationProcess(tx, userId, alunoId);
+      if (access.status !== 'PRE_REGISTRATION_COMPLETED') {
+        throw new ParqServiceError('Conclua primeiro os dados básicos do pré-cadastro.', 'BASIC_PRE_REGISTRATION_REQUIRED');
+      }
+      const process = await readParqProcessState(tx, alunoId, access.contractId);
+      if (expectedVersion !== process.parqConsentVersion) {
+        throw new ParqServiceError(
+          'O consentimento do PAR-Q foi alterado em outro acesso. Recarregue antes de continuar.',
+          'CONCURRENT_MODIFICATION',
+          { currentVersion: process.parqConsentVersion }
+        );
+      }
+      if (process.parqConsentRevokedAt) return buildSession(tx, access.contractId, alunoId);
+      if (!process.parqConsentAcceptedAt) {
+        throw new ParqServiceError('Não existe consentimento ativo para revogar.', 'CONSENT_REQUIRED');
+      }
+      const nextVersion = process.parqConsentVersion + 1;
+      await tx.studentOnboardingProcess.update({
+        where: { alunoId },
+        data: {
+          parqConsentVersion: nextVersion,
+          parqConsentRevokedAt: new Date(),
+          parqConsentRevokedByUserId: userId,
+        },
+      });
+      await recordEvent(tx, {
+        alunoId,
+        contractId: access.contractId,
+        actorUserId: userId,
+        eventType: 'PARQ_CONSENT_REVOKED',
+        metadata: { consentVersion: nextVersion },
+      });
+      return buildSession(tx, access.contractId, alunoId);
+    });
+  },
+
   async listSubmissions(contractId: string, alunoId: string): Promise<ParqSubmissionDTO[]> {
     return prisma.$transaction(async (tx) => {
       await assertAlunoInContract(tx, contractId, alunoId);
       return (await readSubmissionRows(tx, contractId, alunoId)).map(mapSubmission);
+    });
+  },
+
+  async summary(contractId: string, alunoId: string): Promise<ParqAdministrativeSummaryDTO> {
+    return prisma.$transaction(async (tx) => {
+      await assertAlunoInContract(tx, contractId, alunoId);
+      const [latest, legacy, process, requiresProfessionalReview] = await Promise.all([
+        readLatestSubmission(tx, contractId, alunoId),
+        readLegacyState(tx, alunoId),
+        readParqProcessState(tx, alunoId, contractId),
+        pendingReviewExists(tx, contractId, alunoId),
+      ]);
+      const draft = await readDraft(tx, alunoId);
+      return {
+        state: statusOf(latest, draft, process, legacy),
+        latestSubmission: latest
+          ? {
+              id: latest.id,
+              catalogVersion: isKnownParqCatalogVersion(latest.catalogVersion)
+                ? latest.catalogVersion
+                : PARQ_CATALOG_VERSION,
+              submittedAt: latest.submittedAt.toISOString(),
+              positiveCount: latest.positiveCount,
+              review: latest.reviewStatus ? { status: latest.reviewStatus } : undefined,
+            }
+          : null,
+        requiresProfessionalReview,
+        legacy,
+      };
     });
   },
 
@@ -467,15 +729,9 @@ export const preRegistrationParqService = {
             "updatedAt" = CURRENT_TIMESTAMP
         WHERE "id" = ${reviewId} AND "status" = 'PENDING'
       `;
-      const pending = await tx.$queryRaw<Array<{ exists: boolean }>>`
-        SELECT EXISTS (
-          SELECT 1 FROM "StudentParqProfessionalReview"
-          WHERE "alunoId" = ${alunoId} AND "contractId" = ${contractId} AND "status" = 'PENDING'
-        ) AS "exists"
-      `;
       await tx.aluno.update({
         where: { id: alunoId },
-        data: { parqRequiresProfessionalReview: Boolean(pending[0]?.exists) },
+        data: { parqRequiresProfessionalReview: await pendingReviewExists(tx, contractId, alunoId) },
       });
       await recordEvent(tx, {
         alunoId,

@@ -1,6 +1,7 @@
 import { PARQ_CATALOG_VERSION } from '@corrida/types';
 import {
   parseParqCompletion,
+  parseParqConsentRevocation,
   parseParqDraft,
 } from '../src/modules/pre-registration-public/pre-registration-parq.routes.js';
 
@@ -14,16 +15,21 @@ describe('pre-registration PAR-Q routes contract', () => {
     q6: false,
     q7: false,
   };
+  const consent = {
+    accepted: true as const,
+    privacyNoticeVersion: '2026-07',
+    expectedVersion: 1,
+  };
 
-  it('accepts only the shared current catalog and allowlisted answers', () => {
+  it('accepts only the shared catalog and versioned health consent', () => {
     expect(
       parseParqDraft({
         catalogVersion: PARQ_CATALOG_VERSION,
         expectedVersion: 1,
         responses,
-        consent: { accepted: true, privacyNoticeVersion: '2026-07' },
+        consent,
       })
-    ).toEqual(expect.objectContaining({ catalogVersion: PARQ_CATALOG_VERSION, responses }));
+    ).toEqual(expect.objectContaining({ catalogVersion: PARQ_CATALOG_VERSION, responses, consent }));
   });
 
   it.each(['positiveCount', 'positiveItems', 'contractId', 'alunoId', 'status', 'reviewStatus'])(
@@ -34,7 +40,7 @@ describe('pre-registration PAR-Q routes contract', () => {
           catalogVersion: PARQ_CATALOG_VERSION,
           expectedVersion: 1,
           responses,
-          consent: { accepted: true, privacyNoticeVersion: '2026-07' },
+          consent,
           [field]: field === 'positiveCount' ? 0 : 'attacker-controlled',
         })
       ).toThrow();
@@ -47,7 +53,7 @@ describe('pre-registration PAR-Q routes contract', () => {
         catalogVersion: PARQ_CATALOG_VERSION,
         expectedVersion: 1,
         responses: { ...responses, q8: true },
-        consent: { accepted: true, privacyNoticeVersion: '2026-07' },
+        consent,
       })
     ).toThrow();
 
@@ -56,9 +62,24 @@ describe('pre-registration PAR-Q routes contract', () => {
         catalogVersion: PARQ_CATALOG_VERSION,
         expectedVersion: 1,
         responses,
-        consent: { accepted: true, privacyNoticeVersion: '2026-07' },
+        consent,
         idempotencyKey: 'retry-key-123',
       })
     ).toThrow();
+  });
+
+  it('requires optimistic versions for consent acceptance and revocation', () => {
+    expect(() =>
+      parseParqDraft({
+        catalogVersion: PARQ_CATALOG_VERSION,
+        expectedVersion: 1,
+        responses,
+        consent: { accepted: true, privacyNoticeVersion: '2026-07' },
+      })
+    ).toThrow();
+
+    expect(parseParqConsentRevocation({ expectedVersion: 3 })).toEqual({ expectedVersion: 3 });
+    expect(() => parseParqConsentRevocation({ expectedVersion: 0 })).toThrow();
+    expect(() => parseParqConsentRevocation({ expectedVersion: 1, alunoId: 'attacker' })).toThrow();
   });
 });

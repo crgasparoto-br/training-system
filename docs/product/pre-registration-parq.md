@@ -38,9 +38,9 @@ A versão histórica `parq-legacy-8-declaration-v1` existe apenas para preservar
 
 A rota pública do convite não lê nem grava PAR-Q. Depois da reivindicação, todas as operações usam sessão autenticada, o vínculo canônico do aluno, o mesmo `contractId` e, para responsável, autorização ativa validada conforme o fluxo de pré-matrícula.
 
-Antes da primeira gravação, o aluno ou responsável aceita a versão vigente do aviso de privacidade para dados de saúde. A revogação ou ausência de consentimento bloqueia novas gravações, sem apagar automaticamente o histórico.
+Antes da primeira gravação, o aluno ou responsável aceita a versão vigente do aviso de privacidade para dados de saúde. Aceite e revogação ficam versionados e auditáveis no processo. A revogação ou ausência de consentimento bloqueia novas gravações, sem apagar automaticamente o histórico; um novo aceite vigente cria uma nova geração de consentimento.
 
-O rascunho é salvo no servidor e pode ser retomado em outro dispositivo. O `expectedVersion` impede sobrescrita silenciosa. Em conflito, o cliente recarrega o estado confirmado antes de tentar novamente.
+O rascunho é salvo no servidor e pode ser retomado em outro dispositivo. O `expectedVersion` representa uma geração persistente do fluxo e impede sobrescrita ou conclusão silenciosa por outra aba. A geração continua existindo após a conclusão; somente a operação explícita de responder novamente pode avançá-la. Em conflito, o cliente recarrega o estado confirmado antes de tentar novamente.
 
 A conclusão exige todas as respostas, declaração explícita e `idempotencyKey`. Retry da mesma conclusão devolve o registro já criado. A criação da submissão, a atualização do onboarding e a pendência profissional positiva ocorrem na mesma transação.
 
@@ -67,3 +67,8 @@ Listagens comerciais exibem somente estado resumido e indicador de análise. Res
 O workflow `Issue 273 Regression Evidence` deve comprovar, no mesmo SHA da entrega, a reconciliação e o rerun da migration, o fluxo autenticado em PostgreSQL, concorrência, idempotência, histórico, revisão profissional, isolamento de tenant e os estados responsivos do formulário. O workflow geral `Validate PR` continua responsável por migrations, type-check, lint, suítes completas, build, arquitetura, catálogo de acessos e documentação.
 
 Essas evidências constituem verificação interna do ciclo de implementação. A aprovação final exige auditoria independente em nova conversa, com o SHA congelado e sem alterações posteriores.
+
+
+## Fronteira administrativa sanitizada
+
+A rota administrativa genérica do aluno usa `ParqAdministrativeSummaryDTO`. Ela pode exibir somente estado, identificador/versão/data da última submissão, contagem positiva, situação resumida de análise, projeção de pendência e estado do legado. `responses`, `positiveItems` e `reviewNotes` são conteúdo clínico e permanecem exclusivos das rotas do PRNT protegidas por permissão de saúde.

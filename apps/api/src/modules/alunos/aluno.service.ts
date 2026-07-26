@@ -591,7 +591,7 @@ export const alunoService = {
       },
     });
     if (!aluno) return null;
-    const parq = await preRegistrationParqService.overview(aluno.contractId, aluno.id);
+    const parq = await preRegistrationParqService.summary(aluno.contractId, aluno.id);
     return { ...aluno, parq };
   },
 

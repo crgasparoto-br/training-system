@@ -24,12 +24,27 @@ SET "catalogVersion" = CASE
        AND jsonb_typeof("responses") = 'object'
        AND (SELECT COUNT(*) FROM jsonb_object_keys("responses")) = 8
        AND "responses" ?& ARRAY['q1','q2','q3','q4','q5','q6','q7','q8']
+       AND jsonb_typeof("responses"->'q1') = 'boolean'
+       AND jsonb_typeof("responses"->'q2') = 'boolean'
+       AND jsonb_typeof("responses"->'q3') = 'boolean'
+       AND jsonb_typeof("responses"->'q4') = 'boolean'
+       AND jsonb_typeof("responses"->'q5') = 'boolean'
+       AND jsonb_typeof("responses"->'q6') = 'boolean'
+       AND jsonb_typeof("responses"->'q7') = 'boolean'
+       AND jsonb_typeof("responses"->'q8') = 'boolean'
        AND "responses"->>'q8' = 'true'
       THEN 'parq-legacy-8-declaration-v1'
       WHEN "declarationAccepted" = true
        AND jsonb_typeof("responses") = 'object'
        AND (SELECT COUNT(*) FROM jsonb_object_keys("responses")) = 7
        AND "responses" ?& ARRAY['q1','q2','q3','q4','q5','q6','q7']
+       AND jsonb_typeof("responses"->'q1') = 'boolean'
+       AND jsonb_typeof("responses"->'q2') = 'boolean'
+       AND jsonb_typeof("responses"->'q3') = 'boolean'
+       AND jsonb_typeof("responses"->'q4') = 'boolean'
+       AND jsonb_typeof("responses"->'q5') = 'boolean'
+       AND jsonb_typeof("responses"->'q6') = 'boolean'
+       AND jsonb_typeof("responses"->'q7') = 'boolean'
       THEN 'parq-2026-01'
       ELSE 'legacy-unknown'
     END,
@@ -158,11 +173,27 @@ SELECT
          AND jsonb_typeof(intake."parqResponses") = 'object'
          AND (SELECT COUNT(*) FROM jsonb_object_keys(intake."parqResponses")) = 8
          AND intake."parqResponses" ?& ARRAY['q1','q2','q3','q4','q5','q6','q7','q8']
+         AND jsonb_typeof(intake."parqResponses"->'q1') = 'boolean'
+         AND jsonb_typeof(intake."parqResponses"->'q2') = 'boolean'
+         AND jsonb_typeof(intake."parqResponses"->'q3') = 'boolean'
+         AND jsonb_typeof(intake."parqResponses"->'q4') = 'boolean'
+         AND jsonb_typeof(intake."parqResponses"->'q5') = 'boolean'
+         AND jsonb_typeof(intake."parqResponses"->'q6') = 'boolean'
+         AND jsonb_typeof(intake."parqResponses"->'q7') = 'boolean'
+         AND jsonb_typeof(intake."parqResponses"->'q8') = 'boolean'
          AND intake."parqResponses"->>'q8' = 'true'
        THEN 'IMPORTABLE' ELSE 'INCOMPATIBLE' END,
   CASE WHEN intake."assessmentDate" IS NULL THEN 'missing_observed_at'
        WHEN jsonb_typeof(intake."parqResponses") <> 'object' THEN 'invalid_shape'
        WHEN NOT (intake."parqResponses" ?& ARRAY['q1','q2','q3','q4','q5','q6','q7','q8']) THEN 'incomplete_question_set'
+       WHEN (jsonb_typeof(intake."parqResponses"->'q1') <> 'boolean'
+         OR jsonb_typeof(intake."parqResponses"->'q2') <> 'boolean'
+         OR jsonb_typeof(intake."parqResponses"->'q3') <> 'boolean'
+         OR jsonb_typeof(intake."parqResponses"->'q4') <> 'boolean'
+         OR jsonb_typeof(intake."parqResponses"->'q5') <> 'boolean'
+         OR jsonb_typeof(intake."parqResponses"->'q6') <> 'boolean'
+         OR jsonb_typeof(intake."parqResponses"->'q7') <> 'boolean'
+         OR jsonb_typeof(intake."parqResponses"->'q8') <> 'boolean') THEN 'non_boolean_answer'
        WHEN intake."parqResponses"->>'q8' <> 'true' THEN 'declaration_not_supported'
        ELSE NULL END,
   CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
@@ -184,11 +215,27 @@ SELECT
          AND jsonb_typeof(intake."questionnaireParq") = 'object'
          AND (SELECT COUNT(*) FROM jsonb_object_keys(intake."questionnaireParq")) = 8
          AND intake."questionnaireParq" ?& ARRAY['q1','q2','q3','q4','q5','q6','q7','q8']
+         AND jsonb_typeof(intake."questionnaireParq"->'q1') = 'boolean'
+         AND jsonb_typeof(intake."questionnaireParq"->'q2') = 'boolean'
+         AND jsonb_typeof(intake."questionnaireParq"->'q3') = 'boolean'
+         AND jsonb_typeof(intake."questionnaireParq"->'q4') = 'boolean'
+         AND jsonb_typeof(intake."questionnaireParq"->'q5') = 'boolean'
+         AND jsonb_typeof(intake."questionnaireParq"->'q6') = 'boolean'
+         AND jsonb_typeof(intake."questionnaireParq"->'q7') = 'boolean'
+         AND jsonb_typeof(intake."questionnaireParq"->'q8') = 'boolean'
          AND intake."questionnaireParq"->>'q8' = 'true'
        THEN 'IMPORTABLE' ELSE 'INCOMPATIBLE' END,
   CASE WHEN intake."assessmentDate" IS NULL THEN 'missing_observed_at'
        WHEN jsonb_typeof(intake."questionnaireParq") <> 'object' THEN 'invalid_shape'
        WHEN NOT (intake."questionnaireParq" ?& ARRAY['q1','q2','q3','q4','q5','q6','q7','q8']) THEN 'incomplete_question_set'
+       WHEN (jsonb_typeof(intake."questionnaireParq"->'q1') <> 'boolean'
+         OR jsonb_typeof(intake."questionnaireParq"->'q2') <> 'boolean'
+         OR jsonb_typeof(intake."questionnaireParq"->'q3') <> 'boolean'
+         OR jsonb_typeof(intake."questionnaireParq"->'q4') <> 'boolean'
+         OR jsonb_typeof(intake."questionnaireParq"->'q5') <> 'boolean'
+         OR jsonb_typeof(intake."questionnaireParq"->'q6') <> 'boolean'
+         OR jsonb_typeof(intake."questionnaireParq"->'q7') <> 'boolean'
+         OR jsonb_typeof(intake."questionnaireParq"->'q8') <> 'boolean') THEN 'non_boolean_answer'
        WHEN intake."questionnaireParq"->>'q8' <> 'true' THEN 'declaration_not_supported'
        ELSE NULL END,
   CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
@@ -207,6 +254,24 @@ WHERE candidate."migrationStatus" = 'IMPORTABLE'
       AND other."observedAt" = candidate."observedAt"
       AND other."sourceType" <> candidate."sourceType"
       AND (other."rawResponses" - 'q8') <> (candidate."rawResponses" - 'q8')
+  );
+
+-- Registros legados que divergem de uma submissão canônica no mesmo instante
+-- permanecem preservados para revisão; não são descartados por coincidência de data.
+UPDATE "StudentParqLegacyRecord" legacy
+SET "migrationStatus" = 'DIVERGENT',
+    "migrationReason" = 'conflicts_with_canonical_submission_same_observed_at',
+    "updatedAt" = CURRENT_TIMESTAMP
+WHERE legacy."migrationStatus" = 'IMPORTABLE'
+  AND legacy."observedAt" IS NOT NULL
+  AND EXISTS (
+    SELECT 1 FROM "StudentParqSubmission" existing
+    WHERE existing."alunoId" = legacy."alunoId"
+      AND existing."contractId" = legacy."contractId"
+      AND existing."submittedAt" = legacy."observedAt"
+      AND existing."catalogVersion" IN ('parq-2026-01', 'parq-legacy-8-declaration-v1')
+      AND existing."declarationAccepted" = true
+      AND existing."responses" <> (legacy."rawResponses" - 'q8')
   );
 
 -- Importa somente registros semanticamente completos, com declaração e data sustentáveis.
@@ -235,9 +300,16 @@ SELECT
   ), '[]'::jsonb),
   (SELECT count(*)::integer FROM unnest(ARRAY['q1','q2','q3','q4','q5','q6','q7']) AS keys(key) WHERE legacy."rawResponses"->>keys.key = 'true'),
   true, legacy."sourceType", legacy."sourceId", CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-FROM "StudentParqLegacyRecord" legacy
-WHERE legacy."migrationStatus" = 'IMPORTABLE'
-  AND NOT EXISTS (
+FROM (
+  SELECT DISTINCT ON (
+    candidate."alunoId", candidate."contractId", candidate."observedAt", candidate."rawResponses" - 'q8'
+  ) candidate.*
+  FROM "StudentParqLegacyRecord" candidate
+  WHERE candidate."migrationStatus" = 'IMPORTABLE'
+  ORDER BY candidate."alunoId", candidate."contractId", candidate."observedAt",
+           candidate."rawResponses" - 'q8', candidate."sourceType", candidate."sourceId"
+) legacy
+WHERE NOT EXISTS (
     SELECT 1 FROM "StudentParqSubmission" existing
     WHERE existing."alunoId" = legacy."alunoId"
       AND existing."submittedAt" = legacy."observedAt"

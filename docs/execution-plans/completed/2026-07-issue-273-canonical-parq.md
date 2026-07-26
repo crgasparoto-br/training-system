@@ -38,3 +38,8 @@ Consolidar o PAR-Q em `StudentParqSubmission`, com catálogo compartilhado e ver
 - `pnpm validate`: validações gerais do repositório, migrations, tipos, lint, testes, build, arquitetura, catálogo de acessos e documentação.
 
 O handoff registra o SHA final, a base observada, o merge preview e os workflows executados. Toda validação deste ciclo é pré-auditoria interna; a aprovação final exige nova conversa e auditoria independente no SHA congelado.
+
+
+## Ciclo de remediação da auditoria
+
+A passagem adversarial posterior identificou e corrigiu: vazamento clínico no detalhe administrativo, replay idempotente inexato, corrida entre sessões novas, projeção de revisão baseada apenas na última submissão, consentimento sem revogação persistente, reconciliação legada insuficiente, workflow mutável e divergências de testes/documentação. A validação final deve ocorrer nos workflows somente leitura do SHA final e o handoff exige nova auditoria independente.
