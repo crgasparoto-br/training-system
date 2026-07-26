@@ -13,6 +13,7 @@ Entregar a conversão do lead/pré-matrícula no mesmo registro canônico, com d
 - consolidação sem exclusão e bloqueio de reassociação clínica insegura;
 - revisão vinculada ao `onboarding.version`;
 - trigger de invalidação após mudança de identidade;
+- transições de descarte, prontidão e ativação centralizadas no domínio de ciclo do aluno;
 - ativação serializável do mesmo ID, com revogação de convite;
 - tela administrativa específica para os estados concluído e pronto;
 - documentação e testes de contrato.
