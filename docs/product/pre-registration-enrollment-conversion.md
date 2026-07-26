@@ -13,7 +13,7 @@ Normalizações:
 - CPF sem máscara;
 - e-mail sem distinção de maiúsculas e minúsculas;
 - telefone no formato canônico já usado pelo cadastro;
-- nome sem acentos e espaços redundantes, apenas como evidência auxiliar;
+- nome sem acentos e espaços redundantes, ignorando partículas portuguesas comuns e usando a semelhança apenas como evidência auxiliar;
 - data civil de nascimento, sem deslocamento de fuso.
 
 Classificações:
@@ -31,7 +31,7 @@ O fluxo público devolve somente uma mensagem genérica de revisão. A tela admi
 
 Disponível somente para ocorrências `REVIEW_REQUIRED`. A decisão exige motivo, ator, fingerprint das evidências, versão revisada e validade de 30 dias. CPF ou conta incompatível não podem ser liberados por esta opção.
 
-Na criação de um novo lead, a confirmação de falso positivo e seu motivo são revalidados e gravados na mesma transação serializável da criação. Uma confirmação enviada apenas pelo frontend não é suficiente.
+Na criação de um novo lead, a confirmação de falso positivo e seu motivo são revalidados e gravados na mesma transação serializável da criação. A decisão só pode ser concluída quando o usuário possui escopo para revisar todos os candidatos relacionados; uma confirmação enviada apenas pelo frontend não é suficiente.
 
 ### Usar cadastro existente
 
