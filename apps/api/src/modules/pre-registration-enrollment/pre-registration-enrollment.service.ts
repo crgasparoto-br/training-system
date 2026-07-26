@@ -210,8 +210,13 @@ export function areNamesSimilar(left: unknown, right: unknown): boolean {
   const b = normalizedName(right);
   if (!a || !b) return false;
   if (a === b) return true;
-  const leftTokens = new Set(a.split(' ').filter((token) => token.length > 1));
-  const rightTokens = new Set(b.split(' ').filter((token) => token.length > 1));
+  const insignificantTokens = new Set(['da', 'das', 'de', 'do', 'dos', 'e']);
+  const leftTokens = new Set(
+    a.split(' ').filter((token) => token.length > 1 && !insignificantTokens.has(token))
+  );
+  const rightTokens = new Set(
+    b.split(' ').filter((token) => token.length > 1 && !insignificantTokens.has(token))
+  );
   if (!leftTokens.size || !rightTokens.size) return false;
   const intersection = [...leftTokens].filter((token) => rightTokens.has(token)).length;
   return intersection / Math.max(leftTokens.size, rightTokens.size) >= 0.75;
