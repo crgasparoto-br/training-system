@@ -41,6 +41,12 @@ describe('issue 274 authorization and creation decision contract', () => {
     expect(create).toContain('Prisma.TransactionIsolationLevel.Serializable');
   });
 
+  it('requires visibility of every candidate before a creation false-positive decision', () => {
+    expect(create).toContain('visiblePreRegistrationCandidateIds');
+    expect(create).toContain('visibleIds.size !== detection.candidates.length');
+    expect(create).toContain("'FORBIDDEN'");
+  });
+
   it('keeps the public duplicate response generic', () => {
     const publicResponse = routes.slice(
       routes.indexOf('function publicDuplicateResponse'),
