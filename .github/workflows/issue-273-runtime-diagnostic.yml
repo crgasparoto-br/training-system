@@ -1,0 +1,71 @@
+name: Issue 273 Runtime Diagnostic
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - '.github/workflows/issue-273-runtime-diagnostic.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/training_system_test?schema=public&connection_limit=1&pool_timeout=30
+      PRISMA_CONNECTION_LIMIT: '1'
+      PRISMA_POOL_TIMEOUT_SECONDS: '30'
+      RUN_DATABASE_INTEGRATION_TESTS: 'true'
+      HEALTH_PRIVACY_NOTICE_VERSION: '2026-07'
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: training_system_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d training_system_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/273-canonical-parq
+          fetch-depth: 1
+          show-progress: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @corrida/api exec prisma generate
+      - run: pnpm --filter @corrida/api exec prisma migrate deploy
+      - name: Capture runtime verification
+        shell: bash
+        run: |
+          set +e
+          pnpm --filter @corrida/api exec tsx scripts/verify-issue-273-parq.ts > issue-273-runtime-diagnostic.txt 2>&1
+          status=$?
+          printf '\nEXIT_STATUS=%s\n' "$status" >> issue-273-runtime-diagnostic.txt
+          cat issue-273-runtime-diagnostic.txt
+          exit 0
+      - name: Commit diagnostic output
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add issue-273-runtime-diagnostic.txt
+          git commit -m "test: capture issue 273 runtime diagnostic"
+          git push origin HEAD:feat/273-canonical-parq
