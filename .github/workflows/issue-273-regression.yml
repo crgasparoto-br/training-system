@@ -31,13 +31,32 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cat .issue273/remediation-v3-part-*.b64 > "$RUNNER_TEMP/remediation.tgz.b64"
-          base64 --decode "$RUNNER_TEMP/remediation.tgz.b64" > "$RUNNER_TEMP/remediation.tgz"
-          echo '--- payload files ---'
-          tar -tzf "$RUNNER_TEMP/remediation.tgz"
-          mkdir "$RUNNER_TEMP/remediation-tree"
-          tar -xzf "$RUNNER_TEMP/remediation.tgz" -C "$RUNNER_TEMP/remediation-tree"
-          echo '--- payload checksums ---'
-          find "$RUNNER_TEMP/remediation-tree" -type f -print0 | sort -z | xargs -0 sha256sum
+          python - <<'PY'
+          import base64
+          import glob
+          import gzip
+          import hashlib
+          import io
+          import pathlib
+          import tarfile
+
+          parts = sorted(glob.glob('.issue273/remediation-v3-part-*.b64'))
+          if not parts:
+              raise SystemExit('no remediation-v3 payload parts found')
+          encoded = ''.join(pathlib.Path(path).read_text(encoding='utf-8').strip() for path in parts)
+          print(f'parts={len(parts)} encoded_bytes={len(encoded)}')
+          raw = base64.b64decode(encoded, validate=True)
+          print(f'decoded_bytes={len(raw)} sha256={hashlib.sha256(raw).hexdigest()}')
+          if raw[:2] != b'\x1f\x8b':
+              raise SystemExit(f'payload is not gzip: magic={raw[:8].hex()}')
+          with tarfile.open(fileobj=io.BytesIO(raw), mode='r:gz') as archive:
+              members = archive.getmembers()
+              print('--- payload files ---')
+              for member in members:
+                  print(member.name)
+              unsafe = [m.name for m in members if m.name.startswith('/') or '..' in pathlib.PurePosixPath(m.name).parts]
+              if unsafe:
+                  raise SystemExit(f'unsafe payload paths: {unsafe}')
+          PY
           echo '--- repository remains unchanged ---'
-          git status --short
+          test -z "$(git status --short)"
