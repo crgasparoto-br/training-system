@@ -13,7 +13,7 @@
 
 1. Toda consulta e mutação filtra `contractId`.
 2. Candidatos de outro tenant nunca são consultados ou revelados.
-3. Candidatos fora do escopo `own`, `managed` ou `contract` do ator não são identificados na resposta; somente uma contagem restrita pode ser exibida.
+3. Candidatos fora do escopo `self`, `managed` ou `contract` do ator não são identificados na resposta; somente uma contagem restrita pode ser exibida.
 4. A resposta pública não inclui pessoa, contato, CPF, candidato ou fingerprint.
 5. O backend revalida permissão, escopo de dados, versão, estado e deduplicação no commit.
 6. A criação com falso positivo exige fingerprint e motivo atuais e registra a decisão na mesma transação da criação.
