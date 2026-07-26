@@ -29,6 +29,7 @@ Consolidar o PAR-Q em `StudentParqSubmission`, com catálogo compartilhado e ver
 - projeções administrativas não são fontes concorrentes de escrita.
 - compatibilidades legadas permanecem somente leitura até o encerramento do rollout #275.
 - rotas com permissão apenas administrativa recebem `ParqAdministrativeSummaryDTO`; respostas clínicas exigem bloco de saúde.
+- o overview geral do PRNT, protegido por `physicalAssessment.prnt.summary`, não transporta histórico clínico do PAR-Q; o cliente deve usar o endpoint dedicado protegido por `physicalAssessment.prnt.parqSubmissions`.
 - contratos públicos de criação e edição de aluno não expõem `intakeForm.parqResponses`.
 - payload legado direto ou aninhado é rejeitado na fronteira HTTP com 410 e `LEGACY_WRITE_DISABLED`.
 - workflows de validação são somente leitura e nunca fazem commit ou push.
@@ -61,5 +62,12 @@ A auditoria independente do SHA `8cc6cf0fdf4a65317202ef362ae842313548cfc2` ident
 1. o verificador de migration com fixtures legadas existia, mas não era executado pelo CI: o workflow de regressão agora chama o script, inclui seu caminho nos filtros e publica o log;
 2. o script visual do PAR-Q existia sem workflow próprio: foi criado `Issue 273 Visual Evidence`, com três viewports, quatro estados, fluxo por teclado, screenshots, diagnósticos, árvores de acessibilidade e métricas versionadas;
 3. a primeira execução do novo gate encontrou ausência do aviso de não diagnóstico/liberação no estado concluído com respostas positivas: a mensagem foi corrigida e o contrato foi fixado em teste de comportamento.
+
+A auditoria independente do SHA `a8683d6794e94b74a42b77b7c1a0fb8567ea4a08` encontrou o achado A-001: o endpoint geral do PRNT serializava `responses`, `positiveItems` e `reviewNotes` completos sob a permissão `physicalAssessment.prnt.summary`, contornando `physicalAssessment.prnt.parqSubmissions`. A remediação deste ciclo:
+
+1. introduz uma fronteira de saída explícita que reduz o PAR-Q do overview a `ParqAdministrativeSummaryDTO` antes da serialização;
+2. mantém o histórico detalhado somente no endpoint `/prontuario/alunos/:alunoId/parq-submissions`, com o `blockKey` específico;
+3. faz o cliente compor o overview em duas chamadas e degradar para resumo apenas diante de `403`, propagando falhas temporárias;
+4. adiciona testes discriminantes para resumo autorizado, histórico negado, histórico autorizado e composição do frontend.
 
 A validação final deve ocorrer nos workflows somente leitura do novo SHA. O contexto de implementação pode produzir apenas pré-auditoria; o parecer final requer nova auditoria independente.
