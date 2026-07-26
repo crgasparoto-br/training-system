@@ -34,7 +34,6 @@ jobs:
           python - <<'PY'
           import base64
           import glob
-          import gzip
           import hashlib
           import io
           import pathlib
@@ -46,10 +45,10 @@ jobs:
           encoded = ''.join(pathlib.Path(path).read_text(encoding='utf-8').strip() for path in parts)
           print(f'parts={len(parts)} encoded_bytes={len(encoded)}')
           raw = base64.b64decode(encoded, validate=True)
-          print(f'decoded_bytes={len(raw)} sha256={hashlib.sha256(raw).hexdigest()}')
-          if raw[:2] != b'\x1f\x8b':
-              raise SystemExit(f'payload is not gzip: magic={raw[:8].hex()}')
-          with tarfile.open(fileobj=io.BytesIO(raw), mode='r:gz') as archive:
+          print(f'decoded_bytes={len(raw)} sha256={hashlib.sha256(raw).hexdigest()} magic={raw[:8].hex()}')
+          if raw[:6] != b'\xfd7zXZ\x00':
+              raise SystemExit(f'payload is not xz: magic={raw[:8].hex()}')
+          with tarfile.open(fileobj=io.BytesIO(raw), mode='r:xz') as archive:
               members = archive.getmembers()
               print('--- payload files ---')
               for member in members:
