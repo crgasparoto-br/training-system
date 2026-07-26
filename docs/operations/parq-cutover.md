@@ -72,9 +72,13 @@ WHERE s."positiveCount" > 0 AND r.id IS NULL;
 
 ## Evidência remota
 
-Os workflows `Issue 273 Regression Evidence` e `Issue 273 Runtime Diagnostic` devem operar com `contents: read`, no merge preview da PR, sem branch fixa, commit, push ou mascaramento de exit code.
+Os workflows `Issue 273 Regression Evidence`, `Issue 273 Runtime Diagnostic` e `Issue 273 Visual Evidence` operam com `contents: read`, sobre o merge preview da PR, sem branch fixa, commit, push ou mascaramento de exit code.
 
-Antes do verificador PostgreSQL, ambos compilam `@corrida/types` e `@corrida/utils`; isso garante que os exports ESM apontados para `dist/index.js` existam no runner. Falha no verificador deve falhar o job. Logs são publicados como artefatos temporários, nunca versionados na branch.
+`Issue 273 Regression Evidence` executa `scripts/verify-issue-273-parq-migration.sh` em um banco criado no estado anterior ao cutover. O verificador semeia fontes isoladas, equivalentes, divergentes, incompletas e sem data, aplica a migration, confere as projeções e executa o rerun completo. O log `issue-273-legacy-migration.log` é obrigatório no artefato da execução.
+
+`Issue 273 Runtime Diagnostic` compila os pacotes compartilhados, executa o verificador PostgreSQL do serviço e publica o log apenas como artifact.
+
+`Issue 273 Visual Evidence` compila o frontend e executa a matriz visual isolada da rota do PAR-Q em três viewports. O artefato deve conter screenshots, diagnósticos, árvores de acessibilidade, `visual-metrics.json`, log e attestation do mesmo head/base/merge preview. O harness visual não substitui os testes de API e persistência do workflow de regressão.
 
 ## Rollback de aplicação
 
@@ -90,4 +94,6 @@ A migration não deve ser revertida apagando dados. Uma versão anterior da apli
 - O backfill valida tipos JSON booleanos, deduplica fontes equivalentes e preserva divergências contra submissões canônicas.
 - As rotas administrativas passam por um adaptador de saída que remove representações clínicas legadas e injeta apenas o DTO autorizado.
 - As rotas antigas de escrita devolvem HTTP 410 na fronteira pública, inclusive para payload escondido em `formResponses`.
-- Os workflows da issue são somente leitura e propagam falhas reais do verificador.
+- O verificador real de migração legada passou a integrar o workflow de regressão e seu próprio caminho dispara nova execução.
+- A rota do PAR-Q possui workflow visual específico com screenshots, diagnósticos, árvore de acessibilidade e fluxo por teclado.
+- Os workflows da issue são somente leitura e propagam falhas reais dos verificadores.
