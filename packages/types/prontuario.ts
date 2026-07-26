@@ -130,6 +130,9 @@ export interface ProntuarioOverviewSummary {
 export interface ProntuarioOverview extends ProntuarioOverviewSummary {
   latestParqSubmission: ParqSubmissionDTO | null;
   parqSubmissions: ParqSubmissionDTO[];
+  /** Backward-compatible aliases derived client-side from the safe summary. */
+  parqState: ParqAdministrativeSummaryDTO['state'];
+  parqLegacy: ParqAdministrativeSummaryDTO['legacy'];
 }
 
 export type ProntuarioRecordPayload = {
