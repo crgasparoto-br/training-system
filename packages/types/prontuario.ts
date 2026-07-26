@@ -6,7 +6,10 @@ export type ProntuarioPainCaseStatus = 'active' | 'monitoring' | 'resolved' | 'a
 
 export type { ParqResponses as StudentParqResponses, ParqPositiveItem as StudentParqPositiveItem, ParqSubmissionDTO as StudentParqSubmission } from './pre-registration-parq.js';
 
-import type { ParqFlowStatus, ParqSubmissionDTO } from './pre-registration-parq.js';
+import type {
+  ParqAdministrativeSummaryDTO,
+  ParqSubmissionDTO,
+} from './pre-registration-parq.js';
 
 export interface ProntuarioGoal {
   id: string;
@@ -116,13 +119,17 @@ export interface ProntuarioRecord {
   discomfortSnapshots: ProntuarioDiscomfortSnapshot[];
 }
 
-export interface ProntuarioOverview {
+/** Payload returned by the generic PRNT summary endpoint. */
+export interface ProntuarioOverviewSummary {
   records: ProntuarioRecord[];
   currentRecord: ProntuarioRecord | null;
+  parq: ParqAdministrativeSummaryDTO;
+}
+
+/** Client-side aggregate after the protected PAR-Q history endpoint is loaded. */
+export interface ProntuarioOverview extends ProntuarioOverviewSummary {
   latestParqSubmission: ParqSubmissionDTO | null;
   parqSubmissions: ParqSubmissionDTO[];
-  parqState: ParqFlowStatus;
-  parqLegacy: { preserved: boolean; needsRepeat: boolean };
 }
 
 export type ProntuarioRecordPayload = {
