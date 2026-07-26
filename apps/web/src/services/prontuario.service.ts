@@ -41,6 +41,8 @@ export const prontuarioService = {
       ...summary,
       latestParqSubmission: parqSubmissions[0] ?? null,
       parqSubmissions,
+      parqState: summary.parq.state,
+      parqLegacy: summary.parq.legacy,
     };
   },
 
