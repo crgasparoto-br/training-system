@@ -1,4 +1,4 @@
-name: Extract Issue 273 Remediation V2
+name: Extract Issue 273 Remediation V3
 
 on:
   pull_request:
@@ -6,13 +6,13 @@ on:
       - develop
     paths:
       - '.github/workflows/issue-273-regression.yml'
-      - '.issue273/remediation-v2-part-*.b64'
+      - '.issue273/remediation-v3-part-*.b64'
   push:
     branches:
       - feat/273-canonical-parq
     paths:
       - '.github/workflows/issue-273-regression.yml'
-      - '.issue273/remediation-v2-part-*.b64'
+      - '.issue273/remediation-v3-part-*.b64'
   workflow_dispatch:
 
 permissions:
@@ -20,7 +20,7 @@ permissions:
 
 jobs:
   extract-payload:
-    name: Extract validated issue 273 remediation v2
+    name: Extract validated issue 273 remediation v3
     runs-on: ubuntu-latest
     steps:
       - name: Checkout candidate branch
@@ -33,7 +33,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p /tmp/issue-273-remediation-v2
+          mkdir -p /tmp/issue-273-remediation-v3
           python - <<'PY'
           import base64
           import glob
@@ -43,17 +43,19 @@ jobs:
           import pathlib
           import tarfile
 
-          paths = sorted(glob.glob('.issue273/remediation-v2-part-*.b64'))
+          paths = sorted(glob.glob('.issue273/remediation-v3-part-*.b64'))
           if not paths:
-              raise SystemExit('no remediation-v2 payload parts found')
+              raise SystemExit('no remediation-v3 payload parts found')
           encoded = ''.join(
               ''.join(pathlib.Path(path).read_text(encoding='utf-8').split())
               for path in paths
           )
+          padding = (-len(encoded)) % 4
+          encoded += '=' * padding
           raw = base64.b64decode(encoded, validate=True)
-          if raw[:2] != b'\x1f\x8b':
-              raise SystemExit(f'payload is not gzip: magic={raw[:8].hex()}')
-          with tarfile.open(fileobj=io.BytesIO(raw), mode='r:gz') as archive:
+          if raw[:6] != b'\xfd7zXZ\x00':
+              raise SystemExit(f'payload is not xz: magic={raw[:8].hex()}')
+          with tarfile.open(fileobj=io.BytesIO(raw), mode='r:xz') as archive:
               members = archive.getmembers()
               unsafe = [
                   member.name
@@ -64,14 +66,15 @@ jobs:
               ]
               if unsafe:
                   raise SystemExit(f'unsafe payload paths: {unsafe}')
-              archive.extractall(path='/tmp/issue-273-remediation-v2', members=members, filter='data')
+              archive.extractall(path='/tmp/issue-273-remediation-v3', members=members, filter='data')
               manifest = {
                   'parts': paths,
+                  'padding_added': padding,
                   'decoded_length': len(raw),
                   'sha256': hashlib.sha256(raw).hexdigest(),
                   'members': [{'name': member.name, 'size': member.size} for member in members],
               }
-          pathlib.Path('/tmp/issue-273-remediation-v2/manifest.json').write_text(
+          pathlib.Path('/tmp/issue-273-remediation-v3/manifest.json').write_text(
               json.dumps(manifest, ensure_ascii=False, indent=2),
               encoding='utf-8',
           )
@@ -80,7 +83,8 @@ jobs:
       - name: Upload extracted payload
         uses: actions/upload-artifact@v4
         with:
-          name: issue-273-remediation-v2-${{ github.run_id }}
-          path: /tmp/issue-273-remediation-v2
+          name: issue-273-remediation-v3-${{ github.run_id }}
+          path: /tmp/issue-273-remediation-v3
+          include-hidden-files: true
           if-no-files-found: error
           retention-days: 3
