@@ -169,7 +169,7 @@ export interface UpdatePreRegistrationLeadCommercialDTO {
   unit?: string | null;
 }
 
-export interface PreRegistrationDuplicateCandidateDTO {
+export interface PreRegistrationAdminDuplicateCandidateDTO {
   alunoId?: string;
   name: string;
   status?: StudentLifecycleStatus;
@@ -180,7 +180,7 @@ export interface PreRegistrationDuplicateCandidateDTO {
 
 export interface PreRegistrationDuplicateCheckResultDTO extends Record<string, unknown> {
   fingerprint: string;
-  candidates: PreRegistrationDuplicateCandidateDTO[];
+  candidates: PreRegistrationAdminDuplicateCandidateDTO[];
   hasBlockingCpfConflict: boolean;
 }
 
@@ -211,7 +211,6 @@ export interface PreRegistrationAdminLeadDetailDTO
   pendencies: PreRegistrationAdminPendingItemDTO[];
   history: PreRegistrationAdminHistoryItemDTO[];
 }
-
 
 export interface PreRegistrationGuardianAuthorizationAdminDTO {
   id: string;
