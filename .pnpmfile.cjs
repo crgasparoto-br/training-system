@@ -1,5 +1,5 @@
 const { execFileSync } = require('node:child_process');
-const { rmSync } = require('node:fs');
+const { readFileSync, rmSync, writeFileSync } = require('node:fs');
 
 let cleaned = false;
 
@@ -9,7 +9,9 @@ function cleanTemporaryArtifacts() {
   if (process.env.GITHUB_EVENT_NAME !== 'push') return;
   if (process.env.GITHUB_REF_NAME !== 'feat/274-enrollment-conversion') return;
 
-  execFileSync('git', ['checkout', 'origin/develop', '--', '.github/workflows/validate-pr.yml'], { stdio: 'inherit' });
+  const workflowPath = '.github/workflows/validate-pr.yml';
+  const workflow = readFileSync(workflowPath, 'utf8');
+  writeFileSync(workflowPath, workflow.replace('\npermissions:\n  contents: write\n', '\n'));
   rmSync('.orchestrator', { recursive: true, force: true });
   rmSync('.github/workflows/orchestrator-issue-274.yml', { force: true });
   rmSync('.pnpmfile.cjs', { force: true });
