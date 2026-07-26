@@ -73,7 +73,7 @@ Qualquer tentativa recebe HTTP `410` e detalhes `{ code: "LEGACY_WRITE_DISABLED"
 ## Falhas e segurança
 
 - sessão expirada preserva o último rascunho confirmado;
-- versão desconhecida é recusada sem converter o rascunho compatível;
+- versão desconhecida é recusada sem converter o rascunho compatível; o cliente oferece uma ação explícita para carregar o catálogo atual e recuperar o estado confirmado no servidor;
 - resposta incompleta não cria submissão;
 - acesso cross-tenant responde como recurso inexistente;
 - schemas estritos recusam IDs, versão arbitrária, estado, positivos e flags profissionais enviados pelo cliente;
