@@ -1,6 +1,12 @@
 name: Apply Issue 273 Remediation V5
 
 on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - '.github/workflows/issue-273-regression.yml'
+      - '.issue273/remediation-v5-part-*.b64'
   push:
     branches:
       - feat/273-canonical-parq
