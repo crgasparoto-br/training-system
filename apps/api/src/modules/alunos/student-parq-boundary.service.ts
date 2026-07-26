@@ -11,7 +11,10 @@ type JsonRecord = Record<string, unknown>;
 const LEGACY_PARQ_KEYS = new Set(['parqResponses', 'questionnaireParq']);
 
 function record(value: unknown): JsonRecord | null {
-  return value && typeof value === 'object' && !Array.isArray(value)
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null
     ? (value as JsonRecord)
     : null;
 }
