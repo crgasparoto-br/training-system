@@ -61,6 +61,14 @@ export interface PreRegistrationDuplicateCandidateDTO {
   updatedAt: string;
 }
 
+export interface PreRegistrationLeadDuplicateCheckDTO {
+  fingerprint: string;
+  classification: PreRegistrationDuplicateClassification;
+  candidates: PreRegistrationDuplicateCandidateDTO[];
+  restrictedCandidateCount: number;
+  hasBlockingCpfConflict: boolean;
+}
+
 export interface PreRegistrationDuplicateDecisionDTO {
   action: 'CONFIRM_DIFFERENT' | 'USE_EXISTING_CANONICAL';
   candidateAlunoId?: string;
@@ -79,6 +87,7 @@ export interface PreRegistrationEnrollmentReviewDTO {
   fingerprint: string;
   classification: PreRegistrationDuplicateClassification;
   candidates: PreRegistrationDuplicateCandidateDTO[];
+  restrictedCandidateCount: number;
   currentDecision?: PreRegistrationDuplicateDecisionDTO;
   canConfirmDifferentPeople: boolean;
   canUseExistingCanonical: boolean;
