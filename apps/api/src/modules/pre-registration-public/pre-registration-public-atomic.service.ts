@@ -23,6 +23,7 @@ import {
   loadStudentIdentity,
   upsertStudentIdentity,
 } from '../alunos/student-identity.service.js';
+import { detectPreRegistrationDuplicates } from '../pre-registration-enrollment/pre-registration-enrollment.service.js';
 import { PreRegistrationPublicError } from './pre-registration-public.service.js';
 
 const prisma = new PrismaClient();
@@ -545,6 +546,24 @@ export const preRegistrationPublicAtomicService = {
         }
 
         access = await startAuthorizedPreRegistrationInTransaction(tx, access, userId);
+
+        if (input.step === 'IDENTIFICATION' || input.step === 'CONTACT') {
+          const detection = await detectPreRegistrationDuplicates(tx, {
+            contractId: access.contractId,
+            alunoId: access.alunoId,
+            overrides: input.data,
+          });
+          if (
+            detection.classification === 'BLOCKING' ||
+            detection.classification === 'REVIEW_REQUIRED'
+          ) {
+            throw new PreRegistrationPublicError(
+              'Seus dados precisam de revisão pela academia antes de continuar.',
+              'DUPLICATE_REVIEW_REQUIRED',
+              { reviewRequired: true }
+            );
+          }
+        }
 
         const identity = await upsertStudentIdentity(
           access.alunoId,
