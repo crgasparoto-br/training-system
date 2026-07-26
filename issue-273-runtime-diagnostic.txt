@@ -1,0 +1,25 @@
+
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/home/runner/work/training-system/training-system/apps/api/node_modules/@corrida/types/dist/index.js' imported from /home/runner/work/training-system/training-system/apps/api/scripts/verify-issue-273-parq.ts
+    at finalizeResolution (node:internal/modules/esm/resolve:283:11)
+    at moduleResolve (node:internal/modules/esm/resolve:952:10)
+    at defaultResolve (node:internal/modules/esm/resolve:1188:11)
+    at nextResolve (node:internal/modules/esm/hooks:864:28)
+    at resolveBase (file:///home/runner/work/training-system/training-system/node_modules/.pnpm/tsx@4.21.0/node_modules/tsx/dist/esm/index.mjs?1785035556912:2:3744)
+    at resolveDirectory (file:///home/runner/work/training-system/training-system/node_modules/.pnpm/tsx@4.21.0/node_modules/tsx/dist/esm/index.mjs?1785035556912:2:4243)
+    at resolveTsPaths (file:///home/runner/work/training-system/training-system/node_modules/.pnpm/tsx@4.21.0/node_modules/tsx/dist/esm/index.mjs?1785035556912:2:4984)
+    at async resolve (file:///home/runner/work/training-system/training-system/node_modules/.pnpm/tsx@4.21.0/node_modules/tsx/dist/esm/index.mjs?1785035556912:2:5355)
+    at async nextResolve (node:internal/modules/esm/hooks:864:22)
+    at async Hooks.resolve (node:internal/modules/esm/hooks:306:24) {
+  code: 'ERR_MODULE_NOT_FOUND',
+  url: 'file:///home/runner/work/training-system/training-system/apps/api/node_modules/@corrida/types/dist/index.js'
+}
+
+Node.js v20.20.2
+undefined
+/home/runner/work/training-system/training-system/apps/api:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: tsx scripts/verify-issue-273-parq.ts
+
+EXIT_STATUS=1
