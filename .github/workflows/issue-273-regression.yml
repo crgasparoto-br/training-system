@@ -7,8 +7,10 @@ on:
     paths:
       - '.github/workflows/issue-273-regression.yml'
       - '.github/workflows/issue-273-runtime-diagnostic.yml'
+      - '.github/workflows/issue-273-visual.yml'
       - 'apps/api/prisma/**'
       - 'prisma/**'
+      - 'scripts/verify-issue-273-parq-migration.sh'
       - 'apps/api/src/modules/pre-registration-public/**'
       - 'apps/api/src/modules/alunos/aluno.service.ts'
       - 'apps/api/src/modules/alunos/index.ts'
@@ -17,6 +19,7 @@ on:
       - 'apps/api/src/modules/alunos/student-parq-legacy-cutover.ts'
       - 'apps/api/src/modules/prontuario/**'
       - 'apps/api/scripts/verify-issue-273-parq.ts'
+      - 'apps/api/scripts/visual-audit-issue-273.mjs'
       - 'apps/api/tests/*parq*'
       - 'apps/api/tests/aluno-segmented.routes.test.ts'
       - 'apps/web/src/pages/PublicPreRegistration/Parq*'
@@ -108,6 +111,13 @@ jobs:
       - name: Generate Prisma client
         run: pnpm --filter @corrida/api exec prisma generate
 
+      - name: Verify legacy migration reconciliation and rerun
+        shell: bash
+        run: |
+          set -o pipefail
+          bash scripts/verify-issue-273-parq-migration.sh \
+            2>&1 | tee issue-273-legacy-migration.log
+
       - name: Apply migrations
         run: |
           set -o pipefail
@@ -167,6 +177,7 @@ jobs:
           for name in (
               '.github/workflows/issue-273-regression.yml',
               '.github/workflows/issue-273-runtime-diagnostic.yml',
+              '.github/workflows/issue-273-visual.yml',
           ):
               workflow = Path(name).read_text(encoding='utf-8')
               forbidden = [
@@ -190,6 +201,7 @@ jobs:
           name: issue-273-regression-evidence-${{ github.run_id }}
           path: |
             issue-273-attestation.json
+            issue-273-legacy-migration.log
             issue-273-migrations.log
             issue-273-api-tests.log
             issue-273-runtime.log
