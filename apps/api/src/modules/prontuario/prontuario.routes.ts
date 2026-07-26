@@ -4,6 +4,7 @@ import { sendError, sendSuccess } from '@corrida/utils';
 import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js';
 import { blockAccessMiddleware, screenAccessMiddleware } from '../access-control/access-control.middleware.js';
 import { prontuarioService } from './prontuario.service.js';
+import { sanitizeProntuarioOverviewForSummary } from './prontuario-parq-boundary.js';
 import { ParqServiceError, preRegistrationParqService } from '../pre-registration-public/pre-registration-parq.service.js';
 
 const router: Router = Router();
@@ -23,8 +24,6 @@ const itemStatus = z.enum(['active', 'monitoring', 'resolved', 'archived']);
 const activityType = z.enum(['running', 'strength', 'mobility', 'sport', 'occupational', 'other']);
 const medicationProcedureType = z.enum(['medication', 'supplement', 'procedure', 'exam', 'therapy', 'other']);
 const painCaseStatus = z.enum(['active', 'monitoring', 'resolved', 'archived']);
-
-
 
 const contextFromRequest = (req: Request) => ({
   contractId: (req as any).user.contractId as string | undefined,
@@ -51,7 +50,7 @@ router.get(
       const { contractId } = contextFromRequest(req);
       if (!contractId) return sendError(res, 'Contrato não encontrado', 404);
       const overview = await prontuarioService.overview(contractId, req.params.alunoId);
-      return sendSuccess(res, overview, 'PRNT carregado');
+      return sendSuccess(res, sanitizeProntuarioOverviewForSummary(overview), 'PRNT carregado');
     } catch (error) {
       return handleError(res, error, 'Erro ao carregar PRNT');
     }
@@ -99,7 +98,6 @@ router.post(
     }
   }
 );
-
 
 router.post(
   '/alunos/:alunoId/records',
