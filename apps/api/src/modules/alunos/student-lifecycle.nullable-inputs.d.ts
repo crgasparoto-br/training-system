@@ -11,4 +11,10 @@ declare module './student-lifecycle.service.js' {
   }): string[];
 }
 
+declare global {
+  // Compatibilidade temporária para um vestígio sem uso no fluxo de consolidação.
+  // Deve ser removido junto com `void targetIdentity` antes do handoff final.
+  var targetIdentity: undefined;
+}
+
 export {};
