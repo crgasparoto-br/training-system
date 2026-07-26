@@ -87,7 +87,7 @@ export interface PreRegistrationEnrollmentReviewDTO {
   fingerprint: string;
   classification: PreRegistrationDuplicateClassification;
   candidates: PreRegistrationDuplicateCandidateDTO[];
-  restrictedCandidateCount: number;
+  restrictedCandidateCount?: number;
   currentDecision?: PreRegistrationDuplicateDecisionDTO;
   canConfirmDifferentPeople: boolean;
   canUseExistingCanonical: boolean;
