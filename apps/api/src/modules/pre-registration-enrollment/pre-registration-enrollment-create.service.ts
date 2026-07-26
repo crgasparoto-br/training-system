@@ -29,10 +29,21 @@ function clean(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
+function commercialOf(identity: Record<string, unknown>) {
+  const value = identity._leadCommercial;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const commercial = value as Record<string, unknown>;
+  return {
+    notes: clean(commercial.notes),
+    unit: clean(commercial.unit),
+  };
+}
+
 function identityPatch(
   currentIdentity: Record<string, unknown>,
   input: CreatePreRegistrationLeadWithDecisionDTO
 ): StudentIdentityData {
+  const currentCommercial = commercialOf(currentIdentity);
   return {
     name: input.name,
     phone: input.phone,
@@ -41,9 +52,8 @@ function identityPatch(
     additionalEmail: input.additionalEmail,
     cpf: input.cpf,
     _leadCommercial: {
-      notes: clean(input.commercialNotes),
-      unit: clean(input.unit),
-      previous: currentIdentity._leadCommercial,
+      notes: clean(input.commercialNotes) ?? currentCommercial.notes,
+      unit: clean(input.unit) ?? currentCommercial.unit,
     },
   } as unknown as StudentIdentityData;
 }
