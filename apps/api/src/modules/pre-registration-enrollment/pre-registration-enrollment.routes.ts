@@ -9,6 +9,19 @@ import {
   blockAccessMiddleware,
   screenAccessMiddleware,
 } from '../access-control/access-control.middleware.js';
+import { preRegistrationAdminService } from '../pre-registration-admin/pre-registration-admin.service.js';
+import {
+  assertPreRegistrationAlunoVisible,
+} from './pre-registration-enrollment-access.service.js';
+import {
+  preRegistrationEnrollmentCreateService,
+  type CreatePreRegistrationLeadWithDecisionDTO,
+} from './pre-registration-enrollment-create.service.js';
+import {
+  assertDuplicateDecisionScope,
+  projectScopedEnrollmentReview,
+  projectScopedLeadDuplicateCheck,
+} from './pre-registration-enrollment-response.service.js';
 import {
   PreRegistrationEnrollmentError,
   preRegistrationEnrollmentService,
@@ -80,19 +93,6 @@ function respondError(res: Response, error: unknown) {
   });
 }
 
-function safeCandidates(result: Awaited<ReturnType<typeof preRegistrationEnrollmentService.inspectProposedLead>>) {
-  return result.candidates.map((candidate) => ({
-    candidateAlunoId: candidate.candidateAlunoId,
-    maskedName: candidate.maskedName,
-    status: candidate.status,
-    classification: candidate.classification,
-    signals: candidate.signals,
-    differences: candidate.differences,
-    createdAt: candidate.createdAt,
-    updatedAt: candidate.updatedAt,
-  }));
-}
-
 function publicDuplicateResponse(res: Response) {
   return res.status(409).json({
     success: false,
@@ -150,21 +150,10 @@ preRegistrationEnrollmentRoutes.post(
   createAccess,
   async (req, res, next) => {
     try {
-      const result = await preRegistrationEnrollmentService.inspectProposedLead(
-        actorFrom(req),
-        req.body || {}
-      );
-      return res.json({
-        success: true,
-        data: {
-          fingerprint: result.fingerprint,
-          candidates: safeCandidates(result),
-          hasBlockingCpfConflict: result.candidates.some((candidate) =>
-            candidate.signals.some((signal) => signal.code === 'CPF_EXACT')
-          ),
-          classification: result.classification,
-        },
-      });
+      const actor = actorFrom(req);
+      const result = await preRegistrationEnrollmentService.inspectProposedLead(actor, req.body || {});
+      const data = await projectScopedLeadDuplicateCheck(actor, result);
+      return res.json({ success: true, data });
     } catch (error) {
       if (error instanceof PreRegistrationEnrollmentError) return respondError(res, error);
       return next(error);
@@ -174,34 +163,13 @@ preRegistrationEnrollmentRoutes.post(
 
 preRegistrationEnrollmentRoutes.post('/leads', createAccess, async (req, res, next) => {
   try {
-    const result = await preRegistrationEnrollmentService.inspectProposedLead(
-      actorFrom(req),
-      req.body || {}
+    const actor = actorFrom(req);
+    const leadId = await preRegistrationEnrollmentCreateService.create(
+      actor,
+      req.body as CreatePreRegistrationLeadWithDecisionDTO
     );
-    if (result.classification === 'BLOCKING') {
-      throw new PreRegistrationEnrollmentError(
-        'Existe um cadastro incompatível com os identificadores informados.',
-        'BLOCKING_DUPLICATE',
-        {
-          fingerprint: result.fingerprint,
-          candidates: safeCandidates(result),
-        }
-      );
-    }
-    if (
-      result.classification === 'REVIEW_REQUIRED' &&
-      req.body?.confirmedDuplicateFingerprint !== result.fingerprint
-    ) {
-      throw new PreRegistrationEnrollmentError(
-        'Encontramos cadastros semelhantes. Revise as evidências antes de continuar.',
-        'DUPLICATE_REVIEW_REQUIRED',
-        {
-          fingerprint: result.fingerprint,
-          candidates: safeCandidates(result),
-        }
-      );
-    }
-    return next();
+    const data = await preRegistrationAdminService.getDetail(actor, leadId);
+    return res.status(201).json({ success: true, data });
   } catch (error) {
     if (error instanceof PreRegistrationEnrollmentError) return respondError(res, error);
     return next(error);
@@ -211,21 +179,21 @@ preRegistrationEnrollmentRoutes.post('/leads', createAccess, async (req, res, ne
 preRegistrationEnrollmentRoutes.patch('/leads/:id', editAccess, async (req, res, next) => {
   if (!Object.keys(req.body || {}).some((key) => IDENTITY_KEYS.has(key))) return next();
   try {
+    const actor = actorFrom(req);
+    await assertPreRegistrationAlunoVisible(actor, req.params.id);
     const result = await preRegistrationEnrollmentService.inspectProposedUpdate(
-      actorFrom(req),
+      actor,
       req.params.id,
       req.body || {}
     );
     if (result.classification === 'BLOCKING' || result.classification === 'REVIEW_REQUIRED') {
+      const scoped = await projectScopedLeadDuplicateCheck(actor, result);
       throw new PreRegistrationEnrollmentError(
         result.classification === 'BLOCKING'
           ? 'A alteração cria um conflito bloqueante de identidade.'
           : 'A alteração exige revisão de duplicidade antes de ser salva.',
         result.classification === 'BLOCKING' ? 'BLOCKING_DUPLICATE' : 'DUPLICATE_REVIEW_REQUIRED',
-        {
-          fingerprint: result.fingerprint,
-          candidates: safeCandidates(result),
-        }
+        scoped
       );
     }
     return next();
@@ -240,7 +208,10 @@ preRegistrationEnrollmentRoutes.get(
   reviewAccess,
   async (req, res) => {
     try {
-      const data = await preRegistrationEnrollmentService.inspect(actorFrom(req), req.params.id);
+      const actor = actorFrom(req);
+      await assertPreRegistrationAlunoVisible(actor, req.params.id);
+      const review = await preRegistrationEnrollmentService.inspect(actor, req.params.id);
+      const data = await projectScopedEnrollmentReview(actor, review);
       return res.json({ success: true, data });
     } catch (error) {
       return respondError(res, error);
@@ -253,11 +224,15 @@ preRegistrationEnrollmentRoutes.post(
   reviewAccess,
   async (req, res) => {
     try {
-      const data = await preRegistrationEnrollmentService.decide(
-        actorFrom(req),
-        req.params.id,
-        req.body as PreRegistrationDuplicateDecisionInputDTO
-      );
+      const actor = actorFrom(req);
+      const input = req.body as PreRegistrationDuplicateDecisionInputDTO;
+      await assertPreRegistrationAlunoVisible(actor, req.params.id);
+      const currentReview = await preRegistrationEnrollmentService.inspect(actor, req.params.id);
+      await assertDuplicateDecisionScope(actor, currentReview, input);
+      const result = await preRegistrationEnrollmentService.decide(actor, req.params.id, input);
+      const data = 'canonicalAlunoId' in result
+        ? result
+        : await projectScopedEnrollmentReview(actor, result);
       return res.json({ success: true, data });
     } catch (error) {
       return respondError(res, error);
@@ -268,11 +243,14 @@ preRegistrationEnrollmentRoutes.post(
 // Intercepta a rota legada para impedir que referências textuais contornem a revisão versionada.
 preRegistrationEnrollmentRoutes.post('/leads/:id/review', reviewAccess, async (req, res) => {
   try {
-    const data = await preRegistrationEnrollmentService.markReady(
-      actorFrom(req),
+    const actor = actorFrom(req);
+    await assertPreRegistrationAlunoVisible(actor, req.params.id);
+    const review = await preRegistrationEnrollmentService.markReady(
+      actor,
       req.params.id,
       req.body as PreRegistrationReadyForEnrollmentInputDTO
     );
+    const data = await projectScopedEnrollmentReview(actor, review);
     return res.json({ success: true, data });
   } catch (error) {
     return respondError(res, error);
@@ -282,8 +260,10 @@ preRegistrationEnrollmentRoutes.post('/leads/:id/review', reviewAccess, async (r
 // Intercepta a rota legada para tornar a confirmação idempotente e revalidar duplicidades no commit.
 preRegistrationEnrollmentRoutes.post('/leads/:id/convert', convertAccess, async (req, res) => {
   try {
+    const actor = actorFrom(req);
+    await assertPreRegistrationAlunoVisible(actor, req.params.id);
     const data = await preRegistrationEnrollmentService.confirmEnrollment(
-      actorFrom(req),
+      actor,
       req.params.id,
       req.body as PreRegistrationConfirmEnrollmentInputDTO
     );
