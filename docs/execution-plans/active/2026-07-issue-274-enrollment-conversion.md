@@ -32,7 +32,7 @@ Entregar a conversão do lead/pré-matrícula no mesmo registro canônico, com d
 - [x] alteração de identidade invalida revisão;
 - [x] confirmação revalida no commit e é idempotente;
 - [x] nenhum domínio posterior é criado automaticamente;
-- [ ] `pnpm validate` e workflow remoto aprovados no SHA final.
+- [x] `pnpm validate` e workflow remoto aprovados no SHA de implementação.
 
 ## Validação manual
 
@@ -49,4 +49,4 @@ Entregar a conversão do lead/pré-matrícula no mesmo registro canônico, com d
 ## Riscos e pendências
 
 - A reassociação clínica automática permanece bloqueada até existir serviço de domínio específico por prontuário.
-- Este plano permanece ativo até validação remota do SHA final e auditoria independente.
+- Este plano permanece ativo até auditoria independente do SHA final.
