@@ -242,7 +242,9 @@ export function Parq() {
             {hasAlert ? (
               <div className="mt-6 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-950" role="status">
                 <strong>Análise profissional necessária.</strong>
-                <p className="mt-1 text-sm leading-6">Foram identificadas {latestSubmission.positiveCount} resposta(s) positiva(s). A academia fará a análise apropriada. Isso não bloqueia a conclusão comercial do pré-cadastro.</p>
+                <p className="mt-1 text-sm leading-6">
+                  Foram identificadas {latestSubmission.positiveCount} resposta(s) positiva(s). A academia fará a análise apropriada. Isso não bloqueia a conclusão comercial do pré-cadastro. O PAR-Q não constitui diagnóstico, prescrição ou liberação médica para atividade física.
+                </p>
               </div>
             ) : (
               <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-950">
