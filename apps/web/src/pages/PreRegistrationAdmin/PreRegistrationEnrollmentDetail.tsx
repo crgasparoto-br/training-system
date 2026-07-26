@@ -14,6 +14,14 @@ import { preRegistrationAdminService } from '../../services/pre-registration-adm
 import { PreRegistrationAdminDetail } from './PreRegistrationAdminDetail';
 import { ProgressState, STATUS_LABELS, statusClass } from './pre-registration-ui';
 
+function candidateStatusLabel(status: PreRegistrationDuplicateCandidateDTO['status']) {
+  return status === 'ACTIVE_STUDENT' ? 'Aluno ativo' : STATUS_LABELS[status];
+}
+
+function candidateStatusClass(status: PreRegistrationDuplicateCandidateDTO['status']) {
+  return status === 'ACTIVE_STUDENT' ? 'ts-badge-success' : statusClass(status);
+}
+
 type Failure = { response?: { data?: { error?: string } }; message?: string };
 type FieldDecisions = Record<string, PreRegistrationIdentityFieldDecision>;
 
@@ -53,8 +61,8 @@ function Candidate({
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-2">
             <strong>{candidate.maskedName}</strong>
-            <span className={statusClass(candidate.status)}>
-              {STATUS_LABELS[candidate.status] || candidate.status}
+            <span className={candidateStatusClass(candidate.status)}>
+              {candidateStatusLabel(candidate.status)}
             </span>
           </span>
           <span className="mt-1 block text-xs text-muted-foreground">
