@@ -119,15 +119,20 @@ export interface ProntuarioRecord {
   discomfortSnapshots: ProntuarioDiscomfortSnapshot[];
 }
 
-/** Payload returned by the generic PRNT summary endpoint. */
-export interface ProntuarioOverviewSummary {
+interface ProntuarioOverviewBase {
   records: ProntuarioRecord[];
   currentRecord: ProntuarioRecord | null;
+}
+
+/** Payload returned by the generic PRNT summary endpoint. */
+export interface ProntuarioOverviewSummary extends ProntuarioOverviewBase {
   parq: ParqAdministrativeSummaryDTO;
 }
 
 /** Client-side aggregate after the protected PAR-Q history endpoint is loaded. */
-export interface ProntuarioOverview extends ProntuarioOverviewSummary {
+export interface ProntuarioOverview extends ProntuarioOverviewBase {
+  /** Present on responses produced by the current split-loading client. */
+  parq?: ParqAdministrativeSummaryDTO;
   latestParqSubmission: ParqSubmissionDTO | null;
   parqSubmissions: ParqSubmissionDTO[];
   /** Backward-compatible aliases derived client-side from the safe summary. */
