@@ -9,76 +9,25 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  repair-tests:
-    name: Align legacy UI tests with canonical PAR-Q cutover
+  source-snapshot:
+    name: Materialize repository for issue 273 remediation
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout feature branch
+      - name: Checkout feature branch with history
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
 
-      - name: Update discriminant frontend fixtures
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
+      - name: Package exact checkout
+        run: tar -czf "$RUNNER_TEMP/training-system-checkout.tgz" .
 
-          form_test = Path('apps/web/src/pages/AlunoForm.behavior.test.tsx')
-          content = form_test.read_text()
-          content, count = re.subn(
-              r'const emptyParq = \{.*?\};\n\n',
-              '',
-              content,
-              count=1,
-              flags=re.S,
-          )
-          if count != 1:
-              raise SystemExit(f'emptyParq replacements: {count}')
-          expectation = re.compile(
-              r'''      age: 30,\n      intakeForm: \{\n        parqResponses: emptyParq,\n      \},\n    \}\);\n    assertAssessmentFieldsAreAbsent\(payload\);'''
-          )
-          content, count = expectation.subn(
-              "      age: 30,\n    });\n    expect(payload.intakeForm).not.toHaveProperty('parqResponses');\n    assertAssessmentFieldsAreAbsent(payload);",
-              content,
-              count=1,
-          )
-          if count != 1:
-              raise SystemExit(f'AlunoForm expectation replacements: {count}')
-          form_test.write_text(content)
-
-          resumo_test = Path('apps/web/src/components/alunos/AlunoResumoHubTab.test.tsx')
-          content = resumo_test.read_text()
-          fixture = re.compile(
-              r'''      intakeForm: \{\n        assessmentDate: '2026-02-01T12:00:00.000Z',\n        mainGoal: 'Correr 10 km sem dor',\n        parqResponses: \{\n          chestPain: true,\n          dizziness: false,\n        \},\n      \},'''
-          )
-          replacement = '''      intakeForm: {
-        assessmentDate: '2026-02-01T12:00:00.000Z',
-        mainGoal: 'Correr 10 km sem dor',
-      },
-      parq: {
-        state: 'COMPLETED_REVIEW_REQUIRED',
-        latestSubmission: {
-          id: 'submission-1',
-          positiveCount: 1,
-        },
-      },'''
-          content, count = fixture.subn(replacement, content, count=1)
-          if count != 1:
-              raise SystemExit(f'AlunoResumoHubTab fixture replacements: {count}')
-          resumo_test.write_text(content)
-          PY
-
-      - name: Commit test corrections
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add \
-            apps/web/src/pages/AlunoForm.behavior.test.tsx \
-            apps/web/src/components/alunos/AlunoResumoHubTab.test.tsx
-          git commit -m "test: align UI fixtures with canonical PAR-Q cutover"
-          git push origin HEAD:${{ github.event.pull_request.head.ref }}
+      - name: Upload exact checkout
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-273-checkout-${{ github.sha }}
+          path: ${{ runner.temp }}/training-system-checkout.tgz
+          if-no-files-found: error
+          retention-days: 1
