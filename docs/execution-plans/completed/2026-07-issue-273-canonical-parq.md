@@ -56,9 +56,10 @@ A auditoria independente seguinte identificou quatro lacunas remanescentes, trat
 3. escrita legada terminando em HTTP 500 e contrato compartilhado ainda expondo o campo: a fronteira bruta retorna 410 para forma direta ou aninhada e `@corrida/utils` exporta schemas sem `parqResponses`;
 4. workflows mutáveis ou mascarando falhas: ambos usam `contents: read`, checkout do merge preview, compilação dos pacotes compartilhados e propagação do exit code; o diagnóstico antigo versionado foi removido.
 
-A auditoria independente do SHA `8cc6cf0fdf4a65317202ef362ae842313548cfc2` identificou mais duas lacunas de evidência, tratadas neste ciclo:
+A auditoria independente do SHA `8cc6cf0fdf4a65317202ef362ae842313548cfc2` identificou duas lacunas de evidência. A execução do novo gate visual revelou um terceiro achado de conteúdo, e os três foram tratados neste ciclo:
 
 1. o verificador de migration com fixtures legadas existia, mas não era executado pelo CI: o workflow de regressão agora chama o script, inclui seu caminho nos filtros e publica o log;
-2. o script visual do PAR-Q existia sem workflow próprio: foi criado `Issue 273 Visual Evidence`, com três viewports, quatro estados, fluxo por teclado, screenshots, diagnósticos, árvores de acessibilidade e métricas versionadas.
+2. o script visual do PAR-Q existia sem workflow próprio: foi criado `Issue 273 Visual Evidence`, com três viewports, quatro estados, fluxo por teclado, screenshots, diagnósticos, árvores de acessibilidade e métricas versionadas;
+3. a primeira execução do novo gate encontrou ausência do aviso de não diagnóstico/liberação no estado concluído com respostas positivas: a mensagem foi corrigida e o contrato foi fixado em teste de comportamento.
 
 A validação final deve ocorrer nos workflows somente leitura do novo SHA. O contexto de implementação pode produzir apenas pré-auditoria; o parecer final requer nova auditoria independente.
