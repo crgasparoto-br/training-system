@@ -193,7 +193,7 @@ preRegistrationEnrollmentRoutes.patch('/leads/:id', editAccess, async (req, res,
           ? 'A alteração cria um conflito bloqueante de identidade.'
           : 'A alteração exige revisão de duplicidade antes de ser salva.',
         result.classification === 'BLOCKING' ? 'BLOCKING_DUPLICATE' : 'DUPLICATE_REVIEW_REQUIRED',
-        scoped
+        { ...scoped }
       );
     }
     return next();
