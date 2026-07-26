@@ -15,6 +15,7 @@ function applyCorrectivePatch() {
     base64 --decode .orchestrator/issue-274.patch.gz.b64 | gzip --decompress > /tmp/issue-274.patch
     git apply --check /tmp/issue-274.patch
     git apply /tmp/issue-274.patch
+    git checkout origin/develop -- .github/workflows/validate-pr.yml
     rm -f .orchestrator/issue-274.patch.gz.b64 \
       .orchestrator/issue-274-export-run.txt \
       .github/workflows/orchestrator-issue-274.yml \
