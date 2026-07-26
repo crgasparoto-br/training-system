@@ -56,11 +56,16 @@ jobs:
             docs/operations/parq-cutover.md
             docs/execution-plans/completed/2026-07-issue-273-canonical-parq.md
           )
+          : > "$root/MISSING_FILES"
           for file in "${files[@]}"; do
-            mkdir -p "$root/$(dirname "$file")"
-            cp "$file" "$root/$file"
+            if test -f "$file"; then
+              mkdir -p "$root/$(dirname "$file")"
+              cp "$file" "$root/$file"
+            else
+              echo "$file" >> "$root/MISSING_FILES"
+            fi
           done
-          find "$root" -type f -print0 | sort -z | xargs -0 sha256sum > "$root/SHA256SUMS"
+          find "$root" -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > "$root/SHA256SUMS"
 
       - name: Upload working set
         uses: actions/upload-artifact@v4
