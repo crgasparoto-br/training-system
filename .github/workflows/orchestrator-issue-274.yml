@@ -1,0 +1,53 @@
+name: Orchestrator Issue 274 Workspace
+
+on:
+  push:
+    branches:
+      - feat/274-enrollment-conversion
+    paths:
+      - .github/workflows/orchestrator-issue-274.yml
+      - .orchestrator/issue-274.patch
+
+permissions:
+  contents: write
+
+jobs:
+  export-workspace:
+    if: github.event.head_commit.message == 'chore: stage issue 274 workspace export'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Package workspace
+        run: tar --exclude=.git -czf issue-274-source.tgz .
+      - name: Upload workspace
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-274-source-${{ github.run_id }}
+          path: issue-274-source.tgz
+          if-no-files-found: error
+          retention-days: 1
+
+  apply-corrective-patch:
+    if: github.event.head_commit.message == 'chore: stage issue 274 corrective patch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply patch
+        run: |
+          git apply --check .orchestrator/issue-274.patch
+          git apply .orchestrator/issue-274.patch
+      - name: Remove temporary orchestration files
+        run: rm -f .orchestrator/issue-274.patch .github/workflows/orchestrator-issue-274.yml
+      - name: Commit corrected implementation
+        run: |
+          git config user.name "chatgpt-orchestrator"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: address issue 274 audit findings"
+          git push origin HEAD:feat/274-enrollment-conversion
