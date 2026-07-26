@@ -30,6 +30,7 @@ jobs:
         with:
           ref: feat/273-canonical-parq
           fetch-depth: 0
+          show-progress: false
 
       - name: Validate payload chunks
         shell: bash
