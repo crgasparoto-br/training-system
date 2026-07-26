@@ -52,6 +52,22 @@ A análise registra profissional, data e observação. Ela não altera respostas
 
 Listagens comerciais exibem somente estado resumido e indicador de análise. Respostas detalhadas permanecem restritas aos fluxos de saúde autorizados.
 
+## Fronteiras de leitura
+
+As rotas administrativas usam `studentParqBoundaryService` como adaptador obrigatório entre os serviços legados de aluno e o serviço canônico do PAR-Q:
+
+- `GET /api/v1/alunos/:id` e `GET /api/v1/alunos/:id/summary` recebem somente `ParqAdministrativeSummaryDTO` e removem recursivamente `parqResponses`, `questionnaireParq` e `questionnaires.parq` antes da serialização;
+- `GET /api/v1/alunos/:id/intake` exige `students.details.health` e substitui qualquer representação legada pela última submissão retornada por `preRegistrationParqService.overview`;
+- respostas completas, itens positivos e observações profissionais continuam disponíveis somente nas rotas do PRNT com permissões específicas de saúde.
+
+A sanitização ocorre no backend e é testada na resposta HTTP. Ocultar campos apenas na interface não satisfaz o contrato de privacidade.
+
+## Corte das escritas legadas
+
+Os contratos exportados por `@corrida/utils` para criação e edição de aluno não expõem mais `intakeForm.parqResponses`. A fronteira HTTP anterior aos schemas antigos também inspeciona o corpo bruto para bloquear formas diretas ou escondidas em `formResponses.parqResponses`.
+
+Qualquer tentativa recebe HTTP `410` e detalhes `{ code: "LEGACY_WRITE_DISABLED" }`. Campos não relacionados ao PAR-Q continuam seguindo para os handlers existentes.
+
 ## Falhas e segurança
 
 - sessão expirada preserva o último rascunho confirmado;
@@ -64,11 +80,8 @@ Listagens comerciais exibem somente estado resumido e indicador de análise. Res
 
 ## Evidências de validação
 
-O workflow `Issue 273 Regression Evidence` deve comprovar, no mesmo SHA da entrega, a reconciliação e o rerun da migration, o fluxo autenticado em PostgreSQL, concorrência, idempotência, histórico, revisão profissional, isolamento de tenant e os estados responsivos do formulário. O workflow geral `Validate PR` continua responsável por migrations, type-check, lint, suítes completas, build, arquitetura, catálogo de acessos e documentação.
+O workflow `Issue 273 Regression Evidence` deve comprovar, no mesmo SHA da entrega, a reconciliação e o rerun da migration, o fluxo autenticado em PostgreSQL, concorrência, idempotência, histórico, revisão profissional, isolamento de tenant, fronteiras administrativas sanitizadas, rejeição HTTP 410 e os estados responsivos do formulário. O workflow geral `Validate PR` continua responsável por migrations, type-check, lint, suítes completas, build, arquitetura, catálogo de acessos e documentação.
+
+`Issue 273 Runtime Diagnostic` é somente leitura: faz checkout do merge preview, compila `@corrida/types` e `@corrida/utils`, executa o verificador PostgreSQL com falha propagada e publica apenas um artefato de diagnóstico. Nenhum workflow da issue pode fazer commit ou push.
 
 Essas evidências constituem verificação interna do ciclo de implementação. A aprovação final exige auditoria independente em nova conversa, com o SHA congelado e sem alterações posteriores.
-
-
-## Fronteira administrativa sanitizada
-
-A rota administrativa genérica do aluno usa `ParqAdministrativeSummaryDTO`. Ela pode exibir somente estado, identificador/versão/data da última submissão, contagem positiva, situação resumida de análise, projeção de pendência e estado do legado. `responses`, `positiveItems` e `reviewNotes` são conteúdo clínico e permanecem exclusivos das rotas do PRNT protegidas por permissão de saúde.
