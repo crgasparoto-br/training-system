@@ -58,7 +58,9 @@ As rotas administrativas usam `studentParqBoundaryService` como adaptador obriga
 
 - `GET /api/v1/alunos/:id` e `GET /api/v1/alunos/:id/summary` recebem somente `ParqAdministrativeSummaryDTO` e removem recursivamente `parqResponses`, `questionnaireParq` e `questionnaires.parq` antes da serialização;
 - `GET /api/v1/alunos/:id/intake` exige `students.details.health` e substitui qualquer representação legada pela última submissão retornada por `preRegistrationParqService.overview`;
-- respostas completas, itens positivos e observações profissionais continuam disponíveis somente nas rotas do PRNT com permissões específicas de saúde.
+- `GET /api/v1/prontuario/alunos/:alunoId`, protegido por `physicalAssessment.prnt.summary`, serializa apenas registros PRNT e um `ParqAdministrativeSummaryDTO`; nunca inclui `responses`, `positiveItems`, `reviewNotes` ou o histórico de submissões;
+- `GET /api/v1/prontuario/alunos/:alunoId/parq-submissions` é a única fronteira do PRNT que retorna o histórico completo e exige `physicalAssessment.prnt.parqSubmissions`;
+- o cliente combina o resumo e o histórico somente depois de a rota dedicada autorizar a leitura; um `403` mantém o resumo disponível sem conteúdo clínico detalhado.
 
 A sanitização ocorre no backend e é testada na resposta HTTP. Ocultar campos apenas na interface não satisfaz o contrato de privacidade.
 
@@ -76,11 +78,14 @@ Qualquer tentativa recebe HTTP `410` e detalhes `{ code: "LEGACY_WRITE_DISABLED"
 - acesso cross-tenant responde como recurso inexistente;
 - schemas estritos recusam IDs, versão arbitrária, estado, positivos e flags profissionais enviados pelo cliente;
 - logs comuns não incluem respostas clínicas;
-- falha na pendência profissional aborta a conclusão pela transação.
+- falha na pendência profissional aborta a conclusão pela transação;
+- falha temporária ao carregar o histórico protegido é propagada; somente a negação autoritativa `403` degrada para resumo sem detalhes.
 
 ## Evidências de validação
 
 O workflow `Issue 273 Regression Evidence` executa `scripts/verify-issue-273-parq-migration.sh` sobre fixtures pré-cutover com fonte canônica, fontes legadas isoladas, equivalência, divergência, conjunto incompleto, ausência de data e rerun idempotente. O mesmo workflow aplica as migrations em banco limpo, executa contratos HTTP, o verificador PostgreSQL do serviço, o rerun corretivo, testes web e type-check, publicando os logs no mesmo artefato do merge preview.
+
+O workflow também executa contratos discriminantes da fronteira do PRNT: perfil com apenas `physicalAssessment.prnt.summary`, negação do endpoint de histórico sem `physicalAssessment.prnt.parqSubmissions`, autorização explícita do endpoint dedicado e composição do frontend sem mascarar falhas temporárias.
 
 O workflow `Issue 273 Visual Evidence` compila a aplicação web e executa `apps/api/scripts/visual-audit-issue-273.mjs` para a rota `/pre-cadastro/par-q`. A matriz cobre 1440×900, 1366×768 e 390×844, os estados de retomada, `NEEDS_REPEAT`, conclusão positiva e conclusão sem alerta, além de fluxo por teclado, inventário de controles, árvore de acessibilidade, screenshots e diagnósticos JSON. Esse harness isola estados visuais; autenticação, autorização, persistência e tenant continuam comprovados separadamente pelo workflow de regressão.
 
