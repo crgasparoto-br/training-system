@@ -36,6 +36,25 @@ jest.mock('../src/modules/access-control/access-control.middleware', () => ({
   ) => next(),
 }));
 
+jest.mock('../src/modules/pre-registration-public/pre-registration-parq.service', () => {
+  class ParqServiceError extends Error {
+    constructor(
+      message: string,
+      readonly code: string
+    ) {
+      super(message);
+      this.name = 'ParqServiceError';
+    }
+  }
+
+  return {
+    ParqServiceError,
+    preRegistrationParqService: {
+      reviewProfessional: jest.fn(),
+    },
+  };
+});
+
 jest.mock('../src/modules/prontuario/prontuario.service', () => ({
   prontuarioService: {
     overview: jest.fn(),
