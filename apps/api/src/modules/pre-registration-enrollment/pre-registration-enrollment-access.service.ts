@@ -1,0 +1,114 @@
+import { PrismaClient, type Prisma, type Professor } from '@prisma/client';
+import type { AccessDataScope } from '@corrida/types';
+import {
+  buildProfessorDataScopeWhere,
+  getEffectiveDataScopeForProfessor,
+} from '../access-control/access-control.service.js';
+import {
+  PreRegistrationEnrollmentError,
+  type PreRegistrationEnrollmentActor,
+} from './pre-registration-enrollment.service.js';
+
+const prisma = new PrismaClient();
+const SCREEN_KEY = 'students.preRegistration';
+type DbClient = PrismaClient | Prisma.TransactionClient;
+
+type AccessProfessor = Pick<Professor, 'id' | 'role'> & {
+  collaboratorFunction: { id: string; code: string };
+};
+
+export type PreRegistrationEnrollmentAccess = {
+  scope: AccessDataScope;
+  visibleProfessorIds: string[];
+};
+
+function isVisible(
+  row: { professorId: string | null; createdByProfessorId: string | null },
+  access: PreRegistrationEnrollmentAccess
+) {
+  return (
+    access.scope === 'contract' ||
+    Boolean(row.professorId && access.visibleProfessorIds.includes(row.professorId)) ||
+    Boolean(
+      row.createdByProfessorId && access.visibleProfessorIds.includes(row.createdByProfessorId)
+    )
+  );
+}
+
+export async function resolvePreRegistrationEnrollmentAccess(
+  actor: PreRegistrationEnrollmentActor,
+  client: DbClient = prisma
+): Promise<PreRegistrationEnrollmentAccess> {
+  const professor = await client.professor.findFirst({
+    where: { id: actor.professorId, contractId: actor.contractId },
+    select: {
+      id: true,
+      role: true,
+      collaboratorFunction: { select: { id: true, code: true } },
+    },
+  });
+  if (!professor?.collaboratorFunction) {
+    throw new PreRegistrationEnrollmentError('Recurso não encontrado.', 'NOT_FOUND');
+  }
+
+  const accessProfessor = professor as AccessProfessor;
+  const scope = await getEffectiveDataScopeForProfessor(
+    {
+      role: accessProfessor.role as 'master' | 'professor',
+      collaboratorFunction: accessProfessor.collaboratorFunction,
+    },
+    SCREEN_KEY
+  );
+  if (!scope) {
+    throw new PreRegistrationEnrollmentError(
+      'Perfil sem escopo para pré-matrículas.',
+      'FORBIDDEN'
+    );
+  }
+
+  const visible = await client.professor.findMany({
+    where: buildProfessorDataScopeWhere(actor.contractId, actor.professorId, scope),
+    select: { id: true },
+  });
+  return { scope, visibleProfessorIds: visible.map((item) => item.id) };
+}
+
+export async function assertPreRegistrationAlunoVisible(
+  actor: PreRegistrationEnrollmentActor,
+  alunoId: string,
+  client: DbClient = prisma
+): Promise<void> {
+  const access = await resolvePreRegistrationEnrollmentAccess(actor, client);
+  const row = await client.aluno.findFirst({
+    where: { id: alunoId, contractId: actor.contractId },
+    select: { professorId: true, createdByProfessorId: true },
+  });
+  if (!row || !isVisible(row, access)) {
+    throw new PreRegistrationEnrollmentError('Recurso não encontrado.', 'NOT_FOUND');
+  }
+}
+
+export async function visiblePreRegistrationCandidateIds(
+  actor: PreRegistrationEnrollmentActor,
+  candidateIds: string[],
+  client: DbClient = prisma
+): Promise<Set<string>> {
+  if (candidateIds.length === 0) return new Set();
+  const access = await resolvePreRegistrationEnrollmentAccess(actor, client);
+  const rows = await client.aluno.findMany({
+    where: { id: { in: candidateIds }, contractId: actor.contractId },
+    select: { id: true, professorId: true, createdByProfessorId: true },
+  });
+  return new Set(rows.filter((row) => isVisible(row, access)).map((row) => row.id));
+}
+
+export async function assertResponsibleProfessorVisible(
+  actor: PreRegistrationEnrollmentActor,
+  responsibleProfessorId: string,
+  client: DbClient = prisma
+): Promise<void> {
+  const access = await resolvePreRegistrationEnrollmentAccess(actor, client);
+  if (!access.visibleProfessorIds.includes(responsibleProfessorId)) {
+    throw new PreRegistrationEnrollmentError('Responsável fora do seu escopo.', 'FORBIDDEN');
+  }
+}
