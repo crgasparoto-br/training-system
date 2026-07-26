@@ -54,6 +54,7 @@ describe('student PAR-Q HTTP boundary', () => {
   app.use('/alunos', boundaryRouter);
   app.post('/alunos', (_req, res) => res.status(204).end());
   app.put('/alunos/:id', (_req, res) => res.status(204).end());
+  app.get('/alunos/search', (_req, res) => res.status(204).end());
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -90,6 +91,13 @@ describe('student PAR-Q HTTP boundary', () => {
       .send({ intakeForm: { mainGoal: 'Corrida' } });
 
     expect(response.status).toBe(204);
+  });
+
+  it('does not shadow the existing static search route', async () => {
+    const response = await request(app).get('/alunos/search');
+
+    expect(response.status).toBe(204);
+    expect(studentParqBoundaryService.getAdministrativeAluno).not.toHaveBeenCalled();
   });
 
   it('returns the sanitized generic aluno payload under the summary permission', async () => {
