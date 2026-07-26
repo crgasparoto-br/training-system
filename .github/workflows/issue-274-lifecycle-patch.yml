@@ -1,0 +1,255 @@
+name: Issue 274 Lifecycle Patch
+
+on:
+  push:
+    branches:
+      - feat/274-enrollment-conversion
+    paths:
+      - .github/workflows/issue-274-lifecycle-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/274-enrollment-conversion
+          fetch-depth: 0
+      - name: Apply lifecycle authority patch
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          service = Path('apps/api/src/modules/pre-registration-enrollment/pre-registration-enrollment.service.ts')
+          text = service.read_text()
+
+          text = text.replace(
+              "import {\n  findMissingPreRegistrationFields,\n} from '../alunos/student-lifecycle.service.js';",
+              "import {\n  discardStudentLeadInTransaction,\n  StudentLifecycleError,\n} from '../alunos/student-lifecycle.service.js';\nimport {\n  activateStudentEnrollmentInTransaction,\n  markStudentReadyForEnrollmentInTransaction,\n} from '../alunos/student-lifecycle-enrollment.service.js';",
+          )
+          text = text.replace(
+              "    const targetIdentity = await loadStudentIdentity(targetId, actor.contractId, tx);\n",
+              "",
+          )
+
+          anchor = "function asJson(value: unknown): Prisma.InputJsonValue {\n  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;\n}\n"
+          if 'function throwEnrollmentLifecycleError' not in text:
+              text = text.replace(
+                  anchor,
+                  anchor + "\nfunction throwEnrollmentLifecycleError(error: unknown): never {\n  if (error instanceof StudentLifecycleError) {\n    const code = error.code === 'NOT_FOUND'\n      ? 'NOT_FOUND'\n      : error.code === 'CONCURRENT_MODIFICATION'\n        ? 'CONCURRENT_MODIFICATION'\n        : 'PRECONDITION_FAILED';\n    throw new PreRegistrationEnrollmentError(error.message, code, error.details);\n  }\n  throw error;\n}\n",
+              )
+
+          discard_old = """    const discarded = await tx.aluno.updateMany({
+            where: { id: alunoId, contractId: actor.contractId, status: { not: 'ACTIVE_STUDENT' } },
+            data: {
+              status: 'DISCARDED',
+              discardedAt: new Date(),
+              discardedByProfessorId: actor.professorId,
+              discardReason: `DUPLICATE_OF:${targetId}`,
+            },
+          });
+          if (discarded.count !== 1) {
+            throw new PreRegistrationEnrollmentError(
+              'O cadastro foi alterado por outra operação. Recarregue antes de continuar.',
+              'CONCURRENT_MODIFICATION'
+            );
+          }
+          """
+          discard_new = """    try {
+            await discardStudentLeadInTransaction(
+              tx,
+              alunoId,
+              actor.contractId,
+              `DUPLICATE_OF:${targetId}`,
+              actor.professorId
+            );
+          } catch (error) {
+            throwEnrollmentLifecycleError(error);
+          }
+          """
+          if discard_old in text:
+              text = text.replace(discard_old, discard_new)
+
+          ready_old = """      const identity = await loadStudentIdentity(alunoId, actor.contractId, tx);
+                const missing = findMissingPreRegistrationFields({
+                  name: identity.name,
+                  birthDate: identity.birthDate,
+                  phone: identity.phone,
+                  email: identity.email,
+                  privacyNoticeVersion: aluno.onboarding.privacyNoticeVersion ?? undefined,
+                  privacyAcceptedAt: aluno.onboarding.privacyAcceptedAt ?? undefined,
+                });
+                if (missing.length > 0) {
+                  throw new PreRegistrationEnrollmentError(
+                    'O pré-cadastro ainda possui campos obrigatórios pendentes.',
+                    'PRECONDITION_FAILED',
+                    { fields: missing }
+                  );
+                }
+                const transitioned = await tx.aluno.updateMany({
+                  where: { id: alunoId, contractId: actor.contractId, status: 'PRE_REGISTRATION_COMPLETED' },
+                  data: { status: 'READY_FOR_ENROLLMENT', readyForEnrollmentAt: new Date() },
+                });
+                if (transitioned.count !== 1) {
+                  throw new PreRegistrationEnrollmentError(
+                    'O cadastro foi alterado por outra operação. Recarregue antes de continuar.',
+                    'CONCURRENT_MODIFICATION'
+                  );
+                }
+                await tx.studentOnboardingProcess.update({
+                  where: { alunoId },
+                  data: { reviewedAt: new Date(), reviewedByProfessorId: actor.professorId },
+                });
+                await tx.studentLifecycleEvent.createMany({
+                  data: [
+                    {
+                      alunoId,
+                      contractId: actor.contractId,
+                      eventType: 'STATUS_CHANGED',
+                      actorUserId: actor.userId,
+                      actorProfessorId: actor.professorId,
+                      metadata: asJson({ from: 'PRE_REGISTRATION_COMPLETED', to: 'READY_FOR_ENROLLMENT' }),
+                    },
+                    {
+                      alunoId,
+                      contractId: actor.contractId,
+                      eventType: 'ADMIN_REVIEWED',
+                      actorUserId: actor.userId,
+                      actorProfessorId: actor.professorId,
+                      metadata: asJson({
+                        kind: 'ENROLLMENT_REVIEW',
+                        reason,
+                        fingerprint: detection.fingerprint,
+                        reviewedRecordVersion: detection.recordVersion,
+                        decisionAction: decision?.action ?? 'NO_DUPLICATE',
+                      }),
+                    },
+                  ],
+                });
+          """
+          ready_new = """      try {
+                  await markStudentReadyForEnrollmentInTransaction(
+                    tx,
+                    alunoId,
+                    actor.contractId,
+                    {
+                      actor: { userId: actor.userId, professorId: actor.professorId },
+                      metadata: {
+                        kind: 'ENROLLMENT_REVIEW',
+                        reason,
+                        fingerprint: detection.fingerprint,
+                        reviewedRecordVersion: detection.recordVersion,
+                        decisionAction: decision?.action ?? 'NO_DUPLICATE',
+                      },
+                    }
+                  );
+                } catch (error) {
+                  throwEnrollmentLifecycleError(error);
+                }
+          """
+          if ready_old in text:
+              text = text.replace(ready_old, ready_new)
+
+          activate_old = """      const transitioned = await tx.aluno.updateMany({
+                  where: { id: alunoId, contractId: actor.contractId, status: 'READY_FOR_ENROLLMENT' },
+                  data: { status: 'ACTIVE_STUDENT', activatedAt: new Date() },
+                });
+                if (transitioned.count !== 1) {
+                  const current = await tx.aluno.findFirst({
+                    where: { id: alunoId, contractId: actor.contractId },
+                    select: { status: true },
+                  });
+                  if (current?.status === 'ACTIVE_STUDENT') {
+                    return {
+                      alunoId,
+                      status: 'ACTIVE_STUDENT',
+                      redirectTo: `/central-do-aluno/${alunoId}`,
+                      idempotent: true,
+                    };
+                  }
+                  throw new PreRegistrationEnrollmentError(
+                    'O cadastro foi alterado por outra operação. Recarregue antes de continuar.',
+                    'CONCURRENT_MODIFICATION'
+                  );
+                }
+                await tx.studentOnboardingProcess.update({
+                  where: { alunoId },
+                  data: { convertedAt: new Date() },
+                });
+                await tx.studentLifecycleEvent.createMany({
+                  data: [
+                    {
+                      alunoId,
+                      contractId: actor.contractId,
+                      eventType: 'STATUS_CHANGED',
+                      actorUserId: actor.userId,
+                      actorProfessorId: actor.professorId,
+                      metadata: asJson({ from: 'READY_FOR_ENROLLMENT', to: 'ACTIVE_STUDENT' }),
+                    },
+                    {
+                      alunoId,
+                      contractId: actor.contractId,
+                      eventType: 'CONVERTED_TO_ACTIVE_STUDENT',
+                      actorUserId: actor.userId,
+                      actorProfessorId: actor.professorId,
+                      metadata: asJson({
+                        fingerprint: detection.fingerprint,
+                        reviewedRecordVersion: detection.recordVersion,
+                        sameCanonicalId: true,
+                        downstreamCreation: 'NONE',
+                      }),
+                    },
+                  ],
+                });
+          """
+          activate_new = """      try {
+                  await activateStudentEnrollmentInTransaction(
+                    tx,
+                    alunoId,
+                    actor.contractId,
+                    {
+                      actor: { userId: actor.userId, professorId: actor.professorId },
+                      metadata: {
+                        fingerprint: detection.fingerprint,
+                        reviewedRecordVersion: detection.recordVersion,
+                        sameCanonicalId: true,
+                        downstreamCreation: 'NONE',
+                      },
+                    }
+                  );
+                } catch (error) {
+                  throwEnrollmentLifecycleError(error);
+                }
+          """
+          if activate_old in text:
+              text = text.replace(activate_old, activate_new)
+
+          service.write_text(text)
+
+          helper = Path('apps/api/src/modules/alunos/student-lifecycle-enrollment.service.ts')
+          helper_text = helper.read_text()
+          helper_text = helper_text.replace('name: identity.name,', 'name: identity.name ?? undefined,')
+          helper_text = helper_text.replace('phone: identity.phone,', 'phone: identity.phone ?? undefined,')
+          helper_text = helper_text.replace('email: identity.email,', 'email: identity.email ?? undefined,')
+          helper_text = helper_text.replace('birthDate: identity.birthDate,', 'birthDate: identity.birthDate ?? undefined,')
+          helper.write_text(helper_text)
+
+          if "data: { status: 'READY_FOR_ENROLLMENT'" in text or "data: { status: 'ACTIVE_STUDENT'" in text:
+              raise SystemExit('direct lifecycle mutation remained in enrollment service')
+          PY
+      - name: Commit lifecycle patch
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "Patch already applied"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/api/src/modules/pre-registration-enrollment/pre-registration-enrollment.service.ts apps/api/src/modules/alunos/student-lifecycle-enrollment.service.ts
+          git commit -m "refactor(api): route enrollment mutations through lifecycle authority (#274)"
+          git push origin HEAD:feat/274-enrollment-conversion
