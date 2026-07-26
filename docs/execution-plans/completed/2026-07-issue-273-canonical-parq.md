@@ -37,9 +37,10 @@ Consolidar o PAR-Q em `StudentParqSubmission`, com catálogo compartilhado e ver
 
 - `scripts/verify-issue-273-parq-migration.sh`: banco pré-cutover com fonte canônica, fontes isoladas, equivalência, divergência, conjunto incompleto, ausência de data e rerun idempotente;
 - `apps/api/scripts/verify-issue-273-parq.ts`: runtime real com PostgreSQL para autenticação, rascunho, retomada, concorrência, idempotência, nova submissão histórica, isolamento de tenant e análise profissional;
-- `apps/api/scripts/visual-audit-issue-273.mjs`: formulário, retomada, `NEEDS_REPEAT`, conclusão com alerta e conclusão sem alerta em desktop, mobile e desktop de baixa altura;
-- `.github/workflows/issue-273-regression.yml`: produz attestation e logs de migration, contratos HTTP, runtime, rerun, web e type-check;
+- `apps/api/scripts/visual-audit-issue-273.mjs`: formulário, retomada, `NEEDS_REPEAT`, conclusão com alerta e conclusão sem alerta em desktop, mobile e desktop de baixa altura, com fluxo por teclado, diagnósticos e árvore de acessibilidade;
+- `.github/workflows/issue-273-regression.yml`: executa o verificador de migration pré-cutover, produz attestation e publica logs de reconciliação, migrations, contratos HTTP, runtime, rerun, web e type-check;
 - `.github/workflows/issue-273-runtime-diagnostic.yml`: compila pacotes compartilhados, executa o verificador PostgreSQL com falha propagada e publica o log apenas como artifact;
+- `.github/workflows/issue-273-visual.yml`: compila a aplicação web, executa a matriz visual específica do PAR-Q e publica screenshots, diagnósticos, árvores de acessibilidade e `visual-metrics.json`;
 - `pnpm validate`: validações gerais do repositório, migrations, tipos, lint, testes, build, arquitetura, catálogo de acessos e documentação.
 
 O handoff registra o SHA final, a base observada, o merge preview e os workflows executados. Toda validação deste ciclo é pré-auditoria interna; a aprovação final exige nova conversa e auditoria independente no SHA congelado.
@@ -55,4 +56,9 @@ A auditoria independente seguinte identificou quatro lacunas remanescentes, trat
 3. escrita legada terminando em HTTP 500 e contrato compartilhado ainda expondo o campo: a fronteira bruta retorna 410 para forma direta ou aninhada e `@corrida/utils` exporta schemas sem `parqResponses`;
 4. workflows mutáveis ou mascarando falhas: ambos usam `contents: read`, checkout do merge preview, compilação dos pacotes compartilhados e propagação do exit code; o diagnóstico antigo versionado foi removido.
 
-A validação final deve ocorrer nos workflows somente leitura do SHA final. O contexto de implementação pode produzir apenas pré-auditoria; o parecer final requer nova auditoria independente.
+A auditoria independente do SHA `8cc6cf0fdf4a65317202ef362ae842313548cfc2` identificou mais duas lacunas de evidência, tratadas neste ciclo:
+
+1. o verificador de migration com fixtures legadas existia, mas não era executado pelo CI: o workflow de regressão agora chama o script, inclui seu caminho nos filtros e publica o log;
+2. o script visual do PAR-Q existia sem workflow próprio: foi criado `Issue 273 Visual Evidence`, com três viewports, quatro estados, fluxo por teclado, screenshots, diagnósticos, árvores de acessibilidade e métricas versionadas.
+
+A validação final deve ocorrer nos workflows somente leitura do novo SHA. O contexto de implementação pode produzir apenas pré-auditoria; o parecer final requer nova auditoria independente.
