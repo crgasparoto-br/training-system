@@ -37,6 +37,11 @@ async function ensureAlunoAccess(req: Request, res: Response, alunoId: string) {
   return true;
 }
 
+function skipStaticAlunoRoute(req: Request, _res: Response, next: NextFunction) {
+  if (req.params.id === 'search') return next('route');
+  return next();
+}
+
 export function legacyParqWriteBoundary(
   req: Request,
   res: Response,
@@ -59,6 +64,7 @@ router.put('/:id', ...protectedRoute, legacyParqWriteBoundary);
 router.get(
   '/:id',
   ...protectedRoute,
+  skipStaticAlunoRoute,
   blockAccessMiddleware('students.details.summary'),
   async (req: Request, res: Response) => {
     try {
