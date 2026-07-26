@@ -6,10 +6,15 @@ on:
       - develop
     paths:
       - '.github/workflows/issue-273-runtime-diagnostic.yml'
+      - 'apps/api/scripts/verify-issue-273-parq.ts'
+      - 'apps/api/src/modules/alunos/student-parq-boundary.*'
+      - 'apps/api/src/modules/pre-registration-public/**'
+      - 'packages/types/**'
+      - 'packages/utils/**'
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   diagnose-runtime:
@@ -36,36 +41,40 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: feat/273-canonical-parq
-          fetch-depth: 1
-          show-progress: false
+      - name: Checkout audited merge preview
+        uses: actions/checkout@v4
+
       - uses: pnpm/action-setup@v4
         with:
           version: 9
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: pnpm
+
       - run: pnpm install --frozen-lockfile
+
+      - name: Build shared packages
+        run: |
+          pnpm --filter @corrida/types build
+          pnpm --filter @corrida/utils build
+
       - run: pnpm --filter @corrida/api exec prisma generate
       - run: pnpm --filter @corrida/api exec prisma migrate deploy
-      - name: Capture runtime verification
-        shell: bash
-        run: |
-          set +e
-          pnpm --filter @corrida/api exec tsx scripts/verify-issue-273-parq.ts > issue-273-runtime-diagnostic.txt 2>&1
-          status=$?
-          printf '\nEXIT_STATUS=%s\n' "$status" >> issue-273-runtime-diagnostic.txt
-          cat issue-273-runtime-diagnostic.txt
-          exit 0
-      - name: Commit diagnostic output
+
+      - name: Run runtime verification
         shell: bash
         run: |
           set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add issue-273-runtime-diagnostic.txt
-          git commit -m "test: capture issue 273 runtime diagnostic"
-          git push origin HEAD:feat/273-canonical-parq
+          pnpm --filter @corrida/api exec tsx scripts/verify-issue-273-parq.ts \
+            2>&1 | tee issue-273-runtime-diagnostic.txt
+
+      - name: Upload runtime diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-273-runtime-diagnostic-${{ github.run_id }}
+          path: issue-273-runtime-diagnostic.txt
+          if-no-files-found: error
+          retention-days: 7
