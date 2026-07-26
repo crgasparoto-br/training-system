@@ -9,16 +9,16 @@ const mockTx = {
     create: jest.fn(),
     update: jest.fn(),
     findUniqueOrThrow: jest.fn(),
-      findFirst: jest.fn(),
-      count: jest.fn(),
-    },
-    studentProfile: {
-      upsert: jest.fn(),
-    },
-    studentLifecycleEvent: {
-      create: jest.fn(),
-    },
-    profile: {
+    findFirst: jest.fn(),
+    count: jest.fn(),
+  },
+  studentProfile: {
+    upsert: jest.fn(),
+  },
+  studentLifecycleEvent: {
+    create: jest.fn(),
+  },
+  profile: {
     update: jest.fn(),
   },
   macronutrients: {
@@ -157,7 +157,6 @@ describe('alunoService assessment boundary', () => {
         mainGoal: 'Condicionamento físico',
         trainingBackground: 'Iniciante',
         observations: 'Cadastro inicial',
-        parqResponses: emptyParq,
         formResponses: {
           identification: {},
           financial: {},
@@ -191,7 +190,7 @@ describe('alunoService assessment boundary', () => {
     expect(mockTx.progressMetric.create).not.toHaveBeenCalled();
   });
 
-  it('preserva avaliação, macronutrientes e métricas ao atualizar somente cadastro e anamnese', async () => {
+  it('preserva avaliação, macronutrientes, métricas e o legado PAR-Q ao atualizar somente cadastro e anamnese', async () => {
     mockTx.aluno.findUniqueOrThrow
       .mockResolvedValueOnce({
         id: 'aluno-1',
@@ -211,7 +210,6 @@ describe('alunoService assessment boundary', () => {
         injuriesHistory: 'Sem lesões',
         trainingBackground: 'Treino atualizado',
         observations: 'Observação atualizada',
-        parqResponses: emptyParq,
         formResponses: {
           identification: {},
           financial: {},
@@ -229,6 +227,7 @@ describe('alunoService assessment boundary', () => {
     expect(mockTx.progressMetric.create).not.toHaveBeenCalled();
 
     expect(mockTx.alunoIntakeForm.upsert).not.toHaveBeenCalled();
+    expect(mockTx.studentParqSubmission.create).not.toHaveBeenCalled();
     expect(mockTx.studentHealthIntake.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { alunoId: 'aluno-1' },
