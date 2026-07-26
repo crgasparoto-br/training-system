@@ -38,9 +38,7 @@ jest.mock('../src/modules/alunos/aluno.service', () => ({
 
 jest.mock('../src/modules/alunos/student-domain.service', () => ({
   studentDomainService: {
-    getSummary: jest.fn(),
     getProfile: jest.fn(),
-    getHealthIntake: jest.fn(),
     listAssessmentRecords: jest.fn(),
     getFinancialProfile: jest.fn(),
     getIntegrations: jest.fn(),
@@ -49,9 +47,17 @@ jest.mock('../src/modules/alunos/student-domain.service', () => ({
   },
 }));
 
+jest.mock('../src/modules/alunos/student-parq-boundary.service', () => ({
+  studentParqBoundaryService: {
+    getAdministrativeSummary: jest.fn(),
+    getClinicalIntake: jest.fn(),
+  },
+}));
+
 const segmentedAlunoRouter = require('../src/modules/alunos/student-domain.routes').default;
 const { alunoService } = require('../src/modules/alunos/aluno.service');
 const { studentDomainService } = require('../src/modules/alunos/student-domain.service');
+const { studentParqBoundaryService } = require('../src/modules/alunos/student-parq-boundary.service');
 
 describe('segmented aluno routes', () => {
   const app = express();
@@ -62,9 +68,9 @@ describe('segmented aluno routes', () => {
   beforeEach(() => {
     (alunoService.belongsToContract as jest.Mock).mockReset();
     (alunoService.belongsToProfessor as jest.Mock).mockReset();
-    (studentDomainService.getSummary as jest.Mock).mockReset();
+    (studentParqBoundaryService.getAdministrativeSummary as jest.Mock).mockReset();
+    (studentParqBoundaryService.getClinicalIntake as jest.Mock).mockReset();
     (studentDomainService.getProfile as jest.Mock).mockReset();
-    (studentDomainService.getHealthIntake as jest.Mock).mockReset();
     (studentDomainService.listAssessmentRecords as jest.Mock).mockReset();
     (studentDomainService.getFinancialProfile as jest.Mock).mockReset();
     (studentDomainService.getIntegrations as jest.Mock).mockReset();
@@ -73,22 +79,48 @@ describe('segmented aluno routes', () => {
     (alunoService.belongsToContract as jest.Mock).mockResolvedValue(true);
   });
 
-  it('returns segmented summary when the professor has access', async () => {
-    (studentDomainService.getSummary as jest.Mock).mockResolvedValue({
+  it('returns the sanitized administrative summary through the PAR-Q boundary', async () => {
+    (studentParqBoundaryService.getAdministrativeSummary as jest.Mock).mockResolvedValue({
       alunoId: 'aluno-1',
       overview: { name: 'Aluno Teste' },
+      parq: {
+        state: 'COMPLETED_REVIEW_REQUIRED',
+        latestSubmission: { positiveCount: 1 },
+        requiresProfessionalReview: true,
+        legacy: { preserved: false, needsRepeat: false },
+      },
     });
 
     const response = await request(app).get('/alunos/aluno-1/summary');
 
     expect(response.status).toBe(200);
-    expect(response.body.data).toEqual({
+    expect(response.body.data.overview).toEqual({ name: 'Aluno Teste' });
+    expect(response.body.data.parq.state).toBe('COMPLETED_REVIEW_REQUIRED');
+    expect(studentParqBoundaryService.getAdministrativeSummary).toHaveBeenCalledWith(
+      'contract-1',
+      'aluno-1'
+    );
+    expect(mockBlockAccessMiddleware).toHaveBeenCalledWith('students.details.summary');
+  });
+
+  it('returns canonical PAR-Q answers only through the health-authorized boundary', async () => {
+    (studentParqBoundaryService.getClinicalIntake as jest.Mock).mockResolvedValue({
       alunoId: 'aluno-1',
-      overview: { name: 'Aluno Teste' },
+      questionnaires: {
+        parq: { q1: true },
+        american: { q1: false },
+      },
     });
-    expect(studentDomainService.getSummary).toHaveBeenCalledWith('aluno-1', {
-      companyContractId: 'contract-1',
-    });
+
+    const response = await request(app).get('/alunos/aluno-1/intake');
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.questionnaires.parq).toEqual({ q1: true });
+    expect(studentParqBoundaryService.getClinicalIntake).toHaveBeenCalledWith(
+      'contract-1',
+      'aluno-1'
+    );
+    expect(mockBlockAccessMiddleware).toHaveBeenCalledWith('students.details.health');
   });
 
   it('passes the authenticated contract to segmented profile reads', async () => {

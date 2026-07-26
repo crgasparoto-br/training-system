@@ -92,17 +92,6 @@ const assessmentKeys = [
   'assessmentDate',
 ] as const;
 
-const emptyParq = {
-  q1: false,
-  q2: false,
-  q3: false,
-  q4: false,
-  q5: false,
-  q6: false,
-  q7: false,
-  q8: false,
-};
-
 describe('PUT /alunos/:id assessment boundary', () => {
   const app = express();
 
@@ -160,7 +149,6 @@ describe('PUT /alunos/:id assessment boundary', () => {
           injuriesHistory: 'Sem lesões',
           trainingBackground: 'Treino atualizado',
           observations: 'Observação atualizada',
-          parqResponses: emptyParq,
           formResponses: {
             identification: {},
             financial: {},
@@ -177,8 +165,9 @@ describe('PUT /alunos/:id assessment boundary', () => {
     const [, payload] = mockAlunoService.update.mock.calls[0];
     const serializedPayload = JSON.stringify(payload);
     assessmentKeys.forEach((key) => {
-      expect(serializedPayload).not.toContain(`\"${key}\"`);
+      expect(serializedPayload).not.toContain(`"${key}"`);
     });
+    expect(serializedPayload).not.toContain('parqResponses');
 
     expect(response.body.data).toMatchObject({
       weight: 80,

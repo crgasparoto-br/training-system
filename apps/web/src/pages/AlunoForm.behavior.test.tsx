@@ -203,10 +203,8 @@ describe('AlunoForm assessment boundary behavior', () => {
       serviceId: 'service-1',
       schedulePlan: 'free',
       age: 30,
-      intakeForm: {
-        parqResponses: emptyParq,
-      },
     });
+    expect(payload.intakeForm).not.toHaveProperty('parqResponses');
     assertAssessmentFieldsAreAbsent(payload);
   });
 

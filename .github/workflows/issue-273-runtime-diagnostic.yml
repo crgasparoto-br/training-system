@@ -1,0 +1,80 @@
+name: Issue 273 Runtime Diagnostic
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - '.github/workflows/issue-273-runtime-diagnostic.yml'
+      - 'apps/api/scripts/verify-issue-273-parq.ts'
+      - 'apps/api/src/modules/alunos/student-parq-boundary.*'
+      - 'apps/api/src/modules/pre-registration-public/**'
+      - 'packages/types/**'
+      - 'packages/utils/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/training_system_test?schema=public&connection_limit=1&pool_timeout=30
+      PRISMA_CONNECTION_LIMIT: '1'
+      PRISMA_POOL_TIMEOUT_SECONDS: '30'
+      RUN_DATABASE_INTEGRATION_TESTS: 'true'
+      HEALTH_PRIVACY_NOTICE_VERSION: '2026-07'
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: training_system_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d training_system_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout audited merge preview
+        uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build shared packages
+        run: |
+          pnpm --filter @corrida/types build
+          pnpm --filter @corrida/utils build
+
+      - run: pnpm --filter @corrida/api exec prisma generate
+      - run: pnpm --filter @corrida/api exec prisma migrate deploy
+
+      - name: Run runtime verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm --filter @corrida/api exec tsx scripts/verify-issue-273-parq.ts \
+            2>&1 | tee issue-273-runtime-diagnostic.txt
+
+      - name: Upload runtime diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-273-runtime-diagnostic-${{ github.run_id }}
+          path: issue-273-runtime-diagnostic.txt
+          if-no-files-found: error
+          retention-days: 7

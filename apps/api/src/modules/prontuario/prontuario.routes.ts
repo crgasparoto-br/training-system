@@ -4,6 +4,8 @@ import { sendError, sendSuccess } from '@corrida/utils';
 import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js';
 import { blockAccessMiddleware, screenAccessMiddleware } from '../access-control/access-control.middleware.js';
 import { prontuarioService } from './prontuario.service.js';
+import { sanitizeProntuarioOverviewForSummary } from './prontuario-parq-boundary.js';
+import { ParqServiceError, preRegistrationParqService } from '../pre-registration-public/pre-registration-parq.service.js';
 
 const router: Router = Router();
 
@@ -23,22 +25,6 @@ const activityType = z.enum(['running', 'strength', 'mobility', 'sport', 'occupa
 const medicationProcedureType = z.enum(['medication', 'supplement', 'procedure', 'exam', 'therapy', 'other']);
 const painCaseStatus = z.enum(['active', 'monitoring', 'resolved', 'archived']);
 
-const parqSchema = z.object({
-  responses: z
-    .object({
-      q1: z.boolean(),
-      q2: z.boolean(),
-      q3: z.boolean(),
-      q4: z.boolean(),
-      q5: z.boolean(),
-      q6: z.boolean(),
-      q7: z.boolean(),
-      q8: z.boolean(),
-    })
-    .strict(),
-  notes: z.string().optional().nullable(),
-});
-
 const contextFromRequest = (req: Request) => ({
   contractId: (req as any).user.contractId as string | undefined,
   professorId: (req as any).user.professorId as string | undefined,
@@ -47,6 +33,10 @@ const contextFromRequest = (req: Request) => ({
 
 function handleError(res: Response, error: any, fallback: string) {
   if (error instanceof z.ZodError) return sendError(res, 'Dados inválidos', 400, error.errors);
+  if (error instanceof ParqServiceError) {
+    const status = error.code === 'NOT_FOUND' ? 404 : error.code === 'REVIEW_NOT_PENDING' ? 409 : error.code === 'LEGACY_WRITE_DISABLED' ? 410 : 400;
+    return sendError(res, error.message, status, { code: error.code });
+  }
   if (error?.message === 'Aluno não encontrado no contrato') return sendError(res, error.message, 404);
   console.error(fallback, error);
   return sendError(res, error?.message || fallback, 500);
@@ -60,7 +50,7 @@ router.get(
       const { contractId } = contextFromRequest(req);
       if (!contractId) return sendError(res, 'Contrato não encontrado', 404);
       const overview = await prontuarioService.overview(contractId, req.params.alunoId);
-      return sendSuccess(res, overview, 'PRNT carregado');
+      return sendSuccess(res, sanitizeProntuarioOverviewForSummary(overview), 'PRNT carregado');
     } catch (error) {
       return handleError(res, error, 'Erro ao carregar PRNT');
     }
@@ -78,17 +68,36 @@ router.get('/alunos/:alunoId/parq-submissions', blockAccessMiddleware('physicalA
   }
 });
 
-router.post('/alunos/:alunoId/parq-submissions', blockAccessMiddleware('physicalAssessment.prnt.actions.createParqSubmission'), async (req: Request, res: Response) => {
-  try {
-    const { contractId, userId } = contextFromRequest(req);
-    if (!contractId) return sendError(res, 'Contrato não encontrado', 404);
-    const payload = parqSchema.parse(req.body);
-    const submission = await prontuarioService.createParqSubmission(contractId, req.params.alunoId, userId, payload.responses, payload.notes);
-    return sendSuccess(res, submission, 'Submissão PAR-Q registrada', 201);
-  } catch (error) {
-    return handleError(res, error, 'Erro ao registrar submissão PAR-Q');
-  }
+router.post('/alunos/:alunoId/parq-submissions', async (_req: Request, res: Response) => {
+  return sendError(
+    res,
+    'Novas respostas do PAR-Q devem ser registradas pelo fluxo autenticado do questionário.',
+    410,
+    { code: 'LEGACY_WRITE_DISABLED' }
+  );
 });
+
+router.post(
+  '/alunos/:alunoId/parq-reviews/:reviewId/review',
+  blockAccessMiddleware('physicalAssessment.prnt.actions.reviewParq'),
+  async (req: Request, res: Response) => {
+    try {
+      const { contractId, professorId } = contextFromRequest(req);
+      if (!contractId || !professorId) return sendError(res, 'Cadastro não encontrado', 404);
+      const payload = z.object({ reviewNotes: z.string().trim().max(4000).nullable().optional() }).strict().parse(req.body);
+      const result = await preRegistrationParqService.reviewProfessional(
+        contractId,
+        req.params.alunoId,
+        req.params.reviewId,
+        professorId,
+        payload
+      );
+      return sendSuccess(res, result, 'Análise profissional do PAR-Q registrada');
+    } catch (error) {
+      return handleError(res, error, 'Erro ao analisar PAR-Q');
+    }
+  }
+);
 
 router.post(
   '/alunos/:alunoId/records',

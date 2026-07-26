@@ -1,3 +1,4 @@
+import { PARQ_CATALOG_VERSION, PARQ_LEGACY_CATALOG_VERSION } from '@corrida/types';
 import { PrismaClient } from '@prisma/client';
 import { studentContractService } from '../student-contracts/student-contract.service.js';
 
@@ -558,7 +559,11 @@ export const studentDomainService = {
         studentProfile: true,
         studentHealthIntake: true,
         parqSubmissions: {
-          orderBy: { submittedAt: 'desc' },
+          where: {
+            declarationAccepted: true,
+            catalogVersion: { in: [PARQ_CATALOG_VERSION, PARQ_LEGACY_CATALOG_VERSION] },
+          },
+          orderBy: [{ submittedAt: 'desc' }, { createdAt: 'desc' }],
           take: 1,
         },
         studentAssessmentRecords: {

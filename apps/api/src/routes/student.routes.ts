@@ -1,4 +1,4 @@
-﻿import { Router, Request, Response } from 'express';
+import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { sendError, sendSuccess } from '@corrida/utils';
 import { PrismaClient } from '@prisma/client';
@@ -398,6 +398,9 @@ router.post('/me/profile-reviews/:reviewId/complete', async (req: Request, res: 
   } catch (error: any) {
     if (error instanceof z.ZodError) {
       return sendError(res, 'Dados inválidos', 400, error.errors);
+    }
+    if (typeof error?.statusCode === 'number') {
+      return sendError(res, error.message, error.statusCode, { code: error.code });
     }
     if (error?.message?.includes('não encontrada')) {
       return sendError(res, error.message, 404);

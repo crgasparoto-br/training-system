@@ -1,3 +1,4 @@
+import { assertNoLegacyParqWrite } from './student-parq-legacy-cutover.js';
 import { Prisma, PrismaClient, StudentProfileReviewStatus } from '@prisma/client';
 import { notificationService } from '../notifications/notification.service.js';
 import { profileAuditService } from './profile-audit.service.js';
@@ -132,42 +133,6 @@ const SENSITIVE_FIELDS = new Set<string>([
   'aluno.maxHeartRate',
   'aluno.restingHeartRate',
 ]);
-
-const PARQ_LABELS: Record<string, string> = {
-  q1: 'Algum médico já disse que você possui problema no coração e recomendou atividade física apenas sob supervisão?',
-  q2: 'Você sente dor no peito causada pela prática de atividade física?',
-  q3: 'Você sentiu dor no peito no último mês?',
-  q4: 'Você perde o equilíbrio por tontura ou já perdeu a consciência?',
-  q5: 'Você tem problema ósseo ou articular que poderia piorar com atividade física?',
-  q6: 'Algum médico prescreveu medicamento para pressão arterial ou condição cardíaca?',
-  q7: 'Você conhece outro motivo para não realizar atividade física?',
-};
-
-const positiveParqItems = (responses: Record<string, unknown>) =>
-  Object.entries(PARQ_LABELS)
-    .filter(([key]) => responses[key] === true)
-    .map(([key, label]) => ({ key, label }));
-
-const resolveAlunoCompanyContractId = (alunoLike: {
-  contractId?: string | null;
-  professor?: { contractId?: string | null } | null;
-  currentStudentContract?: { contract?: { companyContractId?: string | null } | null } | null;
-}) =>
-  alunoLike.contractId ||
-  alunoLike.currentStudentContract?.contract?.companyContractId ||
-  alunoLike.professor?.contractId ||
-  null;
-
-const normalizeParqResponses = (responses: Record<string, unknown>) => ({
-  q1: responses.q1 === true,
-  q2: responses.q2 === true,
-  q3: responses.q3 === true,
-  q4: responses.q4 === true,
-  q5: responses.q5 === true,
-  q6: responses.q6 === true,
-  q7: responses.q7 === true,
-  q8: responses.q8 === true,
-});
 
 const EMPTY_PATCH = {
   profile: {},
@@ -429,13 +394,10 @@ const applyAlunoPatch = async (
   alunoUserId: string,
   patch: Record<string, unknown>
 ) => {
+  assertNoLegacyParqWrite(patch);
   const profilePatch = parseJsonRecord(patch.profile as Prisma.JsonValue | undefined);
   const alunoPatch = parseJsonRecord(patch.aluno as Prisma.JsonValue | undefined);
   const intakePatch = parseJsonRecord(patch.intakeForm as Prisma.JsonValue | undefined);
-  const normalizedParqResponses =
-    intakePatch.parqResponses && isPlainObject(intakePatch.parqResponses)
-      ? normalizeParqResponses(intakePatch.parqResponses)
-      : null;
 
   if (hasOwnValues(profilePatch)) {
     const scopedAluno = await tx.aluno.findUnique({
@@ -494,25 +456,12 @@ const applyAlunoPatch = async (
       select: {
         contractId: true,
         userId: true,
-        professor: { select: { contractId: true } },
-        currentStudentContract: {
-          select: {
-            contract: {
-              select: {
-                companyContractId: true,
-              },
-            },
-          },
-        },
       },
     });
     if (!aluno || aluno.userId !== alunoUserId) {
       throw new Error('Aluno não encontrado para aplicar revisão cadastral');
     }
-    const contractId = resolveAlunoCompanyContractId(aluno);
-    if (!contractId) {
-      throw new Error('Contrato do aluno não encontrado para aplicar revisão cadastral');
-    }
+    const contractId = aluno.contractId;
 
     if (hasCanonicalHealthIntakeMutation(healthPatch)) {
       await upsertCanonicalStudentHealthIntake(tx, {
@@ -522,20 +471,6 @@ const applyAlunoPatch = async (
         sourceReference: 'profile_review',
         recordedByUserId: alunoUserId,
         health: healthPatch,
-      });
-    }
-
-    if (normalizedParqResponses) {
-      await tx.studentParqSubmission.create({
-        data: {
-          alunoId,
-          contractId,
-          sourceType: 'student',
-          submittedByUserId: alunoUserId,
-          responses: normalizedParqResponses as Prisma.InputJsonValue,
-          positiveItems: positiveParqItems(normalizedParqResponses) as Prisma.InputJsonValue,
-          declarationAccepted: normalizedParqResponses.q8,
-        },
       });
     }
   }

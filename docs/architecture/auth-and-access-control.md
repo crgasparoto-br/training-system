@@ -49,6 +49,8 @@ Services importantes:
 3. `blockKey` so deve liberar acesso se a tela pai tambem estiver liberada.
 4. `dataScope` so deve existir para telas listadas em `ACCESS_DATA_SCOPE_SCREEN_KEYS`.
 5. Rotas que retornam colaboradores/professores devem respeitar `contractId` e escopo efetivo.
+6. Um endpoint protegido por um bloco de resumo nao pode incorporar dados pertencentes a outro `blockKey`; detalhes de blocos irmaos devem ser carregados por uma fronteira dedicada que aplique a permissao correspondente.
+7. A sanitizacao deve ocorrer no backend antes da serializacao. Ocultar um card no frontend ou tratar `403` no cliente nao substitui o contrato de saida minimo.
 
 ## Padrao para novas permissoes
 

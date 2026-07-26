@@ -4,6 +4,7 @@ import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js'
 import { blockAccessMiddleware } from '../access-control/access-control.middleware.js';
 import { alunoService } from './aluno.service.js';
 import { studentDomainService } from './student-domain.service.js';
+import { studentParqBoundaryService } from './student-parq-boundary.service.js';
 
 const router: Router = Router();
 
@@ -44,13 +45,10 @@ router.get(
     try {
       const { id } = req.params;
       const { contractId } = getProfessorContext(req);
-      if (!(await ensureAlunoAccess(req, res, id))) {
-        return;
-      }
+      if (!contractId) return sendError(res, 'Contrato não encontrado', 404);
+      if (!(await ensureAlunoAccess(req, res, id))) return;
 
-      const summary = await studentDomainService.getSummary(id, {
-        companyContractId: contractId,
-      });
+      const summary = await studentParqBoundaryService.getAdministrativeSummary(contractId, id);
       if (!summary) {
         return sendError(res, 'Aluno não encontrado', 404);
       }
@@ -96,13 +94,10 @@ router.get(
     try {
       const { id } = req.params;
       const { contractId } = getProfessorContext(req);
-      if (!(await ensureAlunoAccess(req, res, id))) {
-        return;
-      }
+      if (!contractId) return sendError(res, 'Contrato não encontrado', 404);
+      if (!(await ensureAlunoAccess(req, res, id))) return;
 
-      const intake = await studentDomainService.getHealthIntake(id, {
-        companyContractId: contractId,
-      });
+      const intake = await studentParqBoundaryService.getClinicalIntake(contractId, id);
       if (!intake) {
         return sendError(res, 'Aluno não encontrado', 404);
       }

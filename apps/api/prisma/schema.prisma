@@ -27,6 +27,10 @@ model User {
   guardianAuthorizationsAsGuardian    PreRegistrationGuardianAuthorization[] @relation("GuardianAuthorizationGuardian")
   guardianAuthorizationsValidatedBy   PreRegistrationGuardianAuthorization[] @relation("GuardianAuthorizationValidatedBy")
   guardianAuthorizationsRevokedBy     PreRegistrationGuardianAuthorization[] @relation("GuardianAuthorizationRevokedBy")
+  parqSubmissionsSubmitted             StudentParqSubmission[] @relation("StudentParqSubmittedBy")
+  parqDraftConsents                    StudentParqDraft[] @relation("StudentParqDraftConsent")
+  parqConsentsAccepted                 StudentOnboardingProcess[] @relation("StudentParqConsentAcceptedBy")
+  parqConsentsRevoked                  StudentOnboardingProcess[] @relation("StudentParqConsentRevokedBy")
 
   @@index([email])
 }
@@ -131,6 +135,9 @@ model CompanyContract {
   studentExternalActivities     StudentExternalActivity[]
   profileReviewPolicies         ProfileReviewPolicy[]
   studentParqSubmissions        StudentParqSubmission[]
+  studentParqDrafts              StudentParqDraft[]
+  studentParqProfessionalReviews StudentParqProfessionalReview[]
+  studentParqLegacyRecords       StudentParqLegacyRecord[]
   prontuarioRecords             ProntuarioRecord[]
   prontuarioDiscomfortSnapshots ProntuarioDiscomfortSnapshot[]
   alunos                        Aluno[]                        @relation("AlunoContract")
@@ -364,6 +371,7 @@ model Professor {
   library                         TrainingLibrary[]
   plans                           TrainingPlan[]
   Assessment                      Assessment[]
+  parqReviewsCompleted           StudentParqProfessionalReview[] @relation("StudentParqReviewedBy")
 
   @@index([collaboratorFunctionId])
   @@index([responsibleManagerId])
@@ -476,6 +484,9 @@ model Aluno {
   studentExternalAccounts       StudentExternalAccount[]
   studentExternalActivities     StudentExternalActivity[]
   parqSubmissions               StudentParqSubmission[]
+  parqDraft                     StudentParqDraft?
+  parqProfessionalReviews       StudentParqProfessionalReview[]
+  parqLegacyRecords             StudentParqLegacyRecord[]
   prontuarioRecords             ProntuarioRecord[]
   prontuarioDiscomfortSnapshots ProntuarioDiscomfortSnapshot[]
   onboarding                    StudentOnboardingProcess?
@@ -532,6 +543,13 @@ enum StudentLifecycleEventType {
   HEALTH_INTAKE_SAVED
   HEALTH_INTAKE_COMPLETED
   HEALTH_INTAKE_MIGRATED
+  PARQ_STARTED
+  PARQ_SAVED
+  PARQ_COMPLETED
+  PARQ_MIGRATED
+  PARQ_REVIEWED
+  PARQ_CONSENT_ACCEPTED
+  PARQ_CONSENT_REVOKED
   ADMIN_REVIEWED
   DISCARDED
   REOPENED
@@ -565,6 +583,13 @@ model StudentOnboardingProcess {
   healthLastSavedAt     DateTime?
   healthCompletedAt     DateTime?
   parqModuleStatus      StudentOnboardingModuleStatus @default(NOT_STARTED)
+  parqSubmissionId      String?                       @unique
+  parqConsentVersion              Int      @default(1)
+  parqConsentNoticeVersion        String?
+  parqConsentAcceptedAt           DateTime?
+  parqConsentAcceptedByUserId     String?
+  parqConsentRevokedAt            DateTime?
+  parqConsentRevokedByUserId      String?
   // --- Pre-matricula publica autenticada e resumivel (issue #271) ---
   // version e usado para deteccao otimista de concorrencia (edicao simultanea
   // em duas abas/dispositivos). currentStep e claimRole sao restritos por
@@ -580,6 +605,9 @@ model StudentOnboardingProcess {
   aluno                 Aluno                         @relation(fields: [alunoId], references: [id], onDelete: Cascade)
   contract              CompanyContract               @relation(fields: [contractId], references: [id], onDelete: Cascade)
   healthIntake          StudentHealthIntake?           @relation("OnboardingHealthIntake", fields: [healthIntakeId], references: [id], onDelete: SetNull)
+  parqSubmission        StudentParqSubmission?         @relation("OnboardingParqSubmission", fields: [parqSubmissionId], references: [id], onDelete: SetNull)
+  parqConsentAcceptedBy User? @relation("StudentParqConsentAcceptedBy", fields: [parqConsentAcceptedByUserId], references: [id], onDelete: Restrict)
+  parqConsentRevokedBy  User? @relation("StudentParqConsentRevokedBy", fields: [parqConsentRevokedByUserId], references: [id], onDelete: Restrict)
 
   @@index([contractId])
   @@index([claimedByUserId])
@@ -1757,24 +1785,103 @@ model StudentHealthIntake {
 }
 
 model StudentParqSubmission {
-  id                  String                        @id @default(cuid())
+  id                  String                  @id @default(cuid())
   alunoId             String
   contractId          String
-  sourceType          StudentRecordSourceType       @default(student)
+  sourceType          StudentRecordSourceType @default(student)
   submittedByUserId   String?
-  submittedAt         DateTime                      @default(now())
+  submittedAt         DateTime                @default(now())
+  catalogVersion      String
   responses           Json
   positiveItems       Json?
-  declarationAccepted Boolean                       @default(false)
+  positiveCount       Int                     @default(0)
+  declarationAccepted Boolean                 @default(false)
   notes               String?
-  createdAt           DateTime                      @default(now())
-  updatedAt           DateTime                      @updatedAt
-  aluno               Aluno                         @relation(fields: [alunoId], references: [id], onDelete: Cascade)
-  contract            CompanyContract               @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  legacySourceType    String?
+  legacySourceId      String?
+  idempotencyKey      String?
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+  aluno               Aluno                   @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  contract            CompanyContract         @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  submittedBy         User?                   @relation("StudentParqSubmittedBy", fields: [submittedByUserId], references: [id], onDelete: SetNull)
+  professionalReview  StudentParqProfessionalReview?
+  onboardingProcess   StudentOnboardingProcess? @relation("OnboardingParqSubmission")
   followUps           ProntuarioAnamnesisFollowUp[]
+  legacyRecords       StudentParqLegacyRecord[]
 
+  @@unique([alunoId, idempotencyKey])
+  @@unique([legacySourceType, legacySourceId])
   @@index([contractId, submittedAt])
   @@index([alunoId, submittedAt])
+  @@index([catalogVersion])
+}
+
+model StudentParqDraft {
+  id                      String          @id @default(cuid())
+  alunoId                 String          @unique
+  contractId              String
+  catalogVersion          String
+  responses               Json
+  version                 Int             @default(1)
+  consentNoticeVersion    String
+  consentAcceptedAt       DateTime
+  consentAcceptedByUserId String
+  lastSavedAt             DateTime        @default(now())
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
+  aluno                    Aluno           @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  contract                 CompanyContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  consentAcceptedBy        User            @relation("StudentParqDraftConsent", fields: [consentAcceptedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([contractId, lastSavedAt])
+}
+
+model StudentParqProfessionalReview {
+  id                    String          @id @default(cuid())
+  submissionId          String          @unique
+  alunoId               String
+  contractId            String
+  status                String          @default("PENDING")
+  positiveCount         Int
+  positiveItems         Json
+  reviewedByProfessorId String?
+  reviewedAt            DateTime?
+  reviewNotes           String?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  submission            StudentParqSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  aluno                 Aluno           @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  contract              CompanyContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  reviewedByProfessor   Professor?      @relation("StudentParqReviewedBy", fields: [reviewedByProfessorId], references: [id], onDelete: SetNull)
+
+  @@index([contractId, status, createdAt])
+  @@index([alunoId, createdAt])
+}
+
+model StudentParqLegacyRecord {
+  id                    String          @id @default(cuid())
+  sourceType            String
+  sourceId              String
+  alunoId               String
+  contractId            String
+  rawResponses          Json
+  observedAt            DateTime?
+  sourceActorUserId     String?
+  fingerprint           String
+  migrationStatus       String
+  migrationReason       String?
+  mappedSubmissionId    String?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  aluno                 Aluno           @relation(fields: [alunoId], references: [id], onDelete: Cascade)
+  contract              CompanyContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  mappedSubmission      StudentParqSubmission? @relation(fields: [mappedSubmissionId], references: [id], onDelete: SetNull)
+
+  @@unique([sourceType, sourceId])
+  @@index([alunoId, migrationStatus])
+  @@index([contractId, migrationStatus])
+  @@index([fingerprint])
 }
 
 model ProntuarioRecord {

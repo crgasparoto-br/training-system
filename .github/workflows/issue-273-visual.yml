@@ -1,0 +1,137 @@
+name: Issue 273 Visual Evidence
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - '.github/workflows/issue-273-visual.yml'
+      - 'apps/api/scripts/visual-audit-issue-273.mjs'
+      - 'apps/web/src/pages/PublicPreRegistration/Parq*'
+      - 'apps/web/src/pages/PublicPreRegistration/PublicPreRegistration.tsx'
+      - 'apps/web/src/services/pre-registration-public.service.ts'
+      - 'apps/web/src/stores/useAuthStore.ts'
+      - 'apps/web/src/index.css'
+      - 'apps/web/src/App.tsx'
+      - 'packages/types/pre-registration-parq.ts'
+      - 'docs/product/pre-registration-parq.md'
+      - 'docs/operations/parq-cutover.md'
+      - 'docs/execution-plans/completed/2026-07-issue-273-canonical-parq.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  visual:
+    name: Audit PAR-Q responsive and accessible states
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      VITE_API_URL: ''
+      ISSUE_273_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+    steps:
+      - name: Checkout audited merge preview
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chrome for Puppeteer
+        run: pnpm --filter @corrida/api exec puppeteer browsers install chrome
+
+      - name: Build shared packages and web application
+        run: |
+          pnpm --filter @corrida/types build
+          pnpm --filter @corrida/utils build
+          pnpm --filter @corrida/web build
+
+      - name: Execute PAR-Q visual evidence matrix
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @corrida/api exec node scripts/visual-audit-issue-273.mjs \
+            2>&1 | tee issue-273-visual.log
+
+      - name: Validate visual evidence inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path('artifacts/issue-273-visual')
+          metrics = json.loads((root / 'visual-metrics.json').read_text(encoding='utf-8'))
+          if metrics.get('schema_version') != 2:
+              raise SystemExit('visual metrics schema version is not 2')
+          routes = metrics.get('routes') or []
+          if len(routes) != 1:
+              raise SystemExit('expected exactly one audited PAR-Q route')
+          route = routes[0]
+          if len(set(route.get('viewports') or [])) < 3:
+              raise SystemExit('visual evidence does not contain three distinct viewports')
+          if route.get('keyboard_only') is not True:
+              raise SystemExit('keyboard-only flow was not recorded')
+          if route.get('long_content_or_zoom') is not True:
+              raise SystemExit('long-content coverage was not recorded')
+          scenarios = route.get('scenarios') or []
+          if len(scenarios) != 4:
+              raise SystemExit('expected four visual scenarios')
+          for scenario in scenarios:
+              for key in ('screenshot', 'diagnostics', 'accessibilityTree'):
+                  path = Path(scenario[key])
+                  if not path.is_file() or path.stat().st_size == 0:
+                      raise SystemExit(f'missing or empty visual result: {path}')
+          keyboard = next(item for item in scenarios if item['name'] == 'parq-form-desktop')
+          if len(keyboard.get('controlInteractions') or []) < 10:
+              raise SystemExit('keyboard control matrix is incomplete')
+          PY
+
+      - name: Create visual evidence attestation
+        if: always()
+        shell: bash
+        env:
+          AUDIT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          AUDIT_BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+          AUDIT_MERGE_PREVIEW_SHA: ${{ github.event_name == 'pull_request' && github.sha || '' }}
+        run: |
+          cat > issue-273-visual-attestation.json <<JSON
+          {
+            "schemaVersion": 1,
+            "kind": "issue-273-visual-evidence",
+            "repository": "${GITHUB_REPOSITORY}",
+            "workflow": "${GITHUB_WORKFLOW}",
+            "runId": "${GITHUB_RUN_ID}",
+            "runAttempt": "${GITHUB_RUN_ATTEMPT}",
+            "eventName": "${GITHUB_EVENT_NAME}",
+            "headSha": "${AUDIT_HEAD_SHA}",
+            "baseSha": "${AUDIT_BASE_SHA}",
+            "mergePreviewSha": "${AUDIT_MERGE_PREVIEW_SHA}"
+          }
+          JSON
+
+      - name: Upload PAR-Q screenshots and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-273-visual-evidence-${{ github.run_id }}
+          path: |
+            artifacts/issue-273-visual/*.png
+            artifacts/issue-273-visual/*.json
+            issue-273-visual.log
+            issue-273-visual-attestation.json
+          if-no-files-found: error
+          retention-days: 14

@@ -107,10 +107,16 @@ timestamps de retomada/conclusão. `StudentOnboardingProcess` guarda apenas
 `healthIntakeId`, `healthModuleStatus` e timestamps do processo; nenhuma
 resposta clínica é copiada para o onboarding.
 
-`StudentParqSubmission` é a fonte independente do PAR-Q. Campos históricos de
-PAR-Q em `AlunoIntakeForm` ou `StudentHealthIntake.questionnaireParq` são
-compatibilidade somente leitura e não recebem novas escritas. O mesmo vale para
-`AlunoIntakeForm`, cujo cutover e backfill estão documentados em
+`StudentParqSubmission` é a fonte independente e histórica do PAR-Q. O catálogo
+compartilhado versionado, o rascunho, a conclusão idempotente e a análise
+profissional estão definidos em
+[`../product/pre-registration-parq.md`](../product/pre-registration-parq.md).
+`StudentOnboardingProcess` guarda somente `parqSubmissionId`, estado e timestamps.
+Campos históricos em `AlunoIntakeForm` ou
+`StudentHealthIntake.questionnaireParq` são compatibilidade somente leitura e
+não recebem novas escritas. A reconciliação e o rollback estão documentados em
+[`../operations/parq-cutover.md`](../operations/parq-cutover.md); o corte da
+Anamnese permanece em
 [`../operations/health-intake-cutover.md`](../operations/health-intake-cutover.md).
 
 O módulo público da Anamnese reutiliza a autorização autenticada e tenant-scoped

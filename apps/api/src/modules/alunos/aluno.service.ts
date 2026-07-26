@@ -10,52 +10,14 @@ import {
   hasCanonicalHealthIntakeValue,
   upsertCanonicalStudentHealthIntake,
 } from './student-health-intake-write.service.js';
+import { preRegistrationParqService } from '../pre-registration-public/pre-registration-parq.service.js';
+import { assertNoLegacyParqWrite } from './student-parq-legacy-cutover.js';
 import {
   syncStudentFixedSchedule,
   type FixedScheduleSlotInput,
 } from '../agenda/fixed-schedule.service.js';
 
 const prisma = new PrismaClient();
-
-const PARQ_LABELS: Record<string, string> = {
-  q1: 'Algum médico já disse que você possui problema no coração e recomendou atividade física apenas sob supervisão?',
-  q2: 'Você sente dor no peito causada pela prática de atividade física?',
-  q3: 'Você sentiu dor no peito no último mês?',
-  q4: 'Você perde o equilíbrio por tontura ou já perdeu a consciência?',
-  q5: 'Você tem problema ósseo ou articular que poderia piorar com atividade física?',
-  q6: 'Algum médico prescreveu medicamento para pressão arterial ou condição cardíaca?',
-  q7: 'Você conhece outro motivo para não realizar atividade física?',
-};
-
-type ParqResponseShape = {
-  q1: boolean;
-  q2: boolean;
-  q3: boolean;
-  q4: boolean;
-  q5: boolean;
-  q6: boolean;
-  q7: boolean;
-  q8: boolean;
-};
-
-const normalizeParqResponses = (responses?: Partial<ParqResponseShape> | null): ParqResponseShape | null => {
-  if (!responses) return null;
-  return {
-    q1: responses.q1 === true,
-    q2: responses.q2 === true,
-    q3: responses.q3 === true,
-    q4: responses.q4 === true,
-    q5: responses.q5 === true,
-    q6: responses.q6 === true,
-    q7: responses.q7 === true,
-    q8: responses.q8 === true,
-  };
-};
-
-const positiveParqItems = (responses: ParqResponseShape) =>
-  Object.entries(PARQ_LABELS)
-    .filter(([key]) => responses[key as keyof ParqResponseShape] === true)
-    .map(([key, label]) => ({ key, label }));
 
 const resolveAlunoCompanyContractId = (alunoLike: {
   contractId?: string | null;
@@ -66,49 +28,6 @@ const resolveAlunoCompanyContractId = (alunoLike: {
   alunoLike.currentStudentContract?.contract?.companyContractId ||
   alunoLike.professor?.contractId ||
   null;
-
-const createParqSubmission = async (
-  tx: Prisma.TransactionClient,
-  data: {
-    alunoId: string;
-    contractId: string;
-    sourceType: 'student' | 'professional' | 'integration' | 'system';
-    submittedByUserId?: string;
-    responses?: Partial<ParqResponseShape> | null;
-  }
-) => {
-  const normalized = normalizeParqResponses(data.responses);
-  if (!normalized) return;
-
-  await tx.studentParqSubmission.create({
-    data: {
-      alunoId: data.alunoId,
-      contractId: data.contractId,
-      sourceType: data.sourceType,
-      submittedByUserId: data.submittedByUserId,
-      responses: normalized as Prisma.InputJsonValue,
-      positiveItems: positiveParqItems(normalized) as Prisma.InputJsonValue,
-      declarationAccepted: normalized.q8,
-    },
-  });
-};
-
-const hasParqResponsesChanged = (
-  currentResponses: Partial<ParqResponseShape> | null | undefined,
-  nextResponses?: Partial<ParqResponseShape> | null
-) => {
-  const nextNormalized = normalizeParqResponses(nextResponses);
-  if (!nextNormalized) {
-    return false;
-  }
-
-  const currentNormalized = normalizeParqResponses(currentResponses);
-  if (!currentNormalized) {
-    return true;
-  }
-
-  return JSON.stringify(currentNormalized) !== JSON.stringify(nextNormalized);
-};
 
 export interface CreateAlunoDTO {
   name: string;
@@ -242,6 +161,7 @@ export const alunoService = {
    * Criar novo aluno
    */
   async create(data: CreateAlunoDTO) {
+    assertNoLegacyParqWrite(data);
     const existingUser = await prisma.user.findUnique({
       where: { email: data.email },
     });
@@ -371,13 +291,6 @@ export const alunoService = {
             health: data.intakeForm,
           });
         }
-
-        await createParqSubmission(tx, {
-          alunoId: aluno.id,
-          contractId: professor.contractId,
-          sourceType: 'professional',
-          responses: data.intakeForm.parqResponses,
-        });
       }
 
       if (data.intakeForm?.assessmentDate) {
@@ -643,7 +556,7 @@ export const alunoService = {
    * Obter aluno por ID
    */
   async findById(id: string) {
-    return await prisma.aluno.findUnique({
+    const aluno = await prisma.aluno.findUnique({
       where: { id },
       include: {
         user: {
@@ -677,12 +590,16 @@ export const alunoService = {
         },
       },
     });
+    if (!aluno) return null;
+    const parq = await preRegistrationParqService.summary(aluno.contractId, aluno.id);
+    return { ...aluno, parq };
   },
 
   /**
    * Atualizar aluno
    */
   async update(id: string, data: UpdateAlunoDTO) {
+    assertNoLegacyParqWrite(data);
     const {
       avatar,
       professorId,
@@ -817,15 +734,6 @@ export const alunoService = {
             sourceType: 'professional',
             sourceReference: 'legacy_admin_update',
             health: intakeForm,
-          });
-        }
-
-        if (hasParqResponsesChanged(currentAluno.intakeForm?.parqResponses as Partial<ParqResponseShape> | null | undefined, intakeForm.parqResponses)) {
-          await createParqSubmission(tx, {
-            alunoId: id,
-            contractId: alunoContractId,
-            sourceType: 'professional',
-            responses: intakeForm.parqResponses,
           });
         }
       }

@@ -25,6 +25,7 @@ import { preRegistrationAdminRoutes } from './modules/pre-registration-admin/ind
 import {
   preRegistrationAuthenticatedRoutes,
   preRegistrationHealthIntakeRoutes,
+  preRegistrationParqRoutes,
   preRegistrationPublicEntryRoutes,
 } from './modules/pre-registration-public/index.js';
 import {
@@ -140,6 +141,7 @@ app.get('/api/v1', (_req, res) => {
       preRegistrationInvites: '/api/v1/alunos/:alunoId/pre-registration-invites',
       preRegistrationInvitePublic: '/api/v1/pre-cadastro/:token',
       preRegistrationAuthenticated: '/api/v1/pre-registration/session',
+      preRegistrationParq: '/api/v1/pre-registration/processes/:alunoId/parq',
     },
   });
 });
@@ -149,6 +151,7 @@ app.use('/api/v1/assessment-types', assessmentTypeRoutes);
 app.use('/api/v1/pre-registration-admin', preRegistrationAdminRoutes);
 app.use('/api/v1/pre-registration', preRegistrationAuthenticatedRoutes);
 app.use('/api/v1/pre-registration', preRegistrationHealthIntakeRoutes);
+app.use('/api/v1/pre-registration', preRegistrationParqRoutes);
 
 // Public student avatar upload must use external storage before the legacy module.
 app.use('/api/v1/alunos', alunoAvatarUploadRoutes);

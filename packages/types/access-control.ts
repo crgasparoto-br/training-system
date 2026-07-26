@@ -98,7 +98,6 @@ export const ACCESS_PERMISSION_GROUPS = [
 
 export const ACCESS_BLOCK_CATALOG = [
   { key: 'students.registration.identification', screenKey: 'students.registration', label: 'Aba Identificação' },
-  { key: 'students.registration.parq', screenKey: 'students.registration', label: 'Aba Questionário PAR-Q' },
   { key: 'students.registration.aha', screenKey: 'students.registration', label: 'Aba Questionário American Heart Association' },
   { key: 'students.registration.financial', screenKey: 'students.registration', label: 'Aba Financeiro' },
   { key: 'students.registration.preferences', screenKey: 'students.registration', label: 'Aba Preferências' },
@@ -143,7 +142,7 @@ export const ACCESS_BLOCK_CATALOG = [
   { key: 'physicalAssessment.prnt.painCases', screenKey: 'physicalAssessment.protocol', label: 'PRNT: Casos de dor' },
   { key: 'physicalAssessment.prnt.discomforts', screenKey: 'physicalAssessment.protocol', label: 'PRNT: Desconfortos' },
   { key: 'physicalAssessment.prnt.parqSubmissions', screenKey: 'physicalAssessment.protocol', label: 'PRNT: Submissoes PAR-Q' },
-  { key: 'physicalAssessment.prnt.actions.createParqSubmission', screenKey: 'physicalAssessment.protocol', label: 'PRNT: Acao criar submissao PAR-Q' },
+  { key: 'physicalAssessment.prnt.actions.reviewParq', screenKey: 'physicalAssessment.protocol', label: 'PRNT: Ação analisar pendência PAR-Q' },
   { key: 'physicalAssessment.prnt.actions.createRecord', screenKey: 'physicalAssessment.protocol', label: 'PRNT: Acao criar registro' },
   { key: 'physicalAssessment.prnt.actions.editRecord', screenKey: 'physicalAssessment.protocol', label: 'PRNT: Acao editar registro' },
   { key: 'physicalAssessment.prnt.actions.closeFollowUp', screenKey: 'physicalAssessment.protocol', label: 'PRNT: Acao encerrar acompanhamento' },
@@ -241,7 +240,6 @@ export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
     ],
     blocks: [
       'students.registration.identification',
-      'students.registration.parq',
       'students.registration.aha',
       'students.registration.financial',
       'students.registration.preferences',
@@ -267,7 +265,7 @@ export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
       'physicalAssessment.prnt.painCases',
       'physicalAssessment.prnt.discomforts',
       'physicalAssessment.prnt.parqSubmissions',
-      'physicalAssessment.prnt.actions.createParqSubmission',
+      'physicalAssessment.prnt.actions.reviewParq',
       'physicalAssessment.prnt.actions.createRecord',
       'physicalAssessment.prnt.actions.editRecord',
       'physicalAssessment.prnt.actions.closeFollowUp',
@@ -294,7 +292,6 @@ export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
     ],
     blocks: [
       'students.registration.identification',
-      'students.registration.parq',
       'students.registration.aha',
       'students.registration.financial',
       'students.registration.preferences',
@@ -333,7 +330,7 @@ export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
       'physicalAssessment.prnt.painCases',
       'physicalAssessment.prnt.discomforts',
       'physicalAssessment.prnt.parqSubmissions',
-      'physicalAssessment.prnt.actions.createParqSubmission',
+      'physicalAssessment.prnt.actions.reviewParq',
       'physicalAssessment.prnt.actions.createRecord',
       'physicalAssessment.prnt.actions.editRecord',
       'physicalAssessment.prnt.actions.closeFollowUp',

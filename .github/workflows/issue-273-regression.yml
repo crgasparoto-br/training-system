@@ -1,0 +1,221 @@
+name: Issue 273 Regression Evidence
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - '.github/workflows/issue-273-regression.yml'
+      - '.github/workflows/issue-273-runtime-diagnostic.yml'
+      - '.github/workflows/issue-273-visual.yml'
+      - 'apps/api/prisma/**'
+      - 'prisma/**'
+      - 'scripts/verify-issue-273-parq-migration.sh'
+      - 'apps/api/src/modules/pre-registration-public/**'
+      - 'apps/api/src/modules/alunos/aluno.service.ts'
+      - 'apps/api/src/modules/alunos/index.ts'
+      - 'apps/api/src/modules/alunos/student-domain.routes.ts'
+      - 'apps/api/src/modules/alunos/student-parq-boundary.*'
+      - 'apps/api/src/modules/alunos/student-parq-legacy-cutover.ts'
+      - 'apps/api/src/modules/prontuario/**'
+      - 'apps/api/scripts/verify-issue-273-parq.ts'
+      - 'apps/api/scripts/visual-audit-issue-273.mjs'
+      - 'apps/api/tests/*parq*'
+      - 'apps/api/tests/prontuario.routes*.test.ts'
+      - 'apps/api/tests/aluno-segmented.routes.test.ts'
+      - 'apps/web/src/pages/PublicPreRegistration/Parq*'
+      - 'apps/web/src/services/pre-registration-public.service.ts'
+      - 'apps/web/src/services/prontuario.service*'
+      - 'apps/web/src/services/aluno.service.ts'
+      - 'apps/web/src/components/alunos/AlunoResumoHubTab*'
+      - 'packages/types/pre-registration-parq.ts'
+      - 'packages/types/prontuario.ts'
+      - 'packages/utils/aluno-validations.ts'
+      - 'packages/utils/index.ts'
+      - 'docs/architecture/auth-and-access-control.md'
+      - 'docs/product/pre-registration-parq.md'
+      - 'docs/operations/parq-cutover.md'
+      - 'docs/execution-plans/completed/2026-07-issue-273-canonical-parq.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    name: Validate canonical PAR-Q remediation
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/training_system_test?schema=public&connection_limit=1&pool_timeout=30
+      PRISMA_CONNECTION_LIMIT: '1'
+      PRISMA_POOL_TIMEOUT_SECONDS: '30'
+      RUN_DATABASE_INTEGRATION_TESTS: 'true'
+      HEALTH_PRIVACY_NOTICE_VERSION: '2026-07'
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: training_system_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d training_system_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout audited merge preview
+        uses: actions/checkout@v4
+
+      - name: Create evidence attestation
+        shell: bash
+        env:
+          AUDIT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          AUDIT_BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+          AUDIT_MERGE_PREVIEW_SHA: ${{ github.event_name == 'pull_request' && github.sha || '' }}
+        run: |
+          cat > issue-273-attestation.json <<JSON
+          {
+            "schemaVersion": 1,
+            "kind": "issue-273-regression-evidence",
+            "repository": "${GITHUB_REPOSITORY}",
+            "workflow": "${GITHUB_WORKFLOW}",
+            "runId": "${GITHUB_RUN_ID}",
+            "runAttempt": "${GITHUB_RUN_ATTEMPT}",
+            "eventName": "${GITHUB_EVENT_NAME}",
+            "headSha": "${AUDIT_HEAD_SHA}",
+            "baseSha": "${AUDIT_BASE_SHA}",
+            "mergePreviewSha": "${AUDIT_MERGE_PREVIEW_SHA}"
+          }
+          JSON
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared packages
+        run: |
+          pnpm --filter @corrida/types build
+          pnpm --filter @corrida/utils build
+
+      - name: Generate Prisma client
+        run: pnpm --filter @corrida/api exec prisma generate
+
+      - name: Verify legacy migration reconciliation and rerun
+        shell: bash
+        run: |
+          set -o pipefail
+          bash scripts/verify-issue-273-parq-migration.sh \
+            2>&1 | tee issue-273-legacy-migration.log
+
+      - name: Apply migrations
+        run: |
+          set -o pipefail
+          pnpm --filter @corrida/api exec prisma migrate deploy 2>&1 | tee issue-273-migrations.log
+
+      - name: Run focused API contracts
+        run: |
+          set -o pipefail
+          pnpm --filter @corrida/api test -- --runInBand \
+            pre-registration-parq.domain.test.ts \
+            pre-registration-parq.routes.test.ts \
+            issue-273-parq-migration.test.ts \
+            aluno.service.test.ts \
+            aluno-parq-write-contract.test.ts \
+            student-parq-boundary.service.test.ts \
+            student-parq-boundary.routes.test.ts \
+            prontuario-parq-boundary.test.ts \
+            prontuario.routes.integration.test.ts \
+            prontuario.routes.test.ts \
+            aluno-segmented.routes.test.ts 2>&1 | tee issue-273-api-tests.log
+
+      - name: Run PostgreSQL runtime verification
+        run: |
+          set -o pipefail
+          pnpm --filter @corrida/api exec tsx scripts/verify-issue-273-parq.ts 2>&1 | tee issue-273-runtime.log
+
+      - name: Verify corrective migration rerun
+        run: |
+          set -o pipefail
+          docker run --rm --network host \
+            -v "$GITHUB_WORKSPACE:/workspace" \
+            -e PGPASSWORD=postgres \
+            postgres:16-alpine \
+            psql -h localhost -U postgres -d training_system_test -v ON_ERROR_STOP=1 \
+            -f /workspace/apps/api/prisma/migrations/20260726010000_issue_273_audit_fixes/migration.sql \
+            2>&1 | tee issue-273-migration-rerun.log
+
+      - name: Run focused web contracts
+        run: |
+          set -o pipefail
+          pnpm --filter @corrida/web exec vitest run \
+            src/pages/PublicPreRegistration/Parq.behavior.test.tsx \
+            src/pages/PublicPreRegistration/Parq.final.test.tsx \
+            src/components/alunos/AlunoResumoHubTab.test.tsx \
+            src/services/prontuario.service.parq-access.test.ts \
+            2>&1 | tee issue-273-web-tests.log
+
+      - name: Type check affected workspaces
+        run: |
+          set -o pipefail
+          pnpm --filter @corrida/api type-check 2>&1 | tee issue-273-api-type-check.log
+          pnpm --filter @corrida/web type-check 2>&1 | tee issue-273-web-type-check.log
+
+      - name: Verify read-only workflows and payload cleanup
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY2'
+          from pathlib import Path
+
+          for name in (
+              '.github/workflows/issue-273-regression.yml',
+              '.github/workflows/issue-273-runtime-diagnostic.yml',
+              '.github/workflows/issue-273-visual.yml',
+          ):
+              workflow = Path(name).read_text(encoding='utf-8')
+              forbidden = [
+                  'contents:' + ' write',
+                  'git ' + 'push',
+                  'git ' + 'commit',
+                  'exit ' + '0',
+              ]
+              for marker in forbidden:
+                  if marker in workflow:
+                      raise SystemExit(f'{name}: write-capable or failure-masking marker found: {marker}')
+
+          if Path('.issue273').exists():
+              raise SystemExit('temporary .issue273 payload directory still exists')
+          PY2
+
+      - name: Upload issue evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-273-regression-evidence-${{ github.run_id }}
+          path: |
+            issue-273-attestation.json
+            issue-273-legacy-migration.log
+            issue-273-migrations.log
+            issue-273-api-tests.log
+            issue-273-runtime.log
+            issue-273-migration-rerun.log
+            issue-273-web-tests.log
+            issue-273-api-type-check.log
+            issue-273-web-type-check.log
+          if-no-files-found: ignore
+          retention-days: 7

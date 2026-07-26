@@ -4,23 +4,12 @@ export type ProntuarioActivityType = 'running' | 'strength' | 'mobility' | 'spor
 export type ProntuarioMedicationProcedureType = 'medication' | 'supplement' | 'procedure' | 'exam' | 'therapy' | 'other';
 export type ProntuarioPainCaseStatus = 'active' | 'monitoring' | 'resolved' | 'archived';
 
-export type StudentParqResponses = Record<string, boolean>;
+export type { ParqResponses as StudentParqResponses, ParqPositiveItem as StudentParqPositiveItem, ParqSubmissionDTO as StudentParqSubmission } from './pre-registration-parq.js';
 
-export interface StudentParqPositiveItem {
-  key: string;
-  label: string;
-}
-
-export interface StudentParqSubmission {
-  id: string;
-  alunoId: string;
-  contractId: string;
-  submittedAt: string;
-  responses: StudentParqResponses;
-  positiveItems?: StudentParqPositiveItem[] | null;
-  declarationAccepted: boolean;
-  notes?: string | null;
-}
+import type {
+  ParqAdministrativeSummaryDTO,
+  ParqSubmissionDTO,
+} from './pre-registration-parq.js';
 
 export interface ProntuarioGoal {
   id: string;
@@ -130,11 +119,25 @@ export interface ProntuarioRecord {
   discomfortSnapshots: ProntuarioDiscomfortSnapshot[];
 }
 
-export interface ProntuarioOverview {
+interface ProntuarioOverviewBase {
   records: ProntuarioRecord[];
   currentRecord: ProntuarioRecord | null;
-  latestParqSubmission: StudentParqSubmission | null;
-  parqSubmissions: StudentParqSubmission[];
+}
+
+/** Payload returned by the generic PRNT summary endpoint. */
+export interface ProntuarioOverviewSummary extends ProntuarioOverviewBase {
+  parq: ParqAdministrativeSummaryDTO;
+}
+
+/** Client-side aggregate after the protected PAR-Q history endpoint is loaded. */
+export interface ProntuarioOverview extends ProntuarioOverviewBase {
+  /** Present on responses produced by the current split-loading client. */
+  parq?: ParqAdministrativeSummaryDTO;
+  latestParqSubmission: ParqSubmissionDTO | null;
+  parqSubmissions: ParqSubmissionDTO[];
+  /** Backward-compatible aliases derived client-side from the safe summary. */
+  parqState: ParqAdministrativeSummaryDTO['state'];
+  parqLegacy: ParqAdministrativeSummaryDTO['legacy'];
 }
 
 export type ProntuarioRecordPayload = {

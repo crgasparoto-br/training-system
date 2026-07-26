@@ -54,6 +54,7 @@ export function AlunoSaudeAnamneseTab({
   segmentedIntake,
 }: AlunoSaudeAnamneseTabProps) {
   const parqResponses =
+    aluno.parq?.latestSubmission?.responses ??
     (segmentedIntake?.questionnaires.parq as Record<string, boolean | undefined> | undefined) ??
     aluno.intakeForm?.parqResponses ??
     {};
@@ -341,7 +342,7 @@ export function AlunoSaudeAnamneseTab({
         <CardHeader>
           <CardTitle>Questionário PAR-Q</CardTitle>
           <CardDescription>
-            Registro independente das respostas de prontidão para atividade física. Sua conclusão não altera o status da Anamnese Inicial.
+            Histórico canônico e versionado de prontidão para atividade física. A conclusão não altera o status comercial nem representa liberação médica.
           </CardDescription>
         </CardHeader>
         <CardContent>

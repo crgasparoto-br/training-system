@@ -16,6 +16,10 @@ import type {
   HealthIntakeSessionDTO,
   SaveHealthIntakeStepDTO,
   SavePreRegistrationStepDTO,
+  ParqSessionDTO,
+  SaveParqDraftDTO,
+  CompleteParqDTO,
+  RevokeParqConsentDTO,
 } from '@corrida/types';
 
 function extractData<T>(payload: unknown): T {
@@ -145,6 +149,40 @@ export const preRegistrationPublicService = {
       input
     );
     return extractData<HealthIntakeSessionDTO>(response.data);
+  },
+
+  async getParq(alunoId: string): Promise<ParqSessionDTO> {
+    const response = await api.get(
+      `/pre-registration/processes/${encodeURIComponent(alunoId)}/parq`
+    );
+    return extractData<ParqSessionDTO>(response.data);
+  },
+
+  async saveParqDraft(alunoId: string, input: SaveParqDraftDTO): Promise<ParqSessionDTO> {
+    const response = await api.patch(
+      `/pre-registration/processes/${encodeURIComponent(alunoId)}/parq`,
+      input
+    );
+    return extractData<ParqSessionDTO>(response.data);
+  },
+
+  async completeParq(alunoId: string, input: CompleteParqDTO): Promise<ParqSessionDTO> {
+    const response = await api.post(
+      `/pre-registration/processes/${encodeURIComponent(alunoId)}/parq/complete`,
+      input
+    );
+    return extractData<ParqSessionDTO>(response.data);
+  },
+
+  async revokeParqConsent(
+    alunoId: string,
+    input: RevokeParqConsentDTO
+  ): Promise<ParqSessionDTO> {
+    const response = await api.post(
+      `/pre-registration/processes/${encodeURIComponent(alunoId)}/parq/consent/revoke`,
+      input
+    );
+    return extractData<ParqSessionDTO>(response.data);
   },
 
   async completeHealthIntake(

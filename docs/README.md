@@ -41,6 +41,7 @@ Codigo, migrations e testes definem o comportamento efetivamente entregue. Plani
 - [`product/student-central-domain-matrix.md`](product/student-central-domain-matrix.md): fronteira entre Central do Aluno, administracao geral e dominios hibridos.
 - [`product/prnt-discomfort-followup-flow.md`](product/prnt-discomfort-followup-flow.md): fluxo implementado de desconfortos e acompanhamentos do PRNT.
 - [`product/pre-registration-health-intake.md`](product/pre-registration-health-intake.md): Anamnese Inicial canônica, opcional, autenticada e retomável.
+- [`product/pre-registration-parq.md`](product/pre-registration-parq.md): PAR-Q canônico, versionado, retomável e integrado à análise profissional.
 
 ### Operacao e documentos complementares
 
@@ -48,6 +49,7 @@ Codigo, migrations e testes definem o comportamento efetivamente entregue. Plani
 - [`operations/services-commercial-catalog-rollout.md`](operations/services-commercial-catalog-rollout.md): rollout do catalogo comercial.
 - [`operations/student-financial-service-and-contract-history.md`](operations/student-financial-service-and-contract-history.md): autoridade, vigencia e historico contratual do aluno.
 - [`operations/health-intake-cutover.md`](operations/health-intake-cutover.md): backfill, precedencia, verificacao e rollback do corte da Anamnese.
+- [`operations/parq-cutover.md`](operations/parq-cutover.md): reconciliação, cutover, verificação e rollback do PAR-Q.
 - [`internal-test-deploy.md`](internal-test-deploy.md): orientacao rapida complementar para testes internos.
 - [`ACCESS_CONTROL.md`](ACCESS_CONTROL.md): exemplos operacionais legados; as regras canonicas permanecem nos documentos de arquitetura e produto de acesso.
 
@@ -75,6 +77,7 @@ Registros concluidos preservados:
 - [`execution-plans/completed/2026-05-harness-engineering-foundation.md`](execution-plans/completed/2026-05-harness-engineering-foundation.md)
 - [`execution-plans/completed/2026-07-epic-172-completion-assessment.md`](execution-plans/completed/2026-07-epic-172-completion-assessment.md)
 - [`execution-plans/completed/2026-07-prnt-followup-implementation-plan.md`](execution-plans/completed/2026-07-prnt-followup-implementation-plan.md)
+- [`execution-plans/completed/2026-07-issue-273-canonical-parq.md`](execution-plans/completed/2026-07-issue-273-canonical-parq.md)
 
 ## Regras de manutencao
 
