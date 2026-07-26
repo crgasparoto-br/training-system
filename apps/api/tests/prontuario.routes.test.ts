@@ -5,8 +5,13 @@ describe('prontuario.routes', () => {
   const routePath = path.resolve(__dirname, '../src/modules/prontuario/prontuario.routes.ts');
   const source = fs.readFileSync(routePath, 'utf-8');
 
+  it('sanitiza o overview geral antes da serialização sob a permissão de resumo', () => {
+    expect(source).toContain("blockAccessMiddleware('physicalAssessment.prnt.summary')");
+    expect(source).toContain('sanitizeProntuarioOverviewForSummary(overview)');
+  });
+
   it('protege listagem de histórico PAR-Q por blockKey específico', () => {
-    expect(source).toContain("router.get('/alunos/:alunoId/parq-submissions', blockAccessMiddleware('physicalAssessment.prnt.parqSubmissions')");
+    expect(source).toContain("blockAccessMiddleware('physicalAssessment.prnt.parqSubmissions')");
   });
 
   it('desativa a gravação clínica legada com resposta reconhecível', () => {
