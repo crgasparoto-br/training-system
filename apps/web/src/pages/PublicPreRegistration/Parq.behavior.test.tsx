@@ -103,6 +103,29 @@ describe('Parq', () => {
     await waitFor(() => expect(mocks.getParq).toHaveBeenCalledTimes(2));
   });
 
+  it('offers the current catalog after an unknown version without discarding the confirmed draft', async () => {
+    mocks.saveParqDraft.mockRejectedValue({
+      response: {
+        status: 409,
+        data: {
+          error: 'A versão do PAR-Q não é mais reconhecida. Recarregue o questionário atual.',
+          details: { code: 'UNKNOWN_CATALOG_VERSION' },
+        },
+      },
+    });
+    renderPage();
+    await screen.findByRole('heading', { name: /Questionário PAR-Q/i });
+    fireEvent.click(screen.getByRole('checkbox', { name: /aviso de privacidade/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Salvar e continuar depois/i }));
+
+    const reload = await screen.findByRole('button', { name: /Carregar versão atual do questionário/i });
+    expect(screen.getByText(/versão do PAR-Q não é mais reconhecida/i)).toBeInTheDocument();
+    fireEvent.click(reload);
+
+    await waitFor(() => expect(mocks.getParq).toHaveBeenCalledTimes(2));
+    expect(mocks.saveParqDraft).toHaveBeenCalledTimes(1);
+  });
+
   it('revokes active consent using the server consent generation', async () => {
     const active = {
       ...baseSession,
