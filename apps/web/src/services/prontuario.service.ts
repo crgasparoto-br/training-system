@@ -6,6 +6,7 @@ import type {
   ProntuarioGoal,
   ProntuarioMedicationProcedure,
   ProntuarioOverview,
+  ProntuarioOverviewSummary,
   ProntuarioPainCase,
   ProntuarioPainFollowUp,
   ProntuarioRecord,
@@ -15,6 +16,9 @@ import type {
 
 const unwrap = <T>(response: { data: { data: T } }) => response.data.data;
 
+const isForbidden = (error: unknown) =>
+  (error as { response?: { status?: number } })?.response?.status === 403;
+
 type ProntuarioPainCasePayload = Omit<Partial<ProntuarioPainCase>, 'followUps'> & {
   title: string;
   followUps?: Array<Partial<ProntuarioPainFollowUp> & { followUpAt: string }>;
@@ -22,15 +26,37 @@ type ProntuarioPainCasePayload = Omit<Partial<ProntuarioPainCase>, 'followUps'> 
 
 export const prontuarioService = {
   async overview(alunoId: string): Promise<ProntuarioOverview> {
-    return unwrap(await api.get(`/prontuario/alunos/${alunoId}`));
+    const summary = unwrap<ProntuarioOverviewSummary>(
+      await api.get(`/prontuario/alunos/${alunoId}`)
+    );
+
+    let parqSubmissions: StudentParqSubmission[] = [];
+    try {
+      parqSubmissions = await this.listParqSubmissions(alunoId);
+    } catch (error) {
+      if (!isForbidden(error)) throw error;
+    }
+
+    return {
+      ...summary,
+      latestParqSubmission: parqSubmissions[0] ?? null,
+      parqSubmissions,
+    };
   },
 
   async listParqSubmissions(alunoId: string): Promise<StudentParqSubmission[]> {
     return unwrap(await api.get(`/prontuario/alunos/${alunoId}/parq-submissions`));
   },
 
-  async reviewParq(alunoId: string, reviewId: string, reviewNotes?: string | null): Promise<ProntuarioOverview> {
-    return unwrap(await api.post(`/prontuario/alunos/${alunoId}/parq-reviews/${reviewId}/review`, { reviewNotes }));
+  async reviewParq(
+    alunoId: string,
+    reviewId: string,
+    reviewNotes?: string | null
+  ): Promise<ProntuarioOverview> {
+    await api.post(`/prontuario/alunos/${alunoId}/parq-reviews/${reviewId}/review`, {
+      reviewNotes,
+    });
+    return this.overview(alunoId);
   },
 
   async createRecord(alunoId: string, data: ProntuarioRecordPayload): Promise<ProntuarioRecord> {
