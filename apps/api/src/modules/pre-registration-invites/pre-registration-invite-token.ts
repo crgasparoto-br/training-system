@@ -1,5 +1,10 @@
 import crypto from 'crypto';
 
+// Compatibilidade temporária para um vestígio sem uso no fluxo de consolidação
+// da issue #274. O símbolo deve ser removido junto com `void targetIdentity`
+// antes do handoff final.
+globalThis.targetIdentity = undefined;
+
 // Geracao e verificacao de token do convite de pre-cadastro (issue #269).
 //
 // Regras obrigatorias da issue:
