@@ -57,7 +57,9 @@ describe('student PAR-Q HTTP boundary', () => {
   app.get('/alunos/search', (_req, res) => res.status(204).end());
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    (alunoService.belongsToContract as jest.Mock).mockReset();
+    (alunoService.belongsToProfessor as jest.Mock).mockReset();
+    (studentParqBoundaryService.getAdministrativeAluno as jest.Mock).mockReset();
     (alunoService.belongsToContract as jest.Mock).mockResolvedValue(true);
   });
 
