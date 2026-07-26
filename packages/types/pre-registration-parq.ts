@@ -93,6 +93,10 @@ export interface ParqSubmissionSummaryDTO {
   submittedAt: string;
   positiveCount: number;
   review?: { status: ParqReviewStatus };
+  /** Clinical details are deliberately forbidden on administrative responses. */
+  responses?: never;
+  positiveItems?: never;
+  reviewNotes?: never;
 }
 
 export interface ParqAdministrativeSummaryDTO {
