@@ -6,7 +6,7 @@ O ciclo comercial e cadastral usa um único `Aluno.id` desde o lead até `ACTIVE
 
 ## Detector canônico
 
-A mesma função de domínio é executada antes de criar lead, vincular conta/convite, aceitar alteração de identificadores, marcar `READY_FOR_ENROLLMENT` e confirmar `ACTIVE_STUDENT`.
+A mesma função de domínio é executada antes de criar lead, vincular conta/convite, aceitar alteração de identificadores, salvar identificação ou contato no pré-cadastro público, marcar `READY_FOR_ENROLLMENT` e confirmar `ACTIVE_STUDENT`.
 
 Normalizações:
 
@@ -23,7 +23,7 @@ Classificações:
 - `INFORMATIONAL`: nome semelhante isoladamente;
 - `NONE`: sem evidência material.
 
-O fluxo público devolve somente uma mensagem genérica de revisão. A tela administrativa exibe dados mascarados e somente dentro do `contractId` autenticado.
+O fluxo público devolve somente uma mensagem genérica de revisão. A tela administrativa exibe dados mascarados apenas para candidatos incluídos no escopo de dados do usuário autenticado. A existência de candidatos restritos pode ser informada por contagem, sem revelar identidade, contato ou identificador.
 
 ## Decisões administrativas
 
@@ -31,9 +31,11 @@ O fluxo público devolve somente uma mensagem genérica de revisão. A tela admi
 
 Disponível somente para ocorrências `REVIEW_REQUIRED`. A decisão exige motivo, ator, fingerprint das evidências, versão revisada e validade de 30 dias. CPF ou conta incompatível não podem ser liberados por esta opção.
 
+Na criação de um novo lead, a confirmação de falso positivo e seu motivo são revalidados e gravados na mesma transação serializável da criação. Uma confirmação enviada apenas pelo frontend não é suficiente.
+
 ### Usar cadastro existente
 
-O administrador escolhe explicitamente o canônico, dentro do mesmo contrato, e decide cada diferença. Valores existentes no canônico não são sobrescritos automaticamente; campos vazios podem ser preenchidos apenas mediante escolha explícita.
+O administrador escolhe explicitamente o canônico, dentro do mesmo contrato e do próprio escopo de dados, e decide cada diferença. Valores existentes no canônico não são sobrescritos automaticamente; campos vazios podem ser preenchidos apenas mediante escolha explícita.
 
 O registro duplicado permanece no banco, é marcado `DISCARDED`, tem convite ativo revogado e recebe auditoria apontando para o canônico. Não existe exclusão física.
 
@@ -53,7 +55,7 @@ Cancela a tentativa sem alteração de estado ou dados.
 - decisão vigente para duplicidade revisável;
 - `StudentOnboardingProcess.version` igual à versão revisada.
 
-Alterações de nome, CPF, contatos ou nascimento após a conclusão incrementam a versão e invalidam a revisão anterior.
+Alterações de nome, CPF, contatos ou nascimento após a conclusão incrementam a versão e invalidam a revisão anterior. Nas etapas públicas de identificação e contato, a verificação ocorre dentro da mesma transação, após autorização e bloqueio do processo e antes da persistência da identidade.
 
 A confirmação da matrícula ocorre em transação serializável, recarrega e bloqueia o registro, reexecuta a deduplicação, rejeita revisão desatualizada, revoga convite ativo e altera o mesmo ID para `ACTIVE_STUDENT`. Repetição após sucesso devolve resultado idempotente e não duplica auditoria.
 
