@@ -179,6 +179,7 @@ export function PreRegistrationEnrollmentDetail() {
   }
   if (!review) return <PreRegistrationAdminDetail />;
 
+  const restrictedCandidateCount = review.restrictedCandidateCount ?? 0;
   const allFieldsDecided = Boolean(selected && selected.differences.every(
     (difference) => decisions[fieldKey(selected.candidateAlunoId, difference.field)]
   ));
@@ -265,7 +266,7 @@ export function PreRegistrationEnrollmentDetail() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {review.candidates.length === 0 ? (
+              {review.candidates.length === 0 && restrictedCandidateCount === 0 ? (
                 <p className="flex items-center gap-2 text-sm text-success">
                   <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> Nenhuma duplicidade exige decisão.
                 </p>
@@ -283,6 +284,11 @@ export function PreRegistrationEnrollmentDetail() {
                 />
               ))}
 
+              {restrictedCandidateCount > 0 && (
+                <div role="status" className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm">
+                  Há {restrictedCandidateCount} cadastro(s) relacionado(s) fora do seu escopo. Nenhum dado foi exibido e a decisão deve ser concluída por um usuário com acesso a todos os registros.
+                </div>
+              )}
               {review.candidates.length > 0 && (
                 <Input value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Motivo obrigatório da decisão" />
               )}
