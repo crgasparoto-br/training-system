@@ -1,6 +1,5 @@
 import crypto from 'crypto';
 
-
 // Geracao e verificacao de token do convite de pre-cadastro (issue #269).
 //
 // Regras obrigatorias da issue:
