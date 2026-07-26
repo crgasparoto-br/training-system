@@ -78,6 +78,8 @@ describe('prontuarioService PAR-Q access split', () => {
       ...summary,
       latestParqSubmission: null,
       parqSubmissions: [],
+      parqState: summary.parq.state,
+      parqLegacy: summary.parq.legacy,
     });
   });
 
