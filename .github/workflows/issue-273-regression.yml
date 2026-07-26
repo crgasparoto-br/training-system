@@ -1,4 +1,4 @@
-name: Export Issue 273 Remediation Sources
+name: Export Issue 273 Working Set
 
 on:
   pull_request:
@@ -6,21 +6,19 @@ on:
       - develop
     paths:
       - '.github/workflows/issue-273-regression.yml'
-      - '.issue273/**'
   push:
     branches:
       - feat/273-canonical-parq
     paths:
       - '.github/workflows/issue-273-regression.yml'
-      - '.issue273/**'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  export-sources:
-    name: Export issue 273 remediation source fragments
+  export-working-set:
+    name: Export issue 273 working set
     runs-on: ubuntu-latest
     steps:
       - name: Checkout candidate branch
@@ -29,19 +27,46 @@ jobs:
           ref: feat/273-canonical-parq
           fetch-depth: 0
 
-      - name: Copy remediation sources
+      - name: Copy affected files
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p /tmp/issue273-sources
-          cp .issue273/remediation-v3-part-*.b64 /tmp/issue273-sources/
-          cp .issue273/atomic-*.b64 /tmp/issue273-sources/
-          sha256sum /tmp/issue273-sources/* > /tmp/issue273-sources/SHA256SUMS
+          root=/tmp/issue273-working-set
+          mkdir -p "$root"
+          files=(
+            packages/types/pre-registration-parq.ts
+            apps/api/src/modules/pre-registration-public/pre-registration-parq.service.ts
+            apps/api/src/modules/pre-registration-public/pre-registration-parq.routes.ts
+            apps/api/src/modules/pre-registration-public/pre-registration-public-atomic.service.ts
+            apps/api/src/modules/alunos/aluno.service.ts
+            apps/api/prisma/schema.prisma
+            prisma/schema.prisma
+            apps/api/prisma/migrations/20260725201000_issue_273_canonical_parq/migration.sql
+            prisma/migrations/20260725201000_issue_273_canonical_parq/migration.sql
+            apps/api/scripts/verify-issue-273-parq.ts
+            apps/api/tests/pre-registration-parq.routes.test.ts
+            apps/api/tests/issue-273-parq-migration.test.ts
+            apps/web/src/services/pre-registration-public.service.ts
+            apps/web/src/services/aluno.service.ts
+            apps/web/src/pages/PublicPreRegistration/Parq.tsx
+            apps/web/src/pages/PublicPreRegistration/Parq.behavior.test.tsx
+            apps/web/src/pages/PublicPreRegistration/Parq.final.test.tsx
+            apps/web/src/components/alunos/AlunoResumoHubTab.test.tsx
+            docs/product/pre-registration-parq.md
+            docs/operations/parq-cutover.md
+            docs/execution-plans/completed/2026-07-issue-273-canonical-parq.md
+          )
+          for file in "${files[@]}"; do
+            mkdir -p "$root/$(dirname "$file")"
+            cp "$file" "$root/$file"
+          done
+          find "$root" -type f -print0 | sort -z | xargs -0 sha256sum > "$root/SHA256SUMS"
 
-      - name: Upload remediation sources
+      - name: Upload working set
         uses: actions/upload-artifact@v4
         with:
-          name: issue-273-remediation-sources-${{ github.run_id }}
-          path: /tmp/issue273-sources
+          name: issue-273-working-set-${{ github.run_id }}
+          path: /tmp/issue273-working-set
+          include-hidden-files: true
           if-no-files-found: error
           retention-days: 3
