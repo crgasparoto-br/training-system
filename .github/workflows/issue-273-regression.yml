@@ -32,11 +32,13 @@ jobs:
           fetch-depth: 1
           show-progress: false
 
-      - name: Validate payload chunks
+      - name: Compare payload chunk hashes
+        id: chunk_hashes
+        continue-on-error: true
         shell: bash
         run: |
-          set -euo pipefail
-          cat > "$RUNNER_TEMP/issue273-chunks.sha256" <<'SUMS'
+          set -uo pipefail
+          cat > "$RUNNER_TEMP/issue273-expected.sha256" <<'SUMS'
           8963798b65a1342abaec5ead64811c788f93ee4665b4fa87f0266fad69f7c990  .issue273/remediation-v5-part-000.b64
           5169556dd0677865f793422cacaf3f81903a01f73e9c57a534e580233049bd1d  .issue273/remediation-v5-part-001.b64
           faa45aa6d647348c746e5f8cee79d1bc76fc80e587e605e70dbbab2c4c671288  .issue273/remediation-v5-part-002.b64
@@ -49,7 +51,31 @@ jobs:
           abc8b183f9c248479a09fc39803ab3f1e4baa1710c559bbd4a1446aaafd95c0d  .issue273/remediation-v5-part-009.b64
           c74f759be6f12b3cf491588cc874ee9ec112189846ace1ac8d8c4bf9374ed7bd  .issue273/remediation-v5-part-010.b64
           SUMS
-          sha256sum -c "$RUNNER_TEMP/issue273-chunks.sha256"
+          sha256sum .issue273/remediation-v5-part-*.b64 > "$RUNNER_TEMP/issue273-actual.sha256"
+          {
+            echo '--- expected ---'
+            cat "$RUNNER_TEMP/issue273-expected.sha256"
+            echo '--- actual ---'
+            cat "$RUNNER_TEMP/issue273-actual.sha256"
+            echo '--- diff ---'
+            diff -u "$RUNNER_TEMP/issue273-expected.sha256" "$RUNNER_TEMP/issue273-actual.sha256"
+          } > "$RUNNER_TEMP/issue273-integrity-report.txt" 2>&1
+
+      - name: Upload payload integrity report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-273-integrity-${{ github.run_id }}
+          path: ${{ runner.temp }}/issue273-integrity-report.txt
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Require matching payload hashes
+        if: steps.chunk_hashes.outcome != 'success'
+        shell: bash
+        run: |
+          cat "$RUNNER_TEMP/issue273-integrity-report.txt"
+          exit 1
 
       - name: Reconstruct and verify archive
         shell: bash
