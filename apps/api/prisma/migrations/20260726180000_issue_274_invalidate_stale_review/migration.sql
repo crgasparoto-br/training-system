@@ -17,13 +17,25 @@ BEGIN
        OR OLD."birthDate" IS DISTINCT FROM NEW."birthDate"
      )
   THEN
-    UPDATE "StudentOnboardingProcess"
-    SET "version" = "version" + 1,
-        "reviewedAt" = NULL,
-        "reviewedByProfessorId" = NULL,
-        "updatedAt" = CURRENT_TIMESTAMP
+    -- A fronteira canônica de identidade bloqueia Aluno antes de persistir o
+    -- perfil. Não aguarde uma transação que tenha obtido o onboarding na ordem
+    -- inversa: aborte com lock_not_available e deixe toda a operação fazer
+    -- rollback, evitando deadlock e revisão parcialmente invalidada.
+    PERFORM 1
+    FROM "StudentOnboardingProcess"
     WHERE "alunoId" = NEW."id"
-      AND "contractId" = NEW."contractId";
+      AND "contractId" = NEW."contractId"
+    FOR UPDATE NOWAIT;
+
+    IF FOUND THEN
+      UPDATE "StudentOnboardingProcess"
+      SET "version" = "version" + 1,
+          "reviewedAt" = NULL,
+          "reviewedByProfessorId" = NULL,
+          "updatedAt" = CURRENT_TIMESTAMP
+      WHERE "alunoId" = NEW."id"
+        AND "contractId" = NEW."contractId";
+    END IF;
   END IF;
 
   RETURN NEW;
