@@ -765,7 +765,6 @@ async function consolidateDuplicate(
         }
       }
     }
-    void targetIdentity;
     if (Object.keys(patch).length > 0) {
       await upsertStudentIdentity(targetId, actor.contractId, patch, {
         client: tx,
@@ -793,20 +792,16 @@ async function consolidateDuplicate(
       actor,
       `Pré-matrícula consolidada no cadastro ${targetId}`
     );
-    const discarded = await tx.aluno.updateMany({
-      where: { id: alunoId, contractId: actor.contractId, status: { not: 'ACTIVE_STUDENT' } },
-      data: {
-        status: 'DISCARDED',
-        discardedAt: new Date(),
-        discardedByProfessorId: actor.professorId,
-        discardReason: `DUPLICATE_OF:${targetId}`,
-      },
-    });
-    if (discarded.count !== 1) {
-      throw new PreRegistrationEnrollmentError(
-        'O cadastro foi alterado por outra operação. Recarregue antes de continuar.',
-        'CONCURRENT_MODIFICATION'
+    try {
+      await discardStudentLeadInTransaction(
+        tx,
+        alunoId,
+        actor.contractId,
+        `DUPLICATE_OF:${targetId}`,
+        actor.professorId
       );
+    } catch (error) {
+      throwEnrollmentLifecycleError(error);
     }
 
     const validUntil = new Date(Date.now() + DECISION_VALIDITY_DAYS * 86_400_000).toISOString();
