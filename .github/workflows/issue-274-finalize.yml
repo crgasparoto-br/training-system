@@ -61,35 +61,40 @@ jobs:
           text = text.replace(old, new)
           if 'void targetIdentity' in text:
               raise SystemExit('targetIdentity vestige remained')
-          if "status: 'DISCARDED'" in text or "status: 'READY_FOR_ENROLLMENT'" in text or "status: 'ACTIVE_STUDENT'" in text:
+          direct_mutations = (
+              "data: { status: 'DISCARDED'",
+              "data: { status: 'READY_FOR_ENROLLMENT'",
+              "data: { status: 'ACTIVE_STUDENT'",
+          )
+          if any(fragment in text for fragment in direct_mutations):
               raise SystemExit('direct lifecycle status mutation remained')
           service.write_text(text)
 
           declaration = Path('apps/api/src/modules/alunos/student-lifecycle.nullable-inputs.d.ts')
           declaration.write_text("""import './student-lifecycle.service.js';
 
-          declare module './student-lifecycle.service.js' {
-            export function findMissingPreRegistrationFields(data: {
-              name?: string | null;
-              birthDate?: string | Date | null;
-              phone?: string | null;
-              email?: string | null;
-              privacyNoticeVersion?: string | null;
-              privacyAcceptedAt?: string | Date | null;
-            }): string[];
-          }
+declare module './student-lifecycle.service.js' {
+  export function findMissingPreRegistrationFields(data: {
+    name?: string | null;
+    birthDate?: string | Date | null;
+    phone?: string | null;
+    email?: string | null;
+    privacyNoticeVersion?: string | null;
+    privacyAcceptedAt?: string | Date | null;
+  }): string[];
+}
 
-          export {};
-          """.replace('          ', ''))
+export {};
+""")
 
           token = Path('apps/api/src/modules/pre-registration-invites/pre-registration-invite-token.ts')
           token_text = token.read_text()
           token_text = token_text.replace("""// Compatibilidade temporária para um vestígio sem uso no fluxo de consolidação
-          // da issue #274. O símbolo deve ser removido junto com `void targetIdentity`
-          // antes do handoff final.
-          globalThis.targetIdentity = undefined;
+// da issue #274. O símbolo deve ser removido junto com `void targetIdentity`
+// antes do handoff final.
+globalThis.targetIdentity = undefined;
 
-          """.replace('          ', ''), '')
+""", '')
           if 'targetIdentity' in token_text:
               raise SystemExit('runtime compatibility vestige remained')
           token.write_text(token_text)
