@@ -26,6 +26,7 @@ Codigo, migrations e testes definem o comportamento efetivamente entregue. Plani
 - [`architecture/database.md`](architecture/database.md): banco, Prisma e multi-tenant.
 - [`architecture/auth-and-access-control.md`](architecture/auth-and-access-control.md): autenticacao, autorizacao e escopo de dados.
 - [`architecture/deployment.md`](architecture/deployment.md): deploy, ambientes e variaveis.
+- [`architecture/pre-registration-enrollment.md`](architecture/pre-registration-enrollment.md): deduplicacao, revisao versionada, consolidacao e ativacao da pre-matricula.
 - [`quality/validation.md`](quality/validation.md): comandos e criterios de validacao.
 
 ### Produto
@@ -42,6 +43,7 @@ Codigo, migrations e testes definem o comportamento efetivamente entregue. Plani
 - [`product/prnt-discomfort-followup-flow.md`](product/prnt-discomfort-followup-flow.md): fluxo implementado de desconfortos e acompanhamentos do PRNT.
 - [`product/pre-registration-health-intake.md`](product/pre-registration-health-intake.md): Anamnese Inicial canônica, opcional, autenticada e retomável.
 - [`product/pre-registration-parq.md`](product/pre-registration-parq.md): PAR-Q canônico, versionado, retomável e integrado à análise profissional.
+- [`product/pre-registration-enrollment-conversion.md`](product/pre-registration-enrollment-conversion.md): regras permanentes de deduplicacao, decisao administrativa e conversao no mesmo registro.
 
 ### Operacao e documentos complementares
 
@@ -71,6 +73,7 @@ Planos ativos relevantes:
 - [`execution-plans/active/2026-07-student-central-roadmap.md`](execution-plans/active/2026-07-student-central-roadmap.md)
 - [`execution-plans/active/2026-07-services-commercial-catalog.md`](execution-plans/active/2026-07-services-commercial-catalog.md)
 - [`execution-plans/active/2026-07-issue-272-canonical-health-intake.md`](execution-plans/active/2026-07-issue-272-canonical-health-intake.md)
+- [`execution-plans/active/2026-07-issue-274-enrollment-conversion.md`](execution-plans/active/2026-07-issue-274-enrollment-conversion.md)
 
 Registros concluidos preservados:
 
