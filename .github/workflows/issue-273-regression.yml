@@ -1,6 +1,11 @@
 name: Inspect Issue 273 Remediation Payload
 
 on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - '.github/workflows/issue-273-regression.yml'
   push:
     branches:
       - feat/273-canonical-parq
