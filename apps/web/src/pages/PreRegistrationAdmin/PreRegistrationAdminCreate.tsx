@@ -81,6 +81,18 @@ export function PreRegistrationAdminCreate() {
         );
         return;
       }
+      if (
+        duplicateResult.classification === 'REVIEW_REQUIRED' &&
+        duplicateResult.restrictedCandidateCount > 0
+      ) {
+        setDuplicates(duplicateResult);
+        setConfirmDuplicate(false);
+        setDuplicateReason('');
+        setError(
+          'A decisão deve ser concluída por um usuário com acesso a todos os cadastros relacionados.'
+        );
+        return;
+      }
       if (duplicateResult.classification === 'REVIEW_REQUIRED' && !confirmDuplicate) {
         setDuplicates(duplicateResult);
         setError('Revise os possíveis cadastros semelhantes e confirme antes de continuar.');
@@ -128,7 +140,10 @@ export function PreRegistrationAdminCreate() {
       });
     } catch (submissionError) {
       const failure = submissionError as SubmissionFailure;
-      if (failure.response?.data?.code === 'DUPLICATE_REVIEW_REQUIRED') {
+      if (
+        failure.response?.data?.code === 'DUPLICATE_REVIEW_REQUIRED' ||
+        failure.response?.data?.code === 'FORBIDDEN'
+      ) {
         setConfirmDuplicate(false);
       }
       setError(errorMessage(submissionError));
@@ -199,7 +214,7 @@ export function PreRegistrationAdminCreate() {
             ))}
             {duplicates.restrictedCandidateCount > 0 && (
               <p className="rounded-lg bg-muted/50 p-3 text-sm text-muted-foreground">
-                Há {duplicates.restrictedCandidateCount} cadastro(s) relacionado(s) fora do seu escopo. Nenhum dado foi exibido.
+                Há {duplicates.restrictedCandidateCount} cadastro(s) relacionado(s) fora do seu escopo. Nenhum dado foi exibido e esta decisão não pode ser concluída com o acesso atual.
               </p>
             )}
             {duplicates.classification === 'INFORMATIONAL' && (
@@ -207,27 +222,28 @@ export function PreRegistrationAdminCreate() {
                 A semelhança é apenas informativa e não bloqueia a criação.
               </p>
             )}
-            {duplicates.classification === 'REVIEW_REQUIRED' && (
-              <div className="space-y-3">
-                <label className="flex items-start gap-3 rounded-lg bg-muted/50 p-3 text-sm">
-                  <input
-                    type="checkbox"
-                    className="mt-0.5 h-4 w-4"
-                    checked={confirmDuplicate}
-                    onChange={(event) => setConfirmDuplicate(event.target.checked)}
-                  />
-                  <span>Revisei os registros semelhantes e confirmo que esta é uma nova pessoa.</span>
-                </label>
-                {confirmDuplicate && (
-                  <Input
-                    value={duplicateReason}
-                    onChange={(event) => setDuplicateReason(event.target.value)}
-                    placeholder="Motivo obrigatório da decisão"
-                    aria-label="Motivo para confirmar nova pessoa"
-                  />
-                )}
-              </div>
-            )}
+            {duplicates.classification === 'REVIEW_REQUIRED' &&
+              duplicates.restrictedCandidateCount === 0 && (
+                <div className="space-y-3">
+                  <label className="flex items-start gap-3 rounded-lg bg-muted/50 p-3 text-sm">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 h-4 w-4"
+                      checked={confirmDuplicate}
+                      onChange={(event) => setConfirmDuplicate(event.target.checked)}
+                    />
+                    <span>Revisei os registros semelhantes e confirmo que esta é uma nova pessoa.</span>
+                  </label>
+                  {confirmDuplicate && (
+                    <Input
+                      value={duplicateReason}
+                      onChange={(event) => setDuplicateReason(event.target.value)}
+                      placeholder="Motivo obrigatório da decisão"
+                      aria-label="Motivo para confirmar nova pessoa"
+                    />
+                  )}
+                </div>
+              )}
           </CardContent>
         </Card>
       ) : null}
