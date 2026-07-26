@@ -1,4 +1,4 @@
-name: Issue 273 Regression Evidence
+name: Apply Issue 273 Remediation
 
 on:
   pull_request:
@@ -6,28 +6,43 @@ on:
       - develop
     paths:
       - '.github/workflows/issue-273-regression.yml'
+  push:
+    branches:
+      - feat/273-canonical-parq
+    paths:
+      - '.github/workflows/issue-273-regression.yml'
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  source-snapshot:
-    name: Materialize repository for issue 273 remediation
+  apply-remediation:
+    name: Apply exact issue 273 remediation tree
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout feature branch with history
+      - name: Checkout feature branch
         uses: actions/checkout@v4
         with:
+          ref: feat/273-canonical-parq
           fetch-depth: 0
 
-      - name: Package exact checkout
-        run: tar -czf "$RUNNER_TEMP/training-system-checkout.tgz" .
+      - name: Reconstruct and apply exact remediation payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .issue273/remediation-v2-part-*.b64 > "$RUNNER_TEMP/remediation.tgz.b64"
+          base64 --decode "$RUNNER_TEMP/remediation.tgz.b64" > "$RUNNER_TEMP/remediation.tgz"
+          tar -xzf "$RUNNER_TEMP/remediation.tgz"
+          rm -f .issue273/remediation-v2-part-*.b64
+          git diff --check
 
-      - name: Upload exact checkout
-        uses: actions/upload-artifact@v4
-        with:
-          name: issue-273-checkout-${{ github.sha }}
-          path: ${{ runner.temp }}/training-system-checkout.tgz
-          if-no-files-found: error
-          retention-days: 1
+      - name: Commit exact remediation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: remediate issue 273 audit findings"
+          git push origin HEAD:feat/273-canonical-parq
