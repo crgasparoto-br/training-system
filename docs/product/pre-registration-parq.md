@@ -80,8 +80,12 @@ Qualquer tentativa recebe HTTP `410` e detalhes `{ code: "LEGACY_WRITE_DISABLED"
 
 ## Evidências de validação
 
-O workflow `Issue 273 Regression Evidence` deve comprovar, no mesmo SHA da entrega, a reconciliação e o rerun da migration, o fluxo autenticado em PostgreSQL, concorrência, idempotência, histórico, revisão profissional, isolamento de tenant, fronteiras administrativas sanitizadas, rejeição HTTP 410 e os estados responsivos do formulário. O workflow geral `Validate PR` continua responsável por migrations, type-check, lint, suítes completas, build, arquitetura, catálogo de acessos e documentação.
+O workflow `Issue 273 Regression Evidence` executa `scripts/verify-issue-273-parq-migration.sh` sobre fixtures pré-cutover com fonte canônica, fontes legadas isoladas, equivalência, divergência, conjunto incompleto, ausência de data e rerun idempotente. O mesmo workflow aplica as migrations em banco limpo, executa contratos HTTP, o verificador PostgreSQL do serviço, o rerun corretivo, testes web e type-check, publicando os logs no mesmo artefato do merge preview.
 
-`Issue 273 Runtime Diagnostic` é somente leitura: faz checkout do merge preview, compila `@corrida/types` e `@corrida/utils`, executa o verificador PostgreSQL com falha propagada e publica apenas um artefato de diagnóstico. Nenhum workflow da issue pode fazer commit ou push.
+O workflow `Issue 273 Visual Evidence` compila a aplicação web e executa `apps/api/scripts/visual-audit-issue-273.mjs` para a rota `/pre-cadastro/par-q`. A matriz cobre 1440×900, 1366×768 e 390×844, os estados de retomada, `NEEDS_REPEAT`, conclusão positiva e conclusão sem alerta, além de fluxo por teclado, inventário de controles, árvore de acessibilidade, screenshots e diagnósticos JSON. Esse harness isola estados visuais; autenticação, autorização, persistência e tenant continuam comprovados separadamente pelo workflow de regressão.
 
-Essas evidências constituem verificação interna do ciclo de implementação. A aprovação final exige auditoria independente em nova conversa, com o SHA congelado e sem alterações posteriores.
+`Issue 273 Runtime Diagnostic` é somente leitura: faz checkout do merge preview, compila `@corrida/types` e `@corrida/utils`, executa o verificador PostgreSQL com falha propagada e publica apenas um artefato de diagnóstico.
+
+O workflow geral `Validate PR` continua responsável por migrations, type-check, lint, suítes completas, build, arquitetura, catálogo de acessos e documentação.
+
+Todos os workflows específicos da issue usam `contents: read`, não fazem commit ou push e devem propagar qualquer falha. Essas evidências constituem verificação interna do ciclo de implementação; a aprovação final exige auditoria independente em nova conversa, com o SHA congelado e sem alterações posteriores.
