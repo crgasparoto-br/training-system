@@ -21,14 +21,18 @@ on:
       - 'apps/api/scripts/verify-issue-273-parq.ts'
       - 'apps/api/scripts/visual-audit-issue-273.mjs'
       - 'apps/api/tests/*parq*'
+      - 'apps/api/tests/prontuario.routes*.test.ts'
       - 'apps/api/tests/aluno-segmented.routes.test.ts'
       - 'apps/web/src/pages/PublicPreRegistration/Parq*'
       - 'apps/web/src/services/pre-registration-public.service.ts'
+      - 'apps/web/src/services/prontuario.service*'
       - 'apps/web/src/services/aluno.service.ts'
       - 'apps/web/src/components/alunos/AlunoResumoHubTab*'
       - 'packages/types/pre-registration-parq.ts'
+      - 'packages/types/prontuario.ts'
       - 'packages/utils/aluno-validations.ts'
       - 'packages/utils/index.ts'
+      - 'docs/architecture/auth-and-access-control.md'
       - 'docs/product/pre-registration-parq.md'
       - 'docs/operations/parq-cutover.md'
       - 'docs/execution-plans/completed/2026-07-issue-273-canonical-parq.md'
@@ -134,6 +138,9 @@ jobs:
             aluno-parq-write-contract.test.ts \
             student-parq-boundary.service.test.ts \
             student-parq-boundary.routes.test.ts \
+            prontuario-parq-boundary.test.ts \
+            prontuario.routes.integration.test.ts \
+            prontuario.routes.test.ts \
             aluno-segmented.routes.test.ts 2>&1 | tee issue-273-api-tests.log
 
       - name: Run PostgreSQL runtime verification
@@ -159,6 +166,7 @@ jobs:
             src/pages/PublicPreRegistration/Parq.behavior.test.tsx \
             src/pages/PublicPreRegistration/Parq.final.test.tsx \
             src/components/alunos/AlunoResumoHubTab.test.tsx \
+            src/services/prontuario.service.parq-access.test.ts \
             2>&1 | tee issue-273-web-tests.log
 
       - name: Type check affected workspaces
@@ -171,7 +179,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python - <<'PY'
+          python - <<'PY2'
           from pathlib import Path
 
           for name in (
@@ -192,7 +200,7 @@ jobs:
 
           if Path('.issue273').exists():
               raise SystemExit('temporary .issue273 payload directory still exists')
-          PY
+          PY2
 
       - name: Upload issue evidence
         if: always()
