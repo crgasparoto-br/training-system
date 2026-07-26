@@ -29,7 +29,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: feat/273-canonical-parq
-          fetch-depth: 0
+          fetch-depth: 1
           show-progress: false
 
       - name: Validate payload chunks
