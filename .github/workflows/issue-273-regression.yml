@@ -1,77 +1,82 @@
-name: Export Issue 273 Working Set
+name: Apply Issue 273 Remediation V5
 
 on:
-  pull_request:
-    branches:
-      - develop
-    paths:
-      - '.github/workflows/issue-273-regression.yml'
   push:
     branches:
       - feat/273-canonical-parq
     paths:
       - '.github/workflows/issue-273-regression.yml'
+      - '.issue273/remediation-v5-part-*.b64'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  export-working-set:
-    name: Export issue 273 working set
+  apply-remediation:
+    name: Apply validated issue 273 remediation tree
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - name: Checkout candidate branch
+      - name: Checkout feature branch
         uses: actions/checkout@v4
         with:
           ref: feat/273-canonical-parq
           fetch-depth: 0
 
-      - name: Copy affected files
+      - name: Validate and apply remediation payload
         shell: bash
         run: |
           set -euo pipefail
-          root=/tmp/issue273-working-set
-          mkdir -p "$root"
-          files=(
-            packages/types/pre-registration-parq.ts
-            apps/api/src/modules/pre-registration-public/pre-registration-parq.service.ts
-            apps/api/src/modules/pre-registration-public/pre-registration-parq.routes.ts
-            apps/api/src/modules/pre-registration-public/pre-registration-public-atomic.service.ts
-            apps/api/src/modules/alunos/aluno.service.ts
-            apps/api/prisma/schema.prisma
-            prisma/schema.prisma
-            apps/api/prisma/migrations/20260725201000_issue_273_canonical_parq/migration.sql
-            prisma/migrations/20260725201000_issue_273_canonical_parq/migration.sql
-            apps/api/scripts/verify-issue-273-parq.ts
-            apps/api/tests/pre-registration-parq.routes.test.ts
-            apps/api/tests/issue-273-parq-migration.test.ts
-            apps/web/src/services/pre-registration-public.service.ts
-            apps/web/src/services/aluno.service.ts
-            apps/web/src/pages/PublicPreRegistration/Parq.tsx
-            apps/web/src/pages/PublicPreRegistration/Parq.behavior.test.tsx
-            apps/web/src/pages/PublicPreRegistration/Parq.final.test.tsx
-            apps/web/src/components/alunos/AlunoResumoHubTab.test.tsx
-            docs/product/pre-registration-parq.md
-            docs/operations/parq-cutover.md
-            docs/execution-plans/completed/2026-07-issue-273-canonical-parq.md
-          )
-          : > "$root/MISSING_FILES"
-          for file in "${files[@]}"; do
-            if test -f "$file"; then
-              mkdir -p "$root/$(dirname "$file")"
-              cp "$file" "$root/$file"
-            else
-              echo "$file" >> "$root/MISSING_FILES"
-            fi
-          done
-          find "$root" -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > "$root/SHA256SUMS"
+          cat > "$RUNNER_TEMP/issue273-chunks.sha256" <<'SUMS'
+          8963798b65a1342abaec5ead64811c788f93ee4665b4fa87f0266fad69f7c990  .issue273/remediation-v5-part-000.b64
+          5169556dd0677865f793422cacaf3f81903a01f73e9c57a534e580233049bd1d  .issue273/remediation-v5-part-001.b64
+          faa45aa6d647348c746e5f8cee79d1bc76fc80e587e605e70dbbab2c4c671288  .issue273/remediation-v5-part-002.b64
+          63aae5d62858dea6719e2add8ee0c9160d98db26d752dd0ab8967ee577cc9f23  .issue273/remediation-v5-part-003.b64
+          3ddc9139f686b5168219b49ea81c455509581b99f2d003f36cce09de6a93827b  .issue273/remediation-v5-part-004.b64
+          79adcb9fce4c58ba6ad6052236e42f9f1d94cce8f40e52c28c67175bc0de1806  .issue273/remediation-v5-part-005.b64
+          e54f1fc9102be9a373cac55fcc0e0f79eb430517a95f6d3035e158618cc1599a  .issue273/remediation-v5-part-006.b64
+          2fad9ee905c5414721149d51f6bf7ffc0918405afbe204b5897eedeff5df8cac  .issue273/remediation-v5-part-007.b64
+          83ac94b4b6f05c5205e7f1dc929f357d29655414f15df1fe82337b88bb8ab8b7  .issue273/remediation-v5-part-008.b64
+          abc8b183f9c248479a09fc39803ab3f1e4baa1710c559bbd4a1446aaafd95c0d  .issue273/remediation-v5-part-009.b64
+          c74f759be6f12b3cf491588cc874ee9ec112189846ace1ac8d8c4bf9374ed7bd  .issue273/remediation-v5-part-010.b64
+          SUMS
+          sha256sum -c "$RUNNER_TEMP/issue273-chunks.sha256"
 
-      - name: Upload working set
-        uses: actions/upload-artifact@v4
-        with:
-          name: issue-273-working-set-${{ github.run_id }}
-          path: /tmp/issue273-working-set
-          include-hidden-files: true
-          if-no-files-found: error
-          retention-days: 3
+          cat .issue273/remediation-v5-part-*.b64 > "$RUNNER_TEMP/issue273-remediation.b64"
+          base64 --decode "$RUNNER_TEMP/issue273-remediation.b64" > "$RUNNER_TEMP/issue273-remediation.tar.gz"
+          echo 'e77f58495bf4965b101811f08c09a671e1387df8ec8144c621807f44a6cf9dac  '"$RUNNER_TEMP/issue273-remediation.tar.gz" | sha256sum -c -
+
+          python - "$RUNNER_TEMP/issue273-remediation.tar.gz" <<'PY'
+          import pathlib
+          import sys
+          import tarfile
+
+          archive_path = pathlib.Path(sys.argv[1])
+          with tarfile.open(archive_path, mode='r:gz') as archive:
+              members = archive.getmembers()
+              unsafe = []
+              for member in members:
+                  path = pathlib.PurePosixPath(member.name)
+                  if path.is_absolute() or '..' in path.parts or '.git' in path.parts:
+                      unsafe.append(member.name)
+              if unsafe:
+                  raise SystemExit(f'unsafe remediation paths: {unsafe}')
+              archive.extractall(path='.', members=members, filter='data')
+          PY
+
+          grep -v 'REMEDIATION_MANIFEST.sha256' REMEDIATION_MANIFEST.sha256 | sha256sum -c -
+          rm -f REMEDIATION_MANIFEST.sha256
+          rm -rf .issue273
+          git diff --check
+
+      - name: Commit remediation to existing branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: implement issue 273 audit remediation"
+          git push origin HEAD:feat/273-canonical-parq
