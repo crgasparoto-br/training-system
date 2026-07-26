@@ -49,6 +49,24 @@ describe('student PAR-Q administrative boundary', () => {
     ).toEqual({ nested: { keep: 'value', formResponses: { keepToo: true } } });
   });
 
+  it('preserves dates and non-plain domain values while sanitizing', () => {
+    const createdAt = new Date('2026-07-26T10:00:00.000Z');
+    class DomainValue {
+      constructor(readonly value: string) {}
+    }
+    const decimal = new DomainValue('10.50');
+
+    const result = stripLegacyParqFields({
+      createdAt,
+      amount: decimal,
+      parqResponses: { q1: true },
+    }) as Record<string, unknown>;
+
+    expect(result).toEqual({ createdAt, amount: decimal });
+    expect(result.createdAt).toBe(createdAt);
+    expect(result.amount).toBe(decimal);
+  });
+
   it('returns only the authorized PAR-Q summary on the generic aluno payload', () => {
     const result = sanitizeAdministrativeAlunoPayload(
       {
