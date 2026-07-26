@@ -1,4 +1,4 @@
-name: Diagnose Issue 273 Remediation Payloads
+name: Extract Issue 273 Remediation V2
 
 on:
   pull_request:
@@ -6,21 +6,21 @@ on:
       - develop
     paths:
       - '.github/workflows/issue-273-regression.yml'
-      - '.issue273/**'
+      - '.issue273/remediation-v2-part-*.b64'
   push:
     branches:
       - feat/273-canonical-parq
     paths:
       - '.github/workflows/issue-273-regression.yml'
-      - '.issue273/**'
+      - '.issue273/remediation-v2-part-*.b64'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  diagnose-payloads:
-    name: Diagnose issue 273 remediation payloads
+  extract-payload:
+    name: Extract validated issue 273 remediation v2
     runs-on: ubuntu-latest
     steps:
       - name: Checkout candidate branch
@@ -29,10 +29,11 @@ jobs:
           ref: feat/273-canonical-parq
           fetch-depth: 0
 
-      - name: Diagnose v2 and v3 payloads
+      - name: Decode, validate and extract payload
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p /tmp/issue-273-remediation-v2
           python - <<'PY'
           import base64
           import glob
@@ -41,66 +42,45 @@ jobs:
           import json
           import pathlib
           import tarfile
-          import traceback
 
-          def diagnose(name: str, pattern: str, mode: str):
-              result = {
-                  'name': name,
-                  'pattern': pattern,
-                  'mode': mode,
-                  'success': False,
-                  'parts': [],
+          paths = sorted(glob.glob('.issue273/remediation-v2-part-*.b64'))
+          if not paths:
+              raise SystemExit('no remediation-v2 payload parts found')
+          encoded = ''.join(
+              ''.join(pathlib.Path(path).read_text(encoding='utf-8').split())
+              for path in paths
+          )
+          raw = base64.b64decode(encoded, validate=True)
+          if raw[:2] != b'\x1f\x8b':
+              raise SystemExit(f'payload is not gzip: magic={raw[:8].hex()}')
+          with tarfile.open(fileobj=io.BytesIO(raw), mode='r:gz') as archive:
+              members = archive.getmembers()
+              unsafe = [
+                  member.name
+                  for member in members
+                  if member.name.startswith('/')
+                  or '..' in pathlib.PurePosixPath(member.name).parts
+                  or '.git' in pathlib.PurePosixPath(member.name).parts
+              ]
+              if unsafe:
+                  raise SystemExit(f'unsafe payload paths: {unsafe}')
+              archive.extractall(path='/tmp/issue-273-remediation-v2', members=members, filter='data')
+              manifest = {
+                  'parts': paths,
+                  'decoded_length': len(raw),
+                  'sha256': hashlib.sha256(raw).hexdigest(),
+                  'members': [{'name': member.name, 'size': member.size} for member in members],
               }
-              try:
-                  paths = sorted(glob.glob(pattern))
-                  result['parts'] = paths
-                  if not paths:
-                      raise RuntimeError('no payload parts found')
-                  encoded = ''.join(
-                      ''.join(pathlib.Path(path).read_text(encoding='utf-8').split())
-                      for path in paths
-                  )
-                  result['normalized_base64_length'] = len(encoded)
-                  raw = base64.b64decode(encoded, validate=True)
-                  result['decoded_length'] = len(raw)
-                  result['sha256'] = hashlib.sha256(raw).hexdigest()
-                  result['magic'] = raw[:8].hex()
-                  with tarfile.open(fileobj=io.BytesIO(raw), mode=mode) as archive:
-                      members = archive.getmembers()
-                      unsafe = [
-                          member.name
-                          for member in members
-                          if member.name.startswith('/')
-                          or '..' in pathlib.PurePosixPath(member.name).parts
-                          or '.git' in pathlib.PurePosixPath(member.name).parts
-                      ]
-                      if unsafe:
-                          raise RuntimeError(f'unsafe paths: {unsafe}')
-                      result['members'] = [
-                          {'name': member.name, 'size': member.size, 'type': member.type.decode('latin1') if isinstance(member.type, bytes) else str(member.type)}
-                          for member in members
-                      ]
-                  result['success'] = True
-              except Exception as error:
-                  result['error_type'] = type(error).__name__
-                  result['error'] = str(error)
-                  result['traceback'] = traceback.format_exc()
-              return result
-
-          report = {
-              'head_sha': '${{ github.sha }}',
-              'v2': diagnose('v2', '.issue273/remediation-v2-part-*.b64', 'r:gz'),
-              'v3': diagnose('v3', '.issue273/remediation-v3-part-*.b64', 'r:xz'),
-          }
-          output = pathlib.Path('/tmp/issue-273-payload-diagnostic.json')
-          output.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
-          print(output.read_text(encoding='utf-8'))
+          pathlib.Path('/tmp/issue-273-remediation-v2/manifest.json').write_text(
+              json.dumps(manifest, ensure_ascii=False, indent=2),
+              encoding='utf-8',
+          )
           PY
 
-      - name: Upload payload diagnostic
+      - name: Upload extracted payload
         uses: actions/upload-artifact@v4
         with:
-          name: issue-273-payload-diagnostic-${{ github.run_id }}
-          path: /tmp/issue-273-payload-diagnostic.json
+          name: issue-273-remediation-v2-${{ github.run_id }}
+          path: /tmp/issue-273-remediation-v2
           if-no-files-found: error
           retention-days: 3
