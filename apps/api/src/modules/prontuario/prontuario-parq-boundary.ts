@@ -1,17 +1,21 @@
 import type {
   ParqAdministrativeSummaryDTO,
   ParqSubmissionDTO,
-  ProntuarioOverviewSummary,
-  ProntuarioRecord,
 } from '@corrida/types';
 
-type DetailedProntuarioOverview = {
-  records: ProntuarioRecord[];
-  currentRecord: ProntuarioRecord | null;
+type DetailedProntuarioOverview<TRecord> = {
+  records: TRecord[];
+  currentRecord: TRecord | null;
   latestParqSubmission: ParqSubmissionDTO | null;
   parqSubmissions: ParqSubmissionDTO[];
   parqState: ParqAdministrativeSummaryDTO['state'];
   parqLegacy: ParqAdministrativeSummaryDTO['legacy'];
+};
+
+type ProntuarioOverviewSummaryPayload<TRecord> = {
+  records: TRecord[];
+  currentRecord: TRecord | null;
+  parq: ParqAdministrativeSummaryDTO;
 };
 
 function summarizeSubmission(
@@ -33,11 +37,13 @@ function summarizeSubmission(
  *
  * The underlying legacy service still assembles the complete clinical PAR-Q
  * history for authenticated health flows. This mapper deliberately drops that
- * history before serialization under the summary block permission.
+ * history before serialization under the summary block permission while
+ * preserving the service's native record date types until Express serializes
+ * the payload.
  */
-export function sanitizeProntuarioOverviewForSummary(
-  overview: DetailedProntuarioOverview
-): ProntuarioOverviewSummary {
+export function sanitizeProntuarioOverviewForSummary<TRecord>(
+  overview: DetailedProntuarioOverview<TRecord>
+): ProntuarioOverviewSummaryPayload<TRecord> {
   return {
     records: overview.records,
     currentRecord: overview.currentRecord,
