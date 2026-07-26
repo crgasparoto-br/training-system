@@ -11,6 +11,7 @@ import {
 } from '../alunos/student-identity.service.js';
 import {
   assertResponsibleProfessorVisible,
+  visiblePreRegistrationCandidateIds,
 } from './pre-registration-enrollment-access.service.js';
 import {
   detectPreRegistrationDuplicates,
@@ -102,15 +103,25 @@ export const preRegistrationEnrollmentCreateService = {
             { fingerprint: detection.fingerprint }
           );
         }
-        if (
-          detection.classification === 'REVIEW_REQUIRED' &&
-          (input.confirmedDuplicateFingerprint !== detection.fingerprint || !reason)
-        ) {
-          throw new PreRegistrationEnrollmentError(
-            'Revise os cadastros semelhantes e informe o motivo antes de criar uma nova pessoa.',
-            'DUPLICATE_REVIEW_REQUIRED',
-            { fingerprint: detection.fingerprint, reasonRequired: true }
+        if (detection.classification === 'REVIEW_REQUIRED') {
+          const visibleIds = await visiblePreRegistrationCandidateIds(
+            actor,
+            detection.candidates.map((candidate) => candidate.candidateAlunoId),
+            tx
           );
+          if (visibleIds.size !== detection.candidates.length) {
+            throw new PreRegistrationEnrollmentError(
+              'Esta decisão exige um usuário com escopo para revisar todos os cadastros relacionados.',
+              'FORBIDDEN'
+            );
+          }
+          if (input.confirmedDuplicateFingerprint !== detection.fingerprint || !reason) {
+            throw new PreRegistrationEnrollmentError(
+              'Revise os cadastros semelhantes e informe o motivo antes de criar uma nova pessoa.',
+              'DUPLICATE_REVIEW_REQUIRED',
+              { fingerprint: detection.fingerprint, reasonRequired: true }
+            );
+          }
         }
 
         const lead = await createStudentLeadInTransaction(tx, {
