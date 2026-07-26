@@ -6,39 +6,12 @@ on:
       - feat/274-enrollment-conversion
     paths:
       - .github/workflows/orchestrator-issue-274.yml
-      - .orchestrator/issue-274.patch
+      - .orchestrator/issue-274.patch.gz.b64
 
 permissions:
   contents: write
 
 jobs:
-  export-workspace:
-    if: github.event.head_commit.message == 'chore: stage issue 274 workspace export'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout branch
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Package workspace
-        run: tar --exclude=.git -czf issue-274-source.tgz .
-      - name: Upload workspace
-        uses: actions/upload-artifact@v4
-        with:
-          name: issue-274-source-${{ github.run_id }}
-          path: issue-274-source.tgz
-          if-no-files-found: error
-          retention-days: 1
-      - name: Publish export run id
-        run: |
-          mkdir -p .orchestrator
-          printf '%s\n' '${{ github.run_id }}' > .orchestrator/issue-274-export-run.txt
-          git config user.name "chatgpt-orchestrator"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .orchestrator/issue-274-export-run.txt
-          git commit -m "chore: record issue 274 workspace export"
-          git push origin HEAD:feat/274-enrollment-conversion
-
   apply-corrective-patch:
     if: github.event.head_commit.message == 'chore: stage issue 274 corrective patch'
     runs-on: ubuntu-latest
@@ -47,12 +20,13 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Apply patch
+      - name: Decode and apply patch
         run: |
-          git apply --check .orchestrator/issue-274.patch
-          git apply .orchestrator/issue-274.patch
+          base64 --decode .orchestrator/issue-274.patch.gz.b64 | gzip --decompress > /tmp/issue-274.patch
+          git apply --check /tmp/issue-274.patch
+          git apply /tmp/issue-274.patch
       - name: Remove temporary orchestration files
-        run: rm -f .orchestrator/issue-274.patch .orchestrator/issue-274-export-run.txt .github/workflows/orchestrator-issue-274.yml
+        run: rm -f .orchestrator/issue-274.patch.gz.b64 .orchestrator/issue-274-export-run.txt .github/workflows/orchestrator-issue-274.yml
       - name: Commit corrected implementation
         run: |
           git config user.name "chatgpt-orchestrator"
