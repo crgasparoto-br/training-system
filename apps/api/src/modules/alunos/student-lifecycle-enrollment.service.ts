@@ -103,10 +103,10 @@ export async function markStudentReadyForEnrollmentInTransaction(
   }
   const identity = await loadStudentIdentity(alunoId, contractId, tx);
   const missing = findMissingPreRegistrationFields({
-    name: identity.name,
-    phone: identity.phone,
-    email: identity.email,
-    birthDate: identity.birthDate,
+    name: identity.name ?? undefined,
+    phone: identity.phone ?? undefined,
+    email: identity.email ?? undefined,
+    birthDate: identity.birthDate ?? undefined,
     privacyNoticeVersion: aluno.onboarding.privacyNoticeVersion,
     privacyAcceptedAt: aluno.onboarding.privacyAcceptedAt,
   });

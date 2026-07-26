@@ -15,8 +15,13 @@ import type {
   StudentLifecycleStatus,
 } from '@corrida/types';
 import {
-  findMissingPreRegistrationFields,
+  discardStudentLeadInTransaction,
+  StudentLifecycleError,
 } from '../alunos/student-lifecycle.service.js';
+import {
+  activateStudentEnrollmentInTransaction,
+  markStudentReadyForEnrollmentInTransaction,
+} from '../alunos/student-lifecycle-enrollment.service.js';
 import {
   loadStudentIdentity,
   normalizeStudentCpf,
@@ -110,6 +115,18 @@ const SENSITIVE_FIELDS = new Set<PreRegistrationIdentityDifferenceDTO['field']>(
 
 function asJson(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+}
+
+function throwEnrollmentLifecycleError(error: unknown): never {
+  if (error instanceof StudentLifecycleError) {
+    const code = error.code === 'NOT_FOUND'
+      ? 'NOT_FOUND'
+      : error.code === 'CONCURRENT_MODIFICATION'
+        ? 'CONCURRENT_MODIFICATION'
+        : 'PRECONDITION_FAILED';
+    throw new PreRegistrationEnrollmentError(error.message, code, error.details);
+  }
+  throw error;
 }
 
 function clean(value: unknown): string | undefined {
@@ -724,7 +741,6 @@ async function consolidateDuplicate(
     await assertNoClinicalDataForConsolidation(tx, alunoId, actor.contractId);
 
     const sourceIdentity = await loadStudentIdentity(alunoId, actor.contractId, tx);
-    const targetIdentity = await loadStudentIdentity(targetId, actor.contractId, tx);
     const patch: StudentIdentityData = {};
     for (const difference of candidate.differences) {
       const decision = input.fieldDecisions?.[difference.field];
@@ -984,62 +1000,25 @@ export const preRegistrationEnrollmentService = {
           detection.classification === 'BLOCKING' ? 'BLOCKING_DUPLICATE' : 'DUPLICATE_REVIEW_REQUIRED'
         );
       }
-      const identity = await loadStudentIdentity(alunoId, actor.contractId, tx);
-      const missing = findMissingPreRegistrationFields({
-        name: identity.name,
-        birthDate: identity.birthDate,
-        phone: identity.phone,
-        email: identity.email,
-        privacyNoticeVersion: aluno.onboarding.privacyNoticeVersion ?? undefined,
-        privacyAcceptedAt: aluno.onboarding.privacyAcceptedAt ?? undefined,
-      });
-      if (missing.length > 0) {
-        throw new PreRegistrationEnrollmentError(
-          'O pré-cadastro ainda possui campos obrigatórios pendentes.',
-          'PRECONDITION_FAILED',
-          { fields: missing }
-        );
-      }
-      const transitioned = await tx.aluno.updateMany({
-        where: { id: alunoId, contractId: actor.contractId, status: 'PRE_REGISTRATION_COMPLETED' },
-        data: { status: 'READY_FOR_ENROLLMENT', readyForEnrollmentAt: new Date() },
-      });
-      if (transitioned.count !== 1) {
-        throw new PreRegistrationEnrollmentError(
-          'O cadastro foi alterado por outra operação. Recarregue antes de continuar.',
-          'CONCURRENT_MODIFICATION'
-        );
-      }
-      await tx.studentOnboardingProcess.update({
-        where: { alunoId },
-        data: { reviewedAt: new Date(), reviewedByProfessorId: actor.professorId },
-      });
-      await tx.studentLifecycleEvent.createMany({
-        data: [
+      try {
+        await markStudentReadyForEnrollmentInTransaction(
+          tx,
+          alunoId,
+          actor.contractId,
           {
-            alunoId,
-            contractId: actor.contractId,
-            eventType: 'STATUS_CHANGED',
-            actorUserId: actor.userId,
-            actorProfessorId: actor.professorId,
-            metadata: asJson({ from: 'PRE_REGISTRATION_COMPLETED', to: 'READY_FOR_ENROLLMENT' }),
-          },
-          {
-            alunoId,
-            contractId: actor.contractId,
-            eventType: 'ADMIN_REVIEWED',
-            actorUserId: actor.userId,
-            actorProfessorId: actor.professorId,
-            metadata: asJson({
+            actor: { userId: actor.userId, professorId: actor.professorId },
+            metadata: {
               kind: 'ENROLLMENT_REVIEW',
               reason,
               fingerprint: detection.fingerprint,
               reviewedRecordVersion: detection.recordVersion,
               decisionAction: decision?.action ?? 'NO_DUPLICATE',
-            }),
-          },
-        ],
-      });
+            },
+          }
+        );
+      } catch (error) {
+        throwEnrollmentLifecycleError(error);
+      }
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     return this.inspect(actor, alunoId);
   },
@@ -1119,57 +1098,24 @@ export const preRegistrationEnrollmentService = {
       }
 
       await revokeActiveInvite(tx, alunoId, actor.contractId, actor, 'Matrícula confirmada');
-      const transitioned = await tx.aluno.updateMany({
-        where: { id: alunoId, contractId: actor.contractId, status: 'READY_FOR_ENROLLMENT' },
-        data: { status: 'ACTIVE_STUDENT', activatedAt: new Date() },
-      });
-      if (transitioned.count !== 1) {
-        const current = await tx.aluno.findFirst({
-          where: { id: alunoId, contractId: actor.contractId },
-          select: { status: true },
-        });
-        if (current?.status === 'ACTIVE_STUDENT') {
-          return {
-            alunoId,
-            status: 'ACTIVE_STUDENT',
-            redirectTo: `/central-do-aluno/${alunoId}`,
-            idempotent: true,
-          };
-        }
-        throw new PreRegistrationEnrollmentError(
-          'O cadastro foi alterado por outra operação. Recarregue antes de continuar.',
-          'CONCURRENT_MODIFICATION'
-        );
-      }
-      await tx.studentOnboardingProcess.update({
-        where: { alunoId },
-        data: { convertedAt: new Date() },
-      });
-      await tx.studentLifecycleEvent.createMany({
-        data: [
+      try {
+        await activateStudentEnrollmentInTransaction(
+          tx,
+          alunoId,
+          actor.contractId,
           {
-            alunoId,
-            contractId: actor.contractId,
-            eventType: 'STATUS_CHANGED',
-            actorUserId: actor.userId,
-            actorProfessorId: actor.professorId,
-            metadata: asJson({ from: 'READY_FOR_ENROLLMENT', to: 'ACTIVE_STUDENT' }),
-          },
-          {
-            alunoId,
-            contractId: actor.contractId,
-            eventType: 'CONVERTED_TO_ACTIVE_STUDENT',
-            actorUserId: actor.userId,
-            actorProfessorId: actor.professorId,
-            metadata: asJson({
+            actor: { userId: actor.userId, professorId: actor.professorId },
+            metadata: {
               fingerprint: detection.fingerprint,
               reviewedRecordVersion: detection.recordVersion,
               sameCanonicalId: true,
               downstreamCreation: 'NONE',
-            }),
-          },
-        ],
-      });
+            },
+          }
+        );
+      } catch (error) {
+        throwEnrollmentLifecycleError(error);
+      }
       return {
         alunoId,
         status: 'ACTIVE_STUDENT',
