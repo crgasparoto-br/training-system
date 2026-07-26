@@ -1,0 +1,1 @@
+error: corrupt patch at /tmp/issue-274.patch:66
