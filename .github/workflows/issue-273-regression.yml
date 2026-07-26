@@ -42,10 +42,14 @@ jobs:
           parts = sorted(glob.glob('.issue273/remediation-v3-part-*.b64'))
           if not parts:
               raise SystemExit('no remediation-v3 payload parts found')
-          encoded = ''.join(pathlib.Path(path).read_text(encoding='utf-8').strip() for path in parts)
-          print(f'parts={len(parts)} encoded_bytes={len(encoded)}')
-          raw = base64.b64decode(encoded, validate=True)
-          print(f'decoded_bytes={len(raw)} sha256={hashlib.sha256(raw).hexdigest()} magic={raw[:8].hex()}')
+          decoded_parts = []
+          for path in parts:
+              encoded = pathlib.Path(path).read_text(encoding='utf-8').strip()
+              chunk = base64.b64decode(encoded, validate=True)
+              print(f'{path}: encoded={len(encoded)} decoded={len(chunk)} sha256={hashlib.sha256(chunk).hexdigest()}')
+              decoded_parts.append(chunk)
+          raw = b''.join(decoded_parts)
+          print(f'payload: decoded_bytes={len(raw)} sha256={hashlib.sha256(raw).hexdigest()} magic={raw[:8].hex()}')
           if raw[:6] != b'\xfd7zXZ\x00':
               raise SystemExit(f'payload is not xz: magic={raw[:8].hex()}')
           with tarfile.open(fileobj=io.BytesIO(raw), mode='r:xz') as archive:
