@@ -28,18 +28,31 @@ Consolidar o PAR-Q em `StudentParqSubmission`, com catálogo compartilhado e ver
 - análise profissional não altera histórico.
 - projeções administrativas não são fontes concorrentes de escrita.
 - compatibilidades legadas permanecem somente leitura até o encerramento do rollout #275.
+- rotas com permissão apenas administrativa recebem `ParqAdministrativeSummaryDTO`; respostas clínicas exigem bloco de saúde.
+- contratos públicos de criação e edição de aluno não expõem `intakeForm.parqResponses`.
+- payload legado direto ou aninhado é rejeitado na fronteira HTTP com 410 e `LEGACY_WRITE_DISABLED`.
+- workflows de validação são somente leitura e nunca fazem commit ou push.
 
 ## Validação versionada
 
 - `scripts/verify-issue-273-parq-migration.sh`: banco pré-cutover com fonte canônica, fontes isoladas, equivalência, divergência, conjunto incompleto, ausência de data e rerun idempotente;
 - `apps/api/scripts/verify-issue-273-parq.ts`: runtime real com PostgreSQL para autenticação, rascunho, retomada, concorrência, idempotência, nova submissão histórica, isolamento de tenant e análise profissional;
 - `apps/api/scripts/visual-audit-issue-273.mjs`: formulário, retomada, `NEEDS_REPEAT`, conclusão com alerta e conclusão sem alerta em desktop, mobile e desktop de baixa altura;
-- `.github/workflows/issue-273-regression.yml`: produz logs, screenshots, manifesto de hashes e identidades de head, base e merge preview;
+- `.github/workflows/issue-273-regression.yml`: produz attestation e logs de migration, contratos HTTP, runtime, rerun, web e type-check;
+- `.github/workflows/issue-273-runtime-diagnostic.yml`: compila pacotes compartilhados, executa o verificador PostgreSQL com falha propagada e publica o log apenas como artifact;
 - `pnpm validate`: validações gerais do repositório, migrations, tipos, lint, testes, build, arquitetura, catálogo de acessos e documentação.
 
 O handoff registra o SHA final, a base observada, o merge preview e os workflows executados. Toda validação deste ciclo é pré-auditoria interna; a aprovação final exige nova conversa e auditoria independente no SHA congelado.
 
+## Ciclos de remediação da auditoria
 
-## Ciclo de remediação da auditoria
+A primeira passagem adversarial identificou e corrigiu replay idempotente inexato, corrida entre sessões novas, projeção de revisão baseada apenas na última submissão, consentimento sem revogação persistente e reconciliação legada insuficiente.
 
-A passagem adversarial posterior identificou e corrigiu: vazamento clínico no detalhe administrativo, replay idempotente inexato, corrida entre sessões novas, projeção de revisão baseada apenas na última submissão, consentimento sem revogação persistente, reconciliação legada insuficiente, workflow mutável e divergências de testes/documentação. A validação final deve ocorrer nos workflows somente leitura do SHA final e o handoff exige nova auditoria independente.
+A auditoria independente seguinte identificou quatro lacunas remanescentes, tratadas no mesmo PR:
+
+1. respostas clínicas presentes no detalhe genérico e no resumo administrativo: foi criada uma fronteira de saída sanitizada, montada antes das rotas legadas, com testes discriminantes para permissões de resumo e saúde;
+2. precedência divergente entre respostas canônicas e campos legados: a saída de saúde substitui qualquer representação anterior pela última submissão retornada pelo serviço canônico;
+3. escrita legada terminando em HTTP 500 e contrato compartilhado ainda expondo o campo: a fronteira bruta retorna 410 para forma direta ou aninhada e `@corrida/utils` exporta schemas sem `parqResponses`;
+4. workflows mutáveis ou mascarando falhas: ambos usam `contents: read`, checkout do merge preview, compilação dos pacotes compartilhados e propagação do exit code; o diagnóstico antigo versionado foi removido.
+
+A validação final deve ocorrer nos workflows somente leitura do SHA final. O contexto de implementação pode produzir apenas pré-auditoria; o parecer final requer nova auditoria independente.
