@@ -125,7 +125,7 @@ describe('Parq', () => {
     expect(await screen.findByText(/Consentimento revogado/i)).toBeInTheDocument();
   });
 
-  it('explains that a positive completion requires review but is not a commercial block', async () => {
+  it('explains that a positive completion requires review without diagnosis or commercial block', async () => {
     mocks.getParq.mockResolvedValue({
       ...baseSession,
       status: 'COMPLETED_REVIEW_REQUIRED',
@@ -140,5 +140,6 @@ describe('Parq', () => {
     renderPage();
     expect(await screen.findByText(/Análise profissional necessária/i)).toBeInTheDocument();
     expect(screen.getByText(/não bloqueia a conclusão comercial/i)).toBeInTheDocument();
+    expect(screen.getByText(/não constitui diagnóstico, prescrição ou liberação médica/i)).toBeInTheDocument();
   });
 });
