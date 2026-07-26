@@ -18,6 +18,14 @@ function apiError(error: unknown): { message: string; code?: string } {
   };
 }
 
+type ReloadReason = 'concurrent' | 'catalog' | null;
+
+function reloadReasonFor(code?: string): ReloadReason {
+  if (code === 'CONCURRENT_MODIFICATION') return 'concurrent';
+  if (code === 'UNKNOWN_CATALOG_VERSION') return 'catalog';
+  return null;
+}
+
 function hasActiveConsent(session: ParqSessionDTO): boolean {
   return Boolean(
     session.consent.acceptedAt &&
@@ -75,7 +83,7 @@ export function Parq() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [conflict, setConflict] = useState(false);
+  const [reloadReason, setReloadReason] = useState<ReloadReason>(null);
   const [completionKey, setCompletionKey] = useState(() => crypto.randomUUID());
 
   const complete = useMemo(
@@ -90,7 +98,7 @@ export function Parq() {
     }
     setLoading(true);
     setError('');
-    setConflict(false);
+    setReloadReason(null);
     try {
       const value = await preRegistrationPublicService.getParq(alunoId);
       setSession(value);
@@ -139,7 +147,7 @@ export function Parq() {
     }
     setSaving(true);
     setError('');
-    setConflict(false);
+    setReloadReason(null);
     try {
       const next = await preRegistrationPublicService.saveParqDraft(alunoId, payload());
       setSession(next);
@@ -147,7 +155,7 @@ export function Parq() {
       setRespondAgain(true);
     } catch (reason) {
       const parsed = apiError(reason);
-      setConflict(parsed.code === 'CONCURRENT_MODIFICATION');
+      setReloadReason(reloadReasonFor(parsed.code));
       setError(parsed.message);
     } finally {
       setSaving(false);
@@ -158,7 +166,7 @@ export function Parq() {
     if (!session || !hasActiveConsent(session)) return;
     setSaving(true);
     setError('');
-    setConflict(false);
+    setReloadReason(null);
     try {
       const next = await preRegistrationPublicService.revokeParqConsent(alunoId, {
         expectedVersion: session.consent.version,
@@ -167,7 +175,7 @@ export function Parq() {
       setConsentAccepted(false);
     } catch (reason) {
       const parsed = apiError(reason);
-      setConflict(parsed.code === 'CONCURRENT_MODIFICATION');
+      setReloadReason(reloadReasonFor(parsed.code));
       setError(parsed.message);
     } finally {
       setSaving(false);
@@ -181,7 +189,7 @@ export function Parq() {
     }
     setSaving(true);
     setError('');
-    setConflict(false);
+    setReloadReason(null);
     try {
       const next = await preRegistrationPublicService.completeParq(alunoId, {
         ...payload(),
@@ -195,7 +203,7 @@ export function Parq() {
       setCompletionKey(crypto.randomUUID());
     } catch (reason) {
       const parsed = apiError(reason);
-      setConflict(parsed.code === 'CONCURRENT_MODIFICATION');
+      setReloadReason(reloadReasonFor(parsed.code));
       setError(parsed.message);
     } finally {
       setSaving(false);
@@ -324,7 +332,11 @@ export function Parq() {
           </label>
 
           {error ? <div className="mt-5 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900" role="alert">{error}</div> : null}
-          {conflict ? <button type="button" onClick={() => void load()} className="mt-3 min-h-11 rounded-xl border border-amber-500 px-4 font-semibold text-amber-900">Recarregar alterações mais recentes</button> : null}
+          {reloadReason ? (
+            <button type="button" onClick={() => void load()} className="mt-3 min-h-11 rounded-xl border border-amber-500 px-4 font-semibold text-amber-900">
+              {reloadReason === 'catalog' ? 'Carregar versão atual do questionário' : 'Recarregar alterações mais recentes'}
+            </button>
+          ) : null}
 
           <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
             <button type="button" disabled={saving || !consentAccepted} onClick={() => void saveDraft()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-blue-600 px-5 font-semibold text-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
