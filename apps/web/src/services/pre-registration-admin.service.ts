@@ -7,18 +7,21 @@ import type {
   PreRegistrationConfirmEnrollmentInputDTO,
   PreRegistrationConsolidationResultDTO,
   PreRegistrationDuplicateDecisionInputDTO,
-  PreRegistrationDuplicateCheckResultDTO,
   PreRegistrationEnrollmentResultDTO,
   PreRegistrationEnrollmentReviewDTO,
   PreRegistrationInviteCreationResultDTO,
   PreRegistrationInviteSummaryDTO,
   PreRegistrationGuardianAuthorizationAdminDTO,
+  PreRegistrationLeadDuplicateCheckDTO,
   PreRegistrationReadyForEnrollmentInputDTO,
   UpdatePreRegistrationLeadCommercialDTO,
 } from '@corrida/types';
 import api from './api';
 
 type ApiEnvelope<T> = { success: true; data: T };
+type CreateLeadWithDecision = CreatePreRegistrationLeadDTO & {
+  confirmedDuplicateReason?: string;
+};
 
 function listParams(query: PreRegistrationAdminListQueryDTO) {
   return { ...query, status: query.statuses?.join(','), statuses: undefined };
@@ -38,14 +41,14 @@ export const preRegistrationAdminService = {
     );
     return response.data.data;
   },
-  async checkDuplicates(input: Pick<CreatePreRegistrationLeadDTO, 'phone' | 'additionalPhone' | 'email' | 'additionalEmail' | 'cpf'>) {
-    const response = await api.post<ApiEnvelope<PreRegistrationDuplicateCheckResultDTO>>(
+  async checkDuplicates(input: Pick<CreatePreRegistrationLeadDTO, 'name' | 'phone' | 'additionalPhone' | 'email' | 'additionalEmail' | 'cpf'>) {
+    const response = await api.post<ApiEnvelope<PreRegistrationLeadDuplicateCheckDTO>>(
       '/pre-registration-admin/leads/duplicates',
       input
     );
     return response.data.data;
   },
-  async create(input: CreatePreRegistrationLeadDTO) {
+  async create(input: CreateLeadWithDecision) {
     const response = await api.post<ApiEnvelope<PreRegistrationAdminLeadDetailDTO>>(
       '/pre-registration-admin/leads',
       input
