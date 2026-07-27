@@ -55,6 +55,19 @@ export const preRegistrationAdminService = {
     );
     return response.data.data;
   },
+  async checkUpdateDuplicates(
+    id: string,
+    input: Pick<
+      UpdatePreRegistrationLeadCommercialDTO,
+      'name' | 'phone' | 'additionalPhone' | 'email' | 'additionalEmail' | 'cpf'
+    >
+  ) {
+    const response = await api.post<ApiEnvelope<PreRegistrationLeadDuplicateCheckDTO>>(
+      `/pre-registration-admin/leads/${id}/duplicates`,
+      input
+    );
+    return response.data.data;
+  },
   async update(id: string, input: UpdatePreRegistrationLeadCommercialDTO) {
     const response = await api.patch<ApiEnvelope<PreRegistrationAdminLeadDetailDTO>>(
       `/pre-registration-admin/leads/${id}`,
