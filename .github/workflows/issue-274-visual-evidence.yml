@@ -59,10 +59,12 @@ jobs:
         env:
           ISSUE_274_WEB_URL: http://127.0.0.1:4173
           ISSUE_274_VISUAL_OUTPUT: artifacts/issue-274-visual
+          ISSUE_274_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -o pipefail
           mkdir -p "$ISSUE_274_VISUAL_OUTPUT"
-          node apps/api/scripts/issue-274-visual-evidence.mjs 2>&1 \
+          GITHUB_SHA="$ISSUE_274_HEAD_SHA" \
+            node apps/api/scripts/issue-274-visual-evidence.mjs 2>&1 \
             | tee "$ISSUE_274_VISUAL_OUTPUT/runner.log"
 
       - name: Preserve web server log
