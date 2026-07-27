@@ -1,0 +1,11 @@
+Error: Corrective payload checksum mismatch: 6e124b72f1c7733a55b6f21bda916dc34af73e065bf0b4d29a5e9112aeeca4bd
+    at readPackage (/home/runner/work/training-system/training-system/.pnpmfile.cjs:51:17)
+    at pnpmfile.hooks.readPackage (/home/runner/setup-pnpm/node_modules/.pnpm/pnpm@9.15.9/node_modules/pnpm/dist/pnpm.cjs:10154:34)
+    at /home/runner/setup-pnpm/node_modules/.pnpm/pnpm@9.15.9/node_modules/pnpm/dist/pnpm.cjs:10229:47
+    at XWrap2.<anonymous> (/home/runner/setup-pnpm/node_modules/.pnpm/pnpm@9.15.9/node_modules/pnpm/dist/pnpm.cjs:180516:124)
+    at async /home/runner/setup-pnpm/node_modules/.pnpm/pnpm@9.15.9/node_modules/pnpm/dist/pnpm.cjs:130238:30
+    at async Promise.all (index 0)
+    at async getContext (/home/runner/setup-pnpm/node_modules/.pnpm/pnpm@9.15.9/node_modules/pnpm/dist/pnpm.cjs:130236:9)
+    at async mutateModules (/home/runner/setup-pnpm/node_modules/.pnpm/pnpm@9.15.9/node_modules/pnpm/dist/pnpm.cjs:181234:19)
+    at async recursive (/home/runner/setup-pnpm/node_modules/.pnpm/pnpm@9.15.9/node_modules/pnpm/dist/pnpm.cjs:182754:50)
+    at async installDeps (/home/runner/setup-pnpm/node_modules/.pnpm/pnpm@9.15.9/node_modules/pnpm/dist/pnpm.cjs:183063:11)
