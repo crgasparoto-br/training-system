@@ -17,7 +17,7 @@ import { AlunoFormWithContractValidityOptions } from './pages/AlunoFormWithContr
 import { AlunoDetails } from './pages/AlunoDetails';
 import { PreRegistrationAdminList } from './pages/PreRegistrationAdmin/PreRegistrationAdminList';
 import { PreRegistrationAdminCreate } from './pages/PreRegistrationAdmin/PreRegistrationAdminCreate';
-import { PreRegistrationEnrollmentDetail } from './pages/PreRegistrationAdmin/PreRegistrationEnrollmentDetail';
+import { PreRegistrationEnrollmentDetailRemediated } from './pages/PreRegistrationAdmin/PreRegistrationEnrollmentDetailRemediated';
 import { PreRegistrationAdminEdit } from './pages/PreRegistrationAdmin/PreRegistrationAdminEdit';
 import { PublicPreRegistration } from './pages/PublicPreRegistration/PublicPreRegistration';
 import { Plans } from './pages/Plans';
@@ -96,7 +96,7 @@ function App() {
             <Route path="central-do-aluno/:id/edit" element={withAccess('students.registration', <StudentCentralEdit />)} />
             <Route path="pre-matriculas" element={withAccess('students.preRegistration', <PreRegistrationAdminList />)} />
             <Route path="pre-matriculas/nova" element={withAccess('students.preRegistration.create', <PreRegistrationAdminCreate />)} />
-            <Route path="pre-matriculas/:id" element={withAccess('students.preRegistration', <PreRegistrationEnrollmentDetail />)} />
+            <Route path="pre-matriculas/:id" element={withAccess('students.preRegistration', <PreRegistrationEnrollmentDetailRemediated />)} />
             <Route path="pre-matriculas/:id/editar" element={withAccess('students.preRegistration.editCommercial', <PreRegistrationAdminEdit />)} />
             <Route path="protocolo-avaliacao-fisica" element={<Navigate to="/protocolo-avaliacao-fisica/antropometria" replace />} />
             <Route path="protocolo-avaliacao-fisica/antropometria" element={withAccess('physicalAssessment.protocol', <PhysicalAssessmentProtocol />)} />
