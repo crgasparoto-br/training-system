@@ -1,3 +1,5 @@
+import './pre-registration-enrollment-review.adapter.js';
+
 export { preRegistrationEnrollmentRoutes } from './pre-registration-enrollment.routes.js';
 export {
   PreRegistrationEnrollmentError,
