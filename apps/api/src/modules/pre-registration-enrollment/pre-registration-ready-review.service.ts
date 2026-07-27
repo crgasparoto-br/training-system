@@ -1,4 +1,4 @@
-import { Prisma, PrismaClient } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import type { PreRegistrationReadyForEnrollmentInputDTO } from '@corrida/types';
 import {
   buildProfessorDataScopeWhere,
@@ -12,13 +12,13 @@ import {
   hasCurrentPreRegistrationConsent,
 } from '../alunos/student-lifecycle-enrollment.service.js';
 import { loadStudentIdentity } from '../alunos/student-identity.service.js';
+import { issue274Prisma as prisma } from './issue-274-prisma.js';
 import {
   detectPreRegistrationDuplicates,
   PreRegistrationEnrollmentError,
   type PreRegistrationEnrollmentActor,
 } from './pre-registration-enrollment.service.js';
 
-const prisma = new PrismaClient();
 const REVIEW_BLOCK = 'students.preRegistration.review';
 type DetectionResult = Awaited<ReturnType<typeof detectPreRegistrationDuplicates>>;
 type EventMetadata = Record<string, unknown>;
