@@ -1,0 +1,87 @@
+name: Apply Issue 274 Remediation
+
+on:
+  push:
+    branches:
+      - feat/274-enrollment-conversion
+    paths:
+      - '.github/issue-274-remediation.patch'
+      - '.github/workflows/issue-274-remediation-apply.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-validate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/training_system_test?schema=public&connection_limit=1&pool_timeout=30
+      PRISMA_CONNECTION_LIMIT: '1'
+      PRISMA_POOL_TIMEOUT_SECONDS: '30'
+      RUN_DATABASE_INTEGRATION_TESTS: 'true'
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: training_system_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d training_system_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout remediation branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/274-enrollment-conversion
+          fetch-depth: 0
+
+      - name: Apply remediation patch
+        run: |
+          git apply --check .github/issue-274-remediation.patch
+          git apply .github/issue-274-remediation.patch
+          rm .github/issue-274-remediation.patch
+          rm .github/workflows/issue-274-remediation-apply.yml
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma Client
+        run: pnpm --filter @corrida/api exec prisma generate
+
+      - name: Apply migrations
+        run: pnpm --filter @corrida/api exec prisma migrate deploy
+
+      - name: Run focused remediation tests
+        run: >-
+          pnpm --filter @corrida/api exec jest --runInBand
+          tests/pre-registration-audit-remediation.integration.test.ts
+          tests/pre-registration-enrollment-audit-hardening.contract.test.ts
+          tests/pre-registration-public-deduplication.contract.test.ts
+
+      - name: Type check
+        run: pnpm type-check
+
+      - name: Commit remediation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: resolve issue 274 audit findings A-005 and A-006"
+          git push origin HEAD:feat/274-enrollment-conversion
