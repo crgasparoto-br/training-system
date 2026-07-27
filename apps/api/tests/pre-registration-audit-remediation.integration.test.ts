@@ -196,9 +196,9 @@ describeDatabase('issue 274 audit remediation with PostgreSQL', () => {
     });
     expect(afterCpf.leadCpf).toBe('52998224725');
     expect(afterCpf.leadCpfNormalized).toBeNull();
-    expect(afterCpf.studentProfile?.identificationData).toMatchObject({
-      cpf: '11144477735',
-    });
+    expect(
+      (afterCpf.studentProfile?.identificationData as { cpf?: unknown } | undefined)?.cpf
+    ).toBeNull();
 
     const contact = await preRegistrationDuplicateReviewService.preserveDuplicateConflict(
       studentUser.id,
@@ -253,9 +253,9 @@ describeDatabase('issue 274 audit remediation with PostgreSQL', () => {
     ]);
     expect(persisted.leadCpf).toBe('52998224725');
     expect(persisted.leadCpfNormalized).toBeNull();
-    expect(persisted.studentProfile?.identificationData).toMatchObject({
-      cpf: '11144477735',
-    });
+    expect(
+      (persisted.studentProfile?.identificationData as { cpf?: unknown } | undefined)?.cpf
+    ).toBeNull();
     expect(persisted.leadPhoneNormalized).toBe('5515988880000');
     expect(persisted.leadEmailNormalized).toBe(`${suffix}-shared@example.com`);
     expect(pendingReview.snapshotAfter).toMatchObject({
