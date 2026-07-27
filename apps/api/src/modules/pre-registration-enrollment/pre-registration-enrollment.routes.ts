@@ -34,6 +34,7 @@ preRegistrationEnrollmentRoutes.use(authMiddleware);
 preRegistrationEnrollmentRoutes.use(screenAccessMiddleware('students.preRegistration'));
 
 const createAccess = blockAccessMiddleware('students.preRegistration.create');
+const editAccess = blockAccessMiddleware('students.preRegistration.editCommercial');
 const reviewAccess = blockAccessMiddleware('students.preRegistration.review');
 const convertAccess = blockAccessMiddleware('students.preRegistration.convert');
 
@@ -89,6 +90,27 @@ preRegistrationEnrollmentRoutes.post(
     try {
       const actor = actorFrom(req);
       const result = await preRegistrationEnrollmentService.inspectProposedLead(actor, req.body || {});
+      const data = await projectScopedLeadDuplicateCheck(actor, result);
+      return res.json({ success: true, data });
+    } catch (error) {
+      if (error instanceof PreRegistrationEnrollmentError) return respondError(res, error);
+      return next(error);
+    }
+  }
+);
+
+preRegistrationEnrollmentRoutes.post(
+  '/leads/:id/duplicates',
+  editAccess,
+  async (req, res, next) => {
+    try {
+      const actor = actorFrom(req);
+      await assertPreRegistrationAlunoVisible(actor, req.params.id);
+      const result = await preRegistrationEnrollmentService.inspectProposedUpdate(
+        actor,
+        req.params.id,
+        req.body || {}
+      );
       const data = await projectScopedLeadDuplicateCheck(actor, result);
       return res.json({ success: true, data });
     } catch (error) {
