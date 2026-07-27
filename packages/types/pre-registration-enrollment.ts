@@ -62,6 +62,7 @@ export interface PreRegistrationDuplicateCandidateDTO {
 }
 
 export interface PreRegistrationLeadDuplicateCheckDTO {
+  recordVersion: number;
   fingerprint: string;
   classification: PreRegistrationDuplicateClassification;
   candidates: PreRegistrationDuplicateCandidateDTO[];
