@@ -45,6 +45,64 @@ jobs:
           pnpm --filter @corrida/utils build
           pnpm --filter @corrida/web build
 
+      - name: Start enrollment review compatibility mock
+        shell: bash
+        run: |
+          cat > /tmp/issue-270-api-mock.mjs <<'EOF'
+          import { createServer } from 'node:http';
+
+          const review = {
+            alunoId: 'lead-1',
+            status: 'READY_FOR_ENROLLMENT',
+            recordVersion: 1,
+            fingerprint: 'issue-270-visual-fingerprint',
+            classification: 'NONE',
+            candidates: [],
+            restrictedCandidateCount: 0,
+            canConfirmDifferentPeople: false,
+            canUseExistingCanonical: false,
+            canMarkReady: false,
+            canConfirmEnrollment: true,
+            health: {
+              healthModuleStatus: 'COMPLETED',
+              parqModuleStatus: 'COMPLETED',
+              parqRequiresProfessionalReview: true,
+            },
+            downstream: {
+              contract: 'NOT_CONFIGURED',
+              plan: 'NOT_CONFIGURED',
+              billing: 'NOT_CONFIGURED',
+              responsibleProfessor: 'NOT_CONFIGURED',
+              schedule: 'NOT_CONFIGURED',
+            },
+          };
+
+          createServer((request, response) => {
+            if (
+              request.method === 'GET' &&
+              request.url === '/api/v1/pre-registration-admin/leads/lead-1/enrollment-review'
+            ) {
+              response.writeHead(200, { 'content-type': 'application/json' });
+              response.end(JSON.stringify({ success: true, data: review }));
+              return;
+            }
+            response.writeHead(404, { 'content-type': 'application/json' });
+            response.end(JSON.stringify({ success: false, error: 'Not mocked' }));
+          }).listen(3002, '127.0.0.1');
+          EOF
+          node /tmp/issue-270-api-mock.mjs > /tmp/issue-270-api-mock.log 2>&1 &
+          echo $! > /tmp/issue-270-api-mock.pid
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent \
+              http://127.0.0.1:3002/api/v1/pre-registration-admin/leads/lead-1/enrollment-review \
+              > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/issue-270-api-mock.log
+          exit 1
+
       - name: Audit routes, states and interactions
         shell: bash
         run: |
@@ -59,5 +117,6 @@ jobs:
           path: |
             artifacts/issue-270-visual/*.png
             visual-audit.log
+            /tmp/issue-270-api-mock.log
           if-no-files-found: warn
           retention-days: 14
