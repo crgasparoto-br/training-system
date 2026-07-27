@@ -16,6 +16,7 @@ export const PRE_REGISTRATION_ADMIN_STATUSES = [
   'PRE_REGISTRATION_IN_PROGRESS',
   'PRE_REGISTRATION_COMPLETED',
   'READY_FOR_ENROLLMENT',
+  'ACTIVE_STUDENT',
   'DISCARDED',
 ] as const satisfies readonly StudentLifecycleStatus[];
 

@@ -4,7 +4,7 @@
 
 Entregar a conversão do lead/pré-matrícula no mesmo registro canônico, com deduplicação em todos os pontos críticos, decisões auditáveis e confirmação transacional/idempotente.
 
-SHA funcional validado: `320307033a097d4ac2e83fd1161ba26c02e76bd4`.
+O candidato válido é sempre o HEAD final da PR registrado no handoff. Este plano não fixa SHA intermediário.
 
 ## Escopo implementado
 
@@ -21,6 +21,12 @@ SHA funcional validado: `320307033a097d4ac2e83fd1161ba26c02e76bd4`.
 - transições de descarte, prontidão e ativação centralizadas no domínio de ciclo do aluno;
 - ativação serializável do mesmo ID, com revogação de convite;
 - tela administrativa específica para os estados concluído e pronto;
+- claim sem oráculo público, com rate limit antes da detecção transacional;
+- revalidação de bloco, tenant e escopo depois do lock e antes do commit;
+- consentimento comparado à versão vigente;
+- grafo canônico protegido contra cadeia, ciclo, atualização posterior e concorrência;
+- invalidação da revisão por origem, responsável, unidade e observações;
+- revisão administrativa completa, confirmação persistente e filtro de convertidos;
 - documentação e testes de classificação, normalização, autorização, entrypoints, persistência pública, consolidação real em PostgreSQL e limites downstream.
 
 ## Critérios de aceite
@@ -36,7 +42,9 @@ SHA funcional validado: `320307033a097d4ac2e83fd1161ba26c02e76bd4`.
 - [x] alteração de identidade invalida revisão;
 - [x] confirmação revalida no commit e é idempotente;
 - [x] nenhum domínio posterior é criado automaticamente;
-- [x] `pnpm validate` e workflow remoto aprovados no SHA funcional validado.
+- [x] aluno ativo permanece localizável pelo filtro `Convertido`;
+- [x] confirmação e próximas ações sobrevivem a reload da Central do Aluno;
+- [ ] `pnpm validate` e workflow remoto aprovados no HEAD final.
 
 ## Validação manual
 
@@ -44,11 +52,15 @@ SHA funcional validado: `320307033a097d4ac2e83fd1161ba26c02e76bd4`.
 2. Criar semelhança de telefone/e-mail, registrar “pessoas diferentes” e concluir revisão.
 3. Repetir o cenário com candidato fora do escopo e confirmar que nenhum dado é exibido e a decisão é recusada.
 4. Alterar identificação ou contato pelo pré-cadastro público e confirmar verificação antes da gravação.
-5. Alterar contato após revisão e confirmar invalidação.
+5. Alterar individualmente contato, origem, responsável, unidade e observações após revisão e confirmar invalidação.
 6. Consolidar duplicado sem dados clínicos e confirmar preservação do registro descartado.
 7. Tentar consolidar duplicado com Anamnese/PAR-Q e confirmar pendência sem alteração.
 8. Confirmar matrícula duas vezes e observar mesmo ID sem novo evento de conversão.
 9. Verificar ausência de contrato, plano, cobrança, professor e agenda.
+10. Confirmar que o claim com e sem candidato duplicado não possui resposta pública diferenciada.
+11. Revogar permissão ou mudar escopo entre preflight e commit e confirmar rollback.
+12. Depois de `A → B`, tentar `B → C` e confirmar rejeição pelo banco.
+13. Recarregar a Central do Aluno após ativação e localizar o mesmo ID pelo filtro `Convertido`.
 
 ## Riscos e pendências
 

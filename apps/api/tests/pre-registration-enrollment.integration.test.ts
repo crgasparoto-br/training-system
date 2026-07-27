@@ -5,6 +5,7 @@ import {
   UserType,
 } from '@prisma/client';
 import { createStudentLead } from '../src/modules/alunos/student-lifecycle.service.js';
+import { preRegistrationAdminService } from '../src/modules/pre-registration-admin/pre-registration-admin.service.js';
 import { preRegistrationEnrollmentCreateService } from '../src/modules/pre-registration-enrollment/pre-registration-enrollment-create.service.js';
 import {
   preRegistrationEnrollmentService,
@@ -137,6 +138,23 @@ describeDatabase('pre-registration enrollment with PostgreSQL', () => {
       fingerprint: targetReview.fingerprint,
       reviewedRecordVersion: targetReview.recordVersion,
     });
+
+    const third = await createLead(
+      actor,
+      'third',
+      '(15) 97777-0000',
+      'third-person@example.com'
+    );
+    await expect(
+      prisma.aluno.update({
+        where: { id: target.id },
+        data: { canonicalAlunoId: third.id },
+      })
+    ).rejects.toThrow();
+    expect(
+      (await prisma.aluno.findUniqueOrThrow({ where: { id: target.id } }))
+        .canonicalAlunoId
+    ).toBeNull();
   });
 
   it('stores a lead-creation false-positive decision with the persisted onboarding version', async () => {
@@ -172,5 +190,47 @@ describeDatabase('pre-registration enrollment with PostgreSQL', () => {
       reviewedRecordVersion: review.recordVersion,
     });
     expect(review.recordVersion).toBeGreaterThan(0);
+  });
+
+  it('serializes concurrent administrative edits that would create the same identity', async () => {
+    const actor = await seedActor();
+    const first = await createLead(
+      actor,
+      'concurrent-first',
+      '+55 15 91111-0001',
+      'concurrent-first@example.com'
+    );
+    const second = await createLead(
+      actor,
+      'concurrent-second',
+      '+55 15 91111-0002',
+      'concurrent-second@example.com'
+    );
+    const desiredPhone = '+55 15 92222-0000';
+    const desiredEmail = 'concurrent-shared@example.com';
+
+    const results = await Promise.allSettled([
+      preRegistrationAdminService.updateCommercial(actor, first.id, {
+        phone: desiredPhone,
+        email: desiredEmail,
+      }),
+      preRegistrationAdminService.updateCommercial(actor, second.id, {
+        phone: desiredPhone,
+        email: desiredEmail,
+      }),
+    ]);
+
+    expect(results.filter(({ status }) => status === 'fulfilled')).toHaveLength(1);
+    expect(results.filter(({ status }) => status === 'rejected')).toHaveLength(1);
+    const persisted = await prisma.aluno.count({
+      where: {
+        contractId,
+        OR: [
+          { leadPhoneNormalized: '5515922220000' },
+          { leadEmailNormalized: desiredEmail },
+        ],
+      },
+    });
+    expect(persisted).toBe(1);
   });
 });

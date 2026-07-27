@@ -9,6 +9,20 @@ const atomicService = readFileSync(
   ),
   'utf8'
 );
+const publicService = readFileSync(
+  resolve(
+    root,
+    'apps/api/src/modules/pre-registration-public/pre-registration-public.service.ts'
+  ),
+  'utf8'
+);
+const publicRoutes = readFileSync(
+  resolve(
+    root,
+    'apps/api/src/modules/pre-registration-public/pre-registration-public.routes.ts'
+  ),
+  'utf8'
+);
 
 describe('issue 274 public identity deduplication contract', () => {
   it('runs the canonical detector before public identity persistence', () => {
@@ -33,5 +47,25 @@ describe('issue 274 public identity deduplication contract', () => {
     expect(atomicService).toContain("'DUPLICATE_REVIEW_REQUIRED'");
     expect(atomicService).toContain('{ reviewRequired: true }');
     expect(atomicService).not.toContain('candidateAlunoIds: detection.candidates');
+  });
+
+  it('runs claim detection after the invite lock and before account linkage', () => {
+    const inviteIndex = publicService.indexOf('const aluno = await tx.aluno.findFirst');
+    const detectorIndex = publicService.indexOf('await detectPreRegistrationDuplicates(tx, {');
+    const linkIndex = publicService.indexOf('const linked = await tx.aluno.updateMany');
+
+    expect(detectorIndex).toBeGreaterThan(inviteIndex);
+    expect(detectorIndex).toBeLessThan(linkIndex);
+    expect(publicService).not.toContain('inspectByInviteToken');
+  });
+
+  it('applies rate limiting before parsing and processing public registration', () => {
+    const route = publicRoutes.slice(
+      publicRoutes.indexOf("'/pre-cadastro/:token/register'"),
+      publicRoutes.indexOf("authenticatedRouter.use")
+    );
+    expect(route.indexOf('preRegistrationInviteRateLimit')).toBeLessThan(
+      route.indexOf("express.json({ limit: '32kb' })")
+    );
   });
 });

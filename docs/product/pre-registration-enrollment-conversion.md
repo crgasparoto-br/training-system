@@ -23,7 +23,7 @@ Classificações:
 - `INFORMATIONAL`: nome semelhante isoladamente;
 - `NONE`: sem evidência material.
 
-O fluxo público devolve somente uma mensagem genérica de revisão. A tela administrativa exibe dados mascarados apenas para candidatos incluídos no escopo de dados do usuário autenticado. A existência de candidatos restritos pode ser informada por contagem, sem revelar identidade, contato ou identificador.
+O claim executa a detecção dentro da própria transação, mas não devolve código, corpo ou status diferente em razão da classificação encontrada. A decisão permanece para a revisão administrativa. O rate limit executa antes da rota pública. A tela administrativa exibe dados mascarados apenas para candidatos incluídos no escopo de dados do usuário autenticado. A existência de candidatos restritos pode ser informada por contagem, sem revelar identidade, contato ou identificador.
 
 ## Decisões administrativas
 
@@ -50,14 +50,20 @@ Cancela a tentativa sem alteração de estado ou dados.
 `READY_FOR_ENROLLMENT` exige:
 
 - `PRE_REGISTRATION_COMPLETED`;
-- campos obrigatórios e consentimento vigentes;
+- campos obrigatórios e versão do consentimento igual à política vigente;
 - ausência de conflito bloqueante;
 - decisão vigente para duplicidade revisável;
 - `StudentOnboardingProcess.version` igual à versão revisada.
 
-Alterações de nome, CPF, contatos ou nascimento após a conclusão incrementam a versão e invalidam a revisão anterior. Nas etapas públicas de identificação e contato, a verificação ocorre dentro da mesma transação, após autorização e bloqueio do processo e antes da persistência da identidade.
+Alterações de nome, CPF, contatos, nascimento, origem, responsável comercial, unidade ou observações após a conclusão incrementam a versão e invalidam a revisão anterior. Nas etapas públicas de identificação e contato, a verificação ocorre dentro da mesma transação, após autorização e bloqueio do processo e antes da persistência da identidade.
 
-A confirmação da matrícula ocorre em transação serializável, recarrega e bloqueia o registro, reexecuta a deduplicação, rejeita revisão desatualizada, revoga convite ativo e altera o mesmo ID para `ACTIVE_STUDENT`. Repetição após sucesso devolve resultado idempotente e não duplica auditoria.
+A confirmação da matrícula ocorre em transação serializável, recarrega e bloqueia o registro, revalida permissão, escopo e tenant, reexecuta a deduplicação, rejeita revisão desatualizada, revoga convite ativo e altera o mesmo ID para `ACTIVE_STUDENT`. Repetição após sucesso devolve resultado idempotente e não duplica auditoria.
+
+## Revisão e pós-ativação
+
+A revisão apresenta identificação e contatos conforme permissão, normalização, origem, responsável, unidade, observações, datas do processo, consentimento, histórico, status de Anamnese/PAR-Q e domínios posteriores. O acesso à área clínica só aparece para quem possui a permissão específica.
+
+Depois da ativação, a Central do Aluno mantém uma confirmação recarregável na URL e oferece próximas ações conforme as permissões vigentes. A visão padrão de leads continua excluindo alunos ativos, mas o filtro `Convertido` localiza `ACTIVE_STUDENT`.
 
 ## Fora de escopo automático
 

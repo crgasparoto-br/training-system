@@ -11,8 +11,10 @@ import { Button } from '../../components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { preRegistrationAdminService } from '../../services/pre-registration-admin.service';
+import { canAccessBlock, canAccessScreen } from '../../access/access-control';
+import { useAuthStore } from '../../stores/useAuthStore';
 import { PreRegistrationAdminDetail } from './PreRegistrationAdminDetail';
-import { ProgressState, STATUS_LABELS, statusClass } from './pre-registration-ui';
+import { formatDate, ProgressState, STATUS_LABELS, statusClass } from './pre-registration-ui';
 
 function candidateStatusLabel(status: PreRegistrationDuplicateCandidateDTO['status']) {
   return status === 'ACTIVE_STUDENT' ? 'Aluno ativo' : STATUS_LABELS[status];
@@ -112,6 +114,11 @@ function Candidate({
 export function PreRegistrationEnrollmentDetail() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
+  const user = useAuthStore((state) => state.user);
+  const canOpenClinicalArea =
+    canAccessScreen(user, 'physicalAssessment.protocol') &&
+    (canAccessBlock(user, 'physicalAssessment.prnt.anamnesisFollowUp') ||
+      canAccessBlock(user, 'physicalAssessment.prnt.parqSubmissions'));
   const [lead, setLead] = useState<PreRegistrationAdminLeadDetailDTO | null>(null);
   const [review, setReview] = useState<PreRegistrationEnrollmentReviewDTO | null>(null);
   const [selectedId, setSelectedId] = useState('');
@@ -260,6 +267,87 @@ export function PreRegistrationEnrollmentDetail() {
         <main className="space-y-6">
           <Card>
             <CardHeader>
+              <CardTitle>Identificação e processo</CardTitle>
+              <CardDescription>
+                Dados cadastrais, comerciais e consentimento considerados nesta revisão.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <dl className="grid gap-4 text-sm sm:grid-cols-2">
+                <div>
+                  <dt className="text-muted-foreground">Nome</dt>
+                  <dd className="font-medium">{lead.name}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">CPF</dt>
+                  <dd className="font-medium">{lead.contacts.cpf || 'Não informado'}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Telefone</dt>
+                  <dd className="font-medium">{lead.contacts.phone || 'Não informado'}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">E-mail</dt>
+                  <dd className="font-medium">{lead.contacts.email || 'Não informado'}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Origem</dt>
+                  <dd className="font-medium">{lead.origin}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Responsável comercial</dt>
+                  <dd className="font-medium">{lead.responsible?.name || 'Não definido'}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Unidade</dt>
+                  <dd className="font-medium">{lead.commercial.unit || 'Não informada'}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Validação</dt>
+                  <dd className="font-medium">
+                    {lead.contacts.masked
+                      ? 'Valores protegidos conforme sua permissão'
+                      : 'Identificadores normalizados pelo serviço canônico'}
+                  </dd>
+                </div>
+              </dl>
+              {lead.commercial.notes && (
+                <div className="rounded-lg border border-border p-3 text-sm">
+                  <p className="text-muted-foreground">Observações comerciais</p>
+                  <p className="mt-1 whitespace-pre-wrap">{lead.commercial.notes}</p>
+                </div>
+              )}
+              <dl className="grid gap-4 border-t border-border pt-4 text-sm sm:grid-cols-2">
+                <div>
+                  <dt className="text-muted-foreground">Cadastro criado</dt>
+                  <dd>{formatDate(lead.createdAt)}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Convite enviado</dt>
+                  <dd>{formatDate(lead.invite?.createdAt)}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Preenchimento iniciado</dt>
+                  <dd>{formatDate(lead.lifecycleProgress.startedAt)}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Preenchimento concluído</dt>
+                  <dd>{formatDate(lead.lifecycleProgress.completedAt)}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Consentimento</dt>
+                  <dd>{formatDate(lead.lifecycleProgress.privacyAcceptedAt)}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Versão do consentimento</dt>
+                  <dd>{lead.lifecycleProgress.privacyNoticeVersion || 'Não informada'}</dd>
+                </div>
+              </dl>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
               <CardTitle>Identidade e duplicidades</CardTitle>
               <CardDescription>
                 {classificationLabel[review.classification]}. CPF e conta incompatível bloqueiam; nome isolado é somente informativo.
@@ -351,7 +439,33 @@ export function PreRegistrationEnrollmentDetail() {
             <ProgressState label="Anamnese" status={review.health.healthModuleStatus} />
             <ProgressState label="PAR-Q" status={review.health.parqModuleStatus} />
             {review.health.parqRequiresProfessionalReview && <p className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm">PAR-Q com alerta profissional. Não bloqueia nem é encerrado automaticamente.</p>}
+            {canOpenClinicalArea && (
+              <Link
+                className="inline-flex text-sm font-medium text-primary hover:underline"
+                to={`/protocolo-avaliacao-fisica/prontuario-entrevista-acompanhamento?alunoId=${encodeURIComponent(id)}`}
+              >
+                Abrir área clínica
+              </Link>
+            )}
           </CardContent></Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Histórico relevante</CardTitle>
+              <CardDescription>Alterações de ciclo e convites preservadas no processo.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ol className="space-y-3 text-sm">
+                {lead.history.length === 0 ? (
+                  <li className="text-muted-foreground">Nenhum evento registrado.</li>
+                ) : lead.history.map((item) => (
+                  <li key={`${item.type}:${item.id}`} className="border-l-2 border-border pl-3">
+                    <p className="font-medium">{item.title}</p>
+                    <p className="text-xs text-muted-foreground">{formatDate(item.createdAt)}</p>
+                  </li>
+                ))}
+              </ol>
+            </CardContent>
+          </Card>
           <Card><CardHeader><CardTitle>Após a matrícula</CardTitle></CardHeader>
             <CardContent><ul className="space-y-2 text-sm"><li>Contrato: não configurado</li><li>Plano e cobrança: não configurados</li><li>Professor: não configurado</li><li>Agenda: não configurada</li></ul></CardContent>
           </Card>

@@ -1,7 +1,4 @@
-export {
-  preRegistrationEnrollmentRoutes,
-  preRegistrationPublicDeduplicationGuardRoutes,
-} from './pre-registration-enrollment.routes.js';
+export { preRegistrationEnrollmentRoutes } from './pre-registration-enrollment.routes.js';
 export {
   PreRegistrationEnrollmentError,
   detectPreRegistrationDuplicates,

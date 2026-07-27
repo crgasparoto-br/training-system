@@ -98,9 +98,13 @@ function ProgressSummary({ lead }: { lead: PreRegistrationAdminLeadSummaryDTO })
 }
 
 function LeadCard({ lead }: { lead: PreRegistrationAdminLeadSummaryDTO }) {
+  const destination =
+    lead.status === 'ACTIVE_STUDENT'
+      ? `/central-do-aluno/${lead.id}`
+      : `/pre-matriculas/${lead.id}`;
   return (
     <Link
-      to={`/pre-matriculas/${lead.id}`}
+      to={destination}
       className="block min-w-0 max-w-full overflow-hidden rounded-xl border border-border bg-card p-4 shadow-[var(--shadow-soft)] transition hover:border-primary/40"
     >
       <div className="flex items-start justify-between gap-3">

@@ -23,11 +23,11 @@ import {
   loadStudentIdentity,
   upsertStudentIdentity,
 } from '../alunos/student-identity.service.js';
+import { PRE_REGISTRATION_PRIVACY_NOTICE_VERSION } from './pre-registration-policy.js';
 import { detectPreRegistrationDuplicates } from '../pre-registration-enrollment/pre-registration-enrollment.service.js';
 import { PreRegistrationPublicError } from './pre-registration-public.service.js';
 
 const prisma = new PrismaClient();
-const PRIVACY_NOTICE_VERSION = process.env.PRIVACY_NOTICE_VERSION?.trim() || '2026-07';
 const FORM_VERSION = 'pre-registration-v1';
 
 const ALLOWED_PRE_REGISTRATION_STATUSES: StudentLifecycleStatus[] = [
@@ -427,7 +427,7 @@ async function buildSessionInTransaction(
     claimRole: access.accessRole,
     guardianAuthorization: authorization,
     privacy: {
-      noticeVersion: PRIVACY_NOTICE_VERSION,
+      noticeVersion: PRE_REGISTRATION_PRIVACY_NOTICE_VERSION,
       noticeUrl: tenant.privacyNoticeUrl,
       acceptedAt: onboarding.privacyAcceptedAt?.toISOString(),
     },
@@ -636,7 +636,7 @@ export const preRegistrationPublicAtomicService = {
         actorUserId: userId,
         accessRole: descriptor.accessRole,
         expectedVersion: input.expectedVersion,
-        privacyNoticeVersion: PRIVACY_NOTICE_VERSION,
+        privacyNoticeVersion: PRE_REGISTRATION_PRIVACY_NOTICE_VERSION,
         privacyAcceptedAt: new Date(),
         ipAddress: audit.ipAddress,
         userAgent: audit.userAgent,

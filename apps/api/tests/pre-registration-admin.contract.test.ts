@@ -16,12 +16,12 @@ const actionKeys = [
 ] as const;
 
 describe('pre-registration admin access contract', () => {
-  it('registers a dedicated screen and keeps active students outside the module', () => {
+  it('registers a dedicated screen and exposes active students only through the converted filter', () => {
     expect(ACCESS_SCREEN_CATALOG).toContainEqual({
       key: 'students.preRegistration',
       label: 'Gestão de leads e pré-matrículas',
     });
-    expect(PRE_REGISTRATION_ADMIN_STATUSES).not.toContain('ACTIVE_STUDENT');
+    expect(PRE_REGISTRATION_ADMIN_STATUSES).toContain('ACTIVE_STUDENT');
   });
 
   it('registers every granular action under the pre-registration screen', () => {

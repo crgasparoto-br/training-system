@@ -13,10 +13,9 @@ const service = readFileSync(
 );
 
 describe('issue 274 route and transaction contract', () => {
-  it('mounts authoritative guards before legacy administrative and public routes', () => {
-    expect(main.indexOf('preRegistrationPublicDeduplicationGuardRoutes')).toBeLessThan(
-      main.indexOf('preRegistrationPublicEntryRoutes)')
-    );
+  it('mounts the public entry route directly so rate limiting runs before deduplication', () => {
+    expect(main).not.toContain('preRegistrationPublicDeduplicationGuardRoutes');
+    expect(main).toContain("app.use('/api/v1', preRegistrationPublicEntryRoutes)");
     expect(main.indexOf('preRegistrationEnrollmentRoutes')).toBeLessThan(
       main.indexOf('preRegistrationAdminRoutes)')
     );
@@ -34,5 +33,11 @@ describe('issue 274 route and transaction contract', () => {
     expect(service).toContain("downstreamCreation: 'NONE'");
     expect(service).not.toContain('studentContract.create');
     expect(service).not.toContain('agendaBooking.create');
+  });
+
+  it('allows review loading with either review or conversion capability', () => {
+    expect(routes).toContain("'students.preRegistration.review'");
+    expect(routes).toContain("'students.preRegistration.convert'");
+    expect(routes).toContain("'/leads/:id/enrollment-review'");
   });
 });

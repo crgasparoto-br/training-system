@@ -6,11 +6,22 @@ import {
   StudentLifecycleError,
 } from './student-lifecycle.service.js';
 import { loadStudentIdentity } from './student-identity.service.js';
+import { PRE_REGISTRATION_PRIVACY_NOTICE_VERSION } from '../pre-registration-public/pre-registration-policy.js';
 
 type EnrollmentTransitionInput = {
   actor: StudentLifecycleActorDTO;
   metadata: Record<string, unknown>;
 };
+
+export function hasCurrentPreRegistrationConsent(
+  privacyNoticeVersion: string | null | undefined,
+  privacyAcceptedAt: Date | null | undefined
+): boolean {
+  return Boolean(
+    privacyAcceptedAt &&
+      privacyNoticeVersion === PRE_REGISTRATION_PRIVACY_NOTICE_VERSION
+  );
+}
 
 async function assertProfessorInContract(
   tx: Prisma.TransactionClient,
@@ -95,10 +106,19 @@ export async function markStudentReadyForEnrollmentInTransaction(
   }
   await assertProfessorInContract(tx, input.actor.professorId, contractId);
 
-  if (!aluno.onboarding.privacyAcceptedAt || !aluno.onboarding.privacyNoticeVersion) {
+  if (
+    !hasCurrentPreRegistrationConsent(
+      aluno.onboarding.privacyNoticeVersion,
+      aluno.onboarding.privacyAcceptedAt
+    )
+  ) {
     throw new StudentLifecycleError(
       'O consentimento vigente deve estar registrado antes da revisão.',
-      'PRECONDITION_FAILED'
+      'PRECONDITION_FAILED',
+      {
+        acceptedVersion: aluno.onboarding.privacyNoticeVersion,
+        requiredVersion: PRE_REGISTRATION_PRIVACY_NOTICE_VERSION,
+      }
     );
   }
   const identity = await loadStudentIdentity(alunoId, contractId, tx);
@@ -107,8 +127,8 @@ export async function markStudentReadyForEnrollmentInTransaction(
     phone: identity.phone ?? undefined,
     email: identity.email ?? undefined,
     birthDate: identity.birthDate ?? undefined,
-    privacyNoticeVersion: aluno.onboarding.privacyNoticeVersion,
-    privacyAcceptedAt: aluno.onboarding.privacyAcceptedAt,
+    privacyNoticeVersion: aluno.onboarding.privacyNoticeVersion ?? undefined,
+    privacyAcceptedAt: aluno.onboarding.privacyAcceptedAt ?? undefined,
   });
   if (missing.length > 0) {
     throw new StudentLifecycleError(

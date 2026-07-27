@@ -22,10 +22,7 @@ import { serviceRoutes } from './modules/services/index.js';
 import { startProfileReviewScheduler } from './modules/alunos/profile-review.scheduler.js';
 import studentContractLifecycleRoutes from './modules/student-contracts/student-contract-lifecycle.routes.js';
 import { preRegistrationAdminRoutes } from './modules/pre-registration-admin/index.js';
-import {
-  preRegistrationEnrollmentRoutes,
-  preRegistrationPublicDeduplicationGuardRoutes,
-} from './modules/pre-registration-enrollment/index.js';
+import { preRegistrationEnrollmentRoutes } from './modules/pre-registration-enrollment/index.js';
 import {
   preRegistrationAuthenticatedRoutes,
   preRegistrationHealthIntakeRoutes,
@@ -63,10 +60,6 @@ app.use(
   '/api/v1/pre-cadastro',
   cors(createApiCorsOptions(corsConfig, { preflightContinue: true }))
 );
-
-// Deduplicação pública deve ocorrer antes da criação/vinculação de conta e nunca
-// expõe candidatos ou identificadores do outro cadastro.
-app.use('/api/v1', preRegistrationPublicDeduplicationGuardRoutes);
 
 app.use('/api/v1', preRegistrationPublicEntryRoutes);
 app.use('/api/v1', preRegistrationInvitePublicRoutes);

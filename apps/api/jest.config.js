@@ -7,7 +7,7 @@ export default {
   // A suíte de integração abre clientes Prisma por arquivo. No CI com banco real,
   // serializar os arquivos evita esgotar max_connections sem reduzir a cobertura;
   // os testes unitários continuam usando o paralelismo padrão fora desse modo.
-  maxWorkers: process.env.RUN_DATABASE_INTEGRATION_TESTS === 'true' ? 1 : undefined,
+  ...(process.env.RUN_DATABASE_INTEGRATION_TESTS === 'true' ? { maxWorkers: 1 } : {}),
   testTimeout: process.env.RUN_DATABASE_INTEGRATION_TESTS === 'true' ? 15_000 : 5_000,
   moduleNameMapper: {
     '^\.\./\.\./bootstrap-env\.js$': '<rootDir>/tests/bootstrap-env.mock.ts',

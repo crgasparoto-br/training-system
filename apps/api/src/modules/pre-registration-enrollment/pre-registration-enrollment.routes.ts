@@ -1,10 +1,10 @@
-import express, { Router, type NextFunction, type Request, type Response } from 'express';
+import { Router, type Request, type Response } from 'express';
 import type {
   PreRegistrationConfirmEnrollmentInputDTO,
   PreRegistrationDuplicateDecisionInputDTO,
   PreRegistrationReadyForEnrollmentInputDTO,
 } from '@corrida/types';
-import { authMiddleware, alunoMiddleware } from '../auth/auth.middleware.js';
+import { authMiddleware } from '../auth/auth.middleware.js';
 import {
   blockAccessMiddleware,
   screenAccessMiddleware,
@@ -29,24 +29,13 @@ import {
 } from './pre-registration-enrollment.service.js';
 
 export const preRegistrationEnrollmentRoutes: Router = Router();
-export const preRegistrationPublicDeduplicationGuardRoutes: Router = Router();
 
 preRegistrationEnrollmentRoutes.use(authMiddleware);
 preRegistrationEnrollmentRoutes.use(screenAccessMiddleware('students.preRegistration'));
 
 const createAccess = blockAccessMiddleware('students.preRegistration.create');
-const editAccess = blockAccessMiddleware('students.preRegistration.editCommercial');
 const reviewAccess = blockAccessMiddleware('students.preRegistration.review');
 const convertAccess = blockAccessMiddleware('students.preRegistration.convert');
-const IDENTITY_KEYS = new Set([
-  'name',
-  'cpf',
-  'birthDate',
-  'phone',
-  'additionalPhone',
-  'email',
-  'additionalEmail',
-]);
 
 type AuthUser = {
   userId?: string;
@@ -93,58 +82,6 @@ function respondError(res: Response, error: unknown) {
   });
 }
 
-function publicDuplicateResponse(res: Response) {
-  return res.status(409).json({
-    success: false,
-    error: 'Este cadastro precisa de revisão pela academia antes de continuar.',
-    code: 'DUPLICATE_REVIEW_REQUIRED',
-    details: { reviewRequired: true },
-  });
-}
-
-preRegistrationPublicDeduplicationGuardRoutes.post(
-  '/pre-cadastro/:token/register',
-  express.json({ limit: '32kb' }),
-  async (req, res, next) => {
-    try {
-      const result = await preRegistrationEnrollmentService.inspectByInviteToken(req.params.token, {
-        name: typeof req.body?.name === 'string' ? req.body.name : undefined,
-        email: typeof req.body?.email === 'string' ? req.body.email : undefined,
-      });
-      if (result.classification === 'BLOCKING' || result.classification === 'REVIEW_REQUIRED') {
-        return publicDuplicateResponse(res);
-      }
-      return next();
-    } catch (error) {
-      if (error instanceof PreRegistrationEnrollmentError) return publicDuplicateResponse(res);
-      return next(error);
-    }
-  }
-);
-
-preRegistrationPublicDeduplicationGuardRoutes.post(
-  '/pre-registration/claim',
-  express.json({ limit: '32kb' }),
-  authMiddleware,
-  alunoMiddleware,
-  async (req, res, next) => {
-    try {
-      const token = typeof req.body?.token === 'string' ? req.body.token : '';
-      const user = req.user as AuthUser | undefined;
-      const result = await preRegistrationEnrollmentService.inspectByInviteToken(token, {
-        userId: user?.userId,
-      });
-      if (result.classification === 'BLOCKING' || result.classification === 'REVIEW_REQUIRED') {
-        return publicDuplicateResponse(res);
-      }
-      return next();
-    } catch (error) {
-      if (error instanceof PreRegistrationEnrollmentError) return publicDuplicateResponse(res);
-      return next(error);
-    }
-  }
-);
-
 preRegistrationEnrollmentRoutes.post(
   '/leads/duplicates',
   createAccess,
@@ -176,36 +113,12 @@ preRegistrationEnrollmentRoutes.post('/leads', createAccess, async (req, res, ne
   }
 });
 
-preRegistrationEnrollmentRoutes.patch('/leads/:id', editAccess, async (req, res, next) => {
-  if (!Object.keys(req.body || {}).some((key) => IDENTITY_KEYS.has(key))) return next();
-  try {
-    const actor = actorFrom(req);
-    await assertPreRegistrationAlunoVisible(actor, req.params.id);
-    const result = await preRegistrationEnrollmentService.inspectProposedUpdate(
-      actor,
-      req.params.id,
-      req.body || {}
-    );
-    if (result.classification === 'BLOCKING' || result.classification === 'REVIEW_REQUIRED') {
-      const scoped = await projectScopedLeadDuplicateCheck(actor, result);
-      throw new PreRegistrationEnrollmentError(
-        result.classification === 'BLOCKING'
-          ? 'A alteração cria um conflito bloqueante de identidade.'
-          : 'A alteração exige revisão de duplicidade antes de ser salva.',
-        result.classification === 'BLOCKING' ? 'BLOCKING_DUPLICATE' : 'DUPLICATE_REVIEW_REQUIRED',
-        { ...scoped }
-      );
-    }
-    return next();
-  } catch (error) {
-    if (error instanceof PreRegistrationEnrollmentError) return respondError(res, error);
-    return next(error);
-  }
-});
-
 preRegistrationEnrollmentRoutes.get(
   '/leads/:id/enrollment-review',
-  reviewAccess,
+  blockAccessMiddleware([
+    'students.preRegistration.review',
+    'students.preRegistration.convert',
+  ]),
   async (req, res) => {
     try {
       const actor = actorFrom(req);

@@ -39,9 +39,10 @@ import {
   hashInviteToken,
   timingSafeEqualHash,
 } from '../pre-registration-invites/pre-registration-invite-token.js';
+import { detectPreRegistrationDuplicates } from '../pre-registration-enrollment/pre-registration-enrollment.service.js';
+import { PRE_REGISTRATION_PRIVACY_NOTICE_VERSION } from './pre-registration-policy.js';
 
 const prisma = new PrismaClient();
-const PRIVACY_NOTICE_VERSION = process.env.PRIVACY_NOTICE_VERSION?.trim() || '2026-07';
 const FORM_VERSION = 'pre-registration-v1';
 
 const ALLOWED_PRE_REGISTRATION_STATUSES: StudentLifecycleStatus[] = [
@@ -231,6 +232,15 @@ async function claimInviteInTransaction(
   if (!aluno || !aluno.onboarding) {
     throw new PreRegistrationPublicError('Cadastro não disponível.', 'NOT_FOUND');
   }
+  await detectPreRegistrationDuplicates(tx, {
+    contractId: invite.contractId,
+    alunoId: invite.alunoId,
+    overrides: {
+      userId,
+      name: user.profile?.name,
+      email: user.email,
+    },
+  });
   if (!ALLOWED_PRE_REGISTRATION_STATUSES.includes(aluno.status)) {
     if (role === 'STUDENT' && aluno.status === 'ACTIVE_STUDENT' && aluno.userId === userId) {
       throw new PreRegistrationPublicError(
@@ -627,7 +637,7 @@ async function buildSession(userId: string, alunoId: string): Promise<PreRegistr
     claimRole: role,
     guardianAuthorization: authorization,
     privacy: {
-      noticeVersion: PRIVACY_NOTICE_VERSION,
+      noticeVersion: PRE_REGISTRATION_PRIVACY_NOTICE_VERSION,
       noticeUrl: tenant.privacyNoticeUrl,
       acceptedAt: onboarding.privacyAcceptedAt?.toISOString(),
     },
@@ -999,7 +1009,7 @@ export const preRegistrationPublicService = {
         actorUserId: userId,
         accessRole: accessible.accessRole,
         expectedVersion: input.expectedVersion,
-        privacyNoticeVersion: PRIVACY_NOTICE_VERSION,
+        privacyNoticeVersion: PRE_REGISTRATION_PRIVACY_NOTICE_VERSION,
         privacyAcceptedAt: new Date(),
         ipAddress: audit.ipAddress,
         userAgent: audit.userAgent,

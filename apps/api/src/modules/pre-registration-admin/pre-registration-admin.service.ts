@@ -39,6 +39,9 @@ import {
 } from '../alunos/student-identity.service.js';
 import { preRegistrationInviteAdminService } from '../pre-registration-invites/pre-registration-invite-admin.service.js';
 import { revokeUsableInviteForDiscardInTransaction } from '../pre-registration-invites/pre-registration-invite-admin.helpers.js';
+import {
+  detectPreRegistrationDuplicates,
+} from '../pre-registration-enrollment/pre-registration-enrollment.service.js';
 
 const prisma = new PrismaClient();
 const SCREEN_KEY = 'students.preRegistration';
@@ -212,8 +215,11 @@ function maskCpf(value?: string | null) {
   return digits.length >= 2 ? `•••.•••.•••-${digits.slice(-2)}` : '•••.•••.•••-••';
 }
 
-async function accessFor(actor: PreRegistrationAdminActor): Promise<AccessContext> {
-  const professor = await prisma.professor.findFirst({
+async function accessFor(
+  actor: PreRegistrationAdminActor,
+  client: DbClient = prisma
+): Promise<AccessContext> {
+  const professor = await client.professor.findFirst({
     where: { id: actor.professorId, contractId: actor.contractId },
     select: {
       id: true,
@@ -230,13 +236,13 @@ async function accessFor(actor: PreRegistrationAdminActor): Promise<AccessContex
     collaboratorFunction: professor.collaboratorFunction,
   };
   const [scope, edit, invite, revoke, review, discard, convert] = await Promise.all([
-    getEffectiveDataScopeForProfessor(accessProfessor, SCREEN_KEY),
-    canProfessorAccessBlock(accessProfessor, BLOCKS.edit),
-    canProfessorAccessBlock(accessProfessor, BLOCKS.invite),
-    canProfessorAccessBlock(accessProfessor, BLOCKS.revoke),
-    canProfessorAccessBlock(accessProfessor, BLOCKS.review),
-    canProfessorAccessBlock(accessProfessor, BLOCKS.discard),
-    canProfessorAccessBlock(accessProfessor, BLOCKS.convert),
+    getEffectiveDataScopeForProfessor(accessProfessor, SCREEN_KEY, client),
+    canProfessorAccessBlock(accessProfessor, BLOCKS.edit, client),
+    canProfessorAccessBlock(accessProfessor, BLOCKS.invite, client),
+    canProfessorAccessBlock(accessProfessor, BLOCKS.revoke, client),
+    canProfessorAccessBlock(accessProfessor, BLOCKS.review, client),
+    canProfessorAccessBlock(accessProfessor, BLOCKS.discard, client),
+    canProfessorAccessBlock(accessProfessor, BLOCKS.convert, client),
   ]);
   if (!scope) {
     throw new PreRegistrationAdminError('Perfil sem escopo para pré-matrículas.', 'FORBIDDEN');
@@ -244,12 +250,12 @@ async function accessFor(actor: PreRegistrationAdminActor): Promise<AccessContex
 
   const visible =
     scope === 'contract'
-      ? await prisma.professor.findMany({
+      ? await client.professor.findMany({
           where: { contractId: actor.contractId },
           select: { id: true },
         })
       : scope === 'managed'
-        ? await prisma.professor.findMany({
+        ? await client.professor.findMany({
             where: {
               contractId: actor.contractId,
               OR: [{ id: actor.professorId }, { responsibleManagerId: actor.professorId }],
@@ -355,8 +361,9 @@ function progressOf(lead: LeadRecord) {
 function allowedFor(lead: LeadRecord, invite: InviteRecord | undefined, access: AccessContext) {
   const inviteActions = inviteCapabilities(lead, invite);
   const discarded = lead.status === 'DISCARDED';
+  const active = lead.status === ACTIVE_STATUS;
   return {
-    canEditCommercialData: access.permissions.canEditCommercialData && !discarded,
+    canEditCommercialData: access.permissions.canEditCommercialData && !discarded && !active,
     canGenerateInvite:
       access.permissions.canGenerateInvite && inviteActions.canGenerateFirst,
     canRegenerateInvite:
@@ -366,11 +373,11 @@ function allowedFor(lead: LeadRecord, invite: InviteRecord | undefined, access: 
       access.permissions.canReview && lead.status === 'PRE_REGISTRATION_COMPLETED',
     canValidateGuardianAuthorization:
       access.permissions.canValidateGuardianAuthorization && !discarded,
-    canDiscard: access.permissions.canDiscard && !discarded,
+    canDiscard: access.permissions.canDiscard && !discarded && !active,
     canReopen: access.permissions.canReopen && discarded,
     canConvert:
       access.permissions.canConvert && lead.status === 'READY_FOR_ENROLLMENT',
-    canOpenStudentCentral: false,
+    canOpenStudentCentral: active,
   };
 }
 
@@ -380,6 +387,14 @@ function nextAction(
   allowed: PreRegistrationAdminAllowedActionsDTO,
   requiresParqReview: boolean
 ): PreRegistrationAdminNextActionDTO {
+  if (lead.status === ACTIVE_STATUS) {
+    return {
+      code: 'OPEN_STUDENT_CENTRAL',
+      label: 'Abrir Central do Aluno',
+      description: 'A matrícula foi confirmada e o histórico da pré-matrícula foi preservado.',
+      enabled: allowed.canOpenStudentCentral,
+    };
+  }
   if (lead.status === 'DISCARDED') {
     return {
       code: 'REOPEN',
@@ -507,9 +522,10 @@ function summaryOf(lead: LeadRecord, access: AccessContext): PreRegistrationAdmi
 async function leadOrThrow(
   id: string,
   actor: PreRegistrationAdminActor,
-  access: AccessContext
+  access: AccessContext,
+  client: DbClient = prisma
 ): Promise<LeadRecord> {
-  const lead = await prisma.aluno.findFirst({
+  const lead = await client.aluno.findFirst({
     where: {
       id,
       contractId: actor.contractId,
@@ -1037,36 +1053,56 @@ export const preRegistrationAdminService = {
     id: string,
     input: UpdatePreRegistrationLeadCommercialDTO
   ) {
-    const access = await accessFor(actor);
-    if (!access.permissions.canEditCommercialData) {
-      throw new PreRegistrationAdminError(
-        'Sem permissão para editar dados comerciais.',
-        'FORBIDDEN'
-      );
-    }
-    const lead = await leadOrThrow(id, actor, access);
-    if (
-      input.responsibleProfessorId &&
-      !access.visibleProfessorIds.includes(input.responsibleProfessorId)
-    ) {
-      throw new PreRegistrationAdminError('Responsável fora do seu escopo.', 'FORBIDDEN');
-    }
-    if (access.scope !== 'contract' && input.responsibleProfessorId === null) {
-      throw new PreRegistrationAdminError(
-        'Não é possível remover o responsável dentro deste escopo.',
-        'FORBIDDEN'
-      );
-    }
-
-    const duplicates = await this.checkDuplicates(actor, input, id);
-    if (duplicates.hasBlockingCpfConflict) {
-      throw new PreRegistrationAdminError(
-        'Já existe uma pessoa com este CPF no contrato.',
-        'IDENTIFIER_CONFLICT',
-        duplicates
-      );
-    }
     await prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT "id"
+        FROM "Aluno"
+        WHERE "id" = ${id} AND "contractId" = ${actor.contractId}
+        FOR UPDATE
+      `;
+      if (locked.length !== 1) {
+        throw new PreRegistrationAdminError('Pré-matrícula não encontrada.', 'NOT_FOUND');
+      }
+      const access = await accessFor(actor, tx);
+      if (!access.permissions.canEditCommercialData) {
+        throw new PreRegistrationAdminError(
+          'Sem permissão para editar dados comerciais.',
+          'FORBIDDEN'
+        );
+      }
+      const lead = await leadOrThrow(id, actor, access, tx);
+      if (
+        input.responsibleProfessorId &&
+        !access.visibleProfessorIds.includes(input.responsibleProfessorId)
+      ) {
+        throw new PreRegistrationAdminError('Responsável fora do seu escopo.', 'FORBIDDEN');
+      }
+      if (access.scope !== 'contract' && input.responsibleProfessorId === null) {
+        throw new PreRegistrationAdminError(
+          'Não é possível remover o responsável dentro deste escopo.',
+          'FORBIDDEN'
+        );
+      }
+
+      const detection = await detectPreRegistrationDuplicates(tx, {
+        contractId: actor.contractId,
+        alunoId: id,
+        overrides: input,
+      });
+      if (
+        detection.classification === 'BLOCKING' ||
+        detection.classification === 'REVIEW_REQUIRED'
+      ) {
+        throw new PreRegistrationAdminError(
+          detection.classification === 'BLOCKING'
+            ? 'A alteração cria um conflito bloqueante de identidade.'
+            : 'A alteração exige revisão de duplicidade antes de ser salva.',
+          detection.classification === 'BLOCKING'
+            ? 'IDENTIFIER_CONFLICT'
+            : 'POSSIBLE_DUPLICATE'
+        );
+      }
+
       const identity = await loadStudentIdentity(id, actor.contractId, tx);
       await tx.aluno.update({
         where: { id },
@@ -1103,7 +1139,7 @@ export const preRegistrationAdminService = {
           },
         },
       });
-    });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     return this.getDetail(actor, id);
   },
 

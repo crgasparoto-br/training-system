@@ -30,11 +30,21 @@ import {
   upsertStudentIdentity,
   type StudentIdentityData,
 } from '../alunos/student-identity.service.js';
-import { hashInviteToken } from '../pre-registration-invites/pre-registration-invite-token.js';
+import {
+  buildProfessorDataScopeWhere,
+  canProfessorAccessBlock,
+  getEffectiveDataScopeForProfessor,
+} from '../access-control/access-control.service.js';
 
 const prisma = new PrismaClient();
 const DECISION_VALIDITY_DAYS = 30;
 const MAX_CANDIDATES = 25;
+const ENROLLMENT_BLOCKS = {
+  create: 'students.preRegistration.create',
+  edit: 'students.preRegistration.editCommercial',
+  review: 'students.preRegistration.review',
+  convert: 'students.preRegistration.convert',
+} as const;
 
 export type PreRegistrationEnrollmentActor = {
   userId?: string;
@@ -481,12 +491,77 @@ export async function detectPreRegistrationDuplicates(
   };
 }
 
-async function assertActor(actor: PreRegistrationEnrollmentActor, client: DbClient): Promise<void> {
+async function assertActorAccess(
+  actor: PreRegistrationEnrollmentActor,
+  client: DbClient,
+  allowedBlockKeys: readonly string[],
+  alunoIds: readonly string[] = []
+): Promise<Set<string>> {
   const professor = await client.professor.findFirst({
     where: { id: actor.professorId, contractId: actor.contractId },
+    select: {
+      id: true,
+      role: true,
+      collaboratorFunction: { select: { id: true, code: true } },
+    },
+  });
+  if (!professor?.collaboratorFunction) {
+    throw new PreRegistrationEnrollmentError('Recurso não encontrado.', 'NOT_FOUND');
+  }
+
+  const accessProfessor = {
+    role: professor.role as 'master' | 'professor',
+    collaboratorFunction: professor.collaboratorFunction,
+  };
+  const [scope, blockChecks] = await Promise.all([
+    getEffectiveDataScopeForProfessor(
+      accessProfessor,
+      'students.preRegistration',
+      client
+    ),
+    Promise.all(
+      allowedBlockKeys.map((blockKey) =>
+        canProfessorAccessBlock(accessProfessor, blockKey, client)
+      )
+    ),
+  ]);
+  if (!scope || !blockChecks.some(Boolean)) {
+    throw new PreRegistrationEnrollmentError('Acesso não autorizado.', 'FORBIDDEN');
+  }
+  const grantedBlocks = new Set(
+    allowedBlockKeys.filter((_, index) => blockChecks[index])
+  );
+  if (alunoIds.length === 0) return grantedBlocks;
+
+  const visibleProfessors = await client.professor.findMany({
+    where: buildProfessorDataScopeWhere(
+      actor.contractId,
+      actor.professorId,
+      scope
+    ),
     select: { id: true },
   });
-  if (!professor) throw new PreRegistrationEnrollmentError('Recurso não encontrado.', 'NOT_FOUND');
+  const visibleProfessorIds = new Set(visibleProfessors.map(({ id }) => id));
+  const uniqueAlunoIds = [...new Set(alunoIds)];
+  const rows = await client.aluno.findMany({
+    where: { id: { in: uniqueAlunoIds }, contractId: actor.contractId },
+    select: { id: true, professorId: true, createdByProfessorId: true },
+  });
+  const allVisible =
+    rows.length === uniqueAlunoIds.length &&
+    rows.every(
+      (row) =>
+        scope === 'contract' ||
+        Boolean(row.professorId && visibleProfessorIds.has(row.professorId)) ||
+        Boolean(
+          row.createdByProfessorId &&
+            visibleProfessorIds.has(row.createdByProfessorId)
+        )
+    );
+  if (!allVisible) {
+    throw new PreRegistrationEnrollmentError('Recurso não encontrado.', 'NOT_FOUND');
+  }
+  return grantedBlocks;
 }
 
 function decisionFromEvent(event: {
@@ -567,7 +642,12 @@ export async function getEnrollmentReview(
   alunoId: string,
   client: DbClient = prisma
 ): Promise<PreRegistrationEnrollmentReviewDTO> {
-  await assertActor(actor, client);
+  const grantedBlocks = await assertActorAccess(
+    actor,
+    client,
+    [ENROLLMENT_BLOCKS.review, ENROLLMENT_BLOCKS.convert],
+    [alunoId]
+  );
   const aluno = await client.aluno.findFirst({
     where: { id: alunoId, contractId: actor.contractId },
     include: { onboarding: true },
@@ -590,11 +670,20 @@ export async function getEnrollmentReview(
     candidates: publicCandidates(detection),
     currentDecision: decision,
     canConfirmDifferentPeople:
+      grantedBlocks.has(ENROLLMENT_BLOCKS.review) &&
       detection.classification === 'REVIEW_REQUIRED' &&
       !detection.candidates.some((candidate) => candidate.classification === 'BLOCKING'),
-    canUseExistingCanonical: detection.candidates.length > 0,
-    canMarkReady: aluno.status === 'PRE_REGISTRATION_COMPLETED' && resolved,
-    canConfirmEnrollment: aluno.status === 'READY_FOR_ENROLLMENT' && resolved,
+    canUseExistingCanonical:
+      grantedBlocks.has(ENROLLMENT_BLOCKS.review) &&
+      detection.candidates.length > 0,
+    canMarkReady:
+      grantedBlocks.has(ENROLLMENT_BLOCKS.review) &&
+      aluno.status === 'PRE_REGISTRATION_COMPLETED' &&
+      resolved,
+    canConfirmEnrollment:
+      grantedBlocks.has(ENROLLMENT_BLOCKS.convert) &&
+      aluno.status === 'READY_FOR_ENROLLMENT' &&
+      resolved,
     health: {
       healthModuleStatus: aluno.onboarding.healthModuleStatus,
       parqModuleStatus: aluno.onboarding.parqModuleStatus,
@@ -713,8 +802,11 @@ async function consolidateDuplicate(
   }
 
   return prisma.$transaction(async (tx) => {
-    await assertActor(actor, tx);
     for (const id of [alunoId, targetId].sort()) await lockAluno(tx, id, actor.contractId);
+    await assertActorAccess(actor, tx, [ENROLLMENT_BLOCKS.review], [
+      alunoId,
+      targetId,
+    ]);
     const [source, target] = await Promise.all([
       tx.aluno.findFirst({ where: { id: alunoId, contractId: actor.contractId }, include: { onboarding: true } }),
       tx.aluno.findFirst({ where: { id: targetId, contractId: actor.contractId }, include: { onboarding: true } }),
@@ -892,31 +984,11 @@ export const preRegistrationEnrollmentService = {
     return getEnrollmentReview(actor, alunoId);
   },
 
-  async inspectByInviteToken(
-    token: string,
-    overrides: DetectionOverrides
-  ): Promise<Pick<DetectionResult, 'classification' | 'fingerprint'>> {
-    const tokenHash = hashInviteToken(token);
-    const invite = await prisma.preRegistrationInvite.findFirst({
-      where: { tokenHash, purpose: 'PRE_REGISTRATION', status: 'ACTIVE' },
-      select: { alunoId: true, contractId: true, expiresAt: true },
-    });
-    if (!invite || invite.expiresAt <= new Date()) {
-      return { classification: 'NONE', fingerprint: '' };
-    }
-    const result = await detectPreRegistrationDuplicates(prisma, {
-      contractId: invite.contractId,
-      alunoId: invite.alunoId,
-      overrides,
-    });
-    return { classification: result.classification, fingerprint: result.fingerprint };
-  },
-
   async inspectProposedLead(
     actor: PreRegistrationEnrollmentActor,
     overrides: DetectionOverrides
   ): Promise<DetectionResult> {
-    await assertActor(actor, prisma);
+    await assertActorAccess(actor, prisma, [ENROLLMENT_BLOCKS.create]);
     return detectPreRegistrationDuplicates(prisma, { contractId: actor.contractId, overrides });
   },
 
@@ -925,7 +997,7 @@ export const preRegistrationEnrollmentService = {
     alunoId: string,
     overrides: DetectionOverrides
   ): Promise<DetectionResult> {
-    await assertActor(actor, prisma);
+    await assertActorAccess(actor, prisma, [ENROLLMENT_BLOCKS.edit], [alunoId]);
     return detectPreRegistrationDuplicates(prisma, {
       contractId: actor.contractId,
       alunoId,
@@ -947,12 +1019,15 @@ export const preRegistrationEnrollmentService = {
       throw new PreRegistrationEnrollmentError('Informe o motivo da decisão.', 'INVALID_INPUT');
     }
     await prisma.$transaction(async (tx) => {
-      await assertActor(actor, tx);
       await lockAluno(tx, alunoId, actor.contractId);
       const detection = await detectPreRegistrationDuplicates(tx, {
         contractId: actor.contractId,
         alunoId,
       });
+      await assertActorAccess(actor, tx, [ENROLLMENT_BLOCKS.review], [
+        alunoId,
+        ...detection.candidates.map(({ candidateAlunoId }) => candidateAlunoId),
+      ]);
       if (detection.recordVersion !== input.expectedVersion || detection.fingerprint !== input.fingerprint) {
         throw new PreRegistrationEnrollmentError(
           'Os dados ou as evidências mudaram. Refaça a revisão.',
@@ -1003,8 +1078,8 @@ export const preRegistrationEnrollmentService = {
     const reason = clean(input.reason);
     if (!reason) throw new PreRegistrationEnrollmentError('Informe o motivo da revisão.', 'INVALID_INPUT');
     await prisma.$transaction(async (tx) => {
-      await assertActor(actor, tx);
       await lockAluno(tx, alunoId, actor.contractId);
+      await assertActorAccess(actor, tx, [ENROLLMENT_BLOCKS.review], [alunoId]);
       const aluno = await tx.aluno.findFirst({
         where: { id: alunoId, contractId: actor.contractId },
         include: { onboarding: true },
@@ -1068,8 +1143,8 @@ export const preRegistrationEnrollmentService = {
       throw new PreRegistrationEnrollmentError('Confirme a ativação da matrícula.', 'INVALID_INPUT');
     }
     return prisma.$transaction(async (tx) => {
-      await assertActor(actor, tx);
       await lockAluno(tx, alunoId, actor.contractId);
+      await assertActorAccess(actor, tx, [ENROLLMENT_BLOCKS.convert], [alunoId]);
       const aluno = await tx.aluno.findFirst({
         where: { id: alunoId, contractId: actor.contractId },
         include: { onboarding: true },
@@ -1081,7 +1156,7 @@ export const preRegistrationEnrollmentService = {
         return {
           alunoId,
           status: 'ACTIVE_STUDENT',
-          redirectTo: `/central-do-aluno/${alunoId}`,
+          redirectTo: `/central-do-aluno/${alunoId}?matricula=confirmada`,
           idempotent: true,
         };
       }
@@ -1155,7 +1230,7 @@ export const preRegistrationEnrollmentService = {
       return {
         alunoId,
         status: 'ACTIVE_STUDENT',
-        redirectTo: `/central-do-aluno/${alunoId}`,
+        redirectTo: `/central-do-aluno/${alunoId}?matricula=confirmada`,
         idempotent: false,
       };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });

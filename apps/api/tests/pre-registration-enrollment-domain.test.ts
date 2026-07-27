@@ -7,6 +7,8 @@ import {
   areNamesSimilar,
   classifyDuplicateSignals,
 } from '../src/modules/pre-registration-enrollment/pre-registration-enrollment.service.js';
+import { hasCurrentPreRegistrationConsent } from '../src/modules/alunos/student-lifecycle-enrollment.service.js';
+import { PRE_REGISTRATION_PRIVACY_NOTICE_VERSION } from '../src/modules/pre-registration-public/pre-registration-policy.js';
 
 describe('pre-registration enrollment duplicate classification', () => {
   it('keeps name-only similarity informational', () => {
@@ -41,5 +43,22 @@ describe('pre-registration enrollment duplicate classification', () => {
     expect(normalizeStudentPhone('015 15 99999-0000')).toBe('5515999990000');
     expect(normalizeStudentPhone('+1 415 555 2671')).toBe('14155552671');
     expect(normalizeStudentPhone('99999-0000')).toBeUndefined();
+  });
+
+  it('accepts only the current privacy notice version as a valid consent', () => {
+    const acceptedAt = new Date('2026-07-27T12:00:00.000Z');
+    expect(
+      hasCurrentPreRegistrationConsent(
+        PRE_REGISTRATION_PRIVACY_NOTICE_VERSION,
+        acceptedAt
+      )
+    ).toBe(true);
+    expect(hasCurrentPreRegistrationConsent('2026-06', acceptedAt)).toBe(false);
+    expect(
+      hasCurrentPreRegistrationConsent(
+        PRE_REGISTRATION_PRIVACY_NOTICE_VERSION,
+        null
+      )
+    ).toBe(false);
   });
 });

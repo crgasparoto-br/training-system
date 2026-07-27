@@ -6,12 +6,16 @@ const routes = readFileSync(
   resolve(root, 'apps/api/src/modules/pre-registration-enrollment/pre-registration-enrollment.routes.ts'),
   'utf8'
 );
-const access = readFileSync(
-  resolve(root, 'apps/api/src/modules/pre-registration-enrollment/pre-registration-enrollment-access.service.ts'),
-  'utf8'
-);
 const create = readFileSync(
   resolve(root, 'apps/api/src/modules/pre-registration-enrollment/pre-registration-enrollment-create.service.ts'),
+  'utf8'
+);
+const service = readFileSync(
+  resolve(root, 'apps/api/src/modules/pre-registration-enrollment/pre-registration-enrollment.service.ts'),
+  'utf8'
+);
+const adminService = readFileSync(
+  resolve(root, 'apps/api/src/modules/pre-registration-admin/pre-registration-admin.service.ts'),
   'utf8'
 );
 const response = readFileSync(
@@ -20,11 +24,13 @@ const response = readFileSync(
 );
 
 describe('issue 274 authorization and creation decision contract', () => {
-  it('revalidates source visibility before administrative actions', () => {
+  it('revalidates capability and source visibility inside the transaction', () => {
     expect(routes).toContain('assertPreRegistrationAlunoVisible');
-    expect(access).toContain('getEffectiveDataScopeForProfessor');
-    expect(access).toContain('buildProfessorDataScopeWhere');
-    expect(access).toContain("throw new PreRegistrationEnrollmentError('Recurso não encontrado.'");
+    expect(service).toContain('assertActorAccess(actor, tx');
+    expect(service).toContain('canProfessorAccessBlock(accessProfessor, blockKey, client)');
+    expect(service).toContain('buildProfessorDataScopeWhere(');
+    expect(adminService).toContain('const access = await accessFor(actor, tx)');
+    expect(adminService).toContain('FOR UPDATE');
   });
 
   it('does not return candidates outside the actor data scope', () => {
@@ -47,13 +53,9 @@ describe('issue 274 authorization and creation decision contract', () => {
     expect(create).toContain("'FORBIDDEN'");
   });
 
-  it('keeps the public duplicate response generic', () => {
-    const publicResponse = routes.slice(
-      routes.indexOf('function publicDuplicateResponse'),
-      routes.indexOf("preRegistrationPublicDeduplicationGuardRoutes.post(")
-    );
-    expect(publicResponse).toContain('reviewRequired: true');
-    expect(publicResponse).not.toContain('candidateAlunoId');
-    expect(publicResponse).not.toContain('fingerprint');
+  it('does not expose a public duplicate oracle before the real claim route', () => {
+    expect(routes).not.toContain('publicDuplicateResponse');
+    expect(routes).not.toContain('inspectByInviteToken');
+    expect(routes).not.toContain('preRegistrationPublicDeduplicationGuardRoutes');
   });
 });

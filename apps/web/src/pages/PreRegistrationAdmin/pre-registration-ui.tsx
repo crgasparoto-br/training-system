@@ -11,6 +11,7 @@ export const STATUS_LABELS: Record<PreRegistrationAdminStatus, string> = {
   PRE_REGISTRATION_IN_PROGRESS: 'Em preenchimento',
   PRE_REGISTRATION_COMPLETED: 'Aguardando revisão',
   READY_FOR_ENROLLMENT: 'Pronto para matrícula',
+  ACTIVE_STUDENT: 'Convertido',
   DISCARDED: 'Descartado',
 };
 
@@ -19,7 +20,7 @@ export const STATUS_OPTIONS = Object.entries(STATUS_LABELS) as Array<
 >;
 
 export function statusClass(status: PreRegistrationAdminStatus) {
-  if (status === 'READY_FOR_ENROLLMENT') return 'ts-badge-success';
+  if (status === 'READY_FOR_ENROLLMENT' || status === 'ACTIVE_STUDENT') return 'ts-badge-success';
   if (status === 'DISCARDED') return 'ts-badge-danger';
   if (status === 'PRE_REGISTRATION_COMPLETED') return 'ts-badge-warning';
   if (status === 'PRE_REGISTRATION_IN_PROGRESS' || status === 'INVITED') {
