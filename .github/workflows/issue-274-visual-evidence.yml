@@ -37,6 +37,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Install browser for visual evidence
+        run: pnpm --filter @corrida/api exec puppeteer browsers install chrome
+
       - name: Start web application
         shell: bash
         run: |
