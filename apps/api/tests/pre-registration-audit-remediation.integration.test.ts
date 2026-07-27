@@ -134,6 +134,7 @@ describeDatabase('issue 274 audit remediation with PostgreSQL', () => {
       {
         name: 'Pessoa em Pré-cadastro',
         birthDate: '1990-01-01',
+        cpf: '11144477735',
         phone: '+55 15 90000-0001',
         email: `${suffix}-source@example.com`,
       },
@@ -195,8 +196,8 @@ describeDatabase('issue 274 audit remediation with PostgreSQL', () => {
     });
     expect(afterCpf.leadCpf).toBe('52998224725');
     expect(afterCpf.leadCpfNormalized).toBeNull();
-    expect(afterCpf.studentProfile?.identificationData).not.toMatchObject({
-      cpf: '52998224725',
+    expect(afterCpf.studentProfile?.identificationData).toMatchObject({
+      cpf: '11144477735',
     });
 
     const contact = await preRegistrationDuplicateReviewService.preserveDuplicateConflict(
@@ -236,7 +237,10 @@ describeDatabase('issue 274 audit remediation with PostgreSQL', () => {
     });
 
     const [persisted, pendingReview, session] = await Promise.all([
-      prisma.aluno.findUniqueOrThrow({ where: { id: source.id } }),
+      prisma.aluno.findUniqueOrThrow({
+        where: { id: source.id },
+        include: { studentProfile: true },
+      }),
       prisma.studentProfileReview.findFirstOrThrow({
         where: {
           alunoId: source.id,
@@ -249,6 +253,9 @@ describeDatabase('issue 274 audit remediation with PostgreSQL', () => {
     ]);
     expect(persisted.leadCpf).toBe('52998224725');
     expect(persisted.leadCpfNormalized).toBeNull();
+    expect(persisted.studentProfile?.identificationData).toMatchObject({
+      cpf: '11144477735',
+    });
     expect(persisted.leadPhoneNormalized).toBe('5515988880000');
     expect(persisted.leadEmailNormalized).toBe(`${suffix}-shared@example.com`);
     expect(pendingReview.snapshotAfter).toMatchObject({
