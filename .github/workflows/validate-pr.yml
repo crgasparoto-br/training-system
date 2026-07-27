@@ -13,6 +13,9 @@ on:
       - 'feat/**'
       - 'fix/**'
 
+permissions:
+  contents: write
+
 jobs:
   validate:
     name: Validate repository
