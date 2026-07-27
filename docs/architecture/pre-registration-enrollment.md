@@ -18,7 +18,7 @@
 3. Candidatos fora do escopo `self`, `managed` ou `contract` do ator não são identificados na resposta; somente uma contagem restrita pode ser exibida.
 4. A resposta pública não inclui pessoa, contato, CPF, candidato ou fingerprint.
 5. O backend revalida permissão, escopo de dados, versão, estado e deduplicação no commit.
-6. A criação com falso positivo exige fingerprint e motivo atuais e registra a decisão na mesma transação da criação.
+6. A criação e a edição administrativa com falso positivo exigem fingerprint, versão e motivo atuais e registram a decisão na mesma transação da gravação.
 7. Consolidação não exclui registros e não move dados clínicos sem serviço transacional específico.
 8. O registro descartado aponta para um canônico do mesmo `contractId`; o banco serializa o grafo por tenant e rejeita autorreferência, destino cross-tenant, cadeia, ciclo e transformação posterior de um destino referenciado em origem.
 9. A auditoria do canônico é recalculada depois do vínculo e nunca reutiliza fingerprint ou versão da origem.
@@ -26,6 +26,8 @@
 11. As rotas administrativas autoritativas são montadas antes das rotas legadas para impedir bypass.
 12. Rate limit, autenticação e validação pública executam antes de qualquer consulta sensível; não existe guard público de deduplicação que responda de forma distinta.
 13. Bloco de ação, tela, tenant e escopo de dados são reconsultados na mesma transação, depois do lock e antes da mutação.
+14. Classificação, fingerprint, autorização e bloqueio usam o conjunto completo de candidatos; nenhuma paginação ou limitação visual reduz a decisão.
+15. Antes de transferir uma conta ao canônico, a compatibilidade é reavaliada contra a identidade final do destino, dentro da mesma transação.
 
 ## Concorrência
 
