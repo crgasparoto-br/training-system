@@ -47,6 +47,7 @@ O candidato válido é sempre o HEAD final da PR registrado no handoff. Este pla
 - o erro normal do detector aciona a preservação, sem depender de `P2002`;
 - CPF, e-mail e telefone são cobertos;
 - CPF bloqueante permanece bruto e não normalizado, permitindo continuidade e redetecção;
+- `snapshotBefore` permanece imutável e `snapshotAfter` acompanha o rascunho mais recente;
 - etapas posteriores continuam preservando o rascunho;
 - `StudentProfileReview` e evento registram a pendência sem PII de terceiros;
 - integração PostgreSQL comprova conclusão pública e bloqueio administrativo de `READY_FOR_ENROLLMENT`.
@@ -55,7 +56,8 @@ O candidato válido é sempre o HEAD final da PR registrado no handoff. Este pla
 
 - `students.preRegistration.create`, tela, tenant e data scope são reconsultados dentro da transação serializável;
 - o mesmo `TransactionClient` percorre toda a cadeia de autorização;
-- integração PostgreSQL comprova rollback sem permissão e sucesso após concessão.
+- linhas de professor, função e permissões são bloqueadas para linearizar revogação e criação;
+- integração PostgreSQL comprova rollback quando a revogação concorrente vence e sucesso somente com permissão vigente.
 
 ### A-004 — evidência visual
 
@@ -80,8 +82,8 @@ O candidato válido é sempre o HEAD final da PR registrado no handoff. Este pla
 - [x] nenhum domínio posterior é criado automaticamente;
 - [x] aluno ativo permanece localizável pelo filtro `Convertido`;
 - [x] confirmação e próximas ações sobrevivem a reload da Central do Aluno;
-- [ ] `pnpm validate`, integração PostgreSQL e workflows remotos aprovados no novo HEAD final;
-- [ ] evidência visual aprovada no novo HEAD final;
+- [x] `pnpm validate`, integração PostgreSQL e workflows remotos aprovados no HEAD de remediação;
+- [x] evidência visual aprovada e atestada no HEAD de remediação;
 - [ ] auditoria independente aprovada em contexto separado.
 
 ## Validação obrigatória
