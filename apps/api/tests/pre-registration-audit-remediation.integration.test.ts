@@ -258,6 +258,7 @@ describeDatabase('issue 274 audit remediation with PostgreSQL', () => {
     ).toBeNull();
     expect(persisted.leadPhoneNormalized).toBe('5515988880000');
     expect(persisted.leadEmailNormalized).toBe(`${suffix}-shared@example.com`);
+    expect(pendingReview.snapshotBefore).toMatchObject({ cpf: '11144477735' });
     expect(pendingReview.snapshotAfter).toMatchObject({
       cpf: '52998224725',
       phone: '(15) 98888-0000',
