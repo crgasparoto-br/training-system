@@ -23,7 +23,7 @@ Classificações:
 - `INFORMATIONAL`: nome semelhante isoladamente;
 - `NONE`: sem evidência material.
 
-O claim executa a detecção dentro da própria transação, mas não devolve código, corpo ou status diferente em razão da classificação encontrada. A decisão permanece para a revisão administrativa. O rate limit executa antes da rota pública. A tela administrativa exibe dados mascarados apenas para candidatos incluídos no escopo de dados do usuário autenticado. A existência de candidatos restritos pode ser informada por contagem, sem revelar identidade, contato ou identificador.
+Classificação, fingerprint, autorização e bloqueio consideram todos os candidatos encontrados; a interface não trunca silenciosamente a decisão. O claim executa a detecção dentro da própria transação, mas não devolve código, corpo ou status diferente em razão da classificação encontrada. A decisão permanece para a revisão administrativa. O rate limit executa antes da rota pública. A tela administrativa exibe dados mascarados apenas para candidatos incluídos no escopo de dados do usuário autenticado. A existência de candidatos restritos pode ser informada por contagem, sem revelar identidade, contato ou identificador.
 
 ## Decisões administrativas
 
@@ -31,13 +31,15 @@ O claim executa a detecção dentro da própria transação, mas não devolve c�
 
 Disponível somente para ocorrências `REVIEW_REQUIRED`. A decisão exige motivo, ator, fingerprint das evidências, versão revisada e validade de 30 dias. CPF ou conta incompatível não podem ser liberados por esta opção.
 
-Na criação de um novo lead, a confirmação de falso positivo e seu motivo são revalidados e gravados na mesma transação serializável da criação. A decisão só pode ser concluída quando o usuário possui escopo para revisar todos os candidatos relacionados; uma confirmação enviada apenas pelo frontend não é suficiente.
+Na criação de um novo lead e na edição de dados comerciais, a confirmação de falso positivo, a versão, o fingerprint e o motivo são revalidados e gravados na mesma transação serializável da mutação. A edição apresenta preflight mascarado, exige confirmação explícita e reabre a verificação quando nome ou identificadores mudam. A decisão só pode ser concluída quando o usuário possui escopo para revisar todos os candidatos relacionados; uma confirmação enviada apenas pelo frontend não é suficiente.
 
 ### Usar cadastro existente
 
 O administrador escolhe explicitamente o canônico, dentro do mesmo contrato e do próprio escopo de dados, e decide cada diferença. Valores existentes no canônico não são sobrescritos automaticamente; campos vazios podem ser preenchidos apenas mediante escolha explícita.
 
 O registro duplicado permanece no banco, é marcado `DISCARDED`, tem convite ativo revogado e recebe `canonicalAlunoId` apontando para um canônico do mesmo tenant. Registros com esse vínculo deixam de ser candidatos em novas detecções, evitando que a origem já resolvida bloqueie o destino. A origem e o canônico recebem auditorias próprias; a auditoria do destino usa fingerprint e versão recalculados após a consolidação. Não existe exclusão física.
+
+Quando a origem possui conta e o canônico ainda não possui, a transferência só ocorre após validar a conta contra a identidade final do canônico; incompatibilidade de nome, CPF, telefone ou nascimento bloqueia toda a consolidação sem desvincular a origem.
 
 Se o duplicado possuir Anamnese, PAR-Q, prontuário ou outro registro clínico, a consolidação é bloqueada com `CLINICAL_REASSOCIATION_REQUIRED`. Nenhum dado é movido por heurística ou perdido.
 
