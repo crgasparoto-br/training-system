@@ -7,6 +7,7 @@ import type {
 import { AlertCircle, AlertTriangle } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Card, CardContent } from '../../components/ui/Card';
+import { Input } from '../../components/ui/Input';
 import { preRegistrationAdminService } from '../../services/pre-registration-admin.service';
 import { LeadForm, type LeadFormValues } from './LeadForm';
 
