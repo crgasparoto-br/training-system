@@ -1,12 +1,11 @@
-import { PrismaClient } from '@prisma/client';
 import type { PreRegistrationEnrollmentReviewDTO } from '@corrida/types';
+import { issue274Prisma as prisma } from './issue-274-prisma.js';
 import {
   preRegistrationEnrollmentService,
   type PreRegistrationEnrollmentActor,
 } from './pre-registration-enrollment.service.js';
 import { preRegistrationReadyReviewService } from './pre-registration-ready-review.service.js';
 
-const prisma = new PrismaClient();
 type RuntimeService = typeof preRegistrationEnrollmentService & {
   __issue274EnrollmentReviewAdapterApplied?: boolean;
 };
