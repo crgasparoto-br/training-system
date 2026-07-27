@@ -39,6 +39,7 @@ export async function projectScopedLeadDuplicateCheck(
     .filter((candidate) => visibleIds.has(candidate.candidateAlunoId))
     .map(publicCandidate);
   return {
+    recordVersion: detection.recordVersion,
     fingerprint: detection.fingerprint,
     classification: detection.classification,
     candidates,
