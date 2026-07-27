@@ -1,5 +1,8 @@
 import type { PreRegistrationEnrollmentReviewDTO } from '@corrida/types';
-import { issue274Prisma as prisma } from './issue-274-prisma.js';
+import {
+  issue274Prisma as prisma,
+  releaseIssue274PrismaAfterIntegrationOperation,
+} from './issue-274-prisma.js';
 import {
   preRegistrationEnrollmentService,
   type PreRegistrationEnrollmentActor,
@@ -21,32 +24,36 @@ async function hasCurrentEnrollmentReview(
   review: PreRegistrationEnrollmentReviewDTO
 ): Promise<boolean> {
   if (review.status !== 'READY_FOR_ENROLLMENT') return false;
-  const [onboarding, events] = await Promise.all([
-    prisma.studentOnboardingProcess.findFirst({
-      where: { alunoId: review.alunoId, contractId: actor.contractId },
-      select: { reviewedAt: true },
-    }),
-    prisma.studentLifecycleEvent.findMany({
-      where: {
-        alunoId: review.alunoId,
-        contractId: actor.contractId,
-        eventType: 'ADMIN_REVIEWED',
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 100,
-      select: { metadata: true },
-    }),
-  ]);
-  if (!onboarding?.reviewedAt) return false;
-  return events.some(({ metadata }) => {
-    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return false;
-    const value = metadata as Record<string, unknown>;
-    return (
-      value.kind === 'ENROLLMENT_REVIEW' &&
-      value.fingerprint === review.fingerprint &&
-      Number(value.reviewedRecordVersion) === review.recordVersion
-    );
-  });
+  try {
+    const [onboarding, events] = await Promise.all([
+      prisma.studentOnboardingProcess.findFirst({
+        where: { alunoId: review.alunoId, contractId: actor.contractId },
+        select: { reviewedAt: true },
+      }),
+      prisma.studentLifecycleEvent.findMany({
+        where: {
+          alunoId: review.alunoId,
+          contractId: actor.contractId,
+          eventType: 'ADMIN_REVIEWED',
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+        select: { metadata: true },
+      }),
+    ]);
+    if (!onboarding?.reviewedAt) return false;
+    return events.some(({ metadata }) => {
+      if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return false;
+      const value = metadata as Record<string, unknown>;
+      return (
+        value.kind === 'ENROLLMENT_REVIEW' &&
+        value.fingerprint === review.fingerprint &&
+        Number(value.reviewedRecordVersion) === review.recordVersion
+      );
+    });
+  } finally {
+    await releaseIssue274PrismaAfterIntegrationOperation();
+  }
 }
 
 const runtime = preRegistrationEnrollmentService as RuntimeService;
