@@ -22,10 +22,13 @@ O candidato válido é sempre o HEAD final da PR registrado no handoff. Este pla
 - redetecção do canônico após a consolidação, com fingerprint e versão próprios;
 - revisão vinculada ao `onboarding.version`, inclusive para falso positivo confirmado durante a criação;
 - trigger de invalidação após mudança de identidade, com bloqueio `NOWAIT`;
+- renovação transacional da revisão quando um registro permanece `READY_FOR_ENROLLMENT` após invalidação;
+- capacidade de confirmar matrícula ocultada enquanto não existir revisão vigente para a versão e fingerprint atuais;
 - transições de descarte, prontidão e ativação centralizadas no domínio de ciclo do aluno;
 - ativação serializável do mesmo ID, com revogação de convite;
-- tela administrativa específica para os estados concluído e pronto;
+- tela administrativa específica para os estados concluído e pronto, incluindo ação explícita para renovar revisão desatualizada;
 - claim sem oráculo público, com rate limit antes da detecção transacional;
+- classificação do claim consumida antes da resposta pública para criar pendência administrativa privada, auditável e idempotente;
 - revalidação de bloco, tenant e escopo depois do lock e antes do commit;
 - consentimento comparado à versão vigente;
 - grafo canônico protegido contra cadeia, ciclo, atualização posterior e concorrência;
@@ -66,6 +69,23 @@ O candidato válido é sempre o HEAD final da PR registrado no handoff. Este pla
 - verifica ausência de overflow horizontal, conteúdo extremo, seções críticas, aviso de escopo, alerta de PAR-Q, árvore de acessibilidade e navegação por teclado;
 - o artefato é vinculado ao SHA do workflow.
 
+### A-005 — renovação da revisão invalidada
+
+- uma alteração relevante continua invalidando `reviewedAt`, o ator da revisão e a versão anterior;
+- `canConfirmEnrollment` exige `reviewedAt` e evento `ENROLLMENT_REVIEW` vinculados à versão e fingerprint atuais;
+- um registro ainda em `READY_FOR_ENROLLMENT` recebe `canMarkReady` somente quando a revisão está desatualizada e a deduplicação está resolvida;
+- a renovação revalida tenant, bloco de revisão, data scope, consentimento, campos obrigatórios, versão, fingerprint e decisão de duplicidade dentro de transação serializável;
+- o status permanece `READY_FOR_ENROLLMENT`, sem transição artificial, e um novo evento auditável é criado;
+- a interface oferece `Renovar revisão administrativa` com motivo obrigatório.
+
+### A-006 — resultado da deduplicação no claim
+
+- após o vínculo autenticado e antes da resposta pública, o detector canônico é executado em fronteira transacional com lock do aluno e onboarding;
+- classificações `REVIEW_REQUIRED` e `BLOCKING` geram ou atualizam uma única `StudentProfileReview` pendente;
+- o evento administrativo registra apenas classificação, campos, códigos de sinais, fingerprint e versão, sem IDs ou PII dos candidatos;
+- retries atualizam a mesma pendência e não duplicam o evento da mesma versão/fingerprint;
+- o corpo e o formato da resposta pública permanecem iguais ao claim sem duplicidade.
+
 ## Critérios de aceite
 
 - [x] nome isolado não bloqueia;
@@ -78,12 +98,15 @@ O candidato válido é sempre o HEAD final da PR registrado no handoff. Este pla
 - [x] origem consolidada não reaparece como bloqueio do canônico;
 - [x] histórico clínico bloqueia consolidação não assistida;
 - [x] alteração de identidade invalida revisão;
+- [x] revisão invalidada em `READY_FOR_ENROLLMENT` pode ser renovada sem intervenção externa;
+- [x] confirmação não é oferecida enquanto a revisão vigente estiver ausente;
+- [x] deduplicação do claim produz pendência privada e auditável quando aplicável;
 - [x] confirmação revalida no commit e é idempotente;
 - [x] nenhum domínio posterior é criado automaticamente;
 - [x] aluno ativo permanece localizável pelo filtro `Convertido`;
 - [x] confirmação e próximas ações sobrevivem a reload da Central do Aluno;
-- [x] `pnpm validate`, integração PostgreSQL e workflows remotos aprovados no HEAD de remediação;
-- [x] evidência visual aprovada e atestada no HEAD de remediação;
+- [ ] `pnpm validate`, integração PostgreSQL e workflows remotos aprovados no HEAD de remediação A-005/A-006;
+- [ ] evidência visual aprovada e atestada no HEAD de remediação A-005/A-006;
 - [ ] auditoria independente aprovada em contexto separado.
 
 ## Validação obrigatória
@@ -93,9 +116,11 @@ O candidato válido é sempre o HEAD final da PR registrado no handoff. Este pla
 3. Teste HTTP de não enumeração para respostas com e sem conflito.
 4. Integração de preservação CPF/e-mail/telefone, continuidade das etapas e bloqueio de READY.
 5. Integração de revogação/concessão do bloco de criação dentro da transação.
-6. Workflow visual com três viewports, árvore de acessibilidade, screenshots e relatório JSON no SHA final.
-7. Pré-auditoria interna adversarial.
-8. Nova auditoria independente em conversa separada.
+6. Integração A-005: marcar pronto, invalidar por alteração, negar confirmação, renovar revisão e ativar o mesmo ID.
+7. Integração A-006: claim com duplicidade cria pendência privada; retry é idempotente; claim limpo preserva o mesmo formato público.
+8. Workflow visual com três viewports, árvore de acessibilidade, screenshots e relatório JSON no SHA final.
+9. Pré-auditoria interna adversarial.
+10. Nova auditoria independente em conversa separada.
 
 ## Riscos e pendências
 
