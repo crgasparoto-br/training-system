@@ -61,16 +61,59 @@ export function normalizeStudentEmail(email?: string | null): string | undefined
   return typeof cleaned === 'string' ? cleaned.toLowerCase() : undefined;
 }
 
+export function isValidStudentCpf(cpf?: string | null): boolean {
+  if (typeof cpf !== 'string') return false;
+  const digits = cpf.replace(/\D/g, '');
+  if (digits.length !== 11 || /^(\d)\1{10}$/.test(digits)) return false;
+
+  const calculateDigit = (length: number) => {
+    let sum = 0;
+    for (let index = 0; index < length; index += 1) {
+      sum += Number(digits[index]) * (length + 1 - index);
+    }
+    const remainder = (sum * 10) % 11;
+    return remainder === 10 ? 0 : remainder;
+  };
+
+  return calculateDigit(9) === Number(digits[9]) && calculateDigit(10) === Number(digits[10]);
+}
+
 export function normalizeStudentPhone(phone?: string | null): string | undefined {
   if (typeof phone !== 'string') return undefined;
-  const digits = phone.replace(/\D/g, '');
-  return digits.length > 0 ? digits : undefined;
+  const raw = phone.trim();
+  if (!raw) return undefined;
+
+  const explicitInternational = raw.startsWith('+') || raw.startsWith('00');
+  let digits = raw.replace(/\D/g, '');
+  if (digits.startsWith('00')) digits = digits.slice(2);
+
+  if (explicitInternational) {
+    return digits.length >= 11 && digits.length <= 15 ? digits : undefined;
+  }
+
+  if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) {
+    return digits;
+  }
+
+  // Formato nacional com código de operadora: 0 + operadora + DDD + número.
+  if (digits.startsWith('0') && (digits.length === 13 || digits.length === 14)) {
+    const nationalNumber = digits.slice(3);
+    if (nationalNumber.length === 10 || nationalNumber.length === 11) {
+      return `55${nationalNumber}`;
+    }
+  }
+
+  // Sem prefixo internacional, exige DDD e assume Brasil como país do cadastro.
+  if (digits.length === 10 || digits.length === 11) {
+    return `55${digits}`;
+  }
+
+  return undefined;
 }
 
 export function normalizeStudentCpf(cpf?: string | null): string | undefined {
-  if (typeof cpf !== 'string') return undefined;
-  const digits = cpf.replace(/\D/g, '');
-  return digits.length > 0 ? digits : undefined;
+  if (!isValidStudentCpf(cpf)) return undefined;
+  return cpf!.replace(/\D/g, '');
 }
 
 export function deriveAgeFromBirthDate(

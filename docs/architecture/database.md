@@ -114,3 +114,12 @@ são fontes editáveis: identidade continua sendo escrita somente por
 clínico. A criação administrativa usa transação serializável para que deduplicação,
 registro canônico, responsável e identidade sejam confirmados ou revertidos como
 uma única operação.
+
+## Vínculo de duplicidade resolvida (issue #274)
+
+`Aluno.canonicalAlunoId` registra, sem exclusão física, que um cadastro descartado
+foi consolidado em outro `Aluno` do mesmo `contractId`. A migration
+`20260727010500_issue_274_canonical_duplicate_link` recupera vínculos legados a
+partir de `discardReason = DUPLICATE_OF:<id>` e instala chave estrangeira, índice e
+trigger que impedem autorreferência, destino cross-tenant e cadeia de registros já
+resolvidos. O detector considera somente candidatos sem `canonicalAlunoId`.

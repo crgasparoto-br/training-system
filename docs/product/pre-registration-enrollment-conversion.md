@@ -10,9 +10,9 @@ A mesma função de domínio é executada antes de criar lead, vincular conta/co
 
 Normalizações:
 
-- CPF sem máscara;
-- e-mail sem distinção de maiúsculas e minúsculas;
-- telefone no formato canônico já usado pelo cadastro;
+- CPF sem máscara e somente quando os 11 dígitos e os dois verificadores forem válidos; CPF inválido não participa como evidência bloqueante;
+- e-mail com trim e sem distinção de maiúsculas e minúsculas;
+- telefone em dígitos internacionais: para números nacionais, `55 + DDD + número`; prefixos `+`/`00` explícitos são preservados e número sem DDD não participa como identificador canônico;
 - nome sem acentos e espaços redundantes, ignorando partículas portuguesas comuns e usando a semelhança apenas como evidência auxiliar;
 - data civil de nascimento, sem deslocamento de fuso.
 
@@ -37,7 +37,7 @@ Na criação de um novo lead, a confirmação de falso positivo e seu motivo sã
 
 O administrador escolhe explicitamente o canônico, dentro do mesmo contrato e do próprio escopo de dados, e decide cada diferença. Valores existentes no canônico não são sobrescritos automaticamente; campos vazios podem ser preenchidos apenas mediante escolha explícita.
 
-O registro duplicado permanece no banco, é marcado `DISCARDED`, tem convite ativo revogado e recebe auditoria apontando para o canônico. Não existe exclusão física.
+O registro duplicado permanece no banco, é marcado `DISCARDED`, tem convite ativo revogado e recebe `canonicalAlunoId` apontando para um canônico do mesmo tenant. Registros com esse vínculo deixam de ser candidatos em novas detecções, evitando que a origem já resolvida bloqueie o destino. A origem e o canônico recebem auditorias próprias; a auditoria do destino usa fingerprint e versão recalculados após a consolidação. Não existe exclusão física.
 
 Se o duplicado possuir Anamnese, PAR-Q, prontuário ou outro registro clínico, a consolidação é bloqueada com `CLINICAL_REASSOCIATION_REQUIRED`. Nenhum dado é movido por heurística ou perdido.
 

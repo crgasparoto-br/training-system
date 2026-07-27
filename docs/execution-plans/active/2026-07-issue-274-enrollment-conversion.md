@@ -7,32 +7,34 @@ Entregar a conversão do lead/pré-matrícula no mesmo registro canônico, com d
 ## Escopo implementado
 
 - contrato compartilhado de evidências, decisões e resultado;
-- detector único, normalização de nomes e mascaramento administrativo;
+- detector único, CPF com dígitos verificadores, telefone canônico com país/DDD, normalização de nomes e mascaramento administrativo;
 - guardas antes de criação, registro/claim, edição administrativa, edição pública, revisão e ativação;
 - projeção dos candidatos conforme `self`, `managed` ou `contract`, sem identificar registros restritos;
 - decisões versionadas, com motivo, ator, fingerprint e expiração;
 - criação com falso positivo auditada na mesma transação e permitida somente com escopo sobre todos os candidatos;
-- consolidação sem exclusão e bloqueio de reassociação clínica insegura;
-- revisão vinculada ao `onboarding.version`;
+- consolidação sem exclusão, vínculo estruturado `duplicado → canônico` e bloqueio de reassociação clínica insegura;
+- redetecção do canônico após a consolidação, com fingerprint e versão próprios;
+- revisão vinculada ao `onboarding.version`, inclusive para falso positivo confirmado durante a criação;
 - trigger de invalidação após mudança de identidade, com bloqueio `NOWAIT`;
 - transições de descarte, prontidão e ativação centralizadas no domínio de ciclo do aluno;
 - ativação serializável do mesmo ID, com revogação de convite;
 - tela administrativa específica para os estados concluído e pronto;
-- documentação e testes de classificação, autorização, entrypoints, persistência pública e limites downstream.
+- documentação e testes de classificação, normalização, autorização, entrypoints, persistência pública, consolidação real em PostgreSQL e limites downstream.
 
 ## Critérios de aceite
 
 - [x] nome isolado não bloqueia;
 - [x] CPF/conta incompatível bloqueiam;
 - [x] resposta pública não revela candidatos;
-- [x] decisão registra ator, motivo, versão, fingerprint e validade;
+- [x] decisão registra ator, motivo, versão persistida, fingerprint e validade;
 - [x] decisão exige escopo sobre os cadastros relacionados;
-- [x] consolidação não apaga e não sobrescreve campo existente automaticamente;
+- [x] consolidação não apaga, registra o vínculo canônico e não sobrescreve campo existente automaticamente;
+- [x] origem consolidada não reaparece como bloqueio do canônico;
 - [x] histórico clínico bloqueia consolidação não assistida;
 - [x] alteração de identidade invalida revisão;
 - [x] confirmação revalida no commit e é idempotente;
 - [x] nenhum domínio posterior é criado automaticamente;
-- [x] `pnpm validate` e workflow remoto aprovados no SHA de implementação.
+- [ ] `pnpm validate` e workflow remoto aprovados no novo SHA corretivo.
 
 ## Validação manual
 

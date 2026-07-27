@@ -432,6 +432,7 @@ export async function detectPreRegistrationDuplicates(
   const candidates = await client.aluno.findMany({
     where: {
       contractId: input.contractId,
+      canonicalAlunoId: null,
       ...(input.alunoId ? { id: { not: input.alunoId } } : {}),
     },
     include: {
@@ -809,17 +810,29 @@ async function consolidateDuplicate(
       throwEnrollmentLifecycleError(error);
     }
 
+    const linked = await tx.aluno.updateMany({
+      where: {
+        id: alunoId,
+        contractId: actor.contractId,
+        status: 'DISCARDED',
+        canonicalAlunoId: null,
+      },
+      data: { canonicalAlunoId: targetId },
+    });
+    if (linked.count !== 1) {
+      throw new PreRegistrationEnrollmentError(
+        'A resolução foi alterada por outra operação. Recarregue antes de continuar.',
+        'CONCURRENT_MODIFICATION'
+      );
+    }
+
+    // Recalcula a visão do canônico depois que a origem deixa de participar da
+    // deduplicação. A auditoria do destino nunca reutiliza fingerprint/versão da origem.
+    const targetDetection = await detectPreRegistrationDuplicates(tx, {
+      contractId: actor.contractId,
+      alunoId: targetId,
+    });
     const validUntil = new Date(Date.now() + DECISION_VALIDITY_DAYS * 86_400_000).toISOString();
-    const commonMetadata = {
-      kind: 'DEDUPLICATION_DECISION',
-      action: 'USE_EXISTING_CANONICAL',
-      candidateAlunoId: targetId,
-      reason,
-      fingerprint: detection.fingerprint,
-      reviewedRecordVersion: detection.recordVersion,
-      validUntil,
-      fieldDecisions: input.fieldDecisions ?? {},
-    };
     await tx.studentLifecycleEvent.createMany({
       data: [
         {
@@ -828,7 +841,17 @@ async function consolidateDuplicate(
           eventType: 'ADMIN_REVIEWED',
           actorUserId: actor.userId,
           actorProfessorId: actor.professorId,
-          metadata: asJson({ ...commonMetadata, role: 'DUPLICATE_SOURCE' }),
+          metadata: asJson({
+            kind: 'DEDUPLICATION_DECISION',
+            action: 'USE_EXISTING_CANONICAL',
+            candidateAlunoId: targetId,
+            reason,
+            fingerprint: detection.fingerprint,
+            reviewedRecordVersion: detection.recordVersion,
+            validUntil,
+            fieldDecisions: input.fieldDecisions ?? {},
+            role: 'DUPLICATE_SOURCE',
+          }),
         },
         {
           alunoId: targetId,
@@ -836,7 +859,20 @@ async function consolidateDuplicate(
           eventType: 'ADMIN_REVIEWED',
           actorUserId: actor.userId,
           actorProfessorId: actor.professorId,
-          metadata: asJson({ ...commonMetadata, role: 'CANONICAL_TARGET', duplicateAlunoId: alunoId }),
+          metadata: asJson({
+            kind: 'DEDUPLICATION_CONSOLIDATION',
+            action: 'USE_EXISTING_CANONICAL',
+            sourceAlunoId: alunoId,
+            targetAlunoId: targetId,
+            reason,
+            sourceFingerprint: detection.fingerprint,
+            sourceRecordVersion: detection.recordVersion,
+            fingerprint: targetDetection.fingerprint,
+            reviewedRecordVersion: targetDetection.recordVersion,
+            validUntil,
+            fieldDecisions: input.fieldDecisions ?? {},
+            role: 'CANONICAL_TARGET',
+          }),
         },
       ],
     });

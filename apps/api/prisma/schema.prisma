@@ -451,6 +451,7 @@ model Aluno {
   discardedAt                   DateTime?
   discardReason                 String?
   discardedByProfessorId        String?
+  canonicalAlunoId              String?
   agendaBookings                AgendaBooking[]
   anthropometryAssessments      AnthropometryAssessment[]
   service                       ServiceOption?                 @relation(fields: [serviceId], references: [id])
@@ -460,6 +461,8 @@ model Aluno {
   contract                      CompanyContract                @relation("AlunoContract", fields: [contractId], references: [id], onDelete: Cascade)
   createdByProfessor            Professor?                     @relation("AlunoCreatedByProfessor", fields: [createdByProfessorId], references: [id], onDelete: SetNull)
   discardedByProfessor          Professor?                     @relation("AlunoDiscardedByProfessor", fields: [discardedByProfessorId], references: [id], onDelete: SetNull)
+  canonicalAluno                Aluno?                          @relation("AlunoDuplicateCanonical", fields: [canonicalAlunoId], references: [id], onDelete: SetNull)
+  duplicateSources              Aluno[]                         @relation("AlunoDuplicateCanonical")
   exerciseProgress              AlunoExerciseProgress[]
   intakeForm                    AlunoIntakeForm?
   profileReviewSettings         AlunoProfileReviewSettings?
@@ -508,6 +511,7 @@ model Aluno {
   @@index([contractId, status])
   @@index([createdByProfessorId])
   @@index([discardedByProfessorId])
+  @@index([contractId, canonicalAlunoId])
   @@index([professorId], map: "Athlete_educatorId_idx")
 }
 

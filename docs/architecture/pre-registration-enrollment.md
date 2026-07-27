@@ -6,7 +6,8 @@
 - `apps/api/src/modules/pre-registration-enrollment`: detector canônico, guardas de entrypoint, projeção por escopo, resolução, revisão e confirmação transacional.
 - `apps/api/src/modules/pre-registration-public/pre-registration-public-atomic.service.ts`: aplica o detector dentro da transação de identificação/contato público, antes da persistência.
 - `apps/web/src/pages/PreRegistrationAdmin/PreRegistrationEnrollmentDetail.tsx`: experiência administrativa; não contém regra de segurança.
-- `StudentLifecycleEvent`: trilha imutável de decisões, fingerprint, versão revisada, ator e consolidação.
+- `Aluno.canonicalAlunoId`: vínculo estruturado e não público do registro descartado para o canônico; candidatos já resolvidos deixam de participar de novas detecções.
+- `StudentLifecycleEvent`: trilha imutável de decisões, fingerprints específicos da origem e do canônico, versão revisada, ator e consolidação.
 - `StudentOnboardingProcess.version`: token otimista que invalida revisão quando a identidade muda.
 
 ## Invariantes
@@ -18,8 +19,10 @@
 5. O backend revalida permissão, escopo de dados, versão, estado e deduplicação no commit.
 6. A criação com falso positivo exige fingerprint e motivo atuais e registra a decisão na mesma transação da criação.
 7. Consolidação não exclui registros e não move dados clínicos sem serviço transacional específico.
-8. Ativação altera somente ciclo, timestamps, convite e auditoria; domínios posteriores permanecem independentes.
-9. As rotas autoritativas são montadas antes das rotas legadas para impedir bypass.
+8. O registro descartado aponta para um canônico do mesmo `contractId`; o banco rejeita autorreferência, destino cross-tenant e cadeia de duplicados.
+9. A auditoria do canônico é recalculada depois do vínculo e nunca reutiliza fingerprint ou versão da origem.
+10. Ativação altera somente ciclo, timestamps, convite e auditoria; domínios posteriores permanecem independentes.
+11. As rotas autoritativas são montadas antes das rotas legadas para impedir bypass.
 
 ## Concorrência
 

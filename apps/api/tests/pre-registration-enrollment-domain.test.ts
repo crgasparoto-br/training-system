@@ -1,4 +1,9 @@
 import {
+  isValidStudentCpf,
+  normalizeStudentCpf,
+  normalizeStudentPhone,
+} from '../src/modules/alunos/student-identity.service.js';
+import {
   areNamesSimilar,
   classifyDuplicateSignals,
 } from '../src/modules/pre-registration-enrollment/pre-registration-enrollment.service.js';
@@ -20,5 +25,21 @@ describe('pre-registration enrollment duplicate classification', () => {
       { classification: 'REVIEW_REQUIRED' },
       { classification: 'BLOCKING' },
     ])).toBe('BLOCKING');
+  });
+
+  it('validates CPF check digits before using the identifier as blocking evidence', () => {
+    expect(isValidStudentCpf('529.982.247-25')).toBe(true);
+    expect(normalizeStudentCpf('529.982.247-25')).toBe('52998224725');
+    expect(isValidStudentCpf('529.982.247-24')).toBe(false);
+    expect(normalizeStudentCpf('529.982.247-24')).toBeUndefined();
+    expect(normalizeStudentCpf('111.111.111-11')).toBeUndefined();
+  });
+
+  it('canonicalizes phones with country and DDD and rejects local-only numbers', () => {
+    expect(normalizeStudentPhone('(15) 99999-0000')).toBe('5515999990000');
+    expect(normalizeStudentPhone('+55 15 99999-0000')).toBe('5515999990000');
+    expect(normalizeStudentPhone('015 15 99999-0000')).toBe('5515999990000');
+    expect(normalizeStudentPhone('+1 415 555 2671')).toBe('14155552671');
+    expect(normalizeStudentPhone('99999-0000')).toBeUndefined();
   });
 });

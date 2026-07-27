@@ -149,7 +149,39 @@ export const preRegistrationEnrollmentCreateService = {
           }
         );
 
-        if (detection.classification === 'REVIEW_REQUIRED' && reason) {
+        const persistedDetection = await detectPreRegistrationDuplicates(tx, {
+          contractId: actor.contractId,
+          alunoId: lead.id,
+        });
+        if (persistedDetection.classification === 'BLOCKING') {
+          throw new PreRegistrationEnrollmentError(
+            'Existe um cadastro incompatível com os identificadores informados.',
+            'BLOCKING_DUPLICATE',
+            { fingerprint: persistedDetection.fingerprint }
+          );
+        }
+        if (persistedDetection.classification === 'REVIEW_REQUIRED') {
+          const visibleIds = await visiblePreRegistrationCandidateIds(
+            actor,
+            persistedDetection.candidates.map((candidate) => candidate.candidateAlunoId),
+            tx
+          );
+          if (visibleIds.size !== persistedDetection.candidates.length) {
+            throw new PreRegistrationEnrollmentError(
+              'Esta decisão exige um usuário com escopo para revisar todos os cadastros relacionados.',
+              'FORBIDDEN'
+            );
+          }
+          if (
+            input.confirmedDuplicateFingerprint !== persistedDetection.fingerprint ||
+            !reason
+          ) {
+            throw new PreRegistrationEnrollmentError(
+              'Os dados relacionados mudaram. Revise os cadastros semelhantes novamente.',
+              'DUPLICATE_REVIEW_REQUIRED',
+              { fingerprint: persistedDetection.fingerprint, reasonRequired: true }
+            );
+          }
           await tx.studentLifecycleEvent.create({
             data: {
               alunoId: lead.id,
@@ -161,12 +193,12 @@ export const preRegistrationEnrollmentCreateService = {
                 kind: 'DEDUPLICATION_DECISION',
                 action: 'CONFIRM_DIFFERENT',
                 reason,
-                fingerprint: detection.fingerprint,
-                reviewedRecordVersion: 0,
+                fingerprint: persistedDetection.fingerprint,
+                reviewedRecordVersion: persistedDetection.recordVersion,
                 validUntil: new Date(
                   Date.now() + DECISION_VALIDITY_DAYS * 86_400_000
                 ).toISOString(),
-                candidateAlunoIds: detection.candidates.map(
+                candidateAlunoIds: persistedDetection.candidates.map(
                   (candidate) => candidate.candidateAlunoId
                 ),
                 decisionPoint: 'LEAD_CREATION',
