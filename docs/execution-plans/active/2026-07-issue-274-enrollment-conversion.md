@@ -33,11 +33,43 @@ O candidato válido é sempre o HEAD final da PR registrado no handoff. Este pla
 - revisão administrativa completa, confirmação persistente e filtro de convertidos;
 - documentação e testes de classificação, normalização, autorização, entrypoints, persistência pública, consolidação real em PostgreSQL e limites downstream.
 
+## Remediação da auditoria independente
+
+### A-001 — fronteira pública não enumerável
+
+- salvamento com ou sem duplicidade retorna o mesmo `200`, mensagem e sessão;
+- classificação, candidato, fingerprint e aviso não atravessam a rota pública;
+- todas as respostas de sessão removem `duplicateWarnings`;
+- teste HTTP compara integralmente os dois cenários.
+
+### A-002 — preservação alcançável e completa
+
+- o erro normal do detector aciona a preservação, sem depender de `P2002`;
+- CPF, e-mail e telefone são cobertos;
+- CPF bloqueante permanece bruto e não normalizado, permitindo continuidade e redetecção;
+- etapas posteriores continuam preservando o rascunho;
+- `StudentProfileReview` e evento registram a pendência sem PII de terceiros;
+- integração PostgreSQL comprova conclusão pública e bloqueio administrativo de `READY_FOR_ENROLLMENT`.
+
+### A-003 — autorização de criação no commit
+
+- `students.preRegistration.create`, tela, tenant e data scope são reconsultados dentro da transação serializável;
+- o mesmo `TransactionClient` percorre toda a cadeia de autorização;
+- integração PostgreSQL comprova rollback sem permissão e sucesso após concessão.
+
+### A-004 — evidência visual
+
+- workflow `Issue 274 Visual Evidence` renderiza a rota real `/pre-matriculas/:id`;
+- produz screenshots desktop, tablet, mobile e estado de erro;
+- verifica ausência de overflow horizontal, conteúdo extremo, seções críticas, aviso de escopo, alerta de PAR-Q, árvore de acessibilidade e navegação por teclado;
+- o artefato é vinculado ao SHA do workflow.
+
 ## Critérios de aceite
 
 - [x] nome isolado não bloqueia;
 - [x] CPF/conta incompatível bloqueiam;
-- [x] resposta pública não revela candidatos;
+- [x] resposta pública não revela candidatos nem permite distinção por status/corpo;
+- [x] rascunho conflitante é preservado sem expor a causa;
 - [x] decisão registra ator, motivo, versão persistida, fingerprint e validade;
 - [x] decisão exige escopo sobre os cadastros relacionados;
 - [x] consolidação não apaga, registra o vínculo canônico e não sobrescreve campo existente automaticamente;
@@ -48,28 +80,23 @@ O candidato válido é sempre o HEAD final da PR registrado no handoff. Este pla
 - [x] nenhum domínio posterior é criado automaticamente;
 - [x] aluno ativo permanece localizável pelo filtro `Convertido`;
 - [x] confirmação e próximas ações sobrevivem a reload da Central do Aluno;
-- [x] `pnpm validate` e workflow remoto aprovados no HEAD final registrado no handoff.
+- [ ] `pnpm validate`, integração PostgreSQL e workflows remotos aprovados no novo HEAD final;
+- [ ] evidência visual aprovada no novo HEAD final;
+- [ ] auditoria independente aprovada em contexto separado.
 
-## Validação manual
+## Validação obrigatória
 
-1. Criar dois leads com CPF igual e confirmar bloqueio.
-2. Criar semelhança de telefone/e-mail, registrar “pessoas diferentes” e concluir revisão.
-3. Repetir o cenário com candidato fora do escopo e confirmar que nenhum dado é exibido e a decisão é recusada.
-4. Alterar identificação ou contato pelo pré-cadastro público e confirmar verificação antes da gravação.
-5. Alterar individualmente contato, origem, responsável, unidade e observações após revisão e confirmar invalidação.
-6. Consolidar duplicado sem dados clínicos e confirmar preservação do registro descartado.
-7. Tentar consolidar duplicado com Anamnese/PAR-Q e confirmar pendência sem alteração.
-8. Confirmar matrícula duas vezes e observar mesmo ID sem novo evento de conversão.
-9. Verificar ausência de contrato, plano, cobrança, professor e agenda.
-10. Confirmar que o claim com e sem candidato duplicado não possui resposta pública diferenciada.
-11. Revogar permissão ou mudar escopo entre preflight e commit e confirmar rollback.
-12. Depois de `A → B`, tentar `B → C` e confirmar rejeição pelo banco.
-13. Recarregar a Central do Aluno após ativação e localizar o mesmo ID pelo filtro `Convertido`.
-14. Criar 26 candidatos revisáveis e confirmar que todos participam da classificação, fingerprint e autorização.
-15. Editar contato compartilhado, confirmar com motivo e repetir após mudar o nome para comprovar invalidação.
-16. Tentar transferir conta incompatível ao canônico e confirmar rollback sem desvincular a origem.
+1. `pnpm validate`.
+2. `RUN_DATABASE_INTEGRATION_TESTS=true pnpm --filter @corrida/api test` no workflow com PostgreSQL.
+3. Teste HTTP de não enumeração para respostas com e sem conflito.
+4. Integração de preservação CPF/e-mail/telefone, continuidade das etapas e bloqueio de READY.
+5. Integração de revogação/concessão do bloco de criação dentro da transação.
+6. Workflow visual com três viewports, árvore de acessibilidade, screenshots e relatório JSON no SHA final.
+7. Pré-auditoria interna adversarial.
+8. Nova auditoria independente em conversa separada.
 
 ## Riscos e pendências
 
 - A reassociação clínica automática permanece bloqueada até existir serviço de domínio específico por prontuário.
+- A resposta pública é semanticamente uniforme; métricas operacionais não devem registrar identificadores ou classificações em logs acessíveis ao usuário.
 - Este plano permanece ativo até auditoria independente do SHA final.

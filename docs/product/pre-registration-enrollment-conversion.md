@@ -23,7 +23,21 @@ Classificações:
 - `INFORMATIONAL`: nome semelhante isoladamente;
 - `NONE`: sem evidência material.
 
-Classificação, fingerprint, autorização e bloqueio consideram todos os candidatos encontrados; a interface não trunca silenciosamente a decisão. O claim executa a detecção dentro da própria transação, mas não devolve código, corpo ou status diferente em razão da classificação encontrada. A decisão permanece para a revisão administrativa. O rate limit executa antes da rota pública. A tela administrativa exibe dados mascarados apenas para candidatos incluídos no escopo de dados do usuário autenticado. A existência de candidatos restritos pode ser informada por contagem, sem revelar identidade, contato ou identificador.
+Classificação, fingerprint, autorização e bloqueio consideram todos os candidatos encontrados; a interface não trunca silenciosamente a decisão. O claim e o salvamento público executam a detecção dentro da própria transação, mas não devolvem código, corpo, status, mensagem ou aviso diferente em razão da classificação encontrada. A decisão permanece para a revisão administrativa. O rate limit executa antes da rota pública. A tela administrativa exibe dados mascarados apenas para candidatos incluídos no escopo de dados do usuário autenticado. A existência de candidatos restritos pode ser informada por contagem, sem revelar identidade, contato ou identificador.
+
+## Preservação pública sem enumeração
+
+Ao salvar identificação ou contato com conflito, o sistema preserva o trabalho sem confirmar a identidade como válida:
+
+- a resposta continua sendo `Etapa salva`, com a mesma sessão usada quando não há conflito;
+- CPF, e-mail, telefone, candidato, classificação e fingerprint não aparecem na resposta pública;
+- `duplicateWarnings` é sempre removido da sessão exposta ao aluno ou responsável;
+- os campos seguros são gravados normalmente;
+- um CPF bloqueante fica como valor bruto pendente, sem ocupar a projeção normalizada única;
+- o snapshot completo fica em revisão privada, com versão e auditoria;
+- endereço, responsável e privacidade podem continuar sendo preenchidos sem apagar a pendência;
+- corrigir o identificador para um valor não conflitante encerra a pendência preservando o histórico;
+- concluir o pré-cadastro não libera a matrícula: o detector administrativo ainda encontra o valor bruto e impede `READY_FOR_ENROLLMENT`.
 
 ## Decisões administrativas
 
@@ -60,6 +74,8 @@ Cancela a tentativa sem alteração de estado ou dados.
 Alterações de nome, CPF, contatos, nascimento, origem, responsável comercial, unidade ou observações após a conclusão incrementam a versão e invalidam a revisão anterior. Nas etapas públicas de identificação e contato, a verificação ocorre dentro da mesma transação, após autorização e bloqueio do processo e antes da persistência da identidade.
 
 A confirmação da matrícula ocorre em transação serializável, recarrega e bloqueia o registro, revalida permissão, escopo e tenant, reexecuta a deduplicação, rejeita revisão desatualizada, revoga convite ativo e altera o mesmo ID para `ACTIVE_STUDENT`. Repetição após sucesso devolve resultado idempotente e não duplica auditoria.
+
+A criação administrativa reconsulta a tela, o bloco `students.preRegistration.create`, o tenant, o data scope e a visibilidade do responsável dentro da mesma transação que deduplica e grava o lead. A autorização observada apenas no middleware nunca é suficiente para o commit.
 
 ## Revisão e pós-ativação
 

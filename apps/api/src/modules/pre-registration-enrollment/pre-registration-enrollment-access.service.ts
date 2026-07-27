@@ -2,6 +2,7 @@ import { PrismaClient, type Prisma, type Professor } from '@prisma/client';
 import type { AccessDataScope } from '@corrida/types';
 import {
   buildProfessorDataScopeWhere,
+  canProfessorAccessBlock,
   getEffectiveDataScopeForProfessor,
 } from '../access-control/access-control.service.js';
 import {
@@ -11,6 +12,7 @@ import {
 
 const prisma = new PrismaClient();
 const SCREEN_KEY = 'students.preRegistration';
+const CREATE_BLOCK_KEY = 'students.preRegistration.create';
 type DbClient = PrismaClient | Prisma.TransactionClient;
 
 type AccessProfessor = Pick<Professor, 'id' | 'role'> & {
@@ -35,9 +37,10 @@ function isVisible(
   );
 }
 
-export async function resolvePreRegistrationEnrollmentAccess(
+async function resolveAccess(
   actor: PreRegistrationEnrollmentActor,
-  client: DbClient = prisma
+  client: DbClient,
+  requiredBlockKey?: string
 ): Promise<PreRegistrationEnrollmentAccess> {
   const professor = await client.professor.findFirst({
     where: { id: actor.professorId, contractId: actor.contractId },
@@ -52,16 +55,21 @@ export async function resolvePreRegistrationEnrollmentAccess(
   }
 
   const accessProfessor = professor as AccessProfessor;
-  const scope = await getEffectiveDataScopeForProfessor(
-    {
-      role: accessProfessor.role as 'master' | 'professor',
-      collaboratorFunction: accessProfessor.collaboratorFunction,
-    },
-    SCREEN_KEY
-  );
-  if (!scope) {
+  const principal = {
+    role: accessProfessor.role as 'master' | 'professor',
+    collaboratorFunction: accessProfessor.collaboratorFunction,
+  };
+  const [scope, blockGranted] = await Promise.all([
+    getEffectiveDataScopeForProfessor(principal, SCREEN_KEY, client),
+    requiredBlockKey
+      ? canProfessorAccessBlock(principal, requiredBlockKey, client)
+      : Promise.resolve(true),
+  ]);
+  if (!scope || !blockGranted) {
     throw new PreRegistrationEnrollmentError(
-      'Perfil sem escopo para pré-matrículas.',
+      requiredBlockKey
+        ? 'Sem permissão para criar pré-matrículas.'
+        : 'Perfil sem escopo para pré-matrículas.',
       'FORBIDDEN'
     );
   }
@@ -71,6 +79,20 @@ export async function resolvePreRegistrationEnrollmentAccess(
     select: { id: true },
   });
   return { scope, visibleProfessorIds: visible.map((item) => item.id) };
+}
+
+export async function resolvePreRegistrationEnrollmentAccess(
+  actor: PreRegistrationEnrollmentActor,
+  client: DbClient = prisma
+): Promise<PreRegistrationEnrollmentAccess> {
+  return resolveAccess(actor, client);
+}
+
+export async function assertPreRegistrationCreateAccess(
+  actor: PreRegistrationEnrollmentActor,
+  client: DbClient = prisma
+): Promise<PreRegistrationEnrollmentAccess> {
+  return resolveAccess(actor, client, CREATE_BLOCK_KEY);
 }
 
 export async function assertPreRegistrationAlunoVisible(

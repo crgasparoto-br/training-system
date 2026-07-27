@@ -10,6 +10,7 @@ import {
   type StudentIdentityData,
 } from '../alunos/student-identity.service.js';
 import {
+  assertPreRegistrationCreateAccess,
   assertResponsibleProfessorVisible,
   visiblePreRegistrationCandidateIds,
 } from './pre-registration-enrollment-access.service.js';
@@ -83,6 +84,10 @@ export const preRegistrationEnrollmentCreateService = {
 
     try {
       return await prisma.$transaction(async (tx) => {
+        // Middleware e preflight são apenas otimizações. A permissão de criação,
+        // o tenant e o data scope são reconsultados no mesmo snapshot transacional
+        // que executa a deduplicação e a gravação definitiva.
+        await assertPreRegistrationCreateAccess(actor, tx);
         await assertResponsibleProfessorVisible(actor, responsibleProfessorId, tx);
         const detection = await detectPreRegistrationDuplicates(tx, {
           contractId: actor.contractId,
