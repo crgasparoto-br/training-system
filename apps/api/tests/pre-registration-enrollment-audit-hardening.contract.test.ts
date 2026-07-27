@@ -13,6 +13,15 @@ const enrollmentService = read(
 const lifecycleService = read(
   'apps/api/src/modules/alunos/student-lifecycle-enrollment.service.ts'
 );
+const adminService = read(
+  'apps/api/src/modules/pre-registration-admin/pre-registration-admin.service.ts'
+);
+const enrollmentRoutes = read(
+  'apps/api/src/modules/pre-registration-enrollment/pre-registration-enrollment.routes.ts'
+);
+const adminEdit = read(
+  'apps/web/src/pages/PreRegistrationAdmin/PreRegistrationAdminEdit.tsx'
+);
 const adminList = read(
   'apps/web/src/pages/PreRegistrationAdmin/PreRegistrationAdminList.tsx'
 );
@@ -53,6 +62,40 @@ describe('issue 274 independent-audit hardening contract', () => {
     );
     expect(enrollmentService).toContain('assertActorAccess(actor, tx');
     expect(enrollmentService).toContain('buildProfessorDataScopeWhere(');
+  });
+
+  it('uses the full candidate set and canonical name normalization in every decision', () => {
+    expect(enrollmentService).not.toContain('MAX_CANDIDATES');
+    expect(enrollmentService).not.toContain('matched.slice(');
+    expect(enrollmentService).toContain('fingerprintFor(sourceIdentity, sourceUserId, matched)');
+    expect(enrollmentService).toContain('canonicalNormalizedName(source.name)');
+    expect(enrollmentService).toContain("'da', 'das', 'de', 'do', 'dos', 'e'");
+  });
+
+  it('supports audited, versioned confirmation for reviewable commercial edits', () => {
+    expect(enrollmentRoutes).toContain("'/leads/:id/duplicates'");
+    expect(adminService).toContain(
+      'input.expectedDuplicateVersion !== detection.recordVersion'
+    );
+    expect(adminService).toContain(
+      'input.confirmedDuplicateFingerprint !== detection.fingerprint'
+    );
+    expect(adminService).toContain('confirmedDuplicateReason');
+    expect(adminService).toContain('duplicateReview');
+    expect(adminEdit).toContain('checkUpdateDuplicates');
+    expect(adminEdit).toContain('Revisão de duplicidade necessária');
+  });
+
+  it('validates account compatibility against the final canonical identity before transfer', () => {
+    expect(enrollmentService).toContain('findStudentAccountIdentityMismatches(');
+    expect(enrollmentService).toContain(
+      'A conta da pré-matrícula não é compatível com a identidade final do cadastro canônico.'
+    );
+    expect(enrollmentService.indexOf('findStudentAccountIdentityMismatches(')).toBeLessThan(
+      enrollmentService.indexOf(
+        'await tx.aluno.update({ where: { id: alunoId }, data: { userId: null } });'
+      )
+    );
   });
 
   it('exposes a complete permission-aware review and converted-student flow', () => {
