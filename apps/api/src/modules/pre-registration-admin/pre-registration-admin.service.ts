@@ -1089,18 +1089,60 @@ export const preRegistrationAdminService = {
         alunoId: id,
         overrides: input,
       });
-      if (
-        detection.classification === 'BLOCKING' ||
-        detection.classification === 'REVIEW_REQUIRED'
-      ) {
+      if (detection.classification === 'BLOCKING') {
         throw new PreRegistrationAdminError(
-          detection.classification === 'BLOCKING'
-            ? 'A alteração cria um conflito bloqueante de identidade.'
-            : 'A alteração exige revisão de duplicidade antes de ser salva.',
-          detection.classification === 'BLOCKING'
-            ? 'IDENTIFIER_CONFLICT'
-            : 'POSSIBLE_DUPLICATE'
+          'A alteração cria um conflito bloqueante de identidade.',
+          'IDENTIFIER_CONFLICT'
         );
+      }
+
+      let duplicateReview:
+        | {
+            fingerprint: string;
+            reviewedRecordVersion: number;
+            reason: string;
+            candidateCount: number;
+          }
+        | undefined;
+      if (detection.classification === 'REVIEW_REQUIRED') {
+        const candidateRows = await tx.aluno.findMany({
+          where: {
+            id: { in: detection.candidates.map(({ candidateAlunoId }) => candidateAlunoId) },
+            contractId: actor.contractId,
+          },
+          select: { id: true, professorId: true, createdByProfessorId: true },
+        });
+        if (
+          candidateRows.length !== detection.candidates.length ||
+          candidateRows.some((candidate) => !isVisibleRow(candidate, access))
+        ) {
+          throw new PreRegistrationAdminError(
+            'Esta decisão exige acesso a todos os cadastros relacionados.',
+            'FORBIDDEN'
+          );
+        }
+
+        const reason = clean(input.confirmedDuplicateReason);
+        if (
+          input.expectedDuplicateVersion !== detection.recordVersion ||
+          input.confirmedDuplicateFingerprint !== detection.fingerprint ||
+          !reason
+        ) {
+          throw new PreRegistrationAdminError(
+            'A alteração exige revisão das duplicidades, motivo e confirmação da versão atual.',
+            'POSSIBLE_DUPLICATE',
+            {
+              currentVersion: detection.recordVersion,
+              currentFingerprint: detection.fingerprint,
+            }
+          );
+        }
+        duplicateReview = {
+          fingerprint: detection.fingerprint,
+          reviewedRecordVersion: detection.recordVersion,
+          reason,
+          candidateCount: detection.candidates.length,
+        };
       }
 
       const identity = await loadStudentIdentity(id, actor.contractId, tx);
@@ -1135,7 +1177,22 @@ export const preRegistrationAdminService = {
           actorProfessorId: actor.professorId,
           metadata: {
             kind: 'ADMINISTRATIVE_DATA_UPDATED',
-            fields: Object.keys(input),
+            fields: Object.keys(input).filter(
+              (field) =>
+                ![
+                  'expectedDuplicateVersion',
+                  'confirmedDuplicateFingerprint',
+                  'confirmedDuplicateReason',
+                ].includes(field)
+            ),
+            ...(duplicateReview
+              ? {
+                  duplicateReview: {
+                    ...duplicateReview,
+                    decidedAt: new Date().toISOString(),
+                  },
+                }
+              : {}),
           },
         },
       });
