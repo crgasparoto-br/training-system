@@ -28,6 +28,7 @@ Codigo, migrations e testes definem o comportamento efetivamente entregue. Plani
 - [`architecture/deployment.md`](architecture/deployment.md): deploy, ambientes e variaveis.
 - [`architecture/pre-registration-enrollment.md`](architecture/pre-registration-enrollment.md): deduplicacao, revisao versionada, consolidacao e ativacao da pre-matricula.
 - [`quality/validation.md`](quality/validation.md): comandos e criterios de validacao.
+- [`quality/issue-274-visual-contract.md`](quality/issue-274-visual-contract.md): contrato permanente de evidencia visual e acessibilidade da revisao de pre-matricula.
 
 ### Produto
 

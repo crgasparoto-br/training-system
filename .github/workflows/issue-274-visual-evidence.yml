@@ -40,7 +40,7 @@ jobs:
       - name: Start web application
         shell: bash
         run: |
-          pnpm --filter @corrida/web dev -- --host 127.0.0.1 --port 4173 > /tmp/issue-274-web.log 2>&1 &
+          pnpm --filter @corrida/web exec vite --host 127.0.0.1 --port 4173 > /tmp/issue-274-web.log 2>&1 &
           echo $! > /tmp/issue-274-web.pid
           for attempt in $(seq 1 60); do
             if curl --fail --silent http://127.0.0.1:4173/pre-matriculas/visual-lead > /dev/null; then
