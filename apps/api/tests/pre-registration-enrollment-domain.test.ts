@@ -5,7 +5,9 @@ import {
 } from '../src/modules/alunos/student-identity.service.js';
 import {
   areNamesSimilar,
+  buildDuplicateSignals,
   classifyDuplicateSignals,
+  detectPreRegistrationDuplicates,
 } from '../src/modules/pre-registration-enrollment/pre-registration-enrollment.service.js';
 import { hasCurrentPreRegistrationConsent } from '../src/modules/alunos/student-lifecycle-enrollment.service.js';
 import { PRE_REGISTRATION_PRIVACY_NOTICE_VERSION } from '../src/modules/pre-registration-public/pre-registration-policy.js';
@@ -16,6 +18,59 @@ describe('pre-registration enrollment duplicate classification', () => {
     expect(classifyDuplicateSignals([
       { classification: 'INFORMATIONAL' },
     ])).toBe('INFORMATIONAL');
+  });
+
+  it('classifies canonical name plus birth date as review required across accents and particles', () => {
+    const signals = buildDuplicateSignals(
+      { name: '  João   da Silva ', birthDate: '1990-05-10' },
+      undefined,
+      { name: 'Joao Silva', birthDate: '1990-05-10T23:00:00.000Z' },
+      null
+    );
+
+    expect(signals).toContainEqual(
+      expect.objectContaining({
+        code: 'NAME_AND_BIRTH_DATE',
+        classification: 'REVIEW_REQUIRED',
+      })
+    );
+    expect(signals).not.toContainEqual(
+      expect.objectContaining({ code: 'NAME_SIMILAR' })
+    );
+  });
+
+  it('keeps every matched candidate in classification and fingerprint beyond 25 records', async () => {
+    const rows = Array.from({ length: 26 }, (_, index) => ({
+      id: `candidate-${String(index + 1).padStart(2, '0')}`,
+      leadName: `Pessoa ${index + 1}`,
+      leadCpf: null,
+      leadPhone: '(15) 99999-0000',
+      leadAdditionalPhone: null,
+      leadEmail: null,
+      leadAdditionalEmail: null,
+      birthDate: null,
+      studentProfile: null,
+      userId: null,
+      status: 'LEAD',
+      createdAt: new Date(`2026-07-${String((index % 20) + 1).padStart(2, '0')}T10:00:00.000Z`),
+      updatedAt: new Date(`2026-07-${String((index % 20) + 1).padStart(2, '0')}T11:00:00.000Z`),
+    }));
+    const client = {
+      aluno: {
+        findMany: jest.fn().mockResolvedValue(rows),
+      },
+    };
+
+    const detection = await detectPreRegistrationDuplicates(client as never, {
+      contractId: 'contract-1',
+      overrides: { phone: '(15) 99999-0000' },
+    });
+
+    expect(detection.candidates).toHaveLength(26);
+    expect(detection.candidates.map(({ candidateAlunoId }) => candidateAlunoId)).toContain(
+      'candidate-26'
+    );
+    expect(detection.classification).toBe('REVIEW_REQUIRED');
   });
 
   it('makes exact identifiers reviewable and CPF/account conflicts blocking', () => {
