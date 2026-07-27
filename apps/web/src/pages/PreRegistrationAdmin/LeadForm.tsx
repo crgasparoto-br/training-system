@@ -59,7 +59,7 @@ export function LeadForm({
 
   const update = (field: keyof LeadFormValues, value: string) => {
     setValues((current) => ({ ...current, [field]: value }));
-    if (['phone', 'additionalPhone', 'email', 'additionalEmail', 'cpf'].includes(field)) {
+    if (['name', 'phone', 'additionalPhone', 'email', 'additionalEmail', 'cpf'].includes(field)) {
       onIdentityChange?.();
     }
   };
