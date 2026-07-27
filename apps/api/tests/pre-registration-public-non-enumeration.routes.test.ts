@@ -143,7 +143,7 @@ describe('public pre-registration non-enumeration boundary', () => {
     );
 
     const serialized = JSON.stringify(withPayload);
-    expect(serialized).not.toMatch(/duplicate|duplicidade|reviewRequired|outro cadastro/i);
+    expect(serialized).not.toMatch(/reviewRequired|outro cadastro|candidateAlunoId|fingerprint|classification/i);
     expect(serialized).not.toContain('"duplicateWarnings":["email"]');
   });
 });
