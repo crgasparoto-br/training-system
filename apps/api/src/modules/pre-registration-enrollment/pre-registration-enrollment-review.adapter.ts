@@ -82,7 +82,11 @@ if (!runtime.__issue274EnrollmentReviewAdapterApplied) {
     if (!review.canMarkReady) {
       return review;
     }
-    await preRegistrationReadyReviewService.refresh(actor, alunoId, input);
+    try {
+      await preRegistrationReadyReviewService.refresh(actor, alunoId, input);
+    } finally {
+      await releaseIssue274PrismaAfterIntegrationOperation();
+    }
     return runtime.inspect(actor, alunoId);
   };
 
