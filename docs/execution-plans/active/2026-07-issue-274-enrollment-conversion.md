@@ -13,6 +13,10 @@ O candidato válido é sempre o HEAD final da PR registrado no handoff. Este pla
 - guardas antes de criação, registro/claim, edição administrativa, edição pública, revisão e ativação;
 - projeção dos candidatos conforme `self`, `managed` ou `contract`, sem identificar registros restritos;
 - decisões versionadas, com motivo, ator, fingerprint e expiração;
+- conjunto completo de candidatos usado em classificação, fingerprint, autorização e bloqueio, inclusive acima de 25 registros;
+- nome + nascimento normalizado com acentos, espaços e partículas portuguesas como revisão obrigatória;
+- edição comercial revisável com preflight, confirmação versionada, motivo e auditoria transacional;
+- compatibilidade da conta validada contra a identidade final do canônico antes da transferência;
 - criação com falso positivo auditada na mesma transação e permitida somente com escopo sobre todos os candidatos;
 - consolidação sem exclusão, vínculo estruturado `duplicado → canônico` e bloqueio de reassociação clínica insegura;
 - redetecção do canônico após a consolidação, com fingerprint e versão próprios;
@@ -44,7 +48,7 @@ O candidato válido é sempre o HEAD final da PR registrado no handoff. Este pla
 - [x] nenhum domínio posterior é criado automaticamente;
 - [x] aluno ativo permanece localizável pelo filtro `Convertido`;
 - [x] confirmação e próximas ações sobrevivem a reload da Central do Aluno;
-- [x] `pnpm validate` e workflow remoto aprovados no HEAD final registrado no handoff.
+- [ ] `pnpm validate` e workflow remoto aprovados no novo HEAD final registrado no handoff.
 
 ## Validação manual
 
@@ -61,6 +65,9 @@ O candidato válido é sempre o HEAD final da PR registrado no handoff. Este pla
 11. Revogar permissão ou mudar escopo entre preflight e commit e confirmar rollback.
 12. Depois de `A → B`, tentar `B → C` e confirmar rejeição pelo banco.
 13. Recarregar a Central do Aluno após ativação e localizar o mesmo ID pelo filtro `Convertido`.
+14. Criar 26 candidatos revisáveis e confirmar que todos participam da classificação, fingerprint e autorização.
+15. Editar contato compartilhado, confirmar com motivo e repetir após mudar o nome para comprovar invalidação.
+16. Tentar transferir conta incompatível ao canônico e confirmar rollback sem desvincular a origem.
 
 ## Riscos e pendências
 
