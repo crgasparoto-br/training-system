@@ -44,7 +44,7 @@ O candidato válido é sempre o HEAD final da PR registrado no handoff. Este pla
 - [x] nenhum domínio posterior é criado automaticamente;
 - [x] aluno ativo permanece localizável pelo filtro `Convertido`;
 - [x] confirmação e próximas ações sobrevivem a reload da Central do Aluno;
-- [ ] `pnpm validate` e workflow remoto aprovados no HEAD final.
+- [x] `pnpm validate` e workflow remoto aprovados no HEAD final registrado no handoff.
 
 ## Validação manual
 
