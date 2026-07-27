@@ -292,7 +292,7 @@ function sourceIdentityWithOverrides(
   return result;
 }
 
-function buildSignals(
+export function buildDuplicateSignals(
   source: Record<string, unknown>,
   sourceUserId: string | undefined,
   candidate: Record<string, unknown>,
@@ -462,7 +462,7 @@ export async function detectPreRegistrationDuplicates(
   const matched: DetectionCandidate[] = [];
   for (const candidate of candidates) {
     const candidateIdentity = identityFromRow(candidate);
-    const signals = buildSignals(sourceIdentity, sourceUserId, candidateIdentity, candidate.userId);
+    const signals = buildDuplicateSignals(sourceIdentity, sourceUserId, candidateIdentity, candidate.userId);
     const classification = classifyDuplicateSignals(signals);
     if (classification === 'NONE') continue;
     matched.push({
