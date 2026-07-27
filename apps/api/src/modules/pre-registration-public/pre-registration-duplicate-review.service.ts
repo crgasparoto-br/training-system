@@ -111,7 +111,7 @@ function publicIdentityFrom(value: unknown): PublicIdentity {
 function fillMissingIdentity(base: PublicIdentity, pending: PublicIdentity): PublicIdentity {
   const result = { ...base };
   for (const field of PUBLIC_IDENTITY_FIELDS) {
-    if (!hasValue(result[field]) && hasValue(pending[field])) {
+    if (hasValue(pending[field])) {
       result[field] = pending[field];
     }
   }
@@ -286,10 +286,10 @@ export const preRegistrationDuplicateReviewService = {
           syncLegacyProfile: access.accessRole === 'STUDENT',
         }
       ));
-      const after = fillMissingIdentity(
-        { ...persisted, ...publicIdentityFrom(input.data) },
-        pendingBefore
-      );
+      const after = {
+        ...fillMissingIdentity(persisted, pendingBefore),
+        ...publicIdentityFrom(input.data),
+      };
 
       const pendingCpf = conflicts.includes('cpf') ? cleanText(proposed.cpf) : undefined;
       if (pendingCpf) {
