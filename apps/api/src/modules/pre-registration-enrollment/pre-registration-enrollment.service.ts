@@ -23,6 +23,7 @@ import {
   markStudentReadyForEnrollmentInTransaction,
 } from '../alunos/student-lifecycle-enrollment.service.js';
 import {
+  findStudentAccountIdentityMismatches,
   loadStudentIdentity,
   normalizeStudentCpf,
   normalizeStudentEmail,
@@ -38,7 +39,6 @@ import {
 
 const prisma = new PrismaClient();
 const DECISION_VALIDITY_DAYS = 30;
-const MAX_CANDIDATES = 25;
 const ENROLLMENT_BLOCKS = {
   create: 'students.preRegistration.create',
   edit: 'students.preRegistration.editCommercial',
@@ -158,6 +158,14 @@ function normalizedName(value: unknown): string | undefined {
     .replace(/[^a-z0-9 ]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function canonicalNormalizedName(value: unknown): string | undefined {
+  const name = normalizedName(value);
+  if (!name) return undefined;
+  const insignificantTokens = new Set(['da', 'das', 'de', 'do', 'dos', 'e']);
+  const tokens = name.split(' ').filter((token) => !insignificantTokens.has(token));
+  return tokens.length > 0 ? tokens.join(' ') : name;
 }
 
 function civilDate(value: unknown): string | undefined {
@@ -328,8 +336,8 @@ function buildSignals(
     signals.push({ code: 'PHONE_EXACT', classification: 'REVIEW_REQUIRED', label: 'Mesmo telefone normalizado' });
   }
 
-  const sourceName = normalizedName(source.name);
-  const candidateName = normalizedName(candidate.name);
+  const sourceName = canonicalNormalizedName(source.name);
+  const candidateName = canonicalNormalizedName(candidate.name);
   const sourceBirth = civilDate(source.birthDate);
   const candidateBirth = civilDate(candidate.birthDate);
   if (sourceName && candidateName && sourceName === candidateName && sourceBirth && sourceBirth === candidateBirth) {
@@ -475,19 +483,18 @@ export async function detectPreRegistrationDuplicates(
     CLASSIFICATION_WEIGHT[right.classification] - CLASSIFICATION_WEIGHT[left.classification] ||
     right.updatedAt.localeCompare(left.updatedAt)
   );
-  const limited = matched.slice(0, MAX_CANDIDATES);
   return {
     alunoId: source?.id,
     recordVersion: source?.onboarding?.version ?? 0,
-    fingerprint: fingerprintFor(sourceIdentity, sourceUserId, limited),
-    classification: limited.reduce<PreRegistrationDuplicateClassification>(
+    fingerprint: fingerprintFor(sourceIdentity, sourceUserId, matched),
+    classification: matched.reduce<PreRegistrationDuplicateClassification>(
       (current, candidate) =>
         CLASSIFICATION_WEIGHT[candidate.classification] > CLASSIFICATION_WEIGHT[current]
           ? candidate.classification
           : current,
       'NONE'
     ),
-    candidates: limited,
+    candidates: matched,
   };
 }
 
@@ -879,6 +886,19 @@ async function consolidateDuplicate(
       );
     }
     if (source.userId && !target.userId) {
+      const accountIdentityMismatches = await findStudentAccountIdentityMismatches(
+        targetId,
+        actor.contractId,
+        source.userId,
+        tx
+      );
+      if (accountIdentityMismatches.length > 0) {
+        throw new PreRegistrationEnrollmentError(
+          'A conta da pré-matrícula não é compatível com a identidade final do cadastro canônico.',
+          'BLOCKING_DUPLICATE',
+          { incompatibleIdentityFields: accountIdentityMismatches }
+        );
+      }
       await tx.aluno.update({ where: { id: alunoId }, data: { userId: null } });
       await tx.aluno.update({ where: { id: targetId }, data: { userId: source.userId } });
     }
