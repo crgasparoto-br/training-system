@@ -18,12 +18,12 @@ function connectionUrl(): string | undefined {
   return url.toString();
 }
 
+const databaseUrl = connectionUrl();
+
 export const issue274Prisma =
   globalThis.__issue274PrismaClient ??
   new PrismaClient({
-    ...(connectionUrl()
-      ? { datasources: { db: { url: connectionUrl() } } }
-      : {}),
+    ...(databaseUrl ? { datasources: { db: { url: databaseUrl } } } : {}),
   });
 
 if (process.env.NODE_ENV !== 'production') {
