@@ -88,9 +88,9 @@ O candidato válido é sempre o HEAD final da PR registrado no handoff. Este pla
 
 ### AUD-274-14 — fechamento documental e regressão visual dependente
 
-- o plano registra os runs e artefatos efetivamente aprovados no HEAD de remediação, sem manter portões concluídos como pendentes;
-- o workflow visual legado da issue 270 recebeu um mock de compatibilidade para a consulta de `enrollment-review`, sem alterar regra de negócio;
-- a regressão da issue 270 foi revalidada com sucesso no run `30312421292` do SHA `bf1536d4571a9535e730802f2e0e3d99340d5d18`;
+- o plano registra os portões efetivamente aprovados no HEAD final da PR, sem manter validações concluídas como pendentes;
+- os identificadores imutáveis de runs, artefatos, digest e SHA são registrados no handoff do ciclo para não tornar o documento autorreferencialmente obsoleto após um commit exclusivamente documental;
+- o workflow visual legado da issue 270 recebeu um mock de compatibilidade para a consulta de `enrollment-review`, sem alterar regra de negócio, e deve permanecer aprovado no HEAD final;
 - a auditoria controller-adversarial deste ciclo não substitui a auditoria independente exigida para o fechamento definitivo.
 
 ## Critérios de aceite
@@ -112,8 +112,8 @@ O candidato válido é sempre o HEAD final da PR registrado no handoff. Este pla
 - [x] nenhum domínio posterior é criado automaticamente;
 - [x] aluno ativo permanece localizável pelo filtro `Convertido`;
 - [x] confirmação e próximas ações sobrevivem a reload da Central do Aluno;
-- [x] `pnpm validate`, integração PostgreSQL e workflows remotos aprovados no SHA `bf1536d4571a9535e730802f2e0e3d99340d5d18` pelo run `30312421283`;
-- [x] evidência visual aprovada e atestada no mesmo SHA pelo run `30312421273`, artefato `8670889026` e digest `sha256:cfb37526095b56e5b55cf08852e5c17c0812b72efe8ecb1796525602c57654cf`;
+- [x] `pnpm validate`, integração PostgreSQL e workflows remotos aprovados no HEAD final registrado no handoff;
+- [x] evidência visual aprovada e atestada no mesmo HEAD final, com run, artefato e digest registrados no handoff;
 - [ ] auditoria independente aprovada em contexto separado.
 
 ## Validação obrigatória
