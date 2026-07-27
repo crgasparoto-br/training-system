@@ -45,6 +45,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Package issue 274 source snapshot
+        if: github.event_name == 'push' && github.ref_name == 'feat/274-enrollment-conversion'
+        run: tar --exclude=.git --exclude=issue-274-source.tgz -czf issue-274-source.tgz .
+
+      - name: Upload issue 274 source snapshot
+        if: github.event_name == 'push' && github.ref_name == 'feat/274-enrollment-conversion'
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-274-source-${{ github.run_id }}
+          path: issue-274-source.tgz
+          if-no-files-found: error
+          retention-days: 1
+
       - name: Create workflow evidence attestation
         shell: bash
         env:
