@@ -227,6 +227,14 @@ async function pendingReviewFor(
 }
 
 export const preRegistrationDuplicateReviewService = {
+  async preserveCpfConflict(
+    userId: string,
+    alunoId: string,
+    input: SavePreRegistrationStepDTO
+  ): Promise<PreservationResult> {
+    return this.preserveDuplicateConflict(userId, alunoId, input);
+  },
+
   async hasPendingDuplicateReview(userId: string, alunoId: string): Promise<boolean> {
     return Boolean(await pendingReviewFor(prisma, userId, alunoId));
   },

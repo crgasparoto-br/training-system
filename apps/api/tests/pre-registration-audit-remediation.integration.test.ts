@@ -167,11 +167,15 @@ describeDatabase('issue 274 audit remediation with PostgreSQL', () => {
       }
     );
 
+    const initialOnboarding = await prisma.studentOnboardingProcess.findUniqueOrThrow({
+      where: { alunoId: source.id },
+      select: { version: true },
+    });
     const identification = await preRegistrationDuplicateReviewService.preserveDuplicateConflict(
       studentUser.id,
       source.id,
       {
-        expectedVersion: 1,
+        expectedVersion: initialOnboarding.version,
         step: 'IDENTIFICATION',
         data: {
           name: 'Pessoa em Pré-cadastro',
@@ -180,7 +184,10 @@ describeDatabase('issue 274 audit remediation with PostgreSQL', () => {
         },
       }
     );
-    expect(identification).toEqual({ version: 2, currentStep: 'CONTACT' });
+    expect(identification).toEqual({
+      version: initialOnboarding.version + 1,
+      currentStep: 'CONTACT',
+    });
 
     const afterCpf = await prisma.aluno.findUniqueOrThrow({
       where: { id: source.id },
@@ -196,7 +203,7 @@ describeDatabase('issue 274 audit remediation with PostgreSQL', () => {
       studentUser.id,
       source.id,
       {
-        expectedVersion: 2,
+        expectedVersion: identification.version,
         step: 'CONTACT',
         data: {
           phone: '(15) 98888-0000',
@@ -204,13 +211,16 @@ describeDatabase('issue 274 audit remediation with PostgreSQL', () => {
         },
       }
     );
-    expect(contact).toEqual({ version: 3, currentStep: 'ADDRESS' });
+    expect(contact).toEqual({
+      version: identification.version + 1,
+      currentStep: 'ADDRESS',
+    });
 
     const address = await preRegistrationDuplicateReviewService.preserveDuplicateConflict(
       studentUser.id,
       source.id,
       {
-        expectedVersion: 3,
+        expectedVersion: contact.version,
         step: 'ADDRESS',
         data: {
           addressStreet: 'Rua do Rascunho',
@@ -220,7 +230,10 @@ describeDatabase('issue 274 audit remediation with PostgreSQL', () => {
         },
       }
     );
-    expect(address).toEqual({ version: 4, currentStep: 'PRIVACY' });
+    expect(address).toEqual({
+      version: contact.version + 1,
+      currentStep: 'PRIVACY',
+    });
 
     const [persisted, pendingReview, session] = await Promise.all([
       prisma.aluno.findUniqueOrThrow({ where: { id: source.id } }),
@@ -259,7 +272,7 @@ describeDatabase('issue 274 audit remediation with PostgreSQL', () => {
     const completed = await preRegistrationPublicAtomicService.complete(
       studentUser.id,
       source.id,
-      { expectedVersion: 4, privacyAccepted: true },
+      { expectedVersion: address.version, privacyAccepted: true },
       { ipAddress: '127.0.0.1', userAgent: 'issue-274-remediation-test' }
     );
     expect(completed.status).toBe('PRE_REGISTRATION_COMPLETED');

@@ -7,6 +7,7 @@ jest.mock('../src/modules/auth/auth.middleware.js', () => ({
     next();
   },
   alunoMiddleware: (_req: express.Request, _res: express.Response, next: express.NextFunction) => next(),
+  professorMiddleware: (_req: express.Request, _res: express.Response, next: express.NextFunction) => next(),
 }));
 
 import { preRegistrationAuthenticatedRoutes } from '../src/modules/pre-registration-public/index.js';
