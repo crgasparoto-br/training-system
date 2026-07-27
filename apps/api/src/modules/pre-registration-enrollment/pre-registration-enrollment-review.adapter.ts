@@ -7,8 +7,9 @@ import {
 import { preRegistrationReadyReviewService } from './pre-registration-ready-review.service.js';
 
 const prisma = new PrismaClient();
-const PATCHED = Symbol.for('training-system.issue-274.enrollment-review-adapter');
-type RuntimeService = typeof preRegistrationEnrollmentService & { [PATCHED]?: boolean };
+type RuntimeService = typeof preRegistrationEnrollmentService & {
+  __issue274EnrollmentReviewAdapterApplied?: boolean;
+};
 
 function reviewIsResolved(review: PreRegistrationEnrollmentReviewDTO): boolean {
   if (review.classification === 'NONE' || review.classification === 'INFORMATIONAL') return true;
@@ -50,7 +51,7 @@ async function hasCurrentEnrollmentReview(
 }
 
 const runtime = preRegistrationEnrollmentService as RuntimeService;
-if (!runtime[PATCHED]) {
+if (!runtime.__issue274EnrollmentReviewAdapterApplied) {
   const inspectOriginal = runtime.inspect.bind(runtime);
   const markReadyOriginal = runtime.markReady.bind(runtime);
 
@@ -79,5 +80,5 @@ if (!runtime[PATCHED]) {
     return runtime.inspect(actor, alunoId);
   };
 
-  runtime[PATCHED] = true;
+  runtime.__issue274EnrollmentReviewAdapterApplied = true;
 }
