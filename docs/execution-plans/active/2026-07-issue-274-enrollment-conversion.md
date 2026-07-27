@@ -4,7 +4,7 @@
 
 Entregar a conversão do lead/pré-matrícula no mesmo registro canônico, com deduplicação em todos os pontos críticos, decisões auditáveis e confirmação transacional/idempotente.
 
-SHA corretivo implementado: `76459abf7d2855f6d58ef2451acd85c755d792b2`.
+SHA funcional validado: `320307033a097d4ac2e83fd1161ba26c02e76bd4`.
 
 ## Escopo implementado
 
@@ -36,7 +36,7 @@ SHA corretivo implementado: `76459abf7d2855f6d58ef2451acd85c755d792b2`.
 - [x] alteração de identidade invalida revisão;
 - [x] confirmação revalida no commit e é idempotente;
 - [x] nenhum domínio posterior é criado automaticamente;
-- [ ] `pnpm validate` e workflow remoto aprovados no novo SHA corretivo.
+- [x] `pnpm validate` e workflow remoto aprovados no SHA funcional validado.
 
 ## Validação manual
 
