@@ -8,6 +8,8 @@ jest.mock('../src/modules/auth/auth.middleware.js', () => ({
   },
   alunoMiddleware: (_req: express.Request, _res: express.Response, next: express.NextFunction) => next(),
   professorMiddleware: (_req: express.Request, _res: express.Response, next: express.NextFunction) => next(),
+  masterMiddleware: (_req: express.Request, _res: express.Response, next: express.NextFunction) => next(),
+  academyMasterMiddleware: (_req: express.Request, _res: express.Response, next: express.NextFunction) => next(),
 }));
 
 import { preRegistrationAuthenticatedRoutes } from '../src/modules/pre-registration-public/index.js';
