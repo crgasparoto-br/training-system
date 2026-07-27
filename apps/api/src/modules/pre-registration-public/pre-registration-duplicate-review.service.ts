@@ -49,6 +49,7 @@ type PreservationResult = {
 
 type PendingReview = {
   id: string;
+  snapshotBefore: Prisma.JsonValue | null;
   snapshotAfter: Prisma.JsonValue | null;
   changedFields: Prisma.JsonValue | null;
   sectionsRequested: Prisma.JsonValue | null;
@@ -108,7 +109,7 @@ function publicIdentityFrom(value: unknown): PublicIdentity {
   ) as PublicIdentity;
 }
 
-function fillMissingIdentity(base: PublicIdentity, pending: PublicIdentity): PublicIdentity {
+function overlayIdentity(base: PublicIdentity, pending: PublicIdentity): PublicIdentity {
   const result = { ...base };
   for (const field of PUBLIC_IDENTITY_FIELDS) {
     if (hasValue(pending[field])) {
@@ -219,6 +220,7 @@ async function pendingReviewFor(
     orderBy: { createdAt: 'desc' },
     select: {
       id: true,
+      snapshotBefore: true,
       snapshotAfter: true,
       changedFields: true,
       sectionsRequested: true,
@@ -256,9 +258,12 @@ export const preRegistrationDuplicateReviewService = {
         await loadStudentIdentity(access.alunoId, access.contractId, tx)
       );
       const pendingBefore = publicIdentityFrom(existingReview?.snapshotAfter);
-      const before = fillMissingIdentity(canonicalBefore, pendingBefore);
+      const currentIdentity = overlayIdentity(canonicalBefore, pendingBefore);
+      const originalBefore = existingReview
+        ? publicIdentityFrom(existingReview.snapshotBefore)
+        : currentIdentity;
       const proposed = {
-        ...before,
+        ...currentIdentity,
         ...publicIdentityFrom(input.data),
       };
       const detection = await detectPreRegistrationDuplicates(tx, {
@@ -287,7 +292,7 @@ export const preRegistrationDuplicateReviewService = {
         }
       ));
       const after = {
-        ...fillMissingIdentity(persisted, pendingBefore),
+        ...overlayIdentity(persisted, pendingBefore),
         ...publicIdentityFrom(input.data),
       };
 
@@ -317,7 +322,7 @@ export const preRegistrationDuplicateReviewService = {
           requestedByUserId: userId,
           requestedAt: new Date(),
           sectionsRequested: asJson([...sections]),
-          snapshotBefore: asJson(before),
+          snapshotBefore: asJson(originalBefore),
           snapshotAfter: asJson(after),
           changedFields: asJson(conflicts),
           requiresApproval: true,
@@ -403,7 +408,7 @@ export const preRegistrationDuplicateReviewService = {
     session: PreRegistrationSessionDTO
   ): Promise<PreRegistrationSessionDTO> {
     const pendingReview = await pendingReviewFor(prisma, userId, alunoId);
-    const identity = fillMissingIdentity(
+    const identity = overlayIdentity(
       publicIdentityFrom(session.identity),
       publicIdentityFrom(pendingReview?.snapshotAfter)
     ) as PreRegistrationSessionDTO['identity'];
