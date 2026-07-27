@@ -4,6 +4,8 @@
 
 Entregar a conversão do lead/pré-matrícula no mesmo registro canônico, com deduplicação em todos os pontos críticos, decisões auditáveis e confirmação transacional/idempotente.
 
+SHA corretivo implementado: `76459abf7d2855f6d58ef2451acd85c755d792b2`.
+
 ## Escopo implementado
 
 - contrato compartilhado de evidências, decisões e resultado;
