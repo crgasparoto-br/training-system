@@ -192,10 +192,10 @@ function safePersistencePatch(
   const patch = { ...input.data } as Record<string, unknown>;
 
   // CPF idêntico é bloqueante e possui índice único na projeção normalizada.
-  // O valor proposto fica no rascunho de revisão e em Aluno.leadCpf (sem a
-  // projeção normalizada), de modo que o detector administrativo continue vendo
-  // a evidência sem violar a constraint.
-  if (conflicts.includes('cpf')) delete patch.cpf;
+  // Limpa o valor canônico anterior para que o detector use Aluno.leadCpf,
+  // onde o novo CPF fica preservado sem projeção normalizada. O valor anterior
+  // permanece em snapshotBefore e o novo valor em snapshotAfter.
+  if (conflicts.includes('cpf')) patch.cpf = null;
 
   return patch as StudentIdentityData;
 }
