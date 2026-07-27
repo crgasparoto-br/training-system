@@ -1,0 +1,644 @@
+diff --git a/apps/api/src/modules/alunos/student-lifecycle-enrollment.service.ts b/apps/api/src/modules/alunos/student-lifecycle-enrollment.service.ts
+index 1869b5d..0000000 100644
+--- a/apps/api/src/modules/alunos/student-lifecycle-enrollment.service.ts
++++ b/apps/api/src/modules/alunos/student-lifecycle-enrollment.service.ts
+@@ -93,19 +93,14 @@ async function transitionEnrollmentStatusInTransaction(
+   return tx.aluno.findUniqueOrThrow({ where: { id: alunoId } });
+ }
+ 
+-export async function markStudentReadyForEnrollmentInTransaction(
++async function assertEnrollmentReviewPreconditions(
+   tx: Prisma.TransactionClient,
+   alunoId: string,
+-  contractId: string,
+-  input: EnrollmentTransitionInput
+-): Promise<Aluno> {
++  contractId: string
++): Promise<void> {
+   const aluno = await tx.aluno.findFirst({
+     where: { id: alunoId, contractId },
+     include: { onboarding: true },
+@@ -113,7 +108,6 @@ export async function markStudentReadyForEnrollmentInTransaction(
+   if (!aluno || !aluno.onboarding) {
+     throw new StudentLifecycleError('Registro não encontrado.', 'NOT_FOUND');
+   }
+-  await assertProfessorInContract(tx, input.actor.professorId, contractId);
+ 
+   if (
+     !hasCurrentPreRegistrationConsent(
+@@ -139,6 +133,19 @@ export async function markStudentReadyForEnrollmentInTransaction(
+       { fields: missing }
+     );
+   }
++}
++
++export async function markStudentReadyForEnrollmentInTransaction(
++  tx: Prisma.TransactionClient,
++  alunoId: string,
++  contractId: string,
++  input: EnrollmentTransitionInput
++): Promise<Aluno> {
++  await assertProfessorInContract(tx, input.actor.professorId, contractId);
++  await assertEnrollmentReviewPreconditions(tx, alunoId, contractId);
+ 
+   return transitionEnrollmentStatusInTransaction(
+     tx,
+@@ -153,6 +160,53 @@ export async function markStudentReadyForEnrollmentInTransaction(
+   );
+ }
+ 
++export async function refreshStudentReadyForEnrollmentReviewInTransaction(
++  tx: Prisma.TransactionClient,
++  alunoId: string,
++  contractId: string,
++  input: EnrollmentTransitionInput
++): Promise<Aluno> {
++  await assertProfessorInContract(tx, input.actor.professorId, contractId);
++  await assertEnrollmentReviewPreconditions(tx, alunoId, contractId);
++
++  const current = await tx.aluno.findFirst({
++    where: { id: alunoId, contractId },
++    select: { status: true },
++  });
++  if (!current) throw new StudentLifecycleError('Registro não encontrado.', 'NOT_FOUND');
++  if (current.status !== 'READY_FOR_ENROLLMENT') {
++    throw new StudentLifecycleError(
++      'O cadastro foi alterado por outra operação. Recarregue antes de continuar.',
++      'CONCURRENT_MODIFICATION',
++      { expectedStatus: 'READY_FOR_ENROLLMENT', currentStatus: current.status }
++    );
++  }
++
++  const onboarding = await tx.studentOnboardingProcess.updateMany({
++    where: { alunoId, contractId },
++    data: { reviewedAt: new Date(), reviewedByProfessorId: input.actor.professorId },
++  });
++  if (onboarding.count !== 1) {
++    throw new StudentLifecycleError('Processo de pré-matrícula não encontrado.', 'NOT_FOUND');
++  }
++
++  await tx.studentLifecycleEvent.create({
++    data: {
++      alunoId,
++      contractId,
++      eventType: 'ADMIN_REVIEWED',
++      actorUserId: input.actor.userId,
++      actorProfessorId: input.actor.professorId,
++      metadata: {
++        from: 'READY_FOR_ENROLLMENT',
++        to: 'READY_FOR_ENROLLMENT',
++        reviewRefreshed: true,
++        ...input.metadata,
++      },
++    },
++  });
++
++  return tx.aluno.findUniqueOrThrow({ where: { id: alunoId } });
++}
++
+ export async function activateStudentEnrollmentInTransaction(
+   tx: Prisma.TransactionClient,
+   alunoId: string,
+diff --git a/apps/api/src/modules/pre-registration-enrollment/pre-registration-enrollment.service.ts b/apps/api/src/modules/pre-registration-enrollment/pre-registration-enrollment.service.ts
+index 76f69ce..0000000 100644
+--- a/apps/api/src/modules/pre-registration-enrollment/pre-registration-enrollment.service.ts
++++ b/apps/api/src/modules/pre-registration-enrollment/pre-registration-enrollment.service.ts
+@@ -22,6 +22,7 @@ import {
+ import {
+   activateStudentEnrollmentInTransaction,
+   markStudentReadyForEnrollmentInTransaction,
++  refreshStudentReadyForEnrollmentReviewInTransaction,
+ } from '../alunos/student-lifecycle-enrollment.service.js';
+ import {
+   findStudentAccountIdentityMismatches,
+@@ -623,6 +624,26 @@ async function latestValidDecision(
+     );
+ }
+ 
++async function currentEnrollmentReviewExists(
++  client: DbClient,
++  alunoId: string,
++  contractId: string,
++  detection: DetectionResult
++): Promise<boolean> {
++  const events = await client.studentLifecycleEvent.findMany({
++    where: { alunoId, contractId, eventType: 'ADMIN_REVIEWED' },
++    orderBy: { createdAt: 'desc' },
++    take: 100,
++    select: { metadata: true },
++  });
++  return events.some((event) => {
++    const metadata = metadataOf(event.metadata);
++    return (
++      metadata.kind === 'ENROLLMENT_REVIEW' &&
++      metadata.fingerprint === detection.fingerprint &&
++      Number(metadata.reviewedRecordVersion) === detection.recordVersion
++    );
++  });
++}
++
+ function decisionResolvesReview(
+   detection: DetectionResult,
+   decision: PreRegistrationDuplicateDecisionDTO | undefined
+@@ -668,7 +689,14 @@ export async function getEnrollmentReview(
+     contractId: actor.contractId,
+     alunoId,
+   });
+-  const decision = await latestValidDecision(client, alunoId, actor.contractId, detection);
++  const [decision, hasCurrentEnrollmentReview] = await Promise.all([
++    latestValidDecision(client, alunoId, actor.contractId, detection),
++    aluno.status === 'READY_FOR_ENROLLMENT'
++      ? currentEnrollmentReviewExists(client, alunoId, actor.contractId, detection)
++      : Promise.resolve(false),
++  ]);
+   const resolved = decisionResolvesReview(detection, decision);
+   return {
+@@ -689,13 +717,19 @@ export async function getEnrollmentReview(
+       detection.candidates.length > 0,
+     canMarkReady:
+       grantedBlocks.has(ENROLLMENT_BLOCKS.review) &&
+-      aluno.status === 'PRE_REGISTRATION_COMPLETED' &&
++      (aluno.status === 'PRE_REGISTRATION_COMPLETED' ||
++        (aluno.status === 'READY_FOR_ENROLLMENT' && !hasCurrentEnrollmentReview)) &&
+       resolved,
+     canConfirmEnrollment:
+       grantedBlocks.has(ENROLLMENT_BLOCKS.convert) &&
+       aluno.status === 'READY_FOR_ENROLLMENT' &&
+-      resolved,
++      resolved &&
++      Boolean(aluno.onboarding.reviewedAt) &&
++      hasCurrentEnrollmentReview,
+     health: {
+@@ -1071,7 +1105,10 @@ export const preRegistrationEnrollmentService = {
+         throw new PreRegistrationEnrollmentError('Pré-matrícula não encontrada.', 'NOT_FOUND');
+       }
+-      if (aluno.status !== 'PRE_REGISTRATION_COMPLETED') {
++      if (
++        aluno.status !== 'PRE_REGISTRATION_COMPLETED' &&
++        aluno.status !== 'READY_FOR_ENROLLMENT'
++      ) {
+         throw new PreRegistrationEnrollmentError(
+           'Somente pré-cadastros concluídos podem seguir para matrícula.',
+           'PRECONDITION_FAILED'
+@@ -1100,7 +1137,8 @@ export const preRegistrationEnrollmentService = {
+       }
+       try {
+-        await markStudentReadyForEnrollmentInTransaction(
++        const persistReview = aluno.status === 'READY_FOR_ENROLLMENT'
++          ? refreshStudentReadyForEnrollmentReviewInTransaction
++          : markStudentReadyForEnrollmentInTransaction;
++        await persistReview(
+           tx,
+           alunoId,
+           actor.contractId,
+@@ -1215,22 +1253,9 @@ export const preRegistrationEnrollmentService = {
+           detection.classification === 'BLOCKING' ? 'BLOCKING_DUPLICATE' : 'DUPLICATE_REVIEW_REQUIRED'
+         );
+       }
+-      const reviewEvents = await tx.studentLifecycleEvent.findMany({
+-        where: { alunoId, contractId: actor.contractId, eventType: 'ADMIN_REVIEWED' },
+-        orderBy: { createdAt: 'desc' },
+-        take: 100,
+-        select: { metadata: true },
+-      });
+-      const currentReview = reviewEvents.map((event) => metadataOf(event.metadata)).find((metadata) =>
+-        metadata.kind === 'ENROLLMENT_REVIEW' &&
+-        metadata.fingerprint === detection.fingerprint &&
+-        Number(metadata.reviewedRecordVersion) === detection.recordVersion
+-      );
+-      if (!aluno.onboarding.reviewedAt || !currentReview) {
++      const hasCurrentEnrollmentReview = await currentEnrollmentReviewExists(
++        tx,
++        alunoId,
++        actor.contractId,
++        detection
++      );
++      if (!aluno.onboarding.reviewedAt || !hasCurrentEnrollmentReview) {
+         throw new PreRegistrationEnrollmentError(
+           'A revisão administrativa está desatualizada.',
+           'REVIEW_STALE'
+diff --git a/apps/api/src/modules/pre-registration-public/pre-registration-public.service.ts b/apps/api/src/modules/pre-registration-public/pre-registration-public.service.ts
+index 9da5ccf..0000000 100644
+--- a/apps/api/src/modules/pre-registration-public/pre-registration-public.service.ts
++++ b/apps/api/src/modules/pre-registration-public/pre-registration-public.service.ts
+@@ -120,6 +120,92 @@ type ProcessAccessRow = {
+ const normalizeText = (value: unknown): string | undefined =>
+   typeof value === 'string' && value.trim() ? value.trim() : undefined;
+ 
++type ClaimDuplicateDetection = Awaited<ReturnType<typeof detectPreRegistrationDuplicates>>;
++
++function asJson(value: unknown): Prisma.InputJsonValue {
++  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
++}
++
++function jsonStringArray(value: Prisma.JsonValue | null | undefined): string[] {
++  return Array.isArray(value)
++    ? value.filter((item): item is string => typeof item === 'string')
++    : [];
++}
++
++function claimDuplicateReviewFields(detection: ClaimDuplicateDetection): string[] {
++  const fields = new Set<string>();
++  for (const signal of detection.candidates.flatMap((candidate) => candidate.signals)) {
++    if (signal.code === 'CPF_EXACT') fields.add('cpf');
++    if (signal.code === 'EMAIL_EXACT') fields.add('email');
++    if (signal.code === 'PHONE_EXACT') fields.add('phone');
++    if (signal.code === 'NAME_AND_BIRTH_DATE') {
++      fields.add('name');
++      fields.add('birthDate');
++    }
++    if (signal.code === 'ACCOUNT_ALREADY_LINKED' || signal.code === 'ACCOUNT_INCOMPATIBLE') {
++      fields.add('account');
++    }
++  }
++  return [...fields].sort();
++}
++
++async function recordClaimDuplicateReview(
++  tx: Prisma.TransactionClient,
++  alunoId: string,
++  contractId: string,
++  userId: string,
++  detection: ClaimDuplicateDetection
++): Promise<void> {
++  if (
++    detection.classification !== 'REVIEW_REQUIRED' &&
++    detection.classification !== 'BLOCKING'
++  ) {
++    return;
++  }
++
++  const identity = await loadStudentIdentity(alunoId, contractId, tx);
++  const fields = claimDuplicateReviewFields(detection);
++  const sections = [
++    ...(fields.some((field) => ['cpf', 'name', 'birthDate'].includes(field))
++      ? ['identification']
++      : []),
++    ...(fields.some((field) => ['email', 'phone'].includes(field)) ? ['contact'] : []),
++    ...(fields.includes('account') ? ['access'] : []),
++  ];
++  const existing = await tx.studentProfileReview.findFirst({
++    where: {
++      alunoId,
++      requestedByUserId: userId,
++      status: 'pending',
++      requiresApproval: true,
++    },
++    orderBy: { createdAt: 'desc' },
++    select: { id: true, changedFields: true, sectionsRequested: true },
++  });
++
++  if (existing) {
++    await tx.studentProfileReview.update({
++      where: { id: existing.id },
++      data: {
++        requestedAt: new Date(),
++        changedFields: asJson([
++          ...new Set([...jsonStringArray(existing.changedFields), ...fields]),
++        ]),
++        sectionsRequested: asJson([
++          ...new Set([...jsonStringArray(existing.sectionsRequested), ...sections]),
++        ]),
++        requiresApproval: true,
++      },
++    });
++    return;
++  }
++
++  await tx.studentProfileReview.create({
++    data: {
++      alunoId,
++      requestedByUserId: userId,
++      sectionsRequested: asJson(sections),
++      snapshotBefore: asJson(identity),
++      snapshotAfter: asJson(identity),
++      changedFields: asJson(fields),
++      requiresApproval: true,
++    },
++  });
++  await tx.studentLifecycleEvent.create({
++    data: {
++      alunoId,
++      contractId,
++      eventType: 'ADMIN_REVIEWED',
++      actorUserId: userId,
++      metadata: {
++        source: 'public_pre_registration_claim',
++        action: 'duplicate_review_requested',
++        classification: detection.classification,
++        fields,
++        signalCodes: [...new Set(detection.candidates.flatMap((candidate) =>
++          candidate.signals.map((signal) => signal.code)
++        ))],
++        fingerprint: detection.fingerprint,
++        reviewedRecordVersion: detection.recordVersion,
++        publicDisclosure: 'NONE',
++      },
++    },
++  });
++}
++
+ function assertClaimRole(role: unknown): asserts role is PreRegistrationClaimRole {
+@@ -235,7 +321,7 @@ async function claimInviteInTransaction(
+   if (!aluno || !aluno.onboarding) {
+     throw new PreRegistrationPublicError('Cadastro não disponível.', 'NOT_FOUND');
+   }
+-  await detectPreRegistrationDuplicates(tx, {
++  const claimDetection = await detectPreRegistrationDuplicates(tx, {
+     contractId: invite.contractId,
+     alunoId: invite.alunoId,
+     overrides: {
+@@ -385,6 +471,14 @@ async function claimInviteInTransaction(
+     );
+   }
+ 
++  await recordClaimDuplicateReview(
++    tx,
++    invite.alunoId,
++    invite.contractId,
++    userId,
++    claimDetection
++  );
++
+   if (!wasAlreadyClaimed) {
+     await tx.studentLifecycleEvent.create({
+diff --git a/apps/web/src/pages/PreRegistrationAdmin/PreRegistrationEnrollmentDetail.tsx b/apps/web/src/pages/PreRegistrationAdmin/PreRegistrationEnrollmentDetail.tsx
+index 544a6a1..0000000 100644
+--- a/apps/web/src/pages/PreRegistrationAdmin/PreRegistrationEnrollmentDetail.tsx
++++ b/apps/web/src/pages/PreRegistrationAdmin/PreRegistrationEnrollmentDetail.tsx
+@@ -352,11 +352,19 @@ export function PreRegistrationEnrollmentDetail() {
+               </div>
+             </CardContent>
+           </Card>
+ 
+-          {lead.status === 'PRE_REGISTRATION_COMPLETED' && (
++          {review.canMarkReady && (
+             <Card className="border-primary/40">
+-              <CardHeader><CardTitle>Concluir revisão administrativa</CardTitle>
+-                <CardDescription>A revisão fica vinculada à versão {review.recordVersion} e será invalidada se a identidade mudar.</CardDescription>
++              <CardHeader>
++                <CardTitle>
++                  {lead.status === 'READY_FOR_ENROLLMENT'
++                    ? 'Renovar revisão administrativa'
++                    : 'Concluir revisão administrativa'}
++                </CardTitle>
++                <CardDescription>
++                  A revisão fica vinculada à versão {review.recordVersion} e será invalidada se a identidade mudar.
++                </CardDescription>
+               </CardHeader>
+               <CardContent>
+-                <Button isLoading={working} disabled={!review.canMarkReady} onClick={markReady}>
+-                  <UserCheck className="h-4 w-4" aria-hidden="true" /> Marcar como pronto para matrícula
++                <Button isLoading={working} onClick={markReady}>
++                  <UserCheck className="h-4 w-4" aria-hidden="true" />
++                  {lead.status === 'READY_FOR_ENROLLMENT'
++                    ? 'Confirmar nova revisão'
++                    : 'Marcar como pronto para matrícula'}
+                 </Button>
+               </CardContent>
+             </Card>
+diff --git a/apps/api/tests/pre-registration-audit-remediation.integration.test.ts b/apps/api/tests/pre-registration-audit-remediation.integration.test.ts
+index 2ed6eab..0000000 100644
+--- a/apps/api/tests/pre-registration-audit-remediation.integration.test.ts
++++ b/apps/api/tests/pre-registration-audit-remediation.integration.test.ts
+@@ -9,12 +9,15 @@ import { syncAccessPermissionsForFunction } from '../src/modules/access-control/access-control.service.js';
+ import { createStudentLead } from '../src/modules/alunos/student-lifecycle.service.js';
+ import { upsertStudentIdentity } from '../src/modules/alunos/student-identity.service.js';
+ import { preRegistrationEnrollmentCreateService } from '../src/modules/pre-registration-enrollment/pre-registration-enrollment-create.service.js';
+ import {
+   preRegistrationEnrollmentService,
+   type PreRegistrationEnrollmentActor,
+ } from '../src/modules/pre-registration-enrollment/pre-registration-enrollment.service.js';
++import { preRegistrationInviteAdminService } from '../src/modules/pre-registration-invites/pre-registration-invite-admin.service.js';
+ import { preRegistrationDuplicateReviewService } from '../src/modules/pre-registration-public/pre-registration-duplicate-review.service.js';
+ import { preRegistrationPublicAtomicService } from '../src/modules/pre-registration-public/pre-registration-public-atomic.service.js';
++import { PRE_REGISTRATION_PRIVACY_NOTICE_VERSION } from '../src/modules/pre-registration-public/pre-registration-policy.js';
++import { preRegistrationPublicService } from '../src/modules/pre-registration-public/pre-registration-public.service.js';
+@@ -348,4 +351,195 @@ describeDatabase('issue 274 audit remediation with PostgreSQL', () => {
+     });
+     expect(createdId).toEqual(expect.any(String));
+   });
++
++  it('renews an invalidated review while the record remains ready for enrollment', async () => {
++    const actor = await createProfessorActor({
++      label: 'stale-review-renewal',
++      role: ProfessorRole.master,
++    });
++    await syncAccessPermissionsForFunction(actor.functionId, actor.functionCode);
++    await prisma.accessPermission.updateMany({
++      where: { collaboratorFunctionId: actor.functionId },
++      data: { canView: true, dataScope: 'contract' },
++    });
++    const studentUser = await createUser(
++      'stale-review-student',
++      UserType.aluno,
++      'Aluno Revisão Renovável'
++    );
++    const lead = await createStudentLead({
++      contractId,
++      name: 'Aluno Revisão Renovável',
++      phone: '+55 15 95555-0274',
++      email: `${suffix}-stale-review@example.com`,
++      origin: 'teste-revisao-renovavel',
++      createdByProfessorId: actor.professorId,
++    });
++    await upsertStudentIdentity(
++      lead.id,
++      contractId,
++      {
++        name: 'Aluno Revisão Renovável',
++        birthDate: '1992-02-14',
++        cpf: '52998224725',
++        phone: '+55 15 95555-0274',
++        email: `${suffix}-stale-review@example.com`,
++      },
++      { sourceType: 'professional', sourceReference: 'issue_274_stale_review' }
++    );
++    await prisma.aluno.update({
++      where: { id: lead.id },
++      data: {
++        status: 'PRE_REGISTRATION_COMPLETED',
++        userId: studentUser.id,
++        professorId: actor.professorId,
++      },
++    });
++    await prisma.studentOnboardingProcess.update({
++      where: { alunoId: lead.id },
++      data: {
++        completedAt: new Date(),
++        privacyNoticeVersion: PRE_REGISTRATION_PRIVACY_NOTICE_VERSION,
++        privacyAcceptedAt: new Date(),
++      },
++    });
++
++    const initialReview = await preRegistrationEnrollmentService.inspect(actor, lead.id);
++    const ready = await preRegistrationEnrollmentService.markReady(actor, lead.id, {
++      expectedVersion: initialReview.recordVersion,
++      fingerprint: initialReview.fingerprint,
++      reason: 'Primeira revisão administrativa.',
++    });
++    expect(ready.status).toBe('READY_FOR_ENROLLMENT');
++    expect(ready.canConfirmEnrollment).toBe(true);
++
++    await upsertStudentIdentity(
++      lead.id,
++      contractId,
++      { phone: '+55 15 95555-1274' },
++      {
++        actor: { userId: actor.userId, professorId: actor.professorId },
++        sourceType: 'professional',
++        sourceReference: 'issue_274_stale_review_change',
++      }
++    );
++
++    const stale = await preRegistrationEnrollmentService.inspect(actor, lead.id);
++    expect(stale.status).toBe('READY_FOR_ENROLLMENT');
++    expect(stale.canConfirmEnrollment).toBe(false);
++    expect(stale.canMarkReady).toBe(true);
++
++    const renewed = await preRegistrationEnrollmentService.markReady(actor, lead.id, {
++      expectedVersion: stale.recordVersion,
++      fingerprint: stale.fingerprint,
++      reason: 'Revisão renovada após alteração de identidade.',
++    });
++    expect(renewed.status).toBe('READY_FOR_ENROLLMENT');
++    expect(renewed.canMarkReady).toBe(false);
++    expect(renewed.canConfirmEnrollment).toBe(true);
++
++    const activated = await preRegistrationEnrollmentService.confirmEnrollment(actor, lead.id, {
++      expectedVersion: renewed.recordVersion,
++      fingerprint: renewed.fingerprint,
++      confirmationAccepted: true,
++    });
++    expect(activated).toMatchObject({ alunoId: lead.id, status: 'ACTIVE_STUDENT' });
++    expect(await prisma.studentLifecycleEvent.count({
++      where: {
++        alunoId: lead.id,
++        contractId,
++        eventType: 'CONVERTED_TO_ACTIVE_STUDENT',
++      },
++    })).toBe(1);
++  });
++
++  it('turns claim-time duplicate detection into a private administrative pending review', async () => {
++    const actor = await createProfessorActor({
++      label: 'claim-duplicate-review',
++      role: ProfessorRole.master,
++    });
++    const sharedEmail = `${suffix}-claim-shared@example.com`;
++    await createStudentLead({
++      contractId,
++      name: 'Cadastro candidato',
++      phone: '+55 15 96666-0274',
++      email: sharedEmail,
++      origin: 'teste-claim-candidate',
++      createdByProfessorId: actor.professorId,
++    });
++    const source = await createStudentLead({
++      contractId,
++      name: 'Pessoa Claim',
++      phone: '+55 15 97777-0274',
++      email: sharedEmail,
++      origin: 'teste-claim-source',
++      createdByProfessorId: actor.professorId,
++    });
++    const studentUser = await prisma.user.create({
++      data: {
++        email: sharedEmail,
++        passwordHash: 'integration-test-hash',
++        type: UserType.aluno,
++        profile: { create: { name: 'Pessoa Claim' } },
++      },
++    });
++    createdUserIds.push(studentUser.id);
++    const invite = await preRegistrationInviteAdminService.generateFirstInvite(
++      source.id,
++      contractId,
++      actor
++    );
++
++    const claimed = await preRegistrationPublicService.claim(studentUser.id, {
++      token: invite.token,
++      role: 'STUDENT',
++    });
++    expect(claimed).toEqual({ alunoId: source.id, redirectTo: '/pre-cadastro' });
++
++    const pending = await prisma.studentProfileReview.findFirstOrThrow({
++      where: {
++        alunoId: source.id,
++        requestedByUserId: studentUser.id,
++        status: 'pending',
++        requiresApproval: true,
++      },
++      orderBy: { createdAt: 'desc' },
++    });
++    expect(pending.changedFields).toEqual(expect.arrayContaining(['email']));
++    expect(pending.sectionsRequested).toEqual(expect.arrayContaining(['contact']));
++    expect(pending.snapshotAfter).toEqual(pending.snapshotBefore);
++
++    const claimReviewEvents = await prisma.studentLifecycleEvent.findMany({
++      where: { alunoId: source.id, contractId, eventType: 'ADMIN_REVIEWED' },
++      orderBy: { createdAt: 'desc' },
++    });
++    expect(claimReviewEvents).toHaveLength(1);
++    expect(claimReviewEvents[0]?.metadata).toMatchObject({
++      source: 'public_pre_registration_claim',
++      action: 'duplicate_review_requested',
++      classification: 'REVIEW_REQUIRED',
++      publicDisclosure: 'NONE',
++    });
++
++    const retried = await preRegistrationPublicService.claim(studentUser.id, {
++      token: invite.token,
++      role: 'STUDENT',
++    });
++    expect(Object.keys(retried).sort()).toEqual(Object.keys(claimed).sort());
++    expect(await prisma.studentProfileReview.count({
++      where: {
++        alunoId: source.id,
++        requestedByUserId: studentUser.id,
++        status: 'pending',
++        requiresApproval: true,
++      },
++    })).toBe(1);
++    expect(await prisma.studentLifecycleEvent.count({
++      where: {
++        alunoId: source.id,
++        contractId,
++        eventType: 'ADMIN_REVIEWED',
++      },
++    })).toBe(1);
++
++    const cleanEmail = `${suffix}-claim-clean@example.com`;
++    const cleanSource = await createStudentLead({
++      contractId,
++      name: 'Pessoa Claim Sem Duplicidade',
++      phone: '+55 15 98888-0274',
++      email: cleanEmail,
++      origin: 'teste-claim-clean',
++      createdByProfessorId: actor.professorId,
++    });
++    const cleanUser = await prisma.user.create({
++      data: {
++        email: cleanEmail,
++        passwordHash: 'integration-test-hash',
++        type: UserType.aluno,
++        profile: { create: { name: 'Pessoa Claim Sem Duplicidade' } },
++      },
++    });
++    createdUserIds.push(cleanUser.id);
++    const cleanInvite = await preRegistrationInviteAdminService.generateFirstInvite(
++      cleanSource.id,
++      contractId,
++      actor
++    );
++    const cleanClaim = await preRegistrationPublicService.claim(cleanUser.id, {
++      token: cleanInvite.token,
++      role: 'STUDENT',
++    });
++    expect(Object.keys(cleanClaim).sort()).toEqual(Object.keys(claimed).sort());
++    expect(await prisma.studentProfileReview.count({
++      where: { alunoId: cleanSource.id, status: 'pending', requiresApproval: true },
++    })).toBe(0);
++  });
+ });
