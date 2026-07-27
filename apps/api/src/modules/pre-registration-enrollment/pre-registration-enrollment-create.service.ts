@@ -74,6 +74,13 @@ function wrapLifecycleError(error: StudentLifecycleError): PreRegistrationEnroll
   return new PreRegistrationEnrollmentError(error.message, 'PRECONDITION_FAILED', error.details);
 }
 
+function isSerializationFailure(error: Prisma.PrismaClientKnownRequestError): boolean {
+  return (
+    error.code === 'P2034' ||
+    (error.code === 'P2010' && String(error.meta?.code ?? '') === '40001')
+  );
+}
+
 export const preRegistrationEnrollmentCreateService = {
   async create(
     actor: PreRegistrationEnrollmentActor,
@@ -223,9 +230,9 @@ export const preRegistrationEnrollmentCreateService = {
             'BLOCKING_DUPLICATE'
           );
         }
-        if (error.code === 'P2034') {
+        if (isSerializationFailure(error)) {
           throw new PreRegistrationEnrollmentError(
-            'Os cadastros mudaram durante a verificação. Revise e tente novamente.',
+            'Os cadastros ou as permissões mudaram durante a verificação. Revise e tente novamente.',
             'CONCURRENT_MODIFICATION'
           );
         }
