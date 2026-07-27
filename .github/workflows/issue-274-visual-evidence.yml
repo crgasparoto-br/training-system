@@ -52,10 +52,22 @@ jobs:
           exit 1
 
       - name: Capture desktop, mobile and error states
+        shell: bash
         env:
           ISSUE_274_WEB_URL: http://127.0.0.1:4173
           ISSUE_274_VISUAL_OUTPUT: artifacts/issue-274-visual
-        run: node apps/api/scripts/issue-274-visual-evidence.mjs
+        run: |
+          set -o pipefail
+          mkdir -p "$ISSUE_274_VISUAL_OUTPUT"
+          node apps/api/scripts/issue-274-visual-evidence.mjs 2>&1 \
+            | tee "$ISSUE_274_VISUAL_OUTPUT/runner.log"
+
+      - name: Preserve web server log
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p artifacts/issue-274-visual
+          cp /tmp/issue-274-web.log artifacts/issue-274-visual/web-server.log || true
 
       - name: Upload visual evidence
         if: always()
