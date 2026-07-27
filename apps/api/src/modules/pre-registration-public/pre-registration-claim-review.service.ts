@@ -1,12 +1,12 @@
-import { Prisma, PrismaClient } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import {
   loadStudentIdentity,
   normalizeStudentEmail,
 } from '../alunos/student-identity.service.js';
+import { issue274Prisma as prisma } from '../pre-registration-enrollment/issue-274-prisma.js';
 import { detectPreRegistrationDuplicates } from '../pre-registration-enrollment/pre-registration-enrollment.service.js';
 import { PreRegistrationPublicError } from './pre-registration-public.service.js';
 
-const prisma = new PrismaClient();
 type DetectionResult = Awaited<ReturnType<typeof detectPreRegistrationDuplicates>>;
 type EventMetadata = Record<string, unknown>;
 
