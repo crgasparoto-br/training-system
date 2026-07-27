@@ -81,6 +81,48 @@ async function resolveAccess(
   return { scope, visibleProfessorIds: visible.map((item) => item.id) };
 }
 
+async function lockCreateAuthorization(
+  actor: PreRegistrationEnrollmentActor,
+  tx: Prisma.TransactionClient
+): Promise<void> {
+  const professors = await tx.$queryRaw<Array<{ collaboratorFunctionId: string }>>`
+    SELECT "collaboratorFunctionId"
+    FROM "Professor"
+    WHERE "id" = ${actor.professorId}
+      AND "contractId" = ${actor.contractId}
+    FOR SHARE
+  `;
+  const collaboratorFunctionId = professors[0]?.collaboratorFunctionId;
+  if (!collaboratorFunctionId) {
+    throw new PreRegistrationEnrollmentError('Recurso não encontrado.', 'NOT_FOUND');
+  }
+
+  const functions = await tx.$queryRaw<Array<{ id: string }>>`
+    SELECT "id"
+    FROM "CollaboratorFunctionOption"
+    WHERE "id" = ${collaboratorFunctionId}
+      AND "contractId" = ${actor.contractId}
+    FOR SHARE
+  `;
+  if (!functions[0]) {
+    throw new PreRegistrationEnrollmentError('Recurso não encontrado.', 'NOT_FOUND');
+  }
+
+  // O lock define o ponto de linearização da autorização. Uma revogação que já
+  // atualizou essas linhas vence e será observada; uma revogação posterior
+  // aguarda o commit desta criação, evitando TOCTOU entre a leitura e a escrita.
+  await tx.$queryRaw<Array<{ id: string }>>`
+    SELECT "id"
+    FROM "AccessPermission"
+    WHERE "collaboratorFunctionId" = ${collaboratorFunctionId}
+      AND (
+        ("screenKey" = ${SCREEN_KEY} AND "blockKey" = '')
+        OR "blockKey" = ${CREATE_BLOCK_KEY}
+      )
+    FOR SHARE
+  `;
+}
+
 export async function resolvePreRegistrationEnrollmentAccess(
   actor: PreRegistrationEnrollmentActor,
   client: DbClient = prisma
@@ -90,9 +132,10 @@ export async function resolvePreRegistrationEnrollmentAccess(
 
 export async function assertPreRegistrationCreateAccess(
   actor: PreRegistrationEnrollmentActor,
-  client: DbClient = prisma
+  tx: Prisma.TransactionClient
 ): Promise<PreRegistrationEnrollmentAccess> {
-  return resolveAccess(actor, client, CREATE_BLOCK_KEY);
+  await lockCreateAuthorization(actor, tx);
+  return resolveAccess(actor, tx, CREATE_BLOCK_KEY);
 }
 
 export async function assertPreRegistrationAlunoVisible(
