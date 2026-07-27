@@ -1,11 +1,12 @@
 import { preRegistrationClaimReviewService } from './pre-registration-claim-review.service.js';
 import { preRegistrationPublicService } from './pre-registration-public.service.js';
 
-const PATCHED = Symbol.for('training-system.issue-274.claim-review-adapter');
-type RuntimeService = typeof preRegistrationPublicService & { [PATCHED]?: boolean };
+type RuntimeService = typeof preRegistrationPublicService & {
+  __issue274ClaimReviewAdapterApplied?: boolean;
+};
 
 const runtime = preRegistrationPublicService as RuntimeService;
-if (!runtime[PATCHED]) {
+if (!runtime.__issue274ClaimReviewAdapterApplied) {
   const claimOriginal = runtime.claim.bind(runtime);
   const registerAndClaimOriginal = runtime.registerAndClaim.bind(runtime);
 
@@ -21,5 +22,5 @@ if (!runtime[PATCHED]) {
     return result;
   };
 
-  runtime[PATCHED] = true;
+  runtime.__issue274ClaimReviewAdapterApplied = true;
 }
