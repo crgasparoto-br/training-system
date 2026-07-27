@@ -168,6 +168,9 @@ export interface UpdatePreRegistrationLeadCommercialDTO {
   responsibleProfessorId?: string | null;
   commercialNotes?: string | null;
   unit?: string | null;
+  expectedDuplicateVersion?: number;
+  confirmedDuplicateFingerprint?: string;
+  confirmedDuplicateReason?: string;
 }
 
 export interface PreRegistrationAdminDuplicateCandidateDTO {
