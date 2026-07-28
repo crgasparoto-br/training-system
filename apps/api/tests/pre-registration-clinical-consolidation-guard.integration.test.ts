@@ -1,6 +1,5 @@
 import {
   ContractType,
-  PrismaClient,
   ProfessorRole,
   UserType,
 } from '@prisma/client';
@@ -10,11 +9,11 @@ import {
   preRegistrationEnrollmentService,
   type PreRegistrationEnrollmentActor,
 } from '../src/modules/pre-registration-enrollment/index.js';
+import { issue274Prisma as prisma } from '../src/modules/pre-registration-enrollment/issue-274-prisma.js';
 
 const runDatabaseIntegrationTests =
   process.env.RUN_DATABASE_INTEGRATION_TESTS === 'true';
 const describeDatabase = runDatabaseIntegrationTests ? describe : describe.skip;
-const prisma = new PrismaClient();
 const suffix = `issue-274-clinical-guard-${Date.now()}`;
 const contractId = `${suffix}-contract`;
 const createdUserIds: string[] = [];
@@ -97,7 +96,6 @@ describeDatabase('issue 274 clinical ownership consolidation guard', () => {
     for (const userId of createdUserIds.reverse()) {
       await prisma.user.delete({ where: { id: userId } }).catch(() => undefined);
     }
-    await prisma.$disconnect();
   });
 
   it('blocks consolidation when only a StudentAssessmentRecord exists and preserves both records', async () => {
