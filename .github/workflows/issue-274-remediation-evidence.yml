@@ -1,0 +1,95 @@
+name: Issue 274 Remediation Evidence
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - 'apps/api/src/modules/pre-registration-enrollment/pre-registration-enrollment-concurrency.adapter.ts'
+      - 'apps/api/tests/pre-registration-enrollment-concurrency.adapter.test.ts'
+      - 'apps/web/src/pages/PreRegistrationAdmin/PreRegistrationEnrollmentDetailRemediated.tsx'
+      - 'apps/api/scripts/issue-274-remediation-visual-evidence.mjs'
+      - '.github/workflows/issue-274-remediation-evidence.yml'
+      - 'docs/quality/issue-274-visual-contract.md'
+  push:
+    branches:
+      - feat/274-enrollment-conversion
+  workflow_dispatch:
+
+jobs:
+  remediation-evidence:
+    name: Validate concurrency and expanded visual states
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma Client
+        run: pnpm --filter @corrida/api exec prisma generate
+
+      - name: Run concurrency adapter tests
+        run: pnpm --filter @corrida/api test -- --runInBand tests/pre-registration-enrollment-concurrency.adapter.test.ts
+
+      - name: Type check affected workspaces
+        run: |
+          pnpm --filter @corrida/api type-check
+          pnpm --filter @corrida/web type-check
+
+      - name: Install browser
+        run: pnpm --filter @corrida/api exec puppeteer browsers install chrome
+
+      - name: Start web application
+        shell: bash
+        run: |
+          pnpm --filter @corrida/web exec vite --host 127.0.0.1 --port 4173 > /tmp/issue-274-remediation-web.log 2>&1 &
+          echo $! > /tmp/issue-274-remediation-web.pid
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:4173/pre-matriculas/visual-lead > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/issue-274-remediation-web.log
+          exit 1
+
+      - name: Capture expanded visual scenarios
+        shell: bash
+        env:
+          ISSUE_274_WEB_URL: http://127.0.0.1:4173
+          ISSUE_274_REMEDIATION_OUTPUT: artifacts/issue-274-remediation-visual
+          ISSUE_274_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -o pipefail
+          mkdir -p "$ISSUE_274_REMEDIATION_OUTPUT"
+          node apps/api/scripts/issue-274-remediation-visual-evidence.mjs 2>&1 \
+            | tee "$ISSUE_274_REMEDIATION_OUTPUT/runner.log"
+
+      - name: Preserve web server log
+        if: always()
+        run: |
+          mkdir -p artifacts/issue-274-remediation-visual
+          cp /tmp/issue-274-remediation-web.log artifacts/issue-274-remediation-visual/web-server.log || true
+
+      - name: Upload remediation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-274-remediation-evidence-${{ github.run_id }}
+          path: artifacts/issue-274-remediation-visual
+          if-no-files-found: error
+          retention-days: 14

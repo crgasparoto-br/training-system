@@ -81,9 +81,15 @@ A confirmação da matrícula ocorre em transação serializável, recarrega e b
 
 A criação administrativa reconsulta a tela, o bloco `students.preRegistration.create`, o tenant, o data scope e a visibilidade do responsável dentro da mesma transação que deduplica e grava o lead. A autorização observada apenas no middleware nunca é suficiente para o commit.
 
+### Concorrência observável na API
+
+Falhas de serialização ou deadlock detectadas pelo Prisma/PostgreSQL durante decisão de duplicidade, consolidação, renovação da revisão ou confirmação da matrícula são convertidas para o erro de domínio `CONCURRENT_MODIFICATION`. A API responde `409` com orientação para recarregar e refazer a revisão, sem expor `P2034`, SQLSTATE, mensagem do PostgreSQL ou detalhes internos do Prisma. O rollback transacional permanece obrigatório.
+
 ## Revisão e pós-ativação
 
 A revisão apresenta identificação e contatos conforme permissão, normalização, origem, responsável, unidade, observações, datas do processo, consentimento, histórico, status de Anamnese/PAR-Q e domínios posteriores. O acesso à área clínica só aparece para quem possui a permissão específica.
+
+Pendências obrigatórias são exibidas em uma região própria, distinguindo itens bloqueantes de avisos informativos. O bloqueio não deve aparecer apenas como botão desabilitado: a interface informa qual requisito precisa ser corrigido e oferece acesso à edição administrativa quando aplicável.
 
 Depois da ativação, a Central do Aluno mantém uma confirmação recarregável na URL e oferece próximas ações conforme as permissões vigentes. A visão padrão de leads continua excluindo alunos ativos, mas o filtro `Convertido` localiza `ACTIVE_STUDENT`.
 

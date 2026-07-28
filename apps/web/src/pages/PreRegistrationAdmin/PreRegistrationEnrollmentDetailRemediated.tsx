@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
-import type { PreRegistrationEnrollmentReviewDTO } from '@corrida/types';
-import { RefreshCcw, UserCheck } from 'lucide-react';
-import { useParams } from 'react-router-dom';
+import type {
+  PreRegistrationAdminLeadDetailDTO,
+  PreRegistrationEnrollmentReviewDTO,
+} from '@corrida/types';
+import { AlertCircle, RefreshCcw, UserCheck } from 'lucide-react';
+import { Link, useParams } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import {
   Card,
@@ -15,6 +18,7 @@ import { preRegistrationAdminService } from '../../services/pre-registration-adm
 import { PreRegistrationEnrollmentDetail } from './PreRegistrationEnrollmentDetail';
 
 type Failure = { response?: { data?: { error?: string } }; message?: string };
+type PendingItem = PreRegistrationAdminLeadDetailDTO['pendencies'][number];
 
 function failureMessage(error: unknown): string {
   const failure = error as Failure;
@@ -24,6 +28,7 @@ function failureMessage(error: unknown): string {
 export function PreRegistrationEnrollmentDetailRemediated() {
   const { id = '' } = useParams();
   const [review, setReview] = useState<PreRegistrationEnrollmentReviewDTO | null>(null);
+  const [pendencies, setPendencies] = useState<PendingItem[]>([]);
   const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
@@ -34,6 +39,7 @@ export function PreRegistrationEnrollmentDetailRemediated() {
     setError(null);
     try {
       const lead = await preRegistrationAdminService.get(id);
+      setPendencies(lead.pendencies);
       if (lead.status !== 'READY_FOR_ENROLLMENT') {
         setReview(null);
         return;
@@ -72,6 +78,44 @@ export function PreRegistrationEnrollmentDetailRemediated() {
 
   return (
     <div className="space-y-6">
+      {pendencies.length > 0 && (
+        <Card className="border-warning/50" role="region" aria-label="Pendências para matrícula">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5" aria-hidden="true" />
+              Pendências para matrícula
+            </CardTitle>
+            <CardDescription>
+              Corrija os itens bloqueantes antes de marcar o cadastro como pronto. Itens informativos permanecem visíveis, mas não impedem a matrícula comercial.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <ul className="space-y-2 text-sm">
+              {pendencies.map((pending) => (
+                <li
+                  key={pending.code}
+                  className="flex flex-col gap-1 rounded-md border border-border p-3 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <span className="font-medium">{pending.label}</span>
+                  <span className={pending.blocking ? 'ts-badge-warning' : 'ts-badge-secondary'}>
+                    {pending.blocking ? 'Bloqueante' : 'Informativa'}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <p className="text-sm text-muted-foreground">
+              Dados cadastrais e comerciais podem ser ajustados na edição administrativa. Consentimento e etapas do convidado devem ser concluídos pelo fluxo de pré-cadastro.
+            </p>
+            <Link
+              className="inline-flex text-sm font-medium text-primary hover:underline"
+              to={`/pre-matriculas/${id}/editar`}
+            >
+              Abrir edição administrativa
+            </Link>
+          </CardContent>
+        </Card>
+      )}
+
       {(review || error) && (
         <Card className="border-warning/50" role="region" aria-label="Renovação da revisão administrativa">
           <CardHeader>
