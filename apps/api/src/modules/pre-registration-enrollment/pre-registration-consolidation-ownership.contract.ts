@@ -1,3 +1,15 @@
+export const CONSOLIDATION_BLOCKING_SCALAR_FIELDS = [
+  'weight',
+  'height',
+  'bodyFatPercentage',
+  'vo2Max',
+  'anaerobicThreshold',
+  'maxHeartRate',
+  'restingHeartRate',
+  'systolicPressure',
+  'diastolicPressure',
+] as const;
+
 export const CONSOLIDATION_BLOCKING_OWNERSHIP_RELATIONS = [
   'agendaBookings',
   'anthropometryAssessments',
