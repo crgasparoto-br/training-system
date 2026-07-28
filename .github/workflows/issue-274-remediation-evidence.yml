@@ -7,6 +7,8 @@ on:
     paths:
       - 'apps/api/src/modules/pre-registration-enrollment/pre-registration-enrollment-concurrency.adapter.ts'
       - 'apps/api/tests/pre-registration-enrollment-concurrency.adapter.test.ts'
+      - 'apps/api/tests/issue-274-loop-remediation.integration.test.ts'
+      - 'apps/api/jest.config.js'
       - 'apps/web/src/pages/PreRegistrationAdmin/PreRegistrationEnrollmentDetailRemediated.tsx'
       - 'apps/api/scripts/issue-274-remediation-visual-evidence.mjs'
       - '.github/workflows/issue-274-remediation-evidence.yml'
@@ -91,5 +93,78 @@ jobs:
         with:
           name: issue-274-remediation-evidence-${{ github.run_id }}
           path: artifacts/issue-274-remediation-visual
+          if-no-files-found: error
+          retention-days: 14
+
+  adversarial-postgresql:
+    name: Validate atomic claim and concurrent deduplication
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: training_system_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d training_system_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/training_system_test?schema=public&connection_limit=1&pool_timeout=30
+      NODE_ENV: test
+      RUN_DATABASE_INTEGRATION_TESTS: 'true'
+      RUN_ISSUE_274_LOOP_INTEGRATION_TESTS: 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma Client
+        run: pnpm --filter @corrida/api exec prisma generate
+
+      - name: Apply migrations
+        run: pnpm --filter @corrida/api exec prisma migrate deploy
+
+      - name: Run adversarial PostgreSQL test
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p artifacts/issue-274-loop-integration
+          pnpm --filter @corrida/api test -- --runInBand tests/issue-274-loop-remediation.integration.test.ts 2>&1 \
+            | tee artifacts/issue-274-loop-integration/test-output.log
+          cat > artifacts/issue-274-loop-integration/evidence.json <<EOF
+          {
+            "schemaVersion": 1,
+            "issue": 274,
+            "headSha": "${{ github.event.pull_request.head.sha || github.sha }}",
+            "runId": "${{ github.run_id }}",
+            "runAttempt": "${{ github.run_attempt }}"
+          }
+          EOF
+
+      - name: Upload adversarial evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-274-loop-integration-${{ github.run_id }}
+          path: artifacts/issue-274-loop-integration
           if-no-files-found: error
           retention-days: 14
