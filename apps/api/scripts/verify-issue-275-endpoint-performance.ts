@@ -91,7 +91,10 @@ async function sampleEndpoint(input: {
     samples.push(await timedRequest(input));
   }
   const unexpected = samples.filter((sample) => !input.expectedStatuses.includes(sample.status));
-  assert(unexpected.length === 0, `${input.name}: respostas inesperadas ${unexpected.map((item) => item.status).join(',')}`);
+  assert(
+    unexpected.length === 0,
+    `${input.name}: respostas inesperadas ${unexpected.map((item) => item.status).join(',')}`
+  );
   const durations = samples.map((sample) => sample.durationMs);
   const statuses = Object.fromEntries(
     [...new Set(samples.map((sample) => sample.status))].map((status) => [
@@ -324,7 +327,7 @@ async function main() {
     invalidInvite: await sampleEndpoint({
       name: 'invalidInvite',
       pathname: `/pre-cadastro/invalid-${suffix}`,
-      expectedStatuses: [404],
+      expectedStatuses: [404, 429],
     }),
     studentSession: await sampleEndpoint({
       name: 'studentSession',
@@ -390,7 +393,7 @@ async function main() {
   assert(lifecycleAuditPlan.actualRows <= 100, 'Auditoria de ciclo não respeitou limite');
 
   const report = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     kind: 'issue-275-endpoint-performance',
     environment: {
       runtime: 'GitHub Actions ubuntu-latest',
@@ -400,11 +403,18 @@ async function main() {
       contentionRequests: contentionResults.length,
     },
     endpoints,
+    rateLimitObserved: Number(endpoints.invalidInvite.statuses['429'] ?? 0) > 0,
     contention: {
       requests: contentionResults.length,
       durationMs: Number(contentionDurationMs.toFixed(3)),
-      p50Ms: percentile(contentionResults.map((result) => result.durationMs), 0.5),
-      p95Ms: percentile(contentionResults.map((result) => result.durationMs), 0.95),
+      p50Ms: percentile(
+        contentionResults.map((result) => result.durationMs),
+        0.5
+      ),
+      p95Ms: percentile(
+        contentionResults.map((result) => result.durationMs),
+        0.95
+      ),
       errorRate: 0,
     },
     boundedHistories: {
@@ -416,6 +426,7 @@ async function main() {
     Object.values(endpoints).every((endpoint) => endpoint.errorRate === 0),
     'Amostra de endpoint contém erro'
   );
+  assert(report.rateLimitObserved, 'Amostra inválida não confirmou o rate limit público');
   await writeFile(
     path.join(artifactDir, 'endpoint-performance.json'),
     `${JSON.stringify(report, null, 2)}\n`,
