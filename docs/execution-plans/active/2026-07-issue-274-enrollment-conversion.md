@@ -22,7 +22,7 @@ O candidato válido é sempre o HEAD final da PR registrado no handoff. Este pla
 - redetecção do canônico após a consolidação, com fingerprint e versão próprios;
 - revisão vinculada ao `onboarding.version`, inclusive para falso positivo confirmado durante a criação;
 - trigger de invalidação após mudança de identidade, com bloqueio `NOWAIT`;
-- invalidação coordenada entre `Aluno` e `StudentProfile`, inclusive antes da primeira revisão e com um único incremento por transação;
+- invalidação coordenada entre `Aluno` e o gatilho canônico de versão de `StudentProfile`, inclusive antes da primeira revisão e com um único incremento por transação;
 - renovação transacional da revisão quando um registro permanece `READY_FOR_ENROLLMENT` após invalidação;
 - capacidade de confirmar matrícula ocultada enquanto não existir revisão vigente para a versão e fingerprint atuais;
 - transições de descarte, prontidão e ativação centralizadas no domínio de ciclo do aluno;
@@ -98,9 +98,10 @@ O candidato válido é sempre o HEAD final da PR registrado no handoff. Este pla
 
 - mudanças somente em unidade ou observações invalidam `StudentOnboardingProcess.version` mesmo com `reviewedAt` nulo;
 - alterações combinadas em origem/responsável e `_leadCommercial` incrementam a versão exatamente uma vez;
-- os triggers de `Aluno` e `StudentProfile` chamam a mesma função de invalidação e compartilham um marcador local à transação por aluno;
+- o gatilho de `Aluno` e a função canônica `bump_pre_registration_version_on_identity_change` de `StudentProfile` chamam a mesma função de invalidação e compartilham um marcador local à transação por aluno;
+- o gatilho redundante `StudentProfile_invalidate_pre_registration_review` é removido, preservando um único proprietário da versão para `identificationData`;
 - a versão e o fingerprint capturados antes da edição são rejeitados por `markReady` com `REVIEW_STALE`;
-- teste PostgreSQL discriminante cobre unidade, observações e alteração combinada.
+- teste PostgreSQL discriminante cobre unidade, observações, alteração combinada e o catálogo final de gatilhos.
 
 ## Critérios de aceite
 
