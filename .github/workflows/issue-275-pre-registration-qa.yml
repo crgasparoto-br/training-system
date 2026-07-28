@@ -11,7 +11,9 @@ on:
       - 'apps/api/src/modules/alunos/**'
       - 'apps/api/scripts/verify-issue-275-**'
       - 'apps/api/tests/issue-275-**'
+      - 'apps/api/tests/pre-registration-**'
       - 'apps/api/prisma/**'
+      - 'apps/api/package.json'
       - 'apps/web/src/App.tsx'
       - 'apps/web/src/config/pre-registration-rollout*'
       - 'apps/web/src/layouts/DashboardLayout.tsx'
@@ -34,7 +36,7 @@ jobs:
   integrated-qa:
     name: Validate integrated E2E, authorization, performance and rollout
     runs-on: ubuntu-latest
-    timeout-minutes: 55
+    timeout-minutes: 75
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/training_system_test?schema=public&connection_limit=1&pool_timeout=30
       PRISMA_CONNECTION_LIMIT: '1'
@@ -81,7 +83,7 @@ jobs:
           mkdir -p artifacts/issue-275
           cat > artifacts/issue-275/evidence.json <<EOF
           {
-            "schemaVersion": 2,
+            "schemaVersion": 3,
             "kind": "issue-275-pre-registration-qa",
             "repository": "${GITHUB_REPOSITORY}",
             "workflow": "${GITHUB_WORKFLOW}",
@@ -97,6 +99,7 @@ jobs:
             "dataset": "synthetic-postgresql-16",
             "requiredEvidence": [
               "integrated-e2e",
+              "mandatory-scenario-regressions",
               "authorization-matrix",
               "authorization-matrix-extended",
               "performance-rollout",
@@ -104,7 +107,17 @@ jobs:
               "health-intake",
               "parq",
               "validate",
-              "build"
+              "build",
+              "evidence-completeness"
+            ],
+            "specializedWorkflowsExpectedOnSameHead": [
+              "Issue 272 Regression Evidence",
+              "Issue 273 Regression Evidence",
+              "Issue 273 Visual Evidence",
+              "Issue 273 Runtime Diagnostic",
+              "Issue 274 Visual Evidence",
+              "Visual Audit Issue 270",
+              "Visual Audit Issue 271"
             ]
           }
           EOF
@@ -185,6 +198,24 @@ jobs:
             scripts/verify-issue-275-integrated-e2e.ts 2>&1 \
             | tee artifacts/issue-275/integrated-e2e.log
 
+      - name: Verify mandatory scenario regressions
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @corrida/api exec jest --runInBand \
+            tests/pre-registration-public-routes.contract.test.ts \
+            tests/pre-registration-admin.contract.test.ts \
+            tests/pre-registration-enrollment-routes.contract.test.ts \
+            tests/pre-registration-public-claim-concurrency.integration.test.ts \
+            src/modules/pre-registration-invites/pre-registration-invite-concurrency.integration.test.ts \
+            src/modules/pre-registration-invites/pre-registration-invite-temporal-consistency.integration.test.ts \
+            tests/pre-registration-review-invalidation.contract.test.ts \
+            tests/pre-registration-public-deduplication.contract.test.ts \
+            tests/pre-registration-health-intake.routes.test.ts \
+            tests/pre-registration-parq.routes.test.ts \
+            tests/pre-registration-enrollment-concurrency.adapter.test.ts 2>&1 \
+            | tee artifacts/issue-275/mandatory-scenario-regressions.log
+
       - name: Verify API authorization matrix
         shell: bash
         run: |
@@ -239,9 +270,6 @@ jobs:
           set -o pipefail
           pnpm build 2>&1 | tee artifacts/issue-275/build.log
 
-      # This verifier starts a real API process and is intentionally serialized
-      # after the repository-wide suites so its process lifetime cannot affect
-      # the regular Jest database pool.
       - name: Verify extended API authorization matrix
         shell: bash
         run: |
@@ -249,6 +277,72 @@ jobs:
           pnpm --filter @corrida/api exec jest --runInBand \
             tests/issue-275-authorization-matrix-extended.integration.test.ts 2>&1 \
             | tee artifacts/issue-275/authorization-matrix-extended.log
+
+      - name: Verify evidence completeness
+        shell: bash
+        run: |
+          set -euo pipefail
+          required_files=(
+            artifacts/issue-275/evidence.json
+            artifacts/issue-275/migrations.log
+            artifacts/issue-275/lifecycle-backfill.log
+            artifacts/issue-275/health-intake.log
+            artifacts/issue-275/parq.log
+            artifacts/issue-275/integrated-e2e.json
+            artifacts/issue-275/integrated-e2e.log
+            artifacts/issue-275/mandatory-scenario-regressions.log
+            artifacts/issue-275/authorization-matrix.json
+            artifacts/issue-275/authorization-matrix.log
+            artifacts/issue-275/authorization-matrix-extended.log
+            artifacts/issue-275/performance-rollout.json
+            artifacts/issue-275/performance-rollout.log
+            artifacts/issue-275/validate.log
+            artifacts/issue-275/build.log
+          )
+          for evidence_file in "${required_files[@]}"; do
+            test -s "${evidence_file}"
+          done
+          jq -e '
+            .scenarios.basic and
+            .scenarios.completeNoAlert and
+            .scenarios.positiveParq and
+            .scenarios.resume and
+            .scenarios.inviteRegeneration and
+            .scenarios.duplicates and
+            .scenarios.concurrency
+          ' artifacts/issue-275/integrated-e2e.json >/dev/null
+          jq -e '
+            ([.entries[].role] | index("administrador")) and
+            ([.entries[].role] | index("comercial")) and
+            ([.entries[].role] | index("somente leitura")) and
+            ([.entries[].role] | index("revisor profissional")) and
+            ([.entries[].role] | index("aluno vinculado")) and
+            ([.entries[].role] | index("autenticado sem vínculo")) and
+            ([.entries[].role] | index("visitante com token")) and
+            ([.entries[].role] | index("outro tenant"))
+          ' artifacts/issue-275/authorization-matrix.json >/dev/null
+          jq -e '
+            .plans.administrativeList and
+            .plans.normalizedPhoneLookup and
+            .plans.tokenHashLookup and
+            .rollback.disabledWithoutMutation and
+            .rollback.reenabledWithoutMutation
+          ' artifacts/issue-275/performance-rollout.json >/dev/null
+          grep -q 'Test Suites:.*passed' artifacts/issue-275/mandatory-scenario-regressions.log
+          grep -q 'Test Suites:.*passed' artifacts/issue-275/authorization-matrix-extended.log
+          cat > artifacts/issue-275/evidence-completeness.json <<EOF
+          {
+            "schemaVersion": 1,
+            "headSha": "${{ github.event.pull_request.head.sha || github.sha }}",
+            "requiredFiles": ${#required_files[@]},
+            "integratedScenarios": 7,
+            "authorizationProfilesObserved": 8,
+            "mandatoryScenarioRegressionGate": "passed",
+            "extendedAuthorizationGate": "passed",
+            "repositoryValidationGate": "passed",
+            "buildGate": "passed"
+          }
+          EOF
 
       - name: Upload issue 275 evidence
         if: always()
