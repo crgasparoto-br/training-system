@@ -1,0 +1,175 @@
+name: Issue 275 Pre-registration QA
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - 'apps/api/src/common/pre-registration-rollout*'
+      - 'apps/api/src/main.ts'
+      - 'apps/api/src/modules/pre-registration-**'
+      - 'apps/api/src/modules/alunos/**'
+      - 'apps/api/prisma/**'
+      - 'apps/web/src/App.tsx'
+      - 'apps/web/src/config/pre-registration-rollout*'
+      - 'apps/web/src/layouts/DashboardLayout.tsx'
+      - 'apps/web/src/pages/PreRegistration**'
+      - 'docs/**pre-registration**'
+      - 'docs/README.md'
+      - 'docs/architecture/deployment.md'
+      - '.env.example'
+      - '.github/workflows/issue-275-pre-registration-qa.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: issue-275-pre-registration-qa-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  integrated-qa:
+    name: Validate migrations, rollout and canonical domains
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/training_system_test?schema=public&connection_limit=1&pool_timeout=30
+      PRISMA_CONNECTION_LIMIT: '1'
+      PRISMA_POOL_TIMEOUT_SECONDS: '30'
+      RUN_DATABASE_INTEGRATION_TESTS: 'true'
+      NODE_ENV: test
+      JWT_SECRET: issue-275-ci-secret-with-sufficient-length
+      CORS_ORIGINS: http://localhost:5173
+      FRONTEND_URL: http://localhost:5173
+      PRE_REGISTRATION_ENABLED: 'true'
+      PRE_REGISTRATION_TELEMETRY_ENABLED: 'true'
+      VITE_PRE_REGISTRATION_ENABLED: 'true'
+      PRE_REGISTRATION_INVITE_TTL_DAYS: '30'
+      PRIVACY_NOTICE_URL: https://example.test/privacidade
+      PRIVACY_NOTICE_VERSION: issue-275-ci
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: training_system_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d training_system_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create evidence manifest
+        shell: bash
+        env:
+          AUDIT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          AUDIT_BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+          AUDIT_MERGE_PREVIEW_SHA: ${{ github.event_name == 'pull_request' && github.sha || '' }}
+        run: |
+          mkdir -p artifacts/issue-275
+          cat > artifacts/issue-275/evidence.json <<EOF
+          {
+            "schemaVersion": 1,
+            "kind": "issue-275-pre-registration-qa",
+            "repository": "${GITHUB_REPOSITORY}",
+            "workflow": "${GITHUB_WORKFLOW}",
+            "runId": "${GITHUB_RUN_ID}",
+            "runAttempt": "${GITHUB_RUN_ATTEMPT}",
+            "eventName": "${GITHUB_EVENT_NAME}",
+            "headSha": "${AUDIT_HEAD_SHA}",
+            "baseSha": "${AUDIT_BASE_SHA}",
+            "mergePreviewSha": "${AUDIT_MERGE_PREVIEW_SHA}",
+            "ref": "${GITHUB_REF}",
+            "rolloutApiEnabled": true,
+            "rolloutWebEnabled": true,
+            "dataset": "synthetic-postgresql-16"
+          }
+          EOF
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma Client
+        run: pnpm --filter @corrida/api exec prisma generate
+
+      - name: Apply migrations
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @corrida/api exec prisma migrate deploy 2>&1 \
+            | tee artifacts/issue-275/migrations.log
+
+      - name: Verify lifecycle legacy backfill
+        shell: bash
+        run: |
+          set -o pipefail
+          bash scripts/verify-student-lifecycle-legacy-backfill.sh 2>&1 \
+            | tee artifacts/issue-275/lifecycle-backfill.log
+
+      - name: Test rollout gates and telemetry privacy
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @corrida/api exec jest --runInBand \
+            src/common/pre-registration-rollout.test.ts 2>&1 \
+            | tee artifacts/issue-275/api-rollout-tests.log
+          pnpm --filter @corrida/web exec vitest run \
+            src/config/pre-registration-rollout.test.ts 2>&1 \
+            | tee artifacts/issue-275/web-rollout-tests.log
+
+      - name: Verify canonical health intake
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @corrida/api exec tsx \
+            scripts/verify-issue-272-health-intake.ts 2>&1 \
+            | tee artifacts/issue-275/health-intake.log
+
+      - name: Verify canonical PAR-Q
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @corrida/api exec tsx \
+            scripts/verify-issue-273-parq.ts 2>&1 \
+            | tee artifacts/issue-275/parq.log
+
+      - name: Run repository validation
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm validate 2>&1 | tee artifacts/issue-275/validate.log
+
+      - name: Build all workspaces
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm build 2>&1 | tee artifacts/issue-275/build.log
+
+      - name: Upload issue 275 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-275-pre-registration-qa-${{ github.run_id }}
+          path: artifacts/issue-275
+          if-no-files-found: error
+          retention-days: 14
