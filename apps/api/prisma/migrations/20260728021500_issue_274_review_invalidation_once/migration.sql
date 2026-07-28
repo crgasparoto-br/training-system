@@ -72,23 +72,126 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION "invalidate_pre_registration_review_on_commercial_change"()
+-- O gatilho canônico de StudentProfile já controla versão e vínculo de conta.
+-- Integramos a invalidação da revisão nessa mesma função para não manter dois
+-- gatilhos concorrentes incrementando a versão pela mesma alteração JSON.
+CREATE OR REPLACE FUNCTION "bump_pre_registration_version_on_identity_change"()
 RETURNS trigger
 LANGUAGE plpgsql
 AS $$
+DECLARE
+  new_birth_date DATE;
+  new_is_minor BOOLEAN;
+  has_active_guardian BOOLEAN;
+  linked_student_user_id TEXT;
+  student_status TEXT;
+  locked_onboarding_id TEXT;
+  professional_write BOOLEAN := COALESCE(NEW."sourceType"::text, '') <> 'student';
 BEGIN
-  IF OLD."identificationData" #> '{_leadCommercial}'
-       IS DISTINCT FROM NEW."identificationData" #> '{_leadCommercial}'
-  THEN
+  IF NEW."identificationData" IS NOT DISTINCT FROM OLD."identificationData" THEN
+    RETURN NEW;
+  END IF;
+
+  -- Escritas administrativas bloqueiam Aluno antes de chegar a este gatilho,
+  -- enquanto escritas públicas bloqueiam onboarding primeiro. Mantém o NOWAIT
+  -- para transformar a ordem inversa em conflito transacional, não deadlock.
+  IF professional_write THEN
+    BEGIN
+      SELECT "id"
+      INTO locked_onboarding_id
+      FROM "StudentOnboardingProcess"
+      WHERE "alunoId" = NEW."alunoId"
+        AND "contractId" = NEW."contractId"
+      FOR UPDATE NOWAIT;
+    EXCEPTION
+      WHEN lock_not_available THEN
+        RAISE EXCEPTION 'O pré-cadastro está sendo alterado em outro acesso.'
+          USING ERRCODE = '40001';
+    END;
+  END IF;
+
+  IF COALESCE(NEW."identificationData"->>'birthDate', '')
+       ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' THEN
+    new_birth_date := LEFT(NEW."identificationData"->>'birthDate', 10)::date;
+  END IF;
+
+  new_is_minor := new_birth_date IS NOT NULL
+    AND new_birth_date > (CURRENT_DATE - INTERVAL '18 years')::date;
+
+  SELECT student."userId", student."status"::text
+  INTO linked_student_user_id, student_status
+  FROM "Aluno" AS student
+  WHERE student."id" = NEW."alunoId"
+    AND student."contractId" = NEW."contractId";
+
+  SELECT EXISTS (
+    SELECT 1
+    FROM "PreRegistrationGuardianAuthorization" AS guardian_auth
+    WHERE guardian_auth."alunoId" = NEW."alunoId"
+      AND guardian_auth."contractId" = NEW."contractId"
+      AND guardian_auth."purpose" = 'PRE_REGISTRATION'
+      AND guardian_auth."status" = 'ACTIVE'
+  )
+  INTO has_active_guardian;
+
+  IF professional_write
+     AND student_status IN ('PRE_REGISTRATION_COMPLETED', 'READY_FOR_ENROLLMENT') THEN
     PERFORM "invalidate_pre_registration_review_once"(NEW."alunoId", NEW."contractId");
   END IF;
+
+  UPDATE "StudentOnboardingProcess" AS onboarding
+  SET "version" = onboarding."version" + CASE
+        -- Depois da conclusão, a função compartilhada acima é a única dona do bump.
+        -- Antes da conclusão, preserva o comportamento histórico deste gatilho.
+        WHEN professional_write
+             AND COALESCE(
+               student_status NOT IN ('PRE_REGISTRATION_COMPLETED', 'READY_FOR_ENROLLMENT'),
+               TRUE
+             )
+          THEN 1
+        ELSE 0
+      END,
+      "claimedByUserId" = CASE
+        WHEN onboarding."claimRole" = 'STUDENT'
+             AND COALESCE(new_is_minor, FALSE)
+             AND NOT COALESCE(has_active_guardian, FALSE)
+          THEN NULL
+        WHEN onboarding."claimRole" = 'STUDENT'
+             AND NOT COALESCE(new_is_minor, FALSE)
+             AND onboarding."claimedByUserId" IS NULL
+             AND linked_student_user_id IS NOT NULL
+          THEN linked_student_user_id
+        ELSE onboarding."claimedByUserId"
+      END,
+      "claimedAt" = CASE
+        WHEN onboarding."claimRole" = 'STUDENT'
+             AND COALESCE(new_is_minor, FALSE)
+             AND NOT COALESCE(has_active_guardian, FALSE)
+          THEN NULL
+        WHEN onboarding."claimRole" = 'STUDENT'
+             AND NOT COALESCE(new_is_minor, FALSE)
+             AND onboarding."claimedByUserId" IS NULL
+             AND linked_student_user_id IS NOT NULL
+          THEN CURRENT_TIMESTAMP
+        ELSE onboarding."claimedAt"
+      END,
+      "updatedAt" = CURRENT_TIMESTAMP
+  WHERE (
+      professional_write
+      AND onboarding."id" = locked_onboarding_id
+    ) OR (
+      NOT professional_write
+      AND onboarding."alunoId" = NEW."alunoId"
+      AND onboarding."contractId" = NEW."contractId"
+    );
 
   RETURN NEW;
 END;
 $$;
 
--- Remove variantes legadas que poderiam permanecer vinculadas às mesmas funções
--- e produzir mais de uma invalidação para uma única mutação lógica.
+-- Remove apenas as variantes específicas da invalidação da issue 274. O gatilho
+-- canônico StudentProfile_bump_pre_registration_version permanece como único
+-- responsável pela alteração de versão causada por identificationData.
 DO $$
 DECLARE
   trigger_row RECORD;
@@ -135,9 +238,3 @@ AFTER UPDATE OF
 ON "Aluno"
 FOR EACH ROW
 EXECUTE FUNCTION "invalidate_pre_registration_review_on_identity_change"();
-
-CREATE TRIGGER "StudentProfile_invalidate_pre_registration_review"
-AFTER UPDATE OF "identificationData"
-ON "StudentProfile"
-FOR EACH ROW
-EXECUTE FUNCTION "invalidate_pre_registration_review_on_commercial_change"();
