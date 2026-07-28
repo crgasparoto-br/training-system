@@ -1,10 +1,15 @@
 name: Apply Issue 275 Cycle 6
-# Triggered after registration so the workflow exists before the pull_request synchronize event.
+# Triggered only when this temporary workflow changes.
 
 on:
   pull_request:
     branches:
       - develop
+    paths:
+      - '.github/workflows/apply-issue-275-cycle6.yml'
+  push:
+    branches:
+      - feat/275-pre-registration-qa-rollout
     paths:
       - '.github/workflows/apply-issue-275-cycle6.yml'
 
