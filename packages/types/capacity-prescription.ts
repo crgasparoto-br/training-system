@@ -7,6 +7,39 @@ export const PHYSICAL_CAPACITY_TYPES = [
 
 export type PhysicalCapacityType = (typeof PHYSICAL_CAPACITY_TYPES)[number];
 
+export interface CapacityAssessmentMeasurementDescriptor {
+  metricKey?: string | null;
+  metricLabel?: string | null;
+  unit?: string | null;
+}
+
+export function normalizeCapacityMeasurementDescriptor(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+export function isAngularFlexibilityMeasurement(
+  measurement: CapacityAssessmentMeasurementDescriptor
+) {
+  const descriptor = normalizeCapacityMeasurementDescriptor(
+    `${measurement.metricKey ?? ''} ${measurement.metricLabel ?? ''}`
+  );
+  const unit = normalizeCapacityMeasurementDescriptor(measurement.unit ?? '');
+  return (
+    descriptor.includes('angulo') ||
+    descriptor.includes('amplitude') ||
+    unit === 'grau' ||
+    unit === 'graus' ||
+    unit === 'degree' ||
+    unit === 'degrees' ||
+    measurement.unit === '°'
+  );
+}
+
 export const CAPACITY_PRESCRIPTION_STATUSES = [
   'planned',
   'active',
