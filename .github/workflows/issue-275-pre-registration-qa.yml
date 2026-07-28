@@ -9,6 +9,7 @@ on:
       - 'apps/api/src/main.ts'
       - 'apps/api/src/modules/pre-registration-**'
       - 'apps/api/src/modules/alunos/**'
+      - 'apps/api/scripts/verify-issue-275-**'
       - 'apps/api/prisma/**'
       - 'apps/web/src/App.tsx'
       - 'apps/web/src/config/pre-registration-rollout*'
@@ -30,9 +31,9 @@ concurrency:
 
 jobs:
   integrated-qa:
-    name: Validate migrations, rollout and canonical domains
+    name: Validate integrated E2E, authorization, performance and rollout
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 55
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/training_system_test?schema=public&connection_limit=1&pool_timeout=30
       PRISMA_CONNECTION_LIMIT: '1'
@@ -48,6 +49,7 @@ jobs:
       PRE_REGISTRATION_INVITE_TTL_DAYS: '30'
       PRIVACY_NOTICE_URL: https://example.test/privacidade
       PRIVACY_NOTICE_VERSION: 2026-07
+      HEALTH_PRIVACY_NOTICE_VERSION: 2026-07
 
     services:
       postgres:
@@ -78,7 +80,7 @@ jobs:
           mkdir -p artifacts/issue-275
           cat > artifacts/issue-275/evidence.json <<EOF
           {
-            "schemaVersion": 1,
+            "schemaVersion": 2,
             "kind": "issue-275-pre-registration-qa",
             "repository": "${GITHUB_REPOSITORY}",
             "workflow": "${GITHUB_WORKFLOW}",
@@ -91,7 +93,17 @@ jobs:
             "ref": "${GITHUB_REF}",
             "rolloutApiEnabled": true,
             "rolloutWebEnabled": true,
-            "dataset": "synthetic-postgresql-16"
+            "dataset": "synthetic-postgresql-16",
+            "requiredEvidence": [
+              "integrated-e2e",
+              "authorization-matrix",
+              "performance-rollout",
+              "migration-backfill",
+              "health-intake",
+              "parq",
+              "validate",
+              "build"
+            ]
           }
           EOF
 
@@ -162,6 +174,39 @@ jobs:
           pnpm --filter @corrida/api exec tsx \
             scripts/verify-issue-273-parq.ts 2>&1 \
             | tee artifacts/issue-275/parq.log
+
+      - name: Verify integrated pre-registration lifecycle
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @corrida/api exec tsx \
+            scripts/verify-issue-275-integrated-e2e.ts 2>&1 \
+            | tee artifacts/issue-275/integrated-e2e.log
+
+      - name: Verify API authorization matrix
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @corrida/api exec tsx \
+            scripts/verify-issue-275-authorization-matrix.ts 2>&1 \
+            | tee artifacts/issue-275/authorization-matrix.log
+
+      - name: Verify proportional queries and rollout preservation
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @corrida/api exec tsx \
+            scripts/verify-issue-275-performance-rollout.ts 2>&1 \
+            | tee artifacts/issue-275/performance-rollout.log
+
+      - name: Verify enabled and disabled production web builds
+        shell: bash
+        run: |
+          set -o pipefail
+          VITE_PRE_REGISTRATION_ENABLED=false pnpm --filter @corrida/web build 2>&1 \
+            | tee artifacts/issue-275/web-build-disabled.log
+          VITE_PRE_REGISTRATION_ENABLED=true pnpm --filter @corrida/web build 2>&1 \
+            | tee artifacts/issue-275/web-build-enabled.log
 
       - name: Run repository validation
         shell: bash
