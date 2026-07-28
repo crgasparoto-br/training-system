@@ -193,8 +193,11 @@ export function parseHealthIntakeSave(value: unknown): SaveHealthIntakeStepDTO {
   return parse<SaveHealthIntakeStepDTO>(saveSchema, value);
 }
 
-export function parseHealthIntakeCompletion(value: unknown): CompleteHealthIntakeDTO {
+export function parseHealthIntakeComplete(value: unknown): CompleteHealthIntakeDTO {
   return parse<CompleteHealthIntakeDTO>(completeSchema, value);
 }
+
+// Compatibilidade para consumidores que adotaram o nome mais descritivo.
+export const parseHealthIntakeCompletion = parseHealthIntakeComplete;
 
 export { router as preRegistrationHealthIntakeRoutes };
