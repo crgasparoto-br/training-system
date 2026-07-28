@@ -295,7 +295,7 @@ describe('PublicPreRegistration - resiliência, seleção e autorização', () =
       .mockResolvedValueOnce({
         ...baseSession,
         version: 2,
-        identity: { ...baseSession.identity, name: 'Nome da academia' },
+        identity: { ....baseSession.identity, name: 'Nome da academia' },
       });
 
     render(
@@ -314,7 +314,7 @@ describe('PublicPreRegistration - resiliência, seleção e autorização', () =
     fireEvent.click(screen.getByRole('button', { name: /Aplicar minhas escolhas/i }));
 
     expect((await screen.findByLabelText(/Nome completo/i) as HTMLInputElement).value).toBe(
-      'Nome escolhido pelo aluno'
+      'Nome escolhido pelo aluno',
     );
     fireEvent.click(screen.getByRole('button', { name: /Salvar e avançar/i }));
 
@@ -363,6 +363,7 @@ describe('PublicPreRegistration - resiliência, seleção e autorização', () =
     );
 
     fireEvent.click(await screen.findByRole('tab', { name: /Criar acesso/i }));
+    fireEvent.click(screen.getByRole('radio', { name: /Responsável legal/i }));
     fireEvent.change(screen.getByLabelText(/Nome completo/i), { target: { value: 'Responsável' } });
     fireEvent.change(screen.getByLabelText(/^E-mail$/i), {
       target: { value: 'responsavel@example.com' },
