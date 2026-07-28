@@ -7,6 +7,9 @@ import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js'
 import {
   ADIPOMETRY_FORMULA_VERSION,
   calculateAdipometryComposition,
+  type AdipometryCompositionResult,
+  type AdipometrySex,
+  type AdipometrySkinfoldsMm,
 } from './capacity-prescription-formulas.js';
 import { deriveCapacityAlerts, mergeCapacityAlerts } from './capacity-prescription-public.js';
 
@@ -15,8 +18,29 @@ const prisma = new PrismaClient();
 
 type CapacitySourceActor = { contractId: string; professorId: string };
 type CapacitySourceRequest = Request & { capacitySourceActor?: CapacitySourceActor };
-
 type AssessmentSourceType = CapacityPrescriptionSourceRef['type'];
+
+type AssessmentMeasurementRecord = {
+  metricKey: string;
+  metricLabel: string | null;
+  valueType: string;
+  valueText: string | null;
+  valueNumber: unknown;
+  valueBoolean: boolean | null;
+  unit: string | null;
+};
+
+type AdipometrySnapshot = {
+  kind: 'adipometry-composition';
+  formulaVersion: typeof ADIPOMETRY_FORMULA_VERSION;
+  sourceUpdatedAt: string;
+  sex: AdipometrySex;
+  weightKg: number;
+  skinfoldsMm: AdipometrySkinfoldsMm;
+  result: AdipometryCompositionResult;
+};
+
+class CapacitySourceValidationError extends Error {}
 
 const assessmentSourceTypes: AssessmentSourceType[] = [
   'physical_assessment',
@@ -48,16 +72,6 @@ function decimalToNumber(value: unknown) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-type AssessmentMeasurementRecord = {
-  metricKey: string;
-  metricLabel: string | null;
-  valueType: string;
-  valueText: string | null;
-  valueNumber: unknown;
-  valueBoolean: boolean | null;
-  unit: string | null;
-};
-
 function normalizedMetricKey(value: string) {
   return value
     .normalize('NFD')
@@ -66,70 +80,92 @@ function normalizedMetricKey(value: string) {
     .replace(/[^a-z0-9]+/g, '_');
 }
 
-function measurementNumber(
-  measurements: AssessmentMeasurementRecord[],
-  aliases: string[]
-): number | null {
+function measurementNumber(measurements: AssessmentMeasurementRecord[], aliases: string[]) {
   const aliasSet = new Set(aliases.map(normalizedMetricKey));
-  const measurement = measurements.find((item) =>
-    aliasSet.has(normalizedMetricKey(item.metricKey))
-  );
+  const measurement = measurements.find((item) => aliasSet.has(normalizedMetricKey(item.metricKey)));
   if (!measurement) return null;
   return decimalToNumber(measurement.valueNumber ?? measurement.valueText);
 }
 
-function measurementText(
-  measurements: AssessmentMeasurementRecord[],
-  aliases: string[]
-): string | null {
+function measurementText(measurements: AssessmentMeasurementRecord[], aliases: string[]) {
   const aliasSet = new Set(aliases.map(normalizedMetricKey));
-  const measurement = measurements.find((item) =>
-    aliasSet.has(normalizedMetricKey(item.metricKey))
-  );
+  const measurement = measurements.find((item) => aliasSet.has(normalizedMetricKey(item.metricKey)));
   return measurement?.valueText?.trim() || null;
 }
 
-function derivedAdipometryDetails(category: string, measurements: AssessmentMeasurementRecord[]) {
-  if (!normalizedMetricKey(category).includes('adip')) return [];
-
+function adipometryInput(measurements: AssessmentMeasurementRecord[]) {
   const sexValue = measurementText(measurements, ['sex', 'gender', 'sexo', 'genero']);
   const normalizedSex = sexValue ? normalizedMetricKey(sexValue) : '';
-  const sex = normalizedSex.startsWith('f')
+  const sex: AdipometrySex | null = normalizedSex.startsWith('f')
     ? 'female'
     : normalizedSex.startsWith('m')
       ? 'male'
       : null;
   const weightKg = measurementNumber(measurements, ['weight', 'weight_kg', 'peso', 'peso_kg']);
-  if (!sex || !weightKg) return [];
+  const skinfoldsMm: AdipometrySkinfoldsMm = {
+    triceps: measurementNumber(measurements, ['triceps', 'tricipital']),
+    subscapular: measurementNumber(measurements, ['subscapular']),
+    suprailiac: measurementNumber(measurements, ['suprailiac', 'supra_iliac', 'suprailiaca', 'supra_iliaca']),
+    abdominal: measurementNumber(measurements, ['abdominal', 'abdomen']),
+    thigh: measurementNumber(measurements, ['thigh', 'coxa']),
+  };
+  return { sex, weightKg, skinfoldsMm };
+}
 
+function buildAdipometrySnapshot(
+  category: string,
+  measurements: AssessmentMeasurementRecord[],
+  sourceUpdatedAt: Date
+): { snapshot: AdipometrySnapshot | null; error: string | null } {
+  if (!normalizedMetricKey(category).includes('adip')) return { snapshot: null, error: null };
+  const input = adipometryInput(measurements);
+  if (!input.sex) {
+    return { snapshot: null, error: 'Adipometria sem sexo válido (masculino ou feminino) na avaliação.' };
+  }
+  if (!input.weightKg) {
+    return { snapshot: null, error: 'Adipometria sem peso válido na avaliação.' };
+  }
   try {
     const result = calculateAdipometryComposition({
-      sex,
-      weightKg,
-      skinfoldsMm: {
-        triceps: measurementNumber(measurements, ['triceps', 'tricipital']),
-        subscapular: measurementNumber(measurements, ['subscapular']),
-        suprailiac: measurementNumber(measurements, [
-          'suprailiac',
-          'supra_iliac',
-          'suprailiaca',
-          'supra_iliaca',
-        ]),
-        abdominal: measurementNumber(measurements, ['abdominal', 'abdomen']),
-        thigh: measurementNumber(measurements, ['thigh', 'coxa']),
-      },
+      sex: input.sex,
+      weightKg: input.weightKg,
+      skinfoldsMm: input.skinfoldsMm,
     });
-
-    return [
-      { label: 'Total de dobras', value: result.totalSkinfoldsMm, unit: 'mm' },
-      { label: '% Gordura', value: result.bodyFatPercentage, unit: '%' },
-      { label: 'Gordura absoluta', value: result.fatMassKg, unit: 'kg' },
-      { label: 'Massa magra', value: result.leanMassKg, unit: 'kg' },
-      { label: 'Versão da fórmula', value: ADIPOMETRY_FORMULA_VERSION, unit: null },
-    ];
-  } catch {
-    return [];
+    return {
+      snapshot: {
+        kind: 'adipometry-composition',
+        formulaVersion: ADIPOMETRY_FORMULA_VERSION,
+        sourceUpdatedAt: sourceUpdatedAt.toISOString(),
+        sex: input.sex,
+        weightKg: input.weightKg,
+        skinfoldsMm: input.skinfoldsMm,
+        result,
+      },
+      error: null,
+    };
+  } catch (error) {
+    return {
+      snapshot: null,
+      error: error instanceof Error ? `Adipometria não calculada: ${error.message}` : 'Adipometria não calculada por dados inválidos.',
+    };
   }
+}
+
+function adipometryDetails(
+  category: string,
+  measurements: AssessmentMeasurementRecord[],
+  sourceUpdatedAt: Date
+) {
+  const { snapshot, error } = buildAdipometrySnapshot(category, measurements, sourceUpdatedAt);
+  if (error) return [{ label: 'Status do cálculo', value: error, unit: null }];
+  if (!snapshot) return [];
+  return [
+    { label: 'Total de dobras', value: snapshot.result.totalSkinfoldsMm, unit: 'mm' },
+    { label: '% Gordura', value: snapshot.result.bodyFatPercentage, unit: '%' },
+    { label: 'Gordura absoluta', value: snapshot.result.fatMassKg, unit: 'kg' },
+    { label: 'Massa magra', value: snapshot.result.leanMassKg, unit: 'kg' },
+    { label: 'Versão da fórmula', value: snapshot.formulaVersion, unit: null },
+  ];
 }
 
 function requireBlocks(...blockKeys: string[]) {
@@ -138,19 +174,16 @@ function requireBlocks(...blockKeys: string[]) {
       const contractId = req.user?.contractId;
       const professorId = req.user?.professorId;
       if (!contractId || !professorId) return sendError(res, 'Não autenticado', 401);
-
       const professor = await prisma.professor.findFirst({
         where: { id: professorId, contractId },
         include: { collaboratorFunction: true },
       });
       if (!professor) return sendError(res, 'Perfil sem permissão para acessar este recurso', 403);
-
       for (const blockKey of blockKeys) {
         if (!(await canProfessorAccessBlock(professor, blockKey))) {
           return sendError(res, 'Perfil sem permissão para acessar este recurso', 403);
         }
       }
-
       req.capacitySourceActor = { contractId, professorId };
       return next();
     } catch (error) {
@@ -168,13 +201,11 @@ async function assessmentProfessorId(
   if (performedByProfessorId) return performedByProfessorId;
   if (!recordedByUserId) return null;
   return (
-    (
-      await prisma.professor.findFirst({
-        where: { contractId, userId: recordedByUserId },
-        select: { id: true },
-      })
-    )?.id ?? null
-  );
+    await prisma.professor.findFirst({
+      where: { contractId, userId: recordedByUserId },
+      select: { id: true },
+    })
+  )?.id ?? null;
 }
 
 async function canonicalizeCapacitySource(
@@ -186,13 +217,7 @@ async function canonicalizeCapacitySource(
   if (source.type === 'anthropometry') {
     const assessment = await prisma.anthropometryAssessment.findFirst({
       where: { id: source.id, contractId, alunoId },
-      select: {
-        id: true,
-        code: true,
-        assessmentDate: true,
-        updatedAt: true,
-        professorId: true,
-      },
+      select: { id: true, code: true, assessmentDate: true, updatedAt: true, professorId: true },
     });
     if (!assessment) return source;
     return {
@@ -209,26 +234,38 @@ async function canonicalizeCapacitySource(
   if (assessmentSourceTypes.includes(source.type)) {
     const record = await prisma.studentAssessmentRecord.findFirst({
       where: { id: source.id, contractId, alunoId },
-      select: {
-        id: true,
-        assessmentCategory: true,
-        title: true,
-        performedAt: true,
-        sourceReference: true,
-        sourceType: true,
-        updatedAt: true,
-        performedByProfessorId: true,
-        recordedByUserId: true,
+      include: {
+        measurements: {
+          orderBy: { sortOrder: 'asc' },
+          select: {
+            metricKey: true,
+            metricLabel: true,
+            valueType: true,
+            valueText: true,
+            valueNumber: true,
+            valueBoolean: true,
+            unit: true,
+          },
+        },
       },
     });
     if (!record) return source;
+    const mappedType = mapAssessmentSourceType(record.assessmentCategory);
+    const adipometry = buildAdipometrySnapshot(
+      record.assessmentCategory,
+      record.measurements,
+      record.updatedAt
+    );
+    if (mappedType === 'adipometry' && !adipometry.snapshot) {
+      throw new CapacitySourceValidationError(adipometry.error ?? 'Adipometria sem dados suficientes para cálculo.');
+    }
     return {
-      type: mapAssessmentSourceType(record.assessmentCategory),
+      type: mappedType,
       id: record.id,
       label: record.title || `Avaliação ${record.assessmentCategory}`,
       assessedAt: record.performedAt.toISOString(),
       origin: record.sourceReference || record.sourceType || record.assessmentCategory,
-      version: record.updatedAt.toISOString(),
+      version: adipometry.snapshot ? JSON.stringify(adipometry.snapshot) : record.updatedAt.toISOString(),
       responsibleProfessorId: await assessmentProfessorId(
         contractId,
         record.performedByProfessorId,
@@ -260,7 +297,6 @@ async function canonicalizeCapacitySource(
         responsibleProfessorId: activity.record.professorId ?? actorProfessorId,
       };
     }
-
     return {
       type: 'professor_note',
       id: source.id,
@@ -271,7 +307,6 @@ async function canonicalizeCapacitySource(
       responsibleProfessorId: actorProfessorId,
     };
   }
-
   return source;
 }
 
@@ -287,69 +322,42 @@ router.post(
       const sourceRefs = Array.isArray(body.sourceRefs)
         ? (body.sourceRefs as CapacityPrescriptionSourceRef[])
         : [];
-
       body.sourceRefs = await Promise.all(
         sourceRefs.map((source) =>
-          canonicalizeCapacitySource(
-            actor.contractId,
-            req.params.alunoId,
-            actor.professorId,
-            source
-          )
+          canonicalizeCapacitySource(actor.contractId, req.params.alunoId, actor.professorId, source)
         )
       );
       body.alerts = mergeCapacityAlerts(
         Array.isArray(body.alerts) ? body.alerts : [],
         deriveCapacityAlerts(body.sourceRefs as CapacityPrescriptionSourceRef[])
       );
-
       const parameterSetIds = Array.isArray(body.parameterSetIds)
         ? body.parameterSetIds.filter(
             (id): id is string => typeof id === 'string' && Boolean(id.trim())
           )
         : [];
-
       if (parameterSetIds.length > 1) {
         return sendError(res, 'Selecione no máximo um conjunto versionado por capacidade', 400);
       }
-
       if (parameterSetIds.length === 0) {
         if (body.methodologyVersion) {
-          return sendError(
-            res,
-            'Versão de metodologia só pode ser informada com um conjunto versionado',
-            400
-          );
+          return sendError(res, 'Versão de metodologia só pode ser informada com um conjunto versionado', 400);
         }
         return next();
       }
-
       if (typeof body.capacity !== 'string') return next();
       const parameterSet = await prisma.capacityPrescriptionParameterSet.findFirst({
-        where: {
-          id: parameterSetIds[0],
-          contractId: actor.contractId,
-          capacity: body.capacity,
-        },
+        where: { id: parameterSetIds[0], contractId: actor.contractId, capacity: body.capacity },
         select: { methodologyVersion: true },
       });
-
-      // Conjunto inexistente, de outra capacidade ou de outro tenant segue para o
-      // serviço, que devolve a resposta pública canônica sem ser mascarada pela
-      // regra de exclusividade entre conjunto válido e configuração manual.
       if (!parameterSet) return next();
-
       if (body.parameters !== undefined && body.parameters !== null) {
-        return sendError(
-          res,
-          'Conjunto versionado e parâmetros manuais não podem ser enviados na mesma versão',
-          400
-        );
+        return sendError(res, 'Conjunto versionado e parâmetros manuais não podem ser enviados na mesma versão', 400);
       }
-
       body.methodologyVersion = parameterSet.methodologyVersion;
       return next();
     } catch (error) {
+      if (error instanceof CapacitySourceValidationError) return sendError(res, error.message, 400);
       console.error('Erro ao normalizar fontes da prescrição:', error);
       return sendError(res, 'Erro ao validar fontes técnicas', 500);
     }
@@ -369,14 +377,9 @@ router.get(
         select: { id: true },
       });
       if (!aluno) return sendError(res, 'Recurso não encontrado', 404);
-
       const [records, anthropometries] = await Promise.all([
         prisma.studentAssessmentRecord.findMany({
-          where: {
-            contractId: actor.contractId,
-            alunoId: aluno.id,
-            status: { not: 'archived' },
-          },
+          where: { contractId: actor.contractId, alunoId: aluno.id, status: { not: 'archived' } },
           orderBy: { performedAt: 'desc' },
           include: {
             measurements: {
@@ -404,11 +407,8 @@ router.get(
           },
         }),
       ]);
-
       const recordedByUserIds = Array.from(
-        new Set(
-          records.map((record) => record.recordedByUserId).filter((id): id is string => Boolean(id))
-        )
+        new Set(records.map((record) => record.recordedByUserId).filter((id): id is string => Boolean(id)))
       );
       const professorByUserId = new Map(
         (
@@ -418,37 +418,43 @@ router.get(
           })
         ).map((professor) => [professor.userId, professor.id])
       );
-
-      const segmentedSources = records.map((record) => ({
-        ref: {
-          type: mapAssessmentSourceType(record.assessmentCategory),
-          id: record.id,
-          label: record.title || `Avaliação ${record.assessmentCategory}`,
-          assessedAt: record.performedAt.toISOString(),
-          origin: record.sourceReference || record.sourceType,
-          version: record.updatedAt.toISOString(),
-          responsibleProfessorId:
-            record.performedByProfessorId ||
-            (record.recordedByUserId ? professorByUserId.get(record.recordedByUserId) : null) ||
-            null,
-        } satisfies CapacityPrescriptionSourceRef,
-        category: record.assessmentCategory,
-        status: record.status,
-        details: [
-          ...record.measurements.map((measurement) => ({
-            label: measurement.metricLabel || measurement.metricKey,
-            value:
-              measurement.valueType === 'number'
-                ? decimalToNumber(measurement.valueNumber)
-                : measurement.valueType === 'boolean'
-                  ? measurement.valueBoolean
-                  : measurement.valueText,
-            unit: measurement.unit,
-          })),
-          ...derivedAdipometryDetails(record.assessmentCategory, record.measurements),
-        ],
-      }));
-
+      const segmentedSources = records.map((record) => {
+        const mappedType = mapAssessmentSourceType(record.assessmentCategory);
+        const adipometry = buildAdipometrySnapshot(
+          record.assessmentCategory,
+          record.measurements,
+          record.updatedAt
+        );
+        return {
+          ref: {
+            type: mappedType,
+            id: record.id,
+            label: record.title || `Avaliação ${record.assessmentCategory}`,
+            assessedAt: record.performedAt.toISOString(),
+            origin: record.sourceReference || record.sourceType,
+            version: adipometry.snapshot ? JSON.stringify(adipometry.snapshot) : record.updatedAt.toISOString(),
+            responsibleProfessorId:
+              record.performedByProfessorId ||
+              (record.recordedByUserId ? professorByUserId.get(record.recordedByUserId) : null) ||
+              null,
+          } satisfies CapacityPrescriptionSourceRef,
+          category: record.assessmentCategory,
+          status: record.status,
+          details: [
+            ...record.measurements.map((measurement) => ({
+              label: measurement.metricLabel || measurement.metricKey,
+              value:
+                measurement.valueType === 'number'
+                  ? decimalToNumber(measurement.valueNumber)
+                  : measurement.valueType === 'boolean'
+                    ? measurement.valueBoolean
+                    : measurement.valueText,
+              unit: measurement.unit,
+            })),
+            ...adipometryDetails(record.assessmentCategory, record.measurements, record.updatedAt),
+          ],
+        };
+      });
       const anthropometrySources = anthropometries.map((assessment) => ({
         ref: {
           type: 'anthropometry' as const,
@@ -467,12 +473,7 @@ router.get(
           unit: value.unit,
         })),
       }));
-
-      return sendSuccess(
-        res,
-        [...anthropometrySources, ...segmentedSources],
-        'Fontes de avaliação carregadas'
-      );
+      return sendSuccess(res, [...anthropometrySources, ...segmentedSources], 'Fontes de avaliação carregadas');
     } catch (error) {
       console.error('Erro ao carregar fontes de avaliação:', error);
       return sendError(res, 'Erro ao carregar fontes de avaliação', 500);
