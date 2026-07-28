@@ -71,11 +71,28 @@ describe('capacity goal consistency boundary', () => {
     );
   });
 
-  it('rejeita classificação local ainda não persistida', async () => {
+  it('rejeita classificação local ainda não persistida quando existem outras classificações', async () => {
     const response = await request(app)
       .post('/capacity-prescriptions/alunos/aluno-1')
       .send({
         capacity: 'resisted',
+        sourceRefs: [{ type: 'prontuario_goal', id: 'goal-2', label: 'Objetivo novo' }],
+        linkedProntuarioGoalIds: ['goal-2'],
+      });
+
+    expect(response.status).toBe(409);
+    expect(response.body.error).toBe(
+      'Salve as classificações dos objetivos antes de versionar a capacidade'
+    );
+  });
+
+  it('rejeita objetivo quando nenhuma classificação foi persistida', async () => {
+    mockClassificationFindMany.mockResolvedValueOnce([]);
+
+    const response = await request(app)
+      .post('/capacity-prescriptions/alunos/aluno-1')
+      .send({
+        capacity: 'cyclic',
         sourceRefs: [{ type: 'prontuario_goal', id: 'goal-2', label: 'Objetivo novo' }],
         linkedProntuarioGoalIds: ['goal-2'],
       });
