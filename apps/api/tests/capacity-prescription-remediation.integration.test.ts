@@ -390,7 +390,7 @@ describeDatabase('capacity prescription remediation with PostgreSQL', () => {
             expect.objectContaining({ label: '% Gordura', unit: '%' }),
             expect.objectContaining({
               label: 'Versão da fórmula',
-              value: 'pollock-wilmore-1993-three-fold-siri-v1',
+              value: 'guedes-three-fold-siri-v1',
             }),
           ]),
         }),

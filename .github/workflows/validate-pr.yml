@@ -13,9 +13,6 @@ on:
       - 'feat/**'
       - 'fix/**'
 
-permissions:
-  contents: write
-
 jobs:
   validate:
     name: Validate repository
@@ -47,29 +44,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Apply Issue 136 readable remediation
-        if: github.event_name == 'push' && github.ref_name == 'fix/136-capacity-prescription-persistence'
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ ! -f .github/remediation/issue-136/01-core.py ]; then
-            echo "No Issue 136 remediation payload found."
-            exit 0
-          fi
-          python .github/remediation/issue-136/01-core.py
-          python .github/remediation/issue-136/02-source.py
-          python .github/remediation/issue-136/03-tests-docs.py
-          rm -rf .github/remediation/issue-136
-          rm -f .github/workflows/issue-136-adipometry-remediation.yml
-          git fetch --no-tags --depth=1 origin 506883feed3e865268f4a3c8045b3a043344b7f4
-          git show 506883feed3e865268f4a3c8045b3a043344b7f4:.github/workflows/validate-pr.yml > .github/workflows/validate-pr.yml
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git diff --cached --check
-          git commit -m "fix: persist adipometry methodology snapshot"
-          git push origin HEAD:fix/136-capacity-prescription-persistence
 
       - name: Create workflow evidence attestation
         shell: bash
