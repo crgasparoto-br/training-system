@@ -29,12 +29,26 @@ jobs:
           cat > /tmp/expected-parts.sha256 <<'EOF'
           a81f817b1a021c84d6585f76d588b3940a733cedbc64e1f294b93b1070b007ce  .audit/issue-275-remediation/patch.part01
           34c4d86d1dd443d6e13a0d7c716314620607860836fbb00e42ffdb6c16286a67  .audit/issue-275-remediation/patch.part02
-          3481e1cffd007f8b53aadb92df9938c9d7bb3071a7006c0d6c26b12e8ae2f769  .audit/issue-275-remediation/patch.part03
+          fb419946ee0523e2e5522a64f5feb4a6775b405d3c0e45fbed152e40468e8a9c  .audit/issue-275-remediation/patch.part03a
+          719bd958b55f527a13d6d100ea9b09c431b814c088849fca2f95e1183278dd46  .audit/issue-275-remediation/patch.part03b
+          c0632b661cc40942ad5f80f30e7493de776aadce5d19ddd93b4a5f61bcdcdadc  .audit/issue-275-remediation/patch.part03c
+          4893b28f71bec240d5f5603b84a63719a735fc412e86c5fecdeee718e162cb4d  .audit/issue-275-remediation/patch.part03d
+          d238edae43bcbdb08aabb3f7c44c40ad6b48f55c66fd16eb017e93306035f9ac  .audit/issue-275-remediation/patch.part03e
           4729d30476d94e9336006b5229608c4f4e21a4150685b72343aafedb07761d68  .audit/issue-275-remediation/patch.part04
           acdc4a54f1311b78ece64a9187e7382e3d917d7f40e721eb3d0654c25fdff40c  .audit/issue-275-remediation/patch.part05
           EOF
           sha256sum -c /tmp/expected-parts.sha256
-          cat .audit/issue-275-remediation/patch.part* > /tmp/patch.b64
+          cat \
+            .audit/issue-275-remediation/patch.part01 \
+            .audit/issue-275-remediation/patch.part02 \
+            .audit/issue-275-remediation/patch.part03a \
+            .audit/issue-275-remediation/patch.part03b \
+            .audit/issue-275-remediation/patch.part03c \
+            .audit/issue-275-remediation/patch.part03d \
+            .audit/issue-275-remediation/patch.part03e \
+            .audit/issue-275-remediation/patch.part04 \
+            .audit/issue-275-remediation/patch.part05 \
+            > /tmp/patch.b64
           echo '7b4e8bd149ec3255f84ad6ba1b5163f00c4b05eb33a1073420a56d899e965a2a  /tmp/patch.b64' | sha256sum -c -
           base64 -d /tmp/patch.b64 | gzip -d > /tmp/remediation.patch
           echo '1bb51823a2aec754e678ce20cf69c7aea84e4ec28e069658215d52a8a2c96ea5  /tmp/remediation.patch' | sha256sum -c -
