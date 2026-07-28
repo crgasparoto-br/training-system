@@ -1,0 +1,105 @@
+name: Apply Issue 275 Cycle 6
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - '.github/workflows/apply-issue-275-cycle6.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply-fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/275-pre-registration-qa-rollout
+          fetch-depth: 0
+      - name: Align extended audit matrix with documented endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('apps/api/tests/issue-275-authorization-matrix-extended.integration.test.ts')
+          text = path.read_text(encoding='utf-8')
+          old = """  it('keeps audit tenant scoped without an undocumented audit endpoint', async () => {
+    expect(
+      await request(`/pre-registration-admin/leads/${targetId}/audit`, { token: tokens.master })
+    ).toMatchObject({ status: 404 });
+    expect(
+      await request(`/pre-registration-admin/leads/${targetId}/audit`, {
+        token: tokens.readOnly,
+      })
+    ).toMatchObject({ status: 404 });
+    expect(
+      await prisma.studentLifecycleEvent.count({ where: { alunoId: targetId, contractId: tenantAId } })
+    ).toBeGreaterThan(0);
+    expect(
+      await prisma.studentLifecycleEvent.count({
+        where: { alunoId: targetId, contractId: { not: tenantAId } },
+      })
+    ).toBe(0);
+  });
+"""
+          new = """  it('keeps the documented audit endpoint sanitized and tenant scoped', async () => {
+    const masterAudit = await request(
+      `/pre-registration-admin/leads/${targetId}/audit?page=1&pageSize=1`,
+      { token: tokens.master }
+    );
+    expect(masterAudit.status).toBe(200);
+    const masterAuditData = masterAudit.body.data as {
+      items?: Array<Record<string, unknown>>;
+      pagination?: { page?: number; pageSize?: number; total?: number; totalPages?: number };
+    };
+    expect(masterAuditData.pagination).toMatchObject({ page: 1, pageSize: 1 });
+    expect(masterAuditData.pagination?.total).toBeGreaterThan(0);
+    expect(masterAuditData.items).toHaveLength(1);
+    expect(masterAuditData.items?.[0]).toEqual(
+      expect.objectContaining({
+        id: expect.any(String),
+        category: expect.stringMatching(/^(LIFECYCLE|INVITE)$/),
+        eventType: expect.any(String),
+        createdAt: expect.any(String),
+        actorKind: expect.stringMatching(/^(AUTHENTICATED|PUBLIC|SYSTEM)$/),
+      })
+    );
+    expect(JSON.stringify(masterAudit.body)).not.toMatch(
+      /tokenHash|actorUserId|actorProfessorId|payload|cpf|phone|email/i
+    );
+
+    expect(
+      await request(`/pre-registration-admin/leads/${targetId}/audit`, {
+        token: tokens.readOnly,
+      })
+    ).toMatchObject({ status: 200 });
+    expect(
+      await request(`/pre-registration-admin/leads/${targetId}/audit`, {
+        token: tokens.otherTenantMaster,
+      })
+    ).toMatchObject({ status: 404 });
+    expect(
+      await prisma.studentLifecycleEvent.count({ where: { alunoId: targetId, contractId: tenantAId } })
+    ).toBeGreaterThan(0);
+    expect(
+      await prisma.studentLifecycleEvent.count({
+        where: { alunoId: targetId, contractId: { not: tenantAId } },
+      })
+    ).toBe(0);
+  });
+"""
+          if old not in text:
+              raise SystemExit('target block not found')
+          path.write_text(text.replace(old, new), encoding='utf-8')
+          PY
+          git add apps/api/tests/issue-275-authorization-matrix-extended.integration.test.ts
+          git diff --cached --check
+          git commit -m 'test: alinhar matriz estendida com auditoria sanitizada'
+          git push origin HEAD:feat/275-pre-registration-qa-rollout
