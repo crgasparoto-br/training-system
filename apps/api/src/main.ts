@@ -60,15 +60,15 @@ app.use(
   })
 );
 
-app.use(
-  '/api/v1/pre-cadastro',
-  createPreRegistrationHttpObservability('public-invite'),
-  preRegistrationRolloutGate
-);
 app.use('/api/v1/pre-cadastro', preRegistrationInvitePublicHeaders);
 app.use(
   '/api/v1/pre-cadastro',
   cors(createApiCorsOptions(corsConfig, { preflightContinue: true }))
+);
+app.use(
+  '/api/v1/pre-cadastro',
+  createPreRegistrationHttpObservability('public-invite'),
+  preRegistrationRolloutGate
 );
 
 app.use('/api/v1', preRegistrationPublicEntryRoutes);
