@@ -365,10 +365,10 @@ describe('PublicPreRegistration - resiliência, seleção e autorização', () =
     fireEvent.click(await screen.findByRole('tab', { name: /Criar acesso/i }));
     fireEvent.click(screen.getByRole('radio', { name: /Responsável legal/i }));
     fireEvent.change(screen.getByLabelText(/Nome completo/i), { target: { value: 'Responsável' } });
-    fireEvent.change(screen.getByLabelText(/^E-mail$/i), {
+    fireEvent.change(screen.getByLabelText(/E-mail/i), {
       target: { value: 'responsavel@example.com' },
     });
-    fireEvent.change(screen.getByLabelText(/^Senha$/i), { target: { value: 'senha-segura' } });
+    fireEvent.change(screen.getByLabelText(/Senha/i), { target: { value: 'senha-segura' } });
     fireEvent.click(screen.getByRole('button', { name: /Criar acesso e continuar/i }));
 
     const alert = await screen.findByRole('alert');
