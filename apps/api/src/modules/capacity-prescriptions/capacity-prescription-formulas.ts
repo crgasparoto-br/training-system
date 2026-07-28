@@ -1,4 +1,4 @@
-export const ADIPOMETRY_FORMULA_VERSION = 'guedes-1985-three-fold-siri-v1';
+export const ADIPOMETRY_FORMULA_VERSION = 'guedes-three-fold-siri-v1';
 
 export type AdipometrySex = 'male' | 'female';
 
