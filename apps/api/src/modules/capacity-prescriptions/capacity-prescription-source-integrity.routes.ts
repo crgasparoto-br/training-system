@@ -4,6 +4,7 @@ import { sendError } from '@corrida/utils';
 import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js';
 import {
   assertCapacitySourceIntegrity,
+  capacitySourceRefsFromBody,
   CapacitySourceIntegrityError,
 } from './capacity-prescription-source-integrity.service.js';
 
@@ -20,14 +21,14 @@ router.post(
       const professorId = req.user?.professorId;
       if (!contractId || !professorId) return sendError(res, 'Não autenticado', 401);
 
-      const body = req.body as Record<string, unknown>;
-      if (!Array.isArray(body.sourceRefs)) return next();
+      const sourceRefs = capacitySourceRefsFromBody(req.body);
+      if (!sourceRefs) return next();
 
       await assertCapacitySourceIntegrity({
         client: prisma,
         contractId,
         alunoId: req.params.alunoId,
-        sourceRefs: body.sourceRefs,
+        sourceRefs,
       });
       return next();
     } catch (error) {
