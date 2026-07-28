@@ -7,10 +7,6 @@ type DbClient = PrismaClient | Prisma.TransactionClient;
  * Relações cujo ownership não pode permanecer em uma origem descartada por
  * duplicidade. Enquanto não existir reassociação transacional por domínio,
  * qualquer ocorrência bloqueia a consolidação.
- *
- * Relações de processo e auditoria (`studentProfile`, `onboarding`,
- * `lifecycleEvents`, convites, autorizações e reviews) não aparecem aqui porque
- * a issue exige preservá-las como histórico imutável do registro de origem.
  */
 export const CONSOLIDATION_BLOCKING_OWNERSHIP_RELATIONS = [
   'agendaBookings',
@@ -40,6 +36,22 @@ export const CONSOLIDATION_BLOCKING_OWNERSHIP_RELATIONS = [
   'parqLegacyRecords',
   'prontuarioRecords',
   'prontuarioDiscomfortSnapshots',
+] as const;
+
+/**
+ * Relações que permanecem no registro descartado como histórico do processo e
+ * da auditoria, conforme o contrato da issue. Não são movidas nem usadas como
+ * motivo para apagar a origem.
+ */
+export const CONSOLIDATION_PRESERVED_SOURCE_HISTORY_RELATIONS = [
+  'studentProfile',
+  'profileReviewSettings',
+  'profileReviews',
+  'profileAuditLogs',
+  'onboarding',
+  'lifecycleEvents',
+  'preRegistrationInvites',
+  'guardianAuthorizations',
 ] as const;
 
 export async function hasBlockingOwnershipForConsolidation(
