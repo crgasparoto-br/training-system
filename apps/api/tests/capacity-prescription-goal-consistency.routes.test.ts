@@ -2,6 +2,8 @@ import express from 'express';
 
 const request = require('supertest');
 const mockProfessorFindFirst = jest.fn();
+const mockAlunoFindFirst = jest.fn();
+const mockGoalFindMany = jest.fn();
 const mockClassificationFindMany = jest.fn();
 const mockCanAccess = jest.fn();
 
@@ -32,6 +34,8 @@ jest.mock(
   () => ({
     capacityPrescriptionBoundaryPrisma: {
       professor: { findFirst: mockProfessorFindFirst },
+      aluno: { findFirst: mockAlunoFindFirst },
+      prontuarioGoal: { findMany: mockGoalFindMany },
       prontuarioGoalCapacityClassification: { findMany: mockClassificationFindMany },
     },
   })
@@ -52,6 +56,10 @@ describe('capacity goal consistency boundary', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockProfessorFindFirst.mockResolvedValue({ id: 'professor-1' });
+    mockAlunoFindFirst.mockResolvedValue({ id: 'aluno-1' });
+    mockGoalFindMany.mockImplementation(async (args: { where: { id: { in: string[] } } }) =>
+      args.where.id.in.map((id) => ({ id }))
+    );
     mockCanAccess.mockResolvedValue(true);
     mockClassificationFindMany.mockResolvedValue([{ goalId: 'goal-1' }]);
   });
@@ -121,6 +129,36 @@ describe('capacity goal consistency boundary', () => {
       },
       select: { goalId: true },
     });
+  });
+
+  it('delega aluno ausente ou de outro tenant para a fronteira canônica', async () => {
+    mockAlunoFindFirst.mockResolvedValueOnce(null);
+
+    const response = await request(app)
+      .post('/capacity-prescriptions/alunos/aluno-outro-tenant')
+      .send({
+        capacity: 'resisted',
+        sourceRefs: [{ type: 'prontuario_goal', id: 'goal-2', label: 'Objetivo' }],
+        linkedProntuarioGoalIds: ['goal-2'],
+      });
+
+    expect(response.status).toBe(200);
+    expect(mockClassificationFindMany).not.toHaveBeenCalled();
+  });
+
+  it('delega objetivo ausente ou de outro tenant para a validação de origem', async () => {
+    mockGoalFindMany.mockResolvedValueOnce([]);
+
+    const response = await request(app)
+      .post('/capacity-prescriptions/alunos/aluno-1')
+      .send({
+        capacity: 'resisted',
+        sourceRefs: [{ type: 'prontuario_goal', id: 'goal-outro-tenant', label: 'Objetivo' }],
+        linkedProntuarioGoalIds: ['goal-outro-tenant'],
+      });
+
+    expect(response.status).toBe(200);
+    expect(mockClassificationFindMany).not.toHaveBeenCalled();
   });
 
   it('mantém o fluxo sem objetivos para perfil sem acesso ao bloco do PRNT', async () => {
