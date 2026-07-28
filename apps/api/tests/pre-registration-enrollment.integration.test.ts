@@ -10,7 +10,7 @@ import { preRegistrationEnrollmentCreateService } from '../src/modules/pre-regis
 import {
   preRegistrationEnrollmentService,
   type PreRegistrationEnrollmentActor,
-} from '../src/modules/pre-registration-enrollment/pre-registration-enrollment.service.js';
+} from '../src/modules/pre-registration-enrollment/index.js';
 
 const runDatabaseIntegrationTests =
   process.env.RUN_DATABASE_INTEGRATION_TESTS === 'true';
@@ -64,6 +64,25 @@ async function createLead(
     origin: `teste-${suffix}`,
     createdByProfessorId: actor.professorId,
   });
+}
+
+async function createDuplicatePair(
+  actor: PreRegistrationEnrollmentActor,
+  suffix: string
+) {
+  const target = await createLead(
+    actor,
+    `${suffix}-target`,
+    '+55 15 98888-0274',
+    `${emailPrefix}${suffix}-shared@example.com`
+  );
+  const source = await createLead(
+    actor,
+    `${suffix}-source`,
+    '(15) 98888-0274',
+    `${emailPrefix}${suffix}-shared@example.com`.toUpperCase()
+  );
+  return { source, target };
 }
 
 describeDatabase('pre-registration enrollment with PostgreSQL', () => {
@@ -232,5 +251,74 @@ describeDatabase('pre-registration enrollment with PostgreSQL', () => {
       },
     });
     expect(persisted).toBe(1);
+  });
+
+  it('blocks consolidation when only a StudentAssessmentRecord exists and preserves both records', async () => {
+    const actor = await seedActor();
+    const { source, target } = await createDuplicatePair(actor, 'owned-assessment');
+    const assessment = await prisma.studentAssessmentRecord.create({
+      data: {
+        alunoId: source.id,
+        contractId,
+        assessmentCategory: 'physical_assessment',
+        title: 'Avaliação física canônica',
+        performedAt: new Date('2026-07-28T08:00:00.000Z'),
+      },
+    });
+
+    const review = await preRegistrationEnrollmentService.inspect(actor, source.id);
+    expect(review.candidates.map((candidate) => candidate.candidateAlunoId)).toContain(target.id);
+
+    await expect(
+      preRegistrationEnrollmentService.decide(actor, source.id, {
+        action: 'USE_EXISTING_CANONICAL',
+        candidateAlunoId: target.id,
+        reason: 'Mesma pessoa confirmada, mas a avaliação deve impedir consolidação automática.',
+        expectedVersion: review.recordVersion,
+        fingerprint: review.fingerprint,
+        fieldDecisions: {},
+      })
+    ).rejects.toMatchObject({
+      code: 'HEALTH_REASSOCIATION_REQUIRED',
+      details: { operationalPending: 'CLINICAL_REASSOCIATION_REQUIRED' },
+    });
+
+    const [sourceAfter, targetAfter, assessmentAfter] = await Promise.all([
+      prisma.aluno.findUniqueOrThrow({ where: { id: source.id } }),
+      prisma.aluno.findUniqueOrThrow({ where: { id: target.id } }),
+      prisma.studentAssessmentRecord.findUniqueOrThrow({ where: { id: assessment.id } }),
+    ]);
+    expect(sourceAfter.status).not.toBe('DISCARDED');
+    expect(sourceAfter.canonicalAlunoId).toBeNull();
+    expect(targetAfter.canonicalAlunoId).toBeNull();
+    expect(assessmentAfter.alunoId).toBe(source.id);
+  });
+
+  it('enforces the ownership invariant in PostgreSQL for direct duplicate-discard writes', async () => {
+    const actor = await seedActor();
+    const { source, target } = await createDuplicatePair(actor, 'direct-trigger');
+    await prisma.studentAssessmentRecord.create({
+      data: {
+        alunoId: source.id,
+        contractId,
+        assessmentCategory: 'physical_assessment',
+        performedAt: new Date('2026-07-28T08:05:00.000Z'),
+      },
+    });
+
+    await expect(
+      prisma.aluno.update({
+        where: { id: source.id },
+        data: {
+          status: 'DISCARDED',
+          discardReason: `DUPLICATE_OF:${target.id}`,
+        },
+      })
+    ).rejects.toThrow(/CLINICAL_REASSOCIATION_REQUIRED/);
+
+    const sourceAfter = await prisma.aluno.findUniqueOrThrow({ where: { id: source.id } });
+    expect(sourceAfter.status).not.toBe('DISCARDED');
+    expect(sourceAfter.discardReason).toBeNull();
+    expect(sourceAfter.canonicalAlunoId).toBeNull();
   });
 });
