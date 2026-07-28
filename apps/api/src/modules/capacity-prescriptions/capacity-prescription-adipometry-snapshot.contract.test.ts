@@ -1,9 +1,13 @@
 import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 
-const currentDir = dirname(fileURLToPath(import.meta.url));
-const sourceRoute = readFileSync(join(currentDir, 'capacity-prescription-source.routes.ts'), 'utf8');
+const sourceRoute = readFileSync(
+  join(
+    process.cwd(),
+    'src/modules/capacity-prescriptions/capacity-prescription-source.routes.ts'
+  ),
+  'utf8'
+);
 
 describe('capacity prescription adipometry snapshot contract', () => {
   it('persiste entradas, resultados e versão da fórmula na versão da origem', () => {
