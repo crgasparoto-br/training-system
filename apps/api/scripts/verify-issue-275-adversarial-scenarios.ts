@@ -304,6 +304,7 @@ async function concurrentBasicCompletion(actor: PreRegistrationEnrollmentActor) 
   assert(onboarding.version === fixture.session.version + 1, 'Retry concorrente incrementou a versão mais de uma vez');
   return {
     alunoId: fixture.alunoId,
+    winnerCount: 1,
     fulfilledResponses: results.filter((result) => result.status === 'fulfilled').length,
     terminalMutations: 1,
     completionEvents,
