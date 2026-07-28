@@ -17,6 +17,7 @@ const expectedOwnership = {
   anthropometryAssessments: { model: 'AnthropometryAssessment', table: 'AnthropometryAssessment' },
   exerciseProgress: { model: 'AlunoExerciseProgress', table: 'AlunoExerciseProgress' },
   intakeForm: { model: 'AlunoIntakeForm', table: 'AlunoIntakeForm' },
+  profileReviewSettings: { model: 'AlunoProfileReviewSettings', table: 'AlunoProfileReviewSettings' },
   assessmentPlanItems: { model: 'AlunoAssessmentPlanItem', table: 'AlunoAssessmentPlanItem' },
   assessments: { model: 'Assessment', table: 'Assessment' },
   contracts: { model: 'Contract', table: 'GeneratedContract' },
@@ -40,17 +41,19 @@ const expectedOwnership = {
   parqLegacyRecords: { model: 'StudentParqLegacyRecord', table: 'StudentParqLegacyRecord' },
   prontuarioRecords: { model: 'ProntuarioRecord', table: 'ProntuarioRecord' },
   prontuarioDiscomfortSnapshots: { model: 'ProntuarioDiscomfortSnapshot', table: 'ProntuarioDiscomfortSnapshot' },
+  guardianAuthorizations: {
+    model: 'PreRegistrationGuardianAuthorization',
+    table: 'PreRegistrationGuardianAuthorization',
+  },
 } as const;
 
 const expectedPreservedSourceHistory = [
   'studentProfile',
-  'profileReviewSettings',
   'profileReviews',
   'profileAuditLogs',
   'onboarding',
   'lifecycleEvents',
   'preRegistrationInvites',
-  'guardianAuthorizations',
 ] as const;
 
 describe('issue 274 consolidation ownership contract', () => {
