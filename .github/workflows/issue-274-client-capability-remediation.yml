@@ -1,6 +1,11 @@
 name: Issue 274 Client Capability Remediation
 
 on:
+  push:
+    branches:
+      - feat/274-enrollment-conversion
+    paths:
+      - '.github/workflows/issue-274-client-capability-remediation.yml'
   pull_request:
     branches:
       - develop
