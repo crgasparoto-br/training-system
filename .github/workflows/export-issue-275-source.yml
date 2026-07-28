@@ -1,9 +1,9 @@
 name: Apply Issue 275 Remediation
 
 on:
-  push:
+  pull_request:
     branches:
-      - feat/275-pre-registration-qa-rollout
+      - develop
     paths:
       - '.github/workflows/export-issue-275-source.yml'
 
