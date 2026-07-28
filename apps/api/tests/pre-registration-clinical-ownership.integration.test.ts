@@ -10,9 +10,10 @@ import {
   type PreRegistrationEnrollmentActor,
 } from '../src/modules/pre-registration-enrollment/index.js';
 
-const runDatabaseIntegrationTests =
-  process.env.RUN_DATABASE_INTEGRATION_TESTS === 'true';
-const describeDatabase = runDatabaseIntegrationTests ? describe : describe.skip;
+const runScalarOwnershipIntegrationTests =
+  process.env.RUN_DATABASE_INTEGRATION_TESTS === 'true' &&
+  process.env.RUN_ISSUE_274_SCALAR_OWNERSHIP_TESTS === 'true';
+const describeDatabase = runScalarOwnershipIntegrationTests ? describe : describe.skip;
 const prisma = new PrismaClient();
 
 const contractId = 'issue-274-scalar-clinical-ownership';
