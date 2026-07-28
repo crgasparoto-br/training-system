@@ -55,9 +55,9 @@ O registro duplicado permanece no banco, é marcado `DISCARDED`, tem convite ati
 
 Quando a origem possui conta e o canônico ainda não possui, a transferência só ocorre após validar a conta contra a identidade final do canônico; incompatibilidade de nome, CPF, telefone ou nascimento bloqueia toda a consolidação sem desvincular a origem.
 
-Se o duplicado possuir Anamnese, PAR-Q, prontuário, avaliação física, antropometria, registros de avaliação, métricas de progresso ou dados nutricionais, a consolidação é bloqueada com `CLINICAL_REASSOCIATION_REQUIRED`. Nenhum dado é movido por heurística ou perdido.
+A consolidação é bloqueada com `CLINICAL_REASSOCIATION_REQUIRED` quando a origem ainda possui dados owned por outro domínio que exigiriam reassociação: Anamnese, PAR-Q, prontuário, avaliações, antropometria, treino e execuções, agenda, contratos, financeiro, integrações, métricas ou nutrição. Nenhum dado é movido por heurística ou deixado preso em uma origem encerrada.
 
-A lista de ownership é centralizada em `pre-registration-clinical-ownership.service.ts`. O preflight devolve o erro de domínio no caminho normal e a migration `20260728081500_issue_274_clinical_ownership_guard` instala um trigger no PostgreSQL para impedir o descarte por duplicidade quando uma escrita concorrente ou chamada direta encontrar qualquer uma dessas relações.
+O inventário bloqueante e a lista explícita de relações de processo/auditoria preservadas na origem ficam em `pre-registration-clinical-ownership.service.ts`. O preflight devolve o erro de domínio no caminho normal e a migration `20260728081500_issue_274_clinical_ownership_guard` instala um trigger no PostgreSQL para impedir o descarte por duplicidade quando uma escrita concorrente ou chamada direta encontrar qualquer relação bloqueante.
 
 ### Cancelar
 
