@@ -123,3 +123,5 @@ foi consolidado em outro `Aluno` do mesmo `contractId`. A migration
 partir de `discardReason = DUPLICATE_OF:<id>` e instala chave estrangeira, índice e
 trigger que impedem autorreferência, destino cross-tenant e cadeia de registros já
 resolvidos. O detector considera somente candidatos sem `canonicalAlunoId`.
+
+A consolidação só pode descartar a origem quando não existe ownership de dados de saúde, avaliação ou nutrição. O inventário canônico inclui Anamnese, PAR-Q, prontuário, desconfortos, `StudentAssessmentRecord`, `Assessment`, `AnthropometryAssessment`, itens de plano de avaliação, métricas de progresso, macronutrientes e planos nutricionais. O preflight da API consulta essas relações; a migration `20260728081500_issue_274_clinical_ownership_guard` replica o invariante em trigger para bloquear chamadas diretas e corridas entre a leitura e o descarte. Enquanto não existir serviço de reassociação por domínio, qualquer ocorrência retorna `CLINICAL_REASSOCIATION_REQUIRED` e preserva os dois registros.
