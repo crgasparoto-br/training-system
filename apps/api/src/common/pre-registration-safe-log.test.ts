@@ -5,7 +5,7 @@ import {
 } from './pre-registration-safe-log.js';
 
 describe('pre-registration safe error logging', () => {
-  it('keeps only correlation id, error name and a bounded technical code', () => {
+  it('keeps only correlation id, error name and an allowlisted technical code', () => {
     const error = Object.assign(
       new Error('CPF 123.456.789-00 token secret-token e-mail pessoa@example.com'),
       {
@@ -53,6 +53,20 @@ describe('pre-registration safe error logging', () => {
       errorName: 'UnknownError',
     });
     expect(JSON.stringify(safe)).not.toMatch(/123|@|secret-token/);
+  });
+
+  it('drops token-shaped identifiers that are not explicitly allowlisted', () => {
+    const safe = buildSafePreRegistrationErrorLog('correlation-4', {
+      name: 'secret-token',
+      code: 'eyJhbGciOiJIUzI1NiJ9',
+    });
+
+    expect(safe).toEqual({
+      correlationId: 'correlation-4',
+      errorName: 'UnknownError',
+    });
+    expect(JSON.stringify(safe)).not.toContain('secret-token');
+    expect(JSON.stringify(safe)).not.toContain('eyJhbGciOiJIUzI1NiJ9');
   });
 
   it('recognizes every pre-registration HTTP namespace without matching adjacent paths', () => {
