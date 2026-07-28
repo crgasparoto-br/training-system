@@ -6,8 +6,7 @@ on:
       - develop
     paths:
       - '.github/workflows/issue-274-loop-visible.yml'
-      - '.github/workflows/issue-274-loop-remediation.yml'
-      - '.github/workflows/issue-274-remediation-evidence.yml'
+      - '.audit/issue-loop-engineer/remediate-issue-274-v2.py'
 
 permissions:
   contents: write
@@ -55,72 +54,38 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Apply, validate and publish
+      - name: Apply remediation patch
+        run: python .audit/issue-loop-engineer/remediate-issue-274-v2.py
+
+      - name: Generate Prisma Client
+        run: pnpm --filter @corrida/api exec prisma generate
+
+      - name: Apply database migrations
+        run: pnpm --filter @corrida/api exec prisma migrate deploy
+
+      - name: Validate civil date contract
+        run: pnpm --filter @corrida/api test -- --runInBand tests/student-identity-civil-date.test.ts
+
+      - name: Validate atomicity and concurrent deduplication
+        run: RUN_DATABASE_INTEGRATION_TESTS=true pnpm --filter @corrida/api test -- --runInBand tests/issue-274-loop-remediation.integration.test.ts
+
+      - name: Validate existing issue 274 remediation scenarios
+        run: RUN_DATABASE_INTEGRATION_TESTS=true pnpm --filter @corrida/api test -- --runInBand tests/issue-274-a005-a006-remediation.integration.test.ts
+
+      - name: Validate public deduplication contract
+        run: pnpm --filter @corrida/api test -- --runInBand tests/pre-registration-public-deduplication.contract.test.ts
+
+      - name: Type check API
+        run: pnpm --filter @corrida/api type-check
+
+      - name: Publish remediation commit
         shell: bash
         run: |
-          set +e
-          LOG=/tmp/issue-274-loop-visible.log
-          : > "$LOG"
-
-          python - <<'RUNNER' >> "$LOG" 2>&1
-          from pathlib import Path
-
-          workflow = Path('.github/workflows/issue-274-loop-remediation.yml').read_text()
-          start_marker = "          python - <<'PY'\n"
-          end_marker = "\n          PY\n"
-          start = workflow.index(start_marker) + len(start_marker)
-          end = workflow.index(end_marker, start)
-          lines = workflow[start:end].splitlines()
-          script = '\n'.join(
-              line[10:] if line.startswith('          ') else line
-              for line in lines
-          )
-          exec(compile(script, 'issue-274-loop-remediation.py', 'exec'), {'__name__': '__main__'})
-          RUNNER
-          status=$?
-
-          if [ "$status" -eq 0 ]; then
-            pnpm --filter @corrida/api exec prisma generate >> "$LOG" 2>&1 || status=$?
-          fi
-          if [ "$status" -eq 0 ]; then
-            pnpm --filter @corrida/api exec prisma migrate deploy >> "$LOG" 2>&1 || status=$?
-          fi
-          if [ "$status" -eq 0 ]; then
-            pnpm --filter @corrida/api test -- --runInBand tests/student-identity-civil-date.test.ts >> "$LOG" 2>&1 || status=$?
-          fi
-          if [ "$status" -eq 0 ]; then
-            RUN_DATABASE_INTEGRATION_TESTS=true pnpm --filter @corrida/api test -- --runInBand tests/issue-274-loop-remediation.integration.test.ts >> "$LOG" 2>&1 || status=$?
-          fi
-          if [ "$status" -eq 0 ]; then
-            RUN_DATABASE_INTEGRATION_TESTS=true pnpm --filter @corrida/api test -- --runInBand tests/issue-274-a005-a006-remediation.integration.test.ts >> "$LOG" 2>&1 || status=$?
-          fi
-          if [ "$status" -eq 0 ]; then
-            pnpm --filter @corrida/api test -- --runInBand tests/pre-registration-public-deduplication.contract.test.ts >> "$LOG" 2>&1 || status=$?
-          fi
-          if [ "$status" -eq 0 ]; then
-            pnpm --filter @corrida/api type-check >> "$LOG" 2>&1 || status=$?
-          fi
-
           git config user.name "solverit-issue-loop"
           git config user.email "solverit-issue-loop@users.noreply.github.com"
-
-          if [ "$status" -ne 0 ]; then
-            git reset --hard HEAD
-            git show 14eeb305e7f6599808711b51779138e9b289b2f4:.github/workflows/issue-274-remediation-evidence.yml > .github/workflows/issue-274-remediation-evidence.yml
-            git rm -f .github/workflows/issue-274-loop-remediation.yml
-            git rm -f .github/workflows/issue-274-loop-visible.yml
-            mkdir -p .audit/issue-loop-engineer
-            cp "$LOG" .audit/issue-loop-engineer/issue-274-remediation-failure.log
-            printf '%s\n' "$status" > .audit/issue-loop-engineer/issue-274-remediation-exit-code.txt
-            git add -A
-            git commit -m "chore(issue-274): registrar falha da remediacao automatizada"
-            git push origin HEAD:feat/274-enrollment-conversion
-            exit 0
-          fi
-
-          git show 14eeb305e7f6599808711b51779138e9b289b2f4:.github/workflows/issue-274-remediation-evidence.yml > .github/workflows/issue-274-remediation-evidence.yml
-          git rm -f .github/workflows/issue-274-loop-visible.yml
+          rm -f .audit/issue-loop-engineer/remediate-issue-274-v2.py
+          rm -f .github/workflows/issue-274-loop-visible.yml
           git add -A
-          git diff --cached --check >> "$LOG" 2>&1
+          git diff --cached --check
           git commit -m "fix(issue-274): fechar atomicidade e data civil"
           git push origin HEAD:feat/274-enrollment-conversion
