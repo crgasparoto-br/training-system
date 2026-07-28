@@ -1,4 +1,5 @@
 name: Apply Issue 275 Cycle 6
+# Triggered after registration so the workflow exists before the pull_request synchronize event.
 
 on:
   pull_request:
