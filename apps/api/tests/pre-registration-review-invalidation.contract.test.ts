@@ -9,6 +9,13 @@ const migration = readFileSync(
   ),
   'utf8'
 );
+const enrollmentService = readFileSync(
+  resolve(
+    root,
+    'apps/api/src/modules/pre-registration-enrollment/pre-registration-enrollment.service.ts'
+  ),
+  'utf8'
+);
 
 describe('issue 274 commercial review invalidation contract', () => {
   it('coordinates Aluno and StudentProfile invalidation once per transaction', () => {
@@ -23,6 +30,15 @@ describe('issue 274 commercial review invalidation contract', () => {
     );
   });
 
+  it('consolidates legacy trigger variants before creating one trigger per projection', () => {
+    expect(migration).toContain("trigger_function.proname LIKE 'invalidate_pre_registration_review%'");
+    expect(migration).toContain("DROP TRIGGER IF EXISTS %I ON %I.%I");
+    expect(migration.match(/CREATE TRIGGER "Aluno_invalidate_pre_registration_review"/g)).toHaveLength(1);
+    expect(
+      migration.match(/CREATE TRIGGER "StudentProfile_invalidate_pre_registration_review"/g)
+    ).toHaveLength(1);
+  });
+
   it('does not depend on an existing reviewedAt value', () => {
     expect(migration).not.toContain('onboarding."reviewedAt" IS NOT NULL');
     expect(migration).toContain(
@@ -31,5 +47,12 @@ describe('issue 274 commercial review invalidation contract', () => {
     expect(migration).toContain('"version" = "version" + 1');
     expect(migration).toContain('"reviewedAt" = NULL');
     expect(migration).toContain('"reviewedByProfessorId" = NULL');
+  });
+
+  it('keeps markReady and activation bound to the current version and fingerprint', () => {
+    expect(enrollmentService).toContain(
+      'detection.recordVersion !== input.expectedVersion || detection.fingerprint !== input.fingerprint'
+    );
+    expect(enrollmentService).toContain("'REVIEW_STALE'");
   });
 });
