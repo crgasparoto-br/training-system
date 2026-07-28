@@ -1,6 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { CONSOLIDATION_BLOCKING_OWNERSHIP_RELATIONS } from '../src/modules/pre-registration-enrollment/pre-registration-clinical-ownership.service.js';
+import {
+  CONSOLIDATION_BLOCKING_OWNERSHIP_RELATIONS,
+  CONSOLIDATION_PRESERVED_SOURCE_HISTORY_RELATIONS,
+} from '../src/modules/pre-registration-enrollment/pre-registration-clinical-ownership.service.js';
 
 const root = resolve(__dirname, '../../..');
 const read = (path: string) => readFileSync(resolve(root, path), 'utf8');
@@ -39,7 +42,7 @@ const expectedOwnership = {
   prontuarioDiscomfortSnapshots: 'ProntuarioDiscomfortSnapshot',
 } as const;
 
-const preservedSourceHistoryRelations = [
+const expectedPreservedSourceHistory = [
   'studentProfile',
   'profileReviewSettings',
   'profileReviews',
@@ -63,13 +66,12 @@ describe('issue 274 consolidation ownership contract', () => {
     }
   });
 
-  it('documents the source-history relations that remain on the discarded record', () => {
-    const ownershipService = read(
-      'apps/api/src/modules/pre-registration-enrollment/pre-registration-clinical-ownership.service.ts'
+  it('keeps process and audit relations explicitly classified as source history', () => {
+    expect([...CONSOLIDATION_PRESERVED_SOURCE_HISTORY_RELATIONS].sort()).toEqual(
+      [...expectedPreservedSourceHistory].sort()
     );
-    for (const relation of preservedSourceHistoryRelations) {
+    for (const relation of expectedPreservedSourceHistory) {
       expect(schema).toContain(relation);
-      expect(ownershipService).toContain(relation);
       expect(CONSOLIDATION_BLOCKING_OWNERSHIP_RELATIONS).not.toContain(relation);
     }
   });
