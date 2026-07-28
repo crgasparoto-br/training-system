@@ -27,7 +27,9 @@ function assertSourceShape(source: unknown): asserts source is CapacityPrescript
     typeof source.id !== 'string' ||
     !source.id.trim()
   ) {
-    throw new CapacitySourceIntegrityError('Fonte técnica inválida. Informe tipo e identificador válidos.');
+    throw new CapacitySourceIntegrityError(
+      'Fonte técnica inválida. Informe tipo e identificador válidos.'
+    );
   }
 }
 
@@ -116,6 +118,12 @@ async function sourceExists(
 
   // Tipos desconhecidos permanecem sob responsabilidade do schema Zod da rota final.
   return true;
+}
+
+export function capacitySourceRefsFromBody(body: unknown): unknown[] | null {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return null;
+  const sourceRefs = (body as Record<string, unknown>).sourceRefs;
+  return Array.isArray(sourceRefs) ? sourceRefs : null;
 }
 
 export async function assertCapacitySourceIntegrity(input: {
