@@ -3,6 +3,15 @@ import type { RequestHandler } from 'express';
 const ENABLED_VALUES = new Set(['1', 'true', 'yes', 'on']);
 const DISABLED_VALUES = new Set(['0', 'false', 'no', 'off']);
 
+type PreRegistrationRolloutEnv = {
+  NODE_ENV?: string;
+  PRE_REGISTRATION_ENABLED?: string;
+};
+
+type PreRegistrationTelemetryEnv = {
+  PRE_REGISTRATION_TELEMETRY_ENABLED?: string;
+};
+
 export type PreRegistrationHttpArea =
   | 'public-invite'
   | 'authenticated-onboarding'
@@ -31,7 +40,7 @@ function parseBooleanFlag(value: string | undefined): boolean | undefined {
  * and test keep the current flow available unless it is disabled explicitly.
  */
 export function isPreRegistrationEnabled(
-  env: Pick<NodeJS.ProcessEnv, 'NODE_ENV' | 'PRE_REGISTRATION_ENABLED'> = process.env
+  env: PreRegistrationRolloutEnv = process.env
 ): boolean {
   const configured = parseBooleanFlag(env.PRE_REGISTRATION_ENABLED);
   if (configured !== undefined) return configured;
@@ -39,7 +48,7 @@ export function isPreRegistrationEnabled(
 }
 
 export function isPreRegistrationTelemetryEnabled(
-  env: Pick<NodeJS.ProcessEnv, 'PRE_REGISTRATION_TELEMETRY_ENABLED'> = process.env
+  env: PreRegistrationTelemetryEnv = process.env
 ): boolean {
   const configured = parseBooleanFlag(env.PRE_REGISTRATION_TELEMETRY_ENABLED);
   return configured ?? true;
@@ -69,7 +78,7 @@ export function buildPreRegistrationHttpMetric(input: {
 
 export function createPreRegistrationHttpObservability(
   area: PreRegistrationHttpArea,
-  env: Pick<NodeJS.ProcessEnv, 'PRE_REGISTRATION_TELEMETRY_ENABLED'> = process.env
+  env: PreRegistrationTelemetryEnv = process.env
 ): RequestHandler {
   return (req, res, next) => {
     if (!isPreRegistrationTelemetryEnabled(env)) {
@@ -97,7 +106,7 @@ export function createPreRegistrationHttpObservability(
 }
 
 export function createPreRegistrationRolloutGate(
-  env: Pick<NodeJS.ProcessEnv, 'NODE_ENV' | 'PRE_REGISTRATION_ENABLED'> = process.env
+  env: PreRegistrationRolloutEnv = process.env
 ): RequestHandler {
   return (_req, res, next) => {
     if (isPreRegistrationEnabled(env)) {
