@@ -79,7 +79,7 @@ describe('issue 274 consolidation ownership contract', () => {
     for (const field of expectedScalarFields) {
       expect(schema).toMatch(new RegExp(`\\b${field}\\s+`));
       expect(service).toContain(`${field}: true`);
-      expect(service).toContain(`aluno.${field} !== null`);
+      expect(service).toContain(`hasScalarValue(aluno.${field})`);
       expect(migration).toContain(`NEW."${field}" IS NOT NULL`);
     }
   });
