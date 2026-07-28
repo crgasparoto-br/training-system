@@ -3,10 +3,18 @@ type ErrorWithCode = {
   code?: unknown;
 };
 
+const TECHNICAL_IDENTIFIER = /^[A-Za-z][A-Za-z0-9_.:-]{0,119}$/;
+
 export interface SafePreRegistrationErrorLog {
   correlationId: string;
   errorName: string;
   errorCode?: string;
+}
+
+function technicalIdentifier(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const normalized = value.trim();
+  return TECHNICAL_IDENTIFIER.test(normalized) ? normalized : undefined;
 }
 
 export function buildSafePreRegistrationErrorLog(
@@ -15,15 +23,10 @@ export function buildSafePreRegistrationErrorLog(
 ): SafePreRegistrationErrorLog {
   const candidate = error && typeof error === 'object' ? (error as ErrorWithCode) : undefined;
   const errorName =
-    typeof candidate?.name === 'string' && candidate.name.trim()
-      ? candidate.name.trim().slice(0, 120)
-      : error instanceof Error
-        ? error.constructor.name.slice(0, 120)
-        : 'UnknownError';
-  const errorCode =
-    typeof candidate?.code === 'string' && candidate.code.trim()
-      ? candidate.code.trim().slice(0, 120)
-      : undefined;
+    technicalIdentifier(candidate?.name) ||
+    (error instanceof Error ? technicalIdentifier(error.constructor.name) : undefined) ||
+    'UnknownError';
+  const errorCode = technicalIdentifier(candidate?.code);
 
   return {
     correlationId,
