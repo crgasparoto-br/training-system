@@ -32,6 +32,8 @@ jobs:
       PRISMA_POOL_TIMEOUT_SECONDS: '30'
       RUN_DATABASE_INTEGRATION_TESTS: 'true'
       VITE_API_URL: http://127.0.0.1:3002
+      VITE_PRE_REGISTRATION_ENABLED: 'true'
+      PRE_REGISTRATION_ENABLED: 'true'
 
     services:
       postgres:
