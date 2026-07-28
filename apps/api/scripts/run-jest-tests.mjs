@@ -2,9 +2,10 @@ import { spawnSync } from 'node:child_process';
 
 const databaseIntegration = process.env.RUN_DATABASE_INTEGRATION_TESTS === 'true';
 const forwardedArgs = process.argv.slice(2);
+const pnpmCommand = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
 
 function runJest(args, options = {}) {
-  const result = spawnSync('pnpm', ['exec', 'jest', ...args], {
+  const result = spawnSync(pnpmCommand, ['exec', 'jest', ...args], {
     cwd: process.cwd(),
     env: process.env,
     stdio: options.capture ? ['ignore', 'pipe', 'inherit'] : 'inherit',
