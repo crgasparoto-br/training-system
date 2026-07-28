@@ -26,6 +26,7 @@ Codigo, migrations e testes definem o comportamento efetivamente entregue. Plani
 - [`architecture/database.md`](architecture/database.md): banco, Prisma e multi-tenant.
 - [`architecture/auth-and-access-control.md`](architecture/auth-and-access-control.md): autenticacao, autorizacao e escopo de dados.
 - [`architecture/deployment.md`](architecture/deployment.md): deploy, ambientes e variaveis.
+- [`architecture/pre-registration-api.md`](architecture/pre-registration-api.md): fronteiras HTTP, autenticacao, erros, concorrencia e telemetria da pre-matricula.
 - [`architecture/pre-registration-enrollment.md`](architecture/pre-registration-enrollment.md): deduplicacao, revisao versionada, consolidacao e ativacao da pre-matricula.
 - [`quality/validation.md`](quality/validation.md): comandos e criterios de validacao.
 - [`quality/issue-274-visual-contract.md`](quality/issue-274-visual-contract.md): contrato permanente de evidencia visual e acessibilidade da revisao de pre-matricula.
@@ -42,6 +43,7 @@ Codigo, migrations e testes definem o comportamento efetivamente entregue. Plani
 - [`product/student-central-action-patterns.md`](product/student-central-action-patterns.md): padrao de pop-up, painel lateral e fluxo guiado.
 - [`product/student-central-domain-matrix.md`](product/student-central-domain-matrix.md): fronteira entre Central do Aluno, administracao geral e dominios hibridos.
 - [`product/prnt-discomfort-followup-flow.md`](product/prnt-discomfort-followup-flow.md): fluxo implementado de desconfortos e acompanhamentos do PRNT.
+- [`product/pre-registration.md`](product/pre-registration.md): ciclo unico de lead, convite, preenchimento, revisao e ativacao no mesmo aluno.
 - [`product/pre-registration-health-intake.md`](product/pre-registration-health-intake.md): Anamnese Inicial canônica, opcional, autenticada e retomável.
 - [`product/pre-registration-parq.md`](product/pre-registration-parq.md): PAR-Q canônico, versionado, retomável e integrado à análise profissional.
 - [`product/pre-registration-enrollment-conversion.md`](product/pre-registration-enrollment-conversion.md): regras permanentes de deduplicacao, decisao administrativa e conversao no mesmo registro.
@@ -53,6 +55,7 @@ Codigo, migrations e testes definem o comportamento efetivamente entregue. Plani
 - [`operations/student-financial-service-and-contract-history.md`](operations/student-financial-service-and-contract-history.md): autoridade, vigencia e historico contratual do aluno.
 - [`operations/health-intake-cutover.md`](operations/health-intake-cutover.md): backfill, precedencia, verificacao e rollback do corte da Anamnese.
 - [`operations/parq-cutover.md`](operations/parq-cutover.md): reconciliação, cutover, verificação e rollback do PAR-Q.
+- [`operations/pre-registration-rollout-and-qa.md`](operations/pre-registration-rollout-and-qa.md): QA integrado, privacidade, rollout, observabilidade, go/no-go e rollback da pre-matricula.
 - [`internal-test-deploy.md`](internal-test-deploy.md): orientacao rapida complementar para testes internos.
 - [`ACCESS_CONTROL.md`](ACCESS_CONTROL.md): exemplos operacionais legados; as regras canonicas permanecem nos documentos de arquitetura e produto de acesso.
 
@@ -75,6 +78,7 @@ Planos ativos relevantes:
 - [`execution-plans/active/2026-07-services-commercial-catalog.md`](execution-plans/active/2026-07-services-commercial-catalog.md)
 - [`execution-plans/active/2026-07-issue-272-canonical-health-intake.md`](execution-plans/active/2026-07-issue-272-canonical-health-intake.md)
 - [`execution-plans/active/2026-07-issue-274-enrollment-conversion.md`](execution-plans/active/2026-07-issue-274-enrollment-conversion.md)
+- [`execution-plans/active/2026-07-issue-275-pre-registration-qa-rollout.md`](execution-plans/active/2026-07-issue-275-pre-registration-qa-rollout.md)
 
 Registros concluidos preservados:
 
