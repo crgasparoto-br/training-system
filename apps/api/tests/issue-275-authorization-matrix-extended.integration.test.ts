@@ -429,13 +429,40 @@ describeDatabase('issue 275 extended API authorization matrix', () => {
     ).toMatchObject({ status: 404 });
   });
 
-  it('keeps audit tenant scoped without an undocumented audit endpoint', async () => {
-    expect(
-      await request(`/pre-registration-admin/leads/${targetId}/audit`, { token: tokens.master })
-    ).toMatchObject({ status: 404 });
+  it('keeps the documented audit endpoint sanitized and tenant scoped', async () => {
+    const masterAudit = await request(
+      `/pre-registration-admin/leads/${targetId}/audit?page=1&pageSize=1`,
+      { token: tokens.master }
+    );
+    expect(masterAudit.status).toBe(200);
+    const masterAuditData = masterAudit.body.data as {
+      items?: Array<Record<string, unknown>>;
+      pagination?: { page?: number; pageSize?: number; total?: number; totalPages?: number };
+    };
+    expect(masterAuditData.pagination).toMatchObject({ page: 1, pageSize: 1 });
+    expect(masterAuditData.pagination?.total).toBeGreaterThan(0);
+    expect(masterAuditData.items).toHaveLength(1);
+    expect(masterAuditData.items?.[0]).toEqual(
+      expect.objectContaining({
+        id: expect.any(String),
+        category: expect.stringMatching(/^(LIFECYCLE|INVITE)$/),
+        eventType: expect.any(String),
+        createdAt: expect.any(String),
+        actorKind: expect.stringMatching(/^(AUTHENTICATED|PUBLIC|SYSTEM)$/),
+      })
+    );
+    expect(JSON.stringify(masterAudit.body)).not.toMatch(
+      /tokenHash|actorUserId|actorProfessorId|payload|cpf|phone|email/i
+    );
+
     expect(
       await request(`/pre-registration-admin/leads/${targetId}/audit`, {
         token: tokens.readOnly,
+      })
+    ).toMatchObject({ status: 200 });
+    expect(
+      await request(`/pre-registration-admin/leads/${targetId}/audit`, {
+        token: tokens.otherTenantMaster,
       })
     ).toMatchObject({ status: 404 });
     expect(
