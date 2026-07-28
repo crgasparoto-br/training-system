@@ -3,25 +3,46 @@ import { issue274Prisma } from './issue-274-prisma.js';
 
 type DbClient = PrismaClient | Prisma.TransactionClient;
 
-export const CLINICAL_CONSOLIDATION_OWNERSHIP_RELATIONS = [
+/**
+ * Relações cujo ownership não pode permanecer em uma origem descartada por
+ * duplicidade. Enquanto não existir reassociação transacional por domínio,
+ * qualquer ocorrência bloqueia a consolidação.
+ *
+ * Relações de processo e auditoria (`studentProfile`, `onboarding`,
+ * `lifecycleEvents`, convites, autorizações e reviews) não aparecem aqui porque
+ * a issue exige preservá-las como histórico imutável do registro de origem.
+ */
+export const CONSOLIDATION_BLOCKING_OWNERSHIP_RELATIONS = [
+  'agendaBookings',
+  'anthropometryAssessments',
+  'exerciseProgress',
   'intakeForm',
+  'assessmentPlanItems',
+  'assessments',
+  'contracts',
+  'studentContracts',
+  'fixedSlots',
+  'integrations',
+  'macronutrients',
+  'nutritionPlans',
+  'progressMetrics',
+  'executions',
+  'trainingPlans',
+  'workoutExecutions',
   'studentHealthIntake',
-  'parqDraft',
+  'studentAssessmentRecords',
+  'studentFinancialProfile',
+  'studentExternalAccounts',
+  'studentExternalActivities',
   'parqSubmissions',
+  'parqDraft',
   'parqProfessionalReviews',
   'parqLegacyRecords',
   'prontuarioRecords',
   'prontuarioDiscomfortSnapshots',
-  'studentAssessmentRecords',
-  'assessments',
-  'anthropometryAssessments',
-  'assessmentPlanItems',
-  'progressMetrics',
-  'macronutrients',
-  'nutritionPlans',
 ] as const;
 
-export async function hasOwnedHealthDataForConsolidation(
+export async function hasBlockingOwnershipForConsolidation(
   alunoId: string,
   contractId: string,
   client: DbClient = issue274Prisma
@@ -29,42 +50,66 @@ export async function hasOwnedHealthDataForConsolidation(
   const aluno = await client.aluno.findFirst({
     where: { id: alunoId, contractId },
     select: {
+      agendaBookings: { select: { id: true }, take: 1 },
+      anthropometryAssessments: { select: { id: true }, take: 1 },
+      exerciseProgress: { select: { id: true }, take: 1 },
       intakeForm: { select: { id: true } },
+      assessmentPlanItems: { select: { id: true }, take: 1 },
+      assessments: { select: { id: true }, take: 1 },
+      contracts: { select: { id: true }, take: 1 },
+      studentContracts: { select: { id: true }, take: 1 },
+      fixedSlots: { select: { id: true }, take: 1 },
+      integrations: { select: { id: true }, take: 1 },
+      macronutrients: { select: { id: true } },
+      nutritionPlans: { select: { id: true }, take: 1 },
+      progressMetrics: { select: { id: true }, take: 1 },
+      executions: { select: { id: true }, take: 1 },
+      trainingPlans: { select: { id: true }, take: 1 },
+      workoutExecutions: { select: { id: true }, take: 1 },
       studentHealthIntake: { select: { id: true } },
-      parqDraft: { select: { id: true } },
+      studentAssessmentRecords: { select: { id: true }, take: 1 },
+      studentFinancialProfile: { select: { id: true } },
+      studentExternalAccounts: { select: { id: true }, take: 1 },
+      studentExternalActivities: { select: { id: true }, take: 1 },
       parqSubmissions: { select: { id: true }, take: 1 },
+      parqDraft: { select: { id: true } },
       parqProfessionalReviews: { select: { id: true }, take: 1 },
       parqLegacyRecords: { select: { id: true }, take: 1 },
       prontuarioRecords: { select: { id: true }, take: 1 },
       prontuarioDiscomfortSnapshots: { select: { id: true }, take: 1 },
-      studentAssessmentRecords: { select: { id: true }, take: 1 },
-      assessments: { select: { id: true }, take: 1 },
-      anthropometryAssessments: { select: { id: true }, take: 1 },
-      assessmentPlanItems: { select: { id: true }, take: 1 },
-      progressMetrics: { select: { id: true }, take: 1 },
-      macronutrients: { select: { id: true } },
-      nutritionPlans: { select: { id: true }, take: 1 },
     },
   });
 
   if (!aluno) return false;
 
   return Boolean(
-    aluno.intakeForm ||
+    aluno.agendaBookings.length ||
+      aluno.anthropometryAssessments.length ||
+      aluno.exerciseProgress.length ||
+      aluno.intakeForm ||
+      aluno.assessmentPlanItems.length ||
+      aluno.assessments.length ||
+      aluno.contracts.length ||
+      aluno.studentContracts.length ||
+      aluno.fixedSlots.length ||
+      aluno.integrations.length ||
+      aluno.macronutrients ||
+      aluno.nutritionPlans.length ||
+      aluno.progressMetrics.length ||
+      aluno.executions.length ||
+      aluno.trainingPlans.length ||
+      aluno.workoutExecutions.length ||
       aluno.studentHealthIntake ||
-      aluno.parqDraft ||
+      aluno.studentAssessmentRecords.length ||
+      aluno.studentFinancialProfile ||
+      aluno.studentExternalAccounts.length ||
+      aluno.studentExternalActivities.length ||
       aluno.parqSubmissions.length ||
+      aluno.parqDraft ||
       aluno.parqProfessionalReviews.length ||
       aluno.parqLegacyRecords.length ||
       aluno.prontuarioRecords.length ||
-      aluno.prontuarioDiscomfortSnapshots.length ||
-      aluno.studentAssessmentRecords.length ||
-      aluno.assessments.length ||
-      aluno.anthropometryAssessments.length ||
-      aluno.assessmentPlanItems.length ||
-      aluno.progressMetrics.length ||
-      aluno.macronutrients ||
-      aluno.nutritionPlans.length
+      aluno.prontuarioDiscomfortSnapshots.length
   );
 }
 
