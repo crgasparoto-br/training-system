@@ -141,10 +141,10 @@ export function createPreRegistrationHttpObservability(
     const startedAt = process.hrtime.bigint();
     let domainCode: string | undefined;
     const originalJson = res.json;
-    res.json = function preRegistrationObservedJson(body: unknown) {
+    res.json = ((body: unknown) => {
       domainCode = extractPreRegistrationDomainCode(body);
-      return originalJson.call(this, body);
-    } as typeof res.json;
+      return originalJson.call(res, body);
+    }) as typeof res.json;
 
     res.once('finish', () => {
       const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
