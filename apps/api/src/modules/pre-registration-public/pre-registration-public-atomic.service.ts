@@ -21,6 +21,7 @@ import {
 } from '../alunos/student-public-pre-registration.service.js';
 import {
   loadStudentIdentity,
+  lockStudentIdentityDeduplicationScope,
   upsertStudentIdentity,
 } from '../alunos/student-identity.service.js';
 import { PRE_REGISTRATION_PRIVACY_NOTICE_VERSION } from './pre-registration-policy.js';
@@ -84,9 +85,9 @@ function isMinorBirthDate(value?: string | Date | null, now = new Date()): boole
   if (!value) return false;
   const birthDate = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(birthDate.getTime())) return false;
-  let age = now.getFullYear() - birthDate.getFullYear();
-  const month = now.getMonth() - birthDate.getMonth();
-  if (month < 0 || (month === 0 && now.getDate() < birthDate.getDate())) age -= 1;
+  let age = now.getUTCFullYear() - birthDate.getUTCFullYear();
+  const month = now.getUTCMonth() - birthDate.getUTCMonth();
+  if (month < 0 || (month === 0 && now.getUTCDate() < birthDate.getUTCDate())) age -= 1;
   return age < 18;
 }
 
@@ -548,6 +549,7 @@ export const preRegistrationPublicAtomicService = {
         access = await startAuthorizedPreRegistrationInTransaction(tx, access, userId);
 
         if (input.step === 'IDENTIFICATION' || input.step === 'CONTACT') {
+          await lockStudentIdentityDeduplicationScope(tx, access.contractId);
           const detection = await detectPreRegistrationDuplicates(tx, {
             contractId: access.contractId,
             alunoId: access.alunoId,

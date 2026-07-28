@@ -1,5 +1,3 @@
-import './pre-registration-claim-review.adapter.js';
-
 export {
   preRegistrationPublicEntryRoutes,
   preRegistrationAuthenticatedRoutes,

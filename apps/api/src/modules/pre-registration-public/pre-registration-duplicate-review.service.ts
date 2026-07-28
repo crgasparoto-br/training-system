@@ -6,6 +6,7 @@ import type {
 } from '@corrida/types';
 import {
   loadStudentIdentity,
+  lockStudentIdentityDeduplicationScope,
   upsertStudentIdentity,
   type StudentIdentityData,
 } from '../alunos/student-identity.service.js';
@@ -75,9 +76,9 @@ function isMinorBirthDate(value?: string | Date | null, now = new Date()): boole
   if (!value) return false;
   const birthDate = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(birthDate.getTime())) return false;
-  let age = now.getFullYear() - birthDate.getFullYear();
-  const month = now.getMonth() - birthDate.getMonth();
-  if (month < 0 || (month === 0 && now.getDate() < birthDate.getDate())) age -= 1;
+  let age = now.getUTCFullYear() - birthDate.getUTCFullYear();
+  const month = now.getUTCMonth() - birthDate.getUTCMonth();
+  if (month < 0 || (month === 0 && now.getUTCDate() < birthDate.getUTCDate())) age -= 1;
   return age < 18;
 }
 
@@ -266,6 +267,7 @@ export const preRegistrationDuplicateReviewService = {
         ...currentIdentity,
         ...publicIdentityFrom(input.data),
       };
+      await lockStudentIdentityDeduplicationScope(tx, access.contractId);
       const detection = await detectPreRegistrationDuplicates(tx, {
         contractId: access.contractId,
         alunoId: access.alunoId,
@@ -399,7 +401,7 @@ export const preRegistrationDuplicateReviewService = {
       }
 
       return { version: input.expectedVersion + 1, currentStep };
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted });
   },
 
   async projectPublicSession(

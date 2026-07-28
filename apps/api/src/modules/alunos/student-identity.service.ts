@@ -4,6 +4,15 @@ const prisma = new PrismaClient();
 
 type DbClient = Prisma.TransactionClient | PrismaClient;
 
+export async function lockStudentIdentityDeduplicationScope(
+  client: Prisma.TransactionClient,
+  contractId: string
+): Promise<void> {
+  await client.$queryRaw<Array<{ locked: unknown }>>`
+    SELECT pg_advisory_xact_lock(hashtextextended(${contractId}, 27417)) IS NULL AS \"locked\"
+  `;
+}
+
 type IdentityActor = {
   userId?: string;
   professorId?: string;
@@ -120,26 +129,41 @@ export function deriveAgeFromBirthDate(
   birthDate: Date,
   referenceDate: Date = new Date()
 ): number {
-  let age = referenceDate.getFullYear() - birthDate.getFullYear();
-  const monthDiff = referenceDate.getMonth() - birthDate.getMonth();
+  let age = referenceDate.getUTCFullYear() - birthDate.getUTCFullYear();
+  const monthDiff = referenceDate.getUTCMonth() - birthDate.getUTCMonth();
   if (
     monthDiff < 0 ||
-    (monthDiff === 0 && referenceDate.getDate() < birthDate.getDate())
+    (monthDiff === 0 && referenceDate.getUTCDate() < birthDate.getUTCDate())
   ) {
     age -= 1;
   }
   return age;
 }
 
-const toIsoDate = (value?: string | Date | null): string | null | undefined => {
+export function normalizeStudentBirthDate(
+  value?: string | Date | null
+): string | null | undefined {
   if (value === undefined) return undefined;
   if (value === null || value === '') return null;
-  const parsed = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
+
+  const civilDate = value instanceof Date
+    ? value.toISOString().slice(0, 10)
+    : value.trim().match(/^(\d{4}-\d{2}-\d{2})(?:$|T)/)?.[1];
+  if (!civilDate) throw new Error('Data de nascimento inválida');
+
+  const [year, month, day] = civilDate.split('-').map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  if (
+    parsed.getUTCFullYear() !== year ||
+    parsed.getUTCMonth() !== month - 1 ||
+    parsed.getUTCDate() !== day
+  ) {
     throw new Error('Data de nascimento inválida');
   }
-  return parsed.toISOString();
-};
+  return `${civilDate}T00:00:00.000Z`;
+}
+
+const toIsoDate = normalizeStudentBirthDate;
 
 const buildLegacyFallback = (aluno: {
   leadName: string | null;
@@ -293,6 +317,10 @@ export async function upsertStudentIdentity(
   }
 
   const client = options.client;
+  await lockStudentIdentityDeduplicationScope(
+    client as Prisma.TransactionClient,
+    contractId
+  );
   const aluno = await client.aluno.findFirst({
     where: { id: alunoId, contractId },
     include: {

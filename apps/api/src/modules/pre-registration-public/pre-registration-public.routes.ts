@@ -46,7 +46,7 @@ const guardianAuthorizationSchema = z.object({
 const identificationStepDataSchema = z.object({
   name: z.string().trim().min(3).max(200).optional(),
   cpf: z.string().trim().max(20).optional(),
-  birthDate: z.string().trim().max(40).optional(),
+  birthDate: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use a data no formato AAAA-MM-DD').optional(),
   gender: z.enum(['male', 'female', 'other']).optional(),
 }).strict();
 const contactStepDataSchema = z.object({
