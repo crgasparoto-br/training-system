@@ -28,6 +28,52 @@ export interface CapacityAssessmentSourceOption {
 
 const unwrap = <T>(response: { data: { data: T } }) => response.data.data;
 
+function normalizedAssessmentText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function isAngularDetail(detail: CapacityAssessmentSourceDetail) {
+  const label = normalizedAssessmentText(detail.label);
+  const unit = normalizedAssessmentText(detail.unit ?? "");
+  return (
+    label.includes("angulo") ||
+    label.includes("amplitude") ||
+    unit === "grau" ||
+    unit === "graus" ||
+    unit === "degree" ||
+    unit === "degrees" ||
+    detail.unit === "°"
+  );
+}
+
+function normalizeAssessmentDetailsForReview(
+  sources: CapacityAssessmentSourceOption[],
+): CapacityAssessmentSourceOption[] {
+  return sources.map((source) => ({
+    ...source,
+    details: source.details.map((detail) => {
+      if (
+        isAngularDetail(detail) ||
+        detail.value === null ||
+        typeof detail.value === "boolean"
+      ) {
+        return detail;
+      }
+
+      return {
+        ...detail,
+        value: `${String(detail.value)}${detail.unit ? ` ${detail.unit}` : " (contexto)"}`,
+        unit: null,
+      };
+    }),
+  }));
+}
+
 export const capacityPrescriptionService = {
   async listByAluno(alunoId: string): Promise<CapacityPrescriptionView[]> {
     return unwrap(await api.get(`/capacity-prescriptions/alunos/${alunoId}`));
@@ -116,10 +162,11 @@ export const capacityPrescriptionService = {
   async listAssessmentSources(
     alunoId: string,
   ): Promise<CapacityAssessmentSourceOption[]> {
-    return unwrap(
+    const sources = unwrap<CapacityAssessmentSourceOption[]>(
       await api.get(
         `/capacity-prescriptions/alunos/${alunoId}/assessment-sources`,
       ),
     );
+    return normalizeAssessmentDetailsForReview(sources);
   },
 };
