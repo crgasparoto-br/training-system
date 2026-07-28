@@ -1,0 +1,219 @@
+{
+  "schema_version": 3,
+  "issue": 274,
+  "cycle": 1,
+  "state": "internally-verified",
+  "single_invocation_mode": true,
+  "controller_mode": "issue-loop-single-invocation",
+  "execution_mode": "implement-pendencies",
+  "frozen_identity": {
+    "repository": "crgasparoto-br/training-system",
+    "issue": 274,
+    "pull_request": 284,
+    "branch": "feat/274-enrollment-conversion",
+    "head_sha": "fbe3cd0a433e7770f191639ed4706ecdb81733a4",
+    "base_sha": "737a4b580dbe70ec6f6e6ce8c3fc1ade5e286df5",
+    "merge_preview_sha": "bea11184a440c739304e73953e82bbba14915939",
+    "issue_snapshot_sha256": "22dd7e8198ed84de3d22ab3d9e9a1541c37d3661723074b04a6183168ceac63b",
+    "diff_sha256": "ed58fe87d471224c845dd5f85fe7cfbba0d7cb8eda114058b3e6665fddd7187c",
+    "skills_sha256": "b6fb35dac00613e72cfa999b188d51998e533196562a217f700f924d6ee57d35",
+    "captured_at": "2026-07-28T12:46:46Z"
+  },
+  "current_identity": {
+    "repository": "crgasparoto-br/training-system",
+    "issue": 274,
+    "pull_request": 284,
+    "branch": "feat/274-enrollment-conversion",
+    "head_sha": "fbe3cd0a433e7770f191639ed4706ecdb81733a4",
+    "base_sha": "737a4b580dbe70ec6f6e6ce8c3fc1ade5e286df5",
+    "merge_preview_sha": "bea11184a440c739304e73953e82bbba14915939",
+    "issue_snapshot_sha256": "22dd7e8198ed84de3d22ab3d9e9a1541c37d3661723074b04a6183168ceac63b",
+    "diff_sha256": "ed58fe87d471224c845dd5f85fe7cfbba0d7cb8eda114058b3e6665fddd7187c",
+    "skills_sha256": "b6fb35dac00613e72cfa999b188d51998e533196562a217f700f924d6ee57d35",
+    "captured_at": "2026-07-28T12:46:46Z"
+  },
+  "audit": {
+    "validity": "absent",
+    "verdict": "not-run",
+    "identity": null,
+    "implementation_context_id": "issue-loop-2026-07-28-274-cycle-1",
+    "audit_context_id": null,
+    "started_at": null,
+    "finished_at": null,
+    "read_only": true,
+    "requirements_rederived": false,
+    "neutral_packet_sha256": null,
+    "modifications_detected": false,
+    "isolation_proven": false,
+    "external_context_proven": false,
+    "signature_required": false,
+    "signature_valid": null
+  },
+  "requirements_inventory_complete": true,
+  "requirements": [
+    {
+      "id": "AUD-274-17",
+      "status": "Implementado",
+      "evidence": "Tenant-scoped transaction advisory lock before canonical detection and every identity write; concurrent PostgreSQL test passed in run 30360020335.",
+      "scope_basis": "Prior independent audit finding"
+    },
+    {
+      "id": "AUD-274-18",
+      "status": "Implementado",
+      "evidence": "Claim linkage, private duplicate review and audit event now share one transaction; injected persistence failure rolled back all claim effects in run 30360020335.",
+      "scope_basis": "Prior independent audit finding"
+    },
+    {
+      "id": "AUD-274-19",
+      "status": "Implementado",
+      "evidence": "Strict public YYYY-MM-DD validation, calendar validation, UTC civil representation and offset regression tests passed in run 30360020335.",
+      "scope_basis": "Prior independent audit finding"
+    }
+  ],
+  "gate_inventory_complete": true,
+  "gates": [
+    {
+      "name": "civil-date-contract",
+      "required": true,
+      "status": "passed",
+      "command": "pnpm --filter @corrida/api test -- --runInBand tests/student-identity-civil-date.test.ts",
+      "exit_code": 0,
+      "executed_at": "2026-07-28T12:43:00Z",
+      "evidence_path": "GitHub Actions run 30360020335",
+      "evidence_sha256": "91f979442461dd856d758b1081552d4b3fe090166809ea1cd57e56f56a528b1f"
+    },
+    {
+      "name": "atomicity-and-concurrent-deduplication",
+      "required": true,
+      "status": "passed",
+      "command": "RUN_DATABASE_INTEGRATION_TESTS=true pnpm --filter @corrida/api test -- --runInBand tests/issue-274-loop-remediation.integration.test.ts",
+      "exit_code": 0,
+      "executed_at": "2026-07-28T12:43:00Z",
+      "evidence_path": "GitHub Actions run 30360020335",
+      "evidence_sha256": "85d5116ab0481a79f8a7b50495de61835f23e7ee34c5a10c0e80adc6f95819a1"
+    },
+    {
+      "name": "existing-issue-274-remediation-regressions",
+      "required": true,
+      "status": "passed",
+      "command": "RUN_DATABASE_INTEGRATION_TESTS=true pnpm --filter @corrida/api test -- --runInBand tests/issue-274-a005-a006-remediation.integration.test.ts",
+      "exit_code": 0,
+      "executed_at": "2026-07-28T12:43:00Z",
+      "evidence_path": "GitHub Actions run 30360020335",
+      "evidence_sha256": "93b1234c542722a2131ccd1528067cc2a511bbf0fca0de5af49789b8d3dcad01"
+    },
+    {
+      "name": "public-deduplication-contract",
+      "required": true,
+      "status": "passed",
+      "command": "pnpm --filter @corrida/api test -- --runInBand tests/pre-registration-public-deduplication.contract.test.ts",
+      "exit_code": 0,
+      "executed_at": "2026-07-28T12:43:00Z",
+      "evidence_path": "GitHub Actions run 30360020335",
+      "evidence_sha256": "b97431a686f5ba203ea69c3ac6b363adcaac464c47a22f202688faee5f337f66"
+    },
+    {
+      "name": "api-type-check",
+      "required": true,
+      "status": "passed",
+      "command": "pnpm --filter @corrida/api type-check",
+      "exit_code": 0,
+      "executed_at": "2026-07-28T12:43:00Z",
+      "evidence_path": "GitHub Actions run 30360020335",
+      "evidence_sha256": "1ef5999fb9c370d30f9c4da3db79a473c6fd939fb0f55a7d55301933ae16e72b"
+    }
+  ],
+  "findings": [
+    {
+      "id": "AUD-274-17",
+      "fingerprint": "public-identity-dedup-race-between-detection-and-write",
+      "severity": "Alto",
+      "status": "closed",
+      "disposition": "blocking",
+      "occurrence_count": 1,
+      "requirement_id": "AUD-274-17",
+      "cause": "implementation-defect"
+    },
+    {
+      "id": "AUD-274-18",
+      "fingerprint": "claim-commit-before-private-duplicate-review-audit",
+      "severity": "Alto",
+      "status": "closed",
+      "disposition": "blocking",
+      "occurrence_count": 1,
+      "requirement_id": "AUD-274-18",
+      "cause": "implementation-defect"
+    },
+    {
+      "id": "AUD-274-19",
+      "fingerprint": "birth-date-timezone-shifts-civil-day",
+      "severity": "Medio",
+      "status": "closed",
+      "disposition": "blocking",
+      "occurrence_count": 1,
+      "requirement_id": "AUD-274-19",
+      "cause": "implementation-defect"
+    }
+  ],
+  "regressions": [],
+  "limitations": [
+    {
+      "description": "The functional implementation snapshot is fbe3cd0a433e7770f191639ed4706ecdb81733a4; subsequent commits add only issue-loop state and learning artifacts to trigger complete CI.",
+      "material": false
+    }
+  ],
+  "skill_changes": [],
+  "operational_amendments": [
+    {
+      "id": "OA-274-01",
+      "rule": "Treat the state and learning artifact commits after the functional snapshot as operational metadata; revalidate the full branch head before final audit.",
+      "scope": "Issue 274 cycle 1",
+      "effective_cycle": 1
+    }
+  ],
+  "learning_review": {
+    "required": true,
+    "completed": true,
+    "reviewed_finding_ids": ["AUD-274-17", "AUD-274-18", "AUD-274-19"],
+    "items": [
+      {
+        "finding_id": "AUD-274-17",
+        "fingerprint": "public-identity-dedup-race-between-detection-and-write",
+        "cause": "implementation-defect",
+        "affected_skills": ["implementar-issue", "orquestrador"],
+        "decision": "no-change",
+        "rationale": "The skills already required transactional concurrency protection and adversarial validation; the defect was limited to the concrete implementation.",
+        "test_required": true,
+        "test_evidence": "GitHub Actions run 30360020335"
+      },
+      {
+        "finding_id": "AUD-274-18",
+        "fingerprint": "claim-commit-before-private-duplicate-review-audit",
+        "cause": "implementation-defect",
+        "affected_skills": ["implementar-issue", "orquestrador"],
+        "decision": "no-change",
+        "rationale": "The skills and issue contract already required atomic claim and audit persistence; the post-commit adapter was an implementation error.",
+        "test_required": true,
+        "test_evidence": "GitHub Actions run 30360020335"
+      },
+      {
+        "finding_id": "AUD-274-19",
+        "fingerprint": "birth-date-timezone-shifts-civil-day",
+        "cause": "implementation-defect",
+        "affected_skills": ["implementar-issue"],
+        "decision": "no-change",
+        "rationale": "The issue explicitly specified civil-date semantics, so no reusable skill instruction was missing; validation and normalization were corrected.",
+        "test_required": true,
+        "test_evidence": "GitHub Actions run 30360020335"
+      }
+    ],
+    "ledger_path": ".audit/issue-loop-engineer/issue-274/learning-ledger.json",
+    "ledger_sha256": "be9dc257cea922d5c11b42b2d99f9591d6e2ced3c1b297481381d1454a30b12b"
+  },
+  "blocked": {
+    "active": false,
+    "external": false,
+    "alternatives_exhausted": false,
+    "reason": null
+  }
+}
