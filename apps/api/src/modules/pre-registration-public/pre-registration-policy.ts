@@ -1,0 +1,2 @@
+export const PRE_REGISTRATION_PRIVACY_NOTICE_VERSION =
+  process.env.PRIVACY_NOTICE_VERSION?.trim() || '2026-07';

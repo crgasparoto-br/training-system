@@ -16,6 +16,7 @@ export const PRE_REGISTRATION_ADMIN_STATUSES = [
   'PRE_REGISTRATION_IN_PROGRESS',
   'PRE_REGISTRATION_COMPLETED',
   'READY_FOR_ENROLLMENT',
+  'ACTIVE_STUDENT',
   'DISCARDED',
 ] as const satisfies readonly StudentLifecycleStatus[];
 
@@ -167,9 +168,12 @@ export interface UpdatePreRegistrationLeadCommercialDTO {
   responsibleProfessorId?: string | null;
   commercialNotes?: string | null;
   unit?: string | null;
+  expectedDuplicateVersion?: number;
+  confirmedDuplicateFingerprint?: string;
+  confirmedDuplicateReason?: string;
 }
 
-export interface PreRegistrationDuplicateCandidateDTO {
+export interface PreRegistrationAdminDuplicateCandidateDTO {
   alunoId?: string;
   name: string;
   status?: StudentLifecycleStatus;
@@ -180,7 +184,7 @@ export interface PreRegistrationDuplicateCandidateDTO {
 
 export interface PreRegistrationDuplicateCheckResultDTO extends Record<string, unknown> {
   fingerprint: string;
-  candidates: PreRegistrationDuplicateCandidateDTO[];
+  candidates: PreRegistrationAdminDuplicateCandidateDTO[];
   hasBlockingCpfConflict: boolean;
 }
 
@@ -211,7 +215,6 @@ export interface PreRegistrationAdminLeadDetailDTO
   pendencies: PreRegistrationAdminPendingItemDTO[];
   history: PreRegistrationAdminHistoryItemDTO[];
 }
-
 
 export interface PreRegistrationGuardianAuthorizationAdminDTO {
   id: string;

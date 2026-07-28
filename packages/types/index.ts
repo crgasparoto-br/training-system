@@ -16,3 +16,4 @@ export * from './pre-registration-admin.js';
 export * from './pre-registration-public.js';
 export * from './pre-registration-health-intake.js';
 export * from './pre-registration-parq.js';
+export * from './pre-registration-enrollment.js';

@@ -4,6 +4,15 @@ const prisma = new PrismaClient();
 
 type DbClient = Prisma.TransactionClient | PrismaClient;
 
+export async function lockStudentIdentityDeduplicationScope(
+  client: Prisma.TransactionClient,
+  contractId: string
+): Promise<void> {
+  await client.$queryRaw<Array<{ locked: unknown }>>`
+    SELECT pg_advisory_xact_lock(hashtextextended(${contractId}, 27417)) IS NULL AS "locked"
+  `;
+}
+
 type IdentityActor = {
   userId?: string;
   professorId?: string;
@@ -61,42 +70,100 @@ export function normalizeStudentEmail(email?: string | null): string | undefined
   return typeof cleaned === 'string' ? cleaned.toLowerCase() : undefined;
 }
 
+export function isValidStudentCpf(cpf?: string | null): boolean {
+  if (typeof cpf !== 'string') return false;
+  const digits = cpf.replace(/\D/g, '');
+  if (digits.length !== 11 || /^(\d)\1{10}$/.test(digits)) return false;
+
+  const calculateDigit = (length: number) => {
+    let sum = 0;
+    for (let index = 0; index < length; index += 1) {
+      sum += Number(digits[index]) * (length + 1 - index);
+    }
+    const remainder = (sum * 10) % 11;
+    return remainder === 10 ? 0 : remainder;
+  };
+
+  return calculateDigit(9) === Number(digits[9]) && calculateDigit(10) === Number(digits[10]);
+}
+
 export function normalizeStudentPhone(phone?: string | null): string | undefined {
   if (typeof phone !== 'string') return undefined;
-  const digits = phone.replace(/\D/g, '');
-  return digits.length > 0 ? digits : undefined;
+  const raw = phone.trim();
+  if (!raw) return undefined;
+
+  const explicitInternational = raw.startsWith('+') || raw.startsWith('00');
+  let digits = raw.replace(/\D/g, '');
+  if (digits.startsWith('00')) digits = digits.slice(2);
+
+  if (explicitInternational) {
+    return digits.length >= 11 && digits.length <= 15 ? digits : undefined;
+  }
+
+  if (digits.startsWith('55') && (digits.length === 12 || digits.length === 13)) {
+    return digits;
+  }
+
+  // Formato nacional com código de operadora: 0 + operadora + DDD + número.
+  if (digits.startsWith('0') && (digits.length === 13 || digits.length === 14)) {
+    const nationalNumber = digits.slice(3);
+    if (nationalNumber.length === 10 || nationalNumber.length === 11) {
+      return `55${nationalNumber}`;
+    }
+  }
+
+  // Sem prefixo internacional, exige DDD e assume Brasil como país do cadastro.
+  if (digits.length === 10 || digits.length === 11) {
+    return `55${digits}`;
+  }
+
+  return undefined;
 }
 
 export function normalizeStudentCpf(cpf?: string | null): string | undefined {
-  if (typeof cpf !== 'string') return undefined;
-  const digits = cpf.replace(/\D/g, '');
-  return digits.length > 0 ? digits : undefined;
+  if (!isValidStudentCpf(cpf)) return undefined;
+  return cpf!.replace(/\D/g, '');
 }
 
 export function deriveAgeFromBirthDate(
   birthDate: Date,
   referenceDate: Date = new Date()
 ): number {
-  let age = referenceDate.getFullYear() - birthDate.getFullYear();
-  const monthDiff = referenceDate.getMonth() - birthDate.getMonth();
+  let age = referenceDate.getUTCFullYear() - birthDate.getUTCFullYear();
+  const monthDiff = referenceDate.getUTCMonth() - birthDate.getUTCMonth();
   if (
     monthDiff < 0 ||
-    (monthDiff === 0 && referenceDate.getDate() < birthDate.getDate())
+    (monthDiff === 0 && referenceDate.getUTCDate() < birthDate.getUTCDate())
   ) {
     age -= 1;
   }
   return age;
 }
 
-const toIsoDate = (value?: string | Date | null): string | null | undefined => {
+export function normalizeStudentBirthDate(
+  value?: string | Date | null
+): string | null | undefined {
   if (value === undefined) return undefined;
   if (value === null || value === '') return null;
-  const parsed = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
+
+  const civilDate = value instanceof Date
+    ? value.toISOString().slice(0, 10)
+    : value.trim().match(/^(\d{4}-\d{2}-\d{2})(?:$|T)/)?.[1];
+  if (!civilDate) throw new Error('Data de nascimento inválida');
+
+  const [year, month, day] = civilDate.split('-').map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  if (
+    parsed.getUTCFullYear() !== year ||
+    parsed.getUTCMonth() !== month - 1 ||
+    parsed.getUTCDate() !== day
+  ) {
     throw new Error('Data de nascimento inválida');
   }
-  return parsed.toISOString();
-};
+  return `${civilDate}T00:00:00.000Z`;
+}
+
+const toIsoDate = normalizeStudentBirthDate;
 
 const buildLegacyFallback = (aluno: {
   leadName: string | null;
@@ -250,6 +317,12 @@ export async function upsertStudentIdentity(
   }
 
   const client = options.client;
+  if (typeof (client as { $queryRaw?: unknown }).$queryRaw === 'function') {
+    await lockStudentIdentityDeduplicationScope(
+      client as Prisma.TransactionClient,
+      contractId
+    );
+  }
   const aluno = await client.aluno.findFirst({
     where: { id: alunoId, contractId },
     include: {

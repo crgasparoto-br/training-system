@@ -114,3 +114,14 @@ são fontes editáveis: identidade continua sendo escrita somente por
 clínico. A criação administrativa usa transação serializável para que deduplicação,
 registro canônico, responsável e identidade sejam confirmados ou revertidos como
 uma única operação.
+
+## Vínculo de duplicidade resolvida (issue #274)
+
+`Aluno.canonicalAlunoId` registra, sem exclusão física, que um cadastro descartado
+foi consolidado em outro `Aluno` do mesmo `contractId`. A migration
+`20260727010500_issue_274_canonical_duplicate_link` recupera vínculos legados a
+partir de `discardReason = DUPLICATE_OF:<id>` e instala chave estrangeira, índice e
+trigger que impedem autorreferência, destino cross-tenant e cadeia de registros já
+resolvidos. O detector considera somente candidatos sem `canonicalAlunoId`.
+
+Antes de descartar a origem, a aplicação classifica as relações do modelo `Aluno` em duas famílias. Dados estritamente históricos de processo e auditoria — perfil de origem, revisões registradas, logs, onboarding, eventos e convites revogados — permanecem no registro descartado. Relações ativas ou de negócio que exigiriam reassociação — agenda, avaliações, treino, contratos, financeiro, integrações, saúde, PAR-Q, prontuário, métricas, nutrição, configuração de revisão e autorização de responsável — bloqueiam a consolidação. O inventário tipado fica em `pre-registration-clinical-ownership.service.ts`; a migration `20260728081500_issue_274_clinical_ownership_guard` replica a família bloqueante em trigger para fechar chamadas diretas e corridas entre o preflight e o descarte. Enquanto não existir serviço transacional por domínio, qualquer ocorrência retorna `CLINICAL_REASSOCIATION_REQUIRED` e preserva origem, destino e todos os dados owned.

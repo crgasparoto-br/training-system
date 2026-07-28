@@ -27,6 +27,7 @@ type StudentRow = {
   id: string;
   status: StudentLifecycleStatus;
   userId: string | null;
+  leadCpf: string | null;
 };
 
 type OnboardingVersionRow = {
@@ -134,7 +135,7 @@ export async function startGuardianPreRegistrationInTransaction(
   }
 
   const rows = await tx.$queryRaw<StudentRow[]>`
-    SELECT "id", "status", "userId"
+    SELECT "id", "status", "userId", "leadCpf"
     FROM "Aluno"
     WHERE "id" = ${alunoId} AND "contractId" = ${contractId}
     FOR UPDATE
@@ -253,7 +254,7 @@ export async function completePublicStudentPreRegistration(input: {
     }
 
     const studentRows = await tx.$queryRaw<StudentRow[]>`
-      SELECT "id", "status", "userId"
+      SELECT "id", "status", "userId", "leadCpf"
       FROM "Aluno"
       WHERE "id" = ${input.alunoId} AND "contractId" = ${input.contractId}
     `;
@@ -292,7 +293,10 @@ export async function completePublicStudentPreRegistration(input: {
       privacyNoticeVersion: input.privacyNoticeVersion,
       privacyAcceptedAt: input.privacyAcceptedAt,
     });
-    if (!identity.cpf) missing.push('cpf');
+    // Um CPF bloqueante pode estar preservado apenas como valor bruto pendente
+    // de revisão. Ele satisfaz a conclusão pública, mas continua impedindo READY
+    // porque o detector administrativo lê Aluno.leadCpf e reabre a resolução.
+    if (!identity.cpf && !aluno.leadCpf) missing.push('cpf');
     if (isMinorBirthDate(identity.birthDate)) {
       if (!identity.guardianName) missing.push('guardianName');
       if (!identity.guardianCpf) missing.push('guardianCpf');

@@ -30,8 +30,8 @@ const unique = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 describe('student-lifecycle normalization', () => {
   it('normaliza e-mail, telefone e CPF em uma única fronteira', () => {
     expect(normalizeLeadEmail('  Fulano@Exemplo.COM ')).toBe('fulano@exemplo.com');
-    expect(normalizeLeadPhone('(11) 98888-7777')).toBe('11988887777');
-    expect(normalizeLeadCpf('123.456.789-00')).toBe('12345678900');
+    expect(normalizeLeadPhone('(11) 98888-7777')).toBe('5511988887777');
+    expect(normalizeLeadCpf('529.982.247-25')).toBe('52998224725');
   });
 
   it('deriva idade sem fabricar valor persistido', () => {
@@ -231,7 +231,7 @@ describeDb('student-lifecycle integration (banco real)', () => {
     expect(aluno.professorId).toBeNull();
     expect(aluno.age).toBeNull();
     expect(aluno.status).toBe('LEAD');
-    expect(aluno.leadPhoneNormalized).toBe('11900000001');
+    expect(aluno.leadPhoneNormalized).toBe('5511900000001');
 
     const identity = await loadStudentIdentity(aluno.id, contractId);
     expect(identity.name).toBe('Lead Telefone');
@@ -262,7 +262,7 @@ describeDb('student-lifecycle integration (banco real)', () => {
       name: 'CPF A',
       phone: '11910000001',
       email: 'cpf-a@example.test',
-      cpf: '123.456.789-01',
+      cpf: '529.982.247-25',
       birthDate: '1990-01-01',
       privacyNoticeVersion: 'v1',
       privacyAcceptedAt: new Date(),
@@ -277,7 +277,7 @@ describeDb('student-lifecycle integration (banco real)', () => {
         name: 'CPF B',
         phone: '11910000002',
         email: 'cpf-b@example.test',
-        cpf: '123.456.789-01',
+        cpf: '529.982.247-25',
         birthDate: '1991-01-01',
         privacyNoticeVersion: 'v1',
         privacyAcceptedAt: new Date(),
@@ -287,7 +287,7 @@ describeDb('student-lifecycle integration (banco real)', () => {
 
   it('permite o mesmo CPF em contratos diferentes, inclusive nas projeções legadas', async () => {
     const other = await createContract(true);
-    const cpf = '321.654.987-00';
+    const cpf = '111.444.777-35';
     const first = await prepareInProgressLead({
       name: 'CPF Cross Tenant A',
       phone: '11910101010',

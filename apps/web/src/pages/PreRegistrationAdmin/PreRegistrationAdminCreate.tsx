@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { PreRegistrationDuplicateCheckResultDTO } from '@corrida/types';
+import type { PreRegistrationLeadDuplicateCheckDTO } from '@corrida/types';
 import { AlertTriangle, ExternalLink, Link2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { canAccessBlock } from '../../access/access-control';
@@ -11,6 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from '../../components/ui/Card';
+import { Input } from '../../components/ui/Input';
 import { preRegistrationAdminService } from '../../services/pre-registration-admin.service';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { LeadForm, type LeadFormValues } from './LeadForm';
@@ -20,7 +21,6 @@ type SubmissionFailure = {
     data?: {
       error?: string;
       code?: string;
-      details?: PreRegistrationDuplicateCheckResultDTO;
     };
   };
   message?: string;
@@ -50,8 +50,9 @@ export function PreRegistrationAdminCreate() {
   );
   const [responsibles, setResponsibles] = useState<Array<{ id: string; name: string }>>([]);
   const [duplicates, setDuplicates] =
-    useState<PreRegistrationDuplicateCheckResultDTO | null>(null);
+    useState<PreRegistrationLeadDuplicateCheckDTO | null>(null);
   const [confirmDuplicate, setConfirmDuplicate] = useState(false);
+  const [duplicateReason, setDuplicateReason] = useState('');
   const [generateInvite, setGenerateInvite] = useState(canGenerateInvite);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -73,16 +74,33 @@ export function PreRegistrationAdminCreate() {
       }
 
       const duplicateResult = await preRegistrationAdminService.checkDuplicates(values);
-      if (duplicateResult.hasBlockingCpfConflict) {
+      if (duplicateResult.hasBlockingCpfConflict || duplicateResult.classification === 'BLOCKING') {
         setDuplicates(duplicateResult);
         setError(
-          'Já existe um cadastro com este CPF. Abra o registro existente antes de continuar.'
+          'Existe um cadastro incompatível com os identificadores informados. Abra o registro existente ou solicite revisão com escopo adequado.'
         );
         return;
       }
-      if (duplicateResult.candidates.length > 0 && !confirmDuplicate) {
+      if (
+        duplicateResult.classification === 'REVIEW_REQUIRED' &&
+        duplicateResult.restrictedCandidateCount > 0
+      ) {
+        setDuplicates(duplicateResult);
+        setConfirmDuplicate(false);
+        setDuplicateReason('');
+        setError(
+          'A decisão deve ser concluída por um usuário com acesso a todos os cadastros relacionados.'
+        );
+        return;
+      }
+      if (duplicateResult.classification === 'REVIEW_REQUIRED' && !confirmDuplicate) {
         setDuplicates(duplicateResult);
         setError('Revise os possíveis cadastros semelhantes e confirme antes de continuar.');
+        return;
+      }
+      if (duplicateResult.classification === 'REVIEW_REQUIRED' && !duplicateReason.trim()) {
+        setDuplicates(duplicateResult);
+        setError('Informe o motivo para confirmar que se trata de uma nova pessoa.');
         return;
       }
 
@@ -101,6 +119,10 @@ export function PreRegistrationAdminCreate() {
           confirmDuplicate && duplicates?.fingerprint === duplicateResult.fingerprint
             ? duplicateResult.fingerprint
             : undefined,
+        confirmedDuplicateReason:
+          duplicateResult.classification === 'REVIEW_REQUIRED'
+            ? duplicateReason.trim()
+            : undefined,
       });
 
       let generatedInviteUrl: string | undefined;
@@ -118,8 +140,10 @@ export function PreRegistrationAdminCreate() {
       });
     } catch (submissionError) {
       const failure = submissionError as SubmissionFailure;
-      if (failure.response?.data?.code === 'POSSIBLE_DUPLICATE' && failure.response.data.details) {
-        setDuplicates(failure.response.data.details);
+      if (
+        failure.response?.data?.code === 'DUPLICATE_REVIEW_REQUIRED' ||
+        failure.response?.data?.code === 'FORBIDDEN'
+      ) {
         setConfirmDuplicate(false);
       }
       setError(errorMessage(submissionError));
@@ -127,6 +151,11 @@ export function PreRegistrationAdminCreate() {
       setSubmitting(false);
     }
   };
+
+  const showDuplicateCard = Boolean(
+    duplicates &&
+    (duplicates.classification !== 'NONE' || duplicates.restrictedCandidateCount > 0)
+  );
 
   return (
     <LeadForm
@@ -139,11 +168,12 @@ export function PreRegistrationAdminCreate() {
       onIdentityChange={() => {
         setDuplicates(null);
         setConfirmDuplicate(false);
+        setDuplicateReason('');
         setError(null);
       }}
       onSubmit={submit}
     >
-      {duplicates?.candidates.length ? (
+      {showDuplicateCard && duplicates ? (
         <Card className="border-warning/50">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
@@ -151,49 +181,69 @@ export function PreRegistrationAdminCreate() {
               Possíveis cadastros semelhantes
             </CardTitle>
             <CardDescription>
-              A verificação considera todo o contrato. Registros fora do seu escopo aparecem
-              sem identificação para preservar a privacidade.
+              A verificação considera todo o contrato. Registros fora do seu escopo permanecem sem identificação.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {duplicates.candidates.map((candidate, index) => (
+            {duplicates.candidates.map((candidate) => (
               <div
-                key={candidate.alunoId || `${candidate.matchingFields.join('-')}-${index}`}
+                key={candidate.candidateAlunoId}
                 className="rounded-lg border border-border px-3 py-2 text-sm"
               >
-                <p className="font-medium text-foreground">{candidate.name}</p>
-                <p className="text-muted-foreground">
-                  Correspondência: {candidate.matchingFields.join(', ')}
-                </p>
-                {candidate.accessible && candidate.alunoId ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="mt-3"
-                    onClick={() => navigate(`/pre-matriculas/${candidate.alunoId}`)}
-                  >
-                    <ExternalLink className="h-4 w-4" aria-hidden="true" />
-                    Abrir cadastro existente
-                  </Button>
-                ) : (
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    O cadastro existe no contrato, mas não pertence ao seu escopo de consulta.
-                  </p>
-                )}
+                <p className="font-medium text-foreground">{candidate.maskedName}</p>
+                <ul className="mt-1 text-muted-foreground">
+                  {candidate.signals.map((signal) => (
+                    <li key={signal.code}>• {signal.label}</li>
+                  ))}
+                </ul>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-3"
+                  onClick={() => navigate(
+                    candidate.status === 'ACTIVE_STUDENT'
+                      ? `/central-do-aluno/${candidate.candidateAlunoId}`
+                      : `/pre-matriculas/${candidate.candidateAlunoId}`
+                  )}
+                >
+                  <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                  Abrir cadastro existente
+                </Button>
               </div>
             ))}
-            {!duplicates.hasBlockingCpfConflict && (
-              <label className="flex items-start gap-3 rounded-lg bg-muted/50 p-3 text-sm">
-                <input
-                  type="checkbox"
-                  className="mt-0.5 h-4 w-4"
-                  checked={confirmDuplicate}
-                  onChange={(event) => setConfirmDuplicate(event.target.checked)}
-                />
-                <span>Revisei os registros semelhantes e confirmo que esta é uma nova pessoa.</span>
-              </label>
+            {duplicates.restrictedCandidateCount > 0 && (
+              <p className="rounded-lg bg-muted/50 p-3 text-sm text-muted-foreground">
+                Há {duplicates.restrictedCandidateCount} cadastro(s) relacionado(s) fora do seu escopo. Nenhum dado foi exibido e esta decisão não pode ser concluída com o acesso atual.
+              </p>
             )}
+            {duplicates.classification === 'INFORMATIONAL' && (
+              <p className="text-sm text-muted-foreground">
+                A semelhança é apenas informativa e não bloqueia a criação.
+              </p>
+            )}
+            {duplicates.classification === 'REVIEW_REQUIRED' &&
+              duplicates.restrictedCandidateCount === 0 && (
+                <div className="space-y-3">
+                  <label className="flex items-start gap-3 rounded-lg bg-muted/50 p-3 text-sm">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 h-4 w-4"
+                      checked={confirmDuplicate}
+                      onChange={(event) => setConfirmDuplicate(event.target.checked)}
+                    />
+                    <span>Revisei os registros semelhantes e confirmo que esta é uma nova pessoa.</span>
+                  </label>
+                  {confirmDuplicate && (
+                    <Input
+                      value={duplicateReason}
+                      onChange={(event) => setDuplicateReason(event.target.value)}
+                      placeholder="Motivo obrigatório da decisão"
+                      aria-label="Motivo para confirmar nova pessoa"
+                    />
+                  )}
+                </div>
+              )}
           </CardContent>
         </Card>
       ) : null}

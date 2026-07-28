@@ -9,6 +9,7 @@ import {
   type PreRegistrationAccountRegistrationDTO,
   type PreRegistrationClaimDTO,
   type PreRegistrationPublicErrorCode,
+  type PreRegistrationSessionDTO,
   type SavePreRegistrationStepDTO,
 } from '@corrida/types';
 import { authMiddleware, alunoMiddleware } from '../auth/auth.middleware.js';
@@ -45,7 +46,7 @@ const guardianAuthorizationSchema = z.object({
 const identificationStepDataSchema = z.object({
   name: z.string().trim().min(3).max(200).optional(),
   cpf: z.string().trim().max(20).optional(),
-  birthDate: z.string().trim().max(40).optional(),
+  birthDate: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use a data no formato AAAA-MM-DD').optional(),
   gender: z.enum(['male', 'female', 'other']).optional(),
 }).strict();
 const contactStepDataSchema = z.object({
@@ -119,7 +120,6 @@ const PUBLIC_ERROR_DETAIL_KEYS: Partial<
   Record<PreRegistrationPublicErrorCode, readonly string[]>
 > = {
   CONCURRENT_MODIFICATION: ['currentVersion'],
-  DUPLICATE_REVIEW_REQUIRED: ['field', 'draftPreserved', 'reviewRequired'],
   MISSING_REQUIRED_FIELDS: ['fields'],
   GUARDIAN_AUTHORIZATION_REQUIRED: ['recommendedRole'],
   ACTIVE_STUDENT: ['redirectTo'],
@@ -139,6 +139,16 @@ function publicErrorDetails(error: PreRegistrationPublicError): Record<string, u
 
 function handleError(res: Response, error: unknown) {
   if (error instanceof PreRegistrationPublicError) {
+    if (error.code === 'DUPLICATE_REVIEW_REQUIRED') {
+      // Esta condição deve ser consumida internamente pelo fluxo de preservação.
+      // Se escapar por uma rota não prevista, não devolva um oráculo de existência.
+      return sendError(
+        res,
+        'Os dados foram alterados em outro local. Recarregue antes de continuar.',
+        409,
+        { code: 'CONCURRENT_MODIFICATION' }
+      );
+    }
     return sendError(
       res,
       error.message,
@@ -181,6 +191,26 @@ async function singleProcessId(userId: string): Promise<string> {
     );
   }
   return processes[0].alunoId;
+}
+
+async function projectPublicSession(
+  userId: string,
+  alunoId: string,
+  session: PreRegistrationSessionDTO
+): Promise<PreRegistrationSessionDTO> {
+  return preRegistrationDuplicateReviewService.projectPublicSession(
+    userId,
+    alunoId,
+    session
+  );
+}
+
+async function loadPublicSession(
+  userId: string,
+  alunoId: string
+): Promise<PreRegistrationSessionDTO> {
+  const session = await preRegistrationPublicAtomicService.getSession(userId, alunoId);
+  return projectPublicSession(userId, alunoId, session);
 }
 
 publicRouter.post(
@@ -238,7 +268,7 @@ authenticatedRouter.get('/processes/:alunoId/session', async (req, res) => {
   try {
     return sendSuccess(
       res,
-      await preRegistrationPublicAtomicService.getSession(userIdOf(req), req.params.alunoId)
+      await loadPublicSession(userIdOf(req), req.params.alunoId)
     );
   } catch (error) {
     return handleError(res, error);
@@ -251,32 +281,51 @@ async function saveStepForProcess(
   alunoId: string,
   input: SavePreRegistrationStepDTO
 ) {
+  const userId = userIdOf(req);
   try {
+    if (
+      await preRegistrationDuplicateReviewService.hasPendingDuplicateReview(
+        userId,
+        alunoId
+      )
+    ) {
+      await preRegistrationDuplicateReviewService.preserveDuplicateConflict(
+        userId,
+        alunoId,
+        input
+      );
+      return sendSuccess(
+        res,
+        await loadPublicSession(userId, alunoId),
+        'Etapa salva'
+      );
+    }
+
     const session = await preRegistrationPublicAtomicService.saveStep(
-      userIdOf(req),
+      userId,
       alunoId,
       input
     );
-    return sendSuccess(res, session, 'Etapa salva');
+    return sendSuccess(
+      res,
+      await projectPublicSession(userId, alunoId, session),
+      'Etapa salva'
+    );
   } catch (error) {
     if (
       error instanceof PreRegistrationPublicError &&
-      error.code === 'DUPLICATE_REVIEW_REQUIRED' &&
-      error.details?.field === 'cpf'
+      error.code === 'DUPLICATE_REVIEW_REQUIRED'
     ) {
       try {
-        await preRegistrationDuplicateReviewService.preserveCpfConflict(
-          userIdOf(req),
+        await preRegistrationDuplicateReviewService.preserveDuplicateConflict(
+          userId,
           alunoId,
           input
         );
-        return handleError(
+        return sendSuccess(
           res,
-          new PreRegistrationPublicError(
-            'Este CPF já pertence a outro cadastro. Os demais dados foram salvos e enviados para revisão da academia.',
-            'DUPLICATE_REVIEW_REQUIRED',
-            { field: 'cpf', draftPreserved: true, reviewRequired: true }
-          )
+          await loadPublicSession(userId, alunoId),
+          'Etapa salva'
         );
       } catch (preservationError) {
         const message = preservationError instanceof Error
@@ -306,13 +355,18 @@ authenticatedRouter.patch('/processes/:alunoId/steps', async (req, res) => {
 
 authenticatedRouter.post('/processes/:alunoId/complete', async (req, res) => {
   try {
+    const userId = userIdOf(req);
     const session = await preRegistrationPublicAtomicService.complete(
-      userIdOf(req),
+      userId,
       req.params.alunoId,
       parseInput<CompletePreRegistrationDTO>(completeSchema, req.body),
       { ipAddress: req.ip, userAgent: req.get('user-agent') || undefined }
     );
-    return sendSuccess(res, session, 'Pré-cadastro concluído');
+    return sendSuccess(
+      res,
+      await projectPublicSession(userId, req.params.alunoId, session),
+      'Pré-cadastro concluído'
+    );
   } catch (error) {
     return handleError(res, error);
   }
@@ -323,11 +377,9 @@ authenticatedRouter.post('/processes/:alunoId/complete', async (req, res) => {
 // devem usar os endpoints process-scoped acima.
 authenticatedRouter.get('/session', async (req, res) => {
   try {
-    const alunoId = await singleProcessId(userIdOf(req));
-    return sendSuccess(
-      res,
-      await preRegistrationPublicAtomicService.getSession(userIdOf(req), alunoId)
-    );
+    const userId = userIdOf(req);
+    const alunoId = await singleProcessId(userId);
+    return sendSuccess(res, await loadPublicSession(userId, alunoId));
   } catch (error) {
     return handleError(res, error);
   }
@@ -345,14 +397,19 @@ authenticatedRouter.patch('/steps', async (req, res) => {
 
 authenticatedRouter.post('/complete', async (req, res) => {
   try {
-    const alunoId = await singleProcessId(userIdOf(req));
+    const userId = userIdOf(req);
+    const alunoId = await singleProcessId(userId);
     const session = await preRegistrationPublicAtomicService.complete(
-      userIdOf(req),
+      userId,
       alunoId,
       parseInput<CompletePreRegistrationDTO>(completeSchema, req.body),
       { ipAddress: req.ip, userAgent: req.get('user-agent') || undefined }
     );
-    return sendSuccess(res, session, 'Pré-cadastro concluído');
+    return sendSuccess(
+      res,
+      await projectPublicSession(userId, alunoId, session),
+      'Pré-cadastro concluído'
+    );
   } catch (error) {
     return handleError(res, error);
   }

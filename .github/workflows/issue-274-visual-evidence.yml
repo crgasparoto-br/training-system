@@ -1,0 +1,84 @@
+name: Issue 274 Visual Evidence
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - 'apps/web/src/pages/PreRegistrationAdmin/**'
+      - 'apps/web/src/App.tsx'
+      - 'apps/api/scripts/issue-274-visual-evidence.mjs'
+      - '.github/workflows/issue-274-visual-evidence.yml'
+  push:
+    branches:
+      - feat/274-enrollment-conversion
+  workflow_dispatch:
+
+jobs:
+  visual-evidence:
+    name: Render actual review route
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install browser for visual evidence
+        run: pnpm --filter @corrida/api exec puppeteer browsers install chrome
+
+      - name: Start web application
+        shell: bash
+        run: |
+          pnpm --filter @corrida/web exec vite --host 127.0.0.1 --port 4173 > /tmp/issue-274-web.log 2>&1 &
+          echo $! > /tmp/issue-274-web.pid
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:4173/pre-matriculas/visual-lead > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/issue-274-web.log
+          exit 1
+
+      - name: Capture desktop, mobile and error states
+        shell: bash
+        env:
+          ISSUE_274_WEB_URL: http://127.0.0.1:4173
+          ISSUE_274_VISUAL_OUTPUT: artifacts/issue-274-visual
+          ISSUE_274_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -o pipefail
+          mkdir -p "$ISSUE_274_VISUAL_OUTPUT"
+          GITHUB_SHA="$ISSUE_274_HEAD_SHA" \
+            node apps/api/scripts/issue-274-visual-evidence.mjs 2>&1 \
+            | tee "$ISSUE_274_VISUAL_OUTPUT/runner.log"
+
+      - name: Preserve web server log
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p artifacts/issue-274-visual
+          cp /tmp/issue-274-web.log artifacts/issue-274-visual/web-server.log || true
+
+      - name: Upload visual evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-274-visual-evidence-${{ github.run_id }}
+          path: artifacts/issue-274-visual
+          if-no-files-found: error
+          retention-days: 14

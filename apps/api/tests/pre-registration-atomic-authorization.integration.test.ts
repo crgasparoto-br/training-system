@@ -100,6 +100,32 @@ describeDatabase('pre-registration atomic authorization boundary', () => {
         sourceReference: 'issue_271_atomic_authorization_fixture',
       }
     );
+
+    if (label === 'duplicidade') {
+      const candidate = await prisma.aluno.create({
+        data: {
+          contractId: contract.id,
+          status: 'LEAD',
+          leadName: 'Cadastro canônico existente',
+        },
+      });
+      await upsertStudentIdentity(
+        candidate.id,
+        contract.id,
+        {
+          name: 'Cadastro canônico existente',
+          email: `${suffix}-canonical@example.com`,
+          phone: '15888880000',
+          cpf: '12345678909',
+          birthDate: '1985-05-10',
+        },
+        {
+          sourceType: 'professional',
+          sourceReference: 'issue_274_atomic_duplicate_fixture',
+        }
+      );
+    }
+
     await prisma.preRegistrationGuardianAuthorization.create({
       data: {
         contractId: contract.id,

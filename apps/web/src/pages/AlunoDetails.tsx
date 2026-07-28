@@ -45,6 +45,7 @@ import {
   Phone,
   Mail,
   Sparkles,
+  CheckCircle2,
 } from 'lucide-react';
 
 type AlunoAssessmentPlanSnapshot = {
@@ -238,6 +239,7 @@ export function AlunoDetails() {
   const canManageProfileReviewsAction = canAccessBlock(user, 'students.actions.manageProfileReviews');
   const canManageAssessmentPlanAction = canAccessBlock(user, 'students.actions.manageAssessmentPlan');
   const canManageFinancialContracts = canAccessScreen(user, 'students.contracts.manage');
+  const canOpenAgenda = canAccessScreen(user, 'agenda');
   const canCancelFinancialContracts = canAccessScreen(user, 'students.contracts.cancel');
   const canRenewFinancialContracts = canAccessScreen(user, 'students.contracts.renew');
   const canViewFinancialData =
@@ -464,6 +466,8 @@ export function AlunoDetails() {
   const canViewAssessmentsTab = canAccessBlock(user, 'students.details.assessments');
   const canViewAssessmentPlanTab = canAccessBlock(user, 'students.details.assessmentPlan');
   const canViewTrainingPlansTab = canAccessBlock(user, 'students.details.trainingPlans');
+  const enrollmentConfirmed =
+    new URLSearchParams(location.search).get('matricula') === 'confirmada';
 
   useEffect(() => {
     if (id) {
@@ -1247,6 +1251,44 @@ export function AlunoDetails() {
           </div>
         ) : null}
       </div>
+
+      {enrollmentConfirmed && (
+        <Card className="border-success/40 bg-success/10">
+          <CardHeader>
+            <div className="flex items-start gap-3">
+              <CheckCircle2 className="mt-0.5 h-6 w-6 text-success" aria-hidden="true" />
+              <div>
+                <CardTitle>Matrícula confirmada</CardTitle>
+                <CardDescription>
+                  O mesmo cadastro foi ativado como aluno. Escolha a próxima ação conforme sua permissão.
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            {(canManageFinancialContracts || canManageFinancialContractAction) && (
+              <Link to={`/alunos/${id}/contracts`}>
+                <Button variant="outline">Configurar contrato e plano</Button>
+              </Link>
+            )}
+            {canOpenAgenda && (
+              <Link to="/agenda">
+                <Button variant="outline">Abrir agenda</Button>
+              </Link>
+            )}
+            {canViewHealthTab && (
+              <Button variant="outline" onClick={() => setActiveTab('saude-anamnese')}>
+                Ver Anamnese e PAR-Q
+              </Button>
+            )}
+            {canEditStudent && canEditProfileAction && (
+              <Link to={`/alunos/${id}/edit`}>
+                <Button variant="outline">Completar cadastro</Button>
+              </Link>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Contact Info */}
       {tempPassword && (

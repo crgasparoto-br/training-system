@@ -1,8 +1,13 @@
 import { useEffect, useState } from 'react';
-import type { PreRegistrationAdminLeadDetailDTO, PreRegistrationAdminProfessorDTO } from '@corrida/types';
-import { AlertCircle } from 'lucide-react';
+import type {
+  PreRegistrationAdminLeadDetailDTO,
+  PreRegistrationAdminProfessorDTO,
+  PreRegistrationLeadDuplicateCheckDTO,
+} from '@corrida/types';
+import { AlertCircle, AlertTriangle } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Card, CardContent } from '../../components/ui/Card';
+import { Input } from '../../components/ui/Input';
 import { preRegistrationAdminService } from '../../services/pre-registration-admin.service';
 import { LeadForm, type LeadFormValues } from './LeadForm';
 
@@ -19,6 +24,10 @@ export function PreRegistrationAdminEdit() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [duplicates, setDuplicates] =
+    useState<PreRegistrationLeadDuplicateCheckDTO | null>(null);
+  const [confirmDuplicate, setConfirmDuplicate] = useState(false);
+  const [duplicateReason, setDuplicateReason] = useState('');
 
   useEffect(() => {
     Promise.all([
@@ -37,6 +46,37 @@ export function PreRegistrationAdminEdit() {
     setSubmitting(true);
     setError(null);
     try {
+      const duplicateResult = await preRegistrationAdminService.checkUpdateDuplicates(id, values);
+      setDuplicates(duplicateResult);
+      if (
+        duplicateResult.hasBlockingCpfConflict ||
+        duplicateResult.classification === 'BLOCKING'
+      ) {
+        setError('A alteração cria um conflito bloqueante de identidade.');
+        return;
+      }
+      if (
+        duplicateResult.classification === 'REVIEW_REQUIRED' &&
+        duplicateResult.restrictedCandidateCount > 0
+      ) {
+        setConfirmDuplicate(false);
+        setError(
+          'A decisão deve ser concluída por um usuário com acesso a todos os cadastros relacionados.'
+        );
+        return;
+      }
+      if (
+        duplicateResult.classification === 'REVIEW_REQUIRED' &&
+        (!confirmDuplicate || !duplicateReason.trim())
+      ) {
+        setError(
+          confirmDuplicate
+            ? 'Informe o motivo para confirmar que se trata de uma pessoa diferente.'
+            : 'Revise os possíveis cadastros semelhantes e confirme antes de salvar.'
+        );
+        return;
+      }
+
       await preRegistrationAdminService.update(id, {
         name: values.name,
         phone: values.phone || undefined,
@@ -48,6 +88,13 @@ export function PreRegistrationAdminEdit() {
         responsibleProfessorId: values.responsibleProfessorId || null,
         commercialNotes: values.commercialNotes || null,
         unit: values.unit || null,
+        ...(duplicateResult.classification === 'REVIEW_REQUIRED'
+          ? {
+              expectedDuplicateVersion: duplicateResult.recordVersion,
+              confirmedDuplicateFingerprint: duplicateResult.fingerprint,
+              confirmedDuplicateReason: duplicateReason.trim(),
+            }
+          : {}),
       });
       navigate(`/pre-matriculas/${id}`);
     } catch (submissionError) {
@@ -85,7 +132,56 @@ export function PreRegistrationAdminEdit() {
       submitLabel="Salvar alterações"
       submitting={submitting}
       error={error}
+      onIdentityChange={() => {
+        setDuplicates(null);
+        setConfirmDuplicate(false);
+        setDuplicateReason('');
+      }}
       onSubmit={submit}
-    />
+    >
+      {duplicates?.classification === 'REVIEW_REQUIRED' && (
+        <Card className="border-warning/40">
+          <CardContent className="space-y-4 py-5">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-warning" aria-hidden="true" />
+              <div>
+                <h2 className="font-semibold">Revisão de duplicidade necessária</h2>
+                <p className="text-sm text-muted-foreground">
+                  Confira os sinais mascarados. A confirmação ficará vinculada à versão atual
+                  e será auditada junto com a alteração.
+                </p>
+              </div>
+            </div>
+            <ul className="space-y-2 text-sm">
+              {duplicates.candidates.map((candidate) => (
+                <li key={candidate.candidateAlunoId} className="rounded-md border border-border p-3">
+                  <p className="font-medium">{candidate.maskedName}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {candidate.signals.map((signal) => signal.label).join(' • ')}
+                  </p>
+                </li>
+              ))}
+            </ul>
+            <label className="flex items-start gap-3 text-sm">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4"
+                checked={confirmDuplicate}
+                onChange={(event) => setConfirmDuplicate(event.target.checked)}
+              />
+              <span>Confirmo que os cadastros representam pessoas diferentes.</span>
+            </label>
+            <label className="space-y-2">
+              <span className="text-sm font-medium">Motivo da decisão *</span>
+              <Input
+                value={duplicateReason}
+                onChange={(event) => setDuplicateReason(event.target.value)}
+                placeholder="Explique por que o contato compartilhado é válido"
+              />
+            </label>
+          </CardContent>
+        </Card>
+      )}
+    </LeadForm>
   );
 }

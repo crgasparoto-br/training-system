@@ -32,6 +32,7 @@ import {
 import {
   findStudentAccountIdentityMismatches,
   loadStudentIdentity,
+  lockStudentIdentityDeduplicationScope,
   normalizeStudentEmail,
   upsertStudentIdentity,
 } from '../alunos/student-identity.service.js';
@@ -39,9 +40,11 @@ import {
   hashInviteToken,
   timingSafeEqualHash,
 } from '../pre-registration-invites/pre-registration-invite-token.js';
+import { detectPreRegistrationDuplicates } from '../pre-registration-enrollment/pre-registration-enrollment.service.js';
+import { PRE_REGISTRATION_PRIVACY_NOTICE_VERSION } from './pre-registration-policy.js';
+import { recordClaimDuplicateReviewInTransaction } from './pre-registration-claim-review.persistence.js';
 
 const prisma = new PrismaClient();
-const PRIVACY_NOTICE_VERSION = process.env.PRIVACY_NOTICE_VERSION?.trim() || '2026-07';
 const FORM_VERSION = 'pre-registration-v1';
 
 const ALLOWED_PRE_REGISTRATION_STATUSES: StudentLifecycleStatus[] = [
@@ -135,9 +138,9 @@ function isMinorBirthDate(value?: string | Date | null, now = new Date()): boole
   if (!value) return false;
   const birthDate = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(birthDate.getTime())) return false;
-  let age = now.getFullYear() - birthDate.getFullYear();
-  const month = now.getMonth() - birthDate.getMonth();
-  if (month < 0 || (month === 0 && now.getDate() < birthDate.getDate())) age -= 1;
+  let age = now.getUTCFullYear() - birthDate.getUTCFullYear();
+  const month = now.getUTCMonth() - birthDate.getUTCMonth();
+  if (month < 0 || (month === 0 && now.getUTCDate() < birthDate.getUTCDate())) age -= 1;
   return age < 18;
 }
 
@@ -231,6 +234,16 @@ async function claimInviteInTransaction(
   if (!aluno || !aluno.onboarding) {
     throw new PreRegistrationPublicError('Cadastro não disponível.', 'NOT_FOUND');
   }
+  await lockStudentIdentityDeduplicationScope(tx, invite.contractId);
+  const claimDetection = await detectPreRegistrationDuplicates(tx, {
+    contractId: invite.contractId,
+    alunoId: invite.alunoId,
+    overrides: {
+      userId,
+      name: user.profile?.name,
+      email: user.email,
+    },
+  });
   if (!ALLOWED_PRE_REGISTRATION_STATUSES.includes(aluno.status)) {
     if (role === 'STUDENT' && aluno.status === 'ACTIVE_STUDENT' && aluno.userId === userId) {
       throw new PreRegistrationPublicError(
@@ -389,6 +402,13 @@ async function claimInviteInTransaction(
       },
     });
   }
+
+  await recordClaimDuplicateReviewInTransaction(tx, {
+    userId,
+    alunoId: invite.alunoId,
+    contractId: invite.contractId,
+    detection: claimDetection,
+  });
 
   return invite.alunoId;
 }
@@ -627,7 +647,7 @@ async function buildSession(userId: string, alunoId: string): Promise<PreRegistr
     claimRole: role,
     guardianAuthorization: authorization,
     privacy: {
-      noticeVersion: PRIVACY_NOTICE_VERSION,
+      noticeVersion: PRE_REGISTRATION_PRIVACY_NOTICE_VERSION,
       noticeUrl: tenant.privacyNoticeUrl,
       acceptedAt: onboarding.privacyAcceptedAt?.toISOString(),
     },
@@ -999,7 +1019,7 @@ export const preRegistrationPublicService = {
         actorUserId: userId,
         accessRole: accessible.accessRole,
         expectedVersion: input.expectedVersion,
-        privacyNoticeVersion: PRIVACY_NOTICE_VERSION,
+        privacyNoticeVersion: PRE_REGISTRATION_PRIVACY_NOTICE_VERSION,
         privacyAcceptedAt: new Date(),
         ipAddress: audit.ipAddress,
         userAgent: audit.userAgent,
