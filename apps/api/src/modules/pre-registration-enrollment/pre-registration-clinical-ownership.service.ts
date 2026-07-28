@@ -9,6 +9,10 @@ export {
 
 type DbClient = PrismaClient | Prisma.TransactionClient;
 
+function hasScalarValue(value: number | null | undefined): boolean {
+  return value !== null && value !== undefined;
+}
+
 export async function hasBlockingOwnershipForConsolidation(
   alunoId: string,
   contractId: string,
@@ -61,15 +65,15 @@ export async function hasBlockingOwnershipForConsolidation(
   if (!aluno) return false;
 
   return Boolean(
-    aluno.weight !== null ||
-      aluno.height !== null ||
-      aluno.bodyFatPercentage !== null ||
-      aluno.vo2Max !== null ||
-      aluno.anaerobicThreshold !== null ||
-      aluno.maxHeartRate !== null ||
-      aluno.restingHeartRate !== null ||
-      aluno.systolicPressure !== null ||
-      aluno.diastolicPressure !== null ||
+    hasScalarValue(aluno.weight) ||
+      hasScalarValue(aluno.height) ||
+      hasScalarValue(aluno.bodyFatPercentage) ||
+      hasScalarValue(aluno.vo2Max) ||
+      hasScalarValue(aluno.anaerobicThreshold) ||
+      hasScalarValue(aluno.maxHeartRate) ||
+      hasScalarValue(aluno.restingHeartRate) ||
+      hasScalarValue(aluno.systolicPressure) ||
+      hasScalarValue(aluno.diastolicPressure) ||
       aluno.agendaBookings.length ||
       aluno.anthropometryAssessments.length ||
       aluno.exerciseProgress.length ||
