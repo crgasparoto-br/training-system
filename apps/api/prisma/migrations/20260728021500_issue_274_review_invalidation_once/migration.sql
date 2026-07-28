@@ -86,3 +86,58 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
+-- Remove variantes legadas que poderiam permanecer vinculadas às mesmas funções
+-- e produzir mais de uma invalidação para uma única mutação lógica.
+DO $$
+DECLARE
+  trigger_row RECORD;
+BEGIN
+  FOR trigger_row IN
+    SELECT namespace.nspname AS schema_name,
+           relation.relname AS table_name,
+           trigger_definition.tgname AS trigger_name
+    FROM pg_trigger trigger_definition
+    JOIN pg_class relation ON relation.oid = trigger_definition.tgrelid
+    JOIN pg_namespace namespace ON namespace.oid = relation.relnamespace
+    JOIN pg_proc trigger_function ON trigger_function.oid = trigger_definition.tgfoid
+    WHERE NOT trigger_definition.tgisinternal
+      AND relation.relname IN ('Aluno', 'StudentProfile')
+      AND (
+        trigger_definition.tgname IN (
+          'Aluno_invalidate_pre_registration_review',
+          'StudentProfile_invalidate_pre_registration_review'
+        )
+        OR trigger_function.proname LIKE 'invalidate_pre_registration_review%'
+      )
+  LOOP
+    EXECUTE format(
+      'DROP TRIGGER IF EXISTS %I ON %I.%I',
+      trigger_row.trigger_name,
+      trigger_row.schema_name,
+      trigger_row.table_name
+    );
+  END LOOP;
+END;
+$$;
+
+CREATE TRIGGER "Aluno_invalidate_pre_registration_review"
+AFTER UPDATE OF
+  "leadName",
+  "leadCpfNormalized",
+  "leadPhoneNormalized",
+  "leadAdditionalPhoneNormalized",
+  "leadEmailNormalized",
+  "leadAdditionalEmailNormalized",
+  "birthDate",
+  "leadOrigin",
+  "professorId"
+ON "Aluno"
+FOR EACH ROW
+EXECUTE FUNCTION "invalidate_pre_registration_review_on_identity_change"();
+
+CREATE TRIGGER "StudentProfile_invalidate_pre_registration_review"
+AFTER UPDATE OF "identificationData"
+ON "StudentProfile"
+FOR EACH ROW
+EXECUTE FUNCTION "invalidate_pre_registration_review_on_commercial_change"();
