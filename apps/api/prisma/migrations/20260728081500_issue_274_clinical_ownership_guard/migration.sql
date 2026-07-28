@@ -27,7 +27,8 @@ BEGIN
        UNION ALL SELECT 1 FROM "AlunoIntakeForm" WHERE "alunoId" = NEW."id"
        UNION ALL SELECT 1 FROM "AlunoAssessmentPlanItem" WHERE "alunoId" = NEW."id"
        UNION ALL SELECT 1 FROM "Assessment" WHERE "alunoId" = NEW."id"
-       UNION ALL SELECT 1 FROM "Contract" WHERE "alunoId" = NEW."id"
+       -- O model Prisma Contract usa @@map("GeneratedContract").
+       UNION ALL SELECT 1 FROM "GeneratedContract" WHERE "alunoId" = NEW."id"
        UNION ALL SELECT 1 FROM "StudentContract" WHERE "alunoId" = NEW."id"
        UNION ALL SELECT 1 FROM "FixedScheduleSlot" WHERE "alunoId" = NEW."id"
        UNION ALL SELECT 1 FROM "Integration" WHERE "alunoId" = NEW."id"
