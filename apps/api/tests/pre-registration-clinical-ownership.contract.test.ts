@@ -13,33 +13,33 @@ const migration = read(
 const schema = read('apps/api/prisma/schema.prisma');
 
 const expectedOwnership = {
-  agendaBookings: 'AgendaBooking',
-  anthropometryAssessments: 'AnthropometryAssessment',
-  exerciseProgress: 'AlunoExerciseProgress',
-  intakeForm: 'AlunoIntakeForm',
-  assessmentPlanItems: 'AlunoAssessmentPlanItem',
-  assessments: 'Assessment',
-  contracts: 'Contract',
-  studentContracts: 'StudentContract',
-  fixedSlots: 'FixedScheduleSlot',
-  integrations: 'Integration',
-  macronutrients: 'Macronutrients',
-  nutritionPlans: 'NutritionPlan',
-  progressMetrics: 'ProgressMetric',
-  executions: 'TrainingExecution',
-  trainingPlans: 'TrainingPlan',
-  workoutExecutions: 'WorkoutExecution',
-  studentHealthIntake: 'StudentHealthIntake',
-  studentAssessmentRecords: 'StudentAssessmentRecord',
-  studentFinancialProfile: 'StudentFinancialProfile',
-  studentExternalAccounts: 'StudentExternalAccount',
-  studentExternalActivities: 'StudentExternalActivity',
-  parqSubmissions: 'StudentParqSubmission',
-  parqDraft: 'StudentParqDraft',
-  parqProfessionalReviews: 'StudentParqProfessionalReview',
-  parqLegacyRecords: 'StudentParqLegacyRecord',
-  prontuarioRecords: 'ProntuarioRecord',
-  prontuarioDiscomfortSnapshots: 'ProntuarioDiscomfortSnapshot',
+  agendaBookings: { model: 'AgendaBooking', table: 'AgendaBooking' },
+  anthropometryAssessments: { model: 'AnthropometryAssessment', table: 'AnthropometryAssessment' },
+  exerciseProgress: { model: 'AlunoExerciseProgress', table: 'AlunoExerciseProgress' },
+  intakeForm: { model: 'AlunoIntakeForm', table: 'AlunoIntakeForm' },
+  assessmentPlanItems: { model: 'AlunoAssessmentPlanItem', table: 'AlunoAssessmentPlanItem' },
+  assessments: { model: 'Assessment', table: 'Assessment' },
+  contracts: { model: 'Contract', table: 'GeneratedContract' },
+  studentContracts: { model: 'StudentContract', table: 'StudentContract' },
+  fixedSlots: { model: 'FixedScheduleSlot', table: 'FixedScheduleSlot' },
+  integrations: { model: 'Integration', table: 'Integration' },
+  macronutrients: { model: 'Macronutrients', table: 'Macronutrients' },
+  nutritionPlans: { model: 'NutritionPlan', table: 'NutritionPlan' },
+  progressMetrics: { model: 'ProgressMetric', table: 'ProgressMetric' },
+  executions: { model: 'TrainingExecution', table: 'TrainingExecution' },
+  trainingPlans: { model: 'TrainingPlan', table: 'TrainingPlan' },
+  workoutExecutions: { model: 'WorkoutExecution', table: 'WorkoutExecution' },
+  studentHealthIntake: { model: 'StudentHealthIntake', table: 'StudentHealthIntake' },
+  studentAssessmentRecords: { model: 'StudentAssessmentRecord', table: 'StudentAssessmentRecord' },
+  studentFinancialProfile: { model: 'StudentFinancialProfile', table: 'StudentFinancialProfile' },
+  studentExternalAccounts: { model: 'StudentExternalAccount', table: 'StudentExternalAccount' },
+  studentExternalActivities: { model: 'StudentExternalActivity', table: 'StudentExternalActivity' },
+  parqSubmissions: { model: 'StudentParqSubmission', table: 'StudentParqSubmission' },
+  parqDraft: { model: 'StudentParqDraft', table: 'StudentParqDraft' },
+  parqProfessionalReviews: { model: 'StudentParqProfessionalReview', table: 'StudentParqProfessionalReview' },
+  parqLegacyRecords: { model: 'StudentParqLegacyRecord', table: 'StudentParqLegacyRecord' },
+  prontuarioRecords: { model: 'ProntuarioRecord', table: 'ProntuarioRecord' },
+  prontuarioDiscomfortSnapshots: { model: 'ProntuarioDiscomfortSnapshot', table: 'ProntuarioDiscomfortSnapshot' },
 } as const;
 
 const expectedPreservedSourceHistory = [
@@ -59,10 +59,12 @@ describe('issue 274 consolidation ownership contract', () => {
       Object.keys(expectedOwnership).sort()
     );
 
-    for (const [relation, model] of Object.entries(expectedOwnership)) {
+    for (const [relation, ownership] of Object.entries(expectedOwnership)) {
       expect(schema).toContain(`${relation}`);
-      expect(schema).toContain(`model ${model} `);
-      expect(migration).toContain(`FROM "${model}" WHERE "alunoId" = NEW."id"`);
+      expect(schema).toContain(`model ${ownership.model} `);
+      expect(migration).toContain(
+        `FROM "${ownership.table}" WHERE "alunoId" = NEW."id"`
+      );
     }
   });
 
