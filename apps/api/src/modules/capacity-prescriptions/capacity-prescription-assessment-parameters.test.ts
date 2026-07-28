@@ -15,6 +15,12 @@ describe('capacity assessment parameter derivation', () => {
             metricLabel: 'Extensão dos dedos',
             valueText: '37,5',
           },
+          {
+            metricKey: 'forca_ombro',
+            metricLabel: 'Força do ombro',
+            valueNumber: 80,
+            unit: 'kgf',
+          },
         ],
       },
     ]);
@@ -25,6 +31,7 @@ describe('capacity assessment parameter derivation', () => {
         expect.objectContaining({ name: 'Dedos', angle: 37.5, priority: 'medium' }),
       ])
     );
+    expect(result).toHaveLength(2);
   });
 
   it('preserva o valor revisado pelo professor e preenche somente ângulos vazios', () => {
