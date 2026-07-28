@@ -1,0 +1,33 @@
+name: Apply Issue 275 Cycle 3
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - '.github/workflows/apply-issue-275-cycle3.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply-fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/275-pre-registration-qa-rollout
+          fetch-depth: 0
+      - name: Isolate contrast calculation from Node transpiler helpers
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git apply --index .audit/issue-275-cycle3.patch
+          rm .audit/issue-275-cycle3.patch
+          git add -A
+          git diff --cached --check
+          git commit -m 'fix: isolar cálculo de contraste no contexto do navegador'
+          git push origin HEAD:feat/275-pre-registration-qa-rollout
