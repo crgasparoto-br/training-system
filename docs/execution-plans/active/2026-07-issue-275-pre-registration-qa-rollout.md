@@ -52,7 +52,11 @@ Fontes principais:
 - [x] Adicionar gate equivalente na navegação e nas rotas web.
 - [x] Adicionar telemetria HTTP sanitizada e testes unitários.
 - [x] Documentar produto, API, permissões, QA, rollout e rollback.
-- [ ] Adicionar workflow consolidado da issue #275.
+- [x] Adicionar workflow consolidado da issue #275.
+- [x] Corrigir a matriz para exigir auditoria positiva, paginada, sanitizada e tenant-scoped.
+- [x] Ampliar o backfill para o dataset representativo exigido e reexecução convergente.
+- [x] Inspecionar privacidade no ciclo completo com telemetria ativa e política de referrer.
+- [x] Adicionar gate executável de teclado, foco, labels, contraste, árvore acessível, zoom e teclado móvel.
 - [ ] Executar `pnpm validate` e verificadores especializados no CI do PR.
 - [ ] Executar passagem adversarial no SHA final e remediar achados bloqueantes.
 - [ ] Registrar resultado e mover este plano para `completed/` quando os gates estiverem aprovados.
@@ -65,6 +69,10 @@ Fontes principais:
 - [x] Menu administrativo não aparece quando a UI está desligada.
 - [x] Testes cobrem defaults, valores explícitos e privacidade da métrica.
 - [x] Documentação permanente descreve ciclo, APIs, permissões, QA, observabilidade e rollback.
+- [x] A matriz de autorização não aceita ausência da rota de auditoria como sucesso.
+- [x] O fixture de migration cobre aluno incompleto, múltiplos PAR-Q, tenants semelhantes, lead e processo em andamento.
+- [x] Privacidade é inspecionada antes e depois do claim, com telemetria ativa e `Referer` sem token.
+- [x] Acessibilidade possui evidência executável em mobile, desktop e zoom de 200%.
 - [ ] `pnpm validate` passa no SHA candidato.
 - [ ] Workflows especializados e consolidados passam no merge preview.
 - [ ] Auditoria controller-adversarial não encontra ressalva bloqueante.
@@ -83,4 +91,5 @@ Fontes principais:
 
 - O piloto por tenant não será simulado dentro de uma única instância; usar ambiente/instância separado até existir flag tenant-scoped.
 - O rollback padrão é de aplicação e flag, sem reversão destrutiva de migrations.
-- O ambiente local desta execução não conseguiu resolver `github.com`; validações executáveis serão realizadas pelo GitHub Actions e registradas na PR.
+- A fonte do SHA remoto foi materializada por artefato temporário do GitHub Actions para permitir validação local reproduzível; o workflow auxiliar será removido antes do freeze final.
+- Os cinco achados da auditoria independente anterior (`A-001` a `A-005`) exigem nova identidade congelada e nova auditoria após os workflows do SHA remediado.

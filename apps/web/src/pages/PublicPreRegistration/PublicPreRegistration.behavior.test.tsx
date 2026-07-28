@@ -341,6 +341,40 @@ describe('PublicPreRegistration - resiliência, seleção e autorização', () =
     expect(screen.getByLabelText(/E-mail alternativo/i)).toBeInTheDocument();
   });
 
+  it('moves focus to a public submission error', async () => {
+    mocks.routeToken = 'valid-token';
+    mocks.open.mockResolvedValueOnce({
+      tenant: {
+        name: 'Academia Teste',
+        privacyNoticeUrl: 'https://example.com/privacy',
+      },
+      stages: [],
+      approximateDuration: '5 minutos',
+      expiresAt: '2026-08-30T12:00:00.000Z',
+    });
+    mocks.registerAndClaim.mockRejectedValueOnce({
+      response: { data: { error: 'Não foi possível criar o acesso.' } },
+    });
+
+    render(
+      <MemoryRouter>
+        <PublicPreRegistration />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(await screen.findByRole('tab', { name: /Criar acesso/i }));
+    fireEvent.change(screen.getByLabelText(/Nome completo/i), { target: { value: 'Responsável' } });
+    fireEvent.change(screen.getByLabelText(/^E-mail$/i), {
+      target: { value: 'responsavel@example.com' },
+    });
+    fireEvent.change(screen.getByLabelText(/^Senha$/i), { target: { value: 'senha-segura' } });
+    fireEvent.click(screen.getByRole('button', { name: /Criar acesso e continuar/i }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(/Não foi possível criar o acesso/i);
+    expect(document.activeElement).toBe(alert);
+  });
+
   it('keeps invalid invite messaging actionable', async () => {
     mocks.routeToken = 'invalid-token';
     mocks.open.mockRejectedValueOnce({ response: { data: { error: 'Link inválido ou expirado.' } } });
@@ -403,7 +437,9 @@ describe('PublicPreRegistration - resiliência, seleção e autorização', () =
       </MemoryRouter>
     );
 
-    expect(await screen.findByRole('heading', { name: /Informe seu vínculo/i })).toBeInTheDocument();
+    const guardianHeading = await screen.findByRole('heading', { name: /Informe seu vínculo/i });
+    expect(guardianHeading).toBeInTheDocument();
+    await waitFor(() => expect(document.activeElement).toBe(guardianHeading));
     expect(mocks.getSession).not.toHaveBeenCalled();
 
     fireEvent.change(screen.getByLabelText(/Vínculo com o menor/i), {
@@ -418,9 +454,11 @@ describe('PublicPreRegistration - resiliência, seleção e autorização', () =
         declarationAccepted: true,
       });
     });
-    expect(
-      await screen.findByRole('heading', { name: /Aguardando validação da academia/i })
-    ).toBeInTheDocument();
+    const awaitingHeading = await screen.findByRole('heading', {
+      name: /Aguardando validação da academia/i,
+    });
+    expect(awaitingHeading).toBeInTheDocument();
+    await waitFor(() => expect(document.activeElement).toBe(awaitingHeading));
     expect(screen.getByText(/dados pessoais do menor continuarão protegidos/i)).toBeInTheDocument();
     expect(mocks.getSession).not.toHaveBeenCalled();
   });

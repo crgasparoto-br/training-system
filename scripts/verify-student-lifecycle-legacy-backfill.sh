@@ -40,38 +40,46 @@ while IFS= read -r migration; do
 done < <(find "$ROOT_DIR/apps/api/prisma/migrations" -mindepth 2 -maxdepth 2 -name migration.sql | sort)
 
 psql_admin_stdin "$DB_NAME" <<'SQL'
-INSERT INTO "Contract" ("id", "type", "document", "name", "createdAt", "updatedAt")
-VALUES ('legacy-contract', 'academy', 'legacy-contract-document', 'Academia legada', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+INSERT INTO "Contract" ("id", "type", "document", "name", "createdAt", "updatedAt") VALUES
+  ('legacy-contract', 'academy', 'legacy-contract-document-01', 'Academia legada 01', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  ('legacy-contract-similar', 'academy', 'legacy-contract-document-02', 'Academia legada 02', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 
 INSERT INTO "User" ("id", "email", "passwordHash", "type", "createdAt", "updatedAt") VALUES
   ('legacy-professor-user', 'legacy-professor@example.com', 'hash', 'professor', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-  ('legacy-student-user', 'legacy-student@example.com', 'hash', 'aluno', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+  ('legacy-professor-user-b', 'legacy-professor-b@example.com', 'hash', 'professor', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  ('legacy-student-user', 'legacy-student@example.com', 'hash', 'aluno', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  ('legacy-incomplete-user', 'legacy-incomplete@example.com', 'hash', 'aluno', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  ('legacy-similar-user', 'legacy-similar@example.com', 'hash', 'aluno', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 
 INSERT INTO "Profile" (
   "id", "userId", "name", "phone", "cpf", "birthDate", "createdAt", "updatedAt"
 ) VALUES
-  ('legacy-professor-profile', 'legacy-professor-user', 'Professor legado', '15999990000', NULL, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-  ('legacy-student-profile', 'legacy-student-user', 'Aluno legado', '15999991111', '12345678901', '1990-05-15', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+  ('legacy-professor-profile', 'legacy-professor-user', 'Professor legado A', '15999990000', NULL, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  ('legacy-professor-profile-b', 'legacy-professor-user-b', 'Professor legado B', '15999990001', NULL, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  ('legacy-student-profile', 'legacy-student-user', 'Aluno legado completo', '15999991111', '12345678901', '1990-05-15', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  ('legacy-incomplete-profile', 'legacy-incomplete-user', 'Aluno legado incompleto', NULL, NULL, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  ('legacy-similar-profile', 'legacy-similar-user', 'Aluno identificador semelhante', '15999991112', '12345678902', '1991-05-15', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 
 INSERT INTO "CollaboratorFunctionOption" (
   "id", "contractId", "name", "code", "createdAt", "updatedAt"
-) VALUES ('legacy-professor-function', 'legacy-contract', 'Professor', 'legacy-professor', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+) VALUES
+  ('legacy-professor-function', 'legacy-contract', 'Professor', 'legacy-professor', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  ('legacy-professor-function-b', 'legacy-contract-similar', 'Professor', 'legacy-professor-b', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 
 INSERT INTO "Professor" (
   "id", "userId", "contractId", "role", "collaboratorFunctionId", "createdAt", "updatedAt"
-) VALUES (
-  'legacy-professor', 'legacy-professor-user', 'legacy-contract', 'professor',
-  'legacy-professor-function', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-);
+) VALUES
+  ('legacy-professor', 'legacy-professor-user', 'legacy-contract', 'professor', 'legacy-professor-function', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  ('legacy-professor-b', 'legacy-professor-user-b', 'legacy-contract-similar', 'professor', 'legacy-professor-function-b', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 
 INSERT INTO "Aluno" (
   "id", "userId", "professorId", "age", "weight", "height", "vo2Max",
   "anaerobicThreshold", "maxHeartRate", "restingHeartRate", "schedulePlan",
   "createdAt", "updatedAt"
-) VALUES (
-  'legacy-aluno', 'legacy-student-user', 'legacy-professor', 36, 70, 175, 48,
-  12, 190, 60, 'free', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-);
+) VALUES
+  ('legacy-aluno', 'legacy-student-user', 'legacy-professor', 36, 70, 175, 48, 12, 190, 60, 'free', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  ('legacy-incomplete-aluno', 'legacy-incomplete-user', 'legacy-professor', 18, NULL, NULL, NULL, NULL, NULL, NULL, 'free', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  ('legacy-similar-aluno', 'legacy-similar-user', 'legacy-professor-b', 35, NULL, NULL, NULL, NULL, NULL, NULL, 'free', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 
 INSERT INTO "AlunoIntakeForm" (
   "id", "alunoId", "assessmentDate", "mainGoal", "parqResponses", "formResponses",
@@ -92,10 +100,9 @@ INSERT INTO "StudentHealthIntake" (
 INSERT INTO "StudentParqSubmission" (
   "id", "alunoId", "contractId", "sourceType", "responses", "positiveItems",
   "declarationAccepted", "createdAt", "updatedAt"
-) VALUES (
-  'legacy-parq', 'legacy-aluno', 'legacy-contract', 'student', '{"q1": false, "q8": true}'::jsonb,
-  '[]'::jsonb, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-);
+) VALUES
+  ('legacy-parq-1', 'legacy-aluno', 'legacy-contract', 'student', '{"q1": false, "q8": true}'::jsonb, '[]'::jsonb, true, CURRENT_TIMESTAMP - INTERVAL '30 days', CURRENT_TIMESTAMP - INTERVAL '30 days'),
+  ('legacy-parq-2', 'legacy-aluno', 'legacy-contract', 'student', '{"q1": true, "q8": false}'::jsonb, '["q1"]'::jsonb, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 
 INSERT INTO "TrainingPlan" (
   "id", "professorId", "alunoId", "name", "startDate", "endDate", "createdAt", "updatedAt"
@@ -195,8 +202,26 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM "StudentHealthIntake" WHERE "id" = 'legacy-health-intake' AND "alunoId" = 'legacy-aluno') THEN
     RAISE EXCEPTION 'segmented health intake was not preserved';
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM "StudentParqSubmission" WHERE "id" = 'legacy-parq' AND "alunoId" = 'legacy-aluno') THEN
-    RAISE EXCEPTION 'PAR-Q submission was not preserved';
+  IF (SELECT COUNT(*) FROM "StudentParqSubmission" WHERE "alunoId" = 'legacy-aluno') <> 2 THEN
+    RAISE EXCEPTION 'multiple PAR-Q submissions were not preserved';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM "Aluno"
+    WHERE "id" = 'legacy-incomplete-aluno'
+      AND "contractId" = 'legacy-contract'
+      AND "status" = 'ACTIVE_STUDENT'
+      AND "leadPhone" IS NULL
+      AND "leadCpf" IS NULL
+  ) THEN
+    RAISE EXCEPTION 'incomplete legacy student was not preserved safely';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM "Aluno"
+    WHERE "id" = 'legacy-similar-aluno'
+      AND "contractId" = 'legacy-contract-similar'
+      AND "leadCpfNormalized" = '12345678902'
+  ) THEN
+    RAISE EXCEPTION 'similar second-tenant identity was not isolated';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM "StudentProfile" WHERE "alunoId" = 'legacy-aluno' AND "contractId" = 'legacy-contract') THEN
     RAISE EXCEPTION 'canonical student profile was not backfilled';
@@ -210,12 +235,71 @@ BEGIN
 END $$;
 SQL
 
+# Add records that only the new lifecycle schema can represent, then prove a rerun
+# preserves both a fresh lead and an in-progress onboarding process.
+psql_admin_stdin "$DB_NAME" <<'SQL'
+INSERT INTO "Aluno" (
+  "id", "contractId", "status", "leadName", "leadPhone", "leadPhoneNormalized",
+  "leadOrigin", "createdAt", "updatedAt"
+) VALUES
+  ('new-lead-after-cutover', 'legacy-contract', 'LEAD', 'Lead novo pós-cutover', '15970000001', '15970000001', 'qa-backfill', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+  ('in-progress-after-cutover', 'legacy-contract-similar', 'PRE_REGISTRATION_IN_PROGRESS', 'Pré-cadastro em andamento', '15970000002', '15970000002', 'qa-backfill', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+
+INSERT INTO "StudentOnboardingProcess" (
+  "id", "alunoId", "contractId", "formVersion", "startedAt", "lastSavedAt", "createdAt", "updatedAt"
+) VALUES (
+  'onboarding-in-progress-after-cutover', 'in-progress-after-cutover', 'legacy-contract-similar',
+  'issue-275', CURRENT_TIMESTAMP - INTERVAL '1 day', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+);
+SQL
+
 # A second application must be convergent and leave the populated legacy graph intact.
 psql_admin "$DB_NAME" \
   -f "/workspace/apps/api/prisma/migrations/${TARGET_MIGRATION}/migration.sql" >/dev/null
 
-psql_admin "$DB_NAME" -Atc \
-  "SELECT CASE WHEN COUNT(*) = 1 THEN 'legacy-backfill-ok' ELSE 'legacy-backfill-invalid' END FROM \"Aluno\" WHERE \"id\" = 'legacy-aluno' AND \"contractId\" = 'legacy-contract' AND \"status\" = 'ACTIVE_STUDENT';" \
-  | grep -qx 'legacy-backfill-ok'
+psql_admin_stdin "$DB_NAME" <<'SQL'
+DO $$
+BEGIN
+  IF (SELECT COUNT(*) FROM "Aluno" WHERE "status" = 'ACTIVE_STUDENT') <> 3 THEN
+    RAISE EXCEPTION 'legacy active student count changed after rerun';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM "Aluno"
+    WHERE "id" = 'new-lead-after-cutover' AND "contractId" = 'legacy-contract' AND "status" = 'LEAD'
+  ) THEN
+    RAISE EXCEPTION 'new lead was not preserved on migration rerun';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM "Aluno"
+    WHERE "id" = 'in-progress-after-cutover'
+      AND "contractId" = 'legacy-contract-similar'
+      AND "status" = 'PRE_REGISTRATION_IN_PROGRESS'
+  ) THEN
+    RAISE EXCEPTION 'in-progress pre-registration was not preserved on migration rerun';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM "StudentOnboardingProcess"
+    WHERE "id" = 'onboarding-in-progress-after-cutover'
+      AND "alunoId" = 'in-progress-after-cutover'
+      AND "formVersion" = 'issue-275'
+  ) THEN
+    RAISE EXCEPTION 'in-progress onboarding was replaced during rerun';
+  END IF;
+  IF (SELECT COUNT(*) FROM "StudentParqSubmission" WHERE "alunoId" = 'legacy-aluno') <> 2 THEN
+    RAISE EXCEPTION 'PAR-Q history changed after rerun';
+  END IF;
+  IF (SELECT COUNT(*) FROM "Contract" WHERE "id" IN ('legacy-contract', 'legacy-contract-similar')) <> 2 THEN
+    RAISE EXCEPTION 'tenant dataset changed after rerun';
+  END IF;
+END $$;
+SQL
 
-echo "Issue #268 legacy backfill verified on a populated pre-migration database."
+printf '%s\n' \
+  'legacy-backfill-ok' \
+  'legacy-incomplete-student-ok' \
+  'multiple-parq-history-ok' \
+  'similar-tenants-isolated-ok' \
+  'new-lead-rerun-ok' \
+  'in-progress-rerun-ok'
+
+echo "Issue #268/#275 representative legacy backfill verified on populated and post-cutover datasets."

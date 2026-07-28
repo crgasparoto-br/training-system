@@ -204,6 +204,24 @@ export interface PreRegistrationAdminHistoryItemDTO {
   actor?: string;
 }
 
+export interface PreRegistrationAdminAuditEventDTO {
+  id: string;
+  category: 'LIFECYCLE' | 'INVITE';
+  eventType: StudentLifecycleEventType | string;
+  createdAt: string;
+  actorKind: 'AUTHENTICATED' | 'PUBLIC' | 'SYSTEM';
+}
+
+export interface PreRegistrationAdminAuditResultDTO {
+  items: PreRegistrationAdminAuditEventDTO[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
 export interface PreRegistrationAdminLeadDetailDTO
   extends PreRegistrationAdminLeadSummaryDTO {
   commercial: {

@@ -5,6 +5,7 @@ import {
   type AccessDataScope,
   type CreatePreRegistrationLeadDTO,
   type PreRegistrationAdminAllowedActionsDTO,
+  type PreRegistrationAdminAuditResultDTO,
   type PreRegistrationAdminConversionResultDTO,
   type PreRegistrationAdminInviteFilter,
   type PreRegistrationAdminLeadDetailDTO,
@@ -519,7 +520,7 @@ function summaryOf(lead: LeadRecord, access: AccessContext): PreRegistrationAdmi
   };
 }
 
-async function leadOrThrow(
+async function visibleAlunoOrThrow(
   id: string,
   actor: PreRegistrationAdminActor,
   access: AccessContext,
@@ -536,6 +537,16 @@ async function leadOrThrow(
   if (!lead) {
     throw new PreRegistrationAdminError('Pré-matrícula não encontrada.', 'NOT_FOUND');
   }
+  return lead;
+}
+
+async function leadOrThrow(
+  id: string,
+  actor: PreRegistrationAdminActor,
+  access: AccessContext,
+  client: DbClient = prisma
+): Promise<LeadRecord> {
+  const lead = await visibleAlunoOrThrow(id, actor, access, client);
   if (lead.status === ACTIVE_STATUS) {
     throw new PreRegistrationAdminError(
       'Este registro já é um aluno ativo.',
@@ -855,6 +866,87 @@ export const preRegistrationAdminService = {
       },
       capabilities: {
         canSearchCpf: access.canViewSensitiveContacts,
+      },
+    };
+  },
+
+  async getAuditTrail(
+    actor: PreRegistrationAdminActor,
+    id: string,
+    query: { page?: number; pageSize?: number } = {}
+  ): Promise<PreRegistrationAdminAuditResultDTO> {
+    const access = await accessFor(actor);
+    await visibleAlunoOrThrow(id, actor, access);
+    const page = Math.max(1, Number(query.page) || 1);
+    const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, Number(query.pageSize) || 20));
+    const offset = (page - 1) * pageSize;
+
+    type AuditRow = {
+      id: string;
+      category: 'LIFECYCLE' | 'INVITE';
+      eventType: string;
+      createdAt: Date;
+      actorKind: 'AUTHENTICATED' | 'PUBLIC' | 'SYSTEM';
+    };
+
+    const [items, lifecycleCount, inviteCount] = await Promise.all([
+      prisma.$queryRaw<AuditRow[]>`
+        SELECT audit."id", audit."category", audit."eventType", audit."createdAt", audit."actorKind"
+        FROM (
+          SELECT
+            event."id",
+            'LIFECYCLE'::text AS "category",
+            event."eventType"::text AS "eventType",
+            event."createdAt",
+            CASE
+              WHEN event."actorUserId" IS NOT NULL OR event."actorProfessorId" IS NOT NULL
+                THEN 'AUTHENTICATED'::text
+              ELSE 'SYSTEM'::text
+            END AS "actorKind"
+          FROM "StudentLifecycleEvent" event
+          WHERE event."alunoId" = ${id} AND event."contractId" = ${actor.contractId}
+
+          UNION ALL
+
+          SELECT
+            invite_event."id",
+            'INVITE'::text AS "category",
+            invite_event."eventType"::text AS "eventType",
+            invite_event."createdAt",
+            CASE
+              WHEN invite_event."actorIsPublic" = TRUE THEN 'PUBLIC'::text
+              WHEN invite_event."actorUserId" IS NOT NULL OR invite_event."actorProfessorId" IS NOT NULL
+                THEN 'AUTHENTICATED'::text
+              ELSE 'SYSTEM'::text
+            END AS "actorKind"
+          FROM "PreRegistrationInviteEvent" invite_event
+          INNER JOIN "PreRegistrationInvite" invite
+            ON invite."id" = invite_event."inviteId"
+          WHERE invite."alunoId" = ${id} AND invite."contractId" = ${actor.contractId}
+        ) audit
+        ORDER BY audit."createdAt" DESC, audit."id" DESC
+        LIMIT ${pageSize} OFFSET ${offset}
+      `,
+      prisma.studentLifecycleEvent.count({ where: { alunoId: id, contractId: actor.contractId } }),
+      prisma.preRegistrationInviteEvent.count({
+        where: { invite: { alunoId: id, contractId: actor.contractId } },
+      }),
+    ]);
+
+    const total = lifecycleCount + inviteCount;
+    return {
+      items: items.map((item) => ({
+        id: item.id,
+        category: item.category,
+        eventType: item.eventType,
+        createdAt: item.createdAt.toISOString(),
+        actorKind: item.actorKind,
+      })),
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / pageSize)),
       },
     };
   },

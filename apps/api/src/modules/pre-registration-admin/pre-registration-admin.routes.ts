@@ -164,6 +164,18 @@ preRegistrationAdminRoutes.post('/leads', createAccess, async (req, res) => {
   }
 });
 
+preRegistrationAdminRoutes.get('/leads/:id/audit', async (req, res) => {
+  try {
+    const data = await preRegistrationAdminService.getAuditTrail(actorFrom(req), req.params.id, {
+      page: Number(req.query.page) || 1,
+      pageSize: Number(req.query.pageSize) || 20,
+    });
+    return res.json({ success: true, data });
+  } catch (error) {
+    return respondError(res, error);
+  }
+});
+
 preRegistrationAdminRoutes.get('/leads/:id', async (req, res) => {
   try {
     const data = await preRegistrationAdminService.getDetail(actorFrom(req), req.params.id);

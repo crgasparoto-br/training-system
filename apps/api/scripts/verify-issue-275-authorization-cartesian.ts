@@ -214,7 +214,7 @@ function expectedStatuses(profile: ProfileName, action: ActionName): number[] {
     return profile === 'aluno-vinculado' ? [200] : [403, 404];
   }
   if (action === 'auditoria') {
-    return professionalProfiles.has(profile) ? [404] : [403, 404];
+    return professionalProfiles.has(profile) ? [200] : [403, 404];
   }
   return [500];
 }
@@ -398,6 +398,8 @@ async function main() {
   };
 
   const entries: MatrixEntry[] = [];
+  let authorizedAuditProfiles = 0;
+  let sanitizedAuditPayload = true;
   for (const profile of Object.keys(profiles) as ProfileName[]) {
     for (const action of Object.keys(actions) as ActionName[]) {
       const result = await actions[action](profile, profiles[profile].token);
@@ -412,6 +414,46 @@ async function main() {
         const serialized = JSON.stringify(result.body);
         assert(!serialized.includes('passwordHash'), 'Convite público expôs passwordHash');
         assert(!serialized.includes('cpf'), 'Convite público expôs CPF');
+      }
+      if (action === 'auditoria' && professionalProfiles.has(profile)) {
+        authorizedAuditProfiles += 1;
+        const data = result.body.data as
+          | {
+              items?: Array<Record<string, unknown>>;
+              pagination?: { total?: number; pageSize?: number };
+            }
+          | undefined;
+        assert(Array.isArray(data?.items), `${profile}/auditoria não retornou itens paginados`);
+        assert(
+          typeof data?.pagination?.total === 'number' &&
+            data.pagination.total > 0 &&
+            typeof data.pagination.pageSize === 'number',
+          `${profile}/auditoria não retornou paginação`
+        );
+        const serialized = JSON.stringify(data);
+        const forbiddenAuditKeys = [
+          'metadata',
+          'ipAddress',
+          'userAgent',
+          'actorUserId',
+          'actorProfessorId',
+          'tokenHash',
+          'revocationReason',
+          'cpf',
+          'email',
+          'phone',
+        ];
+        for (const forbidden of forbiddenAuditKeys) {
+          if (serialized.includes(forbidden)) sanitizedAuditPayload = false;
+          assert(!serialized.includes(forbidden), `Auditoria expôs campo proibido: ${forbidden}`);
+        }
+        for (const item of data?.items || []) {
+          const keys = Object.keys(item).sort();
+          assert(
+            keys.join(',') === 'actorKind,category,createdAt,eventType,id',
+            `Auditoria retornou contrato inesperado: ${keys.join(',')}`
+          );
+        }
       }
     }
   }
@@ -449,7 +491,7 @@ async function main() {
   assert(foreignAudit === 0, 'Auditoria vazou para outro tenant');
 
   const report = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     kind: 'issue-275-authorization-cartesian',
     profiles: Object.keys(profiles),
     actions: Object.keys(actions),
@@ -459,6 +501,8 @@ async function main() {
     activeInviteCount: activeInvites,
     tenantScopedAuditEvents: tenantScopedAudit,
     foreignAuditEvents: foreignAudit,
+    authorizedAuditProfiles,
+    sanitizedAuditPayload,
   };
   await writeFile(
     path.join(artifactDir, 'authorization-cartesian.json'),

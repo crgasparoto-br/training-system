@@ -110,7 +110,7 @@ Validar negativamente:
 - origem CORS não permitida;
 - brute force dentro e acima da janela do rate limit.
 
-Inspecionar respostas, logs, traces, analytics e screenshots. Eles não podem conter:
+Inspecionar desde a primeira navegação tokenizada até a retomada autenticada: requests, cabeçalhos `Referer`, respostas, logs da API, telemetria habilitada, traces, analytics, armazenamento do navegador e screenshots. Eles não podem conter:
 
 - token bruto ou URL completa do convite;
 - CPF, e-mail, telefone ou endereço sem necessidade e permissão;
@@ -119,7 +119,7 @@ Inspecionar respostas, logs, traces, analytics e screenshots. Eles não podem co
 - conteúdo do request em erros inesperados;
 - segredos ou credenciais de ambiente.
 
-Use apenas dados sintéticos. Redija tokens e contatos antes de anexar evidências.
+Use apenas dados sintéticos. Redija tokens e contatos antes de anexar evidências. A página pública declara `Referrer-Policy: no-referrer` também no HTML, antes de qualquer recurso, para impedir que o caminho tokenizado seja enviado como referência.
 
 ## Permissões
 
@@ -130,7 +130,7 @@ Validar cada ação com quatro perfis mínimos:
 3. consulta com um subconjunto de blocos;
 4. administrador autorizado no mesmo tenant.
 
-Repetir os testes com registro fora do `dataScope` e registro de outro tenant. A API deve negar sem persistência parcial, mesmo quando a UI não renderiza o controle.
+Repetir os testes com registro fora do `dataScope` e registro de outro tenant. A API deve negar sem persistência parcial, mesmo quando a UI não renderiza o controle. A ação de auditoria deve ter controle positivo para os perfis profissionais autorizados e retornar somente contrato paginado e sanitizado; aceitar `404` como sucesso para um perfil autorizado não constitui evidência.
 
 ## Migrations e backfill
 
@@ -142,6 +142,8 @@ bash scripts/verify-student-lifecycle-legacy-backfill.sh
 pnpm --filter @corrida/api exec tsx scripts/verify-issue-272-health-intake.ts
 pnpm --filter @corrida/api exec tsx scripts/verify-issue-273-parq.ts
 ```
+
+O conjunto representativo deve conter ao menos aluno ativo completo, aluno legado incompleto, múltiplas submissões PAR-Q, dois tenants com identificadores semelhantes, lead pós-cutover e pré-cadastro em andamento. A reexecução deve preservar todos os IDs, estados e históricos.
 
 Registrar:
 
@@ -226,4 +228,4 @@ Para cada execução, registrar:
 - artefatos e digests;
 - ressalvas e decisão final.
 
-Evidências visuais devem cobrir desktop, viewport de baixa altura e mobile, além de teclado, foco, labels, estados vazio/erro/carregamento e conteúdo longo.
+Evidências visuais devem cobrir desktop, viewport de baixa altura e mobile, além de teclado, foco, labels, estados vazio/erro/carregamento e conteúdo longo. O gate de acessibilidade também registra árvore acessível, contraste calculado, zoom de 200% sem overflow e semântica de teclado móvel; screenshot isolada não substitui essas verificações.

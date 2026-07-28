@@ -60,6 +60,14 @@ async function waitForText(page: Page, text: string, timeout = 20_000) {
   );
 }
 
+async function waitForFocusedText(page: Page, text: string, timeout = 20_000) {
+  await page.waitForFunction(
+    (expected) => document.activeElement?.textContent?.trim().includes(expected),
+    { timeout },
+    text
+  );
+}
+
 async function clickByText(page: Page, selector: string, text: string) {
   await page.waitForFunction(
     (query, expected) => {
@@ -104,19 +112,88 @@ async function fillByLabel(page: Page, labelText: string, value: string) {
   await page.type(selector, value);
 }
 
-async function checkByLabelText(page: Page, text: string) {
-  const checked = await page.$$eval(
-    'label',
-    (labels, expected) => {
-      const label = labels.find((candidate) => candidate.textContent?.includes(expected));
-      const input = label?.querySelector('input[type="checkbox"], input[type="radio"]');
-      if (!(input instanceof HTMLInputElement)) return false;
-      if (!input.checked) input.click();
-      return input.checked;
-    },
-    text
+async function tabUntil(
+  page: Page,
+  predicate: { text?: string; id?: string; value?: string; type?: string },
+  maxTabs = 40
+) {
+  for (let index = 0; index < maxTabs; index += 1) {
+    await page.keyboard.press('Tab');
+    const active = await page.evaluate(() => {
+      const element = document.activeElement;
+      if (!(element instanceof HTMLElement)) return null;
+      return {
+        id: element.id,
+        text: element.textContent?.trim() || '',
+        value: element instanceof HTMLInputElement ? element.value : '',
+        type: element instanceof HTMLInputElement ? element.type : element.tagName.toLowerCase(),
+      };
+    });
+    if (
+      active &&
+      (!predicate.text || active.text.includes(predicate.text)) &&
+      (!predicate.id || active.id === predicate.id) &&
+      (!predicate.value || active.value === predicate.value) &&
+      (!predicate.type || active.type === predicate.type)
+    ) {
+      return active;
+    }
+  }
+  throw new Error(`Navegação por teclado não encontrou ${JSON.stringify(predicate)}`);
+}
+
+async function assertNoHorizontalOverflow(page: Page, scenario: string) {
+  const dimensions = await page.evaluate(() => ({
+    viewport: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+  }));
+  assert(
+    dimensions.scrollWidth <= dimensions.viewport + 1,
+    `${scenario}: overflow horizontal ${dimensions.scrollWidth}/${dimensions.viewport}`
   );
-  assert(checked, `Opção não encontrada: ${text}`);
+}
+
+async function inspectContrast(page: Page) {
+  return page.evaluate(() => {
+    const parseColor = (value: string) => {
+      const numbers = value.match(/[\d.]+/g)?.map(Number) || [];
+      return { r: numbers[0] || 0, g: numbers[1] || 0, b: numbers[2] || 0, a: numbers[3] ?? 1 };
+    };
+    const luminance = (color: { r: number; g: number; b: number }) => {
+      const values = [color.r, color.g, color.b].map((channel) => {
+        const normalized = channel / 255;
+        return normalized <= 0.03928
+          ? normalized / 12.92
+          : ((normalized + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * values[0] + 0.7152 * values[1] + 0.0722 * values[2];
+    };
+    const backgroundOf = (element: Element) => {
+      let current: Element | null = element;
+      while (current) {
+        const parsed = parseColor(getComputedStyle(current).backgroundColor);
+        if (parsed.a > 0) return parsed;
+        current = current.parentElement;
+      }
+      return { r: 255, g: 255, b: 255, a: 1 };
+    };
+    const ratioFor = (element: Element) => {
+      const foreground = parseColor(getComputedStyle(element).color);
+      const background = backgroundOf(element);
+      const light = Math.max(luminance(foreground), luminance(background));
+      const dark = Math.min(luminance(foreground), luminance(background));
+      return (light + 0.05) / (dark + 0.05);
+    };
+    const button = Array.from(document.querySelectorAll('button')).find((element) =>
+      element.textContent?.includes('Criar acesso e continuar')
+    );
+    const information = Array.from(document.querySelectorAll('section p')).find((element) =>
+      element.textContent?.includes('Complete seus dados com segurança')
+    );
+    if (!button || !information) return { passed: false, ratios: [] as number[] };
+    const ratios = [ratioFor(button), ratioFor(information)];
+    return { passed: ratios.every((ratio) => ratio >= 4.5), ratios };
+  });
 }
 
 const suffix = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
@@ -124,6 +201,7 @@ const inviteToken = `issue-275-privacy-${crypto.randomBytes(24).toString('base64
 const guardianEmail = `issue-275-privacy-${suffix}@example.test`;
 const guardianPassword = 'Senha-segura-275';
 const protectedCpf = '52998224725';
+const guardianName = 'Responsável Privacidade Issue 275';
 let contractId = '';
 let apiProcess: ChildProcess | undefined;
 let previewProcess: ChildProcess | undefined;
@@ -165,6 +243,7 @@ async function main() {
     { sourceType: 'professional', sourceReference: 'issue_275_browser_privacy' }
   );
 
+  const apiOutput: string[] = [];
   apiProcess = spawn('pnpm', ['--filter', '@corrida/api', 'exec', 'tsx', 'src/main.ts'], {
     cwd: repoRoot,
     detached: true,
@@ -177,12 +256,14 @@ async function main() {
       FRONTEND_URL: webUrl,
       CORS_ORIGINS: webUrl,
       PRE_REGISTRATION_ENABLED: 'true',
-      PRE_REGISTRATION_TELEMETRY_ENABLED: 'false',
+      PRE_REGISTRATION_TELEMETRY_ENABLED: 'true',
       PRIVACY_NOTICE_URL: `${webUrl}/privacidade`,
       PRIVACY_NOTICE_VERSION: '2026-07',
     },
-    stdio: 'inherit',
+    stdio: ['ignore', 'pipe', 'pipe'],
   });
+  apiProcess.stdout?.on('data', (chunk) => apiOutput.push(String(chunk)));
+  apiProcess.stderr?.on('data', (chunk) => apiOutput.push(String(chunk)));
   previewProcess = spawn(
     'pnpm',
     ['--filter', '@corrida/web', 'preview', '--host', '127.0.0.1', '--port', '4180'],
@@ -203,28 +284,81 @@ async function main() {
   await page.setViewport({ width: 390, height: 844 });
   const consoleMessages: string[] = [];
   const pageErrors: string[] = [];
-  const requestUrls: string[] = [];
+  const requests: Array<{ url: string; referer?: string; resourceType: string }> = [];
   page.on('console', (message) => consoleMessages.push(message.text()));
   page.on('pageerror', (error) => pageErrors.push(error.message));
-  page.on('request', (request) => requestUrls.push(request.url()));
+  page.on('request', (request) =>
+    requests.push({
+      url: request.url(),
+      referer: request.headers().referer,
+      resourceType: request.resourceType(),
+    })
+  );
 
   await page.goto(`${webUrl}/pre-cadastro/${inviteToken}`, {
     waitUntil: 'networkidle0',
     timeout: 30_000,
   });
   await waitForText(page, 'Convite de pré-matrícula');
-  await clickByText(page, 'button', 'Criar acesso');
-  await checkByLabelText(page, 'Responsável legal');
-  await fillByLabel(page, 'Nome completo', 'Responsável Privacidade Issue 275');
+  await assertNoHorizontalOverflow(page, 'landing-mobile');
+
+  const referrerPolicy = await page.$eval('meta[name="referrer"]', (element) =>
+    element.getAttribute('content')
+  );
+  assert(referrerPolicy === 'no-referrer', 'Documento público não declarou no-referrer');
+  const labelsAssociated = await page.evaluate(() =>
+    Array.from(document.querySelectorAll('input')).every((input) =>
+      Boolean(input.labels?.length || input.getAttribute('aria-label') || input.getAttribute('aria-labelledby'))
+    )
+  );
+  assert(labelsAssociated, 'Campos visíveis sem rótulo associado');
+
+  await tabUntil(page, { text: 'Criar acesso' });
+  await page.keyboard.press('Enter');
+  await tabUntil(page, { type: 'radio', value: 'GUARDIAN' });
+  await page.keyboard.press('Space');
+  await tabUntil(page, { text: 'Criar acesso e continuar' });
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => document.activeElement?.id === 'pre-registration-name');
+
+  const inputSemantics = await page.evaluate(() => ({
+    nameAutocomplete: document.querySelector<HTMLInputElement>('#pre-registration-name')?.autocomplete,
+    emailType: document.querySelector<HTMLInputElement>('#pre-registration-email')?.type,
+    emailAutocomplete: document.querySelector<HTMLInputElement>('#pre-registration-email')?.autocomplete,
+    passwordType: document.querySelector<HTMLInputElement>('#pre-registration-password')?.type,
+    passwordAutocomplete: document.querySelector<HTMLInputElement>('#pre-registration-password')?.autocomplete,
+  }));
+  assert(
+    inputSemantics.nameAutocomplete === 'name' &&
+      inputSemantics.emailType === 'email' &&
+      inputSemantics.emailAutocomplete === 'email' &&
+      inputSemantics.passwordType === 'password' &&
+      inputSemantics.passwordAutocomplete === 'new-password',
+    `Semântica de teclado móvel inválida: ${JSON.stringify(inputSemantics)}`
+  );
+
+  const contrast = await inspectContrast(page);
+  assert(contrast.passed, `Contraste insuficiente: ${contrast.ratios.join(', ')}`);
+
+  await fillByLabel(page, 'Nome completo', guardianName);
   await fillByLabel(page, 'E-mail', guardianEmail);
+  await fillByLabel(page, 'Senha', 'curta');
+  await clickByText(page, 'button', 'Criar acesso e continuar');
+  await page.waitForSelector('[role="alert"]', { timeout: 20_000 });
+  assert(
+    await page.evaluate(() => document.activeElement?.getAttribute('role') === 'alert'),
+    'Erro de submissão não recebeu foco'
+  );
+
   await fillByLabel(page, 'Senha', guardianPassword);
   await clickByText(page, 'button', 'Criar acesso e continuar');
   await waitForHeading(page, 'Informe seu vínculo');
+  await waitForFocusedText(page, 'Informe seu vínculo');
 
   const finalUrl = new URL(page.url());
   assert(finalUrl.pathname === '/pre-cadastro', `Token permaneceu na URL: ${page.url()}`);
   assert(!finalUrl.search && !finalUrl.hash, 'URL autenticada preservou query ou fragmento');
-  const requestCountAfterClaim = requestUrls.length;
+  const requestCountAfterClaim = requests.length;
   const consoleCountAfterClaim = consoleMessages.length;
 
   const storage = await page.evaluate(() => ({
@@ -247,22 +381,83 @@ async function main() {
   assert(!serializedStorage.includes('questionnaireParq'), 'Storage contém conteúdo clínico');
   assert(!serializedStorage.includes('clinicalHistoryData'), 'Storage contém Anamnese');
 
+  const accessibilityTree = await page.accessibility.snapshot({ interestingOnly: false });
+  const serializedTree = JSON.stringify(accessibilityTree);
+  assert(serializedTree.includes('Informe seu vínculo'), 'Árvore acessível não contém o título atual');
+  assert(serializedTree.includes('Vínculo com o menor'), 'Árvore acessível não contém o campo principal');
+  await writeFile(
+    path.join(artifactDir, 'accessibility-tree.json'),
+    `${JSON.stringify(accessibilityTree, null, 2)}\n`,
+    'utf8'
+  );
+
+  const cdp = await page.createCDPSession();
+  await cdp.send('Emulation.setPageScaleFactor', { pageScaleFactor: 2 });
+  await page.waitForFunction(() => (window.visualViewport?.scale || 1) >= 1.9);
+  await assertNoHorizontalOverflow(page, 'guardian-mobile-zoom-200');
+  const zoomScale = await page.evaluate(() => window.visualViewport?.scale || 1);
+  await cdp.send('Emulation.setPageScaleFactor', { pageScaleFactor: 1 });
+
+  await page.screenshot({
+    path: path.join(artifactDir, 'accessibility-mobile.png'),
+    fullPage: true,
+  });
+  await page.setViewport({ width: 1440, height: 900 });
   await page.reload({ waitUntil: 'networkidle0', timeout: 30_000 });
   await waitForHeading(page, 'Informe seu vínculo');
-  const postClaimUrls = requestUrls.slice(requestCountAfterClaim);
+  await waitForFocusedText(page, 'Informe seu vínculo');
+  await assertNoHorizontalOverflow(page, 'guardian-desktop');
+  await page.screenshot({
+    path: path.join(artifactDir, 'accessibility-desktop.png'),
+    fullPage: true,
+  });
+
+  const postClaimRequests = requests.slice(requestCountAfterClaim);
   const postClaimConsole = consoleMessages.slice(consoleCountAfterClaim);
-  for (const observed of [...postClaimUrls, ...postClaimConsole, ...pageErrors]) {
+  for (const observed of [
+    ...postClaimRequests.map((item) => item.url),
+    ...postClaimConsole,
+    ...pageErrors,
+  ]) {
     assert(!observed.includes(inviteToken), 'Token bruto apareceu após o redirecionamento autenticado');
     assert(!observed.includes(protectedCpf), 'CPF apareceu em URL ou log do navegador');
   }
-  const unexpectedOrigins = [...new Set(postClaimUrls.map((value) => new URL(value).origin))].filter(
+
+  const tokenRequests = requests.filter((request) => request.url.includes(inviteToken));
+  assert(tokenRequests.length >= 2, 'Fase inicial tokenizada não foi observada');
+  for (const request of tokenRequests) {
+    const expected =
+      request.url === `${webUrl}/pre-cadastro/${inviteToken}` ||
+      request.url.startsWith(`${apiUrl}/api/v1/pre-cadastro/${inviteToken}`);
+    assert(expected, `Token apareceu em request inesperado: ${request.url}`);
+  }
+  for (const request of requests) {
+    assert(!request.referer?.includes(inviteToken), `Referer expôs token em ${request.url}`);
+  }
+
+  const unexpectedOrigins = [...new Set(requests.map((value) => new URL(value.url).origin))].filter(
     (origin) => origin !== webUrl && origin !== apiUrl
   );
   assert(unexpectedOrigins.length === 0, `Analytics/APM externo observado: ${unexpectedOrigins.join(', ')}`);
   assert(pageErrors.length === 0, `Erros no navegador: ${pageErrors.join(' | ')}`);
 
-  const report = {
-    schemaVersion: 2,
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  const serializedApiOutput = apiOutput.join('');
+  const telemetryLines = serializedApiOutput
+    .split(/\r?\n/)
+    .filter((line) => line.includes('"event":"pre_registration_http"'));
+  assert(telemetryLines.length > 0, 'Telemetria técnica não foi observada com a flag habilitada');
+  for (const secret of [inviteToken, protectedCpf, guardianEmail, guardianName]) {
+    assert(!serializedApiOutput.includes(secret), `Log da API expôs dado sensível: ${secret}`);
+  }
+  for (const line of telemetryLines) {
+    for (const forbidden of ['path', 'query', 'headers', 'body', 'userId', 'contractId']) {
+      assert(!line.includes(`"${forbidden}"`), `Telemetria expôs dimensão proibida: ${forbidden}`);
+    }
+  }
+
+  const privacyReport = {
+    schemaVersion: 3,
     kind: 'issue-275-browser-privacy',
     finalPath: finalUrl.pathname,
     localStorageKeys: Object.keys(storage.local),
@@ -271,18 +466,49 @@ async function main() {
     inviteTokenAbsentFromStorage: true,
     cpfAbsentFromStorageAndBrowserLogs: true,
     clinicalPayloadAbsentFromStorage: true,
-    inspectionBoundary: 'after-authenticated-redirect',
-    postClaimRequestCount: postClaimUrls.length,
+    inspectionBoundary: 'full-invite-lifecycle',
+    initialPhaseInspected: true,
+    referrerPolicy,
+    referrerTokenAbsent: true,
+    apiTelemetryObserved: true,
+    apiLogsSanitized: true,
+    tokenRequestCount: tokenRequests.length,
+    totalRequestCount: requests.length,
+    postClaimRequestCount: postClaimRequests.length,
     browserConsoleMessagesAfterClaim: postClaimConsole.length,
     browserErrors: pageErrors.length,
     externalAnalyticsOrigins: unexpectedOrigins,
   };
   await writeFile(
     path.join(artifactDir, 'browser-privacy.json'),
-    `${JSON.stringify(report, null, 2)}\n`,
+    `${JSON.stringify(privacyReport, null, 2)}\n`,
     'utf8'
   );
-  console.log(JSON.stringify(report, null, 2));
+
+  const accessibilityReport = {
+    schemaVersion: 1,
+    kind: 'issue-275-accessibility',
+    keyboardOnlyNavigation: true,
+    nativeRequiredFieldFocus: true,
+    errorFocusManaged: true,
+    focusAfterStageChange: true,
+    labelsAssociated,
+    contrastPassed: contrast.passed,
+    contrastRatios: contrast.ratios,
+    screenReaderTreeCaptured: true,
+    zoom200NoHorizontalOverflow: true,
+    observedZoomScale: zoomScale,
+    mobileInputSemanticsPassed: true,
+    mobileViewport: { width: 390, height: 844 },
+    desktopViewport: { width: 1440, height: 900 },
+  };
+  await writeFile(
+    path.join(artifactDir, 'accessibility.json'),
+    `${JSON.stringify(accessibilityReport, null, 2)}\n`,
+    'utf8'
+  );
+
+  console.log(JSON.stringify({ privacyReport, accessibilityReport }, null, 2));
 }
 
 main()

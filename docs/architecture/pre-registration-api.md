@@ -63,13 +63,14 @@ Leitura de tela exige `students.preRegistration`. Cada mutação exige o bloco c
 - `POST /leads/duplicates`: consulta candidatos antes de criar.
 - `POST /leads`: cria lead mínimo.
 - `GET /leads/:id`: carrega ficha administrativa.
+- `GET /leads/:id/audit`: lista, com paginação no banco, eventos comerciais e de convite em contrato sanitizado (`id`, categoria, tipo, instante e natureza do ator), sem metadata, IP, User-Agent, identificadores de ator, token ou dados pessoais.
 - `PATCH /leads/:id`: altera dados comerciais.
 - `POST /leads/:id/invites`: gera ou regenera convite.
 - `POST /leads/:id/invites/revoke`: revoga a versão alvo com motivo.
 - rotas de autorização de responsável: leitura, aprovação e rejeição administrativa.
 - rotas autoritativas de revisão, decisão de duplicidade, descarte/reabertura e conversão são montadas antes das rotas legadas para impedir bypass.
 
-A resposta administrativa pode apresentar evidências mascaradas e estados resumidos. Respostas de Anamnese, respostas do PAR-Q e notas clínicas completas permanecem em fronteiras clínicas dedicadas.
+A resposta administrativa pode apresentar evidências mascaradas e estados resumidos. Respostas de Anamnese, respostas do PAR-Q e notas clínicas completas permanecem em fronteiras clínicas dedicadas. A trilha de auditoria respeita o mesmo `contractId` e `dataScope` da ficha: perfis com leitura da tela consultam somente registros visíveis, enquanto outro tenant recebe `404` uniforme.
 
 ## Convite administrativo por aluno
 

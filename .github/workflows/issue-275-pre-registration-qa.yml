@@ -18,6 +18,9 @@ on:
       - 'apps/web/src/config/pre-registration-rollout*'
       - 'apps/web/src/layouts/DashboardLayout.tsx'
       - 'apps/web/src/pages/PreRegistration**'
+      - 'apps/web/src/pages/PublicPreRegistration/**'
+      - 'apps/web/index.html'
+      - 'scripts/verify-student-lifecycle-legacy-backfill.sh'
       - 'docs/**pre-registration**'
       - 'docs/README.md'
       - 'docs/architecture/deployment.md'
@@ -107,6 +110,7 @@ jobs:
               "performance-rollout",
               "endpoint-performance",
               "browser-privacy",
+              "accessibility",
               "migration-backfill",
               "health-intake",
               "parq",
@@ -260,7 +264,7 @@ jobs:
             scripts/verify-issue-275-endpoint-performance.ts 2>&1 \
             | tee artifacts/issue-275/endpoint-performance.log
 
-      - name: Verify browser storage and privacy
+      - name: Verify browser privacy and accessibility
         shell: bash
         run: |
           set -o pipefail
@@ -345,6 +349,10 @@ jobs:
             artifacts/issue-275/endpoint-performance.log
             artifacts/issue-275/browser-privacy.json
             artifacts/issue-275/browser-privacy.log
+            artifacts/issue-275/accessibility.json
+            artifacts/issue-275/accessibility-tree.json
+            artifacts/issue-275/accessibility-mobile.png
+            artifacts/issue-275/accessibility-desktop.png
             artifacts/issue-275/validate.log
             artifacts/issue-275/build.log
           )
@@ -372,7 +380,9 @@ jobs:
             ([.entries[] | select(.passed != true)] | length) == 0 and
             .deniedWritesPersisted == false and
             .activeInviteCount == 1 and
-            .foreignAuditEvents == 0
+            .foreignAuditEvents == 0 and
+            .authorizedAuditProfiles == 4 and
+            .sanitizedAuditPayload == true
           ' artifacts/issue-275/authorization-cartesian.json >/dev/null
           jq -e '
             .plans.administrativeList and
@@ -392,14 +402,35 @@ jobs:
             .inviteTokenAbsentFromStorage and
             .cpfAbsentFromStorageAndBrowserLogs and
             .clinicalPayloadAbsentFromStorage and
+            .inspectionBoundary == "full-invite-lifecycle" and
+            .initialPhaseInspected and
+            .referrerTokenAbsent and
+            .apiTelemetryObserved and
+            .apiLogsSanitized and
             .browserErrors == 0 and
             (.externalAnalyticsOrigins | length) == 0
           ' artifacts/issue-275/browser-privacy.json >/dev/null
+          jq -e '
+            .keyboardOnlyNavigation and
+            .nativeRequiredFieldFocus and
+            .errorFocusManaged and
+            .focusAfterStageChange and
+            .labelsAssociated and
+            .contrastPassed and
+            .screenReaderTreeCaptured and
+            .zoom200NoHorizontalOverflow and
+            .mobileInputSemanticsPassed
+          ' artifacts/issue-275/accessibility.json >/dev/null
+          grep -q 'legacy-incomplete-student-ok' artifacts/issue-275/lifecycle-backfill.log
+          grep -q 'multiple-parq-history-ok' artifacts/issue-275/lifecycle-backfill.log
+          grep -q 'similar-tenants-isolated-ok' artifacts/issue-275/lifecycle-backfill.log
+          grep -q 'new-lead-rerun-ok' artifacts/issue-275/lifecycle-backfill.log
+          grep -q 'in-progress-rerun-ok' artifacts/issue-275/lifecycle-backfill.log
           grep -q 'Test Suites:.*passed' artifacts/issue-275/mandatory-scenario-regressions.log
           grep -q 'Test Suites:.*passed' artifacts/issue-275/authorization-matrix-extended.log
           cat > artifacts/issue-275/evidence-completeness.json <<EOF
           {
-            "schemaVersion": 2,
+            "schemaVersion": 3,
             "headSha": "${{ github.event.pull_request.head.sha || github.sha }}",
             "requiredFiles": ${#required_files[@]},
             "integratedScenarios": 11,
@@ -408,6 +439,9 @@ jobs:
             "authorizationCartesianEntries": 112,
             "sampledEndpointFamilies": 8,
             "browserPrivacyGate": "passed",
+            "accessibilityGate": "passed",
+            "representativeMigrationGate": "passed",
+            "sanitizedAuditGate": "passed",
             "mandatoryScenarioRegressionGate": "passed",
             "extendedAuthorizationGate": "passed",
             "repositoryValidationGate": "passed",
