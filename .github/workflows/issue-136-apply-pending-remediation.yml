@@ -1,0 +1,71 @@
+name: Issue 136 Apply Pending Remediation
+
+on:
+  push:
+    branches:
+      - fix/136-capacity-prescription-persistence
+
+permissions:
+  contents: write
+
+jobs:
+  apply-pending-remediation:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/136-capacity-prescription-persistence
+          fetch-depth: 0
+
+      - name: Apply audited adipometry remediation
+        shell: bash
+        run: |
+          set -euo pipefail
+          git show 7c013392b94757ef47566768203c9103fd9607d6:.github/remediation/issue-136/01-core.py > /tmp/issue-136-01.py
+          git show 7c013392b94757ef47566768203c9103fd9607d6:.github/remediation/issue-136/02-source.py > /tmp/issue-136-02.py
+          git show 7c013392b94757ef47566768203c9103fd9607d6:.github/remediation/issue-136/03-tests-docs.py > /tmp/issue-136-03.py
+
+          python - <<'PY'
+          from pathlib import Path
+
+          replacement = '''def replace_once(path: str, old: str, new: str) -> None:
+              text = read(path)
+              count = text.count(old)
+              if count == 1:
+                  write(path, text.replace(old, new, 1))
+                  return
+              if count == 0 and new in text:
+                  return
+              raise RuntimeError(f"{path}: expected one old match or an already-applied replacement, found {count}")'''
+
+          for name in ('/tmp/issue-136-01.py', '/tmp/issue-136-02.py', '/tmp/issue-136-03.py'):
+              path = Path(name)
+              text = path.read_text(encoding='utf-8')
+              start = text.index('def replace_once(')
+              end = text.index('\n\n\n', start)
+              text = text[:start] + replacement + text[end:]
+              path.write_text(text, encoding='utf-8')
+
+          path = Path('/tmp/issue-136-03.py')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace(
+              '"Versão: `pollock-wilmore-1993-three-fold-siri-v1`.",',
+              '"Versão: `guedes-three-fold-siri-v1`.",',
+              1,
+          )
+          path.write_text(text, encoding='utf-8')
+          PY
+
+          python /tmp/issue-136-01.py
+          python /tmp/issue-136-02.py
+          python /tmp/issue-136-03.py
+
+          rm -f .github/workflows/issue-136-apply-pending-remediation.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "fix(issue-136): persist versioned adipometry technical snapshot"
+          git push origin HEAD:fix/136-capacity-prescription-persistence
