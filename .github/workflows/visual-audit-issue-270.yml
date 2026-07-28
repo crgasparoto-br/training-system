@@ -17,6 +17,8 @@ jobs:
   screenshots:
     name: Final clean audit of issue 270 responsive states
     runs-on: ubuntu-latest
+    env:
+      VITE_PRE_REGISTRATION_ENABLED: 'true'
 
     steps:
       - name: Checkout
