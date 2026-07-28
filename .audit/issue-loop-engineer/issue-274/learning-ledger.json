@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "issue": 274,
-  "cycle": 1,
-  "reviewed_at": "2026-07-28T12:46:46Z",
+  "cycle": 2,
+  "reviewed_at": "2026-07-28T14:27:00Z",
   "items": [
     {
       "finding_id": "AUD-274-17",
@@ -30,6 +30,15 @@
       "decision": "no-change",
       "rationale": "O contrato da issue era explicito sobre data civil. A falha foi corrigida na validacao de entrada, normalizacao canonica e testes de offset, sem lacuna de skill.",
       "test_evidence": "GitHub Actions run 30360020335, step Validate civil date contract"
+    },
+    {
+      "finding_id": "AUD-274-20",
+      "fingerprint": "scalar-clinical-ownership-not-blocking-duplicate-consolidation",
+      "cause": "implementation-defect",
+      "affected_skills": ["implementar-issue", "orquestrador", "auditar-issue"],
+      "decision": "no-change",
+      "rationale": "As skills ja exigiam inspecao de schema, variantes legadas, ownership, protecao no banco e teste discriminante. A lacuna estava no inventario concreto da implementacao, que enumerava relacoes mas omitia campos clinicos escalares de Aluno.",
+      "test_evidence": "GitHub Actions runs 30367842258 and 30367842305; PostgreSQL service-preflight and direct-trigger scenarios passed"
     }
   ]
 }
