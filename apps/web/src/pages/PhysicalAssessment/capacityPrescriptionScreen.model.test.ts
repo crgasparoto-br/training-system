@@ -271,4 +271,24 @@ describe('capacity prescription screen model', () => {
     ]);
   });
 
+  it('ignora métricas numéricas não angulares mesmo quando citam articulações', () => {
+    const result = mergeFlexibilityArticulationsFromAssessmentDetails(
+      [],
+      [
+        { label: 'Força do ombro', value: 80, unit: 'kgf' },
+        { label: 'Dor no joelho', value: 7, unit: null },
+        { label: 'Carga do quadril', value: 45, unit: 'kg' },
+        { label: 'Déficit do quadril', value: 12, unit: '%' },
+        { label: 'Circunferência do tornozelo', value: 24, unit: 'cm' },
+        { label: 'Percentual de mobilidade do punho', value: 80, unit: '%' },
+        { label: 'Amplitude do cotovelo', value: 120, unit: null },
+        { label: 'Extensão dos dedos', value: '37,5', unit: '°' },
+      ],
+    );
+
+    expect(result).toEqual([
+      { name: 'Cotovelo', angle: 120, priority: 'medium' },
+      { name: 'Dedos', angle: 37.5, priority: 'medium' },
+    ]);
+  });
 });
