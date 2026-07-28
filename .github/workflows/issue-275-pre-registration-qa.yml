@@ -5,7 +5,7 @@ on:
     branches:
       - develop
     paths:
-      - 'apps/api/src/common/pre-registration-rollout*'
+      - 'apps/api/src/common/pre-registration-*'
       - 'apps/api/src/main.ts'
       - 'apps/api/src/modules/pre-registration-**'
       - 'apps/api/src/modules/alunos/**'
@@ -131,7 +131,8 @@ jobs:
         run: |
           set -o pipefail
           pnpm --filter @corrida/api exec jest --runInBand \
-            src/common/pre-registration-rollout.test.ts 2>&1 \
+            src/common/pre-registration-rollout.test.ts \
+            src/common/pre-registration-safe-log.test.ts 2>&1 \
             | tee artifacts/issue-275/api-rollout-tests.log
           pnpm --filter @corrida/web exec vitest run \
             src/config/pre-registration-rollout.test.ts 2>&1 \
