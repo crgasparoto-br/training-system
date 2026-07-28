@@ -4,7 +4,7 @@ Este documento complementa `integrated-prescription-control.md` para a implement
 
 ## Avaliação física como fonte
 
-Quando uma versão manual de **Flexibilidade** referencia avaliações físicas selecionadas pelo professor, o backend procura medições numéricas associadas às articulações suportadas e preenche ângulos ainda vazios. Valores já revisados manualmente pelo professor prevalecem. O preenchimento automático nunca publica treino nem substitui a validação profissional.
+Quando uma versão manual de **Flexibilidade** referencia avaliações físicas selecionadas pelo professor, a interface preenche imediatamente as articulações e os ângulos reconhecidos para revisão antes do versionamento. O backend repete a derivação como defesa de fronteira e preenche somente ângulos ainda vazios. Valores já revisados manualmente pelo professor prevalecem. O preenchimento automático nunca publica treino nem substitui a validação profissional.
 
 Articulações canônicas mínimas: coluna cervical/pescoço, ombro, cotovelo, punho, dedos, quadril, joelho e tornozelo.
 

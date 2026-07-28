@@ -60,6 +60,7 @@ import {
   hydrateSourceSelections,
   initialDrafts,
   initialSourceSelections,
+  mergeFlexibilityArticulationsFromAssessmentDetails,
   mergeTechnicalSourceSuggestions,
   type CapacityDrafts,
   type CapacitySourceSelections,
@@ -447,12 +448,33 @@ export function CapacityPrescriptionScreen() {
   };
 
   const toggleTechnicalSource = (key: string) => {
+    const source = activeTechnicalSources.find((item) => item.key === key);
+    const selecting = !activeSelectedSourceKeys.has(key);
+
     setSelectedSourceKeys((current) => {
       const nextForCapacity = new Set(current[activeCapacity]);
       if (nextForCapacity.has(key)) nextForCapacity.delete(key);
       else nextForCapacity.add(key);
       return { ...current, [activeCapacity]: nextForCapacity };
     });
+
+    if (
+      selecting &&
+      activeCapacity === 'flexibility' &&
+      source?.assessmentDetails?.length
+    ) {
+      setDrafts((current) => ({
+        ...current,
+        flexibility: {
+          ...current.flexibility,
+          flexibilityArticulations:
+            mergeFlexibilityArticulationsFromAssessmentDetails(
+              current.flexibility.flexibilityArticulations,
+              source.assessmentDetails ?? [],
+            ),
+        },
+      }));
+    }
   };
 
   const handleParameterSetChange = (parameterSetId: string) => {

@@ -52,6 +52,7 @@ export interface TechnicalSourceSuggestion {
   kind: TechnicalSourceKind;
   title: string;
   description?: string | null;
+  assessmentDetails?: CapacityAssessmentSourceOption['details'];
   ref: CapacityPrescriptionSourceRef;
 }
 
@@ -331,6 +332,67 @@ function formatAssessmentDetails(source: CapacityAssessmentSourceOption) {
   return [source.category, source.status, ...details].filter(Boolean).join(' · ');
 }
 
+const flexibilityArticulationAliases = [
+  { name: 'Coluna cervical', aliases: ['coluna_cervical', 'cervical', 'pescoco'] },
+  { name: 'Ombro', aliases: ['ombro'] },
+  { name: 'Cotovelo', aliases: ['cotovelo'] },
+  { name: 'Punho', aliases: ['punho'] },
+  { name: 'Dedos', aliases: ['dedos', 'dedo'] },
+  { name: 'Quadril', aliases: ['quadril'] },
+  { name: 'Joelho', aliases: ['joelho'] },
+  { name: 'Tornozelo', aliases: ['tornozelo'] },
+] as const;
+
+function normalizeAssessmentLabel(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+function assessmentDetailNumber(value: string | number | boolean | null) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value !== 'string' || !value.trim()) return null;
+  const parsed = Number(value.replace(',', '.'));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+export function mergeFlexibilityArticulationsFromAssessmentDetails(
+  current: FlexibilityArticulationParameters[],
+  details: CapacityAssessmentSourceOption['details']
+): FlexibilityArticulationParameters[] {
+  const merged = current.map((item) => ({ ...item }));
+  const indexByName = new Map(
+    merged.map((item, index) => [normalizeAssessmentLabel(item.name), index])
+  );
+
+  for (const detail of details) {
+    const descriptor = normalizeAssessmentLabel(detail.label);
+    const articulation = flexibilityArticulationAliases.find((candidate) =>
+      candidate.aliases.some((alias) => descriptor.includes(alias))
+    );
+    const angle = assessmentDetailNumber(detail.value);
+    if (!articulation || angle === null) continue;
+
+    const normalizedName = normalizeAssessmentLabel(articulation.name);
+    const existingIndex = indexByName.get(normalizedName);
+    if (existingIndex !== undefined) {
+      const existing = merged[existingIndex];
+      if (existing.angle === null || existing.angle === undefined) {
+        merged[existingIndex] = { ...existing, angle };
+      }
+      continue;
+    }
+
+    indexByName.set(normalizedName, merged.length);
+    merged.push({ name: articulation.name, angle, priority: 'medium' });
+  }
+
+  return merged;
+}
+
 export function buildTechnicalSourceSuggestions(input: {
   overview: ProntuarioOverview;
   profile: StudentSegmentedProfile | null;
@@ -450,6 +512,7 @@ export function buildTechnicalSourceSuggestions(input: {
       kind: 'avaliacao',
       title: assessment.ref.label,
       description: formatAssessmentDetails(assessment),
+      assessmentDetails: assessment.details,
       ref: assessment.ref,
     });
   }

@@ -267,4 +267,33 @@ describe('CapacityPrescriptionScreen', () => {
     );
   });
 
+
+  it('exibe ângulo derivado para revisão ao selecionar a avaliação', async () => {
+    const user = userEvent.setup();
+    mocks.listAssessmentSources.mockResolvedValueOnce([
+      {
+        ref: {
+          type: 'flexibility_assessment',
+          id: 'flex-assessment-1',
+          label: 'Flexibilidade de ombro',
+          origin: 'FLEX-001',
+          responsibleProfessorId: 'professor-a',
+        },
+        category: 'flexibility',
+        status: 'completed',
+        details: [{ label: 'Flexão de ombro', value: 142, unit: 'graus' }],
+      },
+    ]);
+
+    render(<CapacityPrescriptionScreen />);
+    await user.selectOptions(await screen.findByLabelText('Aluno'), 'aluno-b');
+    await user.click(await screen.findByRole('tab', { name: /Flexibilidade/i }));
+    await user.click(
+      await screen.findByRole('checkbox', { name: /Flexibilidade de ombro/i }),
+    );
+
+    expect(await screen.findByText('Ombro')).toBeInTheDocument();
+    expect(screen.getByLabelText('Ângulo avaliado')).toHaveValue(142);
+  });
+
 });

@@ -14,6 +14,7 @@ import {
   hydrateDraftsFromPrescriptions,
   hydrateSourceSelections,
   initialDraft,
+  mergeFlexibilityArticulationsFromAssessmentDetails,
   mergeTechnicalSourceSuggestions,
 } from './capacityPrescriptionScreen.model';
 
@@ -252,4 +253,22 @@ describe('capacity prescription screen model', () => {
     expect(suggestions[0].description).toContain('% Gordura: 18.2 %');
     expect(suggestions[0].description).toContain('Massa magra: 62.5 kg');
   });
+
+  it('preenche ângulos da avaliação sem sobrescrever revisão manual', () => {
+    const result = mergeFlexibilityArticulationsFromAssessmentDetails(
+      [{ name: 'Ombro', angle: 150, priority: 'high' }],
+      [
+        { label: 'Flexão de ombro', value: 142, unit: 'graus' },
+        { label: 'Extensão dos dedos', value: '37,5', unit: 'graus' },
+        { label: 'Ângulo do joelho', value: 115, unit: 'graus' },
+      ],
+    );
+
+    expect(result).toEqual([
+      { name: 'Ombro', angle: 150, priority: 'high' },
+      { name: 'Dedos', angle: 37.5, priority: 'medium' },
+      { name: 'Joelho', angle: 115, priority: 'medium' },
+    ]);
+  });
+
 });
