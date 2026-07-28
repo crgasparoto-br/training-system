@@ -36,4 +36,18 @@ describe('pre-registration safe error logging', () => {
       errorName: 'UnknownError',
     });
   });
+
+  it('rejects free-text names and codes that could contain personal data', () => {
+    const safe = buildSafePreRegistrationErrorLog('correlation-3', {
+      name: 'CPF 123.456.789-00',
+      code: 'pessoa@example.com',
+      message: 'secret-token',
+    });
+
+    expect(safe).toEqual({
+      correlationId: 'correlation-3',
+      errorName: 'UnknownError',
+    });
+    expect(JSON.stringify(safe)).not.toMatch(/123|@|secret-token/);
+  });
 });
