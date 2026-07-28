@@ -3,7 +3,7 @@ import {
   preRegistrationEnrollmentService,
 } from './pre-registration-enrollment.service.js';
 import {
-  hasOwnedHealthDataForConsolidation,
+  hasBlockingOwnershipForConsolidation,
   isClinicalReassociationDatabaseError,
 } from './pre-registration-clinical-ownership.service.js';
 
@@ -13,6 +13,14 @@ type RuntimeService = typeof preRegistrationEnrollmentService & {
 
 const runtime = preRegistrationEnrollmentService as RuntimeService;
 
+function ownershipError() {
+  return new PreRegistrationEnrollmentError(
+    'A consolidação exige reassociação assistida dos dados pertencentes a este cadastro. Nenhum dado foi alterado.',
+    'HEALTH_REASSOCIATION_REQUIRED',
+    { operationalPending: 'CLINICAL_REASSOCIATION_REQUIRED' }
+  );
+}
+
 if (!runtime.__issue274ClinicalConsolidationGuardApplied) {
   const decideOriginal = runtime.decide.bind(runtime);
 
@@ -21,23 +29,15 @@ if (!runtime.__issue274ClinicalConsolidationGuardApplied) {
       return decideOriginal(actor, alunoId, input);
     }
 
-    if (await hasOwnedHealthDataForConsolidation(alunoId, actor.contractId)) {
-      throw new PreRegistrationEnrollmentError(
-        'A consolidação exige reassociação clínica assistida. Nenhum dado foi alterado.',
-        'HEALTH_REASSOCIATION_REQUIRED',
-        { operationalPending: 'CLINICAL_REASSOCIATION_REQUIRED' }
-      );
+    if (await hasBlockingOwnershipForConsolidation(alunoId, actor.contractId)) {
+      throw ownershipError();
     }
 
     try {
       return await decideOriginal(actor, alunoId, input);
     } catch (error) {
       if (isClinicalReassociationDatabaseError(error)) {
-        throw new PreRegistrationEnrollmentError(
-          'A consolidação exige reassociação clínica assistida. Nenhum dado foi alterado.',
-          'HEALTH_REASSOCIATION_REQUIRED',
-          { operationalPending: 'CLINICAL_REASSOCIATION_REQUIRED' }
-        );
+        throw ownershipError();
       }
       throw error;
     }
