@@ -94,10 +94,7 @@ router.post(
         select: { goalId: true },
       });
       const classifiedGoalIds = classifications.map((classification) => classification.goalId);
-      if (
-        classifications.length > 0 &&
-        !equalGoalIdSets(linkedGoalIds, classifiedGoalIds)
-      ) {
+      if (!equalGoalIdSets(linkedGoalIds, classifiedGoalIds)) {
         return sendError(
           res,
           'Salve as classificações dos objetivos antes de versionar a capacidade',
