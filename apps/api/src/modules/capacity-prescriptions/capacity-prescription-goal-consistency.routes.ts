@@ -32,6 +32,27 @@ export function equalGoalIdSets(left: string[], right: string[]) {
   );
 }
 
+async function ownsStudentAndGoals(contractId: string, alunoId: string, goalIds: string[]) {
+  const aluno = await prisma.aluno.findFirst({
+    where: { id: alunoId, contractId },
+    select: { id: true },
+  });
+  if (!aluno) return false;
+  if (!goalIds.length) return true;
+
+  const goals = await prisma.prontuarioGoal.findMany({
+    where: {
+      id: { in: goalIds },
+      record: { contractId, alunoId },
+    },
+    select: { id: true },
+  });
+  return equalGoalIdSets(
+    goalIds,
+    goals.map((goal) => goal.id)
+  );
+}
+
 router.post(
   '/alunos/:alunoId',
   authMiddleware,
@@ -83,6 +104,12 @@ router.post(
           'Os objetivos do prontuário devem coincidir com os vínculos da versão',
           409
         );
+      }
+
+      // Invalid or cross-tenant students/goals must be handled by the canonical
+      // service boundary so this consistency check does not mask 404/400 responses.
+      if (!(await ownsStudentAndGoals(contractId, req.params.alunoId, linkedGoalIds))) {
+        return next();
       }
 
       const classifications = await prisma.prontuarioGoalCapacityClassification.findMany({
