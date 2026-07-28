@@ -76,6 +76,22 @@ app.use('/api/v1', preRegistrationInvitePublicRoutes);
 app.use('/api/v1/pre-cadastro', preRegistrationInvitePublicErrorHandler);
 
 app.use(cors(createApiCorsOptions(corsConfig)));
+app.use(
+  '/api/v1/pre-registration-admin',
+  createPreRegistrationHttpObservability('administrative-management'),
+  preRegistrationRolloutGate
+);
+app.use(
+  '/api/v1/pre-registration',
+  createPreRegistrationHttpObservability('authenticated-onboarding'),
+  preRegistrationRolloutGate
+);
+app.use(
+  '/api/v1/alunos/:alunoId/pre-registration-invites',
+  createPreRegistrationHttpObservability('administrative-invite'),
+  preRegistrationRolloutGate
+);
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 app.use('/uploads', express.static(getUploadStorageRoot(), {
@@ -120,32 +136,17 @@ app.get('/api/v1', (_req, res) => {
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/assessment-types', assessmentTypeRoutes);
 
-app.use(
-  '/api/v1/pre-registration-admin',
-  createPreRegistrationHttpObservability('administrative-management'),
-  preRegistrationRolloutGate
-);
 // A camada autoritativa intercepta create/update/review/convert antes das rotas
 // administrativas legadas para impedir bypass por referências livres.
 app.use('/api/v1/pre-registration-admin', preRegistrationEnrollmentRoutes);
 app.use('/api/v1/pre-registration-admin', preRegistrationAdminRoutes);
 
-app.use(
-  '/api/v1/pre-registration',
-  createPreRegistrationHttpObservability('authenticated-onboarding'),
-  preRegistrationRolloutGate
-);
 app.use('/api/v1/pre-registration', preRegistrationAuthenticatedRoutes);
 app.use('/api/v1/pre-registration', preRegistrationHealthIntakeRoutes);
 app.use('/api/v1/pre-registration', preRegistrationParqRoutes);
 
 app.use('/api/v1/alunos', alunoAvatarUploadRoutes);
 app.use('/api/v1/alunos', studentContractLifecycleRoutes);
-app.use(
-  '/api/v1/alunos/:alunoId/pre-registration-invites',
-  createPreRegistrationHttpObservability('administrative-invite'),
-  preRegistrationRolloutGate
-);
 app.use('/api/v1/alunos', preRegistrationInviteAdminRoutes);
 app.use('/api/v1/alunos', alunoRoutes);
 app.use('/api/v1/anthropometry', anthropometryRoutes);
