@@ -150,7 +150,7 @@ O backend deriva condicionantes para PRNT, preferências e avaliações. Esses a
 
 A regra antes existente na planilha `Modelo Avaliação Física v.4.10.12`, aba `Avaliação`, linhas `Total de Dobras`, `% Gordura`, `Gordura Absoluta` e `Massa Magra`, foi formalizada em `capacity-prescription-formulas.ts`.
 
-Versão: `guedes-1985-three-fold-siri-v1`.
+Versão: `guedes-three-fold-siri-v1`.
 
 Os coeficientes e as combinações de dobras correspondem ao protocolo de Guedes, com conversão da densidade corporal pela equação de Siri.
 
