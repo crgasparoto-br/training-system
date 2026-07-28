@@ -18,22 +18,26 @@ const prisma = new PrismaClient();
 const suffix = `issue-274-clinical-guard-${Date.now()}`;
 const contractId = `${suffix}-contract`;
 const createdUserIds: string[] = [];
+let actorSequence = 0;
+let pairSequence = 0;
 
 async function createActor(): Promise<PreRegistrationEnrollmentActor> {
+  actorSequence += 1;
+  const label = `${suffix}-${actorSequence}`;
   const collaboratorFunction = await prisma.collaboratorFunctionOption.create({
     data: {
       contractId,
-      name: 'Administrador clínico',
-      code: `${suffix}-admin`,
+      name: `Administrador clínico ${actorSequence}`,
+      code: `${label}-admin`,
       isActive: true,
     },
   });
   const user = await prisma.user.create({
     data: {
-      email: `${suffix}-actor@example.com`,
+      email: `${label}-actor@example.com`,
       passwordHash: 'integration-test-hash',
       type: UserType.professor,
-      profile: { create: { name: 'Administrador clínico' } },
+      profile: { create: { name: `Administrador clínico ${actorSequence}` } },
     },
   });
   createdUserIds.push(user.id);
@@ -54,19 +58,22 @@ async function createActor(): Promise<PreRegistrationEnrollmentActor> {
 }
 
 async function createDuplicatePair(actor: PreRegistrationEnrollmentActor) {
+  pairSequence += 1;
+  const phoneSuffix = String(2700 + pairSequence).padStart(4, '0');
+  const sharedEmail = `${suffix}-shared-${pairSequence}@example.com`;
   const target = await createStudentLead({
     contractId,
-    name: 'Pessoa com avaliação',
-    phone: '+55 15 98888-0274',
-    email: `${suffix}-shared@example.com`,
+    name: `Pessoa com avaliação ${pairSequence}`,
+    phone: `+55 15 98888-${phoneSuffix}`,
+    email: sharedEmail,
     origin: 'target',
     createdByProfessorId: actor.professorId,
   });
   const source = await createStudentLead({
     contractId,
-    name: 'Pessoa com avaliação',
-    phone: '(15) 98888-0274',
-    email: `${suffix}-shared@example.com`.toUpperCase(),
+    name: `Pessoa com avaliação ${pairSequence}`,
+    phone: `(15) 98888-${phoneSuffix}`,
+    email: sharedEmail.toUpperCase(),
     origin: 'source',
     createdByProfessorId: actor.professorId,
   });
