@@ -109,22 +109,38 @@ describeDatabase('issue 274 stale commercial review invalidation', () => {
   });
 
   it('keeps exactly one authoritative invalidation trigger per projection', async () => {
-    const triggers = await prisma.$queryRaw<
-      Array<{ tableName: string; triggerName: string; functionName: string }>
+    const allTriggers = await prisma.$queryRaw<
+      Array<{
+        tableName: string;
+        triggerName: string;
+        functionName: string;
+        triggerDefinition: string;
+        functionDefinition: string;
+      }>
     >`
       SELECT relation.relname AS "tableName",
              trigger_definition.tgname AS "triggerName",
-             trigger_function.proname AS "functionName"
+             trigger_function.proname AS "functionName",
+             pg_get_triggerdef(trigger_definition.oid) AS "triggerDefinition",
+             pg_get_functiondef(trigger_function.oid) AS "functionDefinition"
       FROM pg_trigger trigger_definition
       JOIN pg_class relation ON relation.oid = trigger_definition.tgrelid
       JOIN pg_proc trigger_function ON trigger_function.oid = trigger_definition.tgfoid
       WHERE NOT trigger_definition.tgisinternal
-        AND relation.relname IN ('Aluno', 'StudentProfile')
-        AND trigger_function.proname LIKE 'invalidate_pre_registration_review%'
+        AND relation.relname IN ('Aluno', 'StudentProfile', 'StudentOnboardingProcess')
       ORDER BY relation.relname, trigger_definition.tgname
     `;
+    console.info('ISSUE274_TRIGGER_CATALOG', JSON.stringify(allTriggers));
 
-    expect(triggers).toEqual([
+    const invalidationTriggers = allTriggers
+      .filter(({ functionName }) => functionName.startsWith('invalidate_pre_registration_review'))
+      .map(({ tableName, triggerName, functionName }) => ({
+        tableName,
+        triggerName,
+        functionName,
+      }));
+
+    expect(invalidationTriggers).toEqual([
       {
         tableName: 'Aluno',
         triggerName: 'Aluno_invalidate_pre_registration_review',
