@@ -27,7 +27,7 @@ let actor: PreRegistrationEnrollmentActor;
 async function seedCompletedLead(label: string) {
   sequence += 1;
   const phone = `+55 15 94444-${String(sequence).padStart(4, '0')}`;
-  const email = `${suffix}-${label}-${sequence}@example.com`;
+  const email = `${suffix}-${sequence}@example.com`;
   const lead = await createStudentLead({
     contractId,
     name: `Pessoa ${label} ${sequence}`,
@@ -124,7 +124,7 @@ describeDatabase('issue 274 stale commercial review invalidation', () => {
     await prisma.$disconnect();
   });
 
-  it.each<Array<[string, UpdatePreRegistrationLeadCommercialDTO]>>([
+  it.each<[string, UpdatePreRegistrationLeadCommercialDTO]>([
     ['unidade', { unit: 'Unidade Centro' }],
     ['observações', { commercialNotes: 'Contato realizado pela recepção.' }],
     [
