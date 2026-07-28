@@ -81,6 +81,7 @@ router.post(
               metricLabel: true,
               valueNumber: true,
               valueText: true,
+              unit: true,
             },
           },
         },
