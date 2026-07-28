@@ -3,14 +3,18 @@ import { isPreRegistrationUiEnabled } from './pre-registration-rollout';
 
 describe('pre-registration UI rollout', () => {
   it('fails closed in production without an explicit value', () => {
-    expect(isPreRegistrationUiEnabled({ production: true })).toBe(false);
+    expect(
+      isPreRegistrationUiEnabled({ configuredValue: undefined, production: true })
+    ).toBe(false);
     expect(
       isPreRegistrationUiEnabled({ configuredValue: 'invalid', production: true })
     ).toBe(false);
   });
 
   it('keeps local and test builds enabled unless explicitly disabled', () => {
-    expect(isPreRegistrationUiEnabled({ production: false })).toBe(true);
+    expect(
+      isPreRegistrationUiEnabled({ configuredValue: undefined, production: false })
+    ).toBe(true);
     expect(
       isPreRegistrationUiEnabled({ configuredValue: 'false', production: false })
     ).toBe(false);
