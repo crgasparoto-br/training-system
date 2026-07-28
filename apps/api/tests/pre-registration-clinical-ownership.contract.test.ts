@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import {
   CONSOLIDATION_BLOCKING_OWNERSHIP_RELATIONS,
   CONSOLIDATION_PRESERVED_SOURCE_HISTORY_RELATIONS,
-} from '../src/modules/pre-registration-enrollment/pre-registration-clinical-ownership.service.js';
+} from '../src/modules/pre-registration-enrollment/pre-registration-consolidation-ownership.contract.js';
 
 const root = resolve(__dirname, '../../..');
 const read = (path: string) => readFileSync(resolve(root, path), 'utf8');
