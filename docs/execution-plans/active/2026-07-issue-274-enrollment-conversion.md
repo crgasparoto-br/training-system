@@ -103,6 +103,14 @@ O candidato válido é sempre o HEAD final da PR registrado no handoff. Este pla
 - a versão e o fingerprint capturados antes da edição são rejeitados por `markReady` com `REVIEW_STALE`;
 - teste PostgreSQL discriminante cobre unidade, observações, alteração combinada e o catálogo final de gatilhos.
 
+### AUD-274-16 — fechamento do ownership clínico e de avaliações
+
+- o inventário de bloqueio da consolidação inclui relações diretas de Anamnese, PAR-Q, prontuário, desconfortos, avaliações físicas, antropometria, registros e planos de avaliação, métricas de progresso e dados nutricionais;
+- o preflight administrativo retorna `HEALTH_REASSOCIATION_REQUIRED` antes de qualquer mutação quando uma dessas relações existir;
+- a migration `20260728081500_issue_274_clinical_ownership_guard` replica o invariante no PostgreSQL e bloqueia chamadas diretas ou corridas entre verificação e descarte;
+- o erro do trigger é traduzido novamente para o erro de domínio quando alcançar a fronteira da API;
+- integração PostgreSQL discriminante cria somente `StudentAssessmentRecord`, comprova bloqueio e preserva origem, canônico e avaliação.
+
 ## Critérios de aceite
 
 - [x] nome isolado não bloqueia;
@@ -113,7 +121,8 @@ O candidato válido é sempre o HEAD final da PR registrado no handoff. Este pla
 - [x] decisão exige escopo sobre os cadastros relacionados;
 - [x] consolidação não apaga, registra o vínculo canônico e não sobrescreve campo existente automaticamente;
 - [x] origem consolidada não reaparece como bloqueio do canônico;
-- [x] histórico clínico bloqueia consolidação não assistida;
+- [x] todas as relações clínicas e de avaliação inventariadas bloqueiam consolidação não assistida;
+- [x] o banco bloqueia descarte por duplicidade mesmo fora do caminho normal da API;
 - [x] alteração de identidade invalida revisão;
 - [x] unidade e observações invalidam a versão antes da primeira revisão;
 - [x] edição combinada invalida a versão exatamente uma vez;
@@ -124,9 +133,9 @@ O candidato válido é sempre o HEAD final da PR registrado no handoff. Este pla
 - [x] nenhum domínio posterior é criado automaticamente;
 - [x] aluno ativo permanece localizável pelo filtro `Convertido`;
 - [x] confirmação e próximas ações sobrevivem a reload da Central do Aluno;
-- [x] `pnpm validate`, integração PostgreSQL e workflows remotos aprovados no HEAD final registrado no handoff;
-- [x] evidência visual aprovada e atestada no mesmo HEAD final, com run, artefato e digest registrados no handoff;
-- [ ] auditoria independente aprovada em contexto separado.
+- [ ] `pnpm validate`, integração PostgreSQL e workflows remotos aprovados no HEAD final registrado no handoff;
+- [ ] evidência visual aprovada e atestada no mesmo HEAD final, com run, artefato e digest registrados no handoff;
+- [ ] auditoria controller-adversarial final aprovada sem achados bloqueantes.
 
 ## Validação obrigatória
 
@@ -138,12 +147,13 @@ O candidato válido é sempre o HEAD final da PR registrado no handoff. Este pla
 6. Integração A-005: marcar pronto, invalidar por alteração, negar confirmação, renovar revisão e ativar o mesmo ID.
 7. Integração A-006: claim com duplicidade cria pendência privada; retry é idempotente; claim limpo preserva o mesmo formato público.
 8. Integração AUD-274-15: alterar unidade, observações e campos combinados antes da primeira revisão, exigir um único incremento e rejeitar a versão antiga.
-9. Workflow visual com três viewports, árvore de acessibilidade, screenshots e relatório JSON no SHA final.
-10. Pré-auditoria interna adversarial.
-11. Nova auditoria independente em conversa separada.
+9. Integração AUD-274-16: origem com somente `StudentAssessmentRecord`, bloqueio pela API, bloqueio direto pelo trigger e rollback integral.
+10. Workflow visual com três viewports, árvore de acessibilidade, screenshots e relatório JSON no SHA final.
+11. Gate interno adversarial.
+12. Auditoria controller-adversarial no mesmo loop.
 
 ## Riscos e pendências
 
-- A reassociação clínica automática permanece bloqueada até existir serviço de domínio específico por prontuário.
+- A reassociação clínica automática permanece bloqueada até existir serviço de domínio específico por família de ownership.
 - A resposta pública é semanticamente uniforme; métricas operacionais não devem registrar identificadores ou classificações em logs acessíveis ao usuário.
-- Este plano permanece ativo até auditoria independente do SHA final.
+- O plano permanece ativo até os gates e a auditoria do SHA final serem aprovados.
