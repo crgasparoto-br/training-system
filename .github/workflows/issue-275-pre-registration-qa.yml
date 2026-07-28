@@ -193,14 +193,6 @@ jobs:
             scripts/verify-issue-275-authorization-matrix.ts 2>&1 \
             | tee artifacts/issue-275/authorization-matrix.log
 
-      - name: Verify extended API authorization matrix
-        shell: bash
-        run: |
-          set -o pipefail
-          pnpm --filter @corrida/api exec jest --runInBand \
-            tests/issue-275-authorization-matrix-extended.integration.test.ts 2>&1 \
-            | tee artifacts/issue-275/authorization-matrix-extended.log
-
       - name: Verify proportional queries and rollout preservation
         shell: bash
         run: |
@@ -229,6 +221,17 @@ jobs:
         run: |
           set -o pipefail
           pnpm build 2>&1 | tee artifacts/issue-275/build.log
+
+      # This verifier starts a real API process and is intentionally serialized
+      # after the repository-wide suites so its process lifetime cannot affect
+      # the regular Jest database pool.
+      - name: Verify extended API authorization matrix
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @corrida/api exec jest --runInBand \
+            tests/issue-275-authorization-matrix-extended.integration.test.ts 2>&1 \
+            | tee artifacts/issue-275/authorization-matrix-extended.log
 
       - name: Upload issue 275 evidence
         if: always()
