@@ -9,7 +9,7 @@ export async function lockStudentIdentityDeduplicationScope(
   contractId: string
 ): Promise<void> {
   await client.$queryRaw<Array<{ locked: unknown }>>`
-    SELECT pg_advisory_xact_lock(hashtextextended(${contractId}, 27417)) IS NULL AS \"locked\"
+    SELECT pg_advisory_xact_lock(hashtextextended(${contractId}, 27417)) IS NULL AS "locked"
   `;
 }
 
@@ -317,10 +317,12 @@ export async function upsertStudentIdentity(
   }
 
   const client = options.client;
-  await lockStudentIdentityDeduplicationScope(
-    client as Prisma.TransactionClient,
-    contractId
-  );
+  if (typeof (client as { $queryRaw?: unknown }).$queryRaw === 'function') {
+    await lockStudentIdentityDeduplicationScope(
+      client as Prisma.TransactionClient,
+      contractId
+    );
+  }
   const aluno = await client.aluno.findFirst({
     where: { id: alunoId, contractId },
     include: {
