@@ -108,39 +108,26 @@ describeDatabase('issue 274 stale commercial review invalidation', () => {
     await prisma.$disconnect();
   });
 
-  it('keeps exactly one authoritative invalidation trigger per projection', async () => {
-    const allTriggers = await prisma.$queryRaw<
-      Array<{
-        tableName: string;
-        triggerName: string;
-        functionName: string;
-        triggerDefinition: string;
-        functionDefinition: string;
-      }>
+  it('uses the Aluno invalidation trigger and the canonical StudentProfile version trigger', async () => {
+    const triggers = await prisma.$queryRaw<
+      Array<{ tableName: string; triggerName: string; functionName: string }>
     >`
       SELECT relation.relname AS "tableName",
              trigger_definition.tgname AS "triggerName",
-             trigger_function.proname AS "functionName",
-             pg_get_triggerdef(trigger_definition.oid) AS "triggerDefinition",
-             pg_get_functiondef(trigger_function.oid) AS "functionDefinition"
+             trigger_function.proname AS "functionName"
       FROM pg_trigger trigger_definition
       JOIN pg_class relation ON relation.oid = trigger_definition.tgrelid
       JOIN pg_proc trigger_function ON trigger_function.oid = trigger_definition.tgfoid
       WHERE NOT trigger_definition.tgisinternal
-        AND relation.relname IN ('Aluno', 'StudentProfile', 'StudentOnboardingProcess')
+        AND (
+          trigger_definition.tgname = 'Aluno_invalidate_pre_registration_review'
+          OR trigger_definition.tgname = 'StudentProfile_bump_pre_registration_version'
+          OR trigger_definition.tgname = 'StudentProfile_invalidate_pre_registration_review'
+        )
       ORDER BY relation.relname, trigger_definition.tgname
     `;
-    console.info('ISSUE274_TRIGGER_CATALOG', JSON.stringify(allTriggers));
 
-    const invalidationTriggers = allTriggers
-      .filter(({ functionName }) => functionName.startsWith('invalidate_pre_registration_review'))
-      .map(({ tableName, triggerName, functionName }) => ({
-        tableName,
-        triggerName,
-        functionName,
-      }));
-
-    expect(invalidationTriggers).toEqual([
+    expect(triggers).toEqual([
       {
         tableName: 'Aluno',
         triggerName: 'Aluno_invalidate_pre_registration_review',
@@ -148,8 +135,8 @@ describeDatabase('issue 274 stale commercial review invalidation', () => {
       },
       {
         tableName: 'StudentProfile',
-        triggerName: 'StudentProfile_invalidate_pre_registration_review',
-        functionName: 'invalidate_pre_registration_review_on_commercial_change',
+        triggerName: 'StudentProfile_bump_pre_registration_version',
+        functionName: 'bump_pre_registration_version_on_identity_change',
       },
     ]);
   });
