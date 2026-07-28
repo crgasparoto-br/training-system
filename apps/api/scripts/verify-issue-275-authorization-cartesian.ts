@@ -231,7 +231,9 @@ function expectedStatuses(profile: ProfileName, action: ActionName): number[] {
   if (action === 'anamnese-propria' || action === 'parq-proprio') {
     return profile === 'aluno-vinculado' ? [200] : [403, 404];
   }
-  if (action === 'auditoria') return [404];
+  if (action === 'auditoria') {
+    return professionalRead.has(profile) ? [404] : [403, 404];
+  }
   return [500];
 }
 
