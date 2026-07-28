@@ -9,7 +9,10 @@ import {
   preRegistrationEnrollmentService,
   type PreRegistrationEnrollmentActor,
 } from '../src/modules/pre-registration-enrollment/index.js';
-import { issue274Prisma as prisma } from '../src/modules/pre-registration-enrollment/issue-274-prisma.js';
+import {
+  issue274Prisma as prisma,
+  releaseIssue274PrismaAfterIntegrationOperation,
+} from '../src/modules/pre-registration-enrollment/issue-274-prisma.js';
 
 const runDatabaseIntegrationTests =
   process.env.RUN_DATABASE_INTEGRATION_TESTS === 'true';
@@ -96,6 +99,7 @@ describeDatabase('issue 274 clinical ownership consolidation guard', () => {
     for (const userId of createdUserIds.reverse()) {
       await prisma.user.delete({ where: { id: userId } }).catch(() => undefined);
     }
+    await releaseIssue274PrismaAfterIntegrationOperation();
   });
 
   it('blocks consolidation when only a StudentAssessmentRecord exists and preserves both records', async () => {
