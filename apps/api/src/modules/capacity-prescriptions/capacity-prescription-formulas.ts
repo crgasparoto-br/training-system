@@ -1,4 +1,4 @@
-export const ADIPOMETRY_FORMULA_VERSION = 'pollock-wilmore-1993-three-fold-siri-v1';
+export const ADIPOMETRY_FORMULA_VERSION = 'guedes-1985-three-fold-siri-v1';
 
 export type AdipometrySex = 'male' | 'female';
 
@@ -45,11 +45,11 @@ function sumProvidedSkinfolds(skinfolds: AdipometrySkinfoldsMm) {
 
 /**
  * Reproduz a regra da planilha `Modelo Avaliação Física v.4.10.12`, aba
- * `Avaliação`, linha `% Gordura`:
+ * `Avaliação`, linha `% Gordura`, identificada pelo conjunto de coeficientes
+ * como protocolo de Guedes com conversão da densidade corporal por Siri:
  *
  * - feminino: Subescapular + Suprailíaca + Coxa;
- * - masculino: Tricipital + Suprailíaca + Abdominal;
- * - conversão da densidade corporal pela equação de Siri.
+ * - masculino: Tricipital + Suprailíaca + Abdominal.
  */
 export function calculateAdipometryComposition(
   input: AdipometryCompositionInput
