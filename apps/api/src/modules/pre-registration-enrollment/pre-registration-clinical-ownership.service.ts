@@ -13,6 +13,7 @@ export const CONSOLIDATION_BLOCKING_OWNERSHIP_RELATIONS = [
   'anthropometryAssessments',
   'exerciseProgress',
   'intakeForm',
+  'profileReviewSettings',
   'assessmentPlanItems',
   'assessments',
   'contracts',
@@ -36,6 +37,7 @@ export const CONSOLIDATION_BLOCKING_OWNERSHIP_RELATIONS = [
   'parqLegacyRecords',
   'prontuarioRecords',
   'prontuarioDiscomfortSnapshots',
+  'guardianAuthorizations',
 ] as const;
 
 /**
@@ -45,13 +47,11 @@ export const CONSOLIDATION_BLOCKING_OWNERSHIP_RELATIONS = [
  */
 export const CONSOLIDATION_PRESERVED_SOURCE_HISTORY_RELATIONS = [
   'studentProfile',
-  'profileReviewSettings',
   'profileReviews',
   'profileAuditLogs',
   'onboarding',
   'lifecycleEvents',
   'preRegistrationInvites',
-  'guardianAuthorizations',
 ] as const;
 
 export async function hasBlockingOwnershipForConsolidation(
@@ -66,6 +66,7 @@ export async function hasBlockingOwnershipForConsolidation(
       anthropometryAssessments: { select: { id: true }, take: 1 },
       exerciseProgress: { select: { id: true }, take: 1 },
       intakeForm: { select: { id: true } },
+      profileReviewSettings: { select: { id: true } },
       assessmentPlanItems: { select: { id: true }, take: 1 },
       assessments: { select: { id: true }, take: 1 },
       contracts: { select: { id: true }, take: 1 },
@@ -89,6 +90,7 @@ export async function hasBlockingOwnershipForConsolidation(
       parqLegacyRecords: { select: { id: true }, take: 1 },
       prontuarioRecords: { select: { id: true }, take: 1 },
       prontuarioDiscomfortSnapshots: { select: { id: true }, take: 1 },
+      guardianAuthorizations: { select: { id: true }, take: 1 },
     },
   });
 
@@ -99,6 +101,7 @@ export async function hasBlockingOwnershipForConsolidation(
       aluno.anthropometryAssessments.length ||
       aluno.exerciseProgress.length ||
       aluno.intakeForm ||
+      aluno.profileReviewSettings ||
       aluno.assessmentPlanItems.length ||
       aluno.assessments.length ||
       aluno.contracts.length ||
@@ -121,7 +124,8 @@ export async function hasBlockingOwnershipForConsolidation(
       aluno.parqProfessionalReviews.length ||
       aluno.parqLegacyRecords.length ||
       aluno.prontuarioRecords.length ||
-      aluno.prontuarioDiscomfortSnapshots.length
+      aluno.prontuarioDiscomfortSnapshots.length ||
+      aluno.guardianAuthorizations.length
   );
 }
 
