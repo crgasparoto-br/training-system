@@ -4,7 +4,7 @@ A prescrição por capacidades usa a composição corporal derivada da planilha 
 
 ## Metodologia versionada
 
-A equação formalizada no backend é identificada como `guedes-1985-three-fold-siri-v1`.
+A equação formalizada no backend é identificada como `guedes-three-fold-siri-v1`.
 
 - masculino: dobra tricipital + suprailíaca + abdominal;
 - feminino: dobra subescapular + suprailíaca + coxa;
