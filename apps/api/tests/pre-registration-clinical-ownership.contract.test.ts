@@ -2,15 +2,31 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
   CONSOLIDATION_BLOCKING_OWNERSHIP_RELATIONS,
+  CONSOLIDATION_BLOCKING_SCALAR_FIELDS,
   CONSOLIDATION_PRESERVED_SOURCE_HISTORY_RELATIONS,
 } from '../src/modules/pre-registration-enrollment/pre-registration-consolidation-ownership.contract.js';
 
 const root = resolve(__dirname, '../../..');
 const read = (path: string) => readFileSync(resolve(root, path), 'utf8');
 const migration = read(
-  'apps/api/prisma/migrations/20260728081500_issue_274_clinical_ownership_guard/migration.sql'
+  'apps/api/prisma/migrations/20260728140500_issue_274_scalar_clinical_ownership_guard/migration.sql'
 );
 const schema = read('apps/api/prisma/schema.prisma');
+const service = read(
+  'apps/api/src/modules/pre-registration-enrollment/pre-registration-clinical-ownership.service.ts'
+);
+
+const expectedScalarFields = [
+  'weight',
+  'height',
+  'bodyFatPercentage',
+  'vo2Max',
+  'anaerobicThreshold',
+  'maxHeartRate',
+  'restingHeartRate',
+  'systolicPressure',
+  'diastolicPressure',
+] as const;
 
 const expectedOwnership = {
   agendaBookings: { model: 'AgendaBooking', table: 'AgendaBooking' },
@@ -57,7 +73,18 @@ const expectedPreservedSourceHistory = [
 ] as const;
 
 describe('issue 274 consolidation ownership contract', () => {
-  it('keeps the typed preflight inventory aligned with the database trigger', () => {
+  it('keeps scalar clinical ownership aligned across schema, preflight and database trigger', () => {
+    expect([...CONSOLIDATION_BLOCKING_SCALAR_FIELDS]).toEqual([...expectedScalarFields]);
+
+    for (const field of expectedScalarFields) {
+      expect(schema).toMatch(new RegExp(`\\b${field}\\s+`));
+      expect(service).toContain(`${field}: true`);
+      expect(service).toContain(`aluno.${field} !== null`);
+      expect(migration).toContain(`NEW."${field}" IS NOT NULL`);
+    }
+  });
+
+  it('keeps the typed relation inventory aligned with the database trigger', () => {
     expect([...CONSOLIDATION_BLOCKING_OWNERSHIP_RELATIONS].sort()).toEqual(
       Object.keys(expectedOwnership).sort()
     );
@@ -84,7 +111,7 @@ describe('issue 274 consolidation ownership contract', () => {
   it('guards the actual duplicate-discard transition instead of only the later link update', () => {
     expect(migration).toContain(`NEW."status" = 'DISCARDED'`);
     expect(migration).toContain(`COALESCE(NEW."discardReason", '') LIKE 'DUPLICATE_OF:%'`);
-    expect(migration).toContain('BEFORE UPDATE OF "status", "discardReason", "canonicalAlunoId"');
+    expect(migration).toContain('CREATE OR REPLACE FUNCTION "block_duplicate_consolidation_with_owned_health_data"');
     expect(migration).toContain("RAISE EXCEPTION 'CLINICAL_REASSOCIATION_REQUIRED'");
   });
 });
