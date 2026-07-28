@@ -10,15 +10,14 @@ import { preRegistrationEnrollmentCreateService } from '../src/modules/pre-regis
 import { preRegistrationInviteAdminService } from '../src/modules/pre-registration-invites/pre-registration-invite-admin.service.js';
 import { upsertStudentIdentity } from '../src/modules/alunos/student-identity.service.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(__dirname, '../../..');
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const artifactDir = path.join(repoRoot, 'artifacts', 'issue-275');
 const apiUrl = 'http://127.0.0.1:3010';
 const jwtSecret = 'issue-275-authorization-cartesian-secret';
 const prisma = new PrismaClient();
 const suffix = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
-const createdContractIds: string[] = [];
-const createdUserIds: string[] = [];
+const contractIds: string[] = [];
+const userIds: string[] = [];
 let apiProcess: ChildProcess | undefined;
 
 type Actor = {
@@ -53,11 +52,7 @@ type ActionName =
   | 'auditoria'
   | 'convite-publico';
 
-type ApiResult = {
-  status: number;
-  body: Record<string, unknown>;
-};
-
+type ApiResult = { status: number; body: Record<string, unknown> };
 type MatrixEntry = {
   profile: ProfileName;
   action: ActionName;
@@ -102,11 +97,7 @@ function tokenFor(actor: Actor) {
 
 async function request(
   pathname: string,
-  options: {
-    token?: string;
-    method?: 'GET' | 'POST' | 'PATCH';
-    body?: unknown;
-  } = {}
+  options: { token?: string; method?: 'GET' | 'POST' | 'PATCH'; body?: unknown } = {}
 ): Promise<ApiResult> {
   const response = await fetch(`${apiUrl}/api/v1${pathname}`, {
     method: options.method ?? 'GET',
@@ -117,13 +108,11 @@ async function request(
     body: options.body === undefined ? undefined : JSON.stringify(options.body),
   });
   const text = await response.text();
-  let body: Record<string, unknown> = {};
   try {
-    body = text ? (JSON.parse(text) as Record<string, unknown>) : {};
+    return { status: response.status, body: text ? JSON.parse(text) : {} };
   } catch {
-    body = { nonJson: true };
+    return { status: response.status, body: { nonJson: true } };
   }
-  return { status: response.status, body };
 }
 
 async function createContract(label: string) {
@@ -134,86 +123,79 @@ async function createContract(label: string) {
       name: `Academia Cartesiana ${label}`,
     },
   });
-  createdContractIds.push(contract.id);
+  contractIds.push(contract.id);
   return contract;
 }
 
-async function createActor(params: {
+async function createActor(input: {
   label: string;
   contractId: string;
   type?: 'professor' | 'aluno';
   master?: boolean;
   screens?: string[];
   blocks?: string[];
-}) {
-  const type = params.type ?? 'professor';
+}): Promise<Actor> {
+  const type = input.type ?? 'professor';
   const user = await prisma.user.create({
     data: {
-      email: `issue-275-cartesian-${params.label}-${suffix}@example.test`,
+      email: `issue-275-cartesian-${input.label}-${suffix}@example.test`,
       passwordHash: 'not-used',
       type,
-      profile: { create: { name: `Ator ${params.label}` } },
+      profile: { create: { name: `Ator ${input.label}` } },
     },
   });
-  createdUserIds.push(user.id);
-  if (type === 'aluno') {
-    return { user, contractId: params.contractId } satisfies Actor;
-  }
-  const collaboratorFunction = await prisma.collaboratorFunctionOption.create({
+  userIds.push(user.id);
+  if (type === 'aluno') return { user, contractId: input.contractId };
+
+  const option = await prisma.collaboratorFunctionOption.create({
     data: {
-      contractId: params.contractId,
-      name: `Função ${params.label}`,
-      code: `issue-275-cartesian-${params.label}-${suffix}`,
+      contractId: input.contractId,
+      name: `Função ${input.label}`,
+      code: `issue-275-cartesian-${input.label}-${suffix}`,
       isActive: true,
     },
   });
   const professor = await prisma.professor.create({
     data: {
       userId: user.id,
-      contractId: params.contractId,
-      collaboratorFunctionId: collaboratorFunction.id,
-      role: params.master ? 'master' : 'professor',
+      contractId: input.contractId,
+      collaboratorFunctionId: option.id,
+      role: input.master ? 'master' : 'professor',
     },
   });
-  if (!params.master) {
-    await replaceAccessPermissionsForFunction(
-      collaboratorFunction.id,
-      collaboratorFunction.code,
-      {
-        screens: params.screens ?? [],
-        blocks: params.blocks ?? [],
-        dataScopes: { 'students.preRegistration': 'contract' },
-      }
-    );
+  if (!input.master) {
+    await replaceAccessPermissionsForFunction(option.id, option.code, {
+      screens: input.screens ?? [],
+      blocks: input.blocks ?? [],
+      dataScopes: { 'students.preRegistration': 'contract' },
+    });
   }
-  return {
-    user,
-    professorId: professor.id,
-    contractId: params.contractId,
-  } satisfies Actor;
+  return { user, professorId: professor.id, contractId: input.contractId };
 }
+
+const professionalProfiles = new Set<ProfileName>([
+  'administrador',
+  'comercial',
+  'profissional-clinico',
+  'somente-leitura',
+]);
 
 function expectedStatuses(profile: ProfileName, action: ActionName): number[] {
   if (action === 'convite-publico') return [200];
   if (profile === 'visitante-com-token') return [401];
-  if (action === 'listagem' && profile === 'outro-tenant') return [200];
-  if (profile === 'outro-tenant') return [404];
-
-  const professionalRead = new Set<ProfileName>([
-    'administrador',
-    'comercial',
-    'profissional-clinico',
-    'somente-leitura',
-  ]);
+  if (profile === 'outro-tenant') {
+    if (action === 'listagem') return [200];
+    if (action === 'anamnese-propria' || action === 'parq-proprio') return [403, 404];
+    return [404];
+  }
   if (action === 'listagem' || action === 'consulta' || action === 'status-saude') {
-    return professionalRead.has(profile) ? [200] : [403, 404];
+    return professionalProfiles.has(profile) ? [200] : [403, 404];
   }
   if (action === 'edicao-comercial' || action === 'convite') {
-    return profile === 'administrador' || profile === 'comercial'
-      ? action === 'convite'
-        ? [201]
-        : [200]
-      : [403, 404];
+    if (profile === 'administrador' || profile === 'comercial') {
+      return action === 'convite' ? [201] : [200];
+    }
+    return [403, 404];
   }
   if (action === 'revisao') {
     return profile === 'administrador' || profile === 'profissional-clinico'
@@ -232,7 +214,7 @@ function expectedStatuses(profile: ProfileName, action: ActionName): number[] {
     return profile === 'aluno-vinculado' ? [200] : [403, 404];
   }
   if (action === 'auditoria') {
-    return professionalRead.has(profile) ? [404] : [403, 404];
+    return professionalProfiles.has(profile) ? [404] : [403, 404];
   }
   return [500];
 }
@@ -240,10 +222,10 @@ function expectedStatuses(profile: ProfileName, action: ActionName): number[] {
 async function cleanup() {
   stopProcess(apiProcess);
   await new Promise((resolve) => setTimeout(resolve, 300));
-  for (const contractId of [...createdContractIds].reverse()) {
+  for (const contractId of [...contractIds].reverse()) {
     await prisma.companyContract.delete({ where: { id: contractId } }).catch(() => undefined);
   }
-  for (const userId of [...createdUserIds].reverse()) {
+  for (const userId of [...userIds].reverse()) {
     await prisma.user.delete({ where: { id: userId } }).catch(() => undefined);
   }
 }
@@ -251,46 +233,39 @@ async function cleanup() {
 async function main() {
   await mkdir(artifactDir, { recursive: true });
   const [tenantA, tenantB] = await Promise.all([createContract('a'), createContract('b')]);
-  const [
-    master,
-    commercial,
-    clinical,
-    readOnly,
-    otherTenant,
-    linkedStudent,
-    unlinkedStudent,
-  ] = await Promise.all([
-    createActor({ label: 'master', contractId: tenantA.id, master: true }),
-    createActor({
-      label: 'commercial',
-      contractId: tenantA.id,
-      screens: ['students.preRegistration'],
-      blocks: [
-        'students.preRegistration.create',
-        'students.preRegistration.editCommercial',
-        'students.preRegistration.generateInvite',
-        'students.preRegistration.revokeInvite',
-      ],
-    }),
-    createActor({
-      label: 'clinical',
-      contractId: tenantA.id,
-      screens: ['students.preRegistration', 'physicalAssessment.protocol'],
-      blocks: [
-        'students.preRegistration.review',
-        'physicalAssessment.prnt.summary',
-        'physicalAssessment.prnt.parqSubmissions',
-      ],
-    }),
-    createActor({
-      label: 'read-only',
-      contractId: tenantA.id,
-      screens: ['students.preRegistration'],
-    }),
-    createActor({ label: 'other-tenant', contractId: tenantB.id, master: true }),
-    createActor({ label: 'linked-student', contractId: tenantA.id, type: 'aluno' }),
-    createActor({ label: 'unlinked-student', contractId: tenantA.id, type: 'aluno' }),
-  ]);
+  const [master, commercial, clinical, readOnly, otherTenant, linkedStudent, unlinkedStudent] =
+    await Promise.all([
+      createActor({ label: 'master', contractId: tenantA.id, master: true }),
+      createActor({
+        label: 'commercial',
+        contractId: tenantA.id,
+        screens: ['students.preRegistration'],
+        blocks: [
+          'students.preRegistration.create',
+          'students.preRegistration.editCommercial',
+          'students.preRegistration.generateInvite',
+          'students.preRegistration.revokeInvite',
+        ],
+      }),
+      createActor({
+        label: 'clinical',
+        contractId: tenantA.id,
+        screens: ['students.preRegistration', 'physicalAssessment.protocol'],
+        blocks: [
+          'students.preRegistration.review',
+          'physicalAssessment.prnt.summary',
+          'physicalAssessment.prnt.parqSubmissions',
+        ],
+      }),
+      createActor({
+        label: 'read-only',
+        contractId: tenantA.id,
+        screens: ['students.preRegistration'],
+      }),
+      createActor({ label: 'other-tenant', contractId: tenantB.id, master: true }),
+      createActor({ label: 'linked-student', contractId: tenantA.id, type: 'aluno' }),
+      createActor({ label: 'unlinked-student', contractId: tenantA.id, type: 'aluno' }),
+    ]);
   assert(master.professorId, 'Administrador sem professor');
   const adminActor = {
     userId: master.user.id,
@@ -382,14 +357,10 @@ async function main() {
     'outro-tenant': { token: tokenFor(otherTenant) },
   };
 
-  const actions: Record<
-    ActionName,
-    (profile: ProfileName, token?: string) => Promise<ApiResult>
-  > = {
+  const actions: Record<ActionName, (profile: ProfileName, token?: string) => Promise<ApiResult>> = {
     listagem: (_profile, token) =>
       request('/pre-registration-admin/leads?page=1&pageSize=20', { token }),
-    consulta: (_profile, token) =>
-      request(`/pre-registration-admin/leads/${targetId}`, { token }),
+    consulta: (_profile, token) => request(`/pre-registration-admin/leads/${targetId}`, { token }),
     'edicao-comercial': (profile, token) =>
       request(`/pre-registration-admin/leads/${targetId}`, {
         token,
@@ -420,8 +391,7 @@ async function main() {
       request(`/pre-registration/processes/${healthAluno.id}/health-intake`, { token }),
     'parq-proprio': (_profile, token) =>
       request(`/pre-registration/processes/${healthAluno.id}/parq`, { token }),
-    prnt: (_profile, token) =>
-      request(`/prontuario/alunos/${healthAluno.id}`, { token }),
+    prnt: (_profile, token) => request(`/prontuario/alunos/${healthAluno.id}`, { token }),
     auditoria: (_profile, token) =>
       request(`/pre-registration-admin/leads/${targetId}/audit`, { token }),
     'convite-publico': () => request(`/pre-cadastro/${publicInvite.token}`),
@@ -434,15 +404,9 @@ async function main() {
       const expected = expectedStatuses(profile, action);
       const passed = expected.includes(result.status);
       entries.push({ profile, action, status: result.status, expectedStatuses: expected, passed });
-      assert(
-        passed,
-        `${profile}/${action}: esperado ${expected.join('|')}, recebido ${result.status}`
-      );
+      assert(passed, `${profile}/${action}: esperado ${expected.join('|')}, recebido ${result.status}`);
       if (profile === 'outro-tenant' && action === 'listagem') {
-        assert(
-          !JSON.stringify(result.body).includes(targetId),
-          'Listagem de outro tenant revelou o registro alvo'
-        );
+        assert(!JSON.stringify(result.body).includes(targetId), 'Outro tenant enumerou o alvo');
       }
       if (action === 'convite-publico') {
         const serialized = JSON.stringify(result.body);
@@ -455,6 +419,7 @@ async function main() {
   const expectedEntryCount = Object.keys(profiles).length * Object.keys(actions).length;
   assert(entries.length === expectedEntryCount, 'Matriz cartesiana incompleta');
   assert(entries.every((entry) => entry.passed), 'Matriz cartesiana contém divergências');
+
   const activeInvites = await prisma.preRegistrationInvite.count({
     where: { alunoId: targetId, status: 'ACTIVE' },
   });
@@ -484,7 +449,7 @@ async function main() {
   assert(foreignAudit === 0, 'Auditoria vazou para outro tenant');
 
   const report = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     kind: 'issue-275-authorization-cartesian',
     profiles: Object.keys(profiles),
     actions: Object.keys(actions),
