@@ -150,7 +150,9 @@ O backend deriva condicionantes para PRNT, preferências e avaliações. Esses a
 
 A regra antes existente na planilha `Modelo Avaliação Física v.4.10.12`, aba `Avaliação`, linhas `Total de Dobras`, `% Gordura`, `Gordura Absoluta` e `Massa Magra`, foi formalizada em `capacity-prescription-formulas.ts`.
 
-Versão: `pollock-wilmore-1993-three-fold-siri-v1`.
+Versão: `guedes-1985-three-fold-siri-v1`.
+
+Os coeficientes e as combinações de dobras correspondem ao protocolo de Guedes, com conversão da densidade corporal pela equação de Siri.
 
 ### Dobras usadas na densidade
 
@@ -168,6 +170,8 @@ Massa magra = peso - gordura absoluta
 ```
 
 O serviço valida peso e dobras positivas, exige ao menos três dobras e retorna a versão da fórmula junto dos resultados. Testes usam valores deliberadamente diferentes para os protocolos masculino e feminino.
+
+Quando uma adipometria é selecionada como origem, `sourceVersion` guarda um snapshot serializado com data da fonte, entradas, resultados e versão da fórmula. Prescrições históricas não dependem de recalcular o resultado com dados ou código futuros. Avaliações sem sexo, peso ou dobras suficientes exibem `Status do cálculo` e são rejeitadas ao salvar, em vez de falharem silenciosamente.
 
 ## Contrato público da API
 
@@ -251,6 +255,9 @@ Os testes cobrem:
 - autoria da avaliação derivada no backend;
 - dados-base e unidades na projeção de fontes;
 - fórmula de adipometria masculina e feminina;
+- atribuição explícita ao protocolo de Guedes/Siri;
+- snapshot histórico da adipometria com entradas, resultados e versão;
+- erro explícito quando a adipometria não é calculável;
 - restauração de fontes por capacidade;
 - fonte nova não marcada automaticamente;
 - zonas cíclicas com volume, pace e FC;
