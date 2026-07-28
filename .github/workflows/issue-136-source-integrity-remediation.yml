@@ -1,0 +1,148 @@
+name: Issue 136 Source Integrity Remediation
+
+on:
+  push:
+    branches:
+      - fix/136-capacity-prescription-persistence
+
+permissions:
+  contents: write
+
+jobs:
+  remediate-source-integrity:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/136-capacity-prescription-persistence
+          fetch-depth: 0
+
+      - name: Reject unresolved canonical sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f .github/issue-136-source-integrity.trigger ]; then
+            echo "Remediation staged; waiting for trigger commit."
+            exit 0
+          fi
+
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              target = Path(path)
+              text = target.read_text(encoding='utf-8')
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected exactly one match, found {count}')
+              target.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          canonical = 'apps/api/src/modules/capacity-prescriptions/capacity-prescription-canonical-source.routes.ts'
+          replace_once(
+              canonical,
+              "type CanonicalSourceRequest = Request & { canonicalSourceActor?: CanonicalSourceActor };\n",
+              "type CanonicalSourceRequest = Request & { canonicalSourceActor?: CanonicalSourceActor };\n\nclass CanonicalSourceValidationError extends Error {}\n",
+          )
+          replace_once(
+              canonical,
+              "\n  return source;\n}\n\nasync function canonicalizeSource",
+              "\n  throw new CanonicalSourceValidationError('Fonte do prontuário não encontrada para este aluno.');\n}\n\nasync function canonicalizeSource",
+          )
+          replace_once(
+              canonical,
+              "    if (!goal) return source;",
+              "    if (!goal) {\n      throw new CanonicalSourceValidationError('Objetivo do prontuário não encontrado para este aluno.');\n    }",
+          )
+          replace_once(
+              canonical,
+              "    if (!profile) return source;",
+              "    if (!profile) {\n      throw new CanonicalSourceValidationError('Preferência do aluno não encontrada para este contrato.');\n    }",
+          )
+          replace_once(
+              canonical,
+              "    } catch (error) {\n      console.error('Erro ao reconstruir fontes canônicas da prescrição:', error);",
+              "    } catch (error) {\n      if (error instanceof CanonicalSourceValidationError) {\n        return sendError(res, error.message, 400);\n      }\n      console.error('Erro ao reconstruir fontes canônicas da prescrição:', error);",
+          )
+
+          assessment = 'apps/api/src/modules/capacity-prescriptions/capacity-prescription-source.routes.ts'
+          replace_once(
+              assessment,
+              "    if (!assessment) return source;",
+              "    if (!assessment) {\n      throw new CapacitySourceValidationError('Antropometria não encontrada para este aluno.');\n    }",
+          )
+          replace_once(
+              assessment,
+              "    if (!record) return source;",
+              "    if (!record) {\n      throw new CapacitySourceValidationError('Avaliação não encontrada para este aluno.');\n    }",
+          )
+
+          test_path = Path('apps/api/tests/capacity-prescription-source-canonicalization.integration.test.ts')
+          test_text = test_path.read_text(encoding='utf-8')
+          marker = "\n});\n"
+          if not test_text.endswith(marker):
+              raise SystemExit('unexpected canonicalization test ending')
+          addition = r'''
+
+  it.each([
+    'prontuario_goal',
+    'prontuario_alert',
+    'student_preference',
+    'physical_assessment',
+    'anthropometry',
+    'adipometry',
+    'bioimpedance',
+    'ultrasound',
+    'ventilometry',
+    'flexibility_assessment',
+  ])('rejeita a origem inexistente %s antes de persistir a versão', async (sourceType) => {
+    const response = await request(app)
+      .post(`/capacity-prescriptions/alunos/${alunoId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        capacity: 'resisted',
+        parameterSetIds: [],
+        sourceRefs: [
+          {
+            type: sourceType,
+            id: `fonte-inexistente-${sourceType}`,
+            label: 'Metadado enviado pelo cliente',
+            origin: 'origem-forjada',
+            version: 'versao-forjada',
+          },
+        ],
+        technicalJustification: 'A origem precisa existir no mesmo aluno e contrato.',
+        professorSummary: 'Validação de integridade da fonte.',
+        parameters: {
+          type: 'resisted',
+          resisted: { sets: 3, repetitions: '8-12', expectedPse: 6 },
+        },
+      });
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toMatch(/não encontrad/i);
+    expect(
+      await prisma.capacityPrescription.count({ where: { contractId, alunoId } })
+    ).toBe(0);
+  });
+'''
+          test_path.write_text(test_text[:-len(marker)] + addition + marker, encoding='utf-8')
+
+          docs = Path('docs/product/capacity-prescription-source-provenance.md')
+          docs_text = docs.read_text(encoding='utf-8')
+          old = "- ausência da versão forjada."
+          new = "- ausência da versão forjada;\n- rejeição HTTP 400 para identificadores inexistentes em todas as categorias canônicas, sem criar prescrição ou versão."
+          if docs_text.count(old) != 1:
+              raise SystemExit('unexpected provenance documentation state')
+          docs.write_text(docs_text.replace(old, new, 1), encoding='utf-8')
+          PY
+
+          rm -f .github/issue-136-source-integrity.trigger
+          rm -f .github/workflows/issue-136-source-integrity-remediation.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "fix(issue-136): reject unresolved canonical sources"
+          git push origin HEAD:fix/136-capacity-prescription-persistence
