@@ -1,11 +1,20 @@
 const ENABLED_VALUES = new Set(['1', 'true', 'yes', 'on']);
 const DISABLED_VALUES = new Set(['0', 'false', 'no', 'off']);
 
-export function isPreRegistrationUiEnabled(input?: {
+type PreRegistrationUiRolloutInput = {
   configuredValue?: string;
   production?: boolean;
-}): boolean {
-  const configuredValue = input?.configuredValue ?? import.meta.env.VITE_PRE_REGISTRATION_ENABLED;
+};
+
+export function isPreRegistrationUiEnabled(
+  input?: PreRegistrationUiRolloutInput
+): boolean {
+  const hasInjectedValue = Boolean(
+    input && Object.prototype.hasOwnProperty.call(input, 'configuredValue')
+  );
+  const configuredValue = hasInjectedValue
+    ? input?.configuredValue
+    : import.meta.env.VITE_PRE_REGISTRATION_ENABLED;
   const production = input?.production ?? import.meta.env.PROD;
   const normalized = configuredValue?.trim().toLowerCase();
 
