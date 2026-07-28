@@ -8,6 +8,7 @@ import type {
   RevokeParqConsentDTO,
   SaveParqDraftDTO,
 } from '@corrida/types';
+import { logUnexpectedPreRegistrationError } from '../../common/pre-registration-safe-log.js';
 import { authMiddleware, alunoMiddleware } from '../auth/auth.middleware.js';
 import { ParqDomainError } from './pre-registration-parq.domain.js';
 import { ParqServiceError, preRegistrationParqService } from './pre-registration-parq.service.js';
@@ -98,7 +99,7 @@ function handleError(res: Response, error: unknown) {
     );
   }
   const correlationId = crypto.randomUUID();
-  console.error('Erro inesperado no PAR-Q', { correlationId, error });
+  logUnexpectedPreRegistrationError('Erro inesperado no PAR-Q', correlationId, error);
   return sendError(res, 'Não foi possível continuar.', 500, {
     code: 'INTERNAL_ERROR',
     correlationId,
