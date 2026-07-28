@@ -8,7 +8,49 @@ type ErrorWithCode = {
   statusCode?: unknown;
 };
 
-const TECHNICAL_IDENTIFIER = /^[A-Za-z][A-Za-z0-9_.:-]{0,119}$/;
+const ALLOWED_ERROR_NAMES = new Set([
+  'Error',
+  'SyntaxError',
+  'TypeError',
+  'RangeError',
+  'ZodError',
+  'JsonWebTokenError',
+  'TokenExpiredError',
+  'PrismaClientKnownRequestError',
+  'PrismaClientValidationError',
+  'PreRegistrationPublicError',
+  'PreRegistrationAdminError',
+  'PreRegistrationEnrollmentError',
+  'PreRegistrationInviteError',
+  'HealthIntakeError',
+  'ParqServiceError',
+]);
+
+const ALLOWED_ERROR_CODES = new Set([
+  'P2002',
+  'P2025',
+  'P2034',
+  'INVALID_INPUT',
+  'NOT_FOUND',
+  'FORBIDDEN',
+  'CONCURRENT_MODIFICATION',
+  'PRECONDITION_FAILED',
+  'INVALID_INVITE',
+  'ACTIVE_INVITE_EXISTS',
+  'ACCOUNT_INCOMPATIBLE',
+  'ACCOUNT_ALREADY_LINKED',
+  'DUPLICATE_REVIEW_REQUIRED',
+  'BLOCKING_DUPLICATE',
+  'REVIEW_STALE',
+  'MISSING_REQUIRED_FIELDS',
+  'CONSENT_REQUIRED',
+  'CONSENT_VERSION_MISMATCH',
+  'BASIC_PRE_REGISTRATION_REQUIRED',
+  'INCOMPLETE_RESPONSES',
+  'HEALTH_INTAKE_COMPLETED',
+  'PRE_REGISTRATION_COMPLETED',
+]);
+
 const PRE_REGISTRATION_PATHS = [
   /^\/api\/v1\/pre-cadastro(?:\/|$)/,
   /^\/api\/v1\/pre-registration(?:\/|$)/,
@@ -22,10 +64,10 @@ export interface SafePreRegistrationErrorLog {
   errorCode?: string;
 }
 
-function technicalIdentifier(value: unknown): string | undefined {
+function allowedIdentifier(value: unknown, allowed: ReadonlySet<string>): string | undefined {
   if (typeof value !== 'string') return undefined;
   const normalized = value.trim();
-  return TECHNICAL_IDENTIFIER.test(normalized) ? normalized : undefined;
+  return allowed.has(normalized) ? normalized : undefined;
 }
 
 function clientStatus(error: unknown): number | undefined {
@@ -45,11 +87,12 @@ export function buildSafePreRegistrationErrorLog(
   error: unknown
 ): SafePreRegistrationErrorLog {
   const candidate = error && typeof error === 'object' ? (error as ErrorWithCode) : undefined;
+  const constructorName = error instanceof Error ? error.constructor.name : undefined;
   const errorName =
-    technicalIdentifier(candidate?.name) ||
-    (error instanceof Error ? technicalIdentifier(error.constructor.name) : undefined) ||
+    allowedIdentifier(candidate?.name, ALLOWED_ERROR_NAMES) ||
+    allowedIdentifier(constructorName, ALLOWED_ERROR_NAMES) ||
     'UnknownError';
-  const errorCode = technicalIdentifier(candidate?.code);
+  const errorCode = allowedIdentifier(candidate?.code, ALLOWED_ERROR_CODES);
 
   return {
     correlationId,
