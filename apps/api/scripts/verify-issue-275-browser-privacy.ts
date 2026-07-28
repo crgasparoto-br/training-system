@@ -315,8 +315,13 @@ async function main() {
 
   await tabUntil(page, { text: 'Criar acesso' });
   await page.keyboard.press('Enter');
-  await tabUntil(page, { type: 'radio', value: 'GUARDIAN' });
-  await page.keyboard.press('Space');
+  await tabUntil(page, { type: 'radio', value: 'STUDENT' });
+  await page.keyboard.press('ArrowRight');
+  const guardianSelected = await page.$eval(
+    'input[type="radio"][value="GUARDIAN"]',
+    (input) => (input as HTMLInputElement).checked
+  );
+  assert(guardianSelected, 'Grupo de escolha não permitiu selecionar responsável pelo teclado');
   await tabUntil(page, { text: 'Criar acesso e continuar' });
   await page.keyboard.press('Enter');
   await page.waitForFunction(() => document.activeElement?.id === 'pre-registration-name');
