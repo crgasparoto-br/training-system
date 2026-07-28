@@ -55,4 +55,26 @@ describe('capacity assessment parameter derivation', () => {
       { name: 'Joelho', angle: 115, priority: 'low' },
     ]);
   });
+
+  it('usa a regra angular compartilhada e rejeita força, dor, carga, percentual e comprimento', () => {
+    const result = mergeFlexibilityArticulationsFromAssessments([
+      {
+        measurements: [
+          { metricKey: 'forca_ombro', valueNumber: 80, unit: 'kgf' },
+          { metricKey: 'dor_joelho', valueNumber: 7 },
+          { metricKey: 'carga_quadril', valueNumber: 45, unit: 'kg' },
+          { metricKey: 'deficit_quadril', valueNumber: 12, unit: '%' },
+          { metricKey: 'circunferencia_tornozelo', valueNumber: 24, unit: 'cm' },
+          { metricKey: 'mobilidade_punho_percentual', valueNumber: 80, unit: '%' },
+          { metricKey: 'amplitude_cotovelo', valueNumber: 120 },
+          { metricKey: 'extensao_dedos', valueText: '37,5', unit: '°' },
+        ],
+      },
+    ]);
+
+    expect(result).toEqual([
+      { name: 'Cotovelo', angle: 120, priority: 'medium' },
+      { name: 'Dedos', angle: 37.5, priority: 'medium' },
+    ]);
+  });
 });
