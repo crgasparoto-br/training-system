@@ -1,0 +1,50 @@
+name: Issue 136 Finalize Remediation
+
+on:
+  push:
+    branches:
+      - fix/136-capacity-prescription-persistence
+
+permissions:
+  contents: write
+
+jobs:
+  finalize-remediation:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/136-capacity-prescription-persistence
+          fetch-depth: 0
+
+      - name: Align integration contract and remove temporary remediation assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('apps/api/tests/capacity-prescription-remediation.integration.test.ts')
+          text = path.read_text(encoding='utf-8')
+          old = "value: 'pollock-wilmore-1993-three-fold-siri-v1',"
+          new = "value: 'guedes-three-fold-siri-v1',"
+          count = text.count(old)
+          if count != 1:
+              raise SystemExit(f'expected exactly one stale formula expectation, found {count}')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+
+          rm -rf .github/remediation/issue-136
+          rm -f .github/workflows/issue-136-adipometry-remediation.yml
+          git fetch --no-tags origin develop
+          git show origin/develop:.github/workflows/validate-pr.yml > .github/workflows/validate-pr.yml
+          rm -f .github/workflows/issue-136-finalize-remediation.yml
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "fix(issue-136): align integration contract and clean remediation artifacts"
+          git push origin HEAD:fix/136-capacity-prescription-persistence
