@@ -2,6 +2,33 @@ import type { RequestHandler } from 'express';
 
 const ENABLED_VALUES = new Set(['1', 'true', 'yes', 'on']);
 const DISABLED_VALUES = new Set(['0', 'false', 'no', 'off']);
+const ALLOWED_DOMAIN_CODES = new Set([
+  'INVALID_INPUT',
+  'NOT_FOUND',
+  'FORBIDDEN',
+  'CONCURRENT_MODIFICATION',
+  'PRECONDITION_FAILED',
+  'INVALID_INVITE',
+  'ACTIVE_INVITE_EXISTS',
+  'ACCOUNT_EXISTS',
+  'ACCOUNT_INCOMPATIBLE',
+  'ACCOUNT_ALREADY_LINKED',
+  'ACTIVE_STUDENT',
+  'DUPLICATE_REVIEW_REQUIRED',
+  'BLOCKING_DUPLICATE',
+  'REVIEW_STALE',
+  'MISSING_REQUIRED_FIELDS',
+  'CONSENT_REQUIRED',
+  'CONSENT_VERSION_MISMATCH',
+  'BASIC_PRE_REGISTRATION_REQUIRED',
+  'INCOMPLETE_RESPONSES',
+  'HEALTH_INTAKE_COMPLETED',
+  'PRE_REGISTRATION_COMPLETED',
+  'PRE_REGISTRATION_DISABLED',
+  'PRE_REGISTRATION_REQUEST_REJECTED',
+  'PRE_REGISTRATION_INTERNAL_ERROR',
+  'RATE_LIMITED',
+]);
 
 type PreRegistrationRolloutEnv = {
   NODE_ENV?: string;
@@ -25,6 +52,7 @@ export interface PreRegistrationHttpMetric {
   statusCode: number;
   durationMs: number;
   outcome: 'success' | 'client_error' | 'server_error';
+  domainCode?: string;
 }
 
 function parseBooleanFlag(value: string | undefined): boolean | undefined {
@@ -32,6 +60,24 @@ function parseBooleanFlag(value: string | undefined): boolean | undefined {
   if (!normalized) return undefined;
   if (ENABLED_VALUES.has(normalized)) return true;
   if (DISABLED_VALUES.has(normalized)) return false;
+  return undefined;
+}
+
+function objectRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+export function extractPreRegistrationDomainCode(body: unknown): string | undefined {
+  const payload = objectRecord(body);
+  const details = objectRecord(payload?.details);
+  const candidates = [payload?.code, details?.code, payload?.error];
+  for (const candidate of candidates) {
+    if (typeof candidate !== 'string') continue;
+    const normalized = candidate.trim();
+    if (ALLOWED_DOMAIN_CODES.has(normalized)) return normalized;
+  }
   return undefined;
 }
 
@@ -59,11 +105,16 @@ export function buildPreRegistrationHttpMetric(input: {
   method: string;
   statusCode: number;
   durationMs: number;
+  domainCode?: string;
 }): PreRegistrationHttpMetric {
   const statusCode = Number.isFinite(input.statusCode) ? Math.trunc(input.statusCode) : 500;
   const durationMs = Number.isFinite(input.durationMs)
     ? Math.max(0, Math.round(input.durationMs))
     : 0;
+  const domainCode =
+    typeof input.domainCode === 'string' && ALLOWED_DOMAIN_CODES.has(input.domainCode)
+      ? input.domainCode
+      : undefined;
 
   return {
     event: 'pre_registration_http',
@@ -73,6 +124,7 @@ export function buildPreRegistrationHttpMetric(input: {
     durationMs,
     outcome:
       statusCode >= 500 ? 'server_error' : statusCode >= 400 ? 'client_error' : 'success',
+    ...(domainCode ? { domainCode } : {}),
   };
 }
 
@@ -87,6 +139,13 @@ export function createPreRegistrationHttpObservability(
     }
 
     const startedAt = process.hrtime.bigint();
+    let domainCode: string | undefined;
+    const originalJson = res.json;
+    res.json = function preRegistrationObservedJson(body: unknown) {
+      domainCode = extractPreRegistrationDomainCode(body);
+      return originalJson.call(this, body);
+    } as typeof res.json;
+
     res.once('finish', () => {
       const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
       const metric = buildPreRegistrationHttpMetric({
@@ -94,10 +153,11 @@ export function createPreRegistrationHttpObservability(
         method: req.method,
         statusCode: res.statusCode,
         durationMs,
+        domainCode,
       });
 
       // Deliberately exclude path, query string, headers, body, user and tenant.
-      // Runtime log collectors may aggregate this structured event safely.
+      // Only a stable allowlisted domain code may be added to the aggregate metric.
       console.info(JSON.stringify(metric));
     });
 
