@@ -5,7 +5,7 @@ import {
 
 describe('capacity prescription formulas', () => {
   it('identifica explicitamente o protocolo de Guedes com conversão de Siri', () => {
-    expect(ADIPOMETRY_FORMULA_VERSION).toBe('guedes-1985-three-fold-siri-v1');
+    expect(ADIPOMETRY_FORMULA_VERSION).toBe('guedes-three-fold-siri-v1');
   });
 
   it('reproduz a composição masculina da planilha com versão explícita', () => {
