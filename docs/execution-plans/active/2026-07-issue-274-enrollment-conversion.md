@@ -22,6 +22,7 @@ O candidato válido é sempre o HEAD final da PR registrado no handoff. Este pla
 - redetecção do canônico após a consolidação, com fingerprint e versão próprios;
 - revisão vinculada ao `onboarding.version`, inclusive para falso positivo confirmado durante a criação;
 - trigger de invalidação após mudança de identidade, com bloqueio `NOWAIT`;
+- invalidação coordenada entre `Aluno` e `StudentProfile`, inclusive antes da primeira revisão e com um único incremento por transação;
 - renovação transacional da revisão quando um registro permanece `READY_FOR_ENROLLMENT` após invalidação;
 - capacidade de confirmar matrícula ocultada enquanto não existir revisão vigente para a versão e fingerprint atuais;
 - transições de descarte, prontidão e ativação centralizadas no domínio de ciclo do aluno;
@@ -93,6 +94,14 @@ O candidato válido é sempre o HEAD final da PR registrado no handoff. Este pla
 - o workflow visual legado da issue 270 recebeu um mock de compatibilidade para a consulta de `enrollment-review`, sem alterar regra de negócio, e deve permanecer aprovado no HEAD final;
 - a auditoria controller-adversarial deste ciclo não substitui a auditoria independente exigida para o fechamento definitivo.
 
+### AUD-274-15 — invalidação comercial antes da primeira revisão
+
+- mudanças somente em unidade ou observações invalidam `StudentOnboardingProcess.version` mesmo com `reviewedAt` nulo;
+- alterações combinadas em origem/responsável e `_leadCommercial` incrementam a versão exatamente uma vez;
+- os triggers de `Aluno` e `StudentProfile` chamam a mesma função de invalidação e compartilham um marcador local à transação por aluno;
+- a versão e o fingerprint capturados antes da edição são rejeitados por `markReady` com `REVIEW_STALE`;
+- teste PostgreSQL discriminante cobre unidade, observações e alteração combinada.
+
 ## Critérios de aceite
 
 - [x] nome isolado não bloqueia;
@@ -105,6 +114,8 @@ O candidato válido é sempre o HEAD final da PR registrado no handoff. Este pla
 - [x] origem consolidada não reaparece como bloqueio do canônico;
 - [x] histórico clínico bloqueia consolidação não assistida;
 - [x] alteração de identidade invalida revisão;
+- [x] unidade e observações invalidam a versão antes da primeira revisão;
+- [x] edição combinada invalida a versão exatamente uma vez;
 - [x] revisão invalidada em `READY_FOR_ENROLLMENT` pode ser renovada sem intervenção externa;
 - [x] confirmação não é oferecida enquanto a revisão vigente estiver ausente;
 - [x] deduplicação do claim produz pendência privada e auditável quando aplicável;
@@ -125,9 +136,10 @@ O candidato válido é sempre o HEAD final da PR registrado no handoff. Este pla
 5. Integração de revogação/concessão do bloco de criação dentro da transação.
 6. Integração A-005: marcar pronto, invalidar por alteração, negar confirmação, renovar revisão e ativar o mesmo ID.
 7. Integração A-006: claim com duplicidade cria pendência privada; retry é idempotente; claim limpo preserva o mesmo formato público.
-8. Workflow visual com três viewports, árvore de acessibilidade, screenshots e relatório JSON no SHA final.
-9. Pré-auditoria interna adversarial.
-10. Nova auditoria independente em conversa separada.
+8. Integração AUD-274-15: alterar unidade, observações e campos combinados antes da primeira revisão, exigir um único incremento e rejeitar a versão antiga.
+9. Workflow visual com três viewports, árvore de acessibilidade, screenshots e relatório JSON no SHA final.
+10. Pré-auditoria interna adversarial.
+11. Nova auditoria independente em conversa separada.
 
 ## Riscos e pendências
 
