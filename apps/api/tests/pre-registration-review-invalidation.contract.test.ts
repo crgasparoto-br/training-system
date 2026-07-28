@@ -30,13 +30,21 @@ describe('issue 274 commercial review invalidation contract', () => {
     );
   });
 
-  it('consolidates legacy trigger variants before creating one trigger per projection', () => {
-    expect(migration).toContain("trigger_function.proname LIKE 'invalidate_pre_registration_review%'");
-    expect(migration).toContain("DROP TRIGGER IF EXISTS %I ON %I.%I");
-    expect(migration.match(/CREATE TRIGGER "Aluno_invalidate_pre_registration_review"/g)).toHaveLength(1);
-    expect(
-      migration.match(/CREATE TRIGGER "StudentProfile_invalidate_pre_registration_review"/g)
-    ).toHaveLength(1);
+  it('integrates review invalidation with the canonical StudentProfile version trigger', () => {
+    expect(migration).toContain(
+      'CREATE OR REPLACE FUNCTION "bump_pre_registration_version_on_identity_change"()'
+    );
+    expect(migration).toContain("professional_write BOOLEAN");
+    expect(migration).toContain(
+      "student_status IN ('PRE_REGISTRATION_COMPLETED', 'READY_FOR_ENROLLMENT')"
+    );
+    expect(migration).toContain(
+      "student_status NOT IN ('PRE_REGISTRATION_COMPLETED', 'READY_FOR_ENROLLMENT')"
+    );
+    expect(migration).not.toContain(
+      'CREATE TRIGGER "StudentProfile_invalidate_pre_registration_review"'
+    );
+    expect(migration).toContain("'StudentProfile_invalidate_pre_registration_review'");
   });
 
   it('does not depend on an existing reviewedAt value', () => {
