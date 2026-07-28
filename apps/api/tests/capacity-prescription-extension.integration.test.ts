@@ -318,4 +318,46 @@ describeDatabase('capacity prescription extension with PostgreSQL', () => {
     expect(classifications).toHaveLength(1);
     expect(classifications[0].goalId).toBe(goalA);
   });
+
+  it('aloca versões distintas para ciclos concorrentes da mesma chave lógica', async () => {
+    const results = await Promise.all([
+      service.savePlanningCycle(
+        { contractId: contractA, alunoId: alunoA, actorProfessorId: professorA },
+        { level: 'macro', code: 'MACRO-CONCURRENT', name: 'Macrociclo A' }
+      ),
+      service.savePlanningCycle(
+        { contractId: contractA, alunoId: alunoA, actorProfessorId: professorA },
+        { level: 'macro', code: 'MACRO-CONCURRENT', name: 'Macrociclo B' }
+      ),
+    ]);
+
+    expect(results.map((item) => item.version).sort()).toEqual([1, 2]);
+    const persisted = await service.listPlanning(contractA, alunoA);
+    expect(
+      persisted
+        .filter((item) => item.code === 'MACRO-CONCURRENT')
+        .map((item) => item.version)
+        .sort()
+    ).toEqual([1, 2]);
+  });
+
+  it('aloca versões distintas e mantém apenas um catálogo atual sob concorrência', async () => {
+    const results = await Promise.all([
+      service.saveCatalogItem(
+        { contractId: contractA, actorProfessorId: professorA },
+        { category: 'method', code: 'CONCURRENT_METHOD', name: 'Método A' }
+      ),
+      service.saveCatalogItem(
+        { contractId: contractA, actorProfessorId: professorA },
+        { category: 'method', code: 'CONCURRENT_METHOD', name: 'Método B' }
+      ),
+    ]);
+
+    expect(results.map((item) => item.version).sort()).toEqual([1, 2]);
+    const history = await service.listCatalog(contractA, 'method', true);
+    const concurrentItems = history.filter((item) => item.code === 'CONCURRENT_METHOD');
+    expect(concurrentItems.map((item) => item.version).sort()).toEqual([1, 2]);
+    expect(concurrentItems.filter((item) => item.isCurrent)).toHaveLength(1);
+    expect(concurrentItems.find((item) => item.isCurrent)?.version).toBe(2);
+  });
 });
