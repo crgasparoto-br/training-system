@@ -24,7 +24,7 @@ Antes da derivação de alertas e antes da gravação de uma nova versão, o bac
 | avaliações e antropometria | registros segmentados e avaliações antropométricas | dados já reconstruídos pelo fluxo existente |
 | histórico de atividade | `ProntuarioActivityHistory` | dados já reconstruídos pelo fluxo existente |
 
-Quando o identificador não pertence ao aluno e ao contrato autenticados, a validação de domínio rejeita a origem técnica. O backend não usa os metadados recebidos para tornar uma origem inexistente válida.
+Quando o identificador não pertence ao aluno e ao contrato autenticados, a validação de domínio rejeita a origem técnica. O backend não usa os metadados recebidos para tornar uma origem inexistente válida. Referências malformadas também são rejeitadas com erro de validação antes da canonicalização.
 
 ## Identificador da preferência na tela
 
@@ -50,6 +50,8 @@ Alertas `PRNT_CONDITION` e `STUDENT_PREFERENCE` são derivados somente depois da
 - mensagens de alerta canônicas;
 - linhas persistidas em `CapacityPrescriptionSource`;
 - ausência da versão forjada.
+
+`capacity-prescription-source-integrity.service.test.ts` cobre referências malformadas, todas as categorias canônicas inexistentes, uma avaliação válida e a exceção explícita para anotação técnica manual do professor.
 
 `capacityPrescriptionProfileSource.test.ts` comprova que um `recordId` público do `StudentProfile` produz a referência `student_preference` usada pela tela.
 
