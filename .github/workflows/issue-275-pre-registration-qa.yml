@@ -10,6 +10,7 @@ on:
       - 'apps/api/src/modules/pre-registration-**'
       - 'apps/api/src/modules/alunos/**'
       - 'apps/api/scripts/verify-issue-275-**'
+      - 'apps/api/tests/issue-275-**'
       - 'apps/api/prisma/**'
       - 'apps/web/src/App.tsx'
       - 'apps/web/src/config/pre-registration-rollout*'
@@ -97,6 +98,7 @@ jobs:
             "requiredEvidence": [
               "integrated-e2e",
               "authorization-matrix",
+              "authorization-matrix-extended",
               "performance-rollout",
               "migration-backfill",
               "health-intake",
@@ -190,6 +192,14 @@ jobs:
           pnpm --filter @corrida/api exec tsx \
             scripts/verify-issue-275-authorization-matrix.ts 2>&1 \
             | tee artifacts/issue-275/authorization-matrix.log
+
+      - name: Verify extended API authorization matrix
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @corrida/api exec jest --runInBand \
+            tests/issue-275-authorization-matrix-extended.integration.test.ts 2>&1 \
+            | tee artifacts/issue-275/authorization-matrix-extended.log
 
       - name: Verify proportional queries and rollout preservation
         shell: bash
