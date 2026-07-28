@@ -12,10 +12,7 @@ type Actor = {
   contractId: string;
 };
 
-type ApiResult = {
-  status: number;
-  body: Record<string, unknown>;
-};
+type ApiResult = { status: number; body: Record<string, unknown> };
 
 const runDatabaseTests = process.env.RUN_DATABASE_INTEGRATION_TESTS === 'true';
 const describeDatabase = runDatabaseTests ? describe : describe.skip;
@@ -42,8 +39,7 @@ async function waitForApi() {
   const startedAt = Date.now();
   while (Date.now() - startedAt < 60_000) {
     try {
-      const response = await fetch(`${apiUrl}/health`);
-      if (response.ok) return;
+      if ((await fetch(`${apiUrl}/health`)).ok) return;
     } catch {
       // API still starting.
     }
@@ -141,26 +137,18 @@ async function createActor(params: {
       }
     );
   }
-  return {
-    user,
-    professorId: professor.id,
-    contractId: params.contractId,
-  } satisfies Actor;
+  return { user, professorId: professor.id, contractId: params.contractId } satisfies Actor;
 }
 
 describeDatabase('issue 275 extended API authorization matrix', () => {
   let targetId: string;
   let healthAlunoId: string;
-  let tokens: Record<string, string>;
   let tenantAId: string;
+  let tokens: Record<string, string>;
 
   beforeAll(async () => {
-    const [tenantA, tenantB] = await Promise.all([
-      createContract('a'),
-      createContract('b'),
-    ]);
+    const [tenantA, tenantB] = await Promise.all([createContract('a'), createContract('b')]);
     tenantAId = tenantA.id;
-
     const [master, readOnly, commercial, reviewer, clinical, otherTenantMaster, linkedStudent, unlinkedStudent] =
       await Promise.all([
         createActor({ label: 'master', contractId: tenantA.id, master: true }),
@@ -203,11 +191,7 @@ describeDatabase('issue 275 extended API authorization matrix', () => {
 
     if (!master.professorId) throw new Error('Administrador sem professor');
     targetId = await preRegistrationEnrollmentCreateService.create(
-      {
-        userId: master.user.id,
-        professorId: master.professorId,
-        contractId: tenantA.id,
-      },
+      { userId: master.user.id, professorId: master.professorId, contractId: tenantA.id },
       {
         name: 'Lead Matriz Estendida',
         phone: '15940000001',
@@ -297,7 +281,7 @@ describeDatabase('issue 275 extended API authorization matrix', () => {
     await prisma.$disconnect();
   });
 
-  it('enforces commercial edit, invite, revoke, review and conversion blocks', async () => {
+  it('covers the remaining commercial action boundaries', async () => {
     expect(
       await request(`/pre-registration-admin/leads/${targetId}`, {
         token: tokens.readOnly,
@@ -327,18 +311,22 @@ describeDatabase('issue 275 extended API authorization matrix', () => {
         body: { commercialNotes: 'contato comercial validado' },
       })
     ).toMatchObject({ status: 200 });
-    expect(
-      await request(`/pre-registration-admin/leads/${targetId}/invites`, {
-        token: tokens.commercial,
-        method: 'POST',
-        body: {},
-      })
-    ).toMatchObject({ status: 201 });
+    const generated = await request(`/pre-registration-admin/leads/${targetId}/invites`, {
+      token: tokens.commercial,
+      method: 'POST',
+      body: {},
+    });
+    expect(generated.status).toBe(201);
+    const generatedData = generated.body.data as { summary?: { id?: string } } | undefined;
+    expect(generatedData?.summary?.id).toBeTruthy();
     expect(
       await request(`/pre-registration-admin/leads/${targetId}/invites/revoke`, {
         token: tokens.commercial,
         method: 'POST',
-        body: { reason: 'matriz estendida' },
+        body: {
+          inviteId: generatedData?.summary?.id,
+          reason: 'validação da matriz de autorização estendida',
+        },
       })
     ).toMatchObject({ status: 200 });
     expect(
@@ -388,18 +376,16 @@ describeDatabase('issue 275 extended API authorization matrix', () => {
     ).toBe('contato comercial validado');
   });
 
-  it('separates status summaries, clinical content and PRNT by role and tenant', async () => {
+  it('separates summaries, clinical content and PRNT by role and tenant', async () => {
     const status = await request(`/pre-registration-admin/leads/${healthAlunoId}`, {
       token: tokens.readOnly,
     });
     expect(status.status).toBe(200);
-    const data = status.body.data as {
-      progress?: { healthModuleStatus?: string; parqModuleStatus?: string };
-    };
-    expect(data.progress).toMatchObject({
-      healthModuleStatus: 'NOT_STARTED',
-      parqModuleStatus: 'NOT_STARTED',
-    });
+    expect(
+      (status.body.data as {
+        progress?: { healthModuleStatus?: string; parqModuleStatus?: string };
+      }).progress
+    ).toMatchObject({ healthModuleStatus: 'NOT_STARTED', parqModuleStatus: 'NOT_STARTED' });
 
     expect(
       await request(`/pre-registration/processes/${healthAlunoId}/health-intake`, {
@@ -443,7 +429,7 @@ describeDatabase('issue 275 extended API authorization matrix', () => {
     ).toMatchObject({ status: 404 });
   });
 
-  it('keeps audit records tenant scoped and does not expose an undocumented audit endpoint', async () => {
+  it('keeps audit tenant scoped without an undocumented audit endpoint', async () => {
     expect(
       await request(`/pre-registration-admin/leads/${targetId}/audit`, { token: tokens.master })
     ).toMatchObject({ status: 404 });
@@ -452,20 +438,13 @@ describeDatabase('issue 275 extended API authorization matrix', () => {
         token: tokens.readOnly,
       })
     ).toMatchObject({ status: 404 });
-
-    const ownEvents = await prisma.studentLifecycleEvent.count({
-      where: { alunoId: targetId, contractId: tenantAId },
-    });
-    const foreignEvents = await prisma.studentLifecycleEvent.count({
-      where: { alunoId: targetId, contractId: { not: tenantAId } },
-    });
-    expect(ownEvents).toBeGreaterThan(0);
-    expect(foreignEvents).toBe(0);
-
-    const deniedRecords = await prisma.studentProfile.findUniqueOrThrow({ where: { alunoId: targetId } });
-    const notes = (deniedRecords.identificationData as {
-      _leadCommercial?: { notes?: string };
-    })._leadCommercial?.notes;
-    expect(notes).toBe('contato comercial validado');
+    expect(
+      await prisma.studentLifecycleEvent.count({ where: { alunoId: targetId, contractId: tenantAId } })
+    ).toBeGreaterThan(0);
+    expect(
+      await prisma.studentLifecycleEvent.count({
+        where: { alunoId: targetId, contractId: { not: tenantAId } },
+      })
+    ).toBe(0);
   });
 });
