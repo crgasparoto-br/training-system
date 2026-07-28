@@ -21,6 +21,14 @@ router.post(
       const professorId = req.user?.professorId;
       if (!contractId || !professorId) return sendError(res, 'Não autenticado', 401);
 
+      // Preserve the domain boundary's non-enumeration contract before resolving
+      // any source identifier supplied by the client.
+      const aluno = await prisma.aluno.findFirst({
+        where: { id: req.params.alunoId, contractId },
+        select: { id: true },
+      });
+      if (!aluno) return sendError(res, 'Recurso não encontrado', 404);
+
       const sourceRefs = capacitySourceRefsFromBody(req.body);
       if (!sourceRefs) return next();
 
