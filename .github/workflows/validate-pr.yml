@@ -62,6 +62,7 @@ jobs:
           python .github/remediation/issue-136/03-tests-docs.py
           rm -rf .github/remediation/issue-136
           rm -f .github/workflows/issue-136-adipometry-remediation.yml
+          git fetch --no-tags --depth=1 origin 506883feed3e865268f4a3c8045b3a043344b7f4
           git show 506883feed3e865268f4a3c8045b3a043344b7f4:.github/workflows/validate-pr.yml > .github/workflows/validate-pr.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
