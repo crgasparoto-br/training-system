@@ -5,6 +5,7 @@ export type CapacityAssessmentMeasurement = {
   metricLabel?: string | null;
   valueNumber?: unknown;
   valueText?: string | null;
+  unit?: string | null;
 };
 
 export type CapacityAssessmentRecord = {
@@ -42,7 +43,22 @@ function finiteNumber(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function isAngularMeasurement(measurement: CapacityAssessmentMeasurement) {
+  const descriptor = normalize(`${measurement.metricKey} ${measurement.metricLabel ?? ''}`);
+  const unit = normalize(measurement.unit ?? '');
+  return (
+    descriptor.includes('angulo') ||
+    descriptor.includes('amplitude') ||
+    unit === 'grau' ||
+    unit === 'graus' ||
+    unit === 'degree' ||
+    unit === 'degrees' ||
+    measurement.unit === '°'
+  );
+}
+
 function articulationForMeasurement(measurement: CapacityAssessmentMeasurement) {
+  if (!isAngularMeasurement(measurement)) return undefined;
   const descriptor = normalize(`${measurement.metricKey} ${measurement.metricLabel ?? ''}`);
   return articulationAliases.find((candidate) =>
     candidate.aliases.some((alias) => descriptor.includes(alias))
