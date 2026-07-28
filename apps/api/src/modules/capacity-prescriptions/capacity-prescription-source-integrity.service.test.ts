@@ -1,6 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 import {
   assertCapacitySourceIntegrity,
+  capacitySourceRefsFromBody,
   CapacitySourceIntegrityError,
 } from './capacity-prescription-source-integrity.service.js';
 
@@ -25,6 +26,18 @@ const base = {
 };
 
 describe('capacity prescription source integrity', () => {
+  it.each([undefined, null, 'payload', [], {}, { sourceRefs: 'invalid' }])(
+    'ignora corpo sem coleção de fontes para o schema final validar: %#',
+    (body) => {
+      expect(capacitySourceRefsFromBody(body)).toBeNull();
+    }
+  );
+
+  it('extrai a coleção de fontes de um corpo válido', () => {
+    const sourceRefs = [{ type: 'prontuario_goal', id: 'goal-1' }];
+    expect(capacitySourceRefsFromBody({ sourceRefs })).toBe(sourceRefs);
+  });
+
   it.each([null, {}, { type: 'adipometry' }, { id: 'source-1' }, { type: 'adipometry', id: '' }])(
     'rejeita referência malformada %#',
     async (candidate) => {
