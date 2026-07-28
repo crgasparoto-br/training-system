@@ -1,4 +1,8 @@
-import type { FlexibilityArticulationParameters } from '@corrida/types';
+import {
+  isAngularFlexibilityMeasurement,
+  normalizeCapacityMeasurementDescriptor,
+  type FlexibilityArticulationParameters,
+} from '@corrida/types';
 
 export type CapacityAssessmentMeasurement = {
   metricKey: string;
@@ -23,15 +27,6 @@ const articulationAliases = [
   { name: 'Tornozelo', aliases: ['tornozelo'] },
 ] as const;
 
-function normalize(value: string) {
-  return value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '');
-}
-
 function finiteNumber(value: unknown): number | null {
   if (typeof value === 'number') return Number.isFinite(value) ? value : null;
   if (value && typeof value === 'object' && 'toNumber' in value) {
@@ -43,23 +38,11 @@ function finiteNumber(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function isAngularMeasurement(measurement: CapacityAssessmentMeasurement) {
-  const descriptor = normalize(`${measurement.metricKey} ${measurement.metricLabel ?? ''}`);
-  const unit = normalize(measurement.unit ?? '');
-  return (
-    descriptor.includes('angulo') ||
-    descriptor.includes('amplitude') ||
-    unit === 'grau' ||
-    unit === 'graus' ||
-    unit === 'degree' ||
-    unit === 'degrees' ||
-    measurement.unit === '°'
-  );
-}
-
 function articulationForMeasurement(measurement: CapacityAssessmentMeasurement) {
-  if (!isAngularMeasurement(measurement)) return undefined;
-  const descriptor = normalize(`${measurement.metricKey} ${measurement.metricLabel ?? ''}`);
+  if (!isAngularFlexibilityMeasurement(measurement)) return undefined;
+  const descriptor = normalizeCapacityMeasurementDescriptor(
+    `${measurement.metricKey} ${measurement.metricLabel ?? ''}`
+  );
   return articulationAliases.find((candidate) =>
     candidate.aliases.some((alias) => descriptor.includes(alias))
   );
@@ -70,7 +53,9 @@ export function mergeFlexibilityArticulationsFromAssessments(
   existing: FlexibilityArticulationParameters[] = []
 ): FlexibilityArticulationParameters[] {
   const merged = existing.map((item) => ({ ...item }));
-  const indexByName = new Map(merged.map((item, index) => [normalize(item.name), index]));
+  const indexByName = new Map(
+    merged.map((item, index) => [normalizeCapacityMeasurementDescriptor(item.name), index])
+  );
   const derivedNames = new Set<string>();
 
   for (const record of records) {
@@ -79,7 +64,7 @@ export function mergeFlexibilityArticulationsFromAssessments(
       const angle = finiteNumber(measurement.valueNumber ?? measurement.valueText);
       if (!articulation || angle === null) continue;
 
-      const normalizedName = normalize(articulation.name);
+      const normalizedName = normalizeCapacityMeasurementDescriptor(articulation.name);
       if (derivedNames.has(normalizedName)) continue;
       derivedNames.add(normalizedName);
 
