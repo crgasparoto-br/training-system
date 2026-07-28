@@ -1,6 +1,7 @@
 import {
   buildPreRegistrationHttpMetric,
   createPreRegistrationRolloutGate,
+  extractPreRegistrationDomainCode,
   isPreRegistrationEnabled,
   isPreRegistrationTelemetryEnabled,
 } from './pre-registration-rollout.js';
@@ -71,12 +72,13 @@ describe('pre-registration technical telemetry', () => {
     expect(isPreRegistrationTelemetryEnabled({ PRE_REGISTRATION_TELEMETRY_ENABLED: 'false' })).toBe(false);
   });
 
-  it('contains only aggregate HTTP dimensions and no personal request data', () => {
+  it('contains aggregate HTTP dimensions and an optional allowlisted domain code', () => {
     const metric = buildPreRegistrationHttpMetric({
       area: 'public-invite',
       method: 'get',
       statusCode: 404,
       durationMs: 12.6,
+      domainCode: 'INVALID_INVITE',
     });
 
     expect(metric).toEqual({
@@ -86,13 +88,32 @@ describe('pre-registration technical telemetry', () => {
       statusCode: 404,
       durationMs: 13,
       outcome: 'client_error',
+      domainCode: 'INVALID_INVITE',
     });
     expect(Object.keys(metric).sort()).toEqual(
-      ['area', 'durationMs', 'event', 'method', 'outcome', 'statusCode'].sort()
+      ['area', 'domainCode', 'durationMs', 'event', 'method', 'outcome', 'statusCode'].sort()
     );
-    expect(JSON.stringify(metric)).not.toContain('token');
     expect(JSON.stringify(metric)).not.toContain('cpf');
     expect(JSON.stringify(metric)).not.toContain('email');
     expect(JSON.stringify(metric)).not.toContain('contractId');
+  });
+
+  it('extracts only stable allowlisted codes and rejects token-shaped values', () => {
+    expect(extractPreRegistrationDomainCode({ code: 'CONCURRENT_MODIFICATION' })).toBe(
+      'CONCURRENT_MODIFICATION'
+    );
+    expect(
+      extractPreRegistrationDomainCode({ details: { code: 'DUPLICATE_REVIEW_REQUIRED' } })
+    ).toBe('DUPLICATE_REVIEW_REQUIRED');
+    expect(extractPreRegistrationDomainCode({ code: 'secret-token' })).toBeUndefined();
+    expect(
+      buildPreRegistrationHttpMetric({
+        area: 'public-invite',
+        method: 'get',
+        statusCode: 400,
+        durationMs: 1,
+        domainCode: 'secret-token',
+      })
+    ).not.toHaveProperty('domainCode');
   });
 });
