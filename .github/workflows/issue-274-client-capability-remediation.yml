@@ -116,3 +116,5 @@ jobs:
           git diff --cached --check
           git commit -m "fix(issue-274): compatibilizar lock com clientes simulados"
           git push origin HEAD:feat/274-enrollment-conversion
+
+# retrigger after push workflow registration
