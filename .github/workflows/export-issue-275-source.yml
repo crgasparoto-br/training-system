@@ -6,6 +6,11 @@ on:
       - feat/275-pre-registration-qa-rollout
     paths:
       - '.github/workflows/export-issue-275-source.yml'
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - '.github/workflows/export-issue-275-source.yml'
   workflow_dispatch:
 
 permissions:
@@ -23,7 +28,7 @@ jobs:
       - name: Upload repository source
         uses: actions/upload-artifact@v4
         with:
-          name: issue-275-source-${{ github.sha }}
+          name: issue-275-source-${{ github.event.pull_request.head.sha || github.sha }}
           path: |
             .
             !.git/**
