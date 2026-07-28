@@ -43,6 +43,7 @@ import {
   createPreRegistrationHttpObservability,
   createPreRegistrationRolloutGate,
 } from './common/pre-registration-rollout.js';
+import { createPreRegistrationUnexpectedErrorHandler } from './common/pre-registration-safe-log.js';
 import { getJwtSecret, resolveCorsConfig } from './common/runtime-config.js';
 
 const app: express.Express = express();
@@ -166,6 +167,8 @@ app.use('/api/v1/student', studentRoutes);
 app.use((_req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
+
+app.use(createPreRegistrationUnexpectedErrorHandler());
 
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('Error:', err);
