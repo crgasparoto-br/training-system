@@ -25,6 +25,7 @@ BEGIN
        UNION ALL SELECT 1 FROM "AnthropometryAssessment" WHERE "alunoId" = NEW."id"
        UNION ALL SELECT 1 FROM "AlunoExerciseProgress" WHERE "alunoId" = NEW."id"
        UNION ALL SELECT 1 FROM "AlunoIntakeForm" WHERE "alunoId" = NEW."id"
+       UNION ALL SELECT 1 FROM "AlunoProfileReviewSettings" WHERE "alunoId" = NEW."id"
        UNION ALL SELECT 1 FROM "AlunoAssessmentPlanItem" WHERE "alunoId" = NEW."id"
        UNION ALL SELECT 1 FROM "Assessment" WHERE "alunoId" = NEW."id"
        -- O model Prisma Contract usa @@map("GeneratedContract").
@@ -49,6 +50,7 @@ BEGIN
        UNION ALL SELECT 1 FROM "StudentParqLegacyRecord" WHERE "alunoId" = NEW."id"
        UNION ALL SELECT 1 FROM "ProntuarioRecord" WHERE "alunoId" = NEW."id"
        UNION ALL SELECT 1 FROM "ProntuarioDiscomfortSnapshot" WHERE "alunoId" = NEW."id"
+       UNION ALL SELECT 1 FROM "PreRegistrationGuardianAuthorization" WHERE "alunoId" = NEW."id"
      )
   THEN
     RAISE EXCEPTION 'CLINICAL_REASSOCIATION_REQUIRED'
