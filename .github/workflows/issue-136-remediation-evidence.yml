@@ -47,6 +47,10 @@ jobs:
         if: ${{ hashFiles('.audit/issue-loop-engineer/issue-136/final-reconstruct-trigger.json') != '' }}
         run: bash scripts/issue-136-reconstruct-final.sh
 
+      - name: Apply assessment review patch
+        if: ${{ hashFiles('.audit/issue-loop-engineer/issue-136/ui-assessment-review-trigger.json') != '' }}
+        run: bash scripts/issue-136-ui-assessment-review-patch.sh
+
       - name: Resolve validated head
         id: identity
         shell: bash
