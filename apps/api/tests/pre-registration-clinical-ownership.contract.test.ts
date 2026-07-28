@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { CLINICAL_CONSOLIDATION_OWNERSHIP_RELATIONS } from '../src/modules/pre-registration-enrollment/pre-registration-clinical-ownership.service.js';
+import { CONSOLIDATION_BLOCKING_OWNERSHIP_RELATIONS } from '../src/modules/pre-registration-enrollment/pre-registration-clinical-ownership.service.js';
 
 const root = resolve(__dirname, '../../..');
 const read = (path: string) => readFileSync(resolve(root, path), 'utf8');
@@ -10,26 +10,49 @@ const migration = read(
 const schema = read('apps/api/prisma/schema.prisma');
 
 const expectedOwnership = {
+  agendaBookings: 'AgendaBooking',
+  anthropometryAssessments: 'AnthropometryAssessment',
+  exerciseProgress: 'AlunoExerciseProgress',
   intakeForm: 'AlunoIntakeForm',
+  assessmentPlanItems: 'AlunoAssessmentPlanItem',
+  assessments: 'Assessment',
+  contracts: 'Contract',
+  studentContracts: 'StudentContract',
+  fixedSlots: 'FixedScheduleSlot',
+  integrations: 'Integration',
+  macronutrients: 'Macronutrients',
+  nutritionPlans: 'NutritionPlan',
+  progressMetrics: 'ProgressMetric',
+  executions: 'TrainingExecution',
+  trainingPlans: 'TrainingPlan',
+  workoutExecutions: 'WorkoutExecution',
   studentHealthIntake: 'StudentHealthIntake',
-  parqDraft: 'StudentParqDraft',
+  studentAssessmentRecords: 'StudentAssessmentRecord',
+  studentFinancialProfile: 'StudentFinancialProfile',
+  studentExternalAccounts: 'StudentExternalAccount',
+  studentExternalActivities: 'StudentExternalActivity',
   parqSubmissions: 'StudentParqSubmission',
+  parqDraft: 'StudentParqDraft',
   parqProfessionalReviews: 'StudentParqProfessionalReview',
   parqLegacyRecords: 'StudentParqLegacyRecord',
   prontuarioRecords: 'ProntuarioRecord',
   prontuarioDiscomfortSnapshots: 'ProntuarioDiscomfortSnapshot',
-  studentAssessmentRecords: 'StudentAssessmentRecord',
-  assessments: 'Assessment',
-  anthropometryAssessments: 'AnthropometryAssessment',
-  assessmentPlanItems: 'AlunoAssessmentPlanItem',
-  progressMetrics: 'ProgressMetric',
-  macronutrients: 'Macronutrients',
-  nutritionPlans: 'NutritionPlan',
 } as const;
 
-describe('issue 274 clinical ownership contract', () => {
+const preservedSourceHistoryRelations = [
+  'studentProfile',
+  'profileReviewSettings',
+  'profileReviews',
+  'profileAuditLogs',
+  'onboarding',
+  'lifecycleEvents',
+  'preRegistrationInvites',
+  'guardianAuthorizations',
+] as const;
+
+describe('issue 274 consolidation ownership contract', () => {
   it('keeps the typed preflight inventory aligned with the database trigger', () => {
-    expect([...CLINICAL_CONSOLIDATION_OWNERSHIP_RELATIONS].sort()).toEqual(
+    expect([...CONSOLIDATION_BLOCKING_OWNERSHIP_RELATIONS].sort()).toEqual(
       Object.keys(expectedOwnership).sort()
     );
 
@@ -37,6 +60,17 @@ describe('issue 274 clinical ownership contract', () => {
       expect(schema).toContain(`${relation}`);
       expect(schema).toContain(`model ${model} `);
       expect(migration).toContain(`FROM "${model}" WHERE "alunoId" = NEW."id"`);
+    }
+  });
+
+  it('documents the source-history relations that remain on the discarded record', () => {
+    const ownershipService = read(
+      'apps/api/src/modules/pre-registration-enrollment/pre-registration-clinical-ownership.service.ts'
+    );
+    for (const relation of preservedSourceHistoryRelations) {
+      expect(schema).toContain(relation);
+      expect(ownershipService).toContain(relation);
+      expect(CONSOLIDATION_BLOCKING_OWNERSHIP_RELATIONS).not.toContain(relation);
     }
   });
 
