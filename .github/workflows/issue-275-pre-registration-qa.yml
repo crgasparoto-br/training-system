@@ -210,6 +210,23 @@ jobs:
           VITE_PRE_REGISTRATION_ENABLED=true pnpm --filter @corrida/web build 2>&1 \
             | tee artifacts/issue-275/web-build-enabled.log
 
+      - name: Reset verifier processes and PostgreSQL sessions
+        shell: bash
+        run: |
+          set -euo pipefail
+          pkill -TERM -f '[t]sx src/main.ts' || true
+          pkill -TERM -f '[n]ode.*src/main.ts' || true
+          pkill -TERM -f '[p]npm.*src/main.ts' || true
+          sleep 1
+          postgres_container="$(docker ps --filter ancestor=postgres:16-alpine --format '{{.ID}}' | head -n 1)"
+          test -n "${postgres_container}"
+          docker exec "${postgres_container}" psql \
+            -U postgres \
+            -d training_system_test \
+            -v ON_ERROR_STOP=1 \
+            -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'training_system_test' AND pid <> pg_backend_pid();" \
+            | tee artifacts/issue-275/database-session-reset.log
+
       - name: Run repository validation
         shell: bash
         run: |
