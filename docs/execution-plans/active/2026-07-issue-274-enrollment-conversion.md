@@ -126,6 +126,7 @@ O candidato válido é sempre o HEAD final da PR registrado no handoff. Este pla
 - [x] confirmação e próximas ações sobrevivem a reload da Central do Aluno;
 - [x] `pnpm validate`, integração PostgreSQL e workflows remotos aprovados no HEAD final registrado no handoff;
 - [x] evidência visual aprovada e atestada no mesmo HEAD final, com run, artefato e digest registrados no handoff;
+- [x] auditoria controller-adversarial aprovada sem achados bloqueantes;
 - [ ] auditoria independente aprovada em contexto separado.
 
 ## Validação obrigatória
@@ -141,6 +142,16 @@ O candidato válido é sempre o HEAD final da PR registrado no handoff. Este pla
 9. Workflow visual com três viewports, árvore de acessibilidade, screenshots e relatório JSON no SHA final.
 10. Pré-auditoria interna adversarial.
 11. Nova auditoria independente em conversa separada.
+
+## Gate operacional final
+
+- HEAD: `ce63752b51f20afe94b543352ce94e34511c54b2`;
+- `Validate PR`: run `30324757568` — sucesso;
+- testes API: 131 suítes e 615 testes aprovados;
+- evidência visual: run `30324757536`, artefato `8675232327`;
+- regressões das issues 270, 271, 272 e 273 — sucesso;
+- parecer `controller-adversarial`: aprovado, sem achados bloqueantes;
+- merge não autorizado e não realizado.
 
 ## Riscos e pendências
 
