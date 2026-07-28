@@ -152,11 +152,16 @@ describe('public pre-registration route contracts', () => {
     expect(serializedResponse).not.toContain('"User"');
     expect(consoleError).toHaveBeenCalledWith(
       'Erro inesperado no pré-cadastro público',
-      expect.objectContaining({
+      {
         correlationId: response.body.details?.correlationId,
-        error: expect.any(Error),
-      })
+        errorName: 'Error',
+      }
     );
+    const serializedLog = JSON.stringify(consoleError.mock.calls);
+    expect(serializedLog).not.toContain(technicalMessage);
+    expect(serializedLog).not.toContain('does not exist');
+    expect(serializedLog).not.toContain('"User"');
+    expect(serializedLog).not.toContain('stack');
   });
 
   it('accepts only the fields owned by the selected step', () => {
