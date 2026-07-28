@@ -128,6 +128,17 @@ describeDatabase('capacity prescription canonical source metadata with PostgreSQ
       },
     });
     goalId = goal.id;
+    await prisma.prontuarioGoalCapacityClassification.create({
+      data: {
+        goalId,
+        contractId,
+        alunoId,
+        capacities: ['resisted'],
+        relatesToAssessment: false,
+        relatesToActionPlan: false,
+        updatedByProfessorId: professorId,
+      },
+    });
 
     const painCase = await prisma.prontuarioPainCase.create({
       data: {
