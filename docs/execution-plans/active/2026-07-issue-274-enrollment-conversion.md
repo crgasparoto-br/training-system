@@ -105,8 +105,8 @@ O candidato válido é sempre o HEAD final da PR registrado no handoff. Este pla
 
 ### AUD-274-16 — fechamento do ownership da consolidação
 
-- o schema foi inventariado por relações: perfil, onboarding, eventos, convites, autorizações e reviews permanecem na origem como histórico; relações de agenda, avaliações, treino, contratos, financeiro, integrações, saúde, PAR-Q, prontuário, métricas e nutrição bloqueiam até existir reassociação transacional;
-- o inventário tipado da API e o inventário SQL do trigger são validados por teste de contrato para impedir drift;
+- o schema foi inventariado por relações: perfil de origem, revisões registradas, logs, onboarding, eventos e convites revogados permanecem como histórico; agenda, avaliações, treino, contratos, financeiro, integrações, saúde, PAR-Q, prontuário, métricas, nutrição, configuração de revisão e autorização de responsável bloqueiam até existir reassociação transacional;
+- o inventário tipado da API e o inventário SQL do trigger são validados por teste de contrato para impedir drift, incluindo o mapeamento Prisma `Contract` para a tabela SQL `GeneratedContract`;
 - o preflight administrativo retorna `HEALTH_REASSOCIATION_REQUIRED` antes de qualquer mutação quando uma relação bloqueante existir;
 - a migration `20260728081500_issue_274_clinical_ownership_guard` replica o invariante no PostgreSQL e bloqueia chamadas diretas ou corridas entre verificação e descarte;
 - o erro do trigger é traduzido novamente para o erro de domínio quando alcançar a fronteira da API;
@@ -148,7 +148,7 @@ Os gates remotos, os identificadores imutáveis dos runs/artefatos e o parecer c
 7. Integração A-006: claim com duplicidade cria pendência privada; retry é idempotente; claim limpo preserva o mesmo formato público.
 8. Integração AUD-274-15: alterar unidade, observações e campos combinados antes da primeira revisão, exigir um único incremento e rejeitar a versão antiga.
 9. Integração AUD-274-16: origem com somente `StudentAssessmentRecord`, bloqueio pela API, bloqueio direto pelo trigger e rollback integral.
-10. Contrato AUD-274-16: inventários tipado e SQL iguais e relações de histórico explicitamente separadas.
+10. Contrato AUD-274-16: inventários tipado e SQL iguais, mapeamentos físicos explícitos e relações de histórico separadas.
 11. Workflow visual com três viewports, árvore de acessibilidade, screenshots e relatório JSON no SHA final.
 12. Gate interno adversarial.
 13. Auditoria controller-adversarial no mesmo loop.
