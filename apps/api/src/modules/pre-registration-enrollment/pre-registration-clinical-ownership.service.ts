@@ -1,58 +1,12 @@
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { issue274Prisma } from './issue-274-prisma.js';
 
+export {
+  CONSOLIDATION_BLOCKING_OWNERSHIP_RELATIONS,
+  CONSOLIDATION_PRESERVED_SOURCE_HISTORY_RELATIONS,
+} from './pre-registration-consolidation-ownership.contract.js';
+
 type DbClient = PrismaClient | Prisma.TransactionClient;
-
-/**
- * Relações cujo ownership não pode permanecer em uma origem descartada por
- * duplicidade. Enquanto não existir reassociação transacional por domínio,
- * qualquer ocorrência bloqueia a consolidação.
- */
-export const CONSOLIDATION_BLOCKING_OWNERSHIP_RELATIONS = [
-  'agendaBookings',
-  'anthropometryAssessments',
-  'exerciseProgress',
-  'intakeForm',
-  'profileReviewSettings',
-  'assessmentPlanItems',
-  'assessments',
-  'contracts',
-  'studentContracts',
-  'fixedSlots',
-  'integrations',
-  'macronutrients',
-  'nutritionPlans',
-  'progressMetrics',
-  'executions',
-  'trainingPlans',
-  'workoutExecutions',
-  'studentHealthIntake',
-  'studentAssessmentRecords',
-  'studentFinancialProfile',
-  'studentExternalAccounts',
-  'studentExternalActivities',
-  'parqSubmissions',
-  'parqDraft',
-  'parqProfessionalReviews',
-  'parqLegacyRecords',
-  'prontuarioRecords',
-  'prontuarioDiscomfortSnapshots',
-  'guardianAuthorizations',
-] as const;
-
-/**
- * Relações que permanecem no registro descartado como histórico do processo e
- * da auditoria, conforme o contrato da issue. Não são movidas nem usadas como
- * motivo para apagar a origem.
- */
-export const CONSOLIDATION_PRESERVED_SOURCE_HISTORY_RELATIONS = [
-  'studentProfile',
-  'profileReviews',
-  'profileAuditLogs',
-  'onboarding',
-  'lifecycleEvents',
-  'preRegistrationInvites',
-] as const;
 
 export async function hasBlockingOwnershipForConsolidation(
   alunoId: string,
