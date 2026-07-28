@@ -1,0 +1,34 @@
+name: Export Issue 275 Source
+
+on:
+  push:
+    branches:
+      - feat/275-pre-registration-qa-rollout
+    paths:
+      - '.github/workflows/export-issue-275-source.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  export-source:
+    name: Export repository source for remediation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout current branch
+        uses: actions/checkout@v4
+
+      - name: Upload repository source
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-275-source-${{ github.sha }}
+          path: |
+            .
+            !.git/**
+            !node_modules/**
+            !artifacts/**
+          if-no-files-found: error
+          retention-days: 1
+          include-hidden-files: true
