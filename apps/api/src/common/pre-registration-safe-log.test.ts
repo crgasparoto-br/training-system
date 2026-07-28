@@ -1,4 +1,8 @@
-import { buildSafePreRegistrationErrorLog } from './pre-registration-safe-log.js';
+import {
+  buildSafePreRegistrationErrorLog,
+  createPreRegistrationUnexpectedErrorHandler,
+  isPreRegistrationRequestPath,
+} from './pre-registration-safe-log.js';
 
 describe('pre-registration safe error logging', () => {
   it('keeps only correlation id, error name and a bounded technical code', () => {
@@ -49,5 +53,67 @@ describe('pre-registration safe error logging', () => {
       errorName: 'UnknownError',
     });
     expect(JSON.stringify(safe)).not.toMatch(/123|@|secret-token/);
+  });
+
+  it('recognizes every pre-registration HTTP namespace without matching adjacent paths', () => {
+    expect(isPreRegistrationRequestPath('/api/v1/pre-cadastro/token')).toBe(true);
+    expect(isPreRegistrationRequestPath('/api/v1/pre-registration/processes/1')).toBe(true);
+    expect(isPreRegistrationRequestPath('/api/v1/pre-registration-admin/leads')).toBe(true);
+    expect(
+      isPreRegistrationRequestPath('/api/v1/alunos/aluno-1/pre-registration-invites')
+    ).toBe(true);
+    expect(isPreRegistrationRequestPath('/api/v1/pre-registration-other')).toBe(false);
+    expect(isPreRegistrationRequestPath('/api/v1/alunos/aluno-1')).toBe(false);
+  });
+
+  it('sanitizes parser and middleware errors before they reach the global handler', () => {
+    const handler = createPreRegistrationUnexpectedErrorHandler();
+    const next = jest.fn();
+    const json = jest.fn();
+    const status = jest.fn(() => ({ json }));
+    const consoleError = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    const error = Object.assign(
+      new SyntaxError('Unexpected token near CPF 123.456.789-00 and secret-token'),
+      {
+        status: 400,
+        type: 'entity.parse.failed',
+        body: '{"cpf":"123.456.789-00","token":"secret-token"}',
+      }
+    );
+
+    handler(
+      error,
+      { originalUrl: '/api/v1/pre-registration/processes/1', path: '' } as never,
+      { status } as never,
+      next
+    );
+
+    expect(next).not.toHaveBeenCalled();
+    expect(status).toHaveBeenCalledWith(400);
+    expect(json).toHaveBeenCalledWith({
+      error: 'PRE_REGISTRATION_REQUEST_REJECTED',
+      message: 'Não foi possível processar os dados enviados. Revise as informações e tente novamente.',
+    });
+    const logged = JSON.stringify(consoleError.mock.calls);
+    const response = JSON.stringify(json.mock.calls);
+    expect(`${logged}${response}`).not.toContain('123.456.789-00');
+    expect(`${logged}${response}`).not.toContain('secret-token');
+    expect(`${logged}${response}`).not.toContain('body');
+    consoleError.mockRestore();
+  });
+
+  it('passes non-pre-registration errors to the global handler', () => {
+    const handler = createPreRegistrationUnexpectedErrorHandler();
+    const next = jest.fn();
+    const error = new Error('ordinary route error');
+
+    handler(
+      error,
+      { originalUrl: '/api/v1/plans', path: '/api/v1/plans' } as never,
+      {} as never,
+      next
+    );
+
+    expect(next).toHaveBeenCalledWith(error);
   });
 });
