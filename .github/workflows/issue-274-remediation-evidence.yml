@@ -6,12 +6,18 @@ on:
       - develop
     paths:
       - 'apps/api/src/modules/pre-registration-enrollment/pre-registration-enrollment-concurrency.adapter.ts'
+      - 'apps/api/src/modules/pre-registration-enrollment/pre-registration-clinical-ownership.service.ts'
+      - 'apps/api/src/modules/pre-registration-enrollment/pre-registration-consolidation-ownership.contract.ts'
+      - 'apps/api/prisma/migrations/*issue_274*ownership*/migration.sql'
       - 'apps/api/tests/pre-registration-enrollment-concurrency.adapter.test.ts'
+      - 'apps/api/tests/pre-registration-clinical-ownership.contract.test.ts'
+      - 'apps/api/tests/pre-registration-clinical-ownership.integration.test.ts'
       - 'apps/api/tests/issue-274-loop-remediation.integration.test.ts'
       - 'apps/api/jest.config.js'
       - 'apps/web/src/pages/PreRegistrationAdmin/PreRegistrationEnrollmentDetailRemediated.tsx'
       - 'apps/api/scripts/issue-274-remediation-visual-evidence.mjs'
       - '.github/workflows/issue-274-remediation-evidence.yml'
+      - 'docs/architecture/pre-registration-enrollment.md'
       - 'docs/quality/issue-274-visual-contract.md'
   push:
     branches:
@@ -44,8 +50,10 @@ jobs:
       - name: Generate Prisma Client
         run: pnpm --filter @corrida/api exec prisma generate
 
-      - name: Run concurrency adapter tests
-        run: pnpm --filter @corrida/api test -- --runInBand tests/pre-registration-enrollment-concurrency.adapter.test.ts
+      - name: Run concurrency and ownership contract tests
+        run: |
+          pnpm --filter @corrida/api test -- --runInBand tests/pre-registration-enrollment-concurrency.adapter.test.ts
+          pnpm --filter @corrida/api test -- --runInBand tests/pre-registration-clinical-ownership.contract.test.ts
 
       - name: Type check affected workspaces
         run: |
@@ -97,7 +105,7 @@ jobs:
           retention-days: 14
 
   adversarial-postgresql:
-    name: Validate atomic claim and concurrent deduplication
+    name: Validate atomicity, deduplication and clinical ownership
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     services:
@@ -143,22 +151,29 @@ jobs:
       - name: Apply migrations
         run: pnpm --filter @corrida/api exec prisma migrate deploy
 
-      - name: Run adversarial PostgreSQL test
+      - name: Run adversarial PostgreSQL tests
         shell: bash
         run: |
           set -o pipefail
           mkdir -p artifacts/issue-274-loop-integration
-          pnpm --filter @corrida/api test -- --runInBand tests/issue-274-loop-remediation.integration.test.ts 2>&1 \
+          pnpm --filter @corrida/api test -- --runInBand \
+            tests/issue-274-loop-remediation.integration.test.ts \
+            tests/pre-registration-clinical-ownership.integration.test.ts 2>&1 \
             | tee artifacts/issue-274-loop-integration/test-output.log
-          cat > artifacts/issue-274-loop-integration/evidence.json <<EOF
+          cat > artifacts/issue-274-loop-integration/evidence.json <<EOF_JSON
           {
             "schemaVersion": 1,
             "issue": 274,
             "headSha": "${{ github.event.pull_request.head.sha || github.sha }}",
             "runId": "${{ github.run_id }}",
-            "runAttempt": "${{ github.run_attempt }}"
+            "runAttempt": "${{ github.run_attempt }}",
+            "scenarios": [
+              "atomic-claim-and-concurrent-deduplication",
+              "scalar-clinical-ownership-service-preflight",
+              "scalar-clinical-ownership-database-trigger"
+            ]
           }
-          EOF
+          EOF_JSON
 
       - name: Upload adversarial evidence
         if: always()
