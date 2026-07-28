@@ -34,6 +34,7 @@
 17. Enquanto existir revisão pendente, etapas posteriores continuam pela fronteira de preservação para não apagar o identificador bloqueante. Um identificador corrigido e não conflitante encerra a pendência sem apagar seu histórico.
 18. A criação bloqueia as linhas do professor, da função e das permissões de tela/bloco antes da decisão. Revogação já iniciada vence e causa rollback; revogação posterior aguarda o commit da criação.
 19. Origem/responsável e unidade/observações podem ser persistidos em projeções diferentes, mas invalidam `StudentOnboardingProcess.version` uma única vez por transação e também antes da primeira revisão administrativa.
+20. Qualquer relação operacional ou clínica pertencente à origem bloqueia a consolidação automática. O mesmo vale para os campos clínicos legados armazenados diretamente em `Aluno`: peso, altura, percentual de gordura, VO2 máximo, limiar anaeróbio, frequências cardíacas e pressões arteriais. O preflight e o trigger PostgreSQL aplicam o mesmo inventário; até existir reassociação transacional, a operação retorna `HEALTH_REASSOCIATION_REQUIRED` sem descartar a origem.
 
 ## Fronteira pública não enumerável
 
@@ -51,16 +52,15 @@ A mesma projeção é usada em `GET session`, salvamento e conclusão. A causa f
 
 ## Concorrência
 
-Criação revisada, edição administrativa, revisão, consolidação, preservação pública e confirmação usam isolamento `SERIALIZABLE`. As transições de ciclo e a edição pública bloqueiam o processo antes da verificação. A deduplicação pública ocorre após autorização e bloqueio do onboarding. Escritas de identidade adquirem um advisory lock transacional por tenant antes da detecção e do `upsertStudentIdentity`, serializando identificadores concorrentes.
+Criação revisada, edição administrativa, revisão, consolidação e confirmação usam isolamento `SERIALIZABLE`. A preservação pública de um rascunho conflitante usa `READ COMMITTED`, mas bloqueia e reautoriza o onboarding, adquire o advisory lock transacional do tenant antes da detecção e da escrita de identidade e condiciona o incremento à versão esperada. As transições de ciclo e a edição pública bloqueiam o processo antes da verificação.
 
-A transição usa condição no estado atual. Em conflito, a transação é revertida e o frontend recarrega versão e fingerprint. Leituras de tela, bloco e data scope recebem o mesmo `TransactionClient` da mutação. A criação usa `FOR SHARE` nas linhas de professor, função e permissões relevantes para estabelecer um ponto de linearização com revogações concorrentes.
+A transição usa condição no estado atual. Em conflito, a transação é revertida e o frontend recarrega versão e fingerprint. Leituras de tela, bloco e data scope recebem o mesmo `TransactionClient` da mutação. A criação usa `FOR SHARE` nas linhas do professor, função e permissões relevantes para estabelecer um ponto de linearização com revogações concorrentes.
 
 ## Invalidação de revisão
 
 A migration `20260727170000_issue_274_audit_hardening` amplia a invalidação para origem, responsável comercial, unidade e observações, além dos identificadores. A migration `20260728021500_issue_274_review_invalidation_once` mantém o gatilho de `Aluno` para sua projeção e integra a limpeza da revisão ao gatilho canônico `StudentProfile_bump_pre_registration_version`, que já governa alterações de `identificationData`. Ambos usam o mesmo marcador local à transação por aluno: a primeira superfície aplicável incrementa a versão e limpa a revisão; a segunda reconhece o marcador e não repete o incremento. Isso cobre `reviewedAt` nulo, preserva o comportamento anterior à conclusão e evita versão dupla em edições combinadas.
 
 `READY_FOR_ENROLLMENT` compara a versão persistida do aceite à `PRIVACY_NOTICE_VERSION` vigente. Uma versão antiga presente é insuficiente. Qualquer pendência bloqueante preservada continua visível ao detector pelo valor bruto e impede `READY_FOR_ENROLLMENT` até a resolução.
-
 
 ## Data civil
 
