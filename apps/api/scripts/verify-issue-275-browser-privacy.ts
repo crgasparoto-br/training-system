@@ -92,9 +92,7 @@ async function fillByLabel(page: Page, labelText: string, value: string) {
     );
     if (!label) return null;
     const htmlFor = label.getAttribute('for');
-    const field = htmlFor
-      ? document.getElementById(htmlFor)
-      : label.querySelector('input, textarea');
+    const field = htmlFor ? document.getElementById(htmlFor) : label.querySelector('input, textarea');
     if (!(field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement)) return null;
     if (!field.id) field.id = `privacy-${Math.random().toString(36).slice(2)}`;
     return `#${CSS.escape(field.id)}`;
@@ -220,19 +218,25 @@ async function main() {
   await fillByLabel(page, 'Nome completo', 'Responsável Privacidade Issue 275');
   await fillByLabel(page, 'E-mail', guardianEmail);
   await fillByLabel(page, 'Senha', guardianPassword);
-  const requestCountBeforeClaim = requestUrls.length;
-  const consoleCountBeforeClaim = consoleMessages.length;
   await clickByText(page, 'button', 'Criar acesso e continuar');
   await waitForHeading(page, 'Informe seu vínculo');
 
   const finalUrl = new URL(page.url());
   assert(finalUrl.pathname === '/pre-cadastro', `Token permaneceu na URL: ${page.url()}`);
   assert(!finalUrl.search && !finalUrl.hash, 'URL autenticada preservou query ou fragmento');
+  const requestCountAfterClaim = requestUrls.length;
+  const consoleCountAfterClaim = consoleMessages.length;
 
   const storage = await page.evaluate(() => ({
-    local: Object.fromEntries(Object.keys(localStorage).sort().map((key) => [key, localStorage.getItem(key)])),
+    local: Object.fromEntries(
+      Object.keys(localStorage)
+        .sort()
+        .map((key) => [key, localStorage.getItem(key)])
+    ),
     session: Object.fromEntries(
-      Object.keys(sessionStorage).sort().map((key) => [key, sessionStorage.getItem(key)])
+      Object.keys(sessionStorage)
+        .sort()
+        .map((key) => [key, sessionStorage.getItem(key)])
     ),
   }));
   assert(Object.keys(storage.local).join(',') === 'token,user', 'localStorage contém chaves inesperadas');
@@ -245,10 +249,10 @@ async function main() {
 
   await page.reload({ waitUntil: 'networkidle0', timeout: 30_000 });
   await waitForHeading(page, 'Informe seu vínculo');
-  const postClaimUrls = requestUrls.slice(requestCountBeforeClaim);
-  const postClaimConsole = consoleMessages.slice(consoleCountBeforeClaim);
+  const postClaimUrls = requestUrls.slice(requestCountAfterClaim);
+  const postClaimConsole = consoleMessages.slice(consoleCountAfterClaim);
   for (const observed of [...postClaimUrls, ...postClaimConsole, ...pageErrors]) {
-    assert(!observed.includes(inviteToken), 'Token bruto apareceu após o claim');
+    assert(!observed.includes(inviteToken), 'Token bruto apareceu após o redirecionamento autenticado');
     assert(!observed.includes(protectedCpf), 'CPF apareceu em URL ou log do navegador');
   }
   const unexpectedOrigins = [...new Set(postClaimUrls.map((value) => new URL(value).origin))].filter(
@@ -258,7 +262,7 @@ async function main() {
   assert(pageErrors.length === 0, `Erros no navegador: ${pageErrors.join(' | ')}`);
 
   const report = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     kind: 'issue-275-browser-privacy',
     finalPath: finalUrl.pathname,
     localStorageKeys: Object.keys(storage.local),
@@ -267,6 +271,7 @@ async function main() {
     inviteTokenAbsentFromStorage: true,
     cpfAbsentFromStorageAndBrowserLogs: true,
     clinicalPayloadAbsentFromStorage: true,
+    inspectionBoundary: 'after-authenticated-redirect',
     postClaimRequestCount: postClaimUrls.length,
     browserConsoleMessagesAfterClaim: postClaimConsole.length,
     browserErrors: pageErrors.length,
