@@ -1,8 +1,14 @@
+const runIssue274LoopIntegration =
+  process.env.RUN_ISSUE_274_LOOP_INTEGRATION_TESTS === 'true';
+
 export default {
   preset: 'ts-jest',
   testEnvironment: 'node',
   roots: ['<rootDir>/src', '<rootDir>/tests'],
   testMatch: ['**/__tests__/**/*.ts', '**/?(*.)+(spec|test).ts'],
+  testPathIgnorePatterns: runIssue274LoopIntegration
+    ? []
+    : ['<rootDir>/tests/issue-274-loop-remediation.integration.test.ts'],
   moduleFileExtensions: ['ts', 'js', 'json'],
   // A suíte de integração abre clientes Prisma por arquivo. No CI com banco real,
   // serializar os arquivos evita esgotar max_connections sem reduzir a cobertura;
