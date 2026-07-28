@@ -146,6 +146,17 @@ async function createAlunoAndGoal(input: {
       priority: 1,
     },
   });
+  await prisma.prontuarioGoalCapacityClassification.create({
+    data: {
+      goalId: goal.id,
+      contractId: input.contractId,
+      alunoId: aluno.id,
+      capacities: ['resisted'],
+      relatesToAssessment: false,
+      relatesToActionPlan: false,
+      updatedByProfessorId: input.professorId,
+    },
+  });
   return { aluno, record, goal };
 }
 
