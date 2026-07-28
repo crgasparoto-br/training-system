@@ -7,6 +7,7 @@ on:
     paths:
       - '.github/workflows/issue-274-loop-visible.yml'
       - '.audit/issue-loop-engineer/remediate-issue-274-v2.py'
+      - '.audit/issue-loop-engineer/adjust-issue-274-tests-v2.py'
 
 permissions:
   contents: write
@@ -55,7 +56,9 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Apply remediation patch
-        run: python .audit/issue-loop-engineer/remediate-issue-274-v2.py
+        run: |
+          python .audit/issue-loop-engineer/remediate-issue-274-v2.py
+          python .audit/issue-loop-engineer/adjust-issue-274-tests-v2.py
 
       - name: Generate Prisma Client
         run: pnpm --filter @corrida/api exec prisma generate
@@ -84,6 +87,7 @@ jobs:
           git config user.name "solverit-issue-loop"
           git config user.email "solverit-issue-loop@users.noreply.github.com"
           rm -f .audit/issue-loop-engineer/remediate-issue-274-v2.py
+          rm -f .audit/issue-loop-engineer/adjust-issue-274-tests-v2.py
           rm -f .github/workflows/issue-274-loop-visible.yml
           git add -A
           git diff --cached --check
