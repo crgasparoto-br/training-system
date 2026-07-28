@@ -255,4 +255,11 @@
   nav.\-mb-px.flex.space-x-8 > button:hover {
     @apply bg-accent text-accent-foreground;
   }
+
+  main.max-w-4xl > div.grid > button span.text-lg {
+    overflow: visible;
+    white-space: normal;
+    text-overflow: clip;
+    overflow-wrap: anywhere;
+  }
 }
