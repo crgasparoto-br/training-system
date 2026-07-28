@@ -29,6 +29,7 @@ jobs:
     timeout-minutes: 20
     env:
       VITE_API_URL: ''
+      VITE_PRE_REGISTRATION_ENABLED: 'true'
       ISSUE_273_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
     steps:
