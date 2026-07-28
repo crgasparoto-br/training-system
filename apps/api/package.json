@@ -16,6 +16,7 @@
     "db:migrate": "prisma migrate dev --schema prisma/schema.prisma",
     "db:migrate:prod": "prisma migrate deploy --schema prisma/schema.prisma",
     "db:seed": "tsx prisma/seed.ts",
+    "db:seed-capacity-prescriptions": "tsx src/scripts/seed-capacity-prescription-parameters.ts",
     "db:bootstrap-services-catalog": "tsx src/scripts/bootstrap-services-commercial-catalog.ts",
     "db:clone-contract-data": "tsx src/scripts/clone-contract-data.ts",
     "job:backfill-student-contract-links": "tsx src/scripts/backfill-student-contract-links.ts",

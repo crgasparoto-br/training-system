@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import 'express-async-errors';
 import { assessmentTypeRoutes } from './modules/assessments/index.js';
 import { anthropometryRoutes } from './modules/anthropometry/index.js';
+import { capacityPrescriptionRoutes } from './modules/capacity-prescriptions/index.js';
 import { prontuarioRoutes } from './modules/prontuario/index.js';
 import { authRoutes } from './modules/auth/index.js';
 import alunoAvatarUploadRoutes from './modules/alunos/aluno-avatar-upload.routes.js';
@@ -135,6 +136,7 @@ app.get('/api/v1', (_req, res) => {
       auth: '/api/v1/auth',
       alunos: '/api/v1/alunos',
       anthropometry: '/api/v1/anthropometry',
+      capacityPrescriptions: '/api/v1/capacity-prescriptions',
       prontuario: '/api/v1/prontuario',
       banks: '/api/v1/banks',
       collaboratorFunctions: '/api/v1/collaborator-functions',
@@ -172,6 +174,7 @@ app.use('/api/v1/alunos', studentContractLifecycleRoutes);
 app.use('/api/v1/alunos', preRegistrationInviteAdminRoutes);
 app.use('/api/v1/alunos', alunoRoutes);
 app.use('/api/v1/anthropometry', anthropometryRoutes);
+app.use('/api/v1/capacity-prescriptions', capacityPrescriptionRoutes);
 app.use('/api/v1/prontuario', prontuarioRoutes);
 app.use('/api/v1/banks', bankRoutes);
 app.use('/api/v1/collaborator-functions', collaboratorFunctionRoutes);

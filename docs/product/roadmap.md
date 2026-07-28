@@ -3,7 +3,7 @@
 ## Status do documento
 
 - Fonte de verdade para estado funcional, prioridades e evolucao do produto.
-- Estado revisado em 2026-07-17 sobre a branch `develop`.
+- Estado revisado em 2026-07-27 no contexto da PR #285, com base em `develop`.
 - Issues e PRs continuam sendo a fonte de execucao.
 - Codigo, migrations e testes definem o comportamento efetivamente entregue.
 - Documentos detalhados de produto e planos ativos complementam este roadmap; nao devem competir com ele como roadmap geral.
@@ -125,7 +125,8 @@ Entregue:
 - medicamentos e procedimentos;
 - dores, desconfortos e acompanhamentos;
 - encerramento sem apagar historico;
-- controle por blocos de acesso.
+- controle por blocos de acesso;
+- classificacao dos objetivos para capacidades, avaliacao e plano de acao no fluxo da prescricao.
 
 Pendente:
 
@@ -198,21 +199,33 @@ Pendente:
 
 ### 6. Prescricao por capacidades
 
-**Maturidade: Fundacao tecnica.**
+**Maturidade: Implementado funcionalmente na PR #285; validacao independente do SHA final pendente.**
 
-Existem contratos para Resistido, Flexibilidade, Ciclico e Equilibrio, com status, versao, origens, parametros, justificativa, mensagem ao aluno e bloqueio de publicacao direta.
+Entregue:
+
+- persistencia e migrations para capacidade atual, versoes imutaveis, origens, alertas, objetivos e parametros;
+- API autenticada para criacao, consulta e historico;
+- contrato publico serializado com `sourceRefs` e `linkedProntuarioGoalIds`;
+- filtros reais por aluno, contrato e permissoes de leitura/escrita;
+- concorrencia otimista e historico imutavel;
+- planejamento versionado de macrociclo, mesociclo e microciclo;
+- catalogo tecnico versionado por contrato para ambientes, grupos musculares, siglas, estimulos, metodos, exercicios, cargas, articulacoes, divisoes e zonas de repeticao;
+- seed idempotente cobrindo as quatro capacidades, ADP, ORD, CHO, REG, metodos e estimulos iniciais das planilhas;
+- classificacao de objetivos do PRNT para Resistido, Flexibilidade, Ciclico, Equilibrio, avaliacao e plano de acao;
+- derivacao backend de alertas e condicionantes a partir de PRNT, preferencias e avaliacoes;
+- calculo testavel de zonas de frequencia cardiaca no backend;
+- interface do professor em camadas separadas para as quatro capacidades;
+- selecao articular por checkbox, com angulo, deficit, prioridade e prescricao sugerida;
+- estados de vazio, carregamento, erro e falta de permissao;
+- bloqueio estrutural e contratual de publicacao direta de `Treino de hoje`.
 
 Pendente:
 
-- persistencia e migrations;
-- API autenticada;
-- filtros reais por aluno, contrato e permissao;
-- interface funcional;
-- vinculo com objetivos, PRNT e avaliacoes;
-- parametros por contrato;
-- motor de zonas individualizadas por pace, FC, LAn, VO2max ou PSE;
-- validade e versao da metodologia;
-- alertas para dados insuficientes ou avaliacao vencida.
+- validacao visual e manual completa por perfis e viewports;
+- nova auditoria independente do SHA final;
+- consumo pela Montagem Consolidada;
+- alertas de dados insuficientes ou avaliacao vencida;
+- exportacao para smartwatch, feedback pos-treino e decisao sugerida, pertencentes a fases posteriores.
 
 ### 7. Montagem Consolidada
 

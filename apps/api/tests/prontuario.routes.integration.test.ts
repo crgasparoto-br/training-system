@@ -1,6 +1,7 @@
 import express from 'express';
 import prontuarioRouter from '../src/modules/prontuario/prontuario.routes';
 import { prontuarioService } from '../src/modules/prontuario/prontuario.service';
+import { prontuarioOverviewReadService } from '../src/modules/prontuario/prontuario-overview-read.service';
 
 const request = require('supertest');
 
@@ -43,6 +44,21 @@ jest.mock('../src/modules/access-control/access-control.middleware', () => ({
   },
 }));
 
+jest.mock('../src/modules/access-control/access-control.service', () => ({
+  canProfessorAccessBlock: jest.fn().mockResolvedValue(false),
+}));
+
+jest.mock('@prisma/client', () => ({
+  PrismaClient: jest.fn(() => ({
+    professor: {
+      findFirst: jest.fn().mockResolvedValue({
+        id: 'professor-1',
+        collaboratorFunction: { id: 'function-1' },
+      }),
+    },
+  })),
+}));
+
 jest.mock('../src/modules/pre-registration-public/pre-registration-parq.service', () => {
   class ParqServiceError extends Error {
     constructor(
@@ -64,8 +80,21 @@ jest.mock('../src/modules/pre-registration-public/pre-registration-parq.service'
 
 jest.mock('../src/modules/prontuario/prontuario.service', () => ({
   prontuarioService: {
-    overview: jest.fn(),
     listParqSubmissions: jest.fn(),
+  },
+}));
+
+jest.mock('../src/modules/prontuario/prontuario-overview-read.service', () => ({
+  prontuarioOverviewBoundaryPrisma: {
+    professor: {
+      findFirst: jest.fn().mockResolvedValue({
+        id: 'professor-1',
+        collaboratorFunction: { id: 'function-1' },
+      }),
+    },
+  },
+  prontuarioOverviewReadService: {
+    overview: jest.fn(),
   },
 }));
 
@@ -95,7 +124,7 @@ describe('prontuario PAR-Q authorization boundary', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    (prontuarioService.overview as jest.Mock).mockResolvedValue({
+    (prontuarioOverviewReadService.overview as jest.Mock).mockResolvedValue({
       records: [],
       currentRecord: null,
       latestParqSubmission: detailedSubmission,
@@ -128,6 +157,19 @@ describe('prontuario PAR-Q authorization boundary', () => {
         legacy: { preserved: false, needsRepeat: false },
       },
     });
+
+    expect(prontuarioOverviewReadService.overview).toHaveBeenCalledWith(
+      'contract-1',
+      'aluno-1',
+      {
+        goals: false,
+        anamnesisFollowUp: false,
+        activityHistory: false,
+        medicationsProcedures: false,
+        painCases: false,
+        discomforts: false,
+      }
+    );
 
     const serialized = JSON.stringify(response.body.data);
     for (const forbidden of ['responses', 'positiveItems', 'reviewNotes', 'Resposta clínica protegida']) {

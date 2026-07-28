@@ -1,7 +1,10 @@
 import { Link, useLocation } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
+import { canAccessBlock } from '../access/access-control';
 import { assessmentHistorySections } from '../data/assessmentVariables';
+import { useAuthStore } from '../stores/useAuthStore';
 import { AnthropometryScreen } from './PhysicalAssessment/AnthropometryScreen';
+import { CapacityPrescriptionScreen } from './PhysicalAssessment/CapacityPrescriptionScreen';
 import { ProntuarioScreenWithDiscomfortFollowUps } from './PhysicalAssessment/ProntuarioScreenWithDiscomfortFollowUps';
 
 type ProtocolPageConfig = {
@@ -35,6 +38,18 @@ const protocolPages: ProtocolPageConfig[] = [
       'Documentar objetivo principal, histórico de treino, lesões, medicações e observações relevantes.',
       'Atualizar mudanças de rotina, adesão, sintomas, dores e eventos entre reavaliações.',
       'Manter linguagem objetiva para que outro profissional consiga entender rapidamente o caso.',
+    ],
+    sectionTitles: [],
+  },
+  {
+    slug: 'prescricao-capacidades',
+    title: 'Prescrição por capacidades',
+    description: 'Planeje resistido, cíclico, flexibilidade e equilíbrio antes da Montagem Consolidada.',
+    objective: 'Relacionar objetivos, avaliações, alertas e ciclos de planejamento a versões técnicas validadas pelo professor.',
+    highlights: [
+      'Separar visão técnica do professor e mensagem prática do aluno.',
+      'Versionar macrociclo, mesociclo, microciclo e parâmetros mantidos por contrato.',
+      'Preservar a decisão final do professor sem publicar Treino de hoje diretamente.',
     ],
     sectionTitles: [],
   },
@@ -170,6 +185,7 @@ function GenericProtocolScreen({ currentProtocol }: { currentProtocol: ProtocolP
 
 export default function PhysicalAssessmentProtocol() {
   const location = useLocation();
+  const user = useAuthStore((state) => state.user);
   const currentProtocol = getProtocolFromPath(location.pathname);
 
   if (currentProtocol.slug === 'antropometria') {
@@ -178,6 +194,23 @@ export default function PhysicalAssessmentProtocol() {
 
   if (currentProtocol.slug === 'prontuario-entrevista-acompanhamento') {
     return <ProntuarioScreenWithDiscomfortFollowUps />;
+  }
+
+  if (currentProtocol.slug === 'prescricao-capacidades') {
+    const canViewAssessmentSources = canAccessBlock(user, 'students.details.assessments');
+    return (
+      <div className="space-y-4">
+        {!canViewAssessmentSources ? (
+          <div
+            role="status"
+            className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950"
+          >
+            Seu perfil pode acessar a prescrição, mas não possui permissão para consultar avaliações físicas. As fontes de avaliação não serão exibidas; objetivos, alertas permitidos e notas técnicas continuam disponíveis.
+          </div>
+        ) : null}
+        <CapacityPrescriptionScreen />
+      </div>
+    );
   }
 
   return <GenericProtocolScreen currentProtocol={currentProtocol} />;

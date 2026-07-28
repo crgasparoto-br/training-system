@@ -33,6 +33,23 @@ export const CAPACITY_SOURCE_TYPES = [
 
 export type CapacityPrescriptionSourceType = (typeof CAPACITY_SOURCE_TYPES)[number];
 
+export const CAPACITY_PLANNING_LEVELS = ['macro', 'meso', 'micro'] as const;
+export type CapacityPlanningLevel = (typeof CAPACITY_PLANNING_LEVELS)[number];
+
+export const CAPACITY_CATALOG_CATEGORIES = [
+  'environment',
+  'muscle_group',
+  'acronym',
+  'cyclic_stimulus',
+  'method',
+  'exercise',
+  'microcycle_load',
+  'articulation',
+  'training_split',
+  'repetition_zone',
+] as const;
+export type CapacityCatalogCategory = (typeof CAPACITY_CATALOG_CATEGORIES)[number];
+
 export interface CapacityPrescriptionSourceRef {
   type: CapacityPrescriptionSourceType;
   id: string;
@@ -62,15 +79,20 @@ export interface ResistedCapacityParameters {
   restrictions?: string[];
 }
 
+export interface CyclicCapacityZone {
+  name: string;
+  volume?: string | null;
+  targetHeartRate?: string | null;
+  pace?: string | null;
+  minPercent?: number | null;
+  maxPercent?: number | null;
+}
+
 export interface CyclicCapacityParameters {
   category?: string | null;
   reversibilityPrinciple?: string | null;
-  zones?: Array<{
-    name: string;
-    volume?: string | null;
-    targetHeartRate?: string | null;
-    pace?: string | null;
-  }>;
+  zoneBasis?: 'max_hr' | 'heart_rate_reserve' | 'lan' | 'vo2max' | 'pse' | null;
+  zones?: CyclicCapacityZone[];
   vo2MaxPercentage?: number | null;
   anaerobicThreshold?: string | null;
   time?: string | null;
@@ -78,14 +100,16 @@ export interface CyclicCapacityParameters {
   expectedPse?: number | null;
 }
 
+export interface FlexibilityArticulationParameters {
+  name: string;
+  angle?: number | null;
+  deficit?: string | null;
+  priority?: 'low' | 'medium' | 'high' | null;
+  suggestedPrescription?: string | null;
+}
+
 export interface FlexibilityCapacityParameters {
-  articulations?: Array<{
-    name: string;
-    angle?: number | null;
-    deficit?: string | null;
-    priority?: 'low' | 'medium' | 'high' | null;
-    suggestedPrescription?: string | null;
-  }>;
+  articulations?: FlexibilityArticulationParameters[];
   expectedPse?: number | null;
 }
 
@@ -135,4 +159,137 @@ export interface CreateCapacityPrescriptionDraftPayload {
   studentMessage?: string | null;
   alerts?: CapacityPrescriptionAlert[];
   parameters?: CapacityPrescriptionParameters | null;
+}
+
+export interface SaveCapacityPrescriptionPayload {
+  capacity: PhysicalCapacityType;
+  status?: CapacityPrescriptionStatus;
+  expectedCurrentVersion?: number;
+  responsibleProfessorId?: string | null;
+  sourceRefs: CapacityPrescriptionSourceRef[];
+  linkedProntuarioGoalIds?: string[];
+  technicalJustification: string;
+  professorSummary: string;
+  studentMessage?: string | null;
+  alerts?: CapacityPrescriptionAlert[];
+  parameters?: CapacityPrescriptionParameters | null;
+  parameterSetIds?: string[];
+  methodologyVersion?: string | null;
+}
+
+export interface CapacityPrescriptionParameterSetPayload {
+  capacity: PhysicalCapacityType;
+  code: string;
+  name: string;
+  methodologyVersion: string;
+  parameters: CapacityPrescriptionParameters;
+}
+
+export interface CapacityPrescriptionVersionView {
+  id: string;
+  prescriptionId: string;
+  contractId: string;
+  alunoId: string;
+  capacity: PhysicalCapacityType;
+  status: CapacityPrescriptionStatus;
+  version: number;
+  responsibleProfessorId: string;
+  technicalJustification: string;
+  professorSummary: string;
+  studentMessage?: string | null;
+  methodologyVersion?: string | null;
+  parameterSetIds: string[];
+  parameters?: CapacityPrescriptionParameters | null;
+  sourceRefs: CapacityPrescriptionSourceRef[];
+  linkedProntuarioGoalIds: string[];
+  alerts: CapacityPrescriptionAlert[];
+  createdAt: string;
+  publishesTodayWorkout: false;
+}
+
+export interface CapacityPrescriptionView {
+  id: string;
+  contractId: string;
+  alunoId: string;
+  capacity: PhysicalCapacityType;
+  status: CapacityPrescriptionStatus;
+  currentVersion: number;
+  createdByProfessorId: string;
+  updatedByProfessorId: string;
+  createdAt: string;
+  updatedAt: string;
+  publishesTodayWorkout: false;
+  latestVersion?: CapacityPrescriptionVersionView | null;
+}
+
+export interface CapacityPrescriptionParameterSetView {
+  id: string;
+  contractId: string;
+  capacity: PhysicalCapacityType;
+  code: string;
+  name: string;
+  version: number;
+  methodologyVersion: string;
+  parameters: CapacityPrescriptionParameters;
+  isCurrent: boolean;
+  createdByProfessorId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CapacityTechnicalCatalogItemPayload {
+  category: CapacityCatalogCategory;
+  code: string;
+  name: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface CapacityTechnicalCatalogItemView extends CapacityTechnicalCatalogItemPayload {
+  id: string;
+  contractId: string;
+  version: number;
+  isCurrent: boolean;
+  createdByProfessorId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CapacityPlanningCyclePayload {
+  parentId?: string | null;
+  level: CapacityPlanningLevel;
+  code: string;
+  name: string;
+  objective?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  loadCode?: string | null;
+  volume?: string | null;
+  frequency?: string | null;
+  capacityParameters?: Partial<Record<PhysicalCapacityType, Record<string, unknown>>>;
+  status?: CapacityPrescriptionStatus;
+}
+
+export interface CapacityPlanningCycleView extends CapacityPlanningCyclePayload {
+  id: string;
+  contractId: string;
+  alunoId: string;
+  responsibleProfessorId: string;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProntuarioGoalCapacityClassificationPayload {
+  capacities: PhysicalCapacityType[];
+  relatesToAssessment: boolean;
+  relatesToActionPlan: boolean;
+}
+
+export interface ProntuarioGoalCapacityClassificationView
+  extends ProntuarioGoalCapacityClassificationPayload {
+  goalId: string;
+  contractId: string;
+  alunoId: string;
+  updatedByProfessorId: string;
+  updatedAt: string;
 }

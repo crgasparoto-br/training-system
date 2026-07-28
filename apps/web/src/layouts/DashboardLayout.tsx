@@ -5,7 +5,7 @@ import { cn } from '@/utils/cn';
 import { filterSidebarItemsByAccess } from '../access/access-control';
 import { useAuthStore } from '../stores/useAuthStore';
 import { Button } from '../components/ui/Button';
-import { AppSidebar } from '../components/sidebar';
+import { AppSidebar, type SidebarNavItem } from '../components/sidebar';
 import { sidebarMenuItems } from '../navigation/sidebarMenu';
 import { shellCopy } from '../i18n/ptBR';
 import { resolveAssetUrl } from '../utils/assetUrl';
@@ -13,7 +13,20 @@ import { PRE_REGISTRATION_UI_ENABLED } from '../config/pre-registration-rollout'
 
 const ACCESS_REFRESH_SIGNAL_KEY = 'auth-permissions-updated-at';
 
-const appMenuItems = PRE_REGISTRATION_UI_ENABLED
+
+function applyExactCapacityPrescriptionAccess(items: SidebarNavItem[]): SidebarNavItem[] {
+  return items.map((item) => ({
+    ...item,
+    ...(item.id === 'physical-assessment-protocol-capacity-prescription'
+      ? { screenKey: 'plans.capacityPrescriptions.view' }
+      : {}),
+    children: item.children
+      ? applyExactCapacityPrescriptionAccess(item.children)
+      : undefined,
+  }));
+}
+
+const menuWithPreRegistration = PRE_REGISTRATION_UI_ENABLED
   ? sidebarMenuItems.map((item) => {
       if (item.id !== 'atendimento') return item;
 
@@ -37,6 +50,8 @@ const appMenuItems = PRE_REGISTRATION_UI_ENABLED
       };
     })
   : sidebarMenuItems;
+
+const appMenuItems = applyExactCapacityPrescriptionAccess(menuWithPreRegistration);
 
 export function DashboardLayout() {
   const navigate = useNavigate();

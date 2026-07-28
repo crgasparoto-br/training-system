@@ -1,0 +1,167 @@
+name: Issue 136 Remediation Evidence
+
+on:
+  push:
+    branches:
+      - fix/136-capacity-prescription-persistence
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  validate:
+    name: Validate Issue 136 remediation
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/training_system_test?schema=public&connection_limit=1&pool_timeout=30
+      PRISMA_CONNECTION_LIMIT: '1'
+      PRISMA_POOL_TIMEOUT_SECONDS: '30'
+      RUN_DATABASE_INTEGRATION_TESTS: 'true'
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: training_system_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d training_system_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: fix/136-capacity-prescription-persistence
+
+      - name: Reconstruct branch on current develop
+        if: ${{ hashFiles('.audit/issue-loop-engineer/issue-136/final-reconstruct-trigger.json') != '' }}
+        run: bash scripts/issue-136-reconstruct-final.sh
+
+      - name: Resolve validated head
+        id: identity
+        shell: bash
+        run: echo "head_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma Client
+        run: pnpm --filter @corrida/api exec prisma generate
+
+      - name: Apply migrations
+        run: |
+          set -o pipefail
+          pnpm --filter @corrida/api exec prisma migrate deploy 2>&1 | tee issue-136-migrations.log
+
+      - name: Type check
+        run: |
+          set -o pipefail
+          pnpm type-check 2>&1 | tee issue-136-type-check.log
+
+      - name: Lint
+        run: |
+          set -o pipefail
+          pnpm lint 2>&1 | tee issue-136-lint.log
+
+      - name: Test
+        run: |
+          set -o pipefail
+          pnpm test 2>&1 | tee issue-136-test.log
+
+      - name: Build
+        run: |
+          set -o pipefail
+          pnpm build 2>&1 | tee issue-136-build.log
+
+      - name: Architecture checks
+        run: pnpm arch:check
+
+      - name: Access catalog checks
+        run: pnpm access:check
+
+      - name: Documentation checks
+        run: pnpm docs:check
+
+      - name: Write evidence metadata
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+          VALIDATED_HEAD_SHA: ${{ steps.identity.outputs.head_sha }}
+        run: |
+          cat > issue-136-remediation-evidence.json <<EOF
+          {
+            "schemaVersion": 1,
+            "issue": 136,
+            "repository": "${GITHUB_REPOSITORY}",
+            "headSha": "${VALIDATED_HEAD_SHA}",
+            "triggerSha": "${GITHUB_SHA}",
+            "runId": "${GITHUB_RUN_ID}",
+            "runAttempt": "${GITHUB_RUN_ATTEMPT}",
+            "status": "${JOB_STATUS}"
+          }
+          EOF
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-136-remediation-evidence-${{ github.run_id }}
+          path: |
+            issue-136-*.log
+            issue-136-remediation-evidence.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Publish result on PR
+        if: always()
+        uses: actions/github-script@v7
+        env:
+          JOB_STATUS: ${{ job.status }}
+          VALIDATED_HEAD_SHA: ${{ steps.identity.outputs.head_sha }}
+        with:
+          script: |
+            const marker = '<!-- issue-136-remediation-evidence -->';
+            const body = `${marker}\n## Issue 136 remediation evidence\n\n- head: \`${process.env.VALIDATED_HEAD_SHA || context.sha}\`\n- trigger: \`${context.sha}\`\n- run: \`${context.runId}\`\n- result: **${process.env.JOB_STATUS}**\n- validation: migrations, type-check, lint, tests, build, architecture, access catalog and documentation\n`;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: 285,
+              per_page: 100,
+            });
+            const existing = comments.find((comment) => comment.body?.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: 285,
+                body,
+              });
+            }
