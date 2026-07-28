@@ -3,6 +3,7 @@ import { issue274Prisma } from './issue-274-prisma.js';
 
 export {
   CONSOLIDATION_BLOCKING_OWNERSHIP_RELATIONS,
+  CONSOLIDATION_BLOCKING_SCALAR_FIELDS,
   CONSOLIDATION_PRESERVED_SOURCE_HISTORY_RELATIONS,
 } from './pre-registration-consolidation-ownership.contract.js';
 
@@ -16,6 +17,15 @@ export async function hasBlockingOwnershipForConsolidation(
   const aluno = await client.aluno.findFirst({
     where: { id: alunoId, contractId },
     select: {
+      weight: true,
+      height: true,
+      bodyFatPercentage: true,
+      vo2Max: true,
+      anaerobicThreshold: true,
+      maxHeartRate: true,
+      restingHeartRate: true,
+      systolicPressure: true,
+      diastolicPressure: true,
       agendaBookings: { select: { id: true }, take: 1 },
       anthropometryAssessments: { select: { id: true }, take: 1 },
       exerciseProgress: { select: { id: true }, take: 1 },
@@ -51,7 +61,16 @@ export async function hasBlockingOwnershipForConsolidation(
   if (!aluno) return false;
 
   return Boolean(
-    aluno.agendaBookings.length ||
+    aluno.weight !== null ||
+      aluno.height !== null ||
+      aluno.bodyFatPercentage !== null ||
+      aluno.vo2Max !== null ||
+      aluno.anaerobicThreshold !== null ||
+      aluno.maxHeartRate !== null ||
+      aluno.restingHeartRate !== null ||
+      aluno.systolicPressure !== null ||
+      aluno.diastolicPressure !== null ||
+      aluno.agendaBookings.length ||
       aluno.anthropometryAssessments.length ||
       aluno.exerciseProgress.length ||
       aluno.intakeForm ||
