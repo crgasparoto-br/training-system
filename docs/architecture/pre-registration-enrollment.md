@@ -33,6 +33,7 @@
 16. Um CPF bloqueante preservado pelo fluxo público nunca ocupa `leadCpfNormalized`. O CPF canônico anterior é removido, o novo valor bruto fica em `Aluno.leadCpf` e os valores anterior/novo permanecem em `snapshotBefore`/`snapshotAfter`, permitindo redetecção administrativa sem violar a restrição única.
 17. Enquanto existir revisão pendente, etapas posteriores continuam pela fronteira de preservação para não apagar o identificador bloqueante. Um identificador corrigido e não conflitante encerra a pendência sem apagar seu histórico.
 18. A criação bloqueia as linhas do professor, da função e das permissões de tela/bloco antes da decisão. Revogação já iniciada vence e causa rollback; revogação posterior aguarda o commit da criação.
+19. Origem/responsável e unidade/observações podem ser persistidos em projeções diferentes, mas invalidam `StudentOnboardingProcess.version` uma única vez por transação e também antes da primeira revisão administrativa.
 
 ## Fronteira pública não enumerável
 
@@ -56,6 +57,6 @@ A transição usa condição no estado atual. Em conflito, a transação é reve
 
 ## Invalidação de revisão
 
-A migration `20260727170000_issue_274_audit_hardening` amplia a invalidação para origem, responsável comercial, unidade e observações, além dos identificadores. Os triggers incrementam `version` e limpam `reviewedAt/reviewedByProfessorId` na mesma transação. Inversão de ordem de locks aborta a operação inteira em vez de aguardar indefinidamente ou invalidar parcialmente a revisão.
+A migration `20260727170000_issue_274_audit_hardening` amplia a invalidação para origem, responsável comercial, unidade e observações, além dos identificadores. A migration `20260728021500_issue_274_review_invalidation_once` coordena os gatilhos de `Aluno` e `StudentProfile` com marcador local à transação por aluno. O primeiro gatilho aplicável bloqueia o onboarding, incrementa a versão e limpa a revisão; os demais reconhecem o marcador e não repetem o incremento. Isso cobre `reviewedAt` nulo e evita versão dupla em edições combinadas.
 
 `READY_FOR_ENROLLMENT` compara a versão persistida do aceite à `PRIVACY_NOTICE_VERSION` vigente. Uma versão antiga presente é insuficiente. Qualquer pendência bloqueante preservada continua visível ao detector pelo valor bruto e impede `READY_FOR_ENROLLMENT` até a resolução.
