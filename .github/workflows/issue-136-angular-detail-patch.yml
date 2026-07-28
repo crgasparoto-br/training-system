@@ -1,0 +1,20 @@
+name: Issue 136 Angular Detail Patch
+
+on:
+  push:
+    branches:
+      - fix/136-capacity-prescription-persistence
+    paths:
+      - .audit/issue-loop-engineer/issue-136/angular-detail-trigger.json
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/136-capacity-prescription-persistence
+      - run: bash scripts/issue-136-angular-detail-patch.sh
