@@ -70,7 +70,21 @@ jobs:
         run: pnpm --filter @corrida/api test -- --runInBand tests/student-identity-civil-date.test.ts
 
       - name: Validate atomicity and concurrent deduplication
-        run: RUN_DATABASE_INTEGRATION_TESTS=true pnpm --filter @corrida/api test -- --runInBand tests/issue-274-loop-remediation.integration.test.ts
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p artifacts/issue-274-loop-diagnostic
+          RUN_DATABASE_INTEGRATION_TESTS=true pnpm --filter @corrida/api test -- --runInBand tests/issue-274-loop-remediation.integration.test.ts 2>&1 \
+            | tee artifacts/issue-274-loop-diagnostic/atomicity-test.txt
+
+      - name: Upload atomicity diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-274-loop-diagnostic-${{ github.run_id }}
+          path: artifacts/issue-274-loop-diagnostic
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Validate existing issue 274 remediation scenarios
         run: RUN_DATABASE_INTEGRATION_TESTS=true pnpm --filter @corrida/api test -- --runInBand tests/issue-274-a005-a006-remediation.integration.test.ts
@@ -89,6 +103,7 @@ jobs:
           rm -f .audit/issue-loop-engineer/remediate-issue-274-v2.py
           rm -f .audit/issue-loop-engineer/adjust-issue-274-tests-v2.py
           rm -f .github/workflows/issue-274-loop-visible.yml
+          rm -rf artifacts/issue-274-loop-diagnostic
           git add -A
           git diff --cached --check
           git commit -m "fix(issue-274): fechar atomicidade e data civil"
