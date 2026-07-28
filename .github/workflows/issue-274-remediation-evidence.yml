@@ -127,6 +127,7 @@ jobs:
       NODE_ENV: test
       RUN_DATABASE_INTEGRATION_TESTS: 'true'
       RUN_ISSUE_274_LOOP_INTEGRATION_TESTS: 'true'
+      RUN_ISSUE_274_SCALAR_OWNERSHIP_TESTS: 'true'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
