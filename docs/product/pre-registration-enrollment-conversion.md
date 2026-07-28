@@ -73,6 +73,8 @@ Cancela a tentativa sem alteração de estado ou dados.
 
 Alterações de nome, CPF, contatos, nascimento, origem, responsável comercial, unidade ou observações após a conclusão incrementam a versão e invalidam a revisão anterior. Nas etapas públicas de identificação e contato, a verificação ocorre dentro da mesma transação, após autorização e bloqueio do processo e antes da persistência da identidade.
 
+A invalidação de origem/responsável em `Aluno` e de unidade/observações em `StudentProfile` compartilha um marcador transacional por aluno. Assim, alterações exclusivamente comerciais invalidam a versão mesmo antes da primeira revisão (`reviewedAt` ainda nulo), enquanto uma edição combinada nas duas projeções incrementa `version` exatamente uma vez.
+
 A confirmação da matrícula ocorre em transação serializável, recarrega e bloqueia o registro, revalida permissão, escopo e tenant, reexecuta a deduplicação, rejeita revisão desatualizada, revoga convite ativo e altera o mesmo ID para `ACTIVE_STUDENT`. Repetição após sucesso devolve resultado idempotente e não duplica auditoria.
 
 A criação administrativa reconsulta a tela, o bloco `students.preRegistration.create`, o tenant, o data scope e a visibilidade do responsável dentro da mesma transação que deduplica e grava o lead. A autorização observada apenas no middleware nunca é suficiente para o commit.
