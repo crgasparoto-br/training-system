@@ -1,6 +1,5 @@
 import { Link } from 'react-router-dom';
 import { AlertTriangle } from 'lucide-react';
-import { Button } from '../components/ui/Button';
 
 interface PreRegistrationUnavailableProps {
   audience: 'public' | 'administrative';
@@ -32,9 +31,12 @@ export function PreRegistrationUnavailable({ audience }: PreRegistrationUnavaila
         </p>
         {!isPublic ? (
           <div className="mt-6">
-            <Button asChild>
-              <Link to="/inicio">Voltar ao início</Link>
-            </Button>
+            <Link
+              to="/inicio"
+              className="inline-flex h-10 items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition-colors hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              Voltar ao início
+            </Link>
           </div>
         ) : null}
       </section>
