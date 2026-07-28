@@ -8,6 +8,7 @@ import goalConsistencyRoutes from './capacity-prescription-goal-consistency.rout
 import goalPermissionRoutes from './capacity-prescription-goal-permission.routes.js';
 import planningValidationRoutes from './capacity-prescription-planning-validation.routes.js';
 import readPermissionRoutes from './capacity-prescription-read-permission.routes.js';
+import sourceIntegrityRoutes from './capacity-prescription-source-integrity.routes.js';
 import sourcePermissionRoutes from './capacity-prescription-source-permission.routes.js';
 import sourceRoutes from './capacity-prescription-source.routes.js';
 import statusNormalizationRoutes from './capacity-prescription-status-normalization.routes.js';
@@ -35,9 +36,10 @@ router.use((req: Request, res: Response, next) => {
   next();
 });
 
-// Autorizações de origem e validações canônicas devem ocorrer antes de qualquer
+// Autorizações e integridade das origens devem ser verificadas antes de qualquer
 // reconstrução de metadados ou persistência das rotas compostas.
 router.use(sourcePermissionRoutes);
+router.use(sourceIntegrityRoutes);
 router.use(planningValidationRoutes);
 router.use(goalPermissionRoutes);
 
