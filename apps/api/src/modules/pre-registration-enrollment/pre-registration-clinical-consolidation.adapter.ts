@@ -6,6 +6,7 @@ import {
   hasBlockingOwnershipForConsolidation,
   isClinicalReassociationDatabaseError,
 } from './pre-registration-clinical-ownership.service.js';
+import { releaseIssue274PrismaAfterIntegrationOperation } from './issue-274-prisma.js';
 
 type RuntimeService = typeof preRegistrationEnrollmentService & {
   __issue274ClinicalConsolidationGuardApplied?: boolean;
@@ -29,7 +30,16 @@ if (!runtime.__issue274ClinicalConsolidationGuardApplied) {
       return decideOriginal(actor, alunoId, input);
     }
 
-    if (await hasBlockingOwnershipForConsolidation(alunoId, actor.contractId)) {
+    let hasBlockingOwnership = false;
+    try {
+      hasBlockingOwnership = await hasBlockingOwnershipForConsolidation(
+        alunoId,
+        actor.contractId
+      );
+    } finally {
+      await releaseIssue274PrismaAfterIntegrationOperation();
+    }
+    if (hasBlockingOwnership) {
       throw ownershipError();
     }
 
