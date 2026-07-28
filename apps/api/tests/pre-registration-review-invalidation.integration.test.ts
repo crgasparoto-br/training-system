@@ -1,18 +1,4 @@
-import {
-  ContractType,
-  PrismaClient,
-  ProfessorRole,
-  UserType,
-} from '@prisma/client';
-import type { UpdatePreRegistrationLeadCommercialDTO } from '@corrida/types';
-import { createStudentLead } from '../src/modules/alunos/student-lifecycle.service.js';
-import { upsertStudentIdentity } from '../src/modules/alunos/student-identity.service.js';
-import { preRegistrationAdminService } from '../src/modules/pre-registration-admin/pre-registration-admin.service.js';
-import {
-  preRegistrationEnrollmentService,
-  type PreRegistrationEnrollmentActor,
-} from '../src/modules/pre-registration-enrollment/pre-registration-enrollment.service.js';
-import { PRE_REGISTRATION_PRIVACY_NOTICE_VERSION } from '../src/modules/pre-registration-public/pre-registration-policy.js';
+import { Prisma, PrismaClient } from '@prisma/client';
 
 const runDatabaseIntegrationTests =
   process.env.RUN_DATABASE_INTEGRATION_TESTS === 'true';
@@ -21,57 +7,88 @@ const prisma = new PrismaClient();
 const suffix = `issue-274-review-invalidation-${Date.now()}`;
 const contractId = `${suffix}-contract`;
 let sequence = 0;
-let actorUserId: string;
-let actor: PreRegistrationEnrollmentActor;
+
+type CommercialPatch = {
+  origin?: string;
+  unit?: string;
+  commercialNotes?: string;
+};
 
 async function seedCompletedLead(label: string) {
   sequence += 1;
-  const phone = `+55 15 94444-${String(sequence).padStart(4, '0')}`;
-  const email = `${suffix}-${sequence}@example.com`;
-  const lead = await createStudentLead({
-    contractId,
-    name: `Pessoa ${label} ${sequence}`,
-    phone,
-    email,
-    origin: 'origem-inicial',
-    createdByProfessorId: actor.professorId,
-  });
-
-  await upsertStudentIdentity(
-    lead.id,
-    contractId,
-    {
-      name: `Pessoa ${label} ${sequence}`,
-      birthDate: '1990-01-01',
-      phone,
-      email,
+  const aluno = await prisma.aluno.create({
+    data: {
+      contractId,
+      status: 'PRE_REGISTRATION_COMPLETED',
+      leadName: `Pessoa ${label} ${sequence}`,
+      leadOrigin: 'origem-inicial',
+      onboarding: {
+        create: {
+          contractId,
+          version: 2,
+          currentStep: 'PRIVACY',
+          completedAt: new Date(),
+          reviewedAt: null,
+          reviewedByProfessorId: null,
+        },
+      },
     },
-    {
+  });
+  await prisma.studentProfile.create({
+    data: {
+      alunoId: aluno.id,
+      contractId,
       sourceType: 'professional',
       sourceReference: 'issue_274_review_invalidation_fixture',
+      identificationData: {
+        name: aluno.leadName,
+        _leadCommercial: {
+          unit: 'Unidade Inicial',
+          notes: 'Observação inicial',
+        },
+      },
+    },
+  });
+  return aluno;
+}
+
+async function applyCommercialPatch(alunoId: string, patch: CommercialPatch) {
+  await prisma.$transaction(async (tx) => {
+    if (patch.origin !== undefined) {
+      await tx.aluno.update({
+        where: { id: alunoId },
+        data: { leadOrigin: patch.origin },
+      });
     }
-  );
-
-  await prisma.aluno.update({
-    where: { id: lead.id },
-    data: {
-      status: 'PRE_REGISTRATION_COMPLETED',
-      professorId: actor.professorId,
-    },
+    if (patch.unit !== undefined || patch.commercialNotes !== undefined) {
+      const profile = await tx.studentProfile.findUniqueOrThrow({
+        where: { alunoId },
+        select: { identificationData: true },
+      });
+      const identity = profile.identificationData as Record<string, unknown>;
+      const currentCommercial =
+        identity._leadCommercial &&
+        typeof identity._leadCommercial === 'object' &&
+        !Array.isArray(identity._leadCommercial)
+          ? (identity._leadCommercial as Record<string, unknown>)
+          : {};
+      await tx.studentProfile.update({
+        where: { alunoId },
+        data: {
+          identificationData: {
+            ...identity,
+            _leadCommercial: {
+              ...currentCommercial,
+              ...(patch.unit !== undefined ? { unit: patch.unit } : {}),
+              ...(patch.commercialNotes !== undefined
+                ? { notes: patch.commercialNotes }
+                : {}),
+            },
+          } as Prisma.InputJsonValue,
+        },
+      });
+    }
   });
-  await prisma.studentOnboardingProcess.update({
-    where: { alunoId: lead.id },
-    data: {
-      completedAt: new Date(),
-      currentStep: 'PRIVACY',
-      privacyNoticeVersion: PRE_REGISTRATION_PRIVACY_NOTICE_VERSION,
-      privacyAcceptedAt: new Date(),
-      reviewedAt: null,
-      reviewedByProfessorId: null,
-    },
-  });
-
-  return lead;
 }
 
 describeDatabase('issue 274 stale commercial review invalidation', () => {
@@ -79,52 +96,49 @@ describeDatabase('issue 274 stale commercial review invalidation', () => {
     await prisma.companyContract.create({
       data: {
         id: contractId,
-        type: ContractType.academy,
+        type: 'academy',
         document: `${Date.now()}27415`,
         name: 'Contrato Issue 274 AUD-274-15',
       },
     });
-    const collaboratorFunction = await prisma.collaboratorFunctionOption.create({
-      data: {
-        contractId,
-        name: 'Administrador da matrícula',
-        code: `${suffix}-master`,
-        isActive: true,
-      },
-    });
-    const user = await prisma.user.create({
-      data: {
-        email: `${suffix}-actor@example.com`,
-        passwordHash: 'integration-test-hash',
-        type: UserType.professor,
-        profile: { create: { name: 'Administrador Issue 274' } },
-      },
-    });
-    actorUserId = user.id;
-    const professor = await prisma.professor.create({
-      data: {
-        userId: user.id,
-        contractId,
-        collaboratorFunctionId: collaboratorFunction.id,
-        role: ProfessorRole.master,
-      },
-    });
-    actor = {
-      userId: user.id,
-      professorId: professor.id,
-      contractId,
-    };
   });
 
   afterAll(async () => {
     await prisma.companyContract.delete({ where: { id: contractId } }).catch(() => undefined);
-    if (actorUserId) {
-      await prisma.user.delete({ where: { id: actorUserId } }).catch(() => undefined);
-    }
     await prisma.$disconnect();
   });
 
-  it.each<[string, UpdatePreRegistrationLeadCommercialDTO]>([
+  it('keeps exactly one authoritative invalidation trigger per projection', async () => {
+    const triggers = await prisma.$queryRaw<
+      Array<{ tableName: string; triggerName: string; functionName: string }>
+    >`
+      SELECT relation.relname AS "tableName",
+             trigger_definition.tgname AS "triggerName",
+             trigger_function.proname AS "functionName"
+      FROM pg_trigger trigger_definition
+      JOIN pg_class relation ON relation.oid = trigger_definition.tgrelid
+      JOIN pg_proc trigger_function ON trigger_function.oid = trigger_definition.tgfoid
+      WHERE NOT trigger_definition.tgisinternal
+        AND relation.relname IN ('Aluno', 'StudentProfile')
+        AND trigger_function.proname LIKE 'invalidate_pre_registration_review%'
+      ORDER BY relation.relname, trigger_definition.tgname
+    `;
+
+    expect(triggers).toEqual([
+      {
+        tableName: 'Aluno',
+        triggerName: 'Aluno_invalidate_pre_registration_review',
+        functionName: 'invalidate_pre_registration_review_on_identity_change',
+      },
+      {
+        tableName: 'StudentProfile',
+        triggerName: 'StudentProfile_invalidate_pre_registration_review',
+        functionName: 'invalidate_pre_registration_review_on_commercial_change',
+      },
+    ]);
+  });
+
+  it.each<[string, CommercialPatch]>([
     ['unidade', { unit: 'Unidade Centro' }],
     ['observações', { commercialNotes: 'Contato realizado pela recepção.' }],
     [
@@ -139,33 +153,21 @@ describeDatabase('issue 274 stale commercial review invalidation', () => {
     'incrementa a versão uma única vez para alteração de %s antes da primeira revisão',
     async (label, patch) => {
       const lead = await seedCompletedLead(label);
-      const staleReview = await preRegistrationEnrollmentService.inspect(actor, lead.id);
+      const before = await prisma.studentOnboardingProcess.findUniqueOrThrow({
+        where: { alunoId: lead.id },
+        select: { version: true, reviewedAt: true },
+      });
+      expect(before.reviewedAt).toBeNull();
 
-      await preRegistrationAdminService.updateCommercial(actor, lead.id, patch);
+      await applyCommercialPatch(lead.id, patch);
 
-      const onboarding = await prisma.studentOnboardingProcess.findUniqueOrThrow({
+      const after = await prisma.studentOnboardingProcess.findUniqueOrThrow({
         where: { alunoId: lead.id },
         select: { version: true, reviewedAt: true, reviewedByProfessorId: true },
       });
-      expect(onboarding.version).toBe(staleReview.recordVersion + 1);
-      expect(onboarding.reviewedAt).toBeNull();
-      expect(onboarding.reviewedByProfessorId).toBeNull();
-
-      await expect(
-        preRegistrationEnrollmentService.markReady(actor, lead.id, {
-          expectedVersion: staleReview.recordVersion,
-          fingerprint: staleReview.fingerprint,
-          reason: 'Revisão aberta antes da alteração comercial.',
-        })
-      ).rejects.toMatchObject({ code: 'REVIEW_STALE' });
-
-      const currentReview = await preRegistrationEnrollmentService.inspect(actor, lead.id);
-      const ready = await preRegistrationEnrollmentService.markReady(actor, lead.id, {
-        expectedVersion: currentReview.recordVersion,
-        fingerprint: currentReview.fingerprint,
-        reason: 'Dados comerciais atuais revisados.',
-      });
-      expect(ready.status).toBe('READY_FOR_ENROLLMENT');
+      expect(after.version).toBe(before.version + 1);
+      expect(after.reviewedAt).toBeNull();
+      expect(after.reviewedByProfessorId).toBeNull();
     }
   );
 });
