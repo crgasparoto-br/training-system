@@ -1,3 +1,7 @@
+import {
+  isAngularFlexibilityMeasurement,
+  normalizeCapacityMeasurementDescriptor,
+} from '@corrida/types';
 import type {
   CapacityPrescriptionAlert,
   CapacityPrescriptionParameterSetView,
@@ -343,15 +347,6 @@ const flexibilityArticulationAliases = [
   { name: 'Tornozelo', aliases: ['tornozelo'] },
 ] as const;
 
-function normalizeAssessmentLabel(value: string) {
-  return value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '');
-}
-
 function assessmentDetailNumber(value: string | number | boolean | null) {
   if (typeof value === 'number') return Number.isFinite(value) ? value : null;
   if (typeof value !== 'string' || !value.trim()) return null;
@@ -365,18 +360,27 @@ export function mergeFlexibilityArticulationsFromAssessmentDetails(
 ): FlexibilityArticulationParameters[] {
   const merged = current.map((item) => ({ ...item }));
   const indexByName = new Map(
-    merged.map((item, index) => [normalizeAssessmentLabel(item.name), index])
+    merged.map((item, index) => [normalizeCapacityMeasurementDescriptor(item.name), index])
   );
 
   for (const detail of details) {
-    const descriptor = normalizeAssessmentLabel(detail.label);
+    if (
+      !isAngularFlexibilityMeasurement({
+        metricLabel: detail.label,
+        unit: detail.unit,
+      })
+    ) {
+      continue;
+    }
+
+    const descriptor = normalizeCapacityMeasurementDescriptor(detail.label);
     const articulation = flexibilityArticulationAliases.find((candidate) =>
       candidate.aliases.some((alias) => descriptor.includes(alias))
     );
     const angle = assessmentDetailNumber(detail.value);
     if (!articulation || angle === null) continue;
 
-    const normalizedName = normalizeAssessmentLabel(articulation.name);
+    const normalizedName = normalizeCapacityMeasurementDescriptor(articulation.name);
     const existingIndex = indexByName.get(normalizedName);
     if (existingIndex !== undefined) {
       const existing = merged[existingIndex];
