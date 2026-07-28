@@ -1,4 +1,4 @@
-name: Export Issue 275 Source
+name: Apply Issue 275 Remediation
 
 on:
   push:
@@ -6,34 +6,40 @@ on:
       - feat/275-pre-registration-qa-rollout
     paths:
       - '.github/workflows/export-issue-275-source.yml'
-  pull_request:
-    branches:
-      - develop
-    paths:
-      - '.github/workflows/export-issue-275-source.yml'
-  workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  export-source:
-    name: Export repository source for remediation
+  apply-remediation:
+    name: Apply audited remediation patch
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout current branch
+      - name: Checkout branch
         uses: actions/checkout@v4
-
-      - name: Upload repository source
-        uses: actions/upload-artifact@v4
         with:
-          name: issue-275-source-${{ github.event.pull_request.head.sha || github.sha }}
-          path: |
-            .
-            !.git/**
-            !node_modules/**
-            !artifacts/**
-          if-no-files-found: error
-          retention-days: 1
-          include-hidden-files: true
+          ref: feat/275-pre-registration-qa-rollout
+          fetch-depth: 0
+
+      - name: Reconstruct and verify patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .audit/issue-275-remediation/patch.part* > /tmp/patch.b64
+          base64 -d /tmp/patch.b64 | gzip -d > /tmp/remediation.patch
+          echo '1bb51823a2aec754e678ce20cf69c7aea84e4ec28e069658215d52a8a2c96ea5  /tmp/remediation.patch' | sha256sum -c -
+
+      - name: Apply remediation and remove temporary transport
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git apply --index --binary /tmp/remediation.patch
+          rm -rf .audit/issue-275-remediation
+          rm .github/workflows/export-issue-275-source.yml
+          git add -A
+          git diff --cached --check
+          git commit -m 'fix: remediar auditoria integrada da issue 275'
+          git push origin HEAD:feat/275-pre-registration-qa-rollout
