@@ -1,5 +1,6 @@
 import {
   buildSafePreRegistrationErrorLog,
+  createPreRegistrationSafeBoundary,
   createPreRegistrationUnexpectedErrorHandler,
   isPreRegistrationRequestPath,
 } from './pre-registration-safe-log.js';
@@ -78,6 +79,49 @@ describe('pre-registration safe error logging', () => {
     ).toBe(true);
     expect(isPreRegistrationRequestPath('/api/v1/pre-registration-other')).toBe(false);
     expect(isPreRegistrationRequestPath('/api/v1/alunos/aluno-1')).toBe(false);
+  });
+
+  it('replaces a route-local 500 payload before serialization', () => {
+    const serialized = jest.fn();
+    const response = {
+      statusCode: 500,
+      json: serialized,
+    };
+    const boundary = createPreRegistrationSafeBoundary();
+
+    boundary(
+      {} as never,
+      response as never,
+      () => response.json({
+        error: 'Falha com CPF 123.456.789-00 e secret-token',
+        details: { email: 'pessoa@example.com', clinicalAnswer: 'sim' },
+      })
+    );
+
+    expect(serialized).toHaveBeenCalledWith({
+      error: 'PRE_REGISTRATION_INTERNAL_ERROR',
+      message: 'Não foi possível continuar.',
+      correlationId: expect.any(String),
+    });
+    const payload = JSON.stringify(serialized.mock.calls);
+    expect(payload).not.toMatch(/123\.456|secret-token|pessoa@example|clinicalAnswer/);
+  });
+
+  it('preserves allowlisted domain responses below 500', () => {
+    const serialized = jest.fn();
+    const response = {
+      statusCode: 409,
+      json: serialized,
+    };
+    const boundary = createPreRegistrationSafeBoundary();
+    const domainPayload = {
+      error: 'CONCURRENT_MODIFICATION',
+      details: { currentVersion: 3 },
+    };
+
+    boundary({} as never, response as never, () => response.json(domainPayload));
+
+    expect(serialized).toHaveBeenCalledWith(domainPayload);
   });
 
   it('sanitizes parser and middleware errors before they reach the global handler', () => {
