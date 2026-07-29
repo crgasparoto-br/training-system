@@ -1,5 +1,6 @@
 name: Apply Issue 275 concurrency remediation
 
+# The second push ensures GitHub registers and executes this temporary workflow.
 on:
   push:
     branches:
