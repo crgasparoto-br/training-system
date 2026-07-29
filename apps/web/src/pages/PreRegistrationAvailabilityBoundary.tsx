@@ -31,18 +31,18 @@ export function PreRegistrationAvailabilityBoundary({
     window.addEventListener(PRE_REGISTRATION_DISABLED_EVENT, markDisabled);
 
     // Probe before exposing any route consumer in both explicit-origin and
-    // same-origin deployments. The Axios base URL already resolves the latter
-    // to /api/v1. Failure to confirm availability is fail-closed, preventing a
-    // partially functional screen while the API or proxy is unavailable.
+    // same-origin deployments. The canonical endpoint returns only 204 when
+    // enabled or 503 PRE_REGISTRATION_DISABLED when disabled. Every other
+    // response and every transport failure is unknown availability and remains
+    // fail-closed.
     api
       .get('/pre-registration/availability', { validateStatus: () => true })
       .then((response) => {
         if (!active) return;
-        setAvailability(
-          isPreRegistrationDisabledResponse(response.status, response.data)
-            ? 'disabled'
-            : 'enabled'
-        );
+        const enabled =
+          response.status === 204 &&
+          !isPreRegistrationDisabledResponse(response.status, response.data);
+        setAvailability(enabled ? 'enabled' : 'disabled');
       })
       .catch(() => {
         if (active) setAvailability('disabled');
