@@ -36,20 +36,21 @@ describeDatabase('Issue 275 tenant-scoped pre-registration list plan', () => {
     const orderingBase = Date.now();
     await prisma.aluno.createMany({
       data: [
-        ...Array.from({ length: 300 }, (_, index) => ({
+        ...Array.from({ length: 2_000 }, (_, index) => ({
           contractId,
           status: 'ACTIVE_STUDENT' as const,
           leadName: `Aluno ativo ${index}`,
           lastActivityAt: new Date(orderingBase - index * 1000),
         })),
-        ...Array.from({ length: 300 }, (_, index) => ({
+        ...Array.from({ length: 2_000 }, (_, index) => ({
           contractId,
           status: index % 2 === 0 ? ('LEAD' as const) : ('INVITED' as const),
           leadName: `Pré-matrícula ${index}`,
-          lastActivityAt: new Date(orderingBase - (300 + index) * 1000),
+          lastActivityAt: new Date(orderingBase - (2_000 + index) * 1000),
         })),
       ],
     });
+    await prisma.$executeRawUnsafe('ANALYZE "Aluno"');
   });
 
   afterAll(async () => {
@@ -97,8 +98,8 @@ describeDatabase('Issue 275 tenant-scoped pre-registration list plan', () => {
       prisma.aluno.count({ where: { contractId } }),
     ]);
 
-    expect(tenantCandidateRows).toBe(300);
-    expect(tenantTotalRows).toBe(600);
+    expect(tenantCandidateRows).toBe(2_000);
+    expect(tenantTotalRows).toBe(4_000);
     expect(() =>
       assertTenantPageScanIsProportional({
         pageSize: 20,
