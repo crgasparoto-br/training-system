@@ -71,15 +71,20 @@ describe('PreRegistrationAvailabilityBoundary', () => {
     expect(screen.getByRole('link', { name: /Voltar ao início/i })).toBeInTheDocument();
   });
 
-  it('does not confuse an authentication response or a transient probe failure with rollout disablement', async () => {
+  it('does not confuse an authentication response with rollout disablement', async () => {
     mocks.get.mockResolvedValueOnce({ status: 401, data: { error: 'Unauthorized' } });
-    const first = renderBoundary();
-    expect(await screen.findByText(/Conteúdo protegido/i)).toBeInTheDocument();
-    first.unmount();
-
-    mocks.get.mockRejectedValueOnce(new Error('Network Error'));
     renderBoundary();
     expect(await screen.findByText(/Conteúdo protegido/i)).toBeInTheDocument();
+  });
+
+  it('fails closed when the availability probe cannot be completed', async () => {
+    mocks.get.mockRejectedValueOnce(new Error('Network Error'));
+    renderBoundary('administrative');
+
+    expect(
+      await screen.findByRole('heading', { name: /Pré-matrícula temporariamente indisponível/i })
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Conteúdo protegido/i)).not.toBeInTheDocument();
   });
 
   it('blocks same-origin consumers until the availability probe resolves', async () => {
