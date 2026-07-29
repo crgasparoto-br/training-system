@@ -1,0 +1,130 @@
+name: Issue 275 Audit Escape Regressions
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - 'apps/api/src/modules/pre-registration-invites/**'
+      - 'apps/api/scripts/verify-issue-275-invite-history-bound.ts'
+      - 'apps/api/tests/issue-275-pre-registration-invite-summary.test.ts'
+      - 'apps/web/src/pages/PreRegistrationAvailabilityBoundary*'
+      - 'apps/api/tests/issue-275-rollout-consumer.browser.integration.test.ts'
+      - '.github/workflows/issue-275-audit-escape-regressions.yml'
+      - '.github/workflows/issue-275-rollout-consumer.yml'
+      - 'docs/operations/pre-registration-rollout-and-qa.md'
+      - 'docs/architecture/pre-registration-api.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: issue-275-audit-escape-regressions-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  regressions:
+    name: Reject unbounded history and same-origin exposure
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/training_system_test?schema=public&connection_limit=1&pool_timeout=30
+      PRISMA_CONNECTION_LIMIT: '1'
+      PRISMA_POOL_TIMEOUT_SECONDS: '30'
+      NODE_ENV: test
+      JWT_SECRET: issue-275-audit-escape-regressions-secret
+      FRONTEND_URL: http://127.0.0.1:4176
+      CORS_ORIGINS: http://127.0.0.1:4176
+      PRE_REGISTRATION_ENABLED: 'true'
+      PRE_REGISTRATION_TELEMETRY_ENABLED: 'false'
+      PRIVACY_NOTICE_URL: https://example.test/privacidade
+      PRIVACY_NOTICE_VERSION: 2026-07
+      HEALTH_PRIVACY_NOTICE_VERSION: 2026-07
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: training_system_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d training_system_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared packages and generate Prisma client
+        run: |
+          pnpm --filter @corrida/types build
+          pnpm --filter @corrida/utils build
+          pnpm --filter @corrida/api exec prisma generate
+          pnpm --filter @corrida/api exec prisma migrate deploy
+
+      - name: Verify batch serialization control
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p artifacts/issue-275
+          pnpm --filter @corrida/api exec jest --runInBand \
+            tests/issue-275-pre-registration-invite-summary.test.ts 2>&1 \
+            | tee artifacts/issue-275/invite-history-batch-test.log
+
+      - name: Verify bounded production service
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @corrida/api exec tsx \
+            scripts/verify-issue-275-invite-history-bound.ts 2>&1 \
+            | tee artifacts/issue-275/invite-history-bound.log
+
+      - name: Verify evidence semantics
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s artifacts/issue-275/invite-history-bound.json
+          jq -e '
+            .schemaVersion == 1 and
+            .evidenceSource == "production-service" and
+            .persistedRows == 120 and
+            .defaultLimit == 20 and
+            .defaultRows == 20 and
+            .requestedLimit == 5 and
+            .requestedRows == 5 and
+            .maximumLimit == 100 and
+            .maximumRows == 100 and
+            .deterministicOrder == true and
+            .replacementRelationshipHydrated == true and
+            .fullHistoryReturned == false
+          ' artifacts/issue-275/invite-history-bound.json >/dev/null
+          grep -q 'Test Suites:.*passed' artifacts/issue-275/invite-history-batch-test.log
+
+      - name: Upload audit escape evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-275-audit-escape-regressions-${{ github.run_id }}
+          path: artifacts/issue-275
+          if-no-files-found: error
+          retention-days: 14
