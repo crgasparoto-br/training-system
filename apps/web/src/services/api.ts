@@ -1,4 +1,9 @@
 import axios, { type AxiosError, type AxiosResponse } from 'axios';
+import {
+  dispatchPreRegistrationDisabled,
+  isPreRegistrationDisabledResponse,
+  isPreRegistrationRequestUrl,
+} from '../config/pre-registration-availability';
 
 const API_URL = import.meta.env.VITE_API_URL;
 const API_TIMEOUT_MS = 30000;
@@ -57,6 +62,13 @@ api.interceptors.response.use(
       '/auth/forgot-password',
       '/auth/reset-password',
     ].some((path) => requestUrl.includes(path));
+
+    if (
+      isPreRegistrationRequestUrl(requestUrl) &&
+      isPreRegistrationDisabledResponse(status, error.response?.data)
+    ) {
+      dispatchPreRegistrationDisabled();
+    }
 
     if (status === 401 && !isAuthRequest) {
       const hasToken = !!localStorage.getItem('token');
