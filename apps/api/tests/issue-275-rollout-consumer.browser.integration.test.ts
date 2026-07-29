@@ -1,3 +1,5 @@
+/// <reference lib="dom" />
+
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createServer, type Server } from 'node:http';
 import { existsSync } from 'node:fs';
