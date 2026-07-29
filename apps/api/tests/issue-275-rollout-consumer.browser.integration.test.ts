@@ -15,11 +15,11 @@ const webDist = path.join(repoRoot, 'apps/web/dist');
 const artifactDir = path.join(repoRoot, 'artifacts/issue-275');
 const webPort = 4176;
 const apiPort = 3002;
+const availabilityDelayMs = 750;
 const jwtSecret = 'issue-275-rollout-consumer-browser-secret';
 const prisma = new PrismaClient();
 const enabledForThisGate =
   process.env.RUN_ISSUE_275_ROLLOUT_CONSUMER_BROWSER === 'true' &&
-  process.env.VITE_API_URL?.includes(String(apiPort)) === true &&
   existsSync(path.join(webDist, 'index.html'));
 
 const describeBrowser = enabledForThisGate ? describe : describe.skip;
@@ -35,9 +35,25 @@ function contentType(filePath: string): string {
   return 'application/octet-stream';
 }
 
+async function proxyAvailability(response: import('node:http').ServerResponse) {
+  await new Promise((resolve) => setTimeout(resolve, availabilityDelayMs));
+  const apiResponse = await fetch(
+    `http://127.0.0.1:${apiPort}/api/v1/pre-registration/availability`
+  );
+  response.statusCode = apiResponse.status;
+  apiResponse.headers.forEach((value, key) => response.setHeader(key, value));
+  response.end(Buffer.from(await apiResponse.arrayBuffer()));
+}
+
 async function startWebServer(): Promise<Server> {
   const server = createServer(async (request, response) => {
     const pathname = new URL(request.url || '/', `http://127.0.0.1:${webPort}`).pathname;
+
+    if (pathname === '/api/v1/pre-registration/availability') {
+      await proxyAvailability(response);
+      return;
+    }
+
     const relative = pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, '');
     let candidate = path.join(webDist, relative);
 
@@ -219,9 +235,21 @@ async function openSurface(
   }
 
   await page.goto(`http://127.0.0.1:${webPort}${input.path}`, {
-    waitUntil: 'networkidle0',
+    waitUntil: 'domcontentloaded',
     timeout: 60_000,
   });
+  await page.waitForSelector('[data-pre-registration-availability="checking"]', {
+    timeout: 10_000,
+  });
+
+  const checkingText = await page.$eval('body', (element) => element.textContent || '');
+  expect(checkingText).toContain('Verificando disponibilidade da pré-matrícula');
+  expect(checkingText).not.toContain('Pré-matrícula temporariamente indisponível');
+  if (input.audience === 'administrative') {
+    expect(checkingText).not.toContain('Leads e pré-matrículas');
+    expect(checkingText).not.toContain('Localizar e filtrar');
+  }
+
   await page.waitForFunction(
     () => document.body.innerText.includes('Pré-matrícula temporariamente indisponível'),
     { timeout: 30_000 }
@@ -255,6 +283,9 @@ async function openSurface(
     path: input.path,
     audience: input.audience,
     viewport: input.viewport,
+    sameOriginProbeObserved: true,
+    checkingBoundaryObservedBeforeDisabledResponse: true,
+    protectedContentAbsentDuringProbe: true,
     rawCodeAbsent: true,
     contradictoryInviteGuidanceAbsent: true,
     audienceCopyMatched: true,
@@ -264,7 +295,7 @@ async function openSurface(
 }
 
 describeBrowser('issue 275 rollout compatibility at the real browser consumer', () => {
-  it('renders audience-specific disabled states on public, authenticated-resume and administrative routes', async () => {
+  it('blocks same-origin consumers until the delayed disabled probe resolves for every audience', async () => {
     await mkdir(artifactDir, { recursive: true });
     let administrator: AdminFixture | undefined;
     let apiProcess: ChildProcess | undefined;
@@ -318,12 +349,12 @@ describeBrowser('issue 275 rollout compatibility at the real browser consumer', 
       );
 
       const report = {
-        schemaVersion: 2,
+        schemaVersion: 3,
         kind: 'issue-275-rollout-consumer-browser',
-        buildMode: 'pre-registration-route-enabled',
+        buildMode: 'pre-registration-route-enabled-same-origin',
         apiMode: 'PRE_REGISTRATION_ENABLED=false',
-        previousWebEquivalence:
-          'The route-enabled build exercises the same exposed-route condition as the pre-flag web bundle.',
+        availabilityDelayMs,
+        implementationConclusionsIncluded: false,
         surfaces,
       };
       await writeFile(
