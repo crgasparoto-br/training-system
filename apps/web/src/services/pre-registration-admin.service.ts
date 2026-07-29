@@ -23,21 +23,8 @@ type CreateLeadWithDecision = CreatePreRegistrationLeadDTO & {
   confirmedDuplicateReason?: string;
 };
 
-type InviteHandoffWindow = Window & {
-  __issue275Invite?: string;
-};
-
 function listParams(query: PreRegistrationAdminListQueryDTO) {
   return { ...query, status: query.statuses?.join(','), statuses: undefined };
-}
-
-function exposeInviteForSameWindowEvidence(result: PreRegistrationInviteCreationResultDTO) {
-  // The raw link is already displayed in this SPA session and is discarded on
-  // reload. Keep the same in-memory handoff observable to the full-boundary E2E
-  // because headless Linux does not provide a reliable system clipboard.
-  if (typeof window !== 'undefined') {
-    (window as InviteHandoffWindow).__issue275Invite = result.url;
-  }
 }
 
 export const preRegistrationAdminService = {
@@ -92,9 +79,7 @@ export const preRegistrationAdminService = {
     const response = await api.post<ApiEnvelope<PreRegistrationInviteCreationResultDTO>>(
       `/pre-registration-admin/leads/${id}/invites`
     );
-    const result = response.data.data;
-    exposeInviteForSameWindowEvidence(result);
-    return result;
+    return response.data.data;
   },
   async revokeInvite(id: string, inviteId: string, reason: string) {
     const response = await api.post<ApiEnvelope<PreRegistrationInviteSummaryDTO>>(
