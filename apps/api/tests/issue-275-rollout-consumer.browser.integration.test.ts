@@ -24,6 +24,8 @@ const enabledForThisGate =
 
 const describeBrowser = enabledForThisGate ? describe : describe.skip;
 
+type Audience = 'public' | 'authenticated' | 'administrative';
+
 function contentType(filePath: string): string {
   if (filePath.endsWith('.html')) return 'text/html; charset=utf-8';
   if (filePath.endsWith('.js')) return 'text/javascript; charset=utf-8';
@@ -198,7 +200,7 @@ async function openSurface(
   input: {
     name: string;
     path: string;
-    audience: 'public' | 'administrative';
+    audience: Audience;
     user?: StoredUser;
     token?: string;
     viewport: { width: number; height: number };
@@ -229,10 +231,19 @@ async function openSurface(
   expect(text).toContain('Pré-matrícula temporariamente indisponível');
   expect(text).not.toContain('PRE_REGISTRATION_DISABLED');
   expect(text).not.toContain('Solicite um novo convite');
-  if (input.audience === 'administrative') {
-    expect(text).toContain('Nenhum cadastro ou convite existente foi apagado');
+
+  if (input.audience === 'public') {
+    expect(text).toContain('O link não pode ser utilizado neste momento');
+    expect(text).not.toContain('Seu progresso permanece salvo');
+    expect(text).not.toContain('Nenhum cadastro ou convite existente foi apagado');
+  } else if (input.audience === 'authenticated') {
+    expect(text).toContain('Seu progresso permanece salvo');
+    expect(text).not.toContain('O link não pode ser utilizado neste momento');
+    expect(text).not.toContain('Nenhum cadastro ou convite existente foi apagado');
   } else {
-    expect(text).toContain('Entre em contato com a equipe da academia para receber orientação');
+    expect(text).toContain('Nenhum cadastro ou convite existente foi apagado');
+    expect(text).not.toContain('O link não pode ser utilizado neste momento');
+    expect(text).not.toContain('Seu progresso permanece salvo');
   }
 
   const screenshot = path.join(artifactDir, `rollout-consumer-${input.name}.png`);
@@ -246,12 +257,14 @@ async function openSurface(
     viewport: input.viewport,
     rawCodeAbsent: true,
     contradictoryInviteGuidanceAbsent: true,
+    audienceCopyMatched: true,
+    wrongAudienceCopyAbsent: true,
     screenshot: path.relative(repoRoot, screenshot),
   };
 }
 
 describeBrowser('issue 275 rollout compatibility at the real browser consumer', () => {
-  it('renders the operational disabled state on public, authenticated-resume and administrative routes', async () => {
+  it('renders audience-specific disabled states on public, authenticated-resume and administrative routes', async () => {
     await mkdir(artifactDir, { recursive: true });
     let administrator: AdminFixture | undefined;
     let apiProcess: ChildProcess | undefined;
@@ -288,7 +301,7 @@ describeBrowser('issue 275 rollout compatibility at the real browser consumer', 
         await openSurface(browser, {
           name: 'authenticated-resume',
           path: '/pre-cadastro',
-          audience: 'public',
+          audience: 'authenticated',
           user: linkedStudent,
           viewport: { width: 390, height: 844 },
         })
@@ -305,7 +318,7 @@ describeBrowser('issue 275 rollout compatibility at the real browser consumer', 
       );
 
       const report = {
-        schemaVersion: 1,
+        schemaVersion: 2,
         kind: 'issue-275-rollout-consumer-browser',
         buildMode: 'pre-registration-route-enabled',
         apiMode: 'PRE_REGISTRATION_ENABLED=false',
