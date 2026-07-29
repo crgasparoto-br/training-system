@@ -23,4 +23,11 @@ describe('Issue 275 integrated concurrency source', () => {
     expect(source).toContain('claimedUsers[0]?.id === linkedClaim?.userId');
     expect(source).toContain('claimPersistedUserCount: claimedUsers.length');
   });
+
+  it('records both sides of the administrative and public race', () => {
+    expect(source).toContain('admin-public-race-outcomes.json');
+    expect(source).toContain('publicSave: {');
+    expect(source).toContain('adminEdit: {');
+    expect(source).toContain('Corrida administrativa/pública produziu erro interno:');
+  });
 });

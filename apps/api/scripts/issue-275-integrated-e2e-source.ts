@@ -4,6 +4,8 @@ const ACCOUNT_B_FIXTURE =
   "body: { name: accountB.name, email: accountB.email, password: 'Senha-segura-275', role: 'STUDENT' },";
 const ORIGINAL_WINNER_ASSERTION =
   "  assert(claims.filter((result) => result.status === 201).length === 1, 'Claims concorrentes não tiveram vencedor único');";
+const ORIGINAL_ADMIN_PUBLIC_RACE_ASSERTION =
+  "  assert(publicSave.status < 500 && adminEdit.status < 500, 'Corrida administrativa/pública produziu erro interno');";
 const ORIGINAL_CONCURRENCY_RESULT = `    claimWinnerCount: 1,
     activeInviteCount,`;
 
@@ -93,7 +95,34 @@ export function buildIssue275IntegratedE2ESource(template: string): string {
     'winner-assertion'
   );
 
-  return replaceExactlyOnce(
+  source = replaceExactlyOnce(
+    source,
+    ORIGINAL_ADMIN_PUBLIC_RACE_ASSERTION,
+    `  const administrativePublicRaceOutcomes = {
+    publicSave: {
+      status: publicSave.status,
+      code: typeof publicSave.body.details === 'object' && publicSave.body.details && 'code' in publicSave.body.details
+        ? String((publicSave.body.details as { code?: unknown }).code ?? '')
+        : String(publicSave.body.error ?? ''),
+    },
+    adminEdit: {
+      status: adminEdit.status,
+      code: String(adminEdit.body.code ?? adminEdit.body.error ?? ''),
+    },
+  };
+  await writeFile(
+    path.join(artifactDir, 'admin-public-race-outcomes.json'),
+    \`${'${JSON.stringify(administrativePublicRaceOutcomes, null, 2)}'}\\n\`,
+    'utf8'
+  );
+  assert(
+    publicSave.status < 500 && adminEdit.status < 500,
+    \`Corrida administrativa/pública produziu erro interno: ${'${JSON.stringify(administrativePublicRaceOutcomes)}'}\`
+  );`,
+    'admin-public-race-assertion'
+  );
+
+  source = replaceExactlyOnce(
     source,
     ORIGINAL_CONCURRENCY_RESULT,
     `    claimWinnerCount,
@@ -103,4 +132,6 @@ export function buildIssue275IntegratedE2ESource(template: string): string {
     activeInviteCount,`,
     'concurrency-result'
   );
+
+  return source;
 }
