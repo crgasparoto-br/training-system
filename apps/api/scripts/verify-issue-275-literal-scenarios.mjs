@@ -254,10 +254,20 @@ async function fill(page, labelText, value) {
     return `#${CSS.escape(field.id)}`;
   }, labelText);
   assert(selector, `Campo não encontrado: ${labelText}`);
-  await page.focus(selector);
-  await page.click(selector, { clickCount: 3 });
-  await page.keyboard.press('Backspace');
-  await page.type(selector, value);
+  await page.$eval(
+    selector,
+    (field, nextValue) => {
+      const prototype = field instanceof HTMLInputElement
+        ? HTMLInputElement.prototype
+        : HTMLTextAreaElement.prototype;
+      const setter = Object.getOwnPropertyDescriptor(prototype, 'value')?.set;
+      setter?.call(field, nextValue);
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+      field.dispatchEvent(new Event('change', { bubbles: true }));
+      field.dispatchEvent(new Event('blur', { bubbles: true }));
+    },
+    value
+  );
 }
 
 async function click(page, selector, text) {
@@ -317,7 +327,12 @@ async function realReauthentication(adminToken) {
   await fill(first.page, 'Data de nascimento', '1992-03-10');
   await fill(first.page, 'CPF', lead.person.cpf);
   await click(first.page, 'button', 'Salvar e avançar');
-  await heading(first.page, 'Contato');
+  try {
+    await heading(first.page, 'Contato');
+  } catch (error) {
+    const diagnostic = await first.page.evaluate(() => document.body.innerText.slice(0, 4000));
+    throw new Error(`Primeiro dispositivo não avançou para Contato: ${diagnostic}`, { cause: error });
+  }
   await first.context.close();
 
   const second = await isolatedPage();
@@ -381,7 +396,12 @@ async function previousWebCompatibility(adminToken, adminUser, previousSha, head
   await fill(publicPage.page, 'Data de nascimento', '1991-06-15');
   await fill(publicPage.page, 'CPF', lead.person.cpf);
   await click(publicPage.page, 'button', 'Salvar e avançar');
-  await heading(publicPage.page, 'Contato');
+  try {
+    await heading(publicPage.page, 'Contato');
+  } catch (error) {
+    const diagnostic = await publicPage.page.evaluate(() => document.body.innerText.slice(0, 4000));
+    throw new Error(`Bundle anterior não avançou para Contato: ${diagnostic}`, { cause: error });
+  }
   await publicPage.page.screenshot({ path: path.join(artifactDir, 'literal-previous-web-authenticated.png'), fullPage: true });
   await publicPage.context.close();
 
