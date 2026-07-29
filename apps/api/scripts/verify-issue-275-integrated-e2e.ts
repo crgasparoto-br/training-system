@@ -608,12 +608,28 @@ async function scenarioBasic(
   await fillByLabel(adminPage, 'Nome completo', identity.name);
   await fillByLabel(adminPage, 'Telefone', identity.phone);
   await fillByLabel(adminPage, 'Origem', 'Recepção E2E Issue 275');
+  const autoInviteDisabled = await adminPage.$$eval('label', (labels) => {
+    const label = labels.find((candidate) =>
+      candidate.textContent?.includes('Gerar convite após criar')
+    );
+    const input = label?.querySelector('input[type="checkbox"]');
+    if (!(input instanceof HTMLInputElement)) return false;
+    if (input.checked) input.click();
+    return !input.checked;
+  });
+  assert(autoInviteDisabled, 'Não foi possível desabilitar a geração automática do convite');
   await clickByText(adminPage, 'button', 'Criar lead');
   await adminPage.waitForFunction(
     () => /^\/pre-matriculas\/[^/]+$/.test(window.location.pathname),
     { timeout: 30_000 }
   );
   const alunoId = new URL(adminPage.url()).pathname.split('/').filter(Boolean).at(-1)!;
+  await adminPage.waitForFunction(
+    () =>
+      document.body.innerText.includes('Novo link gerado') ||
+      document.body.innerText.includes('Gerar link de pré-cadastro'),
+    { timeout: 30_000 }
+  );
   const linkAlreadyVisible = await adminPage.evaluate(() =>
     document.body.innerText.includes('Novo link gerado')
   );
