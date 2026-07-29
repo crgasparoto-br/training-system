@@ -9,46 +9,43 @@ import { preRegistrationEnrollmentCreateService } from '../src/modules/pre-regis
 import { preRegistrationInviteAdminService } from '../src/modules/pre-registration-invites/pre-registration-invite-admin.service.js';
 import { assertTenantPageScanIsProportional } from './issue-275-performance-proportionality.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(__dirname, '../../..');
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const artifactDir = path.join(repoRoot, 'artifacts', 'issue-275');
 const prisma = new PrismaClient();
 const suffix = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
-const jwtSecret = 'issue-275-performance-rollout-secret';
 const createdContractIds: string[] = [];
 const createdUserIds: string[] = [];
-const listPageSize = 20;
+const pageSize = 20;
 let apiProcess: ChildProcess | undefined;
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
 
-function stopProcess(child?: ChildProcess) {
-  if (!child?.pid) return;
+function stopApi() {
+  if (!apiProcess?.pid) return;
   try {
-    process.kill(-child.pid, 'SIGTERM');
+    process.kill(-apiProcess.pid, 'SIGTERM');
   } catch {
-    child.kill('SIGTERM');
+    apiProcess.kill('SIGTERM');
   }
 }
 
-async function waitForUrl(url: string, timeoutMs = 60_000) {
-  const startedAt = Date.now();
-  while (Date.now() - startedAt < timeoutMs) {
+async function waitForHealth(port: number) {
+  const deadline = Date.now() + 60_000;
+  while (Date.now() < deadline) {
     try {
-      const response = await fetch(url);
-      if (response.ok) return;
+      if ((await fetch(`http://127.0.0.1:${port}/health`)).ok) return;
     } catch {
-      // Process is still starting.
+      // API is still starting.
     }
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
-  throw new Error(`API não respondeu em ${url}`);
+  throw new Error(`API não respondeu na porta ${port}`);
 }
 
 async function startApi(port: number, enabled: boolean) {
-  stopProcess(apiProcess);
+  stopApi();
   await new Promise((resolve) => setTimeout(resolve, 300));
   apiProcess = spawn('pnpm', ['--filter', '@corrida/api', 'exec', 'tsx', 'src/main.ts'], {
     cwd: repoRoot,
@@ -58,7 +55,7 @@ async function startApi(port: number, enabled: boolean) {
       PORT: String(port),
       API_PORT: String(port),
       NODE_ENV: 'production',
-      JWT_SECRET: jwtSecret,
+      JWT_SECRET: 'issue-275-performance-rollout-secret',
       FRONTEND_URL: 'http://127.0.0.1:4173',
       CORS_ORIGINS: 'http://127.0.0.1:4173',
       PRE_REGISTRATION_ENABLED: enabled ? 'true' : 'false',
@@ -68,60 +65,42 @@ async function startApi(port: number, enabled: boolean) {
     },
     stdio: 'inherit',
   });
-  await waitForUrl(`http://127.0.0.1:${port}/health`);
+  await waitForHealth(port);
 }
 
-async function jsonRequest(
-  port: number,
-  pathname: string,
-  options: { token?: string; method?: 'GET' | 'POST'; origin?: string } = {}
-) {
+async function requestJson(port: number, pathname: string, token?: string) {
   const response = await fetch(`http://127.0.0.1:${port}${pathname}`, {
-    method: options.method ?? 'GET',
-    headers: {
-      ...(options.token ? { Authorization: `Bearer ${options.token}` } : {}),
-      ...(options.origin ? { Origin: options.origin } : {}),
-    },
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
   });
-  const body = (await response.json()) as Record<string, unknown>;
-  return { response, body };
+  return { response, body: (await response.json()) as Record<string, unknown> };
 }
 
-function planRoot(value: unknown): Record<string, unknown> {
-  if (!Array.isArray(value) || !value[0] || typeof value[0] !== 'object') {
-    throw new Error('Plano PostgreSQL inválido');
-  }
-  const plan = (value[0] as Record<string, unknown>).Plan;
-  if (!plan || typeof plan !== 'object' || Array.isArray(plan)) {
-    throw new Error('Plano PostgreSQL sem raiz');
-  }
-  return plan as Record<string, unknown>;
-}
-
-function planNodes(root: Record<string, unknown>): Record<string, unknown>[] {
-  const result = [root];
-  const children = root.Plans;
-  if (Array.isArray(children)) {
-    for (const child of children) {
-      if (child && typeof child === 'object' && !Array.isArray(child)) {
-        result.push(...planNodes(child as Record<string, unknown>));
-      }
-    }
-  }
-  return result;
-}
-
-function planSummary(value: unknown) {
-  const root = planRoot(value);
-  const nodes = planNodes(root);
-  return {
-    rootNode: root['Node Type'],
-    actualRows: Number(root['Actual Rows'] ?? 0),
-    executionTimeMs: Number(
-      (Array.isArray(value) && value[0] && typeof value[0] === 'object'
-        ? (value[0] as Record<string, unknown>)['Execution Time']
-        : 0) ?? 0
+function flattenPlan(root: Record<string, unknown>): Record<string, unknown>[] {
+  const children = Array.isArray(root.Plans) ? root.Plans : [];
+  return [
+    root,
+    ...children.flatMap((child) =>
+      child && typeof child === 'object' && !Array.isArray(child)
+        ? flattenPlan(child as Record<string, unknown>)
+        : []
     ),
+  ];
+}
+
+async function explain(sql: string, ...parameters: unknown[]) {
+  const rows = await prisma.$queryRawUnsafe<Array<{ 'QUERY PLAN': unknown }>>(
+    `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${sql}`,
+    ...parameters
+  );
+  const value = rows[0]?.['QUERY PLAN'];
+  assert(Array.isArray(value) && value[0] && typeof value[0] === 'object', 'Plano inválido');
+  const root = (value[0] as Record<string, unknown>).Plan;
+  assert(root && typeof root === 'object' && !Array.isArray(root), 'Plano sem raiz');
+  const nodes = flattenPlan(root as Record<string, unknown>);
+  return {
+    rootNode: (root as Record<string, unknown>)['Node Type'],
+    actualRows: Number((root as Record<string, unknown>)['Actual Rows'] ?? 0),
+    executionTimeMs: Number((value[0] as Record<string, unknown>)['Execution Time'] ?? 0),
     nodes: nodes.map((node) => ({
       nodeType: node['Node Type'],
       relationName: node['Relation Name'],
@@ -132,26 +111,8 @@ function planSummary(value: unknown) {
   };
 }
 
-type PlanSummary = ReturnType<typeof planSummary>;
-
-function rowsObservedForRelation(summary: PlanSummary, relationName: string): number {
-  const relationNodes = summary.nodes.filter((node) => node.relationName === relationName);
-  assert(relationNodes.length > 0, `Plano não acessou a relação ${relationName}`);
-  return Math.max(
-    ...relationNodes.map((node) => node.actualRows + node.rowsRemovedByFilter)
-  );
-}
-
-async function explain(sql: string, parameters: unknown[]) {
-  const rows = await prisma.$queryRawUnsafe<Array<{ 'QUERY PLAN': unknown }>>(
-    `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${sql}`,
-    ...parameters
-  );
-  return rows[0]?.['QUERY PLAN'];
-}
-
 async function cleanup() {
-  stopProcess(apiProcess);
+  stopApi();
   await new Promise((resolve) => setTimeout(resolve, 300));
   for (const contractId of [...createdContractIds].reverse()) {
     await prisma.companyContract.delete({ where: { id: contractId } }).catch(() => undefined);
@@ -172,10 +133,11 @@ async function main() {
         name: `Academia Performance ${index}`,
       },
     });
-    createdContractIds.push(contract.id);
     contracts.push(contract);
+    createdContractIds.push(contract.id);
   }
   const targetContract = contracts[0];
+  assert(targetContract, 'Tenant alvo não criado');
 
   const collaboratorFunction = await prisma.collaboratorFunctionOption.create({
     data: {
@@ -208,26 +170,38 @@ async function main() {
     contractId: targetContract.id,
   };
 
-  const rowsPerTenant = 300;
+  const candidateRowsPerTenant = 2_000;
+  const activeNoiseRows = 2_000;
+  const now = Date.now();
   for (let contractIndex = 0; contractIndex < contracts.length; contractIndex += 1) {
-    const contract = contracts[contractIndex];
-    const data = Array.from({ length: rowsPerTenant }, (_, index) => {
-      const serial = String(contractIndex * rowsPerTenant + index).padStart(6, '0');
-      const phone = `55159${serial.padStart(8, '0')}`.slice(0, 13);
-      return {
-        contractId: contract.id,
-        status: index % 3 === 0 ? ('INVITED' as const) : ('LEAD' as const),
-        leadName: `Lead Performance ${contractIndex}-${index}`,
-        leadPhone: phone,
-        leadPhoneNormalized: phone,
-        leadEmail: `perf-${contractIndex}-${index}-${suffix}@example.test`,
-        leadEmailNormalized: `perf-${contractIndex}-${index}-${suffix}@example.test`,
-        leadOrigin: 'issue-275-performance',
-        lastActivityAt: new Date(Date.now() - index * 1000),
-      };
+    const contract = contracts[contractIndex]!;
+    await prisma.aluno.createMany({
+      data: Array.from({ length: candidateRowsPerTenant }, (_, index) => {
+        const serial = String(contractIndex * candidateRowsPerTenant + index).padStart(8, '0');
+        const phone = `55159${serial}`.slice(0, 13);
+        return {
+          contractId: contract.id,
+          status: index % 3 === 0 ? ('INVITED' as const) : ('LEAD' as const),
+          leadName: `Lead Performance ${contractIndex}-${index}`,
+          leadPhone: phone,
+          leadPhoneNormalized: phone,
+          leadEmail: `perf-${contractIndex}-${index}-${suffix}@example.test`,
+          leadEmailNormalized: `perf-${contractIndex}-${index}-${suffix}@example.test`,
+          leadOrigin: 'issue-275-performance',
+          lastActivityAt: new Date(now - (activeNoiseRows + index) * 1000),
+        };
+      }),
     });
-    await prisma.aluno.createMany({ data });
   }
+  await prisma.aluno.createMany({
+    data: Array.from({ length: activeNoiseRows }, (_, index) => ({
+      contractId: targetContract.id,
+      status: 'ACTIVE_STUDENT' as const,
+      leadName: `Aluno ativo de ruído ${index}`,
+      lastActivityAt: new Date(now - index * 1000),
+    })),
+  });
+  await prisma.$executeRawUnsafe('ANALYZE "Aluno"');
 
   const rolloutLeadId = await preRegistrationEnrollmentCreateService.create(actor, {
     name: 'Lead Rollout Preservado',
@@ -241,94 +215,78 @@ async function main() {
     targetContract.id,
     actor
   );
-
+  const inviteRow = await prisma.preRegistrationInvite.findUniqueOrThrow({
+    where: { id: invitation.summary.id },
+  });
   const targetPhone = `55159${String(42).padStart(8, '0')}`.slice(0, 13);
-  const [
-    listPlan,
-    phonePlan,
-    tokenPlan,
-    indexes,
-    totalRows,
-    targetTenantCandidateRows,
-  ] = await Promise.all([
-    explain(
-      'SELECT "id", "status" FROM "Aluno" WHERE "contractId" = $1 AND "status" <> \'ACTIVE_STUDENT\' ORDER BY "lastActivityAt" DESC, "id" DESC LIMIT 20',
-      [targetContract.id]
-    ),
-    explain(
-      'SELECT "id" FROM "Aluno" WHERE "contractId" = $1 AND "leadPhoneNormalized" = $2 LIMIT 20',
-      [targetContract.id, targetPhone]
-    ),
-    explain(
-      'SELECT "id" FROM "PreRegistrationInvite" WHERE "tokenHash" = $1 LIMIT 1',
-      [
-        await (async () => {
-          const row = await prisma.preRegistrationInvite.findUniqueOrThrow({
-            where: { id: invitation.summary.id },
-          });
-          return row.tokenHash;
-        })(),
-      ]
-    ),
-    prisma.$queryRaw<
-      Array<{ tableName: string; indexName: string; indexDefinition: string }>
-    >`
-      SELECT tablename AS "tableName", indexname AS "indexName", indexdef AS "indexDefinition"
-      FROM pg_indexes
-      WHERE schemaname = 'public'
-        AND tablename IN ('Aluno', 'PreRegistrationInvite')
-        AND (
-          indexname = 'Aluno_pre_registration_list_idx'
-          OR indexdef ILIKE '%contractId%status%'
-          OR indexdef ILIKE '%contractId%leadPhoneNormalized%'
-          OR indexdef ILIKE '%contractId%leadEmailNormalized%'
-          OR indexdef ILIKE '%contractId%leadCpfNormalized%'
-          OR indexdef ILIKE '%tokenHash%'
-        )
-      ORDER BY tablename, indexname
-    `,
-    prisma.aluno.count(),
-    prisma.aluno.count({
-      where: {
-        contractId: targetContract.id,
-        status: { not: 'ACTIVE_STUDENT' },
-      },
-    }),
-  ]);
 
-  const listSummary = planSummary(listPlan);
-  const phoneSummary = planSummary(phonePlan);
-  const tokenSummary = planSummary(tokenPlan);
-  assert(listSummary.rootNode === 'Limit', 'Listagem não possui limite no plano');
+  const [listPlan, phonePlan, tokenPlan, indexes, totalRows, candidates, targetTotal] =
+    await Promise.all([
+      explain(
+        `SELECT "id", "status" FROM "Aluno"
+         WHERE "contractId" = $1 AND "status" <> 'ACTIVE_STUDENT'
+         ORDER BY "lastActivityAt" DESC, "id" DESC LIMIT 20`,
+        targetContract.id
+      ),
+      explain(
+        'SELECT "id" FROM "Aluno" WHERE "contractId" = $1 AND "leadPhoneNormalized" = $2 LIMIT 20',
+        targetContract.id,
+        targetPhone
+      ),
+      explain(
+        'SELECT "id" FROM "PreRegistrationInvite" WHERE "tokenHash" = $1 LIMIT 1',
+        inviteRow.tokenHash
+      ),
+      prisma.$queryRaw<
+        Array<{ tableName: string; indexName: string; indexDefinition: string }>
+      >`
+        SELECT tablename AS "tableName", indexname AS "indexName", indexdef AS "indexDefinition"
+        FROM pg_indexes
+        WHERE schemaname = 'public'
+          AND tablename IN ('Aluno', 'PreRegistrationInvite')
+          AND (
+            indexname = 'Aluno_pre_registration_list_idx'
+            OR indexdef ILIKE '%contractId%leadPhoneNormalized%'
+            OR indexdef ILIKE '%contractId%leadEmailNormalized%'
+            OR indexdef ILIKE '%contractId%leadCpfNormalized%'
+            OR indexdef ILIKE '%tokenHash%'
+          )
+        ORDER BY tablename, indexname
+      `,
+      prisma.aluno.count(),
+      prisma.aluno.count({
+        where: { contractId: targetContract.id, status: { not: 'ACTIVE_STUDENT' } },
+      }),
+      prisma.aluno.count({ where: { contractId: targetContract.id } }),
+    ]);
+
+  assert(listPlan.rootNode === 'Limit' && listPlan.actualRows <= pageSize, 'Página sem limite');
   assert(
-    listSummary.actualRows <= listPageSize,
-    'Listagem retornou mais que uma página'
+    listPlan.nodes.some((node) => node.indexName === 'Aluno_pre_registration_list_idx'),
+    'Plano não utilizou o índice parcial da listagem'
   );
-  assert(
-    listSummary.nodes.some(
-      (node) => String(node.indexName || '') === 'Aluno_pre_registration_list_idx'
-    ),
-    'Listagem não utilizou o índice tenant-scoped compatível com a ordenação padrão'
+  const alunoNodes = listPlan.nodes.filter((node) => node.relationName === 'Aluno');
+  assert(alunoNodes.length > 0, 'Plano não acessou Aluno');
+  const scannedRows = Math.max(
+    ...alunoNodes.map((node) => node.actualRows + node.rowsRemovedByFilter)
   );
-  const listScanned = rowsObservedForRelation(listSummary, 'Aluno');
+  assert(targetTotal - candidates === activeNoiseRows, 'Ruído ativo do tenant não foi preservado');
   const proportionality = assertTenantPageScanIsProportional({
-    pageSize: listPageSize,
-    scannedRows: listScanned,
-    tenantCandidateRows: targetTenantCandidateRows,
+    pageSize,
+    scannedRows,
+    tenantCandidateRows: candidates,
   });
   assert(
-    phoneSummary.nodes.some((node) =>
-      String(node.indexName || '').includes('leadPhoneNormalized')
-    ),
-    'Filtro normalizado de telefone não utilizou índice compatível'
+    phonePlan.nodes.some((node) => String(node.indexName || '').includes('leadPhoneNormalized')),
+    'Busca por telefone não utilizou índice'
+  );
+  assert(
+    tokenPlan.nodes.some((node) => String(node.indexName || '').includes('tokenHash')),
+    'Lookup de token não utilizou índice'
   );
   assert(
     indexes.some((index) => index.indexName === 'Aluno_pre_registration_list_idx'),
-    'Índice da listagem administrativa proporcional ausente'
-  );
-  assert(
-    indexes.some((index) => index.indexDefinition.includes('tokenHash')),
-    'Índice de lookup do token por hash ausente'
+    'Índice parcial da listagem ausente'
   );
   assert(
     indexes.some((index) => index.indexDefinition.includes('leadEmailNormalized')),
@@ -336,21 +294,23 @@ async function main() {
   );
   assert(
     indexes.some((index) => index.indexDefinition.includes('leadCpfNormalized')),
-    'Índice/unique de CPF normalizado ausente'
+    'Índice de CPF normalizado ausente'
+  );
+  assert(
+    indexes.some((index) => index.indexDefinition.includes('tokenHash')),
+    'Índice de token por hash ausente'
   );
 
-  const token = jwt.sign(
+  const jwtToken = jwt.sign(
     { userId: masterUser.id, email: masterUser.email, type: 'professor' },
-    jwtSecret,
+    'issue-275-performance-rollout-secret',
     { expiresIn: '1h' }
   );
-  async function coreSnapshot() {
+  const snapshot = async () => {
     const [aluno, onboardingCount, invite] = await Promise.all([
       prisma.aluno.findUniqueOrThrow({ where: { id: rolloutLeadId } }),
       prisma.studentOnboardingProcess.count({ where: { alunoId: rolloutLeadId } }),
-      prisma.preRegistrationInvite.findUniqueOrThrow({
-        where: { id: invitation.summary.id },
-      }),
+      prisma.preRegistrationInvite.findUniqueOrThrow({ where: { id: invitation.summary.id } }),
     ]);
     return {
       aluno: {
@@ -369,94 +329,58 @@ async function main() {
         expiresAt: invite.expiresAt.toISOString(),
       },
     };
-  }
-  const snapshotBefore = await coreSnapshot();
-  const eventCountBefore = await prisma.studentLifecycleEvent.count({
-    where: { alunoId: rolloutLeadId },
-  });
+  };
+  const before = await snapshot();
+  const eventsBefore = await prisma.studentLifecycleEvent.count({ where: { alunoId: rolloutLeadId } });
 
   await startApi(3006, false);
-  const [disabledPublic, disabledAdmin, oldWebApiRoot] = await Promise.all([
-    jsonRequest(3006, `/api/v1/pre-cadastro/${invitation.token}`, {
-      origin: 'http://127.0.0.1:4173',
-    }),
-    jsonRequest(3006, '/api/v1/pre-registration-admin/leads', {
-      token,
-      origin: 'http://127.0.0.1:4173',
-    }),
-    jsonRequest(3006, '/api/v1'),
-  ]);
-  assert(disabledPublic.response.status === 503, 'Rota pública não falhou fechada');
-  assert(
-    disabledAdmin.response.status === 503,
-    'Rota administrativa não falhou fechada'
-  );
-  assert(
-    oldWebApiRoot.response.status === 200,
-    'API geral deixou de ser compatível com web anterior'
-  );
+  const disabledPublic = await requestJson(3006, `/api/v1/pre-cadastro/${invitation.token}`);
+  const disabledAdmin = await requestJson(3006, '/api/v1/pre-registration-admin/leads', jwtToken);
+  const oldWebApiRoot = await requestJson(3006, '/api/v1');
   for (const result of [disabledPublic, disabledAdmin]) {
-    assert(
-      result.response.headers.get('cache-control')?.includes('no-store'),
-      'Resposta desabilitada sem no-store'
-    );
-    assert(
-      result.response.headers.get('referrer-policy') === 'no-referrer',
-      'Resposta desabilitada sem no-referrer'
-    );
-    assert(
-      result.body.error === 'PRE_REGISTRATION_DISABLED',
-      'Resposta desabilitada sem código estável'
-    );
+    assert(result.response.status === 503, 'Rota não falhou fechada');
+    assert(result.response.headers.get('cache-control')?.includes('no-store'), 'Sem no-store');
+    assert(result.response.headers.get('referrer-policy') === 'no-referrer', 'Sem no-referrer');
+    assert(result.body.error === 'PRE_REGISTRATION_DISABLED', 'Código de rollout instável');
   }
-
-  const snapshotDisabled = await coreSnapshot();
-  const eventCountDisabled = await prisma.studentLifecycleEvent.count({
-    where: { alunoId: rolloutLeadId },
-  });
+  assert(oldWebApiRoot.response.status === 200, 'API geral incompatível com web anterior');
+  assert(JSON.stringify(await snapshot()) === JSON.stringify(before), 'Desligamento alterou dados');
   assert(
-    JSON.stringify(snapshotDisabled) === JSON.stringify(snapshotBefore),
-    'Desligamento alterou dados persistidos'
-  );
-  assert(
-    eventCountDisabled === eventCountBefore,
-    'Desligamento produziu evento de domínio'
+    (await prisma.studentLifecycleEvent.count({ where: { alunoId: rolloutLeadId } })) === eventsBefore,
+    'Desligamento produziu evento'
   );
 
   await startApi(3007, true);
-  const [enabledPublic, enabledAdmin] = await Promise.all([
-    jsonRequest(3007, `/api/v1/pre-cadastro/${invitation.token}`),
-    jsonRequest(3007, '/api/v1/pre-registration-admin/leads?page=1&pageSize=20', {
-      token,
-    }),
-  ]);
+  const enabledPublic = await requestJson(3007, `/api/v1/pre-cadastro/${invitation.token}`);
+  const enabledAdmin = await requestJson(
+    3007,
+    `/api/v1/pre-registration-admin/leads?page=1&pageSize=${pageSize}`,
+    jwtToken
+  );
   assert(enabledPublic.response.status === 200, 'Convite não voltou após reabilitação');
   assert(enabledAdmin.response.status === 200, 'Listagem não voltou após reabilitação');
-
-  const snapshotEnabled = await coreSnapshot();
-  assert(
-    JSON.stringify(snapshotEnabled) === JSON.stringify(snapshotBefore),
-    'Reabilitação alterou dados canônicos persistidos'
-  );
+  assert(JSON.stringify(await snapshot()) === JSON.stringify(before), 'Reabilitação alterou dados');
 
   const report = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     kind: 'issue-275-performance-rollout',
     cardinality: {
       tenants: contracts.length,
-      rowsPerTenant,
-      targetTenantCandidateRows,
-      unrelatedTenantRows: totalRows - targetTenantCandidateRows,
+      candidateRowsPerTenant,
+      activeNoiseRows,
+      targetTenantTotalRows: targetTotal,
+      targetTenantCandidateRows: candidates,
+      unrelatedTenantRows: totalRows - targetTotal,
       totalAlunoRows: totalRows,
-      pageSize: listPageSize,
+      pageSize,
       maximumAllowedRowsInListPlan: proportionality.maximumAllowedRows,
-      maxRowsObservedInListPlan: listScanned,
+      maxRowsObservedInListPlan: scannedRows,
       targetTenantScanRatio: proportionality.scanRatio,
     },
     plans: {
-      administrativeList: listSummary,
-      normalizedPhoneLookup: phoneSummary,
-      tokenHashLookup: tokenSummary,
+      administrativeList: listPlan,
+      normalizedPhoneLookup: phonePlan,
+      tokenHashLookup: tokenPlan,
     },
     indexes,
     compatibility: {
@@ -467,8 +391,8 @@ async function main() {
     rollback: {
       disabledWithoutMutation: true,
       reenabledWithoutMutation: true,
-      publicInviteRestored: enabledPublic.response.status === 200,
-      administrativeListRestored: enabledAdmin.response.status === 200,
+      publicInviteRestored: true,
+      administrativeListRestored: true,
     },
   };
   await writeFile(
@@ -483,11 +407,10 @@ main()
   .then(async () => {
     await cleanup();
     await prisma.$disconnect();
-    process.exit(0);
   })
   .catch(async (error) => {
     console.error(error);
     await cleanup().catch(() => undefined);
     await prisma.$disconnect();
-    process.exit(1);
+    process.exitCode = 1;
   });
