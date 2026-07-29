@@ -8,6 +8,7 @@ on:
       - 'apps/api/src/modules/pre-registration-invites/**'
       - 'apps/api/scripts/verify-issue-275-invite-history-bound.ts'
       - 'apps/api/scripts/verify-issue-275-literal-scenarios.mjs'
+      - 'apps/api/scripts/issue-275-literal-required-fields-hook.mjs'
       - 'apps/api/scripts/issue-275-literal-scenario-contract.ts'
       - 'apps/api/tests/issue-275-pre-registration-invite-summary.test.ts'
       - 'apps/api/tests/issue-275-literal-scenario-contract.test.ts'
@@ -150,6 +151,7 @@ jobs:
         run: |
           set -o pipefail
           pnpm --filter @corrida/api exec node \
+            --import ./scripts/issue-275-literal-required-fields-hook.mjs \
             scripts/verify-issue-275-literal-scenarios.mjs 2>&1 \
             | tee artifacts/issue-275/literal-scenarios.log
 
