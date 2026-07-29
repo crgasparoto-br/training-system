@@ -19,11 +19,11 @@ A fronteira de disponibilidade deve sondar `GET /api/v1/pre-registration/availab
 - origem explícita, quando `VITE_API_URL` aponta para a API;
 - same-origin, quando `VITE_API_URL` está ausente ou vazia e o cliente resolve a API em `/api/v1`.
 
-Não é permitido marcar a funcionalidade como habilitada apenas porque `VITE_API_URL` está vazia. Enquanto a sonda estiver pendente, formulários, filtros, listagens, detalhes e ações da pré-matrícula permanecem desmontados. Falha transitória não deve ser confundida com `PRE_REGISTRATION_DISABLED`, mas um `503` deliberadamente atrasado deve impedir qualquer exposição parcial anterior.
+Não é permitido marcar a funcionalidade como habilitada apenas porque `VITE_API_URL` está vazia. Enquanto a sonda estiver pendente, formulários, filtros, listagens, detalhes e ações da pré-matrícula permanecem desmontados. Um `503` deliberadamente atrasado deve impedir qualquer exposição parcial anterior. Quando a sonda não puder ser concluída por falha de rede, proxy ou resposta inválida, a fronteira permanece fail-closed e não monta o consumidor protegido.
 
 ## Evidência obrigatória
 
-O gate de navegador deve executar as três rotas no mesmo build e na mesma API desabilitada. Para cada superfície, deve registrar:
+O gate de navegador deve executar as superfícies pública, autenticada e todas as rotas administrativas críticas no mesmo build e na mesma API desabilitada. Para cada superfície, deve registrar:
 
 - nome da superfície, rota, audiência e viewport;
 - modo de implantação exercitado;
@@ -38,7 +38,10 @@ O relatório `rollout-consumer-browser.json` deve mapear exatamente:
 
 - `public-token-route` → `public`;
 - `authenticated-resume` → `authenticated`;
-- `administrative-list` → `administrative`.
+- `administrative-list` → `administrative`;
+- `administrative-create` → `administrative`;
+- `administrative-detail` → `administrative`;
+- `administrative-edit` → `administrative`.
 
 Um teste que apenas encontra uma frase comum, como “entre em contato com a academia”, não comprova a audiência correta. Um teste que usa somente origem explícita também não comprova o modo same-origin suportado pelo cliente.
 
@@ -65,6 +68,7 @@ O controle deve usar build same-origin, resposta `503` atrasada e falhar quando:
 - a fronteira `checking` não for observada antes da resposta;
 - qualquer conteúdo protegido surgir durante o atraso;
 - a sonda não for enviada para `/api/v1/pre-registration/availability`;
+- falha da sonda liberar o consumidor protegido;
 - somente o modo com origem explícita tiver sido exercitado.
 
 Casos irmãos: listagem administrativa visível antes do `503`; formulário de criação editável durante a sonda; detalhe ou edição montados antes da decisão de rollout; retomada autenticada exibindo estado interno antes da indisponibilidade.
