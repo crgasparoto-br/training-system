@@ -1,7 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import {
   PRE_REGISTRATION_DISABLED_EVENT,
-  isPreRegistrationDisabledError,
   isPreRegistrationDisabledResponse,
 } from '../config/pre-registration-availability';
 import api from '../services/api';
@@ -33,8 +32,8 @@ export function PreRegistrationAvailabilityBoundary({
 
     // Probe before exposing any route consumer in both explicit-origin and
     // same-origin deployments. The Axios base URL already resolves the latter
-    // to /api/v1, so skipping this request would briefly expose a partially
-    // functional screen while the API rollout is disabled.
+    // to /api/v1. Failure to confirm availability is fail-closed, preventing a
+    // partially functional screen while the API or proxy is unavailable.
     api
       .get('/pre-registration/availability', { validateStatus: () => true })
       .then((response) => {
@@ -45,9 +44,8 @@ export function PreRegistrationAvailabilityBoundary({
             : 'enabled'
         );
       })
-      .catch((error) => {
-        if (!active) return;
-        setAvailability(isPreRegistrationDisabledError(error) ? 'disabled' : 'enabled');
+      .catch(() => {
+        if (active) setAvailability('disabled');
       });
 
     return () => {
