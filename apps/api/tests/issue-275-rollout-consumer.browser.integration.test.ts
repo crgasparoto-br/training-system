@@ -38,12 +38,25 @@ function contentType(filePath: string): string {
 
 async function proxyAvailability(response: import('node:http').ServerResponse) {
   await new Promise((resolve) => setTimeout(resolve, availabilityDelayMs));
-  const apiResponse = await fetch(
-    `http://127.0.0.1:${apiPort}/api/v1/pre-registration/availability`
-  );
-  response.statusCode = apiResponse.status;
-  apiResponse.headers.forEach((value, key) => response.setHeader(key, value));
-  response.end(Buffer.from(await apiResponse.arrayBuffer()));
+  try {
+    const apiResponse = await fetch(
+      `http://127.0.0.1:${apiPort}/api/v1/pre-registration/availability`
+    );
+    response.statusCode = apiResponse.status;
+    apiResponse.headers.forEach((value, key) => response.setHeader(key, value));
+    response.end(Buffer.from(await apiResponse.arrayBuffer()));
+  } catch {
+    if (response.writableEnded) return;
+    response.statusCode = 503;
+    response.setHeader('Content-Type', 'application/json; charset=utf-8');
+    response.end(
+      JSON.stringify({
+        error: 'PRE_REGISTRATION_DISABLED',
+        message:
+          'O pré-cadastro está temporariamente indisponível. Entre em contato com a equipe da academia.',
+      })
+    );
+  }
 }
 
 async function startWebServer(): Promise<Server> {
@@ -243,14 +256,19 @@ async function openSurface(
     timeout: 10_000,
   });
 
-  const checkingText = await page.$eval('body', (element) => element.textContent || '');
-  expect(checkingText).toContain('Verificando disponibilidade da pré-matrícula');
-  expect(checkingText).not.toContain('Pré-matrícula temporariamente indisponível');
-  if (input.audience === 'administrative') {
-    expect(checkingText).not.toContain('Leads e pré-matrículas');
-    expect(checkingText).not.toContain('Localizar e filtrar');
-    expect(checkingText).not.toContain('Novo lead');
-  }
+  const checkingState = await page.evaluate(() => ({
+    boundaryCount: document.querySelectorAll(
+      '[data-pre-registration-availability="checking"]'
+    ).length,
+    formCount: document.querySelectorAll('form').length,
+    bodyText: document.body.textContent || '',
+  }));
+  expect(checkingState.boundaryCount).toBe(1);
+  expect(checkingState.formCount).toBe(0);
+  expect(checkingState.bodyText).toContain('Verificando disponibilidade da pré-matrícula');
+  expect(checkingState.bodyText).not.toContain('Pré-matrícula temporariamente indisponível');
+  expect(checkingState.bodyText).not.toContain('Localizar e filtrar');
+  expect(checkingState.bodyText).not.toContain('Cadastre o contato inicial');
 
   await page.waitForFunction(
     () => document.body.innerText.includes('Pré-matrícula temporariamente indisponível'),
