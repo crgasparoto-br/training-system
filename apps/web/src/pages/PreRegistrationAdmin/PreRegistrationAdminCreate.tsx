@@ -15,7 +15,6 @@ import { Input } from '../../components/ui/Input';
 import { preRegistrationAdminService } from '../../services/pre-registration-admin.service';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { LeadForm, type LeadFormValues } from './LeadForm';
-import { rememberPreRegistrationInviteHandoff } from './pre-registration-invite-handoff';
 
 type SubmissionFailure = {
   response?: {
@@ -132,10 +131,6 @@ export function PreRegistrationAdminCreate() {
         const invite = await preRegistrationAdminService.generateInvite(lead.id);
         generatedInviteUrl = invite.url;
         inviteCopyState = await copyGeneratedInvite(invite.url);
-        rememberPreRegistrationInviteHandoff(lead.id, {
-          generatedInviteUrl,
-          inviteCopyState,
-        });
       }
 
       navigate(`/pre-matriculas/${lead.id}`, {
