@@ -1,6 +1,6 @@
 import { act, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PRE_REGISTRATION_DISABLED_EVENT } from '../config/pre-registration-availability';
 
 const mocks = vi.hoisted(() => ({ get: vi.fn() }));
@@ -24,6 +24,11 @@ function renderBoundary(audience: 'public' | 'administrative' = 'public') {
 describe('PreRegistrationAvailabilityBoundary', () => {
   beforeEach(() => {
     mocks.get.mockReset();
+    vi.stubEnv('VITE_API_URL', 'http://127.0.0.1:3002');
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it('renders the operational unavailable state for a disabled API without raw codes or contradictory invite guidance', async () => {
@@ -54,6 +59,14 @@ describe('PreRegistrationAvailabilityBoundary', () => {
     mocks.get.mockRejectedValueOnce(new Error('Network Error'));
     renderBoundary();
     expect(await screen.findByText(/Conteúdo protegido/i)).toBeInTheDocument();
+  });
+
+  it('skips the synthetic probe for same-origin builds and relies on real request events', async () => {
+    vi.stubEnv('VITE_API_URL', '');
+    renderBoundary();
+
+    expect(await screen.findByText(/Conteúdo protegido/i)).toBeInTheDocument();
+    expect(mocks.get).not.toHaveBeenCalled();
   });
 
   it('replaces an already rendered administrative surface when a later request reports the feature disabled', async () => {
