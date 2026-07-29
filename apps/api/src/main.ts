@@ -107,6 +107,12 @@ app.use(
   preRegistrationRolloutGate
 );
 
+// Public, data-free runtime probe. The rollout gate above returns the canonical
+// 503 envelope when disabled; an enabled API answers without invoking auth or DB.
+app.get('/api/v1/pre-registration/availability', (_req, res) => {
+  res.status(204).end();
+});
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 app.use('/uploads', express.static(getUploadStorageRoot(), {
@@ -142,6 +148,7 @@ app.get('/api/v1', (_req, res) => {
       preRegistrationEnrollmentReview: '/api/v1/pre-registration-admin/leads/:id/enrollment-review',
       preRegistrationInvites: '/api/v1/alunos/:alunoId/pre-registration-invites',
       preRegistrationInvitePublic: '/api/v1/pre-cadastro/:token',
+      preRegistrationAvailability: '/api/v1/pre-registration/availability',
       preRegistrationAuthenticated: '/api/v1/pre-registration/session',
       preRegistrationParq: '/api/v1/pre-registration/processes/:alunoId/parq',
     },
