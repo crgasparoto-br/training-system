@@ -20,6 +20,7 @@ import { PreRegistrationAdminCreate } from './pages/PreRegistrationAdmin/PreRegi
 import { PreRegistrationEnrollmentDetailRemediated } from './pages/PreRegistrationAdmin/PreRegistrationEnrollmentDetailRemediated';
 import { PreRegistrationAdminEdit } from './pages/PreRegistrationAdmin/PreRegistrationAdminEdit';
 import { PublicPreRegistration } from './pages/PublicPreRegistration/PublicPreRegistration';
+import { PreRegistrationAvailabilityBoundary } from './pages/PreRegistrationAvailabilityBoundary';
 import { PreRegistrationUnavailable } from './pages/PreRegistrationUnavailable';
 import { Plans } from './pages/Plans';
 import { PlanForm } from './pages/PlanForm';
@@ -63,7 +64,9 @@ function withPreRegistrationRollout(
   audience: 'public' | 'administrative'
 ) {
   return PRE_REGISTRATION_UI_ENABLED ? (
-    element
+    <PreRegistrationAvailabilityBoundary audience={audience}>
+      {element}
+    </PreRegistrationAvailabilityBoundary>
   ) : (
     <PreRegistrationUnavailable audience={audience} />
   );
