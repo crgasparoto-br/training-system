@@ -1,6 +1,9 @@
 name: Apply Issue 275 atomic remediation
 
 on:
+  pull_request:
+    branches:
+      - develop
   push:
     branches:
       - 'feat/**'
@@ -96,9 +99,6 @@ jobs:
           source = source.replace(before_assertion, after_assertion)
 
           before_return = """    claimWinnerCount: 1,
-            activeInviteCount,"""
-          if source.count(before_return) != 1:
-              before_return = """    claimWinnerCount: 1,
     activeInviteCount,"""
           after_return = """    claimWinnerCount,
     claimLoserCode: losingCode,
@@ -132,7 +132,7 @@ jobs:
           EOF
 
           sed -i 's/^          //' apps/api/src/modules/pre-registration-public/pre-registration-concurrency-e2e-fixture.test.ts
-          git show HEAD^:.github/workflows/validate-pr.yml > .github/workflows/validate-pr.yml
+          git show HEAD^^:.github/workflows/validate-pr.yml > .github/workflows/validate-pr.yml
           git show 766744405e32ea2d8a103b4246e483a56b528038:.github/workflows/issue-275-pre-registration-qa.yml > .github/workflows/issue-275-pre-registration-qa.yml
           rm -f .github/workflows/issue-275-remediation.yml
           rm -f apps/api/src/issue-275-source-materialization.test.ts
