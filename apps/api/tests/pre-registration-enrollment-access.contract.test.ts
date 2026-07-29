@@ -14,10 +14,16 @@ const service = readFileSync(
   resolve(root, 'apps/api/src/modules/pre-registration-enrollment/pre-registration-enrollment.service.ts'),
   'utf8'
 );
-const adminService = readFileSync(
-  resolve(root, 'apps/api/src/modules/pre-registration-admin/pre-registration-admin.service.ts'),
-  'utf8'
-);
+const adminService = [
+  readFileSync(
+    resolve(root, 'apps/api/src/modules/pre-registration-admin/pre-registration-admin.service.ts'),
+    'utf8'
+  ),
+  readFileSync(
+    resolve(root, 'apps/api/src/modules/pre-registration-admin/pre-registration-admin.service.core.ts'),
+    'utf8'
+  ),
+].join('\n');
 const response = readFileSync(
   resolve(root, 'apps/api/src/modules/pre-registration-enrollment/pre-registration-enrollment-response.service.ts'),
   'utf8'
