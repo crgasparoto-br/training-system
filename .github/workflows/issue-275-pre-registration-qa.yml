@@ -15,10 +15,12 @@ on:
       - 'apps/api/prisma/**'
       - 'apps/api/package.json'
       - 'apps/web/src/App.tsx'
+      - 'apps/web/src/config/pre-registration-availability.ts'
       - 'apps/web/src/config/pre-registration-rollout*'
       - 'apps/web/src/layouts/DashboardLayout.tsx'
       - 'apps/web/src/pages/PreRegistration**'
       - 'apps/web/src/pages/PublicPreRegistration/**'
+      - 'apps/web/src/services/api.ts'
       - 'apps/web/index.html'
       - 'scripts/verify-student-lifecycle-legacy-backfill.sh'
       - 'docs/**pre-registration**'
@@ -39,7 +41,7 @@ jobs:
   integrated-qa:
     name: Validate integrated E2E, authorization, performance and rollout
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 70
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/training_system_test?schema=public&connection_limit=1&pool_timeout=30
       PRISMA_CONNECTION_LIMIT: '1'
@@ -86,7 +88,7 @@ jobs:
           mkdir -p artifacts/issue-275
           cat > artifacts/issue-275/evidence.json <<EOF
           {
-            "schemaVersion": 4,
+            "schemaVersion": 5,
             "kind": "issue-275-pre-registration-qa",
             "repository": "${GITHUB_REPOSITORY}",
             "workflow": "${GITHUB_WORKFLOW}",
@@ -100,6 +102,7 @@ jobs:
             "rolloutApiEnabled": true,
             "rolloutWebEnabled": true,
             "dataset": "synthetic-postgresql-16",
+            "repositoryValidationCheck": "Validate PR",
             "requiredEvidence": [
               "integrated-e2e",
               "adversarial-scenarios",
@@ -114,11 +117,9 @@ jobs:
               "migration-backfill",
               "health-intake",
               "parq",
-              "validate",
-              "build",
               "evidence-completeness"
             ],
-            "specializedWorkflowsExpectedOnSameHead": [
+            "historicalWorkflowsAvailableManually": [
               "Issue 272 Regression Evidence",
               "Issue 273 Regression Evidence",
               "Issue 273 Visual Evidence",
@@ -303,18 +304,6 @@ jobs:
             -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'training_system_test' AND pid <> pg_backend_pid();" \
             | tee artifacts/issue-275/database-session-reset.log
 
-      - name: Run repository validation
-        shell: bash
-        run: |
-          set -o pipefail
-          pnpm validate 2>&1 | tee artifacts/issue-275/validate.log
-
-      - name: Build all workspaces
-        shell: bash
-        run: |
-          set -o pipefail
-          pnpm build 2>&1 | tee artifacts/issue-275/build.log
-
       - name: Verify extended API authorization matrix
         shell: bash
         run: |
@@ -353,8 +342,6 @@ jobs:
             artifacts/issue-275/accessibility-tree.json
             artifacts/issue-275/accessibility-mobile.png
             artifacts/issue-275/accessibility-desktop.png
-            artifacts/issue-275/validate.log
-            artifacts/issue-275/build.log
           )
           for evidence_file in "${required_files[@]}"; do
             test -s "${evidence_file}"
@@ -430,7 +417,7 @@ jobs:
           grep -q 'Test Suites:.*passed' artifacts/issue-275/authorization-matrix-extended.log
           cat > artifacts/issue-275/evidence-completeness.json <<EOF
           {
-            "schemaVersion": 3,
+            "schemaVersion": 4,
             "headSha": "${{ github.event.pull_request.head.sha || github.sha }}",
             "requiredFiles": ${#required_files[@]},
             "integratedScenarios": 11,
@@ -444,8 +431,8 @@ jobs:
             "sanitizedAuditGate": "passed",
             "mandatoryScenarioRegressionGate": "passed",
             "extendedAuthorizationGate": "passed",
-            "repositoryValidationGate": "passed",
-            "buildGate": "passed"
+            "repositoryValidationCheck": "Validate PR",
+            "historicalWorkflowMode": "manual"
           }
           EOF
 
