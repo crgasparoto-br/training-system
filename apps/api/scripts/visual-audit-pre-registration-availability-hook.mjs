@@ -1,16 +1,17 @@
-import { EventEmitter } from 'node:events';
+import { Page } from 'puppeteer';
 
-const originalOn = EventEmitter.prototype.on;
+const originalOn = Page.prototype.on;
 const availabilityPath = '/api/v1/pre-registration/availability';
 
 /**
  * Compatibility hook for isolated browser evidence harnesses that mock API
- * requests through Puppeteer interception. Production consumers must probe the
- * rollout endpoint before rendering; older visual scripts used a generic 404
- * fallback for every unlisted API request. This hook makes availability an
- * explicit part of those test contracts without weakening application logic.
+ * requests through Puppeteer interception. Puppeteer uses its own EventEmitter,
+ * so the contract must wrap Page.prototype.on directly rather than Node's
+ * EventEmitter. Production consumers still execute the real availability
+ * boundary; this hook only supplies the canonical 204 response inside isolated
+ * visual fixtures.
  */
-EventEmitter.prototype.on = function patchedOn(eventName, listener) {
+Page.prototype.on = function patchedOn(eventName, listener) {
   if (eventName !== 'request' || typeof listener !== 'function') {
     return originalOn.call(this, eventName, listener);
   }
@@ -27,7 +28,10 @@ EventEmitter.prototype.on = function patchedOn(eventName, listener) {
       return listener.call(this, request, ...args);
     }
 
-    if (typeof request.isInterceptResolutionHandled === 'function' && request.isInterceptResolutionHandled()) {
+    if (
+      typeof request.isInterceptResolutionHandled === 'function' &&
+      request.isInterceptResolutionHandled()
+    ) {
       return undefined;
     }
 
