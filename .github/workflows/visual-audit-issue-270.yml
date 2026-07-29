@@ -81,24 +81,54 @@ jobs:
             },
           };
 
+          const adminUser = {
+            id: 'admin-user-270',
+            email: 'admin-270@example.test',
+            name: 'Gestor Visual 270',
+            type: 'professor',
+            profile: { name: 'Gestor Visual 270' },
+            accessControl: { isMaster: true, permissions: [] },
+          };
+
+          function corsHeaders(request) {
+            return {
+              'access-control-allow-origin': request.headers.origin || 'http://127.0.0.1:4173',
+              'access-control-allow-methods': 'GET,POST,PATCH,OPTIONS',
+              'access-control-allow-headers': 'Authorization,Content-Type',
+              'access-control-allow-credentials': 'true',
+              'vary': 'Origin',
+            };
+          }
+
           createServer((request, response) => {
+            const cors = corsHeaders(request);
+            if (request.method === 'OPTIONS') {
+              response.writeHead(204, cors);
+              response.end();
+              return;
+            }
             if (
               request.method === 'GET' &&
               request.url === '/api/v1/pre-registration/availability'
             ) {
-              response.writeHead(204, { 'cache-control': 'no-store' });
+              response.writeHead(204, { ...cors, 'cache-control': 'no-store' });
               response.end();
+              return;
+            }
+            if (request.method === 'GET' && request.url === '/api/v1/auth/me') {
+              response.writeHead(200, { ...cors, 'content-type': 'application/json' });
+              response.end(JSON.stringify({ success: true, data: adminUser }));
               return;
             }
             if (
               request.method === 'GET' &&
               request.url === '/api/v1/pre-registration-admin/leads/lead-1/enrollment-review'
             ) {
-              response.writeHead(200, { 'content-type': 'application/json' });
+              response.writeHead(200, { ...cors, 'content-type': 'application/json' });
               response.end(JSON.stringify({ success: true, data: review }));
               return;
             }
-            response.writeHead(404, { 'content-type': 'application/json' });
+            response.writeHead(404, { ...cors, 'content-type': 'application/json' });
             response.end(JSON.stringify({ success: false, error: 'Not mocked' }));
           }).listen(3002, '127.0.0.1');
           EOF
