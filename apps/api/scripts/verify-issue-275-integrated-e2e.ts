@@ -620,7 +620,9 @@ async function scenarioBasic(
   assert(autoInviteDisabled, 'Não foi possível desabilitar a geração automática do convite');
   await clickByText(adminPage, 'button', 'Criar lead');
   await adminPage.waitForFunction(
-    () => /^\/pre-matriculas\/[^/]+$/.test(window.location.pathname),
+    () =>
+      /^\/pre-matriculas\/[^/]+$/.test(window.location.pathname) &&
+      window.location.pathname !== '/pre-matriculas/nova',
     { timeout: 30_000 }
   );
   const alunoId = new URL(adminPage.url()).pathname.split('/').filter(Boolean).at(-1)!;
