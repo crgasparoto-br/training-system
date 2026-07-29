@@ -21,7 +21,10 @@ import { PreRegistrationEnrollmentDetailRemediated } from './pages/PreRegistrati
 import { PreRegistrationAdminEdit } from './pages/PreRegistrationAdmin/PreRegistrationAdminEdit';
 import { PublicPreRegistration } from './pages/PublicPreRegistration/PublicPreRegistration';
 import { PreRegistrationAvailabilityBoundary } from './pages/PreRegistrationAvailabilityBoundary';
-import { PreRegistrationUnavailable } from './pages/PreRegistrationUnavailable';
+import {
+  PreRegistrationUnavailable,
+  type PreRegistrationAudience,
+} from './pages/PreRegistrationUnavailable';
 import { Plans } from './pages/Plans';
 import { PlanForm } from './pages/PlanForm';
 import { PlanDetails } from './pages/PlanDetails';
@@ -61,7 +64,7 @@ function withAnyAccess(screenKeys: string[], element: ReactElement) {
 }
 function withPreRegistrationRollout(
   element: ReactElement,
-  audience: 'public' | 'administrative'
+  audience: PreRegistrationAudience
 ) {
   return PRE_REGISTRATION_UI_ENABLED ? (
     <PreRegistrationAvailabilityBoundary audience={audience}>
@@ -100,7 +103,7 @@ function App() {
           />
           <Route
             path="/pre-cadastro"
-            element={withPreRegistrationRollout(<PublicPreRegistration />, 'public')}
+            element={withPreRegistrationRollout(<PublicPreRegistration />, 'authenticated')}
           />
           <Route path="/" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
             <Route index element={<DefaultAuthorizedRoute />} />
