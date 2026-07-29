@@ -12,6 +12,14 @@ Este documento resume as fronteiras HTTP do processo. Tipos compartilhados em `p
 - Convites inválidos, expirados, revogados e substituídos são publicamente indistinguíveis.
 - Quando o rollout está desabilitado, todas as fronteiras abaixo retornam `503 PRE_REGISTRATION_DISABLED` antes de executar regras de domínio.
 
+## Disponibilidade do rollout
+
+Base: `/api/v1/pre-registration`
+
+- `GET /availability`: sonda pública e sem dados para o frontend distinguir disponibilidade técnica de autenticação. Retorna `204` quando a API está habilitada e o envelope canônico `503 PRE_REGISTRATION_DISABLED` quando está desabilitada.
+
+A sonda não consulta banco, não exige sessão e não revela tenant, usuário, convite ou estado de processo. Ela existe para evitar que o frontend use uma rota autenticada como health check e produza `401` artificial no navegador.
+
 ## Convite público
 
 Base: `/api/v1/pre-cadastro`
@@ -33,7 +41,7 @@ Base: `/api/v1/pre-registration`
 - `PATCH /processes/:alunoId/steps`: salva identificação, contato, endereço, responsável ou privacidade.
 - `POST /processes/:alunoId/complete`: conclui os dados básicos.
 
-Todas as rotas exigem autenticação e o middleware de aluno. O backend valida que a conta está vinculada ao `alunoId` solicitado.
+Todas as rotas de processo exigem autenticação e o middleware de aluno. O backend valida que a conta está vinculada ao `alunoId` solicitado.
 
 ## Anamnese Inicial
 
@@ -80,8 +88,9 @@ As rotas permitem consultar resumo, gerar, regenerar e revogar convites segundo 
 
 ## Status e recuperação
 
+- `204`: sonda de disponibilidade com rollout habilitado.
 - `400`: entrada inválida ou campo obrigatório ausente.
-- `401`: sessão ausente ou inválida.
+- `401`: sessão ausente ou inválida nas rotas autenticadas; a sonda de disponibilidade nunca usa este status.
 - `403`: tela, bloco, escopo ou vínculo insuficiente.
 - `404`: registro não encontrado ou inacessível; o resultado não diferencia outro tenant.
 - `409`: concorrência, conflito de identidade, convite ativo, catálogo/versionamento incompatível ou estado já concluído.
