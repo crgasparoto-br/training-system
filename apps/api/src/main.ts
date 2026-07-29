@@ -43,14 +43,20 @@ import {
   createPreRegistrationHttpObservability,
   createPreRegistrationRolloutGate,
 } from './common/pre-registration-rollout.js';
-import { createPreRegistrationUnexpectedErrorHandler } from './common/pre-registration-safe-log.js';
+import {
+  createPreRegistrationSafeBoundary,
+  createPreRegistrationUnexpectedErrorHandler,
+  installPreRegistrationSafeConsoleError,
+} from './common/pre-registration-safe-log.js';
 import { getJwtSecret, resolveCorsConfig } from './common/runtime-config.js';
 
 const app: express.Express = express();
 const PORT = Number(process.env.PORT || process.env.API_PORT || 3000);
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const preRegistrationRolloutGate = createPreRegistrationRolloutGate();
+const preRegistrationSafeBoundary = createPreRegistrationSafeBoundary();
 
+installPreRegistrationSafeConsoleError();
 getJwtSecret(process.env);
 app.set('trust proxy', 1);
 const corsConfig = resolveCorsConfig(process.env);
@@ -60,6 +66,14 @@ app.use(
     crossOriginResourcePolicy: { policy: 'cross-origin' },
   })
 );
+
+// Establish the sanitizing boundary before parsers, authentication, CORS and
+// route-local handlers. This also protects legacy handlers that consume an
+// unexpected exception instead of forwarding it to the global error handler.
+app.use('/api/v1/pre-cadastro', preRegistrationSafeBoundary);
+app.use('/api/v1/pre-registration-admin', preRegistrationSafeBoundary);
+app.use('/api/v1/pre-registration', preRegistrationSafeBoundary);
+app.use('/api/v1/alunos/:alunoId/pre-registration-invites', preRegistrationSafeBoundary);
 
 app.use('/api/v1/pre-cadastro', preRegistrationInvitePublicHeaders);
 app.use(
