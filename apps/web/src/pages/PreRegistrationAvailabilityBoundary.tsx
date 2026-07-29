@@ -29,7 +29,7 @@ export function PreRegistrationAvailabilityBoundary({
     window.addEventListener(PRE_REGISTRATION_DISABLED_EVENT, markDisabled);
 
     api
-      .get('/pre-registration/processes', { validateStatus: () => true })
+      .get('/pre-registration/availability', { validateStatus: () => true })
       .then((response) => {
         if (!active) return;
         setAvailability(
