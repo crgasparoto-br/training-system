@@ -4,7 +4,7 @@ import type {
   PreRegistrationEnrollmentReviewDTO,
 } from '@corrida/types';
 import { AlertCircle, RefreshCcw, UserCheck } from 'lucide-react';
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import {
   Card,
@@ -16,14 +16,9 @@ import {
 import { Input } from '../../components/ui/Input';
 import { preRegistrationAdminService } from '../../services/pre-registration-admin.service';
 import { PreRegistrationEnrollmentDetail } from './PreRegistrationEnrollmentDetail';
-import {
-  clearPreRegistrationInviteHandoff,
-  peekPreRegistrationInviteHandoff,
-} from './pre-registration-invite-handoff';
 
 type Failure = { response?: { data?: { error?: string } }; message?: string };
 type PendingItem = PreRegistrationAdminLeadDetailDTO['pendencies'][number];
-type RouteState = { generatedInviteUrl?: string } | null;
 
 function failureMessage(error: unknown): string {
   const failure = error as Failure;
@@ -32,26 +27,12 @@ function failureMessage(error: unknown): string {
 
 export function PreRegistrationEnrollmentDetailRemediated() {
   const { id = '' } = useParams();
-  const location = useLocation();
-  const navigate = useNavigate();
   const [review, setReview] = useState<PreRegistrationEnrollmentReviewDTO | null>(null);
   const [pendencies, setPendencies] = useState<PendingItem[]>([]);
   const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const routeState = (location.state || null) as RouteState;
-    if (routeState?.generatedInviteUrl) return;
-    const pendingHandoff = peekPreRegistrationInviteHandoff(id);
-    if (!pendingHandoff) return;
-    navigate(location.pathname, {
-      replace: true,
-      state: pendingHandoff,
-    });
-    clearPreRegistrationInviteHandoff(id);
-  }, [id, location.pathname, location.state, navigate]);
 
   const inspect = async () => {
     setLoading(true);
