@@ -28,6 +28,17 @@ export function PreRegistrationAvailabilityBoundary({
 
     window.addEventListener(PRE_REGISTRATION_DISABLED_EVENT, markDisabled);
 
+    // With an explicit API origin, probe before exposing the route. Same-origin
+    // deployments rely on the first real pre-registration request and the Axios
+    // interceptor below, avoiding a synthetic 404 in static preview harnesses.
+    if (!import.meta.env.VITE_API_URL?.trim()) {
+      setAvailability('enabled');
+      return () => {
+        active = false;
+        window.removeEventListener(PRE_REGISTRATION_DISABLED_EVENT, markDisabled);
+      };
+    }
+
     api
       .get('/pre-registration/availability', { validateStatus: () => true })
       .then((response) => {
