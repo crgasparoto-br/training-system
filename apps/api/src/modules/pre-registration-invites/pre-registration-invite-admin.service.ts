@@ -25,6 +25,10 @@ import {
   preRegistrationInvitePrisma,
   type PreRegistrationInviteAllowedActions,
 } from './pre-registration-invite-store.js';
+import {
+  normalizePreRegistrationInviteHistoryLimit,
+  toInviteSummaries,
+} from './pre-registration-invite-summary.js';
 
 export const preRegistrationInviteAdminService = {
   async generateFirstInvite(
@@ -248,8 +252,10 @@ export const preRegistrationInviteAdminService = {
   async getHistory(
     alunoId: string,
     contractId: string,
-    actor?: PreRegistrationInviteActorDTO
+    actor?: PreRegistrationInviteActorDTO,
+    limit?: number
   ): Promise<PreRegistrationInviteSummaryDTO[]> {
+    const boundedLimit = normalizePreRegistrationInviteHistoryLimit(limit);
     return preRegistrationInvitePrisma.$transaction(async (tx) => {
       await findAlunoInContractOrThrow(alunoId, contractId, tx);
       const now = new Date();
@@ -257,13 +263,12 @@ export const preRegistrationInviteAdminService = {
       const [invites, allowedActions] = await Promise.all([
         tx.preRegistrationInvite.findMany({
           where: { alunoId, contractId, purpose: 'PRE_REGISTRATION' },
-          orderBy: { createdAt: 'desc' },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          take: boundedLimit,
         }),
         computeAllowedActions(alunoId, contractId, tx, now, actor),
       ]);
-      return Promise.all(
-        invites.map((invite) => toSummary(invite, tx, { allowedActions, actor }))
-      );
+      return toInviteSummaries(invites, tx, { allowedActions, actor });
     });
   },
 
