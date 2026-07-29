@@ -26,22 +26,48 @@ Frontend:
 
 - `VITE_PRE_REGISTRATION_ENABLED`: inclui as rotas e a navegação utilizáveis no build. Em build de produção, ausência ou valor inválido significa desabilitado.
 
-API e frontend devem usar o mesmo estado. Durante um desligamento emergencial, desabilite primeiro a API; depois publique o frontend sem o menu. Convites e rascunhos permanecem persistidos.
+API e frontend devem terminar a janela de deploy no mesmo estado. Builds atuais com as rotas habilitadas possuem uma fronteira de disponibilidade em runtime: ao receber `503 PRE_REGISTRATION_DISABLED`, substituem as superfícies pública, de retomada autenticada e administrativa por uma orientação operacional temporária. O código técnico não deve ser exibido e o usuário não deve ser orientado a pedir novo convite, pois convites e rascunhos permanecem persistidos.
+
+Uma versão anterior da web que ainda exponha as rotas e não possua essa fronteira não pode permanecer ativa enquanto a API estiver desabilitada. Nessa combinação, mantenha a API habilitada até a publicação do frontend atual ou retire o frontend anterior de circulação antes de desligar a API.
 
 ## Ordem de deploy
 
 1. Fazer backup recuperável do banco conforme a política do ambiente.
-2. Publicar a API com migrations aplicadas e `PRE_REGISTRATION_ENABLED=false`.
+2. Aplicar migrations e publicar a API sem alterar a disponibilidade observada pela versão da web ainda ativa.
 3. Confirmar `/health`, migrations e inicialização sem erro.
 4. Executar a suíte de smoke e as consultas de consistência do ambiente.
-5. Publicar o frontend com `VITE_PRE_REGISTRATION_ENABLED=false`.
-6. Habilitar a API para o grupo piloto: `PRE_REGISTRATION_ENABLED=true`.
-7. Publicar o frontend piloto com `VITE_PRE_REGISTRATION_ENABLED=true`.
-8. Executar os cenários críticos abaixo.
-9. Observar erros, latência, conflitos e volume de convites durante a janela definida.
-10. Ampliar o uso somente após registrar as evidências e aprovar o go/no-go.
+5. Publicar o frontend atual com `VITE_PRE_REGISTRATION_ENABLED=false` para confirmar que nenhuma entrada fica parcialmente exposta.
+6. Confirmar que a versão anterior da web foi retirada de circulação. Se ela ainda expõe as rotas sem a fronteira de runtime, não definir `PRE_REGISTRATION_ENABLED=false` enquanto essa versão estiver atendendo usuários.
+7. Validar a combinação frontend atual com rotas habilitadas e API desabilitada: as rotas pública, de retomada autenticada e administrativa devem mostrar somente a orientação operacional temporária.
+8. Habilitar a API para o grupo piloto: `PRE_REGISTRATION_ENABLED=true`.
+9. Publicar o frontend piloto com `VITE_PRE_REGISTRATION_ENABLED=true`.
+10. Executar os cenários críticos abaixo.
+11. Observar erros, latência, conflitos e volume de convites durante a janela definida.
+12. Ampliar o uso somente após registrar as evidências e aprovar o go/no-go.
 
 A flag controla a disponibilidade técnica do ambiente. Segmentação por tenant ou grupo piloto deve ser operacional, usando ambientes/instâncias separados, até existir uma flag tenant-scoped explícita.
+
+## Compatibilidade entre versões
+
+Toda combinação declarada como suportada precisa ser exercitada no consumidor real, e não apenas por inspeção do status HTTP.
+
+Validar no navegador:
+
+- frontend atual com rota pública tokenizada e API desabilitada;
+- frontend atual em retomada autenticada e API desabilitada;
+- frontend atual na área administrativa e API desabilitada;
+- frontend atual com API habilitada;
+- versão anterior da web somente enquanto a API permanecer em estado compatível com aquela versão.
+
+Em cada cenário desabilitado, confirmar:
+
+- título e mensagem compreensíveis para o público correto;
+- ausência de `PRE_REGISTRATION_DISABLED` ou outro código técnico visível;
+- ausência da orientação contraditória “solicite um novo convite”;
+- ausência de mutação, revogação ou perda de rascunho;
+- possibilidade de reabilitar o fluxo preservando o mesmo convite e o mesmo processo.
+
+Quando um bundle anterior imutável não puder ser executado no gate, registrar a equivalência comprovável da condição de exposição e transformar a limitação em regra de deploy: essa versão não pode coexistir com a API desabilitada.
 
 ## Cenários E2E obrigatórios
 
@@ -207,15 +233,16 @@ Qualquer falha de privacidade, multi-tenant, autorização, integridade ou migra
 
 ## Desligamento e rollback
 
-1. Definir `PRE_REGISTRATION_ENABLED=false` na API e redeploy/reiniciar.
-2. Confirmar `503 PRE_REGISTRATION_DISABLED` com headers de segurança no namespace público e nas APIs administrativas.
-3. Publicar o frontend com `VITE_PRE_REGISTRATION_ENABLED=false`.
-4. Confirmar que o menu sumiu e que links públicos mostram orientação operacional.
-5. Preservar convites, rascunhos, consentimentos, submissões e auditoria.
-6. Investigar pelo identificador de correlação e por métricas agregadas, sem consultar dados de outro tenant.
-7. Reabilitar somente após correção, validação e nova decisão de go/no-go.
+1. Confirmar que nenhum frontend anterior sem fronteira de disponibilidade continua servindo as rotas. Se ainda existir, publicar primeiro o frontend atual desabilitado ou retirar a versão anterior de circulação.
+2. Definir `PRE_REGISTRATION_ENABLED=false` na API e redeploy/reiniciar.
+3. Confirmar `503 PRE_REGISTRATION_DISABLED` com headers de segurança no namespace público e nas APIs administrativas.
+4. Confirmar no navegador que a versão atual, mesmo quando construída com rotas habilitadas, mostra a orientação operacional nas superfícies pública, autenticada e administrativa.
+5. Publicar o frontend com `VITE_PRE_REGISTRATION_ENABLED=false` para remover menu e entradas no próximo build.
+6. Preservar convites, rascunhos, consentimentos, submissões e auditoria.
+7. Investigar pelo identificador de correlação e por métricas agregadas, sem consultar dados de outro tenant.
+8. Reabilitar somente após correção, validação e nova decisão de go/no-go.
 
-Convites ativos durante o desligamento não são revogados automaticamente. A equipe deve orientar o potencial aluno a tentar novamente após a reabertura ou revogar/regenerar individualmente quando necessário.
+Convites ativos durante o desligamento não são revogados automaticamente. A equipe deve orientar o potencial aluno a tentar novamente após a reabertura ou revogar/regenerar individualmente quando necessário. A indisponibilidade temporária, por si só, nunca é motivo para solicitar um novo convite.
 
 ## Evidências
 
@@ -227,5 +254,7 @@ Para cada execução, registrar:
 - ambiente e dataset sintético;
 - artefatos e digests;
 - ressalvas e decisão final.
+
+A evidência de compatibilidade deve incluir o navegador real para a rota pública tokenizada, a retomada autenticada e a área administrativa, com API desabilitada, além de controle negativo para `401`, `403` e falha transitória. O gate deve falhar se reaparecer o código técnico, a orientação para gerar outro convite ou qualquer mutação causada pela indisponibilidade.
 
 Evidências visuais devem cobrir desktop, viewport de baixa altura e mobile, além de teclado, foco, labels, estados vazio/erro/carregamento e conteúdo longo. O gate de acessibilidade também registra árvore acessível, contraste calculado, zoom de 200% sem overflow e semântica de teclado móvel; screenshot isolada não substitui essas verificações.
