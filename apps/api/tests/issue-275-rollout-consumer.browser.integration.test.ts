@@ -3,12 +3,11 @@ import { createServer, type Server } from 'node:http';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import puppeteer, { type Browser } from 'puppeteer';
 
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+const repoRoot = process.env.GITHUB_WORKSPACE || path.resolve(process.cwd(), '../..');
 const webDist = path.join(repoRoot, 'apps/web/dist');
-const artifactDir = path.join(repoRoot, 'artifacts', 'issue-275');
+const artifactDir = path.join(repoRoot, 'artifacts/issue-275');
 const webPort = 4176;
 const apiPort = 3002;
 const enabledForThisGate =
