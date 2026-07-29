@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { ErrorRequestHandler, RequestHandler } from 'express';
 
- type ErrorWithCode = {
+type ErrorWithCode = {
   name?: unknown;
   code?: unknown;
   status?: unknown;
@@ -88,9 +88,29 @@ function clientStatus(error: unknown): number | undefined {
 }
 
 function errorCandidate(args: unknown[]): unknown {
-  return [...args].reverse().find((value) => value instanceof Error || (
-    value && typeof value === 'object' && ('name' in value || 'code' in value)
-  ));
+  return [...args].reverse().find(
+    (value) =>
+      value instanceof Error ||
+      (value && typeof value === 'object' && ('name' in value || 'code' in value))
+  );
+}
+
+function isSafePreRegistrationErrorLog(value: unknown): value is SafePreRegistrationErrorLog {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const record = value as Record<string, unknown>;
+  const keys = Object.keys(record);
+  if (keys.some((key) => !['correlationId', 'errorName', 'errorCode'].includes(key))) return false;
+  if (typeof record.correlationId !== 'string' || !record.correlationId.trim()) return false;
+  if (
+    record.errorName !== 'UnknownError' &&
+    !allowedIdentifier(record.errorName, ALLOWED_ERROR_NAMES)
+  ) {
+    return false;
+  }
+  return (
+    record.errorCode === undefined ||
+    Boolean(allowedIdentifier(record.errorCode, ALLOWED_ERROR_CODES))
+  );
 }
 
 export function isPreRegistrationRequestPath(path: string): boolean {
@@ -132,7 +152,17 @@ export function installPreRegistrationSafeConsoleError(): void {
       originalConsoleError(...args);
       return;
     }
+
     context.unexpectedErrorLogged = true;
+    if (
+      args.length === 2 &&
+      typeof args[0] === 'string' &&
+      isSafePreRegistrationErrorLog(args[1])
+    ) {
+      originalConsoleError(args[0], args[1]);
+      return;
+    }
+
     originalConsoleError(
       'Erro inesperado na fronteira HTTP da pré-matrícula',
       buildSafePreRegistrationErrorLog(context.correlationId, errorCandidate(args))
@@ -175,7 +205,7 @@ export function logUnexpectedPreRegistrationError(
   correlationId: string,
   error: unknown
 ): void {
-  originalConsoleError(context, buildSafePreRegistrationErrorLog(correlationId, error));
+  console.error(context, buildSafePreRegistrationErrorLog(correlationId, error));
 }
 
 /**
