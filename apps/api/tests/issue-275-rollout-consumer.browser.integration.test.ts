@@ -9,6 +9,7 @@ import path from 'node:path';
 import jwt from 'jsonwebtoken';
 import { PrismaClient } from '@prisma/client';
 import puppeteer, { type Browser } from 'puppeteer';
+import { preRegistrationEnrollmentCreateService } from '../src/modules/pre-registration-enrollment/pre-registration-enrollment-create.service.js';
 
 const repoRoot = process.env.GITHUB_WORKSPACE || path.resolve(process.cwd(), '../..');
 const webDist = path.join(repoRoot, 'apps/web/dist');
@@ -248,6 +249,7 @@ async function openSurface(
   if (input.audience === 'administrative') {
     expect(checkingText).not.toContain('Leads e pré-matrículas');
     expect(checkingText).not.toContain('Localizar e filtrar');
+    expect(checkingText).not.toContain('Novo lead');
   }
 
   await page.waitForFunction(
@@ -295,7 +297,7 @@ async function openSurface(
 }
 
 describeBrowser('issue 275 rollout compatibility at the real browser consumer', () => {
-  it('blocks same-origin consumers until the delayed disabled probe resolves for every audience', async () => {
+  it('blocks every same-origin consumer until the delayed disabled probe resolves', async () => {
     await mkdir(artifactDir, { recursive: true });
     let administrator: AdminFixture | undefined;
     let apiProcess: ChildProcess | undefined;
@@ -304,6 +306,19 @@ describeBrowser('issue 275 rollout compatibility at the real browser consumer', 
 
     try {
       administrator = await createAdministrator();
+      const administrativeLeadId = await preRegistrationEnrollmentCreateService.create(
+        {
+          userId: administrator.userId,
+          professorId: administrator.professorId,
+          contractId: administrator.contractId,
+        },
+        {
+          name: 'Lead Rollout Same Origin',
+          phone: '15978000001',
+          origin: 'issue-275-rollout-consumer',
+          responsibleProfessorId: administrator.professorId,
+        }
+      );
       apiProcess = startDisabledApi();
       await waitForApi();
       webServer = await startWebServer();
@@ -347,6 +362,36 @@ describeBrowser('issue 275 rollout compatibility at the real browser consumer', 
           viewport: { width: 1366, height: 768 },
         })
       );
+      surfaces.push(
+        await openSurface(browser, {
+          name: 'administrative-create',
+          path: '/pre-matriculas/nova',
+          audience: 'administrative',
+          user: administrator.user,
+          token: administrator.token,
+          viewport: { width: 1366, height: 768 },
+        })
+      );
+      surfaces.push(
+        await openSurface(browser, {
+          name: 'administrative-detail',
+          path: `/pre-matriculas/${administrativeLeadId}`,
+          audience: 'administrative',
+          user: administrator.user,
+          token: administrator.token,
+          viewport: { width: 1366, height: 768 },
+        })
+      );
+      surfaces.push(
+        await openSurface(browser, {
+          name: 'administrative-edit',
+          path: `/pre-matriculas/${administrativeLeadId}/editar`,
+          audience: 'administrative',
+          user: administrator.user,
+          token: administrator.token,
+          viewport: { width: 1366, height: 768 },
+        })
+      );
 
       const report = {
         schemaVersion: 3,
@@ -370,5 +415,5 @@ describeBrowser('issue 275 rollout compatibility at the real browser consumer', 
       await cleanupAdministrator(administrator);
       await prisma.$disconnect();
     }
-  }, 120_000);
+  }, 180_000);
 });
