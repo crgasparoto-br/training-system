@@ -5,12 +5,15 @@ import {
   isPreRegistrationDisabledResponse,
 } from '../config/pre-registration-availability';
 import api from '../services/api';
-import { PreRegistrationUnavailable } from './PreRegistrationUnavailable';
+import {
+  PreRegistrationUnavailable,
+  type PreRegistrationAudience,
+} from './PreRegistrationUnavailable';
 
 type Availability = 'checking' | 'enabled' | 'disabled';
 
 interface PreRegistrationAvailabilityBoundaryProps {
-  audience: 'public' | 'administrative';
+  audience: PreRegistrationAudience;
   children: ReactNode;
 }
 
