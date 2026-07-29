@@ -82,12 +82,35 @@ describe('PreRegistrationAvailabilityBoundary', () => {
     expect(await screen.findByText(/Conteúdo protegido/i)).toBeInTheDocument();
   });
 
-  it('skips the synthetic probe for same-origin builds and relies on real request events', async () => {
+  it('blocks same-origin consumers until the availability probe resolves', async () => {
     vi.stubEnv('VITE_API_URL', '');
-    renderBoundary();
+    let resolveProbe: ((value: ReturnType<typeof disabledResponse>) => void) | undefined;
+    mocks.get.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveProbe = resolve;
+        })
+    );
 
-    expect(await screen.findByText(/Conteúdo protegido/i)).toBeInTheDocument();
-    expect(mocks.get).not.toHaveBeenCalled();
+    renderBoundary('administrative');
+
+    expect(screen.getByRole('status')).toHaveAttribute(
+      'data-pre-registration-availability',
+      'checking'
+    );
+    expect(screen.queryByText(/Conteúdo protegido/i)).not.toBeInTheDocument();
+    expect(mocks.get).toHaveBeenCalledWith('/pre-registration/availability', {
+      validateStatus: expect.any(Function),
+    });
+
+    await act(async () => {
+      resolveProbe?.(disabledResponse());
+    });
+
+    expect(
+      await screen.findByRole('heading', { name: /Pré-matrícula temporariamente indisponível/i })
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Conteúdo protegido/i)).not.toBeInTheDocument();
   });
 
   it('replaces an already rendered administrative surface when a later request reports the feature disabled', async () => {
