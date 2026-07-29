@@ -10,10 +10,12 @@ describeDatabase('Issue 275 assessment plan migration compatibility', () => {
   });
 
   it('exposes lastAssessmentAt in a database created only from migrations', async () => {
-    await expect(
-      prisma.alunoAssessmentPlanItem.findFirst({
-        select: { lastAssessmentAt: true },
-      })
-    ).resolves.toEqual(expect.anything());
+    const result = await prisma.alunoAssessmentPlanItem.findFirst({
+      select: { lastAssessmentAt: true },
+    });
+
+    expect(result === null || Object.prototype.hasOwnProperty.call(result, 'lastAssessmentAt')).toBe(
+      true
+    );
   });
 });
