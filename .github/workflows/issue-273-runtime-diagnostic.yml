@@ -1,16 +1,6 @@
 name: Issue 273 Runtime Diagnostic
 
 on:
-  pull_request:
-    branches:
-      - develop
-    paths:
-      - '.github/workflows/issue-273-runtime-diagnostic.yml'
-      - 'apps/api/scripts/verify-issue-273-parq.ts'
-      - 'apps/api/src/modules/alunos/student-parq-boundary.*'
-      - 'apps/api/src/modules/pre-registration-public/**'
-      - 'packages/types/**'
-      - 'packages/utils/**'
   workflow_dispatch:
 
 permissions:
