@@ -56,6 +56,7 @@ Codigo, migrations e testes definem o comportamento efetivamente entregue. Plani
 - [`operations/health-intake-cutover.md`](operations/health-intake-cutover.md): backfill, precedencia, verificacao e rollback do corte da Anamnese.
 - [`operations/parq-cutover.md`](operations/parq-cutover.md): reconciliação, cutover, verificação e rollback do PAR-Q.
 - [`operations/pre-registration-rollout-and-qa.md`](operations/pre-registration-rollout-and-qa.md): QA integrado, privacidade, rollout, observabilidade, go/no-go e rollback da pre-matricula.
+- [`operations/pre-registration-rollout-audience-contract.md`](operations/pre-registration-rollout-audience-contract.md): contrato de mensagens e evidencias discriminantes para as audiencias publica, autenticada e administrativa durante indisponibilidade.
 - [`internal-test-deploy.md`](internal-test-deploy.md): orientacao rapida complementar para testes internos.
 - [`ACCESS_CONTROL.md`](ACCESS_CONTROL.md): exemplos operacionais legados; as regras canonicas permanecem nos documentos de arquitetura e produto de acesso.
 
