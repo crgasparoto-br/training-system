@@ -20,6 +20,8 @@ Base: `/api/v1/pre-registration`
 
 A sonda não consulta banco, não exige sessão e não revela tenant, usuário, convite ou estado de processo. Ela existe para evitar que o frontend use uma rota autenticada como health check e produza `401` artificial no navegador.
 
+A web deve executar esta sonda antes de renderizar qualquer consumidor da pré-matrícula, tanto quando `VITE_API_URL` aponta para uma origem explícita quanto quando a API é same-origin em `/api/v1`. Durante a sonda, formulário, listagem, detalhe e edição permanecem desmontados. Um `503` tardio não pode substituir uma tela funcional que já tenha sido exibida.
+
 ## Convite público
 
 Base: `/api/v1/pre-cadastro`
@@ -85,6 +87,8 @@ A resposta administrativa pode apresentar evidências mascaradas e estados resum
 Base: `/api/v1/alunos/:alunoId/pre-registration-invites`
 
 As rotas permitem consultar resumo, gerar, regenerar e revogar convites segundo a permissão administrativa. O token bruto aparece somente no resultado de geração/regeneração e não pode ser recuperado depois.
+
+O histórico administrativo é deliberadamente limitado: o serviço retorna 20 versões por padrão e aplica teto de 100 quando um consumidor interno solicita limite explícito. A ficha administrativa usa o limite padrão. Relações de substituição são carregadas em lote; não é permitido executar uma consulta adicional por convite. Gates de desempenho devem exercer este serviço de produção com mais registros persistidos que o limite, e não um SQL paralelo escrito apenas no verificador.
 
 ## Status e recuperação
 
