@@ -7,6 +7,7 @@ import jwt from 'jsonwebtoken';
 import { PrismaClient } from '@prisma/client';
 import { preRegistrationEnrollmentCreateService } from '../src/modules/pre-registration-enrollment/pre-registration-enrollment-create.service.js';
 import { preRegistrationInviteAdminService } from '../src/modules/pre-registration-invites/pre-registration-invite-admin.service.js';
+import { assertTenantPageScanIsProportional } from './issue-275-performance-proportionality.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../../..');
@@ -16,6 +17,7 @@ const suffix = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
 const jwtSecret = 'issue-275-performance-rollout-secret';
 const createdContractIds: string[] = [];
 const createdUserIds: string[] = [];
+const listPageSize = 20;
 let apiProcess: ChildProcess | undefined;
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -115,9 +117,11 @@ function planSummary(value: unknown) {
   return {
     rootNode: root['Node Type'],
     actualRows: Number(root['Actual Rows'] ?? 0),
-    executionTimeMs: Number((Array.isArray(value) && value[0] && typeof value[0] === 'object'
-      ? (value[0] as Record<string, unknown>)['Execution Time']
-      : 0) ?? 0),
+    executionTimeMs: Number(
+      (Array.isArray(value) && value[0] && typeof value[0] === 'object'
+        ? (value[0] as Record<string, unknown>)['Execution Time']
+        : 0) ?? 0
+    ),
     nodes: nodes.map((node) => ({
       nodeType: node['Node Type'],
       relationName: node['Relation Name'],
@@ -126,6 +130,16 @@ function planSummary(value: unknown) {
       rowsRemovedByFilter: Number(node['Rows Removed by Filter'] ?? 0),
     })),
   };
+}
+
+type PlanSummary = ReturnType<typeof planSummary>;
+
+function rowsObservedForRelation(summary: PlanSummary, relationName: string): number {
+  const relationNodes = summary.nodes.filter((node) => node.relationName === relationName);
+  assert(relationNodes.length > 0, `Plano não acessou a relação ${relationName}`);
+  return Math.max(
+    ...relationNodes.map((node) => node.actualRows + node.rowsRemovedByFilter)
+  );
 }
 
 async function explain(sql: string, parameters: unknown[]) {
@@ -229,9 +243,16 @@ async function main() {
   );
 
   const targetPhone = `55159${String(42).padStart(8, '0')}`.slice(0, 13);
-  const [listPlan, phonePlan, tokenPlan, indexes, totalRows] = await Promise.all([
+  const [
+    listPlan,
+    phonePlan,
+    tokenPlan,
+    indexes,
+    totalRows,
+    targetTenantCandidateRows,
+  ] = await Promise.all([
     explain(
-      'SELECT "id", "status" FROM "Aluno" WHERE "contractId" = $1 AND "status" IN (\'LEAD\', \'INVITED\') ORDER BY "lastActivityAt" DESC LIMIT 20',
+      'SELECT "id", "status" FROM "Aluno" WHERE "contractId" = $1 AND "status" <> \'ACTIVE_STUDENT\' ORDER BY "lastActivityAt" DESC, "id" DESC LIMIT 20',
       [targetContract.id]
     ),
     explain(
@@ -240,18 +261,25 @@ async function main() {
     ),
     explain(
       'SELECT "id" FROM "PreRegistrationInvite" WHERE "tokenHash" = $1 LIMIT 1',
-      [await (async () => {
-        const row = await prisma.preRegistrationInvite.findUniqueOrThrow({ where: { id: invitation.summary.id } });
-        return row.tokenHash;
-      })()]
+      [
+        await (async () => {
+          const row = await prisma.preRegistrationInvite.findUniqueOrThrow({
+            where: { id: invitation.summary.id },
+          });
+          return row.tokenHash;
+        })(),
+      ]
     ),
-    prisma.$queryRaw<Array<{ tableName: string; indexName: string; indexDefinition: string }>>`
+    prisma.$queryRaw<
+      Array<{ tableName: string; indexName: string; indexDefinition: string }>
+    >`
       SELECT tablename AS "tableName", indexname AS "indexName", indexdef AS "indexDefinition"
       FROM pg_indexes
       WHERE schemaname = 'public'
         AND tablename IN ('Aluno', 'PreRegistrationInvite')
         AND (
-          indexdef ILIKE '%contractId%status%'
+          indexname = 'Aluno_pre_registration_list_idx'
+          OR indexdef ILIKE '%contractId%status%'
           OR indexdef ILIKE '%contractId%leadPhoneNormalized%'
           OR indexdef ILIKE '%contractId%leadEmailNormalized%'
           OR indexdef ILIKE '%contractId%leadCpfNormalized%'
@@ -260,25 +288,56 @@ async function main() {
       ORDER BY tablename, indexname
     `,
     prisma.aluno.count(),
+    prisma.aluno.count({
+      where: {
+        contractId: targetContract.id,
+        status: { not: 'ACTIVE_STUDENT' },
+      },
+    }),
   ]);
 
   const listSummary = planSummary(listPlan);
   const phoneSummary = planSummary(phonePlan);
   const tokenSummary = planSummary(tokenPlan);
   assert(listSummary.rootNode === 'Limit', 'Listagem não possui limite no plano');
-  assert(listSummary.actualRows <= 20, 'Listagem retornou mais que uma página');
-  const listScanned = Math.max(...listSummary.nodes.map((node) => node.actualRows));
-  assert(listScanned < totalRows, `Listagem varreu todos os ${totalRows} alunos`);
   assert(
-    phoneSummary.nodes.some((node) => String(node.indexName || '').includes('leadPhoneNormalized')),
+    listSummary.actualRows <= listPageSize,
+    'Listagem retornou mais que uma página'
+  );
+  assert(
+    listSummary.nodes.some(
+      (node) => String(node.indexName || '') === 'Aluno_pre_registration_list_idx'
+    ),
+    'Listagem não utilizou o índice tenant-scoped compatível com a ordenação padrão'
+  );
+  const listScanned = rowsObservedForRelation(listSummary, 'Aluno');
+  const proportionality = assertTenantPageScanIsProportional({
+    pageSize: listPageSize,
+    scannedRows: listScanned,
+    tenantCandidateRows: targetTenantCandidateRows,
+  });
+  assert(
+    phoneSummary.nodes.some((node) =>
+      String(node.indexName || '').includes('leadPhoneNormalized')
+    ),
     'Filtro normalizado de telefone não utilizou índice compatível'
+  );
+  assert(
+    indexes.some((index) => index.indexName === 'Aluno_pre_registration_list_idx'),
+    'Índice da listagem administrativa proporcional ausente'
   );
   assert(
     indexes.some((index) => index.indexDefinition.includes('tokenHash')),
     'Índice de lookup do token por hash ausente'
   );
-  assert(indexes.some((index) => index.indexDefinition.includes('leadEmailNormalized')), 'Índice de e-mail normalizado ausente');
-  assert(indexes.some((index) => index.indexDefinition.includes('leadCpfNormalized')), 'Índice/unique de CPF normalizado ausente');
+  assert(
+    indexes.some((index) => index.indexDefinition.includes('leadEmailNormalized')),
+    'Índice de e-mail normalizado ausente'
+  );
+  assert(
+    indexes.some((index) => index.indexDefinition.includes('leadCpfNormalized')),
+    'Índice/unique de CPF normalizado ausente'
+  );
 
   const token = jwt.sign(
     { userId: masterUser.id, email: masterUser.email, type: 'professor' },
@@ -289,7 +348,9 @@ async function main() {
     const [aluno, onboardingCount, invite] = await Promise.all([
       prisma.aluno.findUniqueOrThrow({ where: { id: rolloutLeadId } }),
       prisma.studentOnboardingProcess.count({ where: { alunoId: rolloutLeadId } }),
-      prisma.preRegistrationInvite.findUniqueOrThrow({ where: { id: invitation.summary.id } }),
+      prisma.preRegistrationInvite.findUniqueOrThrow({
+        where: { id: invitation.summary.id },
+      }),
     ]);
     return {
       aluno: {
@@ -310,7 +371,9 @@ async function main() {
     };
   }
   const snapshotBefore = await coreSnapshot();
-  const eventCountBefore = await prisma.studentLifecycleEvent.count({ where: { alunoId: rolloutLeadId } });
+  const eventCountBefore = await prisma.studentLifecycleEvent.count({
+    where: { alunoId: rolloutLeadId },
+  });
 
   await startApi(3006, false);
   const [disabledPublic, disabledAdmin, oldWebApiRoot] = await Promise.all([
@@ -324,39 +387,71 @@ async function main() {
     jsonRequest(3006, '/api/v1'),
   ]);
   assert(disabledPublic.response.status === 503, 'Rota pública não falhou fechada');
-  assert(disabledAdmin.response.status === 503, 'Rota administrativa não falhou fechada');
-  assert(oldWebApiRoot.response.status === 200, 'API geral deixou de ser compatível com web anterior');
+  assert(
+    disabledAdmin.response.status === 503,
+    'Rota administrativa não falhou fechada'
+  );
+  assert(
+    oldWebApiRoot.response.status === 200,
+    'API geral deixou de ser compatível com web anterior'
+  );
   for (const result of [disabledPublic, disabledAdmin]) {
-    assert(result.response.headers.get('cache-control')?.includes('no-store'), 'Resposta desabilitada sem no-store');
-    assert(result.response.headers.get('referrer-policy') === 'no-referrer', 'Resposta desabilitada sem no-referrer');
-    assert(result.body.error === 'PRE_REGISTRATION_DISABLED', 'Resposta desabilitada sem código estável');
+    assert(
+      result.response.headers.get('cache-control')?.includes('no-store'),
+      'Resposta desabilitada sem no-store'
+    );
+    assert(
+      result.response.headers.get('referrer-policy') === 'no-referrer',
+      'Resposta desabilitada sem no-referrer'
+    );
+    assert(
+      result.body.error === 'PRE_REGISTRATION_DISABLED',
+      'Resposta desabilitada sem código estável'
+    );
   }
 
   const snapshotDisabled = await coreSnapshot();
-  const eventCountDisabled = await prisma.studentLifecycleEvent.count({ where: { alunoId: rolloutLeadId } });
-  assert(JSON.stringify(snapshotDisabled) === JSON.stringify(snapshotBefore), 'Desligamento alterou dados persistidos');
-  assert(eventCountDisabled === eventCountBefore, 'Desligamento produziu evento de domínio');
+  const eventCountDisabled = await prisma.studentLifecycleEvent.count({
+    where: { alunoId: rolloutLeadId },
+  });
+  assert(
+    JSON.stringify(snapshotDisabled) === JSON.stringify(snapshotBefore),
+    'Desligamento alterou dados persistidos'
+  );
+  assert(
+    eventCountDisabled === eventCountBefore,
+    'Desligamento produziu evento de domínio'
+  );
 
   await startApi(3007, true);
   const [enabledPublic, enabledAdmin] = await Promise.all([
     jsonRequest(3007, `/api/v1/pre-cadastro/${invitation.token}`),
-    jsonRequest(3007, '/api/v1/pre-registration-admin/leads?page=1&pageSize=20', { token }),
+    jsonRequest(3007, '/api/v1/pre-registration-admin/leads?page=1&pageSize=20', {
+      token,
+    }),
   ]);
   assert(enabledPublic.response.status === 200, 'Convite não voltou após reabilitação');
   assert(enabledAdmin.response.status === 200, 'Listagem não voltou após reabilitação');
 
   const snapshotEnabled = await coreSnapshot();
-  assert(JSON.stringify(snapshotEnabled) === JSON.stringify(snapshotBefore), 'Reabilitação alterou dados canônicos persistidos');
+  assert(
+    JSON.stringify(snapshotEnabled) === JSON.stringify(snapshotBefore),
+    'Reabilitação alterou dados canônicos persistidos'
+  );
 
   const report = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     kind: 'issue-275-performance-rollout',
     cardinality: {
       tenants: contracts.length,
       rowsPerTenant,
+      targetTenantCandidateRows,
+      unrelatedTenantRows: totalRows - targetTenantCandidateRows,
       totalAlunoRows: totalRows,
-      pageSize: 20,
+      pageSize: listPageSize,
+      maximumAllowedRowsInListPlan: proportionality.maximumAllowedRows,
       maxRowsObservedInListPlan: listScanned,
+      targetTenantScanRatio: proportionality.scanRatio,
     },
     plans: {
       administrativeList: listSummary,
