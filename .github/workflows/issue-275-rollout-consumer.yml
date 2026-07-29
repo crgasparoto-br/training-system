@@ -13,6 +13,7 @@ on:
       - 'apps/web/src/services/api.ts'
       - 'apps/api/tests/issue-275-rollout-consumer.browser.integration.test.ts'
       - 'docs/operations/pre-registration-rollout-and-qa.md'
+      - 'docs/operations/pre-registration-rollout-audience-contract.md'
       - '.github/workflows/issue-275-rollout-consumer.yml'
   workflow_dispatch:
 
@@ -121,12 +122,17 @@ jobs:
           test -s artifacts/issue-275/rollout-consumer-authenticated-resume.png
           test -s artifacts/issue-275/rollout-consumer-administrative-list.png
           jq -e '
+            .schemaVersion == 2 and
             .buildMode == "pre-registration-route-enabled" and
             .apiMode == "PRE_REGISTRATION_ENABLED=false" and
             (.surfaces | length) == 3 and
             ([.surfaces[] | select(.rawCodeAbsent != true)] | length) == 0 and
             ([.surfaces[] | select(.contradictoryInviteGuidanceAbsent != true)] | length) == 0 and
-            ([.surfaces[].name] | sort) == (["administrative-list", "authenticated-resume", "public-token-route"] | sort)
+            ([.surfaces[] | select(.audienceCopyMatched != true)] | length) == 0 and
+            ([.surfaces[] | select(.wrongAudienceCopyAbsent != true)] | length) == 0 and
+            ([.surfaces[] | select(.name == "public-token-route" and .audience == "public")] | length) == 1 and
+            ([.surfaces[] | select(.name == "authenticated-resume" and .audience == "authenticated")] | length) == 1 and
+            ([.surfaces[] | select(.name == "administrative-list" and .audience == "administrative")] | length) == 1
           ' artifacts/issue-275/rollout-consumer-browser.json >/dev/null
           grep -q 'Test Suites:.*passed' artifacts/issue-275/rollout-consumer-browser.log
           grep -q 'Test Files.*passed' artifacts/issue-275/rollout-consumer-unit.log
