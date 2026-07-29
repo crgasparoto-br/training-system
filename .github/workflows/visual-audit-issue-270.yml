@@ -11,6 +11,7 @@ on:
       - 'apps/web/src/services/pre-registration-admin.service.ts'
       - 'packages/types/pre-registration-admin.ts'
       - 'apps/api/scripts/visual-audit-issue-270.mjs'
+      - 'apps/api/scripts/visual-audit-pre-registration-availability-hook.mjs'
       - '.github/workflows/visual-audit-issue-270.yml'
   workflow_dispatch:
 
@@ -96,6 +97,7 @@ jobs:
               'access-control-allow-methods': 'GET,POST,PATCH,OPTIONS',
               'access-control-allow-headers': 'Authorization,Content-Type',
               'access-control-allow-credentials': 'true',
+              'access-control-allow-private-network': 'true',
               'vary': 'Origin',
             };
           }
@@ -149,7 +151,9 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          pnpm --filter @corrida/api exec node scripts/visual-audit-issue-270.mjs 2>&1 | tee visual-audit.log
+          pnpm --filter @corrida/api exec node \
+            --import ./scripts/visual-audit-pre-registration-availability-hook.mjs \
+            scripts/visual-audit-issue-270.mjs 2>&1 | tee visual-audit.log
 
       - name: Upload screenshots and diagnostics
         if: always()
