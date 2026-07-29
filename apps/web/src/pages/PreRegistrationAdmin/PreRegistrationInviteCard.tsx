@@ -18,10 +18,6 @@ import { PreRegistrationGuardianAuthorizationCard } from './PreRegistrationGuard
 
 export type InviteCopyState = 'idle' | 'copied' | 'failed';
 
-type InviteHandoffWindow = Window & {
-  __issue275Invite?: string;
-};
-
 const INVITE_STATUS_LABELS: Record<PreRegistrationInviteStatus, string> = {
   ACTIVE: 'Ativo',
   EXPIRED: 'Expirado',
@@ -63,13 +59,6 @@ export function PreRegistrationInviteCard({
       lead.invite.expiresAt &&
       new Date(lead.invite.expiresAt).getTime() <= Date.now()
   );
-
-  // The generated URL is already visible below and remains only in the current
-  // session. Re-expose the same in-memory value after navigation so the real
-  // browser E2E can continue without reading or persisting the system clipboard.
-  if (generatedUrl && typeof window !== 'undefined') {
-    (window as InviteHandoffWindow).__issue275Invite = generatedUrl;
-  }
 
   const revoke = async () => {
     await onRevoke(revokeReason.trim());
