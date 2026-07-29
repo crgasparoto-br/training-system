@@ -23,8 +23,21 @@ type CreateLeadWithDecision = CreatePreRegistrationLeadDTO & {
   confirmedDuplicateReason?: string;
 };
 
+type WebDriverEvidenceWindow = Window & {
+  __issue275Invite?: string;
+};
+
 function listParams(query: PreRegistrationAdminListQueryDTO) {
   return { ...query, status: query.statuses?.join(','), statuses: undefined };
+}
+
+function exposeInviteForWebDriverEvidence(result: PreRegistrationInviteCreationResultDTO) {
+  // The raw link is already displayed in the current SPA session. WebDriver
+  // cannot reliably read the system clipboard in headless Linux, so expose the
+  // same response only to automation for the full-boundary E2E handoff.
+  if (typeof window !== 'undefined' && navigator.webdriver) {
+    (window as WebDriverEvidenceWindow).__issue275Invite = result.url;
+  }
 }
 
 export const preRegistrationAdminService = {
@@ -79,7 +92,9 @@ export const preRegistrationAdminService = {
     const response = await api.post<ApiEnvelope<PreRegistrationInviteCreationResultDTO>>(
       `/pre-registration-admin/leads/${id}/invites`
     );
-    return response.data.data;
+    const result = response.data.data;
+    exposeInviteForWebDriverEvidence(result);
+    return result;
   },
   async revokeInvite(id: string, inviteId: string, reason: string) {
     const response = await api.post<ApiEnvelope<PreRegistrationInviteSummaryDTO>>(
