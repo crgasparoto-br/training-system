@@ -1,22 +1,6 @@
 name: Issue 272 Regression Evidence
 
 on:
-  pull_request:
-    branches:
-      - develop
-    paths:
-      - 'apps/api/prisma/migrations/**issue_272**'
-      - 'apps/api/src/modules/alunos/student-health-intake-write.service.ts'
-      - 'apps/api/src/modules/pre-registration-public/**'
-      - 'apps/api/tests/**issue-272**'
-      - 'apps/api/tests/student-health-intake-write.service.test.ts'
-      - 'apps/api/scripts/verify-issue-272-health-intake.ts'
-      - 'apps/web/src/pages/PublicPreRegistration/**'
-      - 'apps/web/src/services/pre-registration-public.service.ts'
-      - 'scripts/verify-issue-272-health-intake-migration.sh'
-      - 'docs/operations/health-intake-cutover.md'
-      - 'docs/product/pre-registration-health-intake.md'
-      - '.github/workflows/issue-272-regression.yml'
   workflow_dispatch:
 
 permissions:
