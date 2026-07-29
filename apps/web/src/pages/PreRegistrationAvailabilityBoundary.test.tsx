@@ -2,6 +2,7 @@ import { act, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PRE_REGISTRATION_DISABLED_EVENT } from '../config/pre-registration-availability';
+import type { PreRegistrationAudience } from './PreRegistrationUnavailable';
 
 const mocks = vi.hoisted(() => ({ get: vi.fn() }));
 
@@ -11,7 +12,7 @@ vi.mock('../services/api', () => ({
 
 import { PreRegistrationAvailabilityBoundary } from './PreRegistrationAvailabilityBoundary';
 
-function renderBoundary(audience: 'public' | 'administrative' = 'public') {
+function renderBoundary(audience: PreRegistrationAudience = 'public') {
   return render(
     <MemoryRouter>
       <PreRegistrationAvailabilityBoundary audience={audience}>
@@ -19,6 +20,16 @@ function renderBoundary(audience: 'public' | 'administrative' = 'public') {
       </PreRegistrationAvailabilityBoundary>
     </MemoryRouter>
   );
+}
+
+function disabledResponse() {
+  return {
+    status: 503,
+    data: {
+      error: 'PRE_REGISTRATION_DISABLED',
+      message: 'O pré-cadastro está temporariamente indisponível.',
+    },
+  };
 }
 
 describe('PreRegistrationAvailabilityBoundary', () => {
@@ -31,23 +42,33 @@ describe('PreRegistrationAvailabilityBoundary', () => {
     vi.unstubAllEnvs();
   });
 
-  it('renders the operational unavailable state for a disabled API without raw codes or contradictory invite guidance', async () => {
-    mocks.get.mockResolvedValueOnce({
-      status: 503,
-      data: {
-        error: 'PRE_REGISTRATION_DISABLED',
-        message: 'O pré-cadastro está temporariamente indisponível.',
-      },
-    });
+  it('renders the public invite unavailable state without raw codes or contradictory guidance', async () => {
+    mocks.get.mockResolvedValueOnce(disabledResponse());
 
     renderBoundary('public');
 
     expect(
       await screen.findByRole('heading', { name: /Pré-matrícula temporariamente indisponível/i })
     ).toBeInTheDocument();
+    expect(screen.getByText(/O link não pode ser utilizado neste momento/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Seu progresso permanece salvo/i)).not.toBeInTheDocument();
     expect(screen.queryByText('PRE_REGISTRATION_DISABLED')).not.toBeInTheDocument();
     expect(screen.queryByText(/Solicite um novo convite/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Conteúdo protegido/i)).not.toBeInTheDocument();
+  });
+
+  it('renders authenticated resume guidance without referring to a public link', async () => {
+    mocks.get.mockResolvedValueOnce(disabledResponse());
+
+    renderBoundary('authenticated');
+
+    expect(
+      await screen.findByRole('heading', { name: /Pré-matrícula temporariamente indisponível/i })
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Seu progresso permanece salvo/i)).toBeInTheDocument();
+    expect(screen.queryByText(/O link não pode ser utilizado/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Nenhum cadastro ou convite existente foi apagado/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Voltar ao início/i })).toBeInTheDocument();
   });
 
   it('does not confuse an authentication response or a transient probe failure with rollout disablement', async () => {
@@ -82,6 +103,8 @@ describe('PreRegistrationAvailabilityBoundary', () => {
       await screen.findByRole('heading', { name: /Pré-matrícula temporariamente indisponível/i })
     ).toBeInTheDocument();
     expect(screen.getByText(/Nenhum cadastro ou convite existente foi apagado/i)).toBeInTheDocument();
+    expect(screen.queryByText(/O link não pode ser utilizado/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Seu progresso permanece salvo/i)).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Voltar ao início/i })).toBeInTheDocument();
   });
 });
