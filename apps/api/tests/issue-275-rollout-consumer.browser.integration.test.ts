@@ -8,11 +8,11 @@ import puppeteer, { type Browser } from 'puppeteer';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const webDist = path.join(repoRoot, 'apps/web/dist');
-const artifactDir = path.join(repoRoot, 'artifacts/issue-275');
+const artifactDir = path.join(repoRoot, 'artifacts', 'issue-275');
 const webPort = 4176;
 const apiPort = 3002;
 const enabledForThisGate =
-  process.env.RUN_DATABASE_INTEGRATION_TESTS === 'true' &&
+  process.env.RUN_ISSUE_275_ROLLOUT_CONSUMER_BROWSER === 'true' &&
   process.env.VITE_API_URL?.includes(String(apiPort)) === true &&
   existsSync(path.join(webDist, 'index.html'));
 
