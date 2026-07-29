@@ -1,12 +1,11 @@
 name: Apply Issue 275 concurrency remediation
 
-# The second push ensures GitHub registers and executes this temporary workflow.
 on:
-  push:
+  pull_request:
     branches:
-      - feat/275-pre-registration-qa-rollout
+      - develop
     paths:
-      - .github/workflows/issue-275-remediation.yml
+      - '.github/workflows/issue-275-remediation.yml'
 
 permissions:
   contents: write
@@ -56,8 +55,9 @@ jobs:
     `${JSON.stringify(claimOutcomes, null, 2)}\\n`,
     'utf8'
   );
+  const claimWinnerCount = claims.filter((result) => result.status === 201).length;
   assert(
-    claims.filter((result) => result.status === 201).length === 1,
+    claimWinnerCount === 1,
     `Claims concorrentes não tiveram vencedor único: ${JSON.stringify(claimOutcomes)}`
   );
   const losingClaim = claims.find((result) => result.status !== 201);
@@ -88,6 +88,17 @@ jobs:
           if source.count(before_assertion) != 1:
               raise SystemExit('Expected the original concurrency assertion exactly once')
           source = source.replace(before_assertion, after_assertion)
+
+          before_return = """    claimWinnerCount: 1,
+    activeInviteCount,"""
+          after_return = """    claimWinnerCount,
+    claimLoserCode: losingCode,
+    claimLinkedEventCount: linkedEvents,
+    claimPersistedUserCount: claimedUsers.length,
+    activeInviteCount,"""
+          if source.count(before_return) != 1:
+              raise SystemExit('Expected the original concurrency result exactly once')
+          source = source.replace(before_return, after_return)
           target.write_text(source, encoding='utf-8')
           PY
 
