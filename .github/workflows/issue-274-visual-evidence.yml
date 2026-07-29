@@ -1,16 +1,6 @@
 name: Issue 274 Visual Evidence
 
 on:
-  pull_request:
-    branches:
-      - develop
-    paths:
-      - 'apps/web/src/pages/PreRegistrationAdmin/**'
-      - 'apps/web/src/pages/PreRegistrationAvailabilityBoundary*'
-      - 'apps/web/src/App.tsx'
-      - 'apps/api/scripts/issue-274-visual-evidence.mjs'
-      - 'apps/api/scripts/visual-audit-pre-registration-availability-hook.mjs'
-      - '.github/workflows/issue-274-visual-evidence.yml'
   push:
     branches:
       - feat/274-enrollment-conversion
