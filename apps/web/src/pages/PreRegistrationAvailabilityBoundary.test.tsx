@@ -32,6 +32,10 @@ function disabledResponse() {
   };
 }
 
+function enabledResponse() {
+  return { status: 204, data: undefined };
+}
+
 describe('PreRegistrationAvailabilityBoundary', () => {
   beforeEach(() => {
     mocks.get.mockReset();
@@ -71,10 +75,20 @@ describe('PreRegistrationAvailabilityBoundary', () => {
     expect(screen.getByRole('link', { name: /Voltar ao início/i })).toBeInTheDocument();
   });
 
-  it('does not confuse an authentication response with rollout disablement', async () => {
-    mocks.get.mockResolvedValueOnce({ status: 401, data: { error: 'Unauthorized' } });
-    renderBoundary();
-    expect(await screen.findByText(/Conteúdo protegido/i)).toBeInTheDocument();
+  it('fails closed for every non-canonical availability response', async () => {
+    for (const response of [
+      { status: 200, data: { enabled: true } },
+      { status: 401, data: { error: 'Unauthorized' } },
+      { status: 500, data: { error: 'Internal Server Error' } },
+    ]) {
+      mocks.get.mockResolvedValueOnce(response);
+      const rendered = renderBoundary('administrative');
+      expect(
+        await screen.findByRole('heading', { name: /Pré-matrícula temporariamente indisponível/i })
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/Conteúdo protegido/i)).not.toBeInTheDocument();
+      rendered.unmount();
+    }
   });
 
   it('fails closed when the availability probe cannot be completed', async () => {
@@ -85,6 +99,12 @@ describe('PreRegistrationAvailabilityBoundary', () => {
       await screen.findByRole('heading', { name: /Pré-matrícula temporariamente indisponível/i })
     ).toBeInTheDocument();
     expect(screen.queryByText(/Conteúdo protegido/i)).not.toBeInTheDocument();
+  });
+
+  it('enables the consumer only after the canonical 204 response', async () => {
+    mocks.get.mockResolvedValueOnce(enabledResponse());
+    renderBoundary();
+    expect(await screen.findByText(/Conteúdo protegido/i)).toBeInTheDocument();
   });
 
   it('blocks same-origin consumers until the availability probe resolves', async () => {
@@ -118,8 +138,8 @@ describe('PreRegistrationAvailabilityBoundary', () => {
     expect(screen.queryByText(/Conteúdo protegido/i)).not.toBeInTheDocument();
   });
 
-  it('replaces an already rendered administrative surface when a later request reports the feature disabled', async () => {
-    mocks.get.mockResolvedValueOnce({ status: 403, data: { error: 'FORBIDDEN' } });
+  it('replaces an enabled administrative surface when a later request reports the feature disabled', async () => {
+    mocks.get.mockResolvedValueOnce(enabledResponse());
     renderBoundary('administrative');
     expect(await screen.findByText(/Conteúdo protegido/i)).toBeInTheDocument();
 
