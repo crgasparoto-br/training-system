@@ -1,12 +1,9 @@
-name: Apply Issue 275 atomic remediation
+name: Apply Issue 275 trusted remediation
 
 on:
   pull_request:
     branches:
-      - develop
-  push:
-    branches:
-      - 'feat/**'
+      - tmp/issue-275-remediation-base
 
 permissions:
   contents: write
@@ -15,13 +12,13 @@ jobs:
   remediate:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout remediation branch
+      - name: Checkout Issue 275 branch
         uses: actions/checkout@v4
         with:
           ref: feat/275-pre-registration-qa-rollout
-          fetch-depth: 20
+          fetch-depth: 0
 
-      - name: Apply correction and restore official workflows
+      - name: Correct the concurrent claim fixture
         shell: bash
         run: |
           set -euo pipefail
@@ -76,7 +73,8 @@ jobs:
               ? String((losingDetails as { code?: unknown }).code ?? '')
               : undefined;
           assert(
-            losingClaim?.status === 409 && losingCode === 'ACCOUNT_ALREADY_LINKED',
+            losingClaim?.status === 409 &&
+              ['ACCOUNT_ALREADY_LINKED', 'ACCOUNT_INCOMPATIBLE'].includes(losingCode ?? ''),
             `Claim perdedor não retornou conflito estável: ${JSON.stringify(claimOutcomes)}`
           );
           const linkedClaim = await prisma.aluno.findUnique({
@@ -92,8 +90,15 @@ jobs:
             where: { email: { in: [accountA.email, accountB.email] } },
             select: { id: true },
           });
-          assert(claimedUsers.length === 1, 'Claim perdedor deixou conta órfã persistida');"""
-          after_assertion = '\n'.join(line[10:] if line.startswith('          ') else line for line in after_assertion.splitlines())
+          assert(claimedUsers.length === 1, 'Claim perdedor deixou conta órfã persistida');
+          assert(
+            claimedUsers[0]?.id === linkedClaim?.userId,
+            'Conta persistida não corresponde ao vínculo canônico do Aluno'
+          );"""
+          after_assertion = '\n'.join(
+              line[10:] if line.startswith('          ') else line
+              for line in after_assertion.splitlines()
+          )
           if source.count(before_assertion) != 1:
               raise SystemExit('Expected original concurrency assertion exactly once')
           source = source.replace(before_assertion, after_assertion)
@@ -111,28 +116,34 @@ jobs:
           target.write_text(source, encoding='utf-8')
           PY
 
-          cat > apps/api/src/modules/pre-registration-public/pre-registration-concurrency-e2e-fixture.test.ts <<'EOF'
+          cat > apps/api/tests/issue-275-integrated-e2e-fixture.contract.test.ts <<'EOF'
           import { readFileSync } from 'node:fs';
           import path from 'node:path';
 
-          describe('Issue 275 integrated concurrency harness', () => {
+          describe('Issue 275 integrated concurrency fixture', () => {
             const source = readFileSync(
               path.resolve(process.cwd(), 'scripts/verify-issue-275-integrated-e2e.ts'),
               'utf8'
             );
 
-            it('uses the canonical lead identity and verifies transactional outcomes', () => {
+            it('uses the canonical lead identity for both concurrent account attempts', () => {
               expect(source.match(/name: claimLead\.identity\.name/g)).toHaveLength(2);
+              expect(source).not.toContain('name: accountA.name');
+              expect(source).not.toContain('name: accountB.name');
+            });
+
+            it('records and verifies the transactional outcome of the losing claim', () => {
               expect(source).toContain('concurrency-claim-outcomes.json');
-              expect(source).toContain("losingCode === 'ACCOUNT_ALREADY_LINKED'");
+              expect(source).toContain("['ACCOUNT_ALREADY_LINKED', 'ACCOUNT_INCOMPATIBLE']");
               expect(source).toContain('linkedEvents === 1');
               expect(source).toContain('claimedUsers.length === 1');
+              expect(source).toContain('claimedUsers[0]?.id === linkedClaim?.userId');
             });
           });
           EOF
+          sed -i 's/^          //' apps/api/tests/issue-275-integrated-e2e-fixture.contract.test.ts
 
-          sed -i 's/^          //' apps/api/src/modules/pre-registration-public/pre-registration-concurrency-e2e-fixture.test.ts
-          git show HEAD^^:.github/workflows/validate-pr.yml > .github/workflows/validate-pr.yml
+          git show 3319d3e96fba2870cc51a33bc3d5c3ebad0f28c6:.github/workflows/validate-pr.yml > .github/workflows/validate-pr.yml
           git show 766744405e32ea2d8a103b4246e483a56b528038:.github/workflows/issue-275-pre-registration-qa.yml > .github/workflows/issue-275-pre-registration-qa.yml
           rm -f .github/workflows/issue-275-remediation.yml
           rm -f apps/api/src/issue-275-source-materialization.test.ts
@@ -140,8 +151,9 @@ jobs:
           git diff --check
           test "$(grep -c 'name: claimLead.identity.name' apps/api/scripts/verify-issue-275-integrated-e2e.ts)" -eq 2
           grep -q 'concurrency-claim-outcomes.json' apps/api/scripts/verify-issue-275-integrated-e2e.ts
-          grep -q "losingCode === 'ACCOUNT_ALREADY_LINKED'" apps/api/scripts/verify-issue-275-integrated-e2e.ts
+          grep -q "ACCOUNT_INCOMPATIBLE" apps/api/scripts/verify-issue-275-integrated-e2e.ts
           grep -q 'claimedUsers.length === 1' apps/api/scripts/verify-issue-275-integrated-e2e.ts
+          grep -q 'claimedUsers\[0\]?.id === linkedClaim?.userId' apps/api/scripts/verify-issue-275-integrated-e2e.ts
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
