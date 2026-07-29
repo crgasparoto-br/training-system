@@ -1,12 +1,23 @@
 import { Link } from 'react-router-dom';
 import { AlertTriangle } from 'lucide-react';
 
+export type PreRegistrationAudience = 'public' | 'authenticated' | 'administrative';
+
 interface PreRegistrationUnavailableProps {
-  audience: 'public' | 'administrative';
+  audience: PreRegistrationAudience;
 }
 
+const MESSAGE_BY_AUDIENCE: Record<PreRegistrationAudience, string> = {
+  public:
+    'O link não pode ser utilizado neste momento. Entre em contato com a equipe da academia para receber orientação.',
+  authenticated:
+    'O pré-cadastro está temporariamente indisponível. Seu progresso permanece salvo. Tente novamente mais tarde ou entre em contato com a equipe da academia.',
+  administrative:
+    'O fluxo está desabilitado neste ambiente. Nenhum cadastro ou convite existente foi apagado.',
+};
+
 export function PreRegistrationUnavailable({ audience }: PreRegistrationUnavailableProps) {
-  const isPublic = audience === 'public';
+  const showHomeLink = audience !== 'public';
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
@@ -25,11 +36,9 @@ export function PreRegistrationUnavailable({ audience }: PreRegistrationUnavaila
           Pré-matrícula temporariamente indisponível
         </h1>
         <p className="mt-3 text-sm leading-6 text-muted-foreground sm:text-base">
-          {isPublic
-            ? 'O link não pode ser utilizado neste momento. Entre em contato com a equipe da academia para receber orientação.'
-            : 'O fluxo está desabilitado neste ambiente. Nenhum cadastro ou convite existente foi apagado.'}
+          {MESSAGE_BY_AUDIENCE[audience]}
         </p>
-        {!isPublic ? (
+        {showHomeLink ? (
           <div className="mt-6">
             <Link
               to="/inicio"
