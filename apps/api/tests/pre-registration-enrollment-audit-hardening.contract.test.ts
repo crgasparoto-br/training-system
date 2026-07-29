@@ -13,9 +13,10 @@ const enrollmentService = read(
 const lifecycleService = read(
   'apps/api/src/modules/alunos/student-lifecycle-enrollment.service.ts'
 );
-const adminService = read(
-  'apps/api/src/modules/pre-registration-admin/pre-registration-admin.service.ts'
-);
+const adminService = [
+  read('apps/api/src/modules/pre-registration-admin/pre-registration-admin.service.ts'),
+  read('apps/api/src/modules/pre-registration-admin/pre-registration-admin.service.core.ts'),
+].join('\n');
 const enrollmentRoutes = read(
   'apps/api/src/modules/pre-registration-enrollment/pre-registration-enrollment.routes.ts'
 );
