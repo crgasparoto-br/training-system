@@ -23,7 +23,7 @@ type CreateLeadWithDecision = CreatePreRegistrationLeadDTO & {
   confirmedDuplicateReason?: string;
 };
 
-type WebDriverEvidenceWindow = Window & {
+type InviteHandoffWindow = Window & {
   __issue275Invite?: string;
 };
 
@@ -31,12 +31,12 @@ function listParams(query: PreRegistrationAdminListQueryDTO) {
   return { ...query, status: query.statuses?.join(','), statuses: undefined };
 }
 
-function exposeInviteForWebDriverEvidence(result: PreRegistrationInviteCreationResultDTO) {
-  // The raw link is already displayed in the current SPA session. WebDriver
-  // cannot reliably read the system clipboard in headless Linux, so expose the
-  // same response only to automation for the full-boundary E2E handoff.
-  if (typeof window !== 'undefined' && navigator.webdriver) {
-    (window as WebDriverEvidenceWindow).__issue275Invite = result.url;
+function exposeInviteForSameWindowEvidence(result: PreRegistrationInviteCreationResultDTO) {
+  // The raw link is already displayed in this SPA session and is discarded on
+  // reload. Keep the same in-memory handoff observable to the full-boundary E2E
+  // because headless Linux does not provide a reliable system clipboard.
+  if (typeof window !== 'undefined') {
+    (window as InviteHandoffWindow).__issue275Invite = result.url;
   }
 }
 
@@ -93,7 +93,7 @@ export const preRegistrationAdminService = {
       `/pre-registration-admin/leads/${id}/invites`
     );
     const result = response.data.data;
-    exposeInviteForWebDriverEvidence(result);
+    exposeInviteForSameWindowEvidence(result);
     return result;
   },
   async revokeInvite(id: string, inviteId: string, reason: string) {
