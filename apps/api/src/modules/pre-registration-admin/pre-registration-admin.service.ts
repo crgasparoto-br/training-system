@@ -3,8 +3,8 @@ import {
   preRegistrationAdminService as corePreRegistrationAdminService,
 } from './pre-registration-admin.service.core.js';
 import {
-  isPrismaSerializableConflict,
-  retryPrismaSerializableConflict,
+  isPrismaRetryableTransactionError,
+  retryPrismaTransactionConflict,
 } from './pre-registration-serializable-retry.js';
 
 export * from './pre-registration-admin.service.core.js';
@@ -16,12 +16,12 @@ export const preRegistrationAdminService = {
     ...args: Parameters<typeof corePreRegistrationAdminService.updateCommercial>
   ): Promise<Awaited<ReturnType<typeof corePreRegistrationAdminService.updateCommercial>>> {
     try {
-      return await retryPrismaSerializableConflict(
+      return await retryPrismaTransactionConflict(
         () => corePreRegistrationAdminService.updateCommercial(...args),
         2
       );
     } catch (error) {
-      if (isPrismaSerializableConflict(error)) {
+      if (isPrismaRetryableTransactionError(error)) {
         throw new PreRegistrationAdminError(
           'Os dados foram alterados em outro local. Recarregue antes de editar novamente.',
           'CONCURRENT_MODIFICATION'

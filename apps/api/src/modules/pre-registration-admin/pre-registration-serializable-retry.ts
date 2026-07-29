@@ -1,14 +1,29 @@
-type ErrorWithCode = { code?: unknown };
+type ErrorWithDiagnostics = {
+  code?: unknown;
+  message?: unknown;
+};
 
-export function isPrismaSerializableConflict(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    (error as ErrorWithCode).code === 'P2034'
-  );
+const RETRYABLE_PRISMA_CODES = new Set(['P2034', 'P2028']);
+const RETRYABLE_MESSAGE_FRAGMENTS = [
+  'write conflict',
+  'deadlock',
+  'could not serialize access',
+  'serialization failure',
+  'transaction already closed',
+  'expired transaction',
+];
+
+export function isPrismaRetryableTransactionError(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false;
+  const diagnostic = error as ErrorWithDiagnostics;
+  if (typeof diagnostic.code === 'string' && RETRYABLE_PRISMA_CODES.has(diagnostic.code)) {
+    return true;
+  }
+  const message = typeof diagnostic.message === 'string' ? diagnostic.message.toLowerCase() : '';
+  return RETRYABLE_MESSAGE_FRAGMENTS.some((fragment) => message.includes(fragment));
 }
 
-export async function retryPrismaSerializableConflict<T>(
+export async function retryPrismaTransactionConflict<T>(
   operation: () => Promise<T>,
   maxAttempts = 2
 ): Promise<T> {
@@ -22,9 +37,10 @@ export async function retryPrismaSerializableConflict<T>(
       return await operation();
     } catch (error) {
       lastError = error;
-      if (!isPrismaSerializableConflict(error) || attempt === maxAttempts) {
+      if (!isPrismaRetryableTransactionError(error) || attempt === maxAttempts) {
         throw error;
       }
+      await new Promise((resolve) => setTimeout(resolve, attempt * 10));
     }
   }
 
