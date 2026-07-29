@@ -122,13 +122,16 @@ jobs:
           test -s artifacts/issue-275/rollout-consumer-public-token-route.png
           test -s artifacts/issue-275/rollout-consumer-authenticated-resume.png
           test -s artifacts/issue-275/rollout-consumer-administrative-list.png
+          test -s artifacts/issue-275/rollout-consumer-administrative-create.png
+          test -s artifacts/issue-275/rollout-consumer-administrative-detail.png
+          test -s artifacts/issue-275/rollout-consumer-administrative-edit.png
           jq -e '
             .schemaVersion == 3 and
             .buildMode == "pre-registration-route-enabled-same-origin" and
             .apiMode == "PRE_REGISTRATION_ENABLED=false" and
             .availabilityDelayMs >= 500 and
             .implementationConclusionsIncluded == false and
-            (.surfaces | length) == 3 and
+            (.surfaces | length) == 6 and
             ([.surfaces[] | select(.sameOriginProbeObserved != true)] | length) == 0 and
             ([.surfaces[] | select(.checkingBoundaryObservedBeforeDisabledResponse != true)] | length) == 0 and
             ([.surfaces[] | select(.protectedContentAbsentDuringProbe != true)] | length) == 0 and
@@ -138,7 +141,10 @@ jobs:
             ([.surfaces[] | select(.wrongAudienceCopyAbsent != true)] | length) == 0 and
             ([.surfaces[] | select(.name == "public-token-route" and .audience == "public")] | length) == 1 and
             ([.surfaces[] | select(.name == "authenticated-resume" and .audience == "authenticated")] | length) == 1 and
-            ([.surfaces[] | select(.name == "administrative-list" and .audience == "administrative")] | length) == 1
+            ([.surfaces[] | select(.name == "administrative-list" and .audience == "administrative")] | length) == 1 and
+            ([.surfaces[] | select(.name == "administrative-create" and .audience == "administrative")] | length) == 1 and
+            ([.surfaces[] | select(.name == "administrative-detail" and .audience == "administrative")] | length) == 1 and
+            ([.surfaces[] | select(.name == "administrative-edit" and .audience == "administrative")] | length) == 1
           ' artifacts/issue-275/rollout-consumer-browser.json >/dev/null
           grep -q 'Test Suites:.*passed' artifacts/issue-275/rollout-consumer-browser.log
           grep -q 'Test Files.*passed' artifacts/issue-275/rollout-consumer-unit.log
