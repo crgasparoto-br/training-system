@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
+// Temporary trigger removed by the atomic remediation workflow.
 describe('temporary Issue 275 source materialization', () => {
   it('emits the exact verifier source through the CI test artifact', () => {
     const source = readFileSync(
