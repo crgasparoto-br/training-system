@@ -1,18 +1,6 @@
 name: Visual Audit Issue 270
 
 on:
-  pull_request:
-    branches:
-      - develop
-    paths:
-      - 'apps/web/src/pages/PreRegistrationAdmin/**'
-      - 'apps/web/src/pages/PreRegistrationAvailabilityBoundary*'
-      - 'apps/web/src/layouts/DashboardLayout.tsx'
-      - 'apps/web/src/services/pre-registration-admin.service.ts'
-      - 'packages/types/pre-registration-admin.ts'
-      - 'apps/api/scripts/visual-audit-issue-270.mjs'
-      - 'apps/api/scripts/visual-audit-pre-registration-availability-hook.mjs'
-      - '.github/workflows/visual-audit-issue-270.yml'
   workflow_dispatch:
 
 jobs:
