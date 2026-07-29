@@ -31,17 +31,10 @@ export function PreRegistrationAvailabilityBoundary({
 
     window.addEventListener(PRE_REGISTRATION_DISABLED_EVENT, markDisabled);
 
-    // With an explicit API origin, probe before exposing the route. Same-origin
-    // deployments rely on the first real pre-registration request and the Axios
-    // interceptor below, avoiding a synthetic 404 in static preview harnesses.
-    if (!import.meta.env.VITE_API_URL?.trim()) {
-      setAvailability('enabled');
-      return () => {
-        active = false;
-        window.removeEventListener(PRE_REGISTRATION_DISABLED_EVENT, markDisabled);
-      };
-    }
-
+    // Probe before exposing any route consumer in both explicit-origin and
+    // same-origin deployments. The Axios base URL already resolves the latter
+    // to /api/v1, so skipping this request would briefly expose a partially
+    // functional screen while the API rollout is disabled.
     api
       .get('/pre-registration/availability', { validateStatus: () => true })
       .then((response) => {
@@ -73,6 +66,7 @@ export function PreRegistrationAvailabilityBoundary({
         className="flex min-h-screen items-center justify-center bg-background px-4 py-12"
         role="status"
         aria-live="polite"
+        data-pre-registration-availability="checking"
       >
         <p className="text-sm font-medium text-muted-foreground">
           Verificando disponibilidade da pré-matrícula...
