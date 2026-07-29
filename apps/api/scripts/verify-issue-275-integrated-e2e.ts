@@ -614,10 +614,24 @@ async function scenarioBasic(
     { timeout: 30_000 }
   );
   const alunoId = new URL(adminPage.url()).pathname.split('/').filter(Boolean).at(-1)!;
-  const inviteUrl = await adminPage.evaluate(
-    () => (window as unknown as { __issue275Invite?: string }).__issue275Invite
+  const linkAlreadyVisible = await adminPage.evaluate(() =>
+    document.body.innerText.includes('Novo link gerado')
   );
-  assert(inviteUrl, 'Fluxo administrativo não copiou o convite recém-gerado');
+  if (!linkAlreadyVisible) {
+    await clickByText(adminPage, 'button', 'Gerar link de pré-cadastro');
+  }
+  await waitForText(adminPage, 'Novo link gerado');
+  const inviteUrl = await adminPage.evaluate(() =>
+    Array.from(document.querySelectorAll('p'))
+      .map((element) => element.textContent?.trim() || '')
+      .find((text) => /^https?:\/\/[^\s]+\/pre-cadastro\/[A-Za-z0-9_-]+$/.test(text))
+  );
+  assert(inviteUrl, 'Fluxo administrativo não exibiu o convite recém-gerado');
+  await clickByText(adminPage, 'button', 'Copiar link');
+  assert(
+    await adminPage.evaluate((expectedUrl) => document.body.innerText.includes(expectedUrl), inviteUrl),
+    'O link deixou de permanecer disponível após a ação de cópia'
+  );
 
   const { context: studentContext, page: studentPage } = await newIsolatedPage(currentBrowser);
   await studentPage.setViewport({ width: 390, height: 844 });
