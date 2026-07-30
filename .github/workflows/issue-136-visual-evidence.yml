@@ -1,0 +1,105 @@
+name: Issue 136 Visual Evidence
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - 'apps/web/src/pages/PhysicalAssessment/CapacityPrescriptionScreen.tsx'
+      - 'apps/web/src/pages/PhysicalAssessment/capacityPrescriptionScreen.model.ts'
+      - 'apps/web/src/pages/PhysicalAssessmentProtocol.tsx'
+      - 'apps/web/src/App.tsx'
+      - 'apps/web/src/layouts/DashboardLayout.tsx'
+      - 'apps/api/src/scripts/capture-capacity-prescription-visual.mjs'
+      - '.github/workflows/issue-136-visual-evidence.yml'
+
+jobs:
+  visual-evidence:
+    name: Capture capacity prescription
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create visual evidence attestation
+        shell: bash
+        env:
+          AUDIT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          AUDIT_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          AUDIT_MERGE_PREVIEW_SHA: ${{ github.sha }}
+        run: |
+          mkdir -p artifacts/issue-136-visual
+          cat > artifacts/issue-136-visual/orquestrador-artifact.json <<EOF
+          {
+            "schemaVersion": 1,
+            "kind": "issue-136-visual-evidence",
+            "repository": "${GITHUB_REPOSITORY}",
+            "workflow": "${GITHUB_WORKFLOW}",
+            "runId": "${GITHUB_RUN_ID}",
+            "runAttempt": "${GITHUB_RUN_ATTEMPT}",
+            "eventName": "${GITHUB_EVENT_NAME}",
+            "headSha": "${AUDIT_HEAD_SHA}",
+            "baseSha": "${AUDIT_BASE_SHA}",
+            "mergePreviewSha": "${AUDIT_MERGE_PREVIEW_SHA}",
+            "ref": "${GITHUB_REF}"
+          }
+          EOF
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Puppeteer Chrome
+        run: pnpm --filter @corrida/api exec puppeteer browsers install chrome
+
+      - name: Build web application
+        run: pnpm --filter @corrida/web build
+
+      - name: Start web preview
+        shell: bash
+        run: |
+          pnpm --filter @corrida/web preview --host 127.0.0.1 --port 4173 > /tmp/issue-136-preview.log 2>&1 &
+          echo $! > /tmp/issue-136-preview.pid
+
+      - name: Capture desktop and mobile evidence
+        shell: bash
+        env:
+          CAPACITY_VISUAL_BASE_URL: http://127.0.0.1:4173
+          CAPACITY_VISUAL_OUTPUT: ../../artifacts/issue-136-visual
+        run: |
+          set -o pipefail
+          pnpm --filter @corrida/api exec node src/scripts/capture-capacity-prescription-visual.mjs 2>&1 \
+            | tee artifacts/issue-136-visual/capture.log
+
+      - name: Upload preview log
+        if: always()
+        run: cp /tmp/issue-136-preview.log artifacts/issue-136-visual/preview.log || true
+
+      - name: Upload visual evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-136-visual-evidence-${{ github.run_id }}
+          path: artifacts/issue-136-visual
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Stop web preview
+        if: always()
+        shell: bash
+        run: |
+          if [ -f /tmp/issue-136-preview.pid ]; then
+            kill "$(cat /tmp/issue-136-preview.pid)" || true
+          fi

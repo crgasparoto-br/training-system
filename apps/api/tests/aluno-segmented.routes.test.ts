@@ -5,6 +5,15 @@ const request = require('supertest');
 const mockBlockAccessMiddleware = jest.fn(
   () => (_req: express.Request, _res: express.Response, next: express.NextFunction) => next()
 );
+const mockStudentProfileFindFirst = jest.fn();
+
+jest.mock('@prisma/client', () => ({
+  PrismaClient: jest.fn(() => ({
+    studentProfile: {
+      findFirst: mockStudentProfileFindFirst,
+    },
+  })),
+}));
 
 jest.mock('../src/modules/auth/auth.middleware', () => ({
   authMiddleware: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
@@ -66,6 +75,7 @@ describe('segmented aluno routes', () => {
   app.use('/alunos', segmentedAlunoRouter);
 
   beforeEach(() => {
+    mockStudentProfileFindFirst.mockReset();
     (alunoService.belongsToContract as jest.Mock).mockReset();
     (alunoService.belongsToProfessor as jest.Mock).mockReset();
     (studentParqBoundaryService.getAdministrativeSummary as jest.Mock).mockReset();
@@ -77,6 +87,7 @@ describe('segmented aluno routes', () => {
     (studentDomainService.listExternalActivities as jest.Mock).mockReset();
     (studentDomainService.getTimeline as jest.Mock).mockReset();
     (alunoService.belongsToContract as jest.Mock).mockResolvedValue(true);
+    mockStudentProfileFindFirst.mockResolvedValue(null);
   });
 
   it('returns the sanitized administrative summary through the PAR-Q boundary', async () => {
@@ -123,15 +134,23 @@ describe('segmented aluno routes', () => {
     expect(mockBlockAccessMiddleware).toHaveBeenCalledWith('students.details.health');
   });
 
-  it('passes the authenticated contract to segmented profile reads', async () => {
+  it('passes the authenticated contract and returns the internal profile id separately', async () => {
     (studentDomainService.getProfile as jest.Mock).mockResolvedValue({
       alunoId: 'aluno-1',
+      source: { type: 'student', reference: 'external-reference' },
       identification: { name: 'Aluno Teste' },
     });
+    mockStudentProfileFindFirst.mockResolvedValue({ id: 'student-profile-internal' });
 
     const response = await request(app).get('/alunos/aluno-1/profile');
 
     expect(response.status).toBe(200);
+    expect(response.body.data.recordId).toBe('student-profile-internal');
+    expect(response.body.data.source.reference).toBe('external-reference');
+    expect(mockStudentProfileFindFirst).toHaveBeenCalledWith({
+      where: { alunoId: 'aluno-1', contractId: 'contract-1' },
+      select: { id: true },
+    });
     expect(studentDomainService.getProfile).toHaveBeenCalledWith('aluno-1', {
       companyContractId: 'contract-1',
     });
@@ -145,6 +164,7 @@ describe('segmented aluno routes', () => {
     expect(response.status).toBe(404);
     expect(response.body.error).toBe('Aluno não encontrado ou não pertence ao seu acesso');
     expect(studentDomainService.getProfile).not.toHaveBeenCalled();
+    expect(mockStudentProfileFindFirst).not.toHaveBeenCalled();
   });
 
   it('returns 404 when segmented financial data is not available for the aluno', async () => {

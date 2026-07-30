@@ -145,6 +145,12 @@ model CompanyContract {
   studentLifecycleEvents        StudentLifecycleEvent[]
   preRegistrationInvites        PreRegistrationInvite[]
   preRegistrationGuardianAuthorizations PreRegistrationGuardianAuthorization[]
+  capacityPrescriptions         CapacityPrescription[]             @relation("CapacityPrescriptionContract")
+  capacityPrescriptionVersions  CapacityPrescriptionVersion[]      @relation("CapacityPrescriptionVersionContract")
+  capacityParameterSets         CapacityPrescriptionParameterSet[] @relation("CapacityPrescriptionParameterContract")
+  capacityPlanningCycles        CapacityPlanningCycle[]             @relation("CapacityPlanningCycleContract")
+  capacityTechnicalCatalogItems CapacityTechnicalCatalogItem[]       @relation("CapacityTechnicalCatalogContract")
+  goalCapacityClassifications   ProntuarioGoalCapacityClassification[] @relation("GoalCapacityClassificationContract")
 
   @@index([type])
   @@map("Contract")
@@ -372,6 +378,13 @@ model Professor {
   plans                           TrainingPlan[]
   Assessment                      Assessment[]
   parqReviewsCompleted           StudentParqProfessionalReview[] @relation("StudentParqReviewedBy")
+  capacityPrescriptionsCreated   CapacityPrescription[]          @relation("CapacityPrescriptionCreatedBy")
+  capacityPrescriptionsUpdated   CapacityPrescription[]          @relation("CapacityPrescriptionUpdatedBy")
+  capacityVersionsResponsible    CapacityPrescriptionVersion[]   @relation("CapacityPrescriptionVersionResponsible")
+  capacityParameterSetsCreated   CapacityPrescriptionParameterSet[] @relation("CapacityPrescriptionParameterCreatedBy")
+  capacityPlanningCyclesResponsible CapacityPlanningCycle[] @relation("CapacityPlanningCycleResponsible")
+  capacityTechnicalCatalogItemsCreated CapacityTechnicalCatalogItem[] @relation("CapacityTechnicalCatalogCreatedBy")
+  goalCapacityClassificationsUpdated ProntuarioGoalCapacityClassification[] @relation("GoalCapacityClassificationUpdatedBy")
 
   @@index([collaboratorFunctionId])
   @@index([responsibleManagerId])
@@ -496,6 +509,10 @@ model Aluno {
   lifecycleEvents               StudentLifecycleEvent[]
   preRegistrationInvites        PreRegistrationInvite[]
   guardianAuthorizations        PreRegistrationGuardianAuthorization[]
+  capacityPrescriptions         CapacityPrescription[]        @relation("CapacityPrescriptionAluno")
+  capacityPrescriptionVersions  CapacityPrescriptionVersion[] @relation("CapacityPrescriptionVersionAluno")
+  capacityPlanningCycles        CapacityPlanningCycle[] @relation("CapacityPlanningCycleAluno")
+  goalCapacityClassifications   ProntuarioGoalCapacityClassification[] @relation("GoalCapacityClassificationAluno")
 
   @@unique([contractId, userId])
   @@unique([contractId, leadCpfNormalized])
@@ -1928,6 +1945,8 @@ model ProntuarioGoal {
   createdAt   DateTime             @default(now())
   updatedAt   DateTime             @updatedAt
   record      ProntuarioRecord     @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  capacityPrescriptionLinks CapacityPrescriptionGoalLink[]
+  capacityClassification    ProntuarioGoalCapacityClassification?
 
   @@index([recordId, status])
   @@index([targetDate])
@@ -2595,4 +2614,189 @@ model PreRegistrationInviteEvent {
   invite           PreRegistrationInvite          @relation(fields: [inviteId], references: [id], onDelete: Cascade)
 
   @@index([inviteId, createdAt])
+}
+
+model CapacityPrescription {
+  id                     String   @id @default(cuid())
+  contractId             String
+  alunoId                String
+  capacity               String
+  status                 String   @default("planned")
+  currentVersion         Int      @default(0)
+  createdByProfessorId   String
+  updatedByProfessorId   String
+  publishesTodayWorkout  Boolean  @default(false)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  contract               CompanyContract @relation("CapacityPrescriptionContract", fields: [contractId], references: [id], onDelete: Cascade)
+  aluno                  Aluno           @relation("CapacityPrescriptionAluno", fields: [alunoId], references: [id], onDelete: Cascade)
+  createdByProfessor     Professor       @relation("CapacityPrescriptionCreatedBy", fields: [createdByProfessorId], references: [id], onDelete: Restrict)
+  updatedByProfessor     Professor       @relation("CapacityPrescriptionUpdatedBy", fields: [updatedByProfessorId], references: [id], onDelete: Restrict)
+  versions               CapacityPrescriptionVersion[]
+
+  @@unique([contractId, alunoId, capacity])
+  @@index([contractId, alunoId, status])
+  @@index([createdByProfessorId])
+  @@index([updatedByProfessorId])
+}
+
+model CapacityPrescriptionVersion {
+  id                       String   @id @default(cuid())
+  prescriptionId           String
+  contractId               String
+  alunoId                  String
+  responsibleProfessorId   String
+  capacity                 String
+  status                   String
+  version                  Int
+  technicalJustification   String
+  professorSummary         String
+  studentMessage           String?
+  methodologyVersion       String?
+  parameterSetIds          String[] @default([])
+  parameters               Json?
+  publishesTodayWorkout    Boolean  @default(false)
+  createdAt                DateTime @default(now())
+  prescription             CapacityPrescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+  contract                 CompanyContract      @relation("CapacityPrescriptionVersionContract", fields: [contractId], references: [id], onDelete: Cascade)
+  aluno                    Aluno                @relation("CapacityPrescriptionVersionAluno", fields: [alunoId], references: [id], onDelete: Cascade)
+  responsibleProfessor     Professor            @relation("CapacityPrescriptionVersionResponsible", fields: [responsibleProfessorId], references: [id], onDelete: Restrict)
+  sources                  CapacityPrescriptionSource[]
+  alerts                   CapacityPrescriptionAlertRecord[]
+  goals                    CapacityPrescriptionGoalLink[]
+
+  @@unique([prescriptionId, version])
+  @@index([contractId, alunoId, createdAt])
+  @@index([responsibleProfessorId])
+}
+
+model CapacityPrescriptionSource {
+  id                       String   @id @default(cuid())
+  versionId                String
+  sourceType               String
+  sourceId                 String
+  label                    String
+  assessedAt               DateTime?
+  origin                   String?
+  sourceVersion            String?
+  responsibleProfessorId   String?
+  createdAt                DateTime @default(now())
+  version                  CapacityPrescriptionVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  @@index([versionId])
+  @@index([sourceType, sourceId])
+}
+
+model CapacityPrescriptionAlertRecord {
+  id           String   @id @default(cuid())
+  versionId    String
+  code         String
+  message      String
+  severity     String
+  sourceRefId  String?
+  createdAt    DateTime @default(now())
+  version      CapacityPrescriptionVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  @@index([versionId])
+}
+
+model CapacityPrescriptionGoalLink {
+  id         String   @id @default(cuid())
+  versionId  String
+  goalId     String
+  createdAt  DateTime @default(now())
+  version    CapacityPrescriptionVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  goal       ProntuarioGoal              @relation(fields: [goalId], references: [id], onDelete: Restrict)
+
+  @@unique([versionId, goalId])
+  @@index([goalId])
+}
+
+model CapacityPrescriptionParameterSet {
+  id                     String   @id @default(cuid())
+  contractId             String
+  capacity               String
+  code                   String
+  name                   String
+  version                Int
+  methodologyVersion     String
+  parameters             Json
+  isCurrent              Boolean  @default(true)
+  createdByProfessorId   String
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  contract               CompanyContract @relation("CapacityPrescriptionParameterContract", fields: [contractId], references: [id], onDelete: Cascade)
+  createdByProfessor     Professor       @relation("CapacityPrescriptionParameterCreatedBy", fields: [createdByProfessorId], references: [id], onDelete: Restrict)
+
+  @@unique([contractId, capacity, code, version])
+  @@index([contractId, capacity, isCurrent])
+  @@index([createdByProfessorId])
+}
+
+
+model CapacityPlanningCycle {
+  id                     String   @id
+  contractId             String
+  alunoId                String
+  responsibleProfessorId String
+  parentId               String?
+  level                  String
+  code                   String
+  name                   String
+  objective              String?
+  startDate              DateTime?
+  endDate                DateTime?
+  loadCode               String?
+  volume                 String?
+  frequency              String?
+  capacityParameters     Json     @default("{}")
+  status                 String   @default("planned")
+  version                Int      @default(1)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  contract               CompanyContract @relation("CapacityPlanningCycleContract", fields: [contractId], references: [id], onDelete: Cascade)
+  aluno                  Aluno @relation("CapacityPlanningCycleAluno", fields: [alunoId], references: [id], onDelete: Cascade)
+  responsibleProfessor   Professor @relation("CapacityPlanningCycleResponsible", fields: [responsibleProfessorId], references: [id], onDelete: Restrict)
+  parent                 CapacityPlanningCycle? @relation("CapacityPlanningCycleHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children               CapacityPlanningCycle[] @relation("CapacityPlanningCycleHierarchy")
+
+  @@unique([contractId, alunoId, level, code, version], map: "CapacityPlanningCycle_contract_aluno_level_code_version_key")
+  @@index([contractId, alunoId, level, status], map: "CapacityPlanningCycle_contract_aluno_level_status_idx")
+  @@index([parentId], map: "CapacityPlanningCycle_parentId_idx")
+}
+
+model CapacityTechnicalCatalogItem {
+  id                   String   @id
+  contractId           String
+  category             String
+  code                 String
+  name                 String
+  metadata             Json     @default("{}")
+  version              Int      @default(1)
+  isCurrent            Boolean  @default(true)
+  createdByProfessorId String
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  contract             CompanyContract @relation("CapacityTechnicalCatalogContract", fields: [contractId], references: [id], onDelete: Cascade)
+  createdByProfessor   Professor @relation("CapacityTechnicalCatalogCreatedBy", fields: [createdByProfessorId], references: [id], onDelete: Restrict)
+
+  @@unique([contractId, category, code, version], map: "CapacityTechnicalCatalogItem_contract_category_code_version_key")
+  @@index([contractId, category, isCurrent], map: "CapacityTechnicalCatalogItem_contract_category_current_idx")
+}
+
+model ProntuarioGoalCapacityClassification {
+  goalId               String   @id
+  contractId           String
+  alunoId              String
+  capacities           String[] @default([])
+  relatesToAssessment  Boolean  @default(false)
+  relatesToActionPlan  Boolean  @default(false)
+  updatedByProfessorId String
+  updatedAt            DateTime @updatedAt
+  goal                 ProntuarioGoal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  contract             CompanyContract @relation("GoalCapacityClassificationContract", fields: [contractId], references: [id], onDelete: Cascade)
+  aluno                Aluno @relation("GoalCapacityClassificationAluno", fields: [alunoId], references: [id], onDelete: Cascade)
+  updatedByProfessor   Professor @relation("GoalCapacityClassificationUpdatedBy", fields: [updatedByProfessorId], references: [id], onDelete: Restrict)
+
+  @@index([contractId, alunoId], map: "ProntuarioGoalCapacityClassification_contract_aluno_idx")
 }

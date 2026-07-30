@@ -1,0 +1,27 @@
+[role='tablist'][aria-label='Capacidades físicas'] {
+  display: grid !important;
+  min-width: 0 !important;
+  grid-template-columns: minmax(0, 1fr);
+  overflow: visible !important;
+}
+
+[role='tablist'][aria-label='Capacidades físicas'] > [role='tab'] {
+  display: block !important;
+  width: 100%;
+  min-width: 0;
+  height: auto !important;
+  white-space: normal !important;
+  text-align: left;
+}
+
+@media (min-width: 640px) {
+  [role='tablist'][aria-label='Capacidades físicas'] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1280px) {
+  [role='tablist'][aria-label='Capacidades físicas'] {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}

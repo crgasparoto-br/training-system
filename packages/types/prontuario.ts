@@ -137,7 +137,8 @@ export interface ProntuarioOverview extends ProntuarioOverviewBase {
   parqSubmissions: ParqSubmissionDTO[];
   /** Backward-compatible aliases derived client-side from the safe summary. */
   parqState: ParqAdministrativeSummaryDTO['state'];
-  parqLegacy: ParqAdministrativeSummaryDTO['legacy'];
+  /** Null only when a client builds an explicit unavailable/empty fallback. */
+  parqLegacy: ParqAdministrativeSummaryDTO['legacy'] | null;
 }
 
 export type ProntuarioRecordPayload = {

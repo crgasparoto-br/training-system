@@ -152,6 +152,7 @@ function App() {
             <Route path="protocolo-avaliacao-fisica" element={<Navigate to="/protocolo-avaliacao-fisica/antropometria" replace />} />
             <Route path="protocolo-avaliacao-fisica/antropometria" element={withAccess('physicalAssessment.protocol', <PhysicalAssessmentProtocol />)} />
             <Route path="protocolo-avaliacao-fisica/prontuario-entrevista-acompanhamento" element={withAccess('physicalAssessment.protocol', <PhysicalAssessmentProtocol />)} />
+            <Route path="protocolo-avaliacao-fisica/prescricao-capacidades" element={withAccess('plans.capacityPrescriptions.view', <PhysicalAssessmentProtocol />)} />
             <Route path="protocolo-avaliacao-fisica/adipometria" element={withAccess('physicalAssessment.protocol', <PhysicalAssessmentProtocol />)} />
             <Route path="protocolo-avaliacao-fisica/bioimpedanciometria" element={withAccess('physicalAssessment.protocol', <PhysicalAssessmentProtocol />)} />
             <Route path="protocolo-avaliacao-fisica/ultrassonografia" element={withAccess('physicalAssessment.protocol', <PhysicalAssessmentProtocol />)} />

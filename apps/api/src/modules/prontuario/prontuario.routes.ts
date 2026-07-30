@@ -3,11 +3,18 @@ import { z } from 'zod';
 import { sendError, sendSuccess } from '@corrida/utils';
 import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js';
 import { blockAccessMiddleware, screenAccessMiddleware } from '../access-control/access-control.middleware.js';
+import { canProfessorAccessBlock } from '../access-control/access-control.service.js';
 import { prontuarioService } from './prontuario.service.js';
 import { sanitizeProntuarioOverviewForSummary } from './prontuario-parq-boundary.js';
+import {
+  prontuarioOverviewBoundaryPrisma,
+  prontuarioOverviewReadService,
+  type ProntuarioOverviewReadPermissions,
+} from './prontuario-overview-read.service.js';
 import { ParqServiceError, preRegistrationParqService } from '../pre-registration-public/pre-registration-parq.service.js';
 
 const router: Router = Router();
+const prisma = prontuarioOverviewBoundaryPrisma;
 
 router.use(authMiddleware);
 router.use(professorMiddleware);
@@ -31,6 +38,36 @@ const contextFromRequest = (req: Request) => ({
   userId: (req as any).user.userId as string | undefined,
 });
 
+async function resolveProntuarioReadPermissions(
+  contractId: string,
+  professorId: string
+): Promise<ProntuarioOverviewReadPermissions | null> {
+  const professor = await prisma.professor.findFirst({
+    where: { id: professorId, contractId },
+    include: { collaboratorFunction: true },
+  });
+  if (!professor) return null;
+
+  const [goals, anamnesisFollowUp, activityHistory, medicationsProcedures, painCases, discomforts] =
+    await Promise.all([
+      canProfessorAccessBlock(professor, 'physicalAssessment.prnt.goals'),
+      canProfessorAccessBlock(professor, 'physicalAssessment.prnt.anamnesisFollowUp'),
+      canProfessorAccessBlock(professor, 'physicalAssessment.prnt.activityHistory'),
+      canProfessorAccessBlock(professor, 'physicalAssessment.prnt.medicationsProcedures'),
+      canProfessorAccessBlock(professor, 'physicalAssessment.prnt.painCases'),
+      canProfessorAccessBlock(professor, 'physicalAssessment.prnt.discomforts'),
+    ]);
+
+  return {
+    goals,
+    anamnesisFollowUp,
+    activityHistory,
+    medicationsProcedures,
+    painCases,
+    discomforts,
+  };
+}
+
 function handleError(res: Response, error: any, fallback: string) {
   if (error instanceof z.ZodError) return sendError(res, 'Dados inválidos', 400, error.errors);
   if (error instanceof ParqServiceError) {
@@ -47,9 +84,17 @@ router.get(
   blockAccessMiddleware('physicalAssessment.prnt.summary'),
   async (req: Request, res: Response) => {
     try {
-      const { contractId } = contextFromRequest(req);
-      if (!contractId) return sendError(res, 'Contrato não encontrado', 404);
-      const overview = await prontuarioService.overview(contractId, req.params.alunoId);
+      const { contractId, professorId } = contextFromRequest(req);
+      if (!contractId || !professorId) return sendError(res, 'Contrato não encontrado', 404);
+
+      const permissions = await resolveProntuarioReadPermissions(contractId, professorId);
+      if (!permissions) return sendError(res, 'Perfil sem permissão para acessar este recurso', 403);
+
+      const overview = await prontuarioOverviewReadService.overview(
+        contractId,
+        req.params.alunoId,
+        permissions
+      );
       return sendSuccess(res, sanitizeProntuarioOverviewForSummary(overview), 'PRNT carregado');
     } catch (error) {
       return handleError(res, error, 'Erro ao carregar PRNT');
