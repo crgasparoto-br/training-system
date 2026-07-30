@@ -22,11 +22,36 @@ export interface AdipometryProtocolPopulation {
   maturationCriteria: string;
 }
 
+export type AdipometryNumericVariable =
+  | AdipometryInputField
+  | AdipometryResultField
+  | 'ageAtAssessment';
+
+/**
+ * Restricted, executable expression language persisted with an approved
+ * protocol. Plain text is intentionally not accepted as a clinical equation.
+ */
+export type AdipometryExpression =
+  | { op: 'constant'; value: number }
+  | { op: 'variable'; name: AdipometryNumericVariable }
+  | { op: 'add'; args: AdipometryExpression[] }
+  | { op: 'subtract'; left: AdipometryExpression; right: AdipometryExpression }
+  | { op: 'multiply'; args: AdipometryExpression[] }
+  | { op: 'divide'; numerator: AdipometryExpression; denominator: AdipometryExpression }
+  | { op: 'power'; base: AdipometryExpression; exponent: AdipometryExpression }
+  | { op: 'negate'; value: AdipometryExpression }
+  | {
+      op: 'ifEquals';
+      field: `profileCriteria.${string}`;
+      expected: string | number | boolean | null;
+      then: AdipometryExpression;
+      else: AdipometryExpression;
+    };
+
 export interface AdipometryProtocolEquation {
   id: string;
   output: Exclude<AdipometryResultField, 'skinfoldTotalMm'>;
-  expression: string;
-  variables: string[];
+  expression: AdipometryExpression;
 }
 
 export interface AdipometryProtocolBlockingLimit {
@@ -55,6 +80,7 @@ export interface AdipometryProtocolTestVector {
 export interface AdipometryProtocolClinicalApproval {
   status: 'approved';
   approverUserId: string;
+  /** ISO-8601 instant with `Z` or an explicit numeric offset. */
   approvedAt: string;
   approvalRecordId: string;
   artifactSha256: string;
@@ -257,5 +283,7 @@ export interface AdipometryComparison {
 /**
  * Payloads de criação, atualização e finalização não possuem campos de resultado.
  * Resultados derivados são sempre calculados e persistidos pelo backend.
+ * O ator de auditoria também é injetado pelo backend autenticado e nunca é
+ * aceito como campo controlado pelo frontend.
  */
 export type AdipometryAuthoritativeResultFields = never;
