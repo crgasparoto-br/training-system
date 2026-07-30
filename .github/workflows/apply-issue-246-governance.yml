@@ -62,6 +62,11 @@ jobs:
           migration = Path('/tmp/issue246transport/apps/api/prisma/migrations/20260730224500_add_adipometry_clinical_governance/migration.sql')
           sql = migration.read_text()
           sql = sql.replace(
+              'BEGIN;\n\n-- Issue #246:',
+              'BEGIN;\n\n' + 'CREATE OR REPLACE FUNCTION "roundAdipometryValue"(\n  p_value NUMERIC,\n  p_scale INTEGER,\n  p_mode TEXT\n) RETURNS NUMERIC\nLANGUAGE plpgsql\nIMMUTABLE\nSTRICT\nAS $round$\nDECLARE\n  v_factor NUMERIC;\n  v_absolute NUMERIC;\n  v_lower NUMERIC;\n  v_fraction NUMERIC;\n  v_rounded NUMERIC;\nBEGIN\n  IF p_scale < 0 OR p_scale > 8 THEN\n    RAISE EXCEPTION \'ADIPOMETRY_ROUNDING_SCALE_INVALID\' USING ERRCODE = \'22023\';\n  END IF;\n  IF p_mode = \'HALF_UP\' THEN RETURN ROUND(p_value, p_scale); END IF;\n  IF p_mode <> \'HALF_EVEN\' THEN\n    RAISE EXCEPTION \'ADIPOMETRY_ROUNDING_MODE_INVALID\' USING ERRCODE = \'22023\';\n  END IF;\n  v_factor := POWER(10::NUMERIC, p_scale);\n  v_absolute := ABS(p_value) * v_factor;\n  v_lower := FLOOR(v_absolute);\n  v_fraction := v_absolute - v_lower;\n  IF v_fraction < 0.5 THEN v_rounded := v_lower;\n  ELSIF v_fraction > 0.5 THEN v_rounded := v_lower + 1;\n  ELSIF MOD(v_lower, 2) = 0 THEN v_rounded := v_lower;\n  ELSE v_rounded := v_lower + 1; END IF;\n  RETURN SIGN(p_value) * v_rounded / v_factor;\nEND;\n$round$;\n\n' + '-- Issue #246:',
+              1,
+          )
+          sql = sql.replace(
               'FOREIGN KEY ("professorId", "contractId") REFERENCES "Professor"("id", "contractId")\n  ON DELETE RESTRICT ON UPDATE CASCADE;',
               'FOREIGN KEY ("professorId") REFERENCES "Professor"("id")\n  ON DELETE RESTRICT ON UPDATE CASCADE;',
           )
