@@ -25,19 +25,37 @@ content = content.replace(
     1,
 )
 
+negative_block = '''after_profile_update=$(cat <<'SQL'
+BEGIN;
+SELECT set_config('app.current_user_id', 'issue246-profile-actor', true);
+UPDATE "AdipometryAssessment"
+SET "status" = 'COMPLETED',
+    "protocolSex" = 'female',
+    "protocolSexSource" = 'professional_confirmation',
+    "protocolSexConfirmedByUserId" = 'issue246-profile-actor',
+    "protocolSexConfirmedAt" = CURRENT_TIMESTAMP,
+    "weightKg" = 70,
+    "tricepsMm" = 10,
+    "subscapularMm" = 10,
+    "suprailiacMm" = 10,
+    "abdominalMm" = 10,
+    "thighMm" = 10,
+    "protocolId" = 'adpt_protocol_guedes_1991_adult_young_v1',
+    "protocolCode" = 'GUEDES_1991_ADULT_YOUNG',
+    "protocolVersion" = 1,
+    "calculationSnapshot" = '{}'::jsonb
+WHERE "id" = 'issue246-profile-draft';
+COMMIT;
+SQL
+)'''
+lines = content.splitlines()
+negative_indexes = [index for index, line in enumerate(lines) if line.startswith('after_profile_update=')]
+if len(negative_indexes) != 1:
+    raise RuntimeError(f'negative profile scenario anchor mismatch: {len(negative_indexes)}')
+lines[negative_indexes[0]] = negative_block
+content = '\n'.join(lines) + '\n'
+
 replacements = [
-    (
-        '''"status"='COMPLETED', "weightKg"=70,''',
-        '''"status"='COMPLETED', "protocolSex"='female', "protocolSexSource"='professional_confirmation', "protocolSexConfirmedByUserId"='issue246-profile-actor', "protocolSexConfirmedAt"=CURRENT_TIMESTAMP, "weightKg"=70,''',
-        1,
-        'single-line completion status',
-    ),
-    (
-        '''"protocolId"='issue246-profile-approved', "protocolCode"='CANONICAL_REQUIRED', "protocolVersion"=1,''',
-        '''"protocolId"='adpt_protocol_guedes_1991_adult_young_v1', "protocolCode"='GUEDES_1991_ADULT_YOUNG', "protocolVersion"=1,''',
-        1,
-        'single-line protocol',
-    ),
     (
         '''SET "status" = 'COMPLETED',
     "weightKg" = 70,''',
