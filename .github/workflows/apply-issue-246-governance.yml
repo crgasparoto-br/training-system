@@ -8,6 +8,7 @@ on:
       - .github/issue-246/transport.part-*
       - .github/issue-246/compat.py
       - .github/issue-246/profile-contract-compat.py
+      - .github/issue-246/canonical-guedes-compat.py
       - .github/workflows/apply-issue-246-governance.yml
 
 permissions:
@@ -59,9 +60,10 @@ jobs:
           rm -rf /tmp/issue246transport
           mkdir -p /tmp/issue246transport
           tar -xJf /tmp/issue246transport.tar.xz -C /tmp/issue246transport
-          python -m py_compile .github/issue-246/compat.py .github/issue-246/profile-contract-compat.py /tmp/issue246transport/apply.py
+          python -m py_compile .github/issue-246/compat.py .github/issue-246/profile-contract-compat.py .github/issue-246/canonical-guedes-compat.py /tmp/issue246transport/apply.py
           python .github/issue-246/compat.py
           python .github/issue-246/profile-contract-compat.py
+          python .github/issue-246/canonical-guedes-compat.py
           cp -a /tmp/issue246transport/apps /tmp/issue246transport/packages /tmp/issue246transport/docs /tmp/issue246transport/scripts .
           cp /tmp/issue246transport/apply.py .github/issue-246/apply.py
           python .github/issue-246/apply.py
@@ -119,6 +121,7 @@ jobs:
           git rm -f .github/issue-246/transport.part-*
           git rm -f .github/issue-246/compat.py
           git rm -f .github/issue-246/profile-contract-compat.py
+          git rm -f .github/issue-246/canonical-guedes-compat.py
           git rm -f .github/workflows/apply-issue-246-governance.yml
           rmdir .github/issue-246 2>/dev/null || true
           git diff --check
