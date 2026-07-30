@@ -1,32 +1,68 @@
 # Plano de execução — issue 246
 
+## Estado
+
+**Fundação estrutural em validação. Gate clínico pendente.**
+
+A entrega não fecha a issue enquanto fórmula, população, limites, arredondamento, vetores e aprovador clínico do primeiro protocolo não estiverem formalmente definidos.
+
 ## Entrega estrutural
 
 - fonte canônica de protocolos e bloqueios clínicos;
 - contratos compartilhados sem resultados derivados em comandos do frontend;
-- persistência histórica, protocolo versionado, snapshot e auditoria;
+- modelos Prisma e persistência histórica de protocolo, sequência, avaliação e auditoria;
 - sequência transacional por contrato/aluno;
+- isolamento composto por contrato, aluno e professor;
 - imutabilidade e não exclusão de concluídos;
-- correção versionada e isolada por contrato;
-- documentação de produto e banco.
+- correção versionada, vinculada e auditada;
+- documentação de produto, banco e arquitetura;
+- gates PostgreSQL para concorrência, rollback, dados existentes e controles negativos.
 
 ## Decisões
 
 1. Guedes permanece `DRAFT` e Slaughter `DISABLED`.
-2. Nenhum cálculo clínico é implementado ou habilitado nesta issue sem aprovação formal.
+2. Nenhum cálculo clínico é implementado ou habilitado sem aprovação formal.
 3. As cinco dobras são colunas tipadas para impedir pontos arbitrários e facilitar comparação.
-4. Resultados usam `Decimal(8,4)` e medidas `Decimal(8,2)`; a regra clínica de arredondamento será registrada no protocolo aprovado.
-5. Correção cria novo registro e mantém a versão anterior.
-6. A largura mínima do código é três dígitos, sem limite em 999.
+4. Medidas usam `Decimal(8,2)` e resultados `Decimal(8,4)`; a regra clínica de arredondamento pertence ao protocolo aprovado.
+5. Correção cria novo registro, preserva a versão anterior e estabelece vínculo recíproco na mesma transação.
+6. A largura mínima do código é três dígitos, sem truncamento após 999.
+7. Eventos persistidos de ADPT são append-only; tentativas rejeitadas serão auditadas pela API da #247.
+
+## Remediações da auditoria
+
+- substituição de `lpad(..., 3, ...)` por largura mínima dinâmica e constraint código/sequência;
+- inclusão dos quatro modelos e relações inversas no Prisma;
+- chaves estrangeiras compostas para impedir combinação cross-tenant;
+- gate estrutural de protocolo aprovado e imutabilidade de versão;
+- conclusão condicionada a protocolo aprovado e snapshot coerente;
+- correção atômica com motivo, autor, mesma identidade de aluno e auditoria automática;
+- testes específicos de concorrência, rollback, `ADPT-1000`, imutabilidade, correção, snapshot e isolamento;
+- teste da migration sobre banco com dados pré-existentes.
+
+## Gates executáveis
+
+```bash
+bash scripts/verify-adipometry-migration-existing-data.sh
+bash scripts/verify-adipometry-foundation.sh
+pnpm type-check
+pnpm lint
+pnpm test
+pnpm build
+pnpm arch:check
+pnpm access:check
+pnpm docs:check
+```
+
+Os scripts PostgreSQL são executados no workflow `Validate PR` e publicam artefatos próprios.
 
 ## Gate clínico pendente
 
-A habilitação do primeiro protocolo e o encerramento funcional da cadeia de cálculo dependem de:
+A habilitação do primeiro protocolo e o encerramento da issue dependem de:
 
 - fórmula e referência completas;
 - população e aplicabilidade aprovadas;
 - unidades, limites, alertas, bloqueios, precisão e arredondamento;
-- tratamento aprovado para sexo, idade e maturação ausentes/incompatíveis;
+- tratamento aprovado para sexo, idade e maturação ausentes ou incompatíveis;
 - vetores de teste independentes;
 - nome e data do aprovador clínico.
 

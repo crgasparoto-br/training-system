@@ -1,6 +1,39 @@
 export type AdipometryAssessmentStatus = 'DRAFT' | 'COMPLETED';
 export type AdipometryProtocolStatus = 'DRAFT' | 'APPROVED' | 'DISABLED';
 
+export interface AdipometryProtocolDefinitionSnapshot {
+  population: Record<string, unknown>;
+  requiredSkinfolds: string[];
+  inputUnits: Record<string, string>;
+  outputUnits: Record<string, string>;
+  equations: Array<Record<string, unknown>> | Record<string, unknown>;
+  limits: Record<string, unknown>;
+  precision: Record<string, unknown>;
+  rounding: Record<string, unknown>;
+  missingDataBehavior: string;
+  testVectors: Array<Record<string, unknown>>;
+}
+
+export interface AdipometryCalculationSnapshot {
+  protocol: { code: string; version: number };
+  assessmentDate: string;
+  ageAtAssessment: number | null;
+  profileCriteria: Record<string, unknown>;
+  inputs: Required<AdipometryMeasurements>;
+  rules: Record<string, unknown>;
+  results: AdipometryCalculatedResults;
+  implementationVersion: string;
+  calculatedAt: string;
+}
+
+export function formatAdipometryCode(sequenceNumber: number): string {
+  if (!Number.isSafeInteger(sequenceNumber) || sequenceNumber <= 0) {
+    throw new RangeError('Adipometry sequence must be a positive safe integer');
+  }
+
+  return `ADPT-${String(sequenceNumber).padStart(3, '0')}`;
+}
+
 export type AdipometryIncompatibilityCode =
   | 'PROTOCOL_NOT_APPROVED'
   | 'PROTOCOL_DISABLED'
@@ -77,7 +110,7 @@ export interface AdipometryAssessmentSummary {
 export interface AdipometryAssessmentDetail extends AdipometryAssessmentSummary {
   measurements: AdipometryMeasurements;
   results?: AdipometryCalculatedResults;
-  calculationSnapshot?: Record<string, unknown>;
+  calculationSnapshot?: AdipometryCalculationSnapshot;
   anthropometryReference?: AdipometryAnthropometryReference;
   correctsAssessmentId?: string;
   notes?: string;
@@ -117,7 +150,7 @@ export interface AdipometryCalculationPreview {
   normalizedMeasurements: AdipometryMeasurements;
   compatibility: AdipometryProtocolCompatibility;
   results?: AdipometryCalculatedResults;
-  calculationSnapshot?: Record<string, unknown>;
+  calculationSnapshot?: AdipometryCalculationSnapshot;
 }
 
 export interface CompleteAdipometryAssessmentInput {

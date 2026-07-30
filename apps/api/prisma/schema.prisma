@@ -31,6 +31,9 @@ model User {
   parqDraftConsents                    StudentParqDraft[] @relation("StudentParqDraftConsent")
   parqConsentsAccepted                 StudentOnboardingProcess[] @relation("StudentParqConsentAcceptedBy")
   parqConsentsRevoked                  StudentOnboardingProcess[] @relation("StudentParqConsentRevokedBy")
+  approvedAdipometryProtocols          AdipometryProtocol[]       @relation("AdipometryProtocolApprovedBy")
+  adipometryCorrectionsAuthored        AdipometryAssessment[]     @relation("AdipometryCorrectionAuthor")
+  adipometryAuditEvents                AdipometryAuditEvent[]     @relation("AdipometryAuditActor")
 
   @@index([email])
 }
@@ -151,6 +154,9 @@ model CompanyContract {
   capacityPlanningCycles        CapacityPlanningCycle[]             @relation("CapacityPlanningCycleContract")
   capacityTechnicalCatalogItems CapacityTechnicalCatalogItem[]       @relation("CapacityTechnicalCatalogContract")
   goalCapacityClassifications   ProntuarioGoalCapacityClassification[] @relation("GoalCapacityClassificationContract")
+  adipometryAssessments         AdipometryAssessment[]                 @relation("AdipometryAssessmentContract")
+  adipometrySequences           AdipometrySequence[]                   @relation("AdipometrySequenceContract")
+  adipometryAuditEvents         AdipometryAuditEvent[]                 @relation("AdipometryAuditContract")
 
   @@index([type])
   @@map("Contract")
@@ -385,10 +391,12 @@ model Professor {
   capacityPlanningCyclesResponsible CapacityPlanningCycle[] @relation("CapacityPlanningCycleResponsible")
   capacityTechnicalCatalogItemsCreated CapacityTechnicalCatalogItem[] @relation("CapacityTechnicalCatalogCreatedBy")
   goalCapacityClassificationsUpdated ProntuarioGoalCapacityClassification[] @relation("GoalCapacityClassificationUpdatedBy")
+  adipometryAssessments              AdipometryAssessment[]                     @relation("AdipometryAssessmentProfessor")
 
   @@index([collaboratorFunctionId])
   @@index([responsibleManagerId])
   @@index([currentCollaboratorContractId])
+  @@unique([id, contractId], map: "Professor_id_contractId_key")
   @@index([contractId], map: "Educator_contractId_idx")
 }
 
@@ -513,7 +521,10 @@ model Aluno {
   capacityPrescriptionVersions  CapacityPrescriptionVersion[] @relation("CapacityPrescriptionVersionAluno")
   capacityPlanningCycles        CapacityPlanningCycle[] @relation("CapacityPlanningCycleAluno")
   goalCapacityClassifications   ProntuarioGoalCapacityClassification[] @relation("GoalCapacityClassificationAluno")
+  adipometryAssessments         AdipometryAssessment[]                 @relation("AdipometryAssessmentAluno")
+  adipometrySequences           AdipometrySequence[]                   @relation("AdipometrySequenceAluno")
 
+  @@unique([id, contractId], map: "Aluno_id_contractId_key")
   @@unique([contractId, userId])
   @@unique([contractId, leadCpfNormalized])
   @@index([contractId, leadEmailNormalized])
@@ -1126,7 +1137,10 @@ model AnthropometryAssessment {
   professor      Professor?                     @relation(fields: [professorId], references: [id], onDelete: SetNull)
   values         AnthropometryAssessmentValue[]
   observations   AnthropometryObservation[]
+  adipometryReferences AdipometryAssessment[] @relation("AdipometrySupportAnthropometry")
 
+  @@unique([id, contractId], map: "AnthropometryAssessment_id_contractId_key")
+  @@unique([id, contractId, alunoId], map: "AnthropometryAssessment_id_contractId_alunoId_key")
   @@unique([contractId, alunoId, code])
   @@index([contractId, alunoId, assessmentDate])
   @@index([professorId])
@@ -1161,6 +1175,109 @@ model AnthropometryObservation {
 
   @@index([assessmentId])
   @@index([segmentId])
+}
+
+model AdipometryProtocol {
+  id                   String                  @id
+  code                 String
+  version              Int
+  name                 String
+  status               String
+  definitionSnapshot   Json
+  reference            String?
+  approvedAt           DateTime?
+  approvedByUserId     String?
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+  approvedBy           User?                   @relation("AdipometryProtocolApprovedBy", fields: [approvedByUserId], references: [id], onDelete: Restrict)
+  assessments          AdipometryAssessment[]
+
+  @@unique([code, version], map: "AdipometryProtocol_code_version_key")
+  @@unique([id, code, version], map: "AdipometryProtocol_id_code_version_key")
+  @@index([status], map: "AdipometryProtocol_status_idx")
+}
+
+model AdipometrySequence {
+  contractId String
+  alunoId    String
+  lastValue  Int             @default(0)
+  updatedAt  DateTime        @updatedAt
+  contract   CompanyContract @relation("AdipometrySequenceContract", fields: [contractId], references: [id], onDelete: Cascade, map: "AdipometrySequence_contractId_fkey")
+  aluno      Aluno           @relation("AdipometrySequenceAluno", fields: [alunoId, contractId], references: [id, contractId], onDelete: Cascade, map: "AdipometrySequence_alunoId_contractId_fkey")
+
+  @@id([contractId, alunoId])
+}
+
+model AdipometryAssessment {
+  id                         String                  @id
+  contractId                 String
+  alunoId                    String
+  professorId                String
+  sequenceNumber             Int
+  code                       String
+  assessmentDate             DateTime
+  status                     String                  @default("DRAFT")
+  weightKg                   Decimal?                @db.Decimal(8, 2)
+  tricepsMm                  Decimal?                @db.Decimal(8, 2)
+  subscapularMm              Decimal?                @db.Decimal(8, 2)
+  suprailiacMm               Decimal?                @db.Decimal(8, 2)
+  abdominalMm                Decimal?                @db.Decimal(8, 2)
+  thighMm                    Decimal?                @db.Decimal(8, 2)
+  skinfoldTotalMm            Decimal?                @db.Decimal(8, 4)
+  bodyFatPercentage          Decimal?                @db.Decimal(8, 4)
+  fatMassKg                  Decimal?                @db.Decimal(8, 4)
+  leanMassKg                 Decimal?                @db.Decimal(8, 4)
+  protocolId                 String?
+  protocolCode               String?
+  protocolVersion            Int?
+  calculationSnapshot        Json?
+  anthropometryAssessmentId  String?
+  notes                      String?
+  completedAt                DateTime?
+  correctsAssessmentId       String?                 @unique(map: "AdipometryAssessment_correctsAssessmentId_key")
+  correctedByAssessmentId    String?                 @unique(map: "AdipometryAssessment_correctedByAssessmentId_key")
+  correctionReason           String?
+  correctionAuthorUserId     String?
+  createdAt                  DateTime                 @default(now())
+  updatedAt                  DateTime                 @updatedAt
+  contract                   CompanyContract          @relation("AdipometryAssessmentContract", fields: [contractId], references: [id], onDelete: Restrict, map: "AdipometryAssessment_contractId_fkey")
+  aluno                      Aluno                    @relation("AdipometryAssessmentAluno", fields: [alunoId, contractId], references: [id, contractId], onDelete: Restrict, map: "AdipometryAssessment_alunoId_contractId_fkey")
+  professor                  Professor                @relation("AdipometryAssessmentProfessor", fields: [professorId, contractId], references: [id, contractId], onDelete: Restrict, map: "AdipometryAssessment_professorId_contractId_fkey")
+  protocol                   AdipometryProtocol?      @relation(fields: [protocolId, protocolCode, protocolVersion], references: [id, code, version], onDelete: Restrict, map: "AdipometryAssessment_protocol_identity_fkey")
+  anthropometryAssessment    AnthropometryAssessment? @relation("AdipometrySupportAnthropometry", fields: [anthropometryAssessmentId, contractId, alunoId], references: [id, contractId, alunoId], onDelete: Restrict, map: "AdipometryAssessment_anthropometry_contract_aluno_fkey")
+  correctsAssessment         AdipometryAssessment?    @relation("AdipometryCorrects", fields: [correctsAssessmentId, contractId, alunoId], references: [id, contractId, alunoId], onDelete: Restrict, map: "AdipometryAssessment_corrects_contract_aluno_fkey")
+  correctedThroughCorrects   AdipometryAssessment?    @relation("AdipometryCorrects")
+  correctedByAssessment      AdipometryAssessment?    @relation("AdipometryCorrectedBy", fields: [correctedByAssessmentId, contractId, alunoId], references: [id, contractId, alunoId], onDelete: Restrict, map: "AdipometryAssessment_corrected_by_contract_aluno_fkey")
+  originalThroughCorrectedBy AdipometryAssessment?    @relation("AdipometryCorrectedBy")
+  correctionAuthor           User?                    @relation("AdipometryCorrectionAuthor", fields: [correctionAuthorUserId], references: [id], onDelete: Restrict, map: "AdipometryAssessment_correctionAuthorUserId_fkey")
+  auditEvents                AdipometryAuditEvent[]
+
+  @@unique([id, contractId], map: "AdipometryAssessment_id_contractId_key")
+  @@unique([id, contractId, alunoId], map: "AdipometryAssessment_id_contractId_alunoId_key")
+  @@unique([contractId, alunoId, sequenceNumber], map: "AdipometryAssessment_contractId_alunoId_sequenceNumber_key")
+  @@unique([contractId, alunoId, code], map: "AdipometryAssessment_contractId_alunoId_code_key")
+  @@index([contractId, alunoId, assessmentDate(sort: Desc)], map: "AdipometryAssessment_contractId_alunoId_assessmentDate_idx")
+  @@index([professorId], map: "AdipometryAssessment_professorId_idx")
+  @@index([contractId, status], map: "AdipometryAssessment_contractId_status_idx")
+  @@index([protocolCode, protocolVersion], map: "AdipometryAssessment_protocolCode_protocolVersion_idx")
+}
+
+model AdipometryAuditEvent {
+  id              String               @id
+  contractId      String
+  assessmentId    String
+  actorUserId     String
+  action          String
+  reason          String?
+  beforeSnapshot  Json?
+  afterSnapshot   Json?
+  createdAt       DateTime             @default(now())
+  contract        CompanyContract      @relation("AdipometryAuditContract", fields: [contractId], references: [id], onDelete: Restrict, map: "AdipometryAuditEvent_contractId_fkey")
+  assessment      AdipometryAssessment @relation(fields: [assessmentId, contractId], references: [id, contractId], onDelete: Restrict, map: "AdipometryAuditEvent_assessmentId_contractId_fkey")
+  actor           User                 @relation("AdipometryAuditActor", fields: [actorUserId], references: [id], onDelete: Restrict, map: "AdipometryAuditEvent_actorUserId_fkey")
+
+  @@index([contractId, assessmentId, createdAt(sort: Desc)], map: "AdipometryAuditEvent_contractId_assessmentId_createdAt_idx")
+  @@index([actorUserId], map: "AdipometryAuditEvent_actorUserId_idx")
 }
 
 model TrainingPlan {
