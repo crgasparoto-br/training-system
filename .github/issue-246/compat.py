@@ -110,9 +110,89 @@ END;
 $profile$;
 
 '''
+assessment_state_validator = r'''CREATE OR REPLACE FUNCTION "validateAdipometryAssessmentState"()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $state$
+DECLARE
+  v_original "AdipometryAssessment"%ROWTYPE;
+  v_actor_user_id TEXT;
+BEGIN
+  v_actor_user_id := "requireAdipometryActorUserId"(NEW."contractId", NEW."professorId");
+
+  IF NEW."status" = 'COMPLETED' AND NOT EXISTS (
+    SELECT 1
+    FROM "AdipometryProtocolApproval" approval
+    JOIN "AdipometryProtocol" protocol
+      ON protocol."id" = approval."protocolId"
+     AND protocol."code" = approval."protocolCode"
+     AND protocol."version" = approval."protocolVersion"
+    WHERE approval."contractId" = NEW."contractId"
+      AND approval."protocolId" = NEW."protocolId"
+      AND approval."protocolCode" = NEW."protocolCode"
+      AND approval."protocolVersion" = NEW."protocolVersion"
+      AND protocol."status" <> 'DISABLED'
+  ) THEN
+    RAISE EXCEPTION 'ADIPOMETRY_PROTOCOL_NOT_APPROVED_FOR_CONTRACT' USING ERRCODE = '23514';
+  END IF;
+
+  IF NEW."correctsAssessmentId" = NEW."id"
+     OR NEW."correctedByAssessmentId" = NEW."id" THEN
+    RAISE EXCEPTION 'ADIPOMETRY_CORRECTION_SELF_REFERENCE' USING ERRCODE = '23514';
+  END IF;
+
+  IF TG_OP = 'INSERT' AND NEW."correctedByAssessmentId" IS NOT NULL THEN
+    RAISE EXCEPTION 'ADIPOMETRY_CORRECTION_LINK_IS_MANAGED' USING ERRCODE = '23514';
+  END IF;
+
+  IF TG_OP = 'UPDATE'
+     AND NEW."correctedByAssessmentId" IS DISTINCT FROM OLD."correctedByAssessmentId" THEN
+    IF OLD."status" <> 'COMPLETED'
+       OR OLD."correctedByAssessmentId" IS NOT NULL
+       OR NEW."correctedByAssessmentId" IS NULL THEN
+      RAISE EXCEPTION 'ADIPOMETRY_CORRECTION_LINK_IS_MANAGED' USING ERRCODE = '23514';
+    END IF;
+
+    IF NOT EXISTS (
+      SELECT 1 FROM "AdipometryAssessment" correction
+      WHERE correction."id" = NEW."correctedByAssessmentId"
+        AND correction."correctsAssessmentId" = OLD."id"
+        AND correction."contractId" = OLD."contractId"
+        AND correction."alunoId" = OLD."alunoId"
+        AND correction."status" = 'COMPLETED'
+    ) THEN
+      RAISE EXCEPTION 'ADIPOMETRY_INVALID_CORRECTION_LINK' USING ERRCODE = '23514';
+    END IF;
+  END IF;
+
+  IF NEW."correctsAssessmentId" IS NOT NULL THEN
+    IF NEW."correctionAuthorUserId" IS DISTINCT FROM v_actor_user_id THEN
+      RAISE EXCEPTION 'ADIPOMETRY_CORRECTION_ACTOR_MISMATCH' USING ERRCODE = '42501';
+    END IF;
+
+    SELECT * INTO v_original
+    FROM "AdipometryAssessment"
+    WHERE "id" = NEW."correctsAssessmentId"
+    FOR UPDATE;
+
+    IF NOT FOUND
+       OR v_original."contractId" <> NEW."contractId"
+       OR v_original."alunoId" <> NEW."alunoId"
+       OR v_original."status" <> 'COMPLETED'
+       OR v_original."correctedByAssessmentId" IS NOT NULL THEN
+      RAISE EXCEPTION 'ADIPOMETRY_INVALID_CORRECTION_TARGET' USING ERRCODE = '23514';
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$state$;
+
+'''
+
 sql = sql.replace(
     'CREATE OR REPLACE FUNCTION "canonicalizeAdipometryCompletion"()',
-    canonical_profile_validator + 'CREATE OR REPLACE FUNCTION "canonicalizeAdipometryCompletion"()',
+    canonical_profile_validator + assessment_state_validator + 'CREATE OR REPLACE FUNCTION "canonicalizeAdipometryCompletion"()',
     1,
 )
 migration.write_text(sql)
