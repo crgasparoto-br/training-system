@@ -215,17 +215,17 @@ ALTER TABLE "AdipometrySequence"
   FOREIGN KEY ("contractId") REFERENCES "Contract"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "AdipometrySequence"
   ADD CONSTRAINT "AdipometrySequence_alunoId_fkey"
-  FOREIGN KEY ("alunoId") REFERENCES "Athlete"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  FOREIGN KEY ("alunoId") REFERENCES "Aluno"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 ALTER TABLE "AdipometryAssessment"
   ADD CONSTRAINT "AdipometryAssessment_contractId_fkey"
   FOREIGN KEY ("contractId") REFERENCES "Contract"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "AdipometryAssessment"
   ADD CONSTRAINT "AdipometryAssessment_alunoId_fkey"
-  FOREIGN KEY ("alunoId") REFERENCES "Athlete"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  FOREIGN KEY ("alunoId") REFERENCES "Aluno"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "AdipometryAssessment"
   ADD CONSTRAINT "AdipometryAssessment_professorId_fkey"
-  FOREIGN KEY ("professorId") REFERENCES "Educator"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  FOREIGN KEY ("professorId") REFERENCES "Professor"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "AdipometryAssessment"
   ADD CONSTRAINT "AdipometryAssessment_protocolCode_protocolVersion_fkey"
   FOREIGN KEY ("protocolCode", "protocolVersion") REFERENCES "AdipometryProtocolVersion"("code", "version") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -237,7 +237,7 @@ ALTER TABLE "AdipometryAssessment"
   FOREIGN KEY ("correctionOfId") REFERENCES "AdipometryAssessment"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "AdipometryAssessment"
   ADD CONSTRAINT "AdipometryAssessment_correctedByProfessorId_fkey"
-  FOREIGN KEY ("correctedByProfessorId") REFERENCES "Educator"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  FOREIGN KEY ("correctedByProfessorId") REFERENCES "Professor"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 ALTER TABLE "AdipometryAuditLog"
   ADD CONSTRAINT "AdipometryAuditLog_contractId_fkey"
@@ -247,7 +247,7 @@ ALTER TABLE "AdipometryAuditLog"
   FOREIGN KEY ("assessmentId") REFERENCES "AdipometryAssessment"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "AdipometryAuditLog"
   ADD CONSTRAINT "AdipometryAuditLog_actorProfessorId_fkey"
-  FOREIGN KEY ("actorProfessorId") REFERENCES "Educator"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  FOREIGN KEY ("actorProfessorId") REFERENCES "Professor"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 INSERT INTO "AdipometryProtocolVersion" (
   "id", "code", "name", "version", "status", "missingDataBehavior", "disabledReason", "createdAt", "updatedAt"
@@ -284,7 +284,7 @@ DECLARE
 BEGIN
   IF NOT EXISTS (
     SELECT 1
-    FROM "Athlete"
+    FROM "Aluno"
     WHERE "id" = p_aluno_id AND "contractId" = p_contract_id
   ) THEN
     RAISE EXCEPTION 'ADIPOMETRY_TENANT_MISMATCH'
@@ -323,7 +323,7 @@ DECLARE
   v_original "AdipometryAssessment"%ROWTYPE;
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM "Athlete"
+    SELECT 1 FROM "Aluno"
     WHERE "id" = NEW."alunoId" AND "contractId" = NEW."contractId"
   ) THEN
     RAISE EXCEPTION 'ADIPOMETRY_ALUNO_CROSS_TENANT'
@@ -331,7 +331,7 @@ BEGIN
   END IF;
 
   IF NOT EXISTS (
-    SELECT 1 FROM "Educator"
+    SELECT 1 FROM "Professor"
     WHERE "id" = NEW."professorId" AND "contractId" = NEW."contractId"
   ) THEN
     RAISE EXCEPTION 'ADIPOMETRY_PROFESSOR_CROSS_TENANT'
@@ -339,7 +339,7 @@ BEGIN
   END IF;
 
   IF NEW."correctedByProfessorId" IS NOT NULL AND NOT EXISTS (
-    SELECT 1 FROM "Educator"
+    SELECT 1 FROM "Professor"
     WHERE "id" = NEW."correctedByProfessorId" AND "contractId" = NEW."contractId"
   ) THEN
     RAISE EXCEPTION 'ADIPOMETRY_CORRECTOR_CROSS_TENANT'
@@ -391,7 +391,7 @@ LANGUAGE plpgsql
 AS $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM "Athlete"
+    SELECT 1 FROM "Aluno"
     WHERE "id" = NEW."alunoId" AND "contractId" = NEW."contractId"
   ) THEN
     RAISE EXCEPTION 'ADIPOMETRY_SEQUENCE_CROSS_TENANT'
@@ -415,7 +415,7 @@ BEGIN
   END IF;
 
   IF NOT EXISTS (
-    SELECT 1 FROM "Educator"
+    SELECT 1 FROM "Professor"
     WHERE "id" = NEW."actorProfessorId" AND "contractId" = NEW."contractId"
   ) THEN
     RAISE EXCEPTION 'ADIPOMETRY_AUDIT_ACTOR_CROSS_TENANT'

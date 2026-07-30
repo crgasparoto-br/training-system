@@ -2,6 +2,7 @@
 set -euo pipefail
 
 DB_URL="${DATABASE_URL:-postgresql://postgres:postgres@localhost:5432/training_system_test}"
+DB_URL="${DB_URL%%\?*}"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
@@ -73,13 +74,13 @@ BEGIN
     'issue246-user-b', 'issue246-b@example.invalid', 'not-a-password', user_type
   );
 
-  INSERT INTO "Educator" (
+  INSERT INTO "Professor" (
     "id", "userId", "contractId", "collaboratorFunctionId", "createdAt", "updatedAt"
   ) VALUES
     ('issue246-professor-a', 'issue246-user-a', 'issue246-contract-a', 'issue246-function-a', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
     ('issue246-professor-b', 'issue246-user-b', 'issue246-contract-b', 'issue246-function-b', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 
-  INSERT INTO "Athlete" ("id", "contractId", "createdAt", "updatedAt") VALUES
+  INSERT INTO "Aluno" ("id", "contractId", "createdAt", "updatedAt") VALUES
     ('issue246-aluno-a1', 'issue246-contract-a', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
     ('issue246-aluno-a2', 'issue246-contract-a', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
     ('issue246-aluno-overflow', 'issue246-contract-a', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
