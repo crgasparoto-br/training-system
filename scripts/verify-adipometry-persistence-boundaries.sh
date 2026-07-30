@@ -69,7 +69,8 @@ AS $definition$
       'ageMinYears', 18,
       'ageMaxYears', 65,
       'sexCriteria', JSONB_BUILD_ARRAY('FEMALE', 'MALE'),
-      'maturationCriteria', 'Not required for this structural fixture'
+      'maturationCriteria', 'Not required for this structural fixture',
+      'maturationRule', JSONB_BUILD_OBJECT('mode', 'NOT_REQUIRED')
     ),
     'requiredSkinfolds', JSONB_BUILD_ARRAY(
       'tricepsMm', 'subscapularMm', 'suprailiacMm', 'abdominalMm', 'thighMm'
