@@ -78,6 +78,40 @@ jobs:
 
           node /tmp/issue-246-historical-patch.cjs
 
+          node <<'FIX_DELIMITERS'
+          const fs = require('node:fs');
+
+          const migrationPath = 'apps/api/prisma/migrations/20260730070000_issue_246_adipometry_foundation/migration.sql';
+          let migration = fs.readFileSync(migrationPath, 'utf8');
+          const migrationStart = migration.indexOf('CREATE OR REPLACE FUNCTION protect_approved_adipometry_protocol_version()');
+          const migrationEnd = migration.indexOf('CREATE OR REPLACE FUNCTION protect_completed_adipometry_assessment()', migrationStart);
+          if (migrationStart < 0 || migrationEnd < 0) throw new Error('approved protocol function block not found');
+          let migrationBlock = migration.slice(migrationStart, migrationEnd);
+          migrationBlock = migrationBlock
+            .replace(/AS \$+\n/, 'AS $$$$\n')
+            .replace(/\n\$+;\n/, '\n$$$$;\n');
+          if (!migrationBlock.includes('AS $$\n') || !migrationBlock.includes('\n$$;\n')) {
+            throw new Error('migration dollar delimiters were not normalized');
+          }
+          migration = migration.slice(0, migrationStart) + migrationBlock + migration.slice(migrationEnd);
+          fs.writeFileSync(migrationPath, migration);
+
+          const verifierPath = 'scripts/verify-adipometry-foundation.sh';
+          let verifier = fs.readFileSync(verifierPath, 'utf8');
+          const verifierStart = verifier.indexOf('CREATE OR REPLACE FUNCTION issue246_snapshot(');
+          const verifierEnd = verifier.indexOf('\nSQL\npsql_run -f /work/setup.sql', verifierStart);
+          if (verifierStart < 0 || verifierEnd < 0) throw new Error('snapshot helper block not found');
+          let verifierBlock = verifier.slice(verifierStart, verifierEnd);
+          verifierBlock = verifierBlock
+            .replace(/AS \$+\n/, 'AS \\$\\$\n')
+            .replace(/\n\$+;\n?$/, '\n\\$\\$;');
+          if (!verifierBlock.includes('AS \\$\\$\n') || !verifierBlock.endsWith('\\$\\$;')) {
+            throw new Error('verifier dollar delimiters were not normalized');
+          }
+          verifier = verifier.slice(0, verifierStart) + verifierBlock + verifier.slice(verifierEnd);
+          fs.writeFileSync(verifierPath, verifier);
+          FIX_DELIMITERS
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
