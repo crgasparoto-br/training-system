@@ -23,6 +23,98 @@ sql = sql.replace(
     "  IF JSONB_TYPEOF(p_definition -> 'testVectors') IS DISTINCT FROM 'array'\n     OR JSONB_ARRAY_LENGTH(p_definition -> 'testVectors') < 3 THEN RETURN FALSE; END IF;\n  RETURN TRUE;",
     1,
 )
+
+canonical_profile_validator = r'''CREATE OR REPLACE FUNCTION "validateAdipometryCanonicalProtocolProfile"()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $profile$
+DECLARE
+  v_definition JSONB;
+  v_profile JSONB;
+  v_rule JSONB;
+  v_mode TEXT;
+  v_sex TEXT;
+  v_maturation TEXT;
+BEGIN
+  IF NEW."status" <> 'COMPLETED' THEN
+    RETURN NEW;
+  END IF;
+
+  IF TG_OP = 'UPDATE' AND OLD."status" = 'COMPLETED' THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT approval."protocolDefinitionSnapshot"
+    INTO v_definition
+  FROM "AdipometryProtocolApproval" approval
+  JOIN "AdipometryProtocol" protocol
+    ON protocol."id" = approval."protocolId"
+   AND protocol."code" = approval."protocolCode"
+   AND protocol."version" = approval."protocolVersion"
+  WHERE approval."contractId" = NEW."contractId"
+    AND approval."protocolId" = NEW."protocolId"
+    AND approval."protocolCode" = NEW."protocolCode"
+    AND approval."protocolVersion" = NEW."protocolVersion"
+    AND protocol."status" <> 'DISABLED';
+
+  IF NOT FOUND
+     OR NOT COALESCE("isValidAdipometryCanonicalPopulation"(v_definition), FALSE) THEN
+    RAISE EXCEPTION 'ADIPOMETRY_PROTOCOL_CANONICAL_PROFILE_INVALID' USING ERRCODE = '23514';
+  END IF;
+
+  IF JSONB_TYPEOF(NEW."calculationSnapshot" -> 'profileCriteria') IS DISTINCT FROM 'object' THEN
+    RAISE EXCEPTION 'ADIPOMETRY_PROFILE_REQUIRED' USING ERRCODE = '23514';
+  END IF;
+
+  v_profile := NEW."calculationSnapshot" -> 'profileCriteria';
+  v_sex := UPPER(BTRIM(COALESCE(v_profile ->> 'sex', '')));
+  v_maturation := NULLIF(UPPER(BTRIM(COALESCE(v_profile ->> 'maturation', ''))), '');
+
+  IF v_sex NOT IN ('MALE', 'FEMALE', 'OTHER') THEN
+    RAISE EXCEPTION 'ADIPOMETRY_SEX_INVALID' USING ERRCODE = '23514';
+  END IF;
+
+  IF NOT ((v_definition #> '{population,sexCriteria}') @> JSONB_BUILD_ARRAY(v_sex)) THEN
+    RAISE EXCEPTION 'ADIPOMETRY_SEX_NOT_APPLICABLE' USING ERRCODE = '23514';
+  END IF;
+
+  v_rule := v_definition #> '{population,maturationRule}';
+  v_mode := v_rule ->> 'mode';
+
+  IF v_mode = 'REQUIRED' THEN
+    IF v_maturation IS NULL THEN
+      RAISE EXCEPTION 'ADIPOMETRY_MATURATION_REQUIRED' USING ERRCODE = '23514';
+    END IF;
+    IF NOT ((v_rule -> 'allowedValues') @> JSONB_BUILD_ARRAY(v_maturation)) THEN
+      RAISE EXCEPTION 'ADIPOMETRY_MATURATION_NOT_APPLICABLE' USING ERRCODE = '23514';
+    END IF;
+  ELSIF v_mode <> 'NOT_REQUIRED' THEN
+    RAISE EXCEPTION 'ADIPOMETRY_MATURATION_RULE_INVALID' USING ERRCODE = '23514';
+  END IF;
+
+  NEW."calculationSnapshot" := JSONB_SET(
+    NEW."calculationSnapshot",
+    '{profileCriteria,sex}',
+    TO_JSONB(v_sex),
+    TRUE
+  );
+  NEW."calculationSnapshot" := JSONB_SET(
+    NEW."calculationSnapshot",
+    '{profileCriteria,maturation}',
+    CASE WHEN v_maturation IS NULL THEN 'null'::JSONB ELSE TO_JSONB(v_maturation) END,
+    TRUE
+  );
+
+  RETURN NEW;
+END;
+$profile$;
+
+'''
+sql = sql.replace(
+    'CREATE OR REPLACE FUNCTION "canonicalizeAdipometryCompletion"()',
+    canonical_profile_validator + 'CREATE OR REPLACE FUNCTION "canonicalizeAdipometryCompletion"()',
+    1,
+)
 migration.write_text(sql)
 
 for script_name in [
