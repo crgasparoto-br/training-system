@@ -46,15 +46,7 @@ A entrega não fecha a issue enquanto fórmula, população, limites, arredondam
 - rejeição de vínculo `correctedByAssessmentId` escrito diretamente em rascunhos;
 - teste da cadeia completa de migrations iniciado no baseline anterior à ADPT e com dados legados inseridos antes da primeira migration.
 
-## Validação congelada
-
-Workflow `Validate PR`, execução `30555314434`:
-
-- head: `3fee0c578c53af90dcb69083a1fd9258af517c91`;
-- base `develop`: `608f94756ebfa47f39a832115f15b1252792abda`;
-- merge preview: `abf498367b0f042a7f915f81c5a81041785c3413`.
-
-Gates aprovados:
+## Gates executáveis
 
 ```bash
 bash scripts/verify-adipometry-migration-existing-data.sh
@@ -70,7 +62,9 @@ pnpm access:check
 pnpm docs:check
 ```
 
-Os controles negativos rejeitaram protocolo placeholder, vetor insuficiente, mutação e reativação de protocolo, conclusão com protocolo desabilitado e vínculo de correção forjado em rascunho. O teste de migration completa parte do baseline anterior à ADPT, insere dados legados e aplica toda a cadeia na ordem real.
+Os controles negativos rejeitam protocolo placeholder, vetor insuficiente, mutação e reativação de protocolo, conclusão com protocolo desabilitado e vínculo de correção forjado em rascunho. O teste de migration completa parte do baseline anterior à ADPT, insere dados legados e aplica toda a cadeia na ordem real.
+
+A identidade exata da validação — head, base, merge preview, execução e hashes dos artefatos — é registrada na descrição da PR e nos artefatos imutáveis publicados pelo workflow. Ela não é duplicada neste documento para evitar uma referência circular ao próprio commit que contém a documentação.
 
 ## Gate clínico pendente
 
