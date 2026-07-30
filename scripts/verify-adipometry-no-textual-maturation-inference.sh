@@ -35,10 +35,11 @@ DECLARE
   explicit_definition JSONB := '{
     "population": {
       "sexCriteria": ["FEMALE"],
-      "maturationCriteria": "Not required for this protocol",
+      "maturationCriteria": "Clinical description intentionally unrelated to executable eligibility",
       "maturationRule": {"mode": "NOT_REQUIRED"}
     }
   }'::JSONB;
+  completion_definition TEXT;
 BEGIN
   IF EXISTS (
     SELECT 1
@@ -60,6 +61,17 @@ BEGIN
   IF NOT COALESCE("isValidAdipometryCanonicalPopulation"(explicit_definition), FALSE) THEN
     RAISE EXCEPTION 'positive-control failed: explicit NOT_REQUIRED maturation rule was rejected';
   END IF;
+
+  SELECT PG_GET_FUNCTIONDEF('"canonicalizeAdipometryCompletion"()'::REGPROCEDURE)
+    INTO completion_definition;
+
+  IF completion_definition LIKE '%population,maturationCriteria%' THEN
+    RAISE EXCEPTION 'negative-control failed: completion still consumes descriptive maturation text';
+  END IF;
+
+  IF completion_definition NOT LIKE '%population,maturationRule%' THEN
+    RAISE EXCEPTION 'positive-control failed: completion does not consume the structured maturation rule';
+  END IF;
 END $$;
 SQL
 
@@ -68,5 +80,5 @@ docker run --rm --network host \
   postgres:16-alpine \
   psql "$TEMP_URL" -v ON_ERROR_STOP=1 -X -q -f /work/verify.sql
 
-echo "negative-control OK: descriptive maturation text cannot become an executable rule"
-echo "positive-control OK: explicit structured NOT_REQUIRED rule remains valid"
+echo "negative-control OK: descriptive maturation text cannot become or drive an executable rule"
+echo "positive-control OK: explicit structured NOT_REQUIRED rule remains valid and drives completion"
