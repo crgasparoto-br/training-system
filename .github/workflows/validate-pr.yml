@@ -103,9 +103,9 @@ jobs:
           if (verifierStart < 0 || verifierEnd < 0) throw new Error('snapshot helper block not found');
           let verifierBlock = verifier.slice(verifierStart, verifierEnd);
           verifierBlock = verifierBlock
-            .replace(/AS \$+\n/, 'AS \\$\\$\n')
-            .replace(/\n\$+;\n?$/, '\n\\$\\$;');
-          if (!verifierBlock.includes('AS \\$\\$\n') || !verifierBlock.endsWith('\\$\\$;')) {
+            .replace(/AS \$+\n/, 'AS $$$$\n')
+            .replace(/\n\$+;\n?$/, '\n$$$$;');
+          if (!verifierBlock.includes('AS $$\n') || !verifierBlock.endsWith('$$;')) {
             throw new Error('verifier dollar delimiters were not normalized');
           }
           verifier = verifier.slice(0, verifierStart) + verifierBlock + verifier.slice(verifierEnd);
