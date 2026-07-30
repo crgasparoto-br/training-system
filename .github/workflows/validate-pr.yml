@@ -43,11 +43,11 @@ jobs:
                 /node <<'"'"'NODE'"'"'/ { capture = 1; next }
                 capture && /^[[:space:]]+NODE$/ { exit }
                 capture { sub(/^          /, ""); print }
-              ' > /tmp/issue-246-historical-patch.mjs
+              ' > /tmp/issue-246-historical-patch.cjs
 
           node <<'FIX'
           const fs = require('node:fs');
-          const path = '/tmp/issue-246-historical-patch.mjs';
+          const path = '/tmp/issue-246-historical-patch.cjs';
           let source = fs.readFileSync(path, 'utf8');
           const before = `function replaceOnce(path, before, after, label) {
             const content = fs.readFileSync(path, 'utf8');
@@ -76,7 +76,7 @@ jobs:
           fs.writeFileSync(path, source);
           FIX
 
-          node /tmp/issue-246-historical-patch.mjs
+          node /tmp/issue-246-historical-patch.cjs
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
