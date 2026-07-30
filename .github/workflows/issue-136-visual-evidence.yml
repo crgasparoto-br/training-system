@@ -13,7 +13,44 @@ on:
       - 'apps/api/src/scripts/capture-capacity-prescription-visual.mjs'
       - '.github/workflows/issue-136-visual-evidence.yml'
 
+permissions:
+  contents: write
+
 jobs:
+  rebase-on-develop:
+    name: Rebase feature branch on current develop
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Rebase and publish
+        shell: bash
+        run: |
+          set -uo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin develop
+          set +e
+          git rebase origin/develop 2>&1 | tee rebase.log
+          rebase_status=${PIPESTATUS[0]}
+          set -e
+          if [ "$rebase_status" -ne 0 ]; then
+            echo "::error::Rebase conflicts detected"
+            echo "Conflicted files:"
+            git diff --name-only --diff-filter=U
+            echo "Repository status:"
+            git status --short
+            git rebase --abort
+            exit "$rebase_status"
+          fi
+          git push --force-with-lease origin HEAD:${{ github.event.pull_request.head.ref }}
+
   visual-evidence:
     name: Capture capacity prescription
     runs-on: ubuntu-latest
