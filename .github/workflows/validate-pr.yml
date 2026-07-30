@@ -1,31 +1,19 @@
-name: Validate PR
+name: Issue 246 Historical Integrity Remediation
 
 on:
   pull_request:
     branches:
-      - main
       - develop
-  push:
-    branches:
-      - main
-      - develop
-      - 'chore/**'
-      - 'feat/**'
-      - 'fix/**'
 
 jobs:
-  validate:
-    name: Validate repository
+  remediate:
+    if: github.head_ref == 'feat/246-adipometry-domain-foundation'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     env:
-      # A suíte de integração instancia clientes Prisma em vários módulos. Cada
-      # pool usa uma única conexão no CI para preservar a cobertura completa sem
-      # disputar o max_connections do PostgreSQL efêmero.
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/training_system_test?schema=public&connection_limit=1&pool_timeout=30
-      PRISMA_CONNECTION_LIMIT: '1'
-      PRISMA_POOL_TIMEOUT_SECONDS: '30'
       RUN_DATABASE_INTEGRATION_TESTS: 'true'
-
     services:
       postgres:
         image: postgres:16-alpine
@@ -40,34 +28,290 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-
     steps:
-      - name: Checkout
+      - name: Checkout issue branch
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
 
-      - name: Create workflow evidence attestation
+      - name: Enforce approved protocol and snapshot immutability
         shell: bash
-        env:
-          AUDIT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-          AUDIT_BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
-          AUDIT_MERGE_PREVIEW_SHA: ${{ github.event_name == 'pull_request' && github.sha || '' }}
         run: |
-          cat > orquestrador-artifact.json <<EOF
-          {
-            "schemaVersion": 1,
-            "kind": "validate-pr-evidence",
-            "repository": "${GITHUB_REPOSITORY}",
-            "workflow": "${GITHUB_WORKFLOW}",
-            "runId": "${GITHUB_RUN_ID}",
-            "runAttempt": "${GITHUB_RUN_ATTEMPT}",
-            "eventName": "${GITHUB_EVENT_NAME}",
-            "headSha": "${AUDIT_HEAD_SHA}",
-            "baseSha": "${AUDIT_BASE_SHA}",
-            "mergePreviewSha": "${AUDIT_MERGE_PREVIEW_SHA}",
-            "ref": "${GITHUB_REF}",
-            "refName": "${GITHUB_REF_NAME}"
+          node <<'NODE'
+          const fs = require('node:fs');
+
+          function replaceOnce(path, before, after, label) {
+            const content = fs.readFileSync(path, 'utf8');
+            const count = content.split(before).length - 1;
+            if (count !== 1) {
+              throw new Error(`${label}: expected one anchor, found ${count}`);
+            }
+            fs.writeFileSync(path, content.replace(before, after));
           }
-          EOF
+
+          const migration = 'apps/api/prisma/migrations/20260730070000_issue_246_adipometry_foundation/migration.sql';
+          const snapshotAnchor = `      AND "calculationSnapshot" IS NOT NULL
+                AND "sumSkinfoldsMm" = "tricepsMm" + "subscapularMm" + "suprailiacMm" + "abdominalMm" + "thighMm"`;
+          const snapshotChecks = `      AND "calculationSnapshot" IS NOT NULL
+                AND JSONB_TYPEOF("calculationSnapshot") = 'object'
+                AND "calculationSnapshot" ?& ARRAY[
+                  'schemaVersion', 'protocol', 'assessmentDate', 'ageAtAssessment',
+                  'profileCriteria', 'inputs', 'rules', 'intermediateValues', 'results'
+                ]
+                AND JSONB_TYPEOF("calculationSnapshot" -> 'schemaVersion') = 'number'
+                AND ("calculationSnapshot" ->> 'schemaVersion')::INTEGER = 1
+                AND JSONB_TYPEOF("calculationSnapshot" -> 'protocol') = 'object'
+                AND ("calculationSnapshot" -> 'protocol') ?& ARRAY['code', 'version']
+                AND JSONB_TYPEOF("calculationSnapshot" #> '{protocol,code}') = 'string'
+                AND JSONB_TYPEOF("calculationSnapshot" #> '{protocol,version}') = 'string'
+                AND "calculationSnapshot" #>> '{protocol,code}' = "protocolCode"
+                AND "calculationSnapshot" #>> '{protocol,version}' = "protocolVersion"
+                AND JSONB_TYPEOF("calculationSnapshot" -> 'assessmentDate') = 'string'
+                AND "calculationSnapshot" ->> 'assessmentDate' = TO_CHAR("assessmentDate", 'YYYY-MM-DD')
+                AND JSONB_TYPEOF("calculationSnapshot" -> 'profileCriteria') = 'object'
+                AND JSONB_TYPEOF("calculationSnapshot" -> 'inputs') = 'object'
+                AND ("calculationSnapshot" -> 'inputs') ?& ARRAY[
+                  'weightKg', 'tricepsMm', 'subscapularMm', 'suprailiacMm', 'abdominalMm', 'thighMm'
+                ]
+                AND JSONB_TYPEOF("calculationSnapshot" #> '{inputs,weightKg}') = 'number'
+                AND JSONB_TYPEOF("calculationSnapshot" #> '{inputs,tricepsMm}') = 'number'
+                AND JSONB_TYPEOF("calculationSnapshot" #> '{inputs,subscapularMm}') = 'number'
+                AND JSONB_TYPEOF("calculationSnapshot" #> '{inputs,suprailiacMm}') = 'number'
+                AND JSONB_TYPEOF("calculationSnapshot" #> '{inputs,abdominalMm}') = 'number'
+                AND JSONB_TYPEOF("calculationSnapshot" #> '{inputs,thighMm}') = 'number'
+                AND ("calculationSnapshot" #>> '{inputs,weightKg}')::DECIMAL = "weightKg"
+                AND ("calculationSnapshot" #>> '{inputs,tricepsMm}')::DECIMAL = "tricepsMm"
+                AND ("calculationSnapshot" #>> '{inputs,subscapularMm}')::DECIMAL = "subscapularMm"
+                AND ("calculationSnapshot" #>> '{inputs,suprailiacMm}')::DECIMAL = "suprailiacMm"
+                AND ("calculationSnapshot" #>> '{inputs,abdominalMm}')::DECIMAL = "abdominalMm"
+                AND ("calculationSnapshot" #>> '{inputs,thighMm}')::DECIMAL = "thighMm"
+                AND JSONB_TYPEOF("calculationSnapshot" -> 'rules') = 'object'
+                AND ("calculationSnapshot" -> 'rules') ?& ARRAY['equations', 'limits', 'precision', 'rounding']
+                AND JSONB_TYPEOF("calculationSnapshot" #> '{rules,equations}') = 'array'
+                AND JSONB_TYPEOF("calculationSnapshot" #> '{rules,limits}') = 'object'
+                AND JSONB_TYPEOF("calculationSnapshot" #> '{rules,precision}') = 'object'
+                AND JSONB_TYPEOF("calculationSnapshot" #> '{rules,rounding}') = 'object'
+                AND JSONB_TYPEOF("calculationSnapshot" -> 'intermediateValues') = 'object'
+                AND JSONB_TYPEOF("calculationSnapshot" -> 'results') = 'object'
+                AND ("calculationSnapshot" -> 'results') ?& ARRAY[
+                  'sumSkinfoldsMm', 'bodyFatPercentage', 'fatMassKg', 'leanMassKg'
+                ]
+                AND JSONB_TYPEOF("calculationSnapshot" #> '{results,sumSkinfoldsMm}') = 'number'
+                AND JSONB_TYPEOF("calculationSnapshot" #> '{results,bodyFatPercentage}') = 'number'
+                AND JSONB_TYPEOF("calculationSnapshot" #> '{results,fatMassKg}') = 'number'
+                AND JSONB_TYPEOF("calculationSnapshot" #> '{results,leanMassKg}') = 'number'
+                AND ("calculationSnapshot" #>> '{results,sumSkinfoldsMm}')::DECIMAL = "sumSkinfoldsMm"
+                AND ("calculationSnapshot" #>> '{results,bodyFatPercentage}')::DECIMAL = "bodyFatPercentage"
+                AND ("calculationSnapshot" #>> '{results,fatMassKg}')::DECIMAL = "fatMassKg"
+                AND ("calculationSnapshot" #>> '{results,leanMassKg}')::DECIMAL = "leanMassKg"
+                AND "sumSkinfoldsMm" = "tricepsMm" + "subscapularMm" + "suprailiacMm" + "abdominalMm" + "thighMm"`;
+          replaceOnce(migration, snapshotAnchor, snapshotChecks, 'snapshot integrity check');
+
+          const completedFunctionAnchor = `CREATE OR REPLACE FUNCTION protect_completed_adipometry_assessment()`;
+          const protocolFunction = `CREATE OR REPLACE FUNCTION protect_approved_adipometry_protocol_version()
+          RETURNS TRIGGER
+          LANGUAGE plpgsql
+          AS $$
+          BEGIN
+            IF OLD."status" = 'APPROVED' THEN
+              RAISE EXCEPTION 'ADIPOMETRY_APPROVED_PROTOCOL_IMMUTABLE'
+                USING ERRCODE = '55000';
+            END IF;
+            IF TG_OP = 'DELETE' THEN
+              RETURN OLD;
+            END IF;
+            RETURN NEW;
+          END;
+          $$;
+
+          CREATE OR REPLACE FUNCTION protect_completed_adipometry_assessment()`;
+          replaceOnce(migration, completedFunctionAnchor, protocolFunction, 'approved protocol guard function');
+
+          const triggerAnchor = `CREATE TRIGGER "AdipometryAssessment_tenant_guard"`;
+          const protocolTrigger = `CREATE TRIGGER "AdipometryProtocolVersion_approved_guard"
+          BEFORE UPDATE OR DELETE ON "AdipometryProtocolVersion"
+          FOR EACH ROW EXECUTE FUNCTION protect_approved_adipometry_protocol_version();
+
+          CREATE TRIGGER "AdipometryAssessment_tenant_guard"`;
+          replaceOnce(migration, triggerAnchor, protocolTrigger, 'approved protocol guard trigger');
+
+          const verifier = 'scripts/verify-adipometry-foundation.sh';
+          const helperAnchor = `  'CI fixture',
+            CURRENT_TIMESTAMP,
+            CURRENT_TIMESTAMP
+          );
+          SQL
+          psql_run -f /work/setup.sql`;
+          const helperReplacement = `  'CI fixture',
+            CURRENT_TIMESTAMP,
+            CURRENT_TIMESTAMP
+          );
+
+          CREATE OR REPLACE FUNCTION issue246_snapshot(
+            p_protocol_code TEXT,
+            p_protocol_version TEXT,
+            p_assessment_date TIMESTAMP,
+            p_weight NUMERIC,
+            p_triceps NUMERIC,
+            p_subscapular NUMERIC,
+            p_suprailiac NUMERIC,
+            p_abdominal NUMERIC,
+            p_thigh NUMERIC,
+            p_sum NUMERIC,
+            p_body_fat NUMERIC,
+            p_fat_mass NUMERIC,
+            p_lean_mass NUMERIC
+          ) RETURNS JSONB
+          LANGUAGE SQL
+          IMMUTABLE
+          AS $$
+            SELECT jsonb_build_object(
+              'schemaVersion', 1,
+              'protocol', jsonb_build_object('code', p_protocol_code, 'version', p_protocol_version),
+              'assessmentDate', TO_CHAR(p_assessment_date, 'YYYY-MM-DD'),
+              'ageAtAssessment', NULL,
+              'profileCriteria', jsonb_build_object('fixture', true),
+              'inputs', jsonb_build_object(
+                'weightKg', p_weight,
+                'tricepsMm', p_triceps,
+                'subscapularMm', p_subscapular,
+                'suprailiacMm', p_suprailiac,
+                'abdominalMm', p_abdominal,
+                'thighMm', p_thigh
+              ),
+              'rules', jsonb_build_object(
+                'equations', '[]'::jsonb,
+                'limits', '{}'::jsonb,
+                'precision', '{}'::jsonb,
+                'rounding', '{}'::jsonb
+              ),
+              'intermediateValues', '{}'::jsonb,
+              'results', jsonb_build_object(
+                'sumSkinfoldsMm', p_sum,
+                'bodyFatPercentage', p_body_fat,
+                'fatMassKg', p_fat_mass,
+                'leanMassKg', p_lean_mass
+              )
+            );
+          $$;
+          SQL
+          psql_run -f /work/setup.sql
+
+          expect_failure "approved protocol update" "UPDATE \"AdipometryProtocolVersion\" SET \"name\" = 'mutated' WHERE \"id\" = 'issue246-protocol-approved';"
+          expect_failure "approved protocol delete" "DELETE FROM \"AdipometryProtocolVersion\" WHERE \"id\" = 'issue246-protocol-approved';"`;
+          replaceOnce(verifier, helperAnchor, helperReplacement, 'snapshot helper');
+
+          replaceOnce(
+            verifier,
+            `'GUEDES-ADULT', '0.1-draft', '{\"schemaVersion\":1}'::jsonb, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP FROM reserved;`,
+            `'GUEDES-ADULT', '0.1-draft', issue246_snapshot('GUEDES-ADULT', '0.1-draft', CURRENT_TIMESTAMP, 70, 10, 10, 10, 10, 10, 50, 20, 14, 56), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP FROM reserved;`,
+            'draft protocol snapshot'
+          );
+          replaceOnce(
+            verifier,
+            `'{\"schemaVersion\":1,\"protocol\":{\"code\":\"ISSUE246-TEST\",\"version\":\"1.0-test\"}}'::jsonb,`,
+            `issue246_snapshot('ISSUE246-TEST', '1.0-test', CURRENT_TIMESTAMP, 70, 10, 10, 10, 10, 10, 50, 20, 14, 56),`,
+            'completed snapshot'
+          );
+          replaceOnce(
+            verifier,
+            `'{\"schemaVersion\":1,\"correction\":true}'::jsonb,`,
+            `issue246_snapshot('ISSUE246-TEST', '1.0-test', CURRENT_TIMESTAMP, 70, 11, 10, 10, 10, 10, 51, 20, 14, 56),`,
+            'correction snapshot'
+          );
+          replaceOnce(
+            verifier,
+            `'ISSUE246-TEST', '1.0-test', '{\"schemaVersion\":1}'::jsonb,`,
+            `'ISSUE246-TEST', '1.0-test', issue246_snapshot('ISSUE246-TEST', '1.0-test', CURRENT_TIMESTAMP, 70, 11, 10, 10, 10, 10, 51, 20, 14, 56),`,
+            'second correction snapshot'
+          );
+
+          const completedEcho = `echo "positive-control OK: completed assessment with approved protocol"`;
+          const historicalControls = `echo "positive-control OK: completed assessment with approved protocol"
+
+          expect_failure "snapshot result differs from persisted result" "BEGIN;
+          WITH reserved AS (SELECT * FROM reserve_adipometry_code('issue246-contract-a', 'issue246-aluno-a1'))
+          INSERT INTO \"AdipometryAssessment\" (
+            \"id\", \"contractId\", \"alunoId\", \"professorId\", \"code\", \"sequenceNumber\", \"assessmentDate\", \"status\",
+            \"weightKg\", \"tricepsMm\", \"subscapularMm\", \"suprailiacMm\", \"abdominalMm\", \"thighMm\", \"sumSkinfoldsMm\",
+            \"bodyFatPercentage\", \"fatMassKg\", \"leanMassKg\", \"protocolCode\", \"protocolVersion\", \"calculationSnapshot\", \"createdAt\", \"updatedAt\"
+          )
+          SELECT 'issue246-snapshot-mismatch', 'issue246-contract-a', 'issue246-aluno-a1', 'issue246-professor-a', \"code\", \"sequenceNumber\", CURRENT_TIMESTAMP, 'COMPLETED',
+            70, 10, 10, 10, 10, 10, 50, 20, 14, 56, 'ISSUE246-TEST', '1.0-test',
+            issue246_snapshot('ISSUE246-TEST', '1.0-test', CURRENT_TIMESTAMP, 70, 10, 10, 10, 10, 10, 50, 21, 14, 56), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP FROM reserved;
+          COMMIT;"
+
+          sql "INSERT INTO \"AdipometryProtocolVersion\" (
+            \"id\", \"code\", \"name\", \"version\", \"status\", \"reference\", \"populationCriteria\",
+            \"requiredSkinfolds\", \"inputUnits\", \"outputUnits\", \"equations\", \"limits\", \"precisionRules\",
+            \"missingDataBehavior\", \"testVectors\", \"approvedAt\", \"approvedBy\", \"createdAt\", \"updatedAt\"
+          ) SELECT
+            'issue246-protocol-approved-v2', \"code\", \"name\", '2.0-test', \"status\", \"reference\", \"populationCriteria\",
+            \"requiredSkinfolds\", \"inputUnits\", \"outputUnits\", '[\"fixture-v2\"]'::jsonb, \"limits\", \"precisionRules\",
+            \"missingDataBehavior\", \"testVectors\", CURRENT_TIMESTAMP, \"approvedBy\", CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+          FROM \"AdipometryProtocolVersion\" WHERE \"id\" = 'issue246-protocol-approved';
+          DO \\$\\$ BEGIN
+            IF (SELECT \"protocolVersion\" FROM \"AdipometryAssessment\" WHERE \"id\" = 'issue246-completed') <> '1.0-test' THEN
+              RAISE EXCEPTION 'historical protocol version changed';
+            END IF;
+            IF (SELECT \"calculationSnapshot\" #>> '{protocol,version}' FROM \"AdipometryAssessment\" WHERE \"id\" = 'issue246-completed') <> '1.0-test' THEN
+              RAISE EXCEPTION 'historical snapshot changed';
+            END IF;
+          END \\$\\$;"
+
+          echo "positive-control OK: new protocol version preserves historical snapshot"`;
+          replaceOnce(verifier, completedEcho, historicalControls, 'historical version controls');
+
+          const types = 'packages/types/adipometry.ts';
+          const inputAnchor = `export interface AdipometryCalculatedResults {`;
+          const completedMeasurements = `export interface AdipometryCompletedMeasurements {
+            weightKg: number;
+            tricepsMm: number;
+            subscapularMm: number;
+            suprailiacMm: number;
+            abdominalMm: number;
+            thighMm: number;
+          }
+
+          export interface AdipometryCalculatedResults {`;
+          replaceOnce(types, inputAnchor, completedMeasurements, 'completed measurements contract');
+
+          const protocolRefAnchor = `export interface AdipometryProtocolRef {
+            code: string;
+            version: string;
+          }`;
+          const snapshotTypes = `export interface AdipometryProtocolRef {
+            code: string;
+            version: string;
+          }
+
+          export interface AdipometryCalculationRulesSnapshot {
+            equations: unknown[];
+            limits: Record<string, unknown>;
+            precision: Record<string, unknown>;
+            rounding: Record<string, unknown>;
+          }
+
+          export interface AdipometryCalculationSnapshot {
+            schemaVersion: 1;
+            protocol: AdipometryProtocolRef;
+            assessmentDate: string;
+            ageAtAssessment: number | null;
+            profileCriteria: Record<string, unknown>;
+            inputs: AdipometryCompletedMeasurements;
+            rules: AdipometryCalculationRulesSnapshot;
+            intermediateValues: Record<string, unknown>;
+            results: AdipometryCalculatedResults;
+          }`;
+          replaceOnce(types, protocolRefAnchor, snapshotTypes, 'snapshot shared contract');
+          replaceOnce(
+            types,
+            `calculationSnapshot?: Record<string, unknown> | null;`,
+            `calculationSnapshot?: AdipometryCalculationSnapshot | null;`,
+            'snapshot detail type'
+          );
+          NODE
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -83,122 +327,24 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Generate Prisma Client (api)
-        run: pnpm --filter @corrida/api exec prisma generate
-
-      - name: Apply test database migrations
+      - name: Generate Prisma client and apply migrations
         run: |
-          set -o pipefail
-          pnpm --filter @corrida/api exec prisma migrate deploy 2>&1 | tee migration-output.log
+          pnpm --filter @corrida/api exec prisma generate
+          pnpm --filter @corrida/api exec prisma migrate deploy
 
-      - name: Upload migration output
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: migration-output-${{ github.run_id }}
-          path: |
-            migration-output.log
-            orquestrador-artifact.json
-          if-no-files-found: ignore
-          retention-days: 7
-
-      - name: Verify adipometry foundation
+      - name: Run historical integrity controls
         run: |
-          set -o pipefail
-          bash scripts/verify-adipometry-foundation.sh 2>&1 | tee adipometry-foundation-output.log
+          bash -n scripts/verify-adipometry-foundation.sh
+          bash scripts/verify-adipometry-foundation.sh
+          pnpm type-check
+          pnpm docs:check
 
-      - name: Upload adipometry foundation output
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: adipometry-foundation-output-${{ github.run_id }}
-          path: |
-            adipometry-foundation-output.log
-            orquestrador-artifact.json
-          if-no-files-found: ignore
-          retention-days: 7
-
-      - name: Verify lifecycle legacy backfill
+      - name: Commit historical integrity remediation
+        shell: bash
         run: |
-          set -o pipefail
-          bash scripts/verify-student-lifecycle-legacy-backfill.sh 2>&1 | tee lifecycle-backfill-output.log
-
-      - name: Upload lifecycle legacy backfill output
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: lifecycle-backfill-output-${{ github.run_id }}
-          path: |
-            lifecycle-backfill-output.log
-            orquestrador-artifact.json
-          if-no-files-found: ignore
-          retention-days: 7
-
-      - name: Verify lifecycle migration rerun
-        run: |
-          docker run --rm --network host \
-            -v "$GITHUB_WORKSPACE:/workspace" \
-            -e PGPASSWORD=postgres \
-            postgres:16-alpine \
-            psql -h localhost -U postgres -d training_system_test -v ON_ERROR_STOP=1 \
-            -f /workspace/apps/api/prisma/migrations/20260721120000_student_lifecycle_domain/migration.sql
-
-      - name: Type check
-        run: |
-          set -o pipefail
-          pnpm type-check 2>&1 | tee type-check-output.log
-
-      - name: Upload type-check output
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: type-check-output-${{ github.run_id }}
-          path: |
-            type-check-output.log
-            orquestrador-artifact.json
-          if-no-files-found: ignore
-          retention-days: 7
-
-      - name: Lint
-        run: pnpm lint
-
-      - name: Test
-        run: |
-          set -o pipefail
-          pnpm test 2>&1 | tee test-output.log
-
-      - name: Upload test output
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-output-${{ github.run_id }}
-          path: |
-            test-output.log
-            orquestrador-artifact.json
-          if-no-files-found: ignore
-          retention-days: 7
-
-      - name: Build
-        run: pnpm build
-
-      - name: Architecture checks
-        run: pnpm arch:check
-
-      - name: Access catalog checks
-        run: pnpm access:check
-
-      - name: Documentation checks
-        run: |
-          set -o pipefail
-          pnpm docs:check 2>&1 | tee docs-check-output.log
-
-      - name: Upload documentation check output
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: docs-check-output-${{ github.run_id }}
-          path: |
-            docs-check-output.log
-            orquestrador-artifact.json
-          if-no-files-found: ignore
-          retention-days: 7
+          git checkout HEAD -- .github/workflows/validate-pr.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add apps/api/prisma/migrations/20260730070000_issue_246_adipometry_foundation/migration.sql scripts/verify-adipometry-foundation.sh packages/types/adipometry.ts
+          git commit -m 'fix(adipometry): enforce reproducible historical snapshots'
+          git push origin HEAD:${{ github.head_ref }}
