@@ -279,9 +279,13 @@ INSERT INTO "AdipometryProtocol" (
   'Boundary maturation required', 'APPROVED',
   JSONB_SET(
     JSONB_SET(
-      pg_temp.issue246_boundary_definition(),
-      '{population,maturationCriteria}',
-      '"TANNER_STAGE_REQUIRED"'::JSONB
+      JSONB_SET(
+        pg_temp.issue246_boundary_definition(),
+        '{population,maturationCriteria}',
+        '"TANNER_STAGE_REQUIRED"'::JSONB
+      ),
+      '{population,maturationRule}',
+      '{"mode":"REQUIRED","allowedValues":["STAGE_5"]}'::JSONB
     ),
     '{clinicalApproval,approvalRecordId}',
     '"issue246-boundary-maturation-record"'::JSONB
