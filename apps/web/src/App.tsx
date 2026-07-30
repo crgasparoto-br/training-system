@@ -20,6 +20,11 @@ import { PreRegistrationAdminCreate } from './pages/PreRegistrationAdmin/PreRegi
 import { PreRegistrationEnrollmentDetailRemediated } from './pages/PreRegistrationAdmin/PreRegistrationEnrollmentDetailRemediated';
 import { PreRegistrationAdminEdit } from './pages/PreRegistrationAdmin/PreRegistrationAdminEdit';
 import { PublicPreRegistration } from './pages/PublicPreRegistration/PublicPreRegistration';
+import { PreRegistrationAvailabilityBoundary } from './pages/PreRegistrationAvailabilityBoundary';
+import {
+  PreRegistrationUnavailable,
+  type PreRegistrationAudience,
+} from './pages/PreRegistrationUnavailable';
 import { Plans } from './pages/Plans';
 import { PlanForm } from './pages/PlanForm';
 import { PlanDetails } from './pages/PlanDetails';
@@ -49,12 +54,25 @@ import { StudentContractActivationNotice } from './components/StudentContractAct
 import { useAuthStore } from './stores/useAuthStore';
 import { canAccessScreen } from './access/access-control';
 import { AppErrorBoundary } from './components/AppErrorBoundary';
+import { PRE_REGISTRATION_UI_ENABLED } from './config/pre-registration-rollout';
 
 function withAccess(screenKey: string, element: ReactElement) {
   return <ProtectedRoute screenKey={screenKey}>{element}</ProtectedRoute>;
 }
 function withAnyAccess(screenKeys: string[], element: ReactElement) {
   return <ProtectedRoute screenKeys={screenKeys}>{element}</ProtectedRoute>;
+}
+function withPreRegistrationRollout(
+  element: ReactElement,
+  audience: PreRegistrationAudience
+) {
+  return PRE_REGISTRATION_UI_ENABLED ? (
+    <PreRegistrationAvailabilityBoundary audience={audience}>
+      {element}
+    </PreRegistrationAvailabilityBoundary>
+  ) : (
+    <PreRegistrationUnavailable audience={audience} />
+  );
 }
 function DefaultAuthorizedRoute() {
   const { isAuthenticated } = useAuthStore();
@@ -79,8 +97,14 @@ function App() {
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/register" element={<Register />} />
           <Route path="/assinatura/contrato/:token" element={<PublicContractSignature />} />
-          <Route path="/pre-cadastro/:token" element={<PublicPreRegistration />} />
-          <Route path="/pre-cadastro" element={<PublicPreRegistration />} />
+          <Route
+            path="/pre-cadastro/:token"
+            element={withPreRegistrationRollout(<PublicPreRegistration />, 'public')}
+          />
+          <Route
+            path="/pre-cadastro"
+            element={withPreRegistrationRollout(<PublicPreRegistration />, 'authenticated')}
+          />
           <Route path="/" element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
             <Route index element={<DefaultAuthorizedRoute />} />
             <Route path="inicio" element={<Home />} />
@@ -94,10 +118,37 @@ function App() {
             <Route path="central-do-aluno" element={withAccess('students.consultation', <StudentCentral />)} />
             <Route path="central-do-aluno/:id" element={withAnyAccess(['students.registration', 'students.consultation', 'students.details'], <AlunoDetails />)} />
             <Route path="central-do-aluno/:id/edit" element={withAccess('students.registration', <StudentCentralEdit />)} />
-            <Route path="pre-matriculas" element={withAccess('students.preRegistration', <PreRegistrationAdminList />)} />
-            <Route path="pre-matriculas/nova" element={withAccess('students.preRegistration.create', <PreRegistrationAdminCreate />)} />
-            <Route path="pre-matriculas/:id" element={withAccess('students.preRegistration', <PreRegistrationEnrollmentDetailRemediated />)} />
-            <Route path="pre-matriculas/:id/editar" element={withAccess('students.preRegistration.editCommercial', <PreRegistrationAdminEdit />)} />
+            <Route
+              path="pre-matriculas"
+              element={withAccess(
+                'students.preRegistration',
+                withPreRegistrationRollout(<PreRegistrationAdminList />, 'administrative')
+              )}
+            />
+            <Route
+              path="pre-matriculas/nova"
+              element={withAccess(
+                'students.preRegistration.create',
+                withPreRegistrationRollout(<PreRegistrationAdminCreate />, 'administrative')
+              )}
+            />
+            <Route
+              path="pre-matriculas/:id"
+              element={withAccess(
+                'students.preRegistration',
+                withPreRegistrationRollout(
+                  <PreRegistrationEnrollmentDetailRemediated />,
+                  'administrative'
+                )
+              )}
+            />
+            <Route
+              path="pre-matriculas/:id/editar"
+              element={withAccess(
+                'students.preRegistration.editCommercial',
+                withPreRegistrationRollout(<PreRegistrationAdminEdit />, 'administrative')
+              )}
+            />
             <Route path="protocolo-avaliacao-fisica" element={<Navigate to="/protocolo-avaliacao-fisica/antropometria" replace />} />
             <Route path="protocolo-avaliacao-fisica/antropometria" element={withAccess('physicalAssessment.protocol', <PhysicalAssessmentProtocol />)} />
             <Route path="protocolo-avaliacao-fisica/prontuario-entrevista-acompanhamento" element={withAccess('physicalAssessment.protocol', <PhysicalAssessmentProtocol />)} />

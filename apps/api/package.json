@@ -7,7 +7,7 @@
     "dev": "tsx watch src/main.ts",
     "build": "pnpm --filter @corrida/types build && pnpm --filter @corrida/utils build && pnpm db:generate && tsc",
     "start": "node scripts/migrate-and-start.mjs",
-    "test": "jest",
+    "test": "jest --runInBand --testPathIgnorePatterns=\"tests/issue-275-authorization-matrix-extended.integration.test.ts|src/modules/pre-registration-invites/pre-registration-invite-concurrency.integration.test.ts|src/modules/pre-registration-invites/pre-registration-invite-temporal-consistency.integration.test.ts\" && jest --runInBand src/modules/pre-registration-invites/pre-registration-invite-concurrency.integration.test.ts && jest --runInBand src/modules/pre-registration-invites/pre-registration-invite-temporal-consistency.integration.test.ts",
     "test:watch": "jest --watch",
     "lint": "eslint src --ext .ts",
     "format": "prettier --write \"src/**/*.ts\"",

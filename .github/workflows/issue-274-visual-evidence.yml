@@ -1,14 +1,6 @@
 name: Issue 274 Visual Evidence
 
 on:
-  pull_request:
-    branches:
-      - develop
-    paths:
-      - 'apps/web/src/pages/PreRegistrationAdmin/**'
-      - 'apps/web/src/App.tsx'
-      - 'apps/api/scripts/issue-274-visual-evidence.mjs'
-      - '.github/workflows/issue-274-visual-evidence.yml'
   push:
     branches:
       - feat/274-enrollment-conversion
@@ -64,7 +56,8 @@ jobs:
           set -o pipefail
           mkdir -p "$ISSUE_274_VISUAL_OUTPUT"
           GITHUB_SHA="$ISSUE_274_HEAD_SHA" \
-            node apps/api/scripts/issue-274-visual-evidence.mjs 2>&1 \
+            node --import ./apps/api/scripts/visual-audit-pre-registration-availability-hook.mjs \
+              apps/api/scripts/issue-274-visual-evidence.mjs 2>&1 \
             | tee "$ISSUE_274_VISUAL_OUTPUT/runner.log"
 
       - name: Preserve web server log

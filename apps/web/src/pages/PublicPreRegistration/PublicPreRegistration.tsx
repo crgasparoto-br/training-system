@@ -302,6 +302,11 @@ function PublicLanding({ token }: { token: string }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const landingErrorRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (error) landingErrorRef.current?.focus();
+  }, [error]);
 
   useEffect(() => {
     let active = true;
@@ -443,7 +448,16 @@ function PublicLanding({ token }: { token: string }) {
           </div>
 
           <form className="mt-6 space-y-4" onSubmit={submit}>
-            {error ? <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{error}</div> : null}
+            {error ? (
+              <div
+                ref={landingErrorRef}
+                tabIndex={-1}
+                role="alert"
+                className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800 outline-none"
+              >
+                {error}
+              </div>
+            ) : null}
 
             <fieldset>
               <legend className="mb-2 text-sm font-medium text-slate-800">Você está preenchendo como</legend>
@@ -658,6 +672,7 @@ function AuthenticatedFlow() {
   const [conflict, setConflict] = useState<ConflictState | null>(null);
   const errorRef = useRef<HTMLDivElement>(null);
   const stepHeadingRef = useRef<HTMLHeadingElement>(null);
+  const guardianHeadingRef = useRef<HTMLHeadingElement>(null);
 
   const selectedProcess = useMemo(
     () => processes.find((process) => process.alunoId === selectedAlunoId) || null,
@@ -788,6 +803,12 @@ function AuthenticatedFlow() {
   useEffect(() => {
     if (!loading && currentStep && session && !conflict) stepHeadingRef.current?.focus();
   }, [conflict, currentStep, loading, session]);
+
+  useEffect(() => {
+    if (!loading && selectedProcess?.requiresGuardianConfirmation) {
+      guardianHeadingRef.current?.focus();
+    }
+  }, [loading, selectedProcess?.guardianAuthorizationRelationship, selectedProcess?.requiresGuardianConfirmation]);
 
   useEffect(() => {
     if (!session || !currentStep || loading || conflict) return;
@@ -1044,7 +1065,11 @@ function AuthenticatedFlow() {
         <main className="mx-auto max-w-2xl rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-9">
           <ShieldCheck className="h-11 w-11 text-blue-600" aria-hidden="true" />
           <p className="mt-5 text-sm font-medium text-blue-700">Acesso de responsável</p>
-          <h1 className="mt-1 text-3xl font-semibold text-slate-950">
+          <h1
+            ref={guardianHeadingRef}
+            tabIndex={-1}
+            className="mt-1 text-3xl font-semibold text-slate-950 outline-none"
+          >
             {awaitingApproval ? 'Aguardando validação da academia' : 'Informe seu vínculo'}
           </h1>
           <p className="mt-3 leading-7 text-slate-600">

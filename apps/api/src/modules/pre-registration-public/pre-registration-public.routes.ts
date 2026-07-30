@@ -12,6 +12,7 @@ import {
   type PreRegistrationSessionDTO,
   type SavePreRegistrationStepDTO,
 } from '@corrida/types';
+import { logUnexpectedPreRegistrationError } from '../../common/pre-registration-safe-log.js';
 import { authMiddleware, alunoMiddleware } from '../auth/auth.middleware.js';
 import {
   preRegistrationInvitePublicHeaders,
@@ -157,7 +158,11 @@ function handleError(res: Response, error: unknown) {
     );
   }
   const correlationId = crypto.randomUUID();
-  console.error('Erro inesperado no pré-cadastro público', { correlationId, error });
+  logUnexpectedPreRegistrationError(
+    'Erro inesperado no pré-cadastro público',
+    correlationId,
+    error
+  );
   return sendError(res, 'Não foi possível continuar.', 500, {
     code: 'INTERNAL_ERROR',
     correlationId,

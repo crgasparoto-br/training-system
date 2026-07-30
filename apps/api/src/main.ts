@@ -39,12 +39,24 @@ import { startStudentContractLifecycleScheduler } from './modules/student-contra
 import studentRoutes from './routes/student.routes.js';
 import { getUploadStorageRoot } from './common/asset-storage.js';
 import { createApiCorsOptions } from './common/api-cors.js';
+import {
+  createPreRegistrationHttpObservability,
+  createPreRegistrationRolloutGate,
+} from './common/pre-registration-rollout.js';
+import {
+  createPreRegistrationSafeBoundary,
+  createPreRegistrationUnexpectedErrorHandler,
+  installPreRegistrationSafeConsoleError,
+} from './common/pre-registration-safe-log.js';
 import { getJwtSecret, resolveCorsConfig } from './common/runtime-config.js';
 
 const app: express.Express = express();
 const PORT = Number(process.env.PORT || process.env.API_PORT || 3000);
 const NODE_ENV = process.env.NODE_ENV || 'development';
+const preRegistrationRolloutGate = createPreRegistrationRolloutGate();
+const preRegistrationSafeBoundary = createPreRegistrationSafeBoundary();
 
+installPreRegistrationSafeConsoleError();
 getJwtSecret(process.env);
 app.set('trust proxy', 1);
 const corsConfig = resolveCorsConfig(process.env);
@@ -55,10 +67,23 @@ app.use(
   })
 );
 
+// Establish the sanitizing boundary before parsers, authentication, CORS and
+// route-local handlers. This also protects legacy handlers that consume an
+// unexpected exception instead of forwarding it to the global error handler.
+app.use('/api/v1/pre-cadastro', preRegistrationSafeBoundary);
+app.use('/api/v1/pre-registration-admin', preRegistrationSafeBoundary);
+app.use('/api/v1/pre-registration', preRegistrationSafeBoundary);
+app.use('/api/v1/alunos/:alunoId/pre-registration-invites', preRegistrationSafeBoundary);
+
 app.use('/api/v1/pre-cadastro', preRegistrationInvitePublicHeaders);
 app.use(
   '/api/v1/pre-cadastro',
   cors(createApiCorsOptions(corsConfig, { preflightContinue: true }))
+);
+app.use(
+  '/api/v1/pre-cadastro',
+  createPreRegistrationHttpObservability('public-invite'),
+  preRegistrationRolloutGate
 );
 
 app.use('/api/v1', preRegistrationPublicEntryRoutes);
@@ -66,6 +91,28 @@ app.use('/api/v1', preRegistrationInvitePublicRoutes);
 app.use('/api/v1/pre-cadastro', preRegistrationInvitePublicErrorHandler);
 
 app.use(cors(createApiCorsOptions(corsConfig)));
+app.use(
+  '/api/v1/pre-registration-admin',
+  createPreRegistrationHttpObservability('administrative-management'),
+  preRegistrationRolloutGate
+);
+app.use(
+  '/api/v1/pre-registration',
+  createPreRegistrationHttpObservability('authenticated-onboarding'),
+  preRegistrationRolloutGate
+);
+app.use(
+  '/api/v1/alunos/:alunoId/pre-registration-invites',
+  createPreRegistrationHttpObservability('administrative-invite'),
+  preRegistrationRolloutGate
+);
+
+// Public, data-free runtime probe. The rollout gate above returns the canonical
+// 503 envelope when disabled; an enabled API answers without invoking auth or DB.
+app.get('/api/v1/pre-registration/availability', (_req, res) => {
+  res.status(204).end();
+});
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 app.use('/uploads', express.static(getUploadStorageRoot(), {
@@ -101,6 +148,7 @@ app.get('/api/v1', (_req, res) => {
       preRegistrationEnrollmentReview: '/api/v1/pre-registration-admin/leads/:id/enrollment-review',
       preRegistrationInvites: '/api/v1/alunos/:alunoId/pre-registration-invites',
       preRegistrationInvitePublic: '/api/v1/pre-cadastro/:token',
+      preRegistrationAvailability: '/api/v1/pre-registration/availability',
       preRegistrationAuthenticated: '/api/v1/pre-registration/session',
       preRegistrationParq: '/api/v1/pre-registration/processes/:alunoId/parq',
     },
@@ -109,13 +157,16 @@ app.get('/api/v1', (_req, res) => {
 
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/assessment-types', assessmentTypeRoutes);
+
 // A camada autoritativa intercepta create/update/review/convert antes das rotas
 // administrativas legadas para impedir bypass por referências livres.
 app.use('/api/v1/pre-registration-admin', preRegistrationEnrollmentRoutes);
 app.use('/api/v1/pre-registration-admin', preRegistrationAdminRoutes);
+
 app.use('/api/v1/pre-registration', preRegistrationAuthenticatedRoutes);
 app.use('/api/v1/pre-registration', preRegistrationHealthIntakeRoutes);
 app.use('/api/v1/pre-registration', preRegistrationParqRoutes);
+
 app.use('/api/v1/alunos', alunoAvatarUploadRoutes);
 app.use('/api/v1/alunos', studentContractLifecycleRoutes);
 app.use('/api/v1/alunos', preRegistrationInviteAdminRoutes);
@@ -137,6 +188,8 @@ app.use('/api/v1/student', studentRoutes);
 app.use((_req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
+
+app.use(createPreRegistrationUnexpectedErrorHandler());
 
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('Error:', err);

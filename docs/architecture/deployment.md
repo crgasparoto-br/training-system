@@ -19,6 +19,8 @@ Este documento registra as regras minimas para publicar o Sistema Acesso.
 - `FRONTEND_URL`
 - `CORS_ORIGINS`: obrigatoria em producao e deve listar somente origins produtivas explicitamente permitidas. Origins locais nao sao incluidas por padrao em `NODE_ENV=production`.
 - `JWT_SECRET`: obrigatoria em producao. Nao use placeholders como `dev-secret` ou `your-super-secret-jwt-key-change-in-production`.
+- `PRE_REGISTRATION_ENABLED`: gate global das rotas publicas, autenticadas e administrativas de pre-matricula. Em producao, ausencia ou valor invalido significa desabilitado.
+- `PRE_REGISTRATION_TELEMETRY_ENABLED`: habilita a metrica HTTP tecnica agregada da pre-matricula. Nao autoriza registrar path, token, payload, usuario, tenant ou dados pessoais.
 - `PRE_REGISTRATION_INVITE_TTL_DAYS`: validade dos convites publicos de pre-cadastro em dias. Usa `30` quando ausente ou invalida; configure o mesmo valor em todas as replicas da API.
 - `PRIVACY_NOTICE_URL`: URL publica do aviso de privacidade vigente apresentado na landing e no consentimento do pre-cadastro. Deve usar HTTPS em producao e permanecer acessivel sem autenticacao.
 - `PRIVACY_NOTICE_VERSION`: identificador imutavel da versao vigente do aviso, persistido junto ao aceite. Atualize quando o conteudo juridicamente relevante mudar; nao reutilize uma versao antiga para um documento diferente.
@@ -64,6 +66,21 @@ A API converte esgotamento/timeout do pool em HTTP `503` com mensagem segura. De
 ## Variaveis esperadas do frontend
 
 - `VITE_API_URL`
+- `VITE_PRE_REGISTRATION_ENABLED`: gate compilado da navegacao e das rotas de pre-matricula. Em build de producao, ausencia ou valor invalido significa desabilitado. Deve permanecer alinhado ao estado da API.
+
+## Rollout controlado da pre-matricula
+
+A ordem segura e:
+
+1. aplicar migrations e publicar a API com `PRE_REGISTRATION_ENABLED=false`;
+2. validar health, migrations e smoke sem expor o fluxo;
+3. publicar o frontend com `VITE_PRE_REGISTRATION_ENABLED=false`;
+4. habilitar a API e confirmar resposta das fronteiras;
+5. publicar o frontend habilitado para o ambiente piloto;
+6. executar o checklist E2E e observar a telemetria;
+7. ampliar o uso somente depois do go/no-go.
+
+No desligamento emergencial, desabilite primeiro a API e depois o frontend. O gate retorna `503 PRE_REGISTRATION_DISABLED` e preserva convites, rascunhos, consentimentos, submissões e auditoria. Consulte [`../operations/pre-registration-rollout-and-qa.md`](../operations/pre-registration-rollout-and-qa.md).
 
 ## Uploads e assets persistentes
 

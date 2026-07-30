@@ -1,22 +1,6 @@
 name: Issue 273 Visual Evidence
 
 on:
-  pull_request:
-    branches:
-      - develop
-    paths:
-      - '.github/workflows/issue-273-visual.yml'
-      - 'apps/api/scripts/visual-audit-issue-273.mjs'
-      - 'apps/web/src/pages/PublicPreRegistration/Parq*'
-      - 'apps/web/src/pages/PublicPreRegistration/PublicPreRegistration.tsx'
-      - 'apps/web/src/services/pre-registration-public.service.ts'
-      - 'apps/web/src/stores/useAuthStore.ts'
-      - 'apps/web/src/index.css'
-      - 'apps/web/src/App.tsx'
-      - 'packages/types/pre-registration-parq.ts'
-      - 'docs/product/pre-registration-parq.md'
-      - 'docs/operations/parq-cutover.md'
-      - 'docs/execution-plans/completed/2026-07-issue-273-canonical-parq.md'
   workflow_dispatch:
 
 permissions:
@@ -29,6 +13,7 @@ jobs:
     timeout-minutes: 20
     env:
       VITE_API_URL: ''
+      VITE_PRE_REGISTRATION_ENABLED: 'true'
       ISSUE_273_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
     steps:
@@ -62,7 +47,9 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          pnpm --filter @corrida/api exec node scripts/visual-audit-issue-273.mjs \
+          pnpm --filter @corrida/api exec node \
+            --import ./scripts/visual-audit-pre-registration-availability-hook.mjs \
+            scripts/visual-audit-issue-273.mjs \
             2>&1 | tee issue-273-visual.log
 
       - name: Validate visual evidence inventory

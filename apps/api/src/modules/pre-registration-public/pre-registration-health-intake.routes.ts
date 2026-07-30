@@ -7,6 +7,7 @@ import type {
   HealthIntakeErrorCode,
   SaveHealthIntakeStepDTO,
 } from '@corrida/types';
+import { logUnexpectedPreRegistrationError } from '../../common/pre-registration-safe-log.js';
 import { authMiddleware, alunoMiddleware } from '../auth/auth.middleware.js';
 import { PreRegistrationPublicError } from './pre-registration-public.service.js';
 import {
@@ -135,7 +136,11 @@ function handleError(res: Response, error: unknown) {
     );
   }
   const correlationId = crypto.randomUUID();
-  console.error('Erro inesperado na Anamnese Inicial', { correlationId, error });
+  logUnexpectedPreRegistrationError(
+    'Erro inesperado na Anamnese Inicial',
+    correlationId,
+    error
+  );
   return sendError(res, 'Não foi possível continuar.', 500, {
     code: 'INTERNAL_ERROR',
     correlationId,
@@ -191,5 +196,8 @@ export function parseHealthIntakeSave(value: unknown): SaveHealthIntakeStepDTO {
 export function parseHealthIntakeComplete(value: unknown): CompleteHealthIntakeDTO {
   return parse<CompleteHealthIntakeDTO>(completeSchema, value);
 }
+
+// Compatibilidade para consumidores que adotaram o nome mais descritivo.
+export const parseHealthIntakeCompletion = parseHealthIntakeComplete;
 
 export { router as preRegistrationHealthIntakeRoutes };

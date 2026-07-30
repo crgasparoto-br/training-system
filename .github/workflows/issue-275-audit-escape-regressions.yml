@@ -1,0 +1,212 @@
+name: Issue 275 Audit Escape Regressions
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - 'apps/api/src/modules/pre-registration-invites/**'
+      - 'apps/api/scripts/verify-issue-275-invite-history-bound.ts'
+      - 'apps/api/scripts/verify-issue-275-literal-scenarios.mjs'
+      - 'apps/api/scripts/verify-issue-275-literal-scenarios-runtime.mjs'
+      - 'apps/api/scripts/issue-275-literal-required-fields-hook.mjs'
+      - 'apps/api/scripts/issue-275-literal-scenario-contract.ts'
+      - 'apps/api/tests/issue-275-pre-registration-invite-summary.test.ts'
+      - 'apps/api/tests/issue-275-literal-scenario-contract.test.ts'
+      - 'apps/web/src/pages/PreRegistrationAvailabilityBoundary*'
+      - 'apps/web/src/pages/PublicPreRegistration/**'
+      - 'apps/web/src/pages/Login.tsx'
+      - 'apps/web/src/services/auth.service.ts'
+      - 'apps/web/src/stores/useAuthStore.ts'
+      - 'apps/api/tests/issue-275-rollout-consumer.browser.integration.test.ts'
+      - '.github/workflows/issue-275-audit-escape-regressions.yml'
+      - '.github/workflows/issue-275-rollout-consumer.yml'
+      - 'docs/operations/pre-registration-rollout-and-qa.md'
+      - 'docs/operations/issue-275-literal-evidence.md'
+      - 'docs/architecture/pre-registration-api.md'
+  workflow_dispatch:
+    inputs:
+      previous_web_sha:
+        description: SHA da web anterior que deve ser executada contra a API atual
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: issue-275-audit-escape-regressions-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  regressions:
+    name: Reject audit evidence surrogates and historical regressions
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/training_system_test?schema=public&connection_limit=1&pool_timeout=30
+      PRISMA_CONNECTION_LIMIT: '1'
+      PRISMA_POOL_TIMEOUT_SECONDS: '30'
+      NODE_ENV: test
+      JWT_SECRET: issue-275-audit-escape-regressions-secret
+      FRONTEND_URL: http://127.0.0.1:4176
+      CORS_ORIGINS: http://127.0.0.1:4176
+      PRE_REGISTRATION_ENABLED: 'true'
+      PRE_REGISTRATION_TELEMETRY_ENABLED: 'false'
+      PRIVACY_NOTICE_URL: https://example.test/privacidade
+      PRIVACY_NOTICE_VERSION: 2026-07
+      HEALTH_PRIVACY_NOTICE_VERSION: 2026-07
+      ISSUE_275_PREVIOUS_WEB_ROOT: /tmp/issue-275-previous-web
+      ISSUE_275_PREVIOUS_WEB_SHA: ${{ github.event.pull_request.base.sha || inputs.previous_web_sha }}
+      ISSUE_275_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: training_system_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d training_system_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared packages and generate Prisma client
+        run: |
+          pnpm --filter @corrida/types build
+          pnpm --filter @corrida/utils build
+          pnpm --filter @corrida/api exec prisma generate
+          pnpm --filter @corrida/api exec prisma migrate deploy
+
+      - name: Install Chrome for literal browser scenarios
+        run: pnpm --filter @corrida/api exec puppeteer browsers install chrome
+
+      - name: Build the actual previous web commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${ISSUE_275_PREVIOUS_WEB_SHA}"
+          test "${ISSUE_275_PREVIOUS_WEB_SHA}" != "${ISSUE_275_HEAD_SHA}"
+          git worktree remove --force "${ISSUE_275_PREVIOUS_WEB_ROOT}" 2>/dev/null || true
+          git worktree add --detach "${ISSUE_275_PREVIOUS_WEB_ROOT}" "${ISSUE_275_PREVIOUS_WEB_SHA}"
+          test "$(git -C "${ISSUE_275_PREVIOUS_WEB_ROOT}" rev-parse HEAD)" = "${ISSUE_275_PREVIOUS_WEB_SHA}"
+          pnpm --dir "${ISSUE_275_PREVIOUS_WEB_ROOT}" install --frozen-lockfile
+          pnpm --dir "${ISSUE_275_PREVIOUS_WEB_ROOT}" --filter @corrida/types build
+          pnpm --dir "${ISSUE_275_PREVIOUS_WEB_ROOT}" --filter @corrida/utils build
+          VITE_API_URL=http://127.0.0.1:3012 \
+            pnpm --dir "${ISSUE_275_PREVIOUS_WEB_ROOT}" --filter @corrida/web build
+          test -s "${ISSUE_275_PREVIOUS_WEB_ROOT}/apps/web/dist/index.html"
+
+      - name: Verify batch serialization control
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p artifacts/issue-275
+          pnpm --filter @corrida/api exec jest --runInBand \
+            tests/issue-275-pre-registration-invite-summary.test.ts 2>&1 \
+            | tee artifacts/issue-275/invite-history-batch-test.log
+
+      - name: Verify bounded production service
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @corrida/api exec tsx \
+            scripts/verify-issue-275-invite-history-bound.ts 2>&1 \
+            | tee artifacts/issue-275/invite-history-bound.log
+
+      - name: Reject literal-scenario evidence surrogates
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @corrida/api exec jest --runInBand \
+            tests/issue-275-literal-scenario-contract.test.ts 2>&1 \
+            | tee artifacts/issue-275/literal-scenario-contract.log
+
+      - name: Execute previous web and real reauthentication
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @corrida/api exec node \
+            scripts/verify-issue-275-literal-scenarios-runtime.mjs 2>&1 \
+            | tee artifacts/issue-275/literal-scenarios.log
+
+      - name: Verify evidence semantics
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s artifacts/issue-275/invite-history-bound.json
+          test -s artifacts/issue-275/literal-scenarios.json
+          jq -e '
+            .schemaVersion == 1 and
+            .evidenceSource == "production-service" and
+            .persistedRows == 120 and
+            .defaultLimit == 20 and
+            .defaultRows == 20 and
+            .requestedLimit == 5 and
+            .requestedRows == 5 and
+            .maximumLimit == 100 and
+            .maximumRows == 100 and
+            .deterministicOrder == true and
+            .replacementRelationshipHydrated == true and
+            .fullHistoryReturned == false
+          ' artifacts/issue-275/invite-history-bound.json >/dev/null
+          jq -e '
+            .schemaVersion == 1 and
+            .headSha == env.ISSUE_275_HEAD_SHA and
+            .previousWebSha == env.ISSUE_275_PREVIOUS_WEB_SHA and
+            .previousWebSha != .headSha and
+            (.previousWebDistDigest | test("^[a-f0-9]{64}$"; "i")) and
+            .scenarios.previousWebCompatibility.publicInviteRendered == true and
+            .scenarios.previousWebCompatibility.authenticatedResumeRendered == true and
+            .scenarios.previousWebCompatibility.administrativeListRendered == true and
+            .scenarios.reauthentication.secondContextStartedWithoutSession == true and
+            .scenarios.reauthentication.authLoginRequestCount == 1 and
+            .scenarios.reauthentication.authLoginStatus == 200 and
+            .scenarios.reauthentication.resumedStep == "CONTACT" and
+            .scenarios.reauthentication.inviteTokenAbsentFromUrl == true and
+            .scenarios.reauthentication.inviteTokenAbsentFromStorage == true and
+            .controls.previousWebIsDistinctCommit == true and
+            .controls.previousWebBundleDigestBound == true and
+            .controls.realLoginObserved == true
+          ' artifacts/issue-275/literal-scenarios.json >/dev/null
+          grep -q 'Test Suites:.*passed' artifacts/issue-275/invite-history-batch-test.log
+          grep -q 'Test Suites:.*passed' artifacts/issue-275/literal-scenario-contract.log
+
+      - name: Cleanup previous worktree
+        if: always()
+        shell: bash
+        run: git worktree remove --force "${ISSUE_275_PREVIOUS_WEB_ROOT}" 2>/dev/null || true
+
+      - name: Upload audit escape evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-275-audit-escape-regressions-${{ github.run_id }}
+          path: artifacts/issue-275
+          if-no-files-found: error
+          retention-days: 14
