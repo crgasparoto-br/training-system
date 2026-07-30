@@ -61,6 +61,7 @@ Codigo, migrations e testes definem o comportamento efetivamente entregue. Plani
 - [`operations/pre-registration-rollout-audience-contract.md`](operations/pre-registration-rollout-audience-contract.md): contrato de mensagens e evidencias discriminantes para as audiencias publica, autenticada e administrativa durante indisponibilidade.
 - [`operations/issue-275-literal-evidence.md`](operations/issue-275-literal-evidence.md): requisitos executáveis para compatibilidade com a web anterior e retomada por autenticação real.
 - [`database/adipometry.md`](database/adipometry.md): persistência, isolamento, concorrência, conclusão e auditoria ADPT.
+- [`database/adipometry-demographic-provenance.md`](database/adipometry-demographic-provenance.md): origem canônica de idade, sexo e maturação usada na conclusão ADPT.
 - [`internal-test-deploy.md`](internal-test-deploy.md): orientacao rapida complementar para testes internos.
 - [`ACCESS_CONTROL.md`](ACCESS_CONTROL.md): exemplos operacionais legados; as regras canonicas permanecem nos documentos de arquitetura e produto de acesso.
 
