@@ -105,12 +105,12 @@ INSERT INTO "Bank" ("id", "code", "description", "createdAt", "updatedAt")
 VALUES ('issue246-existing-bank', 'I246', 'Preexisting unrelated row', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 
 SELECT * FROM "createAdipometryDraft"(
-  'issue246-existing-draft',
-  'issue246-existing-contract',
-  'issue246-existing-aluno',
-  'issue246-existing-professor',
-  DATE '2026-07-29',
-  CURRENT_TIMESTAMP
+  'issue246-existing-draft'::text,
+  'issue246-existing-contract'::text,
+  'issue246-existing-aluno'::text,
+  'issue246-existing-professor'::text,
+  TIMESTAMP '2026-07-29 00:00:00',
+  CURRENT_TIMESTAMP::timestamp
 );
 SQL
 psql_file "$TEMP_URL" "$TMP_DIR/preexisting.sql" preexisting.sql
