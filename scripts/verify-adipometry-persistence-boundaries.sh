@@ -269,6 +269,48 @@ INSERT INTO "StudentProfile" (
   CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
 );
 
+-- A protocol that requires maturation must use canonical maturation; a value
+-- supplied only by the caller cannot satisfy the clinical gate.
+INSERT INTO "AdipometryProtocol" (
+  "id", "code", "version", "name", "status", "definitionSnapshot", "reference",
+  "approvedAt", "approvedByUserId", "createdAt", "updatedAt"
+) VALUES (
+  'issue246-boundary-maturation-protocol', 'BOUNDARY_MATURATION', 1,
+  'Boundary maturation required', 'APPROVED',
+  JSONB_SET(
+    JSONB_SET(
+      pg_temp.issue246_boundary_definition(),
+      '{population,maturationCriteria}',
+      '"TANNER_STAGE_REQUIRED"'::JSONB
+    ),
+    '{clinicalApproval,approvalRecordId}',
+    '"issue246-boundary-maturation-record"'::JSONB
+  ),
+  'Structural boundary maturation reference',
+  TIMESTAMP '2026-07-30 14:00:00', 'issue246-boundary-actor-a',
+  CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+);
+
+DO $$ BEGIN
+  BEGIN
+    UPDATE "AdipometryAssessment"
+    SET "status" = 'COMPLETED', "weightKg" = 70,
+        "tricepsMm" = 10, "subscapularMm" = 10, "suprailiacMm" = 10,
+        "abdominalMm" = 10, "thighMm" = 10,
+        "protocolId" = 'issue246-boundary-maturation-protocol',
+        "protocolCode" = 'BOUNDARY_MATURATION', "protocolVersion" = 1,
+        "calculationSnapshot" = JSONB_BUILD_OBJECT(
+          'ageAtAssessment', 45,
+          'profileCriteria', JSONB_BUILD_OBJECT('sex', 'MALE', 'maturation', 'STAGE_5')
+        ),
+        "updatedAt" = CURRENT_TIMESTAMP
+    WHERE "id" = 'issue246-boundary-direct-a1';
+    RAISE EXCEPTION 'caller-forged maturation was accepted';
+  EXCEPTION WHEN CHECK_VIOLATION THEN
+    IF SQLERRM NOT LIKE '%ADIPOMETRY_MATURATION_REQUIRED%' THEN RAISE; END IF;
+  END;
+END $$;
+
 -- Out-of-range input is rejected against the approved protocol limits.
 DO $$ BEGIN
   BEGIN
