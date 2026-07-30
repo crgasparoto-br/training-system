@@ -103,6 +103,14 @@ BEGIN
     ('issue246-r2-aluno-overflow', 'issue246-r2-contract-a', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
     ('issue246-r2-aluno-b', 'issue246-r2-contract-b', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 
+  INSERT INTO "StudentProfile" (
+    "id", "alunoId", "contractId", "identificationData", "createdAt", "updatedAt"
+  ) VALUES (
+    'issue246-r2-student-profile-a', 'issue246-r2-aluno-a', 'issue246-r2-contract-a',
+    '{"birthDate":"1996-07-30","gender":"female"}'::jsonb,
+    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+  );
+
   INSERT INTO "AnthropometryAssessment" (
     "id", "contractId", "alunoId", "professorId", "code", "assessmentDate", "createdAt", "updatedAt"
   ) VALUES
