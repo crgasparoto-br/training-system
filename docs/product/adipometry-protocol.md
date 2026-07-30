@@ -32,18 +32,39 @@ O snapshot de definição de uma versão aprovada usa contrato versionado e cont
 - população com idade mínima e máxima, critérios de sexo e maturação;
 - exatamente as cinco dobras ADPT documentadas;
 - unidades explícitas de cada entrada e saída;
-- equações identificadas, com expressão, variáveis e saídas de percentual, gordura absoluta e massa magra;
+- três equações identificadas e executáveis para percentual, gordura absoluta e massa magra;
 - limites de bloqueio por entrada e uma coleção explícita de alertas;
 - precisão de medidas, resultados e cálculo interno;
 - modo e estágio de arredondamento;
 - comportamento estruturado para dado ausente e perfil incompatível;
-- no mínimo dois vetores com entradas completas, resultados esperados e tolerâncias;
-- registro de aprovação clínica com aprovador, data, identificador e SHA-256 do artefato aprovado;
+- no mínimo dois vetores distintos, com entradas completas, resultados esperados e tolerâncias não negativas;
+- registro de aprovação clínica com aprovador, instante, identificador e SHA-256 do artefato aprovado;
 - referência bibliográfica rastreável.
 
-A persistência rejeita estado `approved` quando o contrato estiver ausente, incompleto, usar dobras diferentes, não trouxer equações para todas as saídas, possuir menos de dois vetores ou quando o registro de aprovação divergir das colunas históricas. Objetos genéricos como `{ "fixture": true }` não satisfazem o gate.
+A persistência rejeita estado `approved` quando o contrato estiver ausente ou incompleto, usar dobras diferentes, não trouxer as três saídas, possuir vetores duplicados ou quando qualquer vetor não reproduzir os resultados declarados. Objetos genéricos, expressões textuais e placeholders não satisfazem o gate.
 
-Fixtures estruturais usadas pelo CI existem somente durante os testes, obedecem ao mesmo formato completo e não são seed de produto nem aprovação clínica real.
+Fixtures estruturais usadas pelo CI existem somente durante os testes, obedecem ao mesmo formato executável e não são seed de produto nem aprovação clínica real.
+
+## Linguagem executável de equações
+
+Equações aprovadas não são strings livres. Cada expressão é uma árvore JSON restrita e determinística. Os operadores aceitos são:
+
+- `constant`: número literal;
+- `variable`: entrada, idade ou resultado intermediário disponível;
+- `add` e `multiply`: coleção com pelo menos dois argumentos;
+- `subtract`, `divide` e `power`: operadores binários;
+- `negate`: inversão de sinal;
+- `ifEquals`: seleção determinística por um campo de `profileCriteria`.
+
+O total das cinco dobras é calculado pela persistência e disponibilizado como `skinfoldTotalMm`. As equações são avaliadas em ordem: percentual de gordura, gordura absoluta e massa magra. Referência a variável ausente, operador desconhecido, divisão por zero, saída repetida ou estrutura incompleta invalida a aprovação.
+
+Antes de aceitar `approved`, a persistência executa todos os vetores contra a árvore de equações e compara cada resultado com sua tolerância. Assim, texto descritivo, resultado inventado ou vetor incompatível não pode ser usado como evidência de fórmula clínica.
+
+## Aprovação e tempo
+
+`clinicalApproval.approvedAt` deve ser um instante ISO-8601 com `Z` ou offset numérico explícito. A comparação com a coluna histórica é normalizada para UTC, sem depender do `TimeZone` da sessão PostgreSQL. Datas sem fuso são rejeitadas.
+
+O aprovador no JSON deve coincidir com `approvedByUserId`; o instante deve coincidir com `approvedAt`; o identificador do registro e o SHA-256 do artefato são obrigatórios.
 
 ## Catálogo inicial
 
@@ -95,7 +116,7 @@ Um protocolo somente é compatível quando:
 4. idade na data da avaliação pertence à população aprovada;
 5. todas as dobras exigidas estão presentes e dentro dos limites de bloqueio;
 6. alertas foram apresentados sem serem convertidos silenciosamente em bloqueio;
-7. referência, fórmula, precisão, arredondamento e vetores estão registrados.
+7. referência, árvore de equações, precisão, arredondamento e vetores estão registrados e reproduzidos.
 
 Dados ausentes ou incompatíveis retornam motivo estruturado e impedem conclusão. Resultados derivados nunca são aceitos como autoridade do frontend.
 
@@ -110,7 +131,7 @@ Enquanto não houver aprovação clínica:
 
 A regra aprovada deverá definir precisão interna, casas exibidas e modo de arredondamento, acompanhados de vetores independentes.
 
-## Rascunho, conclusão e correção
+## Rascunho, conclusão, ator e correção
 
 - Um rascunho pode existir incompleto e ser retomado.
 - Resultados derivados e snapshot não são persistidos em rascunho.
@@ -118,10 +139,13 @@ A regra aprovada deverá definir precisão interna, casas exibidas e modo de arr
 - Uma avaliação concluída é imutável pelo fluxo comum e não pode ser excluída fisicamente.
 - Correção cria nova versão vinculada à vigente, com motivo e autor obrigatórios.
 - A versão anterior permanece concluída e auditável; a nova aponta `correctsAssessmentId` e a anterior recebe `correctedByAssessmentId` atomicamente.
-- `correctedByAssessmentId` é gerenciado exclusivamente pelo trigger de vínculo recíproco. Escrita direta em rascunho, remoção manual do vínculo ou associação sem correção concluída correspondente são rejeitadas.
+- `correctedByAssessmentId` é gerenciado exclusivamente pelo trigger de vínculo recíproco.
 - Comparações e Central do Aluno usam a versão corrente da cadeia. Versões substituídas permanecem disponíveis para auditoria.
 - Criações, atualizações persistidas, conclusões e correções geram eventos append-only no banco.
-- Tentativas bloqueadas e decisões de autorização serão auditadas pela API da issue #247, fora da transação rejeitada.
+
+O ator da auditoria é o usuário autenticado que executou a operação, não o professor responsável pela avaliação. A API deve informar o ator em contexto transacional local ou usar a sobrecarga explícita de `createAdipometryDraft`. O frontend nunca controla esse identificador. Papéis de aplicação sem ator válido são bloqueados; o fallback legado é restrito ao proprietário do banco para migrations e fixtures antigas.
+
+Tentativas bloqueadas e decisões de autorização serão auditadas pela API da issue #247, fora da transação rejeitada.
 
 ## Código sequencial e concorrência
 
@@ -143,7 +167,7 @@ Ao concluir, `calculationSnapshot` contém, no mínimo:
 - idade calculada na data da avaliação;
 - atributos demográficos usados;
 - código e versão do protocolo;
-- equações, limites, precisão e arredondamento;
+- equações executáveis, limites, precisão e arredondamento;
 - resultados persistidos;
 - versão da implementação do cálculo;
 - timestamp do cálculo.
@@ -152,4 +176,4 @@ A persistência verifica a estrutura e a igualdade entre protocolo, data, entrad
 
 ## Vetores de teste
 
-Não há vetor clínico aprovado nesta versão. Portanto, nenhum protocolo de produto está habilitado para conclusão. A inclusão de uma versão `approved` exige no mínimo dois vetores com entradas, resultados intermediários, resultados finais esperados e tolerâncias, além de aprovador identificado, data, registro de aprovação e hash do artefato clínico.
+Não há vetor clínico aprovado nesta versão. Portanto, nenhum protocolo de produto está habilitado para conclusão. A inclusão de uma versão `approved` exige no mínimo dois vetores distintos com entradas, resultados intermediários, resultados finais esperados e tolerâncias, além de aprovador identificado, instante com fuso, registro de aprovação e hash do artefato clínico.
