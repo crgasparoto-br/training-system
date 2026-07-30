@@ -11,4 +11,5 @@ else
 fi
 
 bash "$ROOT_DIR/scripts/verify-adipometry-canonical-profile-contract.sh"
+bash "$ROOT_DIR/scripts/verify-adipometry-no-textual-maturation-inference.sh"
 echo "adipometry audit remediation compatibility gate OK"
