@@ -30,9 +30,19 @@ jobs:
       - name: Extract implementation bundle
         shell: bash
         run: |
-          sed -n '/BUNDLE_BASE64: >-/{n;s/^[[:space:]]*//;p;q;}' \
-            .github/workflows/issue-246-bootstrap.yml > /tmp/issue-246-bundle.base64
+          awk '
+            /BUNDLE_BASE64: >-/ { capture = 1; next }
+            capture && /^[[:space:]]+run:/ { exit }
+            capture {
+              sub(/^[[:space:]]+/, "")
+              printf "%s", $0
+            }
+          ' .github/workflows/issue-246-bootstrap.yml \
+            | tr -cd 'A-Za-z0-9+/=' \
+            > /tmp/issue-246-bundle.base64
+          test "$(wc -c < /tmp/issue-246-bundle.base64)" -gt 10000
           base64 -d /tmp/issue-246-bundle.base64 > /tmp/issue-246-bundle.tar.gz
+          tar -tzf /tmp/issue-246-bundle.tar.gz
           tar -xzf /tmp/issue-246-bundle.tar.gz
 
       - name: Apply deterministic patch
