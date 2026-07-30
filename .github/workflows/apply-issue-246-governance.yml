@@ -89,7 +89,7 @@ jobs:
               'verify-adipometry-migration-existing-data.sh',
               'verify-adipometry-migration-full-chain.sh',
           ]:
-              script = Path('/tmp/issue246transport/scripts') / script_name
+              script = Path('scripts') / script_name
               content = script.read_text()
               case_continuation = '|' + chr(92) + '\n'
               loop_continuation = ' ' + chr(92) + '\n'
