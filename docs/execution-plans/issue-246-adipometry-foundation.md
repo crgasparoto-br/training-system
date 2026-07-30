@@ -27,6 +27,8 @@ A entrega não fecha a issue enquanto fórmula, população, limites, arredondam
 5. Correção cria novo registro, preserva a versão anterior e estabelece vínculo recíproco na mesma transação.
 6. A largura mínima do código é três dígitos, sem truncamento após 999.
 7. Eventos persistidos de ADPT são append-only; tentativas rejeitadas serão auditadas pela API da #247.
+8. Definições aprovadas são imutáveis, mas podem ser desativadas uma única vez sem alteração clínica; `DISABLED` é terminal.
+9. `correctedByAssessmentId` é exclusivamente gerenciado pelo trigger de correção recíproca.
 
 ## Remediações da auditoria
 
@@ -37,13 +39,20 @@ A entrega não fecha a issue enquanto fórmula, população, limites, arredondam
 - conclusão condicionada a protocolo aprovado e snapshot coerente;
 - correção atômica com motivo, autor, mesma identidade de aluno e auditoria automática;
 - testes específicos de concorrência, rollback, `ADPT-1000`, imutabilidade, correção, snapshot e isolamento;
-- teste da migration sobre banco com dados pré-existentes.
+- teste da migration sobre banco com dados pré-existentes;
+- contrato clínico estrito, com cinco dobras exatas, equações por saída, limites, dois vetores e registro de aprovação hasheado;
+- bloqueio de placeholders que apenas possuem chaves JSON não vazias;
+- transição controlada `APPROVED → DISABLED`, sem reativação;
+- rejeição de vínculo `correctedByAssessmentId` escrito diretamente em rascunhos;
+- teste da cadeia completa de migrations iniciado no baseline anterior à ADPT e com dados legados inseridos antes da primeira migration.
 
 ## Gates executáveis
 
 ```bash
 bash scripts/verify-adipometry-migration-existing-data.sh
+bash scripts/verify-adipometry-migration-full-chain.sh
 bash scripts/verify-adipometry-foundation.sh
+bash scripts/verify-adipometry-audit-remediation.sh
 pnpm type-check
 pnpm lint
 pnpm test
@@ -63,8 +72,8 @@ A habilitação do primeiro protocolo e o encerramento da issue dependem de:
 - população e aplicabilidade aprovadas;
 - unidades, limites, alertas, bloqueios, precisão e arredondamento;
 - tratamento aprovado para sexo, idade e maturação ausentes ou incompatíveis;
-- vetores de teste independentes;
-- nome e data do aprovador clínico.
+- no mínimo dois vetores de teste independentes;
+- nome, data, identificador e artefato hasheado da aprovação clínica.
 
 ## Continuação prevista
 
