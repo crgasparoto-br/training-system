@@ -32,6 +32,7 @@ A entrega não fecha a issue enquanto fórmula, população, limites, arredondam
 10. Equações aprovadas usam uma AST JSON executável e todos os vetores são executados pelo banco antes da aprovação.
 11. A autoria de auditoria vem do usuário autenticado em contexto transacional; o professor responsável não é usado como substituto pelo papel de aplicação.
 12. Instantes de aprovação exigem `Z` ou offset explícito e são normalizados para UTC.
+13. O contrato clínico atual exige `schemaVersion >= 2`, validação recursiva de todas as ramificações e tolerâncias limitadas à precisão declarada.
 
 ## Remediações da auditoria
 
@@ -48,8 +49,8 @@ A entrega não fecha a issue enquanto fórmula, população, limites, arredondam
 - rejeição de vínculo `correctedByAssessmentId` escrito diretamente em rascunhos;
 - teste da cadeia completa de migrations iniciado no baseline anterior à ADPT e com dados legados inseridos antes da primeira migration;
 - substituição de strings de fórmula por AST restrita com avaliação determinística;
-- execução dos vetores contra as equações antes de aceitar `APPROVED`;
-- rejeição de vetores duplicados, tolerâncias negativas e resultados incompatíveis;
+- validação recursiva de todas as ramificações da AST e execução dos vetores contra as equações antes de aceitar `APPROVED`;
+- rejeição de vetores duplicados, perfis fora da população, medidas fora dos limites, tolerâncias excessivas ou negativas e resultados incompatíveis;
 - ator explícito de criação, atualização, conclusão e correção, com vínculo ao mesmo contrato;
 - remoção de `EXECUTE` público das sobrecargas legadas sem ator;
 - normalização UTC da aprovação clínica e rejeição de timestamps sem fuso;
@@ -61,6 +62,7 @@ A entrega não fecha a issue enquanto fórmula, população, limites, arredondam
 bash scripts/verify-adipometry-migration-existing-data.sh
 bash scripts/verify-adipometry-migration-full-chain.sh
 bash scripts/verify-adipometry-foundation-v2.sh
+bash scripts/verify-adipometry-protocol-validator.sh
 pnpm type-check
 pnpm lint
 pnpm test
@@ -72,7 +74,7 @@ pnpm docs:check
 
 Os aliases legados `verify-adipometry-foundation.sh` e `verify-adipometry-audit-remediation.sh` reutilizam o gate v2 quando a identidade do workflow é a mesma, evitando executar a mesma suíte duas vezes.
 
-Os controles negativos rejeitam fórmula textual, vetor incompatível, vetor duplicado, timestamp sem fuso, ator ausente ou de outro contrato, mutação e reativação de protocolo, conclusão com protocolo desabilitado e vínculo de correção forjado. O teste de migration completa parte do baseline anterior à ADPT, insere dados legados e aplica toda a cadeia na ordem real.
+Os controles negativos rejeitam fórmula textual, ramificação inválida não selecionada, vetor incompatível, perfil fora da população, medida fora dos limites, tolerância excessiva, vetor duplicado, timestamp sem fuso, ator ausente ou de outro contrato, mutação e reativação de protocolo, conclusão com protocolo desabilitado e vínculo de correção forjado. O teste de migration completa parte do baseline anterior à ADPT, insere dados legados e aplica toda a cadeia na ordem real.
 
 A identidade exata da validação — head, base, merge preview, execução e hashes dos artefatos — é registrada na descrição da PR e nos artefatos publicados pelo workflow. Ela não é duplicada neste documento para evitar referência circular ao próprio commit.
 
