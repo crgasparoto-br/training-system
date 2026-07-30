@@ -13,7 +13,7 @@ Os quatro modelos também existem em `apps/api/prisma/schema.prisma`, com relaç
 
 ## Criação concorrente e código
 
-A criação de rascunho deve chamar `createAdipometryDraft` dentro da transação da operação. O `UPSERT` da chave `(contractId, alunoId)` serializa criações concorrentes; se o insert da avaliação falhar, o incremento sofre rollback junto com a operação.
+A criação de rascunho deve chamar a sobrecarga explícita de `createAdipometryDraft` dentro da transação da operação, informando o usuário autenticado do backend. O `UPSERT` da chave `(contractId, alunoId)` serializa criações concorrentes; se o insert da avaliação falhar, o incremento sofre rollback junto com a operação.
 
 `formatAdipometryCode` usa largura **mínima** de três dígitos:
 
@@ -42,19 +42,44 @@ Uma versão somente pode receber estado `APPROVED` quando `isValidAdipometryProt
 - população com faixa etária, sexo e maturação;
 - exatamente as cinco dobras canônicas;
 - unidades por entrada e saída;
-- equações identificadas para percentual de gordura, gordura absoluta e massa magra;
+- três árvores de equação executáveis para percentual de gordura, gordura absoluta e massa magra;
 - limites de bloqueio por entrada e coleção explícita de alertas;
 - precisão e arredondamento;
 - comportamento estruturado para dados ausentes e incompatíveis;
-- no mínimo dois vetores completos com resultados e tolerâncias;
-- aprovação com identificador, aprovador, data e SHA-256 do artefato;
+- no mínimo dois vetores distintos com resultados e tolerâncias não negativas;
+- aprovação com identificador, aprovador, instante com fuso e SHA-256 do artefato;
 - referência não vazia.
 
-A validação rejeita objetos genéricos ou placeholders, mesmo que todas as chaves principais existam. A aprovação registrada no JSON deve coincidir com `approvedByUserId` e `approvedAt`. A data de aprovação é normalizada à precisão `TIMESTAMP(3)` usada pela persistência, evitando divergência entre o snapshot e a coluna histórica.
+`evaluateAdipometryExpression` executa uma linguagem JSON restrita com constantes, variáveis, soma, subtração, multiplicação, divisão, potência, negação e condição por igualdade. `evaluateAdipometryProtocolVector` calcula o total das cinco dobras, executa as três equações em ordem e devolve os quatro resultados canônicos.
+
+O gate executa cada vetor antes de aceitar `APPROVED`. Expressão textual, operador desconhecido, variável ausente, divisão por zero, saída duplicada, vetor repetido, tolerância negativa ou resultado divergente rejeitam a aprovação. A validação não trata texto descritivo como fórmula.
+
+O instante `clinicalApproval.approvedAt` deve conter `Z` ou offset explícito. O JSON é convertido para UTC e comparado com a coluna histórica como `TIMESTAMP(3)` sem depender do `TimeZone` da sessão. A função de validação é `STABLE`, não `IMMUTABLE`, porque processa um instante com fuso.
 
 A definição clínica aprovada é imutável. A única alteração permitida é a transição operacional `APPROVED → DISABLED`, mantendo definição, referência e aprovação intactas. `DISABLED` é terminal: não pode ser reativado, alterado ou excluído. Avaliações históricas que usaram a versão permanecem válidas, mas novas conclusões são bloqueadas.
 
 Guedes permanece `DRAFT` e Slaughter permanece `DISABLED`; nenhum protocolo clínico real é aprovado pelas migrations.
+
+## Ator transacional e auditoria
+
+A autoria do evento deve representar quem executou a operação, não o professor responsável pelo atendimento.
+
+- A API define `app.adipometry_actor_user_id` com `set_config(..., true)` dentro da mesma transação da escrita; ou usa a sobrecarga explícita de `createAdipometryDraft` que recebe o ator.
+- `requireAdipometryActorUserId` confirma que o usuário está ativo e vinculado como colaborador do mesmo contrato.
+- O ator de correção deve coincidir com `correctionAuthorUserId`.
+- O frontend não envia nem escolhe o ator.
+- As sobrecargas legadas sem ator tiveram `EXECUTE` removido de `PUBLIC`; permanecem apenas para o proprietário do banco executar migrations e fixtures antigas.
+- Papéis de aplicação sem contexto de ator recebem `ADIPOMETRY_ACTOR_REQUIRED` antes da mutação.
+
+Triggers registram automaticamente:
+
+- `DRAFT_CREATED`;
+- `DRAFT_UPDATED`;
+- `COMPLETED`;
+- `CORRECTION_CREATED`;
+- `CORRECTION_LINKED`.
+
+Eventos de auditoria são append-only. Tentativas bloqueadas pela API devem ser registradas pela camada de serviço da issue #247, pois uma escrita de auditoria feita na mesma transação rejeitada também sofreria rollback.
 
 ## Rascunho e conclusão
 
@@ -70,44 +95,40 @@ Rascunhos podem estar incompletos, mas não persistem resultados derivados nem s
 
 Registros concluídos são imutáveis pelo fluxo comum e não podem ser excluídos fisicamente.
 
-## Correção e auditoria
+## Correção
 
 Uma correção é uma nova avaliação `COMPLETED`, no mesmo contrato e aluno, com:
 
 - `correctsAssessmentId` apontando para a versão vigente;
 - motivo não vazio;
-- autor pertencente ao contrato;
+- autor autenticado pertencente ao contrato;
 - snapshot e protocolo próprios.
 
 O banco bloqueia autorreferência e segunda correção direta da mesma versão. Após a gravação, a versão original recebe `correctedByAssessmentId` na mesma transação. Se esse vínculo não puder ser estabelecido, toda a operação é revertida.
 
-`correctedByAssessmentId` é campo gerenciado pelo banco: inserts com vínculo predefinido, atualizações de rascunho, remoção do vínculo e associações sem uma correção concluída e recíproca são rejeitados. Isso impede cadeias históricas forjadas fora do trigger `linkAdipometryCorrection`.
-
-Triggers registram automaticamente:
-
-- `DRAFT_CREATED`;
-- `DRAFT_UPDATED`;
-- `COMPLETED`;
-- `CORRECTION_CREATED`;
-- `CORRECTION_LINKED`.
-
-Eventos de auditoria são append-only. Tentativas bloqueadas pela API devem ser registradas pela camada de serviço da issue #247, pois uma escrita de auditoria feita na mesma transação rejeitada também sofreria rollback.
+`correctedByAssessmentId` é campo gerenciado pelo banco: inserts com vínculo predefinido, atualizações de rascunho, remoção do vínculo e associações sem uma correção concluída e recíproca são rejeitados.
 
 ## Implantação, dados existentes e rollback
 
-As migrations são aditivas e não removem nem reinterpretam Antropometria, cadastro, anamnese, métricas ou avaliações existentes. O CI valida três caminhos:
+As migrations são aditivas e não removem nem reinterpretam Antropometria, cadastro, anamnese, métricas ou avaliações existentes. O CI valida:
 
 1. aplicação completa das migrations em banco vazio;
 2. preservação de dados e rascunho ADPT durante o endurecimento incremental;
-3. banco construído apenas com as migrations anteriores à ADPT, populado com dados legados e depois atualizado pela cadeia ADPT completa na ordem real.
+3. banco construído apenas com migrations anteriores à ADPT, populado com dados legados e atualizado pela cadeia ADPT completa na ordem real;
+4. equações executáveis e vetores discriminantes;
+5. normalização UTC em sessões com fusos diferentes;
+6. autoria explícita diferente do professor responsável;
+7. bloqueio de papel de aplicação sem ator;
+8. concorrência, rollback, `ADPT-1000`, imutabilidade, correção e isolamento.
 
 Validações específicas:
 
 ```bash
 bash scripts/verify-adipometry-migration-existing-data.sh
 bash scripts/verify-adipometry-migration-full-chain.sh
-bash scripts/verify-adipometry-foundation.sh
-bash scripts/verify-adipometry-audit-remediation.sh
+bash scripts/verify-adipometry-foundation-v2.sh
 ```
+
+Os scripts legados `verify-adipometry-foundation.sh` e `verify-adipometry-audit-remediation.sh` delegam ou reutilizam a verificação v2 para preservar compatibilidade sem duplicar o gate no mesmo workflow.
 
 O deploy executa `prisma migrate deploy` antes de iniciar a API. Rollback destrutivo não é automatizado; qualquer reversão após uso real exige backup, plano explícito e aprovação operacional.
