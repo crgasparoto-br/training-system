@@ -13,7 +13,7 @@ Os quatro modelos também existem em `apps/api/prisma/schema.prisma`, com relaç
 
 ## Criação concorrente e código
 
-A criação de rascunho deve chamar a sobrecarga explícita de `createAdipometryDraft` dentro da transação da operação, informando o usuário autenticado do backend. O `UPSERT` da chave `(contractId, alunoId)` serializa criações concorrentes; se o insert da avaliação falhar, o incremento sofre rollback junto com a operação.
+A criação de rascunho deve chamar a sobrecarga explícita de `createAdipometryDraft` dentro da transação da operação, informando o usuário autenticado do backend. Como defesa final, o trigger `AdipometryAssessment_00_allocate_identity` executa o `UPSERT` da chave `(contractId, alunoId)` para **todo** `INSERT`, inclusive chamadas SQL diretas. O número e o código enviados pelo chamador são sempre substituídos pela identidade alocada na transação; se qualquer validação ou insert falhar, o incremento sofre rollback junto com a operação.
 
 `formatAdipometryCode` usa largura **mínima** de três dígitos:
 
@@ -21,7 +21,7 @@ A criação de rascunho deve chamar a sobrecarga explícita de `createAdipometry
 - `999` → `ADPT-999`;
 - `1000` → `ADPT-1000`.
 
-A largura cresce com a sequência. A constraint `AdipometryAssessment_code_matches_sequence_check` impede gravar manualmente código incompatível com `sequenceNumber`.
+A largura cresce com a sequência. A constraint `AdipometryAssessment_code_matches_sequence_check` impede gravar código incompatível com `sequenceNumber`, e o trigger impede que o próprio número seja escolhido pelo chamador.
 
 ## Isolamento multi-tenant
 
@@ -80,19 +80,25 @@ Triggers registram automaticamente:
 - `CORRECTION_CREATED`;
 - `CORRECTION_LINKED`.
 
-Eventos de auditoria são append-only. Tentativas bloqueadas pela API devem ser registradas pela camada de serviço da issue #247, pois uma escrita de auditoria feita na mesma transação rejeitada também sofreria rollback.
+`recordAdipometryAuditEvent` é `SECURITY DEFINER`; portanto, o papel de aplicação não precisa de `INSERT` direto em `AdipometryAuditEvent`. O guard compara o usuário efetivo com o proprietário da tabela, valida ator ativo no tenant e verifica a coerência entre ação e snapshots. Mesmo que uma permissão de `INSERT` seja concedida acidentalmente, uma tentativa de forjar evento recebe `ADIPOMETRY_AUDIT_INSERT_FORBIDDEN`. Eventos existentes continuam append-only.
+
+Tentativas bloqueadas pela API devem ser registradas pela camada de serviço da issue #247, pois uma escrita de auditoria feita na mesma transação rejeitada também sofreria rollback.
 
 ## Rascunho e conclusão
 
-Rascunhos podem estar incompletos, mas não persistem resultados derivados nem snapshot de cálculo. A conclusão exige, de forma conjunta:
+Rascunhos podem estar incompletos, mas não persistem resultados derivados nem snapshot de cálculo. Na transição para `COMPLETED`, `canonicalizeAdipometryCompletion`:
 
-- protocolo relacionado e aprovado;
-- cinco dobras e peso válidos;
-- total das dobras consistente;
-- percentual de gordura, gordura absoluta e massa magra;
-- conservação de massa dentro da tolerância documentada;
-- snapshot estruturado com protocolo, data, perfil, entradas, regras, resultados, versão da implementação e timestamp;
-- igualdade entre entradas/resultados persistidos e os valores do snapshot.
+- exige protocolo relacionado e aprovado;
+- exige idade inteira e sexo compatíveis com a população aprovada;
+- exige maturação quando o protocolo não a classifica como dispensada;
+- valida peso e cinco dobras contra os limites de bloqueio da definição;
+- executa a AST aprovada no banco;
+- aplica `HALF_UP` ou `HALF_EVEN` e a escala declarada;
+- substitui resultados enviados pelo chamador pelos resultados calculados;
+- reconstrói o snapshot com entradas, regras integrais do protocolo, resultados, versão do avaliador e instante UTC;
+- define `completedAt` na própria transação.
+
+Assim, um payload ou SQL direto não consegue concluir com idade/sexo ausentes, medida incompatível, regra forjada ou resultado inventado. As constraints ainda verificam total das dobras, conservação de massa e igualdade entre colunas e snapshot após a canonicalização.
 
 Registros concluídos são imutáveis pelo fluxo comum e não podem ser excluídos fisicamente.
 
@@ -120,7 +126,8 @@ As migrations são aditivas e não removem nem reinterpretam Antropometria, cada
 5. normalização UTC em sessões com fusos diferentes;
 6. autoria explícita diferente do professor responsável;
 7. bloqueio de papel de aplicação sem ator;
-8. concorrência, rollback, `ADPT-1000`, imutabilidade, correção e isolamento.
+8. concorrência, rollback, `ADPT-1000`, imutabilidade, correção e isolamento;
+9. conclusão autoritativa, rejeição de perfil/medida incompatível, alocação universal de sequência e rejeição de auditoria forjada.
 
 Validações específicas:
 
@@ -129,6 +136,7 @@ bash scripts/verify-adipometry-migration-existing-data.sh
 bash scripts/verify-adipometry-migration-full-chain.sh
 bash scripts/verify-adipometry-foundation-v2.sh
 bash scripts/verify-adipometry-protocol-validator.sh
+bash scripts/verify-adipometry-persistence-boundaries.sh
 ```
 
 Os scripts legados `verify-adipometry-foundation.sh` e `verify-adipometry-audit-remediation.sh` delegam ou reutilizam a verificação v2 para preservar compatibilidade sem duplicar o gate no mesmo workflow.
