@@ -48,11 +48,11 @@ A entrega não fecha a issue enquanto fórmula, população, limites, arredondam
 
 ## Validação congelada
 
-Workflow `Validate PR`, execução `30554631070`:
+Workflow `Validate PR`, execução `30555314434`:
 
-- head: `a526399d7c9d0642e54bf754e3288e56246f2bd2`;
+- head: `3fee0c578c53af90dcb69083a1fd9258af517c91`;
 - base `develop`: `608f94756ebfa47f39a832115f15b1252792abda`;
-- merge preview: `52dd9e1334250058135b486d3b86251e2d6602d9`.
+- merge preview: `abf498367b0f042a7f915f81c5a81041785c3413`.
 
 Gates aprovados:
 
