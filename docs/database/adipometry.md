@@ -69,7 +69,7 @@ A autoria do evento deve representar quem executou a operação, não o professo
 - `requireAdipometryActorUserId` confirma que o usuário está ativo e vinculado como colaborador do mesmo contrato.
 - O ator de correção deve coincidir com `correctionAuthorUserId`.
 - O frontend não envia nem escolhe o ator.
-- As sobrecargas legadas sem ator tiveram `EXECUTE` removido de `PUBLIC`; permanecem apenas para o proprietário do banco executar migrations e fixtures antigas.
+- As sobrecargas legadas sem ator tiveram `EXECUTE` removido de `PUBLIC` e do papel proprietário; somente superusuários do harness de migration podem atravessar o caminho histórico.
 - Papéis de aplicação sem contexto de ator recebem `ADIPOMETRY_ACTOR_REQUIRED` antes da mutação.
 
 Triggers registram automaticamente:
