@@ -143,7 +143,7 @@ A regra aprovada deverá definir precisão interna, casas exibidas e modo de arr
 - Comparações e Central do Aluno usam a versão corrente da cadeia. Versões substituídas permanecem disponíveis para auditoria.
 - Criações, atualizações persistidas, conclusões e correções geram eventos append-only no banco.
 
-O ator da auditoria é o usuário autenticado que executou a operação, não o professor responsável pela avaliação. A API deve informar o ator em contexto transacional local ou usar a sobrecarga explícita de `createAdipometryDraft`. O frontend nunca controla esse identificador. Papéis de aplicação sem ator válido são bloqueados; o fallback legado é restrito ao proprietário do banco para migrations e fixtures antigas.
+O ator da auditoria é o usuário autenticado que executou a operação, não o professor responsável pela avaliação. A API deve informar o ator em contexto transacional local ou usar a sobrecarga explícita de `createAdipometryDraft`. O frontend nunca controla esse identificador. Papéis de aplicação sem ator válido são bloqueados. As sobrecargas legadas sem ator não possuem `EXECUTE` para `PUBLIC` nem para o papel proprietário; somente superusuários do harness de migration podem atravessar esse caminho histórico.
 
 Tentativas bloqueadas e decisões de autorização serão auditadas pela API da issue #247, fora da transação rejeitada.
 
