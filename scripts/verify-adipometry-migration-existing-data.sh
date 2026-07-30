@@ -40,7 +40,8 @@ is_deferred_adpt_migration() {
     20260730141000_add_adipometry_relation_uniques|\
     20260730142000_add_adipometry_draft_date_overload|\
     20260730150000_fix_issue_246_audit_findings|\
-    20260730170000_remediate_issue_246_audit_round_2)
+    20260730170000_remediate_issue_246_audit_round_2|\
+    20260730173000_close_issue_246_adversarial_gaps)
       return 0
       ;;
     *)
@@ -131,12 +132,10 @@ for migration_name in \
   20260730141000_add_adipometry_relation_uniques \
   20260730142000_add_adipometry_draft_date_overload \
   20260730150000_fix_issue_246_audit_findings \
-  20260730170000_remediate_issue_246_audit_round_2
+  20260730170000_remediate_issue_246_audit_round_2 \
+  20260730173000_close_issue_246_adversarial_gaps
 do
-  psql_file \
-    "$TEMP_URL" \
-    "$ROOT_DIR/apps/api/prisma/migrations/$migration_name/migration.sql" \
-    "$migration_name.sql"
+  psql_file "$TEMP_URL" "$ROOT_DIR/apps/api/prisma/migrations/$migration_name/migration.sql" "$migration_name.sql"
 done
 
 cat > "$TMP_DIR/verify.sql" <<'SQL'
@@ -162,8 +161,9 @@ BEGIN
     RAISE EXCEPTION 'minimum-width formatter was not installed';
   END IF;
 
-  IF TO_REGPROCEDURE('"evaluateAdipometryExpression"(jsonb,jsonb)') IS NULL THEN
-    RAISE EXCEPTION 'round-2 executable equation evaluator was not installed';
+  IF TO_REGPROCEDURE('"evaluateAdipometryExpression"(jsonb,jsonb)') IS NULL
+     OR TO_REGPROCEDURE('"isValidAdipometryExpression"(jsonb,text[])') IS NULL THEN
+    RAISE EXCEPTION 'final executable equation validation was not installed';
   END IF;
 END $$;
 SQL
