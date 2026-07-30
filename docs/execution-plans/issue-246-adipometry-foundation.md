@@ -2,9 +2,9 @@
 
 ## Estado
 
-**Fundação estrutural em validação. Gate clínico pendente.**
+**Fundação estrutural validada internamente. Gate clínico pendente.**
 
-A entrega não fecha a issue enquanto fórmula, população, limites, arredondamento, vetores e aprovador clínico do primeiro protocolo não estiverem formalmente definidos.
+A entrega não fecha a issue enquanto fórmula, população, limites, arredondamento, vetores e aprovador clínico do primeiro protocolo não estiverem formalmente definidos. A aprovação operacional final também exige auditoria independente do SHA congelado.
 
 ## Entrega estrutural
 
@@ -46,7 +46,15 @@ A entrega não fecha a issue enquanto fórmula, população, limites, arredondam
 - rejeição de vínculo `correctedByAssessmentId` escrito diretamente em rascunhos;
 - teste da cadeia completa de migrations iniciado no baseline anterior à ADPT e com dados legados inseridos antes da primeira migration.
 
-## Gates executáveis
+## Validação congelada
+
+Workflow `Validate PR`, execução `30554631070`:
+
+- head: `a526399d7c9d0642e54bf754e3288e56246f2bd2`;
+- base `develop`: `608f94756ebfa47f39a832115f15b1252792abda`;
+- merge preview: `52dd9e1334250058135b486d3b86251e2d6602d9`.
+
+Gates aprovados:
 
 ```bash
 bash scripts/verify-adipometry-migration-existing-data.sh
@@ -62,7 +70,7 @@ pnpm access:check
 pnpm docs:check
 ```
 
-Os scripts PostgreSQL são executados no workflow `Validate PR` e publicam artefatos próprios. O harness de fundação usa o mesmo contrato clínico estrito aplicado pela migration final.
+Os controles negativos rejeitaram protocolo placeholder, vetor insuficiente, mutação e reativação de protocolo, conclusão com protocolo desabilitado e vínculo de correção forjado em rascunho. O teste de migration completa parte do baseline anterior à ADPT, insere dados legados e aplica toda a cadeia na ordem real.
 
 ## Gate clínico pendente
 
