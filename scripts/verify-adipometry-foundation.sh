@@ -312,7 +312,7 @@ expect_failure \
 
 expect_failure \
   "cross-tenant professor draft" \
-  "AdipometryAssessment_professorId_contractId_fkey" \
+  "ADIPOMETRY_AUDIT_ACTOR_CROSS_TENANT" \
   "SELECT * FROM \"createAdipometryDraft\"(
      'issue246-cross-professor', 'issue246-contract-a', 'issue246-aluno-a1',
      'issue246-professor-b', DATE '2026-07-30', CURRENT_TIMESTAMP
