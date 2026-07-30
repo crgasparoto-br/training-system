@@ -119,8 +119,81 @@ INSERT INTO "AdipometryProtocolVersion" (
   CURRENT_TIMESTAMP,
   CURRENT_TIMESTAMP
 );
+
+CREATE OR REPLACE FUNCTION issue246_snapshot(
+  p_protocol_code TEXT,
+  p_protocol_version TEXT,
+  p_assessment_date TIMESTAMPTZ,
+  p_weight NUMERIC,
+  p_triceps NUMERIC,
+  p_subscapular NUMERIC,
+  p_suprailiac NUMERIC,
+  p_abdominal NUMERIC,
+  p_thigh NUMERIC,
+  p_sum NUMERIC,
+  p_body_fat NUMERIC,
+  p_fat_mass NUMERIC,
+  p_lean_mass NUMERIC
+) RETURNS JSONB
+LANGUAGE SQL
+IMMUTABLE
+AS $$
+  SELECT jsonb_build_object(
+    'schemaVersion', 1,
+    'protocol', jsonb_build_object('code', p_protocol_code, 'version', p_protocol_version),
+    'assessmentDate', TO_CHAR(p_assessment_date, 'YYYY-MM-DD'),
+    'ageAtAssessment', NULL,
+    'profileCriteria', jsonb_build_object('fixture', true),
+    'inputs', jsonb_build_object(
+      'weightKg', p_weight,
+      'tricepsMm', p_triceps,
+      'subscapularMm', p_subscapular,
+      'suprailiacMm', p_suprailiac,
+      'abdominalMm', p_abdominal,
+      'thighMm', p_thigh
+    ),
+    'rules', jsonb_build_object(
+      'equations', '[]'::jsonb,
+      'limits', '{}'::jsonb,
+      'precision', '{}'::jsonb,
+      'rounding', '{}'::jsonb
+    ),
+    'intermediateValues', '{}'::jsonb,
+    'results', jsonb_build_object(
+      'sumSkinfoldsMm', p_sum,
+      'bodyFatPercentage', p_body_fat,
+      'fatMassKg', p_fat_mass,
+      'leanMassKg', p_lean_mass
+    )
+  );
+$$;
 SQL
 psql_run -f /work/setup.sql
+
+cat > "$TMP_DIR/approved-protocol-update.sql" <<'SQL'
+UPDATE "AdipometryProtocolVersion"
+SET "name" = 'mutated'
+WHERE "id" = 'issue246-protocol-approved';
+SQL
+if psql_run -f /work/approved-protocol-update.sql >"$TMP_DIR/failure.out" 2>&1; then
+  echo "Expected failure did not occur: approved protocol update" >&2
+  cat "$TMP_DIR/failure.out" >&2
+  exit 1
+fi
+grep -q 'ADIPOMETRY_APPROVED_PROTOCOL_IMMUTABLE' "$TMP_DIR/failure.out"
+echo "negative-control OK: approved protocol update"
+
+cat > "$TMP_DIR/approved-protocol-delete.sql" <<'SQL'
+DELETE FROM "AdipometryProtocolVersion"
+WHERE "id" = 'issue246-protocol-approved';
+SQL
+if psql_run -f /work/approved-protocol-delete.sql >"$TMP_DIR/failure.out" 2>&1; then
+  echo "Expected failure did not occur: approved protocol delete" >&2
+  cat "$TMP_DIR/failure.out" >&2
+  exit 1
+fi
+grep -q 'ADIPOMETRY_APPROVED_PROTOCOL_IMMUTABLE' "$TMP_DIR/failure.out"
+echo "negative-control OK: approved protocol delete"
 
 cat > "$TMP_DIR/concurrent-a.sql" <<'SQL'
 BEGIN;
@@ -222,7 +295,7 @@ INSERT INTO \"AdipometryAssessment\" (
   \"bodyFatPercentage\", \"fatMassKg\", \"leanMassKg\", \"protocolCode\", \"protocolVersion\", \"calculationSnapshot\", \"createdAt\", \"updatedAt\"
 )
 SELECT 'issue246-draft-protocol-final', 'issue246-contract-a', 'issue246-aluno-a1', 'issue246-professor-a', \"code\", \"sequenceNumber\", CURRENT_TIMESTAMP, 'COMPLETED',
-  70, 10, 10, 10, 10, 10, 50, 20, 14, 56, 'GUEDES-ADULT', '0.1-draft', '{\"schemaVersion\":1}'::jsonb, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP FROM reserved;
+  70, 10, 10, 10, 10, 10, 50, 20, 14, 56, 'GUEDES-ADULT', '0.1-draft', issue246_snapshot('GUEDES-ADULT', '0.1-draft', CURRENT_TIMESTAMP, 70, 10, 10, 10, 10, 10, 50, 20, 14, 56), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP FROM reserved;
 COMMIT;"
 
 expect_failure "completed assessment missing derived results" "BEGIN;
@@ -243,12 +316,77 @@ sql "DO \$\$ DECLARE r RECORD; BEGIN
   ) VALUES (
     'issue246-completed', 'issue246-contract-a', 'issue246-aluno-a1', 'issue246-professor-a', r.\"code\", r.\"sequenceNumber\", CURRENT_TIMESTAMP, 'COMPLETED',
     70, 10, 10, 10, 10, 10, 50, 20, 14, 56, 'ISSUE246-TEST', '1.0-test',
-    '{\"schemaVersion\":1,\"protocol\":{\"code\":\"ISSUE246-TEST\",\"version\":\"1.0-test\"}}'::jsonb,
+    issue246_snapshot('ISSUE246-TEST', '1.0-test', CURRENT_TIMESTAMP, 70, 10, 10, 10, 10, 10, 50, 20, 14, 56),
     'issue246-anthro-a1', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
   );
 END \$\$;"
 
 echo "positive-control OK: completed assessment with approved protocol"
+
+cat > "$TMP_DIR/snapshot-mismatch.sql" <<'SQL'
+BEGIN;
+WITH reserved AS (
+  SELECT * FROM reserve_adipometry_code('issue246-contract-a', 'issue246-aluno-a1')
+)
+INSERT INTO "AdipometryAssessment" (
+  "id", "contractId", "alunoId", "professorId", "code", "sequenceNumber", "assessmentDate", "status",
+  "weightKg", "tricepsMm", "subscapularMm", "suprailiacMm", "abdominalMm", "thighMm", "sumSkinfoldsMm",
+  "bodyFatPercentage", "fatMassKg", "leanMassKg", "protocolCode", "protocolVersion", "calculationSnapshot", "createdAt", "updatedAt"
+)
+SELECT
+  'issue246-snapshot-mismatch', 'issue246-contract-a', 'issue246-aluno-a1', 'issue246-professor-a',
+  "code", "sequenceNumber", CURRENT_TIMESTAMP, 'COMPLETED',
+  70, 10, 10, 10, 10, 10, 50, 20, 14, 56,
+  'ISSUE246-TEST', '1.0-test',
+  issue246_snapshot(
+    'ISSUE246-TEST', '1.0-test', CURRENT_TIMESTAMP,
+    70, 10, 10, 10, 10, 10, 50, 21, 14, 56
+  ),
+  CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+FROM reserved;
+COMMIT;
+SQL
+if psql_run -f /work/snapshot-mismatch.sql >"$TMP_DIR/failure.out" 2>&1; then
+  echo "Expected failure did not occur: snapshot result differs from persisted result" >&2
+  cat "$TMP_DIR/failure.out" >&2
+  exit 1
+fi
+grep -q 'AdipometryAssessment_completion_check' "$TMP_DIR/failure.out"
+echo "negative-control OK: snapshot result differs from persisted result"
+
+cat > "$TMP_DIR/historical-version.sql" <<'SQL'
+INSERT INTO "AdipometryProtocolVersion" (
+  "id", "code", "name", "version", "status", "reference", "populationCriteria",
+  "requiredSkinfolds", "inputUnits", "outputUnits", "equations", "limits", "precisionRules",
+  "missingDataBehavior", "testVectors", "approvedAt", "approvedBy", "createdAt", "updatedAt"
+)
+SELECT
+  'issue246-protocol-approved-v2', "code", "name", '2.0-test', "status", "reference", "populationCriteria",
+  "requiredSkinfolds", "inputUnits", "outputUnits", '["fixture-v2"]'::jsonb, "limits", "precisionRules",
+  "missingDataBehavior", "testVectors", CURRENT_TIMESTAMP, "approvedBy", CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+FROM "AdipometryProtocolVersion"
+WHERE "id" = 'issue246-protocol-approved';
+
+DO $$
+BEGIN
+  IF (
+    SELECT "protocolVersion"
+    FROM "AdipometryAssessment"
+    WHERE "id" = 'issue246-completed'
+  ) <> '1.0-test' THEN
+    RAISE EXCEPTION 'historical protocol version changed';
+  END IF;
+  IF (
+    SELECT "calculationSnapshot" #>> '{protocol,version}'
+    FROM "AdipometryAssessment"
+    WHERE "id" = 'issue246-completed'
+  ) <> '1.0-test' THEN
+    RAISE EXCEPTION 'historical snapshot changed';
+  END IF;
+END $$;
+SQL
+psql_run -f /work/historical-version.sql
+echo "positive-control OK: new protocol version preserves historical snapshot"
 
 expect_failure "common update of completed assessment" "UPDATE \"AdipometryAssessment\" SET \"notes\" = 'mutated' WHERE \"id\" = 'issue246-completed';"
 expect_failure "physical delete of completed assessment" "DELETE FROM \"AdipometryAssessment\" WHERE \"id\" = 'issue246-completed';"
@@ -271,7 +409,7 @@ sql "DO \$\$ DECLARE r RECORD; BEGIN
   ) VALUES (
     'issue246-correction', 'issue246-contract-a', 'issue246-aluno-a1', 'issue246-professor-a', r.\"code\", r.\"sequenceNumber\", CURRENT_TIMESTAMP, 'COMPLETED',
     70, 11, 10, 10, 10, 10, 51, 20, 14, 56, 'ISSUE246-TEST', '1.0-test',
-    '{\"schemaVersion\":1,\"correction\":true}'::jsonb,
+    issue246_snapshot('ISSUE246-TEST', '1.0-test', CURRENT_TIMESTAMP, 70, 11, 10, 10, 10, 10, 51, 20, 14, 56),
     'issue246-completed', 'Measurement transcription corrected', 'issue246-professor-a', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
   );
   INSERT INTO \"AdipometryAuditLog\" (
@@ -293,7 +431,7 @@ INSERT INTO \"AdipometryAssessment\" (
   \"correctionOfId\", \"correctionReason\", \"correctedByProfessorId\", \"correctedAt\", \"createdAt\", \"updatedAt\"
 )
 SELECT 'issue246-second-correction', 'issue246-contract-a', 'issue246-aluno-a1', 'issue246-professor-a', \"code\", \"sequenceNumber\", CURRENT_TIMESTAMP, 'COMPLETED',
-  70, 11, 10, 10, 10, 10, 51, 20, 14, 56, 'ISSUE246-TEST', '1.0-test', '{\"schemaVersion\":1}'::jsonb,
+  70, 11, 10, 10, 10, 10, 51, 20, 14, 56, 'ISSUE246-TEST', '1.0-test', issue246_snapshot('ISSUE246-TEST', '1.0-test', CURRENT_TIMESTAMP, 70, 11, 10, 10, 10, 10, 51, 20, 14, 56),
   'issue246-completed', 'Second correction', 'issue246-professor-a', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP FROM reserved;
 COMMIT;"
 

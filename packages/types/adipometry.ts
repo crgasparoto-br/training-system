@@ -37,6 +37,15 @@ export interface AdipometryMeasurementsInput {
   thighMm?: number | null;
 }
 
+export interface AdipometryCompletedMeasurements {
+  weightKg: number;
+  tricepsMm: number;
+  subscapularMm: number;
+  suprailiacMm: number;
+  abdominalMm: number;
+  thighMm: number;
+}
+
 export interface AdipometryCalculatedResults {
   sumSkinfoldsMm: number;
   bodyFatPercentage: number;
@@ -47,6 +56,25 @@ export interface AdipometryCalculatedResults {
 export interface AdipometryProtocolRef {
   code: string;
   version: string;
+}
+
+export interface AdipometryCalculationRulesSnapshot {
+  equations: unknown[];
+  limits: Record<string, unknown>;
+  precision: Record<string, unknown>;
+  rounding: Record<string, unknown>;
+}
+
+export interface AdipometryCalculationSnapshot {
+  schemaVersion: 1;
+  protocol: AdipometryProtocolRef;
+  assessmentDate: string;
+  ageAtAssessment: number | null;
+  profileCriteria: Record<string, unknown>;
+  inputs: AdipometryCompletedMeasurements;
+  rules: AdipometryCalculationRulesSnapshot;
+  intermediateValues: Record<string, unknown>;
+  results: AdipometryCalculatedResults;
 }
 
 export interface AdipometryProtocolAvailability extends AdipometryProtocolRef {
@@ -86,7 +114,7 @@ export interface AdipometryAssessmentSummary {
 export interface AdipometryAssessmentDetail extends AdipometryAssessmentSummary {
   measurements: AdipometryMeasurementsInput;
   results?: AdipometryCalculatedResults | null;
-  calculationSnapshot?: Record<string, unknown> | null;
+  calculationSnapshot?: AdipometryCalculationSnapshot | null;
   supportAnthropometry?: AdipometryAnthropometryReference | null;
   notes?: string | null;
   correctionReason?: string | null;

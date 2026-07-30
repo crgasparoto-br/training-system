@@ -138,6 +138,57 @@ CREATE TABLE "AdipometryAssessment" (
       AND "protocolCode" IS NOT NULL
       AND "protocolVersion" IS NOT NULL
       AND "calculationSnapshot" IS NOT NULL
+      AND JSONB_TYPEOF("calculationSnapshot") = 'object'
+      AND "calculationSnapshot" ?& ARRAY[
+        'schemaVersion', 'protocol', 'assessmentDate', 'ageAtAssessment',
+        'profileCriteria', 'inputs', 'rules', 'intermediateValues', 'results'
+      ]
+      AND JSONB_TYPEOF("calculationSnapshot" -> 'schemaVersion') = 'number'
+      AND ("calculationSnapshot" ->> 'schemaVersion')::INTEGER = 1
+      AND JSONB_TYPEOF("calculationSnapshot" -> 'protocol') = 'object'
+      AND ("calculationSnapshot" -> 'protocol') ?& ARRAY['code', 'version']
+      AND JSONB_TYPEOF("calculationSnapshot" #> '{protocol,code}') = 'string'
+      AND JSONB_TYPEOF("calculationSnapshot" #> '{protocol,version}') = 'string'
+      AND "calculationSnapshot" #>> '{protocol,code}' = "protocolCode"
+      AND "calculationSnapshot" #>> '{protocol,version}' = "protocolVersion"
+      AND JSONB_TYPEOF("calculationSnapshot" -> 'assessmentDate') = 'string'
+      AND "calculationSnapshot" ->> 'assessmentDate' = TO_CHAR("assessmentDate", 'YYYY-MM-DD')
+      AND JSONB_TYPEOF("calculationSnapshot" -> 'profileCriteria') = 'object'
+      AND JSONB_TYPEOF("calculationSnapshot" -> 'inputs') = 'object'
+      AND ("calculationSnapshot" -> 'inputs') ?& ARRAY[
+        'weightKg', 'tricepsMm', 'subscapularMm', 'suprailiacMm', 'abdominalMm', 'thighMm'
+      ]
+      AND JSONB_TYPEOF("calculationSnapshot" #> '{inputs,weightKg}') = 'number'
+      AND JSONB_TYPEOF("calculationSnapshot" #> '{inputs,tricepsMm}') = 'number'
+      AND JSONB_TYPEOF("calculationSnapshot" #> '{inputs,subscapularMm}') = 'number'
+      AND JSONB_TYPEOF("calculationSnapshot" #> '{inputs,suprailiacMm}') = 'number'
+      AND JSONB_TYPEOF("calculationSnapshot" #> '{inputs,abdominalMm}') = 'number'
+      AND JSONB_TYPEOF("calculationSnapshot" #> '{inputs,thighMm}') = 'number'
+      AND ("calculationSnapshot" #>> '{inputs,weightKg}')::DECIMAL = "weightKg"
+      AND ("calculationSnapshot" #>> '{inputs,tricepsMm}')::DECIMAL = "tricepsMm"
+      AND ("calculationSnapshot" #>> '{inputs,subscapularMm}')::DECIMAL = "subscapularMm"
+      AND ("calculationSnapshot" #>> '{inputs,suprailiacMm}')::DECIMAL = "suprailiacMm"
+      AND ("calculationSnapshot" #>> '{inputs,abdominalMm}')::DECIMAL = "abdominalMm"
+      AND ("calculationSnapshot" #>> '{inputs,thighMm}')::DECIMAL = "thighMm"
+      AND JSONB_TYPEOF("calculationSnapshot" -> 'rules') = 'object'
+      AND ("calculationSnapshot" -> 'rules') ?& ARRAY['equations', 'limits', 'precision', 'rounding']
+      AND JSONB_TYPEOF("calculationSnapshot" #> '{rules,equations}') = 'array'
+      AND JSONB_TYPEOF("calculationSnapshot" #> '{rules,limits}') = 'object'
+      AND JSONB_TYPEOF("calculationSnapshot" #> '{rules,precision}') = 'object'
+      AND JSONB_TYPEOF("calculationSnapshot" #> '{rules,rounding}') = 'object'
+      AND JSONB_TYPEOF("calculationSnapshot" -> 'intermediateValues') = 'object'
+      AND JSONB_TYPEOF("calculationSnapshot" -> 'results') = 'object'
+      AND ("calculationSnapshot" -> 'results') ?& ARRAY[
+        'sumSkinfoldsMm', 'bodyFatPercentage', 'fatMassKg', 'leanMassKg'
+      ]
+      AND JSONB_TYPEOF("calculationSnapshot" #> '{results,sumSkinfoldsMm}') = 'number'
+      AND JSONB_TYPEOF("calculationSnapshot" #> '{results,bodyFatPercentage}') = 'number'
+      AND JSONB_TYPEOF("calculationSnapshot" #> '{results,fatMassKg}') = 'number'
+      AND JSONB_TYPEOF("calculationSnapshot" #> '{results,leanMassKg}') = 'number'
+      AND ("calculationSnapshot" #>> '{results,sumSkinfoldsMm}')::DECIMAL = "sumSkinfoldsMm"
+      AND ("calculationSnapshot" #>> '{results,bodyFatPercentage}')::DECIMAL = "bodyFatPercentage"
+      AND ("calculationSnapshot" #>> '{results,fatMassKg}')::DECIMAL = "fatMassKg"
+      AND ("calculationSnapshot" #>> '{results,leanMassKg}')::DECIMAL = "leanMassKg"
       AND "sumSkinfoldsMm" = "tricepsMm" + "subscapularMm" + "suprailiacMm" + "abdominalMm" + "thighMm"
       AND ABS(("fatMassKg" + "leanMassKg") - "weightKg") <= 0.02
     )
@@ -426,6 +477,22 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION protect_approved_adipometry_protocol_version()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF OLD."status" = 'APPROVED' THEN
+    RAISE EXCEPTION 'ADIPOMETRY_APPROVED_PROTOCOL_IMMUTABLE'
+      USING ERRCODE = '55000';
+  END IF;
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION protect_completed_adipometry_assessment()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -441,6 +508,10 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
+CREATE TRIGGER "AdipometryProtocolVersion_approved_guard"
+BEFORE UPDATE OR DELETE ON "AdipometryProtocolVersion"
+FOR EACH ROW EXECUTE FUNCTION protect_approved_adipometry_protocol_version();
 
 CREATE TRIGGER "AdipometryAssessment_tenant_guard"
 BEFORE INSERT OR UPDATE ON "AdipometryAssessment"
