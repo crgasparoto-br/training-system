@@ -39,6 +39,7 @@ Assim, identificadores válidos de contratos diferentes não podem ser combinado
 
 Uma versão somente pode receber estado `APPROVED` quando `isValidAdipometryProtocolDefinition` confirma um contrato clínico completo e versionado, incluindo:
 
+- `schemaVersion` igual ou superior a `2`;
 - população com faixa etária, sexo e maturação;
 - exatamente as cinco dobras canônicas;
 - unidades por entrada e saída;
@@ -46,13 +47,13 @@ Uma versão somente pode receber estado `APPROVED` quando `isValidAdipometryProt
 - limites de bloqueio por entrada e coleção explícita de alertas;
 - precisão e arredondamento;
 - comportamento estruturado para dados ausentes e incompatíveis;
-- no mínimo dois vetores distintos com resultados e tolerâncias não negativas;
+- no mínimo dois vetores distintos com resultados e tolerâncias não negativas, limitadas à menor unidade da precisão de resultado;
 - aprovação com identificador, aprovador, instante com fuso e SHA-256 do artefato;
 - referência não vazia.
 
 `evaluateAdipometryExpression` executa uma linguagem JSON restrita com constantes, variáveis, soma, subtração, multiplicação, divisão, potência, negação e condição por igualdade. `evaluateAdipometryProtocolVector` calcula o total das cinco dobras, executa as três equações em ordem e devolve os quatro resultados canônicos.
 
-O gate executa cada vetor antes de aceitar `APPROVED`. Expressão textual, operador desconhecido, variável ausente, divisão por zero, saída duplicada, vetor repetido, tolerância negativa ou resultado divergente rejeitam a aprovação. A validação não trata texto descritivo como fórmula.
+`isValidAdipometryExpression` valida recursivamente todas as ramificações, a ordem das três saídas e a lista de variáveis permitidas, inclusive caminhos não selecionados pelos vetores. O gate executa cada vetor antes de aceitar `APPROVED`. Expressão textual, operador desconhecido, variável ausente, divisão por zero, saída duplicada, vetor repetido, perfil fora da população, medida fora dos limites, tolerância excessiva ou negativa, ou resultado divergente rejeitam a aprovação. A validação não trata texto descritivo como fórmula.
 
 O instante `clinicalApproval.approvedAt` deve conter `Z` ou offset explícito. O JSON é convertido para UTC e comparado com a coluna histórica como `TIMESTAMP(3)` sem depender do `TimeZone` da sessão. A função de validação é `STABLE`, não `IMMUTABLE`, porque processa um instante com fuso.
 
@@ -115,7 +116,7 @@ As migrations são aditivas e não removem nem reinterpretam Antropometria, cada
 1. aplicação completa das migrations em banco vazio;
 2. preservação de dados e rascunho ADPT durante o endurecimento incremental;
 3. banco construído apenas com migrations anteriores à ADPT, populado com dados legados e atualizado pela cadeia ADPT completa na ordem real;
-4. equações executáveis e vetores discriminantes;
+4. equações executáveis, validação recursiva e vetores discriminantes;
 5. normalização UTC em sessões com fusos diferentes;
 6. autoria explícita diferente do professor responsável;
 7. bloqueio de papel de aplicação sem ator;
@@ -127,6 +128,7 @@ Validações específicas:
 bash scripts/verify-adipometry-migration-existing-data.sh
 bash scripts/verify-adipometry-migration-full-chain.sh
 bash scripts/verify-adipometry-foundation-v2.sh
+bash scripts/verify-adipometry-protocol-validator.sh
 ```
 
 Os scripts legados `verify-adipometry-foundation.sh` e `verify-adipometry-audit-remediation.sh` delegam ou reutilizam a verificação v2 para preservar compatibilidade sem duplicar o gate no mesmo workflow.
