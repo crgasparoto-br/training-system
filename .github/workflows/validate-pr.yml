@@ -35,283 +35,48 @@ jobs:
           ref: ${{ github.head_ref }}
           fetch-depth: 0
 
-      - name: Enforce approved protocol and snapshot immutability
+      - name: Recover and harden deterministic patch
         shell: bash
         run: |
-          node <<'NODE'
-          const fs = require('node:fs');
+          git show aa9b57c55dd3a5f99e5f7d3a8d3772a85885844b:.github/workflows/validate-pr.yml \
+            | awk '
+                /node <<'"'"'NODE'"'"'/ { capture = 1; next }
+                capture && /^[[:space:]]+NODE$/ { exit }
+                capture { sub(/^          /, ""); print }
+              ' > /tmp/issue-246-historical-patch.mjs
 
-          function replaceOnce(path, before, after, label) {
+          node <<'FIX'
+          const fs = require('node:fs');
+          const path = '/tmp/issue-246-historical-patch.mjs';
+          let source = fs.readFileSync(path, 'utf8');
+          const before = `function replaceOnce(path, before, after, label) {
             const content = fs.readFileSync(path, 'utf8');
             const count = content.split(before).length - 1;
             if (count !== 1) {
-              throw new Error(`${label}: expected one anchor, found ${count}`);
+              throw new Error(\`${'${label}'}: expected one anchor, found ${'${count}'}\`);
             }
             fs.writeFileSync(path, content.replace(before, after));
-          }
-
-          const migration = 'apps/api/prisma/migrations/20260730070000_issue_246_adipometry_foundation/migration.sql';
-          const snapshotAnchor = `      AND "calculationSnapshot" IS NOT NULL
-                AND "sumSkinfoldsMm" = "tricepsMm" + "subscapularMm" + "suprailiacMm" + "abdominalMm" + "thighMm"`;
-          const snapshotChecks = `      AND "calculationSnapshot" IS NOT NULL
-                AND JSONB_TYPEOF("calculationSnapshot") = 'object'
-                AND "calculationSnapshot" ?& ARRAY[
-                  'schemaVersion', 'protocol', 'assessmentDate', 'ageAtAssessment',
-                  'profileCriteria', 'inputs', 'rules', 'intermediateValues', 'results'
-                ]
-                AND JSONB_TYPEOF("calculationSnapshot" -> 'schemaVersion') = 'number'
-                AND ("calculationSnapshot" ->> 'schemaVersion')::INTEGER = 1
-                AND JSONB_TYPEOF("calculationSnapshot" -> 'protocol') = 'object'
-                AND ("calculationSnapshot" -> 'protocol') ?& ARRAY['code', 'version']
-                AND JSONB_TYPEOF("calculationSnapshot" #> '{protocol,code}') = 'string'
-                AND JSONB_TYPEOF("calculationSnapshot" #> '{protocol,version}') = 'string'
-                AND "calculationSnapshot" #>> '{protocol,code}' = "protocolCode"
-                AND "calculationSnapshot" #>> '{protocol,version}' = "protocolVersion"
-                AND JSONB_TYPEOF("calculationSnapshot" -> 'assessmentDate') = 'string'
-                AND "calculationSnapshot" ->> 'assessmentDate' = TO_CHAR("assessmentDate", 'YYYY-MM-DD')
-                AND JSONB_TYPEOF("calculationSnapshot" -> 'profileCriteria') = 'object'
-                AND JSONB_TYPEOF("calculationSnapshot" -> 'inputs') = 'object'
-                AND ("calculationSnapshot" -> 'inputs') ?& ARRAY[
-                  'weightKg', 'tricepsMm', 'subscapularMm', 'suprailiacMm', 'abdominalMm', 'thighMm'
-                ]
-                AND JSONB_TYPEOF("calculationSnapshot" #> '{inputs,weightKg}') = 'number'
-                AND JSONB_TYPEOF("calculationSnapshot" #> '{inputs,tricepsMm}') = 'number'
-                AND JSONB_TYPEOF("calculationSnapshot" #> '{inputs,subscapularMm}') = 'number'
-                AND JSONB_TYPEOF("calculationSnapshot" #> '{inputs,suprailiacMm}') = 'number'
-                AND JSONB_TYPEOF("calculationSnapshot" #> '{inputs,abdominalMm}') = 'number'
-                AND JSONB_TYPEOF("calculationSnapshot" #> '{inputs,thighMm}') = 'number'
-                AND ("calculationSnapshot" #>> '{inputs,weightKg}')::DECIMAL = "weightKg"
-                AND ("calculationSnapshot" #>> '{inputs,tricepsMm}')::DECIMAL = "tricepsMm"
-                AND ("calculationSnapshot" #>> '{inputs,subscapularMm}')::DECIMAL = "subscapularMm"
-                AND ("calculationSnapshot" #>> '{inputs,suprailiacMm}')::DECIMAL = "suprailiacMm"
-                AND ("calculationSnapshot" #>> '{inputs,abdominalMm}')::DECIMAL = "abdominalMm"
-                AND ("calculationSnapshot" #>> '{inputs,thighMm}')::DECIMAL = "thighMm"
-                AND JSONB_TYPEOF("calculationSnapshot" -> 'rules') = 'object'
-                AND ("calculationSnapshot" -> 'rules') ?& ARRAY['equations', 'limits', 'precision', 'rounding']
-                AND JSONB_TYPEOF("calculationSnapshot" #> '{rules,equations}') = 'array'
-                AND JSONB_TYPEOF("calculationSnapshot" #> '{rules,limits}') = 'object'
-                AND JSONB_TYPEOF("calculationSnapshot" #> '{rules,precision}') = 'object'
-                AND JSONB_TYPEOF("calculationSnapshot" #> '{rules,rounding}') = 'object'
-                AND JSONB_TYPEOF("calculationSnapshot" -> 'intermediateValues') = 'object'
-                AND JSONB_TYPEOF("calculationSnapshot" -> 'results') = 'object'
-                AND ("calculationSnapshot" -> 'results') ?& ARRAY[
-                  'sumSkinfoldsMm', 'bodyFatPercentage', 'fatMassKg', 'leanMassKg'
-                ]
-                AND JSONB_TYPEOF("calculationSnapshot" #> '{results,sumSkinfoldsMm}') = 'number'
-                AND JSONB_TYPEOF("calculationSnapshot" #> '{results,bodyFatPercentage}') = 'number'
-                AND JSONB_TYPEOF("calculationSnapshot" #> '{results,fatMassKg}') = 'number'
-                AND JSONB_TYPEOF("calculationSnapshot" #> '{results,leanMassKg}') = 'number'
-                AND ("calculationSnapshot" #>> '{results,sumSkinfoldsMm}')::DECIMAL = "sumSkinfoldsMm"
-                AND ("calculationSnapshot" #>> '{results,bodyFatPercentage}')::DECIMAL = "bodyFatPercentage"
-                AND ("calculationSnapshot" #>> '{results,fatMassKg}')::DECIMAL = "fatMassKg"
-                AND ("calculationSnapshot" #>> '{results,leanMassKg}')::DECIMAL = "leanMassKg"
-                AND "sumSkinfoldsMm" = "tricepsMm" + "subscapularMm" + "suprailiacMm" + "abdominalMm" + "thighMm"`;
-          replaceOnce(migration, snapshotAnchor, snapshotChecks, 'snapshot integrity check');
-
-          const completedFunctionAnchor = `CREATE OR REPLACE FUNCTION protect_completed_adipometry_assessment()`;
-          const protocolFunction = `CREATE OR REPLACE FUNCTION protect_approved_adipometry_protocol_version()
-          RETURNS TRIGGER
-          LANGUAGE plpgsql
-          AS $$
-          BEGIN
-            IF OLD."status" = 'APPROVED' THEN
-              RAISE EXCEPTION 'ADIPOMETRY_APPROVED_PROTOCOL_IMMUTABLE'
-                USING ERRCODE = '55000';
-            END IF;
-            IF TG_OP = 'DELETE' THEN
-              RETURN OLD;
-            END IF;
-            RETURN NEW;
-          END;
-          $$;
-
-          CREATE OR REPLACE FUNCTION protect_completed_adipometry_assessment()`;
-          replaceOnce(migration, completedFunctionAnchor, protocolFunction, 'approved protocol guard function');
-
-          const triggerAnchor = `CREATE TRIGGER "AdipometryAssessment_tenant_guard"`;
-          const protocolTrigger = `CREATE TRIGGER "AdipometryProtocolVersion_approved_guard"
-          BEFORE UPDATE OR DELETE ON "AdipometryProtocolVersion"
-          FOR EACH ROW EXECUTE FUNCTION protect_approved_adipometry_protocol_version();
-
-          CREATE TRIGGER "AdipometryAssessment_tenant_guard"`;
-          replaceOnce(migration, triggerAnchor, protocolTrigger, 'approved protocol guard trigger');
-
-          const verifier = 'scripts/verify-adipometry-foundation.sh';
-          const helperAnchor = `  'CI fixture',
-            CURRENT_TIMESTAMP,
-            CURRENT_TIMESTAMP
-          );
-          SQL
-          psql_run -f /work/setup.sql`;
-          const helperReplacement = `  'CI fixture',
-            CURRENT_TIMESTAMP,
-            CURRENT_TIMESTAMP
-          );
-
-          CREATE OR REPLACE FUNCTION issue246_snapshot(
-            p_protocol_code TEXT,
-            p_protocol_version TEXT,
-            p_assessment_date TIMESTAMP,
-            p_weight NUMERIC,
-            p_triceps NUMERIC,
-            p_subscapular NUMERIC,
-            p_suprailiac NUMERIC,
-            p_abdominal NUMERIC,
-            p_thigh NUMERIC,
-            p_sum NUMERIC,
-            p_body_fat NUMERIC,
-            p_fat_mass NUMERIC,
-            p_lean_mass NUMERIC
-          ) RETURNS JSONB
-          LANGUAGE SQL
-          IMMUTABLE
-          AS $$
-            SELECT jsonb_build_object(
-              'schemaVersion', 1,
-              'protocol', jsonb_build_object('code', p_protocol_code, 'version', p_protocol_version),
-              'assessmentDate', TO_CHAR(p_assessment_date, 'YYYY-MM-DD'),
-              'ageAtAssessment', NULL,
-              'profileCriteria', jsonb_build_object('fixture', true),
-              'inputs', jsonb_build_object(
-                'weightKg', p_weight,
-                'tricepsMm', p_triceps,
-                'subscapularMm', p_subscapular,
-                'suprailiacMm', p_suprailiac,
-                'abdominalMm', p_abdominal,
-                'thighMm', p_thigh
-              ),
-              'rules', jsonb_build_object(
-                'equations', '[]'::jsonb,
-                'limits', '{}'::jsonb,
-                'precision', '{}'::jsonb,
-                'rounding', '{}'::jsonb
-              ),
-              'intermediateValues', '{}'::jsonb,
-              'results', jsonb_build_object(
-                'sumSkinfoldsMm', p_sum,
-                'bodyFatPercentage', p_body_fat,
-                'fatMassKg', p_fat_mass,
-                'leanMassKg', p_lean_mass
-              )
-            );
-          $$;
-          SQL
-          psql_run -f /work/setup.sql
-
-          expect_failure "approved protocol update" "UPDATE \"AdipometryProtocolVersion\" SET \"name\" = 'mutated' WHERE \"id\" = 'issue246-protocol-approved';"
-          expect_failure "approved protocol delete" "DELETE FROM \"AdipometryProtocolVersion\" WHERE \"id\" = 'issue246-protocol-approved';"`;
-          replaceOnce(verifier, helperAnchor, helperReplacement, 'snapshot helper');
-
-          replaceOnce(
-            verifier,
-            `'GUEDES-ADULT', '0.1-draft', '{\"schemaVersion\":1}'::jsonb, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP FROM reserved;`,
-            `'GUEDES-ADULT', '0.1-draft', issue246_snapshot('GUEDES-ADULT', '0.1-draft', CURRENT_TIMESTAMP, 70, 10, 10, 10, 10, 10, 50, 20, 14, 56), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP FROM reserved;`,
-            'draft protocol snapshot'
-          );
-          replaceOnce(
-            verifier,
-            `'{\"schemaVersion\":1,\"protocol\":{\"code\":\"ISSUE246-TEST\",\"version\":\"1.0-test\"}}'::jsonb,`,
-            `issue246_snapshot('ISSUE246-TEST', '1.0-test', CURRENT_TIMESTAMP, 70, 10, 10, 10, 10, 10, 50, 20, 14, 56),`,
-            'completed snapshot'
-          );
-          replaceOnce(
-            verifier,
-            `'{\"schemaVersion\":1,\"correction\":true}'::jsonb,`,
-            `issue246_snapshot('ISSUE246-TEST', '1.0-test', CURRENT_TIMESTAMP, 70, 11, 10, 10, 10, 10, 51, 20, 14, 56),`,
-            'correction snapshot'
-          );
-          replaceOnce(
-            verifier,
-            `'ISSUE246-TEST', '1.0-test', '{\"schemaVersion\":1}'::jsonb,`,
-            `'ISSUE246-TEST', '1.0-test', issue246_snapshot('ISSUE246-TEST', '1.0-test', CURRENT_TIMESTAMP, 70, 11, 10, 10, 10, 10, 51, 20, 14, 56),`,
-            'second correction snapshot'
-          );
-
-          const completedEcho = `echo "positive-control OK: completed assessment with approved protocol"`;
-          const historicalControls = `echo "positive-control OK: completed assessment with approved protocol"
-
-          expect_failure "snapshot result differs from persisted result" "BEGIN;
-          WITH reserved AS (SELECT * FROM reserve_adipometry_code('issue246-contract-a', 'issue246-aluno-a1'))
-          INSERT INTO \"AdipometryAssessment\" (
-            \"id\", \"contractId\", \"alunoId\", \"professorId\", \"code\", \"sequenceNumber\", \"assessmentDate\", \"status\",
-            \"weightKg\", \"tricepsMm\", \"subscapularMm\", \"suprailiacMm\", \"abdominalMm\", \"thighMm\", \"sumSkinfoldsMm\",
-            \"bodyFatPercentage\", \"fatMassKg\", \"leanMassKg\", \"protocolCode\", \"protocolVersion\", \"calculationSnapshot\", \"createdAt\", \"updatedAt\"
-          )
-          SELECT 'issue246-snapshot-mismatch', 'issue246-contract-a', 'issue246-aluno-a1', 'issue246-professor-a', \"code\", \"sequenceNumber\", CURRENT_TIMESTAMP, 'COMPLETED',
-            70, 10, 10, 10, 10, 10, 50, 20, 14, 56, 'ISSUE246-TEST', '1.0-test',
-            issue246_snapshot('ISSUE246-TEST', '1.0-test', CURRENT_TIMESTAMP, 70, 10, 10, 10, 10, 10, 50, 21, 14, 56), CURRENT_TIMESTAMP, CURRENT_TIMESTAMP FROM reserved;
-          COMMIT;"
-
-          sql "INSERT INTO \"AdipometryProtocolVersion\" (
-            \"id\", \"code\", \"name\", \"version\", \"status\", \"reference\", \"populationCriteria\",
-            \"requiredSkinfolds\", \"inputUnits\", \"outputUnits\", \"equations\", \"limits\", \"precisionRules\",
-            \"missingDataBehavior\", \"testVectors\", \"approvedAt\", \"approvedBy\", \"createdAt\", \"updatedAt\"
-          ) SELECT
-            'issue246-protocol-approved-v2', \"code\", \"name\", '2.0-test', \"status\", \"reference\", \"populationCriteria\",
-            \"requiredSkinfolds\", \"inputUnits\", \"outputUnits\", '[\"fixture-v2\"]'::jsonb, \"limits\", \"precisionRules\",
-            \"missingDataBehavior\", \"testVectors\", CURRENT_TIMESTAMP, \"approvedBy\", CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-          FROM \"AdipometryProtocolVersion\" WHERE \"id\" = 'issue246-protocol-approved';
-          DO \\$\\$ BEGIN
-            IF (SELECT \"protocolVersion\" FROM \"AdipometryAssessment\" WHERE \"id\" = 'issue246-completed') <> '1.0-test' THEN
-              RAISE EXCEPTION 'historical protocol version changed';
-            END IF;
-            IF (SELECT \"calculationSnapshot\" #>> '{protocol,version}' FROM \"AdipometryAssessment\" WHERE \"id\" = 'issue246-completed') <> '1.0-test' THEN
-              RAISE EXCEPTION 'historical snapshot changed';
-            END IF;
-          END \\$\\$;"
-
-          echo "positive-control OK: new protocol version preserves historical snapshot"`;
-          replaceOnce(verifier, completedEcho, historicalControls, 'historical version controls');
-
-          const types = 'packages/types/adipometry.ts';
-          const inputAnchor = `export interface AdipometryCalculatedResults {`;
-          const completedMeasurements = `export interface AdipometryCompletedMeasurements {
-            weightKg: number;
-            tricepsMm: number;
-            subscapularMm: number;
-            suprailiacMm: number;
-            abdominalMm: number;
-            thighMm: number;
-          }
-
-          export interface AdipometryCalculatedResults {`;
-          replaceOnce(types, inputAnchor, completedMeasurements, 'completed measurements contract');
-
-          const protocolRefAnchor = `export interface AdipometryProtocolRef {
-            code: string;
-            version: string;
           }`;
-          const snapshotTypes = `export interface AdipometryProtocolRef {
-            code: string;
-            version: string;
-          }
-
-          export interface AdipometryCalculationRulesSnapshot {
-            equations: unknown[];
-            limits: Record<string, unknown>;
-            precision: Record<string, unknown>;
-            rounding: Record<string, unknown>;
-          }
-
-          export interface AdipometryCalculationSnapshot {
-            schemaVersion: 1;
-            protocol: AdipometryProtocolRef;
-            assessmentDate: string;
-            ageAtAssessment: number | null;
-            profileCriteria: Record<string, unknown>;
-            inputs: AdipometryCompletedMeasurements;
-            rules: AdipometryCalculationRulesSnapshot;
-            intermediateValues: Record<string, unknown>;
-            results: AdipometryCalculatedResults;
+          const after = `function replaceOnce(path, before, after, label) {
+            const content = fs.readFileSync(path, 'utf8');
+            const variants = [...new Set([before, before.replaceAll('"', '\\\\"')])];
+            const matches = variants
+              .map((candidate) => ({ candidate, count: content.split(candidate).length - 1 }))
+              .filter(({ count }) => count > 0);
+            const total = matches.reduce((sum, match) => sum + match.count, 0);
+            if (total !== 1) {
+              throw new Error(\`${'${label}'}: expected one anchor, found ${'${total}'}\`);
+            }
+            fs.writeFileSync(path, content.replace(matches[0].candidate, after));
           }`;
-          replaceOnce(types, protocolRefAnchor, snapshotTypes, 'snapshot shared contract');
-          replaceOnce(
-            types,
-            `calculationSnapshot?: Record<string, unknown> | null;`,
-            `calculationSnapshot?: AdipometryCalculationSnapshot | null;`,
-            'snapshot detail type'
-          );
-          NODE
+          if (!source.includes(before)) {
+            throw new Error('replaceOnce helper not found in recovered patch');
+          }
+          source = source.replace(before, after);
+          fs.writeFileSync(path, source);
+          FIX
+
+          node /tmp/issue-246-historical-patch.mjs
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
