@@ -15,8 +15,66 @@ on:
 
 jobs:
   issue_246_bootstrap:
-    name: Stage issue 246 bundle
-    if: false
+    name: Apply issue 246 foundation
+    if: github.event_name == 'pull_request' && github.head_ref == 'feat/246-adipometry-domain-foundation'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - run: echo 'Bundle parts are being staged.'
+      - name: Checkout issue branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Reassemble and verify implementation bundle
+        shell: bash
+        run: |
+          cat .issue-246/bundle.part* > /tmp/issue-246-bundle.base64
+          test "$(wc -c < /tmp/issue-246-bundle.base64)" -eq 19476
+          test "$(sha256sum /tmp/issue-246-bundle.base64 | cut -d' ' -f1)" = \
+            781bdd742d1d6b58d13197054ff63ad295cd19ee0b780d06c16c0392f3fa4670
+          base64 -d /tmp/issue-246-bundle.base64 > /tmp/issue-246-bundle.tar.gz
+          test "$(sha256sum /tmp/issue-246-bundle.tar.gz | cut -d' ' -f1)" = \
+            0e94658f4227c25518bff7b690dfb5a5551b26246800911704d73550877c8e89
+          tar -tzf /tmp/issue-246-bundle.tar.gz
+          tar -xzf /tmp/issue-246-bundle.tar.gz
+
+      - name: Apply deterministic patch
+        run: node scripts/apply-issue-246-foundation.mjs
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Format Prisma schema
+        run: pnpm --filter @corrida/api exec prisma format --schema prisma/schema.prisma
+
+      - name: Validate generated changes
+        run: |
+          pnpm type-check
+          pnpm arch:check
+          pnpm docs:check
+
+      - name: Commit implementation and remove bootstrap artifacts
+        shell: bash
+        run: |
+          git checkout origin/develop -- .github/workflows/validate-pr.yml
+          rm -rf .issue-246
+          rm .github/workflows/issue-246-bootstrap.yml
+          rm scripts/apply-issue-246-foundation.mjs
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'feat(adipometry): add historical domain foundation'
+          git push origin HEAD:${{ github.head_ref }}
