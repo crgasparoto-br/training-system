@@ -35,6 +35,8 @@ const baseFunction = {
 
 describe('SettingsCollaboratorFunctions', () => {
   beforeEach(() => {
+    vi.restoreAllMocks();
+    vi.clearAllMocks();
     listMock.mockResolvedValue([
       baseFunction,
       {
