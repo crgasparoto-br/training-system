@@ -57,6 +57,20 @@ jobs:
           rm -rf /tmp/issue246transport
           mkdir -p /tmp/issue246transport
           tar -xJf /tmp/issue246transport.tar.xz -C /tmp/issue246transport
+          python - <<'PYFIX'
+          from pathlib import Path
+          migration = Path('/tmp/issue246transport/apps/api/prisma/migrations/20260730224500_add_adipometry_clinical_governance/migration.sql')
+          sql = migration.read_text()
+          sql = sql.replace(
+              'FOREIGN KEY ("professorId", "contractId") REFERENCES "Professor"("id", "contractId")\n  ON DELETE RESTRICT ON UPDATE CASCADE;',
+              'FOREIGN KEY ("professorId") REFERENCES "Professor"("id")\n  ON DELETE RESTRICT ON UPDATE CASCADE;',
+          )
+          sql = sql.replace(
+              'FOREIGN KEY ("approvedByProfessorId", "contractId")\n  REFERENCES "Professor"("id", "contractId") ON DELETE RESTRICT ON UPDATE CASCADE;',
+              'FOREIGN KEY ("approvedByProfessorId")\n  REFERENCES "Professor"("id") ON DELETE RESTRICT ON UPDATE CASCADE;',
+          )
+          migration.write_text(sql)
+          PYFIX
           python -m py_compile /tmp/issue246transport/apply.py
           cp -a /tmp/issue246transport/apps /tmp/issue246transport/packages /tmp/issue246transport/docs /tmp/issue246transport/scripts .
           cp /tmp/issue246transport/apply.py .github/issue-246/apply.py
