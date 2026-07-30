@@ -42,7 +42,8 @@ is_adpt_migration() {
     20260730132000_harden_adipometry_foundation|\
     20260730141000_add_adipometry_relation_uniques|\
     20260730142000_add_adipometry_draft_date_overload|\
-    20260730150000_fix_issue_246_audit_findings)
+    20260730150000_fix_issue_246_audit_findings|\
+    20260730170000_remediate_issue_246_audit_round_2)
       return 0
       ;;
     *)
@@ -160,7 +161,8 @@ for migration_name in \
   20260730132000_harden_adipometry_foundation \
   20260730141000_add_adipometry_relation_uniques \
   20260730142000_add_adipometry_draft_date_overload \
-  20260730150000_fix_issue_246_audit_findings
+  20260730150000_fix_issue_246_audit_findings \
+  20260730170000_remediate_issue_246_audit_round_2
 do
   psql_file \
     "$TEMP_URL" \
@@ -204,6 +206,14 @@ BEGIN
 
   IF TO_REGPROCEDURE('"isValidAdipometryProtocolDefinition"(jsonb,text,timestamp without time zone)') IS NULL THEN
     RAISE EXCEPTION 'strict protocol validator was not installed';
+  END IF;
+
+  IF TO_REGPROCEDURE('"evaluateAdipometryExpression"(jsonb,jsonb)') IS NULL THEN
+    RAISE EXCEPTION 'executable equation evaluator was not installed';
+  END IF;
+
+  IF TO_REGPROCEDURE('"createAdipometryDraft"(text,text,text,text,date,text,timestamp with time zone)') IS NULL THEN
+    RAISE EXCEPTION 'explicit actor draft overload was not installed';
   END IF;
 END $$;
 SQL
