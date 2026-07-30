@@ -52,7 +52,7 @@ A entrega não fecha a issue enquanto fórmula, população, limites, arredondam
 - validação recursiva de todas as ramificações da AST e execução dos vetores contra as equações antes de aceitar `APPROVED`;
 - rejeição de vetores duplicados, perfis fora da população, medidas fora dos limites, tolerâncias excessivas ou negativas e resultados incompatíveis;
 - ator explícito de criação, atualização, conclusão e correção, com vínculo ao mesmo contrato;
-- remoção de `EXECUTE` público das sobrecargas legadas sem ator;
+- remoção de `EXECUTE` de `PUBLIC` e do papel proprietário nas sobrecargas legadas sem ator;
 - normalização UTC da aprovação clínica e rejeição de timestamps sem fuso;
 - cenário discriminante em que o ator real difere do professor responsável.
 
