@@ -1,11 +1,11 @@
 name: Issue 136 rebase onto develop
 
 on:
-  push:
+  pull_request:
     branches:
       - fix/136-capacity-prescription-persistence
     paths:
-      - .github/workflows/issue-136-rebase.yml
+      - .github/issue-136-rebase-trigger
 
 permissions:
   contents: write
@@ -14,14 +14,15 @@ jobs:
   rebase:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - name: Checkout feature branch
+      - name: Checkout technical trigger branch
         uses: actions/checkout@v4
         with:
-          ref: fix/136-capacity-prescription-persistence
+          ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 0
 
-      - name: Rebase onto current develop
+      - name: Rebase trigger branch onto current develop
         shell: bash
         run: |
           set -uo pipefail
@@ -41,4 +42,13 @@ jobs:
             git rebase --abort
             exit "$rebase_status"
           fi
-          git push --force-with-lease origin HEAD:fix/136-capacity-prescription-persistence
+          git push --force-with-lease origin HEAD:${{ github.event.pull_request.head.ref }}
+
+      - name: Upload rebase diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-136-rebase-${{ github.run_id }}
+          path: rebase.log
+          if-no-files-found: warn
+          retention-days: 7
