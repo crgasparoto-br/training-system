@@ -34,6 +34,21 @@ psql_file() {
     psql "$database_url" -v ON_ERROR_STOP=1 -X -q -f "/work/$mounted_name"
 }
 
+is_deferred_adpt_migration() {
+  case "$1" in
+    20260730132000_harden_adipometry_foundation|\
+    20260730141000_add_adipometry_relation_uniques|\
+    20260730142000_add_adipometry_draft_date_overload|\
+    20260730150000_fix_issue_246_audit_findings|\
+    20260730170000_remediate_issue_246_audit_round_2)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 psql_command "${SERVER_URL}/postgres" "CREATE DATABASE \"${TEMP_DB}\";"
 
 mkdir -p "$TMP_DIR/prisma/migrations"
@@ -42,7 +57,7 @@ cp "$ROOT_DIR/apps/api/prisma/migrations/migration_lock.toml" "$TMP_DIR/prisma/m
 
 while IFS= read -r migration_dir; do
   migration_name="$(basename "$migration_dir")"
-  if [[ "$migration_name" == "20260730132000_harden_adipometry_foundation" ]]; then
+  if is_deferred_adpt_migration "$migration_name"; then
     continue
   fi
   cp -R "$migration_dir" "$TMP_DIR/prisma/migrations/$migration_name"
@@ -58,18 +73,14 @@ DECLARE
   user_type TEXT;
 BEGIN
   SELECT enumlabel INTO contract_type
-  FROM pg_enum e
-  JOIN pg_type t ON t.oid = e.enumtypid
+  FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid
   WHERE t.typname = 'ContractType'
-  ORDER BY e.enumsortorder
-  LIMIT 1;
+  ORDER BY e.enumsortorder LIMIT 1;
 
   SELECT enumlabel INTO user_type
-  FROM pg_enum e
-  JOIN pg_type t ON t.oid = e.enumtypid
+  FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid
   WHERE t.typname = 'UserType'
-  ORDER BY e.enumsortorder
-  LIMIT 1;
+  ORDER BY e.enumsortorder LIMIT 1;
 
   EXECUTE format(
     'INSERT INTO "Contract" ("id", "type", "document", "name", "createdAt", "updatedAt")
@@ -115,10 +126,18 @@ SELECT * FROM "createAdipometryDraft"(
 SQL
 psql_file "$TEMP_URL" "$TMP_DIR/preexisting.sql" preexisting.sql
 
-psql_file \
-  "$TEMP_URL" \
-  "$ROOT_DIR/apps/api/prisma/migrations/20260730132000_harden_adipometry_foundation/migration.sql" \
-  hardening.sql
+for migration_name in \
+  20260730132000_harden_adipometry_foundation \
+  20260730141000_add_adipometry_relation_uniques \
+  20260730142000_add_adipometry_draft_date_overload \
+  20260730150000_fix_issue_246_audit_findings \
+  20260730170000_remediate_issue_246_audit_round_2
+do
+  psql_file \
+    "$TEMP_URL" \
+    "$ROOT_DIR/apps/api/prisma/migrations/$migration_name/migration.sql" \
+    "$migration_name.sql"
+done
 
 cat > "$TMP_DIR/verify.sql" <<'SQL'
 DO $$
@@ -141,6 +160,10 @@ BEGIN
 
   IF "formatAdipometryCode"(1000) <> 'ADPT-1000' THEN
     RAISE EXCEPTION 'minimum-width formatter was not installed';
+  END IF;
+
+  IF TO_REGPROCEDURE('"evaluateAdipometryExpression"(jsonb,jsonb)') IS NULL THEN
+    RAISE EXCEPTION 'round-2 executable equation evaluator was not installed';
   END IF;
 END $$;
 SQL
