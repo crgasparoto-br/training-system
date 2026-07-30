@@ -1,5 +1,6 @@
 import './services/contract-replacement-confirm-copy';
 import './services/student-contract-activation-adapter';
+import './pages/Settings/collaborator-functions.css';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import type { ReactElement } from 'react';
 import { Login } from './pages/Login';
@@ -177,7 +178,15 @@ function App() {
             <Route path="settings/assessment-types" element={withAccess('settings.assessmentTypes', <SettingsAssessmentTypes />)} />
             <Route path="settings/services" element={withAccess('settings.services', <SettingsServices />)} />
             <Route path="settings/banks" element={withAccess('settings.banks', <SettingsBanks />)} />
-            <Route path="settings/collaborator-functions" element={withAccess('settings.collaboratorFunctions', <SettingsCollaboratorFunctions />)} />
+            <Route
+              path="settings/collaborator-functions"
+              element={withAccess(
+                'settings.collaboratorFunctions',
+                <div className="collaborator-functions-page">
+                  <SettingsCollaboratorFunctions />
+                </div>
+              )}
+            />
             <Route path="cadastros/valores-hora-aula" element={withAccess('hourlyRateLevels.registration', <SettingsHourlyRateLevels />)} />
             <Route path="settings/hourly-rate-levels" element={<Navigate to="/cadastros/valores-hora-aula" replace />} />
             <Route path="settings/psr-pse" element={withAccess('settings.subjectiveScales', <SettingsSubjectiveScales />)} />
