@@ -6,7 +6,7 @@ BrowserContext.prototype.newPage = async function issue275NewPage(...args) {
   const page = await originalNewPage.apply(this, args);
 
   await page.evaluateOnNewDocument(() => {
-    const setRequiredSelects = () => {
+    const fillGender = () => {
       const gender = document.querySelector('#pre-registration-gender');
       if (!(gender instanceof HTMLSelectElement) || gender.value) return;
 
@@ -17,17 +17,19 @@ BrowserContext.prototype.newPage = async function issue275NewPage(...args) {
       setter?.call(gender, 'male');
       gender.dispatchEvent(new Event('input', { bubbles: true }));
       gender.dispatchEvent(new Event('change', { bubbles: true }));
+      gender.dispatchEvent(new Event('blur', { bubbles: true }));
     };
 
-    document.addEventListener('DOMContentLoaded', () => {
-      setRequiredSelects();
-      const root = document.body || document.documentElement;
-      if (!root) return;
-      new MutationObserver(setRequiredSelects).observe(root, {
-        childList: true,
-        subtree: true,
-      });
-    });
+    document.addEventListener(
+      'click',
+      (event) => {
+        const target = event.target;
+        const button = target instanceof Element ? target.closest('button') : null;
+        if (!button?.textContent?.includes('Salvar e avançar')) return;
+        fillGender();
+      },
+      true
+    );
   });
 
   return page;
