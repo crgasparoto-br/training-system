@@ -101,7 +101,7 @@ END $$;
 
 CREATE OR REPLACE FUNCTION issue246_protocol_definition(
   p_approver TEXT,
-  p_approved_at TIMESTAMP
+  p_approved_at TIMESTAMP(3)
 ) RETURNS JSONB
 LANGUAGE SQL
 IMMUTABLE
@@ -228,7 +228,7 @@ AS $$
 $$;
 
 WITH approval AS (
-  SELECT CURRENT_TIMESTAMP::TIMESTAMP AS approved_at
+  SELECT CURRENT_TIMESTAMP::TIMESTAMP(3) AS approved_at
 )
 INSERT INTO "AdipometryProtocol" (
   "id", "code", "version", "name", "status", "definitionSnapshot", "reference",
@@ -707,7 +707,7 @@ expect_failure \
    WHERE \"assessmentId\" = 'issue246-completed' AND \"action\" = 'COMPLETED';"
 
 sql "WITH approval AS (
-  SELECT CURRENT_TIMESTAMP::TIMESTAMP AS approved_at
+  SELECT CURRENT_TIMESTAMP::TIMESTAMP(3) AS approved_at
 )
 INSERT INTO \"AdipometryProtocol\" (
   \"id\", \"code\", \"version\", \"name\", \"status\", \"definitionSnapshot\", \"reference\",
