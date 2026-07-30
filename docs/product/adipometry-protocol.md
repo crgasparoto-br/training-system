@@ -28,7 +28,7 @@ Uma avaliação concluída preserva `protocolCode`, `protocolVersion` e snapshot
 
 O snapshot de definição de uma versão aprovada usa contrato versionado e contém, no mínimo:
 
-- `schemaVersion` positiva;
+- `schemaVersion` igual ou superior a `2`;
 - população com idade mínima e máxima, critérios de sexo e maturação;
 - exatamente as cinco dobras ADPT documentadas;
 - unidades explícitas de cada entrada e saída;
@@ -37,7 +37,7 @@ O snapshot de definição de uma versão aprovada usa contrato versionado e cont
 - precisão de medidas, resultados e cálculo interno;
 - modo e estágio de arredondamento;
 - comportamento estruturado para dado ausente e perfil incompatível;
-- no mínimo dois vetores distintos, com entradas completas, resultados esperados e tolerâncias não negativas;
+- no mínimo dois vetores distintos, com entradas completas, resultados esperados e tolerâncias não negativas e não superiores à menor unidade da precisão de resultado;
 - registro de aprovação clínica com aprovador, instante, identificador e SHA-256 do artefato aprovado;
 - referência bibliográfica rastreável.
 
@@ -56,9 +56,9 @@ Equações aprovadas não são strings livres. Cada expressão é uma árvore JS
 - `negate`: inversão de sinal;
 - `ifEquals`: seleção determinística por um campo de `profileCriteria`.
 
-O total das cinco dobras é calculado pela persistência e disponibilizado como `skinfoldTotalMm`. As equações são avaliadas em ordem: percentual de gordura, gordura absoluta e massa magra. Referência a variável ausente, operador desconhecido, divisão por zero, saída repetida ou estrutura incompleta invalida a aprovação.
+O total das cinco dobras é calculado pela persistência e disponibilizado como `skinfoldTotalMm`. As equações são avaliadas na ordem obrigatória: percentual de gordura, gordura absoluta e massa magra. Todas as ramificações da árvore são validadas estruturalmente, mesmo quando nenhum vetor seleciona determinada ramificação. Somente variáveis canônicas já disponíveis podem ser referenciadas. Referência a variável ausente, operador desconhecido, divisão por zero, saída repetida, chave inesperada ou estrutura incompleta invalida a aprovação.
 
-Antes de aceitar `approved`, a persistência executa todos os vetores contra a árvore de equações e compara cada resultado com sua tolerância. Assim, texto descritivo, resultado inventado ou vetor incompatível não pode ser usado como evidência de fórmula clínica.
+Antes de aceitar `approved`, a persistência executa todos os vetores contra a árvore de equações e compara cada resultado com sua tolerância, limitada à menor unidade declarada para os resultados. Assim, texto descritivo, resultado inventado ou vetor incompatível não pode ser usado como evidência de fórmula clínica.
 
 ## Aprovação e tempo
 
