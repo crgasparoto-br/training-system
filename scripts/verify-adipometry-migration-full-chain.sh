@@ -44,7 +44,8 @@ is_adpt_migration() {
     20260730142000_add_adipometry_draft_date_overload|\
     20260730150000_fix_issue_246_audit_findings|\
     20260730170000_remediate_issue_246_audit_round_2|\
-    20260730173000_close_issue_246_adversarial_gaps)
+    20260730173000_close_issue_246_adversarial_gaps|\
+    20260730180000_restrict_legacy_adipometry_draft_overloads)
       return 0
       ;;
     *)
@@ -154,7 +155,8 @@ for migration_name in \
   20260730142000_add_adipometry_draft_date_overload \
   20260730150000_fix_issue_246_audit_findings \
   20260730170000_remediate_issue_246_audit_round_2 \
-  20260730173000_close_issue_246_adversarial_gaps
+  20260730173000_close_issue_246_adversarial_gaps \
+  20260730180000_restrict_legacy_adipometry_draft_overloads
 do
   psql_file "$TEMP_URL" "$ROOT_DIR/apps/api/prisma/migrations/$migration_name/migration.sql" "$migration_name.sql"
 done
