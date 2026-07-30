@@ -84,6 +84,32 @@ jobs:
               1,
           )
           migration.write_text(sql)
+
+          for script_name in [
+              'verify-adipometry-migration-existing-data.sh',
+              'verify-adipometry-migration-full-chain.sh',
+          ]:
+              script = Path('/tmp/issue246transport/scripts') / script_name
+              content = script.read_text()
+              case_continuation = '|' + chr(92) + '\n'
+              loop_continuation = ' ' + chr(92) + '\n'
+              content = content.replace(
+                  '    20260730204000_canonicalize_legacy_no_maturation_rule)',
+                  '    20260730204000_canonicalize_legacy_no_maturation_rule' + case_continuation
+                  + '    20260730210000_remove_adipometry_textual_maturation_inference' + case_continuation
+                  + '    20260730211000_use_structured_adipometry_maturation_rule' + case_continuation
+                  + '    20260730224500_add_adipometry_clinical_governance)',
+                  1,
+              )
+              content = content.replace(
+                  '  20260730204000_canonicalize_legacy_no_maturation_rule\n',
+                  '  20260730204000_canonicalize_legacy_no_maturation_rule' + loop_continuation
+                  + '  20260730210000_remove_adipometry_textual_maturation_inference' + loop_continuation
+                  + '  20260730211000_use_structured_adipometry_maturation_rule' + loop_continuation
+                  + '  20260730224500_add_adipometry_clinical_governance\n',
+                  1,
+              )
+              script.write_text(content)
           PYFIX
           python -m py_compile /tmp/issue246transport/apply.py
           cp -a /tmp/issue246transport/apps /tmp/issue246transport/packages /tmp/issue246transport/docs /tmp/issue246transport/scripts .
