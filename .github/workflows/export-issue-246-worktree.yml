@@ -1,9 +1,6 @@
 name: Apply Issue 246 Remediation
 
 on:
-  push:
-    branches:
-      - feat/246-adipometry-foundation
   pull_request:
     branches:
       - develop
@@ -13,7 +10,6 @@ permissions:
 
 jobs:
   apply:
-    if: "!contains(github.event.head_commit.message || '', '[issue246-remediation-applied]')"
     runs-on: ubuntu-latest
     steps:
       - name: Checkout branch
@@ -48,12 +44,13 @@ jobs:
           done
           echo "53baa962860623bf6de9deb78b3b0108594f99d05bb43b6002a49fce374e77c8  $package" | sha256sum --check --strict
           tar --extract --gzip --file "$package" --directory "$GITHUB_WORKSPACE"
+          git checkout HEAD -- .github/workflows/validate-pr.yml
+          git checkout HEAD -- .github/workflows/export-issue-246-worktree.yml
 
-      - name: Commit remediation and remove temporary workflow
+      - name: Commit product remediation
         shell: bash
         run: |
           set -euo pipefail
-          rm -f .github/workflows/export-issue-246-worktree.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
