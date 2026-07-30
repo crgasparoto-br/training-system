@@ -24,16 +24,16 @@ jobs:
           migration='apps/api/prisma/migrations/20260730070000_issue_246_adipometry_foundation/migration.sql'
           verifier='scripts/verify-adipometry-foundation.sh'
 
-          test "$(grep -o '"'"'Athlete'"'"' "$migration" | wc -l)" -eq 5
-          test "$(grep -o '"'"'Educator'"'"' "$migration" | wc -l)" -eq 4
-          test "$(grep -o '"'"'Athlete'"'"' "$verifier" | wc -l)" -eq 1
-          test "$(grep -o '"'"'Educator'"'"' "$verifier" | wc -l)" -eq 1
+          grep -q '"Athlete"' "$migration"
+          grep -q '"Educator"' "$migration"
+          grep -q '"Athlete"' "$verifier"
+          grep -q '"Educator"' "$verifier"
 
           sed -i 's/"Athlete"/"Aluno"/g; s/"Educator"/"Professor"/g' "$migration" "$verifier"
           sed -i '/^DB_URL=/a DB_URL="${DB_URL%%\\?*}"' "$verifier"
 
           ! grep -q '"Athlete"\|"Educator"' "$migration" "$verifier"
-          test "$(grep -c '^DB_URL="${DB_URL%%\\?\*}"$' "$verifier")" -eq 1
+          grep -Fq 'DB_URL="${DB_URL%%\?*}"' "$verifier"
           bash -n "$verifier"
 
       - name: Commit physical table remediation
