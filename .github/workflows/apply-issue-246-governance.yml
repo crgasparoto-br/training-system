@@ -73,6 +73,11 @@ jobs:
               'FOREIGN KEY ("protocolId", "protocolCode", "protocolVersion")\n  REFERENCES "AdipometryProtocol"("id", "code", "version") ON DELETE RESTRICT ON UPDATE CASCADE;',
               'FOREIGN KEY ("protocolId")\n  REFERENCES "AdipometryProtocol"("id") ON DELETE RESTRICT ON UPDATE CASCADE;',
           )
+          sql = sql.replace(
+              "  IF JSONB_TYPEOF(p_definition -> 'testVectors') IS DISTINCT FROM 'array'\n     OR JSONB_ARRAY_LENGTH(p_definition -> 'testVectors') < 3 THEN RETURN FALSE; END IF;",
+              "  IF JSONB_TYPEOF(p_definition -> 'testVectors') IS DISTINCT FROM 'array'\n     OR JSONB_ARRAY_LENGTH(p_definition -> 'testVectors') < 3 THEN RETURN FALSE; END IF;\n  RETURN TRUE;",
+              1,
+          )
           migration.write_text(sql)
           PYFIX
           python -m py_compile /tmp/issue246transport/apply.py
