@@ -62,11 +62,29 @@ jobs:
           }
 
           const migration = 'apps/api/prisma/migrations/20260730070000_issue_246_adipometry_foundation/migration.sql';
-          replaceOnce(
-            migration,
-            "    'DRAFT',\n    'DRAFT',\n    'Permitir rascunho e bloquear cálculo conclusivo e finalização até aprovação clínica.',\n    NULL,",
-            "    'DRAFT',\n    'Permitir rascunho e bloquear cálculo conclusivo e finalização até aprovação clínica.',\n    NULL,"
-          );
+          const migrationLines = fs.readFileSync(migration, 'utf8').split('\n');
+          const protocolRowIndexes = migrationLines
+            .map((line, index) => line.includes("'adpt-protocol-guedes-adult-0-1-draft'") ? index : -1)
+            .filter((index) => index >= 0);
+          if (protocolRowIndexes.length !== 1) {
+            throw new Error(`${migration}: expected one Guedes seed row, found ${protocolRowIndexes.length}`);
+          }
+          const rowStart = protocolRowIndexes[0];
+          const rowEnd = migrationLines.findIndex((line, index) => index > rowStart && line.trim() === '),');
+          if (rowEnd < 0) {
+            throw new Error(`${migration}: Guedes seed row terminator not found`);
+          }
+          const draftIndexes = [];
+          for (let index = rowStart; index < rowEnd; index += 1) {
+            if (migrationLines[index].trim() === "'DRAFT',") {
+              draftIndexes.push(index);
+            }
+          }
+          if (draftIndexes.length !== 2) {
+            throw new Error(`${migration}: expected two DRAFT values in Guedes seed row, found ${draftIndexes.length}`);
+          }
+          migrationLines.splice(draftIndexes[1], 1);
+          fs.writeFileSync(migration, migrationLines.join('\n'));
 
           const plan = 'docs/execution-plans/active/2026-07-issue-246-adipometry-foundation.md';
           replaceOnce(plan, '- `prisma/schema.prisma`\n', '');
