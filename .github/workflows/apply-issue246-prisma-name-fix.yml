@@ -1,0 +1,50 @@
+name: Apply Issue 246 Prisma Name Fix
+
+on:
+  pull_request:
+    branches:
+      - develop
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: feat/246-adipometry-foundation
+
+      - name: Apply verified constraint-name fix
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          package=/tmp/issue246-prisma-name-fix.tar.gz
+          workdir=/tmp/issue246-prisma-name-fix
+          curl --fail --silent --show-error --location \
+            --header "Authorization: Bearer ${GH_TOKEN}" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/blobs/14905b35f209f3757b3c886068d3fc128b9c7f9d" \
+            | jq --raw-output '.content' \
+            | tr -d '\n' \
+            | base64 --decode > "$package"
+          echo "c9683ba4170591eef961dda5624d4820139997da16e8114dc655f65c63f4060b  $package" | sha256sum --check --strict
+          mkdir -p "$workdir"
+          tar --extract --gzip --file "$package" --directory "$workdir"
+          bash "$workdir/apply-issue246-prisma-name-fix.sh"
+
+      - name: Commit shortened constraint names
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/api/prisma/schema.prisma apps/api/prisma/migrations/20260730141000_add_adipometry_relation_uniques/migration.sql
+          git diff --cached --check
+          git commit -m "fix(adpt): shorten Prisma constraint names"
+          git push origin HEAD:feat/246-adipometry-foundation
