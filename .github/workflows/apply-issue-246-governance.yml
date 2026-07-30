@@ -69,6 +69,10 @@ jobs:
               'FOREIGN KEY ("approvedByProfessorId", "contractId")\n  REFERENCES "Professor"("id", "contractId") ON DELETE RESTRICT ON UPDATE CASCADE;',
               'FOREIGN KEY ("approvedByProfessorId")\n  REFERENCES "Professor"("id") ON DELETE RESTRICT ON UPDATE CASCADE;',
           )
+          sql = sql.replace(
+              'FOREIGN KEY ("protocolId", "protocolCode", "protocolVersion")\n  REFERENCES "AdipometryProtocol"("id", "code", "version") ON DELETE RESTRICT ON UPDATE CASCADE;',
+              'FOREIGN KEY ("protocolId")\n  REFERENCES "AdipometryProtocol"("id") ON DELETE RESTRICT ON UPDATE CASCADE;',
+          )
           migration.write_text(sql)
           PYFIX
           python -m py_compile /tmp/issue246transport/apply.py
