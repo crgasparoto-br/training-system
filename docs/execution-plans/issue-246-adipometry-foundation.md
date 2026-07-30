@@ -62,7 +62,7 @@ pnpm access:check
 pnpm docs:check
 ```
 
-Os scripts PostgreSQL são executados no workflow `Validate PR` e publicam artefatos próprios.
+Os scripts PostgreSQL são executados no workflow `Validate PR` e publicam artefatos próprios. O harness de fundação usa o mesmo contrato clínico estrito aplicado pela migration final.
 
 ## Gate clínico pendente
 
