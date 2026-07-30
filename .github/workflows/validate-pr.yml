@@ -166,6 +166,22 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+      - name: Verify ADPT persistence boundaries
+        run: |
+          set -o pipefail
+          bash scripts/verify-adipometry-persistence-boundaries.sh 2>&1 | tee adipometry-persistence-boundaries-output.log
+
+      - name: Upload ADPT persistence boundary output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adipometry-persistence-boundaries-output-${{ github.run_id }}
+          path: |
+            adipometry-persistence-boundaries-output.log
+            orquestrador-artifact.json
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Verify lifecycle legacy backfill
         run: |
           set -o pipefail
