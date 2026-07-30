@@ -50,7 +50,7 @@ Uma versão somente pode receber estado `APPROVED` quando `isValidAdipometryProt
 - aprovação com identificador, aprovador, data e SHA-256 do artefato;
 - referência não vazia.
 
-A validação rejeita objetos genéricos ou placeholders, mesmo que todas as chaves principais existam. A aprovação registrada no JSON deve coincidir com `approvedByUserId` e `approvedAt`.
+A validação rejeita objetos genéricos ou placeholders, mesmo que todas as chaves principais existam. A aprovação registrada no JSON deve coincidir com `approvedByUserId` e `approvedAt`. A data de aprovação é normalizada à precisão `TIMESTAMP(3)` usada pela persistência, evitando divergência entre o snapshot e a coluna histórica.
 
 A definição clínica aprovada é imutável. A única alteração permitida é a transição operacional `APPROVED → DISABLED`, mantendo definição, referência e aprovação intactas. `DISABLED` é terminal: não pode ser reativado, alterado ou excluído. Avaliações históricas que usaram a versão permanecem válidas, mas novas conclusões são bloqueadas.
 
