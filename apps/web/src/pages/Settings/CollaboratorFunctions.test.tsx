@@ -47,6 +47,7 @@ describe('SettingsCollaboratorFunctions', () => {
     ]);
     updateMock.mockResolvedValue(baseFunction);
     createMock.mockResolvedValue(baseFunction);
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
   });
 
   it('lista funcoes carregadas', async () => {
@@ -56,11 +57,25 @@ describe('SettingsCollaboratorFunctions', () => {
     expect(screen.getByText('Recepcao')).toBeInTheDocument();
   });
 
+  it('organiza a edicao em guias acessiveis', async () => {
+    const user = userEvent.setup();
+    render(<SettingsCollaboratorFunctions />);
+
+    await user.click(await screen.findByRole('button', { name: 'Abrir função: Professor' }));
+
+    expect(screen.getByRole('tab', { name: 'Dados gerais' })).toHaveAttribute('aria-selected', 'true');
+    await user.click(screen.getByRole('tab', { name: 'Acessos' }));
+    expect(screen.getByRole('tab', { name: 'Acessos' })).toHaveAttribute('aria-selected', 'true');
+    await user.click(screen.getByRole('tab', { name: 'Resumo' }));
+    expect(screen.getByText('Cobertura de acesso')).toBeInTheDocument();
+  });
+
   it('mostra permissoes agrupadas e busca por permissao funciona', async () => {
     const user = userEvent.setup();
     render(<SettingsCollaboratorFunctions />);
 
-    await user.click((await screen.findAllByText('Professor'))[0]);
+    await user.click(await screen.findByRole('button', { name: 'Abrir função: Professor' }));
+    await user.click(screen.getByRole('tab', { name: 'Acessos' }));
 
     expect((await screen.findAllByText(/alunos/i)).length).toBeGreaterThan(0);
 
@@ -73,15 +88,18 @@ describe('SettingsCollaboratorFunctions', () => {
     expect(await screen.findByText('Central do Aluno')).toBeInTheDocument();
   });
 
-  it('marcar e desmarcar grupo funciona', async () => {
+  it('marcar e desmarcar grupo funciona pelo menu contextual', async () => {
     const user = userEvent.setup();
     render(<SettingsCollaboratorFunctions />);
 
-    await user.click((await screen.findAllByText('Professor'))[0]);
+    await user.click(await screen.findByRole('button', { name: 'Abrir função: Professor' }));
+    await user.click(screen.getByRole('tab', { name: 'Acessos' }));
 
     const detailsCheckbox = document.getElementById('screen-students.details') as HTMLInputElement;
     expect(detailsCheckbox.checked).toBe(true);
 
+    const groupMenu = screen.getAllByLabelText(/Mais ações:/)[0];
+    await user.click(groupMenu);
     await user.click(screen.getAllByText('Bloquear grupo')[0]);
     expect((document.getElementById('screen-students.details') as HTMLInputElement).checked).toBe(false);
 
@@ -93,7 +111,8 @@ describe('SettingsCollaboratorFunctions', () => {
     const user = userEvent.setup();
     render(<SettingsCollaboratorFunctions />);
 
-    await user.click((await screen.findAllByText('Professor'))[0]);
+    await user.click(await screen.findByRole('button', { name: 'Abrir função: Professor' }));
+    await user.click(screen.getByRole('tab', { name: 'Acessos' }));
     await user.click(document.getElementById('screen-students.details') as HTMLInputElement);
     await user.click(screen.getByRole('button', { name: 'Salvar alterações' }));
 
