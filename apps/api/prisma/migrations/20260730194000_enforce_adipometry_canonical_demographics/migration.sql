@@ -38,7 +38,7 @@ BEGIN
   FROM "Aluno" aluno
   WHERE aluno."id" = p_aluno_id
     AND aluno."contractId" = p_contract_id
-  FOR KEY SHARE;
+  FOR SHARE;
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'ADIPOMETRY_STUDENT_NOT_FOUND_IN_CONTRACT' USING ERRCODE = '23503';
@@ -72,7 +72,10 @@ BEGIN
   v_birth_date_text := NULLIF(BTRIM(v_student_identification ->> 'birthDate'), '');
   IF v_birth_date_text IS NOT NULL THEN
     BEGIN
-      v_birth_date := v_birth_date_text::DATE;
+      IF v_birth_date_text !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}($|T)' THEN
+        RAISE EXCEPTION 'ADIPOMETRY_BIRTH_DATE_INVALID' USING ERRCODE = '22007';
+      END IF;
+      v_birth_date := LEFT(v_birth_date_text, 10)::DATE;
     EXCEPTION WHEN OTHERS THEN
       RAISE EXCEPTION 'ADIPOMETRY_BIRTH_DATE_INVALID' USING ERRCODE = '22007';
     END;
