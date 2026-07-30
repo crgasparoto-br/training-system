@@ -7,6 +7,12 @@ on:
     paths:
       - .github/issue-246/apply-governance.py.gz.b64
       - .github/workflows/apply-issue-246-governance.yml
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - .github/issue-246/apply-governance.py.gz.b64
+      - .github/workflows/apply-issue-246-governance.yml
 
 permissions:
   contents: write
@@ -43,6 +49,7 @@ jobs:
       - name: Checkout branch
         uses: actions/checkout@v4
         with:
+          ref: feat/246-adipometry-foundation
           fetch-depth: 0
 
       - name: Decode and apply delta
