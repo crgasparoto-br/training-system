@@ -40,8 +40,11 @@ jobs:
           tar -tzf /tmp/issue-246-bundle.tar.gz
           tar -xzf /tmp/issue-246-bundle.tar.gz
 
-      - name: Apply deterministic patch
-        run: node scripts/apply-issue-246-foundation.mjs
+      - name: Apply deterministic patch to canonical sources
+        shell: bash
+        run: |
+          git checkout origin/develop -- .github/workflows/validate-pr.yml
+          node scripts/apply-issue-246-foundation.mjs
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -69,7 +72,6 @@ jobs:
       - name: Commit implementation and remove bootstrap artifacts
         shell: bash
         run: |
-          git checkout origin/develop -- .github/workflows/validate-pr.yml
           rm -rf .issue-246
           rm .github/workflows/issue-246-bootstrap.yml
           rm scripts/apply-issue-246-foundation.mjs
