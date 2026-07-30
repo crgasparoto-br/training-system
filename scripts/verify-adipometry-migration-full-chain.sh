@@ -45,7 +45,8 @@ is_adpt_migration() {
     20260730150000_fix_issue_246_audit_findings|\
     20260730170000_remediate_issue_246_audit_round_2|\
     20260730173000_close_issue_246_adversarial_gaps|\
-    20260730180000_restrict_legacy_adipometry_draft_overloads)
+    20260730180000_restrict_legacy_adipometry_draft_overloads|\
+    20260730190000_close_issue_246_persistence_bypasses)
       return 0
       ;;
     *)
@@ -156,7 +157,8 @@ for migration_name in \
   20260730150000_fix_issue_246_audit_findings \
   20260730170000_remediate_issue_246_audit_round_2 \
   20260730173000_close_issue_246_adversarial_gaps \
-  20260730180000_restrict_legacy_adipometry_draft_overloads
+  20260730180000_restrict_legacy_adipometry_draft_overloads \
+  20260730190000_close_issue_246_persistence_bypasses
 do
   psql_file "$TEMP_URL" "$ROOT_DIR/apps/api/prisma/migrations/$migration_name/migration.sql" "$migration_name.sql"
 done
@@ -200,8 +202,9 @@ BEGIN
   END IF;
 
   IF TO_REGPROCEDURE('"evaluateAdipometryExpression"(jsonb,jsonb)') IS NULL
-     OR TO_REGPROCEDURE('"isValidAdipometryExpression"(jsonb,text[])') IS NULL THEN
-    RAISE EXCEPTION 'executable equation validation functions were not installed';
+     OR TO_REGPROCEDURE('"isValidAdipometryExpression"(jsonb,text[])') IS NULL
+     OR TO_REGPROCEDURE('"canonicalizeAdipometryCompletion"()') IS NULL THEN
+    RAISE EXCEPTION 'executable persistence validation functions were not installed';
   END IF;
 
   IF TO_REGPROCEDURE('"createAdipometryDraft"(text,text,text,text,date,text,timestamp with time zone)') IS NULL THEN
