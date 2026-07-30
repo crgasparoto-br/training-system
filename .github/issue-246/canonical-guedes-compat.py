@@ -24,29 +24,76 @@ content = content.replace(
     "WHERE protocol.\"id\" = 'adpt_protocol_guedes_1991_adult_young_v1';",
     1,
 )
-protocol_anchor = '''      "protocolId"='issue246-profile-approved',
-      "protocolCode"='CANONICAL_REQUIRED',
-      "protocolVersion"=1,'''
-protocol_replacement = '''      "protocolId"='adpt_protocol_guedes_1991_adult_young_v1',
-      "protocolCode"='GUEDES_1991_ADULT_YOUNG',
-      "protocolVersion"=1,'''
-if content.count(protocol_anchor) != 2:
-    raise RuntimeError('canonical assessment protocol anchor mismatch')
-content = content.replace(protocol_anchor, protocol_replacement)
-status_anchor = '''  SET "status"='COMPLETED',
-      "weightKg"=60.00,'''
-status_replacement = '''  SET "status"='COMPLETED',
-      "protocolSex"='female',
-      "protocolSexSource"='professional_confirmation',
-      "protocolSexConfirmedByUserId"='issue246-profile-actor',
-      "protocolSexConfirmedAt"=CURRENT_TIMESTAMP,
-      "weightKg"=60.00,'''
-if content.count(status_anchor) != 2:
-    raise RuntimeError('canonical completion status anchor mismatch')
-content = content.replace(status_anchor, status_replacement)
-content = content.replace(
-    '''AND "calculationSnapshot" -> 'profileCriteria' = '{"sex":"FEMALE","maturation":null}'::jsonb''',
-    '''AND "calculationSnapshot" -> 'profileCriteria' @> '{"sex":"FEMALE","maturation":null}'::jsonb''',
-    1,
-)
+
+replacements = [
+    (
+        '''"status"='COMPLETED', "weightKg"=70,''',
+        '''"status"='COMPLETED', "protocolSex"='female', "protocolSexSource"='professional_confirmation', "protocolSexConfirmedByUserId"='issue246-profile-actor', "protocolSexConfirmedAt"=CURRENT_TIMESTAMP, "weightKg"=70,''',
+        1,
+        'single-line completion status',
+    ),
+    (
+        '''"protocolId"='issue246-profile-approved', "protocolCode"='CANONICAL_REQUIRED', "protocolVersion"=1,''',
+        '''"protocolId"='adpt_protocol_guedes_1991_adult_young_v1', "protocolCode"='GUEDES_1991_ADULT_YOUNG', "protocolVersion"=1,''',
+        1,
+        'single-line protocol',
+    ),
+    (
+        '''SET "status" = 'COMPLETED',
+    "weightKg" = 70,''',
+        '''SET "status" = 'COMPLETED',
+    "protocolSex" = 'female',
+    "protocolSexSource" = 'professional_confirmation',
+    "protocolSexConfirmedByUserId" = 'issue246-profile-actor',
+    "protocolSexConfirmedAt" = CURRENT_TIMESTAMP,
+    "weightKg" = 70,''',
+        1,
+        'multiline completion status',
+    ),
+    (
+        '''    "protocolId" = 'issue246-profile-approved',
+    "protocolCode" = 'CANONICAL_REQUIRED',
+    "protocolVersion" = 1,''',
+        '''    "protocolId" = 'adpt_protocol_guedes_1991_adult_young_v1',
+    "protocolCode" = 'GUEDES_1991_ADULT_YOUNG',
+    "protocolVersion" = 1,''',
+        1,
+        'multiline protocol',
+    ),
+    (
+        '''SET "identificationData" = JSONB_SET("identificationData", '{maturation}', '"adult"'::jsonb),''',
+        '''SET "identificationData" = "identificationData" - 'maturation',''',
+        1,
+        'positive profile maturation removal',
+    ),
+    (
+        '''      AND "bodyFatPercentage" = 20
+      AND "fatMassKg" = 14
+      AND "leanMassKg" = 56''',
+        '''      AND "skinfoldTotalMm" = 30
+      AND "bodyFatPercentage" = 16.03
+      AND "fatMassKg" = 11.22
+      AND "leanMassKg" = 58.78''',
+        1,
+        'Guedes expected results',
+    ),
+    (
+        '''      AND "calculationSnapshot" #>> '{profileCriteria,maturation}' = 'ADULT' ''',
+        '''      AND "calculationSnapshot" #> '{profileCriteria,maturation}' = 'null'::jsonb ''',
+        1,
+        'null maturation expectation',
+    ),
+    (
+        '''      AND "calculationSnapshot" #>> '{profileCriteria,sources,maturation,kind}' = 'STUDENT_PROFILE' ''',
+        '''      AND "calculationSnapshot" #> '{profileCriteria,sources,maturation}' = 'null'::jsonb ''',
+        1,
+        'null maturation source expectation',
+    ),
+]
+for old, new, expected_count, label in replacements:
+    actual = content.count(old)
+    if actual != expected_count:
+        raise RuntimeError(f'{label} anchor mismatch: expected {expected_count}, got {actual}')
+    content = content.replace(old, new, expected_count)
+
 script.write_text(content)
