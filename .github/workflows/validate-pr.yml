@@ -100,11 +100,11 @@ jobs:
           pnpm arch:check
           pnpm docs:check
 
-      - name: Commit implementation and remove bootstrap artifacts
+      - name: Commit functional implementation without workflow changes
         shell: bash
         run: |
+          git checkout HEAD -- .github/workflows/validate-pr.yml
           rm -rf .issue-246
-          rm .github/workflows/issue-246-bootstrap.yml
           rm scripts/apply-issue-246-foundation.mjs
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
