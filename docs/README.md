@@ -37,6 +37,7 @@ Codigo, migrations e testes definem o comportamento efetivamente entregue. Plani
 - [`product/access-control.md`](product/access-control.md): regras de produto para controle de acesso.
 - [`product/integrated-prescription-control.md`](product/integrated-prescription-control.md): fluxo PRNT/Avaliacao -> Prescricao -> Montagem -> Treino -> Feedback.
 - [`product/capacity-prescription-model.md`](product/capacity-prescription-model.md): persistência, API, versionamento e parâmetros da prescrição por capacidades.
+- [`product/adipometry-protocol.md`](product/adipometry-protocol.md): protocolos, gate clínico, snapshot, histórico e correção da Adipometria.
 - [`product/student-centered-training-experience.md`](product/student-centered-training-experience.md): experiencia de corrida, musculacao e treino combinado centrada no aluno.
 - [`product/future-evolution-roadmap.md`](product/future-evolution-roadmap.md): recorte complementar da issue #139, subordinado ao roadmap canonico e preservado ate seus itens virarem issues especificas.
 - [`product/navigation-information-architecture.md`](product/navigation-information-architecture.md): navegacao por hubs, Aluno 360 e rollout.
@@ -81,6 +82,7 @@ Planos ativos relevantes:
 - [`execution-plans/active/2026-07-services-commercial-catalog.md`](execution-plans/active/2026-07-services-commercial-catalog.md)
 - [`execution-plans/active/2026-07-issue-272-canonical-health-intake.md`](execution-plans/active/2026-07-issue-272-canonical-health-intake.md)
 - [`execution-plans/active/2026-07-issue-136-capacity-prescription-persistence.md`](execution-plans/active/2026-07-issue-136-capacity-prescription-persistence.md)
+- [`execution-plans/active/2026-07-issue-246-adipometry-foundation.md`](execution-plans/active/2026-07-issue-246-adipometry-foundation.md)
 - [`execution-plans/active/2026-07-issue-274-enrollment-conversion.md`](execution-plans/active/2026-07-issue-274-enrollment-conversion.md)
 - [`execution-plans/active/2026-07-issue-275-pre-registration-qa-rollout.md`](execution-plans/active/2026-07-issue-275-pre-registration-qa-rollout.md)
 

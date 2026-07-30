@@ -8,6 +8,7 @@ export * from './service.js';
 export * from './service-impact.js';
 export * from './prontuario.js';
 export * from './capacity-prescription.js';
+export * from './adipometry.js';
 export * from './consolidated-prescription.js';
 export * from './post-workout-feedback.js';
 export * from './student-lifecycle.js';

@@ -62,6 +62,19 @@ A versão atual do catálogo é `parq-2026-01`, com sete chaves estáveis (`q1` 
 
 Snapshots de desconforto corporal ficam em `ProntuarioDiscomfortSnapshot` e `ProntuarioDiscomfortEntry`. Dados legados de desconforto no cadastro do aluno não são migrados automaticamente.
 
+## Adipometria histórica (issue #246)
+
+A Adipometria possui domínio próprio em `AdipometryProtocolVersion`, `AdipometrySequence`, `AdipometryAssessment` e `AdipometryAuditLog`. Cadastro, Anamnese Inicial, `ProgressMetric` e Antropometria não são fontes primárias da ADPT.
+
+- `AdipometryProtocolVersion` registra estado clínico, metadados e gate de aprovação. Guedes inicia em `DRAFT` e Slaughter em `DISABLED`; nenhum deles autoriza finalização sem nova versão clinicamente aprovada.
+- `reserve_adipometry_code(contractId, alunoId)` reserva a sequência com upsert atômico. A chamada deve ocorrer na mesma transação da criação; rollback desfaz a reserva. O formato usa largura mínima de três dígitos e continua em `ADPT-1000`.
+- Rascunhos aceitam medidas incompletas e não persistem resultados derivados ou snapshot. Avaliações concluídas exigem entradas, resultados, protocolo aprovado, versão e snapshot coerentes.
+- Triggers impedem vínculo cross-tenant de aluno, professor, auditor, correção e Antropometria de apoio.
+- Avaliações concluídas não aceitam update ou delete. Correção cria outra avaliação concluída com novo código, vínculo, motivo, autor e auditoria; a original permanece intacta.
+- A migration é aditiva e não altera tabelas ou dados de Antropometria, cadastro, Anamnese Inicial ou `ProgressMetric`.
+
+A fonte clínica canônica é [`docs/product/adipometry-protocol.md`](../product/adipometry-protocol.md). API, cálculo e autorização permanecem na issue #247.
+
 ## Cuidados para agentes
 
 - Nao criar `PrismaClient` em arquivos aleatorios sem necessidade.
