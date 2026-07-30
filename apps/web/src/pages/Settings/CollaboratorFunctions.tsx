@@ -341,7 +341,9 @@ export default function SettingsCollaboratorFunctions() {
 
   const toggleScreenPermission = (screenKey: string, checked: boolean) => {
     setPermissions((current) => {
-      const screenBlocks = ACCESS_BLOCK_CATALOG.filter((block) => block.screenKey === screenKey).map((block) => block.key);
+      const screenBlocks: string[] = ACCESS_BLOCK_CATALOG
+        .filter((block) => block.screenKey === screenKey)
+        .map((block) => block.key);
       return {
         screens: checked ? Array.from(new Set([...current.screens, screenKey])) : current.screens.filter((key) => key !== screenKey),
         blocks: checked ? current.blocks : current.blocks.filter((key) => !screenBlocks.includes(key)),
@@ -373,7 +375,7 @@ export default function SettingsCollaboratorFunctions() {
     const group = permissionTreeGroups.find((item) => item.id === groupId);
     if (!group) return;
     const groupKeys = [...group.screenKeys];
-    const groupBlockKeys = ACCESS_BLOCK_CATALOG
+    const groupBlockKeys: string[] = ACCESS_BLOCK_CATALOG
       .filter((block) => groupKeys.includes(block.screenKey))
       .map((block) => block.key);
     setPermissions((current) => ({
