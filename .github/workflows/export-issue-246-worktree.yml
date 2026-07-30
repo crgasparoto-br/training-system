@@ -1,0 +1,28 @@
+name: Export Issue 246 Worktree
+
+on:
+  push:
+    branches:
+      - feat/246-adipometry-foundation
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Upload worktree
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-246-worktree-${{ github.run_id }}
+          path: |
+            .
+            !.git
+          if-no-files-found: error
+          retention-days: 1
