@@ -11,10 +11,12 @@ A entrega não fecha a issue enquanto fórmula, população, limites, arredondam
 - fonte canônica de protocolos e bloqueios clínicos;
 - contratos compartilhados sem resultados derivados em comandos do frontend;
 - modelos Prisma e persistência histórica de protocolo, sequência, avaliação e auditoria;
-- sequência transacional por contrato/aluno;
+- sequência transacional por contrato/aluno aplicada a todo `INSERT`;
+- conclusão canonicalizada no banco a partir da definição aprovada;
 - isolamento composto por contrato, aluno e professor;
 - imutabilidade e não exclusão de concluídos;
 - correção versionada, vinculada e auditada;
+- auditoria append-only emitida apenas por trigger privilegiado;
 - documentação de produto, banco e arquitetura;
 - gates PostgreSQL para concorrência, rollback, dados existentes e controles negativos.
 
@@ -33,6 +35,9 @@ A entrega não fecha a issue enquanto fórmula, população, limites, arredondam
 11. A autoria de auditoria vem do usuário autenticado em contexto transacional; o professor responsável não é usado como substituto pelo papel de aplicação.
 12. Instantes de aprovação exigem `Z` ou offset explícito e são normalizados para UTC.
 13. O contrato clínico atual exige `schemaVersion >= 2`, validação recursiva de todas as ramificações e tolerâncias limitadas à precisão declarada.
+14. A identidade sequencial é alocada por trigger em qualquer criação, e valores enviados pelo chamador são substituídos.
+15. A transição para `COMPLETED` executa a AST aprovada, aplica arredondamento e reconstrói resultados e regras do snapshot.
+16. Eventos de auditoria são inseridos por função `SECURITY DEFINER`; concessão acidental de `INSERT` ao papel de aplicação não permite forjar eventos.
 
 ## Remediações da auditoria
 
@@ -54,7 +59,10 @@ A entrega não fecha a issue enquanto fórmula, população, limites, arredondam
 - ator explícito de criação, atualização, conclusão e correção, com vínculo ao mesmo contrato;
 - remoção de `EXECUTE` de `PUBLIC` e do papel proprietário nas sobrecargas legadas sem ator;
 - normalização UTC da aprovação clínica e rejeição de timestamps sem fuso;
-- cenário discriminante em que o ator real difere do professor responsável.
+- cenário discriminante em que o ator real difere do professor responsável;
+- alocação universal de sequência por trigger, fechando criação SQL direta fora do contador;
+- canonicalização de conclusão com validação de perfil e limites, execução da AST e descarte de resultados ou regras fornecidos pelo chamador;
+- função de auditoria `SECURITY DEFINER` e bloqueio explícito de inserção forjada por papel de aplicação.
 
 ## Gates executáveis
 
@@ -63,6 +71,7 @@ bash scripts/verify-adipometry-migration-existing-data.sh
 bash scripts/verify-adipometry-migration-full-chain.sh
 bash scripts/verify-adipometry-foundation-v2.sh
 bash scripts/verify-adipometry-protocol-validator.sh
+bash scripts/verify-adipometry-persistence-boundaries.sh
 pnpm type-check
 pnpm lint
 pnpm test
@@ -74,7 +83,7 @@ pnpm docs:check
 
 Os aliases legados `verify-adipometry-foundation.sh` e `verify-adipometry-audit-remediation.sh` reutilizam o gate v2 quando a identidade do workflow é a mesma, evitando executar a mesma suíte duas vezes.
 
-Os controles negativos rejeitam fórmula textual, ramificação inválida não selecionada, vetor incompatível, perfil fora da população, medida fora dos limites, tolerância excessiva, vetor duplicado, timestamp sem fuso, ator ausente ou de outro contrato, mutação e reativação de protocolo, conclusão com protocolo desabilitado e vínculo de correção forjado. O teste de migration completa parte do baseline anterior à ADPT, insere dados legados e aplica toda a cadeia na ordem real.
+Os controles negativos rejeitam fórmula textual, ramificação inválida não selecionada, vetor incompatível, perfil fora da população, medida fora dos limites, tolerância excessiva, vetor duplicado, timestamp sem fuso, ator ausente ou de outro contrato, mutação e reativação de protocolo, conclusão com protocolo desabilitado, vínculo de correção forjado e evento de auditoria inserido diretamente. Controles adicionais demonstram que `INSERT` direto não escolhe sequência/código e que resultados e regras enviados na conclusão são substituídos pela execução canônica do protocolo. O teste de migration completa parte do baseline anterior à ADPT, insere dados legados e aplica toda a cadeia na ordem real.
 
 A identidade exata da validação — head, base, merge preview, execução e hashes dos artefatos — é registrada na descrição da PR e nos artefatos publicados pelo workflow. Ela não é duplicada neste documento para evitar referência circular ao próprio commit.
 
