@@ -46,6 +46,39 @@ jobs:
           git checkout origin/develop -- .github/workflows/validate-pr.yml
           node scripts/apply-issue-246-foundation.mjs
 
+      - name: Apply pre-validation remediations
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+
+          function replaceOnce(path, before, after) {
+            const content = fs.readFileSync(path, 'utf8');
+            const count = content.split(before).length - 1;
+            if (count !== 1) {
+              throw new Error(`${path}: expected one remediation anchor, found ${count}`);
+            }
+            fs.writeFileSync(path, content.replace(before, after));
+          }
+
+          const migration = 'apps/api/prisma/migrations/20260730070000_issue_246_adipometry_foundation/migration.sql';
+          replaceOnce(
+            migration,
+            "    'DRAFT',\n    'DRAFT',\n    'Permitir rascunho e bloquear cálculo conclusivo e finalização até aprovação clínica.',\n    NULL,",
+            "    'DRAFT',\n    'Permitir rascunho e bloquear cálculo conclusivo e finalização até aprovação clínica.',\n    NULL,"
+          );
+
+          const plan = 'docs/execution-plans/active/2026-07-issue-246-adipometry-foundation.md';
+          replaceOnce(plan, '- `prisma/schema.prisma`\n', '');
+
+          const protocol = 'docs/product/adipometry-protocol.md';
+          replaceOnce(
+            protocol,
+            'Nova correção deve partir da versão corrente; a API deve rejeitar cadeia ambígua ou alvo já corretivo.',
+            'Nova correção deve partir da versão corrente; a API deve rejeitar cadeia ambígua ou alvo que já possua uma correção sucessora.'
+          );
+          NODE
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
@@ -60,8 +93,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Format Prisma schema
-        run: pnpm --filter @corrida/api exec prisma format --schema prisma/schema.prisma
+      - name: Format and generate Prisma client
+        run: |
+          pnpm --filter @corrida/api exec prisma format --schema prisma/schema.prisma
+          pnpm --filter @corrida/api exec prisma validate --schema prisma/schema.prisma
+          pnpm --filter @corrida/api exec prisma generate
 
       - name: Validate generated changes
         run: |
