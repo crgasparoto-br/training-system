@@ -35,20 +35,26 @@ A largura cresce com a sequência. A constraint `AdipometryAssessment_code_match
 
 Assim, identificadores válidos de contratos diferentes não podem ser combinados. Consultas e mutações da API continuam obrigadas a filtrar `contractId`; as constraints são a última linha de defesa, não substituem autorização.
 
-## Aprovação de protocolo
+## Aprovação e desativação de protocolo
 
-Uma versão somente pode receber estado `APPROVED` quando possui:
+Uma versão somente pode receber estado `APPROVED` quando `isValidAdipometryProtocolDefinition` confirma um contrato clínico completo e versionado, incluindo:
 
-- referência, aprovador e data;
-- população não vazia;
-- dobras exigidas;
-- unidades de entrada e saída;
-- equações não vazias;
-- limites, precisão e arredondamento;
-- comportamento para dados ausentes;
-- pelo menos um vetor de teste.
+- população com faixa etária, sexo e maturação;
+- exatamente as cinco dobras canônicas;
+- unidades por entrada e saída;
+- equações identificadas para percentual de gordura, gordura absoluta e massa magra;
+- limites de bloqueio por entrada e coleção explícita de alertas;
+- precisão e arredondamento;
+- comportamento estruturado para dados ausentes e incompatíveis;
+- no mínimo dois vetores completos com resultados e tolerâncias;
+- aprovação com identificador, aprovador, data e SHA-256 do artefato;
+- referência não vazia.
 
-Depois de aprovada, a versão é imutável. Mudança clínica exige nova versão. Guedes permanece `DRAFT` e Slaughter permanece `DISABLED`; nenhum protocolo clínico real é aprovado pelas migrations.
+A validação rejeita objetos genéricos ou placeholders, mesmo que todas as chaves principais existam. A aprovação registrada no JSON deve coincidir com `approvedByUserId` e `approvedAt`.
+
+A definição clínica aprovada é imutável. A única alteração permitida é a transição operacional `APPROVED → DISABLED`, mantendo definição, referência e aprovação intactas. `DISABLED` é terminal: não pode ser reativado, alterado ou excluído. Avaliações históricas que usaram a versão permanecem válidas, mas novas conclusões são bloqueadas.
+
+Guedes permanece `DRAFT` e Slaughter permanece `DISABLED`; nenhum protocolo clínico real é aprovado pelas migrations.
 
 ## Rascunho e conclusão
 
@@ -75,6 +81,8 @@ Uma correção é uma nova avaliação `COMPLETED`, no mesmo contrato e aluno, c
 
 O banco bloqueia autorreferência e segunda correção direta da mesma versão. Após a gravação, a versão original recebe `correctedByAssessmentId` na mesma transação. Se esse vínculo não puder ser estabelecido, toda a operação é revertida.
 
+`correctedByAssessmentId` é campo gerenciado pelo banco: inserts com vínculo predefinido, atualizações de rascunho, remoção do vínculo e associações sem uma correção concluída e recíproca são rejeitados. Isso impede cadeias históricas forjadas fora do trigger `linkAdipometryCorrection`.
+
 Triggers registram automaticamente:
 
 - `DRAFT_CREATED`;
@@ -87,16 +95,19 @@ Eventos de auditoria são append-only. Tentativas bloqueadas pela API devem ser 
 
 ## Implantação, dados existentes e rollback
 
-As migrations são aditivas e não removem nem reinterpretam Antropometria, cadastro, anamnese, métricas ou avaliações existentes. O CI valida dois caminhos:
+As migrations são aditivas e não removem nem reinterpretam Antropometria, cadastro, anamnese, métricas ou avaliações existentes. O CI valida três caminhos:
 
 1. aplicação completa das migrations em banco vazio;
-2. aplicação da migration de endurecimento sobre banco com dados legados e rascunho ADPT pré-existente, comprovando preservação das linhas.
+2. preservação de dados e rascunho ADPT durante o endurecimento incremental;
+3. banco construído apenas com as migrations anteriores à ADPT, populado com dados legados e depois atualizado pela cadeia ADPT completa na ordem real.
 
 Validações específicas:
 
 ```bash
 bash scripts/verify-adipometry-migration-existing-data.sh
+bash scripts/verify-adipometry-migration-full-chain.sh
 bash scripts/verify-adipometry-foundation.sh
+bash scripts/verify-adipometry-audit-remediation.sh
 ```
 
 O deploy executa `prisma migrate deploy` antes de iniciar a API. Rollback destrutivo não é automatizado; qualquer reversão após uso real exige backup, plano explícito e aprovação operacional.
