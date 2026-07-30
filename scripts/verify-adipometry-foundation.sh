@@ -99,33 +99,154 @@ BEGIN
     ('issue246-anthro-b1', 'issue246-contract-b', 'issue246-aluno-b1', 'issue246-professor-b', 'ANT-ISSUE246-B1', DATE '2026-07-20', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 END $$;
 
+CREATE OR REPLACE FUNCTION issue246_protocol_definition(
+  p_approver TEXT,
+  p_approved_at TIMESTAMP
+) RETURNS JSONB
+LANGUAGE SQL
+IMMUTABLE
+AS $$
+  SELECT jsonb_build_object(
+    'schemaVersion', 1,
+    'population', jsonb_build_object(
+      'ageMinYears', 18,
+      'ageMaxYears', 65,
+      'sexCriteria', jsonb_build_array('FEMALE', 'MALE'),
+      'maturationCriteria', 'Not required for the structural CI fixture'
+    ),
+    'requiredSkinfolds', jsonb_build_array(
+      'tricepsMm', 'subscapularMm', 'suprailiacMm', 'abdominalMm', 'thighMm'
+    ),
+    'inputUnits', jsonb_build_object(
+      'weightKg', 'kg',
+      'tricepsMm', 'mm',
+      'subscapularMm', 'mm',
+      'suprailiacMm', 'mm',
+      'abdominalMm', 'mm',
+      'thighMm', 'mm'
+    ),
+    'outputUnits', jsonb_build_object(
+      'skinfoldTotalMm', 'mm',
+      'bodyFatPercentage', 'percent',
+      'fatMassKg', 'kg',
+      'leanMassKg', 'kg'
+    ),
+    'equations', jsonb_build_array(
+      jsonb_build_object(
+        'id', 'body-fat-structural',
+        'output', 'bodyFatPercentage',
+        'expression', 'approved clinical expression is stored verbatim',
+        'variables', jsonb_build_array('ageAtAssessment', 'profileCriteria', 'skinfolds')
+      ),
+      jsonb_build_object(
+        'id', 'fat-mass',
+        'output', 'fatMassKg',
+        'expression', 'weightKg * bodyFatPercentage / 100',
+        'variables', jsonb_build_array('weightKg', 'bodyFatPercentage')
+      ),
+      jsonb_build_object(
+        'id', 'lean-mass',
+        'output', 'leanMassKg',
+        'expression', 'weightKg - fatMassKg',
+        'variables', jsonb_build_array('weightKg', 'fatMassKg')
+      )
+    ),
+    'limits', jsonb_build_object(
+      'blocking', jsonb_build_object(
+        'weightKg', jsonb_build_object('min', 20, 'max', 350),
+        'tricepsMm', jsonb_build_object('min', 1, 'max', 100),
+        'subscapularMm', jsonb_build_object('min', 1, 'max', 100),
+        'suprailiacMm', jsonb_build_object('min', 1, 'max', 100),
+        'abdominalMm', jsonb_build_object('min', 1, 'max', 100),
+        'thighMm', jsonb_build_object('min', 1, 'max', 100)
+      ),
+      'warnings', jsonb_build_array(
+        jsonb_build_object('field', 'bodyFatPercentage', 'message', 'Review extreme result')
+      )
+    ),
+    'precision', jsonb_build_object(
+      'measurementScale', 2,
+      'resultScale', 4,
+      'internalScale', 6
+    ),
+    'rounding', jsonb_build_object(
+      'mode', 'HALF_UP',
+      'stage', 'FINAL_RESULTS_ONLY'
+    ),
+    'missingDataBehavior', jsonb_build_object(
+      'missingRequired', 'Block incomplete data',
+      'incompatibleProfile', 'Block without formula fallback'
+    ),
+    'testVectors', jsonb_build_array(
+      jsonb_build_object(
+        'id', 'fixture-vector-1',
+        'inputs', jsonb_build_object(
+          'ageAtAssessment', 30,
+          'profileCriteria', jsonb_build_object('sex', 'FEMALE'),
+          'measurements', jsonb_build_object(
+            'weightKg', 70, 'tricepsMm', 10, 'subscapularMm', 10,
+            'suprailiacMm', 10, 'abdominalMm', 10, 'thighMm', 10
+          )
+        ),
+        'expectedResults', jsonb_build_object(
+          'skinfoldTotalMm', 50, 'bodyFatPercentage', 20,
+          'fatMassKg', 14, 'leanMassKg', 56
+        ),
+        'tolerance', jsonb_build_object(
+          'skinfoldTotalMm', 0.0001, 'bodyFatPercentage', 0.0001,
+          'fatMassKg', 0.0001, 'leanMassKg', 0.0001
+        )
+      ),
+      jsonb_build_object(
+        'id', 'fixture-vector-2',
+        'inputs', jsonb_build_object(
+          'ageAtAssessment', 40,
+          'profileCriteria', jsonb_build_object('sex', 'MALE'),
+          'measurements', jsonb_build_object(
+            'weightKg', 80, 'tricepsMm', 12, 'subscapularMm', 11,
+            'suprailiacMm', 9, 'abdominalMm', 13, 'thighMm', 10
+          )
+        ),
+        'expectedResults', jsonb_build_object(
+          'skinfoldTotalMm', 55, 'bodyFatPercentage', 25,
+          'fatMassKg', 20, 'leanMassKg', 60
+        ),
+        'tolerance', jsonb_build_object(
+          'skinfoldTotalMm', 0.0001, 'bodyFatPercentage', 0.0001,
+          'fatMassKg', 0.0001, 'leanMassKg', 0.0001
+        )
+      )
+    ),
+    'clinicalApproval', jsonb_build_object(
+      'status', 'approved',
+      'approverUserId', p_approver,
+      'approvedAt', p_approved_at::TEXT,
+      'approvalRecordId', 'issue246-structural-ci-approval',
+      'artifactSha256', repeat('a', 64)
+    )
+  );
+$$;
+
+WITH approval AS (
+  SELECT CURRENT_TIMESTAMP::TIMESTAMP AS approved_at
+)
 INSERT INTO "AdipometryProtocol" (
   "id", "code", "version", "name", "status", "definitionSnapshot", "reference",
   "approvedAt", "approvedByUserId", "createdAt", "updatedAt"
-) VALUES (
+)
+SELECT
   'issue246-protocol-approved',
   'ISSUE246_TEST',
   1,
   'Protocol only for structural verification',
   'APPROVED',
-  '{
-    "population":{"fixture":true},
-    "requiredSkinfolds":["tricepsMm","subscapularMm","suprailiacMm","abdominalMm","thighMm"],
-    "inputUnits":{"weightKg":"kg","skinfolds":"mm"},
-    "outputUnits":{"bodyFatPercentage":"percent","mass":"kg"},
-    "equations":[{"id":"fixture"}],
-    "limits":{"fixture":true},
-    "precision":{"internal":4},
-    "rounding":{"mode":"HALF_UP"},
-    "missingDataBehavior":"Block incomplete fixture data",
-    "testVectors":[{"id":"fixture-vector"}]
-  }'::jsonb,
-  'Non-clinical CI fixture',
-  CURRENT_TIMESTAMP,
+  issue246_protocol_definition('issue246-user-a', approval.approved_at),
+  'Non-clinical structural CI fixture',
+  approval.approved_at,
   'issue246-user-a',
   CURRENT_TIMESTAMP,
   CURRENT_TIMESTAMP
-);
+FROM approval;
 
 CREATE OR REPLACE FUNCTION issue246_snapshot(
   p_protocol_code TEXT,
@@ -192,12 +313,12 @@ expect_failure \
 
 expect_failure \
   "approved protocol update" \
-  "Approved adipometry protocols are immutable" \
+  "only disabling is allowed" \
   "UPDATE \"AdipometryProtocol\" SET \"name\" = 'mutated' WHERE \"id\" = 'issue246-protocol-approved';"
 
 expect_failure \
   "approved protocol delete" \
-  "Approved adipometry protocols are immutable" \
+  "cannot be deleted" \
   "DELETE FROM \"AdipometryProtocol\" WHERE \"id\" = 'issue246-protocol-approved';"
 
 cat > "$TMP_DIR/concurrent-a.sql" <<'SQL'
@@ -585,16 +706,20 @@ expect_failure \
   "DELETE FROM \"AdipometryAuditEvent\"
    WHERE \"assessmentId\" = 'issue246-completed' AND \"action\" = 'COMPLETED';"
 
-sql "INSERT INTO \"AdipometryProtocol\" (
+sql "WITH approval AS (
+  SELECT CURRENT_TIMESTAMP::TIMESTAMP AS approved_at
+)
+INSERT INTO \"AdipometryProtocol\" (
   \"id\", \"code\", \"version\", \"name\", \"status\", \"definitionSnapshot\", \"reference\",
   \"approvedAt\", \"approvedByUserId\", \"createdAt\", \"updatedAt\"
 )
 SELECT
-  'issue246-protocol-approved-v2', \"code\", 2, \"name\", \"status\",
-  JSONB_SET(\"definitionSnapshot\", '{equations}', '[{\"id\":\"fixture-v2\"}]'::jsonb),
-  \"reference\", CURRENT_TIMESTAMP, \"approvedByUserId\", CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-FROM \"AdipometryProtocol\"
-WHERE \"id\" = 'issue246-protocol-approved';"
+  'issue246-protocol-approved-v2', p.\"code\", 2, p.\"name\", p.\"status\",
+  issue246_protocol_definition(p.\"approvedByUserId\", approval.approved_at),
+  p.\"reference\", approval.approved_at, p.\"approvedByUserId\", CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+FROM \"AdipometryProtocol\" p
+CROSS JOIN approval
+WHERE p.\"id\" = 'issue246-protocol-approved';"
 
 sql "DO \$\$ BEGIN
   IF (SELECT \"protocolVersion\" FROM \"AdipometryAssessment\" WHERE \"id\" = 'issue246-completed') <> 1 THEN
