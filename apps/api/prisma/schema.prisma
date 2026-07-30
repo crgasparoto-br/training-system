@@ -1254,6 +1254,8 @@ model AdipometryAssessment {
 
   @@unique([id, contractId], map: "AdipometryAssessment_id_contractId_key")
   @@unique([id, contractId, alunoId], map: "AdipometryAssessment_id_contractId_alunoId_key")
+  @@unique([correctsAssessmentId, contractId, alunoId], map: "AdipometryAssessment_correctsAssessmentId_contractId_alunoId_key")
+  @@unique([correctedByAssessmentId, contractId, alunoId], map: "AdipometryAssessment_correctedByAssessmentId_contractId_alunoId_key")
   @@unique([contractId, alunoId, sequenceNumber], map: "AdipometryAssessment_contractId_alunoId_sequenceNumber_key")
   @@unique([contractId, alunoId, code], map: "AdipometryAssessment_contractId_alunoId_code_key")
   @@index([contractId, alunoId, assessmentDate(sort: Desc)], map: "AdipometryAssessment_contractId_alunoId_assessmentDate_idx")
