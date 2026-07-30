@@ -24,12 +24,12 @@ content = content.replace(
     "WHERE protocol.\"id\" = 'adpt_protocol_guedes_1991_adult_young_v1';",
     1,
 )
-protocol_anchor = '''    "protocolId"='issue246-profile-approved',
-    "protocolCode"='CANONICAL_REQUIRED',
-    "protocolVersion"=1,'''
-protocol_replacement = '''    "protocolId"='adpt_protocol_guedes_1991_adult_young_v1',
-    "protocolCode"='GUEDES_1991_ADULT_YOUNG',
-    "protocolVersion"=1,'''
+protocol_anchor = '''      "protocolId"='issue246-profile-approved',
+      "protocolCode"='CANONICAL_REQUIRED',
+      "protocolVersion"=1,'''
+protocol_replacement = '''      "protocolId"='adpt_protocol_guedes_1991_adult_young_v1',
+      "protocolCode"='GUEDES_1991_ADULT_YOUNG',
+      "protocolVersion"=1,'''
 if content.count(protocol_anchor) != 2:
     raise RuntimeError('canonical assessment protocol anchor mismatch')
 content = content.replace(protocol_anchor, protocol_replacement)
