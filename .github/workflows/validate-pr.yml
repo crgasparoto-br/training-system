@@ -40,8 +40,14 @@ jobs:
           ' .github/workflows/issue-246-bootstrap.yml \
             | tr -cd 'A-Za-z0-9+/=' \
             > /tmp/issue-246-bundle.base64
-          test "$(wc -c < /tmp/issue-246-bundle.base64)" -gt 10000
+          wc -c /tmp/issue-246-bundle.base64
+          sha256sum /tmp/issue-246-bundle.base64
+          test "$(wc -c < /tmp/issue-246-bundle.base64)" -eq 19476
+          test "$(sha256sum /tmp/issue-246-bundle.base64 | cut -d' ' -f1)" = \
+            781bdd742d1d6b58d13197054ff63ad295cd19ee0b780d06c16c0392f3fa4670
           base64 -d /tmp/issue-246-bundle.base64 > /tmp/issue-246-bundle.tar.gz
+          test "$(sha256sum /tmp/issue-246-bundle.tar.gz | cut -d' ' -f1)" = \
+            0e94658f4227c25518bff7b690dfb5a5551b26246800911704d73550877c8e89
           tar -tzf /tmp/issue-246-bundle.tar.gz
           tar -xzf /tmp/issue-246-bundle.tar.gz
 
