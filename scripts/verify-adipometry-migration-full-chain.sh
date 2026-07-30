@@ -43,7 +43,8 @@ is_adpt_migration() {
     20260730141000_add_adipometry_relation_uniques|\
     20260730142000_add_adipometry_draft_date_overload|\
     20260730150000_fix_issue_246_audit_findings|\
-    20260730170000_remediate_issue_246_audit_round_2)
+    20260730170000_remediate_issue_246_audit_round_2|\
+    20260730173000_close_issue_246_adversarial_gaps)
       return 0
       ;;
     *)
@@ -66,7 +67,6 @@ while IFS= read -r migration_dir; do
   cp -R "$migration_dir" "$TMP_DIR/prisma/migrations/$migration_name"
 done < <(find "$ROOT_DIR/apps/api/prisma/migrations" -mindepth 1 -maxdepth 1 -type d | sort)
 
-# Build the true baseline first: all develop-era migrations, no ADPT migration.
 DATABASE_URL="$TEMP_URL" pnpm --filter @corrida/api exec prisma migrate deploy \
   --schema "$TMP_DIR/prisma/schema.prisma"
 
@@ -77,18 +77,14 @@ DECLARE
   user_type TEXT;
 BEGIN
   SELECT enumlabel INTO contract_type
-  FROM pg_enum e
-  JOIN pg_type t ON t.oid = e.enumtypid
+  FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid
   WHERE t.typname = 'ContractType'
-  ORDER BY e.enumsortorder
-  LIMIT 1;
+  ORDER BY e.enumsortorder LIMIT 1;
 
   SELECT enumlabel INTO user_type
-  FROM pg_enum e
-  JOIN pg_type t ON t.oid = e.enumtypid
+  FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid
   WHERE t.typname = 'UserType'
-  ORDER BY e.enumsortorder
-  LIMIT 1;
+  ORDER BY e.enumsortorder LIMIT 1;
 
   EXECUTE format(
     'INSERT INTO "Contract" ("id", "type", "document", "name", "createdAt", "updatedAt")
@@ -132,17 +128,12 @@ VALUES ('issue246-full-chain-bank', 'I246FC', 'Legacy row before every ADPT migr
 SQL
 psql_file "$TEMP_URL" "$TMP_DIR/legacy.sql" legacy.sql
 
-# Apply the ADPT chain exactly in repository order. Insert a draft after the
-# initial foundation to prove later hardening migrations preserve live ADPT data.
 for migration_name in \
   20260730093000_add_adipometry_foundation \
   20260730093100_add_adipometry_guards \
   20260730093200_enforce_adipometry_tenant_scope
 do
-  psql_file \
-    "$TEMP_URL" \
-    "$ROOT_DIR/apps/api/prisma/migrations/$migration_name/migration.sql" \
-    "$migration_name.sql"
+  psql_file "$TEMP_URL" "$ROOT_DIR/apps/api/prisma/migrations/$migration_name/migration.sql" "$migration_name.sql"
 done
 
 cat > "$TMP_DIR/pre_hardening.sql" <<'SQL'
@@ -162,12 +153,10 @@ for migration_name in \
   20260730141000_add_adipometry_relation_uniques \
   20260730142000_add_adipometry_draft_date_overload \
   20260730150000_fix_issue_246_audit_findings \
-  20260730170000_remediate_issue_246_audit_round_2
+  20260730170000_remediate_issue_246_audit_round_2 \
+  20260730173000_close_issue_246_adversarial_gaps
 do
-  psql_file \
-    "$TEMP_URL" \
-    "$ROOT_DIR/apps/api/prisma/migrations/$migration_name/migration.sql" \
-    "$migration_name.sql"
+  psql_file "$TEMP_URL" "$ROOT_DIR/apps/api/prisma/migrations/$migration_name/migration.sql" "$migration_name.sql"
 done
 
 cat > "$TMP_DIR/verify.sql" <<'SQL'
@@ -208,8 +197,9 @@ BEGIN
     RAISE EXCEPTION 'strict protocol validator was not installed';
   END IF;
 
-  IF TO_REGPROCEDURE('"evaluateAdipometryExpression"(jsonb,jsonb)') IS NULL THEN
-    RAISE EXCEPTION 'executable equation evaluator was not installed';
+  IF TO_REGPROCEDURE('"evaluateAdipometryExpression"(jsonb,jsonb)') IS NULL
+     OR TO_REGPROCEDURE('"isValidAdipometryExpression"(jsonb,text[])') IS NULL THEN
+    RAISE EXCEPTION 'executable equation validation functions were not installed';
   END IF;
 
   IF TO_REGPROCEDURE('"createAdipometryDraft"(text,text,text,text,date,text,timestamp with time zone)') IS NULL THEN
