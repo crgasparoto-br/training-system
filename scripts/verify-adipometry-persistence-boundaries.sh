@@ -239,7 +239,7 @@ END $$;
 
 SELECT SET_CONFIG('app.adipometry_actor_user_id', 'issue246-boundary-actor-a', true);
 
--- Missing age and sex are rejected before any completed record is persisted.
+-- Missing canonical birth date is rejected even when a caller supplies profile data.
 DO $$ BEGIN
   BEGIN
     UPDATE "AdipometryAssessment"
@@ -248,14 +248,26 @@ DO $$ BEGIN
         "abdominalMm" = 10, "thighMm" = 10,
         "skinfoldTotalMm" = 99, "bodyFatPercentage" = 99, "fatMassKg" = 1, "leanMassKg" = 69,
         "protocolId" = 'issue246-boundary-protocol', "protocolCode" = 'BOUNDARY_EXECUTABLE', "protocolVersion" = 1,
-        "calculationSnapshot" = JSONB_BUILD_OBJECT('ageAtAssessment', NULL, 'profileCriteria', JSONB_BUILD_OBJECT()),
+        "calculationSnapshot" = JSONB_BUILD_OBJECT(
+          'ageAtAssessment', 30,
+          'profileCriteria', JSONB_BUILD_OBJECT('sex', 'FEMALE')
+        ),
         "completedAt" = CURRENT_TIMESTAMP, "updatedAt" = CURRENT_TIMESTAMP
     WHERE "id" = 'issue246-boundary-direct-a1';
-    RAISE EXCEPTION 'missing profile was accepted';
+    RAISE EXCEPTION 'missing canonical profile was accepted';
   EXCEPTION WHEN CHECK_VIOLATION THEN
-    IF SQLERRM NOT LIKE '%ADIPOMETRY_PROFILE_REQUIRED%' THEN RAISE; END IF;
+    IF SQLERRM NOT LIKE '%ADIPOMETRY_BIRTH_DATE_REQUIRED%' THEN RAISE; END IF;
   END;
 END $$;
+
+-- Add canonical demographics only after proving that caller-provided values do not bypass them.
+INSERT INTO "StudentProfile" (
+  "id", "alunoId", "contractId", "identificationData", "createdAt", "updatedAt"
+) VALUES (
+  'issue246-boundary-profile-a1', 'issue246-boundary-aluno-a1', 'issue246-boundary-contract-a',
+  '{"birthDate":"1996-07-30","gender":"female"}'::jsonb,
+  CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+);
 
 -- Out-of-range input is rejected against the approved protocol limits.
 DO $$ BEGIN
@@ -267,7 +279,7 @@ DO $$ BEGIN
         "skinfoldTotalMm" = 141, "bodyFatPercentage" = 38.2, "fatMassKg" = 26.74, "leanMassKg" = 43.26,
         "protocolId" = 'issue246-boundary-protocol', "protocolCode" = 'BOUNDARY_EXECUTABLE', "protocolVersion" = 1,
         "calculationSnapshot" = JSONB_BUILD_OBJECT(
-          'ageAtAssessment', 30, 'profileCriteria', JSONB_BUILD_OBJECT('sex', 'FEMALE')
+          'ageAtAssessment', 45, 'profileCriteria', JSONB_BUILD_OBJECT('sex', 'MALE')
         ),
         "completedAt" = CURRENT_TIMESTAMP, "updatedAt" = CURRENT_TIMESTAMP
     WHERE "id" = 'issue246-boundary-direct-a1';
@@ -277,7 +289,7 @@ DO $$ BEGIN
   END;
 END $$;
 
--- Caller-supplied derived values and rules are discarded; the approved AST is authoritative.
+-- Caller-supplied derived values, rules and demographics are discarded.
 UPDATE "AdipometryAssessment"
 SET "status" = 'COMPLETED', "weightKg" = 70,
     "tricepsMm" = 10, "subscapularMm" = 10, "suprailiacMm" = 10,
@@ -285,8 +297,8 @@ SET "status" = 'COMPLETED', "weightKg" = 70,
     "skinfoldTotalMm" = 999, "bodyFatPercentage" = 99, "fatMassKg" = 1, "leanMassKg" = 69,
     "protocolId" = 'issue246-boundary-protocol', "protocolCode" = 'BOUNDARY_EXECUTABLE', "protocolVersion" = 1,
     "calculationSnapshot" = JSONB_BUILD_OBJECT(
-      'ageAtAssessment', 30,
-      'profileCriteria', JSONB_BUILD_OBJECT('sex', 'FEMALE'),
+      'ageAtAssessment', 45,
+      'profileCriteria', JSONB_BUILD_OBJECT('sex', 'MALE'),
       'rules', JSONB_BUILD_OBJECT('forged', true),
       'results', JSONB_BUILD_OBJECT('bodyFatPercentage', 99)
     ),
@@ -302,11 +314,15 @@ DO $$ BEGIN
       AND "fatMassKg" = 14
       AND "leanMassKg" = 56
       AND ("calculationSnapshot" #>> '{results,bodyFatPercentage}')::NUMERIC = 20
+      AND ("calculationSnapshot" ->> 'ageAtAssessment')::INTEGER = 30
+      AND "calculationSnapshot" #>> '{profileCriteria,sex}' = 'FEMALE'
+      AND "calculationSnapshot" #>> '{profileCriteria,sources,birthDate,kind}' = 'STUDENT_PROFILE'
+      AND "calculationSnapshot" #>> '{profileCriteria,sources,sex,kind}' = 'STUDENT_PROFILE'
       AND JSONB_TYPEOF("calculationSnapshot" #> '{rules,equations}') = 'array'
       AND NOT ("calculationSnapshot" -> 'rules' ? 'forged')
       AND "calculationSnapshot" ->> 'implementationVersion' = 'db-adipometry-protocol-v2'
   ) THEN
-    RAISE EXCEPTION 'derived values or snapshot rules remained caller-authoritative';
+    RAISE EXCEPTION 'derived values, demographics or snapshot rules remained caller-authoritative';
   END IF;
 END $$;
 
