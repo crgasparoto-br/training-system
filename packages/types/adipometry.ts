@@ -1,17 +1,91 @@
 export type AdipometryAssessmentStatus = 'DRAFT' | 'COMPLETED';
 export type AdipometryProtocolStatus = 'DRAFT' | 'APPROVED' | 'DISABLED';
 
+export type AdipometrySkinfoldField =
+  | 'tricepsMm'
+  | 'subscapularMm'
+  | 'suprailiacMm'
+  | 'abdominalMm'
+  | 'thighMm';
+
+export type AdipometryInputField = 'weightKg' | AdipometrySkinfoldField;
+export type AdipometryResultField =
+  | 'skinfoldTotalMm'
+  | 'bodyFatPercentage'
+  | 'fatMassKg'
+  | 'leanMassKg';
+
+export interface AdipometryProtocolPopulation {
+  ageMinYears: number;
+  ageMaxYears: number;
+  sexCriteria: string[];
+  maturationCriteria: string;
+}
+
+export interface AdipometryProtocolEquation {
+  id: string;
+  output: Exclude<AdipometryResultField, 'skinfoldTotalMm'>;
+  expression: string;
+  variables: string[];
+}
+
+export interface AdipometryProtocolBlockingLimit {
+  min: number;
+  max: number;
+}
+
+export interface AdipometryProtocolWarning {
+  field: AdipometryInputField | AdipometryResultField;
+  message: string;
+  min?: number;
+  max?: number;
+}
+
+export interface AdipometryProtocolTestVector {
+  id: string;
+  inputs: {
+    ageAtAssessment: number;
+    profileCriteria: Record<string, unknown>;
+    measurements: Required<AdipometryMeasurements>;
+  };
+  expectedResults: AdipometryCalculatedResults;
+  tolerance: Record<AdipometryResultField, number>;
+}
+
+export interface AdipometryProtocolClinicalApproval {
+  status: 'approved';
+  approverUserId: string;
+  approvedAt: string;
+  approvalRecordId: string;
+  artifactSha256: string;
+}
+
 export interface AdipometryProtocolDefinitionSnapshot {
-  population: Record<string, unknown>;
-  requiredSkinfolds: string[];
-  inputUnits: Record<string, string>;
-  outputUnits: Record<string, string>;
-  equations: Array<Record<string, unknown>> | Record<string, unknown>;
-  limits: Record<string, unknown>;
-  precision: Record<string, unknown>;
-  rounding: Record<string, unknown>;
-  missingDataBehavior: string;
-  testVectors: Array<Record<string, unknown>>;
+  schemaVersion: number;
+  population: AdipometryProtocolPopulation;
+  requiredSkinfolds: AdipometrySkinfoldField[];
+  inputUnits: Record<AdipometryInputField, 'kg' | 'mm'>;
+  outputUnits: Record<AdipometryResultField, 'kg' | 'mm' | 'percent'>;
+  equations: AdipometryProtocolEquation[];
+  limits: {
+    blocking: Record<AdipometryInputField, AdipometryProtocolBlockingLimit>;
+    warnings: AdipometryProtocolWarning[];
+  };
+  precision: {
+    measurementScale: number;
+    resultScale: number;
+    internalScale: number;
+  };
+  rounding: {
+    mode: 'HALF_UP' | 'HALF_EVEN';
+    stage: 'FINAL_RESULTS_ONLY';
+  };
+  missingDataBehavior: {
+    missingRequired: string;
+    incompatibleProfile: string;
+  };
+  testVectors: AdipometryProtocolTestVector[];
+  clinicalApproval: AdipometryProtocolClinicalApproval;
 }
 
 export interface AdipometryCalculationSnapshot {
