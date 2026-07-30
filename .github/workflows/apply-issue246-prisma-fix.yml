@@ -25,6 +25,7 @@ jobs:
         run: |
           set -euo pipefail
           package=/tmp/issue246-prisma-fix.tar.gz
+          workdir=/tmp/issue246-prisma-fix
           curl --fail --silent --show-error --location \
             --header "Authorization: Bearer ${GH_TOKEN}" \
             --header "X-GitHub-Api-Version: 2022-11-28" \
@@ -33,8 +34,9 @@ jobs:
             | tr -d '\n' \
             | base64 --decode > "$package"
           echo "cccbd787daaedc250bce0418f1d5490bf9b6491bb5b698f7b476a087c3ffbc0f  $package" | sha256sum --check --strict
-          tar --extract --gzip --file "$package" --directory /tmp/issue246-prisma-fix
-          bash /tmp/issue246-prisma-fix/apply-issue246-prisma-fix.sh
+          mkdir -p "$workdir"
+          tar --extract --gzip --file "$package" --directory "$workdir"
+          bash "$workdir/apply-issue246-prisma-fix.sh"
 
       - name: Commit Prisma relation fix
         shell: bash
