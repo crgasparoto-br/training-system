@@ -10,7 +10,6 @@ permissions:
 
 jobs:
   apply:
-    if: "!contains(github.event.pull_request.head.sha || '', 'never')"
     runs-on: ubuntu-latest
     steps:
       - name: Checkout branch
@@ -29,13 +28,13 @@ jobs:
           curl --fail --silent --show-error --location \
             --header "Authorization: Bearer ${GH_TOKEN}" \
             --header "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/blobs/dbf7e55cd7af9bd84ac9f6531875cd2a7b4e7d2c" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/git/blobs/b901dd6aadc37b408a1163baf82efabf901166bb" \
             | jq --raw-output '.content' \
             | tr -d '\n' \
             | base64 --decode > "$package"
-          echo "2dc62f7a7f653907bfbf9d30d1523ce48fef4a719c86f71e020fcfd0c13dad37  $package" | sha256sum --check --strict
-          tar --extract --gzip --file "$package" --directory "$GITHUB_WORKSPACE"
-          git checkout HEAD -- .github/workflows/apply-issue246-prisma-fix.yml
+          echo "cccbd787daaedc250bce0418f1d5490bf9b6491bb5b698f7b476a087c3ffbc0f  $package" | sha256sum --check --strict
+          tar --extract --gzip --file "$package" --directory /tmp/issue246-prisma-fix
+          bash /tmp/issue246-prisma-fix/apply-issue246-prisma-fix.sh
 
       - name: Commit Prisma relation fix
         shell: bash
