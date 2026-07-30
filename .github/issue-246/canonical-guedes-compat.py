@@ -96,14 +96,14 @@ replacements = [
         'Guedes expected results',
     ),
     (
-        '''      AND "calculationSnapshot" #>> '{profileCriteria,maturation}' = 'ADULT' ''',
-        '''      AND "calculationSnapshot" #> '{profileCriteria,maturation}' = 'null'::jsonb ''',
+        "      AND \"calculationSnapshot\" #>> '{profileCriteria,maturation}' = 'ADULT'",
+        "      AND \"calculationSnapshot\" #> '{profileCriteria,maturation}' = 'null'::jsonb",
         1,
         'null maturation expectation',
     ),
     (
-        '''      AND "calculationSnapshot" #>> '{profileCriteria,sources,maturation,kind}' = 'STUDENT_PROFILE' ''',
-        '''      AND "calculationSnapshot" #> '{profileCriteria,sources,maturation}' = 'null'::jsonb ''',
+        "      AND \"calculationSnapshot\" #>> '{profileCriteria,sources,maturation,kind}' = 'STUDENT_PROFILE'",
+        "      AND \"calculationSnapshot\" #> '{profileCriteria,sources,maturation}' = 'null'::jsonb",
         1,
         'null maturation source expectation',
     ),
