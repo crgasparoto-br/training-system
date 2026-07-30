@@ -102,6 +102,22 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+      - name: Verify full ADPT migration chain over legacy data
+        run: |
+          set -o pipefail
+          bash scripts/verify-adipometry-migration-full-chain.sh 2>&1 | tee adipometry-full-chain-output.log
+
+      - name: Upload full ADPT migration chain output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adipometry-full-chain-output-${{ github.run_id }}
+          path: |
+            adipometry-full-chain-output.log
+            orquestrador-artifact.json
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Apply test database migrations
         run: |
           set -o pipefail
@@ -130,6 +146,22 @@ jobs:
           name: adipometry-foundation-output-${{ github.run_id }}
           path: |
             adipometry-foundation-output.log
+            orquestrador-artifact.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Verify ADPT audit remediation controls
+        run: |
+          set -o pipefail
+          bash scripts/verify-adipometry-audit-remediation.sh 2>&1 | tee adipometry-audit-remediation-output.log
+
+      - name: Upload ADPT audit remediation output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adipometry-audit-remediation-output-${{ github.run_id }}
+          path: |
+            adipometry-audit-remediation-output.log
             orquestrador-artifact.json
           if-no-files-found: ignore
           retention-days: 7
