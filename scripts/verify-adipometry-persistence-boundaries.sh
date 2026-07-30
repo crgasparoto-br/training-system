@@ -280,12 +280,20 @@ INSERT INTO "AdipometryProtocol" (
   JSONB_SET(
     JSONB_SET(
       JSONB_SET(
-        pg_temp.issue246_boundary_definition(),
-        '{population,maturationCriteria}',
-        '"TANNER_STAGE_REQUIRED"'::JSONB
+        JSONB_SET(
+          JSONB_SET(
+            pg_temp.issue246_boundary_definition(),
+            '{population,maturationCriteria}',
+            '"TANNER_STAGE_REQUIRED"'::JSONB
+          ),
+          '{population,maturationRule}',
+          '{"mode":"REQUIRED","allowedValues":["STAGE_5"]}'::JSONB
+        ),
+        '{testVectors,0,inputs,profileCriteria,maturation}',
+        '"STAGE_5"'::JSONB
       ),
-      '{population,maturationRule}',
-      '{"mode":"REQUIRED","allowedValues":["STAGE_5"]}'::JSONB
+      '{testVectors,1,inputs,profileCriteria,maturation}',
+      '"STAGE_5"'::JSONB
     ),
     '{clinicalApproval,approvalRecordId}',
     '"issue246-boundary-maturation-record"'::JSONB
