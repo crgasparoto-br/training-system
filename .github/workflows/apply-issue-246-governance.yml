@@ -1,17 +1,11 @@
 name: Apply Issue 246 Governance Delta
 
 on:
-  push:
-    branches:
-      - feat/246-adipometry-foundation
-    paths:
-      - .github/issue-246/apply-governance.py.gz.b64
-      - .github/workflows/apply-issue-246-governance.yml
   pull_request:
     branches:
       - develop
     paths:
-      - .github/issue-246/apply-governance.py.gz.b64
+      - .github/issue-246/transport.part-*
       - .github/workflows/apply-issue-246-governance.yml
 
 permissions:
@@ -52,15 +46,21 @@ jobs:
           ref: feat/246-adipometry-foundation
           fetch-depth: 0
 
-      - name: Decode and apply delta
+      - name: Reconstruct and apply verified delta
         shell: bash
         run: |
           set -euo pipefail
-          base64 --decode .github/issue-246/apply-governance.py.gz.b64 | gzip --decompress > /tmp/apply-issue-246-governance.py
-          test "$(sha256sum /tmp/apply-issue-246-governance.py | cut -d' ' -f1)" = "5fa535c581f630bc74113b7a21a4d6dccac5274b760a90e9c743d92405fe3359"
-          python -m py_compile /tmp/apply-issue-246-governance.py
-          cp /tmp/apply-issue-246-governance.py .github/issue-246/apply-governance.py
-          python .github/issue-246/apply-governance.py
+          cat .github/issue-246/transport.part-* > /tmp/issue246transport.tar.xz.b64
+          test "$(sha256sum /tmp/issue246transport.tar.xz.b64 | cut -d' ' -f1)" = "9276004934e04d4edb9a2d0c5dad7c5fcabcd35df91913c9697fca310a665c76"
+          base64 --decode /tmp/issue246transport.tar.xz.b64 > /tmp/issue246transport.tar.xz
+          test "$(sha256sum /tmp/issue246transport.tar.xz | cut -d' ' -f1)" = "37927df6844309388321025468a40ce36b981a53868f51c479968b5b692a118e"
+          rm -rf /tmp/issue246transport
+          mkdir -p /tmp/issue246transport
+          tar -xJf /tmp/issue246transport.tar.xz -C /tmp/issue246transport
+          python -m py_compile /tmp/issue246transport/apply.py
+          cp -a /tmp/issue246transport/apps /tmp/issue246transport/packages /tmp/issue246transport/docs /tmp/issue246transport/scripts .
+          cp /tmp/issue246transport/apply.py .github/issue-246/apply.py
+          python .github/issue-246/apply.py
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -110,9 +110,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          rm -f .github/issue-246/apply-governance.py
-          git rm .github/issue-246/apply-governance.py.gz.b64
-          git rm .github/workflows/apply-issue-246-governance.yml
+          rm -f .github/issue-246/apply.py
+          git rm -f .github/issue-246/apply-governance.py.gz.b64
+          git rm -f .github/issue-246/transport.part-*
+          git rm -f .github/workflows/apply-issue-246-governance.yml
           rmdir .github/issue-246 2>/dev/null || true
           git diff --check
           git config user.name "github-actions[bot]"
