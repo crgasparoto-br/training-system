@@ -1,19 +1,31 @@
-name: Issue 246 Historical Integrity Remediation
+name: Validate PR
 
 on:
   pull_request:
     branches:
+      - main
       - develop
+  push:
+    branches:
+      - main
+      - develop
+      - 'chore/**'
+      - 'feat/**'
+      - 'fix/**'
 
 jobs:
-  remediate:
-    if: github.head_ref == 'feat/246-adipometry-domain-foundation'
+  validate:
+    name: Validate repository
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     env:
+      # A suíte de integração instancia clientes Prisma em vários módulos. Cada
+      # pool usa uma única conexão no CI para preservar a cobertura completa sem
+      # disputar o max_connections do PostgreSQL efêmero.
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/training_system_test?schema=public&connection_limit=1&pool_timeout=30
+      PRISMA_CONNECTION_LIMIT: '1'
+      PRISMA_POOL_TIMEOUT_SECONDS: '30'
       RUN_DATABASE_INTEGRATION_TESTS: 'true'
+
     services:
       postgres:
         image: postgres:16-alpine
@@ -28,15 +40,34 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-    steps:
-      - name: Checkout issue branch
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref }}
-          fetch-depth: 0
 
-      - name: Apply deterministic historical remediation
-        run: node scripts/issue-246-historical-remediation.cjs
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create workflow evidence attestation
+        shell: bash
+        env:
+          AUDIT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          AUDIT_BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+          AUDIT_MERGE_PREVIEW_SHA: ${{ github.event_name == 'pull_request' && github.sha || '' }}
+        run: |
+          cat > orquestrador-artifact.json <<EOF
+          {
+            "schemaVersion": 1,
+            "kind": "validate-pr-evidence",
+            "repository": "${GITHUB_REPOSITORY}",
+            "workflow": "${GITHUB_WORKFLOW}",
+            "runId": "${GITHUB_RUN_ID}",
+            "runAttempt": "${GITHUB_RUN_ATTEMPT}",
+            "eventName": "${GITHUB_EVENT_NAME}",
+            "headSha": "${AUDIT_HEAD_SHA}",
+            "baseSha": "${AUDIT_BASE_SHA}",
+            "mergePreviewSha": "${AUDIT_MERGE_PREVIEW_SHA}",
+            "ref": "${GITHUB_REF}",
+            "refName": "${GITHUB_REF_NAME}"
+          }
+          EOF
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -52,24 +83,122 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Generate Prisma client and apply migrations
-        run: |
-          pnpm --filter @corrida/api exec prisma generate
-          pnpm --filter @corrida/api exec prisma migrate deploy
+      - name: Generate Prisma Client (api)
+        run: pnpm --filter @corrida/api exec prisma generate
 
-      - name: Run historical integrity controls
+      - name: Apply test database migrations
         run: |
-          bash -n scripts/verify-adipometry-foundation.sh
-          bash scripts/verify-adipometry-foundation.sh
-          pnpm type-check
-          pnpm docs:check
+          set -o pipefail
+          pnpm --filter @corrida/api exec prisma migrate deploy 2>&1 | tee migration-output.log
 
-      - name: Commit historical integrity remediation
-        shell: bash
+      - name: Upload migration output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: migration-output-${{ github.run_id }}
+          path: |
+            migration-output.log
+            orquestrador-artifact.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Verify adipometry foundation
         run: |
-          rm scripts/issue-246-historical-remediation.cjs
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add apps/api/prisma/migrations/20260730070000_issue_246_adipometry_foundation/migration.sql scripts/verify-adipometry-foundation.sh packages/types/adipometry.ts scripts/issue-246-historical-remediation.cjs
-          git commit -m 'fix(adipometry): enforce reproducible historical snapshots'
-          git push origin HEAD:${{ github.head_ref }}
+          set -o pipefail
+          bash scripts/verify-adipometry-foundation.sh 2>&1 | tee adipometry-foundation-output.log
+
+      - name: Upload adipometry foundation output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adipometry-foundation-output-${{ github.run_id }}
+          path: |
+            adipometry-foundation-output.log
+            orquestrador-artifact.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Verify lifecycle legacy backfill
+        run: |
+          set -o pipefail
+          bash scripts/verify-student-lifecycle-legacy-backfill.sh 2>&1 | tee lifecycle-backfill-output.log
+
+      - name: Upload lifecycle legacy backfill output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lifecycle-backfill-output-${{ github.run_id }}
+          path: |
+            lifecycle-backfill-output.log
+            orquestrador-artifact.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Verify lifecycle migration rerun
+        run: |
+          docker run --rm --network host \
+            -v "$GITHUB_WORKSPACE:/workspace" \
+            -e PGPASSWORD=postgres \
+            postgres:16-alpine \
+            psql -h localhost -U postgres -d training_system_test -v ON_ERROR_STOP=1 \
+            -f /workspace/apps/api/prisma/migrations/20260721120000_student_lifecycle_domain/migration.sql
+
+      - name: Type check
+        run: |
+          set -o pipefail
+          pnpm type-check 2>&1 | tee type-check-output.log
+
+      - name: Upload type-check output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: type-check-output-${{ github.run_id }}
+          path: |
+            type-check-output.log
+            orquestrador-artifact.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Test
+        run: |
+          set -o pipefail
+          pnpm test 2>&1 | tee test-output.log
+
+      - name: Upload test output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-output-${{ github.run_id }}
+          path: |
+            test-output.log
+            orquestrador-artifact.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Build
+        run: pnpm build
+
+      - name: Architecture checks
+        run: pnpm arch:check
+
+      - name: Access catalog checks
+        run: pnpm access:check
+
+      - name: Documentation checks
+        run: |
+          set -o pipefail
+          pnpm docs:check 2>&1 | tee docs-check-output.log
+
+      - name: Upload documentation check output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs-check-output-${{ github.run_id }}
+          path: |
+            docs-check-output.log
+            orquestrador-artifact.json
+          if-no-files-found: ignore
+          retention-days: 7
