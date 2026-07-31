@@ -22,17 +22,17 @@ As cinco dobras da ADPT permanecem disponíveis para registro:
 
 Cada protocolo define quais delas entram no cálculo. Uma dobra não utilizada pode permanecer no histórico, mas sua ausência não bloqueia a conclusão daquele protocolo.
 
-## Estados e aprovação por contrato
+## Estados, aprovação e revogação por contrato
 
 A definição global de protocolo continua usando `DRAFT`, `APPROVED` e `DISABLED`. Para `GUEDES_1991_ADULT_YOUNG`, a definição global permanece `DRAFT`: ela é um candidato executável, ainda sem aprovação automática para qualquer contrato.
 
 A disponibilidade efetiva é derivada por contrato:
 
-- `DRAFT`: não existe aprovação clínica válida para a versão no contrato;
-- `APPROVED`: o responsável técnico vigente aprovou explicitamente a versão e o snapshot da definição;
+- `DRAFT`: não existe aprovação clínica ativa para a versão no contrato, inclusive após uma revogação;
+- `APPROVED`: existe uma aprovação ativa do responsável técnico para a versão e o snapshot da definição;
 - `DISABLED`: a versão foi desativada globalmente e não pode receber nova aprovação nem iniciar novos cálculos.
 
-A designação do responsável não aprova protocolo. A aprovação deve ser realizada pelo próprio profissional designado, autenticado em sua conta, e preserva:
+A designação do responsável não aprova protocolo. A aprovação deve ser realizada pelo próprio profissional designado, autenticado em sua conta e com concessão clínica explícita, e preserva:
 
 - contrato, protocolo e versão;
 - designação vigente usada na aprovação;
@@ -43,19 +43,23 @@ A designação do responsável não aprova protocolo. A aprovação deve ser rea
 - SHA-256 da especificação;
 - snapshot integral da definição clínica aprovada.
 
-A aprovação é imutável. Mudanças materiais de fórmula, população, limites, precisão, arredondamento, referência ou vetores exigem nova versão e nova aprovação pelo responsável vigente.
+A identidade e o snapshot da aprovação são imutáveis. A aprovação pode ser revogada uma única vez pelo responsável técnico vigente, com concessão explícita, motivo, autoria e data. A revogação impede novas conclusões, mas não altera avaliações históricas concluídas. Uma reaprovação cria outra linha ativa, sem apagar a aprovação revogada.
+
+Mudanças materiais de fórmula, população, limites, precisão, arredondamento, referência ou vetores exigem nova versão e nova aprovação pelo responsável vigente.
 
 ## Responsabilidade técnica
 
 A seção **Responsabilidade técnica** fica em `/settings/contract`.
 
-O usuário `master` pode administrar a designação. O profissional selecionado precisa:
+A gestão da designação exige a ação sensível `settings.contract.actions.manageClinicalTechnicalResponsibility`. Aprovação e revogação exigem `settings.contract.adipometryProtocolApproval`. Essas ações começam negadas e não decorrem automaticamente de `master`, `professor`, `manager` ou perfil administrativo. A concessão é registrada na função do colaborador e revalidada no middleware, no serviço e no banco.
+
+O profissional selecionado precisa:
 
 1. pertencer ao mesmo `contractId`;
 2. possuir usuário ativo e perfil profissional válido;
 3. possuir CREF pessoal preenchido;
 4. não possuir desligamento vigente nem status inativo;
-5. possuir função compatível com a permissão `settings.contract.adipometryProtocolApproval`, salvo o perfil `master`, que tem acesso total.
+5. possuir concessão explícita para aprovação clínica da adipometria.
 
 Existe no máximo uma designação ativa por contrato e domínio. Uma troca encerra a designação anterior com data, ator e motivo, e cria uma nova linha; o histórico nunca é sobrescrito ou excluído.
 
@@ -153,7 +157,7 @@ Impedem cálculo ou conclusão:
 - densidade não positiva;
 - percentual fora de 0–100%;
 - gordura absoluta ou massa magra negativa;
-- ausência da aprovação clínica do contrato.
+- ausência de aprovação clínica ativa do contrato.
 
 ## Vetores canônicos
 
@@ -211,6 +215,15 @@ Também devem existir controles para idades 18 e 30 aceitas, 17 e 31 bloqueadas,
 
 Avaliação concluída é imutável pelo fluxo comum e não pode ser apagada fisicamente. Correção cria nova avaliação vinculada à anterior, com motivo e autor, mantendo a anterior concluída e auditável.
 
+As categorias canônicas são:
+
+- `DATA_ENTRY_ERROR`;
+- `MEASUREMENT_TRANSCRIPTION_ERROR`;
+- `EVALUATION_DATE_ERROR`;
+- `PROTOCOL_SEX_ERROR`;
+- `PROTOCOL_SELECTION_ERROR`;
+- `OTHER`.
+
 O snapshot final preserva:
 
 - protocolo, versão e aprovação do contrato;
@@ -224,7 +237,8 @@ O snapshot final preserva:
 - resultados persistidos;
 - versão da implementação e instante do cálculo.
 
-Desativação, troca de responsável ou versões futuras não recalculam histórico.
+Desativação, revogação, troca de responsável ou versões futuras não recalculam histórico.
+
 ## Ciclo canônico de revisões
 
 A identidade funcional de uma avaliação é o par `rootAssessmentId` + código `ADPT-###`. A revisão é exibida como `R1`, `R2`, `R3` e assim por diante; não existe limite funcional para o número da revisão.
