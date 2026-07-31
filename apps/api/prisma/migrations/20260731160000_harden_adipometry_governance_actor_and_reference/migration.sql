@@ -22,10 +22,14 @@ AS $$
       AND LOWER(COALESCE(professor."currentStatus", 'active')) NOT IN (
         'inactive', 'inativo', 'dismissed', 'desligado', 'terminated', 'encerrado'
       )
-      AND "hasExplicitAdipometryClinicalPermission"(
-        p_contract_id,
-        professor.id,
-        'settings.contract.actions.manageClinicalTechnicalResponsibility'
+      AND EXISTS (
+        SELECT 1
+        FROM "AccessPermission" permission
+        WHERE permission."collaboratorFunctionId" = professor."collaboratorFunctionId"
+          AND permission."screenKey" = 'settings.contract'
+          AND permission."blockKey" =
+            'settings.contract.actions.manageClinicalTechnicalResponsibility'
+          AND permission."canView" = TRUE
       )
   );
 $$;
