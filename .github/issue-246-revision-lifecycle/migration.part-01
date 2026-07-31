@@ -1,0 +1,184 @@
+  ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "AdipometryAssessment"
+  ADD CONSTRAINT "AdipometryAssessment_voidedByUserId_fkey"
+  FOREIGN KEY ("voidedByUserId") REFERENCES "User"("id")
+  ON DELETE RESTRICT ON UPDATE CASCADE;
+
+ALTER TABLE "AdipometryAssessment"
+  ADD CONSTRAINT "AdipometryAssessment_revision_status_check" CHECK (
+    "revisionStatus" IN ('DRAFT', 'FINALIZED', 'SUPERSEDED', 'CANCELLED', 'VOIDED')
+  ),
+  ADD CONSTRAINT "AdipometryAssessment_revision_number_check" CHECK (
+    "revisionNumber" > 0
+  ),
+  ADD CONSTRAINT "AdipometryAssessment_revision_identity_check" CHECK (
+    (
+      "revisionNumber" = 1
+      AND "rootAssessmentId" = id
+      AND "previousRevisionId" IS NULL
+      AND "correctsAssessmentId" IS NULL
+    )
+    OR
+    (
+      "revisionNumber" > 1
+      AND "rootAssessmentId" <> id
+      AND "previousRevisionId" IS NOT NULL
+      AND "correctsAssessmentId" = "previousRevisionId"
+    )
+  ),
+  ADD CONSTRAINT "AdipometryAssessment_revision_operational_status_check" CHECK (
+    ("revisionStatus" IN ('DRAFT', 'CANCELLED') AND status = 'DRAFT')
+    OR
+    ("revisionStatus" IN ('FINALIZED', 'SUPERSEDED', 'VOIDED') AND status = 'COMPLETED')
+  ),
+  ADD CONSTRAINT "AdipometryAssessment_correction_category_check" CHECK (
+    "correctionCategory" IS NULL OR "correctionCategory" IN (
+      'MEASUREMENT_OR_TRANSCRIPTION_ERROR',
+      'PROTOCOL_SELECTION_ERROR',
+      'DEMOGRAPHIC_CONFIRMATION_ERROR',
+      'OTHER'
+    )
+  ),
+  ADD CONSTRAINT "AdipometryAssessment_correction_cancellation_check" CHECK (
+    (
+      "revisionStatus" <> 'CANCELLED'
+      AND "correctionCancelledAt" IS NULL
+      AND "correctionCancelledByUserId" IS NULL
+      AND "correctionCancellationReason" IS NULL
+    )
+    OR
+    (
+      "revisionStatus" = 'CANCELLED'
+      AND "revisionNumber" > 1
+      AND "correctionCancelledAt" IS NOT NULL
+      AND "correctionCancelledByUserId" IS NOT NULL
+      AND NULLIF(BTRIM("correctionCancellationReason"), '') IS NOT NULL
+    )
+  ),
+  ADD CONSTRAINT "AdipometryAssessment_void_check" CHECK (
+    (
+      "revisionStatus" <> 'VOIDED'
+      AND "voidedAt" IS NULL
+      AND "voidedByUserId" IS NULL
+      AND "voidReason" IS NULL
+    )
+    OR
+    (
+      "revisionStatus" = 'VOIDED'
+      AND "voidedAt" IS NOT NULL
+      AND "voidedByUserId" IS NOT NULL
+      AND NULLIF(BTRIM("voidReason"), '') IS NOT NULL
+      AND "correctedByAssessmentId" IS NULL
+    )
+  ),
+  ADD CONSTRAINT "AdipometryAssessment_protocol_change_confirmation_check" CHECK (
+    (
+      "protocolChangeConfirmedByUserId" IS NULL
+      AND "protocolChangeConfirmedAt" IS NULL
+    )
+    OR
+    (
+      "protocolChangeConfirmedByUserId" IS NOT NULL
+      AND "protocolChangeConfirmedAt" IS NOT NULL
+      AND "correctionCategory" = 'PROTOCOL_SELECTION_ERROR'
+      AND "revisionNumber" > 1
+    )
+  ),
+  ADD CONSTRAINT "AdipometryAssessment_current_revision_check" CHECK (
+    ("revisionStatus" = 'SUPERSEDED' AND "correctedByAssessmentId" IS NOT NULL)
+    OR
+    ("revisionStatus" <> 'SUPERSEDED' AND "correctedByAssessmentId" IS NULL)
+  );
+
+ALTER TABLE "AdipometryAssessment"
+  DROP CONSTRAINT "AdipometryAssessment_correction_check";
+ALTER TABLE "AdipometryAssessment"
+  ADD CONSTRAINT "AdipometryAssessment_correction_check" CHECK (
+    (
+      "revisionNumber" = 1
+      AND "correctionReason" IS NULL
+      AND "correctionAuthorUserId" IS NULL
+      AND "correctionCategory" IS NULL
+      AND "correctionStartedAt" IS NULL
+      AND "beforeSnapshot" IS NULL
+      AND "afterSnapshot" IS NULL
+      AND "changedFields" IS NULL
+    )
+    OR
+    (
+      "revisionNumber" > 1
+      AND NULLIF(BTRIM("correctionReason"), '') IS NOT NULL
+      AND "correctionAuthorUserId" IS NOT NULL
+      AND "correctionCategory" IS NOT NULL
+      AND "correctionStartedAt" IS NOT NULL
+      AND JSONB_TYPEOF("beforeSnapshot") = 'object'
+      AND (
+        "revisionStatus" IN ('DRAFT', 'CANCELLED')
+        OR (
+          "revisionStatus" IN ('FINALIZED', 'SUPERSEDED', 'VOIDED')
+          AND JSONB_TYPEOF("afterSnapshot") = 'object'
+          AND JSONB_TYPEOF("changedFields") = 'array'
+        )
+      )
+    )
+  );
+
+CREATE OR REPLACE FUNCTION "allocateAdipometryAssessmentIdentity"()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_sequence INTEGER;
+  v_parent "AdipometryAssessment"%ROWTYPE;
+  v_next_revision INTEGER;
+BEGIN
+  IF NEW."correctsAssessmentId" IS NOT NULL OR NEW."previousRevisionId" IS NOT NULL THEN
+    SELECT * INTO v_parent
+    FROM "AdipometryAssessment"
+    WHERE id = COALESCE(NEW."previousRevisionId", NEW."correctsAssessmentId")
+    FOR UPDATE;
+
+    IF NOT FOUND
+       OR v_parent."contractId" <> NEW."contractId"
+       OR v_parent."alunoId" <> NEW."alunoId"
+       OR v_parent."revisionStatus" <> 'FINALIZED'
+       OR v_parent."correctedByAssessmentId" IS NOT NULL THEN
+      RAISE EXCEPTION 'ADIPOMETRY_INVALID_CORRECTION_TARGET' USING ERRCODE = '23514';
+    END IF;
+
+    SELECT COALESCE(MAX(assessment."revisionNumber"), 1) + 1
+      INTO v_next_revision
+    FROM "AdipometryAssessment" assessment
+    WHERE assessment."rootAssessmentId" = v_parent."rootAssessmentId";
+
+    NEW."sequenceNumber" := v_parent."sequenceNumber";
+    NEW.code := v_parent.code;
+    NEW."rootAssessmentId" := v_parent."rootAssessmentId";
+    NEW."revisionNumber" := v_next_revision;
+    NEW."previousRevisionId" := v_parent.id;
+    NEW."correctsAssessmentId" := v_parent.id;
+    NEW."revisionStatus" := CASE
+      WHEN NEW.status = 'COMPLETED' THEN 'FINALIZED'
+      ELSE 'DRAFT'
+    END;
+    RETURN NEW;
+  END IF;
+
+  INSERT INTO "AdipometrySequence" ("contractId", "alunoId", "lastValue", "updatedAt")
+  VALUES (NEW."contractId", NEW."alunoId", 1, COALESCE(NEW."createdAt", CURRENT_TIMESTAMP))
+  ON CONFLICT ("contractId", "alunoId")
+  DO UPDATE SET
+    "lastValue" = "AdipometrySequence"."lastValue" + 1,
+    "updatedAt" = EXCLUDED."updatedAt"
+  RETURNING "lastValue" INTO v_sequence;
+
+  NEW."sequenceNumber" := v_sequence;
+  NEW.code := "formatAdipometryCode"(v_sequence);
+  NEW."rootAssessmentId" := NEW.id;
+  NEW."revisionNumber" := 1;
+  NEW."previousRevisionId" := NULL;
+  NEW."revisionStatus" := CASE
+    WHEN NEW.status = 'COMPLETED' THEN 'FINALIZED'
+    ELSE 'DRAFT'
+  END;
+  RETURN NEW;
