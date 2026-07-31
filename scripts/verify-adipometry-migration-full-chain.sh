@@ -54,7 +54,8 @@ is_adpt_migration() {
     20260730210000_remove_adipometry_textual_maturation_inference|\
     20260730211000_use_structured_adipometry_maturation_rule|\
     20260730224500_add_adipometry_clinical_governance|\
-    20260731120000_complete_adipometry_revision_lifecycle)
+    20260731120000_complete_adipometry_revision_lifecycle|\
+    20260731143000_close_issue_246_governance_findings)
       return 0
       ;;
     *)
@@ -174,7 +175,8 @@ for migration_name in \
   20260730210000_remove_adipometry_textual_maturation_inference \
   20260730211000_use_structured_adipometry_maturation_rule \
   20260730224500_add_adipometry_clinical_governance \
-  20260731120000_complete_adipometry_revision_lifecycle
+  20260731120000_complete_adipometry_revision_lifecycle \
+  20260731143000_close_issue_246_governance_findings
 do
   psql_file "$TEMP_URL" "$ROOT_DIR/apps/api/prisma/migrations/$migration_name/migration.sql" "$migration_name.sql"
 done
@@ -223,12 +225,21 @@ BEGIN
      OR TO_REGPROCEDURE('"resolveAdipometryCanonicalProfile"(text,text,timestamp without time zone)') IS NULL
      OR TO_REGPROCEDURE('"canonicalizeAdipometryDemographics"()') IS NULL
      OR TO_REGPROCEDURE('"isValidAdipometryCanonicalPopulation"(jsonb)') IS NULL
-     OR TO_REGPROCEDURE('"validateAdipometryCanonicalProtocolProfile"()') IS NULL THEN
+     OR TO_REGPROCEDURE('"validateAdipometryCanonicalProtocolProfile"()') IS NULL
+     OR TO_REGPROCEDURE('"hasExplicitAdipometryClinicalPermission"(text,text,text)') IS NULL
+     OR TO_REGPROCEDURE('"guardAdipometryActiveContractApproval"()') IS NULL THEN
     RAISE EXCEPTION 'executable persistence validation functions were not installed';
   END IF;
 
   IF TO_REGPROCEDURE('"createAdipometryDraft"(text,text,text,text,date,text,timestamp with time zone)') IS NULL THEN
     RAISE EXCEPTION 'explicit actor draft overload was not installed';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'AdipometryProtocolApproval' AND column_name = 'revokedAt'
+  ) THEN
+    RAISE EXCEPTION 'approval revocation lifecycle was not installed';
   END IF;
 END $$;
 SQL
