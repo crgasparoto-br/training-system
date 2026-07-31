@@ -237,6 +237,38 @@ governance_verify = replace_once(
 )
 write(governance_verify_path, governance_verify)
 
+# Both migration-path harnesses intentionally defer the ADPT chain so they can
+# inject legacy data before hardening. Keep the new lifecycle migration in that
+# ordered chain rather than letting Prisma apply it before its prerequisites.
+for migration_harness_path, classifier_anchor, loop_anchor in [
+    (
+        "scripts/verify-adipometry-migration-existing-data.sh",
+        "    20260730224500_add_adipometry_clinical_governance)\n",
+        "  20260730224500_add_adipometry_clinical_governance\n",
+    ),
+    (
+        "scripts/verify-adipometry-migration-full-chain.sh",
+        "    20260730224500_add_adipometry_clinical_governance)\n",
+        "  20260730224500_add_adipometry_clinical_governance\n",
+    ),
+]:
+    harness = read(migration_harness_path)
+    harness = replace_once(
+        harness,
+        classifier_anchor,
+        "    20260730224500_add_adipometry_clinical_governance|\\\n"
+        "    20260731120000_complete_adipometry_revision_lifecycle)\n",
+        f"{migration_harness_path} classifier order",
+    )
+    harness = replace_once(
+        harness,
+        loop_anchor,
+        "  20260730224500_add_adipometry_clinical_governance \\\n"
+        "  20260731120000_complete_adipometry_revision_lifecycle\n",
+        f"{migration_harness_path} execution order",
+    )
+    write(migration_harness_path, harness)
+
 # 5. Add a focused executable contract test for the shared revision label.
 write(
     "apps/api/src/modules/adipometry/adipometry-revision-contract.test.ts",
