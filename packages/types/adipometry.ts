@@ -108,7 +108,9 @@ export interface AdipometryProtocolClinicalApproval {
 export interface AdipometryProtocolDefinitionSnapshot {
   schemaVersion: number;
   population: AdipometryProtocolPopulation;
+  /** Canonical skinfold catalog recorded by the protocol. */
   requiredSkinfolds: AdipometrySkinfoldField[];
+  /** Sex-specific completion and calculation authority for the current version. */
   calculationSkinfoldsBySex?: Record<'MALE' | 'FEMALE', AdipometrySkinfoldField[]>;
   inputUnits: Record<AdipometryInputField, 'kg' | 'mm'>;
   inputScales?: Record<AdipometryInputField, number>;
