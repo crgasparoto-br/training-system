@@ -149,6 +149,7 @@ export const ACCESS_BLOCK_CATALOG = [
   { key: 'physicalAssessment.prnt.actions.createRecord', screenKey: 'physicalAssessment.protocol', label: 'PRNT: Acao criar registro' },
   { key: 'physicalAssessment.prnt.actions.editRecord', screenKey: 'physicalAssessment.protocol', label: 'PRNT: Acao editar registro' },
   { key: 'physicalAssessment.prnt.actions.closeFollowUp', screenKey: 'physicalAssessment.protocol', label: 'PRNT: Acao encerrar acompanhamento' },
+  { key: 'settings.contract.adipometryProtocolApproval', screenKey: 'settings.contract', label: 'Contrato: aprovar protocolo clínico de adipometria' },
 ] as const;
 
 export type AccessBlockKey = (typeof ACCESS_BLOCK_CATALOG)[number]['key'];
@@ -255,6 +256,7 @@ export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
       'students.details.trainingPlans',
       'plans.capacityPrescriptions.view',
       'plans.capacityPrescriptions.manage',
+      'settings.contract.adipometryProtocolApproval',
       'students.details.integrations',
       'students.actions.editProfile',
       'students.actions.resetPassword',
@@ -311,6 +313,7 @@ export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
       'students.details.trainingPlans',
       'plans.capacityPrescriptions.view',
       'plans.capacityPrescriptions.manage',
+      'settings.contract.adipometryProtocolApproval',
       'settings.parameters.capacityPrescriptions',
       'students.details.integrations',
       'students.details.audit',

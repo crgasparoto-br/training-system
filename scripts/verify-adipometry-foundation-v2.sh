@@ -97,6 +97,13 @@ BEGIN
     ('issue246-r2-professor-responsible', 'issue246-r2-responsible', 'issue246-r2-contract-a', 'issue246-r2-function-a', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
     ('issue246-r2-professor-other', 'issue246-r2-other', 'issue246-r2-contract-b', 'issue246-r2-function-b', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 
+  UPDATE "Professor"
+  SET "role" = 'master', "currentStatus" = 'active'
+  WHERE "id" = 'issue246-r2-professor-responsible';
+
+  INSERT INTO "Profile" ("id", "userId", "name", "cref", "createdAt", "updatedAt") VALUES
+    ('issue246-r2-profile-responsible', 'issue246-r2-responsible', 'Responsável clínico R2', 'CREF-R2-0001', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+
   INSERT INTO "Aluno" ("id", "contractId", "createdAt", "updatedAt") VALUES
     ('issue246-r2-aluno-a', 'issue246-r2-contract-a', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
     ('issue246-r2-aluno-concurrent', 'issue246-r2-contract-a', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
@@ -340,6 +347,32 @@ INSERT INTO "AdipometryProtocol" (
 );
 RESET TIME ZONE;
 
+INSERT INTO "AdipometryClinicalResponsibility" (
+  "id", "contractId", "domain", "professorId", "effectiveFrom",
+  "designatedByUserId", "designatedAt", "createdAt", "updatedAt"
+) VALUES (
+  'issue246-r2-clinical-responsibility', 'issue246-r2-contract-a',
+  'ADIPOMETRY_CLINICAL_RESPONSIBLE', 'issue246-r2-professor-responsible',
+  TIMESTAMP '2026-07-30 12:00:00', 'issue246-r2-actor',
+  TIMESTAMP '2026-07-30 12:00:00', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+);
+
+INSERT INTO "AdipometryProtocolApproval" (
+  "id", "contractId", "protocolId", "protocolCode", "protocolVersion",
+  "responsibilityId", "approvedByProfessorId", "approvedByUserId", "approvedAt",
+  "approvalStatement", "approvedByNameSnapshot", "approvedByCrefSnapshot",
+  "approvedSpecificationHash", "protocolDefinitionSnapshot", "createdAt"
+)
+SELECT
+  'issue246-r2-contract-approval', 'issue246-r2-contract-a', protocol.id, protocol.code, protocol.version,
+  'issue246-r2-clinical-responsibility', 'issue246-r2-professor-responsible',
+  'issue246-r2-responsible', TIMESTAMP '2026-07-30 13:00:00',
+  'Declaro que revisei e aprovo esta versão do protocolo para uso clínico neste contrato.',
+  'Responsável clínico R2', 'CREF-R2-0001', repeat('a', 64),
+  protocol."definitionSnapshot", CURRENT_TIMESTAMP
+FROM "AdipometryProtocol" protocol
+WHERE protocol.id = 'adpt_protocol_guedes_1991_adult_young_v1';
+
 SELECT * FROM "createAdipometryDraft"(
   'issue246-r2-draft', 'issue246-r2-contract-a', 'issue246-r2-aluno-a',
   'issue246-r2-professor-responsible', DATE '2026-07-30',
@@ -499,8 +532,8 @@ SET
   "status"='COMPLETED', "weightKg"=70,
   "tricepsMm"=10, "subscapularMm"=10, "suprailiacMm"=10, "abdominalMm"=10, "thighMm"=10,
   "skinfoldTotalMm"=50, "bodyFatPercentage"=20, "fatMassKg"=14, "leanMassKg"=56,
-  "protocolId"='issue246-r2-approved', "protocolCode"='R2_EXECUTABLE', "protocolVersion"=1,
-  "calculationSnapshot"=issue246_r2_snapshot('R2_EXECUTABLE',1,DATE '2026-07-30',70,50,20,14,56),
+  "protocolId"='adpt_protocol_guedes_1991_adult_young_v1', "protocolCode"='GUEDES_1991_ADULT_YOUNG', "protocolVersion"=1, "protocolSex"='female', "protocolSexSource"='professional_confirmation', "protocolSexConfirmedByUserId"='issue246-r2-responsible', "protocolSexConfirmedAt"=CURRENT_TIMESTAMP,
+  "calculationSnapshot"=issue246_r2_snapshot('GUEDES_1991_ADULT_YOUNG',1,DATE '2026-07-30',70,50,20,14,56),
   "completedAt"=CURRENT_TIMESTAMP, "updatedAt"=CURRENT_TIMESTAMP
 WHERE "id"='issue246-r2-draft';
 COMMIT;
@@ -529,8 +562,8 @@ SET
   "status"='COMPLETED', "weightKg"=70,
   "tricepsMm"=10, "subscapularMm"=10, "suprailiacMm"=10, "abdominalMm"=10, "thighMm"=10,
   "skinfoldTotalMm"=50, "bodyFatPercentage"=20, "fatMassKg"=14, "leanMassKg"=56,
-  "protocolId"='issue246-r2-approved', "protocolCode"='R2_EXECUTABLE', "protocolVersion"=1,
-  "calculationSnapshot"=issue246_r2_snapshot('R2_EXECUTABLE',1,DATE '2026-07-31',70,50,20,14,56),
+  "protocolId"='adpt_protocol_guedes_1991_adult_young_v1', "protocolCode"='GUEDES_1991_ADULT_YOUNG', "protocolVersion"=1, "protocolSex"='female', "protocolSexSource"='professional_confirmation', "protocolSexConfirmedByUserId"='issue246-r2-responsible', "protocolSexConfirmedAt"=CURRENT_TIMESTAMP,
+  "calculationSnapshot"=issue246_r2_snapshot('GUEDES_1991_ADULT_YOUNG',1,DATE '2026-07-31',70,50,20,14,56),
   "completedAt"=CURRENT_TIMESTAMP,
   "correctsAssessmentId"='issue246-r2-draft',
   "correctionReason"='Corrected measurement transcription',

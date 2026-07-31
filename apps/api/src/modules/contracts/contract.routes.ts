@@ -1,11 +1,18 @@
-﻿import { Router, Request, Response } from 'express';
+import { Router, Request, Response } from 'express';
 import { contractService } from './contract.service.js';
+import {
+  adipometryGovernanceService,
+  AdipometryGovernanceError,
+} from '../adipometry/adipometry-governance.service.js';
 import { cloneContractData } from './contract-data.service.js';
 import { contractDocumentService } from './contract-document.service.js';
 import { authMiddleware, professorMiddleware, masterMiddleware } from '../auth/auth.middleware.js';
 import { sendSuccess, sendError } from '@corrida/utils';
 import { PrismaClient, type ContractStatus } from '@prisma/client';
-import { screenAccessMiddleware } from '../access-control/access-control.middleware.js';
+import {
+  blockAccessMiddleware,
+  screenAccessMiddleware,
+} from '../access-control/access-control.middleware.js';
 import multer from 'multer';
 import path from 'path';
 import { savePublicAsset } from '../../common/supabase-storage.js';
@@ -44,6 +51,14 @@ const actorFromRequest = (req: Request) => ({
   ipAddress: req.ip,
   userAgent: req.get('user-agent') || undefined,
 });
+
+const sendAdipometryGovernanceError = (res: Response, error: unknown) => {
+  if (error instanceof AdipometryGovernanceError) {
+    return sendError(res, error.message, error.statusCode);
+  }
+  console.error('Erro na governança clínica da adipometria:', error);
+  return sendError(res, 'Erro ao processar a responsabilidade técnica da adipometria', 500);
+};
 
 router.get('/public/:token', async (req: Request, res: Response) => {
   try {
@@ -357,6 +372,68 @@ router.get('/documents/:contractDocumentId/audit', async (req: Request, res: Res
  * GET /api/v1/contracts/me
  * Obter contrato do professor master
  */
+router.get(
+  '/adipometry-governance',
+  screenAccessMiddleware('settings.contract'),
+  async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const governance = await adipometryGovernanceService.getGovernance(
+        user.contractId,
+        user.professorId,
+        user.professorRole === 'master'
+      );
+      return sendSuccess(res, governance, 'Governança clínica da adipometria recuperada com sucesso');
+    } catch (error) {
+      return sendAdipometryGovernanceError(res, error);
+    }
+  }
+);
+
+router.put(
+  '/adipometry-governance/responsible',
+  screenAccessMiddleware('settings.contract'),
+  async (req: Request, res: Response) => {
+    masterMiddleware(req, res, async () => {
+      try {
+        const user = (req as any).user;
+        const governance = await adipometryGovernanceService.designate(
+          user.contractId,
+          user.userId,
+          user.professorId,
+          req.body
+        );
+        return sendSuccess(res, governance, 'Responsável técnico atualizado com sucesso');
+      } catch (error) {
+        return sendAdipometryGovernanceError(res, error);
+      }
+    });
+  }
+);
+
+router.post(
+  '/adipometry-governance/protocols/:code/:version/approve',
+  screenAccessMiddleware('settings.contract'),
+  blockAccessMiddleware('settings.contract.adipometryProtocolApproval'),
+  async (req: Request, res: Response) => {
+    try {
+      const user = (req as any).user;
+      const governance = await adipometryGovernanceService.approve(
+        user.contractId,
+        user.userId,
+        user.professorId,
+        req.params.code,
+        Number(req.params.version),
+        req.body,
+        user.professorRole === 'master'
+      );
+      return sendSuccess(res, governance, 'Versão clínica aprovada com sucesso');
+    } catch (error) {
+      return sendAdipometryGovernanceError(res, error);
+    }
+  }
+);
+
 router.get('/me', async (req: Request, res: Response) => {
   try {
     const contractId = (req as any).user.contractId;

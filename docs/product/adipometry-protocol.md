@@ -1,235 +1,227 @@
-# Adipometria (ADPT) — protocolos e política histórica
+# Adipometria (ADPT) — protocolo, sexo de cálculo e governança clínica
 
-## Status deste documento
+## Status
 
-Esta é a fonte canônica dos protocolos ADPT. Nenhum protocolo pode produzir uma avaliação concluída enquanto não estiver com estado `approved` e todos os campos clínicos desta fonte estiverem preenchidos e formalmente aprovados.
+Esta é a fonte canônica versionada da adipometria no Sistema ACESSO. A fundação estrutural pode ser implantada sem uma aprovação clínica ativa, mas nenhum protocolo pode calcular ou concluir uma avaliação em um contrato até cumprir simultaneamente os gates de definição e de aprovação descritos abaixo.
 
-Responsável técnico pelo documento: equipe do Sistema ACESSO.
-Responsável pela aprovação clínica: **pendente**.
-Data da aprovação clínica: **pendente**.
-
-A fundação estrutural pode ser implantada, mas a issue #246 permanece aberta até existir ao menos um protocolo clínico completo, aprovado e testável.
+O domínio de responsabilidade técnica é `ADIPOMETRY_CLINICAL_RESPONSIBLE`.
 
 ## Fronteira do domínio
 
-`AdipometryAssessment` é o histórico próprio da ADPT. Categorias genéricas chamadas “adipometria” em registros de avaliação ou em snapshots de prescrição por capacidades são consumidores auxiliares e não autorizam conclusão ADPT, não aprovam protocolo e não substituem esta fonte canônica.
+`AdipometryAssessment` mantém o histórico próprio da ADPT. Registros genéricos de avaliação, antropometria ou prescrição são consumidores auxiliares e não aprovam protocolo, não substituem a ADPT e não autorizam conclusão.
 
-## Estados de protocolo
+As cinco dobras da ADPT permanecem disponíveis para registro:
 
-- `draft`: definição incompleta ou ainda não aprovada; pode aparecer somente como indisponível.
-- `approved`: fórmula, população, critérios, limites, arredondamento, referência e vetores completos e aprovados.
-- `disabled`: versão anteriormente aprovada ou protocolo conhecido, indisponível para novos cálculos.
-
-A definição clínica de uma versão aprovada é imutável. Alteração de fórmula ou regra cria nova versão. A disponibilidade operacional pode transicionar uma única vez de `approved` para `disabled`, sem modificar definição, referência ou aprovação. Uma versão `disabled` não pode ser reativada; nova disponibilização exige nova versão e nova aprovação.
-
-Uma avaliação concluída preserva `protocolCode`, `protocolVersion` e snapshot integral; desativação ou versões futuras não recalculam registros antigos.
-
-## Conteúdo obrigatório para aprovação
-
-O snapshot de definição usa contrato versionado com `schemaVersion >= 2` e contém, no mínimo:
-
-- população com idade mínima e máxima;
-- critérios canônicos de sexo;
-- descrição clínica e regra executável de maturação;
-- exatamente as cinco dobras ADPT documentadas;
-- unidades explícitas de cada entrada e saída;
-- três equações identificadas e executáveis para percentual, gordura absoluta e massa magra;
-- limites de bloqueio por entrada e coleção explícita de alertas;
-- precisão de medidas, resultados e cálculo interno;
-- modo e estágio de arredondamento;
-- comportamento estruturado para dado ausente e perfil incompatível;
-- no mínimo dois vetores distintos, com entradas completas, resultados esperados e tolerâncias não negativas e não superiores à menor unidade da precisão de resultado;
-- registro de aprovação clínica com aprovador, instante, identificador e SHA-256 do artefato aprovado;
-- referência bibliográfica rastreável.
-
-A persistência rejeita estado `approved` quando o contrato estiver ausente ou incompleto, usar dobras diferentes, não trouxer as três saídas, possuir vetores duplicados, depender de campo demográfico inexistente ou quando qualquer vetor não reproduzir os resultados declarados. Objetos genéricos, expressões textuais e placeholders não satisfazem o gate.
-
-Fixtures estruturais usadas pelo CI existem somente durante os testes, obedecem ao mesmo formato executável e não são seed de produto nem aprovação clínica real.
-
-## Contrato demográfico canônico
-
-### Sexo
-
-`population.sexCriteria` contém um ou mais valores dentre:
-
-- `MALE`;
-- `FEMALE`;
-- `OTHER`.
-
-Valores minúsculos, mistos, vazios ou livres invalidam a aprovação. O cadastro é normalizado para o mesmo conjunto antes da comparação.
-
-### Maturação
-
-`population.maturationCriteria` continua sendo a descrição clínica legível. A regra executável obrigatória fica em `population.maturationRule`.
-
-Quando maturação não participa da aplicabilidade:
-
-```json
-{
-  "mode": "NOT_REQUIRED"
-}
-```
-
-Quando participa:
-
-```json
-{
-  "mode": "REQUIRED",
-  "allowedValues": ["ADULT", "TANNER_STAGE_5"]
-}
-```
-
-Os valores aceitos são únicos, não vazios e canônicos em maiúsculas. Todos os vetores de aprovação de uma regra `REQUIRED` devem conter maturação presente e pertencente a `allowedValues`.
-
-Na conclusão:
-
-- ausência em regra `REQUIRED` bloqueia com `ADIPOMETRY_MATURATION_REQUIRED`;
-- valor presente fora da população bloqueia com `ADIPOMETRY_MATURATION_NOT_APPLICABLE`;
-- valor vindo apenas do chamador é descartado;
-- o snapshot final guarda o valor canônico e sua proveniência.
-
-### Campos disponíveis às equações
-
-A idade é disponibilizada como variável numérica `ageAtAssessment`.
-
-Condicionais `ifEquals` podem consultar somente:
-
-- `profileCriteria.sex`;
-- `profileCriteria.maturation`.
-
-Campos arbitrários como `profileCriteria.ageGroup` ou `profileCriteria.magic` invalidam a aprovação porque não podem ser produzidos pelo resolvedor canônico do cadastro.
-
-## Linguagem executável de equações
-
-Equações aprovadas não são strings livres. Cada expressão é uma árvore JSON restrita e determinística. Os operadores aceitos são:
-
-- `constant`: número literal;
-- `variable`: entrada, idade ou resultado intermediário disponível;
-- `add` e `multiply`: coleção com pelo menos dois argumentos;
-- `subtract`, `divide` e `power`: operadores binários;
-- `negate`: inversão de sinal;
-- `ifEquals`: seleção determinística por sexo ou maturação canônicos.
-
-O total das cinco dobras é calculado pela persistência e disponibilizado como `skinfoldTotalMm`. As equações são avaliadas na ordem obrigatória: percentual de gordura, gordura absoluta e massa magra. Todas as ramificações são validadas estruturalmente, mesmo quando nenhum vetor seleciona determinada ramificação. Somente variáveis canônicas já disponíveis podem ser referenciadas. Referência a variável ausente, operador desconhecido, divisão por zero, saída repetida, chave inesperada ou estrutura incompleta invalida a aprovação.
-
-Antes de aceitar `approved`, a persistência executa todos os vetores contra a árvore e compara cada resultado com sua tolerância. Texto descritivo, resultado inventado ou vetor incompatível não é evidência de fórmula clínica.
-
-## Aprovação e tempo
-
-`clinicalApproval.approvedAt` deve ser um instante ISO-8601 com `Z` ou offset numérico explícito. A comparação com a coluna histórica é normalizada para UTC, sem depender do `TimeZone` da sessão PostgreSQL. Datas sem fuso são rejeitadas.
-
-O aprovador no JSON deve coincidir com `approvedByUserId`; o instante deve coincidir com `approvedAt`; o identificador do registro e o SHA-256 do artefato são obrigatórios.
-
-## Catálogo inicial
-
-### GUEDES_ADULT_V1
-
-- Nome: Guedes — adultos.
-- Versão interna: `1`.
-- Estado: `draft`.
-- Referência bibliográfica: pendente de aprovação clínica.
-- População aplicável: adultos; faixa etária, critérios de sexo e demais restrições pendentes.
-- Idade: calculada em anos completos na data da avaliação.
-- Dobras previstas: tricipital, subescapular, suprailíaca, abdominal e coxa, em milímetros.
-- Equação: não registrada porque ainda não foi aprovada.
-- Entradas, limites, alertas, bloqueios, precisão e arredondamento: pendentes.
-- Saídas esperadas: percentual de gordura, gordura absoluta em kg e massa magra em kg.
-- Vetores de teste: pendentes.
-- Aprovador e data: pendentes.
-
-**Regra:** permanece indisponível para cálculo conclusivo e finalização até que todos os itens pendentes sejam preenchidos, revisados e aprovados.
-
-### SLAUGHTER_V1
-
-- Nome: Slaughter.
-- Versão interna: `1`.
-- Estado: `disabled`.
-- Referência, variantes, população, critérios de sexo/idade/maturação, equações e vetores: incompletos.
-
-**Regra:** não pode ser selecionado para cálculo ou finalização. Sua presença registra a incompatibilidade da documentação funcional atual.
-
-## Pontos de medida ADPT v1
-
-| Código | Nome | Unidade |
+| Campo | Ponto | Unidade |
 |---|---|---|
-| `TRICEPS` | Tricipital | mm |
-| `SUBSCAPULAR` | Subescapular | mm |
-| `SUPRAILIAC` | Suprailíaca | mm |
-| `ABDOMINAL` | Abdominal | mm |
-| `THIGH` | Coxa | mm |
+| `tricepsMm` | Tricipital | mm |
+| `subscapularMm` | Subescapular | mm |
+| `suprailiacMm` | Suprailíaca | mm |
+| `abdominalMm` | Abdominal | mm |
+| `thighMm` | Coxa | mm |
 
-A primeira versão armazena um único valor consolidado por ponto. Leituras repetidas e médias estão fora do escopo.
+Cada protocolo define quais delas entram no cálculo. Uma dobra não utilizada pode permanecer no histórico, mas sua ausência não bloqueia a conclusão daquele protocolo.
 
-## Regras de disponibilidade
+## Estados e aprovação por contrato
 
-Um protocolo somente é compatível quando:
+A definição global de protocolo continua usando `DRAFT`, `APPROVED` e `DISABLED`. Para `GUEDES_1991_ADULT_YOUNG`, a definição global permanece `DRAFT`: ela é um candidato executável, ainda sem aprovação automática para qualquer contrato.
 
-1. está `approved`;
-2. a versão solicitada existe;
-3. data de nascimento e sexo estão disponíveis;
-4. maturação está disponível quando a regra a exige;
-5. sexo e maturação pertencem à população aprovada;
-6. idade na data da avaliação pertence à população aprovada;
-7. todas as dobras exigidas estão presentes e dentro dos limites de bloqueio;
-8. alertas são apresentados sem serem convertidos silenciosamente em bloqueio;
-9. referência, árvore de equações, precisão, arredondamento e vetores estão registrados e reproduzidos.
+A disponibilidade efetiva é derivada por contrato:
 
-Dados ausentes ou incompatíveis retornam motivo estruturado e impedem conclusão. Resultados derivados nunca são aceitos como autoridade do frontend.
+- `DRAFT`: não existe aprovação clínica válida para a versão no contrato;
+- `APPROVED`: o responsável técnico vigente aprovou explicitamente a versão e o snapshot da definição;
+- `DISABLED`: a versão foi desativada globalmente e não pode receber nova aprovação nem iniciar novos cálculos.
 
-## Precisão e arredondamento
+A designação do responsável não aprova protocolo. A aprovação deve ser realizada pelo próprio profissional designado, autenticado em sua conta, e preserva:
 
-Enquanto não houver aprovação clínica:
+- contrato, protocolo e versão;
+- designação vigente usada na aprovação;
+- usuário e professor aprovadores;
+- declaração explícita;
+- data e hora;
+- nome e CREF pessoal em snapshot;
+- SHA-256 da especificação;
+- snapshot integral da definição clínica aprovada.
 
-- medidas usam capacidade de persistência `Decimal(8,2)`;
-- resultados usam capacidade de persistência `Decimal(8,4)`;
-- nenhum arredondamento clínico é presumido;
-- protocolos `draft` e `disabled` não produzem resultado final.
+A aprovação é imutável. Mudanças materiais de fórmula, população, limites, precisão, arredondamento, referência ou vetores exigem nova versão e nova aprovação pelo responsável vigente.
 
-A regra aprovada deverá definir precisão interna, casas exibidas e modo de arredondamento, acompanhados de vetores independentes.
+## Responsabilidade técnica
 
-## Rascunho, conclusão, ator e correção
+A seção **Responsabilidade técnica** fica em `/settings/contract`.
 
-- Um rascunho pode existir incompleto e ser retomado.
-- Resultados derivados e snapshot não são persistidos em rascunho.
-- A conclusão exige protocolo aprovado, perfil canônico compatível, entradas compatíveis e resultados calculados pelo backend.
-- Uma avaliação concluída é imutável pelo fluxo comum e não pode ser excluída fisicamente.
-- Correção cria nova versão vinculada à vigente, com motivo e autor obrigatórios.
-- A versão anterior permanece concluída e auditável.
-- Comparações e Central do Aluno usam a versão corrente da cadeia.
-- Criações, atualizações persistidas, conclusões e correções geram eventos append-only no banco.
+O usuário `master` pode administrar a designação. O profissional selecionado precisa:
 
-O ator da auditoria é o usuário autenticado que executa a operação, não o professor responsável pela avaliação. O frontend nunca controla esse identificador.
+1. pertencer ao mesmo `contractId`;
+2. possuir usuário ativo e perfil profissional válido;
+3. possuir CREF pessoal preenchido;
+4. não possuir desligamento vigente nem status inativo;
+5. possuir função compatível com a permissão `settings.contract.adipometryProtocolApproval`, salvo o perfil `master`, que tem acesso total.
 
-Tentativas bloqueadas e decisões de autorização serão auditadas pela API da issue #247, fora da transação rejeitada.
+Existe no máximo uma designação ativa por contrato e domínio. Uma troca encerra a designação anterior com data, ator e motivo, e cria uma nova linha; o histórico nunca é sobrescrito ou excluído.
 
-## Código sequencial e concorrência
+Troca ou desligamento do responsável não altera aprovações históricas nem avaliações concluídas. Sem responsável vigente, a estrutura continua disponível, mas o gate de aprovação retorna `MISSING_ADIPOMETRY_CLINICAL_RESPONSIBLE`.
 
-A sequência é independente por `contractId` e `alunoId`. A criação ocorre em transação e o `UPSERT` do contador serializa concorrência. Falha na criação reverte também o incremento.
+## Protocolo `GUEDES_1991_ADULT_YOUNG`
 
-A apresentação usa `ADPT-` mais o número com no mínimo três dígitos:
+### Identidade
 
-- 1 → `ADPT-001`;
-- 999 → `ADPT-999`;
-- 1000 → `ADPT-1000`.
+- código: `GUEDES_1991_ADULT_YOUNG`;
+- versão interna: `1.0.0`;
+- faixa etária: 18 a 30 anos completos, inclusive, na data da avaliação;
+- maturação: não participa da aplicabilidade (`NOT_REQUIRED`);
+- sexos de protocolo: `male` e `female`;
+- referência: GUEDES, Dartagnan Pinto; GUEDES, Joana Elisabete Ribeiro Pinto. **Proposição de equações para predição de quantidade de gordura corporal em adultos jovens**. *Semina: Ciências Biológicas e da Saúde*, v. 12, n. 2, p. 61–70, 1991. DOI: `10.5433/1679-0367.1991v12n2p61`.
 
-Não existe limite funcional em 999.
+Não apresentar esta versão genericamente como “Guedes para adultos”.
 
-## Snapshot reproduzível
+### Sexo usado pelo protocolo
 
-Ao concluir, `calculationSnapshot` contém, no mínimo:
+O campo clínico `protocolSex` pertence à avaliação e aceita somente `male` ou `female`.
 
-- entradas normalizadas e unidades;
-- idade calculada na data da avaliação;
-- sexo e maturação canônicos usados;
-- proveniência de cada campo demográfico;
-- código e versão do protocolo;
-- equações executáveis, limites, precisão e arredondamento;
+O sistema preserva separadamente:
+
+- sexo do cadastro no momento da avaliação (`profileSexSnapshot`);
+- sexo utilizado pelo protocolo (`protocolSex`);
+- origem da decisão;
+- usuário e instante de confirmação;
+- motivo obrigatório quando houver divergência.
+
+Não existe inferência automática silenciosa. Quando cadastro e protocolo divergem, a origem deve ser `professional_override` e o motivo é obrigatório. O snapshot da avaliação concluída preserva ambos os valores e a decisão.
+
+### Equações
+
+Para homens, usam-se tricipital (`TR`), suprailíaca (`SI`) e abdominal (`AB`):
+
+```text
+S = TR + SI + AB
+D = 1,17136 - 0,06706 × log10(S)
+```
+
+Para mulheres, usam-se subescapular (`SB`), suprailíaca (`SI`) e coxa (`CX`):
+
+```text
+S = SB + SI + CX
+D = 1,16650 - 0,07063 × log10(S)
+```
+
+Resultados derivados:
+
+```text
+percentualGordura = ((4,95 / D) - 4,50) × 100
+gorduraKg = pesoKg × percentualGordura / 100
+massaMagraKg = pesoKg - gorduraKg
+```
+
+A combinação de dobras é fixa por sexo de protocolo; o frontend não pode permitir seleção livre.
+
+### Unidades, precisão e arredondamento
+
+- peso: kg, até duas casas decimais;
+- dobras: mm, uma casa decimal;
+- densidade e cálculo interno: oito casas de capacidade;
+- total de dobras persistido: uma casa decimal;
+- percentual, gordura absoluta e massa magra persistidos: duas casas decimais;
+- modo: decimal `HALF_UP`;
+- estágio: somente resultados finais, sem arredondamento intermediário.
+
+Entrada com precisão superior à permitida é rejeitada, nunca arredondada silenciosamente.
+
+Controle obrigatório: `roundHalfUp(18.245, 2) = 18.25`.
+
+### Limites operacionais
+
+Peso deve ser positivo e não exceder `999,99 kg`. Não há classificação clínica automática de peso baixo ou elevado.
+
+Para cada dobra informada:
+
+- `0,1` a `45,0 mm`: aceitar sem alerta de capacidade;
+- `45,1` a `80,0 mm`: aceitar após confirmação explícita do profissional;
+- acima de `80,0 mm`: bloquear.
+
+O alerta é operacional, relacionado à capacidade e à confiabilidade do adipômetro, não um limite clínico da equação.
+
+### Bloqueios matemáticos
+
+Impedem cálculo ou conclusão:
+
+- idade fora de 18–30;
+- `protocolSex` ausente, inválido ou não confirmado;
+- dobra exigida pelo sexo do protocolo ausente, não positiva ou acima do limite;
+- precisão de entrada inválida;
+- soma das três dobras não positiva;
+- `NaN`, infinito ou valor não numérico;
+- densidade não positiva;
+- percentual fora de 0–100%;
+- gordura absoluta ou massa magra negativa;
+- ausência da aprovação clínica do contrato.
+
+## Vetores canônicos
+
+Todos usam `log10`, sem arredondamento intermediário.
+
+### Masculino
+
+```text
+idade = 25
+peso = 80,00 kg
+TR = 12,0 mm
+SI = 18,0 mm
+AB = 20,0 mm
+S = 50,0 mm
+D = 1,0574270715092267
+% gordura = 18,12
+gordura = 14,49 kg
+massa magra = 65,51 kg
+```
+
+### Feminino
+
+```text
+idade = 27
+peso = 65,00 kg
+SB = 15,0 mm
+SI = 20,0 mm
+CX = 25,0 mm
+S = 60,0 mm
+D = 1,0409091771854033
+% gordura = 25,55
+gordura = 16,60 kg
+massa magra = 48,40 kg
+```
+
+### Arredondamento
+
+```text
+sexo = male
+idade = 25
+peso = 70,00 kg
+TR = 20,0 mm
+SI = 30,0 mm
+AB = 37,3 mm
+S = 87,3 mm
+D = 1,0411955848171044
+% gordura = 25,42
+gordura = 17,79 kg
+massa magra = 52,21 kg
+```
+
+Também devem existir controles para idades 18 e 30 aceitas, 17 e 31 bloqueadas, sexo ausente bloqueado, sexo não binário sem decisão explícita bloqueado, dobra obrigatória ausente bloqueada, dobra não usada ausente aceita e alerta de capacidade confirmado.
+
+## Histórico, correção e snapshot
+
+Avaliação concluída é imutável pelo fluxo comum e não pode ser apagada fisicamente. Correção cria nova avaliação vinculada à anterior, com motivo e autor, mantendo a anterior concluída e auditável.
+
+O snapshot final preserva:
+
+- protocolo, versão e aprovação do contrato;
+- hash e snapshot da definição aprovada;
+- data da avaliação e idade calculada;
+- sexo cadastral e sexo de protocolo com decisão auditável;
+- entradas e unidades;
+- três dobras efetivamente usadas;
+- regras, limites, precisão e arredondamento;
+- confirmação do alerta de capacidade, quando aplicável;
 - resultados persistidos;
-- versão da implementação do cálculo;
-- timestamp do cálculo.
+- versão da implementação e instante do cálculo.
 
-A persistência verifica a estrutura e a igualdade entre protocolo, data, entradas e resultados do snapshot e as colunas históricas.
-
-## Vetores de teste
-
-Não há vetor clínico aprovado nesta versão. Portanto, nenhum protocolo de produto está habilitado para conclusão. A inclusão de uma versão `approved` exige no mínimo dois vetores distintos com entradas, perfil canônico compatível, resultados intermediários, resultados finais esperados e tolerâncias, além de aprovador identificado, instante com fuso, registro de aprovação e hash do artefato clínico.
+Desativação, troca de responsável ou versões futuras não recalculam histórico.

@@ -9,6 +9,11 @@ export type AdipometrySkinfoldField =
   | 'thighMm';
 
 export type AdipometryInputField = 'weightKg' | AdipometrySkinfoldField;
+export type AdipometryProtocolSex = 'male' | 'female';
+export type AdipometryProtocolSexSource =
+  | 'profile'
+  | 'professional_confirmation'
+  | 'professional_override';
 export type AdipometryResultField =
   | 'skinfoldTotalMm'
   | 'bodyFatPercentage'
@@ -39,6 +44,7 @@ export type AdipometryExpression =
   | { op: 'multiply'; args: AdipometryExpression[] }
   | { op: 'divide'; numerator: AdipometryExpression; denominator: AdipometryExpression }
   | { op: 'power'; base: AdipometryExpression; exponent: AdipometryExpression }
+  | { op: 'log10'; value: AdipometryExpression }
   | { op: 'negate'; value: AdipometryExpression }
   | {
       op: 'ifEquals';
@@ -90,7 +96,9 @@ export interface AdipometryProtocolDefinitionSnapshot {
   schemaVersion: number;
   population: AdipometryProtocolPopulation;
   requiredSkinfolds: AdipometrySkinfoldField[];
+  calculationSkinfoldsBySex?: Record<'MALE' | 'FEMALE', AdipometrySkinfoldField[]>;
   inputUnits: Record<AdipometryInputField, 'kg' | 'mm'>;
+  inputScales?: Record<AdipometryInputField, number>;
   outputUnits: Record<AdipometryResultField, 'kg' | 'mm' | 'percent'>;
   equations: AdipometryProtocolEquation[];
   limits: {
@@ -138,6 +146,11 @@ export type AdipometryIncompatibilityCode =
   | 'PROTOCOL_NOT_APPROVED'
   | 'PROTOCOL_DISABLED'
   | 'PROTOCOL_VERSION_NOT_FOUND'
+  | 'MISSING_ADIPOMETRY_CLINICAL_RESPONSIBLE'
+  | 'PROTOCOL_NOT_APPROVED_FOR_CONTRACT'
+  | 'MISSING_PROTOCOL_SEX_CONFIRMATION'
+  | 'PROTOCOL_SEX_DIVERGENCE_REQUIRES_REASON'
+  | 'SKINFOLD_CAPACITY_WARNING_CONFIRMATION_REQUIRED'
   | 'MISSING_BIRTH_DATE'
   | 'MISSING_GENDER'
   | 'MISSING_MATURITY'
@@ -201,6 +214,14 @@ export interface AdipometryAssessmentSummary {
   status: AdipometryAssessmentStatus;
   protocolCode?: string;
   protocolVersion?: number;
+  protocolSex?: AdipometryProtocolSex;
+  profileSexSnapshot?: 'male' | 'female' | 'other';
+  protocolSexSource?: AdipometryProtocolSexSource;
+  protocolSexConfirmedByUserId?: string;
+  protocolSexConfirmedAt?: string;
+  protocolSexOverrideReason?: string;
+  skinfoldCapacityWarningConfirmedByUserId?: string;
+  skinfoldCapacityWarningConfirmedAt?: string;
   bodyFatPercentage?: number;
   correctedByAssessmentId?: string;
   createdAt: string;
@@ -221,6 +242,9 @@ export interface CreateAdipometryDraftInput {
   professorId: string;
   assessmentDate: string;
   measurements?: AdipometryMeasurements;
+  protocolSex?: AdipometryProtocolSex;
+  protocolSexSource?: AdipometryProtocolSexSource;
+  protocolSexOverrideReason?: string;
   protocolCode?: string;
   protocolVersion?: number;
   anthropometryAssessmentId?: string;
@@ -230,6 +254,9 @@ export interface CreateAdipometryDraftInput {
 export interface UpdateAdipometryDraftInput {
   assessmentDate?: string;
   measurements?: AdipometryMeasurements;
+  protocolSex?: AdipometryProtocolSex;
+  protocolSexSource?: AdipometryProtocolSexSource;
+  protocolSexOverrideReason?: string | null;
   protocolCode?: string;
   protocolVersion?: number;
   anthropometryAssessmentId?: string | null;
@@ -241,6 +268,10 @@ export interface AdipometryCalculationPreviewRequest {
   alunoId: string;
   assessmentDate: string;
   measurements: AdipometryMeasurements;
+  protocolSex: AdipometryProtocolSex;
+  protocolSexSource: AdipometryProtocolSexSource;
+  protocolSexOverrideReason?: string;
+  skinfoldCapacityWarningConfirmed?: boolean;
   protocolCode: string;
   protocolVersion: number;
 }

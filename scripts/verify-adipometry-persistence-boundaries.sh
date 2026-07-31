@@ -52,11 +52,33 @@ BEGIN
     ('issue246-boundary-professor-a', 'issue246-boundary-actor-a', 'issue246-boundary-contract-a', 'issue246-boundary-function-a', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
     ('issue246-boundary-professor-b', 'issue246-boundary-actor-b', 'issue246-boundary-contract-b', 'issue246-boundary-function-b', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 
+  UPDATE "Professor"
+  SET "role" = 'master', "currentStatus" = 'active'
+  WHERE "id" = 'issue246-boundary-professor-a';
+
+  INSERT INTO "Profile" (
+    "id", "userId", "name", "cref", "createdAt", "updatedAt"
+  ) VALUES (
+    'issue246-boundary-profile-actor-a', 'issue246-boundary-actor-a',
+    'Boundary clinical responsible', 'CREF-BOUNDARY-246',
+    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+  );
+
   INSERT INTO "Aluno" ("id", "contractId", "createdAt", "updatedAt") VALUES
     ('issue246-boundary-aluno-a1', 'issue246-boundary-contract-a', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
     ('issue246-boundary-aluno-a2', 'issue246-boundary-contract-a', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
     ('issue246-boundary-aluno-b1', 'issue246-boundary-contract-b', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 END $$;
+
+INSERT INTO "AdipometryClinicalResponsibility" (
+  "id", "contractId", "domain", "professorId", "effectiveFrom",
+  "designatedByUserId", "designatedAt", "createdAt", "updatedAt"
+) VALUES (
+  'issue246-boundary-responsibility-a', 'issue246-boundary-contract-a',
+  'ADIPOMETRY_CLINICAL_RESPONSIBLE', 'issue246-boundary-professor-a',
+  TIMESTAMP '2026-07-30 14:00:00', 'issue246-boundary-actor-a',
+  TIMESTAMP '2026-07-30 14:00:00', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+);
 
 CREATE OR REPLACE FUNCTION pg_temp.issue246_boundary_definition()
 RETURNS JSONB
@@ -196,6 +218,23 @@ INSERT INTO "AdipometryProtocol" (
   TIMESTAMP '2026-07-30 14:00:00', 'issue246-boundary-actor-a', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
 );
 
+INSERT INTO "AdipometryProtocolApproval" (
+  "id", "contractId", "protocolId", "protocolCode", "protocolVersion",
+  "responsibilityId", "approvedByProfessorId", "approvedByUserId", "approvedAt",
+  "approvalStatement", "approvedByNameSnapshot", "approvedByCrefSnapshot",
+  "approvedSpecificationHash", "protocolDefinitionSnapshot", "createdAt"
+)
+SELECT
+  'issue246-boundary-approval-a', 'issue246-boundary-contract-a',
+  protocol."id", protocol."code", protocol."version",
+  'issue246-boundary-responsibility-a', 'issue246-boundary-professor-a',
+  'issue246-boundary-actor-a', TIMESTAMP '2026-07-30 14:30:00',
+  'Declaro que revisei e aprovo esta versão do protocolo para uso clínico neste contrato.',
+  'Boundary clinical responsible', 'CREF-BOUNDARY-246', REPEAT('c', 64),
+  protocol."definitionSnapshot", CURRENT_TIMESTAMP
+FROM "AdipometryProtocol" protocol
+WHERE protocol."id" = 'adpt_protocol_guedes_1991_adult_young_v1';
+
 -- Direct assessment INSERT cannot choose the sequence or code.
 SELECT SET_CONFIG('app.adipometry_actor_user_id', 'issue246-boundary-actor-a', true);
 INSERT INTO "AdipometryAssessment" (
@@ -244,11 +283,16 @@ SELECT SET_CONFIG('app.adipometry_actor_user_id', 'issue246-boundary-actor-a', t
 DO $$ BEGIN
   BEGIN
     UPDATE "AdipometryAssessment"
-    SET "status" = 'COMPLETED', "weightKg" = 70,
+    SET "status" = 'COMPLETED',
+        "protocolSex" = 'female',
+        "protocolSexSource" = 'professional_confirmation',
+        "protocolSexConfirmedByUserId" = 'issue246-boundary-actor-a',
+        "protocolSexConfirmedAt" = CURRENT_TIMESTAMP,
+        "weightKg" = 70,
         "tricepsMm" = 10, "subscapularMm" = 10, "suprailiacMm" = 10,
         "abdominalMm" = 10, "thighMm" = 10,
         "skinfoldTotalMm" = 99, "bodyFatPercentage" = 99, "fatMassKg" = 1, "leanMassKg" = 69,
-        "protocolId" = 'issue246-boundary-protocol', "protocolCode" = 'BOUNDARY_EXECUTABLE', "protocolVersion" = 1,
+        "protocolId" = 'adpt_protocol_guedes_1991_adult_young_v1', "protocolCode" = 'GUEDES_1991_ADULT_YOUNG', "protocolVersion" = 1,
         "calculationSnapshot" = JSONB_BUILD_OBJECT(
           'ageAtAssessment', 30,
           'profileCriteria', JSONB_BUILD_OBJECT('sex', 'FEMALE')
@@ -266,12 +310,11 @@ INSERT INTO "StudentProfile" (
   "id", "alunoId", "contractId", "identificationData", "createdAt", "updatedAt"
 ) VALUES (
   'issue246-boundary-profile-a1', 'issue246-boundary-aluno-a1', 'issue246-boundary-contract-a',
-  '{"birthDate":"1996-07-30","gender":"female"}'::jsonb,
+  '{"birthDate":"1996-07-30","gender":"female","maturation":"STAGE_5"}'::jsonb,
   CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
 );
 
--- A protocol that requires maturation must use canonical maturation; a value
--- supplied only by the caller cannot satisfy the clinical gate.
+-- A canonical profile cannot supply maturation when the approved Guedes rule declares NOT_REQUIRED.
 INSERT INTO "AdipometryProtocol" (
   "id", "code", "version", "name", "status", "definitionSnapshot", "reference",
   "approvedAt", "approvedByUserId", "createdAt", "updatedAt"
@@ -307,11 +350,16 @@ INSERT INTO "AdipometryProtocol" (
 DO $$ BEGIN
   BEGIN
     UPDATE "AdipometryAssessment"
-    SET "status" = 'COMPLETED', "weightKg" = 70,
+    SET "status" = 'COMPLETED',
+        "protocolSex" = 'female',
+        "protocolSexSource" = 'professional_confirmation',
+        "protocolSexConfirmedByUserId" = 'issue246-boundary-actor-a',
+        "protocolSexConfirmedAt" = CURRENT_TIMESTAMP,
+        "weightKg" = 70,
         "tricepsMm" = 10, "subscapularMm" = 10, "suprailiacMm" = 10,
         "abdominalMm" = 10, "thighMm" = 10,
-        "protocolId" = 'issue246-boundary-maturation-protocol',
-        "protocolCode" = 'BOUNDARY_MATURATION', "protocolVersion" = 1,
+        "protocolId" = 'adpt_protocol_guedes_1991_adult_young_v1',
+        "protocolCode" = 'GUEDES_1991_ADULT_YOUNG', "protocolVersion" = 1,
         "calculationSnapshot" = JSONB_BUILD_OBJECT(
           'ageAtAssessment', 45,
           'profileCriteria', JSONB_BUILD_OBJECT('sex', 'MALE', 'maturation', 'STAGE_5')
@@ -320,19 +368,29 @@ DO $$ BEGIN
     WHERE "id" = 'issue246-boundary-direct-a1';
     RAISE EXCEPTION 'caller-forged maturation was accepted';
   EXCEPTION WHEN CHECK_VIOLATION THEN
-    IF SQLERRM NOT LIKE '%ADIPOMETRY_MATURATION_REQUIRED%' THEN RAISE; END IF;
+    IF SQLERRM NOT LIKE '%ADIPOMETRY_MATURATION_NOT_APPLICABLE%' THEN RAISE; END IF;
   END;
 END $$;
+
+UPDATE "StudentProfile"
+SET "identificationData" = "identificationData" - 'maturation',
+    "updatedAt" = CURRENT_TIMESTAMP
+WHERE "id" = 'issue246-boundary-profile-a1';
 
 -- Out-of-range input is rejected against the approved protocol limits.
 DO $$ BEGIN
   BEGIN
     UPDATE "AdipometryAssessment"
-    SET "status" = 'COMPLETED', "weightKg" = 70,
-        "tricepsMm" = 101, "subscapularMm" = 10, "suprailiacMm" = 10,
+    SET "status" = 'COMPLETED',
+        "protocolSex" = 'female',
+        "protocolSexSource" = 'professional_confirmation',
+        "protocolSexConfirmedByUserId" = 'issue246-boundary-actor-a',
+        "protocolSexConfirmedAt" = CURRENT_TIMESTAMP,
+        "weightKg" = 70,
+        "tricepsMm" = 81, "subscapularMm" = 10, "suprailiacMm" = 10,
         "abdominalMm" = 10, "thighMm" = 10,
-        "skinfoldTotalMm" = 141, "bodyFatPercentage" = 38.2, "fatMassKg" = 26.74, "leanMassKg" = 43.26,
-        "protocolId" = 'issue246-boundary-protocol', "protocolCode" = 'BOUNDARY_EXECUTABLE', "protocolVersion" = 1,
+        "skinfoldTotalMm" = 111, "bodyFatPercentage" = 99, "fatMassKg" = 1, "leanMassKg" = 69,
+        "protocolId" = 'adpt_protocol_guedes_1991_adult_young_v1', "protocolCode" = 'GUEDES_1991_ADULT_YOUNG', "protocolVersion" = 1,
         "calculationSnapshot" = JSONB_BUILD_OBJECT(
           'ageAtAssessment', 45, 'profileCriteria', JSONB_BUILD_OBJECT('sex', 'MALE')
         ),
@@ -346,11 +404,16 @@ END $$;
 
 -- Caller-supplied derived values, rules and demographics are discarded.
 UPDATE "AdipometryAssessment"
-SET "status" = 'COMPLETED', "weightKg" = 70,
+SET "status" = 'COMPLETED',
+        "protocolSex" = 'female',
+        "protocolSexSource" = 'professional_confirmation',
+        "protocolSexConfirmedByUserId" = 'issue246-boundary-actor-a',
+        "protocolSexConfirmedAt" = CURRENT_TIMESTAMP,
+        "weightKg" = 70,
     "tricepsMm" = 10, "subscapularMm" = 10, "suprailiacMm" = 10,
     "abdominalMm" = 10, "thighMm" = 10,
     "skinfoldTotalMm" = 999, "bodyFatPercentage" = 99, "fatMassKg" = 1, "leanMassKg" = 69,
-    "protocolId" = 'issue246-boundary-protocol', "protocolCode" = 'BOUNDARY_EXECUTABLE', "protocolVersion" = 1,
+    "protocolId" = 'adpt_protocol_guedes_1991_adult_young_v1', "protocolCode" = 'GUEDES_1991_ADULT_YOUNG', "protocolVersion" = 1,
     "calculationSnapshot" = JSONB_BUILD_OBJECT(
       'ageAtAssessment', 45,
       'profileCriteria', JSONB_BUILD_OBJECT('sex', 'MALE'),
@@ -364,18 +427,18 @@ DO $$ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM "AdipometryAssessment"
     WHERE "id" = 'issue246-boundary-direct-a1'
-      AND "skinfoldTotalMm" = 50
-      AND "bodyFatPercentage" = 20
-      AND "fatMassKg" = 14
-      AND "leanMassKg" = 56
-      AND ("calculationSnapshot" #>> '{results,bodyFatPercentage}')::NUMERIC = 20
+      AND "skinfoldTotalMm" = 30
+      AND "bodyFatPercentage" = 16.03
+      AND "fatMassKg" = 11.22
+      AND "leanMassKg" = 58.78
+      AND ("calculationSnapshot" #>> '{results,bodyFatPercentage}')::NUMERIC = 16.03
       AND ("calculationSnapshot" ->> 'ageAtAssessment')::INTEGER = 30
       AND "calculationSnapshot" #>> '{profileCriteria,sex}' = 'FEMALE'
       AND "calculationSnapshot" #>> '{profileCriteria,sources,birthDate,kind}' = 'STUDENT_PROFILE'
       AND "calculationSnapshot" #>> '{profileCriteria,sources,sex,kind}' = 'STUDENT_PROFILE'
       AND JSONB_TYPEOF("calculationSnapshot" #> '{rules,equations}') = 'array'
       AND NOT ("calculationSnapshot" -> 'rules' ? 'forged')
-      AND "calculationSnapshot" ->> 'implementationVersion' = 'db-adipometry-protocol-v2'
+      AND "calculationSnapshot" ->> 'implementationVersion' = 'db-adipometry-guedes-v1'
   ) THEN
     RAISE EXCEPTION 'derived values, demographics or snapshot rules remained caller-authoritative';
   END IF;
@@ -414,7 +477,7 @@ DO $$ BEGIN
     WHERE "assessmentId" = 'issue246-boundary-direct-a1'
       AND "action" = 'COMPLETED'
       AND "actorUserId" = 'issue246-boundary-actor-a'
-      AND ("afterSnapshot" #>> '{bodyFatPercentage}')::NUMERIC = 20
+      AND ("afterSnapshot" #>> '{bodyFatPercentage}')::NUMERIC = 16.03
   ) THEN
     RAISE EXCEPTION 'canonical completion audit event is missing';
   END IF;

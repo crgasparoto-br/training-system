@@ -94,6 +94,18 @@ BEGIN
     'issue246-profile-function', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
   );
 
+  UPDATE "Professor"
+  SET "role" = 'master', "currentStatus" = 'active'
+  WHERE "id" = 'issue246-profile-professor';
+
+  INSERT INTO "Profile" (
+    "id", "userId", "name", "cref", "createdAt", "updatedAt"
+  ) VALUES (
+    'issue246-profile-user-profile', 'issue246-profile-actor',
+    'Canonical profile evaluator', 'CREF-PROFILE-246',
+    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+  );
+
   INSERT INTO "Aluno" (
     "id", "contractId", "birthDate", "createdAt", "updatedAt"
   ) VALUES (
@@ -275,6 +287,33 @@ INSERT INTO "AdipometryProtocol" (
   'issue246-profile-actor', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
 );
 
+INSERT INTO "AdipometryClinicalResponsibility" (
+  "id", "contractId", "domain", "professorId", "effectiveFrom",
+  "designatedByUserId", "designatedAt", "createdAt", "updatedAt"
+) VALUES (
+  'issue246-profile-responsibility', 'issue246-profile-contract',
+  'ADIPOMETRY_CLINICAL_RESPONSIBLE', 'issue246-profile-professor',
+  TIMESTAMP '2026-07-30 19:00:00', 'issue246-profile-actor',
+  TIMESTAMP '2026-07-30 19:00:00', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+);
+
+INSERT INTO "AdipometryProtocolApproval" (
+  "id", "contractId", "protocolId", "protocolCode", "protocolVersion",
+  "responsibilityId", "approvedByProfessorId", "approvedByUserId", "approvedAt",
+  "approvalStatement", "approvedByNameSnapshot", "approvedByCrefSnapshot",
+  "approvedSpecificationHash", "protocolDefinitionSnapshot", "createdAt"
+)
+SELECT
+  'issue246-profile-contract-approval', 'issue246-profile-contract',
+  protocol."id", protocol."code", protocol."version",
+  'issue246-profile-responsibility', 'issue246-profile-professor',
+  'issue246-profile-actor', TIMESTAMP '2026-07-30 20:00:00',
+  'Declaro que revisei e aprovo esta versão do protocolo para uso clínico neste contrato.',
+  'Canonical profile evaluator', 'CREF-PROFILE-246', REPEAT('e', 64),
+  protocol."definitionSnapshot", CURRENT_TIMESTAMP
+FROM "AdipometryProtocol" protocol
+WHERE protocol."id" = 'adpt_protocol_guedes_1991_adult_young_v1';
+
 SELECT * FROM "createAdipometryDraft"(
   'issue246-profile-draft', 'issue246-profile-contract', 'issue246-profile-aluno',
   'issue246-profile-professor', DATE '2026-07-31',
@@ -283,7 +322,29 @@ SELECT * FROM "createAdipometryDraft"(
 SQL
 psql_file "$TMP_DIR/positive-protocol.sql" positive-protocol.sql
 
-after_profile_update='BEGIN; SELECT set_config('"'"'app.adipometry_actor_user_id'"'"','"'"'issue246-profile-actor'"'"',true); UPDATE "AdipometryAssessment" SET "status"='"'"'COMPLETED'"'"', "weightKg"=70, "tricepsMm"=10, "subscapularMm"=10, "suprailiacMm"=10, "abdominalMm"=10, "thighMm"=10, "protocolId"='"'"'issue246-profile-approved'"'"', "protocolCode"='"'"'CANONICAL_REQUIRED'"'"', "protocolVersion"=1, "calculationSnapshot"='"'"'{}'"'"'::jsonb, "updatedAt"=CURRENT_TIMESTAMP WHERE "id"='"'"'issue246-profile-draft'"'"'; COMMIT;'
+after_profile_update=$(cat <<'SQL'
+BEGIN;
+SELECT set_config('app.current_user_id', 'issue246-profile-actor', true);
+UPDATE "AdipometryAssessment"
+SET "status" = 'COMPLETED',
+    "protocolSex" = 'female',
+    "protocolSexSource" = 'professional_confirmation',
+    "protocolSexConfirmedByUserId" = 'issue246-profile-actor',
+    "protocolSexConfirmedAt" = CURRENT_TIMESTAMP,
+    "weightKg" = 70,
+    "tricepsMm" = 10,
+    "subscapularMm" = 10,
+    "suprailiacMm" = 10,
+    "abdominalMm" = 10,
+    "thighMm" = 10,
+    "protocolId" = 'adpt_protocol_guedes_1991_adult_young_v1',
+    "protocolCode" = 'GUEDES_1991_ADULT_YOUNG',
+    "protocolVersion" = 1,
+    "calculationSnapshot" = '{}'::jsonb
+WHERE "id" = 'issue246-profile-draft';
+COMMIT;
+SQL
+)
 expect_failure \
   "canonical maturation is present but incompatible" \
   "ADIPOMETRY_MATURATION_NOT_APPLICABLE" \
@@ -291,7 +352,7 @@ expect_failure \
 
 cat > "$TMP_DIR/complete.sql" <<'SQL'
 UPDATE "StudentProfile"
-SET "identificationData" = JSONB_SET("identificationData", '{maturation}', '"adult"'::jsonb),
+SET "identificationData" = "identificationData" - 'maturation',
     "updatedAt" = CURRENT_TIMESTAMP
 WHERE "id" = 'issue246-profile-student';
 
@@ -299,6 +360,10 @@ BEGIN;
 SELECT set_config('app.adipometry_actor_user_id', 'issue246-profile-actor', true);
 UPDATE "AdipometryAssessment"
 SET "status" = 'COMPLETED',
+    "protocolSex" = 'female',
+    "protocolSexSource" = 'professional_confirmation',
+    "protocolSexConfirmedByUserId" = 'issue246-profile-actor',
+    "protocolSexConfirmedAt" = CURRENT_TIMESTAMP,
     "weightKg" = 70,
     "tricepsMm" = 10,
     "subscapularMm" = 10,
@@ -309,8 +374,8 @@ SET "status" = 'COMPLETED',
     "bodyFatPercentage" = 99,
     "fatMassKg" = 1,
     "leanMassKg" = 69,
-    "protocolId" = 'issue246-profile-approved',
-    "protocolCode" = 'CANONICAL_REQUIRED',
+    "protocolId" = 'adpt_protocol_guedes_1991_adult_young_v1',
+    "protocolCode" = 'GUEDES_1991_ADULT_YOUNG',
     "protocolVersion" = 1,
     "calculationSnapshot" = '{"profileCriteria":{"sex":"OTHER","maturation":"FORGED"}}'::jsonb,
     "completedAt" = TIMESTAMP '2099-01-01 00:00:00',
@@ -324,13 +389,14 @@ DO $$ BEGIN
     FROM "AdipometryAssessment"
     WHERE "id" = 'issue246-profile-draft'
       AND "status" = 'COMPLETED'
-      AND "bodyFatPercentage" = 20
-      AND "fatMassKg" = 14
-      AND "leanMassKg" = 56
+      AND "skinfoldTotalMm" = 30
+      AND "bodyFatPercentage" = 16.03
+      AND "fatMassKg" = 11.22
+      AND "leanMassKg" = 58.78
       AND "calculationSnapshot" #>> '{profileCriteria,sex}' = 'FEMALE'
-      AND "calculationSnapshot" #>> '{profileCriteria,maturation}' = 'ADULT'
+      AND "calculationSnapshot" #> '{profileCriteria,maturation}' = 'null'::jsonb
       AND "calculationSnapshot" #>> '{profileCriteria,sources,sex,kind}' = 'STUDENT_PROFILE'
-      AND "calculationSnapshot" #>> '{profileCriteria,sources,maturation,kind}' = 'STUDENT_PROFILE'
+      AND "calculationSnapshot" #> '{profileCriteria,sources,maturation}' = 'null'::jsonb
   ) THEN
     RAISE EXCEPTION 'canonical sex, maturation or calculated results were not persisted';
   END IF;

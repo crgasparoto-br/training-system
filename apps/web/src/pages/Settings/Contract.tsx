@@ -13,6 +13,7 @@ import { Input } from '../../components/ui/Input';
 import { commonCopy, contractCopy, professoresCopy } from '../../i18n/ptBR';
 import type { Contract } from '../../services/contract.service';
 import { resolveAssetUrl } from '../../utils/assetUrl';
+import { AdipometryTechnicalResponsibilityCard } from './components/AdipometryTechnicalResponsibilityCard';
 
 const ACCESS_REFRESH_SIGNAL_KEY = 'auth-permissions-updated-at';
 
@@ -526,6 +527,8 @@ export default function ContractSettings() {
           </form>
         </CardContent>
       </Card>
+
+      <AdipometryTechnicalResponsibilityCard canManage={canEdit} />
 
       {canEdit && (
         <Card>

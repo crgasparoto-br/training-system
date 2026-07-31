@@ -40,6 +40,7 @@ DECLARE
     }
   }'::JSONB;
   completion_definition TEXT;
+  profile_validation_definition TEXT;
 BEGIN
   IF EXISTS (
     SELECT 1
@@ -65,12 +66,16 @@ BEGIN
   SELECT PG_GET_FUNCTIONDEF('"canonicalizeAdipometryCompletion"()'::REGPROCEDURE)
     INTO completion_definition;
 
-  IF completion_definition LIKE '%population,maturationCriteria%' THEN
-    RAISE EXCEPTION 'negative-control failed: completion still consumes descriptive maturation text';
+  SELECT PG_GET_FUNCTIONDEF('"validateAdipometryCanonicalProtocolProfile"()'::REGPROCEDURE)
+    INTO profile_validation_definition;
+
+  IF completion_definition LIKE '%population,maturationCriteria%'
+     OR profile_validation_definition LIKE '%population,maturationCriteria%' THEN
+    RAISE EXCEPTION 'negative-control failed: executable validation still consumes descriptive maturation text';
   END IF;
 
-  IF completion_definition NOT LIKE '%population,maturationRule%' THEN
-    RAISE EXCEPTION 'positive-control failed: completion does not consume the structured maturation rule';
+  IF profile_validation_definition NOT LIKE '%population,maturationRule%' THEN
+    RAISE EXCEPTION 'positive-control failed: profile validation does not consume the structured maturation rule';
   END IF;
 END $$;
 SQL
@@ -81,4 +86,4 @@ docker run --rm --network host \
   psql "$TEMP_URL" -v ON_ERROR_STOP=1 -X -q -f /work/verify.sql
 
 echo "negative-control OK: descriptive maturation text cannot become or drive an executable rule"
-echo "positive-control OK: explicit structured NOT_REQUIRED rule remains valid and drives completion"
+echo "positive-control OK: explicit structured NOT_REQUIRED rule remains valid and drives profile validation"
