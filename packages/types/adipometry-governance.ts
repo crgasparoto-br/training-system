@@ -4,7 +4,14 @@ export const ADIPOMETRY_CLINICAL_RESPONSIBLE_DOMAIN =
 export const ADIPOMETRY_PROTOCOL_APPROVAL_BLOCK_KEY =
   'settings.contract.adipometryProtocolApproval' as const;
 
-export type AdipometryContractProtocolStatus = 'DRAFT' | 'APPROVED' | 'DISABLED';
+export const ADIPOMETRY_RESPONSIBILITY_MANAGEMENT_BLOCK_KEY =
+  'settings.contract.actions.manageClinicalTechnicalResponsibility' as const;
+
+export type AdipometryContractProtocolStatus =
+  | 'DRAFT'
+  | 'APPROVED'
+  | 'REVOKED'
+  | 'DISABLED';
 
 export interface AdipometryClinicalResponsibleSummary {
   id: string;
@@ -41,6 +48,11 @@ export interface AdipometryProtocolApprovalSummary {
   approvedAt: string;
   approvalStatement: string;
   approvedSpecificationHash: string;
+  revokedAt?: string | null;
+  revokedByProfessorId?: string | null;
+  revokedByUserId?: string | null;
+  revocationReason?: string | null;
+  active: boolean;
 }
 
 export interface AdipometryGovernedProtocolSummary {
@@ -64,6 +76,7 @@ export interface AdipometryGovernanceResponse {
   protocols: AdipometryGovernedProtocolSummary[];
   canManageResponsibility: boolean;
   canCurrentUserApprove: boolean;
+  canCurrentUserRevoke: boolean;
 }
 
 export interface DesignateAdipometryClinicalResponsibleInput {
@@ -74,4 +87,8 @@ export interface DesignateAdipometryClinicalResponsibleInput {
 export interface ApproveAdipometryProtocolInput {
   approvalStatement: string;
   approvedSpecificationHash: string;
+}
+
+export interface RevokeAdipometryProtocolInput {
+  reason: string;
 }
