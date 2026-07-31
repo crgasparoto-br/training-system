@@ -117,6 +117,19 @@ export function buildAdipometrySpecificationHash(input: {
     .digest('hex');
 }
 
+export function assertAdipometryResponsibilityActorIdentity(
+  expectedUserId: string | undefined,
+  actorUserId: string
+): void {
+  if (!expectedUserId || expectedUserId !== actorUserId) {
+    throw new AdipometryGovernanceError(
+      'A conta autenticada não corresponde ao profissional que administra a responsabilidade técnica.',
+      'ADIPOMETRY_RESPONSIBILITY_ACTOR_MISMATCH',
+      403
+    );
+  }
+}
+
 function isActiveStatus(value: string | null): boolean {
   if (!value) return true;
   return !['inactive', 'inativo', 'dismissed', 'desligado', 'terminated', 'encerrado'].includes(
@@ -196,6 +209,22 @@ async function requireExplicitPermission(
       403
     );
   }
+}
+
+async function requireResponsibilityActorIdentity(
+  client: DbClient,
+  contractId: string,
+  actorUserId: string,
+  actorProfessorId: string
+): Promise<void> {
+  const rows = await client.$queryRaw<Array<{ userId: string }>>(Prisma.sql`
+    SELECT professor."userId" AS "userId"
+    FROM "Professor" professor
+    WHERE professor.id = ${actorProfessorId}
+      AND professor."contractId" = ${contractId}
+  `);
+
+  assertAdipometryResponsibilityActorIdentity(rows[0]?.userId, actorUserId);
 }
 
 async function requireEligibleProfessional(
@@ -455,6 +484,12 @@ export const adipometryGovernanceService = {
         await tx.$executeRaw(Prisma.sql`
           SELECT pg_advisory_xact_lock(hashtextextended(${`${contractId}:${ADIPOMETRY_CLINICAL_RESPONSIBLE_DOMAIN}`}, 0))
         `);
+        await requireResponsibilityActorIdentity(
+          tx,
+          contractId,
+          actorUserId,
+          actorProfessorId
+        );
         await requireExplicitPermission(
           tx,
           contractId,
