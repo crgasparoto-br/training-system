@@ -6,9 +6,11 @@ export type AdipometryAssessmentStatus =
   | 'VOIDED';
 export type AdipometryPersistenceStatus = 'DRAFT' | 'COMPLETED';
 export type AdipometryCorrectionCategory =
-  | 'MEASUREMENT_OR_TRANSCRIPTION_ERROR'
+  | 'DATA_ENTRY_ERROR'
+  | 'MEASUREMENT_TRANSCRIPTION_ERROR'
+  | 'EVALUATION_DATE_ERROR'
+  | 'PROTOCOL_SEX_ERROR'
   | 'PROTOCOL_SELECTION_ERROR'
-  | 'DEMOGRAPHIC_CONFIRMATION_ERROR'
   | 'OTHER';
 export type AdipometryProtocolStatus = 'DRAFT' | 'APPROVED' | 'DISABLED';
 
