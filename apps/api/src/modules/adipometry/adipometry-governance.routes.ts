@@ -1,4 +1,9 @@
-import { Router, type Request, type Response } from 'express';
+import {
+  Router,
+  type Request,
+  type Response,
+  type Router as ExpressRouter,
+} from 'express';
 import {
   ADIPOMETRY_PROTOCOL_APPROVAL_BLOCK_KEY,
   ADIPOMETRY_RESPONSIBILITY_MANAGEMENT_BLOCK_KEY,
@@ -14,7 +19,7 @@ import {
   adipometryGovernanceService,
 } from './adipometry-governance.service.js';
 
-const router = Router();
+const router: ExpressRouter = Router();
 
 function sendGovernanceError(res: Response, error: unknown) {
   if (error instanceof AdipometryGovernanceError) {
