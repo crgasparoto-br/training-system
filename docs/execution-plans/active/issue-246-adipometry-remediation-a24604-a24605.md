@@ -1,11 +1,12 @@
 # Issue #246 — remediação A-246-04 e A-246-05
 
-## Identidade final
+## Escopo
 
-- base: `develop` (`1d9eda62bfba73caf10dc7e32767f4769fd4bb66`)
-- branch: `feat/246-adipometry-foundation`
-- head: `fe62d058b27d5f4c2543c74d483f89e64f69d745`
-- merge preview: `e7132ebfabe4773c2d21e37235427aba23408173`
+- base: `develop`;
+- branch: `feat/246-adipometry-foundation`;
+- PR: `#290`.
+
+A identidade imutável do candidato e os workflows correspondentes devem ser consultados na PR e nos artefatos do ciclo, evitando registrar neste plano alegações voláteis de SHA ou execução.
 
 ## A-246-04 — ator e autoridade temporal
 
@@ -33,15 +34,17 @@
 - aprovação por ex-responsável usando janela histórica;
 - mutação da versão depois de aprovação.
 
-## Validações do SHA final
+## Validações obrigatórias
 
-- `Validate PR` — execução `30670576417`: success;
-- `Issue 275 Pre-registration QA` — execução `30670576399`: success;
-- migrations em banco vazio, existente e cadeia legada: success;
-- controles ADPT e fronteiras de persistência: success;
-- lifecycle, type-check, lint, testes, build, arquitetura, acesso e documentação: success;
-- E2E, autorização, privacidade, acessibilidade, performance e rollout: success.
+O candidato somente pode receber aprovação interna quando concluir com sucesso:
+
+- `Validate PR`;
+- `Issue 275 Pre-registration QA`;
+- migrations em banco vazio, existente e cadeia legada;
+- controles ADPT e fronteiras de persistência;
+- lifecycle, type-check, lint, testes, build, arquitetura, acesso e documentação;
+- E2E, autorização, privacidade, acessibilidade, performance e rollout.
 
 ## Disposição
 
-A passagem controller-adversarial resultou em `INTERNALLY_APPROVED`. Essa disposição é interna e provisória; não autoriza merge nem substitui auditoria independente.
+A passagem controller-adversarial pode produzir apenas `INTERNALLY_APPROVED`. Essa disposição é interna e provisória; não autoriza merge nem substitui auditoria independente.
