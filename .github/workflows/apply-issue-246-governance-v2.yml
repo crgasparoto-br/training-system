@@ -125,21 +125,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          rm -f .github/issue-246/apply.py
-          git rm -f .github/issue-246/apply-governance.py.gz.b64
-          git rm -f .github/issue-246/transport.part-*
-          git rm -f .github/issue-246/compat.py
-          git rm -f .github/issue-246/profile-contract-compat.py
-          git rm -f .github/issue-246/canonical-guedes-compat.py
-          git rm -f .github/issue-246/structured-maturation-compat.py
-          git rm -f .github/issue-246/boundary-approval-compat.py
-          git rm -f .github/issue-246/boundary-assertion-cast-compat.py
-          git rm -f .github/workflows/apply-issue-246-governance.yml
-          git rm -f .github/workflows/apply-issue-246-governance-v2.yml
-          rmdir .github/issue-246 2>/dev/null || true
-          git diff --check
+          rm -rf .github/issue-246
+          rm -f .github/workflows/apply-issue-246-governance.yml
+          rm -f .github/workflows/apply-issue-246-governance-v2.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
+          git status --short
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo "No validated governance delta to commit" >&2
+            exit 1
+          fi
           git commit -m "feat(adipometry): add contract clinical governance"
           git push origin HEAD:feat/246-adipometry-foundation
