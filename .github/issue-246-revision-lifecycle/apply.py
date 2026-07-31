@@ -306,6 +306,6 @@ for path, section in doc_sections.items():
     current = read(path)
     heading = section.strip().splitlines()[0]
     if heading not in current:
-        write(path, current.rstrip() + section + "\n")
+        write(path, current.rstrip() + "\n" + section.strip() + "\n")
 
 print("Issue #246 revision lifecycle delta applied")
