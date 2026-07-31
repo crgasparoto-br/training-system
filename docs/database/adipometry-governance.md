@@ -10,7 +10,9 @@ A restrição parcial `AdipometryClinicalResponsibility_active_key` permite no m
 
 O vínculo composto `(professorId, contractId)` impede designação cruzada entre contratos. O trigger também revalida usuário ativo, CREF pessoal, desligamento e status do profissional designado.
 
-A autoria da designação e do encerramento também é protegida no banco. `designatedByUserId` e `endedByUserId` somente são aceitos quando correspondem, no instante da operação, a um profissional ativo do mesmo contrato com a concessão explícita `settings.contract.actions.manageClinicalTechnicalResponsibility`. Escritas SQL diretas com ator externo, inativo ou sem permissão são rejeitadas antes de tornar o histórico imutável.
+A autoria da designação e do encerramento também é protegida no banco. O serviço vincula `app.adipometry_actor_user_id` à conta autenticada dentro da mesma transação. `designatedByUserId` e `endedByUserId` precisam corresponder a esse contexto e, no instante real da operação, a um profissional ativo do mesmo contrato com a concessão explícita `settings.contract.actions.manageClinicalTechnicalResponsibility`. A role normal da aplicação não pode escrever sem o contexto autenticado nem atribuir a operação a outro ator elegível.
+
+`designatedAt`, `effectiveFrom`, `endedAt` e `effectiveTo` são definidos pelo banco com o tempo da transação. Datas retroativas ou futuras enviadas pela aplicação não são autoridade. PostgreSQL superusers possuem apenas o bypass administrativo necessário para migrations e recuperação controlada; esse bypass não representa o caminho operacional da aplicação.
 
 A gestão da designação exige `settings.contract.actions.manageClinicalTechnicalResponsibility`. Aprovação e revogação exigem `settings.contract.adipometryProtocolApproval`. As duas capacidades começam negadas e não são herdadas automaticamente por `master`, `professor`, `manager` ou perfil administrativo. O acesso comum à tela de contrato não substitui a concessão sensível.
 
@@ -18,7 +20,9 @@ A gestão da designação exige `settings.contract.actions.manageClinicalTechnic
 
 A aprovação clínica preserva a identidade `(protocolId, protocolCode, protocolVersion)` dentro de um contrato. A linha referencia a designação vigente, o professor e o usuário aprovadores e guarda nome, CREF, declaração, hash, definição clínica e referência bibliográfica em snapshot.
 
-`protocolReferenceSnapshot` é preenchido atomicamente pelo banco a partir da mesma identidade de protocolo usada na aprovação. O campo é obrigatório e imutável. Assim, todos os componentes utilizados no SHA-256 da especificação — código, versão, referência e definição — permanecem disponíveis para reprodução histórica mesmo que o cadastro global do protocolo seja alterado futuramente.
+`protocolReferenceSnapshot` é preenchido atomicamente pelo banco a partir da mesma identidade de protocolo usada na aprovação. O campo é obrigatório e imutável. Todos os componentes utilizados no SHA-256 da especificação — código, versão, referência e definição — permanecem disponíveis para reprodução histórica.
+
+Depois da primeira aprovação em qualquer contrato, código, versão, nome, referência e `definitionSnapshot` da identidade global tornam-se imutáveis. Alteração material exige uma nova versão e uma nova aprovação. O único movimento operacional permitido para a versão referenciada é preservá-la ou desativá-la sem alterar a definição clínica. O gate de conclusão também compara o hash da definição global com o hash aprovado.
 
 A unicidade parcial por contrato e versão permite no máximo uma aprovação ativa. O trigger de inserção exige:
 
@@ -26,9 +30,11 @@ A unicidade parcial por contrato e versão permite no máximo uma aprovação at
 - snapshot idêntico à definição corrente no instante da aprovação;
 - referência em snapshot idêntica à referência corrente do protocolo;
 - definição executável e vetores reproduzíveis;
-- designação ativa no instante da aprovação;
+- designação ativa no instante real da aprovação;
 - conta autenticada correspondente ao professor designado;
 - elegibilidade e concessão clínica explícita revalidadas dentro da transação.
+
+`approvedAt` e `revokedAt` são gerados no banco. O chamador não pode retroagir aprovação ou revogação para o período de uma responsabilidade técnica anterior.
 
 A aprovação pode sofrer uma única transição auditada para revogada. Somente `revokedAt`, `revokedByProfessorId`, `revokedByUserId` e `revocationReason` podem ser preenchidos; identidade, snapshots e autoria da aprovação continuam imutáveis. A revogação exige o responsável técnico vigente, a mesma conta autenticada e motivo com pelo menos dez caracteres. Deletes continuam bloqueados.
 
@@ -40,7 +46,7 @@ Troca de responsável, aprovação e revogação usam transação serializável 
 
 ## Gate de conclusão
 
-`canonicalizeAdipometryCompletion` usa o `protocolDefinitionSnapshot` aprovado do mesmo `contractId`. A migration `20260731143000_close_issue_246_governance_findings` adiciona guards de inserção e transição para exigir uma aprovação com `revokedAt IS NULL`; a definição global `DRAFT` não libera cálculo sozinha.
+`canonicalizeAdipometryCompletion` usa o `protocolDefinitionSnapshot` aprovado do mesmo `contractId`. As migrations `20260731143000_close_issue_246_governance_findings` e `20260731190000_close_issue_246_temporal_authority_and_protocol_identity` exigem aprovação ativa, identidade clínica sem drift e ator temporalmente válido; a definição global `DRAFT` não libera cálculo sozinha.
 
 O gate também valida `protocolSex`, decisão auditável, dobras exigidas pela combinação fixa do protocolo, precisão, limites e confirmação de alerta operacional. As dobras não usadas podem ser nulas; quando informadas, continuam sujeitas a precisão e limite técnico e permanecem no histórico.
 
