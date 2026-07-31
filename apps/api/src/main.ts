@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import 'express-async-errors';
 import { assessmentTypeRoutes } from './modules/assessments/index.js';
 import { anthropometryRoutes } from './modules/anthropometry/index.js';
+import adipometryGovernanceRoutes from './modules/adipometry/adipometry-governance.routes.js';
 import { capacityPrescriptionRoutes } from './modules/capacity-prescriptions/index.js';
 import { prontuarioRoutes } from './modules/prontuario/index.js';
 import { authRoutes } from './modules/auth/index.js';
@@ -178,6 +179,9 @@ app.use('/api/v1/capacity-prescriptions', capacityPrescriptionRoutes);
 app.use('/api/v1/prontuario', prontuarioRoutes);
 app.use('/api/v1/banks', bankRoutes);
 app.use('/api/v1/collaborator-functions', collaboratorFunctionRoutes);
+// Mount the authoritative ADPT governance routes before the legacy contract
+// router so sensitive actions cannot fall back to role-based middleware.
+app.use('/api/v1/contracts', adipometryGovernanceRoutes);
 app.use('/api/v1/contracts', contractLifecycleRoutes);
 app.use('/api/v1/contracts', contractRejectionRoutes);
 app.use('/api/v1/contracts', contractRoutes);

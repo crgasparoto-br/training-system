@@ -125,3 +125,26 @@ trigger que impedem autorreferência, destino cross-tenant e cadeia de registros
 resolvidos. O detector considera somente candidatos sem `canonicalAlunoId`.
 
 Antes de descartar a origem, a aplicação classifica as relações do modelo `Aluno` em duas famílias. Dados estritamente históricos de processo e auditoria — perfil de origem, revisões registradas, logs, onboarding, eventos e convites revogados — permanecem no registro descartado. Relações ativas ou de negócio que exigiriam reassociação — agenda, avaliações, treino, contratos, financeiro, integrações, saúde, PAR-Q, prontuário, métricas, nutrição, configuração de revisão e autorização de responsável — bloqueiam a consolidação. O inventário tipado fica em `pre-registration-clinical-ownership.service.ts`; a migration `20260728081500_issue_274_clinical_ownership_guard` replica a família bloqueante em trigger para fechar chamadas diretas e corridas entre o preflight e o descarte. Enquanto não existir serviço transacional por domínio, qualquer ocorrência retorna `CLINICAL_REASSOCIATION_REQUIRED` e preserva origem, destino e todos os dados owned.
+
+## Adipometria histórica (issue #246)
+
+A ADPT possui domínio próprio em `AdipometryProtocol`, `AdipometrySequence`,
+`AdipometryAssessment` e `AdipometryAuditEvent`. Os modelos Prisma representam as
+relações de runtime; checks, funções e triggers PostgreSQL completam as invariantes
+que não cabem no schema declarativo.
+
+A sequência é serializada por `(contractId, alunoId)` e gera códigos com largura
+mínima de três dígitos. Chaves estrangeiras compostas vinculam aluno, professor,
+Antropometria de apoio, correção e auditoria ao mesmo contrato, impedindo a
+combinação de identificadores válidos de tenants distintos.
+
+Somente protocolo estruturalmente completo e `APPROVED` permite conclusão. A
+avaliação concluída preserva entradas, resultados, versão e snapshot coerentes e é
+imutável. Correção cria nova avaliação, liga a original atomicamente e produz
+trilha append-only. Guedes e Slaughter permanecem indisponíveis até a aprovação
+clínica documentada em `docs/product/adipometry-protocol.md`.
+
+Os gates PostgreSQL oficiais são:
+
+- `scripts/verify-adipometry-migration-existing-data.sh`;
+- `scripts/verify-adipometry-foundation.sh`.
