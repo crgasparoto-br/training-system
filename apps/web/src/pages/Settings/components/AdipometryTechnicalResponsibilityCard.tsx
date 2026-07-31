@@ -24,8 +24,10 @@ export function AdipometryTechnicalResponsibilityCard({ canManage }: Props) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [approving, setApproving] = useState(false);
+  const [revoking, setRevoking] = useState(false);
   const [selectedProfessorId, setSelectedProfessorId] = useState('');
   const [endReason, setEndReason] = useState('');
+  const [revocationReason, setRevocationReason] = useState('');
   const [approvalConfirmed, setApprovalConfirmed] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -61,6 +63,11 @@ export function AdipometryTechnicalResponsibilityCard({ canManage }: Props) {
       selectedProfessorId &&
       governance.currentResponsibility.professorId !== selectedProfessorId
   );
+  const canManageResponsibility = governance?.canManageResponsibility ?? canManage;
+  const activeApproval = selectedProtocol?.approval?.active ? selectedProtocol.approval : null;
+  const revokedApproval = selectedProtocol?.approval && !selectedProtocol.approval.active
+    ? selectedProtocol.approval
+    : null;
 
   const handleDesignation = async () => {
     if (!selectedProfessorId) {
@@ -112,6 +119,31 @@ export function AdipometryTechnicalResponsibilityCard({ canManage }: Props) {
       setErrorMessage(error.response?.data?.error || 'Não foi possível aprovar a versão clínica.');
     } finally {
       setApproving(false);
+    }
+  };
+
+  const handleRevocation = async () => {
+    if (!selectedProtocol || revocationReason.trim().length < 10) {
+      setErrorMessage('Informe um motivo de revogação com pelo menos 10 caracteres.');
+      return;
+    }
+
+    setRevoking(true);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    try {
+      const data = await adipometryGovernanceService.revoke(
+        selectedProtocol.code,
+        selectedProtocol.version,
+        { reason: revocationReason.trim() }
+      );
+      setGovernance(data);
+      setRevocationReason('');
+      setSuccessMessage('A aprovação clínica foi revogada. Novas conclusões estão bloqueadas.');
+    } catch (error: any) {
+      setErrorMessage(error.response?.data?.error || 'Não foi possível revogar a aprovação clínica.');
+    } finally {
+      setRevoking(false);
     }
   };
 
@@ -175,7 +207,7 @@ export function AdipometryTechnicalResponsibilityCard({ canManage }: Props) {
                 </div>
               </div>
 
-              {canManage && (
+              {canManageResponsibility && (
                 <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end">
                   <label className="text-sm font-medium text-foreground">
                     Profissional elegível
@@ -223,7 +255,11 @@ export function AdipometryTechnicalResponsibilityCard({ canManage }: Props) {
                   </p>
                 </div>
                 <span className="w-fit rounded-full border border-border bg-muted px-3 py-1 text-xs font-medium text-foreground">
-                  {selectedProtocol ? statusLabel(selectedProtocol.contractStatus) : 'Indisponível'}
+                  {revokedApproval
+                    ? 'Aprovação revogada'
+                    : selectedProtocol
+                      ? statusLabel(selectedProtocol.contractStatus)
+                      : 'Indisponível'}
                 </span>
               </div>
 
@@ -232,13 +268,54 @@ export function AdipometryTechnicalResponsibilityCard({ canManage }: Props) {
                   <p className="break-all text-xs text-muted-foreground">
                     Hash da especificação: <span className="font-mono">{selectedProtocol.specificationHash}</span>
                   </p>
-                  {selectedProtocol.approval ? (
-                    <div className="rounded-md border border-green-200 bg-green-50 p-3 text-green-800">
-                      Aprovado por {selectedProtocol.approval.approvedByNameSnapshot} · CREF{' '}
-                      {selectedProtocol.approval.approvedByCrefSnapshot} em{' '}
-                      {new Date(selectedProtocol.approval.approvedAt).toLocaleString('pt-BR')}.
+
+                  {activeApproval && (
+                    <div className="space-y-3 rounded-md border border-green-200 bg-green-50 p-3 text-green-800">
+                      <p>
+                        Aprovado por {activeApproval.approvedByNameSnapshot} · CREF{' '}
+                        {activeApproval.approvedByCrefSnapshot} em{' '}
+                        {new Date(activeApproval.approvedAt).toLocaleString('pt-BR')}.
+                      </p>
+                      {governance.canCurrentUserRevoke && (
+                        <div className="grid gap-3 border-t border-green-200 pt-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                          <Input
+                            label="Motivo da revogação"
+                            placeholder="Descreva por que esta aprovação não pode continuar vigente"
+                            value={revocationReason}
+                            onChange={(event) => setRevocationReason(event.target.value)}
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={handleRevocation}
+                            disabled={revocationReason.trim().length < 10}
+                            isLoading={revoking}
+                          >
+                            Revogar aprovação
+                          </Button>
+                        </div>
+                      )}
                     </div>
-                  ) : governance.canCurrentUserApprove ? (
+                  )}
+
+                  {revokedApproval && (
+                    <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-amber-900">
+                      <p>
+                        A aprovação de {revokedApproval.approvedByNameSnapshot} foi revogada em{' '}
+                        {revokedApproval.revokedAt
+                          ? new Date(revokedApproval.revokedAt).toLocaleString('pt-BR')
+                          : 'data não informada'}.
+                      </p>
+                      <p className="mt-1 text-xs">
+                        Motivo: {revokedApproval.revocationReason || 'Não informado'}
+                      </p>
+                      <p className="mt-2 text-xs">
+                        Avaliações já concluídas permanecem históricas; novas conclusões exigem uma nova aprovação.
+                      </p>
+                    </div>
+                  )}
+
+                  {!activeApproval && governance.canCurrentUserApprove ? (
                     <div className="rounded-md border border-border bg-muted/20 p-3">
                       <label className="flex items-start gap-2 text-sm text-foreground">
                         <input
@@ -256,15 +333,15 @@ export function AdipometryTechnicalResponsibilityCard({ canManage }: Props) {
                           disabled={!approvalConfirmed}
                           isLoading={approving}
                         >
-                          Aprovar versão clínica
+                          {revokedApproval ? 'Aprovar novamente' : 'Aprovar versão clínica'}
                         </Button>
                       </div>
                     </div>
-                  ) : (
+                  ) : !activeApproval && !governance.canCurrentUserApprove ? (
                     <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-amber-800">
-                      A aprovação deve ser feita pelo próprio responsável técnico autenticado. A designação, sozinha, não libera cálculos nem conclusão de avaliações.
+                      A aprovação deve ser feita pelo próprio responsável técnico autenticado com concessão clínica explícita. A designação, sozinha, não libera cálculos nem conclusão de avaliações.
                     </p>
-                  )}
+                  ) : null}
                 </div>
               )}
             </section>
