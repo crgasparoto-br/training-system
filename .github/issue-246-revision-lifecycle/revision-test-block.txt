@@ -11,7 +11,7 @@ SELECT * FROM "startAdipometryCorrection"(
   'MEASUREMENT_OR_TRANSCRIPTION_ERROR',
   'Corrected measurement transcription',
   'issue246-r2-actor',
-  CURRENT_TIMESTAMP
+  CURRENT_TIMESTAMP::timestamp
 );
 
 DO $$
@@ -44,7 +44,7 @@ psql_file "$TMP_DIR/correction.sql" correction.sql
 expect_failure \
   "second open correction" \
   "ADIPOMETRY_CORRECTION_ALREADY_OPEN" \
-  "SELECT * FROM \"startAdipometryCorrection\"('issue246-r2-second-open','issue246-r2-draft','OTHER','Second simultaneous correction must be rejected','issue246-r2-actor',CURRENT_TIMESTAMP);"
+  "SELECT * FROM \"startAdipometryCorrection\"('issue246-r2-second-open','issue246-r2-draft','OTHER','Second simultaneous correction must be rejected','issue246-r2-actor',CURRENT_TIMESTAMP::timestamp);"
 
 cat > "$TMP_DIR/finalize-correction.sql" <<'SQL'
 BEGIN;
@@ -114,7 +114,7 @@ SELECT * FROM "startAdipometryCorrection"(
   'OTHER',
   'Review opened and intentionally abandoned',
   'issue246-r2-actor',
-  CURRENT_TIMESTAMP
+  CURRENT_TIMESTAMP::timestamp
 );
 SQL
 psql_file "$TMP_DIR/start-cancelled-r3.sql" start-cancelled-r3.sql
@@ -129,7 +129,7 @@ SELECT "cancelAdipometryCorrection"(
   'issue246-r2-cancelled-r3',
   'No clinical change was required after review',
   'issue246-r2-actor',
-  CURRENT_TIMESTAMP
+  CURRENT_TIMESTAMP::timestamp
 );
 
 SELECT * FROM "startAdipometryCorrection"(
@@ -138,13 +138,13 @@ SELECT * FROM "startAdipometryCorrection"(
   'OTHER',
   'Second review after a cancelled revision',
   'issue246-r2-actor',
-  CURRENT_TIMESTAMP
+  CURRENT_TIMESTAMP::timestamp
 );
 SELECT "cancelAdipometryCorrection"(
   'issue246-r2-cancelled-r4',
   'Review closed without replacing the current revision',
   'issue246-r2-actor',
-  CURRENT_TIMESTAMP
+  CURRENT_TIMESTAMP::timestamp
 );
 
 DO $$
@@ -177,7 +177,7 @@ SELECT "voidAdipometryAssessment"(
   'issue246-r2-correction',
   'Assessment linked to an invalid enrollment context',
   'issue246-r2-actor',
-  CURRENT_TIMESTAMP
+  CURRENT_TIMESTAMP::timestamp
 );
 
 DO $$
