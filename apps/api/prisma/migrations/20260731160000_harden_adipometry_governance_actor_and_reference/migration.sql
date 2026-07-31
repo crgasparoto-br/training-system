@@ -99,33 +99,6 @@ $$;
 -- Preserve every input used by buildAdipometrySpecificationHash. The API may
 -- omit this column on insert; the database captures the canonical reference in
 -- the same transaction and keeps it immutable afterwards.
-ALTER TABLE "AdipometryProtocolApproval"
-  ADD COLUMN "protocolReferenceSnapshot" TEXT;
-
-UPDATE "AdipometryProtocolApproval" approval
-SET "protocolReferenceSnapshot" = protocol.reference
-FROM "AdipometryProtocol" protocol
-WHERE protocol.id = approval."protocolId"
-  AND protocol.code = approval."protocolCode"
-  AND protocol.version = approval."protocolVersion";
-
-DO $$
-BEGIN
-  IF EXISTS (
-    SELECT 1
-    FROM "AdipometryProtocolApproval"
-    WHERE NULLIF(BTRIM("protocolReferenceSnapshot"), '') IS NULL
-  ) THEN
-    RAISE EXCEPTION 'ADIPOMETRY_PROTOCOL_REFERENCE_BACKFILL_INCOMPLETE';
-  END IF;
-END;
-$$;
-
-ALTER TABLE "AdipometryProtocolApproval"
-  ALTER COLUMN "protocolReferenceSnapshot" SET NOT NULL,
-  ADD CONSTRAINT "AdipometryProtocolApproval_reference_snapshot_check"
-    CHECK (NULLIF(BTRIM("protocolReferenceSnapshot"), '') IS NOT NULL);
-
 CREATE OR REPLACE FUNCTION "guardAdipometryProtocolApprovalReferenceSnapshot"()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -162,8 +135,46 @@ BEGIN
 END;
 $$;
 
-CREATE TRIGGER "AdipometryProtocolApproval_00_reference_snapshot_guard"
-BEFORE INSERT OR UPDATE ON "AdipometryProtocolApproval"
-FOR EACH ROW EXECUTE FUNCTION "guardAdipometryProtocolApprovalReferenceSnapshot"();
+-- The legacy-compatibility gate intentionally installs only the early ADPT
+-- foundation. Governance tables are absent there, so install the reference
+-- snapshot only when the complete governance chain is present.
+DO $install_reference_snapshot$
+DECLARE
+  v_invalid BOOLEAN;
+BEGIN
+  IF TO_REGCLASS('"AdipometryProtocolApproval"') IS NULL THEN
+    RETURN;
+  END IF;
+
+  EXECUTE 'ALTER TABLE "AdipometryProtocolApproval"
+    ADD COLUMN "protocolReferenceSnapshot" TEXT';
+
+  EXECUTE 'UPDATE "AdipometryProtocolApproval" approval
+    SET "protocolReferenceSnapshot" = protocol.reference
+    FROM "AdipometryProtocol" protocol
+    WHERE protocol.id = approval."protocolId"
+      AND protocol.code = approval."protocolCode"
+      AND protocol.version = approval."protocolVersion"';
+
+  EXECUTE 'SELECT EXISTS (
+    SELECT 1
+    FROM "AdipometryProtocolApproval"
+    WHERE NULLIF(BTRIM("protocolReferenceSnapshot"), '''') IS NULL
+  )' INTO v_invalid;
+
+  IF v_invalid THEN
+    RAISE EXCEPTION 'ADIPOMETRY_PROTOCOL_REFERENCE_BACKFILL_INCOMPLETE';
+  END IF;
+
+  EXECUTE 'ALTER TABLE "AdipometryProtocolApproval"
+    ALTER COLUMN "protocolReferenceSnapshot" SET NOT NULL,
+    ADD CONSTRAINT "AdipometryProtocolApproval_reference_snapshot_check"
+      CHECK (NULLIF(BTRIM("protocolReferenceSnapshot"), '''') IS NOT NULL)';
+
+  EXECUTE 'CREATE TRIGGER "AdipometryProtocolApproval_00_reference_snapshot_guard"
+    BEFORE INSERT OR UPDATE ON "AdipometryProtocolApproval"
+    FOR EACH ROW EXECUTE FUNCTION "guardAdipometryProtocolApprovalReferenceSnapshot"()';
+END;
+$install_reference_snapshot$;
 
 COMMIT;
