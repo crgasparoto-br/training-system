@@ -3,11 +3,37 @@ set -euo pipefail
 
 : "${DATABASE_URL:?DATABASE_URL is required}"
 PSQL_DATABASE_URL="${DATABASE_URL%%\?*}"
+RUNTIME_ROLE="issue246_runtime_app"
+
+cleanup() {
+  psql "$PSQL_DATABASE_URL" -v ON_ERROR_STOP=1 >/dev/null 2>&1 <<SQL_CLEANUP || true
+SET default_transaction_read_only = off;
+DROP OWNED BY ${RUNTIME_ROLE};
+DROP ROLE IF EXISTS ${RUNTIME_ROLE};
+SQL_CLEANUP
+}
+trap cleanup EXIT
+
+# Role creation and grants are setup, not part of the rolled-back scenario.
+# Some repository gates intentionally leave the session/database default in
+# read-only mode, so explicitly restore a writable administrative session.
+psql "$PSQL_DATABASE_URL" -v ON_ERROR_STOP=1 <<SQL_SETUP
+SET default_transaction_read_only = off;
+DROP ROLE IF EXISTS ${RUNTIME_ROLE};
+CREATE ROLE ${RUNTIME_ROLE} NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT;
+GRANT USAGE ON SCHEMA public TO ${RUNTIME_ROLE};
+GRANT SELECT ON "Contract", "User", "Professor", "Profile", "CollaboratorFunctionOption",
+  "AccessPermission", "AdipometryProtocol", "AdipometryClinicalResponsibility",
+  "AdipometryProtocolApproval" TO ${RUNTIME_ROLE};
+GRANT INSERT, UPDATE ON "AdipometryClinicalResponsibility", "AdipometryProtocolApproval"
+  TO ${RUNTIME_ROLE};
+GRANT UPDATE ON "AdipometryProtocol" TO ${RUNTIME_ROLE};
+SQL_SETUP
 
 psql "$PSQL_DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+SET default_transaction_read_only = off;
 BEGIN;
-
-CREATE ROLE issue246_runtime_app NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT;
+SET TRANSACTION READ WRITE;
 
 DO $fixtures$
 DECLARE
@@ -84,14 +110,6 @@ BEGIN
      TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 END;
 $fixtures$;
-
-GRANT USAGE ON SCHEMA public TO issue246_runtime_app;
-GRANT SELECT ON "Contract", "User", "Professor", "Profile", "CollaboratorFunctionOption",
-  "AccessPermission", "AdipometryProtocol", "AdipometryClinicalResponsibility",
-  "AdipometryProtocolApproval" TO issue246_runtime_app;
-GRANT INSERT, UPDATE ON "AdipometryClinicalResponsibility", "AdipometryProtocolApproval"
-  TO issue246_runtime_app;
-GRANT UPDATE ON "AdipometryProtocol" TO issue246_runtime_app;
 
 SET LOCAL ROLE issue246_runtime_app;
 
