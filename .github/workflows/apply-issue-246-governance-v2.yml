@@ -106,7 +106,8 @@ jobs:
           bash scripts/verify-adipometry-foundation.sh
           bash scripts/verify-adipometry-audit-remediation.sh
           bash scripts/verify-adipometry-persistence-boundaries.sh
-          bash scripts/verify-adipometry-clinical-governance.sh
+          GOVERNANCE_DATABASE_URL="${DATABASE_URL%%\?*}"
+          DATABASE_URL="$GOVERNANCE_DATABASE_URL" bash scripts/verify-adipometry-clinical-governance.sh
 
       - name: Validate repository
         run: |
