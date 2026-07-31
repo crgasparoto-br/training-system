@@ -8,24 +8,29 @@ Histórico temporal append-only da responsabilidade técnica por contrato. O dom
 
 A restrição parcial `AdipometryClinicalResponsibility_active_key` permite no máximo uma linha com `effectiveTo IS NULL` por contrato e domínio. Uma troca encerra a linha vigente e cria outra; linhas encerradas e campos de identidade são imutáveis por trigger.
 
-O vínculo composto `(professorId, contractId)` impede designação cruzada entre contratos. O trigger também revalida usuário ativo, CREF pessoal, desligamento, status e a concessão clínica explícita.
+O vínculo composto `(professorId, contractId)` impede designação cruzada entre contratos. O trigger também revalida usuário ativo, CREF pessoal, desligamento e status do profissional designado.
+
+A autoria da designação e do encerramento também é protegida no banco. `designatedByUserId` e `endedByUserId` somente são aceitos quando correspondem, no instante da operação, a um profissional ativo do mesmo contrato com a concessão explícita `settings.contract.actions.manageClinicalTechnicalResponsibility`. Escritas SQL diretas com ator externo, inativo ou sem permissão são rejeitadas antes de tornar o histórico imutável.
 
 A gestão da designação exige `settings.contract.actions.manageClinicalTechnicalResponsibility`. Aprovação e revogação exigem `settings.contract.adipometryProtocolApproval`. As duas capacidades começam negadas e não são herdadas automaticamente por `master`, `professor`, `manager` ou perfil administrativo. O acesso comum à tela de contrato não substitui a concessão sensível.
 
 ### `AdipometryProtocolApproval`
 
-A aprovação clínica preserva a identidade `(protocolId, protocolCode, protocolVersion)` dentro de um contrato. A linha referencia a designação vigente, o professor e o usuário aprovadores e guarda nome, CREF, declaração, hash e definição clínica em snapshot.
+A aprovação clínica preserva a identidade `(protocolId, protocolCode, protocolVersion)` dentro de um contrato. A linha referencia a designação vigente, o professor e o usuário aprovadores e guarda nome, CREF, declaração, hash, definição clínica e referência bibliográfica em snapshot.
+
+`protocolReferenceSnapshot` é preenchido atomicamente pelo banco a partir da mesma identidade de protocolo usada na aprovação. O campo é obrigatório e imutável. Assim, todos os componentes utilizados no SHA-256 da especificação — código, versão, referência e definição — permanecem disponíveis para reprodução histórica mesmo que o cadastro global do protocolo seja alterado futuramente.
 
 A unicidade parcial por contrato e versão permite no máximo uma aprovação ativa. O trigger de inserção exige:
 
 - protocolo existente e não desativado;
 - snapshot idêntico à definição corrente no instante da aprovação;
+- referência em snapshot idêntica à referência corrente do protocolo;
 - definição executável e vetores reproduzíveis;
 - designação ativa no instante da aprovação;
 - conta autenticada correspondente ao professor designado;
 - elegibilidade e concessão clínica explícita revalidadas dentro da transação.
 
-A aprovação pode sofrer uma única transição auditada para revogada. Somente `revokedAt`, `revokedByProfessorId`, `revokedByUserId` e `revocationReason` podem ser preenchidos; identidade, snapshot e autoria da aprovação continuam imutáveis. A revogação exige o responsável técnico vigente, a mesma conta autenticada e motivo com pelo menos dez caracteres. Deletes continuam bloqueados.
+A aprovação pode sofrer uma única transição auditada para revogada. Somente `revokedAt`, `revokedByProfessorId`, `revokedByUserId` e `revocationReason` podem ser preenchidos; identidade, snapshots e autoria da aprovação continuam imutáveis. A revogação exige o responsável técnico vigente, a mesma conta autenticada e motivo com pelo menos dez caracteres. Deletes continuam bloqueados.
 
 Depois da revogação, avaliações concluídas anteriormente mantêm snapshots e resultados. Novas conclusões ficam bloqueadas até uma nova aprovação ativa, que cria outra linha sem apagar a aprovação revogada.
 
