@@ -88,4 +88,81 @@ BEGIN
 END;
 $$;
 
+-- Designation establishes historical responsibility, but it is not itself an
+-- approval grant. Approval and revocation still use the stricter eligibility
+-- function, which requires the explicit sensitive permission.
+CREATE OR REPLACE FUNCTION "isEligibleAdipometryClinicalDesignation"(
+  p_contract_id TEXT,
+  p_professor_id TEXT,
+  p_at TIMESTAMP(3) DEFAULT CURRENT_TIMESTAMP
+) RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1
+    FROM "Professor" professor
+    JOIN "User" app_user ON app_user.id = professor."userId"
+    JOIN "Profile" profile ON profile."userId" = app_user.id
+    WHERE professor.id = p_professor_id
+      AND professor."contractId" = p_contract_id
+      AND app_user."isActive" = TRUE
+      AND NULLIF(BTRIM(profile.name), '') IS NOT NULL
+      AND NULLIF(BTRIM(profile.cref), '') IS NOT NULL
+      AND (professor."dismissalDate" IS NULL OR professor."dismissalDate" > p_at)
+      AND LOWER(COALESCE(professor."currentStatus", 'active')) NOT IN (
+        'inactive', 'inativo', 'dismissed', 'desligado', 'terminated', 'encerrado'
+      )
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION "guardAdipometryClinicalResponsibility"()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    RAISE EXCEPTION 'ADIPOMETRY_RESPONSIBILITY_HISTORY_IMMUTABLE' USING ERRCODE = '23514';
+  END IF;
+
+  IF TG_OP = 'INSERT' THEN
+    IF NEW."effectiveTo" IS NOT NULL OR NEW."endedAt" IS NOT NULL
+       OR NEW."endedByUserId" IS NOT NULL OR NEW."endReason" IS NOT NULL THEN
+      RAISE EXCEPTION 'ADIPOMETRY_RESPONSIBILITY_MUST_START_ACTIVE' USING ERRCODE = '23514';
+    END IF;
+    IF NOT "isEligibleAdipometryClinicalDesignation"(
+      NEW."contractId", NEW."professorId", NEW."effectiveFrom"
+    ) THEN
+      RAISE EXCEPTION 'ADIPOMETRY_RESPONSIBLE_NOT_ELIGIBLE' USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  IF OLD."effectiveTo" IS NOT NULL THEN
+    RAISE EXCEPTION 'ADIPOMETRY_RESPONSIBILITY_HISTORY_IMMUTABLE' USING ERRCODE = '23514';
+  END IF;
+
+  IF NEW.id IS DISTINCT FROM OLD.id
+     OR NEW."contractId" IS DISTINCT FROM OLD."contractId"
+     OR NEW.domain IS DISTINCT FROM OLD.domain
+     OR NEW."professorId" IS DISTINCT FROM OLD."professorId"
+     OR NEW."effectiveFrom" IS DISTINCT FROM OLD."effectiveFrom"
+     OR NEW."designatedByUserId" IS DISTINCT FROM OLD."designatedByUserId"
+     OR NEW."designatedAt" IS DISTINCT FROM OLD."designatedAt"
+     OR NEW."createdAt" IS DISTINCT FROM OLD."createdAt" THEN
+    RAISE EXCEPTION 'ADIPOMETRY_RESPONSIBILITY_IDENTITY_IMMUTABLE' USING ERRCODE = '23514';
+  END IF;
+
+  IF NEW."effectiveTo" IS NULL
+     OR NEW."endedByUserId" IS NULL
+     OR NEW."endedAt" IS NULL
+     OR NULLIF(BTRIM(NEW."endReason"), '') IS NULL
+     OR NEW."effectiveTo" IS DISTINCT FROM NEW."endedAt" THEN
+    RAISE EXCEPTION 'ADIPOMETRY_RESPONSIBILITY_END_INCOMPLETE' USING ERRCODE = '23514';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
 COMMIT;
