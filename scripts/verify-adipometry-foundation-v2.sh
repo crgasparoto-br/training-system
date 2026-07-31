@@ -347,6 +347,16 @@ INSERT INTO "AdipometryProtocol" (
 );
 RESET TIME ZONE;
 
+INSERT INTO "AccessPermission" (
+  id, "collaboratorFunctionId", "screenKey", "blockKey", "canView", "createdAt", "updatedAt"
+) VALUES (
+  'issue246-r2-explicit-clinical-grant', 'issue246-r2-function-a',
+  'settings.contract', 'settings.contract.adipometryProtocolApproval', TRUE,
+  CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+)
+ON CONFLICT ("collaboratorFunctionId", "screenKey", "blockKey")
+DO UPDATE SET "canView" = TRUE, "updatedAt" = CURRENT_TIMESTAMP;
+
 INSERT INTO "AdipometryClinicalResponsibility" (
   "id", "contractId", "domain", "professorId", "effectiveFrom",
   "designatedByUserId", "designatedAt", "createdAt", "updatedAt"
@@ -560,7 +570,7 @@ WHERE "contractId" = 'issue246-r2-contract-a'
 SELECT * FROM "startAdipometryCorrection"(
   'issue246-r2-correction',
   'issue246-r2-draft',
-  'MEASUREMENT_OR_TRANSCRIPTION_ERROR',
+  'MEASUREMENT_TRANSCRIPTION_ERROR',
   'Corrected measurement transcription',
   'issue246-r2-actor',
   CURRENT_TIMESTAMP::timestamp
