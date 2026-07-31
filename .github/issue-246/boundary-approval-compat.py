@@ -150,8 +150,8 @@ if content.count(expected_anchor) != 1:
     raise RuntimeError('boundary Guedes results anchor mismatch')
 content = content.replace(expected_anchor, expected_replacement, 1)
 
-version_anchor = '''      AND "calculationSnapshot" ->> 'implementationVersion' = 'db-adipometry-protocol-v2' '''
-version_replacement = '''      AND "calculationSnapshot" ->> 'implementationVersion' LIKE 'db-adipometry-protocol-v%' '''
+version_anchor = '''      AND "calculationSnapshot" ->> 'implementationVersion' = 'db-adipometry-protocol-v2''''
+version_replacement = '''      AND "calculationSnapshot" ->> 'implementationVersion' LIKE 'db-adipometry-protocol-v%''''
 if content.count(version_anchor) != 1:
     raise RuntimeError('boundary implementation version anchor mismatch')
 content = content.replace(version_anchor, version_replacement, 1)
