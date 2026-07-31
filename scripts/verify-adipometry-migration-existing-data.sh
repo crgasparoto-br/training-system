@@ -52,7 +52,8 @@ is_deferred_adpt_migration() {
     20260730211000_use_structured_adipometry_maturation_rule|\
     20260730224500_add_adipometry_clinical_governance|\
     20260731120000_complete_adipometry_revision_lifecycle|\
-    20260731143000_close_issue_246_governance_findings)
+    20260731143000_close_issue_246_governance_findings|\
+    20260731144500_align_adipometry_correction_function)
       return 0
       ;;
     *)
@@ -155,13 +156,16 @@ for migration_name in \
   20260730211000_use_structured_adipometry_maturation_rule \
   20260730224500_add_adipometry_clinical_governance \
   20260731120000_complete_adipometry_revision_lifecycle \
-  20260731143000_close_issue_246_governance_findings
+  20260731143000_close_issue_246_governance_findings \
+  20260731144500_align_adipometry_correction_function
 do
   psql_file "$TEMP_URL" "$ROOT_DIR/apps/api/prisma/migrations/$migration_name/migration.sql" "$migration_name.sql"
 done
 
 cat > "$TMP_DIR/verify.sql" <<'SQL'
 DO $$
+DECLARE
+  v_correction_definition TEXT;
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM "Bank"
@@ -200,6 +204,19 @@ BEGIN
     WHERE table_name = 'AdipometryProtocolApproval' AND column_name = 'revokedAt'
   ) THEN
     RAISE EXCEPTION 'approval revocation lifecycle was not installed';
+  END IF;
+
+  SELECT pg_get_functiondef(
+    '"startAdipometryCorrection"(text,text,text,text,text,timestamp without time zone)'::regprocedure
+  ) INTO v_correction_definition;
+
+  IF v_correction_definition NOT LIKE '%DATA_ENTRY_ERROR%'
+     OR v_correction_definition NOT LIKE '%MEASUREMENT_TRANSCRIPTION_ERROR%'
+     OR v_correction_definition NOT LIKE '%EVALUATION_DATE_ERROR%'
+     OR v_correction_definition NOT LIKE '%PROTOCOL_SEX_ERROR%'
+     OR v_correction_definition LIKE '%MEASUREMENT_OR_TRANSCRIPTION_ERROR%'
+     OR v_correction_definition LIKE '%DEMOGRAPHIC_CONFIRMATION_ERROR%' THEN
+    RAISE EXCEPTION 'canonical correction function was not installed';
   END IF;
 END $$;
 SQL
