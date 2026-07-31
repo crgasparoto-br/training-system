@@ -73,6 +73,8 @@ jobs:
           cp /tmp/issue246transport/apply.py .github/issue-246/apply.py
           python .github/issue-246/apply.py
           python .github/issue-246/boundary-assertion-cast-compat.py
+          sed -i "/from 'vitest';/d" apps/api/src/modules/adipometry/adipometry-governance.test.ts
+          ! grep -q "from 'vitest'" apps/api/src/modules/adipometry/adipometry-governance.test.ts
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
