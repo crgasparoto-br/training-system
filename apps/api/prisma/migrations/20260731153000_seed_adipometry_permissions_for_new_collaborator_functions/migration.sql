@@ -60,7 +60,7 @@ INSERT INTO "AccessPermission" (
   "updatedAt"
 )
 SELECT
-  'adpt_' || MD5(function.id || permission."blockKey"),
+  'adpt_' || MD5(function.id || ':' || permission."blockKey"),
   function.id,
   'settings.contract',
   permission."blockKey",
@@ -70,12 +70,9 @@ SELECT
 FROM "CollaboratorFunctionOption" function
 CROSS JOIN (
   VALUES
-    (':settings.contract.adipometryProtocolApproval'),
-    (':settings.contract.actions.manageClinicalTechnicalResponsibility')
-) AS permission("blockKeyWithPrefix")
-CROSS JOIN LATERAL (
-  SELECT SUBSTRING(permission."blockKeyWithPrefix" FROM 2) AS "blockKey"
-) normalized
+    ('settings.contract.adipometryProtocolApproval'),
+    ('settings.contract.actions.manageClinicalTechnicalResponsibility')
+) AS permission("blockKey")
 ON CONFLICT ("collaboratorFunctionId", "screenKey", "blockKey") DO NOTHING;
 
 COMMIT;
