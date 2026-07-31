@@ -1,4 +1,15 @@
-export type AdipometryAssessmentStatus = 'DRAFT' | 'COMPLETED';
+export type AdipometryAssessmentStatus =
+  | 'DRAFT'
+  | 'FINALIZED'
+  | 'SUPERSEDED'
+  | 'CANCELLED'
+  | 'VOIDED';
+export type AdipometryPersistenceStatus = 'DRAFT' | 'COMPLETED';
+export type AdipometryCorrectionCategory =
+  | 'MEASUREMENT_OR_TRANSCRIPTION_ERROR'
+  | 'PROTOCOL_SELECTION_ERROR'
+  | 'DEMOGRAPHIC_CONFIRMATION_ERROR'
+  | 'OTHER';
 export type AdipometryProtocolStatus = 'DRAFT' | 'APPROVED' | 'DISABLED';
 
 export type AdipometrySkinfoldField =
@@ -142,6 +153,14 @@ export function formatAdipometryCode(sequenceNumber: number): string {
   return `ADPT-${String(sequenceNumber).padStart(3, '0')}`;
 }
 
+export function formatAdipometryRevisionLabel(revisionNumber: number): string {
+  if (!Number.isSafeInteger(revisionNumber) || revisionNumber <= 0) {
+    throw new RangeError('Adipometry revision must be a positive safe integer');
+  }
+
+  return `R${revisionNumber}`;
+}
+
 export type AdipometryIncompatibilityCode =
   | 'PROTOCOL_NOT_APPROVED'
   | 'PROTOCOL_DISABLED'
@@ -211,7 +230,17 @@ export interface AdipometryAssessmentSummary {
   code: string;
   sequenceNumber: number;
   assessmentDate: string;
-  status: AdipometryAssessmentStatus;
+  status: AdipometryPersistenceStatus;
+  revisionStatus: AdipometryAssessmentStatus;
+  rootAssessmentId: string;
+  revisionNumber: number;
+  previousRevisionId?: string;
+  correctionCategory?: AdipometryCorrectionCategory;
+  correctionStartedAt?: string;
+  correctionCancelledAt?: string;
+  correctionCancellationReason?: string;
+  voidedAt?: string;
+  voidReason?: string;
   protocolCode?: string;
   protocolVersion?: number;
   protocolSex?: AdipometryProtocolSex;
@@ -234,6 +263,9 @@ export interface AdipometryAssessmentDetail extends AdipometryAssessmentSummary 
   calculationSnapshot?: AdipometryCalculationSnapshot;
   anthropometryReference?: AdipometryAnthropometryReference;
   correctsAssessmentId?: string;
+  beforeSnapshot?: Record<string, unknown>;
+  afterSnapshot?: Record<string, unknown>;
+  changedFields?: string[];
   notes?: string;
 }
 
@@ -289,14 +321,28 @@ export interface CompleteAdipometryAssessmentInput {
   protocolVersion: number;
 }
 
-export interface CorrectAdipometryAssessmentInput {
+export interface StartAdipometryCorrectionInput {
+  currentAssessmentId: string;
+  category: AdipometryCorrectionCategory;
   reason: string;
+}
+
+export interface CorrectAdipometryAssessmentInput extends StartAdipometryCorrectionInput {
   assessmentDate?: string;
   measurements: AdipometryMeasurements;
   protocolCode: string;
   protocolVersion: number;
+  confirmProtocolChange?: boolean;
   anthropometryAssessmentId?: string | null;
   notes?: string | null;
+}
+
+export interface CancelAdipometryCorrectionInput {
+  reason: string;
+}
+
+export interface VoidAdipometryAssessmentInput {
+  reason: string;
 }
 
 export interface AdipometryComparisonItem {

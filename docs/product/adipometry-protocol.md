@@ -225,3 +225,16 @@ O snapshot final preserva:
 - versão da implementação e instante do cálculo.
 
 Desativação, troca de responsável ou versões futuras não recalculam histórico.
+## Ciclo canônico de revisões
+
+A identidade funcional de uma avaliação é o par `rootAssessmentId` + código `ADPT-###`. A revisão é exibida como `R1`, `R2`, `R3` e assim por diante; não existe limite funcional para o número da revisão.
+
+- `DRAFT`: revisão editável e ainda não clínica;
+- `FINALIZED`: revisão concluída e vigente;
+- `SUPERSEDED`: revisão concluída substituída por uma correção posterior;
+- `CANCELLED`: rascunho de correção abandonado, preservado sem alterar a revisão vigente;
+- `VOIDED`: revisão vigente invalidada auditavelmente, sem exclusão física.
+
+O campo técnico `status` continua restrito a `DRAFT`/`COMPLETED` para o pipeline de cálculo. `revisionStatus` é a autoridade do ciclo de negócio. Correções reutilizam código e sequência da avaliação raiz, incrementam somente `revisionNumber` e nunca consomem a sequência de uma nova avaliação.
+
+Somente uma correção pode permanecer aberta por cadeia. A finalização da correção calcula novamente no banco, preserva `beforeSnapshot`, `afterSnapshot` e `changedFields`, marca a revisão anterior como `SUPERSEDED` e torna a nova revisão `FINALIZED` na mesma transação. Mudança de protocolo exige categoria `PROTOCOL_SELECTION_ERROR` e confirmação explícita do ator autenticado. Comparações e Central do Aluno consultam `AdipometryCurrentAssessment`, que expõe apenas a revisão `FINALIZED` vigente. Revisões canceladas, substituídas ou anuladas não retornam como atuais.

@@ -547,48 +547,223 @@ expect_failure \
 
 expect_failure \
   "completed assessment physical deletion" \
-  "Completed adipometry assessments cannot be physically deleted" \
+  "Historical adipometry revisions cannot be physically deleted" \
   "DELETE FROM \"AdipometryAssessment\" WHERE \"id\"='issue246-r2-draft';"
 
 cat > "$TMP_DIR/correction.sql" <<'SQL'
-SELECT * FROM "createAdipometryDraft"(
-  'issue246-r2-correction','issue246-r2-contract-a','issue246-r2-aluno-a',
-  'issue246-r2-professor-responsible',DATE '2026-07-31','issue246-r2-actor',CURRENT_TIMESTAMP
-);
-BEGIN;
-SELECT set_config('app.adipometry_actor_user_id','issue246-r2-actor',true);
-UPDATE "AdipometryAssessment"
-SET
-  "status"='COMPLETED', "weightKg"=70,
-  "tricepsMm"=10, "subscapularMm"=10, "suprailiacMm"=10, "abdominalMm"=10, "thighMm"=10,
-  "skinfoldTotalMm"=50, "bodyFatPercentage"=20, "fatMassKg"=14, "leanMassKg"=56,
-  "protocolId"='adpt_protocol_guedes_1991_adult_young_v1', "protocolCode"='GUEDES_1991_ADULT_YOUNG', "protocolVersion"=1, "protocolSex"='female', "protocolSexSource"='professional_confirmation', "protocolSexConfirmedByUserId"='issue246-r2-responsible', "protocolSexConfirmedAt"=CURRENT_TIMESTAMP,
-  "calculationSnapshot"=issue246_r2_snapshot('GUEDES_1991_ADULT_YOUNG',1,DATE '2026-07-31',70,50,20,14,56),
-  "completedAt"=CURRENT_TIMESTAMP,
-  "correctsAssessmentId"='issue246-r2-draft',
-  "correctionReason"='Corrected measurement transcription',
-  "correctionAuthorUserId"='issue246-r2-actor',
-  "updatedAt"=CURRENT_TIMESTAMP
-WHERE "id"='issue246-r2-correction';
-COMMIT;
+CREATE TEMP TABLE issue246_revision_sequence_before AS
+SELECT "lastValue"
+FROM "AdipometrySequence"
+WHERE "contractId" = 'issue246-r2-contract-a'
+  AND "alunoId" = 'issue246-r2-aluno-a';
 
-DO $$ BEGIN
-  IF (SELECT "correctedByAssessmentId" FROM "AdipometryAssessment" WHERE "id"='issue246-r2-draft') <> 'issue246-r2-correction' THEN
-    RAISE EXCEPTION 'reciprocal correction link missing';
-  END IF;
+SELECT * FROM "startAdipometryCorrection"(
+  'issue246-r2-correction',
+  'issue246-r2-draft',
+  'MEASUREMENT_OR_TRANSCRIPTION_ERROR',
+  'Corrected measurement transcription',
+  'issue246-r2-actor',
+  CURRENT_TIMESTAMP::timestamp
+);
+
+DO $$
+BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM "AdipometryAuditEvent"
-    WHERE "assessmentId"='issue246-r2-correction'
-      AND "action"='CORRECTION_CREATED'
-      AND "actorUserId"='issue246-r2-actor'
-      AND "reason"='Corrected measurement transcription'
+    SELECT 1
+    FROM "AdipometryAssessment" correction
+    JOIN "AdipometryAssessment" original
+      ON original.id = correction."previousRevisionId"
+    WHERE correction.id = 'issue246-r2-correction'
+      AND correction."revisionStatus" = 'DRAFT'
+      AND correction."revisionNumber" = 2
+      AND correction."rootAssessmentId" = 'issue246-r2-draft'
+      AND correction.code = original.code
+      AND correction."sequenceNumber" = original."sequenceNumber"
   ) THEN
-    RAISE EXCEPTION 'correction audit event missing real actor';
+    RAISE EXCEPTION 'correction draft did not preserve the canonical identity';
+  END IF;
+
+  IF (SELECT "lastValue" FROM "AdipometrySequence"
+      WHERE "contractId" = 'issue246-r2-contract-a'
+        AND "alunoId" = 'issue246-r2-aluno-a')
+     IS DISTINCT FROM (SELECT "lastValue" FROM issue246_revision_sequence_before) THEN
+    RAISE EXCEPTION 'correction draft consumed the assessment sequence';
   END IF;
 END $$;
 SQL
 psql_file "$TMP_DIR/correction.sql" correction.sql
-echo "positive-control OK: immutable history and audited correction"
+
+expect_failure \
+  "second open correction" \
+  "ADIPOMETRY_CORRECTION_ALREADY_OPEN" \
+  "SELECT * FROM \"startAdipometryCorrection\"('issue246-r2-second-open','issue246-r2-draft','OTHER','Second simultaneous correction must be rejected','issue246-r2-actor',CURRENT_TIMESTAMP::timestamp);"
+
+cat > "$TMP_DIR/finalize-correction.sql" <<'SQL'
+BEGIN;
+SELECT set_config('app.adipometry_actor_user_id','issue246-r2-actor',true);
+UPDATE "AdipometryAssessment"
+SET
+  status = 'COMPLETED',
+  "subscapularMm" = 11.0,
+  "calculationSnapshot" = issue246_r2_snapshot(
+    'GUEDES_1991_ADULT_YOUNG', 1, DATE '2026-07-31', 70, 51, 20, 14, 56
+  ),
+  "updatedAt" = CURRENT_TIMESTAMP
+WHERE id = 'issue246-r2-correction';
+COMMIT;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM "AdipometryAssessment"
+    WHERE id = 'issue246-r2-draft'
+      AND "revisionStatus" = 'SUPERSEDED'
+      AND "correctedByAssessmentId" = 'issue246-r2-correction'
+  ) THEN
+    RAISE EXCEPTION 'original revision was not superseded atomically';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM "AdipometryAssessment"
+    WHERE id = 'issue246-r2-correction'
+      AND "revisionStatus" = 'FINALIZED'
+      AND "revisionNumber" = 2
+      AND JSONB_TYPEOF("beforeSnapshot") = 'object'
+      AND JSONB_TYPEOF("afterSnapshot") = 'object'
+      AND "changedFields" @> '["subscapularMm"]'::JSONB
+  ) THEN
+    RAISE EXCEPTION 'finalized correction did not preserve before/after/changedFields';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM "AdipometryAuditEvent"
+    WHERE "assessmentId" = 'issue246-r2-correction'
+      AND action = 'CORRECTION_FINALIZED'
+      AND "actorUserId" = 'issue246-r2-actor'
+      AND reason = 'Corrected measurement transcription'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM "AdipometryAuditEvent"
+    WHERE "assessmentId" = 'issue246-r2-draft'
+      AND action = 'REVISION_SUPERSEDED'
+      AND "actorUserId" = 'issue246-r2-actor'
+  ) THEN
+    RAISE EXCEPTION 'revision lifecycle audit evidence is incomplete';
+  END IF;
+
+  IF (SELECT id FROM "AdipometryCurrentAssessment"
+      WHERE "rootAssessmentId" = 'issue246-r2-draft')
+     IS DISTINCT FROM 'issue246-r2-correction' THEN
+    RAISE EXCEPTION 'current revision view did not select R2';
+  END IF;
+END $$;
+SQL
+psql_file "$TMP_DIR/finalize-correction.sql" finalize-correction.sql
+
+cat > "$TMP_DIR/start-cancelled-r3.sql" <<'SQL'
+SELECT * FROM "startAdipometryCorrection"(
+  'issue246-r2-cancelled-r3',
+  'issue246-r2-correction',
+  'OTHER',
+  'Review opened and intentionally abandoned',
+  'issue246-r2-actor',
+  CURRENT_TIMESTAMP::timestamp
+);
+SQL
+psql_file "$TMP_DIR/start-cancelled-r3.sql" start-cancelled-r3.sql
+
+expect_failure \
+  "no-op correction finalization" \
+  "ADIPOMETRY_CORRECTION_NO_CHANGES" \
+  "BEGIN; SELECT set_config('app.adipometry_actor_user_id','issue246-r2-actor',true); UPDATE \"AdipometryAssessment\" SET status='COMPLETED', \"calculationSnapshot\"=issue246_r2_snapshot('GUEDES_1991_ADULT_YOUNG',1,DATE '2026-07-31',70,51,20,14,56), \"updatedAt\"=CURRENT_TIMESTAMP WHERE id='issue246-r2-cancelled-r3'; COMMIT;"
+
+cat > "$TMP_DIR/cancel-and-reopen.sql" <<'SQL'
+SELECT "cancelAdipometryCorrection"(
+  'issue246-r2-cancelled-r3',
+  'No clinical change was required after review',
+  'issue246-r2-actor',
+  CURRENT_TIMESTAMP::timestamp
+);
+
+SELECT * FROM "startAdipometryCorrection"(
+  'issue246-r2-cancelled-r4',
+  'issue246-r2-correction',
+  'OTHER',
+  'Second review after a cancelled revision',
+  'issue246-r2-actor',
+  CURRENT_TIMESTAMP::timestamp
+);
+SELECT "cancelAdipometryCorrection"(
+  'issue246-r2-cancelled-r4',
+  'Review closed without replacing the current revision',
+  'issue246-r2-actor',
+  CURRENT_TIMESTAMP::timestamp
+);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM "AdipometryAssessment"
+    WHERE id = 'issue246-r2-cancelled-r3'
+      AND "revisionStatus" = 'CANCELLED'
+      AND "revisionNumber" = 3
+  ) OR NOT EXISTS (
+    SELECT 1 FROM "AdipometryAssessment"
+    WHERE id = 'issue246-r2-cancelled-r4'
+      AND "revisionStatus" = 'CANCELLED'
+      AND "revisionNumber" = 4
+  ) THEN
+    RAISE EXCEPTION 'cancelled revisions were not preserved or numbered monotonically';
+  END IF;
+
+  IF (SELECT id FROM "AdipometryCurrentAssessment"
+      WHERE "rootAssessmentId" = 'issue246-r2-draft')
+     IS DISTINCT FROM 'issue246-r2-correction' THEN
+    RAISE EXCEPTION 'cancelled correction changed the current revision';
+  END IF;
+END $$;
+SQL
+psql_file "$TMP_DIR/cancel-and-reopen.sql" cancel-and-reopen.sql
+
+cat > "$TMP_DIR/void-current.sql" <<'SQL'
+SELECT "voidAdipometryAssessment"(
+  'issue246-r2-correction',
+  'Assessment linked to an invalid enrollment context',
+  'issue246-r2-actor',
+  CURRENT_TIMESTAMP::timestamp
+);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM "AdipometryAssessment"
+    WHERE id = 'issue246-r2-correction'
+      AND "revisionStatus" = 'VOIDED'
+      AND "voidedByUserId" = 'issue246-r2-actor'
+      AND NULLIF(BTRIM("voidReason"), '') IS NOT NULL
+  ) THEN
+    RAISE EXCEPTION 'current revision was not voided auditably';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM "AdipometryCurrentAssessment"
+    WHERE "rootAssessmentId" = 'issue246-r2-draft'
+  ) THEN
+    RAISE EXCEPTION 'voided chain still exposes a current clinical revision';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM "AdipometryAuditEvent"
+    WHERE "assessmentId" = 'issue246-r2-correction'
+      AND action = 'VOIDED'
+      AND "actorUserId" = 'issue246-r2-actor'
+  ) THEN
+    RAISE EXCEPTION 'void audit event is missing';
+  END IF;
+END $$;
+SQL
+psql_file "$TMP_DIR/void-current.sql" void-current.sql
+
+echo "positive-control OK: immutable revision chain, cancellation, current selection and voiding"
 
 expect_failure \
   "audit event mutation" \

@@ -28,6 +28,16 @@ BEGIN
     RAISE EXCEPTION 'canonical Guedes candidate is absent or invalid';
   END IF;
 
+  IF "isValidAdipometryContractProtocolDefinition"(
+    JSONB_SET(
+      v_definition,
+      '{testVectors,0,expectedResults,bodyFatPercentage}',
+      '99'::JSONB
+    )
+  ) THEN
+    RAISE EXCEPTION 'forged clinical vector was accepted';
+  END IF;
+
   IF "roundAdipometryValue"(18.245, 2, 'HALF_UP') <> 18.25 THEN
     RAISE EXCEPTION 'HALF_UP regression';
   END IF;

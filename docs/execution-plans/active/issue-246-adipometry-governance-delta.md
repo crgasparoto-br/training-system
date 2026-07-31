@@ -39,3 +39,6 @@ Incorporar as decisões clínicas registradas depois da fundação inicial da AD
 ## Pendência operacional
 
 A versão permanece `DRAFT` em cada contrato até um profissional real, com CREF pessoal válido, ser designado e aprovar explicitamente a especificação. Nenhum nome ou CREF é inventado por seed ou migration.
+## Fechamento do ciclo de correção
+
+O delta final acrescenta o lifecycle completo `DRAFT → FINALIZED → SUPERSEDED`, além dos terminais `CANCELLED` e `VOIDED`. A validação obrigatória cobre concorrência de rascunhos, reutilização de código/sequência, numeração monotônica após cancelamento, snapshots e diferenças, seleção da revisão vigente, anulação auditável e rejeição de correção sem mudança material.

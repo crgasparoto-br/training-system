@@ -1287,6 +1287,23 @@ model AdipometryAssessment {
   code                                     String
   assessmentDate                           DateTime
   status                                   String                   @default("DRAFT")
+  revisionStatus                           String                   @default("DRAFT")
+  rootAssessmentId                         String
+  revisionNumber                           Int                      @default(1)
+  previousRevisionId                       String?
+  correctionCategory                       String?
+  correctionStartedAt                      DateTime?
+  correctionCancelledAt                    DateTime?
+  correctionCancelledByUserId              String?
+  correctionCancellationReason             String?
+  protocolChangeConfirmedByUserId          String?
+  protocolChangeConfirmedAt                DateTime?
+  voidedAt                                 DateTime?
+  voidedByUserId                           String?
+  voidReason                               String?
+  beforeSnapshot                           Json?
+  afterSnapshot                            Json?
+  changedFields                            Json?
   weightKg                                 Decimal?                 @db.Decimal(8, 2)
   tricepsMm                                Decimal?                 @db.Decimal(8, 2)
   subscapularMm                            Decimal?                 @db.Decimal(8, 2)
@@ -1304,7 +1321,7 @@ model AdipometryAssessment {
   anthropometryAssessmentId                String?
   notes                                    String?
   completedAt                              DateTime?
-  correctsAssessmentId                     String?                  @unique(map: "AdipometryAssessment_correctsAssessmentId_key")
+  correctsAssessmentId                     String?
   correctedByAssessmentId                  String?                  @unique(map: "AdipometryAssessment_correctedByAssessmentId_key")
   correctionReason                         String?
   correctionAuthorUserId                   String?
@@ -1316,7 +1333,7 @@ model AdipometryAssessment {
   protocol                                 AdipometryProtocol?      @relation(fields: [protocolId, protocolCode, protocolVersion], references: [id, code, version], onDelete: Restrict, map: "AdipometryAssessment_protocol_identity_fkey")
   anthropometryAssessment                  AnthropometryAssessment? @relation("AdipometrySupportAnthropometry", fields: [anthropometryAssessmentId, contractId, alunoId], references: [id, contractId, alunoId], onDelete: Restrict, map: "AdipometryAssessment_anthropometry_contract_aluno_fkey")
   correctsAssessment                       AdipometryAssessment?    @relation("AdipometryCorrects", fields: [correctsAssessmentId, contractId, alunoId], references: [id, contractId, alunoId], onDelete: Restrict, map: "AdipometryAssessment_corrects_contract_aluno_fkey")
-  correctedThroughCorrects                 AdipometryAssessment?    @relation("AdipometryCorrects")
+  correctionRevisions                      AdipometryAssessment[]   @relation("AdipometryCorrects")
   correctedByAssessment                    AdipometryAssessment?    @relation("AdipometryCorrectedBy", fields: [correctedByAssessmentId, contractId, alunoId], references: [id, contractId, alunoId], onDelete: Restrict, map: "AdipometryAssessment_corrected_by_contract_aluno_fkey")
   originalThroughCorrectedBy               AdipometryAssessment?    @relation("AdipometryCorrectedBy")
   correctionAuthor                         User?                    @relation("AdipometryCorrectionAuthor", fields: [correctionAuthorUserId], references: [id], onDelete: Restrict, map: "AdipometryAssessment_correctionAuthorUserId_fkey")
@@ -1326,10 +1343,13 @@ model AdipometryAssessment {
 
   @@unique([id, contractId], map: "AdipometryAssessment_id_contractId_key")
   @@unique([id, contractId, alunoId], map: "AdipometryAssessment_id_contractId_alunoId_key")
-  @@unique([correctsAssessmentId, contractId, alunoId], map: "AdptAssess_corrects_contract_aluno_key")
   @@unique([correctedByAssessmentId, contractId, alunoId], map: "AdptAssess_corrected_by_contract_aluno_key")
-  @@unique([contractId, alunoId, sequenceNumber], map: "AdipometryAssessment_contractId_alunoId_sequenceNumber_key")
-  @@unique([contractId, alunoId, code], map: "AdipometryAssessment_contractId_alunoId_code_key")
+  @@unique([rootAssessmentId, revisionNumber], map: "AdipometryAssessment_root_revision_key")
+  @@index([correctsAssessmentId, contractId, alunoId], map: "AdptAssess_corrects_contract_aluno_idx")
+  @@index([contractId, alunoId, sequenceNumber], map: "AdipometryAssessment_contractId_alunoId_sequenceNumber_idx")
+  @@index([contractId, alunoId, code], map: "AdipometryAssessment_contractId_alunoId_code_idx")
+  @@index([contractId, alunoId, rootAssessmentId, revisionNumber(sort: Desc)], map: "AdipometryAssessment_revision_history_idx")
+  @@index([contractId, revisionStatus, assessmentDate(sort: Desc)], map: "AdipometryAssessment_revision_status_idx")
   @@index([contractId, alunoId, assessmentDate(sort: Desc)], map: "AdipometryAssessment_contractId_alunoId_assessmentDate_idx")
   @@index([professorId], map: "AdipometryAssessment_professorId_idx")
   @@index([contractId, status], map: "AdipometryAssessment_contractId_status_idx")

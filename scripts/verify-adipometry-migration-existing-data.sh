@@ -50,7 +50,8 @@ is_deferred_adpt_migration() {
     20260730204000_canonicalize_legacy_no_maturation_rule|\
     20260730210000_remove_adipometry_textual_maturation_inference|\
     20260730211000_use_structured_adipometry_maturation_rule|\
-    20260730224500_add_adipometry_clinical_governance)
+    20260730224500_add_adipometry_clinical_governance|\
+    20260731120000_complete_adipometry_revision_lifecycle)
       return 0
       ;;
     *)
@@ -151,7 +152,8 @@ for migration_name in \
   20260730204000_canonicalize_legacy_no_maturation_rule \
   20260730210000_remove_adipometry_textual_maturation_inference \
   20260730211000_use_structured_adipometry_maturation_rule \
-  20260730224500_add_adipometry_clinical_governance
+  20260730224500_add_adipometry_clinical_governance \
+  20260731120000_complete_adipometry_revision_lifecycle
 do
   psql_file "$TEMP_URL" "$ROOT_DIR/apps/api/prisma/migrations/$migration_name/migration.sql" "$migration_name.sql"
 done
