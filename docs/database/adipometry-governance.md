@@ -46,7 +46,9 @@ Troca de responsável, aprovação e revogação usam transação serializável 
 
 ## Gate de conclusão
 
-`canonicalizeAdipometryCompletion` usa o `protocolDefinitionSnapshot` aprovado do mesmo `contractId`. As migrations `20260731143000_close_issue_246_governance_findings` e `20260731190000_close_issue_246_temporal_authority_and_protocol_identity` exigem aprovação ativa, identidade clínica sem drift e ator temporalmente válido; a definição global `DRAFT` não libera cálculo sozinha.
+`canonicalizeAdipometryCompletion` usa o `protocolDefinitionSnapshot` aprovado do mesmo `contractId`. As migrations `20260731143000_close_issue_246_governance_findings`, `20260731190000_close_issue_246_temporal_authority_and_protocol_identity` e `20260731193000_enforce_adipometry_temporal_actor_triggers` exigem aprovação ativa, identidade clínica sem drift e ator temporalmente válido; a definição global `DRAFT` não libera cálculo sozinha.
+
+A migration `20260731193000_enforce_adipometry_temporal_actor_triggers` instala guards independentes, ordenados antes dos triggers legados, para que autoria e timestamps autoritativos não dependam da substituição de funções anteriores. Em cadeias legadas reduzidas, os triggers são instalados somente quando as tabelas de governança já existem.
 
 O gate também valida `protocolSex`, decisão auditável, dobras exigidas pela combinação fixa do protocolo, precisão, limites e confirmação de alerta operacional. As dobras não usadas podem ser nulas; quando informadas, continuam sujeitas a precisão e limite técnico e permanecem no histórico.
 
