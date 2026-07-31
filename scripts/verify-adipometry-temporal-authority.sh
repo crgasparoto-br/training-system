@@ -107,7 +107,9 @@ BEGIN
      TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
     ('issue246-temporal-approve-permission', 'issue246-temporal-responsible-function',
      'settings.contract', 'settings.contract.adipometryProtocolApproval',
-     TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+     TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+  ON CONFLICT ("collaboratorFunctionId", "screenKey", "blockKey")
+  DO UPDATE SET "canView" = EXCLUDED."canView", "updatedAt" = EXCLUDED."updatedAt";
 END;
 $fixtures$;
 
