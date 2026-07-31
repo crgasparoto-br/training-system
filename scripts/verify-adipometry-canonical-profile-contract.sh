@@ -289,11 +289,17 @@ INSERT INTO "AdipometryProtocol" (
 
 INSERT INTO "AccessPermission" (
   id, "collaboratorFunctionId", "screenKey", "blockKey", "canView", "createdAt", "updatedAt"
-) VALUES (
-  'issue246-profile-explicit-clinical-grant', 'issue246-profile-function',
-  'settings.contract', 'settings.contract.adipometryProtocolApproval', TRUE,
-  CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-)
+) VALUES
+  (
+    'issue246-profile-explicit-clinical-grant', 'issue246-profile-function',
+    'settings.contract', 'settings.contract.adipometryProtocolApproval', TRUE,
+    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+  ),
+  (
+    'issue246-profile-explicit-responsibility-management-grant', 'issue246-profile-function',
+    'settings.contract', 'settings.contract.actions.manageClinicalTechnicalResponsibility', TRUE,
+    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+  )
 ON CONFLICT ("collaboratorFunctionId", "screenKey", "blockKey")
 DO UPDATE SET "canView" = TRUE, "updatedAt" = CURRENT_TIMESTAMP;
 
