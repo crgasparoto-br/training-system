@@ -227,6 +227,15 @@ async function requireResponsibilityActorIdentity(
   assertAdipometryResponsibilityActorIdentity(rows[0]?.userId, actorUserId);
 }
 
+async function bindAdipometryAuthenticatedActor(
+  client: DbClient,
+  actorUserId: string
+): Promise<void> {
+  await client.$executeRaw(Prisma.sql`
+    SELECT set_config('app.adipometry_actor_user_id', ${actorUserId}, TRUE)
+  `);
+}
+
 async function requireEligibleProfessional(
   client: DbClient,
   contractId: string,
@@ -481,6 +490,7 @@ export const adipometryGovernanceService = {
 
     await prisma.$transaction(
       async (tx) => {
+        await bindAdipometryAuthenticatedActor(tx, actorUserId);
         await tx.$executeRaw(Prisma.sql`
           SELECT pg_advisory_xact_lock(hashtextextended(${`${contractId}:${ADIPOMETRY_CLINICAL_RESPONSIBLE_DOMAIN}`}, 0))
         `);
@@ -570,6 +580,7 @@ export const adipometryGovernanceService = {
 
     await prisma.$transaction(
       async (tx) => {
+        await bindAdipometryAuthenticatedActor(tx, actorUserId);
         await tx.$executeRaw(Prisma.sql`
           SELECT pg_advisory_xact_lock(hashtextextended(${`${contractId}:${code}:${version}`}, 0))
         `);
@@ -691,6 +702,7 @@ export const adipometryGovernanceService = {
 
     await prisma.$transaction(
       async (tx) => {
+        await bindAdipometryAuthenticatedActor(tx, actorUserId);
         await tx.$executeRaw(Prisma.sql`
           SELECT pg_advisory_xact_lock(hashtextextended(${`${contractId}:${code}:${version}`}, 0))
         `);
