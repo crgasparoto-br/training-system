@@ -15,6 +15,7 @@ import {
 } from '@corrida/types';
 
 const prisma = new PrismaClient();
+type DbClient = PrismaClient | Prisma.TransactionClient;
 
 export class AdipometryGovernanceError extends Error {
   constructor(
@@ -33,7 +34,6 @@ interface ProfessionalRow {
   professorName: string;
   professorCref: string | null;
   collaboratorFunctionName: string;
-  role: string;
   currentStatus: string | null;
   dismissalDate: Date | null;
   userIsActive: boolean;
@@ -84,8 +84,6 @@ interface ApprovalRow {
   revokedByUserId: string | null;
   revocationReason: string | null;
 }
-
-type DbClient = PrismaClient | Prisma.TransactionClient;
 
 function sortJson(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(sortJson);
@@ -145,21 +143,18 @@ async function listProfessionalRows(client: DbClient, contractId: string): Promi
       profile.name AS "professorName",
       profile.cref AS "professorCref",
       function.name AS "collaboratorFunctionName",
-      professor.role::TEXT AS role,
       professor."currentStatus" AS "currentStatus",
       professor."dismissalDate" AS "dismissalDate",
       app_user."isActive" AS "userIsActive",
       EXISTS (
-        SELECT 1
-        FROM "AccessPermission" permission
+        SELECT 1 FROM "AccessPermission" permission
         WHERE permission."collaboratorFunctionId" = professor."collaboratorFunctionId"
           AND permission."screenKey" = 'settings.contract'
           AND permission."blockKey" = ${ADIPOMETRY_PROTOCOL_APPROVAL_BLOCK_KEY}
           AND permission."canView" = TRUE
       ) AS "hasApprovalPermission",
       EXISTS (
-        SELECT 1
-        FROM "AccessPermission" permission
+        SELECT 1 FROM "AccessPermission" permission
         WHERE permission."collaboratorFunctionId" = professor."collaboratorFunctionId"
           AND permission."screenKey" = 'settings.contract'
           AND permission."blockKey" = ${ADIPOMETRY_RESPONSIBILITY_MANAGEMENT_BLOCK_KEY}
@@ -208,8 +203,9 @@ async function requireEligibleProfessional(
   contractId: string,
   professorId: string
 ): Promise<ProfessionalRow> {
-  const rows = await listProfessionalRows(client, contractId);
-  const professional = rows.find((row) => row.professorId === professorId);
+  const professional = (await listProfessionalRows(client, contractId)).find(
+    (row) => row.professorId === professorId
+  );
 
   if (!professional) {
     throw new AdipometryGovernanceError(
@@ -246,10 +242,7 @@ async function requireEligibleProfessional(
   return professional;
 }
 
-async function listResponsibilities(
-  client: DbClient,
-  contractId: string
-): Promise<ResponsibilityRow[]> {
+async function listResponsibilities(client: DbClient, contractId: string): Promise<ResponsibilityRow[]> {
   return client.$queryRaw<ResponsibilityRow[]>(Prisma.sql`
     SELECT
       responsibility.id,
@@ -353,8 +346,9 @@ function serializeApproval(row: ApprovalRow): AdipometryProtocolApprovalSummary 
 async function getGovernance(
   contractId: string,
   currentProfessorId: string,
-  client: DbClient = prisma
+  clientOrLegacyFlag: DbClient | boolean = prisma
 ): Promise<AdipometryGovernanceResponse> {
+  const client = typeof clientOrLegacyFlag === 'boolean' ? prisma : clientOrLegacyFlag;
   const [responsibilityRows, professionalRows, protocolRows, approvalRows] = await Promise.all([
     listResponsibilities(client, contractId),
     listProfessionalRows(client, contractId),
@@ -362,10 +356,10 @@ async function getGovernance(
     listApprovals(client, contractId),
   ]);
 
-  const currentResponsibilityRow = responsibilityRows.find((item) => item.effectiveTo === null) ?? null;
+  const currentResponsibility = responsibilityRows.find((item) => item.effectiveTo === null) ?? null;
   const currentProfessional = professionalRows.find((item) => item.professorId === currentProfessorId);
   const actorIsEligibleResponsible = Boolean(
-    currentResponsibilityRow?.professorId === currentProfessorId &&
+    currentResponsibility?.professorId === currentProfessorId &&
       currentProfessional &&
       isEligibleProfessional(currentProfessional)
   );
@@ -382,14 +376,14 @@ async function getGovernance(
 
   let hasActiveApproval = false;
   const protocols: AdipometryGovernedProtocolSummary[] = protocolRows.map((protocol) => {
-    const matchingApprovals = approvalRows.filter(
+    const approvals = approvalRows.filter(
       (item) =>
         item.protocolId === protocol.id &&
         item.protocolCode === protocol.code &&
         item.protocolVersion === protocol.version
     );
-    const activeApproval = matchingApprovals.find((item) => item.revokedAt === null);
-    const latestApproval = activeApproval ?? matchingApprovals[0];
+    const activeApproval = approvals.find((item) => item.revokedAt === null);
+    const latestApproval = activeApproval ?? approvals[0];
     const definition = protocol.definitionSnapshot as Record<string, unknown>;
 
     if (activeApproval) hasActiveApproval = true;
@@ -403,13 +397,7 @@ async function getGovernance(
       name: protocol.name,
       definitionStatus: protocol.status,
       contractStatus:
-        protocol.status === 'DISABLED'
-          ? 'DISABLED'
-          : activeApproval
-            ? 'APPROVED'
-            : latestApproval?.revokedAt
-              ? 'REVOKED'
-              : 'DRAFT',
+        protocol.status === 'DISABLED' ? 'DISABLED' : activeApproval ? 'APPROVED' : 'DRAFT',
       reference: protocol.reference,
       specificationHash: buildAdipometrySpecificationHash(protocol),
       approval: latestApproval ? serializeApproval(latestApproval) : null,
@@ -418,8 +406,8 @@ async function getGovernance(
 
   return {
     domain: ADIPOMETRY_CLINICAL_RESPONSIBLE_DOMAIN,
-    currentResponsibility: currentResponsibilityRow
-      ? serializeResponsibility(currentResponsibilityRow)
+    currentResponsibility: currentResponsibility
+      ? serializeResponsibility(currentResponsibility)
       : null,
     responsibilityHistory: responsibilityRows.map(serializeResponsibility),
     eligibleProfessionals,
@@ -428,6 +416,21 @@ async function getGovernance(
     canCurrentUserApprove: actorIsEligibleResponsible,
     canCurrentUserRevoke: actorIsEligibleResponsible && hasActiveApproval,
   };
+}
+
+async function lockResponsibility(
+  tx: Prisma.TransactionClient,
+  contractId: string
+): Promise<{ id: string; professorId: string } | undefined> {
+  const rows = await tx.$queryRaw<Array<{ id: string; professorId: string }>>(Prisma.sql`
+    SELECT id, "professorId"
+    FROM "AdipometryClinicalResponsibility"
+    WHERE "contractId" = ${contractId}
+      AND domain = ${ADIPOMETRY_CLINICAL_RESPONSIBLE_DOMAIN}
+      AND "effectiveTo" IS NULL
+    FOR UPDATE
+  `);
+  return rows[0];
 }
 
 export const adipometryGovernanceService = {
@@ -452,7 +455,6 @@ export const adipometryGovernanceService = {
         await tx.$executeRaw(Prisma.sql`
           SELECT pg_advisory_xact_lock(hashtextextended(${`${contractId}:${ADIPOMETRY_CLINICAL_RESPONSIBLE_DOMAIN}`}, 0))
         `);
-
         await requireExplicitPermission(
           tx,
           contractId,
@@ -461,16 +463,7 @@ export const adipometryGovernanceService = {
         );
         await requireEligibleProfessional(tx, contractId, professorId);
 
-        const currentRows = await tx.$queryRaw<Array<{ id: string; professorId: string }>>(Prisma.sql`
-          SELECT id, "professorId"
-          FROM "AdipometryClinicalResponsibility"
-          WHERE "contractId" = ${contractId}
-            AND domain = ${ADIPOMETRY_CLINICAL_RESPONSIBLE_DOMAIN}
-            AND "effectiveTo" IS NULL
-          FOR UPDATE
-        `);
-        const current = currentRows[0];
-
+        const current = await lockResponsibility(tx, contractId);
         if (current?.professorId === professorId) return;
 
         const endReason = typeof input.endReason === 'string' ? input.endReason.trim() : '';
@@ -485,12 +478,8 @@ export const adipometryGovernanceService = {
         if (current) {
           await tx.$executeRaw(Prisma.sql`
             UPDATE "AdipometryClinicalResponsibility"
-            SET
-              "effectiveTo" = ${now},
-              "endedByUserId" = ${actorUserId},
-              "endedAt" = ${now},
-              "endReason" = ${endReason},
-              "updatedAt" = ${now}
+            SET "effectiveTo" = ${now}, "endedByUserId" = ${actorUserId},
+                "endedAt" = ${now}, "endReason" = ${endReason}, "updatedAt" = ${now}
             WHERE id = ${current.id}
           `);
         }
@@ -517,16 +506,15 @@ export const adipometryGovernanceService = {
     actorProfessorId: string,
     code: string,
     version: number,
-    input: ApproveAdipometryProtocolInput
+    input: ApproveAdipometryProtocolInput,
+    _legacyCanManageResponsibility?: boolean
   ): Promise<AdipometryGovernanceResponse> {
-    const approvalStatement =
-      typeof input.approvalStatement === 'string' ? input.approvalStatement.trim() : '';
-    const expectedHash =
-      typeof input.approvedSpecificationHash === 'string'
-        ? input.approvedSpecificationHash.trim().toLowerCase()
-        : '';
+    const statement = typeof input.approvalStatement === 'string' ? input.approvalStatement.trim() : '';
+    const expectedHash = typeof input.approvedSpecificationHash === 'string'
+      ? input.approvedSpecificationHash.trim().toLowerCase()
+      : '';
 
-    if (approvalStatement.length < 30) {
+    if (statement.length < 30) {
       throw new AdipometryGovernanceError(
         'Confirme a declaração de aprovação clínica antes de continuar.',
         'ADIPOMETRY_APPROVAL_STATEMENT_REQUIRED'
@@ -550,7 +538,6 @@ export const adipometryGovernanceService = {
         await tx.$executeRaw(Prisma.sql`
           SELECT pg_advisory_xact_lock(hashtextextended(${`${contractId}:${code}:${version}`}, 0))
         `);
-
         await requireExplicitPermission(
           tx,
           contractId,
@@ -558,16 +545,7 @@ export const adipometryGovernanceService = {
           ADIPOMETRY_PROTOCOL_APPROVAL_BLOCK_KEY
         );
 
-        const responsibilityRows = await tx.$queryRaw<Array<{ id: string; professorId: string }>>(Prisma.sql`
-          SELECT id, "professorId"
-          FROM "AdipometryClinicalResponsibility"
-          WHERE "contractId" = ${contractId}
-            AND domain = ${ADIPOMETRY_CLINICAL_RESPONSIBLE_DOMAIN}
-            AND "effectiveTo" IS NULL
-          FOR UPDATE
-        `);
-        const responsibility = responsibilityRows[0];
-
+        const responsibility = await lockResponsibility(tx, contractId);
         if (!responsibility) {
           throw new AdipometryGovernanceError(
             'Cadastre um responsável técnico antes de aprovar o protocolo.',
@@ -598,7 +576,6 @@ export const adipometryGovernanceService = {
           FOR UPDATE
         `);
         const protocol = protocols[0];
-
         if (!protocol) {
           throw new AdipometryGovernanceError(
             'Versão clínica não encontrada.',
@@ -622,12 +599,12 @@ export const adipometryGovernanceService = {
           );
         }
 
-        const validRows = await tx.$queryRaw<Array<{ valid: boolean }>>(Prisma.sql`
+        const validity = await tx.$queryRaw<Array<{ valid: boolean }>>(Prisma.sql`
           SELECT "isValidAdipometryContractProtocolDefinition"(
             CAST(${JSON.stringify(protocol.definitionSnapshot)} AS JSONB)
           ) AS valid
         `);
-        if (!validRows[0]?.valid || !protocol.reference?.trim()) {
+        if (!validity[0]?.valid || !protocol.reference?.trim()) {
           throw new AdipometryGovernanceError(
             'A versão clínica não possui todos os dados, limites e vetores exigidos para aprovação.',
             'ADIPOMETRY_PROTOCOL_DEFINITION_INCOMPLETE'
@@ -644,7 +621,7 @@ export const adipometryGovernanceService = {
           ) VALUES (
             ${randomUUID()}, ${contractId}, ${protocol.id}, ${protocol.code}, ${protocol.version},
             ${responsibility.id}, ${actorProfessorId}, ${actorUserId}, ${now},
-            ${approvalStatement}, ${professional.professorName.trim()}, ${professional.professorCref!.trim()},
+            ${statement}, ${professional.professorName.trim()}, ${professional.professorCref!.trim()},
             ${actualHash}, CAST(${JSON.stringify(protocol.definitionSnapshot)} AS JSONB), ${now}
           )
         `);
@@ -682,7 +659,6 @@ export const adipometryGovernanceService = {
         await tx.$executeRaw(Prisma.sql`
           SELECT pg_advisory_xact_lock(hashtextextended(${`${contractId}:${code}:${version}`}, 0))
         `);
-
         await requireExplicitPermission(
           tx,
           contractId,
@@ -690,16 +666,7 @@ export const adipometryGovernanceService = {
           ADIPOMETRY_PROTOCOL_APPROVAL_BLOCK_KEY
         );
 
-        const responsibilityRows = await tx.$queryRaw<Array<{ id: string; professorId: string }>>(Prisma.sql`
-          SELECT id, "professorId"
-          FROM "AdipometryClinicalResponsibility"
-          WHERE "contractId" = ${contractId}
-            AND domain = ${ADIPOMETRY_CLINICAL_RESPONSIBLE_DOMAIN}
-            AND "effectiveTo" IS NULL
-          FOR UPDATE
-        `);
-        const responsibility = responsibilityRows[0];
-
+        const responsibility = await lockResponsibility(tx, contractId);
         if (!responsibility || responsibility.professorId !== actorProfessorId) {
           throw new AdipometryGovernanceError(
             'A revogação deve ser realizada pelo próprio responsável técnico autenticado.',
@@ -717,7 +684,7 @@ export const adipometryGovernanceService = {
           );
         }
 
-        const approvalRows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+        const approvals = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
           SELECT id
           FROM "AdipometryProtocolApproval"
           WHERE "contractId" = ${contractId}
@@ -726,8 +693,7 @@ export const adipometryGovernanceService = {
             AND "revokedAt" IS NULL
           FOR UPDATE
         `);
-        const approval = approvalRows[0];
-
+        const approval = approvals[0];
         if (!approval) {
           throw new AdipometryGovernanceError(
             'Não existe aprovação clínica ativa para revogar.',
@@ -739,15 +705,12 @@ export const adipometryGovernanceService = {
         const now = new Date();
         const changed = await tx.$executeRaw(Prisma.sql`
           UPDATE "AdipometryProtocolApproval"
-          SET
-            "revokedAt" = ${now},
-            "revokedByProfessorId" = ${actorProfessorId},
-            "revokedByUserId" = ${actorUserId},
-            "revocationReason" = ${reason}
-          WHERE id = ${approval.id}
-            AND "revokedAt" IS NULL
+          SET "revokedAt" = ${now},
+              "revokedByProfessorId" = ${actorProfessorId},
+              "revokedByUserId" = ${actorUserId},
+              "revocationReason" = ${reason}
+          WHERE id = ${approval.id} AND "revokedAt" IS NULL
         `);
-
         if (changed !== 1) {
           throw new AdipometryGovernanceError(
             'A aprovação clínica já foi revogada.',
