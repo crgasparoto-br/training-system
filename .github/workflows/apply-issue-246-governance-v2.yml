@@ -126,8 +126,7 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf .github/issue-246
-          rm -f .github/workflows/apply-issue-246-governance.yml
-          rm -f .github/workflows/apply-issue-246-governance-v2.yml
+          git checkout HEAD -- .github/workflows
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
