@@ -1,4 +1,8 @@
-import { buildAdipometrySpecificationHash } from './adipometry-governance.service.js';
+import {
+  AdipometryGovernanceError,
+  assertAdipometryResponsibilityActorIdentity,
+  buildAdipometrySpecificationHash,
+} from './adipometry-governance.service.js';
 
 describe('buildAdipometrySpecificationHash', () => {
   it('is deterministic when JSON object keys arrive in another order', () => {
@@ -40,5 +44,29 @@ describe('buildAdipometrySpecificationHash', () => {
         definitionSnapshot: { population: { ageMinYears: 18, ageMaxYears: 31 } },
       })
     );
+  });
+});
+
+describe('assertAdipometryResponsibilityActorIdentity', () => {
+  it('accepts matching authenticated user and professor identity', () => {
+    expect(() =>
+      assertAdipometryResponsibilityActorIdentity('user-a', 'user-a')
+    ).not.toThrow();
+  });
+
+  it.each([
+    ['another authenticated user', 'user-a', 'user-b'],
+    ['professor outside the contract', undefined, 'user-a'],
+  ])('rejects %s', (_scenario, expectedUserId, actorUserId) => {
+    try {
+      assertAdipometryResponsibilityActorIdentity(expectedUserId, actorUserId);
+      throw new Error('expected responsibility actor mismatch');
+    } catch (error) {
+      expect(error).toBeInstanceOf(AdipometryGovernanceError);
+      expect((error as AdipometryGovernanceError).code).toBe(
+        'ADIPOMETRY_RESPONSIBILITY_ACTOR_MISMATCH'
+      );
+      expect((error as AdipometryGovernanceError).statusCode).toBe(403);
+    }
   });
 });
