@@ -3,6 +3,7 @@ set -euo pipefail
 
 : "${DATABASE_URL:?DATABASE_URL is required}"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PSQL_DATABASE_URL="${DATABASE_URL%%\?*}"
 
 approval_key_count="$(grep -c "settings.contract.adipometryProtocolApproval" "$ROOT_DIR/packages/types/access-control.ts")"
 management_key_count="$(grep -c "settings.contract.actions.manageClinicalTechnicalResponsibility" "$ROOT_DIR/packages/types/access-control.ts")"
@@ -38,7 +39,7 @@ fi
 grep -q "explicitBlockAccessMiddleware" \
   "$ROOT_DIR/apps/api/src/modules/access-control/access-control.middleware.ts"
 
-psql "$DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
+psql "$PSQL_DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
 BEGIN;
 
 DO $$
