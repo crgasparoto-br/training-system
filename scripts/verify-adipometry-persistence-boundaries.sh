@@ -70,25 +70,18 @@ BEGIN
     ('issue246-boundary-aluno-b1', 'issue246-boundary-contract-b', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 END $$;
 
-INSERT INTO "AdipometryClinicalResponsibility" (
-  "id", "contractId", "domain", "professorId", "effectiveFrom",
-  "designatedByUserId", "designatedAt", "createdAt", "updatedAt"
-) VALUES (
-  'issue246-boundary-responsibility-a', 'issue246-boundary-contract-a',
-  'ADIPOMETRY_CLINICAL_RESPONSIBLE', 'issue246-boundary-professor-a',
-  TIMESTAMP '2026-07-30 14:00:00', 'issue246-boundary-actor-a',
-  TIMESTAMP '2026-07-30 14:00:00', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-);
-
--- Clinical approval is deny-by-default even for a master profile. The positive
--- boundary scenario must grant the capability explicitly to the collaborator
--- function before it can approve the protocol.
+-- Clinical governance is deny-by-default even for a master profile. The
+-- positive boundary scenario grants approval and responsibility management
+-- explicitly before the responsibility history is created.
 UPDATE "AccessPermission"
 SET "canView" = TRUE,
     "updatedAt" = CURRENT_TIMESTAMP
 WHERE "collaboratorFunctionId" = 'issue246-boundary-function-a'
   AND "screenKey" = 'settings.contract'
-  AND "blockKey" = 'settings.contract.adipometryProtocolApproval';
+  AND "blockKey" IN (
+    'settings.contract.adipometryProtocolApproval',
+    'settings.contract.actions.manageClinicalTechnicalResponsibility'
+  );
 
 DO $$ BEGIN
   IF NOT EXISTS (
@@ -98,10 +91,27 @@ DO $$ BEGIN
       AND "screenKey" = 'settings.contract'
       AND "blockKey" = 'settings.contract.adipometryProtocolApproval'
       AND "canView" = TRUE
+  ) OR NOT EXISTS (
+    SELECT 1
+    FROM "AccessPermission"
+    WHERE "collaboratorFunctionId" = 'issue246-boundary-function-a'
+      AND "screenKey" = 'settings.contract'
+      AND "blockKey" = 'settings.contract.actions.manageClinicalTechnicalResponsibility'
+      AND "canView" = TRUE
   ) THEN
-    RAISE EXCEPTION 'explicit adipometry clinical permission fixture is missing';
+    RAISE EXCEPTION 'explicit adipometry governance permission fixture is missing';
   END IF;
 END $$;
+
+INSERT INTO "AdipometryClinicalResponsibility" (
+  "id", "contractId", "domain", "professorId", "effectiveFrom",
+  "designatedByUserId", "designatedAt", "createdAt", "updatedAt"
+) VALUES (
+  'issue246-boundary-responsibility-a', 'issue246-boundary-contract-a',
+  'ADIPOMETRY_CLINICAL_RESPONSIBLE', 'issue246-boundary-professor-a',
+  TIMESTAMP '2026-07-30 14:00:00', 'issue246-boundary-actor-a',
+  TIMESTAMP '2026-07-30 14:00:00', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+);
 
 CREATE OR REPLACE FUNCTION pg_temp.issue246_boundary_definition()
 RETURNS JSONB
