@@ -287,6 +287,16 @@ INSERT INTO "AdipometryProtocol" (
   'issue246-profile-actor', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
 );
 
+INSERT INTO "AccessPermission" (
+  id, "collaboratorFunctionId", "screenKey", "blockKey", "canView", "createdAt", "updatedAt"
+) VALUES (
+  'issue246-profile-explicit-clinical-grant', 'issue246-profile-function',
+  'settings.contract', 'settings.contract.adipometryProtocolApproval', TRUE,
+  CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+)
+ON CONFLICT ("collaboratorFunctionId", "screenKey", "blockKey")
+DO UPDATE SET "canView" = TRUE, "updatedAt" = CURRENT_TIMESTAMP;
+
 INSERT INTO "AdipometryClinicalResponsibility" (
   "id", "contractId", "domain", "professorId", "effectiveFrom",
   "designatedByUserId", "designatedAt", "createdAt", "updatedAt"
