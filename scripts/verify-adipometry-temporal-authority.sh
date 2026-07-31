@@ -174,8 +174,8 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM "AdipometryClinicalResponsibility"
     WHERE id = 'issue246-temporal-responsibility'
-      AND "designatedAt" = CURRENT_TIMESTAMP
-      AND "effectiveFrom" = CURRENT_TIMESTAMP
+      AND "designatedAt" = CURRENT_TIMESTAMP::timestamp(3)
+      AND "effectiveFrom" = CURRENT_TIMESTAMP::timestamp(3)
   ) THEN
     RAISE EXCEPTION 'database did not replace caller-controlled designation time';
   END IF;
@@ -207,7 +207,7 @@ DO $approval_time$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM "AdipometryProtocolApproval"
-    WHERE id = 'issue246-temporal-approval' AND "approvedAt" = CURRENT_TIMESTAMP
+    WHERE id = 'issue246-temporal-approval' AND "approvedAt" = CURRENT_TIMESTAMP::timestamp(3)
   ) THEN
     RAISE EXCEPTION 'database did not replace caller-controlled approval time';
   END IF;
@@ -260,7 +260,7 @@ DO $revocation_time$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM "AdipometryProtocolApproval"
-    WHERE id = 'issue246-temporal-approval' AND "revokedAt" = CURRENT_TIMESTAMP
+    WHERE id = 'issue246-temporal-approval' AND "revokedAt" = CURRENT_TIMESTAMP::timestamp(3)
   ) THEN
     RAISE EXCEPTION 'database did not replace caller-controlled revocation time';
   END IF;
@@ -281,8 +281,8 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM "AdipometryClinicalResponsibility"
     WHERE id = 'issue246-temporal-responsibility'
-      AND "endedAt" = CURRENT_TIMESTAMP
-      AND "effectiveTo" = CURRENT_TIMESTAMP
+      AND "endedAt" = CURRENT_TIMESTAMP::timestamp(3)
+      AND "effectiveTo" = CURRENT_TIMESTAMP::timestamp(3)
   ) THEN
     RAISE EXCEPTION 'database did not replace caller-controlled termination time';
   END IF;
