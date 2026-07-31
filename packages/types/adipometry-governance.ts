@@ -7,11 +7,7 @@ export const ADIPOMETRY_PROTOCOL_APPROVAL_BLOCK_KEY =
 export const ADIPOMETRY_RESPONSIBILITY_MANAGEMENT_BLOCK_KEY =
   'settings.contract.actions.manageClinicalTechnicalResponsibility' as const;
 
-export type AdipometryContractProtocolStatus =
-  | 'DRAFT'
-  | 'APPROVED'
-  | 'REVOKED'
-  | 'DISABLED';
+export type AdipometryContractProtocolStatus = 'DRAFT' | 'APPROVED' | 'DISABLED';
 
 export interface AdipometryClinicalResponsibleSummary {
   id: string;
