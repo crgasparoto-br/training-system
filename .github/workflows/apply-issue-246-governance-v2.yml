@@ -18,7 +18,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: issue-246-governance-delta
+  group: issue-246-governance-delta-v2
   cancel-in-progress: false
 
 jobs:
