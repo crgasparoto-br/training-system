@@ -135,17 +135,61 @@ export interface AdipometryProtocolDefinitionSnapshot {
   clinicalApproval: AdipometryProtocolClinicalApproval;
 }
 
-export interface AdipometryCalculationSnapshot {
+export interface AdipometryCalculationInputBase {
+  weightKg: number;
+  suprailiacMm: number;
+}
+
+export interface AdipometryMaleCalculationInputs extends AdipometryCalculationInputBase {
+  tricepsMm: number;
+  abdominalMm: number;
+  subscapularMm: number | null;
+  thighMm: number | null;
+}
+
+export interface AdipometryFemaleCalculationInputs extends AdipometryCalculationInputBase {
+  subscapularMm: number;
+  thighMm: number;
+  tricepsMm: number | null;
+  abdominalMm: number | null;
+}
+
+export interface AdipometryProtocolSexDecisionSnapshot<S extends AdipometryProtocolSex> {
+  protocolSex: S;
+  profileSexSnapshot: 'male' | 'female' | 'other';
+  source: AdipometryProtocolSexSource;
+  confirmedByUserId: string;
+  confirmedAt: string;
+  overrideReason: string | null;
+}
+
+interface AdipometryCalculationSnapshotBase {
   protocol: { code: string; version: number };
   assessmentDate: string;
   ageAtAssessment: number | null;
-  profileCriteria: Record<string, unknown>;
-  inputs: Required<AdipometryMeasurements>;
   rules: Record<string, unknown>;
   results: AdipometryCalculatedResults;
   implementationVersion: string;
   calculatedAt: string;
 }
+
+export type AdipometryCalculationSnapshot =
+  | (AdipometryCalculationSnapshotBase & {
+      profileCriteria: Record<string, unknown> & {
+        protocolSex: 'male';
+        sex: 'MALE';
+      };
+      protocolSexDecision: AdipometryProtocolSexDecisionSnapshot<'male'>;
+      inputs: AdipometryMaleCalculationInputs;
+    })
+  | (AdipometryCalculationSnapshotBase & {
+      profileCriteria: Record<string, unknown> & {
+        protocolSex: 'female';
+        sex: 'FEMALE';
+      };
+      protocolSexDecision: AdipometryProtocolSexDecisionSnapshot<'female'>;
+      inputs: AdipometryFemaleCalculationInputs;
+    });
 
 export function formatAdipometryCode(sequenceNumber: number): string {
   if (!Number.isSafeInteger(sequenceNumber) || sequenceNumber <= 0) {
