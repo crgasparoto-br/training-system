@@ -69,10 +69,10 @@ jobs:
           python .github/issue-246/canonical-guedes-compat.py
           python .github/issue-246/structured-maturation-compat.py
           python .github/issue-246/boundary-approval-compat.py
-          python .github/issue-246/boundary-assertion-cast-compat.py
           cp -a /tmp/issue246transport/apps /tmp/issue246transport/packages /tmp/issue246transport/docs /tmp/issue246transport/scripts .
           cp /tmp/issue246transport/apply.py .github/issue-246/apply.py
           python .github/issue-246/apply.py
+          python .github/issue-246/boundary-assertion-cast-compat.py
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
