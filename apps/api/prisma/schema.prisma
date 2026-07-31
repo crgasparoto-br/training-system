@@ -37,6 +37,7 @@ model User {
   adipometryResponsibilitiesDesignated   AdipometryClinicalResponsibility[]     @relation("AdipometryResponsibilityDesignatedBy")
   adipometryResponsibilitiesEnded        AdipometryClinicalResponsibility[]     @relation("AdipometryResponsibilityEndedBy")
   adipometryProtocolApprovals            AdipometryProtocolApproval[]           @relation("AdipometryProtocolApprovalUser")
+  adipometryProtocolApprovalsRevoked     AdipometryProtocolApproval[]           @relation("AdipometryProtocolApprovalRevokedByUser")
   adipometryProtocolSexConfirmations     AdipometryAssessment[]                 @relation("AdipometryProtocolSexConfirmedBy")
   adipometryCapacityWarningConfirmations AdipometryAssessment[]                 @relation("AdipometryCapacityWarningConfirmedBy")
 
@@ -401,6 +402,7 @@ model Professor {
   adipometryAssessments                AdipometryAssessment[]                 @relation("AdipometryAssessmentProfessor")
   adipometryClinicalResponsibilities   AdipometryClinicalResponsibility[]     @relation("AdipometryResponsibilityProfessor")
   adipometryProtocolApprovals          AdipometryProtocolApproval[]           @relation("AdipometryProtocolApprovalProfessor")
+  adipometryProtocolApprovalsRevoked   AdipometryProtocolApproval[]           @relation("AdipometryProtocolApprovalRevokedByProfessor")
 
   @@unique([id, contractId], map: "Professor_id_contractId_key")
   @@index([collaboratorFunctionId])
@@ -1247,14 +1249,23 @@ model AdipometryProtocolApproval {
   approvedByCrefSnapshot     String
   approvedSpecificationHash  String
   protocolDefinitionSnapshot Json
+  protocolReferenceSnapshot  String
+  revokedAt                  DateTime?
+  revokedByProfessorId       String?
+  revokedByUserId            String?
+  revocationReason           String?
   createdAt                  DateTime                         @default(now())
   contract                   CompanyContract                  @relation("AdipometryProtocolApprovalContract", fields: [contractId], references: [id], onDelete: Restrict)
   protocol                   AdipometryProtocol               @relation("AdipometryProtocolApprovalProtocol", fields: [protocolId, protocolCode, protocolVersion], references: [id, code, version], onDelete: Restrict)
   responsibility             AdipometryClinicalResponsibility @relation(fields: [responsibilityId, contractId], references: [id, contractId], onDelete: Restrict)
   approvedByProfessor        Professor                        @relation("AdipometryProtocolApprovalProfessor", fields: [approvedByProfessorId, contractId], references: [id, contractId], onDelete: Restrict)
   approvedByUser             User                             @relation("AdipometryProtocolApprovalUser", fields: [approvedByUserId], references: [id], onDelete: Restrict)
+  revokedByProfessor         Professor?                       @relation("AdipometryProtocolApprovalRevokedByProfessor", fields: [revokedByProfessorId, contractId], references: [id, contractId], onDelete: Restrict)
+  revokedByUser              User?                            @relation("AdipometryProtocolApprovalRevokedByUser", fields: [revokedByUserId], references: [id], onDelete: Restrict)
 
-  @@unique([contractId, protocolId, protocolCode, protocolVersion], map: "AdipometryProtocolApproval_contract_protocol_key")
+  // Active approval uniqueness is enforced by the SQL partial index
+  // AdipometryProtocolApproval_contract_protocol_key WHERE revokedAt IS NULL.
+  // Prisma cannot represent partial indexes without losing approval history.
   @@index([contractId, approvedAt(sort: Desc)], map: "AdipometryProtocolApproval_contract_approvedAt_idx")
   @@index([responsibilityId], map: "AdipometryProtocolApproval_responsibility_idx")
 }

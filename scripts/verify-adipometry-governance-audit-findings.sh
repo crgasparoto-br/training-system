@@ -2,7 +2,82 @@
 set -euo pipefail
 
 : "${DATABASE_URL:?DATABASE_URL is required}"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PSQL_DATABASE_URL="${DATABASE_URL%%\?*}"
+SCHEMA_PATH="$ROOT_DIR/apps/api/prisma/schema.prisma"
+
+approval_model="$(awk '/^model AdipometryProtocolApproval \{/{capture=1} capture{print} capture && /^}/{exit}' "$SCHEMA_PATH")"
+for expected in \
+  "protocolReferenceSnapshot  String" \
+  "revokedAt                  DateTime?" \
+  "revokedByProfessorId       String?" \
+  "revokedByUserId            String?" \
+  "revocationReason           String?" \
+  "AdipometryProtocolApprovalRevokedByProfessor" \
+  "AdipometryProtocolApprovalRevokedByUser"; do
+  grep -Fq "$expected" <<<"$approval_model" || {
+    echo "Prisma approval model is missing: $expected" >&2
+    exit 1
+  }
+done
+
+if grep -Fq '@@unique([contractId, protocolId, protocolCode, protocolVersion]' <<<"$approval_model"; then
+  echo "Prisma still declares total approval uniqueness; the database uses an active-only partial index" >&2
+  exit 1
+fi
+
+grep -Fq 'adipometryProtocolApprovalsRevoked' "$SCHEMA_PATH" || {
+  echo "Prisma inverse revocation relations are missing" >&2
+  exit 1
+}
+
+canonical_payload="$(psql "$PSQL_DATABASE_URL" -v ON_ERROR_STOP=1 -X -q -t -A <<'SQL'
+SELECT JSONB_BUILD_OBJECT(
+  'code', code,
+  'version', version,
+  'reference', reference,
+  'definitionSnapshot', "definitionSnapshot"
+)::TEXT
+FROM "AdipometryProtocol"
+WHERE code = 'GUEDES_1991_ADULT_YOUNG' AND version = 1;
+SQL
+)"
+
+service_hash="$(printf '%s' "$canonical_payload" | node -e '
+const fs = require("node:fs");
+const { createHash } = require("node:crypto");
+function sortJson(value) {
+  if (Array.isArray(value)) return value.map(sortJson);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value)
+        .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+        .map(([key, item]) => [key, sortJson(item)])
+    );
+  }
+  return value;
+}
+const input = JSON.parse(fs.readFileSync(0, "utf8"));
+process.stdout.write(createHash("sha256").update(JSON.stringify(sortJson(input))).digest("hex"));
+')"
+
+database_hash="$(psql "$PSQL_DATABASE_URL" -v ON_ERROR_STOP=1 -X -q -t -A <<'SQL'
+SELECT "buildAdipometrySpecificationHash"(
+  code,
+  version,
+  reference,
+  "definitionSnapshot"
+)
+FROM "AdipometryProtocol"
+WHERE code = 'GUEDES_1991_ADULT_YOUNG' AND version = 1;
+SQL
+)"
+
+if [[ -z "$service_hash" || "$service_hash" != "$database_hash" ]]; then
+  echo "service/database adipometry specification hashes diverge" >&2
+  echo "service=$service_hash database=$database_hash" >&2
+  exit 1
+fi
 
 psql "$PSQL_DATABASE_URL" -v ON_ERROR_STOP=1 <<'SQL'
 BEGIN;
@@ -13,6 +88,7 @@ DECLARE
   v_user_type TEXT;
   v_protocol "AdipometryProtocol"%ROWTYPE;
   v_snapshot TEXT;
+  v_hash TEXT;
 BEGIN
   IF NOT EXISTS (
     SELECT 1
@@ -34,6 +110,19 @@ BEGIN
 
   IF TO_REGPROCEDURE('"isEligibleAdipometryResponsibilityActor"(text,text,timestamp without time zone)') IS NULL THEN
     RAISE EXCEPTION 'responsibility actor validation function is missing';
+  END IF;
+
+  IF TO_REGPROCEDURE('"buildAdipometrySpecificationHash"(text,integer,text,jsonb)') IS NULL
+     OR TO_REGPROCEDURE('"canonicalizeAdipometrySpecificationJson"(jsonb)') IS NULL THEN
+    RAISE EXCEPTION 'database specification hash functions are missing';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger
+    WHERE tgname = 'AdipometryProtocolApproval_01_specification_hash_guard'
+      AND NOT tgisinternal
+  ) THEN
+    RAISE EXCEPTION 'approval specification hash guard is missing';
   END IF;
 
   SELECT enumlabel INTO v_contract_type
@@ -189,12 +278,34 @@ BEGIN
       v_protocol.code, v_protocol.version, 'issue246-valid-responsibility',
       'issue246-actor-responsible-professor', 'issue246-actor-responsible-user', CURRENT_TIMESTAMP,
       'Declaração clínica completa para o controle negativo de referência.',
-      'Responsável clínico auditado', 'CREF-AUDIT-246', REPEAT('a', 64),
+      'Responsável clínico auditado', 'CREF-AUDIT-246',
+      "buildAdipometrySpecificationHash"(
+        v_protocol.code, v_protocol.version, 'forged-reference', v_protocol."definitionSnapshot"
+      ),
       v_protocol."definitionSnapshot", 'forged-reference', CURRENT_TIMESTAMP
     );
     RAISE EXCEPTION 'forged protocol reference snapshot was accepted';
   EXCEPTION WHEN check_violation THEN
     IF SQLERRM NOT LIKE '%ADIPOMETRY_PROTOCOL_REFERENCE_SNAPSHOT_MISMATCH%' THEN RAISE; END IF;
+  END;
+
+  BEGIN
+    INSERT INTO "AdipometryProtocolApproval" (
+      id, "contractId", "protocolId", "protocolCode", "protocolVersion",
+      "responsibilityId", "approvedByProfessorId", "approvedByUserId", "approvedAt",
+      "approvalStatement", "approvedByNameSnapshot", "approvedByCrefSnapshot",
+      "approvedSpecificationHash", "protocolDefinitionSnapshot", "createdAt"
+    ) VALUES (
+      'issue246-forged-hash-approval', 'issue246-actor-contract-a', v_protocol.id,
+      v_protocol.code, v_protocol.version, 'issue246-valid-responsibility',
+      'issue246-actor-responsible-professor', 'issue246-actor-responsible-user', CURRENT_TIMESTAMP,
+      'Declaração clínica completa para o controle negativo do hash aprovado.',
+      'Responsável clínico auditado', 'CREF-AUDIT-246', REPEAT('f', 64),
+      v_protocol."definitionSnapshot", CURRENT_TIMESTAMP
+    );
+    RAISE EXCEPTION 'unrelated 64-character specification hash was accepted';
+  EXCEPTION WHEN check_violation THEN
+    IF SQLERRM NOT LIKE '%ADIPOMETRY_SPECIFICATION_HASH_MISMATCH%' THEN RAISE; END IF;
   END;
 
   INSERT INTO "AdipometryProtocolApproval" (
@@ -207,16 +318,29 @@ BEGIN
     v_protocol.code, v_protocol.version, 'issue246-valid-responsibility',
     'issue246-actor-responsible-professor', 'issue246-actor-responsible-user', CURRENT_TIMESTAMP,
     'Declaração clínica completa para comprovar o snapshot de referência.',
-    'Responsável clínico auditado', 'CREF-AUDIT-246', REPEAT('b', 64),
+    'Responsável clínico auditado', 'CREF-AUDIT-246',
+    "buildAdipometrySpecificationHash"(
+      v_protocol.code, v_protocol.version, v_protocol.reference, v_protocol."definitionSnapshot"
+    ),
     v_protocol."definitionSnapshot", CURRENT_TIMESTAMP
   );
 
-  SELECT "protocolReferenceSnapshot" INTO v_snapshot
+  SELECT "protocolReferenceSnapshot", "approvedSpecificationHash"
+    INTO v_snapshot, v_hash
   FROM "AdipometryProtocolApproval"
   WHERE id = 'issue246-valid-reference-approval';
 
   IF BTRIM(v_snapshot) IS DISTINCT FROM BTRIM(v_protocol.reference) THEN
     RAISE EXCEPTION 'protocol reference snapshot was not captured atomically';
+  END IF;
+
+  IF v_hash IS DISTINCT FROM "buildAdipometrySpecificationHash"(
+    v_protocol.code,
+    v_protocol.version,
+    v_protocol.reference,
+    v_protocol."definitionSnapshot"
+  ) THEN
+    RAISE EXCEPTION 'approved specification hash was not persisted canonically';
   END IF;
 
   BEGIN

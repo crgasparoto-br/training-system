@@ -53,7 +53,11 @@ is_deferred_adpt_migration() {
     20260730224500_add_adipometry_clinical_governance|\
     20260731120000_complete_adipometry_revision_lifecycle|\
     20260731143000_close_issue_246_governance_findings|\
-    20260731144500_align_adipometry_correction_function)
+    20260731144500_align_adipometry_correction_function|\
+    20260731150000_decouple_adipometry_designation_permission|\
+    20260731153000_seed_adipometry_permissions_for_new_collaborator_functions|\
+    20260731160000_harden_adipometry_governance_actor_and_reference|\
+    20260731173000_enforce_adipometry_approval_hash)
       return 0
       ;;
     *)
@@ -157,7 +161,11 @@ for migration_name in \
   20260730224500_add_adipometry_clinical_governance \
   20260731120000_complete_adipometry_revision_lifecycle \
   20260731143000_close_issue_246_governance_findings \
-  20260731144500_align_adipometry_correction_function
+  20260731144500_align_adipometry_correction_function \
+  20260731150000_decouple_adipometry_designation_permission \
+  20260731153000_seed_adipometry_permissions_for_new_collaborator_functions \
+  20260731160000_harden_adipometry_governance_actor_and_reference \
+  20260731173000_enforce_adipometry_approval_hash
 do
   psql_file "$TEMP_URL" "$ROOT_DIR/apps/api/prisma/migrations/$migration_name/migration.sql" "$migration_name.sql"
 done
@@ -195,7 +203,9 @@ BEGIN
      OR TO_REGPROCEDURE('"isValidAdipometryCanonicalPopulation"(jsonb)') IS NULL
      OR TO_REGPROCEDURE('"validateAdipometryCanonicalProtocolProfile"()') IS NULL
      OR TO_REGPROCEDURE('"hasExplicitAdipometryClinicalPermission"(text,text,text)') IS NULL
-     OR TO_REGPROCEDURE('"guardAdipometryActiveContractApproval"()') IS NULL THEN
+     OR TO_REGPROCEDURE('"guardAdipometryActiveContractApproval"()') IS NULL
+     OR TO_REGPROCEDURE('"buildAdipometrySpecificationHash"(text,integer,text,jsonb)') IS NULL
+     OR TO_REGPROCEDURE('"canonicalizeAdipometrySpecificationJson"(jsonb)') IS NULL THEN
     RAISE EXCEPTION 'final executable persistence validation was not installed';
   END IF;
 
