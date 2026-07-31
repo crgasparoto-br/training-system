@@ -104,15 +104,27 @@ BEGIN
 END;
 $guard$;
 
-DROP TRIGGER IF EXISTS "AdipometryProtocolApproval_01_specification_hash_guard"
-  ON "AdipometryProtocolApproval";
-CREATE TRIGGER "AdipometryProtocolApproval_01_specification_hash_guard"
-BEFORE INSERT OR UPDATE ON "AdipometryProtocolApproval"
-FOR EACH ROW EXECUTE FUNCTION "guardAdipometryProtocolApprovalHash"();
-
-DO $existing_approvals$
+-- The reduced legacy-chain verification installs migrations that are not part
+-- of the ADPT chain before the governance tables exist. Keep that compatibility
+-- path safe while installing the guard normally whenever the approval table is
+-- present (the production migration order and complete upgrade gates).
+DO $install_hash_guard$
+DECLARE
+  v_invalid BOOLEAN;
 BEGIN
-  IF EXISTS (
+  IF TO_REGCLASS('"AdipometryProtocolApproval"') IS NULL THEN
+    RETURN;
+  END IF;
+
+  EXECUTE 'DROP TRIGGER IF EXISTS
+    "AdipometryProtocolApproval_01_specification_hash_guard"
+    ON "AdipometryProtocolApproval"';
+  EXECUTE 'CREATE TRIGGER
+    "AdipometryProtocolApproval_01_specification_hash_guard"
+    BEFORE INSERT OR UPDATE ON "AdipometryProtocolApproval"
+    FOR EACH ROW EXECUTE FUNCTION "guardAdipometryProtocolApprovalHash"()';
+
+  EXECUTE 'SELECT EXISTS (
     SELECT 1
     FROM "AdipometryProtocolApproval" approval
     WHERE approval."approvedSpecificationHash" IS DISTINCT FROM
@@ -122,10 +134,12 @@ BEGIN
         approval."protocolReferenceSnapshot",
         approval."protocolDefinitionSnapshot"
       )
-  ) THEN
+  )' INTO v_invalid;
+
+  IF v_invalid THEN
     RAISE EXCEPTION 'ADIPOMETRY_EXISTING_APPROVAL_HASH_MISMATCH';
   END IF;
 END;
-$existing_approvals$;
+$install_hash_guard$;
 
 COMMIT;
