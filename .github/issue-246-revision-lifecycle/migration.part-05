@@ -1,0 +1,183 @@
+
+-- Re-assert full vector validation. The prior governance migration returned
+-- before iterating the vectors, so a structurally valid definition with forged
+-- expected results could otherwise be approved directly at the persistence boundary.
+CREATE OR REPLACE FUNCTION "isValidAdipometryContractProtocolDefinition"(p_definition JSONB)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+STABLE
+STRICT
+AS $validator$
+DECLARE
+  v_all_skinfolds CONSTANT JSONB := '["tricepsMm","subscapularMm","suprailiacMm","abdominalMm","thighMm"]'::JSONB;
+  v_male_skinfolds CONSTANT JSONB := '["tricepsMm","suprailiacMm","abdominalMm"]'::JSONB;
+  v_female_skinfolds CONSTANT JSONB := '["subscapularMm","suprailiacMm","thighMm"]'::JSONB;
+  v_allowed_variables TEXT[] := ARRAY[
+    'weightKg','tricepsMm','subscapularMm','suprailiacMm','abdominalMm','thighMm',
+    'skinfoldTotalMm','ageAtAssessment'
+  ];
+  v_expected_outputs CONSTANT TEXT[] := ARRAY['bodyFatPercentage','fatMassKg','leanMassKg'];
+  v_equation JSONB;
+  v_vector JSONB;
+  v_field TEXT;
+  v_limit JSONB;
+  v_actual JSONB;
+  v_expected NUMERIC;
+  v_tolerance NUMERIC;
+  v_index INTEGER := 0;
+  v_sex TEXT;
+  v_age INTEGER;
+BEGIN
+  IF JSONB_TYPEOF(p_definition) IS DISTINCT FROM 'object'
+     OR JSONB_TYPEOF(p_definition -> 'schemaVersion') IS DISTINCT FROM 'number'
+     OR (p_definition ->> 'schemaVersion')::INTEGER < 3
+     OR JSONB_TYPEOF(p_definition -> 'internalVersion') IS DISTINCT FROM 'string'
+     OR NULLIF(BTRIM(p_definition ->> 'internalVersion'), '') IS NULL THEN
+    RETURN FALSE;
+  END IF;
+
+  IF JSONB_TYPEOF(p_definition -> 'population') IS DISTINCT FROM 'object'
+     OR JSONB_TYPEOF(p_definition #> '{population,ageMinYears}') IS DISTINCT FROM 'number'
+     OR JSONB_TYPEOF(p_definition #> '{population,ageMaxYears}') IS DISTINCT FROM 'number'
+     OR (p_definition #>> '{population,ageMinYears}')::INTEGER <> 18
+     OR (p_definition #>> '{population,ageMaxYears}')::INTEGER <> 30
+     OR JSONB_TYPEOF(p_definition #> '{population,sexCriteria}') IS DISTINCT FROM 'array'
+     OR NOT ((p_definition #> '{population,sexCriteria}') @> '["MALE","FEMALE"]'::JSONB)
+     OR JSONB_ARRAY_LENGTH(p_definition #> '{population,sexCriteria}') <> 2
+     OR p_definition #>> '{population,maturationRule,mode}' IS DISTINCT FROM 'NOT_REQUIRED' THEN
+    RETURN FALSE;
+  END IF;
+
+  IF JSONB_TYPEOF(p_definition -> 'requiredSkinfolds') IS DISTINCT FROM 'array'
+     OR JSONB_ARRAY_LENGTH(p_definition -> 'requiredSkinfolds') <> 5
+     OR NOT ((p_definition -> 'requiredSkinfolds') @> v_all_skinfolds)
+     OR NOT (v_all_skinfolds @> (p_definition -> 'requiredSkinfolds'))
+     OR JSONB_TYPEOF(p_definition #> '{calculationSkinfoldsBySex,MALE}') IS DISTINCT FROM 'array'
+     OR JSONB_TYPEOF(p_definition #> '{calculationSkinfoldsBySex,FEMALE}') IS DISTINCT FROM 'array'
+     OR NOT ((p_definition #> '{calculationSkinfoldsBySex,MALE}') @> v_male_skinfolds)
+     OR NOT (v_male_skinfolds @> (p_definition #> '{calculationSkinfoldsBySex,MALE}'))
+     OR NOT ((p_definition #> '{calculationSkinfoldsBySex,FEMALE}') @> v_female_skinfolds)
+     OR NOT (v_female_skinfolds @> (p_definition #> '{calculationSkinfoldsBySex,FEMALE}')) THEN
+    RETURN FALSE;
+  END IF;
+
+  IF p_definition #>> '{inputScales,weightKg}' IS DISTINCT FROM '2'
+     OR p_definition #>> '{inputScales,tricepsMm}' IS DISTINCT FROM '1'
+     OR p_definition #>> '{inputScales,subscapularMm}' IS DISTINCT FROM '1'
+     OR p_definition #>> '{inputScales,suprailiacMm}' IS DISTINCT FROM '1'
+     OR p_definition #>> '{inputScales,abdominalMm}' IS DISTINCT FROM '1'
+     OR p_definition #>> '{inputScales,thighMm}' IS DISTINCT FROM '1'
+     OR p_definition #>> '{rounding,mode}' IS DISTINCT FROM 'HALF_UP'
+     OR p_definition #>> '{rounding,stage}' IS DISTINCT FROM 'FINAL_RESULTS_ONLY'
+     OR p_definition #>> '{precision,resultScale}' IS DISTINCT FROM '2'
+     OR p_definition #>> '{precision,internalScale}' IS DISTINCT FROM '8' THEN
+    RETURN FALSE;
+  END IF;
+
+  FOREACH v_field IN ARRAY ARRAY['weightKg','tricepsMm','subscapularMm','suprailiacMm','abdominalMm','thighMm'] LOOP
+    v_limit := p_definition #> ARRAY['limits','blocking',v_field];
+    IF JSONB_TYPEOF(v_limit) IS DISTINCT FROM 'object'
+       OR JSONB_TYPEOF(v_limit -> 'min') IS DISTINCT FROM 'number'
+       OR JSONB_TYPEOF(v_limit -> 'max') IS DISTINCT FROM 'number'
+       OR (v_limit ->> 'min')::NUMERIC <= 0
+       OR (v_limit ->> 'max')::NUMERIC <= (v_limit ->> 'min')::NUMERIC THEN
+      RETURN FALSE;
+    END IF;
+  END LOOP;
+
+  IF JSONB_TYPEOF(p_definition -> 'equations') IS DISTINCT FROM 'array'
+     OR JSONB_ARRAY_LENGTH(p_definition -> 'equations') <> 3 THEN
+    RETURN FALSE;
+  END IF;
+  FOR v_equation IN SELECT value FROM JSONB_ARRAY_ELEMENTS(p_definition -> 'equations') LOOP
+    v_index := v_index + 1;
+    IF v_equation ->> 'output' IS DISTINCT FROM v_expected_outputs[v_index]
+       OR NOT "isValidAdipometryContractExpression"(v_equation -> 'expression', v_allowed_variables) THEN
+      RETURN FALSE;
+    END IF;
+    v_allowed_variables := ARRAY_APPEND(v_allowed_variables, v_equation ->> 'output');
+  END LOOP;
+
+  IF JSONB_TYPEOF(p_definition -> 'testVectors') IS DISTINCT FROM 'array'
+     OR JSONB_ARRAY_LENGTH(p_definition -> 'testVectors') < 3
+     OR (
+       SELECT COUNT(DISTINCT vector ->> 'id')
+       FROM JSONB_ARRAY_ELEMENTS(p_definition -> 'testVectors') vector
+     ) <> JSONB_ARRAY_LENGTH(p_definition -> 'testVectors')
+     OR (
+       SELECT COUNT(DISTINCT vector -> 'inputs')
+       FROM JSONB_ARRAY_ELEMENTS(p_definition -> 'testVectors') vector
+     ) <> JSONB_ARRAY_LENGTH(p_definition -> 'testVectors') THEN
+    RETURN FALSE;
+  END IF;
+
+  FOR v_vector IN SELECT value FROM JSONB_ARRAY_ELEMENTS(p_definition -> 'testVectors') LOOP
+    v_sex := UPPER(BTRIM(v_vector #>> '{inputs,profileCriteria,sex}'));
+    IF JSONB_TYPEOF(v_vector #> '{inputs,ageAtAssessment}') IS DISTINCT FROM 'number'
+       OR JSONB_TYPEOF(v_vector #> '{inputs,measurements}') IS DISTINCT FROM 'object'
+       OR v_sex NOT IN ('MALE','FEMALE') THEN
+      RETURN FALSE;
+    END IF;
+    v_age := (v_vector #>> '{inputs,ageAtAssessment}')::INTEGER;
+    IF v_age NOT BETWEEN 18 AND 30 THEN RETURN FALSE; END IF;
+
+    FOREACH v_field IN ARRAY ARRAY['weightKg','tricepsMm','subscapularMm','suprailiacMm','abdominalMm','thighMm'] LOOP
+      IF JSONB_TYPEOF(v_vector #> ARRAY['inputs','measurements',v_field]) IS DISTINCT FROM 'number' THEN
+        RETURN FALSE;
+      END IF;
+      v_limit := p_definition #> ARRAY['limits','blocking',v_field];
+      IF (v_vector #>> ARRAY['inputs','measurements',v_field])::NUMERIC < (v_limit ->> 'min')::NUMERIC
+         OR (v_vector #>> ARRAY['inputs','measurements',v_field])::NUMERIC > (v_limit ->> 'max')::NUMERIC THEN
+        RETURN FALSE;
+      END IF;
+    END LOOP;
+
+    v_actual := "evaluateAdipometryContractProtocolVector"(p_definition, v_vector);
+    FOREACH v_field IN ARRAY ARRAY['skinfoldTotalMm','bodyFatPercentage','fatMassKg','leanMassKg'] LOOP
+      IF JSONB_TYPEOF(v_actual -> v_field) IS DISTINCT FROM 'number'
+         OR JSONB_TYPEOF(v_vector #> ARRAY['expectedResults',v_field]) IS DISTINCT FROM 'number'
+         OR JSONB_TYPEOF(v_vector #> ARRAY['tolerance',v_field]) IS DISTINCT FROM 'number' THEN
+        RETURN FALSE;
+      END IF;
+      v_expected := (v_vector #>> ARRAY['expectedResults',v_field])::NUMERIC;
+      v_tolerance := (v_vector #>> ARRAY['tolerance',v_field])::NUMERIC;
+      IF v_tolerance < 0 OR v_tolerance > 0.01 THEN RETURN FALSE; END IF;
+      IF ABS(
+        "roundAdipometryValue"(
+          (v_actual ->> v_field)::NUMERIC,
+          CASE WHEN v_field = 'skinfoldTotalMm' THEN 1 ELSE 2 END,
+          'HALF_UP'
+        ) - v_expected
+      ) > v_tolerance THEN
+        RETURN FALSE;
+      END IF;
+    END LOOP;
+
+    IF (v_actual ->> 'bodyFatPercentage')::NUMERIC NOT BETWEEN 0 AND 100
+       OR (v_actual ->> 'fatMassKg')::NUMERIC < 0
+       OR (v_actual ->> 'leanMassKg')::NUMERIC < 0
+       OR ABS(
+         (v_actual ->> 'fatMassKg')::NUMERIC
+         + (v_actual ->> 'leanMassKg')::NUMERIC
+         - (v_vector #>> '{inputs,measurements,weightKg}')::NUMERIC
+       ) > 0.02 THEN
+      RETURN FALSE;
+    END IF;
+  END LOOP;
+
+  RETURN TRUE;
+EXCEPTION WHEN OTHERS THEN
+  RETURN FALSE;
+END;
+$validator$;
+
+
+ALTER TABLE "AdipometryAssessment" ENABLE TRIGGER USER;
+
+CREATE OR REPLACE VIEW "AdipometryCurrentAssessment" AS
+SELECT assessment.*
+FROM "AdipometryAssessment" assessment
+WHERE assessment."revisionStatus" = 'FINALIZED'
+  AND assessment."correctedByAssessmentId" IS NULL;
+
+COMMIT;
