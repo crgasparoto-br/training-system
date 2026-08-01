@@ -11,9 +11,10 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 # A-246-10: a valid management actor cannot persist an ineligible target.
 # The same transaction also produces an actual completion snapshot so A-246-09
 # validates the JSON emitted by PostgreSQL, not a hand-built TypeScript fixture.
-SNAPSHOT_JSON="$(docker run --rm --network host \
+docker run --rm --network host \
+  -v "$TMP_DIR:/snapshot" \
   postgres:16-alpine \
-  psql "$PSQL_DATABASE_URL" -v ON_ERROR_STOP=1 -X -q -t -A <<'SQL'
+  psql "$PSQL_DATABASE_URL" -v ON_ERROR_STOP=1 -X -q <<'SQL'
 BEGIN;
 
 DO $$
@@ -285,19 +286,15 @@ FROM "AdipometryProtocol" protocol
 WHERE protocol.code = 'GUEDES_1991_ADULT_YOUNG'
   AND protocol.version = 1;
 
-SELECT "calculationSnapshot"::TEXT
-FROM issue246_a09_a10_snapshot_probe
-LIMIT 1;
+\copy (SELECT "calculationSnapshot"::TEXT FROM issue246_a09_a10_snapshot_probe LIMIT 1) TO '/snapshot/persisted-calculation-snapshot.json'
 
 ROLLBACK;
 SQL
-)"
 
-if [[ -z "$SNAPSHOT_JSON" ]]; then
+if [[ ! -s "$SNAPSHOT_PATH" ]]; then
   echo "persisted adipometry completion snapshot was not produced" >&2
   exit 1
 fi
-printf '%s\n' "$SNAPSHOT_JSON" > "$SNAPSHOT_PATH"
 
 # A-246-09: validate the actual JSON emitted by the PostgreSQL completion
 # trigger at the shared runtime contract boundary.
