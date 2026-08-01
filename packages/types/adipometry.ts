@@ -165,8 +165,21 @@ export interface AdipometryProtocolSexDecisionSnapshot<S extends AdipometryProto
   overrideReason: string | null;
 }
 
+export interface AdipometryProtocolApprovalSnapshot {
+  id: string;
+  responsibilityId: string;
+  approvedAt: string;
+  approvedByProfessorId: string;
+  approvedByName: string;
+  approvedByCref: string;
+  approvedSpecificationHash: string;
+  protocolReference: string;
+  protocolDefinitionSnapshot: AdipometryProtocolDefinitionSnapshot;
+}
+
 interface AdipometryCalculationSnapshotBase {
   protocol: { code: string; version: number };
+  protocolApproval: AdipometryProtocolApprovalSnapshot;
   assessmentDate: string;
   ageAtAssessment: number | null;
   rules: Record<string, unknown>;
