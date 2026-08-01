@@ -41,7 +41,7 @@ BEGIN
       AND NOT "isEligibleAdipometryClinicalDesignation"(
         responsibility."contractId",
         responsibility."professorId",
-        CURRENT_TIMESTAMP
+        CURRENT_TIMESTAMP::TIMESTAMP(3)
       )
   ) THEN
     RAISE EXCEPTION 'ADIPOMETRY_ACTIVE_RESPONSIBILITY_PERMISSION_INVALID'
