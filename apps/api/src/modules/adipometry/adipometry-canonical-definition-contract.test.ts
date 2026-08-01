@@ -5,6 +5,14 @@ import {
   type AdipometryProtocolApprovalSnapshot,
 } from '@corrida/types';
 
+interface PersistedCalculationSnapshotProbe {
+  protocolApproval?: {
+    id?: unknown;
+    protocolReference?: unknown;
+    protocolDefinitionSnapshot?: unknown;
+  };
+}
+
 function readCanonicalGuedesDefinition(): unknown {
   const migration = readFileSync(
     join(
@@ -19,6 +27,16 @@ function readCanonicalGuedesDefinition(): unknown {
   }
   return JSON.parse(match[1]) as unknown;
 }
+
+function readPersistedCalculationSnapshot(): PersistedCalculationSnapshotProbe {
+  const path = process.env.ADIPOMETRY_PERSISTED_SNAPSHOT_PATH;
+  if (!path) {
+    throw new Error('ADIPOMETRY_PERSISTED_SNAPSHOT_PATH is required for the persisted snapshot control');
+  }
+  return JSON.parse(readFileSync(path, 'utf8')) as PersistedCalculationSnapshotProbe;
+}
+
+const persistedSnapshotTest = process.env.ADIPOMETRY_PERSISTED_SNAPSHOT_PATH ? it : it.skip;
 
 describe('canonical adipometry definition contract', () => {
   it('accepts the persisted schema v3 candidate without embedded contract approval', () => {
@@ -42,6 +60,20 @@ describe('canonical adipometry definition contract', () => {
     } satisfies AdipometryProtocolApprovalSnapshot;
 
     expect(approvalSnapshot.protocolDefinitionSnapshot.schemaVersion).toBe(3);
+  });
+
+  persistedSnapshotTest('validates the actual PostgreSQL completion snapshot at the runtime boundary', () => {
+    const snapshot = readPersistedCalculationSnapshot();
+    const approval = snapshot.protocolApproval;
+
+    expect(approval?.id).toBe('issue246-a09-a10-approval');
+    expect(approval?.protocolReference).toContain('10.5433/1679-0367.1991v12n2p61');
+
+    const definition = approval?.protocolDefinitionSnapshot;
+    assertAdipometryProtocolDefinitionSnapshot(definition);
+
+    expect(definition.schemaVersion).toBe(3);
+    expect('clinicalApproval' in definition).toBe(false);
   });
 
   it('rejects malformed JSON before it reaches the shared snapshot contract', () => {
