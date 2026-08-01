@@ -72,7 +72,7 @@ text = text.replace(
 
 start_marker = '''UPDATE "AdipometryProtocolApproval"
 SET "revokedAt" = CURRENT_TIMESTAMP,
-    "revokedByProfessorId" = 'issue246-active-snapshot-responsible-current-professor' '''
+    "revokedByProfessorId" = 'issue246-active-snapshot-responsible-current-professor','''
 start = text.find(start_marker)
 end = text.find('\nROLLBACK;\nSQL', start)
 if start < 0 or end < 0:
