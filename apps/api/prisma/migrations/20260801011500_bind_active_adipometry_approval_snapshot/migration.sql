@@ -76,18 +76,31 @@ BEGIN
 END;
 $active_snapshot$;
 
-DROP TRIGGER IF EXISTS
-  "zzzz_AdipometryAssessment_active_approval_snapshot"
-  ON "AdipometryAssessment";
-CREATE TRIGGER "zzzz_AdipometryAssessment_active_approval_snapshot"
-BEFORE INSERT OR UPDATE OF
-  status,
-  "contractId",
-  "protocolId",
-  "protocolCode",
-  "protocolVersion"
-ON "AdipometryAssessment"
-FOR EACH ROW
-EXECUTE FUNCTION "bindActiveAdipometryApprovalSnapshot"();
+-- The reduced legacy-chain gate intentionally installs only selected ADPT
+-- migrations. Install the trigger only when its complete dependency set exists;
+-- the normal production chain reaches this migration with every dependency.
+DO $install_active_snapshot_trigger$
+BEGIN
+  IF TO_REGCLASS('"AdipometryAssessment"') IS NULL
+     OR TO_REGCLASS('"AdipometryProtocolApproval"') IS NULL
+     OR TO_REGCLASS('"AdipometryProtocol"') IS NULL
+     OR TO_REGPROCEDURE(
+       '"buildAdipometrySpecificationHash"(text,integer,text,jsonb)'
+     ) IS NULL THEN
+    RETURN;
+  END IF;
+
+  EXECUTE 'DROP TRIGGER IF EXISTS
+    "zzzz_AdipometryAssessment_active_approval_snapshot"
+    ON "AdipometryAssessment"';
+  EXECUTE 'CREATE TRIGGER
+    "zzzz_AdipometryAssessment_active_approval_snapshot"
+    BEFORE INSERT OR UPDATE OF
+      status, "contractId", "protocolId", "protocolCode", "protocolVersion"
+    ON "AdipometryAssessment"
+    FOR EACH ROW
+    EXECUTE FUNCTION "bindActiveAdipometryApprovalSnapshot"()';
+END;
+$install_active_snapshot_trigger$;
 
 COMMIT;
