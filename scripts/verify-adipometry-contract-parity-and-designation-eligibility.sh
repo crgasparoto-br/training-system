@@ -9,7 +9,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # runtime contract without requiring contract approval metadata inside it.
 (
   cd "$ROOT_DIR"
-  pnpm --filter @corrida/api exec vitest run \
+  pnpm --filter @corrida/api exec jest --runInBand --runTestsByPath \
     src/modules/adipometry/adipometry-canonical-definition-contract.test.ts
 )
 
