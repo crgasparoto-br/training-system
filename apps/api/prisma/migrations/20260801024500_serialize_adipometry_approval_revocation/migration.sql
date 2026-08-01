@@ -1,6 +1,6 @@
 BEGIN;
 
--- Issue #246 / A-246-07.
+-- Issue #246 / A-246-07 and A-246-08.
 -- Completion and revocation must be serialized on the same active approval row.
 -- FOR SHARE keeps a completion that has already bound the approval ahead of a
 -- later revocation, while a completion that starts after an uncommitted
@@ -32,7 +32,9 @@ BEGIN
            'approvedByProfessorId', approval."approvedByProfessorId",
            'approvedByName', approval."approvedByNameSnapshot",
            'approvedByCref', approval."approvedByCrefSnapshot",
-           'approvedSpecificationHash', approval."approvedSpecificationHash"
+           'approvedSpecificationHash', approval."approvedSpecificationHash",
+           'protocolReference', approval."protocolReferenceSnapshot",
+           'protocolDefinitionSnapshot', approval."protocolDefinitionSnapshot"
          )
     INTO v_approval
   FROM "AdipometryProtocolApproval" approval
