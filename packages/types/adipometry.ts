@@ -134,7 +134,12 @@ export interface AdipometryProtocolDefinitionSnapshot {
     incompatibleProfile: string;
   };
   testVectors: AdipometryProtocolTestVector[];
-  clinicalApproval: AdipometryProtocolClinicalApproval;
+  /**
+   * Legacy/global approval metadata. Contract-scoped approval provenance is
+   * stored separately in `AdipometryProtocolApprovalSnapshot` and candidate
+   * definitions such as GUEDES_1991_ADULT_YOUNG omit this field.
+   */
+  clinicalApproval?: AdipometryProtocolClinicalApproval;
 }
 
 export interface AdipometryCalculationInputBase {
