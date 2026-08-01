@@ -61,23 +61,58 @@ import sys
 
 path = Path(sys.argv[1])
 text = path.read_text()
-text, table_count = text.replace(
+
+if text.count('CREATE TEMP TABLE issue246_active_snapshot_probe') != 1:
+    raise SystemExit('active snapshot probe table marker not found exactly once')
+text = text.replace(
     'CREATE TEMP TABLE issue246_active_snapshot_probe',
     'CREATE TABLE issue246_active_snapshot_probe',
     1,
-), text.count('CREATE TEMP TABLE issue246_active_snapshot_probe')
-if table_count != 1:
-    raise SystemExit('active snapshot probe table marker not found exactly once')
+)
 
-start = text.find('UPDATE "AdipometryProtocolApproval"\nSET "revokedAt" = CURRENT_TIMESTAMP,\n    "revokedByProfessorId" = \'issue246-active-snapshot-responsible-current-professor\'')
+start_marker = '''UPDATE "AdipometryProtocolApproval"
+SET "revokedAt" = CURRENT_TIMESTAMP,
+    "revokedByProfessorId" = 'issue246-active-snapshot-responsible-current-professor' '''
+start = text.find(start_marker)
 end = text.find('\nROLLBACK;\nSQL', start)
 if start < 0 or end < 0:
     raise SystemExit('active approval final revocation marker not found')
+
+# Remove the final sequential revocation control. The concurrency verifier needs
+# the second approval to remain active after setup.
 text = text[:start] + 'COMMIT;' + text[end + len('\nROLLBACK;'):]
+
+if 'ROLLBACK;' in text:
+    raise SystemExit('patched fixture still contains a transaction rollback')
+if 'CREATE TEMP TABLE issue246_active_snapshot_probe' in text:
+    raise SystemExit('patched fixture still creates a session-local probe table')
+if text.count('CREATE TABLE issue246_active_snapshot_probe') != 1:
+    raise SystemExit('patched fixture does not create exactly one persistent probe table')
+
 path.write_text(text)
 PY
 
 DATABASE_URL="$TEMP_URL" bash "$PATCHED_FIXTURE"
+
+cat > "$TMP_DIR/assert-fixture.sql" <<'SQL'
+DO $$
+BEGIN
+  IF TO_REGCLASS('issue246_active_snapshot_probe') IS NULL THEN
+    RAISE EXCEPTION 'persistent active snapshot probe table was not committed';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM "AdipometryProtocolApproval"
+    WHERE id = 'issue246-active-snapshot-approval-current'
+      AND "revokedAt" IS NULL
+  ) THEN
+    RAISE EXCEPTION 'active approval fixture was not committed';
+  END IF;
+END;
+$$;
+SQL
+psql_file "$TMP_DIR/assert-fixture.sql" assert-fixture.sql
 
 cat > "$TMP_DIR/assert-lock.sql" <<'SQL'
 DO $$
