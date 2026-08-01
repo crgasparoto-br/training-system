@@ -11,7 +11,7 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 # A-246-10: a valid management actor cannot persist an ineligible target.
 # The same transaction also produces an actual completion snapshot so A-246-09
 # validates the JSON emitted by PostgreSQL, not a hand-built TypeScript fixture.
-docker run --rm --network host \
+docker run --rm -i --network host \
   -v "$TMP_DIR:/snapshot" \
   postgres:16-alpine \
   psql "$PSQL_DATABASE_URL" -v ON_ERROR_STOP=1 -X -q -t -A <<'SQL'
