@@ -88,6 +88,48 @@ const protocolApproval = {
   protocolDefinitionSnapshot,
 } satisfies AdipometryProtocolApprovalSnapshot;
 
+const snapshotWithoutClinicalApproval = {
+  protocol: { code: 'GUEDES_1991_ADULT_YOUNG', version: 1 },
+  assessmentDate: '2026-07-31',
+  ageAtAssessment: 25,
+  profileCriteria: {
+    sex: 'MALE' as const,
+    protocolSex: 'male' as const,
+  },
+  protocolSexDecision: {
+    protocolSex: 'male' as const,
+    profileSexSnapshot: 'male' as const,
+    source: 'profile' as const,
+    confirmedByUserId: 'user-male',
+    confirmedAt: '2026-07-31T18:00:00.000Z',
+    overrideReason: null,
+  },
+  inputs: {
+    weightKg: 80,
+    tricepsMm: 12,
+    subscapularMm: null,
+    suprailiacMm: 18,
+    abdominalMm: 20,
+    thighMm: null,
+  },
+  rules: {},
+  results: {
+    skinfoldTotalMm: 50,
+    bodyFatPercentage: 18.12,
+    fatMassKg: 14.49,
+    leanMassKg: 65.51,
+  },
+  implementationVersion: '1.0.0',
+  calculatedAt: '2026-07-31T18:00:00.000Z',
+};
+
+// This is a discriminating compile-time control: if protocolApproval becomes
+// optional, TypeScript reports an unused @ts-expect-error and the gate fails.
+// @ts-expect-error completed snapshots require immutable clinical approval provenance
+const rejectedSnapshotWithoutClinicalApproval: AdipometryCalculationSnapshot =
+  snapshotWithoutClinicalApproval;
+void rejectedSnapshotWithoutClinicalApproval;
+
 describe('adipometry calculation snapshot contract', () => {
   it('serializes a male snapshot with unused subscapular and thigh skinfolds as null', () => {
     const snapshot = {
