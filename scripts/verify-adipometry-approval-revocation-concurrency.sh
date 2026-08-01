@@ -29,10 +29,19 @@ psql_file() {
 
 wait_for_marker() {
   local marker="$1"
-  for _ in $(seq 1 100); do
+  local process_id="$2"
+  local output="$3"
+  for _ in $(seq 1 600); do
     [[ -f "$marker" ]] && return 0
+    if ! kill -0 "$process_id" 2>/dev/null; then
+      wait "$process_id" || true
+      cat "$output" >&2
+      echo "Concurrency session exited before creating marker: $marker" >&2
+      return 1
+    fi
     sleep 0.05
   done
+  cat "$output" >&2
   echo "Timed out waiting for concurrency marker: $marker" >&2
   return 1
 }
@@ -115,7 +124,10 @@ docker run --rm --network host \
   psql "$TEMP_URL" -v ON_ERROR_STOP=1 -X -q -f /work/completion-first.sql \
   >"$TMP_DIR/completion-first.out" 2>&1 &
 completion_pid=$!
-wait_for_marker "$TMP_DIR/completion-first.lock"
+wait_for_marker \
+  "$TMP_DIR/completion-first.lock" \
+  "$completion_pid" \
+  "$TMP_DIR/completion-first.out"
 
 cat > "$TMP_DIR/revocation-must-wait.sql" <<'SQL'
 SET lock_timeout = '500ms';
@@ -198,7 +210,10 @@ docker run --rm --network host \
   psql "$TEMP_URL" -v ON_ERROR_STOP=1 -X -q -f /work/revocation-first.sql \
   >"$TMP_DIR/revocation-first.out" 2>&1 &
 revocation_pid=$!
-wait_for_marker "$TMP_DIR/revocation-first.lock"
+wait_for_marker \
+  "$TMP_DIR/revocation-first.lock" \
+  "$revocation_pid" \
+  "$TMP_DIR/revocation-first.out"
 
 cat > "$TMP_DIR/completion-must-fail.sql" <<'SQL'
 SET statement_timeout = '10s';
