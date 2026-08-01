@@ -18,5 +18,6 @@ export * from './pre-registration-health-intake.js';
 export * from './pre-registration-parq.js';
 export * from './pre-registration-enrollment.js';
 export * from './adipometry.js';
+export * from './adipometry-runtime.js';
 export * from './adipometry-profile-contract.js';
 export * from './adipometry-governance.js';
