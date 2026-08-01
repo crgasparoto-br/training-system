@@ -14,8 +14,20 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 docker run --rm --network host \
   -v "$TMP_DIR:/snapshot" \
   postgres:16-alpine \
-  psql "$PSQL_DATABASE_URL" -v ON_ERROR_STOP=1 -X -q <<'SQL'
+  psql "$PSQL_DATABASE_URL" -v ON_ERROR_STOP=1 -X -q -t -A <<'SQL'
 BEGIN;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM "AdipometryProtocol"
+    WHERE code = 'GUEDES_1991_ADULT_YOUNG' AND version = 1
+  ) THEN
+    RAISE EXCEPTION 'A24609_CANONICAL_PROTOCOL_MISSING';
+  END IF;
+END;
+$$;
 
 DO $$
 DECLARE
@@ -247,6 +259,18 @@ FROM "AdipometryProtocol" protocol
 WHERE protocol.code = 'GUEDES_1991_ADULT_YOUNG'
   AND protocol.version = 1;
 
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM "AdipometryProtocolApproval"
+    WHERE id = 'issue246-a09-a10-approval'
+  ) THEN
+    RAISE EXCEPTION 'A24609_APPROVAL_NOT_PERSISTED';
+  END IF;
+END;
+$$;
+
 CREATE TEMP TABLE issue246_a09_a10_snapshot_probe (
   status TEXT NOT NULL,
   "contractId" TEXT NOT NULL,
@@ -286,7 +310,26 @@ FROM "AdipometryProtocol" protocol
 WHERE protocol.code = 'GUEDES_1991_ADULT_YOUNG'
   AND protocol.version = 1;
 
-\copy (SELECT "calculationSnapshot"::TEXT FROM issue246_a09_a10_snapshot_probe LIMIT 1) TO '/snapshot/persisted-calculation-snapshot.json'
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM issue246_a09_a10_snapshot_probe) THEN
+    RAISE EXCEPTION 'A24609_COMPLETION_PROBE_NOT_PERSISTED';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1
+    FROM issue246_a09_a10_snapshot_probe
+    WHERE "calculationSnapshot" #>> '{protocolApproval,id}' = 'issue246-a09-a10-approval'
+  ) THEN
+    RAISE EXCEPTION 'A24609_APPROVAL_NOT_BOUND_TO_COMPLETION';
+  END IF;
+END;
+$$;
+
+\o /snapshot/persisted-calculation-snapshot.json
+SELECT "calculationSnapshot"::TEXT
+FROM issue246_a09_a10_snapshot_probe
+LIMIT 1;
+\o
 
 ROLLBACK;
 SQL
