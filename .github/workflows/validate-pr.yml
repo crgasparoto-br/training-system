@@ -52,7 +52,7 @@ jobs:
           AUDIT_BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
           AUDIT_MERGE_PREVIEW_SHA: ${{ github.event_name == 'pull_request' && github.sha || '' }}
         run: |
-          cat > orquestrador-artifact.json <<EOF
+          cat > orquestrador-artifact.json <<EOF_ATTESTATION
           {
             "schemaVersion": 1,
             "kind": "validate-pr-evidence",
@@ -67,7 +67,7 @@ jobs:
             "ref": "${GITHUB_REF}",
             "refName": "${GITHUB_REF_NAME}"
           }
-          EOF
+          EOF_ATTESTATION
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -86,6 +86,38 @@ jobs:
       - name: Generate Prisma Client (api)
         run: pnpm --filter @corrida/api exec prisma generate
 
+      - name: Verify ADPT migration over existing data
+        run: |
+          set -o pipefail
+          bash scripts/verify-adipometry-migration-existing-data.sh 2>&1 | tee adipometry-existing-data-output.log
+
+      - name: Upload ADPT existing-data migration output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adipometry-existing-data-output-${{ github.run_id }}
+          path: |
+            adipometry-existing-data-output.log
+            orquestrador-artifact.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Verify full ADPT migration chain over legacy data
+        run: |
+          set -o pipefail
+          bash scripts/verify-adipometry-migration-full-chain.sh 2>&1 | tee adipometry-full-chain-output.log
+
+      - name: Upload full ADPT migration chain output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adipometry-full-chain-output-${{ github.run_id }}
+          path: |
+            adipometry-full-chain-output.log
+            orquestrador-artifact.json
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Apply test database migrations
         run: |
           set -o pipefail
@@ -98,6 +130,54 @@ jobs:
           name: migration-output-${{ github.run_id }}
           path: |
             migration-output.log
+            orquestrador-artifact.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Verify ADPT persistence invariants
+        run: |
+          set -o pipefail
+          bash scripts/verify-adipometry-foundation.sh 2>&1 | tee adipometry-foundation-output.log
+
+      - name: Upload ADPT persistence output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adipometry-foundation-output-${{ github.run_id }}
+          path: |
+            adipometry-foundation-output.log
+            orquestrador-artifact.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Verify ADPT audit remediation controls
+        run: |
+          set -o pipefail
+          bash scripts/verify-adipometry-audit-remediation.sh 2>&1 | tee adipometry-audit-remediation-output.log
+
+      - name: Upload ADPT audit remediation output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adipometry-audit-remediation-output-${{ github.run_id }}
+          path: |
+            adipometry-audit-remediation-output.log
+            orquestrador-artifact.json
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Verify ADPT persistence boundaries
+        run: |
+          set -o pipefail
+          bash scripts/verify-adipometry-persistence-boundaries.sh 2>&1 | tee adipometry-persistence-boundaries-output.log
+
+      - name: Upload ADPT persistence boundary output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adipometry-persistence-boundaries-output-${{ github.run_id }}
+          path: |
+            adipometry-persistence-boundaries-output.log
             orquestrador-artifact.json
           if-no-files-found: ignore
           retention-days: 7

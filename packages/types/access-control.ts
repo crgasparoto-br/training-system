@@ -149,6 +149,8 @@ export const ACCESS_BLOCK_CATALOG = [
   { key: 'physicalAssessment.prnt.actions.createRecord', screenKey: 'physicalAssessment.protocol', label: 'PRNT: Acao criar registro' },
   { key: 'physicalAssessment.prnt.actions.editRecord', screenKey: 'physicalAssessment.protocol', label: 'PRNT: Acao editar registro' },
   { key: 'physicalAssessment.prnt.actions.closeFollowUp', screenKey: 'physicalAssessment.protocol', label: 'PRNT: Acao encerrar acompanhamento' },
+  { key: 'settings.contract.adipometryProtocolApproval', screenKey: 'settings.contract', label: 'Contrato: aprovar ou revogar protocolo clínico de adipometria' },
+  { key: 'settings.contract.actions.manageClinicalTechnicalResponsibility', screenKey: 'settings.contract', label: 'Contrato: gerenciar responsabilidade técnica clínica' },
 ] as const;
 
 export type AccessBlockKey = (typeof ACCESS_BLOCK_CATALOG)[number]['key'];

@@ -48,6 +48,7 @@ Codigo, migrations e testes definem o comportamento efetivamente entregue. Plani
 - [`product/pre-registration-health-intake.md`](product/pre-registration-health-intake.md): Anamnese Inicial canônica, opcional, autenticada e retomável.
 - [`product/pre-registration-parq.md`](product/pre-registration-parq.md): PAR-Q canônico, versionado, retomável e integrado à análise profissional.
 - [`product/pre-registration-enrollment-conversion.md`](product/pre-registration-enrollment-conversion.md): regras permanentes de deduplicacao, decisao administrativa e conversao no mesmo registro.
+- [`product/adipometry-protocol.md`](product/adipometry-protocol.md): protocolos, disponibilidade clínica, histórico e política de correção ADPT.
 
 ### Operacao e documentos complementares
 
@@ -59,6 +60,8 @@ Codigo, migrations e testes definem o comportamento efetivamente entregue. Plani
 - [`operations/pre-registration-rollout-and-qa.md`](operations/pre-registration-rollout-and-qa.md): QA integrado, privacidade, rollout, observabilidade, go/no-go e rollback da pre-matricula.
 - [`operations/pre-registration-rollout-audience-contract.md`](operations/pre-registration-rollout-audience-contract.md): contrato de mensagens e evidencias discriminantes para as audiencias publica, autenticada e administrativa durante indisponibilidade.
 - [`operations/issue-275-literal-evidence.md`](operations/issue-275-literal-evidence.md): requisitos executáveis para compatibilidade com a web anterior e retomada por autenticação real.
+- [`database/adipometry.md`](database/adipometry.md): persistência, isolamento, concorrência, conclusão e auditoria ADPT.
+- [`database/adipometry-demographic-provenance.md`](database/adipometry-demographic-provenance.md): origem canônica de idade, sexo e maturação usada na conclusão ADPT.
 - [`internal-test-deploy.md`](internal-test-deploy.md): orientacao rapida complementar para testes internos.
 - [`ACCESS_CONTROL.md`](ACCESS_CONTROL.md): exemplos operacionais legados; as regras canonicas permanecem nos documentos de arquitetura e produto de acesso.
 
@@ -83,6 +86,7 @@ Planos ativos relevantes:
 - [`execution-plans/active/2026-07-issue-136-capacity-prescription-persistence.md`](execution-plans/active/2026-07-issue-136-capacity-prescription-persistence.md)
 - [`execution-plans/active/2026-07-issue-274-enrollment-conversion.md`](execution-plans/active/2026-07-issue-274-enrollment-conversion.md)
 - [`execution-plans/active/2026-07-issue-275-pre-registration-qa-rollout.md`](execution-plans/active/2026-07-issue-275-pre-registration-qa-rollout.md)
+- [`execution-plans/issue-246-adipometry-foundation.md`](execution-plans/issue-246-adipometry-foundation.md) — fundação estrutural em validação; gate clínico ainda pendente.
 
 Registros concluidos preservados:
 
