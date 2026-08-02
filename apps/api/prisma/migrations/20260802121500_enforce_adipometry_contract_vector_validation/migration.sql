@@ -111,8 +111,15 @@ $$;
 -- Refuse deployment over an already-approved snapshot that the corrected
 -- validator cannot reproduce. Historical approvals remain immutable; an
 -- invalid row therefore requires an explicit operational remediation.
+-- Reduced compatibility gates may replay this migration before the governance
+-- table exists; in that harness the migration is intentionally a no-op here
+-- and the isolated full-chain control verifies the production ordering.
 DO $validate_existing_approvals$
 BEGIN
+  IF TO_REGCLASS('"AdipometryProtocolApproval"') IS NULL THEN
+    RETURN;
+  END IF;
+
   IF EXISTS (
     SELECT 1
     FROM "AdipometryProtocolApproval" approval
