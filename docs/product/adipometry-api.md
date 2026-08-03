@@ -37,17 +37,20 @@ O cálculo de prévia:
 
 1. lê somente as entradas persistidas no rascunho;
 2. valida aprovação clínica ativa, idade, decisão de sexo, precisão, limites e dobras obrigatórias;
-3. recalcula os resultados no backend;
-4. devolve `inputFingerprint`, que inclui entradas, protocolo, versão, aprovação e confirmação operacional;
-5. não persiste resultados derivados.
+3. executa, na ordem declarada, a AST de equações do snapshot clínico aprovado pelo contrato;
+4. aplica a precisão e o arredondamento declarados no protocolo somente aos resultados finais;
+5. devolve `inputFingerprint`, que inclui entradas, protocolo, versão, aprovação e confirmação operacional;
+6. não persiste resultados derivados.
+
+O backend não mantém uma fórmula clínica paralela à definição aprovada. Alterar uma equação em uma nova versão aprovada altera o cálculo executado, enquanto avaliações já concluídas continuam preservadas por seu snapshot.
 
 Quando uma dobra estiver entre `45,1` e `80,0 mm`, o profissional precisa confirmar o alerta. A confirmação é persistida com autoria antes de a prévia ser considerada apta à conclusão.
 
 ## Conclusão
 
-A conclusão ocorre em transação serializável. A API bloqueia o rascunho e a aprovação clínica ativa, recalcula os resultados e persiste o snapshot final na mesma transação.
+A conclusão ocorre em transação serializável. A API bloqueia o rascunho e a aprovação clínica ativa, executa novamente o contrato clínico aprovado e persiste o snapshot final na mesma transação.
 
-Quando fornecido, `inputFingerprint` deve coincidir com a prévia atual. Alteração de medida, data, decisão de sexo, protocolo, versão, aprovação ou confirmação invalida a prévia anterior.
+`inputFingerprint` é obrigatório. Ele deve coincidir com a prévia atual; sua ausência retorna `ADIPOMETRY_PREVIEW_REQUIRED`. Alteração de medida, data, decisão de sexo, protocolo, versão, aprovação ou confirmação invalida a prévia anterior e retorna `ADIPOMETRY_PREVIEW_INVALIDATED`.
 
 Repetir a conclusão da mesma revisão já finalizada devolve o registro existente sem produzir outra avaliação.
 
@@ -83,7 +86,7 @@ As respostas seguem o envelope padrão de `sendSuccess` e `sendError`.
 - `401`: autenticação ausente ou inválida;
 - `403`: tela ou bloco de acesso negado;
 - `404`: recurso inexistente ou pertencente a outro contrato, sem distinção observável;
-- `409`: estado concorrente, prévia invalidada, aprovação ausente/revogada ou transição histórica inválida;
+- `409`: prévia ausente ou invalidada, estado concorrente, aprovação ausente/revogada ou transição histórica inválida;
 - `500`: falha inesperada sanitizada, com `correlationId` quando disponível.
 
 Mensagens brutas do PostgreSQL ou Prisma não são devolvidas ao consumidor.
