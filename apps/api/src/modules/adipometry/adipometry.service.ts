@@ -14,6 +14,9 @@ import type {
   AdipometryProtocolSex,
   AdipometryProtocolSexSource,
   AdipometryResultField,
+  AdipometrySkinfoldField,
+  CreateAdipometryDraftInput,
+  UpdateAdipometryDraftInput,
 } from '@corrida/types';
 import { assertAdipometryProtocolDefinitionSnapshot } from '@corrida/types';
 
@@ -21,6 +24,7 @@ const prisma = new PrismaClient();
 type DbClient = PrismaClient | Prisma.TransactionClient;
 
 type AssessmentRow = Record<string, any>;
+type AdipometryDraftMutationInput = CreateAdipometryDraftInput | UpdateAdipometryDraftInput;
 
 type ProfileSnapshot = {
   birthDate: string | null;
@@ -68,6 +72,7 @@ export type AdipometryPreviewResult = {
     compatibility: AdipometryProtocolCompatibility;
   };
   normalizedMeasurements: AdipometryMeasurements;
+  usedSkinfolds: AdipometrySkinfoldField[];
   compatibility: AdipometryProtocolCompatibility;
   results?: AdipometryCalculatedResults;
   calculationSnapshot?: AdipometryCalculationSnapshot;
@@ -98,16 +103,44 @@ export class AdipometryServiceError extends Error {
   }
 }
 
-function normalizeDateOnly(value: Date | string): string {
-  const date = value instanceof Date ? value : new Date(`${value.slice(0, 10)}T00:00:00.000Z`);
-  if (Number.isNaN(date.getTime())) {
-    throw new AdipometryServiceError('A data da avaliação é inválida.', 'ADIPOMETRY_INVALID_DATE');
+export function normalizeAdipometryDateOnly(value: Date | string): string {
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) {
+      throw new AdipometryServiceError(
+        'A data da avaliação é inválida.',
+        'ADIPOMETRY_INVALID_DATE'
+      );
+    }
+    return value.toISOString().slice(0, 10);
   }
-  return date.toISOString().slice(0, 10);
+
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) {
+    throw new AdipometryServiceError(
+      'A data da avaliação é inválida.',
+      'ADIPOMETRY_INVALID_DATE'
+    );
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (
+    date.getUTCFullYear() !== year
+    || date.getUTCMonth() !== month - 1
+    || date.getUTCDate() !== day
+  ) {
+    throw new AdipometryServiceError(
+      'A data da avaliação é inválida.',
+      'ADIPOMETRY_INVALID_DATE'
+    );
+  }
+  return value;
 }
 
 function dateOnlyToDate(value: string): Date {
-  return new Date(`${normalizeDateOnly(value)}T00:00:00.000Z`);
+  return new Date(`${normalizeAdipometryDateOnly(value)}T00:00:00.000Z`);
 }
 
 function decimalToNumber(value: unknown): number | undefined {
@@ -655,7 +688,7 @@ function serializeSummary(row: AssessmentRow): AdipometryAssessmentSummary {
     professorId: row.professorId,
     code: row.code,
     sequenceNumber: row.sequenceNumber,
-    assessmentDate: normalizeDateOnly(row.assessmentDate),
+    assessmentDate: normalizeAdipometryDateOnly(row.assessmentDate),
     status: row.status,
     revisionStatus: row.revisionStatus,
     rootAssessmentId: row.rootAssessmentId,
@@ -717,7 +750,7 @@ function serializeDetail(row: AssessmentRow): AdipometryAssessmentDetail {
           anthropometryReference: {
             anthropometryAssessmentId: row.anthropometryAssessment.id,
             assessmentCode: row.anthropometryAssessment.code,
-            assessmentDate: normalizeDateOnly(row.anthropometryAssessment.assessmentDate),
+            assessmentDate: normalizeAdipometryDateOnly(row.anthropometryAssessment.assessmentDate),
           },
         }
       : {}),
@@ -767,7 +800,7 @@ async function getProfile(client: DbClient, contractId: string, alunoId: string)
     throw new AdipometryServiceError('Avaliação não encontrada.', 'ADIPOMETRY_RESOURCE_NOT_FOUND', 404);
   }
   return {
-    birthDate: rows[0].birthDate ? normalizeDateOnly(rows[0].birthDate) : null,
+    birthDate: rows[0].birthDate ? normalizeAdipometryDateOnly(rows[0].birthDate) : null,
     profileSex: canonicalProfileSex(rows[0].profileSex),
   };
 }
@@ -930,7 +963,7 @@ async function getAnthropometrySupport(
     ? {
         anthropometryAssessmentId: item.id,
         assessmentCode: item.code,
-        assessmentDate: normalizeDateOnly(item.assessmentDate),
+        assessmentDate: normalizeAdipometryDateOnly(item.assessmentDate),
       }
     : null;
   return { latestEligible: serialize(latestEligible), linked: serialize(linked) };
@@ -972,7 +1005,7 @@ async function buildPreview(
       client,
       contractId,
       row.alunoId,
-      normalizeDateOnly(row.assessmentDate),
+      normalizeAdipometryDateOnly(row.assessmentDate),
       row.anthropometryAssessmentId
     ),
   ]);
@@ -982,7 +1015,7 @@ async function buildPreview(
   const calculationContext: AdipometryCalculationContext = {
     assessmentId: row.id,
     alunoId: row.alunoId,
-    assessmentDate: normalizeDateOnly(row.assessmentDate),
+    assessmentDate: normalizeAdipometryDateOnly(row.assessmentDate),
     measurements: measurementsFromRow(row),
     protocolSex: row.protocolSex,
     protocolSexSource: row.protocolSexSource,
@@ -993,6 +1026,11 @@ async function buildPreview(
     actorUserId,
   };
   const calculated = calculateAdipometry(calculationContext);
+  const definition = protocol.definitionSnapshot as AdipometryProtocolDefinitionSnapshot;
+  const sexKey = calculationContext.protocolSex === 'female' ? 'FEMALE' : 'MALE';
+  const usedSkinfolds = calculationContext.protocolSex
+    ? [...(definition.calculationSkinfoldsBySex?.[sexKey] ?? [])]
+    : [];
   const inputFingerprint = buildAdipometryInputFingerprint({
     assessmentId: row.id,
     assessmentDate: calculationContext.assessmentDate,
@@ -1014,6 +1052,7 @@ async function buildPreview(
       compatibility: calculated.compatibility,
     },
     normalizedMeasurements: calculationContext.measurements,
+    usedSkinfolds,
     compatibility: calculated.compatibility,
     ...(calculated.results ? { results: calculated.results } : {}),
     ...(calculated.calculationSnapshot ? { calculationSnapshot: calculated.calculationSnapshot } : {}),
@@ -1023,7 +1062,11 @@ async function buildPreview(
   };
 }
 
-function buildDraftUpdate(input: any, actorUserId: string, profile: ProfileSnapshot) {
+function buildDraftUpdate(
+  input: AdipometryDraftMutationInput,
+  actorUserId: string,
+  profile: ProfileSnapshot
+) {
   const data: Record<string, unknown> = { updatedAt: new Date() };
   if (input.assessmentDate !== undefined) data.assessmentDate = dateOnlyToDate(input.assessmentDate);
   if (input.notes !== undefined) data.notes = input.notes;
@@ -1053,7 +1096,7 @@ function buildDraftUpdate(input: any, actorUserId: string, profile: ProfileSnaps
 export const adipometryService = {
   async listAvailableProtocols(contractId: string, alunoId: string, assessmentDate?: string) {
     await requireAluno(prisma, contractId, alunoId);
-    const date = normalizeDateOnly(assessmentDate ?? new Date());
+    const date = normalizeAdipometryDateOnly(assessmentDate ?? new Date());
     const profile = await getProfile(prisma, contractId, alunoId);
     const rows = await prisma.$queryRaw<ApprovedProtocolRow[]>(Prisma.sql`
       SELECT
@@ -1141,11 +1184,11 @@ export const adipometryService = {
     alunoId: string,
     actorUserId: string,
     actorProfessorId: string,
-    input: any
+    input: CreateAdipometryDraftInput
   ) {
     return prisma.$transaction(async (tx) => {
       await requireAluno(tx, contractId, alunoId);
-      const assessmentDate = normalizeDateOnly(input.assessmentDate);
+      const assessmentDate = normalizeAdipometryDateOnly(input.assessmentDate);
       const profile = await getProfile(tx, contractId, alunoId);
       await validateAnthropometryReference(
         tx,
@@ -1177,7 +1220,7 @@ export const adipometryService = {
     contractId: string,
     assessmentId: string,
     actorUserId: string,
-    input: any
+    input: UpdateAdipometryDraftInput
   ) {
     return prisma.$transaction(async (tx) => {
       await setActor(tx, actorUserId);
@@ -1196,7 +1239,7 @@ export const adipometryService = {
           409
         );
       }
-      const assessmentDate = normalizeDateOnly(input.assessmentDate ?? current.assessmentDate);
+      const assessmentDate = normalizeAdipometryDateOnly(input.assessmentDate ?? current.assessmentDate);
       await validateAnthropometryReference(
         tx,
         contractId,
@@ -1245,25 +1288,32 @@ export const adipometryService = {
     return prisma.$transaction(async (tx) => {
       await setActor(tx, actorUserId);
       let row = await getAssessmentRow(tx, contractId, assessmentId, true);
-      const initial = await buildPreview(tx, contractId, actorUserId, row, {
-        capacityWarningConfirmed: options.skinfoldCapacityWarningConfirmed,
-      });
-      const requiresConfirmation = initial.compatibility.reasons.some(
+      const initial = await buildPreview(tx, contractId, actorUserId, row);
+      const confirmationReason = initial.compatibility.reasons.find(
         (reason) => reason.code === 'SKINFOLD_CAPACITY_WARNING_CONFIRMATION_REQUIRED'
       );
-      if (options.skinfoldCapacityWarningConfirmed && requiresConfirmation) {
-        await tx.adipometryAssessment.update({
-          where: { id: assessmentId },
-          data: {
-            skinfoldCapacityWarningConfirmedByUserId: actorUserId,
-            skinfoldCapacityWarningConfirmedAt: new Date(),
-          },
-        });
-        row = await getAssessmentRow(tx, contractId, assessmentId, true);
-        return buildPreview(tx, contractId, actorUserId, row);
+
+      if (!options.skinfoldCapacityWarningConfirmed || !confirmationReason) {
+        return initial;
       }
-      return initial;
-    });
+
+      const otherBlockingReasons = initial.compatibility.reasons.filter(
+        (reason) => reason.code !== 'SKINFOLD_CAPACITY_WARNING_CONFIRMATION_REQUIRED'
+      );
+      if (otherBlockingReasons.length > 0) {
+        return initial;
+      }
+
+      await tx.adipometryAssessment.update({
+        where: { id: assessmentId },
+        data: {
+          skinfoldCapacityWarningConfirmedByUserId: actorUserId,
+          skinfoldCapacityWarningConfirmedAt: new Date(),
+        },
+      });
+      row = await getAssessmentRow(tx, contractId, assessmentId, true);
+      return buildPreview(tx, contractId, actorUserId, row);
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   },
 
   async finalize(
@@ -1408,7 +1458,7 @@ export const adipometryService = {
         correctedByAssessmentId: null,
         ...(assessmentIds?.length ? { id: { in: assessmentIds } } : {}),
       },
-      orderBy: [{ assessmentDate: 'desc' }, { completedAt: 'desc' }],
+      orderBy: [{ assessmentDate: 'desc' }, { completedAt: 'desc' }, { id: 'desc' }],
       take: assessmentIds?.length ? undefined : 2,
     });
     if (assessmentIds?.length && rows.length !== new Set(assessmentIds).size) {
@@ -1421,9 +1471,15 @@ export const adipometryService = {
         404
       );
     }
-    const ordered = [...rows].sort(
-      (left, right) => left.assessmentDate.getTime() - right.assessmentDate.getTime()
-    );
+    const ordered = [...rows].sort((left, right) => {
+      const byAssessmentDate = left.assessmentDate.getTime() - right.assessmentDate.getTime();
+      if (byAssessmentDate !== 0) return byAssessmentDate;
+      const leftCompletedAt = left.completedAt?.getTime() ?? left.updatedAt.getTime();
+      const rightCompletedAt = right.completedAt?.getTime() ?? right.updatedAt.getTime();
+      const byCompletion = leftCompletedAt - rightCompletedAt;
+      if (byCompletion !== 0) return byCompletion;
+      return left.id.localeCompare(right.id);
+    });
     const currentRow = ordered[ordered.length - 1];
     const previousRow = ordered.length > 1 ? ordered[ordered.length - 2] : undefined;
     const item = (row: typeof currentRow) => ({
