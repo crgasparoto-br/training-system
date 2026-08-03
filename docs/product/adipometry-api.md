@@ -14,7 +14,7 @@ Todas as rotas exigem autenticação de professor e acesso à tela `physicalAsse
 
 O contrato, o usuário e o professor ator são derivados do token. Nenhum endpoint aceita `contractId`, autor ou professor no corpo da requisição.
 
-A validade criptográfica do token não substitui a elegibilidade atual. Antes de acessar a ADPT, a API revalida que o usuário permanece ativo e que o vínculo do professor possui `currentStatus=active`. Um token emitido antes da desativação deixa de autorizar leituras e escritas imediatamente após a mudança administrativa.
+A validade criptográfica do token não substitui a elegibilidade atual. Antes de acessar a ADPT, a API revalida que o usuário permanece ativo e que o vínculo do professor não está inativo, desligado ou com data de desligamento já efetiva. Estados legados nulos continuam elegíveis como ativos. Um token emitido antes da desativação deixa de autorizar leituras e escritas imediatamente após a mudança administrativa.
 
 ## Endpoints
 
