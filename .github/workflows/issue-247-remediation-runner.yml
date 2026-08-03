@@ -1,0 +1,51 @@
+name: Run issue 247 remediation patch
+
+on:
+  pull_request:
+    branches:
+      - develop
+    types:
+      - opened
+      - synchronize
+      - reopened
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.head_ref == 'feat/247-adipometry-api' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/247-adipometry-api
+          fetch-depth: 0
+
+      - name: Extract and execute exact patch
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          source = Path('.github/workflows/issue-247-remediation-patch.yml').read_text()
+          start_marker = "      - name: Apply exact remediations\n        shell: bash\n        run: |\n"
+          end_marker = "\n\n      - name: Commit patch and remove temporary workflow"
+          if start_marker not in source or end_marker not in source:
+              raise SystemExit('temporary patch markers were not found')
+          block = source.split(start_marker, 1)[1].split(end_marker, 1)[0]
+          lines = block.splitlines()
+          normalized = '\n'.join(line[10:] if line.startswith('          ') else line for line in lines)
+          Path('/tmp/issue-247-remediation.sh').write_text(normalized + '\n')
+          PY
+          bash /tmp/issue-247-remediation.sh
+          rm -f .github/workflows/issue-247-remediation-runner.yml
+
+      - name: Commit patch and remove temporary workflows
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'fix(adpt): remediate adversarial CI failures'
+          git push origin HEAD:feat/247-adipometry-api
