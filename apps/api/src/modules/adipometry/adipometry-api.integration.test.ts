@@ -96,7 +96,7 @@ async function createFixture(): Promise<Fixture> {
         userId: user.id,
         contractId: contract.id,
         collaboratorFunctionId: collaboratorFunction.id,
-        role: 'manager',
+        role: 'master',
         currentStatus: 'active',
       },
     }),
@@ -105,7 +105,7 @@ async function createFixture(): Promise<Fixture> {
         userId: otherUser.id,
         contractId: otherContract.id,
         collaboratorFunctionId: otherFunction.id,
-        role: 'manager',
+        role: 'master',
         currentStatus: 'active',
       },
     }),
@@ -251,7 +251,7 @@ describe('adipometry API service on PostgreSQL', () => {
     await prisma.$disconnect();
   });
 
-  it('serializes codes, rolls back failed finalization and preserves correction history', async () => {
+  it('serializes codes, requires current preview, rolls back and preserves correction history', async () => {
     const fixture = await createFixture();
     const draftInput = { assessmentDate: '2026-08-03' };
 
@@ -329,13 +329,48 @@ describe('adipometry API service on PostgreSQL', () => {
     expect(preview.canFinalize).toBe(true);
     expect(preview.results?.bodyFatPercentage).toBe(18.12);
 
-    await prisma.user.update({ where: { id: fixture.userId }, data: { isActive: false } });
+    await expect(
+      adipometryService.finalize(
+        fixture.contractId,
+        assessmentId,
+        fixture.userId,
+        {} as any
+      )
+    ).rejects.toMatchObject({ code: 'ADIPOMETRY_PREVIEW_REQUIRED', statusCode: 409 });
+
+    await adipometryService.updateDraft(
+      fixture.contractId,
+      assessmentId,
+      fixture.userId,
+      { measurements: { abdominalMm: 20.1 } }
+    );
     await expect(
       adipometryService.finalize(
         fixture.contractId,
         assessmentId,
         fixture.userId,
         { inputFingerprint: preview.inputFingerprint }
+      )
+    ).rejects.toMatchObject({ code: 'ADIPOMETRY_PREVIEW_INVALIDATED', statusCode: 409 });
+    await adipometryService.updateDraft(
+      fixture.contractId,
+      assessmentId,
+      fixture.userId,
+      { measurements: { abdominalMm: 20 } }
+    );
+    const refreshedPreview = await adipometryService.calculate(
+      fixture.contractId,
+      assessmentId,
+      fixture.userId
+    );
+
+    await prisma.user.update({ where: { id: fixture.userId }, data: { isActive: false } });
+    await expect(
+      adipometryService.finalize(
+        fixture.contractId,
+        assessmentId,
+        fixture.userId,
+        { inputFingerprint: refreshedPreview.inputFingerprint }
       )
     ).rejects.toBeDefined();
 
@@ -351,7 +386,7 @@ describe('adipometry API service on PostgreSQL', () => {
       fixture.contractId,
       assessmentId,
       fixture.userId,
-      { inputFingerprint: preview.inputFingerprint }
+      { inputFingerprint: refreshedPreview.inputFingerprint }
     );
     expect(finalized.alreadyFinalized).toBe(false);
     expect(finalized.assessment.status).toBe('COMPLETED');
@@ -361,7 +396,7 @@ describe('adipometry API service on PostgreSQL', () => {
       fixture.contractId,
       assessmentId,
       fixture.userId,
-      { inputFingerprint: preview.inputFingerprint }
+      { inputFingerprint: refreshedPreview.inputFingerprint }
     );
     expect(repeated.alreadyFinalized).toBe(true);
     expect(repeated.assessment.id).toBe(assessmentId);
