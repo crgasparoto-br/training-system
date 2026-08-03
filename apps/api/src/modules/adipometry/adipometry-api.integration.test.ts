@@ -54,21 +54,26 @@ async function createFixture(): Promise<Fixture> {
     }),
   ]);
 
+  const governanceBlocks = [
+    'settings.contract.actions.manageClinicalTechnicalResponsibility',
+    'settings.contract.adipometryProtocolApproval',
+  ];
   await prisma.accessPermission.createMany({
-    data: [
-      {
-        collaboratorFunctionId: collaboratorFunction.id,
-        screenKey: 'settings.contract',
-        blockKey: 'settings.contract.actions.manageClinicalTechnicalResponsibility',
-        canView: true,
-      },
-      {
-        collaboratorFunctionId: collaboratorFunction.id,
-        screenKey: 'settings.contract',
-        blockKey: 'settings.contract.adipometryProtocolApproval',
-        canView: true,
-      },
-    ],
+    data: governanceBlocks.map((blockKey) => ({
+      collaboratorFunctionId: collaboratorFunction.id,
+      screenKey: 'settings.contract',
+      blockKey,
+      canView: true,
+    })),
+    skipDuplicates: true,
+  });
+  await prisma.accessPermission.updateMany({
+    where: {
+      collaboratorFunctionId: collaboratorFunction.id,
+      screenKey: 'settings.contract',
+      blockKey: { in: governanceBlocks },
+    },
+    data: { canView: true },
   });
 
   const [user, otherUser] = await Promise.all([
