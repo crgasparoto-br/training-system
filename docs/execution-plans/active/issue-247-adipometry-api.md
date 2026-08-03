@@ -19,22 +19,29 @@ Expor o ciclo clínico da adipometria por uma API autenticada e multi-tenant, us
 ## Invariantes
 
 1. `contractId`, usuário e professor ator vêm da autenticação; o body não escolhe tenant ou autor.
-2. Recurso inexistente e recurso de outro contrato produzem a mesma resposta pública 404.
-3. Resultados derivados não são aceitos em payload e são recalculados pelo backend na conclusão.
-4. Avaliação concluída é imutável; correção cria nova revisão pelo contrato da issue #246.
-5. A aprovação clínica ativa é bloqueada durante a conclusão, serializando revogação concorrente.
-6. Dobras de 45,1 a 80,0 mm exigem confirmação registrada; acima de 80,0 mm é bloqueado.
-7. Entradas com precisão superior ao contrato são rejeitadas, sem arredondamento silencioso.
-8. A comparação informa deltas neutros e alerta quando protocolo ou versão divergir.
+2. Usuário e vínculo profissional são revalidados como ativos em cada fronteira protegida, mesmo quando o JWT ainda é criptograficamente válido.
+3. Recurso inexistente e recurso de outro contrato produzem a mesma resposta pública 404.
+4. Resultados derivados não são aceitos em payload e são recalculados pelo backend na conclusão.
+5. Avaliação concluída é imutável; correção cria nova revisão pelo contrato da issue #246.
+6. A aprovação clínica ativa é bloqueada durante a conclusão, serializando revogação concorrente.
+7. Alertas de capacidade são derivados do protocolo aprovado. Na versão vigente, dobras de 45,1 a 80,0 mm exigem confirmação; acima de 80,0 mm é bloqueado.
+8. A confirmação operacional é gravada dentro da transação serializável do cálculo, somente quando não existe outro bloqueio, e sofre rollback com qualquer falha posterior.
+9. Entradas com precisão superior ao contrato e datas civis inexistentes são rejeitadas, sem arredondamento ou normalização silenciosa.
+10. A comparação informa deltas neutros, alerta quando protocolo ou versão divergir e usa desempate estável por conclusão e identificador no mesmo dia.
 
 ## Arquivos principais
 
 - `apps/api/src/modules/adipometry/adipometry.service.ts`
 - `apps/api/src/modules/adipometry/adipometry.routes.ts`
+- `apps/api/src/modules/adipometry/adipometry-api.integration.test.ts`
+- `apps/api/src/modules/auth/auth.middleware.ts`
+- `apps/api/src/modules/access-control/access-control.middleware.ts`
 - `apps/api/src/modules/adipometry/index.ts`
 - `apps/api/src/main.ts`
+- `packages/types/adipometry.ts`
 - `packages/types/access-control.ts`
 - `docs/product/adipometry-protocol.md`
+- `docs/product/adipometry-api.md`
 - `docs/product/access-control.md`
 - `docs/architecture/api.md`
 
@@ -48,7 +55,7 @@ pnpm docs:check
 pnpm validate
 ```
 
-Os testes focados cobrem vetores canônicos masculino e feminino, limites de idade, precisão, alerta de capacidade, decisão de sexo, invalidação de fingerprint e presets de acesso. Os controles transacionais, de numeração, revisão e auditoria continuam cobertos pelos harnesses PostgreSQL da fundação #246 e são exercitados novamente pelo `validate` do repositório.
+Os testes focados cobrem vetores canônicos masculino e feminino, limites de idade, precisão, alerta de capacidade, decisão de sexo, invalidação de fingerprint e presets de acesso. O harness PostgreSQL da API também exerce numeração concorrente, sequência acima de 999, rollback de finalização, imutabilidade, correção, isolamento entre contratos, fronteira HTTP com ator desativado, rejeição de data impossível, atomicidade da confirmação e desempate de comparação no mesmo dia.
 
 ## Validação manual
 
@@ -59,13 +66,17 @@ Os testes focados cobrem vetores canônicos masculino e feminino, limites de ida
 5. Iniciar correção com perfil gerente, concluir a nova revisão e verificar que a anterior ficou `SUPERSEDED`.
 6. Comparar duas avaliações e verificar alerta quando as versões forem diferentes.
 7. Repetir consulta usando identificador de outro contrato e confirmar resposta pública equivalente a inexistente.
+8. Desativar usuário ou vínculo de professor mantendo o token anterior e confirmar que a API deixa de autorizar.
+9. Enviar `2026-02-31` e confirmar `400` sem criação de rascunho.
+10. Confirmar alerta em rascunho ainda incompleto e verificar que nenhuma confirmação é persistida.
 
 ## Decisões
 
 - Professor recebe leitura e gestão de rascunhos por padrão.
 - Gerente recebe também correção de avaliação concluída.
-- A prévia não persiste resultados; somente a confirmação operacional de capacidade pode ser registrada. A conclusão recalcula tudo dentro da própria transação.
+- A prévia não persiste resultados. A confirmação operacional de capacidade pertence à mesma transação do cálculo e não é gravada quando coexistir outro erro bloqueante.
 - A ausência de antropometria de apoio não bloqueia a ADPT; referência informada é validada por contrato, aluno e data.
+- Os contratos compartilhados representam os bodies HTTP reais; aluno, professor, ator e contrato permanecem fora do payload e são derivados da URL ou autenticação.
 
 ## Pendências de entrega
 
