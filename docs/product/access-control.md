@@ -93,6 +93,30 @@ Os perfis `professor` e `manager` recebem acesso padrão ao PRNT. A API deve val
 
 O endpoint de resumo não amplia permissões clínicas. Ele consulta e devolve objetivos, acompanhamentos, histórico de atividade, medicações/procedimentos, casos de dor e desconfortos somente quando o bloco correspondente está vigente. Relações negadas são projetadas como listas vazias, inclusive para consumidores indiretos como a prescrição por capacidades.
 
+## Adipometria (ADPT)
+
+A ADPT reutiliza a tela `physicalAssessment.protocol` e separa as capacidades operacionais:
+
+- `physicalAssessment.adpt.view`: listar protocolos, consultar histórico, detalhe, última avaliação e comparação;
+- `physicalAssessment.adpt.actions.manage`: criar e editar rascunhos, calcular prévia e concluir avaliação;
+- `physicalAssessment.adpt.actions.correctCompleted`: iniciar, editar, concluir ou cancelar correção de avaliação concluída.
+
+Defaults:
+
+- `professor`: leitura e gestão de rascunhos;
+- `manager`: leitura, gestão de rascunhos e correção de concluídos;
+- perfis administrativos, limpeza, serviços e estágio não recebem acesso ADPT automaticamente;
+- `master` continua sujeito ao comportamento geral de acesso total, mas a governança clínica de aprovação usa concessões explícitas próprias.
+
+Regras obrigatórias:
+
+- possuir a tela pai não substitui a permissão ADPT específica;
+- a permissão de gestão não autoriza correção de histórico concluído;
+- a API deriva tenant e ator da autenticação;
+- uma negação de outro tenant usa resposta equivalente a recurso inexistente;
+- revogar a permissão interrompe novas operações sem alterar avaliações históricas;
+- aprovação ou revogação clínica do protocolo continua protegida pelos blocos de `settings.contract`, não pelos blocos operacionais da ADPT.
+
 ## Prescrição por capacidades
 
 A prescrição por capacidades reutiliza a tela operacional `plans` e separa leitura de escrita:
