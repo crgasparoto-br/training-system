@@ -4,6 +4,14 @@ import { authService } from './auth.service.js';
 import type { AuthenticatedUserPayload } from '@corrida/types';
 
 const prisma = new PrismaClient();
+const INACTIVE_PROFESSOR_STATUSES = new Set([
+  'inactive',
+  'inativo',
+  'dismissed',
+  'desligado',
+  'terminated',
+  'encerrado',
+]);
 
 // Estender tipo Request para incluir user
 declare global {
@@ -24,18 +32,19 @@ type ActiveProfessorContext = {
 };
 
 async function getActiveProfessorContext(userId: string): Promise<ActiveProfessorContext | null> {
-  return prisma.professor.findFirst({
-    where: {
-      userId,
-      currentStatus: 'active',
-      user: {
-        isActive: true,
-      },
-    },
+  const professor = await prisma.professor.findUnique({
+    where: { userId },
     select: {
       id: true,
       contractId: true,
       role: true,
+      currentStatus: true,
+      dismissalDate: true,
+      user: {
+        select: {
+          isActive: true,
+        },
+      },
       contract: {
         select: {
           type: true,
@@ -43,6 +52,21 @@ async function getActiveProfessorContext(userId: string): Promise<ActiveProfesso
       },
     },
   });
+
+  const normalizedStatus = professor?.currentStatus?.trim().toLowerCase() ?? 'active';
+  const dismissalIsEffective = Boolean(
+    professor?.dismissalDate && professor.dismissalDate.getTime() <= Date.now()
+  );
+  if (
+    !professor
+    || !professor.user.isActive
+    || INACTIVE_PROFESSOR_STATUSES.has(normalizedStatus)
+    || dismissalIsEffective
+  ) {
+    return null;
+  }
+
+  return professor;
 }
 
 function applyProfessorContext(req: Request, professor: ActiveProfessorContext) {
