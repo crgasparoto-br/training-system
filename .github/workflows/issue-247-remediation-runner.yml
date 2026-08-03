@@ -151,14 +151,9 @@ jobs:
             const governanceBlocks""",
               re.S,
           )
-          replace_once(
+          sub_once(
               test,
-              """  await Promise.all([
-            setPermission(collaboratorFunction.id, '', true),
-            setPermission(collaboratorFunction.id, VIEW_KEY, true),
-            setPermission(collaboratorFunction.id, MANAGE_KEY, true),
-            setPermission(collaboratorFunction.id, CORRECT_KEY, false),
-          ]);""",
+              r"  await Promise\.all\(\[\n\s*setPermission\(collaboratorFunction\.id, '', true\),\n\s*setPermission\(collaboratorFunction\.id, VIEW_KEY, true\),\n\s*setPermission\(collaboratorFunction\.id, MANAGE_KEY, true\),\n\s*setPermission\(collaboratorFunction\.id, CORRECT_KEY, false\),\n\s*\]\);",
               """  await Promise.all([
             setPermission(operatorFunction.id, '', true),
             setPermission(operatorFunction.id, VIEW_KEY, true),
