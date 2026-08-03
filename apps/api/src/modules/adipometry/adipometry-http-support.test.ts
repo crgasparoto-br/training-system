@@ -15,6 +15,16 @@ function prismaError(databaseMessage: string) {
   );
 }
 
+function serializationConflict() {
+  return new Prisma.PrismaClientKnownRequestError(
+    'Transaction failed due to a write conflict or a deadlock.',
+    {
+      code: 'P2034',
+      clientVersion: '5.7.0',
+    }
+  );
+}
+
 describe('adipometry HTTP persistence error mapping', () => {
   it('maps correction conflicts without exposing the raw database message', () => {
     const rawMarker = 'sensitive-db-detail';
@@ -40,6 +50,17 @@ describe('adipometry HTTP persistence error mapping', () => {
       statusCode: 404,
       message: 'Avaliação não encontrada.',
     });
+  });
+
+  it('maps exhausted serializable conflicts to a stable public conflict', () => {
+    const mapped = mapAdipometryPersistenceError(serializationConflict());
+
+    expect(mapped).toMatchObject({
+      code: 'ADIPOMETRY_CONCURRENT_OPERATION',
+      statusCode: 409,
+    });
+    expect(mapped?.message).not.toContain('P2034');
+    expect(mapped?.message).not.toContain('deadlock');
   });
 
   it('does not reinterpret unrelated persistence failures', () => {
