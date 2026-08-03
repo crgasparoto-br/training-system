@@ -1,0 +1,77 @@
+name: Execute issue 247 remediation wrapper
+
+on:
+  pull_request:
+    branches:
+      - develop
+    types:
+      - opened
+      - synchronize
+      - reopened
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.head_ref == 'feat/247-adipometry-api' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/247-adipometry-api
+          fetch-depth: 0
+
+      - name: Execute corrected runner in memory
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          source = Path('.github/workflows/issue-247-remediation-runner.yml').read_text()
+          start_marker = "          python - <<'PY'\n"
+          end_marker = "\n          PY\n\n      - name: Commit functional remediations"
+          if start_marker not in source or end_marker not in source:
+              raise SystemExit('runner script markers were not found')
+
+          block = source.split(start_marker, 1)[1].split(end_marker, 1)[0]
+          code = '\n'.join(
+              line[10:] if line.startswith('          ') else line
+              for line in block.splitlines()
+          )
+
+          permission_start = (
+              'replace_once(\n'
+              '    test,\n'
+              '    """  await Promise.all(['
+          )
+          start = code.find(permission_start)
+          if start < 0:
+              raise SystemExit('permission replacement start was not found')
+          end = code.find('\nsub_once(', start)
+          if end < 0:
+              raise SystemExit('permission replacement end was not found')
+
+          permission_replacement = r'''sub_once(
+    test,
+    r"  await Promise\.all\(\[\n\s*setPermission\(collaboratorFunction\.id, '', true\),\n\s*setPermission\(collaboratorFunction\.id, VIEW_KEY, true\),\n\s*setPermission\(collaboratorFunction\.id, MANAGE_KEY, true\),\n\s*setPermission\(collaboratorFunction\.id, CORRECT_KEY, false\),\n\s*\]\);",
+    """  await Promise.all([
+    setPermission(operatorFunction.id, '', true),
+    setPermission(operatorFunction.id, VIEW_KEY, true),
+    setPermission(operatorFunction.id, MANAGE_KEY, true),
+    setPermission(operatorFunction.id, CORRECT_KEY, false),
+  ]);""",
+)'''
+          code = code[:start] + permission_replacement + code[end:]
+          exec(compile(code, '/tmp/issue-247-remediation.py', 'exec'), {})
+          PY
+
+      - name: Commit functional remediations
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add apps/api/src/modules/adipometry/adipometry.service.ts
+          git add apps/api/src/modules/adipometry/adipometry-remediation.integration.test.ts
+          git commit -m 'fix(adpt): remediate adversarial CI failures'
+          git push origin HEAD:feat/247-adipometry-api
