@@ -8,7 +8,7 @@ Todas as rotas exigem autenticação de professor e acesso à tela `physicalAsse
 
 | Capacidade | Permissão |
 |---|---|
-| Consultar protocolos, histórico, detalhe, última avaliação e comparação | `physicalAssessment.adpt.view` |
+| Consultar protocolos, histórico, detalhe, última avaliação, comparação e antropometria de apoio | `physicalAssessment.adpt.view` |
 | Criar, editar, calcular e concluir rascunhos | `physicalAssessment.adpt.actions.manage` |
 | Iniciar ou cancelar correção de avaliação concluída | `physicalAssessment.adpt.actions.correctCompleted` |
 
@@ -19,6 +19,7 @@ O contrato, o usuário e o professor ator são derivados do token. Nenhum endpoi
 - `GET /protocols/available?alunoId={id}&assessmentDate=AAAA-MM-DD`
 - `GET /alunos/:alunoId/assessments`
 - `GET /alunos/:alunoId/assessments/last`
+- `GET /alunos/:alunoId/anthropometry-support?assessmentDate=AAAA-MM-DD&anthropometryAssessmentId={id}`
 - `POST /alunos/:alunoId/assessments`
 - `GET /assessments/:id`
 - `PUT /assessments/:id`
@@ -30,7 +31,7 @@ O contrato, o usuário e o professor ator são derivados do token. Nenhum endpoi
 
 ## Rascunho e prévia
 
-A criação usa a função transacional de numeração da fundação ADPT, garantindo código `ADPT-###` único por aluno e contrato sob concorrência.
+A criação usa a função transacional de numeração da fundação ADPT, garantindo código `ADPT-###` único por aluno e contrato sob concorrência. A numeração não é limitada a três dígitos; após `ADPT-999`, o próximo código é `ADPT-1000`.
 
 O cálculo de prévia:
 
@@ -70,7 +71,9 @@ O vínculo é opcional. Quando informado, o registro precisa:
 - pertencer ao mesmo aluno;
 - possuir data igual ou anterior à ADPT.
 
-A ausência de antropometria não bloqueia a ADPT. A API informa também a avaliação antropométrica elegível mais recente para apoio à interface.
+A ausência de antropometria não bloqueia a ADPT. O endpoint de apoio informa a avaliação elegível mais recente e, quando solicitada, a avaliação selecionada. Cada registro inclui código, data, observações gerais e as medidas ordenadas, com nome do segmento, tipo, descrição técnica, orientação de fórmula, valor, unidade e observação.
+
+Essas informações apoiam conferência e reaproveitamento consciente pela interface. A ADPT continua responsável por persistir suas próprias entradas; nenhum resultado derivado da antropometria é copiado automaticamente.
 
 ## Erros públicos
 
@@ -81,6 +84,6 @@ As respostas seguem o envelope padrão de `sendSuccess` e `sendError`.
 - `403`: tela ou bloco de acesso negado;
 - `404`: recurso inexistente ou pertencente a outro contrato, sem distinção observável;
 - `409`: estado concorrente, prévia invalidada, aprovação ausente/revogada ou transição histórica inválida;
-- `500`: falha inesperada sanitizada, com `correlationId`.
+- `500`: falha inesperada sanitizada, com `correlationId` quando disponível.
 
 Mensagens brutas do PostgreSQL ou Prisma não são devolvidas ao consumidor.
