@@ -1,6 +1,9 @@
+import { PrismaClient } from '@prisma/client';
 import { Request, Response, NextFunction } from 'express';
 import { authService } from './auth.service.js';
 import type { AuthenticatedUserPayload } from '@corrida/types';
+
+const prisma = new PrismaClient();
 
 // Estender tipo Request para incluir user
 declare global {
@@ -11,40 +14,82 @@ declare global {
   }
 }
 
+type ActiveProfessorContext = {
+  id: string;
+  contractId: string;
+  role: 'master' | 'professor';
+  contract: {
+    type: string;
+  };
+};
+
+async function getActiveProfessorContext(userId: string): Promise<ActiveProfessorContext | null> {
+  return prisma.professor.findFirst({
+    where: {
+      userId,
+      currentStatus: 'active',
+      user: {
+        isActive: true,
+      },
+    },
+    select: {
+      id: true,
+      contractId: true,
+      role: true,
+      contract: {
+        select: {
+          type: true,
+        },
+      },
+    },
+  });
+}
+
+function applyProfessorContext(req: Request, professor: ActiveProfessorContext) {
+  req.user!.professorId = professor.id;
+  req.user!.contractId = professor.contractId;
+  req.user!.professorRole = professor.role;
+}
+
+function sendProfessorUnavailable(res: Response) {
+  return res.status(404).json({
+    success: false,
+    error: 'Professor não encontrado',
+  });
+}
+
 /**
- * Middleware para verificar autenticaÃ§Ã£o
+ * Middleware para verificar autenticação.
  */
 export function authMiddleware(req: Request, res: Response, next: NextFunction) {
   try {
-    // Obter token do header
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({
         success: false,
-        error: 'Token nÃ£o fornecido',
+        error: 'Token não fornecido',
       });
     }
 
     const token = authHeader.substring(7);
-
-    // Verificar token
     const decoded = authService.verifyToken(token);
-
-    // Adicionar user ao request
     req.user = decoded;
 
     next();
   } catch (error) {
     return res.status(401).json({
       success: false,
-      error: 'Token invÃ¡lido ou expirado',
+      error: 'Token inválido ou expirado',
     });
   }
 }
 
 /**
- * Middleware para verificar se Ã© professor
+ * Middleware para verificar se é professor ativo.
+ *
+ * A assinatura do JWT não é autoridade suficiente: a situação atual do usuário
+ * e do vínculo profissional é reavaliada a cada requisição protegida.
  */
 export async function professorMiddleware(req: Request, res: Response, next: NextFunction) {
   if (!req.user) {
@@ -62,21 +107,13 @@ export async function professorMiddleware(req: Request, res: Response, next: Nex
   }
 
   try {
-    const user = req.user;
-    const professor = await authService.getProfessorByUserId(user.userId);
+    const professor = await getActiveProfessorContext(req.user.userId);
 
     if (!professor) {
-      return res.status(404).json({
-        success: false,
-        error: 'Professor não encontrado',
-      });
+      return sendProfessorUnavailable(res);
     }
 
-    // Adicionar professorId ao request
-    req.user.professorId = professor.id;
-    req.user.contractId = professor.contractId;
-    req.user.professorRole = professor.role;
-
+    applyProfessorContext(req, professor);
     next();
   } catch (error) {
     console.error('Erro ao buscar professor:', error);
@@ -88,7 +125,7 @@ export async function professorMiddleware(req: Request, res: Response, next: Nex
 }
 
 /**
- * Middleware para verificar se é professor master
+ * Middleware para verificar se é professor master ativo.
  */
 export async function masterMiddleware(req: Request, res: Response, next: NextFunction) {
   if (!req.user) {
@@ -106,14 +143,10 @@ export async function masterMiddleware(req: Request, res: Response, next: NextFu
   }
 
   try {
-    const user = req.user;
-    const professor = await authService.getProfessorByUserId(user.userId);
+    const professor = await getActiveProfessorContext(req.user.userId);
 
     if (!professor) {
-      return res.status(404).json({
-        success: false,
-        error: 'Professor não encontrado',
-      });
+      return sendProfessorUnavailable(res);
     }
 
     if (professor.role !== 'master') {
@@ -123,10 +156,7 @@ export async function masterMiddleware(req: Request, res: Response, next: NextFu
       });
     }
 
-    req.user.professorId = professor.id;
-    req.user.contractId = professor.contractId;
-    req.user.professorRole = professor.role;
-
+    applyProfessorContext(req, professor);
     next();
   } catch (error) {
     console.error('Erro ao buscar professor master:', error);
@@ -138,7 +168,7 @@ export async function masterMiddleware(req: Request, res: Response, next: NextFu
 }
 
 /**
- * Middleware para verificar se e professor master com contrato academy
+ * Middleware para verificar se é professor master ativo com contrato academy.
  */
 export async function academyMasterMiddleware(req: Request, res: Response, next: NextFunction) {
   if (!req.user) {
@@ -156,14 +186,10 @@ export async function academyMasterMiddleware(req: Request, res: Response, next:
   }
 
   try {
-    const user = req.user;
-    const professor = await authService.getProfessorByUserId(user.userId);
+    const professor = await getActiveProfessorContext(req.user.userId);
 
     if (!professor) {
-      return res.status(404).json({
-        success: false,
-        error: 'Professor não encontrado',
-      });
+      return sendProfessorUnavailable(res);
     }
 
     if (professor.role !== 'master') {
@@ -180,10 +206,7 @@ export async function academyMasterMiddleware(req: Request, res: Response, next:
       });
     }
 
-    req.user.professorId = professor.id;
-    req.user.contractId = professor.contractId;
-    req.user.professorRole = professor.role;
-
+    applyProfessorContext(req, professor);
     next();
   } catch (error) {
     console.error('Erro ao validar professor master da academia:', error);
@@ -195,13 +218,13 @@ export async function academyMasterMiddleware(req: Request, res: Response, next:
 }
 
 /**
- * Middleware para verificar se Ã© aluno
+ * Middleware para verificar se é aluno.
  */
 export function alunoMiddleware(req: Request, res: Response, next: NextFunction) {
   if (!req.user) {
     return res.status(401).json({
       success: false,
-      error: 'NÃ£o autenticado',
+      error: 'Não autenticado',
     });
   }
 
@@ -214,4 +237,3 @@ export function alunoMiddleware(req: Request, res: Response, next: NextFunction)
 
   next();
 }
-
