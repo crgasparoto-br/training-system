@@ -4,10 +4,7 @@ on:
   pull_request:
     branches:
       - develop
-    types:
-      - opened
-      - synchronize
-      - reopened
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: write
@@ -22,16 +19,14 @@ jobs:
           ref: feat/247-adipometry-api
           fetch-depth: 0
 
-      - name: Apply exact remediations
+      - name: Apply structural remediations
         shell: bash
         run: |
           python - <<'PY'
           from pathlib import Path
           import re
 
-          def sub_once(path: str, pattern: str, replacement: str, flags: int = 0) -> None:
-              file_path = Path(path)
-              text = file_path.read_text()
+          def sub_once(text: str, pattern: str, replacement: str, flags: int = 0) -> str:
               updated, count = re.subn(
                   pattern,
                   lambda _match: replacement,
@@ -40,19 +35,18 @@ jobs:
                   flags=flags,
               )
               if count != 1:
-                  raise SystemExit(f'{path}: expected one replacement, found {count}: {pattern[:80]}')
-              file_path.write_text(updated)
+                  raise SystemExit(f'expected one replacement, found {count}: {pattern[:100]}')
+              return updated
 
-          def replace_once(path: str, old: str, new: str) -> None:
-              file_path = Path(path)
-              text = file_path.read_text()
+          def replace_once(text: str, old: str, new: str) -> str:
               count = text.count(old)
               if count != 1:
-                  raise SystemExit(f'{path}: expected one replacement, found {count}: {old[:80]}')
-              file_path.write_text(text.replace(old, new, 1))
+                  raise SystemExit(f'expected one replacement, found {count}: {old[:100]}')
+              return text.replace(old, new, 1)
 
-          service = 'apps/api/src/modules/adipometry/adipometry.service.ts'
-          sub_once(
+          service_path = Path('apps/api/src/modules/adipometry/adipometry.service.ts')
+          service = service_path.read_text()
+          service = sub_once(
               service,
               r"function isSerializableTransactionConflict\(error: unknown\): boolean \{\n\s*return error instanceof Prisma\.PrismaClientKnownRequestError && error\.code === 'P2034';\n\}",
               """function isSerializableTransactionConflict(error: unknown): boolean {
@@ -64,7 +58,7 @@ jobs:
             return /could not serialize access|sqlstate\\s*40001|current transaction is aborted/i.test(message);
           }""",
           )
-          sub_once(
+          service = sub_once(
               service,
               r"  const \[profile, protocol, anthropometrySupport\] = await Promise\.all\(\[\n.*?\n  \]\);\n  const capacityWarningConfirmed",
               """  let profile: ProfileSnapshot;
@@ -103,25 +97,28 @@ jobs:
             const capacityWarningConfirmed""",
               re.S,
           )
+          service_path.write_text(service)
 
-          test = 'apps/api/src/modules/adipometry/adipometry-remediation.integration.test.ts'
-          sub_once(
+          test_path = Path('apps/api/src/modules/adipometry/adipometry-remediation.integration.test.ts')
+          test = test_path.read_text()
+
+          test = replace_once(
               test,
-              r"type Fixture = \{\n  contractId: string;\n  otherContractId: string;\n  functionId: string;\n  otherFunctionId: string;\n  userId: string;\n  otherUserId: string;\n  professorId: string;\n  otherProfessorId: string;",
-              """type Fixture = {
-            contractId: string;
-            otherContractId: string;
-            functionId: string;
-            operatorFunctionId: string;
-            otherFunctionId: string;
-            userId: string;
-            operatorUserId: string;
-            otherUserId: string;
-            professorId: string;
-            operatorProfessorId: string;
-            otherProfessorId: string;""",
+              '  functionId: string;\n',
+              '  functionId: string;\n  operatorFunctionId: string;\n',
           )
-          sub_once(
+          test = replace_once(
+              test,
+              '  userId: string;\n',
+              '  userId: string;\n  operatorUserId: string;\n',
+          )
+          test = replace_once(
+              test,
+              '  professorId: string;\n',
+              '  professorId: string;\n  operatorProfessorId: string;\n',
+          )
+
+          test = sub_once(
               test,
               r"  const \[collaboratorFunction, otherFunction\] = await Promise\.all\(\[.*?\n  \]\);\n\n  const governanceBlocks",
               """  const [collaboratorFunction, operatorFunction, otherFunction] = await Promise.all([
@@ -151,7 +148,7 @@ jobs:
             const governanceBlocks""",
               re.S,
           )
-          sub_once(
+          test = sub_once(
               test,
               r"  await Promise\.all\(\[\n\s*setPermission\(collaboratorFunction\.id, '', true\),\n\s*setPermission\(collaboratorFunction\.id, VIEW_KEY, true\),\n\s*setPermission\(collaboratorFunction\.id, MANAGE_KEY, true\),\n\s*setPermission\(collaboratorFunction\.id, CORRECT_KEY, false\),\n\s*\]\);",
               """  await Promise.all([
@@ -161,7 +158,7 @@ jobs:
             setPermission(operatorFunction.id, CORRECT_KEY, false),
           ]);""",
           )
-          sub_once(
+          test = sub_once(
               test,
               r"  const \[user, otherUser\] = await Promise\.all\(\[.*?\n  \]\);\n\n  const \[professor, otherProfessor\]",
               """  const [user, operatorUser, otherUser] = await Promise.all([
@@ -194,7 +191,7 @@ jobs:
             const [professor, otherProfessor]""",
               re.S,
           )
-          sub_once(
+          test = sub_once(
               test,
               r"  const \[professor, otherProfessor\] = await Promise\.all\(\[.*?\n  \]\);\n\n  await Promise\.all\(\[",
               """  const [professor, operatorProfessor, otherProfessor] = await Promise.all([
@@ -230,9 +227,9 @@ jobs:
             await Promise.all([""",
               re.S,
           )
-          sub_once(
+          test = sub_once(
               test,
-              r"  await Promise\.all\(\[\n    prisma\.profile\.create\(\{\n      data: \{ userId: user\.id,.*?\n  \]\);\n\n  const \[aluno, otherAluno\]",
+              r"  await Promise\.all\(\[\n\s*prisma\.profile\.create\(\{\n\s*data: \{ userId: user\.id,.*?\n\s*\]\);\n\n  const \[aluno, otherAluno\]",
               """  await Promise.all([
             prisma.profile.create({
               data: { userId: user.id, name: `ADPT remediation ${token}`, cref: `CREF-${token}` },
@@ -252,55 +249,48 @@ jobs:
             const [aluno, otherAluno]""",
               re.S,
           )
-          sub_once(
+          test = sub_once(
               test,
               r"\n  // The HTTP matrix must exercise persisted permissions instead of the master bypass\.\n  await prisma\.professor\.update\(\{ where: \{ id: professor\.id \}, data: \{ role: 'professor' \} \}\);\n",
-              "\n",
+              '\n',
           )
-          replace_once(
+
+          test = replace_once(
               test,
-              """    functionId: collaboratorFunction.id,
-            otherFunctionId: otherFunction.id,
-            userId: user.id,
-            otherUserId: otherUser.id,
-            professorId: professor.id,
-            otherProfessorId: otherProfessor.id,""",
-              """    functionId: collaboratorFunction.id,
-            operatorFunctionId: operatorFunction.id,
-            otherFunctionId: otherFunction.id,
-            userId: user.id,
-            operatorUserId: operatorUser.id,
-            otherUserId: otherUser.id,
-            professorId: professor.id,
-            operatorProfessorId: operatorProfessor.id,
-            otherProfessorId: otherProfessor.id,""",
+              '    functionId: collaboratorFunction.id,\n',
+              '    functionId: collaboratorFunction.id,\n    operatorFunctionId: operatorFunction.id,\n',
           )
-          replace_once(
+          test = replace_once(
               test,
-              "where: { userId: { in: [fixture.userId, fixture.otherUserId] } },",
-              "where: { userId: { in: [fixture.userId, fixture.operatorUserId, fixture.otherUserId] } },",
+              '    userId: user.id,\n',
+              '    userId: user.id,\n    operatorUserId: operatorUser.id,\n',
           )
-          replace_once(
+          test = replace_once(
               test,
-              "where: { id: { in: [fixture.professorId, fixture.otherProfessorId] } },",
-              "where: { id: { in: [fixture.professorId, fixture.operatorProfessorId, fixture.otherProfessorId] } },",
+              '    professorId: professor.id,\n',
+              '    professorId: professor.id,\n    operatorProfessorId: operatorProfessor.id,\n',
           )
-          replace_once(
-              test,
-              "where: { collaboratorFunctionId: { in: [fixture.functionId, fixture.otherFunctionId] } },",
-              "where: { collaboratorFunctionId: { in: [fixture.functionId, fixture.operatorFunctionId, fixture.otherFunctionId] } },",
-          )
-          replace_once(
-              test,
-              "where: { id: { in: [fixture.functionId, fixture.otherFunctionId] } },",
-              "where: { id: { in: [fixture.functionId, fixture.operatorFunctionId, fixture.otherFunctionId] } },",
-          )
-          replace_once(
-              test,
-              "where: { id: { in: [fixture.userId, fixture.otherUserId] } },",
-              "where: { id: { in: [fixture.userId, fixture.operatorUserId, fixture.otherUserId] } },",
-          )
-          sub_once(
+
+          replacements = {
+              '[fixture.userId, fixture.otherUserId]':
+                  '[fixture.userId, fixture.operatorUserId, fixture.otherUserId]',
+              '[fixture.professorId, fixture.otherProfessorId]':
+                  '[fixture.professorId, fixture.operatorProfessorId, fixture.otherProfessorId]',
+              '[fixture.functionId, fixture.otherFunctionId]':
+                  '[fixture.functionId, fixture.operatorFunctionId, fixture.otherFunctionId]',
+              'const professorToken = tokenFor(fixture.userId);':
+                  'const professorToken = tokenFor(fixture.operatorUserId);',
+              'setPermission(fixture.functionId, VIEW_KEY':
+                  'setPermission(fixture.operatorFunctionId, VIEW_KEY',
+              'setPermission(fixture.functionId, MANAGE_KEY':
+                  'setPermission(fixture.operatorFunctionId, MANAGE_KEY',
+          }
+          for old, new in replacements.items():
+              if old not in test:
+                  raise SystemExit(f'missing replacement target: {old}')
+              test = test.replace(old, new)
+
+          test = sub_once(
               test,
               r"    const expectedAssessmentId = \[first\.id, second\.id\]\.sort\(\)\.reverse\(\)\[0\];\n    const history = await adipometryService\.listAssessments\(\n      fixture\.contractId,\n      fixture\.alunoId\n    \);\n    expect\(history\[0\]\.id\)\.toBe\(expectedAssessmentId\);",
               """    const histories = await Promise.all(
@@ -315,7 +305,7 @@ jobs:
             expect(new Set(observedOrders.map((order) => JSON.stringify(order))).size).toBe(1);
             expect(new Set(observedOrders[0])).toEqual(tiedAssessmentIds);""",
           )
-          sub_once(
+          test = sub_once(
               test,
               r"    const support = await adipometryAnthropometrySupportService\.getSupport\(\n      fixture\.contractId,\n      fixture\.alunoId,\n      '2026-08-03'\n    \);\n    const expectedAnthropometryId = \[anthropometryA\.id, anthropometryB\.id\]\.sort\(\)\.reverse\(\)\[0\];\n    expect\(support\.latestEligible\?\.anthropometryAssessmentId\)\.toBe\(expectedAnthropometryId\);",
               """    const supports = await Promise.all(
@@ -333,22 +323,7 @@ jobs:
             expect(new Set(observedSupportIds).size).toBe(1);
             expect([anthropometryA.id, anthropometryB.id]).toContain(observedSupportIds[0]);""",
           )
-          replace_once(
-              test,
-              'const professorToken = tokenFor(fixture.userId);',
-              'const professorToken = tokenFor(fixture.operatorUserId);'
-          )
-          test_path = Path(test)
-          test_text = test_path.read_text()
-          test_text = test_text.replace(
-              'setPermission(fixture.functionId, VIEW_KEY',
-              'setPermission(fixture.operatorFunctionId, VIEW_KEY'
-          )
-          test_text = test_text.replace(
-              'setPermission(fixture.functionId, MANAGE_KEY',
-              'setPermission(fixture.operatorFunctionId, MANAGE_KEY'
-          )
-          test_path.write_text(test_text)
+          test_path.write_text(test)
           PY
 
       - name: Commit functional remediations
