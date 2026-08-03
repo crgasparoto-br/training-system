@@ -113,7 +113,7 @@ export interface AdipometryProtocolDefinitionSnapshot {
   /** Sex-specific completion and calculation authority for the current version. */
   calculationSkinfoldsBySex?: Record<'MALE' | 'FEMALE', AdipometrySkinfoldField[]>;
   inputUnits: Record<AdipometryInputField, 'kg' | 'mm'>;
-  inputScales?: Record<AdipometryInputField, number>;
+  inputScales?: Partial<Record<AdipometryInputField, number>>;
   outputUnits: Record<AdipometryResultField, 'kg' | 'mm' | 'percent'>;
   equations: AdipometryProtocolEquation[];
   limits: {
