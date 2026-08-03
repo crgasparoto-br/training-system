@@ -14,6 +14,8 @@ Todas as rotas exigem autenticação de professor e acesso à tela `physicalAsse
 
 O contrato, o usuário e o professor ator são derivados do token. Nenhum endpoint aceita `contractId`, autor ou professor no corpo da requisição.
 
+A validade criptográfica do token não substitui a elegibilidade atual. Antes de acessar a ADPT, a API revalida que o usuário permanece ativo e que o vínculo do professor possui `currentStatus=active`. Um token emitido antes da desativação deixa de autorizar leituras e escritas imediatamente após a mudança administrativa.
+
 ## Endpoints
 
 - `GET /protocols/available?alunoId={id}&assessmentDate=AAAA-MM-DD`
@@ -29,6 +31,8 @@ O contrato, o usuário e o professor ator são derivados do token. Nenhum endpoi
 - `POST /assessments/:id/correction/cancel`
 - `GET /alunos/:alunoId/compare?assessmentIds={id1,id2}`
 
+Datas no formato `AAAA-MM-DD` são datas civis estritas. Valores que apenas correspondem ao formato, mas não existem no calendário, como `2026-02-31`, são rejeitados com `400`; não há normalização silenciosa para outro dia ou mês.
+
 ## Rascunho e prévia
 
 A criação usa a função transacional de numeração da fundação ADPT, garantindo código `ADPT-###` único por aluno e contrato sob concorrência. A numeração não é limitada a três dígitos; após `ADPT-999`, o próximo código é `ADPT-1000`.
@@ -39,12 +43,13 @@ O cálculo de prévia:
 2. valida aprovação clínica ativa, idade, decisão de sexo, precisão, limites e dobras obrigatórias;
 3. executa, na ordem declarada, a AST de equações do snapshot clínico aprovado pelo contrato;
 4. aplica a precisão e o arredondamento declarados no protocolo somente aos resultados finais;
-5. devolve `inputFingerprint`, que inclui entradas, protocolo, versão, aprovação e confirmação operacional;
-6. não persiste resultados derivados.
+5. devolve `usedSkinfolds`, com as dobras efetivamente selecionadas pelo protocolo;
+6. devolve `inputFingerprint`, que inclui entradas, protocolo, versão, aprovação e confirmação operacional;
+7. não persiste resultados derivados.
 
 O backend não mantém uma fórmula clínica paralela à definição aprovada. Alterar uma equação em uma nova versão aprovada altera o cálculo executado, enquanto avaliações já concluídas continuam preservadas por seu snapshot.
 
-Quando uma dobra estiver entre `45,1` e `80,0 mm`, o profissional precisa confirmar o alerta. A confirmação é persistida com autoria antes de a prévia ser considerada apta à conclusão.
+Alertas de capacidade são determinados pelos limites do protocolo aprovado. Na versão Guedes atual, uma dobra entre `45,1` e `80,0 mm` exige confirmação do profissional. A confirmação e sua autoria são gravadas dentro da mesma transação serializável do cálculo e somente quando não existe outro erro bloqueante. Se o cálculo ou qualquer persistência falhar, a confirmação não permanece registrada.
 
 ## Conclusão
 
@@ -66,6 +71,8 @@ As consultas operacionais retornam somente revisões atuais. O detalhe inclui a 
 
 A comparação utiliza uma ou duas avaliações concluídas atuais, apresenta deltas neutros e emite alerta quando os protocolos ou versões forem diferentes. A API não classifica variações como melhora ou piora.
 
+A ordenação é total e determinística: data da avaliação, instante de conclusão e identificador estável. Assim, duas avaliações concluídas no mesmo dia preservam corretamente a relação entre anterior e atual e não invertem o sinal dos deltas.
+
 ## Antropometria de apoio
 
 O vínculo é opcional. Quando informado, o registro precisa:
@@ -85,7 +92,7 @@ As respostas seguem o envelope padrão de `sendSuccess` e `sendError`.
 - `400`: payload, data, precisão ou regra de entrada inválida;
 - `401`: autenticação ausente ou inválida;
 - `403`: tela ou bloco de acesso negado;
-- `404`: recurso inexistente ou pertencente a outro contrato, sem distinção observável;
+- `404`: recurso inexistente, pertencente a outro contrato ou ator profissional que deixou de ser elegível, sem distinção observável;
 - `409`: prévia ausente ou invalidada, estado concorrente, aprovação ausente/revogada ou transição histórica inválida;
 - `500`: falha inesperada sanitizada, com `correlationId` quando disponível.
 
