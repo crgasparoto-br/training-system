@@ -507,7 +507,24 @@ it('allows read-only access while management is denied over HTTP', async () => {
   const professorToken = tokenFor(fixture.operatorUserId);
   const historyUrl = `/adipometry/alunos/${fixture.alunoId}/assessments`;
 
+  await setPermission(fixture.operatorFunctionId, '', true);
+  await setPermission(fixture.operatorFunctionId, VIEW_KEY, true);
   await setPermission(fixture.operatorFunctionId, MANAGE_KEY, false);
+
+  const permissions = await prisma.accessPermission.findMany({
+    where: {
+      collaboratorFunctionId: fixture.operatorFunctionId,
+      screenKey: SCREEN_KEY,
+      blockKey: { in: ['', VIEW_KEY, MANAGE_KEY] },
+    },
+    select: { blockKey: true, canView: true },
+  });
+  expect(permissions).toEqual(expect.arrayContaining([
+    { blockKey: '', canView: true },
+    { blockKey: VIEW_KEY, canView: true },
+    { blockKey: MANAGE_KEY, canView: false },
+  ]));
+
   const readOnly = await request(app)
     .get(historyUrl)
     .set('Authorization', `Bearer ${professorToken}`);
