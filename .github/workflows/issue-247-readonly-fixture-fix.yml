@@ -23,35 +23,36 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+          import re
 
           path = Path('apps/api/src/modules/adipometry/adipometry-remediation.integration.test.ts')
           text = path.read_text()
-          old = """  await setPermission(fixture.operatorFunctionId, MANAGE_KEY, false);
-          const readOnly = await request(app)
-          """
-          new = """  await setPermission(fixture.operatorFunctionId, '', true);
-          await setPermission(fixture.operatorFunctionId, VIEW_KEY, true);
-          await setPermission(fixture.operatorFunctionId, MANAGE_KEY, false);
-
-          const permissions = await prisma.accessPermission.findMany({
-            where: {
-              collaboratorFunctionId: fixture.operatorFunctionId,
-              screenKey: SCREEN_KEY,
-              blockKey: { in: ['', VIEW_KEY, MANAGE_KEY] },
-            },
-            select: { blockKey: true, canView: true },
-          });
-          expect(permissions).toEqual(expect.arrayContaining([
-            { blockKey: '', canView: true },
-            { blockKey: VIEW_KEY, canView: true },
-            { blockKey: MANAGE_KEY, canView: false },
-          ]));
-
-          const readOnly = await request(app)
-          """
-          if text.count(old) != 1:
-              raise SystemExit(f'expected one read-only fixture block, found {text.count(old)}')
-          path.write_text(text.replace(old, new, 1))
+          pattern = r"  await setPermission\(fixture\.operatorFunctionId, MANAGE_KEY, false\);\n  const readOnly = await request\(app\)"
+          replacement = "\n".join([
+              "  await setPermission(fixture.operatorFunctionId, '', true);",
+              "  await setPermission(fixture.operatorFunctionId, VIEW_KEY, true);",
+              "  await setPermission(fixture.operatorFunctionId, MANAGE_KEY, false);",
+              "",
+              "  const permissions = await prisma.accessPermission.findMany({",
+              "    where: {",
+              "      collaboratorFunctionId: fixture.operatorFunctionId,",
+              "      screenKey: SCREEN_KEY,",
+              "      blockKey: { in: ['', VIEW_KEY, MANAGE_KEY] },",
+              "    },",
+              "    select: { blockKey: true, canView: true },",
+              "  });",
+              "  expect(permissions).toEqual(expect.arrayContaining([",
+              "    { blockKey: '', canView: true },",
+              "    { blockKey: VIEW_KEY, canView: true },",
+              "    { blockKey: MANAGE_KEY, canView: false },",
+              "  ]));",
+              "",
+              "  const readOnly = await request(app)",
+          ])
+          updated, count = re.subn(pattern, lambda _match: replacement, text, count=1)
+          if count != 1:
+              raise SystemExit(f'expected one read-only fixture block, found {count}')
+          path.write_text(updated)
           PY
 
       - name: Commit fixture correction
