@@ -1,0 +1,138 @@
+name: Fix issue 247 HTTP matrix
+
+on:
+  pull_request:
+    branches:
+      - develop
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.head_ref == 'feat/247-adipometry-api' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/247-adipometry-api
+          fetch-depth: 0
+
+      - name: Isolate authorization scenarios
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('apps/api/src/modules/adipometry/adipometry-remediation.integration.test.ts')
+          text = path.read_text()
+          text = text.replace(
+              'code: `ADPT-OPERATOR-${token}`',
+              "code: 'professor'",
+              1,
+          )
+
+          pattern = r"  it\('enforces authentication, role, view, manage, correction and tenant boundaries over HTTP', async \(\) => \{.*?\n  \}\);\n\}\);\n?$"
+          replacement = """  it('enforces authentication, role, view and tenant boundaries over HTTP', async () => {
+            const fixture = await createFixture();
+            const professorToken = tokenFor(fixture.operatorUserId);
+            const historyUrl = `/adipometry/alunos/${fixture.alunoId}/assessments`;
+
+            const unauthenticated = await request(app).get(historyUrl);
+            expect(unauthenticated.status).toBe(401);
+
+            const wrongRole = await request(app)
+              .get(historyUrl)
+              .set('Authorization', `Bearer ${tokenFor(fixture.userId, 'aluno')}`);
+            expect(wrongRole.status).toBe(403);
+
+            await setPermission(fixture.operatorFunctionId, VIEW_KEY, false);
+            const withoutView = await request(app)
+              .get(historyUrl)
+              .set('Authorization', `Bearer ${professorToken}`);
+            expect(withoutView.status).toBe(403);
+
+            await setPermission(fixture.operatorFunctionId, VIEW_KEY, true);
+            const otherDraft = await adipometryService.createDraft(
+              fixture.otherContractId,
+              fixture.otherAlunoId,
+              fixture.otherUserId,
+              fixture.otherProfessorId,
+              { assessmentDate: '2026-08-03' }
+            );
+            const crossTenant = await request(app)
+              .get(`/adipometry/assessments/${otherDraft.id}`)
+              .set('Authorization', `Bearer ${professorToken}`);
+            expect(crossTenant.status).toBe(404);
+            expect(crossTenant.body.details?.code).toBe('ADIPOMETRY_RESOURCE_NOT_FOUND');
+          });
+
+          it('allows read-only access while management is denied over HTTP', async () => {
+            const fixture = await createFixture();
+            const professorToken = tokenFor(fixture.operatorUserId);
+            const historyUrl = `/adipometry/alunos/${fixture.alunoId}/assessments`;
+
+            await setPermission(fixture.operatorFunctionId, MANAGE_KEY, false);
+            const readOnly = await request(app)
+              .get(historyUrl)
+              .set('Authorization', `Bearer ${professorToken}`);
+            expect(readOnly.status).toBe(200);
+
+            const createDenied = await request(app)
+              .post(historyUrl)
+              .set('Authorization', `Bearer ${professorToken}`)
+              .send({ assessmentDate: '2026-08-03' });
+            expect(createDenied.status).toBe(403);
+          });
+
+          it('allows management but requires the correction capability over HTTP', async () => {
+            const fixture = await createFixture();
+            const professorToken = tokenFor(fixture.operatorUserId);
+            const historyUrl = `/adipometry/alunos/${fixture.alunoId}/assessments`;
+
+            const createAllowed = await request(app)
+              .post(historyUrl)
+              .set('Authorization', `Bearer ${professorToken}`)
+              .send({ assessmentDate: '2026-08-03' });
+            expect(createAllowed.status).toBe(201);
+
+            const finalizedId = await prepareCalculableDraft(fixture);
+            const preview = await adipometryService.calculate(
+              fixture.contractId,
+              finalizedId,
+              fixture.userId
+            );
+            await adipometryService.finalize(
+              fixture.contractId,
+              finalizedId,
+              fixture.userId,
+              { inputFingerprint: preview.inputFingerprint }
+            );
+
+            const correctionDenied = await request(app)
+              .post(`/adipometry/assessments/${finalizedId}/corrections`)
+              .set('Authorization', `Bearer ${professorToken}`)
+              .send({
+                category: 'DATA_ENTRY_ERROR',
+                reason: 'Correção proposital para validar a permissão específica.',
+              });
+            expect(correctionDenied.status).toBe(403);
+          });
+          });
+          """
+          updated, count = re.subn(pattern, lambda _match: replacement, text, count=1, flags=re.S)
+          if count != 1:
+              raise SystemExit(f'expected one HTTP matrix replacement, found {count}')
+          path.write_text(updated)
+          PY
+
+      - name: Commit test correction
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add apps/api/src/modules/adipometry/adipometry-remediation.integration.test.ts
+          git commit -m 'test(adpt): isolate HTTP authorization states'
+          git push origin HEAD:feat/247-adipometry-api
