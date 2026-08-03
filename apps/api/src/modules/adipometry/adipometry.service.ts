@@ -7,10 +7,13 @@ import type {
   AdipometryCalculationSnapshot,
   AdipometryComparison,
   AdipometryCorrectionCategory,
+  AdipometryExpression,
   AdipometryMeasurements,
   AdipometryProtocolCompatibility,
+  AdipometryProtocolDefinitionSnapshot,
   AdipometryProtocolSex,
   AdipometryProtocolSexSource,
+  AdipometryResultField,
 } from '@corrida/types';
 import { assertAdipometryProtocolDefinitionSnapshot } from '@corrida/types';
 
@@ -131,10 +134,19 @@ function hasScale(value: number, scale: number): boolean {
   return Math.abs(value * multiplier - Math.round(value * multiplier)) < 1e-8;
 }
 
+function roundAdipometryValue(
+  value: number,
+  scale: number,
+  mode: AdipometryProtocolDefinitionSnapshot['rounding']['mode']
+): number {
+  const roundingMode = mode === 'HALF_EVEN'
+    ? Prisma.Decimal.ROUND_HALF_EVEN
+    : Prisma.Decimal.ROUND_HALF_UP;
+  return new Prisma.Decimal(value).toDecimalPlaces(scale, roundingMode).toNumber();
+}
+
 function roundHalfUp(value: number, scale: number): number {
-  return new Prisma.Decimal(value)
-    .toDecimalPlaces(scale, Prisma.Decimal.ROUND_HALF_UP)
-    .toNumber();
+  return roundAdipometryValue(value, scale, 'HALF_UP');
 }
 
 function calculateAge(birthDate: string, assessmentDate: string): number {
@@ -185,6 +197,190 @@ export function buildAdipometryInputFingerprint(input: {
   capacityWarningConfirmed: boolean;
 }): string {
   return createHash('sha256').update(stableJson(input)).digest('hex');
+}
+
+function readExpressionPath(context: Record<string, unknown>, path: string): unknown {
+  return path.split('.').reduce<unknown>((current, segment) => {
+    if (!current || typeof current !== 'object') return undefined;
+    return (current as Record<string, unknown>)[segment];
+  }, context);
+}
+
+function evaluateAdipometryExpression(
+  expression: AdipometryExpression,
+  context: Record<string, unknown>
+): number {
+  const evaluate = (child: AdipometryExpression) => evaluateAdipometryExpression(child, context);
+  let result: number;
+
+  switch (expression.op) {
+    case 'constant':
+      result = expression.value;
+      break;
+    case 'variable': {
+      const value = readExpressionPath(context, expression.name);
+      if (typeof value !== 'number' || !Number.isFinite(value)) {
+        throw new AdipometryServiceError(
+          `A variável clínica ${expression.name} não possui valor numérico.`,
+          'ADIPOMETRY_PROTOCOL_VARIABLE_NOT_NUMERIC'
+        );
+      }
+      result = value;
+      break;
+    }
+    case 'add':
+      result = expression.args.reduce((sum, child) => sum + evaluate(child), 0);
+      break;
+    case 'subtract':
+      result = evaluate(expression.left) - evaluate(expression.right);
+      break;
+    case 'multiply':
+      result = expression.args.reduce((product, child) => product * evaluate(child), 1);
+      break;
+    case 'divide': {
+      const denominator = evaluate(expression.denominator);
+      if (denominator === 0) {
+        throw new AdipometryServiceError(
+          'A equação clínica tentou dividir por zero.',
+          'ADIPOMETRY_PROTOCOL_DIVISION_BY_ZERO'
+        );
+      }
+      result = evaluate(expression.numerator) / denominator;
+      break;
+    }
+    case 'power':
+      result = evaluate(expression.base) ** evaluate(expression.exponent);
+      break;
+    case 'log10': {
+      const value = evaluate(expression.value);
+      if (value <= 0) {
+        throw new AdipometryServiceError(
+          'A equação clínica exige logaritmo de um valor positivo.',
+          'ADIPOMETRY_PROTOCOL_LOG10_NON_POSITIVE'
+        );
+      }
+      result = Math.log10(value);
+      break;
+    }
+    case 'negate':
+      result = -evaluate(expression.value);
+      break;
+    case 'ifEquals':
+      result = readExpressionPath(context, expression.field) === expression.expected
+        ? evaluate(expression.then)
+        : evaluate(expression.else);
+      break;
+    default: {
+      const unsupported: never = expression;
+      throw new AdipometryServiceError(
+        `Operador clínico não suportado: ${String((unsupported as any)?.op ?? 'desconhecido')}.`,
+        'ADIPOMETRY_PROTOCOL_OPERATOR_UNSUPPORTED'
+      );
+    }
+  }
+
+  if (!Number.isFinite(result)) {
+    throw new AdipometryServiceError(
+      'A equação clínica produziu um resultado não finito.',
+      'ADIPOMETRY_INVALID_CALCULATION'
+    );
+  }
+  return result;
+}
+
+function executeApprovedProtocol(
+  definition: AdipometryProtocolDefinitionSnapshot,
+  ageAtAssessment: number,
+  protocolSex: AdipometryProtocolSex,
+  normalizedMeasurements: AdipometryMeasurements,
+  usedSkinfolds: Array<keyof AdipometryMeasurements>
+): {
+  rawResults: Record<AdipometryResultField, number>;
+  results: AdipometryCalculatedResults;
+  skinfoldTotalRaw: number;
+} {
+  const skinfoldTotalRaw = usedSkinfolds
+    .map((field) => toFiniteNumber(normalizedMeasurements[field], String(field)))
+    .reduce((sum, value) => sum + value, 0);
+  if (skinfoldTotalRaw <= 0) {
+    throw new AdipometryServiceError(
+      'A soma das dobras deve ser positiva.',
+      'ADIPOMETRY_INVALID_SKINFOLD_TOTAL'
+    );
+  }
+
+  const expressionContext: Record<string, unknown> = {
+    ...normalizedMeasurements,
+    ageAtAssessment,
+    skinfoldTotalMm: skinfoldTotalRaw,
+    profileCriteria: {
+      sex: protocolSex === 'male' ? 'MALE' : 'FEMALE',
+    },
+  };
+  const rawResults = {} as Record<AdipometryResultField, number>;
+  const seenOutputs = new Set<AdipometryResultField>();
+
+  for (const equation of definition.equations) {
+    if (seenOutputs.has(equation.output)) {
+      throw new AdipometryServiceError(
+        `O protocolo repete a saída clínica ${equation.output}.`,
+        'ADIPOMETRY_PROTOCOL_DUPLICATE_OUTPUT'
+      );
+    }
+    const value = evaluateAdipometryExpression(equation.expression, expressionContext);
+    rawResults[equation.output] = value;
+    expressionContext[equation.output] = value;
+    seenOutputs.add(equation.output);
+  }
+
+  for (const requiredOutput of ['bodyFatPercentage', 'fatMassKg', 'leanMassKg'] as const) {
+    if (!seenOutputs.has(requiredOutput)) {
+      throw new AdipometryServiceError(
+        `O protocolo não calcula a saída clínica ${requiredOutput}.`,
+        'ADIPOMETRY_PROTOCOL_OUTPUT_MISSING'
+      );
+    }
+  }
+
+  if (
+    rawResults.bodyFatPercentage < 0 ||
+    rawResults.bodyFatPercentage > 100 ||
+    rawResults.fatMassKg < 0 ||
+    rawResults.leanMassKg < 0
+  ) {
+    throw new AdipometryServiceError(
+      'As medidas não produziram um resultado matematicamente válido.',
+      'ADIPOMETRY_INVALID_CALCULATION'
+    );
+  }
+
+  const precision = definition.precision as typeof definition.precision & {
+    skinfoldTotalScale?: number;
+  };
+  const results: AdipometryCalculatedResults = {
+    skinfoldTotalMm: roundAdipometryValue(
+      skinfoldTotalRaw,
+      precision.skinfoldTotalScale ?? precision.measurementScale,
+      definition.rounding.mode
+    ),
+    bodyFatPercentage: roundAdipometryValue(
+      rawResults.bodyFatPercentage,
+      precision.resultScale,
+      definition.rounding.mode
+    ),
+    fatMassKg: roundAdipometryValue(
+      rawResults.fatMassKg,
+      precision.resultScale,
+      definition.rounding.mode
+    ),
+    leanMassKg: roundAdipometryValue(
+      rawResults.leanMassKg,
+      precision.resultScale,
+      definition.rounding.mode
+    ),
+  };
+
+  return { rawResults, results, skinfoldTotalRaw };
 }
 
 function validateProtocolSexDecision(context: AdipometryCalculationContext, compatibility: AdipometryProtocolCompatibility) {
@@ -286,20 +482,17 @@ export function calculateAdipometry(context: AdipometryCalculationContext): {
 
   validateProtocolSexDecision(context, compatibility);
 
-  const weight = validateMeasurement(
-    compatibility,
-    context.measurements,
-    'weightKg',
-    'o peso',
-    2,
-    0.01,
-    999.99,
-    true
-  );
+  const sexKey = context.protocolSex === 'female' ? 'FEMALE' : 'MALE';
+  const requiredFields = context.protocolSex
+    ? definition.calculationSkinfoldsBySex?.[sexKey]
+    : undefined;
+  if (context.protocolSex && (!requiredFields || requiredFields.length === 0)) {
+    throw new AdipometryServiceError(
+      `O protocolo não define as dobras de cálculo para ${sexKey}.`,
+      'ADIPOMETRY_PROTOCOL_SKINFOLDS_MISSING'
+    );
+  }
 
-  const requiredFields: Array<keyof AdipometryMeasurements> = context.protocolSex === 'female'
-    ? ['subscapularMm', 'suprailiacMm', 'thighMm']
-    : ['tricepsMm', 'suprailiacMm', 'abdominalMm'];
   const labels: Record<keyof AdipometryMeasurements, string> = {
     weightKg: 'o peso',
     tricepsMm: 'a dobra tricipital',
@@ -308,31 +501,61 @@ export function calculateAdipometry(context: AdipometryCalculationContext): {
     abdominalMm: 'a dobra abdominal',
     thighMm: 'a dobra da coxa',
   };
+  const inputScales = definition.inputScales ?? {};
+  const weightLimit = definition.limits.blocking.weightKg;
+  const weight = validateMeasurement(
+    compatibility,
+    context.measurements,
+    'weightKg',
+    labels.weightKg,
+    inputScales.weightKg ?? 2,
+    weightLimit.min,
+    weightLimit.max,
+    true
+  );
 
   const normalized: AdipometryMeasurements = {};
   if (weight !== undefined) normalized.weightKg = weight;
-  for (const field of ['tricepsMm', 'subscapularMm', 'suprailiacMm', 'abdominalMm', 'thighMm'] as const) {
+  const skinfoldFields = [
+    'tricepsMm',
+    'subscapularMm',
+    'suprailiacMm',
+    'abdominalMm',
+    'thighMm',
+  ] as const;
+  let capacityWarningPresent = false;
+
+  for (const field of skinfoldFields) {
+    const limit = definition.limits.blocking[field];
     const value = validateMeasurement(
       compatibility,
       context.measurements,
       field,
       labels[field],
-      1,
-      0.1,
-      80,
-      requiredFields.includes(field)
+      inputScales[field] ?? definition.precision.measurementScale,
+      limit.min,
+      limit.max,
+      requiredFields?.includes(field) ?? false
     );
     if (value !== undefined) normalized[field] = value;
-    if (value !== undefined && value > 45) {
-      compatibility.warnings.push({
-        code: 'SKINFOLD_CAPACITY_WARNING',
-        field,
-        message: 'A medida pode exceder a capacidade de alguns adipômetros. Confirme o equipamento e a técnica.',
-      });
+
+    if (value !== undefined) {
+      for (const warning of definition.limits.warnings.filter((item) => item.field === field)) {
+        const aboveMinimum = warning.min === undefined || value >= warning.min;
+        const belowMaximum = warning.max === undefined || value <= warning.max;
+        if (aboveMinimum && belowMaximum) {
+          capacityWarningPresent = true;
+          compatibility.warnings.push({
+            code: 'SKINFOLD_CAPACITY_WARNING',
+            field,
+            message: warning.message,
+          });
+        }
+      }
     }
   }
 
-  if (compatibility.warnings.length > 0 && !context.capacityWarningConfirmed) {
+  if (capacityWarningPresent && !context.capacityWarningConfirmed) {
     compatibility.reasons.push({
       code: 'SKINFOLD_CAPACITY_WARNING_CONFIRMATION_REQUIRED',
       message: 'Confirme o alerta de capacidade do adipômetro antes de concluir.',
@@ -340,43 +563,24 @@ export function calculateAdipometry(context: AdipometryCalculationContext): {
   }
 
   compatibility.compatible = compatibility.reasons.length === 0;
-  if (!compatibility.compatible || !context.protocolSex || weight === undefined || age === null) {
+  if (
+    !compatibility.compatible ||
+    !context.protocolSex ||
+    !requiredFields ||
+    weight === undefined ||
+    age === null
+  ) {
     return { compatibility };
   }
 
-  const usedValues = requiredFields.map((field) => toFiniteNumber(normalized[field], labels[field]));
-  const skinfoldTotalRaw = usedValues.reduce((sum, value) => sum + value, 0);
-  if (skinfoldTotalRaw <= 0) {
-    throw new AdipometryServiceError('A soma das dobras deve ser positiva.', 'ADIPOMETRY_INVALID_SKINFOLD_TOTAL');
-  }
-
-  const densityRaw = context.protocolSex === 'male'
-    ? 1.17136 - 0.06706 * Math.log10(skinfoldTotalRaw)
-    : 1.1665 - 0.07063 * Math.log10(skinfoldTotalRaw);
-  const bodyFatRaw = ((4.95 / densityRaw) - 4.5) * 100;
-  const fatMassRaw = weight * bodyFatRaw / 100;
-  const leanMassRaw = weight - fatMassRaw;
-
-  if (
-    ![densityRaw, bodyFatRaw, fatMassRaw, leanMassRaw].every(Number.isFinite) ||
-    densityRaw <= 0 ||
-    bodyFatRaw < 0 ||
-    bodyFatRaw > 100 ||
-    fatMassRaw < 0 ||
-    leanMassRaw < 0
-  ) {
-    throw new AdipometryServiceError(
-      'As medidas não produziram um resultado matematicamente válido.',
-      'ADIPOMETRY_INVALID_CALCULATION'
-    );
-  }
-
-  const results: AdipometryCalculatedResults = {
-    skinfoldTotalMm: roundHalfUp(skinfoldTotalRaw, 1),
-    bodyFatPercentage: roundHalfUp(bodyFatRaw, 2),
-    fatMassKg: roundHalfUp(fatMassRaw, 2),
-    leanMassKg: roundHalfUp(leanMassRaw, 2),
-  };
+  const execution = executeApprovedProtocol(
+    definition,
+    age,
+    context.protocolSex,
+    normalized,
+    requiredFields
+  );
+  const { results } = execution;
   const calculatedAt = context.calculatedAt ?? new Date();
   const profileSexSnapshot = context.profile.profileSex ?? 'other';
   const protocolSexDecision = {
@@ -430,13 +634,13 @@ export function calculateAdipometry(context: AdipometryCalculationContext): {
       limits: definition.limits,
       precision: definition.precision,
       rounding: definition.rounding,
-      densityRaw,
-      densityPersisted: roundHalfUp(densityRaw, 8),
+      rawResults: execution.rawResults,
+      skinfoldTotalRaw: execution.skinfoldTotalRaw,
       usedSkinfolds: requiredFields,
       capacityWarningConfirmed: context.capacityWarningConfirmed,
     },
     results,
-    implementationVersion: 'issue-247-v1',
+    implementationVersion: 'issue-247-v2-contract-runtime',
     calculatedAt: calculatedAt.toISOString(),
   } as AdipometryCalculationSnapshot;
 
@@ -775,7 +979,7 @@ async function buildPreview(
   const capacityWarningConfirmed = Boolean(
     row.skinfoldCapacityWarningConfirmedAt || options.capacityWarningConfirmed
   );
-  const context: AdipometryCalculationContext = {
+  const calculationContext: AdipometryCalculationContext = {
     assessmentId: row.id,
     alunoId: row.alunoId,
     assessmentDate: normalizeDateOnly(row.assessmentDate),
@@ -788,14 +992,14 @@ async function buildPreview(
     capacityWarningConfirmed,
     actorUserId,
   };
-  const calculated = calculateAdipometry(context);
+  const calculated = calculateAdipometry(calculationContext);
   const inputFingerprint = buildAdipometryInputFingerprint({
     assessmentId: row.id,
-    assessmentDate: context.assessmentDate,
-    measurements: context.measurements,
-    protocolSex: context.protocolSex,
-    protocolSexSource: context.protocolSexSource,
-    protocolSexOverrideReason: context.protocolSexOverrideReason,
+    assessmentDate: calculationContext.assessmentDate,
+    measurements: calculationContext.measurements,
+    protocolSex: calculationContext.protocolSex,
+    protocolSexSource: calculationContext.protocolSexSource,
+    protocolSexOverrideReason: calculationContext.protocolSexOverrideReason,
     protocolCode: protocol.protocolCode,
     protocolVersion: protocol.protocolVersion,
     approvalId: protocol.approvalId,
@@ -809,7 +1013,7 @@ async function buildPreview(
       status: 'APPROVED',
       compatibility: calculated.compatibility,
     },
-    normalizedMeasurements: context.measurements,
+    normalizedMeasurements: calculationContext.measurements,
     compatibility: calculated.compatibility,
     ...(calculated.results ? { results: calculated.results } : {}),
     ...(calculated.calculationSnapshot ? { calculationSnapshot: calculated.calculationSnapshot } : {}),
@@ -1066,13 +1270,20 @@ export const adipometryService = {
     contractId: string,
     assessmentId: string,
     actorUserId: string,
-    input: { inputFingerprint?: string; expectedUpdatedAt?: string } = {}
+    input: { inputFingerprint: string; expectedUpdatedAt?: string }
   ) {
     return prisma.$transaction(async (tx) => {
       await setActor(tx, actorUserId);
       const row = await getAssessmentRow(tx, contractId, assessmentId, true);
       if (row.status === 'COMPLETED' && row.revisionStatus === 'FINALIZED') {
         return { assessment: await getDetail(tx, contractId, assessmentId), alreadyFinalized: true };
+      }
+      if (!input?.inputFingerprint) {
+        throw new AdipometryServiceError(
+          'Calcule a prévia e informe o fingerprint antes de concluir.',
+          'ADIPOMETRY_PREVIEW_REQUIRED',
+          409
+        );
       }
       if (row.status !== 'DRAFT' || row.revisionStatus !== 'DRAFT') {
         throw new AdipometryServiceError(
@@ -1096,7 +1307,7 @@ export const adipometryService = {
           409
         );
       }
-      if (input.inputFingerprint && input.inputFingerprint !== preview.inputFingerprint) {
+      if (input.inputFingerprint !== preview.inputFingerprint) {
         throw new AdipometryServiceError(
           'As entradas mudaram após a prévia. Calcule novamente antes de concluir.',
           'ADIPOMETRY_PREVIEW_INVALIDATED',
