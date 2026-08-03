@@ -124,6 +124,8 @@ export interface AdipometryProtocolDefinitionSnapshot {
     measurementScale: number;
     resultScale: number;
     internalScale: number;
+    skinfoldTotalScale?: number;
+    bodyDensityScale?: number;
   };
   rounding: {
     mode: 'HALF_UP' | 'HALF_EVEN';
@@ -380,11 +382,17 @@ export interface AdipometryCalculationPreview {
   compatibility: AdipometryProtocolCompatibility;
   results?: AdipometryCalculatedResults;
   calculationSnapshot?: AdipometryCalculationSnapshot;
+  inputFingerprint: string;
+  canFinalize: boolean;
+  anthropometrySupport: {
+    latestEligible: AdipometryAnthropometryReference | null;
+    linked: AdipometryAnthropometryReference | null;
+  };
 }
 
 export interface CompleteAdipometryAssessmentInput {
-  protocolCode: string;
-  protocolVersion: number;
+  inputFingerprint: string;
+  expectedUpdatedAt?: string;
 }
 
 export interface StartAdipometryCorrectionInput {
