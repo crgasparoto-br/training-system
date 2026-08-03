@@ -255,20 +255,28 @@ jobs:
               '\n',
           )
 
-          test = replace_once(
+          test = sub_once(
               test,
-              '    functionId: collaboratorFunction.id,\n',
-              '    functionId: collaboratorFunction.id,\n    operatorFunctionId: operatorFunction.id,\n',
-          )
-          test = replace_once(
-              test,
-              '    userId: user.id,\n',
-              '    userId: user.id,\n    operatorUserId: operatorUser.id,\n',
-          )
-          test = replace_once(
-              test,
-              '    professorId: professor.id,\n',
-              '    professorId: professor.id,\n    operatorProfessorId: operatorProfessor.id,\n',
+              r"  const fixture: Fixture = \{\n.*?\n  \};\n  fixtures\.push\(fixture\);",
+              """  const fixture: Fixture = {
+            contractId: contract.id,
+            otherContractId: otherContract.id,
+            functionId: collaboratorFunction.id,
+            operatorFunctionId: operatorFunction.id,
+            otherFunctionId: otherFunction.id,
+            userId: user.id,
+            operatorUserId: operatorUser.id,
+            otherUserId: otherUser.id,
+            professorId: professor.id,
+            operatorProfessorId: operatorProfessor.id,
+            otherProfessorId: otherProfessor.id,
+            alunoId: aluno.id,
+            otherAlunoId: otherAluno.id,
+            protocolCode: protocol.code,
+            protocolVersion: protocol.version,
+          };
+            fixtures.push(fixture);""",
+              re.S,
           )
 
           replacements = {
