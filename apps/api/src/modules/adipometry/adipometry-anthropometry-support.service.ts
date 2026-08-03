@@ -22,16 +22,18 @@ function serializeAssessment(assessment: any) {
     assessmentCode: assessment.code as string,
     assessmentDate: dateOnly(assessment.assessmentDate),
     notes: assessment.notes ?? null,
-    measurements: assessment.values.map((item: any) => ({
-      segmentId: item.segmentId as string,
-      segmentName: item.segment.name as string,
-      segmentType: item.segment.type as string,
-      technicalDescription: item.segment.technicalDescription ?? null,
-      formulaHint: item.segment.formulaHint ?? null,
-      value: item.value ?? null,
-      unit: item.unit as string,
-      observation: item.observation ?? null,
-    })),
+    measurements: [...assessment.values]
+      .sort((left: any, right: any) => left.segment.order - right.segment.order)
+      .map((item: any) => ({
+        segmentId: item.segmentId as string,
+        segmentName: item.segment.name as string,
+        segmentType: item.segment.type as string,
+        technicalDescription: item.segment.technicalDescription ?? null,
+        formulaHint: item.segment.formulaHint ?? null,
+        value: item.value ?? null,
+        unit: item.unit as string,
+        observation: item.observation ?? null,
+      })),
     observations: assessment.observations.map((item: any) => ({
       segmentId: item.segmentId ?? null,
       text: item.text as string,
@@ -42,12 +44,12 @@ function serializeAssessment(assessment: any) {
 
 const includeSupportDetails = {
   values: {
-    orderBy: { segment: { order: 'asc' as const } },
     include: {
       segment: {
         select: {
           name: true,
           type: true,
+          order: true,
           technicalDescription: true,
           formulaHint: true,
         },
