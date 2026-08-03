@@ -273,8 +273,27 @@ describe('adipometry API service on PostgreSQL', () => {
     ]);
 
     expect(concurrent.map((item) => item.code).sort()).toEqual(['ADPT-001', 'ADPT-002']);
-    const assessmentId = concurrent[0].id;
 
+    await prisma.adipometrySequence.update({
+      where: {
+        contractId_alunoId: {
+          contractId: fixture.contractId,
+          alunoId: fixture.alunoId,
+        },
+      },
+      data: { lastValue: 999 },
+    });
+    const highSequence = await adipometryService.createDraft(
+      fixture.contractId,
+      fixture.alunoId,
+      fixture.userId,
+      fixture.professorId,
+      draftInput
+    );
+    expect(highSequence.code).toBe('ADPT-1000');
+    expect(highSequence.sequenceNumber).toBe(1000);
+
+    const assessmentId = concurrent[0].id;
     const updated = await adipometryService.updateDraft(
       fixture.contractId,
       assessmentId,
