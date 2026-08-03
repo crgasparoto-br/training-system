@@ -1,9 +1,9 @@
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import {
   adipometryGovernanceService,
   buildAdipometrySpecificationHash,
 } from './adipometry-governance.service.js';
-import { AdipometryServiceError, adipometryService } from './adipometry.service.js';
+import { adipometryService } from './adipometry.service.js';
 
 const prisma = new PrismaClient();
 const suffix = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -130,14 +130,20 @@ async function createFixture(): Promise<Fixture> {
       data: {
         alunoId: aluno.id,
         contractId: contract.id,
-        identificationData: { birthDate: '2001-08-03', gender: 'male' },
+        identificationData: {
+          birthDate: '2001-08-03',
+          gender: 'male',
+        } satisfies Prisma.InputJsonValue,
       },
     }),
     prisma.studentProfile.create({
       data: {
         alunoId: otherAluno.id,
         contractId: otherContract.id,
-        identificationData: { birthDate: '2001-08-03', gender: 'male' },
+        identificationData: {
+          birthDate: '2001-08-03',
+          gender: 'male',
+        } satisfies Prisma.InputJsonValue,
       },
     }),
   ]);
