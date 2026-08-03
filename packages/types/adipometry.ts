@@ -337,9 +337,11 @@ export interface AdipometryAssessmentDetail extends AdipometryAssessmentSummary 
   notes?: string;
 }
 
+/**
+ * Request body for POST /adipometry/alunos/:alunoId/assessments.
+ * alunoId comes from the URL and professor/contract/actor come from authentication.
+ */
 export interface CreateAdipometryDraftInput {
-  alunoId: string;
-  professorId: string;
   assessmentDate: string;
   measurements?: AdipometryMeasurements;
   protocolSex?: AdipometryProtocolSex;
@@ -347,10 +349,11 @@ export interface CreateAdipometryDraftInput {
   protocolSexOverrideReason?: string;
   protocolCode?: string;
   protocolVersion?: number;
-  anthropometryAssessmentId?: string;
-  notes?: string;
+  anthropometryAssessmentId?: string | null;
+  notes?: string | null;
 }
 
+/** Request body for PUT /adipometry/assessments/:id. */
 export interface UpdateAdipometryDraftInput {
   assessmentDate?: string;
   measurements?: AdipometryMeasurements;
@@ -361,24 +364,19 @@ export interface UpdateAdipometryDraftInput {
   protocolVersion?: number;
   anthropometryAssessmentId?: string | null;
   notes?: string | null;
+  expectedUpdatedAt?: string;
+  confirmProtocolChange?: boolean;
 }
 
+/** Request body for POST /adipometry/assessments/:id/calculate. */
 export interface AdipometryCalculationPreviewRequest {
-  assessmentId?: string;
-  alunoId: string;
-  assessmentDate: string;
-  measurements: AdipometryMeasurements;
-  protocolSex: AdipometryProtocolSex;
-  protocolSexSource: AdipometryProtocolSexSource;
-  protocolSexOverrideReason?: string;
   skinfoldCapacityWarningConfirmed?: boolean;
-  protocolCode: string;
-  protocolVersion: number;
 }
 
 export interface AdipometryCalculationPreview {
   protocol: AdipometryProtocolSummary;
   normalizedMeasurements: AdipometryMeasurements;
+  usedSkinfolds: AdipometrySkinfoldField[];
   compatibility: AdipometryProtocolCompatibility;
   results?: AdipometryCalculatedResults;
   calculationSnapshot?: AdipometryCalculationSnapshot;
