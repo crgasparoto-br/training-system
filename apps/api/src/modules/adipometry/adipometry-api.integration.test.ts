@@ -1,12 +1,23 @@
+import express from 'express';
+import jwt from 'jsonwebtoken';
 import { Prisma, PrismaClient } from '@prisma/client';
+import type {
+  AdipometryCalculationPreviewRequest,
+  CreateAdipometryDraftInput,
+} from '@corrida/types';
 import {
   adipometryGovernanceService,
   buildAdipometrySpecificationHash,
 } from './adipometry-governance.service.js';
+import { adipometryRoutes } from './index.js';
 import { adipometryService } from './adipometry.service.js';
 
+const request = require('supertest');
 const prisma = new PrismaClient();
 const suffix = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+const app = express();
+app.use(express.json());
+app.use('/adipometry', adipometryRoutes);
 
 type Fixture = {
   contractId: string;
@@ -25,6 +36,18 @@ type Fixture = {
 };
 
 const fixtures: Fixture[] = [];
+
+function tokenFor(userId: string) {
+  return jwt.sign(
+    {
+      userId,
+      email: `adpt-http-${userId}@example.invalid`,
+      type: 'professor',
+    },
+    process.env.JWT_SECRET || 'dev-secret',
+    { expiresIn: '1h' }
+  );
+}
 
 async function createFixture(): Promise<Fixture> {
   const token = suffix();
@@ -248,6 +271,32 @@ async function cleanupFixture(fixture: Fixture) {
   });
 }
 
+async function prepareCalculableDraft(
+  fixture: Fixture,
+  measurements: { weightKg: number; tricepsMm: number; suprailiacMm: number; abdominalMm: number }
+) {
+  const draft = await adipometryService.createDraft(
+    fixture.contractId,
+    fixture.alunoId,
+    fixture.userId,
+    fixture.professorId,
+    { assessmentDate: '2026-08-03' }
+  );
+  await adipometryService.updateDraft(
+    fixture.contractId,
+    draft.id,
+    fixture.userId,
+    {
+      protocolCode: fixture.protocolCode,
+      protocolVersion: fixture.protocolVersion,
+      protocolSex: 'male',
+      protocolSexSource: 'profile',
+      measurements,
+    }
+  );
+  return draft.id;
+}
+
 describe('adipometry API service on PostgreSQL', () => {
   afterAll(async () => {
     for (const fixture of [...fixtures].reverse()) {
@@ -258,7 +307,7 @@ describe('adipometry API service on PostgreSQL', () => {
 
   it('serializes codes, requires current preview, rolls back and preserves correction history', async () => {
     const fixture = await createFixture();
-    const draftInput = { assessmentDate: '2026-08-03' };
+    const draftInput = { assessmentDate: '2026-08-03' } satisfies CreateAdipometryDraftInput;
 
     const concurrent = await Promise.all([
       adipometryService.createDraft(
@@ -332,6 +381,7 @@ describe('adipometry API service on PostgreSQL', () => {
       fixture.userId
     );
     expect(preview.canFinalize).toBe(true);
+    expect(preview.usedSkinfolds).toEqual(['tricepsMm', 'suprailiacMm', 'abdominalMm']);
     expect(preview.results?.bodyFatPercentage).toBe(18.12);
 
     await expect(
@@ -481,5 +531,182 @@ describe('adipometry API service on PostgreSQL', () => {
         }
       )
     ).rejects.toMatchObject({ code: 'PROTOCOL_NOT_APPROVED_FOR_CONTRACT', statusCode: 409 });
+  });
+
+  it('revalidates active user and professor status on the real HTTP boundary', async () => {
+    const fixture = await createFixture();
+    const token = tokenFor(fixture.userId);
+    const url = `/adipometry/alunos/${fixture.alunoId}/assessments`;
+
+    const active = await request(app)
+      .get(url)
+      .set('Authorization', `Bearer ${token}`);
+    expect(active.status).toBe(200);
+
+    await prisma.user.update({ where: { id: fixture.userId }, data: { isActive: false } });
+    const inactiveUser = await request(app)
+      .get(url)
+      .set('Authorization', `Bearer ${token}`);
+    expect(inactiveUser.status).toBe(404);
+    expect(inactiveUser.body.error).toBe('Professor não encontrado');
+
+    await prisma.user.update({ where: { id: fixture.userId }, data: { isActive: true } });
+    await prisma.professor.update({
+      where: { id: fixture.professorId },
+      data: { currentStatus: 'inactive' },
+    });
+    const inactiveProfessor = await request(app)
+      .get(url)
+      .set('Authorization', `Bearer ${token}`);
+    expect(inactiveProfessor.status).toBe(404);
+    expect(inactiveProfessor.body.error).toBe('Professor não encontrado');
+
+    await prisma.professor.update({
+      where: { id: fixture.professorId },
+      data: { currentStatus: 'active' },
+    });
+  });
+
+  it('rejects impossible civil dates through HTTP without creating a draft', async () => {
+    const fixture = await createFixture();
+    const token = tokenFor(fixture.userId);
+    const before = await prisma.adipometryAssessment.count({
+      where: { contractId: fixture.contractId, alunoId: fixture.alunoId },
+    });
+    const invalidBody = {
+      assessmentDate: '2026-02-31',
+    } satisfies CreateAdipometryDraftInput;
+
+    const response = await request(app)
+      .post(`/adipometry/alunos/${fixture.alunoId}/assessments`)
+      .set('Authorization', `Bearer ${token}`)
+      .send(invalidBody);
+
+    expect(response.status).toBe(400);
+    expect(response.body.details?.code).toBe('ADIPOMETRY_INVALID_INPUT');
+    await expect(
+      prisma.adipometryAssessment.count({
+        where: { contractId: fixture.contractId, alunoId: fixture.alunoId },
+      })
+    ).resolves.toBe(before);
+  });
+
+  it('persists capacity confirmation only when the approved preview has no other blocker', async () => {
+    const fixture = await createFixture();
+    const draft = await adipometryService.createDraft(
+      fixture.contractId,
+      fixture.alunoId,
+      fixture.userId,
+      fixture.professorId,
+      { assessmentDate: '2026-08-03' }
+    );
+    await adipometryService.updateDraft(
+      fixture.contractId,
+      draft.id,
+      fixture.userId,
+      {
+        protocolCode: fixture.protocolCode,
+        protocolVersion: fixture.protocolVersion,
+        protocolSex: 'male',
+        protocolSexSource: 'profile',
+        measurements: {
+          weightKg: 80,
+          tricepsMm: 46,
+          suprailiacMm: 18,
+        },
+      }
+    );
+
+    const confirmation = {
+      skinfoldCapacityWarningConfirmed: true,
+    } satisfies AdipometryCalculationPreviewRequest;
+    const blocked = await adipometryService.calculate(
+      fixture.contractId,
+      draft.id,
+      fixture.userId,
+      confirmation
+    );
+    expect(blocked.canFinalize).toBe(false);
+    expect(blocked.compatibility.reasons).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'MISSING_MEASUREMENT', field: 'abdominalMm' }),
+      expect.objectContaining({ code: 'SKINFOLD_CAPACITY_WARNING_CONFIRMATION_REQUIRED' }),
+    ]));
+    await expect(
+      prisma.adipometryAssessment.findUniqueOrThrow({ where: { id: draft.id } })
+    ).resolves.toMatchObject({
+      skinfoldCapacityWarningConfirmedByUserId: null,
+      skinfoldCapacityWarningConfirmedAt: null,
+    });
+
+    await adipometryService.updateDraft(
+      fixture.contractId,
+      draft.id,
+      fixture.userId,
+      { measurements: { abdominalMm: 20 } }
+    );
+    const confirmed = await adipometryService.calculate(
+      fixture.contractId,
+      draft.id,
+      fixture.userId,
+      confirmation
+    );
+    expect(confirmed.canFinalize).toBe(true);
+    await expect(
+      prisma.adipometryAssessment.findUniqueOrThrow({ where: { id: draft.id } })
+    ).resolves.toMatchObject({
+      skinfoldCapacityWarningConfirmedByUserId: fixture.userId,
+      skinfoldCapacityWarningConfirmedAt: expect.any(Date),
+    });
+  });
+
+  it('uses completion time and id as stable same-day comparison tie breakers', async () => {
+    const fixture = await createFixture();
+    const firstId = await prepareCalculableDraft(fixture, {
+      weightKg: 80,
+      tricepsMm: 12,
+      suprailiacMm: 18,
+      abdominalMm: 20,
+    });
+    const firstPreview = await adipometryService.calculate(
+      fixture.contractId,
+      firstId,
+      fixture.userId
+    );
+    await adipometryService.finalize(
+      fixture.contractId,
+      firstId,
+      fixture.userId,
+      { inputFingerprint: firstPreview.inputFingerprint }
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    const secondId = await prepareCalculableDraft(fixture, {
+      weightKg: 81,
+      tricepsMm: 13,
+      suprailiacMm: 19,
+      abdominalMm: 21,
+    });
+    const secondPreview = await adipometryService.calculate(
+      fixture.contractId,
+      secondId,
+      fixture.userId
+    );
+    await adipometryService.finalize(
+      fixture.contractId,
+      secondId,
+      fixture.userId,
+      { inputFingerprint: secondPreview.inputFingerprint }
+    );
+
+    const comparison = await adipometryService.compare(
+      fixture.contractId,
+      fixture.alunoId,
+      [firstId, secondId]
+    );
+    expect(comparison.previous?.assessment.id).toBe(firstId);
+    expect(comparison.current.assessment.id).toBe(secondId);
+    expect(comparison.deltas?.weightKg).toBe(1);
+    expect(comparison.deltas?.tricepsMm).toBe(1);
   });
 });
