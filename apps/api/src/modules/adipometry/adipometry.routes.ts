@@ -9,14 +9,16 @@ import {
   screenAccessMiddleware,
 } from '../access-control/access-control.middleware.js';
 import {
+  ADIPOMETRY_CORRECT_BLOCK_KEY,
+  ADIPOMETRY_MANAGE_BLOCK_KEY,
+  ADIPOMETRY_VIEW_BLOCK_KEY,
+  adipometryDraftMutationAccessMiddleware,
+} from './adipometry-draft-access.middleware.js';
+import {
   mapAdipometryPersistenceError,
   persistAdipometryCapacityConfirmation,
 } from './adipometry-http-support.js';
 import { AdipometryServiceError, adipometryService } from './adipometry.service.js';
-
-export const ADIPOMETRY_VIEW_BLOCK_KEY = 'physicalAssessment.adpt.view';
-export const ADIPOMETRY_MANAGE_BLOCK_KEY = 'physicalAssessment.adpt.actions.manage';
-export const ADIPOMETRY_CORRECT_BLOCK_KEY = 'physicalAssessment.adpt.actions.correctCompleted';
 
 const router: ExpressRouter = Router();
 const idSchema = z.string().min(1).max(128).regex(/^[A-Za-z0-9_-]+$/);
@@ -277,7 +279,7 @@ router.get(
 
 router.put(
   '/assessments/:id',
-  blockAccessMiddleware(ADIPOMETRY_MANAGE_BLOCK_KEY),
+  adipometryDraftMutationAccessMiddleware,
   async (req: Request, res: Response) => {
     try {
       const payload = updateDraftSchema.parse(req.body);
@@ -297,7 +299,7 @@ router.put(
 
 router.post(
   '/assessments/:id/calculate',
-  blockAccessMiddleware(ADIPOMETRY_MANAGE_BLOCK_KEY),
+  adipometryDraftMutationAccessMiddleware,
   async (req: Request, res: Response) => {
     try {
       const payload = calculateSchema.parse(req.body ?? {});
@@ -324,7 +326,7 @@ router.post(
 
 router.post(
   '/assessments/:id/finalize',
-  blockAccessMiddleware(ADIPOMETRY_MANAGE_BLOCK_KEY),
+  adipometryDraftMutationAccessMiddleware,
   async (req: Request, res: Response) => {
     try {
       const payload = finalizeSchema.parse(req.body ?? {});
