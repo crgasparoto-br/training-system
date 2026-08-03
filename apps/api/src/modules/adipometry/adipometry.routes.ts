@@ -100,7 +100,7 @@ const calculateSchema = z.object({
 }).strict();
 
 const finalizeSchema = z.object({
-  inputFingerprint: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  inputFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
   expectedUpdatedAt: z.string().datetime({ offset: true }).optional(),
 }).strict();
 
