@@ -4,6 +4,48 @@ import {
   type AdipometryCalculationContext,
 } from './adipometry.service.js';
 
+const bodyFatExpression = {
+  op: 'multiply',
+  args: [
+    {
+      op: 'subtract',
+      left: {
+        op: 'divide',
+        numerator: { op: 'constant', value: 4.95 },
+        denominator: {
+          op: 'ifEquals',
+          field: 'profileCriteria.sex',
+          expected: 'MALE',
+          then: {
+            op: 'subtract',
+            left: { op: 'constant', value: 1.17136 },
+            right: {
+              op: 'multiply',
+              args: [
+                { op: 'constant', value: 0.06706 },
+                { op: 'log10', value: { op: 'variable', name: 'skinfoldTotalMm' } },
+              ],
+            },
+          },
+          else: {
+            op: 'subtract',
+            left: { op: 'constant', value: 1.1665 },
+            right: {
+              op: 'multiply',
+              args: [
+                { op: 'constant', value: 0.07063 },
+                { op: 'log10', value: { op: 'variable', name: 'skinfoldTotalMm' } },
+              ],
+            },
+          },
+        },
+      },
+      right: { op: 'constant', value: 4.5 },
+    },
+    { op: 'constant', value: 100 },
+  ],
+} as const;
+
 const definitionSnapshot = {
   schemaVersion: 2,
   population: {
@@ -46,9 +88,35 @@ const definitionSnapshot = {
     leanMassKg: 'kg',
   },
   equations: [
-    { id: 'guedes-density', output: 'bodyFatPercentage', expression: { op: 'constant', value: 0 } },
-    { id: 'siri-fat-mass', output: 'fatMassKg', expression: { op: 'constant', value: 0 } },
-    { id: 'lean-mass', output: 'leanMassKg', expression: { op: 'constant', value: 0 } },
+    {
+      id: 'siri-body-fat-percentage',
+      output: 'bodyFatPercentage',
+      expression: bodyFatExpression,
+    },
+    {
+      id: 'absolute-fat-mass',
+      output: 'fatMassKg',
+      expression: {
+        op: 'divide',
+        numerator: {
+          op: 'multiply',
+          args: [
+            { op: 'variable', name: 'weightKg' },
+            { op: 'variable', name: 'bodyFatPercentage' },
+          ],
+        },
+        denominator: { op: 'constant', value: 100 },
+      },
+    },
+    {
+      id: 'lean-mass',
+      output: 'leanMassKg',
+      expression: {
+        op: 'subtract',
+        left: { op: 'variable', name: 'weightKg' },
+        right: { op: 'variable', name: 'fatMassKg' },
+      },
+    },
   ],
   limits: {
     blocking: {
@@ -59,9 +127,45 @@ const definitionSnapshot = {
       abdominalMm: { min: 0.1, max: 80 },
       thighMm: { min: 0.1, max: 80 },
     },
-    warnings: [],
+    warnings: [
+      {
+        field: 'tricepsMm',
+        min: 45.1,
+        max: 80,
+        message: 'Confirme a capacidade do adipômetro.',
+      },
+      {
+        field: 'subscapularMm',
+        min: 45.1,
+        max: 80,
+        message: 'Confirme a capacidade do adipômetro.',
+      },
+      {
+        field: 'suprailiacMm',
+        min: 45.1,
+        max: 80,
+        message: 'Confirme a capacidade do adipômetro.',
+      },
+      {
+        field: 'abdominalMm',
+        min: 45.1,
+        max: 80,
+        message: 'Confirme a capacidade do adipômetro.',
+      },
+      {
+        field: 'thighMm',
+        min: 45.1,
+        max: 80,
+        message: 'Confirme a capacidade do adipômetro.',
+      },
+    ],
   },
-  precision: { measurementScale: 1, resultScale: 2, internalScale: 8 },
+  precision: {
+    measurementScale: 1,
+    resultScale: 2,
+    internalScale: 8,
+    skinfoldTotalScale: 1,
+  },
   rounding: { mode: 'HALF_UP', stage: 'FINAL_RESULTS_ONLY' },
   missingDataBehavior: {
     missingRequired: 'BLOCK',
@@ -123,7 +227,41 @@ describe('adipometry authoritative calculation', () => {
     });
     expect(result.calculationSnapshot?.rules).toMatchObject({
       usedSkinfolds: ['tricepsMm', 'suprailiacMm', 'abdominalMm'],
-      densityPersisted: 1.05742707,
+      rawResults: expect.objectContaining({
+        bodyFatPercentage: expect.any(Number),
+      }),
+    });
+  });
+
+  it('executes the approved equation AST instead of a hardcoded formula', () => {
+    const base = context();
+    const changedDefinition = {
+      ...definitionSnapshot,
+      equations: [
+        {
+          id: 'controlled-body-fat',
+          output: 'bodyFatPercentage',
+          expression: { op: 'constant', value: 10 },
+        },
+        definitionSnapshot.equations[1],
+        definitionSnapshot.equations[2],
+      ],
+    } as const;
+
+    const result = calculateAdipometry({
+      ...base,
+      protocol: {
+        ...base.protocol,
+        protocolVersion: 2,
+        definitionSnapshot: changedDefinition,
+      },
+    });
+
+    expect(result.results).toEqual({
+      skinfoldTotalMm: 50,
+      bodyFatPercentage: 10,
+      fatMassKg: 8,
+      leanMassKg: 72,
     });
   });
 
