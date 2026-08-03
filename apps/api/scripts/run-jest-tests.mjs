@@ -7,6 +7,7 @@ const pnpmCommand = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
 const extendedAuthorizationMatrix =
   'tests/issue-275-authorization-matrix-extended.integration.test.ts';
 const isolatedDatabaseTests = [
+  'src/modules/adipometry/adipometry-api.integration.test.ts',
   'src/modules/pre-registration-invites/pre-registration-invite-concurrency.integration.test.ts',
   'src/modules/pre-registration-invites/pre-registration-invite-temporal-consistency.integration.test.ts',
 ];
