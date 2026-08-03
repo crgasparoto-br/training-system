@@ -95,7 +95,7 @@ async function createFixture(): Promise<Fixture> {
     data: {
       contractId: contract.id,
       name: `ADPT operator ${token}`,
-      code: `ADPT-OPERATOR-${token}`,
+      code: 'professor',
     },
   }),
   prisma.collaboratorFunctionOption.create({
@@ -468,76 +468,89 @@ describe('issue 247 audit remediations on PostgreSQL', () => {
   expect([anthropometryA.id, anthropometryB.id]).toContain(observedSupportIds[0]);
   });
 
-  it('enforces authentication, role, view, manage, correction and tenant boundaries over HTTP', async () => {
-    const fixture = await createFixture();
-    const professorToken = tokenFor(fixture.operatorUserId);
-    const historyUrl = `/adipometry/alunos/${fixture.alunoId}/assessments`;
+  it('enforces authentication, role, view and tenant boundaries over HTTP', async () => {
+  const fixture = await createFixture();
+  const professorToken = tokenFor(fixture.operatorUserId);
+  const historyUrl = `/adipometry/alunos/${fixture.alunoId}/assessments`;
 
-    const unauthenticated = await request(app).get(historyUrl);
-    expect(unauthenticated.status).toBe(401);
+  const unauthenticated = await request(app).get(historyUrl);
+  expect(unauthenticated.status).toBe(401);
 
-    const wrongRole = await request(app)
-      .get(historyUrl)
-      .set('Authorization', `Bearer ${tokenFor(fixture.userId, 'aluno')}`);
-    expect(wrongRole.status).toBe(403);
+  const wrongRole = await request(app)
+    .get(historyUrl)
+    .set('Authorization', `Bearer ${tokenFor(fixture.userId, 'aluno')}`);
+  expect(wrongRole.status).toBe(403);
 
-    await setPermission(fixture.operatorFunctionId, VIEW_KEY, false);
-    const withoutView = await request(app)
-      .get(historyUrl)
-      .set('Authorization', `Bearer ${professorToken}`);
-    expect(withoutView.status).toBe(403);
+  await setPermission(fixture.operatorFunctionId, VIEW_KEY, false);
+  const withoutView = await request(app)
+    .get(historyUrl)
+    .set('Authorization', `Bearer ${professorToken}`);
+  expect(withoutView.status).toBe(403);
 
-    await setPermission(fixture.operatorFunctionId, VIEW_KEY, true);
-    await setPermission(fixture.operatorFunctionId, MANAGE_KEY, false);
-    const readOnly = await request(app)
-      .get(historyUrl)
-      .set('Authorization', `Bearer ${professorToken}`);
-    expect(readOnly.status).toBe(200);
-    const createDenied = await request(app)
-      .post(historyUrl)
-      .set('Authorization', `Bearer ${professorToken}`)
-      .send({ assessmentDate: '2026-08-03' });
-    expect(createDenied.status).toBe(403);
+  await setPermission(fixture.operatorFunctionId, VIEW_KEY, true);
+  const otherDraft = await adipometryService.createDraft(
+    fixture.otherContractId,
+    fixture.otherAlunoId,
+    fixture.otherUserId,
+    fixture.otherProfessorId,
+    { assessmentDate: '2026-08-03' }
+  );
+  const crossTenant = await request(app)
+    .get(`/adipometry/assessments/${otherDraft.id}`)
+    .set('Authorization', `Bearer ${professorToken}`);
+  expect(crossTenant.status).toBe(404);
+  expect(crossTenant.body.details?.code).toBe('ADIPOMETRY_RESOURCE_NOT_FOUND');
+});
 
-    await setPermission(fixture.operatorFunctionId, MANAGE_KEY, true);
-    const createAllowed = await request(app)
-      .post(historyUrl)
-      .set('Authorization', `Bearer ${professorToken}`)
-      .send({ assessmentDate: '2026-08-03' });
-    expect(createAllowed.status).toBe(201);
+it('allows read-only access while management is denied over HTTP', async () => {
+  const fixture = await createFixture();
+  const professorToken = tokenFor(fixture.operatorUserId);
+  const historyUrl = `/adipometry/alunos/${fixture.alunoId}/assessments`;
 
-    const finalizedId = await prepareCalculableDraft(fixture);
-    const preview = await adipometryService.calculate(
-      fixture.contractId,
-      finalizedId,
-      fixture.userId
-    );
-    await adipometryService.finalize(
-      fixture.contractId,
-      finalizedId,
-      fixture.userId,
-      { inputFingerprint: preview.inputFingerprint }
-    );
-    const correctionDenied = await request(app)
-      .post(`/adipometry/assessments/${finalizedId}/corrections`)
-      .set('Authorization', `Bearer ${professorToken}`)
-      .send({
-        category: 'DATA_ENTRY_ERROR',
-        reason: 'Correção proposital para validar a permissão específica.',
-      });
-    expect(correctionDenied.status).toBe(403);
+  await setPermission(fixture.operatorFunctionId, MANAGE_KEY, false);
+  const readOnly = await request(app)
+    .get(historyUrl)
+    .set('Authorization', `Bearer ${professorToken}`);
+  expect(readOnly.status).toBe(200);
 
-    const otherDraft = await adipometryService.createDraft(
-      fixture.otherContractId,
-      fixture.otherAlunoId,
-      fixture.otherUserId,
-      fixture.otherProfessorId,
-      { assessmentDate: '2026-08-03' }
-    );
-    const crossTenant = await request(app)
-      .get(`/adipometry/assessments/${otherDraft.id}`)
-      .set('Authorization', `Bearer ${professorToken}`);
-    expect(crossTenant.status).toBe(404);
-    expect(crossTenant.body.details?.code).toBe('ADIPOMETRY_RESOURCE_NOT_FOUND');
-  });
+  const createDenied = await request(app)
+    .post(historyUrl)
+    .set('Authorization', `Bearer ${professorToken}`)
+    .send({ assessmentDate: '2026-08-03' });
+  expect(createDenied.status).toBe(403);
+});
+
+it('allows management but requires the correction capability over HTTP', async () => {
+  const fixture = await createFixture();
+  const professorToken = tokenFor(fixture.operatorUserId);
+  const historyUrl = `/adipometry/alunos/${fixture.alunoId}/assessments`;
+
+  const createAllowed = await request(app)
+    .post(historyUrl)
+    .set('Authorization', `Bearer ${professorToken}`)
+    .send({ assessmentDate: '2026-08-03' });
+  expect(createAllowed.status).toBe(201);
+
+  const finalizedId = await prepareCalculableDraft(fixture);
+  const preview = await adipometryService.calculate(
+    fixture.contractId,
+    finalizedId,
+    fixture.userId
+  );
+  await adipometryService.finalize(
+    fixture.contractId,
+    finalizedId,
+    fixture.userId,
+    { inputFingerprint: preview.inputFingerprint }
+  );
+
+  const correctionDenied = await request(app)
+    .post(`/adipometry/assessments/${finalizedId}/corrections`)
+    .set('Authorization', `Bearer ${professorToken}`)
+    .send({
+      category: 'DATA_ENTRY_ERROR',
+      reason: 'Correção proposital para validar a permissão específica.',
+    });
+  expect(correctionDenied.status).toBe(403);
+});
 });
