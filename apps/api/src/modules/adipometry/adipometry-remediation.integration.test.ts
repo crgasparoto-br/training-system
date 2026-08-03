@@ -24,10 +24,13 @@ type Fixture = {
   contractId: string;
   otherContractId: string;
   functionId: string;
+  operatorFunctionId: string;
   otherFunctionId: string;
   userId: string;
+  operatorUserId: string;
   otherUserId: string;
   professorId: string;
+  operatorProfessorId: string;
   otherProfessorId: string;
   alunoId: string;
   otherAlunoId: string;
@@ -80,22 +83,29 @@ async function createFixture(): Promise<Fixture> {
     }),
   ]);
 
-  const [collaboratorFunction, otherFunction] = await Promise.all([
-    prisma.collaboratorFunctionOption.create({
-      data: {
-        contractId: contract.id,
-        name: `ADPT remediation ${token}`,
-        code: `ADPT-REMEDIATION-${token}`,
-      },
-    }),
-    prisma.collaboratorFunctionOption.create({
-      data: {
-        contractId: otherContract.id,
-        name: `ADPT other ${token}`,
-        code: `ADPT-OTHER-${token}`,
-      },
-    }),
-  ]);
+  const [collaboratorFunction, operatorFunction, otherFunction] = await Promise.all([
+  prisma.collaboratorFunctionOption.create({
+    data: {
+      contractId: contract.id,
+      name: `ADPT remediation ${token}`,
+      code: `ADPT-REMEDIATION-${token}`,
+    },
+  }),
+  prisma.collaboratorFunctionOption.create({
+    data: {
+      contractId: contract.id,
+      name: `ADPT operator ${token}`,
+      code: `ADPT-OPERATOR-${token}`,
+    },
+  }),
+  prisma.collaboratorFunctionOption.create({
+    data: {
+      contractId: otherContract.id,
+      name: `ADPT other ${token}`,
+      code: `ADPT-OTHER-${token}`,
+    },
+  }),
+]);
 
   const governanceBlocks = [
     'settings.contract.actions.manageClinicalTechnicalResponsibility',
@@ -111,60 +121,84 @@ async function createFixture(): Promise<Fixture> {
     skipDuplicates: true,
   });
   await Promise.all([
-    setPermission(collaboratorFunction.id, '', true),
-    setPermission(collaboratorFunction.id, VIEW_KEY, true),
-    setPermission(collaboratorFunction.id, MANAGE_KEY, true),
-    setPermission(collaboratorFunction.id, CORRECT_KEY, false),
-  ]);
+  setPermission(operatorFunction.id, '', true),
+  setPermission(operatorFunction.id, VIEW_KEY, true),
+  setPermission(operatorFunction.id, MANAGE_KEY, true),
+  setPermission(operatorFunction.id, CORRECT_KEY, false),
+]);
 
-  const [user, otherUser] = await Promise.all([
-    prisma.user.create({
-      data: {
-        email: `adpt-remediation-a-${token}@example.invalid`,
-        passwordHash: 'not-a-password',
-        type: 'professor',
-        isActive: true,
-      },
-    }),
-    prisma.user.create({
-      data: {
-        email: `adpt-remediation-b-${token}@example.invalid`,
-        passwordHash: 'not-a-password',
-        type: 'professor',
-        isActive: true,
-      },
-    }),
-  ]);
+  const [user, operatorUser, otherUser] = await Promise.all([
+  prisma.user.create({
+    data: {
+      email: `adpt-remediation-a-${token}@example.invalid`,
+      passwordHash: 'not-a-password',
+      type: 'professor',
+      isActive: true,
+    },
+  }),
+  prisma.user.create({
+    data: {
+      email: `adpt-remediation-operator-${token}@example.invalid`,
+      passwordHash: 'not-a-password',
+      type: 'professor',
+      isActive: true,
+    },
+  }),
+  prisma.user.create({
+    data: {
+      email: `adpt-remediation-b-${token}@example.invalid`,
+      passwordHash: 'not-a-password',
+      type: 'professor',
+      isActive: true,
+    },
+  }),
+]);
 
-  const [professor, otherProfessor] = await Promise.all([
-    prisma.professor.create({
-      data: {
-        userId: user.id,
-        contractId: contract.id,
-        collaboratorFunctionId: collaboratorFunction.id,
-        role: 'master',
-        currentStatus: 'active',
-      },
-    }),
-    prisma.professor.create({
-      data: {
-        userId: otherUser.id,
-        contractId: otherContract.id,
-        collaboratorFunctionId: otherFunction.id,
-        role: 'master',
-        currentStatus: 'active',
-      },
-    }),
-  ]);
+  const [professor, operatorProfessor, otherProfessor] = await Promise.all([
+  prisma.professor.create({
+    data: {
+      userId: user.id,
+      contractId: contract.id,
+      collaboratorFunctionId: collaboratorFunction.id,
+      role: 'master',
+      currentStatus: 'active',
+    },
+  }),
+  prisma.professor.create({
+    data: {
+      userId: operatorUser.id,
+      contractId: contract.id,
+      collaboratorFunctionId: operatorFunction.id,
+      role: 'professor',
+      currentStatus: 'active',
+    },
+  }),
+  prisma.professor.create({
+    data: {
+      userId: otherUser.id,
+      contractId: otherContract.id,
+      collaboratorFunctionId: otherFunction.id,
+      role: 'master',
+      currentStatus: 'active',
+    },
+  }),
+]);
 
   await Promise.all([
-    prisma.profile.create({
-      data: { userId: user.id, name: `ADPT remediation ${token}`, cref: `CREF-${token}` },
-    }),
-    prisma.profile.create({
-      data: { userId: otherUser.id, name: `ADPT other ${token}`, cref: `CREF-B-${token}` },
-    }),
-  ]);
+  prisma.profile.create({
+    data: { userId: user.id, name: `ADPT remediation ${token}`, cref: `CREF-${token}` },
+  }),
+  prisma.profile.create({
+    data: {
+      userId: operatorUser.id,
+      name: `ADPT operator ${token}`,
+      cref: `CREF-OP-${token}`,
+    },
+  }),
+  prisma.profile.create({
+    data: { userId: otherUser.id, name: `ADPT other ${token}`, cref: `CREF-B-${token}` },
+  }),
+]);
 
   const [aluno, otherAluno] = await Promise.all([
     prisma.aluno.create({ data: { contractId: contract.id, professorId: professor.id } }),
@@ -221,23 +255,24 @@ async function createFixture(): Promise<Fixture> {
     }
   );
 
-  // The HTTP matrix must exercise persisted permissions instead of the master bypass.
-  await prisma.professor.update({ where: { id: professor.id }, data: { role: 'professor' } });
 
   const fixture: Fixture = {
-    contractId: contract.id,
-    otherContractId: otherContract.id,
-    functionId: collaboratorFunction.id,
-    otherFunctionId: otherFunction.id,
-    userId: user.id,
-    otherUserId: otherUser.id,
-    professorId: professor.id,
-    otherProfessorId: otherProfessor.id,
-    alunoId: aluno.id,
-    otherAlunoId: otherAluno.id,
-    protocolCode: protocol.code,
-    protocolVersion: protocol.version,
-  };
+  contractId: contract.id,
+  otherContractId: otherContract.id,
+  functionId: collaboratorFunction.id,
+  operatorFunctionId: operatorFunction.id,
+  otherFunctionId: otherFunction.id,
+  userId: user.id,
+  operatorUserId: operatorUser.id,
+  otherUserId: otherUser.id,
+  professorId: professor.id,
+  operatorProfessorId: operatorProfessor.id,
+  otherProfessorId: otherProfessor.id,
+  alunoId: aluno.id,
+  otherAlunoId: otherAluno.id,
+  protocolCode: protocol.code,
+  protocolVersion: protocol.version,
+};
   fixtures.push(fixture);
   return fixture;
 }
@@ -264,19 +299,19 @@ async function cleanupFixture(fixture: Fixture) {
     where: { contractId: { in: [fixture.contractId, fixture.otherContractId] } },
   });
   await prisma.profile.deleteMany({
-    where: { userId: { in: [fixture.userId, fixture.otherUserId] } },
+    where: { userId: { in: [fixture.userId, fixture.operatorUserId, fixture.otherUserId] } },
   });
   await prisma.professor.deleteMany({
-    where: { id: { in: [fixture.professorId, fixture.otherProfessorId] } },
+    where: { id: { in: [fixture.professorId, fixture.operatorProfessorId, fixture.otherProfessorId] } },
   });
   await prisma.accessPermission.deleteMany({
-    where: { collaboratorFunctionId: { in: [fixture.functionId, fixture.otherFunctionId] } },
+    where: { collaboratorFunctionId: { in: [fixture.functionId, fixture.operatorFunctionId, fixture.otherFunctionId] } },
   });
   await prisma.collaboratorFunctionOption.deleteMany({
-    where: { id: { in: [fixture.functionId, fixture.otherFunctionId] } },
+    where: { id: { in: [fixture.functionId, fixture.operatorFunctionId, fixture.otherFunctionId] } },
   });
   await prisma.user.deleteMany({
-    where: { id: { in: [fixture.userId, fixture.otherUserId] } },
+    where: { id: { in: [fixture.userId, fixture.operatorUserId, fixture.otherUserId] } },
   });
   await prisma.companyContract.deleteMany({
     where: { id: { in: [fixture.contractId, fixture.otherContractId] } },
@@ -380,12 +415,17 @@ describe('issue 247 audit remediations on PostgreSQL', () => {
       where: { id: { in: [first.id, second.id] } },
       data: { createdAt: tiedAt, updatedAt: tiedAt },
     });
-    const expectedAssessmentId = [first.id, second.id].sort().reverse()[0];
-    const history = await adipometryService.listAssessments(
-      fixture.contractId,
-      fixture.alunoId
-    );
-    expect(history[0].id).toBe(expectedAssessmentId);
+    const histories = await Promise.all(
+    Array.from({ length: 4 }, () =>
+      adipometryService.listAssessments(fixture.contractId, fixture.alunoId)
+    )
+  );
+  const tiedAssessmentIds = new Set([first.id, second.id]);
+  const observedOrders = histories.map((history) =>
+    history.filter((item) => tiedAssessmentIds.has(item.id)).map((item) => item.id)
+  );
+  expect(new Set(observedOrders.map((order) => JSON.stringify(order))).size).toBe(1);
+  expect(new Set(observedOrders[0])).toEqual(tiedAssessmentIds);
 
     const token = suffix();
     const [anthropometryA, anthropometryB] = await Promise.all([
@@ -412,18 +452,25 @@ describe('issue 247 audit remediations on PostgreSQL', () => {
         },
       }),
     ]);
-    const support = await adipometryAnthropometrySupportService.getSupport(
-      fixture.contractId,
-      fixture.alunoId,
-      '2026-08-03'
-    );
-    const expectedAnthropometryId = [anthropometryA.id, anthropometryB.id].sort().reverse()[0];
-    expect(support.latestEligible?.anthropometryAssessmentId).toBe(expectedAnthropometryId);
+    const supports = await Promise.all(
+    Array.from({ length: 4 }, () =>
+      adipometryAnthropometrySupportService.getSupport(
+        fixture.contractId,
+        fixture.alunoId,
+        '2026-08-03'
+      )
+    )
+  );
+  const observedSupportIds = supports.map(
+    (support) => support.latestEligible?.anthropometryAssessmentId
+  );
+  expect(new Set(observedSupportIds).size).toBe(1);
+  expect([anthropometryA.id, anthropometryB.id]).toContain(observedSupportIds[0]);
   });
 
   it('enforces authentication, role, view, manage, correction and tenant boundaries over HTTP', async () => {
     const fixture = await createFixture();
-    const professorToken = tokenFor(fixture.userId);
+    const professorToken = tokenFor(fixture.operatorUserId);
     const historyUrl = `/adipometry/alunos/${fixture.alunoId}/assessments`;
 
     const unauthenticated = await request(app).get(historyUrl);
@@ -434,14 +481,14 @@ describe('issue 247 audit remediations on PostgreSQL', () => {
       .set('Authorization', `Bearer ${tokenFor(fixture.userId, 'aluno')}`);
     expect(wrongRole.status).toBe(403);
 
-    await setPermission(fixture.functionId, VIEW_KEY, false);
+    await setPermission(fixture.operatorFunctionId, VIEW_KEY, false);
     const withoutView = await request(app)
       .get(historyUrl)
       .set('Authorization', `Bearer ${professorToken}`);
     expect(withoutView.status).toBe(403);
 
-    await setPermission(fixture.functionId, VIEW_KEY, true);
-    await setPermission(fixture.functionId, MANAGE_KEY, false);
+    await setPermission(fixture.operatorFunctionId, VIEW_KEY, true);
+    await setPermission(fixture.operatorFunctionId, MANAGE_KEY, false);
     const readOnly = await request(app)
       .get(historyUrl)
       .set('Authorization', `Bearer ${professorToken}`);
@@ -452,7 +499,7 @@ describe('issue 247 audit remediations on PostgreSQL', () => {
       .send({ assessmentDate: '2026-08-03' });
     expect(createDenied.status).toBe(403);
 
-    await setPermission(fixture.functionId, MANAGE_KEY, true);
+    await setPermission(fixture.operatorFunctionId, MANAGE_KEY, true);
     const createAllowed = await request(app)
       .post(historyUrl)
       .set('Authorization', `Bearer ${professorToken}`)

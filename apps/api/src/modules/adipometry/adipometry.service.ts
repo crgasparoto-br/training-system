@@ -106,7 +106,12 @@ export class AdipometryServiceError extends Error {
 const SERIALIZABLE_TRANSACTION_RETRY_LIMIT = 3;
 
 function isSerializableTransactionConflict(error: unknown): boolean {
-  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034';
+  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') {
+    return true;
+  }
+
+  const message = error instanceof Error ? error.message : '';
+  return /could not serialize access|sqlstate\s*40001|current transaction is aborted/i.test(message);
 }
 
 async function runSerializableTransaction<T>(
@@ -1025,17 +1030,39 @@ async function buildPreview(
       'ADIPOMETRY_PROTOCOL_REQUIRED'
     );
   }
-  const [profile, protocol, anthropometrySupport] = await Promise.all([
-    getProfile(client, contractId, row.alunoId),
-    getApprovedProtocol(client, contractId, row.protocolCode, row.protocolVersion, options.lockApproval),
-    getAnthropometrySupport(
+  let profile: ProfileSnapshot;
+  let protocol: ApprovedProtocolRow;
+  let anthropometrySupport: Awaited<ReturnType<typeof getAnthropometrySupport>>;
+
+  if (options.lockApproval) {
+    protocol = await getApprovedProtocol(
+      client,
+      contractId,
+      row.protocolCode,
+      row.protocolVersion,
+      true
+    );
+    profile = await getProfile(client, contractId, row.alunoId);
+    anthropometrySupport = await getAnthropometrySupport(
       client,
       contractId,
       row.alunoId,
       normalizeAdipometryDateOnly(row.assessmentDate),
       row.anthropometryAssessmentId
-    ),
-  ]);
+    );
+  } else {
+    [profile, protocol, anthropometrySupport] = await Promise.all([
+      getProfile(client, contractId, row.alunoId),
+      getApprovedProtocol(client, contractId, row.protocolCode, row.protocolVersion, false),
+      getAnthropometrySupport(
+        client,
+        contractId,
+        row.alunoId,
+        normalizeAdipometryDateOnly(row.assessmentDate),
+        row.anthropometryAssessmentId
+      ),
+    ]);
+  }
   const capacityWarningConfirmed = Boolean(
     row.skinfoldCapacityWarningConfirmedAt || options.capacityWarningConfirmed
   );
