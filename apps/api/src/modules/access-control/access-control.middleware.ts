@@ -22,8 +22,14 @@ function applyProfessorAccessContext(req: Request, professor: {
 }
 
 async function findAuthenticatedProfessor(req: Request) {
-  return prisma.professor.findUnique({
-    where: { userId: req.user!.userId },
+  return prisma.professor.findFirst({
+    where: {
+      userId: req.user!.userId,
+      currentStatus: 'active',
+      user: {
+        isActive: true,
+      },
+    },
     include: {
       collaboratorFunction: true,
       contract: {
