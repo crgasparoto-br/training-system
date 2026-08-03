@@ -19,7 +19,7 @@ Expor o ciclo clínico da adipometria por uma API autenticada e multi-tenant, us
 ## Invariantes
 
 1. `contractId`, usuário e professor ator vêm da autenticação; o body não escolhe tenant ou autor.
-2. Usuário e vínculo profissional são revalidados como ativos em cada fronteira protegida, mesmo quando o JWT ainda é criptograficamente válido.
+2. Usuário e vínculo profissional são revalidados como elegíveis em cada fronteira protegida, mesmo quando o JWT ainda é criptograficamente válido. Usuário inativo, status de desligamento/inatividade ou desligamento já efetivo bloqueiam o acesso; status legado nulo permanece compatível como ativo.
 3. Recurso inexistente e recurso de outro contrato produzem a mesma resposta pública 404.
 4. Resultados derivados não são aceitos em payload e são recalculados pelo backend na conclusão.
 5. Avaliação concluída é imutável; correção cria nova revisão pelo contrato da issue #246.
