@@ -32,7 +32,13 @@ jobs:
           def sub_once(path: str, pattern: str, replacement: str, flags: int = 0) -> None:
               file_path = Path(path)
               text = file_path.read_text()
-              updated, count = re.subn(pattern, replacement, text, count=1, flags=flags)
+              updated, count = re.subn(
+                  pattern,
+                  lambda _match: replacement,
+                  text,
+                  count=1,
+                  flags=flags,
+              )
               if count != 1:
                   raise SystemExit(f'{path}: expected one replacement, found {count}: {pattern[:80]}')
               file_path.write_text(updated)
@@ -332,24 +338,30 @@ jobs:
             expect(new Set(observedSupportIds).size).toBe(1);
             expect([anthropometryA.id, anthropometryB.id]).toContain(observedSupportIds[0]);""",
           )
-          replace_once(test, 'const professorToken = tokenFor(fixture.userId);', 'const professorToken = tokenFor(fixture.operatorUserId);')
+          replace_once(
+              test,
+              'const professorToken = tokenFor(fixture.userId);',
+              'const professorToken = tokenFor(fixture.operatorUserId);'
+          )
           test_path = Path(test)
           test_text = test_path.read_text()
-          test_text = test_text.replace('setPermission(fixture.functionId, VIEW_KEY', 'setPermission(fixture.operatorFunctionId, VIEW_KEY')
-          test_text = test_text.replace('setPermission(fixture.functionId, MANAGE_KEY', 'setPermission(fixture.operatorFunctionId, MANAGE_KEY')
+          test_text = test_text.replace(
+              'setPermission(fixture.functionId, VIEW_KEY',
+              'setPermission(fixture.operatorFunctionId, VIEW_KEY'
+          )
+          test_text = test_text.replace(
+              'setPermission(fixture.functionId, MANAGE_KEY',
+              'setPermission(fixture.operatorFunctionId, MANAGE_KEY'
+          )
           test_path.write_text(test_text)
-
-          Path('.github/workflows/issue-247-remediation-patch.yml').unlink(missing_ok=True)
-          Path('.github/workflows/issue-247-remediation-runner.yml').unlink(missing_ok=True)
-          Path('.github/workflows/issue-247-remediation-bootstrap.yml').unlink(missing_ok=True)
-          Path('.github/workflows/issue-247-remediation-bootstrap-v2.yml').unlink(missing_ok=True)
           PY
 
-      - name: Commit patch and remove temporary workflow
+      - name: Commit functional remediations
         shell: bash
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
+          git add apps/api/src/modules/adipometry/adipometry.service.ts
+          git add apps/api/src/modules/adipometry/adipometry-remediation.integration.test.ts
           git commit -m 'fix(adpt): remediate adversarial CI failures'
           git push origin HEAD:feat/247-adipometry-api
