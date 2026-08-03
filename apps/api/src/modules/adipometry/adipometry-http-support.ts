@@ -33,6 +33,14 @@ function persistenceMessage(error: unknown): string {
  * database message.
  */
 export function mapAdipometryPersistenceError(error: unknown): AdipometryServiceError | null {
+  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') {
+    return new AdipometryServiceError(
+      'A operação concorreu com outra alteração. Recarregue e tente novamente.',
+      'ADIPOMETRY_CONCURRENT_OPERATION',
+      409
+    );
+  }
+
   const message = persistenceMessage(error);
   for (const code of CONFLICT_CODES) {
     if (message.includes(code)) {
