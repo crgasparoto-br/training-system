@@ -27,13 +27,15 @@ Expor o ciclo clínico da adipometria por uma API autenticada e multi-tenant, us
 7. Alertas de capacidade são derivados do protocolo aprovado. Na versão vigente, dobras de 45,1 a 80,0 mm exigem confirmação; acima de 80,0 mm é bloqueado.
 8. A confirmação operacional é gravada dentro da transação serializável do cálculo, somente quando não existe outro bloqueio, e sofre rollback com qualquer falha posterior.
 9. Entradas com precisão superior ao contrato e datas civis inexistentes são rejeitadas, sem arredondamento ou normalização silenciosa.
-10. A comparação informa deltas neutros, alerta quando protocolo ou versão divergir e usa desempate estável por conclusão e identificador no mesmo dia.
+10. Histórico, última avaliação, comparação e seleção da Antropometria de apoio usam o identificador como desempate final estável.
+11. A conclusão repete até três vezes a transação completa quando o PostgreSQL sinaliza conflito serializável por `P2034`. Depois do retry, uma requisição concorrente observa o estado concluído e retorna `alreadyFinalized`; se os retries se esgotarem, a fronteira pública devolve `409 ADIPOMETRY_CONCURRENT_OPERATION`, sem mensagem bruta do banco.
 
 ## Arquivos principais
 
 - `apps/api/src/modules/adipometry/adipometry.service.ts`
 - `apps/api/src/modules/adipometry/adipometry.routes.ts`
 - `apps/api/src/modules/adipometry/adipometry-api.integration.test.ts`
+- `apps/api/src/modules/adipometry/adipometry-remediation.integration.test.ts`
 - `apps/api/src/modules/auth/auth.middleware.ts`
 - `apps/api/src/modules/access-control/access-control.middleware.ts`
 - `apps/api/src/modules/adipometry/index.ts`
@@ -55,20 +57,21 @@ pnpm docs:check
 pnpm validate
 ```
 
-Os testes focados cobrem vetores canônicos masculino e feminino, limites de idade, precisão, alerta de capacidade, decisão de sexo, invalidação de fingerprint e presets de acesso. O harness PostgreSQL da API também exerce numeração concorrente, sequência acima de 999, rollback de finalização, imutabilidade, correção, isolamento entre contratos, fronteira HTTP com ator desativado, rejeição de data impossível, atomicidade da confirmação e desempate de comparação no mesmo dia.
+Os testes focados cobrem vetores canônicos masculino e feminino, limites de idade, precisão, alerta de capacidade, decisão de sexo, invalidação de fingerprint, sanitização do erro `P2034` e presets de acesso. O harness PostgreSQL da API também exerce numeração concorrente, sequência acima de 999, rollback de finalização, duas conclusões simultâneas sem efeitos duplicados, imutabilidade, correção, ordenação estável, isolamento entre contratos e a matriz HTTP negativa para ausência de autenticação, papel incorreto, falta de leitura, falta de gestão e falta da permissão específica de correção.
 
 ## Validação manual
 
 1. Autorizar um contrato com protocolo clínico ativo.
 2. Criar rascunho para aluno de 18 a 30 anos.
 3. Calcular, editar uma dobra e verificar mudança do fingerprint.
-4. Concluir com fingerprint atual e repetir a conclusão para confirmar idempotência.
+4. Disparar duas conclusões simultâneas com o mesmo fingerprint e confirmar uma finalização efetiva, uma resposta idempotente e apenas um efeito de auditoria.
 5. Iniciar correção com perfil gerente, concluir a nova revisão e verificar que a anterior ficou `SUPERSEDED`.
 6. Comparar duas avaliações e verificar alerta quando as versões forem diferentes.
 7. Repetir consulta usando identificador de outro contrato e confirmar resposta pública equivalente a inexistente.
-8. Desativar usuário ou vínculo de professor mantendo o token anterior e confirmar que a API deixa de autorizar.
-9. Enviar `2026-02-31` e confirmar `400` sem criação de rascunho.
-10. Confirmar alerta em rascunho ainda incompleto e verificar que nenhuma confirmação é persistida.
+8. Revogar separadamente leitura, gestão e correção e confirmar `403` nas operações correspondentes.
+9. Desativar usuário ou vínculo de professor mantendo o token anterior e confirmar que a API deixa de autorizar.
+10. Enviar `2026-02-31` e confirmar `400` sem criação de rascunho.
+11. Confirmar alerta em rascunho ainda incompleto e verificar que nenhuma confirmação é persistida.
 
 ## Decisões
 
@@ -77,6 +80,7 @@ Os testes focados cobrem vetores canônicos masculino e feminino, limites de ida
 - A prévia não persiste resultados. A confirmação operacional de capacidade pertence à mesma transação do cálculo e não é gravada quando coexistir outro erro bloqueante.
 - A ausência de antropometria de apoio não bloqueia a ADPT; referência informada é validada por contrato, aluno e data.
 - Os contratos compartilhados representam os bodies HTTP reais; aluno, professor, ator e contrato permanecem fora do payload e são derivados da URL ou autenticação.
+- Retry de conflito serializável reaplica toda a decisão transacional; não repete apenas a escrita nem reutiliza estado lido antes do conflito.
 
 ## Pendências de entrega
 
