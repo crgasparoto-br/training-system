@@ -14,15 +14,27 @@ import {
   ADIPOMETRY_VIEW_BLOCK_KEY,
   adipometryDraftMutationAccessMiddleware,
 } from './adipometry-draft-access.middleware.js';
-import {
-  mapAdipometryPersistenceError,
-  persistAdipometryCapacityConfirmation,
-} from './adipometry-http-support.js';
+import { mapAdipometryPersistenceError } from './adipometry-http-support.js';
 import { AdipometryServiceError, adipometryService } from './adipometry.service.js';
 
 const router: ExpressRouter = Router();
 const idSchema = z.string().min(1).max(128).regex(/^[A-Za-z0-9_-]+$/);
-const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+
+function isStrictDateOnly(value: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year
+    && date.getUTCMonth() === month - 1
+    && date.getUTCDate() === day;
+}
+
+const dateSchema = z.string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .refine(isStrictDateOnly, 'Informe uma data válida no formato AAAA-MM-DD.');
 const protocolSexSchema = z.enum(['male', 'female']);
 const protocolSexSourceSchema = z.enum([
   'profile',
@@ -304,18 +316,13 @@ router.post(
     try {
       const payload = calculateSchema.parse(req.body ?? {});
       const { contractId, actorUserId } = context(req);
-      const assessmentId = parseId(req.params.id);
-      if (payload.skinfoldCapacityWarningConfirmed) {
-        await persistAdipometryCapacityConfirmation(
-          contractId,
-          assessmentId,
-          actorUserId
-        );
-      }
       const preview = await adipometryService.calculate(
         contractId,
-        assessmentId,
-        actorUserId
+        parseId(req.params.id),
+        actorUserId,
+        {
+          skinfoldCapacityWarningConfirmed: payload.skinfoldCapacityWarningConfirmed,
+        }
       );
       return sendSuccess(res, preview, 'Prévia da adipometria calculada.');
     } catch (error) {
