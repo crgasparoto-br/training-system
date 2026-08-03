@@ -103,6 +103,33 @@ export class AdipometryServiceError extends Error {
   }
 }
 
+const SERIALIZABLE_TRANSACTION_RETRY_LIMIT = 3;
+
+function isSerializableTransactionConflict(error: unknown): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034';
+}
+
+async function runSerializableTransaction<T>(
+  operation: (tx: Prisma.TransactionClient) => Promise<T>
+): Promise<T> {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= SERIALIZABLE_TRANSACTION_RETRY_LIMIT; attempt += 1) {
+    try {
+      return await prisma.$transaction(operation, {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+      });
+    } catch (error) {
+      lastError = error;
+      if (!isSerializableTransactionConflict(error) || attempt === SERIALIZABLE_TRANSACTION_RETRY_LIMIT) {
+        throw error;
+      }
+    }
+  }
+
+  throw lastError;
+}
+
 export function normalizeAdipometryDateOnly(value: Date | string): string {
   if (value instanceof Date) {
     if (Number.isNaN(value.getTime())) {
@@ -949,7 +976,7 @@ async function getAnthropometrySupport(
   const [latestEligible, linked] = await Promise.all([
     client.anthropometryAssessment.findFirst({
       where: { contractId, alunoId, assessmentDate: { lte: dateOnlyToDate(assessmentDate) } },
-      orderBy: [{ assessmentDate: 'desc' }, { createdAt: 'desc' }],
+      orderBy: [{ assessmentDate: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
       select: { id: true, code: true, assessmentDate: true },
     }),
     linkedId
@@ -1161,7 +1188,12 @@ export const adipometryService = {
         revisionStatus: { in: ['DRAFT', 'FINALIZED'] },
         correctedByAssessmentId: null,
       },
-      orderBy: [{ assessmentDate: 'desc' }, { revisionNumber: 'desc' }, { createdAt: 'desc' }],
+      orderBy: [
+        { assessmentDate: 'desc' },
+        { revisionNumber: 'desc' },
+        { createdAt: 'desc' },
+        { id: 'desc' },
+      ],
     });
     return rows.map((row) => serializeSummary(row as any));
   },
@@ -1170,7 +1202,7 @@ export const adipometryService = {
     await requireAluno(prisma, contractId, alunoId);
     const row = await prisma.adipometryAssessment.findFirst({
       where: { contractId, alunoId, revisionStatus: 'FINALIZED', correctedByAssessmentId: null },
-      orderBy: [{ assessmentDate: 'desc' }, { completedAt: 'desc' }],
+      orderBy: [{ assessmentDate: 'desc' }, { completedAt: 'desc' }, { id: 'desc' }],
     });
     return row ? serializeSummary(row as any) : null;
   },
@@ -1322,7 +1354,7 @@ export const adipometryService = {
     actorUserId: string,
     input: { inputFingerprint: string; expectedUpdatedAt?: string }
   ) {
-    return prisma.$transaction(async (tx) => {
+    return runSerializableTransaction(async (tx) => {
       await setActor(tx, actorUserId);
       const row = await getAssessmentRow(tx, contractId, assessmentId, true);
       if (row.status === 'COMPLETED' && row.revisionStatus === 'FINALIZED') {
@@ -1392,7 +1424,7 @@ export const adipometryService = {
         },
       });
       return { assessment: await getDetail(tx, contractId, assessmentId), alreadyFinalized: false };
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    });
   },
 
   async startCorrection(
