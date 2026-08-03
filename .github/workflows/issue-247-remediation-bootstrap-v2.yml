@@ -14,6 +14,7 @@ permissions:
 
 jobs:
   patch:
+    # This workflow exists only to apply the exact remediations and removes itself.
     if: github.head_ref == 'feat/247-adipometry-api' && github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
