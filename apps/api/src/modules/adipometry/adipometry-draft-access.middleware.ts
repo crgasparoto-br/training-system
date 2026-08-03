@@ -1,5 +1,7 @@
+import { randomUUID } from 'node:crypto';
 import { PrismaClient } from '@prisma/client';
 import type { NextFunction, Request, Response } from 'express';
+import { sendError } from '@corrida/utils';
 import { blockAccessMiddleware } from '../access-control/access-control.middleware.js';
 
 const prisma = new PrismaClient();
@@ -26,28 +28,38 @@ export async function adipometryDraftMutationAccessMiddleware(
 ) {
   const user = req.user;
   if (!user?.contractId) {
-    return res.status(401).json({ success: false, error: 'Não autenticado' });
+    return sendError(res, 'Não autenticado', 401, { code: 'AUTH_REQUIRED' });
   }
 
-  const assessment = await prisma.adipometryAssessment.findFirst({
-    where: {
-      id: req.params.id,
-      contractId: user.contractId,
-    },
-    select: {
-      revisionNumber: true,
-    },
-  });
+  try {
+    const assessment = await prisma.adipometryAssessment.findFirst({
+      where: {
+        id: req.params.id,
+        contractId: user.contractId,
+      },
+      select: {
+        revisionNumber: true,
+      },
+    });
 
-  if (!assessment) {
-    return res.status(404).json({
-      success: false,
-      error: 'Avaliação não encontrada.',
-      details: { code: 'ADIPOMETRY_RESOURCE_NOT_FOUND' },
+    if (!assessment) {
+      return sendError(res, 'Avaliação não encontrada.', 404, {
+        code: 'ADIPOMETRY_RESOURCE_NOT_FOUND',
+      });
+    }
+
+    return blockAccessMiddleware(
+      resolveAdipometryDraftMutationBlock(assessment.revisionNumber)
+    )(req, res, next);
+  } catch (error) {
+    const correlationId = randomUUID();
+    console.error('Falha ao resolver permissão do rascunho ADPT', {
+      correlationId,
+      errorType: error instanceof Error ? error.name : typeof error,
+    });
+    return sendError(res, 'Não foi possível verificar a permissão da adipometria.', 500, {
+      code: 'ADIPOMETRY_ACCESS_CHECK_FAILED',
+      correlationId,
     });
   }
-
-  return blockAccessMiddleware(
-    resolveAdipometryDraftMutationBlock(assessment.revisionNumber)
-  )(req, res, next);
 }
