@@ -8,6 +8,12 @@ export const ADIPOMETRY_VIEW_BLOCK_KEY = 'physicalAssessment.adpt.view';
 export const ADIPOMETRY_MANAGE_BLOCK_KEY = 'physicalAssessment.adpt.actions.manage';
 export const ADIPOMETRY_CORRECT_BLOCK_KEY = 'physicalAssessment.adpt.actions.correctCompleted';
 
+export function resolveAdipometryDraftMutationBlock(revisionNumber: number): string {
+  return revisionNumber > 1
+    ? ADIPOMETRY_CORRECT_BLOCK_KEY
+    : ADIPOMETRY_MANAGE_BLOCK_KEY;
+}
+
 /**
  * Initial drafts use the ordinary management capability. Any revision created
  * to correct a finalized assessment requires the dedicated correction grant
@@ -41,9 +47,7 @@ export async function adipometryDraftMutationAccessMiddleware(
     });
   }
 
-  const requiredBlock = assessment.revisionNumber > 1
-    ? ADIPOMETRY_CORRECT_BLOCK_KEY
-    : ADIPOMETRY_MANAGE_BLOCK_KEY;
-
-  return blockAccessMiddleware(requiredBlock)(req, res, next);
+  return blockAccessMiddleware(
+    resolveAdipometryDraftMutationBlock(assessment.revisionNumber)
+  )(req, res, next);
 }
