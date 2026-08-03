@@ -118,7 +118,7 @@ export const adipometryAnthropometrySupportService = {
     const [latestEligible, selected] = await Promise.all([
       prisma.anthropometryAssessment.findFirst({
         where,
-        orderBy: [{ assessmentDate: 'desc' }, { createdAt: 'desc' }],
+        orderBy: [{ assessmentDate: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
         include: includeSupportDetails,
       }),
       anthropometryAssessmentId
