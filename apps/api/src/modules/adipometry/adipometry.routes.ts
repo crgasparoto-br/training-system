@@ -8,6 +8,10 @@ import {
   blockAccessMiddleware,
   screenAccessMiddleware,
 } from '../access-control/access-control.middleware.js';
+import {
+  mapAdipometryPersistenceError,
+  persistAdipometryCapacityConfirmation,
+} from './adipometry-http-support.js';
 import { AdipometryServiceError, adipometryService } from './adipometry.service.js';
 
 export const ADIPOMETRY_VIEW_BLOCK_KEY = 'physicalAssessment.adpt.view';
@@ -138,6 +142,17 @@ function sendAdipometryError(res: Response, error: unknown) {
   if (error instanceof AdipometryServiceError) {
     return sendError(res, error.message, error.statusCode, { code: error.code });
   }
+
+  const mappedPersistenceError = mapAdipometryPersistenceError(error);
+  if (mappedPersistenceError) {
+    return sendError(
+      res,
+      mappedPersistenceError.message,
+      mappedPersistenceError.statusCode,
+      { code: mappedPersistenceError.code }
+    );
+  }
+
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     if (error.code === 'P2002') {
       return sendError(res, 'A operação conflita com uma alteração já registrada.', 409, {
@@ -287,11 +302,18 @@ router.post(
     try {
       const payload = calculateSchema.parse(req.body ?? {});
       const { contractId, actorUserId } = context(req);
+      const assessmentId = parseId(req.params.id);
+      if (payload.skinfoldCapacityWarningConfirmed) {
+        await persistAdipometryCapacityConfirmation(
+          contractId,
+          assessmentId,
+          actorUserId
+        );
+      }
       const preview = await adipometryService.calculate(
         contractId,
-        parseId(req.params.id),
-        actorUserId,
-        payload
+        assessmentId,
+        actorUserId
       );
       return sendSuccess(res, preview, 'Prévia da adipometria calculada.');
     } catch (error) {
