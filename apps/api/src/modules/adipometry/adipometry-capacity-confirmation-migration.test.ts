@@ -32,6 +32,7 @@ describe('adipometry capacity confirmation migration', () => {
 
     expect(sql).toContain('NEW."skinfoldCapacityWarningConfirmedByUserId" := NULL');
     expect(sql).toContain('NEW."skinfoldCapacityWarningConfirmedAt" := NULL');
+    expect(sql).toContain('to_regclass(\'"AdipometryAssessment"\') IS NOT NULL');
     expect(sql).toContain('BEFORE UPDATE ON "AdipometryAssessment"');
     expect(sql).toContain('ADIPOMETRY_RESPONSIBLE_NOT_AVAILABLE');
     expect(sql).toContain('professor."contractId" = NEW."contractId"');

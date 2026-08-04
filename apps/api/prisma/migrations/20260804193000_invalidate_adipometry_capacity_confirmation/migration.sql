@@ -28,13 +28,14 @@ BEGIN
 END;
 $$;
 
-DROP TRIGGER IF EXISTS "AdipometryAssessmentInvalidateCapacityWarningConfirmation"
-ON "AdipometryAssessment";
-
-CREATE TRIGGER "AdipometryAssessmentInvalidateCapacityWarningConfirmation"
-BEFORE UPDATE ON "AdipometryAssessment"
-FOR EACH ROW
-EXECUTE FUNCTION "invalidateAdipometryCapacityWarningConfirmation"();
+DO $$
+BEGIN
+  IF to_regclass('"AdipometryAssessment"') IS NOT NULL THEN
+    EXECUTE 'DROP TRIGGER IF EXISTS "AdipometryAssessmentInvalidateCapacityWarningConfirmation" ON "AdipometryAssessment"';
+    EXECUTE 'CREATE TRIGGER "AdipometryAssessmentInvalidateCapacityWarningConfirmation" BEFORE UPDATE ON "AdipometryAssessment" FOR EACH ROW EXECUTE FUNCTION "invalidateAdipometryCapacityWarningConfirmation"()';
+  END IF;
+END;
+$$;
 
 CREATE OR REPLACE FUNCTION "validateAdipometryResponsibleProfessor"()
 RETURNS TRIGGER
@@ -66,10 +67,15 @@ BEGIN
 END;
 $$;
 
-DROP TRIGGER IF EXISTS "AdipometryAssessmentValidateResponsibleProfessor"
-ON "AdipometryAssessment";
-
-CREATE TRIGGER "AdipometryAssessmentValidateResponsibleProfessor"
-BEFORE INSERT OR UPDATE OF "professorId", "contractId" ON "AdipometryAssessment"
-FOR EACH ROW
-EXECUTE FUNCTION "validateAdipometryResponsibleProfessor"();
+DO $$
+BEGIN
+  IF to_regclass('"AdipometryAssessment"') IS NOT NULL
+    AND to_regclass('"Professor"') IS NOT NULL
+    AND to_regclass('"User"') IS NOT NULL
+    AND to_regclass('"CollaboratorFunctionOption"') IS NOT NULL
+  THEN
+    EXECUTE 'DROP TRIGGER IF EXISTS "AdipometryAssessmentValidateResponsibleProfessor" ON "AdipometryAssessment"';
+    EXECUTE 'CREATE TRIGGER "AdipometryAssessmentValidateResponsibleProfessor" BEFORE INSERT OR UPDATE OF "professorId", "contractId" ON "AdipometryAssessment" FOR EACH ROW EXECUTE FUNCTION "validateAdipometryResponsibleProfessor"()';
+  END IF;
+END;
+$$;
