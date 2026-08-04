@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import puppeteer from 'puppeteer';
@@ -276,6 +276,14 @@ async function openWorkspace(page) {
 }
 
 await mkdir(outputDir, { recursive: true });
+let workflowAttestation = null;
+try {
+  workflowAttestation = JSON.parse(
+    await readFile(path.join(outputDir, 'orquestrador-artifact.json'), 'utf8')
+  );
+} catch {
+  workflowAttestation = null;
+}
 await waitForPreview();
 
 const browser = await puppeteer.launch({
@@ -370,9 +378,13 @@ const evidence = {
   route,
   authenticatedUserId: user.id,
   permissions: user.accessControl.permissions,
-  headSha: process.env.AUDIT_HEAD_SHA || process.env.GITHUB_SHA || null,
-  baseSha: process.env.AUDIT_BASE_SHA || null,
-  mergePreviewSha: process.env.AUDIT_MERGE_PREVIEW_SHA || process.env.GITHUB_SHA || null,
+  headSha: workflowAttestation?.headSha ?? process.env.AUDIT_HEAD_SHA ?? process.env.GITHUB_SHA ?? null,
+  baseSha: workflowAttestation?.baseSha ?? process.env.AUDIT_BASE_SHA ?? null,
+  mergePreviewSha:
+    workflowAttestation?.mergePreviewSha
+    ?? process.env.AUDIT_MERGE_PREVIEW_SHA
+    ?? process.env.GITHUB_SHA
+    ?? null,
   viewports: [],
   scenarios: [],
   focusRestoredAfterHelp: false,
