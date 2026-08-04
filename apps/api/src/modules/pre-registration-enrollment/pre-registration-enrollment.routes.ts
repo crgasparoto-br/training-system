@@ -9,7 +9,10 @@ import {
   blockAccessMiddleware,
   screenAccessMiddleware,
 } from '../access-control/access-control.middleware.js';
-import { preRegistrationAdminService } from '../pre-registration-admin/pre-registration-admin.service.js';
+import {
+  PreRegistrationAdminError,
+  preRegistrationAdminService,
+} from '../pre-registration-admin/pre-registration-admin.service.js';
 import {
   assertPreRegistrationAlunoVisible,
 } from './pre-registration-enrollment-access.service.js';
@@ -38,22 +41,6 @@ const editAccess = blockAccessMiddleware('students.preRegistration.editCommercia
 const reviewAccess = blockAccessMiddleware('students.preRegistration.review');
 const convertAccess = blockAccessMiddleware('students.preRegistration.convert');
 
-const HANDLED_DOMAIN_ERROR_CODES = new Set([
-  'NOT_FOUND',
-  'FORBIDDEN',
-  'INVALID_INPUT',
-  'DUPLICATE_REVIEW_REQUIRED',
-  'BLOCKING_DUPLICATE',
-  'REVIEW_STALE',
-  'CONCURRENT_MODIFICATION',
-  'ACTIVE_STUDENT',
-  'PRECONDITION_FAILED',
-  'HEALTH_REASSOCIATION_REQUIRED',
-  'IDENTIFIER_CONFLICT',
-  'POSSIBLE_DUPLICATE',
-  'ACTIVE_INVITE_EXISTS',
-]);
-
 type AuthUser = {
   userId?: string;
   professorId?: string;
@@ -72,14 +59,6 @@ function actorFrom(req: Request): PreRegistrationEnrollmentActor {
     professorId: user?.professorId || '',
     contractId: user?.contractId || '',
   };
-}
-
-function isHandledDomainError(error: unknown): error is DomainError {
-  return (
-    error instanceof Error &&
-    typeof (error as DomainError).code === 'string' &&
-    HANDLED_DOMAIN_ERROR_CODES.has((error as DomainError).code!)
-  );
 }
 
 function statusFor(error: unknown): number {
@@ -162,7 +141,12 @@ preRegistrationEnrollmentRoutes.post('/leads', createAccess, async (req, res, ne
     const data = await preRegistrationAdminService.getDetail(actor, leadId);
     return res.status(201).json({ success: true, data });
   } catch (error) {
-    if (isHandledDomainError(error)) return respondError(res, error);
+    if (
+      error instanceof PreRegistrationEnrollmentError ||
+      error instanceof PreRegistrationAdminError
+    ) {
+      return respondError(res, error);
+    }
     return next(error);
   }
 });
