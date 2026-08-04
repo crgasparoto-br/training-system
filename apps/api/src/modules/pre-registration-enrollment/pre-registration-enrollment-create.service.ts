@@ -1,5 +1,4 @@
 import { Prisma, PrismaClient } from '@prisma/client';
-import type { CreatePreRegistrationLeadDTO } from '@corrida/types';
 import {
   createStudentLeadInTransaction,
   StudentLifecycleError,
@@ -19,13 +18,15 @@ import {
   PreRegistrationEnrollmentError,
   type PreRegistrationEnrollmentActor,
 } from './pre-registration-enrollment.service.js';
+import {
+  validateAndNormalizePreRegistrationLeadInput,
+  type CreatePreRegistrationLeadWithDecisionDTO,
+} from './pre-registration-lead-input.js';
 
 const prisma = new PrismaClient();
 const DECISION_VALIDITY_DAYS = 30;
 
-export type CreatePreRegistrationLeadWithDecisionDTO = CreatePreRegistrationLeadDTO & {
-  confirmedDuplicateReason?: string;
-};
+export type { CreatePreRegistrationLeadWithDecisionDTO } from './pre-registration-lead-input.js';
 
 function clean(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
@@ -71,6 +72,9 @@ function wrapLifecycleError(error: StudentLifecycleError): PreRegistrationEnroll
       error.details
     );
   }
+  if (error.code === 'MISSING_REQUIRED_FIELDS') {
+    return new PreRegistrationEnrollmentError(error.message, 'INVALID_INPUT', error.details);
+  }
   return new PreRegistrationEnrollmentError(error.message, 'PRECONDITION_FAILED', error.details);
 }
 
@@ -84,8 +88,18 @@ function isSerializationFailure(error: Prisma.PrismaClientKnownRequestError): bo
 export const preRegistrationEnrollmentCreateService = {
   async create(
     actor: PreRegistrationEnrollmentActor,
-    input: CreatePreRegistrationLeadWithDecisionDTO
+    rawInput: CreatePreRegistrationLeadWithDecisionDTO
   ): Promise<string> {
+    const validation = validateAndNormalizePreRegistrationLeadInput(rawInput);
+    if (!validation.success) {
+      throw new PreRegistrationEnrollmentError(
+        validation.message,
+        'INVALID_INPUT',
+        { fields: validation.fields }
+      );
+    }
+
+    const input = validation.data;
     const responsibleProfessorId = clean(input.responsibleProfessorId) || actor.professorId;
     const reason = clean(input.confirmedDuplicateReason);
 
