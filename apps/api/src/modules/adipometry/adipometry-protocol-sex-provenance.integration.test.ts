@@ -124,7 +124,7 @@ describe('adipometry protocol-sex decision provenance on PostgreSQL', () => {
     await prisma.$disconnect();
   });
 
-  it('preserves the original confirmer for an unchanged decision and transfers it for a real change', async () => {
+  it('merges partial decision patches and preserves or transfers provenance only for effective changes', async () => {
     const fixture = await createFixture();
     const draft = await adipometryService.createDraft(
       fixture.contractId,
@@ -163,8 +163,6 @@ describe('adipometry protocol-sex decision provenance on PostgreSQL', () => {
       fixture.editingUserId,
       {
         protocolSex: 'male',
-        protocolSexSource: 'profile',
-        protocolSexOverrideReason: '   ',
         measurements: { weightKg: 81 },
       }
     );
@@ -198,6 +196,31 @@ describe('adipometry protocol-sex decision provenance on PostgreSQL', () => {
       fixture.contractId,
       draft.id,
       fixture.editingUserId,
+      { protocolSexSource: 'professional_confirmation' }
+    );
+    const sourceChanged = await prisma.adipometryAssessment.findUniqueOrThrow({
+      where: { id: draft.id },
+      select: {
+        protocolSex: true,
+        protocolSexSource: true,
+        protocolSexConfirmedByUserId: true,
+        protocolSexConfirmedAt: true,
+      },
+    });
+    expect(sourceChanged).toMatchObject({
+      protocolSex: 'male',
+      protocolSexSource: 'professional_confirmation',
+      protocolSexConfirmedByUserId: fixture.editingUserId,
+    });
+    expect(sourceChanged.protocolSexConfirmedAt?.getTime()).toBeGreaterThan(
+      original.protocolSexConfirmedAt?.getTime() ?? 0
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    await adipometryService.updateDraft(
+      fixture.contractId,
+      draft.id,
+      fixture.confirmingUserId,
       {
         protocolSex: 'female',
         protocolSexSource: 'professional_override',
@@ -220,11 +243,80 @@ describe('adipometry protocol-sex decision provenance on PostgreSQL', () => {
       protocolSex: 'female',
       profileSexSnapshot: 'male',
       protocolSexSource: 'professional_override',
-      protocolSexConfirmedByUserId: fixture.editingUserId,
+      protocolSexConfirmedByUserId: fixture.confirmingUserId,
       protocolSexOverrideReason: 'Decisão clínica revisada pelo profissional.',
     });
     expect(changed.protocolSexConfirmedAt?.getTime()).toBeGreaterThan(
-      original.protocolSexConfirmedAt?.getTime() ?? 0
+      sourceChanged.protocolSexConfirmedAt?.getTime() ?? 0
     );
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    await adipometryService.updateDraft(
+      fixture.contractId,
+      draft.id,
+      fixture.editingUserId,
+      {
+        protocolSexOverrideReason: 'Justificativa clínica atualizada pelo segundo profissional.',
+      }
+    );
+    const reasonChanged = await prisma.adipometryAssessment.findUniqueOrThrow({
+      where: { id: draft.id },
+      select: {
+        protocolSex: true,
+        protocolSexSource: true,
+        protocolSexConfirmedByUserId: true,
+        protocolSexConfirmedAt: true,
+        protocolSexOverrideReason: true,
+      },
+    });
+    expect(reasonChanged).toMatchObject({
+      protocolSex: 'female',
+      protocolSexSource: 'professional_override',
+      protocolSexConfirmedByUserId: fixture.editingUserId,
+      protocolSexOverrideReason:
+        'Justificativa clínica atualizada pelo segundo profissional.',
+    });
+    expect(reasonChanged.protocolSexConfirmedAt?.getTime()).toBeGreaterThan(
+      changed.protocolSexConfirmedAt?.getTime() ?? 0
+    );
+  });
+
+  it('rejects source or reason patches before a protocol sex exists', async () => {
+    const fixture = await createFixture();
+    const draft = await adipometryService.createDraft(
+      fixture.contractId,
+      fixture.alunoId,
+      fixture.confirmingUserId,
+      fixture.confirmingProfessorId,
+      { assessmentDate: '2026-08-04' }
+    );
+
+    await expect(
+      adipometryService.updateDraft(
+        fixture.contractId,
+        draft.id,
+        fixture.editingUserId,
+        { protocolSexSource: 'professional_confirmation' }
+      )
+    ).rejects.toMatchObject({
+      code: 'ADIPOMETRY_INVALID_PROTOCOL_SEX_DECISION',
+      statusCode: 400,
+    });
+
+    const persisted = await prisma.adipometryAssessment.findUniqueOrThrow({
+      where: { id: draft.id },
+      select: {
+        protocolSex: true,
+        protocolSexSource: true,
+        protocolSexConfirmedByUserId: true,
+        protocolSexConfirmedAt: true,
+      },
+    });
+    expect(persisted).toEqual({
+      protocolSex: null,
+      protocolSexSource: null,
+      protocolSexConfirmedByUserId: null,
+      protocolSexConfirmedAt: null,
+    });
   });
 });
