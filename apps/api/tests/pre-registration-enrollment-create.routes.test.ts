@@ -8,6 +8,8 @@ jest.mock('../src/modules/auth/auth.middleware', () => ({
   authMiddleware: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
     req.user = {
       userId: 'user-1',
+      email: 'master@example.com',
+      type: 'professor',
       professorId: 'professor-1',
       contractId: 'contract-1',
     };
