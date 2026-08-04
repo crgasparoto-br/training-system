@@ -2,6 +2,8 @@ import { PrismaClient } from '@prisma/client';
 import { AdipometryServiceError } from './adipometry.service.js';
 
 const prisma = new PrismaClient();
+const ADIPOMETRY_SCREEN_KEY = 'physicalAssessment.protocol';
+const ADIPOMETRY_MANAGE_BLOCK_KEY = 'physicalAssessment.adpt.actions.manage';
 const INACTIVE_PROFESSOR_STATUSES = new Set([
   'inactive',
   'inativo',
@@ -11,8 +13,15 @@ const INACTIVE_PROFESSOR_STATUSES = new Set([
   'encerrado',
 ]);
 
+interface AdipometryResponsibleAccessPermission {
+  screenKey: string;
+  blockKey: string;
+  canView: boolean;
+}
+
 export interface AdipometryResponsibleProfessorCandidate {
   id: string;
+  role: 'master' | 'professor';
   currentStatus: string | null;
   dismissalDate: Date | null;
   user: {
@@ -21,12 +30,34 @@ export interface AdipometryResponsibleProfessorCandidate {
   };
   collaboratorFunction: {
     isActive: boolean;
+    accessPermissions: AdipometryResponsibleAccessPermission[];
   };
 }
 
 export interface AdipometryResponsibleProfessorSummary {
   id: string;
   name: string;
+}
+
+export function hasAdipometryResponsibleAccess(
+  professor: AdipometryResponsibleProfessorCandidate
+): boolean {
+  if (professor.role === 'master') return true;
+
+  const hasScreen = professor.collaboratorFunction.accessPermissions.some(
+    (permission) =>
+      permission.screenKey === ADIPOMETRY_SCREEN_KEY
+      && permission.blockKey === ''
+      && permission.canView
+  );
+  const hasManageBlock = professor.collaboratorFunction.accessPermissions.some(
+    (permission) =>
+      permission.screenKey === ADIPOMETRY_SCREEN_KEY
+      && permission.blockKey === ADIPOMETRY_MANAGE_BLOCK_KEY
+      && permission.canView
+  );
+
+  return hasScreen && hasManageBlock;
 }
 
 export function isActiveAdipometryResponsibleProfessor(
@@ -44,6 +75,14 @@ export function isActiveAdipometryResponsibleProfessor(
     && !dismissalIsEffective;
 }
 
+export function isEligibleAdipometryResponsibleProfessor(
+  professor: AdipometryResponsibleProfessorCandidate,
+  now = new Date()
+): boolean {
+  return isActiveAdipometryResponsibleProfessor(professor, now)
+    && hasAdipometryResponsibleAccess(professor);
+}
+
 export function serializeAdipometryResponsibleProfessor(
   professor: AdipometryResponsibleProfessorCandidate
 ): AdipometryResponsibleProfessorSummary {
@@ -55,6 +94,7 @@ export function serializeAdipometryResponsibleProfessor(
 
 const professorSelect = {
   id: true,
+  role: true,
   currentStatus: true,
   dismissalDate: true,
   user: {
@@ -66,7 +106,16 @@ const professorSelect = {
     },
   },
   collaboratorFunction: {
-    select: { isActive: true },
+    select: {
+      isActive: true,
+      accessPermissions: {
+        select: {
+          screenKey: true,
+          blockKey: true,
+          canView: true,
+        },
+      },
+    },
   },
 } as const;
 
@@ -80,7 +129,7 @@ export async function listAdipometryResponsibleProfessors(
   });
 
   return professors
-    .filter((professor) => isActiveAdipometryResponsibleProfessor(professor))
+    .filter((professor) => isEligibleAdipometryResponsibleProfessor(professor))
     .map(serializeAdipometryResponsibleProfessor)
     .sort((left, right) => left.name.localeCompare(right.name, 'pt-BR') || left.id.localeCompare(right.id));
 }
@@ -94,7 +143,7 @@ export async function requireAdipometryResponsibleProfessor(
     select: professorSelect,
   });
 
-  if (!professor || !isActiveAdipometryResponsibleProfessor(professor)) {
+  if (!professor || !isEligibleAdipometryResponsibleProfessor(professor)) {
     throw new AdipometryServiceError(
       'Professor responsável não disponível.',
       'ADIPOMETRY_RESPONSIBLE_NOT_AVAILABLE',

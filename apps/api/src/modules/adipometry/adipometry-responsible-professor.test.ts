@@ -1,5 +1,7 @@
 import {
+  hasAdipometryResponsibleAccess,
   isActiveAdipometryResponsibleProfessor,
+  isEligibleAdipometryResponsibleProfessor,
   serializeAdipometryResponsibleProfessor,
   type AdipometryResponsibleProfessorCandidate,
 } from './adipometry-responsible-professor.js';
@@ -9,13 +11,24 @@ function candidate(
 ): AdipometryResponsibleProfessorCandidate {
   return {
     id: 'professor-1',
+    role: 'professor',
     currentStatus: 'active',
     dismissalDate: null,
     user: {
       isActive: true,
       profile: { name: 'Prof. Ana' },
     },
-    collaboratorFunction: { isActive: true },
+    collaboratorFunction: {
+      isActive: true,
+      accessPermissions: [
+        { screenKey: 'physicalAssessment.protocol', blockKey: '', canView: true },
+        {
+          screenKey: 'physicalAssessment.protocol',
+          blockKey: 'physicalAssessment.adpt.actions.manage',
+          canView: true,
+        },
+      ],
+    },
     ...overrides,
   };
 }
@@ -27,7 +40,10 @@ describe('adipometry responsible professor', () => {
     expect(isActiveAdipometryResponsibleProfessor(candidate(), now)).toBe(true);
     expect(isActiveAdipometryResponsibleProfessor(candidate({ currentStatus: 'INATIVO' }), now)).toBe(false);
     expect(isActiveAdipometryResponsibleProfessor(candidate({
-      collaboratorFunction: { isActive: false },
+      collaboratorFunction: {
+        ...candidate().collaboratorFunction,
+        isActive: false,
+      },
     }), now)).toBe(false);
     expect(isActiveAdipometryResponsibleProfessor(candidate({
       user: { isActive: false, profile: { name: 'Prof. Ana' } },
@@ -38,6 +54,22 @@ describe('adipometry responsible professor', () => {
     expect(isActiveAdipometryResponsibleProfessor(candidate({
       dismissalDate: new Date('2026-08-05T00:00:00.000Z'),
     }), now)).toBe(true);
+  });
+
+  it('exige tela e bloco de gestão para responsável não master', () => {
+    expect(hasAdipometryResponsibleAccess(candidate())).toBe(true);
+    expect(hasAdipometryResponsibleAccess(candidate({
+      collaboratorFunction: {
+        isActive: true,
+        accessPermissions: [
+          { screenKey: 'physicalAssessment.protocol', blockKey: '', canView: true },
+        ],
+      },
+    }))).toBe(false);
+    expect(isEligibleAdipometryResponsibleProfessor(candidate({
+      role: 'master',
+      collaboratorFunction: { isActive: true, accessPermissions: [] },
+    }))).toBe(true);
   });
 
   it('não expõe identificador como nome quando o cadastro está incompleto', () => {

@@ -27,6 +27,7 @@ describe('SkinfoldHelpDialog', () => {
   it('fecha por Escape e devolve o foco ao acionador', () => {
     render(<Harness />);
     const trigger = screen.getByRole('button', { name: 'Abrir ajuda' });
+    trigger.focus();
     fireEvent.click(trigger);
 
     const dialog = screen.getByRole('dialog', { name: 'Dobra tricipital' });
