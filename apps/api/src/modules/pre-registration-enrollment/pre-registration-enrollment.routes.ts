@@ -38,10 +38,31 @@ const editAccess = blockAccessMiddleware('students.preRegistration.editCommercia
 const reviewAccess = blockAccessMiddleware('students.preRegistration.review');
 const convertAccess = blockAccessMiddleware('students.preRegistration.convert');
 
+const HANDLED_DOMAIN_ERROR_CODES = new Set([
+  'NOT_FOUND',
+  'FORBIDDEN',
+  'INVALID_INPUT',
+  'DUPLICATE_REVIEW_REQUIRED',
+  'BLOCKING_DUPLICATE',
+  'REVIEW_STALE',
+  'CONCURRENT_MODIFICATION',
+  'ACTIVE_STUDENT',
+  'PRECONDITION_FAILED',
+  'HEALTH_REASSOCIATION_REQUIRED',
+  'IDENTIFIER_CONFLICT',
+  'POSSIBLE_DUPLICATE',
+  'ACTIVE_INVITE_EXISTS',
+]);
+
 type AuthUser = {
   userId?: string;
   professorId?: string;
   contractId?: string;
+};
+
+type DomainError = Error & {
+  code?: string;
+  details?: Record<string, unknown>;
 };
 
 function actorFrom(req: Request): PreRegistrationEnrollmentActor {
@@ -51,6 +72,14 @@ function actorFrom(req: Request): PreRegistrationEnrollmentActor {
     professorId: user?.professorId || '',
     contractId: user?.contractId || '',
   };
+}
+
+function isHandledDomainError(error: unknown): error is DomainError {
+  return (
+    error instanceof Error &&
+    typeof (error as DomainError).code === 'string' &&
+    HANDLED_DOMAIN_ERROR_CODES.has((error as DomainError).code!)
+  );
 }
 
 function statusFor(error: unknown): number {
@@ -63,7 +92,10 @@ function statusFor(error: unknown): number {
     code === 'BLOCKING_DUPLICATE' ||
     code === 'REVIEW_STALE' ||
     code === 'CONCURRENT_MODIFICATION' ||
-    code === 'ACTIVE_STUDENT'
+    code === 'ACTIVE_STUDENT' ||
+    code === 'IDENTIFIER_CONFLICT' ||
+    code === 'POSSIBLE_DUPLICATE' ||
+    code === 'ACTIVE_INVITE_EXISTS'
   ) {
     return 409;
   }
@@ -73,7 +105,7 @@ function statusFor(error: unknown): number {
 
 function respondError(res: Response, error: unknown) {
   const status = statusFor(error);
-  const domain = error as { code?: string; details?: Record<string, unknown> };
+  const domain = error as DomainError;
   if (status === 500) console.error('Erro no fluxo de revisão e matrícula:', error);
   return res.status(status).json({
     success: false,
@@ -130,7 +162,7 @@ preRegistrationEnrollmentRoutes.post('/leads', createAccess, async (req, res, ne
     const data = await preRegistrationAdminService.getDetail(actor, leadId);
     return res.status(201).json({ success: true, data });
   } catch (error) {
-    if (error instanceof PreRegistrationEnrollmentError) return respondError(res, error);
+    if (isHandledDomainError(error)) return respondError(res, error);
     return next(error);
   }
 });
