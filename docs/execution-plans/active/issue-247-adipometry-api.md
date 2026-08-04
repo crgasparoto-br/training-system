@@ -29,6 +29,7 @@ Expor o ciclo clínico da adipometria por uma API autenticada e multi-tenant, us
 9. Entradas com precisão superior ao contrato e datas civis inexistentes são rejeitadas, sem arredondamento ou normalização silenciosa.
 10. Histórico, última avaliação, comparação e seleção da Antropometria de apoio usam o identificador como desempate final estável.
 11. A conclusão repete até três vezes a transação completa quando o PostgreSQL sinaliza conflito serializável por `P2034`. Depois do retry, uma requisição concorrente observa o estado concluído e retorna `alreadyFinalized`; se os retries se esgotarem, a fronteira pública devolve `409 ADIPOMETRY_CONCURRENT_OPERATION`, sem mensagem bruta do banco.
+12. Reenviar a mesma decisão efetiva de sexo do protocolo durante a edição não renova autor, instante, justificativa nem snapshot cadastral da confirmação. A proveniência só muda quando sexo, origem ou justificativa efetiva mudam, e essa comparação ocorre atomicamente no PostgreSQL.
 
 ## Arquivos principais
 
@@ -36,6 +37,8 @@ Expor o ciclo clínico da adipometria por uma API autenticada e multi-tenant, us
 - `apps/api/src/modules/adipometry/adipometry.routes.ts`
 - `apps/api/src/modules/adipometry/adipometry-api.integration.test.ts`
 - `apps/api/src/modules/adipometry/adipometry-remediation.integration.test.ts`
+- `apps/api/src/modules/adipometry/adipometry-protocol-sex-provenance.integration.test.ts`
+- `apps/api/prisma/migrations/20260804124500_preserve_adipometry_protocol_sex_decision_provenance/migration.sql`
 - `apps/api/src/modules/auth/auth.middleware.ts`
 - `apps/api/src/modules/access-control/access-control.middleware.ts`
 - `apps/api/src/modules/adipometry/index.ts`
@@ -59,7 +62,9 @@ pnpm validate
 
 Os testes focados cobrem vetores canônicos masculino e feminino, limites de idade, precisão, alerta de capacidade, decisão de sexo, invalidação de fingerprint, sanitização do erro `P2034` e presets de acesso. O harness PostgreSQL da API também exerce numeração concorrente, sequência acima de 999, rollback de finalização, duas conclusões simultâneas sem efeitos duplicados, imutabilidade, correção, ordenação estável, isolamento entre contratos e a matriz HTTP negativa para ausência de autenticação, papel incorreto, falta de leitura, falta de gestão e falta da permissão específica de correção.
 
-A validação remota foi concluída no SHA `2574fe02a92cf641e934b0f8e83fec89ec62e258` pelo workflow `Validate PR`, run `30871018964`, com migrations, invariantes PostgreSQL, type-check, lint, testes, build, arquitetura, catálogo de acessos e documentação aprovados. O workflow transversal `Issue 275 Pre-registration QA`, run `30871018974`, também foi aprovado no mesmo SHA.
+A remediação de proveniência acrescenta dois controles PostgreSQL discriminantes: a própria migration aborta se uma decisão efetivamente inalterada renovar autor ou instante, e a suíte de integração repete o fluxo com dois profissionais, comprovando preservação na edição comum e transferência somente após mudança clínica real.
+
+SHAs e runs neste plano são tratados como evidência histórica, não como identidade vigente do candidato. A fonte canônica do head auditável é a PR #292 e os checks associados ao SHA exato exibido nela. O baseline anterior à remediação de proveniência foi `34ef9e02ab11722d6fc6d4769a9f4200950f373a`, aprovado por `Validate PR` run `30906221472` e `Issue 275 Pre-registration QA` run `30906221527`. O head e os runs posteriores à remediação devem ser registrados na descrição da PR após a conclusão automática dos workflows, evitando manter no próprio commit uma referência autorreferente que se torna obsoleta ao editar este arquivo.
 
 ## Validação manual
 
@@ -74,6 +79,7 @@ A validação remota foi concluída no SHA `2574fe02a92cf641e934b0f8e83fec89ec62
 9. Desativar usuário ou vínculo de professor mantendo o token anterior e confirmar que a API deixa de autorizar.
 10. Enviar `2026-02-31` e confirmar `400` sem criação de rascunho.
 11. Confirmar alerta em rascunho ainda incompleto e verificar que nenhuma confirmação é persistida.
+12. Confirmar a decisão pelo profissional A, salvar uma medida pelo profissional B reenviando a mesma decisão e verificar que autor e instante permanecem de A; depois alterar realmente a decisão e verificar a transferência para B.
 
 ## Decisões
 
@@ -83,6 +89,7 @@ A validação remota foi concluída no SHA `2574fe02a92cf641e934b0f8e83fec89ec62
 - A ausência de antropometria de apoio não bloqueia a ADPT; referência informada é validada por contrato, aluno e data.
 - Os contratos compartilhados representam os bodies HTTP reais; aluno, professor, ator e contrato permanecem fora do payload e são derivados da URL ou autenticação.
 - Retry de conflito serializável reaplica toda a decisão transacional; não repete apenas a escrita nem reutiliza estado lido antes do conflito.
+- A integridade de proveniência da decisão clínica é protegida por trigger `BEFORE UPDATE`, para que nenhuma rota, job ou consumidor futuro consiga reatribuir a confirmação ao apenas reenviar o mesmo estado efetivo.
 
 ## Pendências de entrega
 
