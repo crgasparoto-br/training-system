@@ -37,53 +37,81 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION "assertAdipometryResponsibleProfessorAvailable"(
+  p_contract_id TEXT,
+  p_professor_id TEXT
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+  responsible_role TEXT;
+  responsible_function_id TEXT;
+BEGIN
+  SELECT
+    LOWER(professor."role"::text),
+    professor."collaboratorFunctionId"
+  INTO responsible_role, responsible_function_id
+  FROM "Professor" professor
+  JOIN "User" app_user ON app_user.id = professor."userId"
+  JOIN "CollaboratorFunctionOption" collaborator_function
+    ON collaborator_function.id = professor."collaboratorFunctionId"
+  WHERE professor.id = p_professor_id
+    AND professor."contractId" = p_contract_id
+    AND app_user."isActive" = TRUE
+    AND collaborator_function."isActive" = TRUE
+    AND LOWER(TRIM(COALESCE(professor."currentStatus", 'active'))) NOT IN (
+      'inactive', 'inativo', 'dismissed', 'desligado', 'terminated', 'encerrado'
+    )
+    AND (
+      professor."dismissalDate" IS NULL
+      OR professor."dismissalDate" > CURRENT_TIMESTAMP
+    )
+  FOR SHARE OF professor, app_user, collaborator_function;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'ADIPOMETRY_RESPONSIBLE_NOT_AVAILABLE' USING ERRCODE = 'P0001';
+  END IF;
+
+  IF responsible_role <> 'master' THEN
+    PERFORM 1
+    FROM "AccessPermission" screen_permission
+    WHERE screen_permission."collaboratorFunctionId" = responsible_function_id
+      AND screen_permission."screenKey" = 'physicalAssessment.protocol'
+      AND screen_permission."blockKey" = ''
+      AND screen_permission."canView" = TRUE
+    FOR SHARE;
+
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'ADIPOMETRY_RESPONSIBLE_NOT_AVAILABLE' USING ERRCODE = 'P0001';
+    END IF;
+
+    PERFORM 1
+    FROM "AccessPermission" manage_permission
+    WHERE manage_permission."collaboratorFunctionId" = responsible_function_id
+      AND manage_permission."screenKey" = 'physicalAssessment.protocol'
+      AND manage_permission."blockKey" = 'physicalAssessment.adpt.actions.manage'
+      AND manage_permission."canView" = TRUE
+    FOR SHARE;
+
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'ADIPOMETRY_RESPONSIBLE_NOT_AVAILABLE' USING ERRCODE = 'P0001';
+    END IF;
+  END IF;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION "validateAdipometryResponsibleProfessor"()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1
-    FROM "Professor" professor
-    JOIN "User" app_user ON app_user.id = professor."userId"
-    JOIN "CollaboratorFunctionOption" collaborator_function
-      ON collaborator_function.id = professor."collaboratorFunctionId"
-    WHERE professor.id = NEW."professorId"
-      AND professor."contractId" = NEW."contractId"
-      AND app_user."isActive" = TRUE
-      AND collaborator_function."isActive" = TRUE
-      AND LOWER(TRIM(COALESCE(professor."currentStatus", 'active'))) NOT IN (
-        'inactive', 'inativo', 'dismissed', 'desligado', 'terminated', 'encerrado'
-      )
-      AND (
-        professor."dismissalDate" IS NULL
-        OR professor."dismissalDate" > CURRENT_TIMESTAMP
-      )
-      AND (
-        LOWER(professor."role"::text) = 'master'
-        OR (
-          EXISTS (
-            SELECT 1
-            FROM "AccessPermission" screen_permission
-            WHERE screen_permission."collaboratorFunctionId" = professor."collaboratorFunctionId"
-              AND screen_permission."screenKey" = 'physicalAssessment.protocol'
-              AND screen_permission."blockKey" = ''
-              AND screen_permission."canView" = TRUE
-          )
-          AND EXISTS (
-            SELECT 1
-            FROM "AccessPermission" manage_permission
-            WHERE manage_permission."collaboratorFunctionId" = professor."collaboratorFunctionId"
-              AND manage_permission."screenKey" = 'physicalAssessment.protocol'
-              AND manage_permission."blockKey" = 'physicalAssessment.adpt.actions.manage'
-              AND manage_permission."canView" = TRUE
-          )
-        )
-      )
-  ) THEN
-    RAISE EXCEPTION 'ADIPOMETRY_RESPONSIBLE_NOT_AVAILABLE' USING ERRCODE = 'P0001';
-  END IF;
-
+  PERFORM "assertAdipometryResponsibleProfessorAvailable"(
+    NEW."contractId",
+    NEW."professorId"
+  );
   RETURN NEW;
 END;
 $$;
@@ -97,7 +125,7 @@ BEGIN
     AND to_regclass('"AccessPermission"') IS NOT NULL
   THEN
     EXECUTE 'DROP TRIGGER IF EXISTS "AdipometryAssessmentValidateResponsibleProfessor" ON "AdipometryAssessment"';
-    EXECUTE 'CREATE TRIGGER "AdipometryAssessmentValidateResponsibleProfessor" BEFORE INSERT OR UPDATE OF "professorId", "contractId" ON "AdipometryAssessment" FOR EACH ROW EXECUTE FUNCTION "validateAdipometryResponsibleProfessor"()';
+    EXECUTE 'CREATE TRIGGER "AdipometryAssessmentValidateResponsibleProfessor" BEFORE INSERT OR UPDATE ON "AdipometryAssessment" FOR EACH ROW EXECUTE FUNCTION "validateAdipometryResponsibleProfessor"()';
   END IF;
 END;
 $$;

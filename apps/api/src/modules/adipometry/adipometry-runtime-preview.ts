@@ -2,6 +2,7 @@ import type { AdipometryProtocolDefinitionSnapshot, AdipometryProtocolSex, Adipo
 import { AdipometryServiceError, buildAdipometryInputFingerprint, calculateAdipometry, normalizeAdipometryDateOnly, type AdipometryCalculationContext, type AdipometryPreviewResult } from './adipometry.service.js';
 import { applyPersistedProtocolSexDecision, buildAdipometryClinicalFingerprint, getProtocolSexSourceIncompatibility, type AdipometryProfileAuthority } from './adipometry-clinical-integrity.js';
 import { adipometryMeasurementsFromRow, getAdipometryAnthropometrySupport, getAdipometryApprovedProtocol, getAdipometryProfile, getPersistedAdipometryDecision, type AdipometryAssessmentRow, type AdipometryApprovedProtocolRow, type AdipometryDbClient } from './adipometry-runtime-db.js';
+import { assertAdipometryResponsibleProfessorAvailable } from './adipometry-responsible-lifecycle-guard.js';
 
 function addDecisionIncompatibility(compatibility: AdipometryPreviewResult['compatibility'], reason: AdipometryPreviewResult['compatibility']['reasons'][number] | null) {
   if (!reason || compatibility.reasons.some((item) => item.code === reason.code && item.field === reason.field)) return compatibility;
@@ -10,6 +11,11 @@ function addDecisionIncompatibility(compatibility: AdipometryPreviewResult['comp
 
 export async function buildHardenedAdipometryPreview(client: AdipometryDbClient, contractId: string, actorUserId: string, row: AdipometryAssessmentRow, options: { lockAuthorities?: boolean } = {}): Promise<AdipometryPreviewResult> {
   if (row.revisionStatus !== 'DRAFT' || row.status !== 'DRAFT') throw new AdipometryServiceError('Somente um rascunho pode ser calculado.', 'ADIPOMETRY_INVALID_STATE', 409);
+  await assertAdipometryResponsibleProfessorAvailable(
+    client,
+    contractId,
+    row.professorId
+  );
   if (!row.protocolCode || !row.protocolVersion) throw new AdipometryServiceError('Selecione um protocolo antes de calcular.', 'ADIPOMETRY_PROTOCOL_REQUIRED');
 
   const assessmentDate = normalizeAdipometryDateOnly(row.assessmentDate);
