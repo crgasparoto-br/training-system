@@ -17,14 +17,14 @@ describe('adipometry public error boundary', () => {
   }));
 
   it.each([
-    ['/unauthenticated', 401, 'ADIPOMETRY_AUTHENTICATION_REQUIRED'],
-    ['/forbidden', 403, 'ADIPOMETRY_ACCESS_DENIED'],
-    ['/inactive', 404, 'ADIPOMETRY_RESOURCE_NOT_FOUND'],
-  ])('normalizes %s with a stable code', async (path, status, code) => {
+    ['/unauthenticated', 401, 'ADIPOMETRY_AUTHENTICATION_REQUIRED', undefined],
+    ['/forbidden', 403, 'ADIPOMETRY_ACCESS_DENIED', undefined],
+    ['/inactive', 404, 'ADIPOMETRY_RESOURCE_NOT_FOUND', 'Professor não encontrado'],
+  ])('normalizes %s with a stable code', async (path, status, code, legacyError) => {
     const response = await request(app).get(path);
     expect(response.status).toBe(status);
     expect(response.body.details?.code).toBe(code);
-    expect(response.body.error).toBeUndefined();
+    expect(response.body.error).toBe(legacyError);
   });
 
   it('sanitizes unexpected middleware failures and adds a correlation id', async () => {
