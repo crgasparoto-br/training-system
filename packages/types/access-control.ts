@@ -149,6 +149,9 @@ export const ACCESS_BLOCK_CATALOG = [
   { key: 'physicalAssessment.prnt.actions.createRecord', screenKey: 'physicalAssessment.protocol', label: 'PRNT: Acao criar registro' },
   { key: 'physicalAssessment.prnt.actions.editRecord', screenKey: 'physicalAssessment.protocol', label: 'PRNT: Acao editar registro' },
   { key: 'physicalAssessment.prnt.actions.closeFollowUp', screenKey: 'physicalAssessment.protocol', label: 'PRNT: Acao encerrar acompanhamento' },
+  { key: 'physicalAssessment.adpt.view', screenKey: 'physicalAssessment.protocol', label: 'ADPT: Consultar avaliações e protocolos' },
+  { key: 'physicalAssessment.adpt.actions.manage', screenKey: 'physicalAssessment.protocol', label: 'ADPT: Criar, editar, calcular e concluir rascunhos' },
+  { key: 'physicalAssessment.adpt.actions.correctCompleted', screenKey: 'physicalAssessment.protocol', label: 'ADPT: Corrigir avaliação concluída' },
   { key: 'settings.contract.adipometryProtocolApproval', screenKey: 'settings.contract', label: 'Contrato: aprovar ou revogar protocolo clínico de adipometria' },
   { key: 'settings.contract.actions.manageClinicalTechnicalResponsibility', screenKey: 'settings.contract', label: 'Contrato: gerenciar responsabilidade técnica clínica' },
 ] as const;
@@ -276,6 +279,8 @@ export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
       'physicalAssessment.prnt.actions.createRecord',
       'physicalAssessment.prnt.actions.editRecord',
       'physicalAssessment.prnt.actions.closeFollowUp',
+      'physicalAssessment.adpt.view',
+      'physicalAssessment.adpt.actions.manage',
     ],
     dataScopes: {
       'students.preRegistration': 'self',
@@ -344,6 +349,9 @@ export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
       'physicalAssessment.prnt.actions.createRecord',
       'physicalAssessment.prnt.actions.editRecord',
       'physicalAssessment.prnt.actions.closeFollowUp',
+      'physicalAssessment.adpt.view',
+      'physicalAssessment.adpt.actions.manage',
+      'physicalAssessment.adpt.actions.correctCompleted',
     ],
     dataScopes: {
       'students.preRegistration': 'contract',

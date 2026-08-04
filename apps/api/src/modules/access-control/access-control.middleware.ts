@@ -4,6 +4,14 @@ import { ACCESS_BLOCK_CATALOG, type AccessScreenKey } from '@corrida/types';
 import { canProfessorAccessScreen, canProfessorAccessBlock } from './access-control.service.js';
 
 const prisma = new PrismaClient();
+const INACTIVE_PROFESSOR_STATUSES = new Set([
+  'inactive',
+  'inativo',
+  'dismissed',
+  'desligado',
+  'terminated',
+  'encerrado',
+]);
 
 function applyProfessorAccessContext(req: Request, professor: {
   id: string;
@@ -22,9 +30,14 @@ function applyProfessorAccessContext(req: Request, professor: {
 }
 
 async function findAuthenticatedProfessor(req: Request) {
-  return prisma.professor.findUnique({
+  const professor = await prisma.professor.findUnique({
     where: { userId: req.user!.userId },
     include: {
+      user: {
+        select: {
+          isActive: true,
+        },
+      },
       collaboratorFunction: true,
       contract: {
         select: {
@@ -36,6 +49,21 @@ async function findAuthenticatedProfessor(req: Request) {
       },
     },
   });
+
+  const normalizedStatus = professor?.currentStatus?.trim().toLowerCase() ?? 'active';
+  const dismissalIsEffective = Boolean(
+    professor?.dismissalDate && professor.dismissalDate.getTime() <= Date.now()
+  );
+  if (
+    !professor
+    || !professor.user.isActive
+    || INACTIVE_PROFESSOR_STATUSES.has(normalizedStatus)
+    || dismissalIsEffective
+  ) {
+    return null;
+  }
+
+  return professor;
 }
 
 export function screenAccessMiddleware(screenKey: AccessScreenKey | string | Array<AccessScreenKey | string>) {
