@@ -1,4 +1,4 @@
-import { Calculator, CircleAlert, HelpCircle, RotateCcw, Save } from 'lucide-react';
+import { Calculator, AlertCircle, HelpCircle, RotateCcw, Save } from 'lucide-react';
 import type {
   AdipometryAssessmentDetail,
   AdipometryAssessmentSummary,
@@ -144,7 +144,7 @@ export function AdipometryEditor(props: AdipometryEditorProps) {
               <Button type="button" onClick={props.onFinalize} disabled={!preview?.canFinalize || dirty || busy}>Concluir avaliação</Button>
               {current.revisionStatus === 'FINALIZED' && canCorrect ? <Button type="button" variant="outline" onClick={props.onCorrection}><RotateCcw className="h-4 w-4" aria-hidden="true" />Iniciar correção</Button> : null}
               {currentCorrection && canCorrect ? <Button type="button" variant="outline" onClick={props.onCancelCorrection}>Cancelar correção</Button> : null}
-              {dirty ? <span className="flex items-center gap-2 text-sm text-amber-800"><CircleAlert className="h-4 w-4" />Alterações não calculadas</span> : null}
+              {dirty ? <span className="flex items-center gap-2 text-sm text-amber-800"><AlertCircle className="h-4 w-4" />Alterações não calculadas</span> : null}
             </div>
           </div>
           <HistoryPanel assessments={assessments} activeId={current.id} onOpen={props.onOpen} />
