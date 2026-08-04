@@ -59,6 +59,27 @@ BEGIN
         professor."dismissalDate" IS NULL
         OR professor."dismissalDate" > CURRENT_TIMESTAMP
       )
+      AND (
+        LOWER(professor."role"::text) = 'master'
+        OR (
+          EXISTS (
+            SELECT 1
+            FROM "AccessPermission" screen_permission
+            WHERE screen_permission."collaboratorFunctionId" = professor."collaboratorFunctionId"
+              AND screen_permission."screenKey" = 'physicalAssessment.protocol'
+              AND screen_permission."blockKey" = ''
+              AND screen_permission."canView" = TRUE
+          )
+          AND EXISTS (
+            SELECT 1
+            FROM "AccessPermission" manage_permission
+            WHERE manage_permission."collaboratorFunctionId" = professor."collaboratorFunctionId"
+              AND manage_permission."screenKey" = 'physicalAssessment.protocol'
+              AND manage_permission."blockKey" = 'physicalAssessment.adpt.actions.manage'
+              AND manage_permission."canView" = TRUE
+          )
+        )
+      )
   ) THEN
     RAISE EXCEPTION 'ADIPOMETRY_RESPONSIBLE_NOT_AVAILABLE' USING ERRCODE = 'P0001';
   END IF;
@@ -73,6 +94,7 @@ BEGIN
     AND to_regclass('"Professor"') IS NOT NULL
     AND to_regclass('"User"') IS NOT NULL
     AND to_regclass('"CollaboratorFunctionOption"') IS NOT NULL
+    AND to_regclass('"AccessPermission"') IS NOT NULL
   THEN
     EXECUTE 'DROP TRIGGER IF EXISTS "AdipometryAssessmentValidateResponsibleProfessor" ON "AdipometryAssessment"';
     EXECUTE 'CREATE TRIGGER "AdipometryAssessmentValidateResponsibleProfessor" BEFORE INSERT OR UPDATE OF "professorId", "contractId" ON "AdipometryAssessment" FOR EACH ROW EXECUTE FUNCTION "validateAdipometryResponsibleProfessor"()';

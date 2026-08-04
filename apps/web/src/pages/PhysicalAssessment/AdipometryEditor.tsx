@@ -44,6 +44,18 @@ export interface AdipometryEditorProps {
   onCapacityWarning: (checked: boolean) => void;
 }
 
+export function adipometryMeasurementAccessibility(
+  field: AdipometryInputField,
+  error?: string
+) {
+  const errorId = `adpt-${field}-error`;
+  return {
+    errorId,
+    ariaInvalid: error ? true : undefined,
+    ariaDescribedBy: error ? errorId : undefined,
+  };
+}
+
 export function AdipometryEditor(props: AdipometryEditorProps) {
   const {
     selectedAlunoId, current, assessments, protocols, form, preview, support, fieldErrors,
@@ -108,14 +120,33 @@ export function AdipometryEditor(props: AdipometryEditorProps) {
               <CardContent className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {ADIPOMETRY_INPUTS.map((input) => {
                   const help = ADIPOMETRY_SKINFOLD_HELP.find((item) => item.field === input.field);
+                  const error = fieldErrors[input.field];
+                  const accessibility = adipometryMeasurementAccessibility(input.field, error);
                   return (
                     <div key={input.field}>
                       <div className="mb-2 flex items-center justify-between gap-2">
                         <label htmlFor={`adpt-${input.field}`} className="text-sm font-medium">{input.label} ({input.unit})</label>
                         {help ? <button type="button" disabled={false} onClick={() => props.onHelp(help)} className="rounded p-1 text-primary hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Abrir ajuda de ${input.label}`}><HelpCircle className="h-4 w-4" /></button> : null}
                       </div>
-                      <input id={`adpt-${input.field}`} inputMode="decimal" value={form.measurements[input.field]} disabled={readOnly} onChange={(event) => props.onMeasurement(input.field, event.target.value)} className="h-11 w-full rounded-lg border border-input bg-card px-4 text-sm disabled:bg-muted" />
-                      {fieldErrors[input.field] ? <p className="mt-1 text-xs text-destructive">{fieldErrors[input.field]}</p> : null}
+                      <input
+                        id={`adpt-${input.field}`}
+                        inputMode="decimal"
+                        value={form.measurements[input.field]}
+                        disabled={readOnly}
+                        aria-invalid={accessibility.ariaInvalid}
+                        aria-describedby={accessibility.ariaDescribedBy}
+                        onChange={(event) => props.onMeasurement(input.field, event.target.value)}
+                        className="h-11 w-full rounded-lg border border-input bg-card px-4 text-sm disabled:bg-muted"
+                      />
+                      {error ? (
+                        <p
+                          id={accessibility.errorId}
+                          role="alert"
+                          className="mt-1 text-xs text-destructive"
+                        >
+                          {error}
+                        </p>
+                      ) : null}
                     </div>
                   );
                 })}

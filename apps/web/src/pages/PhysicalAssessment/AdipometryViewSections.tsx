@@ -4,6 +4,7 @@ import type {
   AdipometryAssessmentStatus,
   AdipometryAssessmentSummary,
   AdipometryCalculationPreview,
+  AdipometryInputField,
 } from '@corrida/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/Card';
 import type { AdipometryAnthropometrySupport } from '../../services/adipometry.service';
@@ -15,6 +16,15 @@ export const nav = [
   ['bioimpedanciometria', 'Bioimpedanciometria'],
   ['ultrassonografia', 'Ultrassonografia'],
 ] as const;
+
+const persistedCollectionFields: AdipometryInputField[] = [
+  'weightKg',
+  'tricepsMm',
+  'subscapularMm',
+  'suprailiacMm',
+  'abdominalMm',
+  'thighMm',
+];
 
 function dateLabel(value?: string) {
   if (!value) return '—';
@@ -43,29 +53,72 @@ export function messageClass(tone: 'error' | 'success' | 'warning') {
   return 'border-amber-300 bg-amber-50 text-amber-950';
 }
 
+export function buildAdipometryGuidedSteps({
+  detail,
+  preview,
+  selectedStudent,
+}: {
+  detail: AdipometryAssessmentDetail | null;
+  preview: AdipometryCalculationPreview | null;
+  selectedStudent: boolean;
+}) {
+  const persistedHeader = Boolean(
+    detail?.assessmentDate
+    && detail.professorId
+    && detail.protocolCode
+    && detail.protocolVersion
+  );
+  const persistedCollection = Boolean(
+    detail
+    && persistedCollectionFields.every((field) => detail.measurements[field] !== undefined)
+  );
+
+  return [
+    {
+      title: '1. Aluno',
+      done: selectedStudent,
+      description: 'Selecione o aluno que será avaliado.',
+    },
+    {
+      title: '2. Contexto',
+      done: persistedHeader,
+      description: 'Persista data, responsável e protocolo antes da coleta.',
+    },
+    {
+      title: '3. Coleta',
+      done: persistedCollection,
+      description: 'Registre peso e as cinco dobras no rascunho.',
+    },
+    {
+      title: '4. Prévia',
+      done: Boolean(preview),
+      description: 'Calcule e revise o resultado autoritativo.',
+    },
+    {
+      title: '5. Conclusão',
+      done: detail?.revisionStatus === 'FINALIZED',
+      description: 'Conclua ou crie uma revisão de correção.',
+    },
+  ];
+}
+
 export function StepStrip({ detail, preview, selectedStudent }: {
   detail: AdipometryAssessmentDetail | null;
   preview: AdipometryCalculationPreview | null;
   selectedStudent: boolean;
 }) {
-  const steps = [
-    ['1. Aluno', selectedStudent, 'Selecione o aluno que será avaliado.'],
-    ['2. Rascunho', Boolean(detail), 'Crie ou abra um rascunho persistido.'],
-    ['3. Coleta', Boolean(detail && Object.keys(detail.measurements).length), 'Registre peso, dobras e decisão clínica.'],
-    ['4. Prévia', Boolean(preview), 'Calcule e revise o resultado autoritativo.'],
-    ['5. Conclusão', detail?.revisionStatus === 'FINALIZED', 'Conclua ou crie uma revisão de correção.'],
-  ] as const;
+  const steps = buildAdipometryGuidedSteps({ detail, preview, selectedStudent });
   return (
     <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
-      {steps.map(([title, done, description], index) => {
-        const current = !done && steps.slice(0, index).every((step) => step[1]);
+      {steps.map((step, index) => {
+        const current = !step.done && steps.slice(0, index).every((previous) => previous.done);
         return (
-          <div key={title} className={`rounded-lg border p-3 ${done ? 'border-emerald-200 bg-emerald-50' : current ? 'border-primary/40 bg-primary/5' : 'border-border bg-muted/20'}`}>
+          <div key={step.title} className={`rounded-lg border p-3 ${step.done ? 'border-emerald-200 bg-emerald-50' : current ? 'border-primary/40 bg-primary/5' : 'border-border bg-muted/20'}`}>
             <div className="flex items-center gap-2 text-sm font-semibold">
-              {done ? <CheckCircle2 className="h-4 w-4 text-emerald-700" aria-hidden="true" /> : null}
-              {title}
+              {step.done ? <CheckCircle2 className="h-4 w-4 text-emerald-700" aria-hidden="true" /> : null}
+              {step.title}
             </div>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">{step.description}</p>
           </div>
         );
       })}

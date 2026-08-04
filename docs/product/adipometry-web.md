@@ -19,19 +19,19 @@ O ator auditável é sempre derivado da sessão autenticada. O responsável clí
 - professor inativo, desligado, de outro contrato ou inacessível é rejeitado pela API;
 - avaliações históricas preservam o responsável registrado sem expor identificadores internos quando o cadastro deixou de estar elegível.
 
-A camada web não envia `contractId` nem autor de auditoria. Na criação, envia apenas o identificador do responsável escolhido, que é revalidado no backend.
+A camada web não envia `contractId` nem autor de auditoria. Na criação, envia apenas o identificador do responsável escolhido, que é revalidado no backend. A elegibilidade completa — vínculo, atividade, contrato, tela e bloco de gestão ADPT, com exceção explícita para `master` — também é revalidada pelo trigger PostgreSQL no mesmo `INSERT`. Assim, revogar a permissão entre a validação HTTP e a persistência fecha a operação sem gravar avaliação parcial.
 
 ## Etapas persistidas
 
 O progresso visual usa somente estado retornado pela API:
 
 1. aluno e contexto resolvidos;
-2. cabeçalho persistido com data, responsável e protocolo;
-3. peso e dobras persistidos no rascunho;
+2. data, responsável e protocolo persistidos;
+3. peso e as cinco dobras persistidos no rascunho;
 4. prévia atual retornada pelo endpoint de cálculo;
 5. avaliação concluída e somente leitura.
 
-Alterar data, protocolo, decisão de sexo, peso, dobra, referência antropométrica ou observação remove a prévia e a confirmação local de alerta. No banco, mudança de qualquer fonte clínica da ADPT também limpa a confirmação persistida de capacidade do adipômetro, evitando reutilização por outro cliente ou sessão.
+Uma etapa não é marcada como concluída por estado local, pela mera existência de um rascunho ou por coleta parcial. Alterar data, protocolo, decisão de sexo, peso, dobra, referência antropométrica ou observação remove a prévia e a confirmação local de alerta. No banco, mudança de qualquer fonte clínica da ADPT também limpa a confirmação persistida de capacidade do adipômetro, evitando reutilização por outro cliente ou sessão.
 
 ## Coleta e protocolo
 
@@ -43,6 +43,8 @@ Alterar data, protocolo, decisão de sexo, peso, dobra, referência antropométr
 - Não existe fallback silencioso para protocolo indisponível, desabilitado ou sem aprovação clínica ativa.
 - O sexo de referência e a origem da confirmação são explícitos. Divergência pode exigir justificativa e continua sujeita à validação da API.
 - Resultados derivados são somente leitura e nunca são enviados como fonte de verdade pelo navegador.
+
+Quando um valor é inválido, a mensagem recebe identificador estável e é vinculada ao input por `aria-describedby`; o campo recebe `aria-invalid=true` e a mensagem usa `role=alert`. Isso mantém a relação entre causa e erro para teclado e leitores de tela.
 
 ## Ajuda técnica
 
@@ -81,8 +83,8 @@ A ocultação ou desabilitação de controles é apenas experiência de usuário
 Validações mínimas da mudança:
 
 ```bash
-pnpm --filter @corrida/web test -- adipometry-ui.test.ts adipometry-screen-utils.test.ts AdipometryScreen.test.tsx AdipometryDialogs.test.tsx AdipometryView.test.ts AdipometryViewSections.test.ts
-pnpm --filter @corrida/api test -- adipometry-responsible-professor.test.ts adipometry-web-remediation.routes.test.ts adipometry-capacity-confirmation-migration.test.ts
+pnpm --filter @corrida/web test -- adipometry-ui.test.ts adipometry-screen-utils.test.ts AdipometryScreen.test.tsx AdipometryDialogs.test.tsx AdipometryEditor.test.tsx AdipometryView.test.ts AdipometryViewSections.test.ts
+pnpm --filter @corrida/api test -- adipometry-responsible-professor.test.ts adipometry-web-remediation.routes.test.ts adipometry-capacity-confirmation-migration.test.ts adipometry-responsible-permission-race.integration.test.ts
 pnpm --filter @corrida/web type-check
 pnpm --filter @corrida/api type-check
 pnpm lint
@@ -91,4 +93,4 @@ pnpm docs:check
 pnpm validate
 ```
 
-A validação visual deve cobrir a rota autenticada em 1440×900, 1366×768 e 390×844, incluindo rascunho, impedimento clínico, conflito, ajuda por teclado, confirmação de conclusão e histórico. O registro deve identificar SHA, viewport, cenário e resultado; evidência de outra rota não satisfaz este gate.
+O capturador visual já observado pela PR mantém a evidência da prescrição por capacidades e, no mesmo run automático, gera um manifesto separado para a Issue 248. A evidência ADPT cobre a rota autenticada em 1440×900, 1366×768 e 390×844, além de ajuda por teclado, retorno de foco, link externo seguro, conflito `409`, impedimento clínico, histórico e ausência de overflow horizontal. O manifesto `adipometry-issue-248-manifest.json` registra SHA, base, merge preview, permissões, viewport, cenário e resultado. Evidência de outra rota continua não satisfazendo este gate.
