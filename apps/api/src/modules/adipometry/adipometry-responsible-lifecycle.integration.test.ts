@@ -166,25 +166,30 @@ describe('adipometry responsible lifecycle guard on PostgreSQL', () => {
         })
       ).resolves.toBe(auditEventsBeforeRevocation);
     } finally {
-      await prisma.adipometryAuditEvent.deleteMany({ where: { contractId: contract.id } });
-      await prisma.adipometryAssessment.deleteMany({ where: { contractId: contract.id } });
-      await prisma.adipometrySequence.deleteMany({ where: { contractId: contract.id } });
-      await prisma.aluno.deleteMany({ where: { contractId: contract.id } });
-      await prisma.professor.deleteMany({
-        where: { id: { in: [actor.id, responsible.id] } },
-      });
-      await prisma.accessPermission.deleteMany({
-        where: {
-          collaboratorFunctionId: { in: [actorFunction.id, responsibleFunction.id] },
-        },
-      });
-      await prisma.collaboratorFunctionOption.deleteMany({
-        where: { id: { in: [actorFunction.id, responsibleFunction.id] } },
-      });
-      await prisma.user.deleteMany({
-        where: { id: { in: [actorUser.id, responsibleUser.id] } },
-      });
-      await prisma.companyContract.delete({ where: { id: contract.id } });
+      // Audit events are append-only by design. This file is executed as an
+      // isolated database test, so fixture cleanup is best-effort and must not
+      // weaken the production trigger merely to remove ephemeral test rows.
+      await (async () => {
+        await prisma.adipometryAuditEvent.deleteMany({ where: { contractId: contract.id } });
+        await prisma.adipometryAssessment.deleteMany({ where: { contractId: contract.id } });
+        await prisma.adipometrySequence.deleteMany({ where: { contractId: contract.id } });
+        await prisma.aluno.deleteMany({ where: { contractId: contract.id } });
+        await prisma.professor.deleteMany({
+          where: { id: { in: [actor.id, responsible.id] } },
+        });
+        await prisma.accessPermission.deleteMany({
+          where: {
+            collaboratorFunctionId: { in: [actorFunction.id, responsibleFunction.id] },
+          },
+        });
+        await prisma.collaboratorFunctionOption.deleteMany({
+          where: { id: { in: [actorFunction.id, responsibleFunction.id] } },
+        });
+        await prisma.user.deleteMany({
+          where: { id: { in: [actorUser.id, responsibleUser.id] } },
+        });
+        await prisma.companyContract.delete({ where: { id: contract.id } });
+      })().catch(() => undefined);
     }
   });
 });
