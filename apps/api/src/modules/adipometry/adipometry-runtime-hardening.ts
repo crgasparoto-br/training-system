@@ -9,6 +9,10 @@ import {
   adipometryService,
 } from './adipometry.service.js';
 import {
+  hasAdipometryProtocolSexDecisionPatch,
+  mergeAdipometryProtocolSexDecisionPatch,
+} from './adipometry-protocol-sex-decision.js';
+import {
   adipometryRuntimePrisma,
   getAdipometryApprovedProtocol,
   getAdipometryAssessmentRow,
@@ -66,25 +70,52 @@ export function installAdipometryRuntimeHardening() {
     actorUserId: string,
     input: UpdateAdipometryDraftInput
   ) => {
-    if (input.protocolSex) {
-      const row = await getAdipometryAssessmentRow(
-        adipometryRuntimePrisma,
-        contractId,
-        assessmentId
-      );
-      const profile = await getAdipometryProfile(
-        adipometryRuntimePrisma,
-        contractId,
-        row.alunoId
-      );
-      assertAdipometryProtocolSexSource(
-        profile,
-        input.protocolSex,
-        input.protocolSexSource,
-        input.protocolSexOverrideReason
+    if (!hasAdipometryProtocolSexDecisionPatch(input)) {
+      return originalUpdateDraft(contractId, assessmentId, actorUserId, input);
+    }
+
+    const row = await getAdipometryAssessmentRow(
+      adipometryRuntimePrisma,
+      contractId,
+      assessmentId
+    );
+    const mergedDecision = mergeAdipometryProtocolSexDecisionPatch(input, {
+      protocolSex: row.protocolSex ?? null,
+      protocolSexSource: row.protocolSexSource ?? null,
+      protocolSexOverrideReason: row.protocolSexOverrideReason ?? null,
+    });
+    if (!mergedDecision.protocolSex) {
+      throw new AdipometryServiceError(
+        'Informe o sexo de referência antes de alterar sua origem ou justificativa.',
+        'ADIPOMETRY_INVALID_PROTOCOL_SEX_DECISION',
+        400
       );
     }
-    return originalUpdateDraft(contractId, assessmentId, actorUserId, input);
+
+    const protocolSexSource =
+      mergedDecision.protocolSexSource ?? 'professional_confirmation';
+    const profile = await getAdipometryProfile(
+      adipometryRuntimePrisma,
+      contractId,
+      row.alunoId
+    );
+    assertAdipometryProtocolSexSource(
+      profile,
+      mergedDecision.protocolSex,
+      protocolSexSource,
+      mergedDecision.protocolSexOverrideReason
+    );
+
+    return originalUpdateDraft(contractId, assessmentId, actorUserId, {
+      ...input,
+      protocolSex: mergedDecision.protocolSex,
+      protocolSexSource,
+      protocolSexOverrideReason: mergedDecision.protocolSexOverrideReason,
+      // The merge was calculated from this exact persisted version. If another
+      // writer changes the draft before the service transaction locks it, fail
+      // with the existing stale-draft contract instead of applying a stale merge.
+      expectedUpdatedAt: input.expectedUpdatedAt ?? row.updatedAt.toISOString(),
+    });
   };
 
   adipometryService.calculate = async (
