@@ -9,10 +9,10 @@ export async function assertAdipometryResponsibleProfessorAvailable(
   contractId: string,
   professorId: string
 ): Promise<void> {
-  await client.$queryRaw(Prisma.sql`
+  await client.$queryRaw<Array<{ available: boolean }>>(Prisma.sql`
     SELECT "assertAdipometryResponsibleProfessorAvailable"(
       ${contractId},
       ${professorId}
-    )
+    ) AS "available"
   `);
 }

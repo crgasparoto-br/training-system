@@ -42,6 +42,8 @@ describe('adipometry capacity confirmation migration', () => {
     const sql = readMigration();
 
     expect(sql).toContain('CREATE OR REPLACE FUNCTION "assertAdipometryResponsibleProfessorAvailable"');
+    expect(sql).toContain('RETURNS BOOLEAN');
+    expect(sql).toContain('RETURN TRUE;');
     expect(sql).toContain('SECURITY DEFINER');
     expect(sql).toContain('SET search_path = pg_catalog, public');
     expect(sql).toContain('professor."contractId" = p_contract_id');

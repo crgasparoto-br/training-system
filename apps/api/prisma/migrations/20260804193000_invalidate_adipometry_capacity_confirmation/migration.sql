@@ -41,7 +41,7 @@ CREATE OR REPLACE FUNCTION "assertAdipometryResponsibleProfessorAvailable"(
   p_contract_id TEXT,
   p_professor_id TEXT
 )
-RETURNS VOID
+RETURNS BOOLEAN
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = pg_catalog, public
@@ -100,6 +100,8 @@ BEGIN
       RAISE EXCEPTION 'ADIPOMETRY_RESPONSIBLE_NOT_AVAILABLE' USING ERRCODE = 'P0001';
     END IF;
   END IF;
+
+  RETURN TRUE;
 END;
 $$;
 
