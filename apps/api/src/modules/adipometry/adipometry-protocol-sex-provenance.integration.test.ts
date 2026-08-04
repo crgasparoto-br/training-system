@@ -32,6 +32,24 @@ async function createFixture(): Promise<Fixture> {
       code: `ADPT-PROVENANCE-${token}`,
     },
   });
+  await prisma.accessPermission.createMany({
+    data: [
+      {
+        id: `adpt-provenance-screen-${token}`,
+        collaboratorFunctionId: collaboratorFunction.id,
+        screenKey: 'physicalAssessment.protocol',
+        blockKey: '',
+        canView: true,
+      },
+      {
+        id: `adpt-provenance-manage-${token}`,
+        collaboratorFunctionId: collaboratorFunction.id,
+        screenKey: 'physicalAssessment.protocol',
+        blockKey: 'physicalAssessment.adpt.actions.manage',
+        canView: true,
+      },
+    ],
+  });
   const [confirmingUser, editingUser] = await Promise.all([
     prisma.user.create({
       data: {
