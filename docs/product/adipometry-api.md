@@ -44,18 +44,22 @@ O cálculo de prévia:
 3. executa, na ordem declarada, a AST de equações do snapshot clínico aprovado pelo contrato;
 4. aplica a precisão e o arredondamento declarados no protocolo somente aos resultados finais;
 5. devolve `usedSkinfolds`, com as dobras efetivamente selecionadas pelo protocolo;
-6. devolve `inputFingerprint`, que inclui entradas, protocolo, versão, aprovação e confirmação operacional;
+6. devolve `inputFingerprint`, que inclui entradas, protocolo, versão, aprovação, confirmação operacional, data de nascimento, idade na avaliação, sexo cadastral atual e os metadados persistidos da decisão clínica de sexo;
 7. não persiste resultados derivados.
 
 O backend não mantém uma fórmula clínica paralela à definição aprovada. Alterar uma equação em uma nova versão aprovada altera o cálculo executado, enquanto avaliações já concluídas continuam preservadas por seu snapshot.
+
+A origem `profile` só é válida quando há sexo cadastral masculino ou feminino e ele coincide exatamente com o sexo de referência do protocolo. Cadastro ausente ou `other` exige `professional_confirmation`; divergência exige `professional_override` com justificativa. Essas regras são reavaliadas em toda prévia e novamente na conclusão.
 
 Alertas de capacidade são determinados pelos limites do protocolo aprovado. Na versão Guedes atual, uma dobra entre `45,1` e `80,0 mm` exige confirmação do profissional. A confirmação e sua autoria são gravadas dentro da mesma transação serializável do cálculo e somente quando não existe outro erro bloqueante. Se o cálculo ou qualquer persistência falhar, a confirmação não permanece registrada.
 
 ## Conclusão
 
-A conclusão ocorre em transação serializável. A API bloqueia o rascunho e a aprovação clínica ativa, executa novamente o contrato clínico aprovado e persiste o snapshot final na mesma transação.
+A conclusão ocorre em transação serializável. A API bloqueia o rascunho, a aprovação clínica ativa e as fontes cadastrais autoritativas do aluno, executa novamente o contrato clínico aprovado e persiste o snapshot final na mesma transação.
 
-`inputFingerprint` é obrigatório. Ele deve coincidir com a prévia atual; sua ausência retorna `ADIPOMETRY_PREVIEW_REQUIRED`. Alteração de medida, data, decisão de sexo, protocolo, versão, aprovação ou confirmação invalida a prévia anterior e retorna `ADIPOMETRY_PREVIEW_INVALIDATED`.
+`inputFingerprint` é obrigatório. Ele deve coincidir com a prévia atual; sua ausência retorna `ADIPOMETRY_PREVIEW_REQUIRED`. Alteração de medida, data, decisão de sexo, protocolo, versão, aprovação, confirmação, data de nascimento, idade calculada ou sexo cadastral invalida a prévia anterior e retorna `ADIPOMETRY_PREVIEW_INVALIDATED`.
+
+O snapshot final preserva a autoria, o instante e o sexo cadastral registrados quando a decisão clínica foi confirmada. O profissional que apenas calcula ou conclui posteriormente não substitui o autor original da decisão.
 
 Repetir a conclusão da mesma revisão já finalizada devolve o registro existente sem produzir outra avaliação.
 
@@ -87,13 +91,13 @@ Essas informações apoiam conferência e reaproveitamento consciente pela inter
 
 ## Erros públicos
 
-As respostas seguem o envelope padrão de `sendSuccess` e `sendError`.
+As respostas seguem o envelope padrão de `sendSuccess` e `sendError`. Uma fronteira pública montada antes dos middlewares legados normaliza também falhas de autenticação, elegibilidade profissional e controle de acesso, garantindo `details.code` estável sem expor mensagens internas.
 
 - `400`: payload, data, precisão ou regra de entrada inválida;
-- `401`: autenticação ausente ou inválida;
-- `403`: tela ou bloco de acesso negado;
-- `404`: recurso inexistente, pertencente a outro contrato ou ator profissional que deixou de ser elegível, sem distinção observável;
+- `401`: autenticação ausente ou inválida, com `ADIPOMETRY_AUTHENTICATION_REQUIRED`;
+- `403`: tela ou bloco de acesso negado, com `ADIPOMETRY_ACCESS_DENIED`;
+- `404`: recurso inexistente, pertencente a outro contrato ou ator profissional que deixou de ser elegível, sem distinção observável e com `ADIPOMETRY_RESOURCE_NOT_FOUND`;
 - `409`: prévia ausente ou invalidada, estado concorrente, aprovação ausente/revogada ou transição histórica inválida;
-- `500`: falha inesperada sanitizada, com `correlationId` quando disponível.
+- `500`: falha inesperada sanitizada, com `ADIPOMETRY_UNEXPECTED_ERROR` e `correlationId`.
 
-Mensagens brutas do PostgreSQL ou Prisma não são devolvidas ao consumidor.
+Mensagens brutas do PostgreSQL, Prisma ou middlewares legados não são devolvidas ao consumidor.
