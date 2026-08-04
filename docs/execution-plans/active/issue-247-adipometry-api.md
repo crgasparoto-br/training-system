@@ -59,6 +59,8 @@ pnpm validate
 
 Os testes focados cobrem vetores canônicos masculino e feminino, limites de idade, precisão, alerta de capacidade, decisão de sexo, invalidação de fingerprint, sanitização do erro `P2034` e presets de acesso. O harness PostgreSQL da API também exerce numeração concorrente, sequência acima de 999, rollback de finalização, duas conclusões simultâneas sem efeitos duplicados, imutabilidade, correção, ordenação estável, isolamento entre contratos e a matriz HTTP negativa para ausência de autenticação, papel incorreto, falta de leitura, falta de gestão e falta da permissão específica de correção.
 
+A validação remota foi concluída no SHA `2574fe02a92cf641e934b0f8e83fec89ec62e258` pelo workflow `Validate PR`, run `30871018964`, com migrations, invariantes PostgreSQL, type-check, lint, testes, build, arquitetura, catálogo de acessos e documentação aprovados. O workflow transversal `Issue 275 Pre-registration QA`, run `30871018974`, também foi aprovado no mesmo SHA.
+
 ## Validação manual
 
 1. Autorizar um contrato com protocolo clínico ativo.
@@ -84,6 +86,5 @@ Os testes focados cobrem vetores canônicos masculino e feminino, limites de ida
 
 ## Pendências de entrega
 
-- executar a suíte remota no SHA congelado;
 - mover este plano para `completed/` após aprovação e merge;
 - realizar auditoria independente antes de aprovação operacional final.
