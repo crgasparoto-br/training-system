@@ -427,6 +427,7 @@ describe('issue 247 audit remediations on PostgreSQL', () => {
   expect(new Set(observedOrders[0])).toEqual(tiedAssessmentIds);
 
     const token = suffix();
+    const assessmentDate = new Date('2026-08-03T00:00:00.000Z');
     const [anthropometryA, anthropometryB] = await Promise.all([
       prisma.anthropometryAssessment.create({
         data: {
@@ -435,7 +436,7 @@ describe('issue 247 audit remediations on PostgreSQL', () => {
           alunoId: fixture.alunoId,
           professorId: fixture.professorId,
           code: `ANT-A-${token}`,
-          assessmentDate: tiedAt,
+          assessmentDate,
           createdAt: tiedAt,
         },
       }),
@@ -446,7 +447,7 @@ describe('issue 247 audit remediations on PostgreSQL', () => {
           alunoId: fixture.alunoId,
           professorId: fixture.professorId,
           code: `ANT-B-${token}`,
-          assessmentDate: tiedAt,
+          assessmentDate,
           createdAt: tiedAt,
         },
       }),
