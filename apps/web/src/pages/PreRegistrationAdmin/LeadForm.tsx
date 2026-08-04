@@ -5,32 +5,17 @@ import { Link } from 'react-router-dom';
 import { Button } from '../../components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
+import {
+  EMPTY_LEAD_FORM_VALUES,
+  formatLeadFieldValue,
+  normalizeLeadFieldOnBlur,
+  normalizeLeadFormValues,
+  validateLeadFormValues,
+  type LeadFormErrors,
+  type LeadFormValues,
+} from './lead-form.validation';
 
-export interface LeadFormValues {
-  name: string;
-  phone: string;
-  additionalPhone: string;
-  email: string;
-  additionalEmail: string;
-  cpf: string;
-  origin: string;
-  responsibleProfessorId: string;
-  commercialNotes: string;
-  unit: string;
-}
-
-const EMPTY_VALUES: LeadFormValues = {
-  name: '',
-  phone: '',
-  additionalPhone: '',
-  email: '',
-  additionalEmail: '',
-  cpf: '',
-  origin: '',
-  responsibleProfessorId: '',
-  commercialNotes: '',
-  unit: '',
-};
+export type { LeadFormValues } from './lead-form.validation';
 
 export function LeadForm({
   title,
@@ -55,22 +40,39 @@ export function LeadForm({
   onSubmit: (values: LeadFormValues) => Promise<void>;
   onIdentityChange?: () => void;
 }) {
-  const [values, setValues] = useState<LeadFormValues>({ ...EMPTY_VALUES, ...initialValues });
+  const [values, setValues] = useState<LeadFormValues>(() =>
+    normalizeLeadFormValues({ ...EMPTY_LEAD_FORM_VALUES, ...initialValues })
+  );
+  const [fieldErrors, setFieldErrors] = useState<LeadFormErrors>({});
 
-  const update = (field: keyof LeadFormValues, value: string) => {
+  const update = (field: keyof LeadFormValues, rawValue: string) => {
+    const value = formatLeadFieldValue(field, rawValue);
     setValues((current) => ({ ...current, [field]: value }));
+    setFieldErrors((current) => ({ ...current, [field]: undefined }));
     if (['name', 'phone', 'additionalPhone', 'email', 'additionalEmail', 'cpf'].includes(field)) {
       onIdentityChange?.();
     }
   };
 
+  const normalizeField = (field: keyof LeadFormValues) => {
+    setValues((current) => ({
+      ...current,
+      [field]: normalizeLeadFieldOnBlur(field, current[field]),
+    }));
+  };
+
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    await onSubmit(values);
+    const normalizedValues = normalizeLeadFormValues(values);
+    const validationErrors = validateLeadFormValues(normalizedValues);
+    setValues(normalizedValues);
+    setFieldErrors(validationErrors);
+    if (Object.keys(validationErrors).length > 0) return;
+    await onSubmit(normalizedValues);
   };
 
   return (
-    <form onSubmit={submit} className="space-y-6">
+    <form onSubmit={submit} className="space-y-6" noValidate>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-sm font-medium text-muted-foreground">Gestão comercial</p>
@@ -93,34 +95,84 @@ export function LeadForm({
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
-          <label className="space-y-2 md:col-span-2">
-            <span className="text-sm font-medium">Nome completo *</span>
-            <Input value={values.name} onChange={(event) => update('name', event.target.value)} required />
-          </label>
-          <label className="space-y-2">
-            <span className="text-sm font-medium">Telefone</span>
-            <Input value={values.phone} onChange={(event) => update('phone', event.target.value)} placeholder="(15) 99999-9999" />
-          </label>
-          <label className="space-y-2">
-            <span className="text-sm font-medium">Telefone adicional</span>
-            <Input value={values.additionalPhone} onChange={(event) => update('additionalPhone', event.target.value)} placeholder="Outro telefone para contato" />
-          </label>
-          <label className="space-y-2">
-            <span className="text-sm font-medium">E-mail</span>
-            <Input type="email" value={values.email} onChange={(event) => update('email', event.target.value)} placeholder="nome@exemplo.com" />
-          </label>
-          <label className="space-y-2">
-            <span className="text-sm font-medium">E-mail adicional</span>
-            <Input type="email" value={values.additionalEmail} onChange={(event) => update('additionalEmail', event.target.value)} placeholder="Outro e-mail para contato" />
-          </label>
-          <label className="space-y-2">
-            <span className="text-sm font-medium">CPF</span>
-            <Input value={values.cpf} onChange={(event) => update('cpf', event.target.value)} placeholder="000.000.000-00" />
-          </label>
-          <label className="space-y-2">
-            <span className="text-sm font-medium">Origem *</span>
-            <Input value={values.origin} onChange={(event) => update('origin', event.target.value)} placeholder="Indicação, campanha, recepção..." required />
-          </label>
+          <div className="md:col-span-2">
+            <Input
+              label="Nome completo"
+              value={values.name}
+              onChange={(event) => update('name', event.target.value)}
+              onBlur={() => normalizeField('name')}
+              autoComplete="name"
+              required
+              error={fieldErrors.name}
+            />
+          </div>
+          <Input
+            label="Telefone"
+            value={values.phone}
+            onChange={(event) => update('phone', event.target.value)}
+            onBlur={() => normalizeField('phone')}
+            placeholder="(15) 99999-9999"
+            inputMode="tel"
+            autoComplete="tel"
+            maxLength={16}
+            error={fieldErrors.phone}
+          />
+          <Input
+            label="Telefone adicional"
+            value={values.additionalPhone}
+            onChange={(event) => update('additionalPhone', event.target.value)}
+            onBlur={() => normalizeField('additionalPhone')}
+            placeholder="(15) 99999-9999"
+            inputMode="tel"
+            maxLength={16}
+            error={fieldErrors.additionalPhone}
+          />
+          <Input
+            label="E-mail"
+            type="email"
+            value={values.email}
+            onChange={(event) => update('email', event.target.value)}
+            onBlur={() => normalizeField('email')}
+            placeholder="nome@exemplo.com"
+            inputMode="email"
+            autoComplete="email"
+            autoCapitalize="none"
+            spellCheck={false}
+            maxLength={254}
+            error={fieldErrors.email}
+          />
+          <Input
+            label="E-mail adicional"
+            type="email"
+            value={values.additionalEmail}
+            onChange={(event) => update('additionalEmail', event.target.value)}
+            onBlur={() => normalizeField('additionalEmail')}
+            placeholder="outro@exemplo.com"
+            inputMode="email"
+            autoCapitalize="none"
+            spellCheck={false}
+            maxLength={254}
+            error={fieldErrors.additionalEmail}
+          />
+          <Input
+            label="CPF"
+            value={values.cpf}
+            onChange={(event) => update('cpf', event.target.value)}
+            onBlur={() => normalizeField('cpf')}
+            placeholder="000.000.000-00"
+            inputMode="numeric"
+            maxLength={14}
+            error={fieldErrors.cpf}
+          />
+          <Input
+            label="Origem"
+            value={values.origin}
+            onChange={(event) => update('origin', event.target.value)}
+            onBlur={() => normalizeField('origin')}
+            placeholder="Indicação, campanha, recepção..."
+            required
+            error={fieldErrors.origin}
+          />
         </CardContent>
       </Card>
 
@@ -145,16 +197,20 @@ export function LeadForm({
               ))}
             </select>
           </label>
-          <label className="space-y-2">
-            <span className="text-sm font-medium">Unidade</span>
-            <Input value={values.unit} onChange={(event) => update('unit', event.target.value)} placeholder="Unidade ou local de atendimento" />
-          </label>
+          <Input
+            label="Unidade"
+            value={values.unit}
+            onChange={(event) => update('unit', event.target.value)}
+            onBlur={() => normalizeField('unit')}
+            placeholder="Unidade ou local de atendimento"
+          />
           <label className="space-y-2 md:col-span-2">
             <span className="text-sm font-medium">Observações comerciais</span>
             <textarea
               className="ts-form-control min-h-28 resize-y"
               value={values.commercialNotes}
               onChange={(event) => update('commercialNotes', event.target.value)}
+              onBlur={() => normalizeField('commercialNotes')}
               placeholder="Registre contexto de contato, interesse e próximos combinados."
             />
           </label>
@@ -170,7 +226,7 @@ export function LeadForm({
       )}
 
       <div className="flex justify-end">
-        <Button type="submit" isLoading={submitting} loadingText="Salvando...">
+        <Button type="submit" isLoading={submitting} loadingText="Salvando..." disabled={submitting}>
           <Save className="h-4 w-4" aria-hidden="true" />
           {submitLabel}
         </Button>
