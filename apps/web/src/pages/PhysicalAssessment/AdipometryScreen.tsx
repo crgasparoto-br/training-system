@@ -1,8 +1,9 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import type {
   AdipometryAssessmentDetail,
   AdipometryCorrectionCategory,
+  AdipometryResponsibleProfessor,
 } from '@corrida/types';
 import { canAccessBlock } from '../../access/access-control';
 import { adipometryService } from '../../services/adipometry.service';
@@ -11,6 +12,7 @@ import { AdipometryScreenOverlays } from './AdipometryScreenOverlays';
 import { AdipometryView } from './AdipometryView';
 import {
   adipometryProtocolKey,
+  type AdipometryFormState,
   type AdipometrySkinfoldHelp,
 } from './adipometry-ui';
 import { adipometryFormFromAssessment, buildAdipometryDraftPayload, readAdipometryApiError } from './adipometry-screen-utils';
@@ -38,34 +40,80 @@ export function AdipometryScreen() {
   const [correctionCategory, setCorrectionCategory] = useState<AdipometryCorrectionCategory>('DATA_ENTRY_ERROR');
   const [correctionReason, setCorrectionReason] = useState('');
   const [cancelReason, setCancelReason] = useState('');
+  const [responsibleProfessors, setResponsibleProfessors] = useState<AdipometryResponsibleProfessor[]>([]);
+  const [selectedResponsibleProfessorId, setSelectedResponsibleProfessorId] = useState('');
   const canManage = canAccessBlock(user, 'physicalAssessment.adpt.actions.manage');
   const canCorrect = canAccessBlock(user, 'physicalAssessment.adpt.actions.correctCompleted');
   const isCorrectionDraft = Boolean(current && current.revisionStatus === 'DRAFT' && current.revisionNumber > 1);
   const canMutate = canManage || (isCorrectionDraft && canCorrect);
-  const responsibleName = user?.name ?? '';
+  const defaultResponsibleProfessorId = user?.professor?.id ?? '';
+
+  useEffect(() => {
+    if (!canView) return;
+    let cancelled = false;
+    void adipometryService.listResponsibleProfessors()
+      .then((items) => {
+        if (!cancelled) setResponsibleProfessors(items);
+      })
+      .catch((loadError: unknown) => {
+        if (!cancelled) setError(readAdipometryApiError(loadError).message);
+      });
+    return () => { cancelled = true; };
+  }, [canView, setError]);
+
+  useEffect(() => {
+    if (current?.professorId) {
+      setSelectedResponsibleProfessorId(current.professorId);
+      return;
+    }
+    setSelectedResponsibleProfessorId((previous) => {
+      if (previous && responsibleProfessors.some((item) => item.id === previous)) return previous;
+      return responsibleProfessors.some((item) => item.id === defaultResponsibleProfessorId)
+        ? defaultResponsibleProfessorId
+        : '';
+    });
+  }, [current?.professorId, defaultResponsibleProfessorId, responsibleProfessors]);
 
   const handleAluno = (id: string) => {
     if (lockedAlunoId) return;
     setSelectedAlunoId(id);
     const next = new URLSearchParams(searchParams);
-    if (id) next.set('alunoId', id); else next.delete('alunoId');
+    next.delete('alunoId');
     next.delete('assessmentId');
     setSearchParams(next);
   };
 
   const handleOpen = (id: string) => {
     const next = new URLSearchParams(searchParams);
-    if (selectedAlunoId) next.set('alunoId', selectedAlunoId);
+    if (lockedAlunoId) next.set('alunoId', lockedAlunoId);
+    else next.delete('alunoId');
     next.set('assessmentId', id);
     setSearchParams(next);
   };
 
+  const handleFormField = <K extends keyof AdipometryFormState>(
+    field: K,
+    value: AdipometryFormState[K]
+  ) => {
+    setCapacityWarningConfirmed(false);
+    setFormField(field, value);
+  };
+
+  const handleMeasurement = (field: Parameters<typeof setMeasurement>[0], value: string) => {
+    setCapacityWarningConfirmed(false);
+    setMeasurement(field, value);
+  };
+
   const handleCreate = async () => {
-    if (!selectedAlunoId) return;
+    if (!selectedAlunoId || !selectedResponsibleProfessorId) return;
     setBusy(true);
     resetMessages();
     try {
-      const created = await adipometryService.createDraft(selectedAlunoId, { assessmentDate: form.assessmentDate });
+      const created = await adipometryService.createDraft(
+        selectedAlunoId,
+        { assessmentDate: form.assessmentDate },
+        selectedResponsibleProfessorId
+      );
       setSuccess('Rascunho criado. Continue a coleta e salve antes de calcular.');
       handleOpen(created.id);
     } catch (createError) {
@@ -148,6 +196,7 @@ export function AdipometryScreen() {
       setCurrent(result.assessment);
       setForm(adipometryFormFromAssessment(result.assessment));
       setPreview(null);
+      setCapacityWarningConfirmed(false);
       setDirty(false);
       setSuccess(result.alreadyFinalized ? 'A avaliação já estava concluída.' : 'Avaliação concluída com sucesso.');
       setRefreshToken((value) => value + 1);
@@ -155,7 +204,7 @@ export function AdipometryScreen() {
       const parsed = readAdipometryApiError(finalizeError);
       if (parsed.status === 409) {
         setConflict(true);
-        setError('A prévia foi invalidada ou o rascunho mudou. Reconcile os dados e calcule novamente.');
+        setError('A prévia foi invalidada ou o rascunho mudou. Reconcilie os dados e calcule novamente.');
       } else setError(parsed.message);
     } finally {
       setBusy(false);
@@ -193,6 +242,7 @@ export function AdipometryScreen() {
       setSuccess('Correção cancelada e preservada no histórico.');
       const next = new URLSearchParams(searchParams);
       next.delete('assessmentId');
+      if (!lockedAlunoId) next.delete('alunoId');
       setSearchParams(next);
       setRefreshToken((value) => value + 1);
     } catch (cancelError) {
@@ -210,6 +260,7 @@ export function AdipometryScreen() {
       setCurrent(server);
       setForm(adipometryFormFromAssessment(server));
       setPreview(null);
+      setCapacityWarningConfirmed(false);
       setDirty(false);
       setConflict(false);
       setError(null);
@@ -227,6 +278,7 @@ export function AdipometryScreen() {
       const server = await adipometryService.getAssessment(current.id);
       setCurrent(server);
       setPreview(null);
+      setCapacityWarningConfirmed(false);
       setDirty(true);
       setConflict(false);
       setError(null);
@@ -240,6 +292,10 @@ export function AdipometryScreen() {
 
   const selectedAluno = alunos.find((item) => item.id === selectedAlunoId);
   const selectedProtocol = protocols.find((item) => adipometryProtocolKey(item) === form.protocolKey);
+  const selectedResponsible = responsibleProfessors.find(
+    (item) => item.id === selectedResponsibleProfessorId
+  );
+  const responsibleName = selectedResponsible?.name ?? 'Responsável não disponível';
 
   return (
     <>
@@ -250,6 +306,8 @@ export function AdipometryScreen() {
         current={current}
         assessments={assessments}
         protocols={protocols}
+        responsibleProfessors={responsibleProfessors}
+        selectedResponsibleProfessorId={selectedResponsibleProfessorId}
         form={form}
         preview={preview}
         support={support}
@@ -267,8 +325,9 @@ export function AdipometryScreen() {
         responsibleName={responsibleName}
         capacityWarningConfirmed={capacityWarningConfirmed}
         onAluno={handleAluno}
-        onForm={setFormField}
-        onMeasurement={setMeasurement}
+        onResponsible={setSelectedResponsibleProfessorId}
+        onForm={handleFormField}
+        onMeasurement={handleMeasurement}
         onHelp={setHelp}
         onCreate={() => void handleCreate()}
         onSave={() => void saveDraft(false)}

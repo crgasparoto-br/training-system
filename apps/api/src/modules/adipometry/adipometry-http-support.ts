@@ -60,7 +60,10 @@ export function mapAdipometryPersistenceError(error: unknown): AdipometryService
       );
     }
   }
-  if (message.includes('ADIPOMETRY_ACTOR_CROSS_TENANT_OR_INACTIVE')) {
+  if (
+    message.includes('ADIPOMETRY_ACTOR_CROSS_TENANT_OR_INACTIVE')
+    || message.includes('ADIPOMETRY_RESPONSIBLE_NOT_AVAILABLE')
+  ) {
     return new AdipometryServiceError(
       'Avaliação não encontrada.',
       'ADIPOMETRY_RESOURCE_NOT_FOUND',

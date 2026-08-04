@@ -2,7 +2,7 @@ import type {
   AdipometryAssessmentDetail,
   AdipometryInputField,
   AdipometryProtocolSexSource,
-  UpdateAdipometryDraftInput,
+  UpdateAdipometryDraftWithClearInput,
 } from '@corrida/types';
 import {
   ADIPOMETRY_INPUTS,
@@ -61,7 +61,6 @@ export function parseAdipometryProtocolKey(value: string) {
     : null;
 }
 
-
 export function buildAdipometryDraftPayload({
   form,
   current,
@@ -71,19 +70,12 @@ export function buildAdipometryDraftPayload({
   current: AdipometryAssessmentDetail | null;
   isCorrectionDraft: boolean;
 }): {
-  payload?: UpdateAdipometryDraftInput;
+  payload?: UpdateAdipometryDraftWithClearInput;
   fieldErrors: Partial<Record<AdipometryInputField, string>>;
   message?: string;
 } {
   const built = buildAdipometryMeasurements(form.measurements);
   const fieldErrors = { ...built.errors };
-  if (current) {
-    for (const input of ADIPOMETRY_INPUTS) {
-      if (current.measurements[input.field] !== undefined && !form.measurements[input.field].trim()) {
-        fieldErrors[input.field] = 'A API atual não permite apagar uma medida já persistida. Corrija o valor ou inicie nova avaliação.';
-      }
-    }
-  }
   if (Object.keys(fieldErrors).length) {
     return { fieldErrors, message: 'Revise os campos destacados antes de salvar.' };
   }
@@ -93,6 +85,18 @@ export function buildAdipometryDraftPayload({
   if (form.protocolSexSource === 'professional_override' && form.protocolSexOverrideReason.trim().length < 5) {
     return { fieldErrors, message: 'Explique a divergência do sexo de referência com pelo menos 5 caracteres.' };
   }
+
+  const measurements: Partial<Record<AdipometryInputField, number | null>> = {
+    ...built.measurements,
+  };
+  if (current) {
+    for (const input of ADIPOMETRY_INPUTS) {
+      if (current.measurements[input.field] !== undefined && !form.measurements[input.field].trim()) {
+        measurements[input.field] = null;
+      }
+    }
+  }
+
   const protocol = parseAdipometryProtocolKey(form.protocolKey);
   const protocolChanged = Boolean(
     current?.protocolCode && protocol &&
@@ -102,7 +106,7 @@ export function buildAdipometryDraftPayload({
     fieldErrors,
     payload: {
       assessmentDate: form.assessmentDate,
-      measurements: built.measurements,
+      measurements,
       ...(form.protocolSex ? { protocolSex: form.protocolSex } : {}),
       ...(form.protocolSexSource ? { protocolSexSource: form.protocolSexSource as AdipometryProtocolSexSource } : {}),
       protocolSexOverrideReason: form.protocolSexOverrideReason.trim() || null,

@@ -1,6 +1,7 @@
 import { CheckCircle2, History } from 'lucide-react';
 import type {
   AdipometryAssessmentDetail,
+  AdipometryAssessmentStatus,
   AdipometryAssessmentSummary,
   AdipometryCalculationPreview,
 } from '@corrida/types';
@@ -23,6 +24,17 @@ function dateLabel(value?: string) {
 
 function numberLabel(value: number | undefined, unit: string) {
   return value === undefined ? '—' : `${String(value).replace('.', ',')} ${unit}`;
+}
+
+export function adipometryRevisionStatusLabel(status: AdipometryAssessmentStatus): string {
+  const labels: Record<AdipometryAssessmentStatus, string> = {
+    DRAFT: 'Rascunho',
+    FINALIZED: 'Concluída',
+    SUPERSEDED: 'Substituída',
+    CANCELLED: 'Cancelada',
+    VOIDED: 'Invalidada',
+  };
+  return labels[status];
 }
 
 export function messageClass(tone: 'error' | 'success' | 'warning') {
@@ -174,7 +186,7 @@ export function HistoryPanel({
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2"><History className="h-5 w-5" aria-hidden="true" />Histórico</CardTitle>
-        <CardDescription>Rascunhos e revisões atuais do aluno.</CardDescription>
+        <CardDescription>Rascunhos e revisões do aluno.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
         {assessments.length ? assessments.map((item) => (
@@ -186,7 +198,7 @@ export function HistoryPanel({
           >
             <span className="flex items-center justify-between gap-2">
               <span className="font-semibold">{item.code} · R{item.revisionNumber}</span>
-              <span className="text-xs text-muted-foreground">{item.revisionStatus === 'FINALIZED' ? 'Concluída' : 'Rascunho'}</span>
+              <span className="text-xs text-muted-foreground">{adipometryRevisionStatusLabel(item.revisionStatus)}</span>
             </span>
             <span className="mt-1 block text-xs text-muted-foreground">{dateLabel(item.assessmentDate)} · {item.protocolCode ? `${item.protocolCode} v${item.protocolVersion}` : 'protocolo pendente'}</span>
           </button>
@@ -195,4 +207,3 @@ export function HistoryPanel({
     </Card>
   );
 }
-

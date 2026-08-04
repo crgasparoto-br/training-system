@@ -11,13 +11,14 @@ import type {
   AdipometryCalculationPreview,
   AdipometryInputField,
   AdipometryProtocolSummary,
+  AdipometryResponsibleProfessor,
 } from '@corrida/types';
 import { Button } from '../../components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/Card';
 import type { Aluno } from '../../services/aluno.service';
 import type { AdipometryAnthropometrySupport } from '../../services/adipometry.service';
 import type { AdipometryFormState, AdipometrySkinfoldHelp } from './adipometry-ui';
-import { StepStrip, messageClass, nav } from './AdipometryViewSections';
+import { StepStrip, adipometryRevisionStatusLabel, messageClass, nav } from './AdipometryViewSections';
 import { AdipometryEditor } from './AdipometryEditor';
 
 export interface AdipometryViewProps {
@@ -27,6 +28,8 @@ export interface AdipometryViewProps {
   current: AdipometryAssessmentDetail | null;
   assessments: AdipometryAssessmentSummary[];
   protocols: AdipometryProtocolSummary[];
+  responsibleProfessors: AdipometryResponsibleProfessor[];
+  selectedResponsibleProfessorId: string;
   form: AdipometryFormState;
   preview: AdipometryCalculationPreview | null;
   support: AdipometryAnthropometrySupport | null;
@@ -44,6 +47,7 @@ export interface AdipometryViewProps {
   responsibleName: string;
   capacityWarningConfirmed: boolean;
   onAluno: (id: string) => void;
+  onResponsible: (id: string) => void;
   onForm: <K extends keyof AdipometryFormState>(field: K, value: AdipometryFormState[K]) => void;
   onMeasurement: (field: AdipometryInputField, value: string) => void;
   onHelp: (item: AdipometrySkinfoldHelp) => void;
@@ -59,15 +63,35 @@ export interface AdipometryViewProps {
   onCapacityWarning: (checked: boolean) => void;
 }
 
+export function responsibleProfessorOptionLabel({
+  currentProfessorId,
+  responsibleProfessors,
+}: {
+  currentProfessorId?: string;
+  responsibleProfessors: AdipometryResponsibleProfessor[];
+}): string | null {
+  if (!currentProfessorId) return null;
+  return responsibleProfessors.some((item) => item.id === currentProfessorId)
+    ? null
+    : 'Responsável histórico indisponível';
+}
+
 export function AdipometryView(props: AdipometryViewProps) {
   const {
-    lockedAlunoId, alunos, selectedAlunoId, current, assessments, protocols, form, preview, support,
-    fieldErrors, loading, busy, dirty, conflict, error, success, supportError, canView, canMutate,
-    canCorrect, responsibleName, capacityWarningConfirmed,
+    lockedAlunoId, alunos, selectedAlunoId, current, assessments, protocols,
+    responsibleProfessors, selectedResponsibleProfessorId, form, preview, support,
+    fieldErrors, loading, busy, dirty, conflict, error, success, supportError, canView,
+    canMutate, canCorrect, responsibleName, capacityWarningConfirmed,
   } = props;
   const selectedAluno = alunos.find((item) => item.id === selectedAlunoId);
   const readOnly = !current || current.status !== 'DRAFT' || current.revisionStatus !== 'DRAFT' || !canMutate;
-  const navTo = (slug: string) => selectedAlunoId ? `/protocolo-avaliacao-fisica/${slug}?alunoId=${selectedAlunoId}` : `/protocolo-avaliacao-fisica/${slug}`;
+  const navTo = (slug: string) => selectedAlunoId
+    ? `/protocolo-avaliacao-fisica/${slug}?alunoId=${selectedAlunoId}`
+    : `/protocolo-avaliacao-fisica/${slug}`;
+  const historicalResponsibleLabel = responsibleProfessorOptionLabel({
+    currentProfessorId: current?.professorId,
+    responsibleProfessors,
+  });
 
   if (!canView) {
     return <div role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 p-5 text-sm text-destructive">Seu perfil não possui permissão para consultar avaliações ADPT.</div>;
@@ -112,7 +136,7 @@ export function AdipometryView(props: AdipometryViewProps) {
       <Card>
         <CardHeader>
           <CardTitle>Aluno e avaliação</CardTitle>
-          <CardDescription>O professor responsável e o contrato são derivados da sessão autenticada.</CardDescription>
+          <CardDescription>O ator vem da sessão autenticada; o responsável clínico deve estar ativo no mesmo contrato.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_180px_minmax(0,1fr)_auto]">
           <div>
@@ -127,13 +151,36 @@ export function AdipometryView(props: AdipometryViewProps) {
             <input id="adpt-date" type="date" value={form.assessmentDate} disabled={readOnly && Boolean(current)} onChange={(event) => props.onForm('assessmentDate', event.target.value)} className="h-11 w-full rounded-lg border border-input bg-card px-4 text-sm disabled:bg-muted" />
           </div>
           <div>
-            <p className="mb-2 text-sm font-medium">Responsável</p>
-            <div className="flex h-11 items-center rounded-lg border border-border bg-muted/20 px-4 text-sm">{responsibleName || current?.professorId || 'Professor autenticado'}</div>
+            <label htmlFor="adpt-responsible" className="mb-2 block text-sm font-medium">Responsável *</label>
+            <select
+              id="adpt-responsible"
+              value={selectedResponsibleProfessorId}
+              disabled={Boolean(current) || !canMutate}
+              onChange={(event) => props.onResponsible(event.target.value)}
+              className="h-11 w-full rounded-lg border border-input bg-card px-4 text-sm disabled:bg-muted"
+            >
+              <option value="">Selecione um professor ativo</option>
+              {historicalResponsibleLabel && current?.professorId ? (
+                <option value={current.professorId}>{historicalResponsibleLabel}</option>
+              ) : null}
+              {responsibleProfessors.map((professor) => (
+                <option key={professor.id} value={professor.id}>{professor.name}</option>
+              ))}
+            </select>
+            {current ? <p className="mt-1 text-xs text-muted-foreground">Responsável registrado: {responsibleName}</p> : null}
           </div>
           <div className="flex items-end">
-            <Button type="button" onClick={props.onCreate} disabled={!selectedAlunoId || !canMutate || busy}><Plus className="h-4 w-4" aria-hidden="true" />Nova avaliação</Button>
+            <Button type="button" onClick={props.onCreate} disabled={!selectedAlunoId || !selectedResponsibleProfessorId || !canMutate || busy}><Plus className="h-4 w-4" aria-hidden="true" />Nova avaliação</Button>
           </div>
         </CardContent>
+        {current ? (
+          <CardContent className="border-t border-border pt-4">
+            <dl className="grid gap-3 text-sm sm:grid-cols-2">
+              <div><dt className="text-xs text-muted-foreground">Código</dt><dd className="font-semibold">{current.code}</dd></div>
+              <div><dt className="text-xs text-muted-foreground">Estado</dt><dd className="font-semibold">{adipometryRevisionStatusLabel(current.revisionStatus)}</dd></div>
+            </dl>
+          </CardContent>
+        ) : null}
       </Card>
 
       <AdipometryEditor

@@ -44,9 +44,9 @@ export function AdipometryScreenOverlays({
       {help ? <SkinfoldHelpDialog item={help} onClose={onHelpClose} /> : null}
       {showFinalize && current && preview?.results ? (
         <FinalizeDialog
-          studentName={selectedAluno?.user.profile.name ?? current.alunoId}
+          studentName={selectedAluno?.user.profile.name ?? 'Aluno não disponível'}
           date={current.assessmentDate}
-          responsible={responsibleName || current.professorId}
+          responsible={responsibleName}
           protocol={selectedProtocol ? `${selectedProtocol.name} · ${selectedProtocol.code} v${selectedProtocol.version}` : `${current.protocolCode ?? 'Protocolo'} v${current.protocolVersion ?? '—'}`}
           results={preview.results}
           busy={busy}

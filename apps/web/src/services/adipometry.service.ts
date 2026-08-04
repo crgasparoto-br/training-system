@@ -5,9 +5,10 @@ import type {
   AdipometryCalculationPreviewRequest,
   AdipometryCorrectionCategory,
   AdipometryProtocolSummary,
+  AdipometryResponsibleProfessor,
   CompleteAdipometryAssessmentInput,
   CreateAdipometryDraftInput,
-  UpdateAdipometryDraftInput,
+  UpdateAdipometryDraftWithClearInput,
 } from '@corrida/types';
 import api from './api';
 
@@ -48,6 +49,10 @@ export interface AdipometryFinalizeResult {
 }
 
 export const adipometryService = {
+  async listResponsibleProfessors(): Promise<AdipometryResponsibleProfessor[]> {
+    return unwrap(await api.get('/adipometry/responsible-professors'));
+  },
+
   async listProtocols(alunoId: string, assessmentDate: string): Promise<AdipometryProtocolSummary[]> {
     return unwrap(
       await api.get('/adipometry/protocols/available', {
@@ -81,16 +86,22 @@ export const adipometryService = {
 
   async createDraft(
     alunoId: string,
-    payload: CreateAdipometryDraftInput
+    payload: CreateAdipometryDraftInput,
+    responsibleProfessorId: string
   ): Promise<AdipometryAssessmentDetail> {
-    return unwrap(await api.post(`/adipometry/alunos/${alunoId}/assessments`, payload));
+    return unwrap(
+      await api.post(`/adipometry/alunos/${alunoId}/assessments/with-responsible`, {
+        ...payload,
+        responsibleProfessorId,
+      })
+    );
   },
 
   async updateDraft(
     assessmentId: string,
-    payload: UpdateAdipometryDraftInput
+    payload: UpdateAdipometryDraftWithClearInput
   ): Promise<AdipometryAssessmentDetail> {
-    return unwrap(await api.put(`/adipometry/assessments/${assessmentId}`, payload));
+    return unwrap(await api.put(`/adipometry/assessments/${assessmentId}/draft`, payload));
   },
 
   async calculate(
