@@ -15,10 +15,10 @@ export function preRegistrationErrorMessage(error: unknown, fallback: string): s
   const data = value.response?.data;
 
   if (data?.error === 'PRE_REGISTRATION_INTERNAL_ERROR') {
-    const reference = data.correlationId
-      ? ` Código de atendimento: ${data.correlationId}.`
-      : '';
-    return `${fallback} Tente novamente e, se o problema continuar, informe este código à equipe.${reference}`;
+    if (data.correlationId) {
+      return `${fallback} Tente novamente e, se o problema continuar, informe o código de atendimento ${data.correlationId} à equipe.`;
+    }
+    return `${fallback} Tente novamente e, se o problema continuar, procure a equipe responsável.`;
   }
 
   if (data?.message && /^[A-Z0-9_]+$/.test(data.error || '')) {
