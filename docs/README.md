@@ -96,7 +96,6 @@ Registros concluidos preservados:
 - [`execution-plans/completed/2026-07-epic-172-completion-assessment.md`](execution-plans/completed/2026-07-epic-172-completion-assessment.md)
 - [`execution-plans/completed/2026-07-prnt-followup-implementation-plan.md`](execution-plans/completed/2026-07-prnt-followup-implementation-plan.md)
 - [`execution-plans/completed/2026-07-issue-273-canonical-parq.md`](execution-plans/completed/2026-07-issue-273-canonical-parq.md)
-- [`execution-plans/completed/issue-248-adipometry-guided-web.md`](execution-plans/completed/issue-248-adipometry-guided-web.md)
 
 ## Regras de manutencao
 
