@@ -61,6 +61,8 @@ A conclusão ocorre em transação serializável. A API bloqueia o rascunho, a a
 
 O snapshot final preserva a autoria, o instante e o sexo cadastral registrados quando a decisão clínica foi confirmada. O profissional que apenas calcula ou conclui posteriormente não substitui o autor original da decisão.
 
+Reenviar no `PUT` a mesma decisão efetiva de sexo do protocolo não constitui nova confirmação clínica. O PostgreSQL compara sexo, origem e justificativa normalizada dentro da própria transação e preserva `profileSexSnapshot`, justificativa original, autor e instante da confirmação. Somente uma alteração real da decisão transfere a proveniência para o profissional que realizou a nova confirmação.
+
 Repetir a conclusão da mesma revisão já finalizada devolve o registro existente sem produzir outra avaliação.
 
 ## Correção
