@@ -49,6 +49,8 @@ Codigo, migrations e testes definem o comportamento efetivamente entregue. Plani
 - [`product/pre-registration-parq.md`](product/pre-registration-parq.md): PAR-Q canônico, versionado, retomável e integrado à análise profissional.
 - [`product/pre-registration-enrollment-conversion.md`](product/pre-registration-enrollment-conversion.md): regras permanentes de deduplicacao, decisao administrativa e conversao no mesmo registro.
 - [`product/adipometry-protocol.md`](product/adipometry-protocol.md): protocolos, disponibilidade clínica, histórico e política de correção ADPT.
+- [`product/adipometry-api.md`](product/adipometry-api.md): contrato operacional, autorização, cálculo, conclusão, correção e erros da API ADPT.
+- [`product/adipometry-web.md`](product/adipometry-web.md): fluxo guiado, ajuda técnica, estados e integração da interface ADPT.
 
 ### Operacao e documentos complementares
 
@@ -94,6 +96,7 @@ Registros concluidos preservados:
 - [`execution-plans/completed/2026-07-epic-172-completion-assessment.md`](execution-plans/completed/2026-07-epic-172-completion-assessment.md)
 - [`execution-plans/completed/2026-07-prnt-followup-implementation-plan.md`](execution-plans/completed/2026-07-prnt-followup-implementation-plan.md)
 - [`execution-plans/completed/2026-07-issue-273-canonical-parq.md`](execution-plans/completed/2026-07-issue-273-canonical-parq.md)
+- [`execution-plans/completed/issue-248-adipometry-guided-web.md`](execution-plans/completed/issue-248-adipometry-guided-web.md)
 
 ## Regras de manutencao
 
