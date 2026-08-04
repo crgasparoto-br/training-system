@@ -51,12 +51,12 @@ const correctionCategorySchema = z.enum([
 ]);
 
 const measurementsSchema = z.object({
-  weightKg: z.number().finite().positive().max(999.99).optional(),
-  tricepsMm: z.number().finite().positive().max(80).optional(),
-  subscapularMm: z.number().finite().positive().max(80).optional(),
-  suprailiacMm: z.number().finite().positive().max(80).optional(),
-  abdominalMm: z.number().finite().positive().max(80).optional(),
-  thighMm: z.number().finite().positive().max(80).optional(),
+  weightKg: z.number().finite().positive().optional(),
+  tricepsMm: z.number().finite().positive().optional(),
+  subscapularMm: z.number().finite().positive().optional(),
+  suprailiacMm: z.number().finite().positive().optional(),
+  abdominalMm: z.number().finite().positive().optional(),
+  thighMm: z.number().finite().positive().optional(),
 }).strict();
 
 const draftBaseSchema = z.object({

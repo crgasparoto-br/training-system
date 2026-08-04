@@ -52,11 +52,16 @@ function tokenFor(userId: string, type: 'professor' | 'aluno' = 'professor') {
   );
 }
 
-async function setPermission(functionId: string, blockKey: string, canView: boolean) {
+async function setPermission(
+  functionId: string,
+  blockKey: string,
+  canView: boolean,
+  screenKey = SCREEN_KEY
+) {
   await prisma.accessPermission.createMany({
     data: [{
       collaboratorFunctionId: functionId,
-      screenKey: SCREEN_KEY,
+      screenKey,
       blockKey,
       canView,
     }],
@@ -65,7 +70,7 @@ async function setPermission(functionId: string, blockKey: string, canView: bool
   await prisma.accessPermission.updateMany({
     where: {
       collaboratorFunctionId: functionId,
-      screenKey: SCREEN_KEY,
+      screenKey,
       blockKey,
     },
     data: { canView },
@@ -111,16 +116,10 @@ async function createFixture(): Promise<Fixture> {
     'settings.contract.actions.manageClinicalTechnicalResponsibility',
     'settings.contract.adipometryProtocolApproval',
   ];
-  await prisma.accessPermission.createMany({
-    data: governanceBlocks.map((blockKey) => ({
-      collaboratorFunctionId: collaboratorFunction.id,
-      screenKey: 'settings.contract',
-      blockKey,
-      canView: true,
-    })),
-    skipDuplicates: true,
-  });
   await Promise.all([
+  ...governanceBlocks.map((blockKey) =>
+    setPermission(collaboratorFunction.id, blockKey, true, 'settings.contract')
+  ),
   setPermission(operatorFunction.id, '', true),
   setPermission(operatorFunction.id, VIEW_KEY, true),
   setPermission(operatorFunction.id, MANAGE_KEY, true),

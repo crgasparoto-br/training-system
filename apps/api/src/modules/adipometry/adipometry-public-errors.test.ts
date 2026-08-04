@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 
 const request = require('supertest');
 const mockListAssessments = jest.fn();
+const mockCreateDraft = jest.fn();
 
 jest.mock('../auth/auth.middleware.js', () => ({
   authMiddleware: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
@@ -55,6 +56,7 @@ jest.mock('./adipometry.service.js', () => {
     AdipometryServiceError,
     adipometryService: {
       listAssessments: mockListAssessments,
+      createDraft: mockCreateDraft,
     },
   };
 });
@@ -82,6 +84,38 @@ describe('adipometry public persistence errors', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  it('keeps protocol-dependent measurement limits out of the HTTP transport schema', async () => {
+    mockCreateDraft.mockResolvedValueOnce({ id: 'draft-1' });
+
+    const response = await request(app)
+      .post('/adipometry/alunos/aluno-1/assessments')
+      .send({
+        assessmentDate: '2026-08-03',
+        measurements: {
+          weightKg: 1000,
+          tricepsMm: 81,
+          subscapularMm: 81,
+          suprailiacMm: 81,
+          abdominalMm: 81,
+          thighMm: 81,
+        },
+      });
+
+    expect(response.status).toBe(201);
+    expect(mockCreateDraft).toHaveBeenCalledWith(
+      'contract-1',
+      'aluno-1',
+      'user-1',
+      'professor-1',
+      expect.objectContaining({
+        measurements: expect.objectContaining({
+          weightKg: 1000,
+          tricepsMm: 81,
+        }),
+      })
+    );
   });
 
   it('returns a stable 409 when serializable retries are exhausted', async () => {
