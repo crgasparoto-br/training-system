@@ -60,10 +60,18 @@ export const adipometryPublicBoundaryMiddleware: RequestHandler = (_req, res, ne
     const details: Record<string, string> = { code: descriptor.code };
     if (descriptor.correlationId) details.correlationId = descriptor.correlationId;
 
+    // Preserve only the established, non-sensitive 404 alias used by existing
+    // consumers. The authoritative public contract is message + details.code.
+    const compatibleLegacyError = res.statusCode === 404
+      && record.error === 'Professor não encontrado'
+      ? record.error
+      : undefined;
+
     return originalJson({
       success: false,
       message: descriptor.message,
       details,
+      ...(compatibleLegacyError ? { error: compatibleLegacyError } : {}),
     });
   }) as typeof res.json;
 
