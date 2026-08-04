@@ -29,9 +29,17 @@ jest.mock(
   })
 );
 
-jest.mock('../src/modules/pre-registration-admin/pre-registration-admin.service', () => ({
-  preRegistrationAdminService: { getDetail: mockGetDetail },
-}));
+jest.mock('../src/modules/pre-registration-admin/pre-registration-admin.service', () => {
+  class PreRegistrationAdminError extends Error {
+    constructor(message: string, public readonly code: string) {
+      super(message);
+    }
+  }
+  return {
+    PreRegistrationAdminError,
+    preRegistrationAdminService: { getDetail: mockGetDetail },
+  };
+});
 
 jest.mock('../src/modules/pre-registration-enrollment/pre-registration-enrollment-access.service', () => ({
   assertPreRegistrationAlunoVisible: jest.fn(),
@@ -44,7 +52,11 @@ jest.mock('../src/modules/pre-registration-enrollment/pre-registration-enrollmen
 }));
 
 jest.mock('../src/modules/pre-registration-enrollment/pre-registration-enrollment.service', () => {
-  class PreRegistrationEnrollmentError extends Error {}
+  class PreRegistrationEnrollmentError extends Error {
+    constructor(message: string, public readonly code: string, public readonly details?: object) {
+      super(message);
+    }
+  }
   return {
     PreRegistrationEnrollmentError,
     preRegistrationEnrollmentService: {
@@ -58,6 +70,12 @@ jest.mock('../src/modules/pre-registration-enrollment/pre-registration-enrollmen
   };
 });
 
+const { PreRegistrationAdminError } = require(
+  '../src/modules/pre-registration-admin/pre-registration-admin.service'
+);
+const { PreRegistrationEnrollmentError } = require(
+  '../src/modules/pre-registration-enrollment/pre-registration-enrollment.service'
+);
 const { preRegistrationEnrollmentRoutes } = require(
   '../src/modules/pre-registration-enrollment/pre-registration-enrollment.routes'
 );
@@ -75,10 +93,11 @@ describe('pre-registration lead creation route', () => {
   });
 
   it('returns a controlled 400 for invalid lead input', async () => {
-    const error = Object.assign(new Error('Informe um telefone válido com DDD.'), {
-      code: 'INVALID_INPUT',
-      details: { fields: ['phone'] },
-    });
+    const error = new PreRegistrationEnrollmentError(
+      'Informe um telefone válido com DDD.',
+      'INVALID_INPUT',
+      { fields: ['phone'] }
+    );
     mockCreate.mockRejectedValue(error);
 
     const response = await request(app)
@@ -98,7 +117,7 @@ describe('pre-registration lead creation route', () => {
   it('keeps a known post-create domain failure out of the generic 500 boundary', async () => {
     mockCreate.mockResolvedValue('lead-1');
     mockGetDetail.mockRejectedValue(
-      Object.assign(new Error('Pré-matrícula não encontrada.'), { code: 'NOT_FOUND' })
+      new PreRegistrationAdminError('Pré-matrícula não encontrada.', 'NOT_FOUND')
     );
 
     const response = await request(app)
