@@ -32,39 +32,37 @@ DO $install_provenance_trigger$
 DECLARE
   v_column_count INTEGER;
 BEGIN
-  IF TO_REGCLASS('"AdipometryAssessment"') IS NULL THEN
-    RETURN;
-  END IF;
+  IF TO_REGCLASS('"AdipometryAssessment"') IS NOT NULL THEN
+    SELECT COUNT(DISTINCT columns.column_name)
+      INTO v_column_count
+    FROM information_schema.columns columns
+    WHERE columns.table_schema = CURRENT_SCHEMA()
+      AND columns.table_name = 'AdipometryAssessment'
+      AND columns.column_name IN (
+        'protocolSex',
+        'profileSexSnapshot',
+        'protocolSexSource',
+        'protocolSexConfirmedByUserId',
+        'protocolSexConfirmedAt',
+        'protocolSexOverrideReason'
+      );
 
-  SELECT COUNT(DISTINCT columns.column_name)
-    INTO v_column_count
-  FROM information_schema.columns columns
-  WHERE columns.table_schema = CURRENT_SCHEMA()
-    AND columns.table_name = 'AdipometryAssessment'
-    AND columns.column_name IN (
-      'protocolSex',
-      'profileSexSnapshot',
-      'protocolSexSource',
-      'protocolSexConfirmedByUserId',
-      'protocolSexConfirmedAt',
-      'protocolSexOverrideReason'
-    );
-
-  IF v_column_count = 6 THEN
-    EXECUTE 'DROP TRIGGER IF EXISTS "AdipometryAssessment_preserve_protocol_sex_provenance" ON "AdipometryAssessment"';
-    EXECUTE $trigger$
-      CREATE TRIGGER "AdipometryAssessment_preserve_protocol_sex_provenance"
-      BEFORE UPDATE OF
-        "protocolSex",
-        "profileSexSnapshot",
-        "protocolSexSource",
-        "protocolSexConfirmedByUserId",
-        "protocolSexConfirmedAt",
-        "protocolSexOverrideReason"
-      ON "AdipometryAssessment"
-      FOR EACH ROW
-      EXECUTE FUNCTION "preserveAdipometryProtocolSexDecisionProvenance"()
-    $trigger$;
+    IF v_column_count = 6 THEN
+      EXECUTE 'DROP TRIGGER IF EXISTS "AdipometryAssessment_preserve_protocol_sex_provenance" ON "AdipometryAssessment"';
+      EXECUTE $trigger$
+        CREATE TRIGGER "AdipometryAssessment_preserve_protocol_sex_provenance"
+        BEFORE UPDATE OF
+          "protocolSex",
+          "profileSexSnapshot",
+          "protocolSexSource",
+          "protocolSexConfirmedByUserId",
+          "protocolSexConfirmedAt",
+          "protocolSexOverrideReason"
+        ON "AdipometryAssessment"
+        FOR EACH ROW
+        EXECUTE FUNCTION "preserveAdipometryProtocolSexDecisionProvenance"()
+      $trigger$;
+    END IF;
   END IF;
 END;
 $install_provenance_trigger$;
@@ -167,7 +165,7 @@ BEGIN
      OR control_row."protocolSexConfirmedAt" IS DISTINCT FROM TIMESTAMPTZ '2026-08-04 11:00:00+00'
      OR control_row."protocolSexOverrideReason" IS DISTINCT FROM 'Decisão clínica revisada.'
   THEN
-    RAIISE EXCEPTION
+    RAISE EXCEPTION
       'ADPT-AUD-001 regression: changed protocol-sex decision did not record new provenance';
   END IF;
 END;
