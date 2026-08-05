@@ -34,7 +34,9 @@ Transformar a aba `Avaliação Física` da Central do Aluno no ponto principal d
 - `apps/web/src/services/adipometry.service.ts`
 - `apps/api/scripts/verify-issue-249-adipometry-central-browser.ts`
 - `apps/api/scripts/verify-issue-248-adipometry-browser-runner.ts`
+- `apps/api/src/main.ts`
 - `docs/product/adipometry-central.md`
+- `docs/architecture/api.md`
 - `docs/architecture/auth-and-access-control.md`
 - `docs/quality/issue-248-browser-integration.md`
 
@@ -50,6 +52,7 @@ Transformar a aba `Avaliação Física` da Central do Aluno no ponto principal d
 - Ausência de valor deve aparecer como indisponível, nunca como zero.
 - Seções longas usam agrupamento colapsável e a tabela mantém leitura horizontal em telas pequenas.
 - O verificador integrado deve usar navegador, API e PostgreSQL reais, sem interceptar `/api/v1`.
+- O Manual do Professor exibido na área de avaliações depende da rota montada `/api/v1/professor-manual`.
 
 ## Passos de implementação
 
@@ -62,8 +65,10 @@ Transformar a aba `Avaliação Física` da Central do Aluno no ponto principal d
 - [x] Adicionar estados de carregamento, vazio, erro localizado, nova tentativa e atualização após retorno à aba.
 - [x] Adicionar verificador real da Central com revisão vigente, comparação, atualização após finalização, cross-tenant e mobile.
 - [x] Integrar o novo verificador ao runner existente, sem alterar workflow.
-- [x] Atualizar documentação de produto, acesso e qualidade.
-- [ ] Registrar no PR os resultados do candidato congelado e dos workflows automaticamente disparados.
+- [x] Corrigir a composição móvel da ficha e a quebra de textos longos observadas no navegador real.
+- [x] Montar a rota já existente do Manual do Professor para eliminar o erro contextual na ficha.
+- [x] Atualizar documentação de produto, API, acesso e qualidade.
+- [x] Registrar e validar o SHA candidato nos workflows automáticos existentes.
 
 ## Critérios de aceite
 
@@ -79,7 +84,20 @@ Transformar a aba `Avaliação Física` da Central do Aluno no ponto principal d
 - [x] Ações dedicadas de Antropometria e Adipometria coexistem sem misturar registros.
 - [x] A integração é montada somente na aba `Avaliação Física`, sem duplicação no `Aluno 360`.
 - [x] O ensaio integrado usa a Central real contra API e PostgreSQL reais e verifica isolamento cross-tenant.
-- [ ] `pnpm validate` e os workflows existentes passam no SHA candidato publicado.
+- [x] O layout real não produz overflow horizontal em `390px`.
+- [x] O Manual do Professor carrega pela rota real em vez de apresentar 404.
+- [x] `pnpm validate` e os workflows existentes passam no SHA candidato.
+
+## Validação do candidato final
+
+SHA: `32f9205d8cf2f2a34c7226b78480d7d22fd530c6`
+
+- `Validate PR`, run `31047563186`: aprovado;
+- `Issue 248 Adipometry Integration`, run `31047563816`: aprovado;
+- `Issue 248 Adipometry Visual Evidence`, run `31047563134`: aprovado;
+- `Issue 275 Pre-registration QA`, run `31047563180`: aprovado.
+
+O cenário real da Central comprovou ações de Antropometria e Adipometria, revisão corretiva vigente, tabela de comparação, atualização direcionada depois da finalização, preservação do aluno, `404 ADIPOMETRY_RESOURCE_NOT_FOUND` para outro contrato, viewport de `390px` sem overflow e ausência de erros de página ou console.
 
 ## Validação focada
 
@@ -116,4 +134,4 @@ pnpm validate
 - A integração ADPT permanece separada do conteúdo legado e da entrada de Antropometria para preservar resiliência.
 - O nome histórico do responsável é resolvido pelo diretório autorizado; quando não estiver disponível, a interface informa indisponibilidade sem expor identificadores internos.
 - A evidência real foi acoplada ao runner já executado pelo gate existente; nenhum workflow novo é necessário.
-- Resultados de CI pertencem ao SHA publicado e não são antecipados neste documento.
+- A rota do Manual do Professor foi montada porque o componente já fazia parte da ficha e o navegador real comprovou o 404 anterior.
