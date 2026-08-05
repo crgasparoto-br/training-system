@@ -6,14 +6,38 @@ import type {
 } from '@corrida/types';
 import { Button } from '../../components/ui/Button';
 import type { Aluno } from '../../services/aluno.service';
-import { AccessibleDialog, CorrectionDialog, FinalizeDialog, SkinfoldHelpDialog } from './AdipometryDialogs';
+import {
+  AccessibleDialog,
+  CorrectionDialog,
+  FinalizeDialog,
+  SkinfoldHelpDialog,
+} from './AdipometryDialogs';
 import type { AdipometrySkinfoldHelp } from './adipometry-ui';
 
 export function AdipometryScreenOverlays({
-  help, showFinalize, current, preview, selectedAluno, responsibleName, selectedProtocol, busy,
-  showCorrection, correctionCategory, correctionReason, showCancelCorrection, cancelReason,
-  onHelpClose, onFinalizeClose, onFinalizeConfirm, onCorrectionCategory, onCorrectionReason,
-  onCorrectionClose, onCorrectionConfirm, onCancelClose, onCancelReason, onCancelConfirm,
+  help,
+  showFinalize,
+  current,
+  preview,
+  selectedAluno,
+  responsibleName,
+  selectedProtocol,
+  busy,
+  showCorrection,
+  correctionCategory,
+  correctionReason,
+  showCancelCorrection,
+  cancelReason,
+  onHelpClose,
+  onFinalizeClose,
+  onFinalizeConfirm,
+  onCorrectionCategory,
+  onCorrectionReason,
+  onCorrectionClose,
+  onCorrectionConfirm,
+  onCancelClose,
+  onCancelReason,
+  onCancelConfirm,
 }: {
   help: AdipometrySkinfoldHelp | null;
   showFinalize: boolean;
@@ -41,14 +65,28 @@ export function AdipometryScreenOverlays({
 }) {
   return (
     <>
-      {help ? <SkinfoldHelpDialog item={help} onClose={onHelpClose} /> : null}
+      {help ? (
+        <SkinfoldHelpDialog item={help} onClose={onHelpClose} />
+      ) : null}
       {showFinalize && current && preview?.results ? (
         <FinalizeDialog
-          studentName={selectedAluno?.user.profile.name ?? 'Aluno não disponível'}
+          studentName={
+            selectedAluno?.user.profile.name ?? 'Aluno não disponível'
+          }
           date={current.assessmentDate}
           responsible={responsibleName}
-          protocol={selectedProtocol ? `${selectedProtocol.name} · ${selectedProtocol.code} v${selectedProtocol.version}` : `${current.protocolCode ?? 'Protocolo'} v${current.protocolVersion ?? '—'}`}
+          protocol={
+            selectedProtocol
+              ? `${selectedProtocol.name} · ${selectedProtocol.code} v${selectedProtocol.version}`
+              : `${current.protocolCode ?? 'Protocolo'} v${
+                  current.protocolVersion ?? '—'
+                }`
+          }
           results={preview.results}
+          resultScale={
+            preview.protocol.displayPrecision?.resultScale
+              ?? selectedProtocol?.displayPrecision?.resultScale
+          }
           busy={busy}
           onClose={onFinalizeClose}
           onConfirm={onFinalizeConfirm}
@@ -73,13 +111,40 @@ export function AdipometryScreenOverlays({
         >
           <div className="space-y-4">
             <div>
-              <label htmlFor="adpt-cancel-reason" className="mb-2 block text-sm font-medium">Motivo</label>
-              <textarea id="adpt-cancel-reason" rows={4} value={cancelReason} onChange={(event) => onCancelReason(event.target.value)} className="w-full rounded-lg border border-input bg-card px-4 py-3 text-sm" placeholder="Explique por que a correção será cancelada." />
-              <p className="mt-1 text-xs text-muted-foreground">Mínimo de 10 caracteres.</p>
+              <label
+                htmlFor="adpt-cancel-reason"
+                className="mb-2 block text-sm font-medium"
+              >
+                Motivo
+              </label>
+              <textarea
+                id="adpt-cancel-reason"
+                rows={4}
+                value={cancelReason}
+                onChange={(event) => onCancelReason(event.target.value)}
+                className="w-full rounded-lg border border-input bg-card px-4 py-3 text-sm"
+                placeholder="Explique por que a correção será cancelada."
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Mínimo de 10 caracteres.
+              </p>
             </div>
             <div className="flex flex-wrap justify-end gap-2">
-              <Button type="button" variant="outline" onClick={onCancelClose}>Voltar</Button>
-              <Button type="button" onClick={onCancelConfirm} disabled={busy || cancelReason.trim().length < 10} isLoading={busy}>Confirmar cancelamento</Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onCancelClose}
+              >
+                Voltar
+              </Button>
+              <Button
+                type="button"
+                onClick={onCancelConfirm}
+                disabled={busy || cancelReason.trim().length < 10}
+                isLoading={busy}
+              >
+                Confirmar cancelamento
+              </Button>
             </div>
           </div>
         </AccessibleDialog>
