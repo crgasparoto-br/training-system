@@ -10,6 +10,7 @@ import type {
   CreateAdipometryDraftInput,
   UpdateAdipometryDraftWithClearInput,
 } from '@corrida/types';
+import type { Aluno } from './aluno.service';
 import api from './api';
 
 const unwrap = <T>(response: { data: { data: T } }) => response.data.data;
@@ -49,6 +50,10 @@ export interface AdipometryFinalizeResult {
 }
 
 export const adipometryService = {
+  async listAccessibleStudents(): Promise<Aluno[]> {
+    return unwrap(await api.get('/adipometry/accessible-students'));
+  },
+
   async listResponsibleProfessors(): Promise<AdipometryResponsibleProfessor[]> {
     return unwrap(await api.get('/adipometry/responsible-professors'));
   },
