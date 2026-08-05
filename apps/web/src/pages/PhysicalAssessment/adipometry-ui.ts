@@ -1,4 +1,8 @@
-import type { AdipometryInputField, AdipometryMeasurements, AdipometrySkinfoldField } from '@corrida/types';
+import type {
+  AdipometryInputField,
+  AdipometryMeasurements,
+  AdipometrySkinfoldField,
+} from '@corrida/types';
 
 export type AdipometryFormMeasurements = Record<AdipometryInputField, string>;
 
@@ -40,7 +44,8 @@ export const ADIPOMETRY_SKINFOLD_HELP: AdipometrySkinfoldHelp[] = [
   {
     field: 'suprailiacMm',
     label: 'Dobra suprailíaca',
-    description: 'Prega oblíqua imediatamente acima da crista ilíaca, na linha axilar anterior.',
+    description:
+      'Prega oblíqua imediatamente acima da crista ilíaca, na linha axilar anterior.',
     videoUrl: 'https://youtube.com/shorts/dO_tLj2a4r4',
   },
   {
@@ -52,7 +57,8 @@ export const ADIPOMETRY_SKINFOLD_HELP: AdipometrySkinfoldHelp[] = [
   {
     field: 'thighMm',
     label: 'Dobra da coxa',
-    description: 'Prega vertical no ponto médio entre o ligamento inguinal e a borda superior da patela.',
+    description:
+      'Prega vertical no ponto médio entre o ligamento inguinal e a borda superior da patela.',
     videoUrl: 'https://youtube.com/shorts/ZF9L-J_kCqs',
   },
 ];
@@ -74,15 +80,26 @@ export function emptyAdipometryMeasurements(): AdipometryFormMeasurements {
   };
 }
 
-export function formatAdipometryInput(value?: number): string {
-  return value === undefined ? '' : String(value).replace('.', ',');
+export function formatAdipometryInput(
+  value?: number,
+  scale?: number
+): string {
+  if (value === undefined) return '';
+  if (scale === undefined) return String(value).replace('.', ',');
+  return new Intl.NumberFormat('pt-BR', {
+    minimumFractionDigits: scale,
+    maximumFractionDigits: scale,
+    useGrouping: false,
+  }).format(value);
 }
 
 export function parseAdipometryDecimal(rawValue: string): number | undefined {
   const value = rawValue.trim();
   if (!value) return undefined;
   if (!/^\d+(?:[.,]\d+)?$/.test(value)) {
-    throw new Error('Use apenas números com vírgula ou ponto como separador decimal.');
+    throw new Error(
+      'Use apenas números com vírgula ou ponto como separador decimal.'
+    );
   }
   const parsed = Number(value.replace(',', '.'));
   if (!Number.isFinite(parsed) || parsed <= 0) {
@@ -103,19 +120,28 @@ export function buildAdipometryMeasurements(values: AdipometryFormMeasurements):
       const parsed = parseAdipometryDecimal(values[input.field]);
       if (parsed !== undefined) measurements[input.field] = parsed;
     } catch (error) {
-      errors[input.field] = error instanceof Error ? error.message : 'Valor inválido.';
+      errors[input.field] =
+        error instanceof Error ? error.message : 'Valor inválido.';
     }
   }
 
   return { measurements, errors };
 }
 
-export function countPersistedAdipometryInputs(measurements: AdipometryMeasurements): number {
-  return ADIPOMETRY_INPUTS.filter(({ field }) => measurements[field] !== undefined).length;
+export function countPersistedAdipometryInputs(
+  measurements: AdipometryMeasurements
+): number {
+  return ADIPOMETRY_INPUTS.filter(
+    ({ field }) => measurements[field] !== undefined
+  ).length;
 }
 
 export type AdipometryProtocolSexValue = 'male' | 'female' | '';
-export type AdipometryProtocolSexSourceValue = 'profile' | 'professional_confirmation' | 'professional_override' | '';
+export type AdipometryProtocolSexSourceValue =
+  | 'profile'
+  | 'professional_confirmation'
+  | 'professional_override'
+  | '';
 
 export interface AdipometryFormState {
   assessmentDate: string;
@@ -128,7 +154,10 @@ export interface AdipometryFormState {
   measurements: AdipometryFormMeasurements;
 }
 
-export function adipometryProtocolKey(protocol: { code: string; version: number }): string {
+export function adipometryProtocolKey(protocol: {
+  code: string;
+  version: number;
+}): string {
   return `${protocol.code}::${protocol.version}`;
 }
 
