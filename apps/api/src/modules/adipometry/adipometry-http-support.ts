@@ -20,11 +20,14 @@ const VALIDATION_CODES = [
 ] as const;
 
 function persistenceMessage(error: unknown): string {
-  if (!(error instanceof Prisma.PrismaClientKnownRequestError)) return '';
-  const meta = error.meta as Record<string, unknown> | undefined;
-  return [meta?.message, meta?.database_error, error.message]
-    .filter((value): value is string => typeof value === 'string')
-    .join(' ');
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    const meta = error.meta as Record<string, unknown> | undefined;
+    return [meta?.message, meta?.database_error, error.message]
+      .filter((value): value is string => typeof value === 'string')
+      .join(' ');
+  }
+  if (error instanceof Error) return error.message;
+  return '';
 }
 
 /**
@@ -69,6 +72,17 @@ export function mapAdipometryPersistenceError(error: unknown): AdipometryService
       'ADIPOMETRY_RESOURCE_NOT_FOUND',
       404
     );
+  }
+
+  // Prisma wraps PostgreSQL trigger failures that have no stable client code
+  // as UnknownRequestError. Emit the original server-side text only in the
+  // disposable test environment so the integrated verifier can identify the
+  // violated invariant. Public HTTP responses remain generic and correlated.
+  if (process.env.NODE_ENV === 'test' && message) {
+    console.error('ADIPOMETRY_PERSISTENCE_DIAGNOSTIC', {
+      errorType: error instanceof Error ? error.name : typeof error,
+      message,
+    });
   }
   return null;
 }
