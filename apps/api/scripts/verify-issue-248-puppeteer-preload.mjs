@@ -21,8 +21,8 @@ function applyWorkflowIdentityEnvironment(env = process.env) {
     || (!isPullRequestEvent ? env.GITHUB_SHA : undefined);
   const baseSha = env.AUDIT_BASE_SHA || pullRequest?.base?.sha;
   const mergePreviewSha = env.AUDIT_MERGE_PREVIEW_SHA
-    || pullRequest?.merge_commit_sha
-    || env.GITHUB_SHA;
+    || env.GITHUB_SHA
+    || pullRequest?.merge_commit_sha;
 
   if (headSha) env.AUDIT_HEAD_SHA = headSha;
   if (baseSha) env.AUDIT_BASE_SHA = baseSha;
