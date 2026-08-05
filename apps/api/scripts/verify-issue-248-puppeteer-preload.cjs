@@ -7,57 +7,78 @@ const browserFlags = [
   '--disable-features=BlockInsecurePrivateNetworkRequests,PrivateNetworkAccessSendPreflights,PrivateNetworkAccessRespectPreflightResults',
 ];
 
-async function stabilizeEligibleResponsible(page) {
-  await page.waitForFunction(
+async function readAdipometryControlState(page) {
+  return page.evaluate(() => {
+    const select = document.querySelector('#adpt-responsible');
+    const button = Array.from(document.querySelectorAll('button')).find(
+      (item) => item.textContent?.trim() === 'Nova avaliação'
+    );
+
+    return {
+      selectFound: select instanceof HTMLSelectElement,
+      selectDisabled: select instanceof HTMLSelectElement ? select.disabled : null,
+      selectedValue: select instanceof HTMLSelectElement ? select.value : null,
+      options: select instanceof HTMLSelectElement
+        ? Array.from(select.options).map((item) => ({
+            value: item.value,
+            disabled: item.disabled,
+            label: item.textContent?.trim() || '',
+          }))
+        : [],
+      buttonFound: button instanceof HTMLButtonElement,
+      buttonDisabled: button instanceof HTMLButtonElement ? button.disabled : null,
+      bodyText: document.body.innerText.slice(0, 1_500),
+    };
+  });
+}
+
+async function selectEligibleResponsible(page, waitForFunction) {
+  await waitForFunction(
     () => {
       const select = document.querySelector('#adpt-responsible');
       return select instanceof HTMLSelectElement
+        && !select.disabled
         && Array.from(select.options).some((item) => item.value && !item.disabled);
     },
     { timeout: 30_000 }
   );
 
-  await page.evaluate(() => {
-    const existing = window.__adptResponsibleStabilizer;
-    if (typeof existing === 'number') clearInterval(existing);
-
-    const selectResponsible = () => {
-      const select = document.querySelector('#adpt-responsible');
-      if (!(select instanceof HTMLSelectElement) || select.value) return;
-      const option = Array.from(select.options).find((item) => item.value && !item.disabled);
-      if (!option) return;
-      const setter = Object.getOwnPropertyDescriptor(
-        HTMLSelectElement.prototype,
-        'value'
-      )?.set;
-      setter?.call(select, option.value);
-      select.dispatchEvent(new Event('input', { bubbles: true }));
-      select.dispatchEvent(new Event('change', { bubbles: true }));
-    };
-
-    selectResponsible();
-    window.__adptResponsibleStabilizer = window.setInterval(selectResponsible, 100);
-    window.setTimeout(() => {
-      if (typeof window.__adptResponsibleStabilizer === 'number') {
-        clearInterval(window.__adptResponsibleStabilizer);
-        window.__adptResponsibleStabilizer = undefined;
-      }
-    }, 20_000);
+  const optionValue = await page.$eval('#adpt-responsible', (select) => {
+    if (!(select instanceof HTMLSelectElement)) return '';
+    return Array.from(select.options).find((item) => item.value && !item.disabled)?.value || '';
   });
 
-  await page.waitForFunction(
-    () => {
-      const select = document.querySelector('#adpt-responsible');
-      const button = Array.from(document.querySelectorAll('button')).find(
-        (item) => item.textContent?.trim() === 'Nova avaliação'
-      );
-      return select instanceof HTMLSelectElement
-        && Boolean(select.value)
-        && button instanceof HTMLButtonElement
-        && !button.disabled;
-    },
-    { timeout: 30_000 }
-  );
+  if (!optionValue) {
+    const state = await readAdipometryControlState(page);
+    throw new Error(
+      `Nenhum responsável elegível foi encontrado no navegador ADPT: ${JSON.stringify(state)}`
+    );
+  }
+
+  await page.select('#adpt-responsible', optionValue);
+
+  try {
+    await waitForFunction(
+      (expectedValue) => {
+        const select = document.querySelector('#adpt-responsible');
+        const button = Array.from(document.querySelectorAll('button')).find(
+          (item) => item.textContent?.trim() === 'Nova avaliação'
+        );
+        return select instanceof HTMLSelectElement
+          && select.value === expectedValue
+          && button instanceof HTMLButtonElement
+          && !button.disabled;
+      },
+      { timeout: 10_000 },
+      optionValue
+    );
+  } catch (error) {
+    const state = await readAdipometryControlState(page);
+    throw new Error(
+      `O responsável foi selecionado, mas a criação ADPT não foi habilitada: ${JSON.stringify(state)}`,
+      { cause: error }
+    );
+  }
 }
 
 async function launchWithLocalIntegrationSupport(options = {}) {
@@ -66,18 +87,33 @@ async function launchWithLocalIntegrationSupport(options = {}) {
     args: Array.from(new Set([...(options.args || []), ...browserFlags])),
   });
   const originalNewPage = browser.newPage.bind(browser);
+
   browser.newPage = async () => {
     const page = await originalNewPage();
     const originalGoto = page.goto.bind(page);
+    const originalWaitForFunction = page.waitForFunction.bind(page);
+
     page.goto = async (url, gotoOptions) => {
       const response = await originalGoto(url, gotoOptions);
       if (String(url).includes('/protocolo-avaliacao-fisica/adipometria')) {
-        await stabilizeEligibleResponsible(page);
+        await selectEligibleResponsible(page, originalWaitForFunction);
       }
       return response;
     };
+
+    page.waitForFunction = async (pageFunction, waitOptions, ...args) => {
+      if (args.some((argument) => argument === 'Nova avaliação')) {
+        // O workspace React pode reconciliar o diretório de responsáveis após
+        // o page.goto. Reaplique a escolha imediatamente antes da espera usada
+        // pelo clique real do verificador para eliminar essa corrida de estado.
+        await selectEligibleResponsible(page, originalWaitForFunction);
+      }
+      return originalWaitForFunction(pageFunction, waitOptions, ...args);
+    };
+
     return page;
   };
+
   return browser;
 }
 
