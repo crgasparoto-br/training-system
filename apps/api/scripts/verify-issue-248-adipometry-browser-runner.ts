@@ -7,6 +7,8 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../
 const prisma = new PrismaClient();
 const triggerName = 'issue_248_upsert_access_permission';
 const functionName = 'issue_248_upsert_access_permission';
+const onboardingTriggerName = 'issue_249_insert_student_onboarding_process';
+const onboardingFunctionName = 'issue_249_insert_student_onboarding_process';
 const puppeteerPreload = path.join(
   repoRoot,
   'apps/api/scripts/verify-issue-248-puppeteer-preload.mjs'
@@ -71,6 +73,71 @@ async function removeFixturePermissionUpsert(): Promise<void> {
   await prisma.$executeRawUnsafe(
     `DROP FUNCTION IF EXISTS "${functionName}"()`
   );
+}
+
+async function installFixtureOnboardingProcess(): Promise<void> {
+  await prisma.$executeRawUnsafe(
+    `DROP TRIGGER IF EXISTS "${onboardingTriggerName}" ON "Aluno"`
+  );
+  await prisma.$executeRawUnsafe(
+    `DROP FUNCTION IF EXISTS "${onboardingFunctionName}"()`
+  );
+  await prisma.$executeRawUnsafe(`
+    CREATE FUNCTION "${onboardingFunctionName}"()
+    RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1
+        FROM "Contract" contract
+        WHERE contract.id = NEW."contractId"
+          AND contract.document LIKE '248-browser-%'
+      ) THEN
+        INSERT INTO "StudentOnboardingProcess" (
+          "id",
+          "alunoId",
+          "contractId",
+          "createdAt",
+          "updatedAt"
+        ) VALUES (
+          'adpt-browser-onboarding-' || NEW.id,
+          NEW.id,
+          NEW."contractId",
+          CURRENT_TIMESTAMP,
+          CURRENT_TIMESTAMP
+        )
+        ON CONFLICT ("alunoId") DO NOTHING;
+      END IF;
+      RETURN NEW;
+    END;
+    $$
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TRIGGER "${onboardingTriggerName}"
+    AFTER INSERT ON "Aluno"
+    FOR EACH ROW
+    EXECUTE FUNCTION "${onboardingFunctionName}"()
+  `);
+}
+
+async function removeFixtureOnboardingProcess(): Promise<void> {
+  await prisma.$executeRawUnsafe(
+    `DROP TRIGGER IF EXISTS "${onboardingTriggerName}" ON "Aluno"`
+  );
+  await prisma.$executeRawUnsafe(
+    `DROP FUNCTION IF EXISTS "${onboardingFunctionName}"()`
+  );
+}
+
+async function installFixtureSupport(): Promise<void> {
+  await installFixturePermissionUpsert();
+  await installFixtureOnboardingProcess();
+}
+
+async function removeFixtureSupport(): Promise<void> {
+  await removeFixtureOnboardingProcess();
+  await removeFixturePermissionUpsert();
 }
 
 function assertFixtureCleanupAllowed(): void {
@@ -265,9 +332,9 @@ function runBrowserVerifier(script: string, label: string): void {
 }
 
 async function prepareVerifier(): Promise<void> {
-  await removeFixturePermissionUpsert();
+  await removeFixtureSupport();
   await removeResidualBrowserFixture();
-  await installFixturePermissionUpsert();
+  await installFixtureSupport();
 }
 
 async function main(): Promise<void> {
@@ -284,7 +351,7 @@ async function main(): Promise<void> {
   }
 
   try {
-    await removeFixturePermissionUpsert();
+    await removeFixtureSupport();
     await removeResidualBrowserFixture();
   } catch (error) {
     cleanupError = error;
