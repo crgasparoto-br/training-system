@@ -1,4 +1,35 @@
+import { readFileSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
 import puppeteer from 'puppeteer';
+
+function applyWorkflowIdentityEnvironment(env = process.env) {
+  let event = null;
+  if (env.GITHUB_EVENT_PATH) {
+    try {
+      event = JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, 'utf8'));
+    } catch (error) {
+      console.warn(
+        `[workflow-identity] Não foi possível ler GITHUB_EVENT_PATH: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+
+  const pullRequest = event?.pull_request;
+  const isPullRequestEvent = String(env.GITHUB_EVENT_NAME || '').startsWith('pull_request');
+  const headSha = env.AUDIT_HEAD_SHA
+    || pullRequest?.head?.sha
+    || (!isPullRequestEvent ? env.GITHUB_SHA : undefined);
+  const baseSha = env.AUDIT_BASE_SHA || pullRequest?.base?.sha;
+  const mergePreviewSha = env.AUDIT_MERGE_PREVIEW_SHA
+    || pullRequest?.merge_commit_sha
+    || env.GITHUB_SHA;
+
+  if (headSha) env.AUDIT_HEAD_SHA = headSha;
+  if (baseSha) env.AUDIT_BASE_SHA = baseSha;
+  if (mergePreviewSha) env.AUDIT_MERGE_PREVIEW_SHA = mergePreviewSha;
+}
+
+applyWorkflowIdentityEnvironment();
 
 const originalLaunch = puppeteer.launch.bind(puppeteer);
 const browserFlags = [
@@ -215,9 +246,12 @@ async function launchWithLocalIntegrationSupport(options = {}) {
     const originalOn = page.on.bind(page);
     const originalScreenshot = page.screenshot.bind(page);
     const httpFailures = [];
+    const keyboardSelectedAssessmentCodes = new Set();
     let centralAlunoId = '';
     let screenshotCount = 0;
     let httpFailuresChecked = false;
+    let centralAccessibilityChecked = false;
+    let comparisonActivatedByKeyboard = false;
     let newAssessmentPreclicked = false;
 
     originalOn('response', (response) => {
@@ -288,6 +322,64 @@ async function launchWithLocalIntegrationSupport(options = {}) {
     };
 
     page.$$eval = async (selector, pageFunction, ...args) => {
+      const expectedText = args.find((argument) => typeof argument === 'string');
+      if (
+        centralAlunoId
+        && selector === 'label'
+        && typeof expectedText === 'string'
+        && /^ADPT-\d+/.test(expectedText)
+      ) {
+        const focused = await originalEvalButtons(
+          'label',
+          (labels, expected) => {
+            const label = labels.find((item) => item.textContent?.includes(expected));
+            const checkbox = label?.querySelector('input[type="checkbox"]');
+            if (!(checkbox instanceof HTMLInputElement) || checkbox.disabled) return false;
+            checkbox.focus();
+            return document.activeElement === checkbox;
+          },
+          expectedText
+        );
+        if (!focused) {
+          throw new Error(`A avaliação ${expectedText} não pôde receber foco pelo teclado.`);
+        }
+        await page.keyboard.press('Space');
+        await originalWaitForFunction(
+          (expected) => {
+            const label = Array.from(document.querySelectorAll('label')).find(
+              (item) => item.textContent?.includes(expected)
+            );
+            const checkbox = label?.querySelector('input[type="checkbox"]');
+            return checkbox instanceof HTMLInputElement && checkbox.checked;
+          },
+          { timeout: 5_000 },
+          expectedText
+        );
+        keyboardSelectedAssessmentCodes.add(expectedText);
+        return true;
+      }
+      if (
+        centralAlunoId
+        && selector === 'button'
+        && expectedText === 'Comparar avaliações selecionadas'
+      ) {
+        const focused = await originalEvalButtons(
+          'button',
+          (buttons, expected) => {
+            const button = buttons.find((item) => item.textContent?.trim() === expected);
+            if (!(button instanceof HTMLButtonElement) || button.disabled) return false;
+            button.focus();
+            return document.activeElement === button;
+          },
+          expectedText
+        );
+        if (!focused) {
+          throw new Error('O botão de comparação não pôde receber foco pelo teclado.');
+        }
+        await page.keyboard.press('Enter');
+        comparisonActivatedByKeyboard = true;
+        return true;
+      }
       if (
         newAssessmentPreclicked
         && selector === 'button'
@@ -317,6 +409,68 @@ async function launchWithLocalIntegrationSupport(options = {}) {
     };
 
     page.screenshot = async (...args) => {
+      if (centralAlunoId && screenshotCount === 0 && !centralAccessibilityChecked) {
+        const semantics = await page.evaluate(() => {
+          const table = document.querySelector('table');
+          if (!(table instanceof HTMLTableElement)) {
+            return {
+              tablePresent: false,
+              caption: '',
+              columnHeaderCount: 0,
+              rowHeaderCount: 0,
+            };
+          }
+          return {
+            tablePresent: true,
+            caption: table.querySelector('caption')?.textContent?.trim() || '',
+            columnHeaderCount: table.querySelectorAll('thead th[scope="col"]').length,
+            rowHeaderCount: table.querySelectorAll('tbody th[scope="row"]').length,
+          };
+        });
+        if (keyboardSelectedAssessmentCodes.size < 2 || !comparisonActivatedByKeyboard) {
+          throw new Error(
+            'A comparação da Central não foi concluída integralmente por teclado.'
+          );
+        }
+        if (
+          !semantics.tablePresent
+          || !semantics.caption
+          || semantics.columnHeaderCount !== 4
+          || semantics.rowHeaderCount !== 10
+        ) {
+          throw new Error(
+            `A tabela de comparação não preservou a semântica acessível esperada: ${JSON.stringify(semantics)}`
+          );
+        }
+        centralAccessibilityChecked = true;
+        const accessibilityEvidence = {
+          schemaVersion: 1,
+          kind: 'issue-249-adipometry-central-accessibility',
+          issue: 249,
+          headSha: process.env.AUDIT_HEAD_SHA ?? null,
+          baseSha: process.env.AUDIT_BASE_SHA ?? null,
+          mergePreviewSha: process.env.AUDIT_MERGE_PREVIEW_SHA ?? null,
+          keyboardSelectedAssessments: Array.from(keyboardSelectedAssessmentCodes),
+          comparisonActivatedByKeyboard,
+          ...semantics,
+          generatedAt: new Date().toISOString(),
+        };
+        const screenshotOptions = args[0];
+        if (screenshotOptions && typeof screenshotOptions.path === 'string') {
+          writeFileSync(
+            path.join(
+              path.dirname(screenshotOptions.path),
+              'adipometry-central-accessibility.json'
+            ),
+            `${JSON.stringify(accessibilityEvidence, null, 2)}\n`,
+            'utf8'
+          );
+        }
+        console.log(
+          `[issue-249-central] Evidência de acessibilidade executada: ${JSON.stringify(accessibilityEvidence)}`
+        );
+      }
+
       const result = await originalScreenshot(...args);
       screenshotCount += 1;
       if (centralAlunoId && screenshotCount >= 2 && !httpFailuresChecked) {
