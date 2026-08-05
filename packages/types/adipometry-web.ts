@@ -36,3 +36,8 @@ export interface CreateAdipometryDraftWithResponsibleInput
   extends CreateAdipometryDraftInput {
   responsibleProfessorId: string;
 }
+
+export interface ReassignAdipometryResponsibleInput {
+  responsibleProfessorId: string;
+  expectedUpdatedAt: string;
+}
