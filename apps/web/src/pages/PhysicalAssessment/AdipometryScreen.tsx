@@ -15,7 +15,11 @@ import {
   type AdipometryFormState,
   type AdipometrySkinfoldHelp,
 } from './adipometry-ui';
-import { adipometryFormFromAssessment, buildAdipometryDraftPayload, readAdipometryApiError } from './adipometry-screen-utils';
+import {
+  adipometryFormFromAssessment,
+  buildAdipometryDraftPayload,
+  readAdipometryApiError,
+} from './adipometry-screen-utils';
 import { useAdipometryWorkspace } from './useAdipometryWorkspace';
 
 export function AdipometryScreen() {
@@ -27,10 +31,11 @@ export function AdipometryScreen() {
   const canView = canAccessBlock(user, 'physicalAssessment.adpt.view');
   const workspace = useAdipometryWorkspace({ canView, lockedAlunoId, assessmentIdParam });
   const {
-    alunos, selectedAlunoId, setSelectedAlunoId, assessments, current, setCurrent, protocols, support,
-    form, setForm, preview, setPreview, fieldErrors, setFieldErrors, loading, setLoading, dirty, setDirty,
-    conflict, setConflict, error, setError, success, setSuccess, supportError, setRefreshToken,
-    capacityWarningConfirmed, setCapacityWarningConfirmed, resetMessages, setFormField, setMeasurement,
+    alunos, selectedAlunoId, selectAluno, assessments, current, setCurrent, protocols, support,
+    form, setForm, preview, setPreview, fieldErrors, setFieldErrors, loading, referencesLoading,
+    setLoading, dirty, setDirty, conflict, setConflict, error, setError, success, setSuccess,
+    supportError, setRefreshToken, capacityWarningConfirmed, setCapacityWarningConfirmed,
+    resetMessages, invalidateWorkspace, setFormField, setMeasurement,
   } = workspace;
   const [busy, setBusy] = useState(false);
   const [help, setHelp] = useState<AdipometrySkinfoldHelp | null>(null);
@@ -47,6 +52,7 @@ export function AdipometryScreen() {
   const isCorrectionDraft = Boolean(current && current.revisionStatus === 'DRAFT' && current.revisionNumber > 1);
   const canMutate = canManage || (isCorrectionDraft && canCorrect);
   const defaultResponsibleProfessorId = user?.professor?.id ?? '';
+  const contextBusy = loading || referencesLoading;
 
   useEffect(() => {
     if (!canView) return;
@@ -76,7 +82,7 @@ export function AdipometryScreen() {
 
   const handleAluno = (id: string) => {
     if (lockedAlunoId) return;
-    setSelectedAlunoId(id);
+    selectAluno(id);
     const next = new URLSearchParams(searchParams);
     next.delete('alunoId');
     next.delete('assessmentId');
@@ -84,6 +90,7 @@ export function AdipometryScreen() {
   };
 
   const handleOpen = (id: string) => {
+    invalidateWorkspace();
     const next = new URLSearchParams(searchParams);
     if (lockedAlunoId) next.set('alunoId', lockedAlunoId);
     else next.delete('alunoId');
@@ -105,7 +112,7 @@ export function AdipometryScreen() {
   };
 
   const handleCreate = async () => {
-    if (!selectedAlunoId || !selectedResponsibleProfessorId) return;
+    if (contextBusy || !selectedAlunoId || !selectedResponsibleProfessorId) return;
     setBusy(true);
     resetMessages();
     try {
@@ -124,7 +131,7 @@ export function AdipometryScreen() {
   };
 
   const saveDraft = async (silent = false): Promise<AdipometryAssessmentDetail | null> => {
-    if (!current || !canMutate) return null;
+    if (contextBusy || !current || !canMutate) return null;
     const built = buildAdipometryDraftPayload({ form, current, isCorrectionDraft });
     if (!built.payload) {
       setFieldErrors(built.fieldErrors);
@@ -159,6 +166,7 @@ export function AdipometryScreen() {
   };
 
   const handleCalculate = async () => {
+    if (contextBusy) return;
     if (!form.protocolKey || !form.protocolSex || !form.protocolSexSource) {
       setError('Selecione o protocolo e confirme o sexo de referência antes de calcular.');
       return;
@@ -184,7 +192,7 @@ export function AdipometryScreen() {
   };
 
   const handleFinalize = async () => {
-    if (!current || !preview) return;
+    if (contextBusy || !current || !preview) return;
     setBusy(true);
     resetMessages();
     try {
@@ -212,7 +220,7 @@ export function AdipometryScreen() {
   };
 
   const handleStartCorrection = async () => {
-    if (!current || correctionReason.trim().length < 10) return;
+    if (contextBusy || !current || correctionReason.trim().length < 10) return;
     setBusy(true);
     resetMessages();
     try {
@@ -232,7 +240,7 @@ export function AdipometryScreen() {
   };
 
   const handleCancelCorrection = async () => {
-    if (!current || cancelReason.trim().length < 10) return;
+    if (contextBusy || !current || cancelReason.trim().length < 10) return;
     setBusy(true);
     resetMessages();
     try {
@@ -240,6 +248,7 @@ export function AdipometryScreen() {
       setShowCancelCorrection(false);
       setCancelReason('');
       setSuccess('Correção cancelada e preservada no histórico.');
+      invalidateWorkspace();
       const next = new URLSearchParams(searchParams);
       next.delete('assessmentId');
       if (!lockedAlunoId) next.delete('alunoId');
@@ -253,7 +262,7 @@ export function AdipometryScreen() {
   };
 
   const reloadServer = async () => {
-    if (!current) return;
+    if (contextBusy || !current) return;
     setLoading(true);
     try {
       const server = await adipometryService.getAssessment(current.id);
@@ -272,7 +281,7 @@ export function AdipometryScreen() {
   };
 
   const keepLocal = async () => {
-    if (!current) return;
+    if (contextBusy || !current) return;
     setLoading(true);
     try {
       const server = await adipometryService.getAssessment(current.id);
@@ -312,8 +321,8 @@ export function AdipometryScreen() {
         preview={preview}
         support={support}
         fieldErrors={fieldErrors}
-        loading={loading}
-        busy={busy}
+        loading={contextBusy}
+        busy={busy || contextBusy}
         dirty={dirty}
         conflict={conflict}
         error={error}
@@ -352,7 +361,7 @@ export function AdipometryScreen() {
         selectedAluno={selectedAluno}
         responsibleName={responsibleName}
         selectedProtocol={selectedProtocol}
-        busy={busy}
+        busy={busy || contextBusy}
         showCorrection={showCorrection}
         correctionCategory={correctionCategory}
         correctionReason={correctionReason}
