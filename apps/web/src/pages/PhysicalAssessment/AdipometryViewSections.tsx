@@ -1,0 +1,445 @@
+import { CheckCircle2, History } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import type {
+  AdipometryAssessmentDetail,
+  AdipometryAssessmentStatus,
+  AdipometryAssessmentSummary,
+  AdipometryCalculationPreview,
+  AdipometryInputField,
+} from '@corrida/types';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '../../components/ui/Card';
+import type { AdipometryAnthropometrySupport } from '../../services/adipometry.service';
+
+export const nav = [
+  ['antropometria', 'Antropometria'],
+  ['prontuario-entrevista-acompanhamento', 'Prontuário'],
+  ['adipometria', 'Adipometria'],
+  ['bioimpedanciometria', 'Bioimpedanciometria'],
+  ['ultrassonografia', 'Ultrassonografia'],
+] as const;
+
+const persistedCollectionFields: AdipometryInputField[] = [
+  'weightKg',
+  'tricepsMm',
+  'subscapularMm',
+  'suprailiacMm',
+  'abdominalMm',
+  'thighMm',
+];
+
+function dateLabel(value?: string) {
+  if (!value) return '—';
+  const [year, month, day] = value.slice(0, 10).split('-');
+  return year && month && day ? `${day}/${month}/${year}` : value;
+}
+
+export function formatAdipometryResult(
+  value: number | undefined,
+  unit: string,
+  scale?: number
+): string {
+  if (value === undefined) return '—';
+  const formatted = scale === undefined
+    ? String(value).replace('.', ',')
+    : new Intl.NumberFormat('pt-BR', {
+        minimumFractionDigits: scale,
+        maximumFractionDigits: scale,
+        useGrouping: false,
+      }).format(value);
+  return `${formatted} ${unit}`;
+}
+
+function resultPrecision(
+  preview: AdipometryCalculationPreview | null,
+  detail: AdipometryAssessmentDetail | null
+) {
+  const previewPrecision = preview?.protocol.displayPrecision;
+  if (previewPrecision) return previewPrecision;
+
+  const snapshotPrecision =
+    detail?.calculationSnapshot?.protocolApproval.protocolDefinitionSnapshot.precision;
+  if (!snapshotPrecision) return null;
+
+  return {
+    measurementScale: snapshotPrecision.measurementScale,
+    resultScale: snapshotPrecision.resultScale,
+    skinfoldTotalScale:
+      snapshotPrecision.skinfoldTotalScale ?? snapshotPrecision.measurementScale,
+  };
+}
+
+export function adipometryRevisionStatusLabel(
+  status: AdipometryAssessmentStatus
+): string {
+  const labels: Record<AdipometryAssessmentStatus, string> = {
+    DRAFT: 'Rascunho',
+    FINALIZED: 'Concluída',
+    SUPERSEDED: 'Substituída',
+    CANCELLED: 'Cancelada',
+    VOIDED: 'Invalidada',
+  };
+  return labels[status];
+}
+
+export function messageClass(tone: 'error' | 'success' | 'warning') {
+  if (tone === 'error') {
+    return 'border-destructive/40 bg-destructive/10 text-destructive';
+  }
+  if (tone === 'success') {
+    return 'border-emerald-300 bg-emerald-50 text-emerald-950';
+  }
+  return 'border-amber-300 bg-amber-50 text-amber-950';
+}
+
+export function buildAdipometryGuidedSteps({
+  detail,
+  preview,
+  selectedStudent,
+}: {
+  detail: AdipometryAssessmentDetail | null;
+  preview: AdipometryCalculationPreview | null;
+  selectedStudent: boolean;
+}) {
+  const persistedHeader = Boolean(
+    detail?.assessmentDate
+      && detail.professorId
+      && detail.protocolCode
+      && detail.protocolVersion
+  );
+  const persistedCollection = Boolean(
+    detail
+      && persistedCollectionFields.every(
+        (field) => detail.measurements[field] !== undefined
+      )
+  );
+
+  return [
+    {
+      title: '1. Aluno',
+      done: selectedStudent,
+      description: 'Selecione o aluno que será avaliado.',
+    },
+    {
+      title: '2. Contexto',
+      done: persistedHeader,
+      description: 'Persista data, responsável e protocolo antes da coleta.',
+    },
+    {
+      title: '3. Coleta',
+      done: persistedCollection,
+      description: 'Registre peso e as cinco dobras no rascunho.',
+    },
+    {
+      title: '4. Prévia',
+      done: Boolean(preview),
+      description: 'Calcule e revise o resultado autoritativo.',
+    },
+    {
+      title: '5. Conclusão',
+      done: detail?.revisionStatus === 'FINALIZED',
+      description: 'Conclua ou crie uma revisão de correção.',
+    },
+  ];
+}
+
+export function StepStrip({
+  detail,
+  preview,
+  selectedStudent,
+}: {
+  detail: AdipometryAssessmentDetail | null;
+  preview: AdipometryCalculationPreview | null;
+  selectedStudent: boolean;
+}) {
+  const steps = buildAdipometryGuidedSteps({
+    detail,
+    preview,
+    selectedStudent,
+  });
+  return (
+    <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+      {steps.map((step, index) => {
+        const current =
+          !step.done && steps.slice(0, index).every((previous) => previous.done);
+        return (
+          <div
+            key={step.title}
+            className={`rounded-lg border p-3 ${
+              step.done
+                ? 'border-emerald-200 bg-emerald-50'
+                : current
+                  ? 'border-primary/40 bg-primary/5'
+                  : 'border-border bg-muted/20'
+            }`}
+          >
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              {step.done ? (
+                <CheckCircle2
+                  className="h-4 w-4 text-emerald-700"
+                  aria-hidden="true"
+                />
+              ) : null}
+              {step.title}
+            </div>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              {step.description}
+            </p>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+export function Results({
+  preview,
+  detail,
+}: {
+  preview: AdipometryCalculationPreview | null;
+  detail: AdipometryAssessmentDetail | null;
+}) {
+  const results = preview?.results ?? detail?.results;
+  const precision = resultPrecision(preview, detail);
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Resultado calculado</CardTitle>
+        <CardDescription>
+          Somente leitura. Os valores são produzidos pela API com o protocolo
+          aprovado.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {results ? (
+          <dl className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              [
+                'Soma das dobras',
+                formatAdipometryResult(
+                  results.skinfoldTotalMm,
+                  'mm',
+                  precision?.skinfoldTotalScale
+                ),
+              ],
+              [
+                'Gordura corporal',
+                formatAdipometryResult(
+                  results.bodyFatPercentage,
+                  '%',
+                  precision?.resultScale
+                ),
+              ],
+              [
+                'Massa de gordura',
+                formatAdipometryResult(
+                  results.fatMassKg,
+                  'kg',
+                  precision?.resultScale
+                ),
+              ],
+              [
+                'Massa magra',
+                formatAdipometryResult(
+                  results.leanMassKg,
+                  'kg',
+                  precision?.resultScale
+                ),
+              ],
+            ].map(([label, value]) => (
+              <div
+                key={label}
+                className="rounded-lg border border-border bg-muted/20 p-4"
+              >
+                <dt className="text-xs text-muted-foreground">{label}</dt>
+                <dd className="mt-1 text-xl font-semibold text-foreground">
+                  {value}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        ) : (
+          <div className="rounded-lg border border-dashed border-border p-5 text-sm text-muted-foreground">
+            Salve o rascunho e calcule a prévia para visualizar os resultados.
+          </div>
+        )}
+        {preview?.compatibility.reasons.length ? (
+          <div className="mt-4 rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
+            <p className="font-semibold">Pendências que impedem a conclusão</p>
+            <ul className="mt-2 list-disc space-y-1 pl-5">
+              {preview.compatibility.reasons.map((item) => (
+                <li key={`${item.code}-${item.field ?? ''}`}>{item.message}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        {preview?.compatibility.warnings.length ? (
+          <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+            <p className="font-semibold">Alertas do protocolo</p>
+            <ul className="mt-2 list-disc space-y-1 pl-5">
+              {preview.compatibility.warnings.map((item) => (
+                <li key={`${item.code}-${item.field ?? ''}`}>{item.message}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+export function SupportCard({
+  support,
+  selectedId,
+  studentId,
+  disabled,
+  onSelect,
+}: {
+  support: AdipometryAnthropometrySupport | null;
+  selectedId: string;
+  studentId: string;
+  disabled: boolean;
+  onSelect: (id: string) => void;
+}) {
+  const record = support?.selected ?? support?.latestEligible ?? null;
+  const find = (terms: string[]) =>
+    record?.measurements.find((item) => {
+      const searchable = `${item.segmentName} ${item.technicalDescription ?? ''} ${item.formulaHint ?? ''}`
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase();
+      return terms.every((term) => searchable.includes(term));
+    });
+  const triceps = find(['olecr']) ?? find(['braco']) ?? find(['tricip']);
+  const thigh = find(['ligamento', 'patela']) ?? find(['coxa']);
+  const sourcePath = studentId && record
+    ? `/protocolo-avaliacao-fisica/antropometria?alunoId=${encodeURIComponent(studentId)}&assessmentId=${encodeURIComponent(record.anthropometryAssessmentId)}`
+    : null;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Antropometria de apoio</CardTitle>
+        <CardDescription>
+          Vínculo opcional para conferência consciente. Nenhum resultado é
+          copiado automaticamente.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {record ? (
+          <>
+            <div className="rounded-lg border border-border bg-muted/20 p-3 text-sm">
+              <p className="font-semibold">
+                {record.assessmentCode} · {dateLabel(record.assessmentDate)}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                As distâncias abaixo orientam a localização dos pontos médios;
+                elas não são dobras cutâneas medidas.
+              </p>
+              {triceps ? (
+                <p className="mt-2">
+                  Ponto médio tricipital entre olécrano e acrômio-clavicular:{' '}
+                  {triceps.value ?? '—'} {triceps.unit}
+                </p>
+              ) : null}
+              {thigh ? (
+                <p>
+                  Ponto médio da coxa entre ligamento inguinal e borda superior
+                  da patela: {thigh.value ?? '—'} {thigh.unit}
+                </p>
+              ) : null}
+              {sourcePath ? (
+                <Link
+                  to={sourcePath}
+                  className="mt-3 inline-flex font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  Abrir avaliação de origem {record.assessmentCode}
+                </Link>
+              ) : null}
+            </div>
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={selectedId === record.anthropometryAssessmentId}
+                disabled={disabled}
+                onChange={(event) =>
+                  onSelect(
+                    event.target.checked ? record.anthropometryAssessmentId : ''
+                  )
+                }
+              />
+              Vincular esta antropometria à avaliação ADPT
+            </label>
+          </>
+        ) : (
+          <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+            Nenhuma antropometria elegível foi encontrada. A coleta ADPT
+            continua disponível.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+export function HistoryPanel({
+  assessments,
+  activeId,
+  onOpen,
+}: {
+  assessments: AdipometryAssessmentSummary[];
+  activeId?: string;
+  onOpen: (id: string) => void;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <History className="h-5 w-5" aria-hidden="true" />
+          Histórico
+        </CardTitle>
+        <CardDescription>Rascunhos e revisões do aluno.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {assessments.length ? (
+          assessments.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => onOpen(item.id)}
+              className={`w-full rounded-lg border p-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                item.id === activeId
+                  ? 'border-primary bg-primary/10'
+                  : 'border-border hover:bg-muted'
+              }`}
+            >
+              <span className="flex items-center justify-between gap-2">
+                <span className="font-semibold">
+                  {item.code} · R{item.revisionNumber}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {adipometryRevisionStatusLabel(item.revisionStatus)}
+                </span>
+              </span>
+              <span className="mt-1 block text-xs text-muted-foreground">
+                {dateLabel(item.assessmentDate)} ·{' '}
+                {item.protocolCode
+                  ? `${item.protocolCode} v${item.protocolVersion}`
+                  : 'protocolo pendente'}
+              </span>
+            </button>
+          ))
+        ) : (
+          <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+            Nenhuma avaliação ADPT.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}

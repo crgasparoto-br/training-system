@@ -9,6 +9,9 @@ const extendedAuthorizationMatrix =
 const isolatedDatabaseTests = [
   'src/modules/adipometry/adipometry-api.integration.test.ts',
   'src/modules/adipometry/adipometry-remediation.integration.test.ts',
+  'src/modules/adipometry/adipometry-professional-actor.integration.test.ts',
+  'src/modules/adipometry/adipometry-responsible-permission-race.integration.test.ts',
+  'src/modules/adipometry/adipometry-responsible-lifecycle.integration.test.ts',
   'src/modules/pre-registration-invites/pre-registration-invite-concurrency.integration.test.ts',
   'src/modules/pre-registration-invites/pre-registration-invite-temporal-consistency.integration.test.ts',
 ];

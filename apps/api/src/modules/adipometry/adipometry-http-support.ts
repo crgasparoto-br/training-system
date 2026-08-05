@@ -20,11 +20,14 @@ const VALIDATION_CODES = [
 ] as const;
 
 function persistenceMessage(error: unknown): string {
-  if (!(error instanceof Prisma.PrismaClientKnownRequestError)) return '';
-  const meta = error.meta as Record<string, unknown> | undefined;
-  return [meta?.message, meta?.database_error, error.message]
-    .filter((value): value is string => typeof value === 'string')
-    .join(' ');
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    const meta = error.meta as Record<string, unknown> | undefined;
+    return [meta?.message, meta?.database_error, error.message]
+      .filter((value): value is string => typeof value === 'string')
+      .join(' ');
+  }
+  if (error instanceof Error) return error.message;
+  return '';
 }
 
 /**
@@ -60,7 +63,11 @@ export function mapAdipometryPersistenceError(error: unknown): AdipometryService
       );
     }
   }
-  if (message.includes('ADIPOMETRY_ACTOR_CROSS_TENANT_OR_INACTIVE')) {
+  if (
+    message.includes('ADIPOMETRY_ACTOR_CROSS_TENANT_OR_INACTIVE')
+    || message.includes('ADIPOMETRY_RESPONSIBLE_NOT_AVAILABLE')
+    || message.includes('ADIPOMETRY_PROTOCOL_SEX_CONFIRMER_OUTSIDE_CONTRACT')
+  ) {
     return new AdipometryServiceError(
       'Avaliação não encontrada.',
       'ADIPOMETRY_RESOURCE_NOT_FOUND',

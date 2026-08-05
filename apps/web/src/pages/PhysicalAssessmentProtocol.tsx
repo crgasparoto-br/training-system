@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { canAccessBlock } from '../access/access-control';
 import { assessmentHistorySections } from '../data/assessmentVariables';
 import { useAuthStore } from '../stores/useAuthStore';
+import { AdipometryScreen } from './PhysicalAssessment/AdipometryScreen';
 import { AnthropometryScreen } from './PhysicalAssessment/AnthropometryScreen';
 import { CapacityPrescriptionScreen } from './PhysicalAssessment/CapacityPrescriptionScreen';
 import { ProntuarioScreenWithDiscomfortFollowUps } from './PhysicalAssessment/ProntuarioScreenWithDiscomfortFollowUps';
@@ -134,7 +135,6 @@ function GenericProtocolScreen({ currentProtocol }: { currentProtocol: ProtocolP
           <CardContent className="space-y-2">
             {protocolPages.map((page) => {
               const active = page.slug === currentProtocol.slug;
-
               return (
                 <Link
                   key={page.slug}
@@ -188,10 +188,8 @@ export default function PhysicalAssessmentProtocol() {
   const user = useAuthStore((state) => state.user);
   const currentProtocol = getProtocolFromPath(location.pathname);
 
-  if (currentProtocol.slug === 'antropometria') {
-    return <AnthropometryScreen />;
-  }
-
+  if (currentProtocol.slug === 'antropometria') return <AnthropometryScreen />;
+  if (currentProtocol.slug === 'adipometria') return <AdipometryScreen />;
   if (currentProtocol.slug === 'prontuario-entrevista-acompanhamento') {
     return <ProntuarioScreenWithDiscomfortFollowUps />;
   }
@@ -201,10 +199,7 @@ export default function PhysicalAssessmentProtocol() {
     return (
       <div className="space-y-4">
         {!canViewAssessmentSources ? (
-          <div
-            role="status"
-            className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950"
-          >
+          <div role="status" className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
             Seu perfil pode acessar a prescrição, mas não possui permissão para consultar avaliações físicas. As fontes de avaliação não serão exibidas; objetivos, alertas permitidos e notas técnicas continuam disponíveis.
           </div>
         ) : null}

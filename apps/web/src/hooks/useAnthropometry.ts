@@ -1,8 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { anthropometryService } from '../services/anthropometry.service';
-import type { AnthropometryAssessment, AnthropometryObservation, AnthropometrySegment } from '../types/anthropometry';
+import type {
+  AnthropometryAssessment,
+  AnthropometryObservation,
+  AnthropometrySegment,
+} from '../types/anthropometry';
 
-export function useAnthropometry(alunoId?: string, alunoSex?: 'male' | 'female' | 'other') {
+export function useAnthropometry(
+  alunoId?: string,
+  alunoSex?: 'male' | 'female' | 'other'
+) {
+  const requestedAssessmentId = useMemo(() => {
+    if (typeof window === 'undefined') return '';
+    return new URLSearchParams(window.location.search).get('assessmentId') ?? '';
+  }, []);
   const [segments, setSegments] = useState<AnthropometrySegment[]>([]);
   const [assessments, setAssessments] = useState<AnthropometryAssessment[]>([]);
   const [selectedAssessmentId, setSelectedAssessmentId] = useState<string>('');
@@ -11,7 +22,10 @@ export function useAnthropometry(alunoId?: string, alunoSex?: 'male' | 'female' 
   const [error, setError] = useState<string | null>(null);
 
   const selectedAssessment = useMemo(
-    () => assessments.find((assessment) => assessment.id === selectedAssessmentId) ?? assessments[0] ?? null,
+    () =>
+      assessments.find(
+        (assessment) => assessment.id === selectedAssessmentId
+      ) ?? assessments[0] ?? null,
     [assessments, selectedAssessmentId]
   );
 
@@ -23,17 +37,34 @@ export function useAnthropometry(alunoId?: string, alunoSex?: 'male' | 'female' 
     try {
       const [segmentData, assessmentData] = await Promise.all([
         anthropometryService.listActiveSegments(alunoSex),
-        alunoId ? anthropometryService.listAssessments(alunoId) : Promise.resolve([]),
+        alunoId
+          ? anthropometryService.listAssessments(alunoId)
+          : Promise.resolve([]),
       ]);
       setSegments(segmentData);
       setAssessments(assessmentData);
-      setSelectedAssessmentId((current) => current || assessmentData[0]?.id || '');
+      setSelectedAssessmentId((current) => {
+        if (current && assessmentData.some((item) => item.id === current)) {
+          return current;
+        }
+        if (
+          requestedAssessmentId
+          && assessmentData.some((item) => item.id === requestedAssessmentId)
+        ) {
+          return requestedAssessmentId;
+        }
+        return assessmentData[0]?.id || '';
+      });
     } catch (err: any) {
-      setError(err?.response?.data?.error || err?.message || 'Erro ao carregar antropometria.');
+      setError(
+        err?.response?.data?.error
+          || err?.message
+          || 'Erro ao carregar antropometria.'
+      );
     } finally {
       setLoading(false);
     }
-  }, [alunoId, alunoSex]);
+  }, [alunoId, alunoSex, requestedAssessmentId]);
 
   useEffect(() => {
     void load();
@@ -54,22 +85,42 @@ export function useAnthropometry(alunoId?: string, alunoSex?: 'male' | 'female' 
       setSelectedAssessmentId(created.id);
       return created;
     } catch (err: any) {
-      setError(err?.response?.data?.error || err?.message || 'Erro ao criar avaliação antropométrica.');
+      setError(
+        err?.response?.data?.error
+          || err?.message
+          || 'Erro ao criar avaliação antropométrica.'
+      );
       return null;
     } finally {
       setSaving(false);
     }
   };
 
-  const updateHeader = async (assessmentId: string, data: { assessmentDate?: string; professorId?: string | null; notes?: string | null }) => {
+  const updateHeader = async (
+    assessmentId: string,
+    data: {
+      assessmentDate?: string;
+      professorId?: string | null;
+      notes?: string | null;
+    }
+  ) => {
     setSaving(true);
     setError(null);
     try {
-      const updated = await anthropometryService.updateAssessment(assessmentId, data);
-      setAssessments((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+      const updated = await anthropometryService.updateAssessment(
+        assessmentId,
+        data
+      );
+      setAssessments((current) =>
+        current.map((item) => (item.id === updated.id ? updated : item))
+      );
       return updated;
     } catch (err: any) {
-      setError(err?.response?.data?.error || err?.message || 'Erro ao atualizar avaliação.');
+      setError(
+        err?.response?.data?.error
+          || err?.message
+          || 'Erro ao atualizar avaliação.'
+      );
       return null;
     } finally {
       setSaving(false);
@@ -78,16 +129,30 @@ export function useAnthropometry(alunoId?: string, alunoSex?: 'male' | 'female' 
 
   const saveValues = async (
     assessmentId: string,
-    values: Array<{ segmentId: string; value?: string | null; unit: string; observation?: string | null }>
+    values: Array<{
+      segmentId: string;
+      value?: string | null;
+      unit: string;
+      observation?: string | null;
+    }>
   ) => {
     setSaving(true);
     setError(null);
     try {
-      const updated = await anthropometryService.saveValues(assessmentId, values);
-      setAssessments((current) => current.map((item) => (item.id === updated?.id ? updated : item)));
+      const updated = await anthropometryService.saveValues(
+        assessmentId,
+        values
+      );
+      setAssessments((current) =>
+        current.map((item) => (item.id === updated?.id ? updated : item))
+      );
       return updated;
     } catch (err: any) {
-      setError(err?.response?.data?.error || err?.message || 'Erro ao salvar medidas.');
+      setError(
+        err?.response?.data?.error
+          || err?.message
+          || 'Erro ao salvar medidas.'
+      );
       return null;
     } finally {
       setSaving(false);
@@ -96,16 +161,27 @@ export function useAnthropometry(alunoId?: string, alunoSex?: 'male' | 'female' 
 
   const saveObservations = async (
     assessmentId: string,
-    observations: Array<Pick<AnthropometryObservation, 'segmentId' | 'text' | 'importable'>>
+    observations: Array<
+      Pick<AnthropometryObservation, 'segmentId' | 'text' | 'importable'>
+    >
   ) => {
     setSaving(true);
     setError(null);
     try {
-      const updated = await anthropometryService.saveObservations(assessmentId, observations);
-      setAssessments((current) => current.map((item) => (item.id === updated?.id ? updated : item)));
+      const updated = await anthropometryService.saveObservations(
+        assessmentId,
+        observations
+      );
+      setAssessments((current) =>
+        current.map((item) => (item.id === updated?.id ? updated : item))
+      );
       return updated;
     } catch (err: any) {
-      setError(err?.response?.data?.error || err?.message || 'Erro ao salvar observações.');
+      setError(
+        err?.response?.data?.error
+          || err?.message
+          || 'Erro ao salvar observações.'
+      );
       return null;
     } finally {
       setSaving(false);
