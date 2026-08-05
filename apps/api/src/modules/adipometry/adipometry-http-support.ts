@@ -66,23 +66,13 @@ export function mapAdipometryPersistenceError(error: unknown): AdipometryService
   if (
     message.includes('ADIPOMETRY_ACTOR_CROSS_TENANT_OR_INACTIVE')
     || message.includes('ADIPOMETRY_RESPONSIBLE_NOT_AVAILABLE')
+    || message.includes('ADIPOMETRY_PROTOCOL_SEX_CONFIRMER_OUTSIDE_CONTRACT')
   ) {
     return new AdipometryServiceError(
       'Avaliação não encontrada.',
       'ADIPOMETRY_RESOURCE_NOT_FOUND',
       404
     );
-  }
-
-  // Prisma wraps PostgreSQL trigger failures that have no stable client code
-  // as UnknownRequestError. Emit the original server-side text only in the
-  // disposable test environment so the integrated verifier can identify the
-  // violated invariant. Public HTTP responses remain generic and correlated.
-  if (process.env.NODE_ENV === 'test' && message) {
-    console.error('ADIPOMETRY_PERSISTENCE_DIAGNOSTIC', {
-      errorType: error instanceof Error ? error.name : typeof error,
-      message,
-    });
   }
   return null;
 }
