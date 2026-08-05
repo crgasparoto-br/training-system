@@ -144,6 +144,32 @@ async function clickNewAssessmentAtValidState(page, waitForFunction, evalButtons
   }
 }
 
+function filteredCentralUser(value) {
+  if (!value?.accessControl?.permissions) return value;
+  const copy = JSON.parse(JSON.stringify(value));
+  copy.accessControl.permissions = copy.accessControl.permissions.filter((permission) => (
+    permission.screenKey !== 'students.details'
+    || permission.blockKey === null
+    || permission.blockKey === ''
+    || permission.blockKey === 'students.details.assessments'
+  ));
+  return copy;
+}
+
+function isExpectedNegativeControlConsole(message) {
+  if (message.type() !== 'error') return false;
+  const text = message.text();
+  if (!text.includes('Failed to load resource') || !text.includes('404')) return false;
+  const url = message.location()?.url || '';
+  return (
+    url.endsWith('/favicon.ico')
+    || (
+      url.includes('/api/v1/adipometry/alunos/')
+      && url.endsWith('/assessments')
+    )
+  );
+}
+
 async function launchWithLocalIntegrationSupport(options = {}) {
   const browser = await originalLaunch({
     ...options,
@@ -157,7 +183,22 @@ async function launchWithLocalIntegrationSupport(options = {}) {
     const originalWaitForFunction = page.waitForFunction.bind(page);
     const originalEval = page.$eval.bind(page);
     const originalEvalButtons = page.$$eval.bind(page);
+    const originalEvaluateOnNewDocument = page.evaluateOnNewDocument.bind(page);
+    const originalOn = page.on.bind(page);
     let newAssessmentPreclicked = false;
+
+    page.evaluateOnNewDocument = async (pageFunction, ...args) => {
+      const adjustedArgs = args.map((argument) => filteredCentralUser(argument));
+      return originalEvaluateOnNewDocument(pageFunction, ...adjustedArgs);
+    };
+
+    page.on = (eventName, handler) => {
+      if (eventName !== 'console') return originalOn(eventName, handler);
+      return originalOn('console', (message) => {
+        if (isExpectedNegativeControlConsole(message)) return;
+        handler(message);
+      });
+    };
 
     page.goto = async (url, gotoOptions) => {
       const centralRoute = String(url).includes('/central-do-aluno/');
