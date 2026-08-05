@@ -1,4 +1,10 @@
-import { useEffect, useRef, type KeyboardEvent, type ReactNode } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from 'react';
 import { ExternalLink, X } from 'lucide-react';
 import type {
   AdipometryCalculatedResults,
@@ -22,9 +28,14 @@ export function AccessibleDialog({
   const previousFocus = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
-    previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    previousFocus.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
     dialogRef.current
-      ?.querySelector<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
+      ?.querySelector<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      )
       ?.focus();
     return () => previousFocus.current?.focus();
   }, []);
@@ -54,7 +65,10 @@ export function AccessibleDialog({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4" onMouseDown={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4"
+      onMouseDown={onClose}
+    >
       <div
         ref={dialogRef}
         role="dialog"
@@ -67,10 +81,28 @@ export function AccessibleDialog({
       >
         <div className="flex items-start justify-between gap-4 border-b border-border px-5 py-4">
           <div>
-            <h2 id="adpt-dialog-title" className="text-lg font-semibold text-foreground">{title}</h2>
-            {description ? <p id="adpt-dialog-description" className="mt-1 text-sm text-muted-foreground">{description}</p> : null}
+            <h2
+              id="adpt-dialog-title"
+              className="text-lg font-semibold text-foreground"
+            >
+              {title}
+            </h2>
+            {description ? (
+              <p
+                id="adpt-dialog-description"
+                className="mt-1 text-sm text-muted-foreground"
+              >
+                {description}
+              </p>
+            ) : null}
           </div>
-          <Button type="button" size="icon" variant="ghost" aria-label="Fechar" onClick={onClose}>
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            aria-label="Fechar"
+            onClick={onClose}
+          >
             <X className="h-5 w-5" />
           </Button>
         </div>
@@ -80,16 +112,46 @@ export function AccessibleDialog({
   );
 }
 
-export function SkinfoldHelpDialog({ item, onClose }: { item: AdipometrySkinfoldHelp; onClose: () => void }) {
+export function SkinfoldHelpDialog({
+  item,
+  onClose,
+}: {
+  item: AdipometrySkinfoldHelp;
+  onClose: () => void;
+}) {
+  const [imageFailed, setImageFailed] = useState(false);
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [item.imageUrl]);
+
+  const showImage = Boolean(item.imageUrl && !imageFailed);
+
   return (
-    <AccessibleDialog title={item.label} description="Referência técnica para a coleta da dobra cutânea." onClose={onClose}>
+    <AccessibleDialog
+      title={item.label}
+      description="Referência técnica para a coleta da dobra cutânea."
+      onClose={onClose}
+    >
       <div className="space-y-4">
-        <p className="text-sm leading-6 text-foreground">{item.description}</p>
-        {item.imageUrl ? (
-          <img className="max-h-80 w-full rounded-lg object-contain" src={item.imageUrl} alt={`Referência anatômica para ${item.label}`} />
+        <p className="text-sm leading-6 text-foreground">
+          {item.description}
+        </p>
+        {showImage ? (
+          <img
+            className="max-h-80 w-full rounded-lg object-contain"
+            src={item.imageUrl}
+            alt={`Referência anatômica para ${item.label}`}
+            onError={() => setImageFailed(true)}
+          />
         ) : (
-          <div className="rounded-lg border border-dashed border-border bg-muted/20 p-4 text-sm text-muted-foreground">
-            A referência visual é opcional e ainda não foi cadastrada.
+          <div
+            role={imageFailed ? 'status' : undefined}
+            className="rounded-lg border border-dashed border-border bg-muted/20 p-4 text-sm text-muted-foreground"
+          >
+            {imageFailed
+              ? 'Não foi possível carregar a imagem de referência. A orientação textual e o vídeo continuam disponíveis.'
+              : 'A referência visual é opcional e ainda não foi cadastrada.'}
           </div>
         )}
         <a
@@ -112,6 +174,7 @@ export function FinalizeDialog({
   protocol,
   responsible,
   results,
+  resultScale,
   busy,
   onClose,
   onConfirm,
@@ -121,11 +184,21 @@ export function FinalizeDialog({
   protocol: string;
   responsible: string;
   results: AdipometryCalculatedResults;
+  resultScale?: number;
   busy: boolean;
   onClose: () => void;
   onConfirm: () => void;
 }) {
-  const value = (number: number, unit: string) => `${String(number).replace('.', ',')} ${unit}`;
+  const value = (number: number, unit: string) => {
+    const formatted = resultScale === undefined
+      ? String(number).replace('.', ',')
+      : new Intl.NumberFormat('pt-BR', {
+          minimumFractionDigits: resultScale,
+          maximumFractionDigits: resultScale,
+          useGrouping: false,
+        }).format(number);
+    return `${formatted} ${unit}`;
+  };
   return (
     <AccessibleDialog
       title="Confirmar conclusão da ADPT"
@@ -144,25 +217,45 @@ export function FinalizeDialog({
           ].map(([label, content]) => (
             <div key={label} className="rounded-lg border border-border p-3">
               <dt className="text-xs text-muted-foreground">{label}</dt>
-              <dd className="mt-1 font-semibold text-foreground">{content}</dd>
+              <dd className="mt-1 font-semibold text-foreground">
+                {content}
+              </dd>
             </div>
           ))}
         </dl>
         <div className="flex flex-wrap justify-end gap-2">
-          <Button type="button" variant="outline" onClick={onClose}>Voltar e revisar</Button>
-          <Button type="button" onClick={onConfirm} isLoading={busy} disabled={busy}>Confirmar conclusão</Button>
+          <Button type="button" variant="outline" onClick={onClose}>
+            Voltar e revisar
+          </Button>
+          <Button
+            type="button"
+            onClick={onConfirm}
+            isLoading={busy}
+            disabled={busy}
+          >
+            Confirmar conclusão
+          </Button>
         </div>
       </div>
     </AccessibleDialog>
   );
 }
 
-const categories: Array<{ value: AdipometryCorrectionCategory; label: string }> = [
+const categories: Array<{
+  value: AdipometryCorrectionCategory;
+  label: string;
+}> = [
   { value: 'DATA_ENTRY_ERROR', label: 'Erro de digitação' },
-  { value: 'MEASUREMENT_TRANSCRIPTION_ERROR', label: 'Erro de transcrição da medida' },
+  {
+    value: 'MEASUREMENT_TRANSCRIPTION_ERROR',
+    label: 'Erro de transcrição da medida',
+  },
   { value: 'EVALUATION_DATE_ERROR', label: 'Erro na data da avaliação' },
   { value: 'PROTOCOL_SEX_ERROR', label: 'Erro no sexo de referência' },
-  { value: 'PROTOCOL_SELECTION_ERROR', label: 'Erro na seleção do protocolo' },
+  {
+    value: 'PROTOCOL_SELECTION_ERROR',
+    label: 'Erro na seleção do protocolo',
+  },
   { value: 'OTHER', label: 'Outro motivo' },
 ];
 
@@ -184,21 +277,41 @@ export function CorrectionDialog({
   onConfirm: () => void;
 }) {
   return (
-    <AccessibleDialog title="Iniciar correção" description="A avaliação concluída será preservada e uma nova revisão será criada." onClose={onClose}>
+    <AccessibleDialog
+      title="Iniciar correção"
+      description="A avaliação concluída será preservada e uma nova revisão será criada."
+      onClose={onClose}
+    >
       <div className="space-y-4">
         <div>
-          <label htmlFor="adpt-correction-category" className="mb-2 block text-sm font-medium">Categoria</label>
+          <label
+            htmlFor="adpt-correction-category"
+            className="mb-2 block text-sm font-medium"
+          >
+            Categoria
+          </label>
           <select
             id="adpt-correction-category"
             value={category}
-            onChange={(event) => onCategory(event.target.value as AdipometryCorrectionCategory)}
+            onChange={(event) =>
+              onCategory(event.target.value as AdipometryCorrectionCategory)
+            }
             className="h-11 w-full rounded-lg border border-input bg-card px-4 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            {categories.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+            {categories.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
           </select>
         </div>
         <div>
-          <label htmlFor="adpt-correction-reason" className="mb-2 block text-sm font-medium">Motivo</label>
+          <label
+            htmlFor="adpt-correction-reason"
+            className="mb-2 block text-sm font-medium"
+          >
+            Motivo
+          </label>
           <textarea
             id="adpt-correction-reason"
             rows={4}
@@ -207,11 +320,22 @@ export function CorrectionDialog({
             placeholder="Explique por que a avaliação precisa ser corrigida."
             className="w-full rounded-lg border border-input bg-card px-4 py-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
-          <p className="mt-1 text-xs text-muted-foreground">Mínimo de 10 caracteres.</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Mínimo de 10 caracteres.
+          </p>
         </div>
         <div className="flex flex-wrap justify-end gap-2">
-          <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
-          <Button type="button" onClick={onConfirm} isLoading={busy} disabled={busy || reason.trim().length < 10}>Criar revisão</Button>
+          <Button type="button" variant="outline" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button
+            type="button"
+            onClick={onConfirm}
+            isLoading={busy}
+            disabled={busy || reason.trim().length < 10}
+          >
+            Criar revisão
+          </Button>
         </div>
       </div>
     </AccessibleDialog>
