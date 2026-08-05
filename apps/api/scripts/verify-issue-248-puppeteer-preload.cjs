@@ -81,6 +81,28 @@ async function selectEligibleResponsible(page, waitForFunction) {
   }
 }
 
+async function clickNewAssessmentAtValidState(page, waitForFunction, evalButtons) {
+  await selectEligibleResponsible(page, waitForFunction);
+  const clicked = await evalButtons(
+    'button',
+    (buttons) => {
+      const button = buttons.find(
+        (item) => item.textContent?.trim() === 'Nova avaliação'
+      );
+      if (!(button instanceof HTMLButtonElement) || button.disabled) return false;
+      button.click();
+      return true;
+    }
+  );
+
+  if (!clicked) {
+    const state = await readAdipometryControlState(page);
+    throw new Error(
+      `A criação ADPT não pôde ser acionada no estado válido: ${JSON.stringify(state)}`
+    );
+  }
+}
+
 async function launchWithLocalIntegrationSupport(options = {}) {
   const browser = await originalLaunch({
     ...options,
@@ -92,6 +114,8 @@ async function launchWithLocalIntegrationSupport(options = {}) {
     const page = await originalNewPage();
     const originalGoto = page.goto.bind(page);
     const originalWaitForFunction = page.waitForFunction.bind(page);
+    const originalEvalButtons = page.$$eval.bind(page);
+    let newAssessmentPreclicked = false;
 
     page.goto = async (url, gotoOptions) => {
       const response = await originalGoto(url, gotoOptions);
@@ -103,12 +127,27 @@ async function launchWithLocalIntegrationSupport(options = {}) {
 
     page.waitForFunction = async (pageFunction, waitOptions, ...args) => {
       if (args.some((argument) => argument === 'Nova avaliação')) {
-        // O workspace React pode reconciliar o diretório de responsáveis após
-        // o page.goto. Reaplique a escolha imediatamente antes da espera usada
-        // pelo clique real do verificador para eliminar essa corrida de estado.
-        await selectEligibleResponsible(page, originalWaitForFunction);
+        await clickNewAssessmentAtValidState(
+          page,
+          originalWaitForFunction,
+          originalEvalButtons
+        );
+        newAssessmentPreclicked = true;
+        return originalWaitForFunction(() => true, waitOptions);
       }
       return originalWaitForFunction(pageFunction, waitOptions, ...args);
+    };
+
+    page.$$eval = async (selector, pageFunction, ...args) => {
+      if (
+        newAssessmentPreclicked
+        && selector === 'button'
+        && args.some((argument) => argument === 'Nova avaliação')
+      ) {
+        newAssessmentPreclicked = false;
+        return true;
+      }
+      return originalEvalButtons(selector, pageFunction, ...args);
     };
 
     return page;
