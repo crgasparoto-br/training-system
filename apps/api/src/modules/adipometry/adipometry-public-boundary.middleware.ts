@@ -61,10 +61,14 @@ export const adipometryPublicBoundaryMiddleware: RequestHandler = (_req, res, ne
     if (descriptor.correlationId) details.correlationId = descriptor.correlationId;
 
     // Preserve only the established, non-sensitive 404 alias used by existing
-    // consumers. The authoritative public contract is message + details.code.
+    // consumers. A missing direct professional membership is intentionally
+    // indistinguishable from an unavailable Professor at this public boundary.
     const compatibleLegacyError = res.statusCode === 404
-      && record.error === 'Professor não encontrado'
-      ? record.error
+      && [
+        'Professor não encontrado',
+        'Vínculo profissional não encontrado',
+      ].includes(record.error)
+      ? 'Professor não encontrado'
       : undefined;
 
     return originalJson({
