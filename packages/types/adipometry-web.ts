@@ -1,13 +1,12 @@
 import type {
   AdipometryInputField,
-  AdipometryProtocolPopulation,
   CreateAdipometryDraftInput,
   UpdateAdipometryDraftInput,
 } from './adipometry.js';
 
 declare module './adipometry.js' {
   interface AdipometryProtocolSummary {
-    population?: AdipometryProtocolPopulation;
+    population?: import('./adipometry.js').AdipometryProtocolPopulation;
     selectionReason?: string;
     displayPrecision?: {
       measurementScale: number;
