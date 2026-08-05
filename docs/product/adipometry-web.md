@@ -8,6 +8,9 @@ A rota `/protocolo-avaliacao-fisica/adipometria` é a interface operacional para
 - `?alunoId={id}` representa entrada pela Central do Aluno, preserva esse aluno e bloqueia troca acidental.
 - Uma seleção feita na abertura direta permanece estado da própria tela e não passa a simular origem pela Central após navegação ou recarga.
 - `?assessmentId={id}` abre exatamente a avaliação solicitada. A tela rejeita combinações em que o registro não pertence ao aluno preservado ou selecionado.
+- Trocar aluno ou avaliação invalida imediatamente avaliação, formulário, histórico, prévia, protocolo e apoio antropométrico anteriores antes de iniciar a próxima consulta.
+- Carregamentos de aluno, avaliação, protocolo e apoio antropométrico são vinculados à geração do contexto. Respostas atrasadas de um contexto anterior são descartadas e não podem repopular a tela.
+- Falha ao carregar o novo contexto mantém a tela sem dados clínicos do contexto anterior; o erro é apresentado sem restaurar silenciosamente avaliação, formulário ou referências antigos.
 
 ## Ator e responsável clínico
 
@@ -62,7 +65,8 @@ Quando disponível, a tela mostra código e data da Antropometria elegível e de
 
 ## Concorrência, estado e correção
 
-- Erros preservam os valores locais do formulário.
+- Erros preservam os valores locais do formulário dentro do mesmo contexto.
+- Durante a resolução de outro aluno, avaliação, data ou referências, ações clínicas de criar, salvar, calcular, concluir, corrigir e reconciliar permanecem indisponíveis.
 - Em conflito `409`, o profissional escolhe entre substituir o formulário pela versão atual do servidor ou atualizar a referência do servidor mantendo os valores locais.
 - Uma avaliação concluída não é editada diretamente.
 - A correção exige permissão específica, categoria e motivo, cria nova revisão e preserva o original.
@@ -83,7 +87,7 @@ A ocultação ou desabilitação de controles é apenas experiência de usuário
 Validações mínimas da mudança:
 
 ```bash
-pnpm --filter @corrida/web test -- adipometry-ui.test.ts adipometry-screen-utils.test.ts AdipometryScreen.test.tsx AdipometryDialogs.test.tsx AdipometryEditor.test.tsx AdipometryView.test.ts AdipometryViewSections.test.ts
+pnpm --filter @corrida/web test -- adipometry-ui.test.ts adipometry-screen-utils.test.ts AdipometryScreen.test.tsx useAdipometryWorkspace.test.tsx AdipometryDialogs.test.tsx AdipometryEditor.test.tsx AdipometryView.test.ts AdipometryViewSections.test.ts
 pnpm --filter @corrida/api test -- adipometry-responsible-professor.test.ts adipometry-web-remediation.routes.test.ts adipometry-capacity-confirmation-migration.test.ts adipometry-responsible-permission-race.integration.test.ts
 pnpm --filter @corrida/web type-check
 pnpm --filter @corrida/api type-check
