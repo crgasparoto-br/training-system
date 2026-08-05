@@ -3,29 +3,34 @@ import { MemoryRouter } from 'react-router-dom';
 import type { AdipometryAssessmentDetail } from '@corrida/types';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const current: AdipometryAssessmentDetail = {
-  id: 'assessment-1',
-  contractId: 'contract-1',
-  alunoId: 'aluno-1',
-  professorId: 'professor-revoked',
-  code: 'ADPT-001',
-  sequenceNumber: 1,
-  assessmentDate: '2026-08-05',
-  status: 'DRAFT',
-  revisionStatus: 'DRAFT',
-  rootAssessmentId: 'assessment-1',
-  revisionNumber: 1,
-  measurements: { tricepsMm: 15 },
-  notes: 'valor local preservado',
-  createdAt: '2026-08-05T10:00:00.000Z',
-  updatedAt: '2026-08-05T11:00:00.000Z',
-};
+const fixtures = vi.hoisted(() => {
+  const current: AdipometryAssessmentDetail = {
+    id: 'assessment-1',
+    contractId: 'contract-1',
+    alunoId: 'aluno-1',
+    professorId: 'professor-revoked',
+    code: 'ADPT-001',
+    sequenceNumber: 1,
+    assessmentDate: '2026-08-05',
+    status: 'DRAFT',
+    revisionStatus: 'DRAFT',
+    rootAssessmentId: 'assessment-1',
+    revisionNumber: 1,
+    measurements: { tricepsMm: 15 },
+    notes: 'valor local preservado',
+    createdAt: '2026-08-05T10:00:00.000Z',
+    updatedAt: '2026-08-05T11:00:00.000Z',
+  };
 
-const reassigned: AdipometryAssessmentDetail = {
-  ...current,
-  professorId: 'professor-replacement',
-  updatedAt: '2026-08-05T12:00:00.000Z',
-};
+  return {
+    current,
+    reassigned: {
+      ...current,
+      professorId: 'professor-replacement',
+      updatedAt: '2026-08-05T12:00:00.000Z',
+    } satisfies AdipometryAssessmentDetail,
+  };
+});
 
 const mocks = vi.hoisted(() => ({
   listResponsibleProfessors: vi.fn(),
@@ -70,7 +75,7 @@ vi.mock('./useAdipometryWorkspace', () => ({
     selectedAlunoId: 'aluno-1',
     selectAluno: vi.fn(),
     assessments: [],
-    current,
+    current: fixtures.current,
     setCurrent: mocks.setCurrent,
     protocols: [],
     support: null,
@@ -138,7 +143,7 @@ describe('ADPT responsible recovery', () => {
     mocks.listResponsibleProfessors.mockResolvedValue([
       { id: 'professor-replacement', name: 'Prof. Substituto' },
     ]);
-    mocks.reassignResponsible.mockResolvedValue(reassigned);
+    mocks.reassignResponsible.mockResolvedValue(fixtures.reassigned);
   });
 
   it('bloqueia operações e reassocia sem substituir os valores locais do formulário', async () => {
@@ -167,7 +172,7 @@ describe('ADPT responsible recovery', () => {
         expectedUpdatedAt: '2026-08-05T11:00:00.000Z',
       }
     ));
-    expect(mocks.setCurrent).toHaveBeenCalledWith(reassigned);
+    expect(mocks.setCurrent).toHaveBeenCalledWith(fixtures.reassigned);
     expect(mocks.setForm).not.toHaveBeenCalled();
     expect(mocks.setPreview).toHaveBeenCalledWith(null);
     expect(mocks.setCapacityWarningConfirmed).toHaveBeenCalledWith(false);
