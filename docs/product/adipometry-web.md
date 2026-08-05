@@ -43,9 +43,11 @@ Uma etapa não é marcada como concluída por estado local, pela mera existênci
 - Campos nunca informados permanecem ausentes.
 - Limpar uma medida já persistida envia `null` como remoção explícita; vazio não é convertido em zero.
 - O protocolo e a versão são escolhidos explicitamente entre opções aprovadas retornadas por `GET /protocols/available`.
+- Cada protocolo disponível inclui população aplicável, motivo de disponibilidade e escalas de exibição derivadas do snapshot clínico aprovado.
 - Não existe fallback silencioso para protocolo indisponível, desabilitado ou sem aprovação clínica ativa.
 - O sexo de referência e a origem da confirmação são explícitos. Divergência pode exigir justificativa e continua sujeita à validação da API.
 - Resultados derivados são somente leitura e nunca são enviados como fonte de verdade pelo navegador.
+- Soma de dobras e resultados mantêm o número de casas decimais definido pelo protocolo, inclusive zeros finais significativos para apresentação.
 
 Quando um valor é inválido, a mensagem recebe identificador estável e é vinculada ao input por `aria-describedby`; o campo recebe `aria-invalid=true` e a mensagem usa `role=alert`. Isso mantém a relação entre causa e erro para teclado e leitores de tela.
 
@@ -57,11 +59,12 @@ Cada dobra possui orientação textual e link de vídeo externo aberto com `noop
 - mantém navegação por teclado dentro do conteúdo;
 - restaura o foco ao acionador;
 - funciona sem imagem configurada;
+- substitui imagem configurada que falhar por mensagem não bloqueante, preservando texto e vídeo;
 - não incorpora vídeo nem inicia reprodução automática.
 
 ## Antropometria de apoio
 
-Quando disponível, a tela mostra código e data da Antropometria elegível e destaca referências para os pontos médios da tricipital e da coxa. O vínculo é opcional, deve ser salvo explicitamente e nunca copia automaticamente valores ou resultados. Ausência ou falha dessa origem não bloqueia a ADPT.
+Quando disponível, a tela mostra código e data da Antropometria elegível e apresenta as distâncias olécrano–acrômio-clavicular e ligamento inguinal–patela como orientações para localizar os pontos médios da tricipital e da coxa. Esses valores são identificados explicitamente como distâncias de localização, não como dobras medidas. A tela oferece acesso à avaliação de origem preservando `alunoId` e `assessmentId` na navegação. O vínculo é opcional, deve ser salvo explicitamente e nunca copia automaticamente valores ou resultados. Ausência ou falha dessa origem não bloqueia a ADPT.
 
 ## Concorrência, estado e correção
 
@@ -87,8 +90,8 @@ A ocultação ou desabilitação de controles é apenas experiência de usuário
 Validações mínimas da mudança:
 
 ```bash
-pnpm --filter @corrida/web test -- adipometry-ui.test.ts adipometry-screen-utils.test.ts AdipometryScreen.test.tsx useAdipometryWorkspace.test.tsx AdipometryDialogs.test.tsx AdipometryEditor.test.tsx AdipometryView.test.ts AdipometryViewSections.test.ts
-pnpm --filter @corrida/api test -- adipometry-responsible-professor.test.ts adipometry-web-remediation.routes.test.ts adipometry-capacity-confirmation-migration.test.ts adipometry-responsible-permission-race.integration.test.ts
+pnpm --filter @corrida/web test -- adipometry-ui.test.ts adipometry-screen-utils.test.ts AdipometryScreen.test.tsx useAdipometryWorkspace.test.tsx AdipometryDialogs.test.tsx AdipometryEditor.test.tsx AdipometryView.test.ts AdipometryViewSections.test.ts AdipometryPresentationRemediation.test.tsx
+pnpm --filter @corrida/api test -- adipometry-responsible-professor.test.ts adipometry-web-remediation.routes.test.ts adipometry-capacity-confirmation-migration.test.ts adipometry-responsible-permission-race.integration.test.ts adipometry-protocol-presentation.test.ts
 pnpm --filter @corrida/web type-check
 pnpm --filter @corrida/api type-check
 pnpm lint
