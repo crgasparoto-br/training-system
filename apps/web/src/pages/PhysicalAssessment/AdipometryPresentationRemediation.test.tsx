@@ -7,16 +7,14 @@ import type {
 } from '@corrida/types';
 import { describe, expect, it, vi } from 'vitest';
 import { SkinfoldHelpDialog } from './AdipometryDialogs';
+import { adipometryFormFromAssessment } from './adipometry-screen-utils';
 import { AdipometryEditor } from './AdipometryEditor';
 import {
   Results,
   SupportCard,
   formatAdipometryResult,
 } from './AdipometryViewSections';
-import {
-  createEmptyAdipometryForm,
-  formatAdipometryInput,
-} from './adipometry-ui';
+import { createEmptyAdipometryForm, formatAdipometryInput } from './adipometry-ui';
 
 const protocol: AdipometryProtocolSummary = {
   code: 'GUEDES_1991_ADULT_YOUNG',
@@ -77,6 +75,18 @@ const preview: AdipometryCalculationPreview = {
 describe('ADPT audit remediation presentation', () => {
   it('preserva a escala visual definida pelo protocolo', () => {
     expect(formatAdipometryInput(80, 1)).toBe('80,0');
+    const persistedForm = adipometryFormFromAssessment({
+      ...current,
+      measurements: { weightKg: 80 },
+      calculationSnapshot: {
+        protocolApproval: {
+          protocolDefinitionSnapshot: {
+            precision: { measurementScale: 1 },
+          },
+        },
+      },
+    } as AdipometryAssessmentDetail);
+    expect(persistedForm.measurements.weightKg).toBe('80,0');
     expect(formatAdipometryResult(19.4, '%', 2)).toBe('19,40 %');
     render(<Results preview={preview} detail={current} />);
     expect(screen.getByText('80,0 mm')).toBeInTheDocument();
@@ -167,9 +177,7 @@ describe('ADPT audit remediation presentation', () => {
       </MemoryRouter>
     );
 
-    expect(
-      screen.getByText(/não são dobras cutâneas medidas/i)
-    ).toBeInTheDocument();
+    expect(screen.getByText(/não são dobras cutâneas medidas/i)).toBeInTheDocument();
     expect(screen.getByText(/Ponto médio tricipital/)).toBeInTheDocument();
     expect(screen.getByText(/Ponto médio da coxa/)).toBeInTheDocument();
     expect(
@@ -201,11 +209,7 @@ describe('ADPT audit remediation presentation', () => {
     expect(
       screen.getByText(/Não foi possível carregar a imagem de referência/i)
     ).toBeInTheDocument();
-    expect(
-      screen.getByText('Descrição técnica preservada.')
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('link', { name: /Abrir vídeo/i })
-    ).toBeInTheDocument();
+    expect(screen.getByText('Descrição técnica preservada.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Abrir vídeo/i })).toBeInTheDocument();
   });
 });
