@@ -4,6 +4,7 @@ import { Router, type Request, type Response, type Router as ExpressRouter } fro
 import { z } from 'zod';
 import type {
   CreateAdipometryDraftWithResponsibleInput,
+  ReassignAdipometryResponsibleInput,
   UpdateAdipometryDraftWithClearInput,
 } from '@corrida/types';
 import { sendError, sendSuccess } from '@corrida/utils';
@@ -19,6 +20,9 @@ import {
 } from './adipometry-draft-access.middleware.js';
 import { mapAdipometryPersistenceError } from './adipometry-http-support.js';
 import { AdipometryServiceError, adipometryService } from './adipometry.service.js';
+import {
+  reassignAdipometryResponsibleProfessor,
+} from './adipometry-responsible-reassignment.js';
 import {
   listAdipometryResponsibleProfessors,
   requireAdipometryResponsibleProfessor,
@@ -117,6 +121,11 @@ export const updateAdipometryDraftWithClearSchema = z.object({
   expectedUpdatedAt: z.string().datetime({ offset: true }).optional(),
   confirmProtocolChange: z.boolean().optional(),
 }).strict().superRefine(refineDraft);
+
+export const reassignAdipometryResponsibleSchema = z.object({
+  responsibleProfessorId: idSchema,
+  expectedUpdatedAt: z.string().datetime({ offset: true }),
+}).strict();
 
 function context(req: Request) {
   const user = (req as any).user;
@@ -234,6 +243,37 @@ router.put(
         payload as any
       );
       return sendSuccess(res, assessment, 'Rascunho de adipometria atualizado.');
+    } catch (error) {
+      return sendAdipometryError(res, error);
+    }
+  }
+);
+
+router.put(
+  '/assessments/:id/responsible',
+  adipometryDraftMutationAccessMiddleware,
+  async (req: Request, res: Response) => {
+    try {
+      const payload = reassignAdipometryResponsibleSchema.parse(
+        req.body
+      ) as ReassignAdipometryResponsibleInput;
+      const { contractId, actorUserId } = context(req);
+      const responsible = await requireAdipometryResponsibleProfessor(
+        contractId,
+        payload.responsibleProfessorId
+      );
+      const assessment = await reassignAdipometryResponsibleProfessor({
+        contractId,
+        assessmentId: parseId(req.params.id),
+        actorUserId,
+        responsibleProfessorId: responsible.id,
+        expectedUpdatedAt: payload.expectedUpdatedAt,
+      });
+      return sendSuccess(
+        res,
+        assessment,
+        'Responsável do rascunho de adipometria atualizado.'
+      );
     } catch (error) {
       return sendAdipometryError(res, error);
     }
