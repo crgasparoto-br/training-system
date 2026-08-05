@@ -1,5 +1,3 @@
-BEGIN;
-
 -- Issue #248: a definição clínica é global, mas a autorização de uso é
 -- contratual. A conclusão deve validar a aprovação ativa do contrato que foi
 -- congelada no calculationSnapshot, e não o status administrativo global da
@@ -23,9 +21,23 @@ AS $$
       AND professor."contractId" = p_contract_id
       AND actor."isActive" = TRUE
       AND collaborator_function."isActive" = TRUE
-      AND LOWER(COALESCE(NULLIF(BTRIM(professor."currentStatus"), ''), 'active'))
-          NOT IN ('inactive', 'inativo', 'dismissed', 'desligado', 'terminated', 'encerrado')
-      AND (professor."dismissalDate" IS NULL OR professor."dismissalDate" > CURRENT_TIMESTAMP)
+      AND LOWER(
+        COALESCE(
+          NULLIF(BTRIM(professor."currentStatus"::TEXT), ''),
+          'active'
+        )
+      ) NOT IN (
+        'inactive',
+        'inativo',
+        'dismissed',
+        'desligado',
+        'terminated',
+        'encerrado'
+      )
+      AND (
+        professor."dismissalDate" IS NULL
+        OR professor."dismissalDate" > CURRENT_TIMESTAMP
+      )
   ) OR EXISTS (
     SELECT 1
     FROM "ProfessionalActorMembership" membership
@@ -51,7 +63,10 @@ DECLARE
   v_is_completion_transition BOOLEAN;
 BEGIN
   v_is_completion_transition := NEW."status" = 'COMPLETED'
-    AND (TG_OP = 'INSERT' OR OLD."status" IS DISTINCT FROM 'COMPLETED');
+    AND (
+      TG_OP = 'INSERT'
+      OR OLD."status" IS DISTINCT FROM 'COMPLETED'
+    );
 
   IF v_is_completion_transition AND NOT EXISTS (
     SELECT 1
@@ -63,7 +78,7 @@ BEGIN
     WHERE protocol."id" = NEW."protocolId"
       AND protocol."code" = NEW."protocolCode"
       AND protocol."version" = NEW."protocolVersion"
-      AND protocol."status" <> 'DISABLED'
+      AND protocol."status"::TEXT <> 'DISABLED'
       AND approval."contractId" = NEW."contractId"
       AND approval."revokedAt" IS NULL
       AND approval."id" = NEW."calculationSnapshot" #>> '{protocolApproval,id}'
@@ -129,5 +144,3 @@ BEGIN
   RETURN NEW;
 END;
 $$;
-
-COMMIT;
