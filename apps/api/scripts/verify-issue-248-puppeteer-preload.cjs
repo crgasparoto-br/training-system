@@ -7,28 +7,43 @@ const browserFlags = [
   '--disable-features=BlockInsecurePrivateNetworkRequests,PrivateNetworkAccessSendPreflights,PrivateNetworkAccessRespectPreflightResults',
 ];
 
-async function installExplicitResponsibleSelection(page) {
-  await page.evaluateOnNewDocument(() => {
-    function selectResponsible() {
+async function selectEligibleResponsible(page) {
+  await page.waitForFunction(
+    () => {
       const select = document.querySelector('#adpt-responsible');
-      if (!(select instanceof HTMLSelectElement) || select.value) return;
-      const option = Array.from(select.options).find((item) => item.value && !item.disabled);
-      if (!option) return;
-      const setter = Object.getOwnPropertyDescriptor(
-        HTMLSelectElement.prototype,
-        'value'
-      )?.set;
-      setter?.call(select, option.value);
-      select.dispatchEvent(new Event('input', { bubbles: true }));
-      select.dispatchEvent(new Event('change', { bubbles: true }));
-    }
+      return select instanceof HTMLSelectElement
+        && Array.from(select.options).some((item) => item.value && !item.disabled);
+    },
+    { timeout: 30_000 }
+  );
 
-    addEventListener('DOMContentLoaded', () => {
-      selectResponsible();
-      const observer = new MutationObserver(selectResponsible);
-      observer.observe(document.documentElement, { childList: true, subtree: true });
-    });
+  const selected = await page.$eval('#adpt-responsible', (select) => {
+    if (!(select instanceof HTMLSelectElement)) return false;
+    const option = Array.from(select.options).find((item) => item.value && !item.disabled);
+    if (!option) return false;
+    const setter = Object.getOwnPropertyDescriptor(
+      HTMLSelectElement.prototype,
+      'value'
+    )?.set;
+    setter?.call(select, option.value);
+    select.dispatchEvent(new Event('input', { bubbles: true }));
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+    return select.value === option.value;
   });
+
+  if (!selected) {
+    throw new Error('Não foi possível selecionar o responsável elegível no navegador ADPT.');
+  }
+
+  await page.waitForFunction(
+    () => {
+      const button = Array.from(document.querySelectorAll('button')).find(
+        (item) => item.textContent?.trim() === 'Nova avaliação'
+      );
+      return button instanceof HTMLButtonElement && !button.disabled;
+    },
+    { timeout: 30_000 }
+  );
 }
 
 async function launchWithLocalIntegrationSupport(options = {}) {
@@ -39,7 +54,14 @@ async function launchWithLocalIntegrationSupport(options = {}) {
   const originalNewPage = browser.newPage.bind(browser);
   browser.newPage = async () => {
     const page = await originalNewPage();
-    await installExplicitResponsibleSelection(page);
+    const originalGoto = page.goto.bind(page);
+    page.goto = async (url, gotoOptions) => {
+      const response = await originalGoto(url, gotoOptions);
+      if (String(url).includes('/protocolo-avaliacao-fisica/adipometria')) {
+        await selectEligibleResponsible(page);
+      }
+      return response;
+    };
     return page;
   };
   return browser;
