@@ -24,6 +24,16 @@ O ator auditável é sempre derivado da sessão autenticada. O responsável clí
 
 A camada web não envia `contractId` nem autor de auditoria. Na criação, envia apenas o identificador do responsável escolhido, que é revalidado no backend. A elegibilidade completa — vínculo, atividade, contrato, tela e bloco de gestão ADPT, com exceção explícita para `master` — também é revalidada pelo trigger PostgreSQL no mesmo `INSERT`. Assim, revogar a permissão entre a validação HTTP e a persistência fecha a operação sem gravar avaliação parcial.
 
+Quando um responsável perde elegibilidade depois da criação, o rascunho não é descartado nem alterado silenciosamente:
+
+- o responsável anterior deixa de ser uma seleção operacional válida;
+- editar, calcular e concluir permanecem bloqueados enquanto não houver reassociação;
+- a tela preserva os valores locais e solicita um professor elegível do mesmo contrato;
+- `PUT /adipometry/assessments/:id/responsible` exige `responsibleProfessorId` e `expectedUpdatedAt`;
+- a linha do rascunho é bloqueada, a versão observada é conferida e a elegibilidade é revalidada pelo trigger na mesma transação;
+- a alteração do responsável gera atualização auditável do rascunho;
+- avaliações concluídas continuam imutáveis e não aceitam reassociação.
+
 ## Etapas persistidas
 
 O progresso visual usa somente estado retornado pela API:
@@ -69,8 +79,9 @@ Quando disponível, a tela mostra código e data da Antropometria elegível e ap
 ## Concorrência, estado e correção
 
 - Erros preservam os valores locais do formulário dentro do mesmo contexto.
-- Durante a resolução de outro aluno, avaliação, data ou referências, ações clínicas de criar, salvar, calcular, concluir, corrigir e reconciliar permanecem indisponíveis.
+- Durante a resolução de outro aluno, avaliação, data, referências ou diretório de responsáveis, ações clínicas permanecem indisponíveis.
 - Em conflito `409`, o profissional escolhe entre substituir o formulário pela versão atual do servidor ou atualizar a referência do servidor mantendo os valores locais.
+- A reassociação do responsável também usa `expectedUpdatedAt`; versão obsoleta retorna `409` sem alterar responsável, formulário ou auditoria.
 - Uma avaliação concluída não é editada diretamente.
 - A correção exige permissão específica, categoria e motivo, cria nova revisão e preserva o original.
 - Estados de revisão são apresentados separadamente como rascunho, concluída, substituída, cancelada ou invalidada.
@@ -80,8 +91,8 @@ Quando disponível, a tela mostra código e data da Antropometria elegível e ap
 
 - tela: `physicalAssessment.protocol`;
 - consulta: `physicalAssessment.adpt.view`;
-- criação, edição, cálculo e conclusão: `physicalAssessment.adpt.actions.manage`;
-- correção de concluída: `physicalAssessment.adpt.actions.correctCompleted`.
+- criação, edição, cálculo, conclusão e reassociação de rascunho inicial: `physicalAssessment.adpt.actions.manage`;
+- edição, cálculo, conclusão e reassociação de revisão corretiva: `physicalAssessment.adpt.actions.correctCompleted`.
 
 A ocultação ou desabilitação de controles é apenas experiência de usuário; a API revalida todas as permissões e o vínculo do responsável.
 
@@ -90,8 +101,8 @@ A ocultação ou desabilitação de controles é apenas experiência de usuário
 Validações mínimas da mudança:
 
 ```bash
-pnpm --filter @corrida/web test -- adipometry-ui.test.ts adipometry-screen-utils.test.ts AdipometryScreen.test.tsx useAdipometryWorkspace.test.tsx AdipometryDialogs.test.tsx AdipometryEditor.test.tsx AdipometryView.test.ts AdipometryViewSections.test.ts AdipometryPresentationRemediation.test.tsx
-pnpm --filter @corrida/api test -- adipometry-responsible-professor.test.ts adipometry-web-remediation.routes.test.ts adipometry-capacity-confirmation-migration.test.ts adipometry-responsible-permission-race.integration.test.ts adipometry-protocol-presentation.test.ts
+pnpm --filter @corrida/web test -- adipometry-ui.test.ts adipometry-screen-utils.test.ts AdipometryScreen.test.tsx AdipometryResponsibleRecovery.test.tsx useAdipometryWorkspace.test.tsx AdipometryDialogs.test.tsx AdipometryEditor.test.tsx AdipometryView.test.ts AdipometryViewSections.test.ts AdipometryPresentationRemediation.test.tsx
+pnpm --filter @corrida/api test -- adipometry-responsible-professor.test.ts adipometry-web-remediation.routes.test.ts adipometry-capacity-confirmation-migration.test.ts adipometry-responsible-permission-race.integration.test.ts adipometry-responsible-lifecycle.integration.test.ts adipometry-protocol-presentation.test.ts
 pnpm --filter @corrida/web type-check
 pnpm --filter @corrida/api type-check
 pnpm lint
@@ -100,4 +111,4 @@ pnpm docs:check
 pnpm validate
 ```
 
-O capturador visual já observado pela PR mantém a evidência da prescrição por capacidades e, no mesmo run automático, gera um manifesto separado para a Issue 248. A evidência ADPT cobre a rota autenticada em 1440×900, 1366×768 e 390×844, além de ajuda por teclado, retorno de foco, link externo seguro, conflito `409`, impedimento clínico, histórico e ausência de overflow horizontal. O manifesto `adipometry-issue-248-manifest.json` registra SHA, base, merge preview, permissões, viewport, cenário e resultado. Evidência de outra rota continua não satisfazendo este gate.
+O capturador visual já observado pela PR mantém a evidência da prescrição por capacidades e, no mesmo run automático, gera um manifesto separado para a Issue 248. A evidência ADPT cobre a rota autenticada em 1440×900, 1366×768 e 390×844, além de ajuda por teclado, retorno de foco, link externo seguro, conflito `409`, impedimento clínico, histórico e ausência de overflow horizontal. A remediação do responsável acrescenta como cenário obrigatório o rascunho cujo professor perdeu elegibilidade, com bloqueio das operações, seleção explícita de substituto e retomada sem perda. O manifesto `adipometry-issue-248-manifest.json` registra SHA, base, merge preview, permissões, viewport, cenário e resultado. Evidência de outra rota continua não satisfazendo este gate.
