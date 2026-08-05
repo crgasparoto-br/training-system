@@ -93,6 +93,12 @@ export function AdipometryView(props: AdipometryViewProps) {
     currentProfessorId: current?.professorId,
     responsibleProfessors,
   });
+  const registeredResponsibleName = current
+    ? responsibleProfessors.find((item) => item.id === current.professorId)?.name
+      ?? historicalResponsibleLabel
+      ?? 'Responsável histórico indisponível'
+    : responsibleName;
+  const responsibleSelectValue = current?.professorId ?? selectedResponsibleProfessorId;
 
   if (!canView) {
     return <div role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 p-5 text-sm text-destructive">Seu perfil não possui permissão para consultar avaliações ADPT.</div>;
@@ -155,7 +161,7 @@ export function AdipometryView(props: AdipometryViewProps) {
             <label htmlFor="adpt-responsible" className="mb-2 block text-sm font-medium">Responsável *</label>
             <select
               id="adpt-responsible"
-              value={selectedResponsibleProfessorId}
+              value={responsibleSelectValue}
               disabled={Boolean(current) || !canMutate}
               onChange={(event) => props.onResponsible(event.target.value)}
               className="h-11 w-full rounded-lg border border-input bg-card px-4 text-sm disabled:bg-muted"
@@ -168,7 +174,7 @@ export function AdipometryView(props: AdipometryViewProps) {
                 <option key={professor.id} value={professor.id}>{professor.name}</option>
               ))}
             </select>
-            {current ? <p className="mt-1 text-xs text-muted-foreground">Responsável registrado: {responsibleName}</p> : null}
+            {current ? <p className="mt-1 text-xs text-muted-foreground">Responsável registrado: {registeredResponsibleName}</p> : null}
           </div>
           <div className="flex items-end">
             <Button type="button" onClick={props.onCreate} disabled={!selectedAlunoId || !selectedResponsibleProfessorId || !canMutate || busy}><Plus className="h-4 w-4" aria-hidden="true" />Nova avaliação</Button>
