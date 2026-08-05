@@ -15,6 +15,28 @@ import api from './api';
 
 const unwrap = <T>(response: { data: { data: T } }) => response.data.data;
 
+function storedUserHasProfessorProfile(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    const raw = window.localStorage.getItem('user');
+    if (!raw) return false;
+    const user = JSON.parse(raw) as { professor?: { id?: string } | null };
+    return Boolean(user.professor?.id);
+  } catch {
+    return false;
+  }
+}
+
+async function listLegacyAccessibleStudents(): Promise<Aluno[]> {
+  const legacy = await api.get<{
+    success: boolean;
+    data: { alunos: Aluno[] };
+  }>('/alunos', {
+    params: { page: 1, limit: 200, status: 'active' },
+  });
+  return legacy.data.data.alunos;
+}
+
 export interface AdipometryAnthropometryMeasurement {
   segmentId: string;
   segmentName: string;
@@ -51,22 +73,19 @@ export interface AdipometryFinalizeResult {
 
 export const adipometryService = {
   async listAccessibleStudents(): Promise<Aluno[]> {
+    // Preserve the existing authorized route for traditional Professor users.
+    // A professional actor without its own Professor row uses the dedicated
+    // ADPT boundary and is never authorized through the selected responsible.
+    if (storedUserHasProfessorProfile()) {
+      return listLegacyAccessibleStudents();
+    }
+
     try {
       return unwrap(await api.get('/adipometry/accessible-students'));
     } catch (error) {
       const status = (error as { response?: { status?: number } }).response?.status;
       if (status !== 404) throw error;
-
-      // Transitional compatibility for an older API/visual fixture. The ADPT
-      // endpoint remains authoritative; the legacy route is used only when the
-      // server does not expose it and still applies its own access policy.
-      const legacy = await api.get<{
-        success: boolean;
-        data: { alunos: Aluno[] };
-      }>('/alunos', {
-        params: { page: 1, limit: 200, status: 'active' },
-      });
-      return legacy.data.data.alunos;
+      return listLegacyAccessibleStudents();
     }
   },
 
