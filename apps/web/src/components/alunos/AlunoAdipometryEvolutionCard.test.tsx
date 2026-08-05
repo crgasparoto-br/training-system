@@ -3,6 +3,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AdipometryAssessmentDetail, AdipometryAssessmentSummary } from '@corrida/types';
 import { adipometryService } from '../../services/adipometry.service';
+import type { Assessment } from '../../services/assessment.service';
 import { AlunoAdipometryEvolutionCard } from './AlunoAdipometryEvolutionCard';
 
 type Permission = { screenKey: string; blockKey: string | null; canView: boolean };
@@ -74,10 +75,10 @@ const detail = (summary: AdipometryAssessmentSummary): AdipometryAssessmentDetai
   },
 });
 
-function renderCard() {
+function renderCard(assessments: Assessment[] = []) {
   return render(
     <MemoryRouter>
-      <AlunoAdipometryEvolutionCard alunoId="aluno-1" assessments={[]} />
+      <AlunoAdipometryEvolutionCard alunoId="aluno-1" assessments={assessments} />
     </MemoryRouter>
   );
 }
@@ -186,6 +187,36 @@ describe('AlunoAdipometryEvolutionCard', () => {
     expect(listAssessmentsMock).not.toHaveBeenCalled();
   });
 
+  it('distingue ADPT estruturada de upload generico mesmo quando o upload menciona adipometria', async () => {
+    const latest = completed();
+    const uploadedAssessment: Assessment = {
+      id: 'upload-1',
+      alunoId: 'aluno-1',
+      typeId: 'type-upload',
+      assessmentDate: '2026-07-15',
+      filePath: '/uploads/adipometria.pdf',
+      originalFileName: 'adipometria.pdf',
+      mimeType: 'application/pdf',
+      fileSize: 1024,
+      createdAt: '2026-07-15T12:00:00.000Z',
+      updatedAt: '2026-07-15T12:00:00.000Z',
+      type: { id: 'type-upload', name: 'Adipometria por PDF', code: 'ADPT-UPLOAD' },
+      professional: { user: { profile: { name: 'Prof. João' } } },
+    };
+    listAssessmentsMock.mockResolvedValue([latest]);
+    getAssessmentMock.mockResolvedValue(detail(latest));
+
+    renderCard([uploadedAssessment]);
+
+    await waitFor(() => expect(screen.getByText(/Origem: Avaliação estruturada ADPT/i)).toBeInTheDocument());
+    expect(screen.getByText(/Adipometria por PDF.*ADPT-UPLOAD/i)).toBeInTheDocument();
+    expect(screen.getByText(/Origem: Upload genérico/i)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Filtrar por tipo'), { target: { value: 'adpt' } });
+    expect(screen.queryByText(/Adipometria por PDF.*ADPT-UPLOAD/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/Origem: Avaliação estruturada ADPT/i)).toBeInTheDocument();
+  });
+
   it('compara somente concluidas com unidades, campo indisponivel e aviso de protocolo', async () => {
     const older = completed({
       id: 'adpt-1',
@@ -224,6 +255,32 @@ describe('AlunoAdipometryEvolutionCard', () => {
     expect(screen.getByText('+2 kg')).toBeInTheDocument();
     expect(screen.getAllByText('Indisponível').length).toBeGreaterThan(0);
     expect(screen.getByText(/sem classificar melhora ou piora/i)).toBeInTheDocument();
+  });
+
+  it('remove da selecao uma avaliacao que deixa de estar disponivel apos revalidacao', async () => {
+    const older = completed({
+      id: 'adpt-1',
+      code: 'ADPT-001',
+      sequenceNumber: 1,
+      assessmentDate: '2026-06-10',
+      createdAt: '2026-06-10T12:00:00.000Z',
+    });
+    const newer = completed();
+    listAssessmentsMock
+      .mockResolvedValueOnce([newer, older])
+      .mockResolvedValueOnce([newer]);
+    getAssessmentMock.mockResolvedValue(detail(newer));
+
+    renderCard();
+
+    await waitFor(() => expect(screen.getByLabelText(/ADPT-001/i)).toBeInTheDocument());
+    fireEvent.click(screen.getByLabelText(/ADPT-002/i));
+    fireEvent.click(screen.getByLabelText(/ADPT-001/i));
+    window.dispatchEvent(new Event('focus'));
+
+    await waitFor(() => expect(screen.queryByLabelText(/ADPT-001/i)).not.toBeInTheDocument());
+    expect(screen.getByRole('status')).toHaveTextContent(/deixou de estar disponível/i);
+    expect(compareMock).not.toHaveBeenCalled();
   });
 
   it('isola falha da API e oferece nova tentativa', async () => {
