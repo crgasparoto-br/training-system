@@ -50,23 +50,50 @@ export function installAdipometryRuntimeHardening() {
       assessmentDate
     );
 
-    return Promise.all(
-      protocols.map(async (protocol) => {
-        const approved = await getAdipometryApprovedProtocol(
-          adipometryRuntimePrisma,
-          contractId,
-          protocol.code,
-          protocol.version
-        );
-        return {
-          ...protocol,
-          ...buildAdipometryProtocolPresentation(
-            approved.definitionSnapshot as AdipometryProtocolDefinitionSnapshot,
-            protocol.compatibility
-          ),
-        };
-      })
+    const definitions = await adipometryRuntimePrisma.$queryRaw<Array<{
+      protocolCode: string;
+      protocolVersion: number;
+      definitionSnapshot: AdipometryProtocolDefinitionSnapshot;
+    }>>(Prisma.sql`
+      SELECT
+        protocol.code AS "protocolCode",
+        protocol.version AS "protocolVersion",
+        approval."protocolDefinitionSnapshot" AS "definitionSnapshot"
+      FROM "AdipometryProtocol" protocol
+      JOIN "AdipometryProtocolApproval" approval
+        ON approval."protocolId" = protocol.id
+       AND approval."protocolCode" = protocol.code
+       AND approval."protocolVersion" = protocol.version
+      WHERE approval."contractId" = ${contractId}
+        AND approval."revokedAt" IS NULL
+        AND protocol.status <> 'DISABLED'
+    `);
+    const definitionByProtocol = new Map(
+      definitions.map((item) => [
+        `${item.protocolCode}::${item.protocolVersion}`,
+        item.definitionSnapshot,
+      ])
     );
+
+    return protocols.map((protocol) => {
+      const definition = definitionByProtocol.get(
+        `${protocol.code}::${protocol.version}`
+      );
+      if (!definition) {
+        throw new AdipometryServiceError(
+          'O protocolo não possui definição clínica aprovada.',
+          'PROTOCOL_NOT_APPROVED_FOR_CONTRACT',
+          409
+        );
+      }
+      return {
+        ...protocol,
+        ...buildAdipometryProtocolPresentation(
+          definition,
+          protocol.compatibility
+        ),
+      };
+    });
   };
 
   adipometryService.createDraft = async (
