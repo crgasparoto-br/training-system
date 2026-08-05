@@ -6,8 +6,7 @@
 -- Bancos legados sem a fundação ADPT permanecem no-op.
 DO $migration$
 DECLARE
-  v_target_oid OID;
-  v_target_count INTEGER;
+  v_target REGPROCEDURE;
   v_definition TEXT;
   v_before TEXT;
   v_tail TEXT;
@@ -48,24 +47,33 @@ BEGIN
     $function$;
   $ddl$;
 
-  SELECT COUNT(*), MIN(proc.oid)
-    INTO v_target_count, v_target_oid
-  FROM pg_proc proc
-  JOIN pg_namespace namespace ON namespace.oid = proc.pronamespace
-  WHERE namespace.nspname = 'public'
-    AND proc.prokind = 'f'
-    AND POSITION(v_marker IN PG_GET_FUNCTIONDEF(proc.oid)) > 0;
-
-  IF v_target_count <> 1 OR v_target_oid IS NULL THEN
-    RAISE EXCEPTION
-      'ADIPOMETRY_PROTOCOL_SEX_CONFIRMER_GUARD_AMBIGUOUS: % function(s)',
-      v_target_count;
+  v_target := TO_REGPROCEDURE(
+    'public."validateAdipometryAssessmentState"()'
+  );
+  IF v_target IS NULL THEN
+    RETURN;
   END IF;
 
-  SELECT PG_GET_FUNCTIONDEF(v_target_oid)
+  SELECT PG_GET_FUNCTIONDEF(v_target)
     INTO v_definition;
 
   v_marker_position := POSITION(v_marker IN v_definition);
+  IF v_marker_position = 0 THEN
+    -- O gate de dados legados executa uma cadeia reduzida em que a função de
+    -- estado existe, mas o bloco de confirmação de sexo ainda não foi
+    -- instalado. Não há guard para ampliar nesse formato; a cadeia completa
+    -- instala o bloco e segue pelo patch abaixo.
+    IF POSITION('protocolSexConfirmedByUserId' IN v_definition) = 0 THEN
+      RETURN;
+    END IF;
+
+    RAISE EXCEPTION 'ADIPOMETRY_PROTOCOL_SEX_CONFIRMER_GUARD_NOT_FOUND';
+  END IF;
+
+  IF POSITION('isAdipometryProtocolSexConfirmerInContract' IN v_definition) > 0 THEN
+    RETURN;
+  END IF;
+
   v_before := SUBSTRING(v_definition FROM 1 FOR v_marker_position - 1);
 
   -- O grupo guloso captura até o último token IF anterior ao código de erro,
@@ -107,7 +115,7 @@ $replacement$
 
   EXECUTE v_patched;
 
-  SELECT PG_GET_FUNCTIONDEF(v_target_oid)
+  SELECT PG_GET_FUNCTIONDEF(v_target)
     INTO v_definition;
   IF POSITION(v_marker IN v_definition) = 0
      OR POSITION('isAdipometryProtocolSexConfirmerInContract' IN v_definition) = 0
