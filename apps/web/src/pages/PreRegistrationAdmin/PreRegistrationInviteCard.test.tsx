@@ -221,7 +221,24 @@ describe('PreRegistrationInviteCard', () => {
     expect(
       screen.getByText('https://app.example.com/pre-cadastro/token-unico')
     ).toBeInTheDocument();
-    expect(screen.getByText(/a cópia automática não funcionou/i)).toBeInTheDocument();
+    expect(screen.getByText(/não foi possível copiar automaticamente/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /copiar link/i })).toBeEnabled();
+  });
+
+  it('shows explicit confirmation on the button itself after a successful copy', () => {
+    render(
+      <PreRegistrationInviteCard
+        lead={baseLead}
+        actionLoading={false}
+        generatedUrl="https://app.example.com/pre-cadastro/token-unico"
+        copyState="copied"
+        onGenerate={vi.fn()}
+        onCopy={vi.fn()}
+        onRevoke={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole('button', { name: /copiado!/i })).toBeInTheDocument();
+    expect(screen.getByText(/link copiado para a área de transferência/i)).toBeInTheDocument();
   });
 });

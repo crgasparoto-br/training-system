@@ -49,6 +49,7 @@ import WorkoutBuilder2 from './pages/WorkoutBuilder2';
 import Executions from './pages/Executions';
 import AlunoContracts from './pages/AlunoContracts';
 import PublicContractSignature from './pages/PublicContractSignature';
+import { PrivacyNotice } from './pages/PrivacyNotice';
 import { DashboardLayout } from './layouts/DashboardLayout';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { StudentContractActivationNotice } from './components/StudentContractActivationNotice';
@@ -98,6 +99,7 @@ function App() {
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/register" element={<Register />} />
           <Route path="/assinatura/contrato/:token" element={<PublicContractSignature />} />
+          <Route path="/privacidade" element={<PrivacyNotice />} />
           <Route
             path="/pre-cadastro/:token"
             element={withPreRegistrationRollout(<PublicPreRegistration />, 'public')}

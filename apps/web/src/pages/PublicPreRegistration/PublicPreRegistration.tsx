@@ -297,7 +297,7 @@ function PublicLanding({ token }: { token: string }) {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [mode, setMode] = useState<'login' | 'register'>('register');
   const [role, setRole] = useState<PreRegistrationClaimRole>('STUDENT');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -312,7 +312,12 @@ function PublicLanding({ token }: { token: string }) {
     let active = true;
     preRegistrationPublicService
       .open(token)
-      .then((value) => active && setLanding(value))
+      .then((value) => {
+        if (!active) return;
+        setLanding(value);
+        if (value.lead?.name) setName(value.lead.name);
+        if (value.lead?.email) setEmail(value.lead.email);
+      })
       .catch((reason) => active && setError(parseApiError(reason).message))
       .finally(() => active && setLoading(false));
     return () => {

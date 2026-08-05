@@ -3,7 +3,7 @@ import type {
   PreRegistrationAdminLeadDetailDTO,
   PreRegistrationInviteStatus,
 } from '@corrida/types';
-import { AlertTriangle, ClipboardCopy, Link2, Trash2 } from 'lucide-react';
+import { AlertTriangle, Check, ClipboardCopy, Link2, Trash2 } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import {
   Card,
@@ -126,7 +126,7 @@ export function PreRegistrationInviteCard({
             <p className="mt-1 break-all text-xs text-muted-foreground">{generatedUrl}</p>
             {copyState === 'copied' && (
               <p className="mt-2 text-xs font-medium text-success" role="status">
-                Link copiado automaticamente.
+                Link copiado para a área de transferência.
               </p>
             )}
             {copyState === 'failed' && (
@@ -135,12 +135,16 @@ export function PreRegistrationInviteCard({
                 role="alert"
               >
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                A cópia automática não funcionou. Use o botão abaixo para tentar novamente ou selecione o link.
+                Não foi possível copiar automaticamente. Use o botão abaixo para tentar novamente ou selecione o link.
               </p>
             )}
             <Button type="button" size="sm" className="mt-3" onClick={onCopy}>
-              <ClipboardCopy className="h-4 w-4" aria-hidden="true" />
-              Copiar link
+              {copyState === 'copied' ? (
+                <Check className="h-4 w-4" aria-hidden="true" />
+              ) : (
+                <ClipboardCopy className="h-4 w-4" aria-hidden="true" />
+              )}
+              {copyState === 'copied' ? 'Copiado!' : 'Copiar link'}
             </Button>
           </div>
         )}

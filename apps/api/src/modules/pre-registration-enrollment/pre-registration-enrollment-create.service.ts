@@ -6,6 +6,7 @@ import {
 import {
   loadStudentIdentity,
   upsertStudentIdentity,
+  StudentIdentityLockTimeoutError,
   type StudentIdentityData,
 } from '../alunos/student-identity.service.js';
 import {
@@ -236,6 +237,9 @@ export const preRegistrationEnrollmentCreateService = {
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     } catch (error) {
       if (error instanceof PreRegistrationEnrollmentError) throw error;
+      if (error instanceof StudentIdentityLockTimeoutError) {
+        throw new PreRegistrationEnrollmentError(error.message, 'CONCURRENT_MODIFICATION');
+      }
       if (error instanceof StudentLifecycleError) throw wrapLifecycleError(error);
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
         if (error.code === 'P2002') {

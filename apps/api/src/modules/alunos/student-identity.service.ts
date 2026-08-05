@@ -4,13 +4,39 @@ const prisma = new PrismaClient();
 
 type DbClient = Prisma.TransactionClient | PrismaClient;
 
+export class StudentIdentityLockTimeoutError extends Error {
+  constructor(public readonly contractId: string) {
+    super('Muitas operações simultâneas para este contrato. Tente novamente em instantes.');
+    this.name = 'StudentIdentityLockTimeoutError';
+  }
+}
+
+const IDENTITY_LOCK_MAX_ATTEMPTS = 10;
+const IDENTITY_LOCK_RETRY_DELAY_MS = 300;
+
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Bloqueio por contrato usado para serializar deduplicação de identidade. Usa
+ * `pg_try_advisory_xact_lock` com retry limitado em vez da variante bloqueante:
+ * uma requisição concorrente para o mesmo contrato nunca deve ficar presa
+ * indefinidamente segurando a conexão da transação além do timeout do cliente
+ * HTTP (ver incidente de timeout de 30s na criação de lead).
+ */
 export async function lockStudentIdentityDeduplicationScope(
   client: Prisma.TransactionClient,
   contractId: string
 ): Promise<void> {
-  await client.$queryRaw<Array<{ locked: unknown }>>`
-    SELECT pg_advisory_xact_lock(hashtextextended(${contractId}, 27417)) IS NULL AS "locked"
-  `;
+  for (let attempt = 1; attempt <= IDENTITY_LOCK_MAX_ATTEMPTS; attempt++) {
+    const [{ locked }] = await client.$queryRaw<Array<{ locked: boolean }>>`
+      SELECT pg_try_advisory_xact_lock(hashtextextended(${contractId}, 27417)) AS "locked"
+    `;
+    if (locked) return;
+    if (attempt < IDENTITY_LOCK_MAX_ATTEMPTS) {
+      await wait(IDENTITY_LOCK_RETRY_DELAY_MS);
+    }
+  }
+  throw new StudentIdentityLockTimeoutError(contractId);
 }
 
 type IdentityActor = {
