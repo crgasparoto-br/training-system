@@ -49,7 +49,6 @@ describe('AUTH-ACTOR-RESP-001 professional actor without Professor profile', () 
         data: { contractId: otherContract.id, name: 'Outro ADPT', code: `other-${suffix}` },
       }),
     ]);
-    ids.actorFunction = actorFunction.id;
 
     for (const collaboratorFunctionId of [actorFunction.id, responsibleFunction.id]) {
       await prisma.accessPermission.createMany({
@@ -156,7 +155,6 @@ describe('AUTH-ACTOR-RESP-001 professional actor without Professor profile', () 
       },
     });
     ids.student = student.id;
-    ids.studentUser = studentUser.id;
 
     await prisma.$executeRawUnsafe(
       `INSERT INTO "ProfessionalActorMembership"
@@ -170,35 +168,9 @@ describe('AUTH-ACTOR-RESP-001 professional actor without Professor profile', () 
   });
 
   afterAll(async () => {
-    await prisma.adipometryAuditEvent.deleteMany({ where: { contractId: ids.contract } });
-    await prisma.adipometryAssessment.deleteMany({ where: { contractId: ids.contract } });
-    await prisma.adipometrySequence.deleteMany({ where: { contractId: ids.contract } });
-    await prisma.$executeRawUnsafe(
-      'DELETE FROM "ProfessionalActorMembership" WHERE "contractId" IN ($1, $2)',
-      ids.contract,
-      ids.otherContract
-    );
-    await prisma.aluno.deleteMany({ where: { contractId: { in: [ids.contract, ids.otherContract] } } });
-    await prisma.professor.deleteMany({ where: { contractId: { in: [ids.contract, ids.otherContract] } } });
-    await prisma.user.deleteMany({
-      where: {
-        id: {
-          in: [
-            ids.actorUser,
-            ids.noMembershipUser,
-            ids.responsibleUser,
-            ids.otherResponsibleUser,
-            ids.studentUser,
-          ],
-        },
-      },
-    });
-    await prisma.collaboratorFunctionOption.deleteMany({
-      where: { contractId: { in: [ids.contract, ids.otherContract] } },
-    });
-    await prisma.companyContract.deleteMany({
-      where: { id: { in: [ids.contract, ids.otherContract] } },
-    });
+    // The test database is ephemeral and AdipometryAuditEvent is intentionally
+    // append-only. Do not weaken the production invariant merely to clean a
+    // fixture that is discarded with the isolated database.
     await prisma.$disconnect();
   });
 
