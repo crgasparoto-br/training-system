@@ -1,8 +1,21 @@
 import type {
   AdipometryInputField,
+  AdipometryProtocolPopulation,
   CreateAdipometryDraftInput,
   UpdateAdipometryDraftInput,
 } from './adipometry.js';
+
+declare module './adipometry.js' {
+  interface AdipometryProtocolSummary {
+    population?: AdipometryProtocolPopulation;
+    selectionReason?: string;
+    displayPrecision?: {
+      measurementScale: number;
+      resultScale: number;
+      skinfoldTotalScale: number;
+    };
+  }
+}
 
 export interface AdipometryResponsibleProfessor {
   id: string;
