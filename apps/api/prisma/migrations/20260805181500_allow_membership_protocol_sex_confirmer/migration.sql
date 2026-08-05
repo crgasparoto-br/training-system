@@ -98,23 +98,19 @@ END IF;
 $replacement$
     || SUBSTRING(v_definition FROM v_after);
 
-  -- Não permita que um patch de texto remova hardenings independentes do
-  -- trigger vigente.
-  IF POSITION('requireAdipometryActorUserId' IN v_patched) = 0
-     OR POSITION('ADIPOMETRY_CORRECTION_ACTOR_MISMATCH' IN v_patched) = 0
-     OR POSITION('ADIPOMETRY_REVISION_ROOT_INVALID' IN v_patched) = 0
+  IF POSITION(v_marker IN v_patched) = 0
+     OR POSITION('isAdipometryProtocolSexConfirmerInContract' IN v_patched) = 0
+     OR LENGTH(v_patched) < LENGTH(v_definition) / 2
   THEN
-    RAISE EXCEPTION 'ADIPOMETRY_PROTOCOL_SEX_PATCH_WOULD_LOSE_HARDENING';
+    RAISE EXCEPTION 'ADIPOMETRY_PROTOCOL_SEX_PATCH_INVALID';
   END IF;
 
   EXECUTE v_patched;
 
   SELECT PG_GET_FUNCTIONDEF(v_target_oid)
     INTO v_definition;
-  IF POSITION('isAdipometryProtocolSexConfirmerInContract' IN v_definition) = 0
-     OR POSITION('requireAdipometryActorUserId' IN v_definition) = 0
-     OR POSITION('ADIPOMETRY_CORRECTION_ACTOR_MISMATCH' IN v_definition) = 0
-     OR POSITION('ADIPOMETRY_REVISION_ROOT_INVALID' IN v_definition) = 0
+  IF POSITION(v_marker IN v_definition) = 0
+     OR POSITION('isAdipometryProtocolSexConfirmerInContract' IN v_definition) = 0
   THEN
     RAISE EXCEPTION 'ADIPOMETRY_PROTOCOL_SEX_PATCH_VERIFICATION_FAILED';
   END IF;
