@@ -46,6 +46,7 @@ export interface AdipometryViewProps {
   canCorrect: boolean;
   responsibleName: string;
   capacityWarningConfirmed: boolean;
+  mutationBlockMessage?: string;
   onAluno: (id: string) => void;
   onResponsible: (id: string) => void;
   onForm: <K extends keyof AdipometryFormState>(field: K, value: AdipometryFormState[K]) => void;
@@ -81,7 +82,7 @@ export function AdipometryView(props: AdipometryViewProps) {
     lockedAlunoId, alunos, selectedAlunoId, current, assessments, protocols,
     responsibleProfessors, selectedResponsibleProfessorId, form, preview, support,
     fieldErrors, loading, busy, dirty, conflict, error, success, supportError, canView,
-    canMutate, canCorrect, responsibleName, capacityWarningConfirmed,
+    canMutate, canCorrect, responsibleName, capacityWarningConfirmed, mutationBlockMessage,
   } = props;
   const selectedAluno = alunos.find((item) => item.id === selectedAlunoId);
   const readOnly = !current || current.status !== 'DRAFT' || current.revisionStatus !== 'DRAFT' || !canMutate;
@@ -210,7 +211,10 @@ export function AdipometryView(props: AdipometryViewProps) {
       />
 
       {!canMutate && current?.revisionStatus !== 'FINALIZED' ? (
-        <div role="status" className="rounded-lg border border-border bg-muted/20 p-4 text-sm text-muted-foreground">Seu perfil possui acesso de leitura. Criar, editar, calcular e concluir exige permissão de gestão ADPT.</div>
+        <div role="status" className="rounded-lg border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
+          {mutationBlockMessage
+            ?? 'Seu perfil possui acesso de leitura. Criar, editar, calcular e concluir exige permissão de gestão ADPT.'}
+        </div>
       ) : null}
       {loading ? <div role="status" className="fixed bottom-4 right-4 flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-3 text-sm shadow-lg"><RefreshCw className="h-4 w-4 animate-spin" />Atualizando ADPT…</div> : null}
       {busy ? <span className="sr-only" aria-live="polite">Processando operação</span> : null}
