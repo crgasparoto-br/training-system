@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import { assertAdipometryProtocolDefinitionSnapshot } from '@corrida/types';
 import type {
   AdipometryCalculationSnapshot,
   AdipometryProtocolDefinitionSnapshot,
@@ -87,6 +88,7 @@ export function installAdipometryRuntimeHardening() {
           409
         );
       }
+      assertAdipometryProtocolDefinitionSnapshot(definition);
       return {
         ...protocol,
         ...buildAdipometryProtocolPresentation(
