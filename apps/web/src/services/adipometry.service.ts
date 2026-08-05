@@ -8,6 +8,7 @@ import type {
   AdipometryResponsibleProfessor,
   CompleteAdipometryAssessmentInput,
   CreateAdipometryDraftInput,
+  ReassignAdipometryResponsibleInput,
   UpdateAdipometryDraftWithClearInput,
 } from '@corrida/types';
 import type { Aluno } from './aluno.service';
@@ -142,6 +143,15 @@ export const adipometryService = {
     payload: UpdateAdipometryDraftWithClearInput
   ): Promise<AdipometryAssessmentDetail> {
     return unwrap(await api.put(`/adipometry/assessments/${assessmentId}/draft`, payload));
+  },
+
+  async reassignResponsible(
+    assessmentId: string,
+    payload: ReassignAdipometryResponsibleInput
+  ): Promise<AdipometryAssessmentDetail> {
+    return unwrap(
+      await api.put(`/adipometry/assessments/${assessmentId}/responsible`, payload)
+    );
   },
 
   async calculate(
