@@ -5,7 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   setCapacityWarningConfirmed: vi.fn(),
   setMeasurement: vi.fn(),
-  setSelectedAlunoId: vi.fn(),
+  selectAluno: vi.fn(),
+  invalidateWorkspace: vi.fn(),
   setError: vi.fn(),
   listResponsibleProfessors: vi.fn(),
 }));
@@ -41,7 +42,7 @@ vi.mock('./useAdipometryWorkspace', () => ({
   useAdipometryWorkspace: () => ({
     alunos: [],
     selectedAlunoId: 'aluno-1',
-    setSelectedAlunoId: mocks.setSelectedAlunoId,
+    selectAluno: mocks.selectAluno,
     assessments: [],
     current: null,
     setCurrent: vi.fn(),
@@ -70,6 +71,7 @@ vi.mock('./useAdipometryWorkspace', () => ({
     fieldErrors: {},
     setFieldErrors: vi.fn(),
     loading: false,
+    referencesLoading: false,
     setLoading: vi.fn(),
     dirty: false,
     setDirty: vi.fn(),
@@ -84,6 +86,7 @@ vi.mock('./useAdipometryWorkspace', () => ({
     capacityWarningConfirmed: true,
     setCapacityWarningConfirmed: mocks.setCapacityWarningConfirmed,
     resetMessages: vi.fn(),
+    invalidateWorkspace: mocks.invalidateWorkspace,
     setFormField: vi.fn(),
     setMeasurement: mocks.setMeasurement,
   }),
@@ -93,10 +96,12 @@ vi.mock('./AdipometryView', () => ({
   AdipometryView: (props: {
     onMeasurement: (field: 'tricepsMm', value: string) => void;
     onAluno: (id: string) => void;
+    onOpen: (id: string) => void;
   }) => (
     <>
       <button type="button" onClick={() => props.onMeasurement('tricepsMm', '15')}>Editar dobra</button>
       <button type="button" onClick={() => props.onAluno('aluno-2')}>Selecionar aluno</button>
+      <button type="button" onClick={() => props.onOpen('assessment-2')}>Abrir avaliação</button>
     </>
   ),
 }));
@@ -136,7 +141,7 @@ describe('AdipometryScreen', () => {
     await waitFor(() => expect(mocks.listResponsibleProfessors).toHaveBeenCalledTimes(1));
   });
 
-  it('na abertura direta não transforma a seleção em origem pela Central', () => {
+  it('na abertura direta invalida o contexto antes de selecionar outro aluno', () => {
     render(
       <MemoryRouter initialEntries={['/protocolo-avaliacao-fisica/adipometria']}>
         <AdipometryScreen />
@@ -146,10 +151,24 @@ describe('AdipometryScreen', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Selecionar aluno' }));
 
-    expect(mocks.setSelectedAlunoId).toHaveBeenCalledWith('aluno-2');
+    expect(mocks.selectAluno).toHaveBeenCalledWith('aluno-2');
     expect(screen.getByLabelText('location')).toHaveTextContent(
       '/protocolo-avaliacao-fisica/adipometria'
     );
     expect(screen.getByLabelText('location')).not.toHaveTextContent('alunoId=');
+  });
+
+  it('invalida o contexto antes de abrir uma avaliação explícita', () => {
+    render(
+      <MemoryRouter initialEntries={['/protocolo-avaliacao-fisica/adipometria']}>
+        <AdipometryScreen />
+        <LocationProbe />
+      </MemoryRouter>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir avaliação' }));
+
+    expect(mocks.invalidateWorkspace).toHaveBeenCalledTimes(1);
+    expect(screen.getByLabelText('location')).toHaveTextContent('assessmentId=assessment-2');
   });
 });
