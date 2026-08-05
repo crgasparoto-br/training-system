@@ -156,18 +156,46 @@ function filteredCentralUser(value) {
   return copy;
 }
 
-function isExpectedNegativeControlConsole(message) {
+function isGenericResource404(message) {
   if (message.type() !== 'error') return false;
   const text = message.text();
-  if (!text.includes('Failed to load resource') || !text.includes('404')) return false;
-  const url = message.location()?.url || '';
-  return (
-    url.endsWith('/favicon.ico')
-    || (
-      url.includes('/api/v1/adipometry/alunos/')
-      && url.endsWith('/assessments')
-    )
-  );
+  return text.includes('Failed to load resource') && text.includes('404');
+}
+
+function parsePath(url) {
+  try {
+    return new URL(url).pathname;
+  } catch {
+    return url;
+  }
+}
+
+function classifyCentralHttpFailure(failure, centralAlunoId, comparisonCaptured) {
+  const pathname = parsePath(failure.url);
+  if (failure.status >= 500 || failure.status !== 404) return 'unexpected';
+  if (pathname.endsWith('/favicon.ico')) return 'optional';
+
+  const criticalPaths = new Set([
+    `/api/v1/alunos/${centralAlunoId}`,
+    `/api/v1/alunos/${centralAlunoId}/assessments`,
+    '/api/v1/adipometry/responsible-professors',
+    `/api/v1/adipometry/alunos/${centralAlunoId}/assessments`,
+    `/api/v1/adipometry/alunos/${centralAlunoId}/compare`,
+  ]);
+  if (criticalPaths.has(pathname) || pathname.startsWith('/api/v1/adipometry/assessments/')) {
+    return 'unexpected';
+  }
+
+  const crossTenantPattern = /^\/api\/v1\/adipometry\/alunos\/[^/]+\/assessments$/;
+  if (
+    comparisonCaptured
+    && crossTenantPattern.test(pathname)
+    && pathname !== `/api/v1/adipometry/alunos/${centralAlunoId}/assessments`
+  ) {
+    return 'negative-control';
+  }
+
+  return 'optional';
 }
 
 async function launchWithLocalIntegrationSupport(options = {}) {
@@ -185,7 +213,18 @@ async function launchWithLocalIntegrationSupport(options = {}) {
     const originalEvalButtons = page.$$eval.bind(page);
     const originalEvaluateOnNewDocument = page.evaluateOnNewDocument.bind(page);
     const originalOn = page.on.bind(page);
+    const originalScreenshot = page.screenshot.bind(page);
+    const httpFailures = [];
+    let centralAlunoId = '';
+    let screenshotCount = 0;
+    let httpFailuresChecked = false;
     let newAssessmentPreclicked = false;
+
+    originalOn('response', (response) => {
+      if (response.status() >= 400) {
+        httpFailures.push({ status: response.status(), url: response.url() });
+      }
+    });
 
     page.evaluateOnNewDocument = async (pageFunction, ...args) => {
       const adjustedArgs = args.map((argument) => filteredCentralUser(argument));
@@ -195,13 +234,17 @@ async function launchWithLocalIntegrationSupport(options = {}) {
     page.on = (eventName, handler) => {
       if (eventName !== 'console') return originalOn(eventName, handler);
       return originalOn('console', (message) => {
-        if (isExpectedNegativeControlConsole(message)) return;
+        if (isGenericResource404(message)) return;
         handler(message);
       });
     };
 
     page.goto = async (url, gotoOptions) => {
       const centralRoute = String(url).includes('/central-do-aluno/');
+      if (centralRoute) {
+        const pathname = parsePath(String(url));
+        centralAlunoId = decodeURIComponent(pathname.split('/central-do-aluno/')[1]?.split('/')[0] || '');
+      }
       const normalizedGotoOptions = centralRoute
         ? { ...gotoOptions, waitUntil: 'domcontentloaded' }
         : gotoOptions;
@@ -271,6 +314,35 @@ async function launchWithLocalIntegrationSupport(options = {}) {
         );
       }
       return originalEvalButtons(selector, pageFunction, ...args);
+    };
+
+    page.screenshot = async (...args) => {
+      const result = await originalScreenshot(...args);
+      screenshotCount += 1;
+      if (centralAlunoId && screenshotCount >= 2 && !httpFailuresChecked) {
+        httpFailuresChecked = true;
+        const classified = httpFailures.map((failure) => ({
+          ...failure,
+          classification: classifyCentralHttpFailure(
+            failure,
+            centralAlunoId,
+            screenshotCount >= 2
+          ),
+        }));
+        const unexpected = classified.filter((failure) => failure.classification === 'unexpected');
+        if (unexpected.length > 0) {
+          throw new Error(
+            `A Central apresentou falhas HTTP em fronteiras obrigatórias: ${JSON.stringify(unexpected)}`
+          );
+        }
+        const accepted = classified.filter((failure) => failure.classification !== 'unexpected');
+        if (accepted.length > 0) {
+          console.log(
+            `[issue-249-central] Respostas HTTP degradadas classificadas: ${JSON.stringify(accepted)}`
+          );
+        }
+      }
+      return result;
     };
 
     return page;
