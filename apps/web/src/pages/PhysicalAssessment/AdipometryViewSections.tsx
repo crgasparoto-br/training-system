@@ -1,4 +1,5 @@
 import { CheckCircle2, History } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import type {
   AdipometryAssessmentDetail,
   AdipometryAssessmentStatus,
@@ -6,7 +7,13 @@ import type {
   AdipometryCalculationPreview,
   AdipometryInputField,
 } from '@corrida/types';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/Card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '../../components/ui/Card';
 import type { AdipometryAnthropometrySupport } from '../../services/adipometry.service';
 
 export const nav = [
@@ -32,11 +39,44 @@ function dateLabel(value?: string) {
   return year && month && day ? `${day}/${month}/${year}` : value;
 }
 
-function numberLabel(value: number | undefined, unit: string) {
-  return value === undefined ? '—' : `${String(value).replace('.', ',')} ${unit}`;
+export function formatAdipometryResult(
+  value: number | undefined,
+  unit: string,
+  scale?: number
+): string {
+  if (value === undefined) return '—';
+  const formatted = scale === undefined
+    ? String(value).replace('.', ',')
+    : new Intl.NumberFormat('pt-BR', {
+        minimumFractionDigits: scale,
+        maximumFractionDigits: scale,
+        useGrouping: false,
+      }).format(value);
+  return `${formatted} ${unit}`;
 }
 
-export function adipometryRevisionStatusLabel(status: AdipometryAssessmentStatus): string {
+function resultPrecision(
+  preview: AdipometryCalculationPreview | null,
+  detail: AdipometryAssessmentDetail | null
+) {
+  const previewPrecision = preview?.protocol.displayPrecision;
+  if (previewPrecision) return previewPrecision;
+
+  const snapshotPrecision =
+    detail?.calculationSnapshot?.protocolApproval.protocolDefinitionSnapshot.precision;
+  if (!snapshotPrecision) return null;
+
+  return {
+    measurementScale: snapshotPrecision.measurementScale,
+    resultScale: snapshotPrecision.resultScale,
+    skinfoldTotalScale:
+      snapshotPrecision.skinfoldTotalScale ?? snapshotPrecision.measurementScale,
+  };
+}
+
+export function adipometryRevisionStatusLabel(
+  status: AdipometryAssessmentStatus
+): string {
   const labels: Record<AdipometryAssessmentStatus, string> = {
     DRAFT: 'Rascunho',
     FINALIZED: 'Concluída',
@@ -48,8 +88,12 @@ export function adipometryRevisionStatusLabel(status: AdipometryAssessmentStatus
 }
 
 export function messageClass(tone: 'error' | 'success' | 'warning') {
-  if (tone === 'error') return 'border-destructive/40 bg-destructive/10 text-destructive';
-  if (tone === 'success') return 'border-emerald-300 bg-emerald-50 text-emerald-950';
+  if (tone === 'error') {
+    return 'border-destructive/40 bg-destructive/10 text-destructive';
+  }
+  if (tone === 'success') {
+    return 'border-emerald-300 bg-emerald-50 text-emerald-950';
+  }
   return 'border-amber-300 bg-amber-50 text-amber-950';
 }
 
@@ -64,13 +108,15 @@ export function buildAdipometryGuidedSteps({
 }) {
   const persistedHeader = Boolean(
     detail?.assessmentDate
-    && detail.professorId
-    && detail.protocolCode
-    && detail.protocolVersion
+      && detail.professorId
+      && detail.protocolCode
+      && detail.protocolVersion
   );
   const persistedCollection = Boolean(
     detail
-    && persistedCollectionFields.every((field) => detail.measurements[field] !== undefined)
+      && persistedCollectionFields.every(
+        (field) => detail.measurements[field] !== undefined
+      )
   );
 
   return [
@@ -102,23 +148,48 @@ export function buildAdipometryGuidedSteps({
   ];
 }
 
-export function StepStrip({ detail, preview, selectedStudent }: {
+export function StepStrip({
+  detail,
+  preview,
+  selectedStudent,
+}: {
   detail: AdipometryAssessmentDetail | null;
   preview: AdipometryCalculationPreview | null;
   selectedStudent: boolean;
 }) {
-  const steps = buildAdipometryGuidedSteps({ detail, preview, selectedStudent });
+  const steps = buildAdipometryGuidedSteps({
+    detail,
+    preview,
+    selectedStudent,
+  });
   return (
     <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
       {steps.map((step, index) => {
-        const current = !step.done && steps.slice(0, index).every((previous) => previous.done);
+        const current =
+          !step.done && steps.slice(0, index).every((previous) => previous.done);
         return (
-          <div key={step.title} className={`rounded-lg border p-3 ${step.done ? 'border-emerald-200 bg-emerald-50' : current ? 'border-primary/40 bg-primary/5' : 'border-border bg-muted/20'}`}>
+          <div
+            key={step.title}
+            className={`rounded-lg border p-3 ${
+              step.done
+                ? 'border-emerald-200 bg-emerald-50'
+                : current
+                  ? 'border-primary/40 bg-primary/5'
+                  : 'border-border bg-muted/20'
+            }`}
+          >
             <div className="flex items-center gap-2 text-sm font-semibold">
-              {step.done ? <CheckCircle2 className="h-4 w-4 text-emerald-700" aria-hidden="true" /> : null}
+              {step.done ? (
+                <CheckCircle2
+                  className="h-4 w-4 text-emerald-700"
+                  aria-hidden="true"
+                />
+              ) : null}
               {step.title}
             </div>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">{step.description}</p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              {step.description}
+            </p>
           </div>
         );
       })}
@@ -126,26 +197,69 @@ export function StepStrip({ detail, preview, selectedStudent }: {
   );
 }
 
-export function Results({ preview, detail }: { preview: AdipometryCalculationPreview | null; detail: AdipometryAssessmentDetail | null }) {
+export function Results({
+  preview,
+  detail,
+}: {
+  preview: AdipometryCalculationPreview | null;
+  detail: AdipometryAssessmentDetail | null;
+}) {
   const results = preview?.results ?? detail?.results;
+  const precision = resultPrecision(preview, detail);
   return (
     <Card>
       <CardHeader>
         <CardTitle>Resultado calculado</CardTitle>
-        <CardDescription>Somente leitura. Os valores são produzidos pela API com o protocolo aprovado.</CardDescription>
+        <CardDescription>
+          Somente leitura. Os valores são produzidos pela API com o protocolo
+          aprovado.
+        </CardDescription>
       </CardHeader>
       <CardContent>
         {results ? (
           <dl className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {[
-              ['Soma das dobras', numberLabel(results.skinfoldTotalMm, 'mm')],
-              ['Gordura corporal', numberLabel(results.bodyFatPercentage, '%')],
-              ['Massa de gordura', numberLabel(results.fatMassKg, 'kg')],
-              ['Massa magra', numberLabel(results.leanMassKg, 'kg')],
+              [
+                'Soma das dobras',
+                formatAdipometryResult(
+                  results.skinfoldTotalMm,
+                  'mm',
+                  precision?.skinfoldTotalScale
+                ),
+              ],
+              [
+                'Gordura corporal',
+                formatAdipometryResult(
+                  results.bodyFatPercentage,
+                  '%',
+                  precision?.resultScale
+                ),
+              ],
+              [
+                'Massa de gordura',
+                formatAdipometryResult(
+                  results.fatMassKg,
+                  'kg',
+                  precision?.resultScale
+                ),
+              ],
+              [
+                'Massa magra',
+                formatAdipometryResult(
+                  results.leanMassKg,
+                  'kg',
+                  precision?.resultScale
+                ),
+              ],
             ].map(([label, value]) => (
-              <div key={label} className="rounded-lg border border-border bg-muted/20 p-4">
+              <div
+                key={label}
+                className="rounded-lg border border-border bg-muted/20 p-4"
+              >
                 <dt className="text-xs text-muted-foreground">{label}</dt>
-                <dd className="mt-1 text-xl font-semibold text-foreground">{value}</dd>
+                <dd className="mt-1 text-xl font-semibold text-foreground">
+                  {value}
+                </dd>
               </div>
             ))}
           </dl>
@@ -157,13 +271,21 @@ export function Results({ preview, detail }: { preview: AdipometryCalculationPre
         {preview?.compatibility.reasons.length ? (
           <div className="mt-4 rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
             <p className="font-semibold">Pendências que impedem a conclusão</p>
-            <ul className="mt-2 list-disc space-y-1 pl-5">{preview.compatibility.reasons.map((item) => <li key={`${item.code}-${item.field ?? ''}`}>{item.message}</li>)}</ul>
+            <ul className="mt-2 list-disc space-y-1 pl-5">
+              {preview.compatibility.reasons.map((item) => (
+                <li key={`${item.code}-${item.field ?? ''}`}>{item.message}</li>
+              ))}
+            </ul>
           </div>
         ) : null}
         {preview?.compatibility.warnings.length ? (
           <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
             <p className="font-semibold">Alertas do protocolo</p>
-            <ul className="mt-2 list-disc space-y-1 pl-5">{preview.compatibility.warnings.map((item) => <li key={`${item.code}-${item.field ?? ''}`}>{item.message}</li>)}</ul>
+            <ul className="mt-2 list-disc space-y-1 pl-5">
+              {preview.compatibility.warnings.map((item) => (
+                <li key={`${item.code}-${item.field ?? ''}`}>{item.message}</li>
+              ))}
+            </ul>
           </div>
         ) : null}
       </CardContent>
@@ -174,36 +296,70 @@ export function Results({ preview, detail }: { preview: AdipometryCalculationPre
 export function SupportCard({
   support,
   selectedId,
+  studentId,
   disabled,
   onSelect,
 }: {
   support: AdipometryAnthropometrySupport | null;
   selectedId: string;
+  studentId: string;
   disabled: boolean;
   onSelect: (id: string) => void;
 }) {
   const record = support?.selected ?? support?.latestEligible ?? null;
-  const find = (terms: string[]) => record?.measurements.find((item) => {
-    const searchable = `${item.segmentName} ${item.technicalDescription ?? ''} ${item.formulaHint ?? ''}`
-      .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-    return terms.every((term) => searchable.includes(term));
-  });
+  const find = (terms: string[]) =>
+    record?.measurements.find((item) => {
+      const searchable = `${item.segmentName} ${item.technicalDescription ?? ''} ${item.formulaHint ?? ''}`
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase();
+      return terms.every((term) => searchable.includes(term));
+    });
   const triceps = find(['olecr']) ?? find(['braco']) ?? find(['tricip']);
   const thigh = find(['ligamento', 'patela']) ?? find(['coxa']);
+  const sourcePath = studentId && record
+    ? `/protocolo-avaliacao-fisica/antropometria?alunoId=${encodeURIComponent(studentId)}&assessmentId=${encodeURIComponent(record.anthropometryAssessmentId)}`
+    : null;
   return (
     <Card>
       <CardHeader>
         <CardTitle>Antropometria de apoio</CardTitle>
-        <CardDescription>Vínculo opcional para conferência consciente. Nenhum resultado é copiado automaticamente.</CardDescription>
+        <CardDescription>
+          Vínculo opcional para conferência consciente. Nenhum resultado é
+          copiado automaticamente.
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {record ? (
           <>
             <div className="rounded-lg border border-border bg-muted/20 p-3 text-sm">
-              <p className="font-semibold">{record.assessmentCode} · {dateLabel(record.assessmentDate)}</p>
-              <p className="mt-1 text-xs text-muted-foreground">Fonte antropométrica elegível para a data da ADPT.</p>
-              {triceps ? <p className="mt-2">Referência tricipital: {triceps.value ?? '—'} {triceps.unit}</p> : null}
-              {thigh ? <p>Referência da coxa: {thigh.value ?? '—'} {thigh.unit}</p> : null}
+              <p className="font-semibold">
+                {record.assessmentCode} · {dateLabel(record.assessmentDate)}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                As distâncias abaixo orientam a localização dos pontos médios;
+                elas não são dobras cutâneas medidas.
+              </p>
+              {triceps ? (
+                <p className="mt-2">
+                  Ponto médio tricipital entre olécrano e acrômio-clavicular:{' '}
+                  {triceps.value ?? '—'} {triceps.unit}
+                </p>
+              ) : null}
+              {thigh ? (
+                <p>
+                  Ponto médio da coxa entre ligamento inguinal e borda superior
+                  da patela: {thigh.value ?? '—'} {thigh.unit}
+                </p>
+              ) : null}
+              {sourcePath ? (
+                <Link
+                  to={sourcePath}
+                  className="mt-3 inline-flex font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  Abrir avaliação de origem {record.assessmentCode}
+                </Link>
+              ) : null}
             </div>
             <label className="flex items-start gap-2 text-sm">
               <input
@@ -211,14 +367,19 @@ export function SupportCard({
                 className="mt-1"
                 checked={selectedId === record.anthropometryAssessmentId}
                 disabled={disabled}
-                onChange={(event) => onSelect(event.target.checked ? record.anthropometryAssessmentId : '')}
+                onChange={(event) =>
+                  onSelect(
+                    event.target.checked ? record.anthropometryAssessmentId : ''
+                  )
+                }
               />
               Vincular esta antropometria à avaliação ADPT
             </label>
           </>
         ) : (
           <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
-            Nenhuma antropometria elegível foi encontrada. A coleta ADPT continua disponível.
+            Nenhuma antropometria elegível foi encontrada. A coleta ADPT
+            continua disponível.
           </p>
         )}
       </CardContent>
@@ -238,24 +399,46 @@ export function HistoryPanel({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2"><History className="h-5 w-5" aria-hidden="true" />Histórico</CardTitle>
+        <CardTitle className="flex items-center gap-2">
+          <History className="h-5 w-5" aria-hidden="true" />
+          Histórico
+        </CardTitle>
         <CardDescription>Rascunhos e revisões do aluno.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
-        {assessments.length ? assessments.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => onOpen(item.id)}
-            className={`w-full rounded-lg border p-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${item.id === activeId ? 'border-primary bg-primary/10' : 'border-border hover:bg-muted'}`}
-          >
-            <span className="flex items-center justify-between gap-2">
-              <span className="font-semibold">{item.code} · R{item.revisionNumber}</span>
-              <span className="text-xs text-muted-foreground">{adipometryRevisionStatusLabel(item.revisionStatus)}</span>
-            </span>
-            <span className="mt-1 block text-xs text-muted-foreground">{dateLabel(item.assessmentDate)} · {item.protocolCode ? `${item.protocolCode} v${item.protocolVersion}` : 'protocolo pendente'}</span>
-          </button>
-        )) : <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">Nenhuma avaliação ADPT.</p>}
+        {assessments.length ? (
+          assessments.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => onOpen(item.id)}
+              className={`w-full rounded-lg border p-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                item.id === activeId
+                  ? 'border-primary bg-primary/10'
+                  : 'border-border hover:bg-muted'
+              }`}
+            >
+              <span className="flex items-center justify-between gap-2">
+                <span className="font-semibold">
+                  {item.code} · R{item.revisionNumber}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {adipometryRevisionStatusLabel(item.revisionStatus)}
+                </span>
+              </span>
+              <span className="mt-1 block text-xs text-muted-foreground">
+                {dateLabel(item.assessmentDate)} ·{' '}
+                {item.protocolCode
+                  ? `${item.protocolCode} v${item.protocolVersion}`
+                  : 'protocolo pendente'}
+              </span>
+            </button>
+          ))
+        ) : (
+          <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+            Nenhuma avaliação ADPT.
+          </p>
+        )}
       </CardContent>
     </Card>
   );
