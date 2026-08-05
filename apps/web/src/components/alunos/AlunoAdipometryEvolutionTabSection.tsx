@@ -9,30 +9,36 @@ type AlunoAdipometryEvolutionTabSectionProps = {
 export function AlunoAdipometryEvolutionTabSection({
   alunoId,
 }: AlunoAdipometryEvolutionTabSectionProps) {
-  const [assessments, setAssessments] = useState<Assessment[] | null>(null);
+  const [assessments, setAssessments] = useState<Assessment[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
-    setAssessments(null);
+    setAssessments([]);
+    setHistoryLoading(true);
     void assessmentService.listByAluno(alunoId)
       .then((items) => {
         if (!cancelled) setAssessments(items);
       })
       .catch(() => {
         if (!cancelled) setAssessments([]);
+      })
+      .finally(() => {
+        if (!cancelled) setHistoryLoading(false);
       });
     return () => {
       cancelled = true;
     };
   }, [alunoId]);
 
-  if (assessments === null) {
-    return (
-      <div role="status" className="rounded-lg border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
-        Preparando o histórico de avaliações…
-      </div>
-    );
-  }
-
-  return <AlunoAdipometryEvolutionCard alunoId={alunoId} assessments={assessments} />;
+  return (
+    <div className="space-y-3">
+      {historyLoading && (
+        <div role="status" className="rounded-lg border border-border bg-muted/20 p-3 text-sm text-muted-foreground">
+          Atualizando o histórico geral de avaliações…
+        </div>
+      )}
+      <AlunoAdipometryEvolutionCard alunoId={alunoId} assessments={assessments} />
+    </div>
+  );
 }
