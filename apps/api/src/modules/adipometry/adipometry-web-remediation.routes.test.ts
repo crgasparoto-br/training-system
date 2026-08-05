@@ -1,6 +1,7 @@
 import {
   adipometryDraftMeasurementsPatchSchema,
   createAdipometryDraftWithResponsibleSchema,
+  reassignAdipometryResponsibleSchema,
   updateAdipometryDraftWithClearSchema,
 } from './adipometry-web-remediation.routes.js';
 
@@ -19,6 +20,23 @@ describe('contratos web de adipometria', () => {
     })).toMatchObject({ responsibleProfessorId: 'professor-1' });
     expect(() => createAdipometryDraftWithResponsibleSchema.parse({
       assessmentDate: '2026-08-04',
+    })).toThrow();
+  });
+
+  it('exige responsavel elegivel e versao observada para recuperar rascunho', () => {
+    expect(reassignAdipometryResponsibleSchema.parse({
+      responsibleProfessorId: 'professor-2',
+      expectedUpdatedAt: '2026-08-05T14:00:00.000Z',
+    })).toEqual({
+      responsibleProfessorId: 'professor-2',
+      expectedUpdatedAt: '2026-08-05T14:00:00.000Z',
+    });
+    expect(() => reassignAdipometryResponsibleSchema.parse({
+      responsibleProfessorId: 'professor-2',
+    })).toThrow();
+    expect(() => reassignAdipometryResponsibleSchema.parse({
+      responsibleProfessorId: 'professor-2',
+      expectedUpdatedAt: 'ontem',
     })).toThrow();
   });
 
