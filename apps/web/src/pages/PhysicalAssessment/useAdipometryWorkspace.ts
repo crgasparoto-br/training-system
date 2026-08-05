@@ -6,7 +6,7 @@ import type {
   AdipometryInputField,
   AdipometryProtocolSummary,
 } from '@corrida/types';
-import { alunoService, type Aluno } from '../../services/aluno.service';
+import type { Aluno } from '../../services/aluno.service';
 import {
   adipometryService,
   type AdipometryAnthropometrySupport,
@@ -158,9 +158,9 @@ export function useAdipometryWorkspace({
   useEffect(() => {
     if (!canView) return;
     let cancelled = false;
-    void alunoService.list(1, 200, undefined, 'active')
-      .then((response) => {
-        if (!cancelled) setAlunos(response.alunos);
+    void adipometryService.listAccessibleStudents()
+      .then((items) => {
+        if (!cancelled) setAlunos(items);
       })
       .catch((loadError: unknown) => {
         if (!cancelled) setError(readAdipometryApiError(loadError).message);
