@@ -49,6 +49,7 @@ export function installAdipometryRuntimeHardening() {
       alunoId,
       assessmentDate
     );
+    if (!protocols.length) return protocols;
 
     const definitions = await adipometryRuntimePrisma.$queryRaw<Array<{
       protocolCode: string;
