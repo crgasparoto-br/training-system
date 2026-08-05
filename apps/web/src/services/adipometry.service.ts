@@ -3,6 +3,7 @@ import type {
   AdipometryAssessmentSummary,
   AdipometryCalculationPreview,
   AdipometryCalculationPreviewRequest,
+  AdipometryComparison,
   AdipometryCorrectionCategory,
   AdipometryProtocolSummary,
   AdipometryResponsibleProfessor,
@@ -108,6 +109,14 @@ export const adipometryService = {
 
   async getAssessment(assessmentId: string): Promise<AdipometryAssessmentDetail> {
     return unwrap(await api.get(`/adipometry/assessments/${assessmentId}`));
+  },
+
+  async compare(alunoId: string, assessmentIds: string[]): Promise<AdipometryComparison> {
+    return unwrap(
+      await api.get(`/adipometry/alunos/${alunoId}/compare`, {
+        params: { assessmentIds: assessmentIds.join(',') },
+      })
+    );
   },
 
   async getAnthropometrySupport(
