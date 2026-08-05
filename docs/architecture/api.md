@@ -43,6 +43,15 @@ Regras de fronteira:
 
 A API reutiliza as funções e restrições PostgreSQL implantadas pela fundação da issue #246 para numeração, ator de auditoria, imutabilidade e ciclo de revisões.
 
+## Manual do Professor
+
+O módulo `apps/api/src/modules/professor-manual` é montado em `/api/v1/professor-manual`.
+
+- a listagem exige autenticação e contexto profissional;
+- o contrato é derivado da sessão e usado para garantir os itens padrão e filtrar o conteúdo;
+- os painéis contextuais da Central do Aluno consomem essa rota, inclusive na área de avaliações físicas;
+- a rota deve permanecer registrada no bootstrap da API sempre que os componentes web do Manual do Professor estiverem ativos, evitando que uma capacidade existente seja apresentada como erro 404.
+
 ## Validacoes relacionadas
 
 - `pnpm type-check`
