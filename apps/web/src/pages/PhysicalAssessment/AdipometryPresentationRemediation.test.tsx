@@ -8,7 +8,10 @@ import type {
 import { describe, expect, it, vi } from 'vitest';
 import { SkinfoldHelpDialog } from './AdipometryDialogs';
 import { adipometryFormFromAssessment } from './adipometry-screen-utils';
-import { AdipometryEditor } from './AdipometryEditor';
+import {
+  AdipometryEditor,
+  displayAdipometryMeasurement,
+} from './AdipometryEditor';
 import {
   Results,
   SupportCard,
@@ -75,6 +78,8 @@ const preview: AdipometryCalculationPreview = {
 describe('ADPT audit remediation presentation', () => {
   it('preserva a escala visual definida pelo protocolo', () => {
     expect(formatAdipometryInput(80, 1)).toBe('80,0');
+    expect(displayAdipometryMeasurement('80', 1, false)).toBe('80,0');
+    expect(displayAdipometryMeasurement('80,25', 1, true)).toBe('80,25');
     const persistedForm = adipometryFormFromAssessment({
       ...current,
       measurements: { weightKg: 80 },
