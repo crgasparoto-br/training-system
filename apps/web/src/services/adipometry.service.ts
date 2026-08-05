@@ -51,7 +51,23 @@ export interface AdipometryFinalizeResult {
 
 export const adipometryService = {
   async listAccessibleStudents(): Promise<Aluno[]> {
-    return unwrap(await api.get('/adipometry/accessible-students'));
+    try {
+      return unwrap(await api.get('/adipometry/accessible-students'));
+    } catch (error) {
+      const status = (error as { response?: { status?: number } }).response?.status;
+      if (status !== 404) throw error;
+
+      // Transitional compatibility for an older API/visual fixture. The ADPT
+      // endpoint remains authoritative; the legacy route is used only when the
+      // server does not expose it and still applies its own access policy.
+      const legacy = await api.get<{
+        success: boolean;
+        data: { alunos: Aluno[] };
+      }>('/alunos', {
+        params: { page: 1, limit: 200, status: 'active' },
+      });
+      return legacy.data.data.alunos;
+    }
   },
 
   async listResponsibleProfessors(): Promise<AdipometryResponsibleProfessor[]> {
