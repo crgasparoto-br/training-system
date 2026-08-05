@@ -7,7 +7,7 @@ const browserFlags = [
   '--disable-features=BlockInsecurePrivateNetworkRequests,PrivateNetworkAccessSendPreflights,PrivateNetworkAccessRespectPreflightResults',
 ];
 
-async function selectEligibleResponsible(page) {
+async function stabilizeEligibleResponsible(page) {
   await page.waitForFunction(
     () => {
       const select = document.querySelector('#adpt-responsible');
@@ -17,30 +17,44 @@ async function selectEligibleResponsible(page) {
     { timeout: 30_000 }
   );
 
-  const selected = await page.$eval('#adpt-responsible', (select) => {
-    if (!(select instanceof HTMLSelectElement)) return false;
-    const option = Array.from(select.options).find((item) => item.value && !item.disabled);
-    if (!option) return false;
-    const setter = Object.getOwnPropertyDescriptor(
-      HTMLSelectElement.prototype,
-      'value'
-    )?.set;
-    setter?.call(select, option.value);
-    select.dispatchEvent(new Event('input', { bubbles: true }));
-    select.dispatchEvent(new Event('change', { bubbles: true }));
-    return select.value === option.value;
-  });
+  await page.evaluate(() => {
+    const existing = window.__adptResponsibleStabilizer;
+    if (typeof existing === 'number') clearInterval(existing);
 
-  if (!selected) {
-    throw new Error('Não foi possível selecionar o responsável elegível no navegador ADPT.');
-  }
+    const selectResponsible = () => {
+      const select = document.querySelector('#adpt-responsible');
+      if (!(select instanceof HTMLSelectElement) || select.value) return;
+      const option = Array.from(select.options).find((item) => item.value && !item.disabled);
+      if (!option) return;
+      const setter = Object.getOwnPropertyDescriptor(
+        HTMLSelectElement.prototype,
+        'value'
+      )?.set;
+      setter?.call(select, option.value);
+      select.dispatchEvent(new Event('input', { bubbles: true }));
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+
+    selectResponsible();
+    window.__adptResponsibleStabilizer = window.setInterval(selectResponsible, 100);
+    window.setTimeout(() => {
+      if (typeof window.__adptResponsibleStabilizer === 'number') {
+        clearInterval(window.__adptResponsibleStabilizer);
+        window.__adptResponsibleStabilizer = undefined;
+      }
+    }, 20_000);
+  });
 
   await page.waitForFunction(
     () => {
+      const select = document.querySelector('#adpt-responsible');
       const button = Array.from(document.querySelectorAll('button')).find(
         (item) => item.textContent?.trim() === 'Nova avaliação'
       );
-      return button instanceof HTMLButtonElement && !button.disabled;
+      return select instanceof HTMLSelectElement
+        && Boolean(select.value)
+        && button instanceof HTMLButtonElement
+        && !button.disabled;
     },
     { timeout: 30_000 }
   );
@@ -58,7 +72,7 @@ async function launchWithLocalIntegrationSupport(options = {}) {
     page.goto = async (url, gotoOptions) => {
       const response = await originalGoto(url, gotoOptions);
       if (String(url).includes('/protocolo-avaliacao-fisica/adipometria')) {
-        await selectEligibleResponsible(page);
+        await stabilizeEligibleResponsible(page);
       }
       return response;
     };
