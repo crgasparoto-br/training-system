@@ -40,22 +40,29 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
-function assessment(id: string, alunoId: string, assessmentDate = '2026-08-04') {
+function assessment(
+  id: string,
+  alunoId: string,
+  assessmentDate = '2026-08-04'
+): AdipometryAssessmentDetail {
   return {
     id,
+    contractId: 'contract-1',
     alunoId,
     professorId: 'professor-1',
     code: `ADPT-${id}`,
+    sequenceNumber: 1,
     assessmentDate,
     status: 'DRAFT',
     revisionStatus: 'DRAFT',
+    rootAssessmentId: id,
     revisionNumber: 1,
     protocolCode: 'PROTO',
     protocolVersion: 1,
     protocolSex: 'male',
     protocolSexSource: 'profile',
-    protocolSexOverrideReason: null,
-    anthropometryReference: null,
+    protocolSexOverrideReason: undefined,
+    anthropometryReference: undefined,
     notes: `dados-${alunoId}`,
     measurements: {
       weightKg: 80,
@@ -65,31 +72,40 @@ function assessment(id: string, alunoId: string, assessmentDate = '2026-08-04') 
       abdominalMm: 13,
       thighMm: 14,
     },
+    createdAt: '2026-08-04T11:00:00.000Z',
     updatedAt: '2026-08-04T12:00:00.000Z',
-  } as AdipometryAssessmentDetail;
+  };
 }
 
-function summary(id: string, alunoId: string) {
+function summary(id: string, alunoId: string): AdipometryAssessmentSummary {
   return {
     id,
+    contractId: 'contract-1',
     alunoId,
+    professorId: 'professor-1',
+    code: `ADPT-${id}`,
+    sequenceNumber: 1,
+    assessmentDate: '2026-08-04',
     status: 'DRAFT',
     revisionStatus: 'DRAFT',
-    assessmentDate: '2026-08-04',
-  } as AdipometryAssessmentSummary;
+    rootAssessmentId: id,
+    revisionNumber: 1,
+    createdAt: '2026-08-04T11:00:00.000Z',
+    updatedAt: '2026-08-04T12:00:00.000Z',
+  };
 }
 
-function protocol(code: string) {
+function protocol(code: string): AdipometryProtocolSummary {
   return {
     code,
     name: code,
     version: 1,
     status: 'APPROVED',
     compatibility: { compatible: true, reasons: [], warnings: [] },
-  } as AdipometryProtocolSummary;
+  };
 }
 
-function support(code: string) {
+function support(code: string): AdipometryAnthropometrySupport {
   return {
     latestEligible: {
       anthropometryAssessmentId: code,
@@ -100,7 +116,7 @@ function support(code: string) {
       observations: [],
     },
     selected: null,
-  } as AdipometryAnthropometrySupport;
+  };
 }
 
 describe('useAdipometryWorkspace context isolation', () => {
