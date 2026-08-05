@@ -136,7 +136,11 @@ const supportQuerySchema = z.object({
 function context(req: Request) {
   const actor = getProfessionalActor(req);
   if (!actor) {
-    throw new AdipometryServiceError('Não autenticado.', 'AUTH_REQUIRED', 401);
+    throw new AdipometryServiceError(
+      'Vínculo profissional não encontrado.',
+      'PROFESSIONAL_ACTOR_REQUIRED',
+      403
+    );
   }
   return {
     actor,
