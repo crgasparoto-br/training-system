@@ -25,4 +25,4 @@ function runVerifier(script: string): void {
 }
 
 runVerifier('scripts/verify-issue-275-browser-privacy-legacy.ts');
-runVerifier('scripts/verify-issue-248-adipometry-browser.ts');
+runVerifier('scripts/verify-issue-248-adipometry-browser-runner.ts');
