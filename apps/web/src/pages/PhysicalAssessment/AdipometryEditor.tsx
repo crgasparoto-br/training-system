@@ -25,6 +25,7 @@ import {
   ADIPOMETRY_INPUTS,
   ADIPOMETRY_SKINFOLD_HELP,
   adipometryProtocolKey,
+  formatAdipometryInput,
   type AdipometryFormState,
   type AdipometrySkinfoldHelp,
 } from './adipometry-ui';
@@ -73,6 +74,18 @@ export function adipometryMeasurementAccessibility(
     ariaInvalid: error ? true : undefined,
     ariaDescribedBy: error ? errorId : undefined,
   };
+}
+
+export function displayAdipometryMeasurement(
+  rawValue: string,
+  scale: number | undefined,
+  dirty: boolean
+): string {
+  if (dirty || !rawValue.trim() || scale === undefined) return rawValue;
+  const parsed = Number(rawValue.replace(',', '.'));
+  return Number.isFinite(parsed)
+    ? formatAdipometryInput(parsed, scale)
+    : rawValue;
 }
 
 function populationSexLabel(criteria: string[]): string {
@@ -337,7 +350,11 @@ export function AdipometryEditor(props: AdipometryEditorProps) {
                       <input
                         id={`adpt-${input.field}`}
                         inputMode="decimal"
-                        value={form.measurements[input.field]}
+                        value={displayAdipometryMeasurement(
+                          form.measurements[input.field],
+                          selectedProtocol?.displayPrecision?.measurementScale,
+                          dirty
+                        )}
                         disabled={readOnly}
                         aria-invalid={accessibility.ariaInvalid}
                         aria-describedby={accessibility.ariaDescribedBy}
