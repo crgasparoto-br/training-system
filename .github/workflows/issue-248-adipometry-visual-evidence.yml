@@ -10,6 +10,9 @@ on:
       - 'apps/web/src/pages/PhysicalAssessment/useAdipometryWorkspace.ts'
       - 'apps/web/src/pages/PhysicalAssessmentProtocol.tsx'
       - 'apps/web/src/services/adipometry.service.ts'
+      - 'apps/api/src/modules/adipometry/**'
+      - 'apps/api/prisma/migrations/**adipometry**/migration.sql'
+      - 'apps/api/scripts/verify-issue-248-*'
       - 'apps/api/src/scripts/capture-adipometry-visual.mjs'
       - '.github/workflows/issue-248-adipometry-visual-evidence.yml'
 
