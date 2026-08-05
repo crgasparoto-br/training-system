@@ -9,6 +9,7 @@ import { adipometryRoutes } from './modules/adipometry/index.js';
 import adipometryGovernanceRoutes from './modules/adipometry/adipometry-governance.routes.js';
 import { capacityPrescriptionRoutes } from './modules/capacity-prescriptions/index.js';
 import { prontuarioRoutes } from './modules/prontuario/index.js';
+import { professorManualRoutes } from './modules/professor-manual/index.js';
 import { authRoutes } from './modules/auth/index.js';
 import alunoAvatarUploadRoutes from './modules/alunos/aluno-avatar-upload.routes.js';
 import { alunoRoutes } from './modules/alunos/index.js';
@@ -141,6 +142,7 @@ app.get('/api/v1', (_req, res) => {
       adipometry: '/api/v1/adipometry',
       capacityPrescriptions: '/api/v1/capacity-prescriptions',
       prontuario: '/api/v1/prontuario',
+      professorManual: '/api/v1/professor-manual',
       banks: '/api/v1/banks',
       collaboratorFunctions: '/api/v1/collaborator-functions',
       contracts: '/api/v1/contracts',
@@ -180,6 +182,7 @@ app.use('/api/v1/anthropometry', anthropometryRoutes);
 app.use('/api/v1/adipometry', adipometryRoutes);
 app.use('/api/v1/capacity-prescriptions', capacityPrescriptionRoutes);
 app.use('/api/v1/prontuario', prontuarioRoutes);
+app.use('/api/v1/professor-manual', professorManualRoutes);
 app.use('/api/v1/banks', bankRoutes);
 app.use('/api/v1/collaborator-functions', collaboratorFunctionRoutes);
 // Mount the authoritative ADPT governance routes before the legacy contract
