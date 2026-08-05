@@ -160,7 +160,11 @@ async function launchWithLocalIntegrationSupport(options = {}) {
     let newAssessmentPreclicked = false;
 
     page.goto = async (url, gotoOptions) => {
-      const response = await originalGoto(url, gotoOptions);
+      const centralRoute = String(url).includes('/central-do-aluno/');
+      const normalizedGotoOptions = centralRoute
+        ? { ...gotoOptions, waitUntil: 'domcontentloaded' }
+        : gotoOptions;
+      const response = await originalGoto(url, normalizedGotoOptions);
       if (String(url).includes('/protocolo-avaliacao-fisica/adipometria')) {
         await selectEligibleResponsible(page, originalWaitForFunction);
       }
