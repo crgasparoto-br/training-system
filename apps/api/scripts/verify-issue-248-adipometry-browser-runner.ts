@@ -5,14 +5,14 @@ import { PrismaClient } from '@prisma/client';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const prisma = new PrismaClient();
-const triggerName = 'issue_248_ignore_duplicate_access_permission';
-const functionName = 'issue_248_ignore_duplicate_access_permission';
+const triggerName = 'issue_248_upsert_access_permission';
+const functionName = 'issue_248_upsert_access_permission';
 const puppeteerPreload = path.join(
   repoRoot,
   'apps/api/scripts/verify-issue-248-puppeteer-preload.cjs'
 );
 
-async function installFixtureIdempotencyGuard(): Promise<void> {
+async function installFixturePermissionUpsert(): Promise<void> {
   await prisma.$executeRawUnsafe(
     `DROP TRIGGER IF EXISTS "${triggerName}" ON "AccessPermission"`
   );
@@ -32,6 +32,13 @@ async function installFixtureIdempotencyGuard(): Promise<void> {
           AND existing."screenKey" = NEW."screenKey"
           AND existing."blockKey" IS NOT DISTINCT FROM NEW."blockKey"
       ) THEN
+        UPDATE "AccessPermission" existing
+        SET
+          "canView" = NEW."canView",
+          "updatedAt" = CURRENT_TIMESTAMP
+        WHERE existing."collaboratorFunctionId" = NEW."collaboratorFunctionId"
+          AND existing."screenKey" = NEW."screenKey"
+          AND existing."blockKey" IS NOT DISTINCT FROM NEW."blockKey";
         RETURN NULL;
       END IF;
       RETURN NEW;
@@ -46,7 +53,7 @@ async function installFixtureIdempotencyGuard(): Promise<void> {
   `);
 }
 
-async function removeFixtureIdempotencyGuard(): Promise<void> {
+async function removeFixturePermissionUpsert(): Promise<void> {
   await prisma.$executeRawUnsafe(
     `DROP TRIGGER IF EXISTS "${triggerName}" ON "AccessPermission"`
   ).catch(() => undefined);
@@ -118,7 +125,7 @@ function runBrowserVerifier(): void {
 }
 
 async function main(): Promise<void> {
-  await installFixtureIdempotencyGuard();
+  await installFixturePermissionUpsert();
   runBrowserVerifier();
 }
 
@@ -128,7 +135,7 @@ main()
     process.exitCode = 1;
   })
   .finally(async () => {
-    await removeFixtureIdempotencyGuard();
+    await removeFixturePermissionUpsert();
     await removeResidualBrowserFixture();
     await prisma.$disconnect();
   });
