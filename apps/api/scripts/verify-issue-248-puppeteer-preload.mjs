@@ -31,6 +31,28 @@ async function readAdipometryControlState(page) {
   });
 }
 
+async function readAdipometryProtocolState(page) {
+  return page.evaluate(() => {
+    const select = document.querySelector('#adpt-protocol');
+    return {
+      selectFound: select instanceof HTMLSelectElement,
+      selectDisabled: select instanceof HTMLSelectElement ? select.disabled : null,
+      selectedValue: select instanceof HTMLSelectElement ? select.value : null,
+      options: select instanceof HTMLSelectElement
+        ? Array.from(select.options).map((item) => ({
+            value: item.value,
+            disabled: item.disabled,
+            label: item.textContent?.trim() || '',
+          }))
+        : [],
+      alerts: Array.from(document.querySelectorAll('[role="alert"]')).map(
+        (item) => item.textContent?.trim() || ''
+      ),
+      bodyText: document.body.innerText.slice(0, 2_000),
+    };
+  });
+}
+
 async function selectEligibleResponsible(page, waitForFunction) {
   await waitForFunction(
     () => {
@@ -80,6 +102,26 @@ async function selectEligibleResponsible(page, waitForFunction) {
   }
 }
 
+async function waitForAvailableProtocol(page, waitForFunction) {
+  try {
+    await waitForFunction(
+      () => {
+        const select = document.querySelector('#adpt-protocol');
+        return select instanceof HTMLSelectElement
+          && !select.disabled
+          && Array.from(select.options).some((item) => item.value && !item.disabled);
+      },
+      { timeout: 30_000 }
+    );
+  } catch (error) {
+    const state = await readAdipometryProtocolState(page);
+    throw new Error(
+      `Nenhum protocolo aprovado e compatível ficou disponível após a carga das referências: ${JSON.stringify(state)}`,
+      { cause: error }
+    );
+  }
+}
+
 async function clickNewAssessmentAtValidState(page, waitForFunction, evalButtons) {
   await selectEligibleResponsible(page, waitForFunction);
   const clicked = await evalButtons(
@@ -113,6 +155,7 @@ async function launchWithLocalIntegrationSupport(options = {}) {
     const page = await originalNewPage();
     const originalGoto = page.goto.bind(page);
     const originalWaitForFunction = page.waitForFunction.bind(page);
+    const originalEval = page.$eval.bind(page);
     const originalEvalButtons = page.$$eval.bind(page);
     let newAssessmentPreclicked = false;
 
@@ -135,6 +178,13 @@ async function launchWithLocalIntegrationSupport(options = {}) {
         return originalWaitForFunction(() => true, waitOptions);
       }
       return originalWaitForFunction(pageFunction, waitOptions, ...args);
+    };
+
+    page.$eval = async (selector, pageFunction, ...args) => {
+      if (selector === '#adpt-protocol') {
+        await waitForAvailableProtocol(page, originalWaitForFunction);
+      }
+      return originalEval(selector, pageFunction, ...args);
     };
 
     page.$$eval = async (selector, pageFunction, ...args) => {
