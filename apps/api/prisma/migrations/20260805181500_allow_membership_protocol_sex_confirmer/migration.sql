@@ -53,6 +53,7 @@ BEGIN
   FROM pg_proc proc
   JOIN pg_namespace namespace ON namespace.oid = proc.pronamespace
   WHERE namespace.nspname = 'public'
+    AND proc.prokind = 'f'
     AND POSITION(v_marker IN PG_GET_FUNCTIONDEF(proc.oid)) > 0;
 
   IF v_target_count <> 1 OR v_target_oid IS NULL THEN
