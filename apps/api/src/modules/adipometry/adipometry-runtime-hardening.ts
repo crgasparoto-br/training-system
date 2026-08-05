@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import type {
   AdipometryCalculationSnapshot,
+  AdipometryProtocolDefinitionSnapshot,
   CreateAdipometryDraftInput,
   UpdateAdipometryDraftInput,
 } from '@corrida/types';
@@ -12,6 +13,7 @@ import {
   hasAdipometryProtocolSexDecisionPatch,
   mergeAdipometryProtocolSexDecisionPatch,
 } from './adipometry-protocol-sex-decision.js';
+import { buildAdipometryProtocolPresentation } from './adipometry-protocol-presentation.js';
 import {
   adipometryRuntimePrisma,
   getAdipometryApprovedProtocol,
@@ -31,9 +33,41 @@ export function installAdipometryRuntimeHardening() {
   if (installed) return;
   installed = true;
 
+  const originalListAvailableProtocols =
+    adipometryService.listAvailableProtocols.bind(adipometryService);
   const originalCreateDraft = adipometryService.createDraft.bind(adipometryService);
   const originalUpdateDraft = adipometryService.updateDraft.bind(adipometryService);
   const originalGetAssessment = adipometryService.getAssessment.bind(adipometryService);
+
+  adipometryService.listAvailableProtocols = async (
+    contractId: string,
+    alunoId: string,
+    assessmentDate?: string
+  ) => {
+    const protocols = await originalListAvailableProtocols(
+      contractId,
+      alunoId,
+      assessmentDate
+    );
+
+    return Promise.all(
+      protocols.map(async (protocol) => {
+        const approved = await getAdipometryApprovedProtocol(
+          adipometryRuntimePrisma,
+          contractId,
+          protocol.code,
+          protocol.version
+        );
+        return {
+          ...protocol,
+          ...buildAdipometryProtocolPresentation(
+            approved.definitionSnapshot as AdipometryProtocolDefinitionSnapshot,
+            protocol.compatibility
+          ),
+        };
+      })
+    );
+  };
 
   adipometryService.createDraft = async (
     contractId: string,
@@ -111,9 +145,6 @@ export function installAdipometryRuntimeHardening() {
       protocolSex: mergedDecision.protocolSex,
       protocolSexSource,
       protocolSexOverrideReason: mergedDecision.protocolSexOverrideReason,
-      // The merge was calculated from this exact persisted version. If another
-      // writer changes the draft before the service transaction locks it, fail
-      // with the existing stale-draft contract instead of applying a stale merge.
       expectedUpdatedAt: input.expectedUpdatedAt ?? row.updatedAt.toISOString(),
     });
   };
@@ -125,7 +156,12 @@ export function installAdipometryRuntimeHardening() {
     options: { skinfoldCapacityWarningConfirmed?: boolean } = {}
   ) => adipometryRuntimePrisma.$transaction(async (tx) => {
     await setAdipometryActor(tx, actorUserId);
-    let row = await getAdipometryAssessmentRow(tx, contractId, assessmentId, true);
+    let row = await getAdipometryAssessmentRow(
+      tx,
+      contractId,
+      assessmentId,
+      true
+    );
     const initial = await buildHardenedAdipometryPreview(
       tx,
       contractId,
@@ -135,7 +171,9 @@ export function installAdipometryRuntimeHardening() {
     const confirmationReason = initial.compatibility.reasons.find(
       (reason) => reason.code === 'SKINFOLD_CAPACITY_WARNING_CONFIRMATION_REQUIRED'
     );
-    if (!options.skinfoldCapacityWarningConfirmed || !confirmationReason) return initial;
+    if (!options.skinfoldCapacityWarningConfirmed || !confirmationReason) {
+      return initial;
+    }
 
     const otherBlockingReasons = initial.compatibility.reasons.filter(
       (reason) => reason.code !== 'SKINFOLD_CAPACITY_WARNING_CONFIRMATION_REQUIRED'
@@ -161,7 +199,12 @@ export function installAdipometryRuntimeHardening() {
   ) => {
     const outcome = await runAdipometrySerializableTransaction(async (tx) => {
       await setAdipometryActor(tx, actorUserId);
-      const row = await getAdipometryAssessmentRow(tx, contractId, assessmentId, true);
+      const row = await getAdipometryAssessmentRow(
+        tx,
+        contractId,
+        assessmentId,
+        true
+      );
       if (row.status === 'COMPLETED' && row.revisionStatus === 'FINALIZED') {
         return { alreadyFinalized: true };
       }
@@ -179,7 +222,10 @@ export function installAdipometryRuntimeHardening() {
           409
         );
       }
-      if (input.expectedUpdatedAt && row.updatedAt.toISOString() !== input.expectedUpdatedAt) {
+      if (
+        input.expectedUpdatedAt
+        && row.updatedAt.toISOString() !== input.expectedUpdatedAt
+      ) {
         throw new AdipometryServiceError(
           'O rascunho foi atualizado por outra sessão. Recalcule antes de concluir.',
           'ADIPOMETRY_STALE_DRAFT',
