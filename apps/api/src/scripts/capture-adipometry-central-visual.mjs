@@ -209,9 +209,7 @@ const comparison = {
   },
 };
 
-function envelope(data) {
-  return JSON.stringify({ success: true, data });
-}
+const envelope = (data) => JSON.stringify({ success: true, data });
 
 async function waitForPreview() {
   const startedAt = Date.now();
@@ -220,7 +218,7 @@ async function waitForPreview() {
       const response = await fetch(baseUrl);
       if (response.ok) return;
     } catch {
-      // Preview may still be starting.
+      // The preview may still be starting.
     }
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
@@ -373,6 +371,7 @@ try {
   evidence.scenarios.push('rascunho separado com ação de retomada');
   evidence.scenarios.push('upload com nome de adipometria identificado como origem genérica');
 
+  await page.setViewport({ width: 1366, height: 768, deviceScaleFactor: 1 });
   await clickControlByText(page, 'ADPT-002');
   await clickControlByText(page, 'ADPT-001');
   await clickControlByText(page, 'Comparar avaliações selecionadas');
