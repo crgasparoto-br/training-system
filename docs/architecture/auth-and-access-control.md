@@ -62,6 +62,17 @@ Services importantes:
 6. Adicionar ou atualizar testes.
 7. Rodar `pnpm access:check`.
 
+## Adipometria na Central do Aluno
+
+A integracao ADPT na aba `Avaliação Física` combina permissoes de dominios diferentes sem ampliar nenhuma delas:
+
+- a aba exige `students.details.assessments`;
+- a consulta de resumo, historico e comparacao ADPT exige tambem `physicalAssessment.adpt.view`;
+- criar ou retomar rascunho exige `physicalAssessment.adpt.actions.manage`;
+- corrigir avaliacao concluida continua exigindo `physicalAssessment.adpt.actions.correctCompleted` no fluxo dedicado.
+
+O frontend deve deixar de consultar ADPT quando faltar qualquer permissao de visualizacao necessaria e ocultar apenas as acoes que excedam a capacidade do usuario. A API continua responsavel por `contractId`, aluno acessivel, estado vigente, tipo estruturado, revisao e recursos comparados. A ausencia do bloco ADPT nao pode ocultar nem bloquear outras avaliacoes permitidas na mesma aba.
+
 ## Blocos de acoes administrativas de colaboradores
 
 As acoes sensiveis de colaboradores devem usar `blockKey` dedicado no backend e no frontend, por exemplo:
