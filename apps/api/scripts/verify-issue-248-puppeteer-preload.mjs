@@ -181,6 +181,18 @@ async function launchWithLocalIntegrationSupport(options = {}) {
         newAssessmentPreclicked = true;
         return originalWaitForFunction(() => true, waitOptions);
       }
+      if (args.some((argument) => argument === 'Avaliação Física')) {
+        return originalWaitForFunction(
+          (expected) => {
+            const button = Array.from(document.querySelectorAll('button')).find(
+              (item) => item.textContent?.trim().startsWith(expected)
+            );
+            return button instanceof HTMLButtonElement && !button.disabled;
+          },
+          waitOptions,
+          'Avaliação Física'
+        );
+      }
       return originalWaitForFunction(pageFunction, waitOptions, ...args);
     };
 
@@ -199,6 +211,23 @@ async function launchWithLocalIntegrationSupport(options = {}) {
       ) {
         newAssessmentPreclicked = false;
         return true;
+      }
+      if (
+        selector === 'button'
+        && args.some((argument) => argument === 'Avaliação Física')
+      ) {
+        return originalEvalButtons(
+          'button',
+          (buttons, expected) => {
+            const button = buttons.find(
+              (item) => item.textContent?.trim().startsWith(expected)
+            );
+            if (!(button instanceof HTMLButtonElement) || button.disabled) return false;
+            button.click();
+            return true;
+          },
+          'Avaliação Física'
+        );
       }
       return originalEvalButtons(selector, pageFunction, ...args);
     };
