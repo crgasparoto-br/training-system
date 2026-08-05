@@ -83,7 +83,13 @@ function renderCard(assessments: Assessment[] = []) {
   );
 }
 
-function viewOnlyUser(): MockUser {
+function adptUser({
+  manage = false,
+  correct = false,
+}: {
+  manage?: boolean;
+  correct?: boolean;
+} = {}): MockUser {
   return {
     type: 'professor',
     accessControl: {
@@ -93,10 +99,19 @@ function viewOnlyUser(): MockUser {
         { screenKey: 'students.details', blockKey: 'students.details.assessments', canView: true },
         { screenKey: 'physicalAssessment.protocol', blockKey: null, canView: true },
         { screenKey: 'physicalAssessment.protocol', blockKey: 'physicalAssessment.adpt.view', canView: true },
-        { screenKey: 'physicalAssessment.protocol', blockKey: 'physicalAssessment.adpt.actions.manage', canView: false },
+        { screenKey: 'physicalAssessment.protocol', blockKey: 'physicalAssessment.adpt.actions.manage', canView: manage },
+        {
+          screenKey: 'physicalAssessment.protocol',
+          blockKey: 'physicalAssessment.adpt.actions.correctCompleted',
+          canView: correct,
+        },
       ],
     },
   };
+}
+
+function viewOnlyUser(): MockUser {
+  return adptUser();
 }
 
 describe('AlunoAdipometryEvolutionCard', () => {
@@ -165,6 +180,73 @@ describe('AlunoAdipometryEvolutionCard', () => {
     expect(screen.queryByRole('link', { name: 'Nova adipometria' })).not.toBeInTheDocument();
     expect(screen.queryByText(/Pendências operacionais/i)).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Retomar rascunho' })).not.toBeInTheDocument();
+  });
+
+  it('mostra para gestao somente o rascunho inicial e oculta a revisao corretiva', async () => {
+    authState.user = adptUser({ manage: true, correct: false });
+    const initialDraft = completed({
+      id: 'draft-initial',
+      code: 'ADPT-003',
+      sequenceNumber: 3,
+      status: 'DRAFT',
+      revisionStatus: 'DRAFT',
+      rootAssessmentId: 'draft-initial',
+      revisionNumber: 1,
+    });
+    const correctionDraft = completed({
+      id: 'draft-correction',
+      code: 'ADPT-001',
+      sequenceNumber: 1,
+      status: 'DRAFT',
+      revisionStatus: 'DRAFT',
+      rootAssessmentId: 'adpt-root-1',
+      revisionNumber: 2,
+    });
+    listAssessmentsMock.mockResolvedValue([initialDraft, correctionDraft]);
+
+    renderCard();
+
+    await waitFor(() => expect(screen.getByText('Pendências operacionais (1)')).toBeInTheDocument());
+    expect(screen.getByText(/ADPT-003.*Rascunho/i)).toBeInTheDocument();
+    expect(screen.queryByText(/ADPT-001.*Rascunho/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Retomar rascunho' })).toHaveAttribute(
+      'href',
+      '/protocolo-avaliacao-fisica/adipometria?alunoId=aluno-1&assessmentId=draft-initial'
+    );
+  });
+
+  it('mostra para correcao somente a revisao corretiva sem liberar nova adipometria', async () => {
+    authState.user = adptUser({ manage: false, correct: true });
+    const initialDraft = completed({
+      id: 'draft-initial',
+      code: 'ADPT-003',
+      sequenceNumber: 3,
+      status: 'DRAFT',
+      revisionStatus: 'DRAFT',
+      rootAssessmentId: 'draft-initial',
+      revisionNumber: 1,
+    });
+    const correctionDraft = completed({
+      id: 'draft-correction',
+      code: 'ADPT-001',
+      sequenceNumber: 1,
+      status: 'DRAFT',
+      revisionStatus: 'DRAFT',
+      rootAssessmentId: 'adpt-root-1',
+      revisionNumber: 2,
+    });
+    listAssessmentsMock.mockResolvedValue([initialDraft, correctionDraft]);
+
+    renderCard();
+
+    await waitFor(() => expect(screen.getByText('Pendências operacionais (1)')).toBeInTheDocument());
+    expect(screen.queryByRole('link', { name: 'Nova adipometria' })).not.toBeInTheDocument();
+    expect(screen.getByText(/ADPT-001.*Rascunho/i)).toBeInTheDocument();
+    expect(screen.queryByText(/ADPT-003.*Rascunho/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Retomar rascunho' })).toHaveAttribute(
+      'href',
+      '/protocolo-avaliacao-fisica/adipometria?alunoId=aluno-1&assessmentId=draft-correction'
+    );
   });
 
   it('nao consulta ADPT sem as duas permissoes de visualizacao', () => {

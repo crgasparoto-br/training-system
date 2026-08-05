@@ -7,6 +7,7 @@ import type {
   AdipometryComparisonItem,
 } from '@corrida/types';
 import { canAccessBlock } from '../../access/access-control';
+import { canMutateAdipometryAssessment } from '../../access/adipometry-mutation-access';
 import { adipometryService } from '../../services/adipometry.service';
 import type { Assessment } from '../../services/assessment.service';
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -173,6 +174,10 @@ export function AlunoAdipometryEvolutionCard({
   const canViewAssessments = canAccessBlock(user, 'students.details.assessments');
   const canViewAdipometry = canAccessBlock(user, 'physicalAssessment.adpt.view');
   const canManageAdipometry = canAccessBlock(user, 'physicalAssessment.adpt.actions.manage');
+  const canCorrectAdipometry = canAccessBlock(
+    user,
+    'physicalAssessment.adpt.actions.correctCompleted'
+  );
   const canView = canViewAssessments && canViewAdipometry;
 
   const [adipometryAssessments, setAdipometryAssessments] = useState<AdipometryAssessmentSummary[]>([]);
@@ -197,6 +202,13 @@ export function AlunoAdipometryEvolutionCard({
       .filter(isOperationalDraft)
       .sort((left, right) => timestamp(right.updatedAt) - timestamp(left.updatedAt) || right.id.localeCompare(left.id)),
     [adipometryAssessments]
+  );
+  const actionableDrafts = useMemo(
+    () => drafts.filter((draft) => canMutateAdipometryAssessment(draft, {
+      canManage: canManageAdipometry,
+      canCorrectCompleted: canCorrectAdipometry,
+    })),
+    [canCorrectAdipometry, canManageAdipometry, drafts]
   );
 
   const loadAdipometry = useCallback(async () => {
@@ -397,13 +409,13 @@ export function AlunoAdipometryEvolutionCard({
               </section>
             )}
 
-            {canManageAdipometry && drafts.length > 0 && (
+            {actionableDrafts.length > 0 && (
               <details className="rounded-lg border border-amber-200 bg-amber-50/50" open>
                 <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-foreground">
-                  Pendências operacionais ({drafts.length})
+                  Pendências operacionais ({actionableDrafts.length})
                 </summary>
                 <div className="space-y-3 border-t border-amber-200 px-4 py-4">
-                  {drafts.map((draft) => (
+                  {actionableDrafts.map((draft) => (
                     <div key={draft.id} className="flex flex-col gap-3 rounded-lg border border-amber-200 bg-background p-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <p className="text-sm font-semibold text-foreground">{draft.code} • Rascunho</p>

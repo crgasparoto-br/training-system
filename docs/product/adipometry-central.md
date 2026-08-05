@@ -9,12 +9,14 @@ O bloco permite ao professor autorizado:
 - consultar a última ADPT concluída e vigente;
 - visualizar data, código, responsável disponível, protocolo e versão;
 - consultar peso, percentual de gordura, gordura absoluta e massa magra persistidos;
-- retomar rascunhos quando houver permissão de gestão;
+- retomar cada rascunho somente quando a capacidade correspondente estiver liberada;
 - navegar para nova adipometria ou detalhe preservando `alunoId` e `assessmentId`;
 - consultar histórico recente distinguindo ADPT estruturada de Antropometria, outras avaliações e uploads genéricos;
 - comparar duas ADPT concluídas do mesmo aluno usando o endpoint autoritativo de comparação.
 
-A ausência de ADPT ou uma falha localizada desse domínio não bloqueia cadastro, prontuário, treino, contratos ou os demais resumos da Central.
+A entrada dedicada de Antropometria continua disponível na mesma aba. Antropometria e Adipometria possuem ações, rotas e históricos próprios; uma não substitui nem classifica registros da outra.
+
+A ausência de ADPT ou uma falha localizada desse domínio não bloqueia cadastro, prontuário, treino, contratos, Antropometria ou os demais resumos da Central.
 
 ## Estados e revisão vigente
 
@@ -62,16 +64,20 @@ Para consultar o bloco, o usuário precisa das duas permissões:
 - `students.details.assessments`;
 - `physicalAssessment.adpt.view`.
 
-Criação e retomada de rascunho exigem também:
+As capacidades de mutação são decididas pelo registro:
 
-- `physicalAssessment.adpt.actions.manage`.
+- criar uma nova avaliação e retomar rascunho inicial (`revisionNumber = 1`) exige `physicalAssessment.adpt.actions.manage`;
+- retomar, editar, recalcular, reassociar responsável ou concluir uma revisão corretiva (`revisionNumber > 1`) exige `physicalAssessment.adpt.actions.correctCompleted`;
+- possuir gestão sem correção não libera revisões corretivas;
+- possuir correção sem gestão permite retomar a revisão corretiva, mas não criar uma nova avaliação comum.
 
-A interface oculta controles incompatíveis com a permissão, mas a API continua sendo a barreira de segurança e aplica `contractId`, vínculo do aluno e blocos ADPT em toda consulta e operação.
+A mesma regra é compartilhada pela Central e pela tela dedicada, alinhada ao middleware do backend. A interface oculta controles incompatíveis, mas a API continua sendo a barreira de segurança e aplica `contractId`, vínculo do aluno, revisão e bloco correspondente em toda operação.
 
 ## Resiliência e acessibilidade
 
 - Carregamento, vazio, erro e comparação indisponível possuem mensagens próprias.
 - Falhas de ADPT ficam contidas no bloco e oferecem nova tentativa.
+- Falha ao carregar o cadastro necessário para a entrada de Antropometria não remove o bloco ADPT.
 - Seções extensas usam controles colapsáveis nativos.
 - Seleção usa checkboxes e o filtro usa `select`, ambos operáveis por teclado.
 - A comparação possui tabela semântica com `caption`, cabeçalhos de coluna e linha.
@@ -83,12 +89,24 @@ A interface oculta controles incompatíveis com a permissão, mas a API continua
 Validações focadas:
 
 ```bash
-pnpm --filter @corrida/web test -- AlunoAdipometryEvolutionCard.test.tsx AlunoDetailsTabs.adipometry.test.tsx
+pnpm --filter @corrida/web test -- \
+  adipometry-mutation-access.test.ts \
+  AlunoAdipometryEvolutionCard.test.tsx \
+  AlunoAdipometryEvolutionTabSection.test.tsx \
+  AlunoDetailsTabs.adipometry.test.tsx
 pnpm --filter @corrida/web type-check
 pnpm --filter @corrida/web lint
 pnpm access:check
 pnpm docs:check
 ```
+
+A integração real de navegador, API e PostgreSQL é executada pelo runner existente:
+
+```bash
+pnpm --filter @corrida/api exec tsx scripts/verify-issue-248-adipometry-browser-runner.ts
+```
+
+O runner preserva o fluxo guiado da issue #248 e acrescenta a Central da issue #249, incluindo revisão vigente, comparação real, atualização direcionada após finalização, tentativa cross-tenant e viewport móvel.
 
 Validação agregada antes do handoff:
 

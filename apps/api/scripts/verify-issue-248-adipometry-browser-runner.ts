@@ -12,6 +12,17 @@ const puppeteerPreload = path.join(
   'apps/api/scripts/verify-issue-248-puppeteer-preload.mjs'
 );
 
+const verifiers = [
+  {
+    label: 'fluxo guiado ADPT da Issue 248',
+    script: 'scripts/verify-issue-248-adipometry-browser.ts',
+  },
+  {
+    label: 'Central ADPT da Issue 249',
+    script: 'scripts/verify-issue-249-adipometry-central-browser.ts',
+  },
+] as const;
+
 async function installFixturePermissionUpsert(): Promise<void> {
   await prisma.$executeRawUnsafe(
     `DROP TRIGGER IF EXISTS "${triggerName}" ON "AccessPermission"`
@@ -216,7 +227,7 @@ async function removeResidualBrowserFixture(): Promise<void> {
   }
 }
 
-function runBrowserVerifier(): void {
+function runBrowserVerifier(script: string, label: string): void {
   const inheritedNodeOptions = process.env.NODE_OPTIONS?.trim();
   const nodeOptions = [
     inheritedNodeOptions,
@@ -230,7 +241,7 @@ function runBrowserVerifier(): void {
       '@corrida/api',
       'exec',
       'tsx',
-      'scripts/verify-issue-248-adipometry-browser.ts',
+      script,
     ],
     {
       cwd: repoRoot,
@@ -244,13 +255,19 @@ function runBrowserVerifier(): void {
 
   if (result.error) throw result.error;
   if (result.signal) {
-    throw new Error(`Verificador ADPT terminou pelo sinal ${result.signal}.`);
+    throw new Error(`${label} terminou pelo sinal ${result.signal}.`);
   }
   if (result.status !== 0) {
     throw new Error(
-      `Verificador ADPT terminou com status ${result.status ?? 'desconhecido'}.`
+      `${label} terminou com status ${result.status ?? 'desconhecido'}.`
     );
   }
+}
+
+async function prepareVerifier(): Promise<void> {
+  await removeFixturePermissionUpsert();
+  await removeResidualBrowserFixture();
+  await installFixturePermissionUpsert();
 }
 
 async function main(): Promise<void> {
@@ -258,10 +275,10 @@ async function main(): Promise<void> {
   let cleanupError: unknown;
 
   try {
-    await removeFixturePermissionUpsert();
-    await removeResidualBrowserFixture();
-    await installFixturePermissionUpsert();
-    runBrowserVerifier();
+    for (const verifier of verifiers) {
+      await prepareVerifier();
+      runBrowserVerifier(verifier.script, verifier.label);
+    }
   } catch (error) {
     executionError = error;
   }
@@ -284,7 +301,7 @@ async function main(): Promise<void> {
   if (executionError && cleanupError) {
     throw new AggregateError(
       [executionError, cleanupError],
-      'O verificador ADPT falhou e a limpeza da fixture também falhou.'
+      'Os verificadores ADPT falharam e a limpeza da fixture também falhou.'
     );
   }
   if (executionError) throw executionError;
