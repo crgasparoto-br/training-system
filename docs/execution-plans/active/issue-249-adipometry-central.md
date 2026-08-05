@@ -2,13 +2,13 @@
 
 ## Objetivo
 
-Transformar a Central do Aluno no ponto principal de consulta da adipometria, permitindo visualizar o último resultado vigente, retomar pendências autorizadas, consultar histórico com origem explícita e comparar duas avaliações concluídas.
+Transformar a aba `Avaliação Física` da Central do Aluno no ponto principal de consulta da adipometria, permitindo visualizar o último resultado vigente, retomar pendências autorizadas, consultar histórico com origem explícita e comparar duas avaliações concluídas.
 
 ## Contexto
 
 - Issue #249, dependente das entregas de API (#247) e fluxo guiado web (#248), já incorporadas à `develop`.
 - A API `/api/v1/adipometry` é a única fonte de resultados, histórico, revisão vigente e comparação.
-- A Central já possui um bloco genérico de avaliações; a integração ADPT será isolada para que falhas desse domínio não interrompam os demais resumos do aluno.
+- A aba já possui avaliações e uploads legados; a integração ADPT é isolada para que falhas desse domínio não interrompam os demais conteúdos autorizados.
 - Referências: `docs/product/adipometry-web.md`, `docs/product/adipometry-central.md`, `docs/architecture/web.md` e `docs/architecture/auth-and-access-control.md`.
 
 ## Fora de escopo
@@ -23,9 +23,12 @@ Transformar a Central do Aluno no ponto principal de consulta da adipometria, pe
 
 - `apps/web/src/components/alunos/AlunoAdipometryEvolutionCard.tsx`
 - `apps/web/src/components/alunos/AlunoAdipometryEvolutionCard.test.tsx`
-- `apps/web/src/components/alunos/AlunoResumoHubTab.tsx`
+- `apps/web/src/components/alunos/AlunoAdipometryEvolutionTabSection.tsx`
+- `apps/web/src/components/alunos/AlunoDetailsTabs.tsx`
+- `apps/web/src/components/alunos/AlunoDetailsTabs.adipometry.test.tsx`
 - `apps/web/src/services/adipometry.service.ts`
 - `docs/product/adipometry-central.md`
+- `docs/architecture/auth-and-access-control.md`
 
 ## Regras e restrições
 
@@ -40,11 +43,11 @@ Transformar a Central do Aluno no ponto principal de consulta da adipometria, pe
 ## Passos de implementação
 
 - [x] Adicionar cliente web para o endpoint de comparação ADPT.
-- [x] Criar bloco isolado de resumo, pendências, histórico e comparação na Central.
+- [x] Criar bloco isolado de resumo, pendências, histórico e comparação na aba `Avaliação Física`.
 - [x] Aplicar permissões de visualização e gestão antes de consultar ou exibir ações.
 - [x] Adicionar estados de carregamento, vazio, erro localizado, nova tentativa e atualização após retorno à aba.
-- [x] Adicionar testes de componente para permissão, vazio, resumo, rascunho, comparação e falha.
-- [x] Atualizar documentação de produto.
+- [x] Adicionar testes de componente e de montagem na aba para permissão, vazio, resumo, rascunho, comparação e falha.
+- [x] Atualizar documentação de produto e acesso.
 - [ ] Executar a validação completa no ambiente do repositório e registrar o resultado na PR.
 
 ## Critérios de aceite
@@ -55,12 +58,13 @@ Transformar a Central do Aluno no ponto principal de consulta da adipometria, pe
 - [x] Comparação aceita duas concluídas, usa a API, mostra dez métricas, unidades, variações e aviso de protocolo diferente.
 - [x] Campos ausentes aparecem como `Indisponível`.
 - [x] Falha da ADPT não quebra os outros blocos da Central.
+- [x] A integração é montada somente na aba `Avaliação Física`, sem duplicação no `Aluno 360`.
 - [x] Testes relevantes foram adicionados e a documentação foi atualizada.
 - [ ] `pnpm validate` passa no SHA candidato.
 
 ## Validação manual
 
-1. Abrir a Central de aluno sem ADPT e confirmar estado vazio e ação contextual conforme permissão.
+1. Abrir a aba `Avaliação Física` de aluno sem ADPT e confirmar estado vazio e ação contextual conforme permissão.
 2. Abrir aluno com concluída e rascunho; conferir resumo, origem, link de detalhe e retomada.
 3. Alternar os filtros do histórico e confirmar que upload genérico não vira ADPT estruturada.
 4. Selecionar duas concluídas com protocolo igual e depois diferente; conferir tabela, unidades, variações e aviso.
@@ -69,6 +73,6 @@ Transformar a Central do Aluno no ponto principal de consulta da adipometria, pe
 
 ## Decisões e pendências
 
-- A integração é um componente separado do resumo genérico existente para reduzir acoplamento e preservar resiliência.
+- A integração é um componente separado do conteúdo legado da aba para reduzir acoplamento e preservar resiliência.
 - O nome histórico do responsável é resolvido pelo diretório autorizado; quando não estiver disponível, a interface informa indisponibilidade sem expor identificadores internos.
-- A validação completa depende de checkout executável do repositório; o ambiente atual não conseguiu clonar o GitHub por indisponibilidade de DNS externo.
+- A validação completa depende dos workflows existentes porque o ambiente atual não conseguiu clonar o GitHub por indisponibilidade de DNS externo.
