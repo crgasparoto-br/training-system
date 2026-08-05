@@ -68,7 +68,7 @@ Transformar a aba `Avaliação Física` da Central do Aluno no ponto principal d
 - [x] Corrigir a composição móvel da ficha e a quebra de textos longos observadas no navegador real.
 - [x] Montar a rota já existente do Manual do Professor para eliminar o erro contextual na ficha.
 - [x] Atualizar documentação de produto, API, acesso e qualidade.
-- [x] Registrar e validar o SHA candidato nos workflows automáticos existentes.
+- [x] Registrar e validar o candidato nos workflows automáticos existentes.
 
 ## Critérios de aceite
 
@@ -86,18 +86,11 @@ Transformar a aba `Avaliação Física` da Central do Aluno no ponto principal d
 - [x] O ensaio integrado usa a Central real contra API e PostgreSQL reais e verifica isolamento cross-tenant.
 - [x] O layout real não produz overflow horizontal em `390px`.
 - [x] O Manual do Professor carrega pela rota real em vez de apresentar 404.
-- [x] `pnpm validate` e os workflows existentes passam no SHA candidato.
+- [x] `pnpm validate` e os workflows existentes passam no candidato registrado na PR.
 
-## Validação do candidato final
+## Evidência de validação
 
-SHA: `32f9205d8cf2f2a34c7226b78480d7d22fd530c6`
-
-- `Validate PR`, run `31047563186`: aprovado;
-- `Issue 248 Adipometry Integration`, run `31047563816`: aprovado;
-- `Issue 248 Adipometry Visual Evidence`, run `31047563134`: aprovado;
-- `Issue 275 Pre-registration QA`, run `31047563180`: aprovado.
-
-O cenário real da Central comprovou ações de Antropometria e Adipometria, revisão corretiva vigente, tabela de comparação, atualização direcionada depois da finalização, preservação do aluno, `404 ADIPOMETRY_RESOURCE_NOT_FOUND` para outro contrato, viewport de `390px` sem overflow e ausência de erros de página ou console.
+Os identificadores imutáveis do candidato, merge preview e runs ficam registrados na descrição da PR. O cenário real da Central deve comprovar ações de Antropometria e Adipometria, revisão corretiva vigente, tabela de comparação, atualização direcionada depois da finalização, preservação do aluno, `404 ADIPOMETRY_RESOURCE_NOT_FOUND` para outro contrato, viewport de `390px` sem overflow e ausência de erros de página ou console.
 
 ## Validação focada
 
