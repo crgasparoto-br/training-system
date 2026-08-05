@@ -85,7 +85,7 @@ describe('ADPT audit remediation presentation', () => {
           },
         },
       },
-    } as AdipometryAssessmentDetail);
+    } as unknown as AdipometryAssessmentDetail);
     expect(persistedForm.measurements.weightKg).toBe('80,0');
     expect(formatAdipometryResult(19.4, '%', 2)).toBe('19,40 %');
     render(<Results preview={preview} detail={current} />);
