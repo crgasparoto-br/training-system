@@ -6,6 +6,7 @@ import type {
   AdipometryResponsibleProfessor,
 } from '@corrida/types';
 import { canAccessBlock } from '../../access/access-control';
+import { Button } from '../../components/ui/Button';
 import { adipometryService } from '../../services/adipometry.service';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { AdipometryScreenOverlays } from './AdipometryScreenOverlays';
@@ -46,30 +47,61 @@ export function AdipometryScreen() {
   const [correctionReason, setCorrectionReason] = useState('');
   const [cancelReason, setCancelReason] = useState('');
   const [responsibleProfessors, setResponsibleProfessors] = useState<AdipometryResponsibleProfessor[]>([]);
+  const [responsibleDirectoryReady, setResponsibleDirectoryReady] = useState(false);
   const [selectedResponsibleProfessorId, setSelectedResponsibleProfessorId] = useState('');
   const canManage = canAccessBlock(user, 'physicalAssessment.adpt.actions.manage');
   const canCorrect = canAccessBlock(user, 'physicalAssessment.adpt.actions.correctCompleted');
   const isCorrectionDraft = Boolean(current && current.revisionStatus === 'DRAFT' && current.revisionNumber > 1);
   const canMutate = canManage || (isCorrectionDraft && canCorrect);
   const defaultResponsibleProfessorId = user?.professor?.id ?? '';
-  const contextBusy = loading || referencesLoading;
+  const contextBusy = loading || referencesLoading || !responsibleDirectoryReady;
+  const currentResponsibleEligible = Boolean(
+    current && responsibleProfessors.some((item) => item.id === current.professorId)
+  );
+  const responsibleReassignmentRequired = Boolean(
+    responsibleDirectoryReady
+      && current
+      && current.status === 'DRAFT'
+      && current.revisionStatus === 'DRAFT'
+      && !currentResponsibleEligible
+  );
+  const canOperateDraft = canMutate && !responsibleReassignmentRequired;
 
   useEffect(() => {
-    if (!canView) return;
+    if (!canView) {
+      setResponsibleDirectoryReady(true);
+      return;
+    }
     let cancelled = false;
+    setResponsibleDirectoryReady(false);
     void adipometryService.listResponsibleProfessors()
       .then((items) => {
         if (!cancelled) setResponsibleProfessors(items);
       })
       .catch((loadError: unknown) => {
         if (!cancelled) setError(readAdipometryApiError(loadError).message);
+      })
+      .finally(() => {
+        if (!cancelled) setResponsibleDirectoryReady(true);
       });
     return () => { cancelled = true; };
   }, [canView, setError]);
 
   useEffect(() => {
     if (current?.professorId) {
-      setSelectedResponsibleProfessorId(current.professorId);
+      const currentIsEligible = responsibleProfessors.some(
+        (item) => item.id === current.professorId
+      );
+      if (
+        !responsibleDirectoryReady
+        || currentIsEligible
+        || current.status !== 'DRAFT'
+        || current.revisionStatus !== 'DRAFT'
+      ) {
+        setSelectedResponsibleProfessorId(current.professorId);
+      } else {
+        setSelectedResponsibleProfessorId('');
+      }
       return;
     }
     setSelectedResponsibleProfessorId((previous) => {
@@ -78,7 +110,14 @@ export function AdipometryScreen() {
         ? defaultResponsibleProfessorId
         : '';
     });
-  }, [current?.professorId, defaultResponsibleProfessorId, responsibleProfessors]);
+  }, [
+    current?.professorId,
+    current?.revisionStatus,
+    current?.status,
+    defaultResponsibleProfessorId,
+    responsibleDirectoryReady,
+    responsibleProfessors,
+  ]);
 
   const handleAluno = (id: string) => {
     if (lockedAlunoId) return;
@@ -130,8 +169,41 @@ export function AdipometryScreen() {
     }
   };
 
+  const handleReassignResponsible = async () => {
+    if (
+      contextBusy
+      || !current
+      || !responsibleReassignmentRequired
+      || !selectedResponsibleProfessorId
+    ) return;
+
+    setBusy(true);
+    resetMessages();
+    try {
+      const reassigned = await adipometryService.reassignResponsible(current.id, {
+        responsibleProfessorId: selectedResponsibleProfessorId,
+        expectedUpdatedAt: current.updatedAt,
+      });
+      setCurrent(reassigned);
+      setPreview(null);
+      setCapacityWarningConfirmed(false);
+      setConflict(false);
+      setSuccess('Responsável atualizado. O rascunho pode ser retomado sem perda dos dados locais.');
+    } catch (reassignError) {
+      const parsed = readAdipometryApiError(reassignError);
+      if (parsed.status === 409) {
+        setConflict(true);
+        setError('O rascunho mudou em outra sessão. Seus valores locais foram preservados.');
+      } else {
+        setError(parsed.message);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const saveDraft = async (silent = false): Promise<AdipometryAssessmentDetail | null> => {
-    if (contextBusy || !current || !canMutate) return null;
+    if (contextBusy || !current || !canOperateDraft) return null;
     const built = buildAdipometryDraftPayload({ form, current, isCorrectionDraft });
     if (!built.payload) {
       setFieldErrors(built.fieldErrors);
@@ -166,7 +238,7 @@ export function AdipometryScreen() {
   };
 
   const handleCalculate = async () => {
-    if (contextBusy) return;
+    if (contextBusy || responsibleReassignmentRequired) return;
     if (!form.protocolKey || !form.protocolSex || !form.protocolSexSource) {
       setError('Selecione o protocolo e confirme o sexo de referência antes de calcular.');
       return;
@@ -192,7 +264,7 @@ export function AdipometryScreen() {
   };
 
   const handleFinalize = async () => {
-    if (contextBusy || !current || !preview) return;
+    if (contextBusy || responsibleReassignmentRequired || !current || !preview) return;
     setBusy(true);
     resetMessages();
     try {
@@ -308,6 +380,49 @@ export function AdipometryScreen() {
 
   return (
     <>
+      {responsibleReassignmentRequired ? (
+        <section
+          role="alert"
+          aria-labelledby="adpt-responsible-recovery-title"
+          className="mb-6 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950"
+        >
+          <h2 id="adpt-responsible-recovery-title" className="font-semibold">
+            Selecione um novo responsável para retomar este rascunho
+          </h2>
+          <p className="mt-1">
+            O professor registrado ficou inativo, foi desligado ou perdeu a permissão necessária.
+            Os dados do rascunho permanecem preservados e nenhuma operação clínica será executada
+            até a reassociação.
+          </p>
+          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="min-w-0 flex-1">
+              <label htmlFor="adpt-recovery-responsible" className="mb-1 block font-medium">
+                Novo responsável elegível
+              </label>
+              <select
+                id="adpt-recovery-responsible"
+                value={selectedResponsibleProfessorId}
+                onChange={(event) => setSelectedResponsibleProfessorId(event.target.value)}
+                className="h-11 w-full rounded-lg border border-input bg-card px-4 text-sm"
+              >
+                <option value="">Selecione um professor ativo</option>
+                {responsibleProfessors.map((professor) => (
+                  <option key={professor.id} value={professor.id}>{professor.name}</option>
+                ))}
+              </select>
+            </div>
+            <Button
+              type="button"
+              onClick={() => void handleReassignResponsible()}
+              disabled={!selectedResponsibleProfessorId || busy || contextBusy || !canMutate}
+              isLoading={busy}
+            >
+              Atualizar responsável
+            </Button>
+          </div>
+        </section>
+      ) : null}
+
       <AdipometryView
         lockedAlunoId={lockedAlunoId}
         alunos={alunos}
@@ -329,10 +444,13 @@ export function AdipometryScreen() {
         success={success}
         supportError={supportError}
         canView={canView}
-        canMutate={canMutate}
+        canMutate={canOperateDraft}
         canCorrect={canCorrect}
         responsibleName={responsibleName}
         capacityWarningConfirmed={capacityWarningConfirmed}
+        mutationBlockMessage={responsibleReassignmentRequired
+          ? 'Atualize o responsável acima para editar, calcular ou concluir este rascunho.'
+          : undefined}
         onAluno={handleAluno}
         onResponsible={setSelectedResponsibleProfessorId}
         onForm={handleFormField}
