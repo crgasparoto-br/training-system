@@ -3,7 +3,6 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AlertTriangle, ArrowLeft, CheckCircle2, ClipboardCheck, Loader2, Save, ShieldOff } from 'lucide-react';
 import type { ParqQuestionKey, ParqResponses, ParqSessionDTO } from '@corrida/types';
 import { PARQ_CATALOG_VERSION } from '@corrida/types';
-import { useAuthStore } from '../../stores/useAuthStore';
 import { preRegistrationPublicService } from '../../services/pre-registration-public.service';
 
 function PublicShell({ children }: { children: React.ReactNode }) {
@@ -74,7 +73,6 @@ export function Parq() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const alunoId = searchParams.get('alunoId') || '';
-  const { isAuthenticated } = useAuthStore();
   const [session, setSession] = useState<ParqSessionDTO | null>(null);
   const [responses, setResponses] = useState<ParqResponses>({});
   const [consentAccepted, setConsentAccepted] = useState(false);
@@ -119,12 +117,8 @@ export function Parq() {
   };
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      navigate('/login', { replace: true });
-      return;
-    }
     void load();
-  }, [alunoId, isAuthenticated]);
+  }, [alunoId]);
 
   const payload = () => {
     if (!session) throw new Error('Sessão indisponível');

@@ -463,4 +463,47 @@ describe('PublicPreRegistration - resiliência, seleção e autorização', () =
     expect(screen.getByText(/dados pessoais do menor continuarão protegidos/i)).toBeInTheDocument();
     expect(mocks.getSession).not.toHaveBeenCalled();
   });
+
+  it('shows Anamnese and PAR-Q as clickable optional next steps once pre-registration is completed', async () => {
+    mocks.listProcesses.mockResolvedValue([
+      { ...baseProcess, status: 'PRE_REGISTRATION_COMPLETED' },
+    ]);
+    mocks.getSession.mockResolvedValue({
+      ...baseSession,
+      status: 'PRE_REGISTRATION_COMPLETED',
+      nextSteps: [
+        {
+          key: 'ANAMNESIS',
+          title: 'Responder Anamnese Inicial',
+          description: 'Conte informações importantes para orientar seu acompanhamento.',
+          optional: true,
+          status: 'NOT_STARTED',
+          action: 'START',
+          href: '/pre-cadastro/anamnese?alunoId=student-1',
+        },
+        {
+          key: 'PARQ',
+          title: 'Responder PAR-Q',
+          description: 'Responda o questionário de prontidão para atividade física.',
+          optional: true,
+          status: 'NOT_STARTED',
+          action: 'START',
+          href: '/pre-cadastro/par-q?alunoId=student-1',
+        },
+      ],
+    });
+
+    render(
+      <MemoryRouter>
+        <PublicPreRegistration />
+      </MemoryRouter>
+    );
+
+    await screen.findByRole('heading', { name: /Pré-cadastro concluído/i });
+
+    const links = await screen.findAllByRole('link', { name: /Iniciar/i });
+    expect(links).toHaveLength(2);
+    expect(links[0]).toHaveAttribute('href', '/pre-cadastro/anamnese?alunoId=student-1');
+    expect(links[1]).toHaveAttribute('href', '/pre-cadastro/par-q?alunoId=student-1');
+  });
 });
