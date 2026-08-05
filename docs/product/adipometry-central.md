@@ -83,7 +83,7 @@ A interface oculta controles incompatíveis com a permissão, mas a API continua
 Validações focadas:
 
 ```bash
-pnpm --filter @corrida/web test -- AlunoAdipometryEvolutionCard.test.tsx AlunoResumoHubTab.test.tsx
+pnpm --filter @corrida/web test -- AlunoAdipometryEvolutionCard.test.tsx AlunoDetailsTabs.adipometry.test.tsx
 pnpm --filter @corrida/web type-check
 pnpm --filter @corrida/web lint
 pnpm access:check
