@@ -9,7 +9,7 @@ const triggerName = 'issue_248_upsert_access_permission';
 const functionName = 'issue_248_upsert_access_permission';
 const puppeteerPreload = path.join(
   repoRoot,
-  'apps/api/scripts/verify-issue-248-puppeteer-preload.cjs'
+  'apps/api/scripts/verify-issue-248-puppeteer-preload.mjs'
 );
 
 async function installFixturePermissionUpsert(): Promise<void> {
@@ -220,7 +220,7 @@ function runBrowserVerifier(): void {
   const inheritedNodeOptions = process.env.NODE_OPTIONS?.trim();
   const nodeOptions = [
     inheritedNodeOptions,
-    `--require=${puppeteerPreload}`,
+    `--import=${puppeteerPreload}`,
   ].filter(Boolean).join(' ');
 
   const result = spawnSync(
