@@ -50,8 +50,13 @@ function Fixture() {
 }
 
 describe('CollaboratorForm', () => {
-  it('mantém os blocos cadastrais e remove a edição concorrente do contrato legado', () => {
+  it('mantém os blocos cadastrais acessíveis em seções recolhíveis abertas', () => {
     const { container } = render(<Fixture />);
+
+    const identificationTitle = screen.getByText('Identificação e contato');
+    expect(identificationTitle.closest('summary')).toBeInTheDocument();
+    expect(identificationTitle.closest('details')).toHaveAttribute('open');
+    expect(container.querySelectorAll('details').length).toBeGreaterThanOrEqual(6);
 
     expect(screen.getByText('CEP')).toBeInTheDocument();
     expect(container.querySelector('input[name="addressZipCode"]')).toBeInTheDocument();
