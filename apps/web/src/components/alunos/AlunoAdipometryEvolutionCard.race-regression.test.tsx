@@ -98,7 +98,7 @@ function detail(
 function comparison(
   previous: AdipometryAssessmentSummary,
   current: AdipometryAssessmentSummary
-): AdipmetryComparison {
+): AdipometryComparison {
   return {
     previous: {
       assessment: previous,
