@@ -50,7 +50,7 @@ const protocolPages: ProtocolPageConfig[] = [
     objective: 'Relacionar objetivos, avaliações, alertas e ciclos de planejamento a versões técnicas validadas pelo professor.',
     highlights: [
       'Separar visão técnica do professor e mensagem prática do aluno.',
-      'Versionar macrociclo, mesociclo, microciclo e parâmetros mantidos por contrato.',
+      'Organizar macrociclo, mesociclo, microciclo e os parâmetros definidos para o planejamento.',
       'Preservar a decisão final do professor sem publicar Treino de hoje diretamente.',
     ],
     sectionTitles: [],
@@ -154,13 +154,13 @@ function GenericProtocolScreen({ currentProtocol, alunoId }: { currentProtocol: 
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-xl">Variáveis e blocos relacionados</CardTitle>
-          <CardDescription>Referência rápida das seções já mapeadas no sistema e conectadas a este submenu.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {relatedSections.length > 0 ? (
+      {relatedSections.length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-xl">Variáveis e blocos relacionados</CardTitle>
+            <CardDescription>Consulte as medidas e os indicadores utilizados neste protocolo.</CardDescription>
+          </CardHeader>
+          <CardContent>
             <div className="grid gap-4 lg:grid-cols-2">
               {relatedSections.map((section) => (
                 <div key={`${section.title}-${section.subtitle ?? 'base'}`} className="rounded-lg border border-border bg-muted/30 p-5">
@@ -176,13 +176,9 @@ function GenericProtocolScreen({ currentProtocol, alunoId }: { currentProtocol: 
                 </div>
               ))}
             </div>
-          ) : (
-            <div className="rounded-lg border border-dashed border-border bg-muted/20 p-6 text-sm leading-6 text-muted-foreground">
-              Este submenu já está preparado no menu lateral e pronto para receber sua tela dedicada.
-            </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 }
