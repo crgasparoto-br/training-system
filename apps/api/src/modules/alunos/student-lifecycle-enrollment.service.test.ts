@@ -73,9 +73,6 @@ describe('activateStudentEnrollmentInTransaction', () => {
             email: 'mariana@example.com',
             cpf: '529.982.247-25',
             birthDate: '1995-04-03T00:00:00.000Z',
-            gender: 'female',
-            rg: '12.345.678-9',
-            maritalStatus: 'single',
             addressStreet: 'Rua das Flores',
             addressNumber: '123',
             addressComplement: 'Apto 45',
@@ -83,7 +80,6 @@ describe('activateStudentEnrollmentInTransaction', () => {
             addressCity: 'São Paulo',
             addressState: 'SP',
             addressZipCode: '01001-000',
-            instagramHandle: '@mariana',
           },
         },
         user: null,
@@ -99,8 +95,7 @@ describe('activateStudentEnrollmentInTransaction', () => {
 
     expect(tx.profile.update).toHaveBeenCalledWith({
       where: { userId: 'student-user' },
-      data: expect.objectContaining({
-        name: 'Mariana Silva',
+      data: {
         addressStreet: 'Rua das Flores',
         addressNumber: '123',
         addressComplement: 'Apto 45',
@@ -108,7 +103,7 @@ describe('activateStudentEnrollmentInTransaction', () => {
         addressCity: 'São Paulo',
         addressState: 'SP',
         addressZipCode: '01001-000',
-      }),
+      },
     });
     expect(tx.aluno.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -123,12 +118,12 @@ describe('activateStudentEnrollmentInTransaction', () => {
     expect(tx.studentLifecycleEvent.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         eventType: 'CONVERTED_TO_ACTIVE_STUDENT',
-        metadata: expect.objectContaining({ legacyProfileProjected: true }),
+        metadata: expect.objectContaining({ legacyAddressProjected: true }),
       }),
     });
   });
 
-  it('não projeta identidade tenant-scoped quando a conta pertence a mais de um aluno', async () => {
+  it('não projeta endereço tenant-scoped quando a conta pertence a mais de um aluno', async () => {
     const tx = buildTransaction();
     tx.aluno.findFirst
       .mockResolvedValueOnce({ userId: 'shared-user' })
@@ -158,7 +153,7 @@ describe('activateStudentEnrollmentInTransaction', () => {
     expect(tx.studentLifecycleEvent.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         eventType: 'CONVERTED_TO_ACTIVE_STUDENT',
-        metadata: expect.objectContaining({ legacyProfileProjected: false }),
+        metadata: expect.objectContaining({ legacyAddressProjected: false }),
       }),
     });
   });
