@@ -442,6 +442,7 @@ export const settingsHourlyRateLevelsCopy = {
   deleteLevel: 'Excluir nível',
   deleteConfirm: 'Deseja realmente excluir este nível?',
   levelNamePlaceholder: 'Ex.: Diamante',
+  levelPreviewLabel: 'Selo exibido no cadastro',
   minValuePlaceholder: '0,00',
   maxValuePlaceholder: '0,00',
   configuredStatus: 'Configurado',
