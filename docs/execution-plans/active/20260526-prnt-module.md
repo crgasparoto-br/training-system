@@ -36,6 +36,7 @@ Implementar o PRNT como modulo novo para prontuario de entrevista e acompanhamen
 - Cada bloco do PRNT deve ter `blockKey` especifico no catalogo compartilhado.
 - Novos envios de PAR-Q criam novas submisssoes sem apagar acompanhamentos antigos.
 - A API deve validar `screenKey` e `blockKey` antes de retornar ou alterar dados do PRNT.
+- A interface deve apresentar um unico fluxo de edicao para casos de dor e desconfortos, evitando editores duplicados na mesma rota.
 
 ## Passos de implementacao
 
@@ -45,6 +46,7 @@ Implementar o PRNT como modulo novo para prontuario de entrevista e acompanhamen
 - [x] Criar service e tela dedicada no web.
 - [x] Reaproveitar `BodyDiscomfortMap` para snapshots.
 - [x] Remover aba `Desconfortos` do cadastro do aluno.
+- [x] Consolidar o acompanhamento de dores e desconfortos no fluxo principal do PRNT.
 - [x] Atualizar docs de produto/arquitetura quando necessario.
 - [x] Executar validacoes possiveis.
 
@@ -59,6 +61,7 @@ Implementar o PRNT como modulo novo para prontuario de entrevista e acompanhamen
 
 - Abrir `/protocolo-avaliacao-fisica/prontuario-entrevista-acompanhamento`.
 - Selecionar um aluno, criar um registro PRNT e salvar blocos.
+- Confirmar que casos de dor e desconfortos aparecem em um unico fluxo de edicao, sem painel duplicado abaixo da tela.
 - Salvar snapshot de desconforto pelo mapa corporal.
 - Registrar novo PAR-Q e confirmar que a tela exibe somente respostas positivas mais recentes.
 - Confirmar que acompanhamentos antigos continuam visiveis mesmo apos novo envio de PAR-Q.
