@@ -242,9 +242,10 @@ describe('AlunoAdipometryEvolutionCard async regressions', () => {
 
     await waitFor(() =>
       expect(
-        screen.getAllByText('Avaliação corrigida — revisão 2 vigente').length
-      ).toBeGreaterThanOrEqual(2)
+        screen.getByText('Avaliação corrigida — revisão 2 vigente')
+      ).toBeInTheDocument()
     );
-    expect(screen.getAllByText(/ADPT-002R2/).length).toBeGreaterThan(0);
+    const historyItem = screen.getByText(/Adipometria.*ADPT-002R2/i).closest('article');
+    expect(historyItem).toHaveTextContent('Avaliação corrigida — revisão 2 vigente');
   });
 });

@@ -8,6 +8,7 @@ O bloco permite ao professor autorizado:
 
 - consultar a última ADPT concluída e vigente;
 - visualizar data, código, responsável disponível, protocolo e versão;
+- identificar explicitamente quando a avaliação vigente é uma correção e qual número de revisão está ativo;
 - consultar peso, percentual de gordura, gordura absoluta e massa magra persistidos;
 - retomar cada rascunho somente quando a capacidade correspondente estiver liberada;
 - navegar para nova adipometria ou detalhe preservando `alunoId` e `assessmentId`;
@@ -26,6 +27,8 @@ O resumo e a comparação consideram como concluída vigente somente a avaliaç�
 - `revisionStatus = FINALIZED`.
 
 Revisões substituídas, canceladas ou invalidadas permanecem preservadas pelo backend, mas não viram a referência atual nem entram automaticamente na comparação. Rascunhos aparecem em uma área separada de pendências e nunca são tratados como resultado concluído.
+
+Quando a avaliação finalizada possui `revisionNumber > 1`, o resumo e o histórico exibem **Avaliação corrigida — revisão N vigente**. A informação é derivada dos campos estruturados de revisão; a interface não tenta inferir correção pelo formato do código da avaliação.
 
 A ordenação usa data da avaliação, data de criação e identificador estável como desempate. Depois que o usuário retorna do fluxo ADPT ou a aba volta a ficar visível, o bloco recarrega apenas o contexto de adipometria e remove seleções que deixaram de estar disponíveis.
 
@@ -77,6 +80,8 @@ A mesma regra é compartilhada pela Central e pela tela dedicada, alinhada ao mi
 
 - Carregamento, vazio, erro e comparação indisponível possuem mensagens próprias.
 - Falhas de ADPT ficam contidas no bloco e oferecem nova tentativa.
+- Somente a carga ADPT mais recente pode atualizar o estado; respostas anteriores do mesmo aluno são descartadas quando chegam fora de ordem.
+- Uma comparação pendente é invalidada quando a seleção muda ou uma recarga começa, impedindo que resultado obsoleto reapareça na tabela.
 - Falha ao carregar o cadastro necessário para a entrada de Antropometria não remove o bloco ADPT.
 - Seções extensas usam controles colapsáveis nativos.
 - Seleção usa checkboxes e o filtro usa `select`, ambos operáveis por teclado.
@@ -92,6 +97,7 @@ Validações focadas:
 pnpm --filter @corrida/web test -- \
   adipometry-mutation-access.test.ts \
   AlunoAdipometryEvolutionCard.test.tsx \
+  AlunoAdipometryEvolutionCard.race-regression.test.tsx \
   AlunoAdipometryEvolutionTabSection.test.tsx \
   AlunoDetailsTabs.adipometry.test.tsx
 pnpm --filter @corrida/web type-check

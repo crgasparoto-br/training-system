@@ -26,6 +26,7 @@ Transformar a aba `Avaliação Física` da Central do Aluno no ponto principal d
 - `apps/web/src/access/adipometry-mutation-access.test.ts`
 - `apps/web/src/components/alunos/AlunoAdipometryEvolutionCard.tsx`
 - `apps/web/src/components/alunos/AlunoAdipometryEvolutionCard.test.tsx`
+- `apps/web/src/components/alunos/AlunoAdipometryEvolutionCard.race-regression.test.tsx`
 - `apps/web/src/components/alunos/AlunoAdipometryEvolutionTabSection.tsx`
 - `apps/web/src/components/alunos/AlunoAdipometryEvolutionTabSection.test.tsx`
 - `apps/web/src/components/alunos/AlunoDetailsTabs.tsx`
@@ -47,6 +48,9 @@ Transformar a aba `Avaliação Física` da Central do Aluno no ponto principal d
 - Revisão corretiva R2+ exige `physicalAssessment.adpt.actions.correctCompleted` em toda mutação; gestão não substitui correção.
 - O backend continua responsável por `contractId`, autorização, revisão vigente, valores persistidos e comparação.
 - Rascunhos ficam separados do histórico concluído e não entram na comparação.
+- A revisão finalizada R2+ deve ser identificada explicitamente como correção vigente no resumo e no histórico, usando os campos estruturados de revisão.
+- Somente a carga mais recente do mesmo aluno pode atualizar o estado, mesmo quando respostas chegam fora de ordem.
+- Comparações pendentes deixam de ser válidas quando seleção ou geração de dados mudarem.
 - Uploads genéricos com nome semelhante a adipometria continuam identificados pela origem e não são tratados como ADPT estruturada.
 - A entrada dedicada de Antropometria deve coexistir com `Nova adipometria`, sem fundir os domínios.
 - Ausência de valor deve aparecer como indisponível, nunca como zero.
@@ -63,6 +67,10 @@ Transformar a aba `Avaliação Física` da Central do Aluno no ponto principal d
 - [x] Recolocar a entrada estruturada de Antropometria no mesmo contexto da ação ADPT.
 - [x] Preservar o card ADPT quando o cadastro usado pela entrada de Antropometria falhar isoladamente.
 - [x] Adicionar estados de carregamento, vazio, erro localizado, nova tentativa e atualização após retorno à aba.
+- [x] Impedir que respostas antigas do mesmo aluno sobrescrevam uma recarga mais nova.
+- [x] Invalidar comparação pendente quando a seleção ou a geração de dados mudar.
+- [x] Exibir explicitamente o número da revisão corrigida vigente no resumo e no histórico.
+- [x] Adicionar testes determinísticos com promises controladas para respostas fora de ordem.
 - [x] Adicionar verificador real da Central com revisão vigente, comparação, atualização após finalização, cross-tenant e mobile.
 - [x] Integrar o novo verificador ao runner existente, sem alterar workflow.
 - [x] Corrigir a composição móvel da ficha e a quebra de textos longos observadas no navegador real.
@@ -73,11 +81,14 @@ Transformar a aba `Avaliação Física` da Central do Aluno no ponto principal d
 ## Critérios de aceite
 
 - [x] A última ADPT concluída mostra data, código, responsável disponível, protocolo/versão e resultados principais.
+- [x] Uma revisão finalizada R2+ é identificada como avaliação corrigida e informa qual revisão está vigente.
 - [x] Rascunho R1 aparece somente para quem possui gestão.
 - [x] Rascunho R2+ aparece somente para quem possui correção de concluída.
 - [x] Correção sem gestão pode retomar R2+, mas não criar nova ADPT.
 - [x] Gestão sem correção não recebe ação para R2+.
 - [x] Histórico distingue ADPT estruturada de outras avaliações e uploads, com filtro e ordenação estável.
+- [x] Uma resposta ADPT antiga não substitui dados carregados por requisição posterior do mesmo aluno.
+- [x] Uma comparação antiga não reaparece depois que a seleção muda ou uma recarga invalida seus dados.
 - [x] Comparação aceita duas concluídas, usa a API, mostra dez métricas, unidades, variações e aviso de protocolo diferente.
 - [x] Campos ausentes aparecem como `Indisponível`.
 - [x] Falha da ADPT não quebra os outros blocos da Central.
@@ -98,6 +109,7 @@ Os identificadores imutáveis do candidato, merge preview e runs ficam registrad
 pnpm --filter @corrida/web test -- \
   adipometry-mutation-access.test.ts \
   AlunoAdipometryEvolutionCard.test.tsx \
+  AlunoAdipometryEvolutionCard.race-regression.test.tsx \
   AlunoAdipometryEvolutionTabSection.test.tsx \
   AlunoDetailsTabs.adipometry.test.tsx
 pnpm --filter @corrida/web type-check
@@ -114,17 +126,20 @@ pnpm validate
 2. Correção sem gestão: visualizar e retomar apenas R2+, sem ação de nova ADPT.
 3. Gestão e correção: visualizar os dois tipos de pendência.
 4. Sem ambas: consultar concluídas autorizadas sem pendências operacionais.
-5. Abrir a Central com revisão original substituída e confirmar apenas a correção vigente.
+5. Abrir a Central com revisão original substituída e confirmar apenas a correção vigente, identificada pelo número da revisão.
 6. Comparar duas concluídas pela tabela semântica usando a API real.
 7. Finalizar um rascunho enquanto a Central está aberta e confirmar atualização direcionada pelo foco.
-8. Consultar aluno de outro contrato diretamente e confirmar resposta pública não enumerável.
-9. Confirmar as entradas dedicadas de Antropometria e Adipometria na mesma aba.
-10. Repetir em `390px` sem overflow horizontal da página.
+8. Resolver duas cargas do mesmo aluno em ordem inversa e confirmar que apenas a requisição mais nova permanece visível.
+9. Alterar a seleção antes de a comparação responder e confirmar que a tabela obsoleta não aparece.
+10. Consultar aluno de outro contrato diretamente e confirmar resposta pública não enumerável.
+11. Confirmar as entradas dedicadas de Antropometria e Adipometria na mesma aba.
+12. Repetir em `390px` sem overflow horizontal da página.
 
 ## Decisões
 
 - A regra de mutação por revisão fica em helper compartilhado para impedir divergência entre superfícies.
 - A integração ADPT permanece separada do conteúdo legado e da entrada de Antropometria para preservar resiliência.
+- Cargas e comparações usam gerações monotônicas; somente a requisição ainda vigente pode aplicar resultado ao estado.
 - O nome histórico do responsável é resolvido pelo diretório autorizado; quando não estiver disponível, a interface informa indisponibilidade sem expor identificadores internos.
 - A evidência real foi acoplada ao runner já executado pelo gate existente; nenhum workflow novo é necessário.
 - A rota do Manual do Professor foi montada porque o componente já fazia parte da ficha e o navegador real comprovou o 404 anterior.
