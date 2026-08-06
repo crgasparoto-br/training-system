@@ -811,7 +811,7 @@ async function getProfile(client: DbClient, contractId: string, alunoId: string)
   const rows = await client.$queryRaw<Array<{ birthDate: string | null; profileSex: string | null }>>(Prisma.sql`
     SELECT
       COALESCE(
-        student_profile."identificationData" ->> 'birthDate',
+        LEFT(student_profile."identificationData" ->> 'birthDate', 10),
         TO_CHAR(aluno."birthDate", 'YYYY-MM-DD'),
         TO_CHAR(profile."birthDate", 'YYYY-MM-DD')
       ) AS "birthDate",
