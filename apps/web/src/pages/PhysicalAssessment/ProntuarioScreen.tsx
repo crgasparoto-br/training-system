@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { Activity, ClipboardList, FilePlus2, Save } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -21,14 +21,7 @@ import type {
   StudentParqSubmission,
 } from '@corrida/types';
 import type { BodyDiscomfortEntry } from '../../constants/bodyRegions';
-
-const protocolLinks = [
-  ['antropometria', 'Antropometria'],
-  ['prontuario-entrevista-acompanhamento', 'Prontuário'],
-  ['adipometria', 'Adipometria'],
-  ['bioimpedanciometria', 'Bioimpedanciometria'],
-  ['ultrassonografia', 'Ultrassonografia'],
-] as const;
+import { ProtocolNavTabs } from './protocolNav';
 
 type ProntuarioBlockName =
   | 'summary'
@@ -520,13 +513,7 @@ export function ProntuarioScreen() {
           <h1 className="text-3xl font-semibold tracking-tight text-foreground">Prontuário de entrevista e acompanhamento</h1>
           <p className="max-w-3xl text-sm text-muted-foreground">Histórico PRNT separado do cadastro inicial, com anamnese acompanhável, dores, rotina e desconfortos.</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {protocolLinks.map(([slug, label]) => (
-            <Link key={slug} to={`/protocolo-avaliacao-fisica/${slug}`} className={slug === 'prontuario-entrevista-acompanhamento' ? 'rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground' : 'rounded-md border border-border px-3 py-2 text-sm text-foreground hover:bg-muted'}>
-              {label}
-            </Link>
-          ))}
-        </div>
+        <ProtocolNavTabs activeSlug="prontuario-entrevista-acompanhamento" alunoId={selectedAlunoId} />
       </div>
 
       <Card>

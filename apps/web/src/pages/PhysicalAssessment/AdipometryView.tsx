@@ -18,8 +18,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../..
 import type { Aluno } from '../../services/aluno.service';
 import type { AdipometryAnthropometrySupport } from '../../services/adipometry.service';
 import type { AdipometryFormState, AdipometrySkinfoldHelp } from './adipometry-ui';
-import { StepStrip, adipometryRevisionStatusLabel, messageClass, nav } from './AdipometryViewSections';
+import { StepStrip, adipometryRevisionStatusLabel, messageClass } from './AdipometryViewSections';
 import { AdipometryEditor } from './AdipometryEditor';
+import { ProtocolNavTabs } from './protocolNav';
 
 export interface AdipometryViewProps {
   lockedAlunoId: string;
@@ -86,9 +87,6 @@ export function AdipometryView(props: AdipometryViewProps) {
   } = props;
   const selectedAluno = alunos.find((item) => item.id === selectedAlunoId);
   const readOnly = !current || current.status !== 'DRAFT' || current.revisionStatus !== 'DRAFT' || !canMutate;
-  const navTo = (slug: string) => selectedAlunoId
-    ? `/protocolo-avaliacao-fisica/${slug}?alunoId=${selectedAlunoId}`
-    : `/protocolo-avaliacao-fisica/${slug}`;
   const historicalResponsibleLabel = responsibleProfessorOptionLabel({
     currentProfessorId: current?.professorId,
     responsibleProfessors,
@@ -112,9 +110,7 @@ export function AdipometryView(props: AdipometryViewProps) {
           <h1 className="mt-1 text-3xl font-semibold tracking-tight">Adipometria</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">Fluxo guiado ADPT com protocolo explícito, prévia autoritativa, histórico e ajuda técnica.</p>
         </div>
-        <nav aria-label="Protocolos de avaliação" className="flex flex-wrap gap-2">
-          {nav.map(([slug, label]) => <Link key={slug} to={navTo(slug)} className={`rounded-lg border px-3 py-2 text-sm ${slug === 'adipometria' ? 'border-primary bg-primary/10 text-primary' : 'border-border hover:bg-muted'}`}>{label}</Link>)}
-        </nav>
+        <ProtocolNavTabs activeSlug="adipometria" alunoId={selectedAlunoId} />
       </div>
 
       {lockedAlunoId ? (

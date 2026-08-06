@@ -7,6 +7,7 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Activity,
   Check,
@@ -67,6 +68,7 @@ import {
   type PrescriptionDraft,
   type TechnicalSourceSuggestion,
 } from "./capacityPrescriptionScreen.model";
+import { ProtocolNavTabs } from "./protocolNav";
 
 const capacityLabels: Record<PhysicalCapacityType, string> = {
   resisted: "Resistido",
@@ -198,8 +200,11 @@ export function CapacityPrescriptionScreen() {
   const user = useAuthStore((state) => state.user);
   const canView = canAccessBlock(user, "plans.capacityPrescriptions.view");
   const canManage = canAccessBlock(user, "plans.capacityPrescriptions.manage");
+  const [searchParams, setSearchParams] = useSearchParams();
   const [students, setStudents] = useState<Aluno[]>([]);
-  const [selectedAlunoId, setSelectedAlunoId] = useState("");
+  const [selectedAlunoId, setSelectedAlunoId] = useState(
+    () => searchParams.get("alunoId") || "",
+  );
   const [activeCapacity, setActiveCapacity] =
     useState<PhysicalCapacityType>("resisted");
   const [goals, setGoals] = useState<ProntuarioGoal[]>([]);
@@ -404,6 +409,11 @@ export function CapacityPrescriptionScreen() {
     resetWorkspaceState();
     void refreshStudentWorkspace(selectedAlunoId);
   }, [selectedAlunoId, refreshStudentWorkspace, resetWorkspaceState]);
+
+  useEffect(() => {
+    if (!selectedAlunoId) return;
+    setSearchParams({ alunoId: selectedAlunoId }, { replace: true });
+  }, [selectedAlunoId, setSearchParams]);
 
   const classificationFor = (goalId: string): GoalClassificationDraft =>
     classifications[goalId] || {
@@ -701,17 +711,20 @@ export function CapacityPrescriptionScreen() {
 
   return (
     <div className="capacity-prescription-screen space-y-6">
-      <div className="space-y-2">
-        <p className="text-sm font-medium uppercase tracking-[0.18em] text-primary">
-          Prescrição integrada
-        </p>
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-          Prescrição por capacidades físicas
-        </h1>
-        <p className="max-w-4xl text-sm text-muted-foreground">
-          Camada técnica do professor anterior à Montagem Consolidada. Nenhuma
-          capacidade publica Treino de hoje diretamente.
-        </p>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="space-y-2">
+          <p className="text-sm font-medium uppercase tracking-[0.18em] text-primary">
+            Prescrição integrada
+          </p>
+          <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+            Prescrição por capacidades físicas
+          </h1>
+          <p className="max-w-4xl text-sm text-muted-foreground">
+            Camada técnica do professor anterior à Montagem Consolidada. Nenhuma
+            capacidade publica Treino de hoje diretamente.
+          </p>
+        </div>
+        <ProtocolNavTabs activeSlug="prescricao-capacidades" alunoId={selectedAlunoId} />
       </div>
 
       <Card>

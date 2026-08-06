@@ -1,4 +1,4 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { canAccessBlock } from '../access/access-control';
 import { assessmentHistorySections } from '../data/assessmentVariables';
@@ -7,6 +7,7 @@ import { AdipometryScreen } from './PhysicalAssessment/AdipometryScreen';
 import { AnthropometryScreen } from './PhysicalAssessment/AnthropometryScreen';
 import { CapacityPrescriptionScreen } from './PhysicalAssessment/CapacityPrescriptionScreen';
 import { ProntuarioScreenWithDiscomfortFollowUps } from './PhysicalAssessment/ProntuarioScreenWithDiscomfortFollowUps';
+import { ProtocolNavTabs, buildProtocolPath } from './PhysicalAssessment/protocolNav';
 
 type ProtocolPageConfig = {
   slug: string;
@@ -96,17 +97,20 @@ function getProtocolFromPath(pathname: string) {
   return protocolPages.find((page) => pathname.endsWith(`/${page.slug}`)) ?? protocolPages[0];
 }
 
-function GenericProtocolScreen({ currentProtocol }: { currentProtocol: ProtocolPageConfig }) {
+function GenericProtocolScreen({ currentProtocol, alunoId }: { currentProtocol: ProtocolPageConfig; alunoId: string }) {
   const relatedSections = assessmentHistorySections.filter((section) =>
     currentProtocol.sectionTitles.includes(section.title)
   );
 
   return (
     <div className="space-y-6">
-      <div className="space-y-2">
-        <p className="text-sm font-medium uppercase tracking-[0.18em] text-primary">Protocolo de Avaliação Física</p>
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">{currentProtocol.title}</h1>
-        <p className="max-w-3xl text-sm text-muted-foreground">{currentProtocol.description}</p>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="space-y-2">
+          <p className="text-sm font-medium uppercase tracking-[0.18em] text-primary">Protocolo de Avaliação Física</p>
+          <h1 className="text-3xl font-semibold tracking-tight text-foreground">{currentProtocol.title}</h1>
+          <p className="max-w-3xl text-sm text-muted-foreground">{currentProtocol.description}</p>
+        </div>
+        <ProtocolNavTabs activeSlug={currentProtocol.slug} alunoId={alunoId} />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
@@ -138,7 +142,7 @@ function GenericProtocolScreen({ currentProtocol }: { currentProtocol: ProtocolP
               return (
                 <Link
                   key={page.slug}
-                  to={`/protocolo-avaliacao-fisica/${page.slug}`}
+                  to={buildProtocolPath(page.slug, alunoId)}
                   className={active ? 'block rounded-lg border border-primary bg-primary/10 px-4 py-3 text-sm text-primary' : 'block rounded-lg border border-border bg-card px-4 py-3 text-sm text-foreground hover:bg-muted'}
                 >
                   <span className="block font-semibold">{page.title}</span>
@@ -185,8 +189,10 @@ function GenericProtocolScreen({ currentProtocol }: { currentProtocol: ProtocolP
 
 export default function PhysicalAssessmentProtocol() {
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const user = useAuthStore((state) => state.user);
   const currentProtocol = getProtocolFromPath(location.pathname);
+  const alunoId = searchParams.get('alunoId') || '';
 
   if (currentProtocol.slug === 'antropometria') return <AnthropometryScreen />;
   if (currentProtocol.slug === 'adipometria') return <AdipometryScreen />;
@@ -208,5 +214,5 @@ export default function PhysicalAssessmentProtocol() {
     );
   }
 
-  return <GenericProtocolScreen currentProtocol={currentProtocol} />;
+  return <GenericProtocolScreen currentProtocol={currentProtocol} alunoId={alunoId} />;
 }
