@@ -47,7 +47,11 @@ export function AlunoAdipometryEvolutionTabSection({
       {!historyLoading && aluno && (
         <AlunoAnthropometryFlowEntry aluno={aluno} assessments={assessments} />
       )}
-      <AlunoAdipometryEvolutionCard alunoId={alunoId} assessments={assessments} />
+      <AlunoAdipometryEvolutionCard
+        key={alunoId}
+        alunoId={alunoId}
+        assessments={assessments}
+      />
     </div>
   );
 }
