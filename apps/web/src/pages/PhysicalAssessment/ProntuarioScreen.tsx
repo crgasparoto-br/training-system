@@ -196,7 +196,7 @@ export function ProntuarioScreen() {
   useEffect(() => {
     let isActive = true;
 
-    alunoService.list(1, 100, undefined, 'active')
+    alunoService.list(1, 100, undefined, 'all')
       .then((response) => {
         if (isActive) {
           setStudents(response.alunos || []);
