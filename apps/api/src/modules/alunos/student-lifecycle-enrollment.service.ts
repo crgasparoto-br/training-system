@@ -13,6 +13,11 @@ type EnrollmentTransitionInput = {
   metadata: Record<string, unknown>;
 };
 
+const cleanIdentityText = (value?: string | null): string | null => {
+  const normalized = value?.trim();
+  return normalized ? normalized : null;
+};
+
 export function hasCurrentPreRegistrationConsent(
   privacyNoticeVersion: string | null | undefined,
   privacyAcceptedAt: Date | null | undefined
@@ -36,6 +41,62 @@ async function assertProfessorInContract(
   if (!professor) {
     throw new StudentLifecycleError('Responsável não encontrado.', 'NOT_FOUND');
   }
+}
+
+/**
+ * Mantém `StudentProfile.identificationData` como fonte canônica e atualiza
+ * somente a projeção legada ainda consumida por partes do cadastro do aluno.
+ *
+ * A projeção é permitida apenas quando a conta está vinculada a um único
+ * registro de aluno. Isso evita sobrescrever um `Profile` global com dados
+ * tenant-scoped quando a mesma conta participa de mais de um cadastro.
+ */
+export async function syncStudentIdentityLegacyProfileProjectionInTransaction(
+  tx: Prisma.TransactionClient,
+  alunoId: string,
+  contractId: string
+): Promise<boolean> {
+  const aluno = await tx.aluno.findFirst({
+    where: { id: alunoId, contractId },
+    include: {
+      user: {
+        include: { profile: true },
+      },
+    },
+  });
+
+  if (!aluno?.userId || !aluno.user?.profile) return false;
+
+  const linkedStudentCount = await tx.aluno.count({
+    where: { userId: aluno.userId },
+  });
+  if (linkedStudentCount !== 1) return false;
+
+  const identity = await loadStudentIdentity(alunoId, contractId, tx);
+  const birthDate = identity.birthDate ? new Date(identity.birthDate) : null;
+
+  await tx.profile.update({
+    where: { userId: aluno.userId },
+    data: {
+      name: cleanIdentityText(identity.name) ?? aluno.user.profile.name,
+      phone: cleanIdentityText(identity.phone),
+      birthDate,
+      gender: identity.gender ?? null,
+      cpf: cleanIdentityText(identity.cpf),
+      rg: cleanIdentityText(identity.rg),
+      maritalStatus: identity.maritalStatus ?? null,
+      addressStreet: cleanIdentityText(identity.addressStreet),
+      addressNumber: cleanIdentityText(identity.addressNumber),
+      addressComplement: cleanIdentityText(identity.addressComplement),
+      addressNeighborhood: cleanIdentityText(identity.addressNeighborhood),
+      addressCity: cleanIdentityText(identity.addressCity),
+      addressState: cleanIdentityText(identity.addressState),
+      addressZipCode: cleanIdentityText(identity.addressZipCode),
+      instagramHandle: cleanIdentityText(identity.instagramHandle),
+    },
+  });
+
+  return true;
 }
 
 async function transitionEnrollmentStatusInTransaction(
@@ -170,13 +231,22 @@ export async function activateStudentEnrollmentInTransaction(
     );
   }
 
+  const legacyProfileProjected =
+    await syncStudentIdentityLegacyProfileProjectionInTransaction(tx, alunoId, contractId);
+
   return transitionEnrollmentStatusInTransaction(
     tx,
     alunoId,
     contractId,
     'READY_FOR_ENROLLMENT',
     'ACTIVE_STUDENT',
-    input,
+    {
+      ...input,
+      metadata: {
+        ...input.metadata,
+        legacyProfileProjected,
+      },
+    },
     { activatedAt: new Date() },
     { convertedAt: new Date() },
     'CONVERTED_TO_ACTIVE_STUDENT'
