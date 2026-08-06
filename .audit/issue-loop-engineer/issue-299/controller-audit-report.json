@@ -15,10 +15,11 @@
     "data-migration",
     "idempotent-enrollment"
   ],
-  "negativeAndRegressionControls": 5,
+  "negativeAndRegressionControls": 6,
   "limitations": [
     "Repositório não pôde ser clonado no runtime por indisponibilidade de DNS.",
-    "Type-check, lint, Jest e migration real dependem do workflow remoto existente."
+    "Type-check, lint, Jest e migration real dependem do workflow remoto existente.",
+    "Nenhum workflow associado ao SHA final apareceu na consulta observe-only."
   ],
   "mergeAuthorized": false
 }
