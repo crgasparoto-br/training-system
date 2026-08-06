@@ -22,7 +22,7 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   loadingText?: string;
 }
 
-type ButtonClassNameOptions = {
+export type ButtonClassNameOptions = {
   variant?: ButtonVariant;
   size?: ButtonSize;
   className?: string;
