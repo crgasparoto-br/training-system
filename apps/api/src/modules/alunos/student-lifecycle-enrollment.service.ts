@@ -13,6 +13,11 @@ type EnrollmentTransitionInput = {
   metadata: Record<string, unknown>;
 };
 
+const cleanAddressText = (value?: string | null): string | null => {
+  const normalized = value?.trim();
+  return normalized ? normalized : null;
+};
+
 export function hasCurrentPreRegistrationConsent(
   privacyNoticeVersion: string | null | undefined,
   privacyAcceptedAt: Date | null | undefined
@@ -36,6 +41,56 @@ async function assertProfessorInContract(
   if (!professor) {
     throw new StudentLifecycleError('Responsável não encontrado.', 'NOT_FOUND');
   }
+}
+
+/**
+ * Mantém `StudentProfile.identificationData` como fonte canônica e atualiza
+ * somente a projeção legada de endereço ainda consumida por partes do cadastro.
+ *
+ * A projeção é permitida apenas quando a conta está vinculada a um único
+ * registro de aluno. Isso evita sobrescrever um `Profile` global com dados
+ * tenant-scoped quando a mesma conta participa de mais de um cadastro.
+ */
+export async function syncStudentAddressLegacyProfileProjectionInTransaction(
+  tx: Prisma.TransactionClient,
+  alunoId: string,
+  contractId: string
+): Promise<boolean> {
+  const aluno = await tx.aluno.findFirst({
+    where: { id: alunoId, contractId },
+    include: {
+      user: {
+        include: { profile: true },
+      },
+    },
+  });
+
+  if (!aluno?.userId || !aluno.user?.profile) return false;
+
+  const linkedStudentCount = await tx.aluno.count({
+    where: { userId: aluno.userId },
+  });
+  if (linkedStudentCount !== 1) return false;
+
+  const identity = await loadStudentIdentity(alunoId, contractId, tx);
+  const addressProjection = {
+    addressStreet: cleanAddressText(identity.addressStreet),
+    addressNumber: cleanAddressText(identity.addressNumber),
+    addressComplement: cleanAddressText(identity.addressComplement),
+    addressNeighborhood: cleanAddressText(identity.addressNeighborhood),
+    addressCity: cleanAddressText(identity.addressCity),
+    addressState: cleanAddressText(identity.addressState),
+    addressZipCode: cleanAddressText(identity.addressZipCode),
+  };
+
+  if (!Object.values(addressProjection).some(Boolean)) return false;
+
+  await tx.profile.update({
+    where: { userId: aluno.userId },
+    data: addressProjection,
+  });
+
+  return true;
 }
 
 async function transitionEnrollmentStatusInTransaction(
@@ -170,13 +225,22 @@ export async function activateStudentEnrollmentInTransaction(
     );
   }
 
+  const legacyAddressProjected =
+    await syncStudentAddressLegacyProfileProjectionInTransaction(tx, alunoId, contractId);
+
   return transitionEnrollmentStatusInTransaction(
     tx,
     alunoId,
     contractId,
     'READY_FOR_ENROLLMENT',
     'ACTIVE_STUDENT',
-    input,
+    {
+      ...input,
+      metadata: {
+        ...input.metadata,
+        legacyAddressProjected,
+      },
+    },
     { activatedAt: new Date() },
     { convertedAt: new Date() },
     'CONVERTED_TO_ACTIVE_STUDENT'
