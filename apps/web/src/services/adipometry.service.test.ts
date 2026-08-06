@@ -12,6 +12,28 @@ vi.mock('./api', () => ({
 
 const getMock = vi.mocked(api.get);
 
+const validComparisonCases: Array<{
+  assessmentIds: string[];
+  expected: string;
+}> = [
+  { assessmentIds: ['assessment-1'], expected: 'assessment-1' },
+  {
+    assessmentIds: ['assessment-1', 'assessment-2'],
+    expected: 'assessment-1,assessment-2',
+  },
+];
+
+const invalidComparisonCases: Array<{
+  label: string;
+  assessmentIds: string[];
+}> = [
+  { label: 'nenhuma avaliação', assessmentIds: [] },
+  {
+    label: 'mais de duas avaliações',
+    assessmentIds: ['assessment-1', 'assessment-2', 'assessment-3'],
+  },
+];
+
 function comparisonResponse() {
   return {
     data: {
@@ -36,20 +58,20 @@ describe('adipometryService.compare', () => {
     expect(getMock).toHaveBeenCalledWith('/adipometry/alunos/aluno-1/compare');
   });
 
-  it.each([
-    [['assessment-1'], 'assessment-1'],
-    [['assessment-1', 'assessment-2'], 'assessment-1,assessment-2'],
-  ])('envia uma ou duas avaliações como parâmetro CSV', async (assessmentIds, expected) => {
-    await adipometryService.compare('aluno-1', assessmentIds);
+  it.each(validComparisonCases)(
+    'envia uma ou duas avaliações como parâmetro CSV',
+    async ({ assessmentIds, expected }) => {
+      await adipometryService.compare('aluno-1', assessmentIds);
 
-    expect(getMock).toHaveBeenCalledWith('/adipometry/alunos/aluno-1/compare', {
-      params: { assessmentIds: expected },
-    });
-  });
+      expect(getMock).toHaveBeenCalledWith('/adipometry/alunos/aluno-1/compare', {
+        params: { assessmentIds: expected },
+      });
+    }
+  );
 
-  it.each([[], ['assessment-1', 'assessment-2', 'assessment-3']])(
-    'rejeita cardinalidade inválida antes da chamada HTTP',
-    async (assessmentIds) => {
+  it.each(invalidComparisonCases)(
+    'rejeita $label antes da chamada HTTP',
+    async ({ assessmentIds }) => {
       await expect(adipometryService.compare('aluno-1', assessmentIds)).rejects.toThrow(
         'Informe uma ou duas avaliações para comparação.'
       );
