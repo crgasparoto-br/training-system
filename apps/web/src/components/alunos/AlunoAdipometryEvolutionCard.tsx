@@ -12,7 +12,7 @@ import { adipometryService } from '../../services/adipometry.service';
 import type { Assessment } from '../../services/assessment.service';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { formatDateBR } from '../../utils/date';
-import { Button } from '../ui/Button';
+import { Button, buttonClassName } from '../ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/Card';
 
 type HistoryFilter = 'all' | 'adpt' | 'other';
@@ -419,8 +419,8 @@ export function AlunoAdipometryEvolutionCard({
             </CardDescription>
           </div>
           {canViewAdipometry && canManageAdipometry && (
-            <Link to={newAdipometryPath}>
-              <Button size="sm">Nova adipometria</Button>
+            <Link to={newAdipometryPath} className={buttonClassName({ size: 'sm' })}>
+              Nova adipometria
             </Link>
           )}
         </div>
@@ -454,8 +454,11 @@ export function AlunoAdipometryEvolutionCard({
                         </p>
                       )}
                     </div>
-                    <Link to={assessmentPath(alunoId, latestSummary.id)}>
-                      <Button variant="outline" size="sm">Abrir detalhe</Button>
+                    <Link
+                      to={assessmentPath(alunoId, latestSummary.id)}
+                      className={buttonClassName({ variant: 'outline', size: 'sm' })}
+                    >
+                      Abrir detalhe
                     </Link>
                   </div>
                   <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -486,8 +489,11 @@ export function AlunoAdipometryEvolutionCard({
                           <p className="text-sm font-semibold text-foreground">{draft.code} • Rascunho</p>
                           <p className="mt-1 text-xs text-muted-foreground">Atualizado em {formatDateBR(draft.updatedAt)}</p>
                         </div>
-                        <Link to={assessmentPath(alunoId, draft.id)}>
-                          <Button variant="outline" size="sm">Retomar rascunho</Button>
+                        <Link
+                          to={assessmentPath(alunoId, draft.id)}
+                          className={buttonClassName({ variant: 'outline', size: 'sm' })}
+                        >
+                          Retomar rascunho
                         </Link>
                       </div>
                     ))}
@@ -529,8 +535,11 @@ export function AlunoAdipometryEvolutionCard({
                         <p className="mt-1 text-xs text-muted-foreground">{item.protocol} • Origem: {item.origin}</p>
                       </div>
                       {item.detailPath && (
-                        <Link to={item.detailPath}>
-                          <Button variant="outline" size="sm">Abrir avaliação</Button>
+                        <Link
+                          to={item.detailPath}
+                          className={buttonClassName({ variant: 'outline', size: 'sm' })}
+                        >
+                          Abrir avaliação
                         </Link>
                       )}
                     </div>
