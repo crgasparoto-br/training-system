@@ -37,6 +37,9 @@ export function AlunoAdipometryEvolutionTabSection({
     };
   }, [alunoId]);
 
+  const currentAluno = aluno?.id === alunoId ? aluno : null;
+  const currentAssessments = currentAluno ? assessments : [];
+
   return (
     <div className="space-y-3">
       {historyLoading && (
@@ -44,13 +47,16 @@ export function AlunoAdipometryEvolutionTabSection({
           Atualizando o histórico geral de avaliações…
         </div>
       )}
-      {!historyLoading && aluno && (
-        <AlunoAnthropometryFlowEntry aluno={aluno} assessments={assessments} />
+      {!historyLoading && currentAluno && (
+        <AlunoAnthropometryFlowEntry
+          aluno={currentAluno}
+          assessments={currentAssessments}
+        />
       )}
       <AlunoAdipometryEvolutionCard
         key={alunoId}
         alunoId={alunoId}
-        assessments={assessments}
+        assessments={currentAssessments}
       />
     </div>
   );
