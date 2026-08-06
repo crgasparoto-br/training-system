@@ -456,11 +456,16 @@ export default function SettingsHourlyRateLevels() {
                               onChange={(event) => updateLevelField(level.id, 'label', event.target.value)}
                               placeholder={settingsHourlyRateLevelsCopy.levelNamePlaceholder}
                             />
-                            <span
-                              className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${getHourlyRateLevelBadgeClassName(level.label)}`}
-                            >
-                              {level.label.trim() || settingsHourlyRateLevelsCopy.levelNamePlaceholder}
-                            </span>
+                            <div className="mt-3 flex items-center gap-2 rounded-lg border border-dashed border-border/70 bg-muted/20 px-2.5 py-2">
+                              <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                                {settingsHourlyRateLevelsCopy.levelPreviewLabel}
+                              </span>
+                              <span
+                                className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${getHourlyRateLevelBadgeClassName(level.label)}`}
+                              >
+                                {level.label.trim() || settingsHourlyRateLevelsCopy.levelNamePlaceholder}
+                              </span>
+                            </div>
                           </td>
                           <td className="px-4 py-4">
                             <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3">
@@ -597,7 +602,10 @@ export default function SettingsHourlyRateLevels() {
                           />
                         </div>
 
-                        <div>
+                        <div className="flex items-center gap-2 rounded-lg border border-dashed border-border/70 bg-muted/20 px-2.5 py-2">
+                          <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                            {settingsHourlyRateLevelsCopy.levelPreviewLabel}
+                          </span>
                           <span
                             className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${getHourlyRateLevelBadgeClassName(level.label)}`}
                           >
