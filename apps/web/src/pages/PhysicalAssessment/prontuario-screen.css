@@ -8,9 +8,42 @@
   resize: vertical;
 }
 
-.prontuario-workspace :where(button, a, input, select, textarea):focus-visible {
+.prontuario-workspace :where(button, a, input, select, textarea, summary):focus-visible {
   outline: 2px solid hsl(var(--ring));
   outline-offset: 2px;
+}
+
+.prontuario-follow-up-case > summary {
+  list-style: none;
+}
+
+.prontuario-follow-up-case > summary::-webkit-details-marker {
+  display: none;
+}
+
+.prontuario-follow-up-chevron {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 9999px;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: hsl(var(--muted-foreground));
+  transition: transform 160ms ease, background-color 160ms ease;
+}
+
+.prontuario-follow-up-case[open] .prontuario-follow-up-chevron {
+  transform: rotate(90deg);
+  background: hsl(var(--muted));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .prontuario-follow-up-chevron {
+    transition: none;
+  }
 }
 
 @media (min-width: 1280px) {
@@ -41,7 +74,7 @@
 }
 
 @media (max-width: 639px) {
-  .prontuario-workspace :where(button, select, input) {
+  .prontuario-workspace :where(button, select, input, summary) {
     min-height: 44px;
   }
 
