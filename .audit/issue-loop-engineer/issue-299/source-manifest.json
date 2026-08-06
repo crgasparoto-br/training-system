@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "issue": "crgasparoto-br/training-system#299",
+  "sources": [
+    { "kind": "issue", "reference": "#299" },
+    { "kind": "code", "reference": "apps/api/src/modules/alunos/student-lifecycle-enrollment.service.ts" },
+    { "kind": "code", "reference": "apps/api/src/modules/alunos/student-identity.service.ts" },
+    { "kind": "code", "reference": "apps/api/src/modules/pre-registration-enrollment/pre-registration-enrollment.service.ts" },
+    { "kind": "code", "reference": "apps/api/src/modules/pre-registration-enrollment/pre-registration-enrollment.routes.ts" },
+    { "kind": "code", "reference": "apps/api/src/modules/pre-registration-public/pre-registration-public-atomic.service.ts" },
+    { "kind": "contract", "reference": "packages/types/pre-registration-public.ts" },
+    { "kind": "schema", "reference": "apps/api/prisma/schema.prisma" },
+    { "kind": "consumer", "reference": "apps/api/src/modules/alunos/student-domain.service.ts" }
+  ]
+}
