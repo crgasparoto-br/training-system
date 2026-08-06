@@ -39,13 +39,6 @@ const tabs: Array<{
     blockKey: 'students.details.summary',
   },
   {
-    id: 'treinos',
-    label: 'Treino de Hoje/Planos',
-    description: 'Treino operacional, planos e agenda de treinamento preservados.',
-    group: 'selectedStudent',
-    blockKey: 'students.details.trainingPlans',
-  },
-  {
     id: 'saude-anamnese',
     label: 'Prontuário',
     description: 'Saúde, anamnese, PAR-Q/AHA e pontos de atenção.',
