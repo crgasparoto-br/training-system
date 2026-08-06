@@ -157,4 +157,49 @@ describe('activateStudentEnrollmentInTransaction', () => {
       }),
     });
   });
+
+  it('não apaga endereço legado quando a identidade canônica não possui endereço', async () => {
+    const tx = buildTransaction();
+    tx.aluno.findFirst
+      .mockResolvedValueOnce({ userId: 'student-user' })
+      .mockResolvedValueOnce({
+        userId: 'student-user',
+        user: {
+          profile: {
+            name: 'Perfil existente',
+            addressStreet: 'Rua preservada',
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        studentProfile: {
+          identificationData: {
+            name: 'Perfil existente',
+            email: 'aluno@example.com',
+          },
+        },
+        user: null,
+      });
+    tx.aluno.count.mockResolvedValue(1);
+
+    await activateStudentEnrollmentInTransaction(
+      tx as unknown as Prisma.TransactionClient,
+      'aluno-1',
+      'contract-1',
+      activationInput
+    );
+
+    expect(tx.profile.update).not.toHaveBeenCalled();
+    expect(tx.aluno.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'ACTIVE_STUDENT' }),
+      })
+    );
+    expect(tx.studentLifecycleEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        eventType: 'CONVERTED_TO_ACTIVE_STUDENT',
+        metadata: expect.objectContaining({ legacyAddressProjected: false }),
+      }),
+    });
+  });
 });
