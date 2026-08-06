@@ -1,0 +1,51 @@
+.prontuario-workspace {
+  min-width: 0;
+  max-width: 1440px;
+  margin-inline: auto;
+}
+
+.prontuario-workspace textarea {
+  resize: vertical;
+}
+
+.prontuario-workspace :where(button, a, input, select, textarea):focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+@media (min-width: 1280px) {
+  .prontuario-workspace aside {
+    position: sticky;
+    top: 5.5rem;
+    align-self: start;
+    max-height: calc(100vh - 6.5rem);
+    overflow-y: auto;
+    padding-right: 0.25rem;
+  }
+}
+
+@media (max-width: 1023px) {
+  .prontuario-workspace > div > div:first-child > div:last-child {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: max-content;
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
+    scroll-snap-type: x proximity;
+    scrollbar-width: thin;
+  }
+
+  .prontuario-workspace > div > div:first-child > div:last-child > a {
+    scroll-snap-align: start;
+  }
+}
+
+@media (max-width: 639px) {
+  .prontuario-workspace :where(button, select, input) {
+    min-height: 44px;
+  }
+
+  .prontuario-workspace :where(textarea) {
+    min-height: 96px;
+  }
+}
