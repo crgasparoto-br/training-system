@@ -73,18 +73,21 @@ export async function syncStudentAddressLegacyProfileProjectionInTransaction(
   if (linkedStudentCount !== 1) return false;
 
   const identity = await loadStudentIdentity(alunoId, contractId, tx);
+  const addressProjection = {
+    addressStreet: cleanAddressText(identity.addressStreet),
+    addressNumber: cleanAddressText(identity.addressNumber),
+    addressComplement: cleanAddressText(identity.addressComplement),
+    addressNeighborhood: cleanAddressText(identity.addressNeighborhood),
+    addressCity: cleanAddressText(identity.addressCity),
+    addressState: cleanAddressText(identity.addressState),
+    addressZipCode: cleanAddressText(identity.addressZipCode),
+  };
+
+  if (!Object.values(addressProjection).some(Boolean)) return false;
 
   await tx.profile.update({
     where: { userId: aluno.userId },
-    data: {
-      addressStreet: cleanAddressText(identity.addressStreet),
-      addressNumber: cleanAddressText(identity.addressNumber),
-      addressComplement: cleanAddressText(identity.addressComplement),
-      addressNeighborhood: cleanAddressText(identity.addressNeighborhood),
-      addressCity: cleanAddressText(identity.addressCity),
-      addressState: cleanAddressText(identity.addressState),
-      addressZipCode: cleanAddressText(identity.addressZipCode),
-    },
+    data: addressProjection,
   });
 
   return true;
