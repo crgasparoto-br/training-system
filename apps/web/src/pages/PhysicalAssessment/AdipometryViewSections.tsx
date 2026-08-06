@@ -16,14 +16,6 @@ import {
 } from '../../components/ui/Card';
 import type { AdipometryAnthropometrySupport } from '../../services/adipometry.service';
 
-export const nav = [
-  ['antropometria', 'Antropometria'],
-  ['prontuario-entrevista-acompanhamento', 'Prontuário'],
-  ['adipometria', 'Adipometria'],
-  ['bioimpedanciometria', 'Bioimpedanciometria'],
-  ['ultrassonografia', 'Ultrassonografia'],
-] as const;
-
 const persistedCollectionFields: AdipometryInputField[] = [
   'weightKg',
   'tricepsMm',

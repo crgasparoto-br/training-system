@@ -1,14 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Activity, AlertTriangle, Save } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
+import { Activity, Save } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
+import type { ProntuarioOverview, ProntuarioPainCase } from '@corrida/types';
 import { prontuarioService } from '../../services/prontuario.service';
 import { ProntuarioScreen } from './ProntuarioScreen';
-import type { ProntuarioOverview, ProntuarioPainCase, ProntuarioRecord } from '@corrida/types';
-
-type PainCaseDraft = Partial<ProntuarioPainCase> & { title: string };
+import './prontuario-screen.css';
 
 type FollowUpDraft = {
   followUpAt: string;
@@ -27,53 +26,6 @@ const painCaseStatusLabel: Record<ProntuarioPainCase['status'], string> = {
   archived: 'Arquivado',
 };
 
-const isActivePainCase = (item: ProntuarioPainCase | PainCaseDraft) =>
-  item.status !== 'resolved' && item.status !== 'archived';
-
-function draftsFromRecord(record: ProntuarioRecord | null): PainCaseDraft[] {
-  return (record?.painCases || []).map((item) => ({
-    ...item,
-    onsetDate: toDateInput(item.onsetDate),
-    followUps: item.followUps || [],
-  }));
-}
-
-function normalizePainCases(items: PainCaseDraft[], followUpDrafts: Record<string, FollowUpDraft>) {
-  return items
-    .map((item, index) => {
-      const key = item.id || String(index);
-      const followUpDraft = followUpDrafts[key];
-      const existingFollowUps = item.followUps || [];
-      const shouldCreateFollowUp = Boolean(
-        followUpDraft?.notes.trim() ||
-        followUpDraft?.conduct.trim() ||
-        followUpDraft?.intensity.trim()
-      );
-      const nextFollowUps = shouldCreateFollowUp
-        ? [
-            ...existingFollowUps,
-            {
-              followUpAt: followUpDraft.followUpAt || today(),
-              intensity: followUpDraft.intensity.trim() ? Number(followUpDraft.intensity) : null,
-              notes: followUpDraft.notes.trim() || null,
-              conduct: followUpDraft.conduct.trim() || null,
-            },
-          ]
-        : existingFollowUps;
-
-      return {
-        id: item.id,
-        title: item.title?.trim() || '',
-        region: item.region?.trim() || null,
-        status: item.status || 'active',
-        onsetDate: item.onsetDate || null,
-        description: item.description?.trim() || null,
-        followUps: nextFollowUps,
-      };
-    })
-    .filter((item) => item.title.length > 0);
-}
-
 function buildEmptyFollowUp(): FollowUpDraft {
   return {
     followUpAt: today(),
@@ -83,252 +35,357 @@ function buildEmptyFollowUp(): FollowUpDraft {
   };
 }
 
-function DiscomfortFollowUpPanel({ alunoId }: { alunoId: string }) {
+function isOpenPainCase(item: ProntuarioPainCase) {
+  return item.status === 'active' || item.status === 'monitoring';
+}
+
+function hasFollowUpContent(draft: FollowUpDraft | undefined) {
+  return Boolean(
+    draft?.intensity.trim() || draft?.notes.trim() || draft?.conduct.trim()
+  );
+}
+
+function PainFollowUpPanel({ alunoId }: { alunoId: string }) {
   const [overview, setOverview] = useState<ProntuarioOverview | null>(null);
-  const [drafts, setDrafts] = useState<PainCaseDraft[]>([]);
   const [followUpDrafts, setFollowUpDrafts] = useState<Record<string, FollowUpDraft>>({});
+  const [statusDrafts, setStatusDrafts] = useState<Record<string, ProntuarioPainCase['status']>>({});
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [savingCaseId, setSavingCaseId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
 
   const currentRecord = overview?.currentRecord ?? overview?.records[0] ?? null;
-  const activeCases = drafts.filter(isActivePainCase);
-  const latestFollowUp = useMemo(() => {
-    return drafts
-      .flatMap((item) => item.followUps || [])
-      .filter((item) => item.followUpAt)
-      .sort((left, right) => new Date(right.followUpAt).getTime() - new Date(left.followUpAt).getTime())[0] ?? null;
-  }, [drafts]);
-
-  const load = async () => {
-    if (!alunoId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await prontuarioService.overview(alunoId);
-      const record = data.currentRecord ?? data.records[0] ?? null;
-      setOverview(data);
-      setDrafts(draftsFromRecord(record));
-      setFollowUpDrafts({});
-    } catch (err: any) {
-      setError(err?.response?.data?.error || 'Não foi possível carregar os desconfortos do PRNT.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const painCases = useMemo(() => {
+    const items = currentRecord?.painCases ?? [];
+    return [...items].sort((left, right) => {
+      const leftOpen = isOpenPainCase(left) ? 0 : 1;
+      const rightOpen = isOpenPainCase(right) ? 0 : 1;
+      if (leftOpen !== rightOpen) return leftOpen - rightOpen;
+      return left.title.localeCompare(right.title, 'pt-BR');
+    });
+  }, [currentRecord]);
+  const activeCount = painCases.filter(isOpenPainCase).length;
 
   useEffect(() => {
-    load();
+    let active = true;
+
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+
+    prontuarioService
+      .overview(alunoId)
+      .then((data) => {
+        if (!active) return;
+        setOverview(data);
+        setFollowUpDrafts({});
+        setStatusDrafts({});
+      })
+      .catch((err: any) => {
+        if (!active) return;
+        setError(
+          err?.response?.data?.error ||
+            'Não foi possível carregar os acompanhamentos de dor.'
+        );
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
   }, [alunoId]);
 
-  const updateCase = (index: number, patch: Partial<PainCaseDraft>) => {
-    setDrafts((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item));
-  };
-
-  const updateFollowUpDraft = (key: string, patch: Partial<FollowUpDraft>) => {
+  const updateFollowUpDraft = (caseId: string, patch: Partial<FollowUpDraft>) => {
     setFollowUpDrafts((current) => ({
       ...current,
-      [key]: { ...(current[key] || buildEmptyFollowUp()), ...patch },
+      [caseId]: {
+        ...(current[caseId] || buildEmptyFollowUp()),
+        ...patch,
+      },
     }));
+    setSuccess(null);
   };
 
-  const addCase = () => {
-    setDrafts((current) => [
-      ...current,
-      { title: '', region: '', status: 'active', onsetDate: today(), description: '', followUps: [] },
-    ]);
-  };
-
-  const saveCases = async () => {
+  const saveCaseFollowUp = async (caseItem: ProntuarioPainCase) => {
     if (!currentRecord) {
-      setError('Crie ou carregue um registro PRNT antes de salvar desconfortos.');
+      setError('Crie ou carregue um registro PRNT antes de acompanhar dores.');
       return;
     }
 
-    setSaving(true);
+    const draft = followUpDrafts[caseItem.id];
+    const intensity = draft?.intensity.trim() ? Number(draft.intensity) : null;
+
+    if (intensity !== null && (!Number.isFinite(intensity) || intensity < 0 || intensity > 10)) {
+      setError('Informe uma intensidade entre 0 e 10.');
+      return;
+    }
+
+    setSavingCaseId(caseItem.id);
     setError(null);
+    setSuccess(null);
+
     try {
-      const payload = normalizePainCases(drafts, followUpDrafts);
+      const payload = currentRecord.painCases.map((item) => {
+        const shouldAppendFollowUp = item.id === caseItem.id && hasFollowUpContent(draft);
+        const nextFollowUps = shouldAppendFollowUp
+          ? [
+              ...(item.followUps || []),
+              {
+                followUpAt: draft?.followUpAt || today(),
+                intensity,
+                notes: draft?.notes.trim() || null,
+                conduct: draft?.conduct.trim() || null,
+              },
+            ]
+          : item.followUps || [];
+
+        return {
+          id: item.id,
+          title: item.title,
+          region: item.region || null,
+          status: statusDrafts[item.id] || item.status,
+          onsetDate: item.onsetDate || null,
+          description: item.description || null,
+          followUps: nextFollowUps,
+        };
+      });
+
       const record = await prontuarioService.savePainCases(currentRecord.id, payload);
-      setOverview((current) => current ? {
-        ...current,
-        currentRecord: record,
-        records: [record, ...current.records.filter((item) => item.id !== record.id)],
-      } : current);
-      setDrafts(draftsFromRecord(record));
-      setFollowUpDrafts({});
+      setOverview((current) =>
+        current
+          ? {
+              ...current,
+              currentRecord: record,
+              records: [record, ...current.records.filter((item) => item.id !== record.id)],
+            }
+          : current
+      );
+      setFollowUpDrafts((current) => {
+        const next = { ...current };
+        delete next[caseItem.id];
+        return next;
+      });
+      setStatusDrafts((current) => {
+        const next = { ...current };
+        delete next[caseItem.id];
+        return next;
+      });
+      setSuccess(`Acompanhamento de ${caseItem.title} salvo.`);
     } catch (err: any) {
-      setError(err?.response?.data?.error || 'Não foi possível salvar acompanhamentos de desconforto.');
+      setError(
+        err?.response?.data?.error ||
+          'Não foi possível salvar o acompanhamento de dor.'
+      );
     } finally {
-      setSaving(false);
+      setSavingCaseId(null);
     }
   };
 
   return (
-    <Card className="border-primary/30">
+    <Card className="prontuario-follow-up border-primary/30">
       <CardHeader>
-        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <CardTitle>Acompanhamento de desconfortos</CardTitle>
+            <CardTitle>Acompanhamento de dores</CardTitle>
             <CardDescription>
-              Fluxo contextual da #182 para registrar desconfortos ativos, acompanhamentos e encerramentos sem sair do aluno selecionado.
+              Cadastre o caso no bloco “Casos de dor” acima. Use esta área somente para registrar evolução, conduta e encerramento.
             </CardDescription>
           </div>
           <span className="w-fit rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-            {activeCases.length} ativo(s)
+            {activeCount} em aberto
           </span>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {error ? <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div> : null}
-        {loading ? <p className="text-sm text-muted-foreground">Carregando desconfortos...</p> : null}
-
-        <div className="grid gap-4 md:grid-cols-3">
-          <div className="rounded-lg border border-border bg-background p-4">
-            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Desconfortos ativos</div>
-            <div className="mt-1 text-lg font-semibold text-foreground">{activeCases.length}</div>
-            <p className="mt-1 text-xs text-muted-foreground">Casos com status ativo ou em acompanhamento.</p>
-          </div>
-          <div className="rounded-lg border border-border bg-background p-4">
-            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Último acompanhamento</div>
-            <div className="mt-1 text-sm font-semibold text-foreground">{latestFollowUp ? toDateInput(latestFollowUp.followUpAt) : 'Não registrado'}</div>
-            <p className="mt-1 text-xs text-muted-foreground">Usado pela Central para saber se o caso está sendo acompanhado.</p>
-          </div>
-          <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-4">
-            <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-amber-700"><AlertTriangle size={14} /> Alerta técnico</div>
-            <div className="mt-1 text-sm font-semibold text-foreground">{activeCases.length > 0 ? 'Revisar antes de prescrever' : 'Sem caso ativo'}</div>
-            <p className="mt-1 text-xs text-muted-foreground">Desconfortos ativos podem impactar treino, avaliação e conduta.</p>
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          {drafts.map((item, index) => {
-            const key = item.id || String(index);
-            const followUpDraft = followUpDrafts[key] || buildEmptyFollowUp();
-            const followUps = item.followUps || [];
-            return (
-              <div key={key} className="rounded-lg border border-border bg-muted/20 p-4">
-                <div className="grid gap-3 md:grid-cols-4">
-                  <Input label="Título" value={item.title || ''} onChange={(event) => updateCase(index, { title: event.target.value })} />
-                  <Input label="Região" value={item.region || ''} onChange={(event) => updateCase(index, { region: event.target.value })} />
-                  <Input label="Data de início" type="date" value={toDateInput(item.onsetDate)} onChange={(event) => updateCase(index, { onsetDate: event.target.value })} />
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-foreground">Status</label>
-                    <select
-                      className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                      value={item.status || 'active'}
-                      onChange={(event) => updateCase(index, { status: event.target.value as ProntuarioPainCase['status'] })}
-                    >
-                      <option value="active">Ativo</option>
-                      <option value="monitoring">Em acompanhamento</option>
-                      <option value="resolved">Resolvido</option>
-                      <option value="archived">Arquivado</option>
-                    </select>
-                  </div>
-                  <div className="md:col-span-4">
-                    <textarea
-                      className="min-h-[76px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                      placeholder="Descrição do desconforto, restrição ou contexto"
-                      value={item.description || ''}
-                      onChange={(event) => updateCase(index, { description: event.target.value })}
-                    />
-                  </div>
-                </div>
-
-                <div className="mt-4 rounded-md border border-border bg-background p-3">
-                  <p className="text-sm font-semibold text-foreground">Histórico de acompanhamentos</p>
-                  <div className="mt-2 space-y-2">
-                    {followUps.length ? followUps.map((followUp) => (
-                      <div key={followUp.id || `${followUp.followUpAt}-${followUp.notes}`} className="rounded-md border border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-                        <span className="font-medium text-foreground">{toDateInput(followUp.followUpAt)}</span>
-                        {followUp.intensity ? ` · intensidade ${followUp.intensity}` : ''}
-                        {followUp.notes ? ` · ${followUp.notes}` : ''}
-                        {followUp.conduct ? ` · Conduta: ${followUp.conduct}` : ''}
-                      </div>
-                    )) : <p className="text-xs text-muted-foreground">Nenhum acompanhamento registrado para este desconforto.</p>}
-                  </div>
-                </div>
-
-                {isActivePainCase(item) ? (
-                  <div className="mt-4 grid gap-3 md:grid-cols-4">
-                    <Input label="Data do acompanhamento" type="date" value={followUpDraft.followUpAt} onChange={(event) => updateFollowUpDraft(key, { followUpAt: event.target.value })} />
-                    <Input label="Intensidade" type="number" min="0" max="10" value={followUpDraft.intensity} onChange={(event) => updateFollowUpDraft(key, { intensity: event.target.value })} />
-                    <div className="md:col-span-2">
-                      <textarea
-                        className="min-h-[76px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                        placeholder="Observação do acompanhamento"
-                        value={followUpDraft.notes}
-                        onChange={(event) => updateFollowUpDraft(key, { notes: event.target.value })}
-                      />
-                    </div>
-                    <div className="md:col-span-4">
-                      <textarea
-                        className="min-h-[64px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                        placeholder="Conduta, orientação ou próximo passo"
-                        value={followUpDraft.conduct}
-                        onChange={(event) => updateFollowUpDraft(key, { conduct: event.target.value })}
-                      />
-                    </div>
-                  </div>
-                ) : null}
-
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {isActivePainCase(item) ? (
-                    <Button type="button" variant="outline" onClick={() => updateCase(index, { status: 'resolved' })} disabled={saving}>
-                      Marcar como resolvido
-                    </Button>
-                  ) : (
-                    <span className="rounded-full border border-border bg-background px-3 py-1 text-xs text-muted-foreground">
-                      {painCaseStatusLabel[item.status || 'archived']}
-                    </span>
-                  )}
-                  <Button type="button" variant="outline" onClick={() => setDrafts((current) => current.filter((_, itemIndex) => itemIndex !== index))} disabled={saving}>
-                    Remover da lista
-                  </Button>
-                </div>
-              </div>
-            );
-          })}
-
-          {!drafts.length ? (
-            <div className="rounded-lg border border-dashed border-border bg-muted/20 p-4 text-sm text-muted-foreground">
-              Nenhum desconforto registrado. Adicione um caso ativo para iniciar o acompanhamento.
+        <div aria-live="polite" className="space-y-2">
+          {error ? (
+            <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              {error}
+            </div>
+          ) : null}
+          {success ? (
+            <div className="rounded-md border border-success/30 bg-success/10 px-4 py-3 text-sm text-foreground">
+              {success}
             </div>
           ) : null}
         </div>
 
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <Button type="button" variant="outline" onClick={addCase} disabled={saving}>
-            <Activity size={16} />
-            Novo desconforto
-          </Button>
-          <Button type="button" onClick={saveCases} disabled={saving || !currentRecord}>
-            <Save size={16} />
-            Salvar acompanhamentos
-          </Button>
+        {loading ? (
+          <p className="text-sm text-muted-foreground">Carregando acompanhamentos...</p>
+        ) : null}
+
+        {!loading && !painCases.length ? (
+          <div className="rounded-lg border border-dashed border-border bg-muted/20 p-5 text-sm text-muted-foreground">
+            Nenhum caso de dor registrado neste PRNT. Use o bloco “Casos de dor” acima para cadastrar o primeiro caso.
+          </div>
+        ) : null}
+
+        <div className="space-y-3">
+          {painCases.map((caseItem) => {
+            const draft = followUpDrafts[caseItem.id] || buildEmptyFollowUp();
+            const status = statusDrafts[caseItem.id] || caseItem.status;
+            const statusChanged = status !== caseItem.status;
+            const canSave = statusChanged || hasFollowUpContent(draft);
+            const followUps = [...(caseItem.followUps || [])].sort(
+              (left, right) =>
+                new Date(right.followUpAt).getTime() - new Date(left.followUpAt).getTime()
+            );
+            const latestFollowUp = followUps[0];
+
+            return (
+              <details key={caseItem.id} className="prontuario-follow-up-case rounded-lg border border-border bg-background">
+                <summary className="flex min-h-12 cursor-pointer items-center justify-between gap-4 px-4 py-3">
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-semibold text-foreground">
+                      {caseItem.title}
+                    </span>
+                    <span className="mt-1 block text-xs text-muted-foreground">
+                      {caseItem.region || 'Região não informada'} · {painCaseStatusLabel[status]}
+                      {latestFollowUp
+                        ? ` · último acompanhamento em ${toDateInput(latestFollowUp.followUpAt)}`
+                        : ' · sem acompanhamento'}
+                    </span>
+                  </span>
+                  <span className="prontuario-follow-up-chevron" aria-hidden="true">›</span>
+                </summary>
+
+                <div className="space-y-5 border-t border-border p-4">
+                  <div>
+                    <h3 className="text-sm font-semibold text-foreground">Histórico</h3>
+                    {followUps.length ? (
+                      <ol className="mt-3 space-y-2">
+                        {followUps.map((followUp) => (
+                          <li
+                            key={followUp.id || `${followUp.followUpAt}-${followUp.notes || ''}`}
+                            className="rounded-md border border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground"
+                          >
+                            <span className="font-medium text-foreground">
+                              {toDateInput(followUp.followUpAt)}
+                            </span>
+                            {followUp.intensity !== null && followUp.intensity !== undefined
+                              ? ` · intensidade ${followUp.intensity}/10`
+                              : ''}
+                            {followUp.notes ? ` · ${followUp.notes}` : ''}
+                            {followUp.conduct ? ` · Conduta: ${followUp.conduct}` : ''}
+                          </li>
+                        ))}
+                      </ol>
+                    ) : (
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        Nenhuma evolução registrada para este caso.
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <Input
+                      label="Data do acompanhamento"
+                      type="date"
+                      value={draft.followUpAt}
+                      onChange={(event) =>
+                        updateFollowUpDraft(caseItem.id, { followUpAt: event.target.value })
+                      }
+                    />
+                    <Input
+                      label="Intensidade (0 a 10)"
+                      type="number"
+                      min="0"
+                      max="10"
+                      value={draft.intensity}
+                      onChange={(event) =>
+                        updateFollowUpDraft(caseItem.id, { intensity: event.target.value })
+                      }
+                    />
+                    <div>
+                      <label htmlFor={`pain-status-${caseItem.id}`} className="mb-1 block text-sm font-medium text-foreground">
+                        Status do caso
+                      </label>
+                      <select
+                        id={`pain-status-${caseItem.id}`}
+                        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                        value={status}
+                        onChange={(event) => {
+                          setStatusDrafts((current) => ({
+                            ...current,
+                            [caseItem.id]: event.target.value as ProntuarioPainCase['status'],
+                          }));
+                          setSuccess(null);
+                        }}
+                      >
+                        <option value="active">Ativo</option>
+                        <option value="monitoring">Em acompanhamento</option>
+                        <option value="resolved">Resolvido</option>
+                        <option value="archived">Arquivado</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div>
+                      <label htmlFor={`pain-notes-${caseItem.id}`} className="mb-1 block text-sm font-medium text-foreground">
+                        Evolução observada
+                      </label>
+                      <textarea
+                        id={`pain-notes-${caseItem.id}`}
+                        className="min-h-[88px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        value={draft.notes}
+                        onChange={(event) =>
+                          updateFollowUpDraft(caseItem.id, { notes: event.target.value })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor={`pain-conduct-${caseItem.id}`} className="mb-1 block text-sm font-medium text-foreground">
+                        Conduta ou próximo passo
+                      </label>
+                      <textarea
+                        id={`pain-conduct-${caseItem.id}`}
+                        className="min-h-[88px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        value={draft.conduct}
+                        onChange={(event) =>
+                          updateFollowUpDraft(caseItem.id, { conduct: event.target.value })
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <Button
+                      type="button"
+                      onClick={() => saveCaseFollowUp(caseItem)}
+                      disabled={!canSave || savingCaseId !== null}
+                    >
+                      {hasFollowUpContent(draft) ? <Activity size={16} /> : <Save size={16} />}
+                      {savingCaseId === caseItem.id ? 'Salvando...' : 'Salvar acompanhamento'}
+                    </Button>
+                  </div>
+                </div>
+              </details>
+            );
+          })}
         </div>
       </CardContent>
     </Card>
   );
 }
 
+/**
+ * Mantém o ponto de entrada histórico da rota e separa cadastro de caso de dor
+ * do acompanhamento longitudinal, evitando dois editores concorrentes.
+ */
 export function ProntuarioScreenWithDiscomfortFollowUps() {
   const [searchParams] = useSearchParams();
   const alunoId = searchParams.get('alunoId') || '';
 
   return (
-    <div className="space-y-6">
+    <section
+      className="prontuario-workspace space-y-6"
+      aria-label="Prontuário de entrevista e acompanhamento"
+    >
       <ProntuarioScreen />
-      {alunoId ? (
-        <DiscomfortFollowUpPanel alunoId={alunoId} />
-      ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle>Acompanhamento de desconfortos</CardTitle>
-            <CardDescription>Selecione um aluno no PRNT para carregar o fluxo de desconfortos ativos e acompanhamentos.</CardDescription>
-          </CardHeader>
-        </Card>
-      )}
-    </div>
+      {alunoId ? <PainFollowUpPanel alunoId={alunoId} /> : null}
+    </section>
   );
 }
