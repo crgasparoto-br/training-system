@@ -159,7 +159,7 @@ export function StudentCentral() {
         <CardHeader>
           <CardTitle>Buscar aluno</CardTitle>
           <CardDescription>
-            Digite pelo menos 2 letras do nome para localizar e abrir a ficha centralizada. A estrutura deixa espaco para evoluir a busca por CPF, telefone ou matricula quando houver contrato de API.
+            Digite pelo menos 2 letras do nome para localizar e abrir a ficha centralizada.
           </CardDescription>
         </CardHeader>
         <CardContent>
