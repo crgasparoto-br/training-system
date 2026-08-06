@@ -7,12 +7,12 @@ vi.mock('./ProntuarioScreen', () => ({
 }));
 
 describe('ProntuarioScreenWithDiscomfortFollowUps', () => {
-  it('renderiza apenas o fluxo principal do prontuario', () => {
+  it('renderiza apenas o fluxo principal do prontuário', () => {
     render(<ProntuarioScreenWithDiscomfortFollowUps />);
 
     expect(
       screen.getByRole('region', {
-        name: 'Prontuario de entrevista e acompanhamento',
+        name: 'Prontuário de entrevista e acompanhamento',
       })
     ).toBeInTheDocument();
     expect(screen.getAllByText('Fluxo principal do PRNT')).toHaveLength(1);
