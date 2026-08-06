@@ -23,6 +23,7 @@ type LevelFieldErrors = {
 const emptyStateTitle = 'Nenhum nível cadastrado';
 const emptyStateDescription = 'Crie o primeiro nível para definir as faixas de classificação por valor/hora.';
 const emptyStateAction = 'Criar primeiro nível';
+const desktopRangeColumnLabel = 'Faixa de valor/hora';
 
 function formatValue(value?: number | null) {
   if (typeof value !== 'number') {
@@ -132,9 +133,12 @@ function hasOverlappingRanges(levels: EditableLevel[]) {
   return false;
 }
 
+function getLevelDisplayName(level: EditableLevel, levelIndex: number) {
+  return level.label.trim() || `nível ${levelIndex + 1}`;
+}
+
 function getFieldAriaLabel(fieldLabel: string, level: EditableLevel, levelIndex: number) {
-  const levelName = level.label.trim() || `nível ${levelIndex + 1}`;
-  return `${fieldLabel} de ${levelName}`;
+  return `${fieldLabel} de ${getLevelDisplayName(level, levelIndex)}`;
 }
 
 export default function SettingsHourlyRateLevels() {
@@ -354,35 +358,50 @@ export default function SettingsHourlyRateLevels() {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{settingsHourlyRateLevelsCopy.cardTitle}</CardTitle>
-          <CardDescription>{settingsHourlyRateLevelsCopy.cardDescription}</CardDescription>
+      <Card className="overflow-hidden">
+        <CardHeader className="border-b border-border bg-muted/20">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <CardTitle>{settingsHourlyRateLevelsCopy.cardTitle}</CardTitle>
+              <CardDescription>{settingsHourlyRateLevelsCopy.cardDescription}</CardDescription>
+            </div>
+            {!loading && levels.length > 0 ? (
+              <span className="inline-flex w-fit rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground">
+                {levels.length} {levels.length === 1 ? 'nível' : 'níveis'}
+              </span>
+            ) : null}
+          </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           <form className="space-y-4" onSubmit={handleSubmit}>
-            <div className="hidden overflow-x-auto xl:block">
-              <table className="min-w-full text-sm">
-                <thead>
-                  <tr className="border-b text-left text-xs uppercase text-muted-foreground">
-                    <th className="px-3 py-2">{settingsHourlyRateLevelsCopy.orderLabel}</th>
-                    <th className="px-3 py-2">{settingsHourlyRateLevelsCopy.levelNameColumn}</th>
-                    <th className="px-3 py-2">{settingsHourlyRateLevelsCopy.minValueColumn}</th>
-                    <th className="px-3 py-2">{settingsHourlyRateLevelsCopy.maxValueColumn}</th>
-                    <th className="px-3 py-2">{settingsHourlyRateLevelsCopy.statusColumn}</th>
-                    <th className="px-3 py-2 text-right">{settingsHourlyRateLevelsCopy.actionsColumn}</th>
+            <div className="hidden overflow-hidden rounded-xl border border-border xl:block">
+              <table className="min-w-full table-fixed text-sm">
+                <colgroup>
+                  <col className="w-[148px]" />
+                  <col className="w-[28%]" />
+                  <col />
+                  <col className="w-[132px]" />
+                  <col className="w-[76px]" />
+                </colgroup>
+                <thead className="bg-muted/50">
+                  <tr className="text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    <th className="px-4 py-3">{settingsHourlyRateLevelsCopy.orderLabel}</th>
+                    <th className="px-4 py-3">{settingsHourlyRateLevelsCopy.levelNameColumn}</th>
+                    <th className="px-4 py-3">{desktopRangeColumnLabel}</th>
+                    <th className="px-4 py-3">{settingsHourlyRateLevelsCopy.statusColumn}</th>
+                    <th className="px-4 py-3 text-right">{settingsHourlyRateLevelsCopy.actionsColumn}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">
+                      <td colSpan={5} className="px-4 py-10 text-center text-muted-foreground">
                         {settingsHourlyRateLevelsCopy.loadingLevels}
                       </td>
                     </tr>
                   ) : levels.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-3 py-4">
+                      <td colSpan={5} className="p-4">
                         {emptyState}
                       </td>
                     </tr>
@@ -391,15 +410,44 @@ export default function SettingsHourlyRateLevels() {
                       const isConfigured =
                         parseValue(level.minValueInput) !== null && parseValue(level.maxValueInput) !== null;
                       const rowErrors = levelErrors[levelIndex];
+                      const levelDisplayName = getLevelDisplayName(level, levelIndex);
 
                       return (
-                        <tr key={level.id} className="border-b align-top">
-                          <td className="px-3 py-3">
-                            <span className="inline-flex rounded-md bg-muted px-2 py-1 text-xs font-semibold text-muted-foreground">
-                              {levelIndex + 1}
-                            </span>
+                        <tr key={level.id} className="border-t border-border align-middle transition-colors hover:bg-muted/20">
+                          <td className="px-4 py-4">
+                            <div className="flex items-center gap-2">
+                              <span className="inline-flex h-9 min-w-9 items-center justify-center rounded-lg bg-muted px-2 text-sm font-semibold text-foreground">
+                                {levelIndex + 1}
+                              </span>
+                              <div className="flex rounded-lg border border-border bg-card p-0.5">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => handleMoveLevel(level.id, 'up')}
+                                  disabled={isBusy || levelIndex === 0}
+                                  aria-label={`${settingsHourlyRateLevelsCopy.moveUp} ${levelDisplayName}`}
+                                  title={settingsHourlyRateLevelsCopy.moveUp}
+                                >
+                                  <ArrowUp size={15} />
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => handleMoveLevel(level.id, 'down')}
+                                  disabled={isBusy || levelIndex === levels.length - 1}
+                                  aria-label={`${settingsHourlyRateLevelsCopy.moveDown} ${levelDisplayName}`}
+                                  title={settingsHourlyRateLevelsCopy.moveDown}
+                                >
+                                  <ArrowDown size={15} />
+                                </Button>
+                              </div>
+                            </div>
                           </td>
-                          <td className="px-3 py-3">
+                          <td className="px-4 py-4">
                             <Input
                               label=""
                               aria-label={getFieldAriaLabel(settingsHourlyRateLevelsCopy.levelNameColumn, level, levelIndex)}
@@ -408,47 +456,46 @@ export default function SettingsHourlyRateLevels() {
                               onChange={(event) => updateLevelField(level.id, 'label', event.target.value)}
                               placeholder={settingsHourlyRateLevelsCopy.levelNamePlaceholder}
                             />
-                            <div className="mt-2">
-                              <span
-                                className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${getHourlyRateLevelBadgeClassName(level.label)}`}
-                              >
-                                {level.label.trim() || settingsHourlyRateLevelsCopy.levelNamePlaceholder}
-                              </span>
+                            <span
+                              className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${getHourlyRateLevelBadgeClassName(level.label)}`}
+                            >
+                              {level.label.trim() || settingsHourlyRateLevelsCopy.levelNamePlaceholder}
+                            </span>
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3">
+                              <Input
+                                label={settingsHourlyRateLevelsCopy.minValueColumn}
+                                aria-label={getFieldAriaLabel(settingsHourlyRateLevelsCopy.minValueColumn, level, levelIndex)}
+                                type="text"
+                                inputMode="decimal"
+                                value={level.minValueInput}
+                                error={rowErrors?.minValueInput || rowErrors?.range}
+                                onChange={(event) =>
+                                  updateLevelField(level.id, 'minValueInput', normalizePtBrMoneyInput(event.target.value))
+                                }
+                                onBlur={() => handleMoneyBlur(level.id, 'minValueInput')}
+                                placeholder={settingsHourlyRateLevelsCopy.minValuePlaceholder}
+                              />
+                              <span className="mt-10 text-xs font-medium uppercase tracking-wide text-muted-foreground">até</span>
+                              <Input
+                                label={settingsHourlyRateLevelsCopy.maxValueColumn}
+                                aria-label={getFieldAriaLabel(settingsHourlyRateLevelsCopy.maxValueColumn, level, levelIndex)}
+                                type="text"
+                                inputMode="decimal"
+                                value={level.maxValueInput}
+                                error={rowErrors?.maxValueInput || rowErrors?.range}
+                                onChange={(event) =>
+                                  updateLevelField(level.id, 'maxValueInput', normalizePtBrMoneyInput(event.target.value))
+                                }
+                                onBlur={() => handleMoneyBlur(level.id, 'maxValueInput')}
+                                placeholder={settingsHourlyRateLevelsCopy.maxValuePlaceholder}
+                              />
                             </div>
                           </td>
-                          <td className="px-3 py-3">
-                            <Input
-                              label=""
-                              aria-label={getFieldAriaLabel(settingsHourlyRateLevelsCopy.minValueColumn, level, levelIndex)}
-                              type="text"
-                              inputMode="decimal"
-                              value={level.minValueInput}
-                              error={rowErrors?.minValueInput || rowErrors?.range}
-                              onChange={(event) =>
-                                updateLevelField(level.id, 'minValueInput', normalizePtBrMoneyInput(event.target.value))
-                              }
-                              onBlur={() => handleMoneyBlur(level.id, 'minValueInput')}
-                              placeholder={settingsHourlyRateLevelsCopy.minValuePlaceholder}
-                            />
-                          </td>
-                          <td className="px-3 py-3">
-                            <Input
-                              label=""
-                              aria-label={getFieldAriaLabel(settingsHourlyRateLevelsCopy.maxValueColumn, level, levelIndex)}
-                              type="text"
-                              inputMode="decimal"
-                              value={level.maxValueInput}
-                              error={rowErrors?.maxValueInput || rowErrors?.range}
-                              onChange={(event) =>
-                                updateLevelField(level.id, 'maxValueInput', normalizePtBrMoneyInput(event.target.value))
-                              }
-                              onBlur={() => handleMoneyBlur(level.id, 'maxValueInput')}
-                              placeholder={settingsHourlyRateLevelsCopy.maxValuePlaceholder}
-                            />
-                          </td>
-                          <td className="px-3 py-3">
+                          <td className="px-4 py-4">
                             <span
-                              className={`rounded-full px-2 py-1 text-xs font-medium ${
+                              className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
                                 isConfigured
                                   ? 'bg-success/10 text-success'
                                   : 'bg-warning/10 text-warning'
@@ -459,40 +506,19 @@ export default function SettingsHourlyRateLevels() {
                                 : settingsHourlyRateLevelsCopy.pendingStatus}
                             </span>
                           </td>
-                          <td className="px-3 py-3 text-right">
-                            <div className="flex justify-end gap-2">
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleMoveLevel(level.id, 'up')}
-                                disabled={isBusy || levelIndex === 0}
-                                aria-label={settingsHourlyRateLevelsCopy.moveUp}
-                                title={settingsHourlyRateLevelsCopy.moveUp}
-                              >
-                                <ArrowUp size={16} />
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleMoveLevel(level.id, 'down')}
-                                disabled={isBusy || levelIndex === levels.length - 1}
-                                aria-label={settingsHourlyRateLevelsCopy.moveDown}
-                                title={settingsHourlyRateLevelsCopy.moveDown}
-                              >
-                                <ArrowDown size={16} />
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                onClick={() => handleDeleteLevel(level.id)}
-                                disabled={isBusy || deletingId === level.id}
-                              >
-                                <Trash2 size={16} />
-                                <span className="hidden 2xl:inline">{settingsHourlyRateLevelsCopy.deleteLevel}</span>
-                              </Button>
-                            </div>
+                          <td className="px-4 py-4 text-right">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => handleDeleteLevel(level.id)}
+                              disabled={isBusy || deletingId === level.id}
+                              aria-label={`${settingsHourlyRateLevelsCopy.deleteLevel} ${levelDisplayName}`}
+                              title={settingsHourlyRateLevelsCopy.deleteLevel}
+                            >
+                              <Trash2 size={16} />
+                            </Button>
                           </td>
                         </tr>
                       );
