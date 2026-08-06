@@ -47,6 +47,9 @@ export const preRegistrationInvitePublicService = {
           contract: {
             select: { name: true, tradeName: true, logoUrl: true },
           },
+          aluno: {
+            select: { leadName: true, leadEmail: true },
+          },
         },
       });
       if (!candidate || !timingSafeEqualHash(candidate.tokenHash, tokenHash)) return null;
@@ -133,6 +136,10 @@ export const preRegistrationInvitePublicService = {
           name: candidate.contract.tradeName || candidate.contract.name || 'Academia',
           logoUrl: candidate.contract.logoUrl || undefined,
         },
+        lead: {
+          name: candidate.aluno.leadName || undefined,
+          email: candidate.aluno.leadEmail || undefined,
+        },
       };
     });
 
@@ -147,6 +154,7 @@ export const preRegistrationInvitePublicService = {
         ...invite.tenant,
         privacyNoticeUrl: privacyNoticeUrl(),
       },
+      lead: invite.lead,
       stages: [
         { key: 'BASIC_DATA', title: 'Dados básicos', optional: false },
         { key: 'ANAMNESIS', title: 'Anamnese Inicial', optional: true },

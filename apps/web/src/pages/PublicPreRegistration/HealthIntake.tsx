@@ -21,7 +21,6 @@ import type {
   HealthIntakeStep,
   SaveHealthIntakeStepDTO,
 } from '@corrida/types';
-import { useAuthStore } from '../../stores/useAuthStore';
 import { preRegistrationPublicService } from '../../services/pre-registration-public.service';
 
 const STEPS: Array<{
@@ -230,7 +229,6 @@ export function HealthIntake() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const alunoId = searchParams.get('alunoId') || '';
-  const { isAuthenticated } = useAuthStore();
   const [session, setSession] = useState<HealthIntakeSessionDTO | null>(null);
   const [answers, setAnswers] = useState<HealthIntakeAnswersDTO>(emptyAnswers);
   const [step, setStep] = useState<HealthIntakeStep>('CONSENT');
@@ -266,13 +264,9 @@ export function HealthIntake() {
   };
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      navigate('/login', { replace: true });
-      return;
-    }
     void load();
     // load is intentionally bound to the selected process only.
-  }, [alunoId, isAuthenticated, navigate]);
+  }, [alunoId]);
 
   const updateAnswer = <K extends keyof HealthIntakeAnswersDTO>(
     key: K,

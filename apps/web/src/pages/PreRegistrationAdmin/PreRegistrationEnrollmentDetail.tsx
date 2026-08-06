@@ -454,7 +454,7 @@ export function PreRegistrationEnrollmentDetail() {
               <CardDescription>Alterações de ciclo e convites preservadas no processo.</CardDescription>
             </CardHeader>
             <CardContent>
-              <ol className="space-y-3 text-sm">
+              <ol className="max-h-80 space-y-3 overflow-y-auto pr-2 text-sm">
                 {lead.history.length === 0 ? (
                   <li className="text-muted-foreground">Nenhum evento registrado.</li>
                 ) : lead.history.map((item) => (

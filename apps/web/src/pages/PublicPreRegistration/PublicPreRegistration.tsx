@@ -20,6 +20,7 @@ import {
   HeartPulse,
   Loader2,
   LockKeyhole,
+  LogOut,
   MapPin,
   ShieldCheck,
   UserRound,
@@ -38,6 +39,10 @@ import type {
 import { useAuthStore } from '../../stores/useAuthStore';
 import { preRegistrationPublicService } from '../../services/pre-registration-public.service';
 import { useCepAutofill } from '../../hooks/useCepAutofill';
+import { isValidCep } from '../../services/cep.service';
+import { formatBrazilianDocument, isValidCpf } from '../../utils/document';
+import { formatPhoneInput, isValidBrazilianPhone } from '../../utils/phone';
+import { isValidEmail } from '../../utils/email';
 import {
   clearDraft,
   readDraft,
@@ -275,8 +280,30 @@ function Field({
   );
 }
 
-function PublicShell({ children }: { children: ReactNode }) {
-  return <div className="min-h-screen bg-slate-100 px-4 py-5 text-slate-950 sm:px-6 sm:py-8">{children}</div>;
+function PublicShell({
+  children,
+  onLogout,
+}: {
+  children: ReactNode;
+  onLogout?: () => void;
+}) {
+  return (
+    <div className="min-h-screen bg-slate-100 px-4 py-5 text-slate-950 sm:px-6 sm:py-8">
+      {onLogout ? (
+        <div className="mx-auto mb-4 flex max-w-6xl justify-end">
+          <button
+            type="button"
+            onClick={onLogout}
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            <LogOut className="h-4 w-4" aria-hidden="true" />
+            Encerrar sessão
+          </button>
+        </div>
+      ) : null}
+      {children}
+    </div>
+  );
 }
 
 function FullPageLoading({ text }: { text: string }) {
@@ -297,7 +324,7 @@ function PublicLanding({ token }: { token: string }) {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [mode, setMode] = useState<'login' | 'register'>('register');
   const [role, setRole] = useState<PreRegistrationClaimRole>('STUDENT');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -312,7 +339,12 @@ function PublicLanding({ token }: { token: string }) {
     let active = true;
     preRegistrationPublicService
       .open(token)
-      .then((value) => active && setLanding(value))
+      .then((value) => {
+        if (!active) return;
+        setLanding(value);
+        if (value.lead?.name) setName(value.lead.name);
+        if (value.lead?.email) setEmail(value.lead.email);
+      })
       .catch((reason) => active && setError(parseApiError(reason).message))
       .finally(() => active && setLoading(false));
     return () => {
@@ -499,12 +531,14 @@ function PublicLanding({ token }: { token: string }) {
 function ProcessSelector({
   processes,
   onSelect,
+  onLogout,
 }: {
   processes: PreRegistrationProcessSummaryDTO[];
   onSelect: (process: PreRegistrationProcessSummaryDTO) => void;
+  onLogout: () => void;
 }) {
   return (
-    <PublicShell>
+    <PublicShell onLogout={onLogout}>
       <main className="mx-auto w-full max-w-4xl">
         <header className="mb-6">
           <p className="text-sm font-medium text-blue-700">Pré-matrícula</p>
@@ -656,7 +690,7 @@ function ConflictResolutionPanel({
 function AuthenticatedFlow() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, logout } = useAuthStore();
   const [processes, setProcesses] = useState<PreRegistrationProcessSummaryDTO[]>([]);
   const [selectedAlunoId, setSelectedAlunoId] = useState<string | null>(null);
   const [session, setSession] = useState<PreRegistrationSessionDTO | null>(null);
@@ -670,6 +704,7 @@ function AuthenticatedFlow() {
   const [guardianRelationship, setGuardianRelationship] = useState('');
   const [guardianDeclarationAccepted, setGuardianDeclarationAccepted] = useState(false);
   const [conflict, setConflict] = useState<ConflictState | null>(null);
+  const [touched, setTouched] = useState<Set<string>>(new Set());
   const errorRef = useRef<HTMLDivElement>(null);
   const stepHeadingRef = useRef<HTMLHeadingElement>(null);
   const guardianHeadingRef = useRef<HTMLHeadingElement>(null);
@@ -792,6 +827,11 @@ function AuthenticatedFlow() {
     void loadProcesses();
   }, [isAuthenticated, loadProcesses, navigate]);
 
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login', { replace: true });
+  };
+
   const visibleSteps = useMemo(() => (session ? stepsForSession(session) : STEPS), [session]);
   const currentStep =
     visibleSteps[Math.min(activeStep, visibleSteps.length - 1)] || visibleSteps[0];
@@ -822,6 +862,12 @@ function AuthenticatedFlow() {
     setForm((current) => ({ ...current, [key]: value }));
     setSavedMessage('');
   };
+
+  const markTouched = (key: string) =>
+    setTouched((current) => (current.has(key) ? current : new Set(current).add(key)));
+
+  const fieldError = (key: string, message: string, invalid: boolean) =>
+    touched.has(key) && invalid ? message : undefined;
 
   const { cepError, formatZipCodeInput, handleZipCodeBlur } = useCepAutofill((address) => {
     setForm((current) => ({
@@ -887,14 +933,38 @@ function AuthenticatedFlow() {
       if (!form.name?.trim()) missing.push('nome completo');
       if (!form.birthDate) missing.push('data de nascimento');
       if (!form.cpf?.trim()) missing.push('CPF');
+      else if (!isValidCpf(form.cpf)) missing.push('CPF (número inválido)');
     }
     if (currentStep.key === 'CONTACT') {
       if (!form.phone?.trim()) missing.push('telefone principal');
+      else if (!isValidBrazilianPhone(form.phone)) missing.push('telefone principal (número inválido)');
       if (!form.email?.trim()) missing.push('e-mail principal');
+      else if (!isValidEmail(form.email)) missing.push('e-mail principal (formato inválido)');
+      if (form.additionalPhone?.trim() && !isValidBrazilianPhone(form.additionalPhone)) {
+        missing.push('telefone alternativo (número inválido)');
+      }
+      if (form.additionalEmail?.trim() && !isValidEmail(form.additionalEmail)) {
+        missing.push('e-mail alternativo (formato inválido)');
+      }
+    }
+    if (currentStep.key === 'ADDRESS') {
+      if (form.addressZipCode?.trim() && !isValidCep(form.addressZipCode)) {
+        missing.push('CEP (formato inválido)');
+      }
+      if (form.addressState?.trim() && form.addressState.trim().length !== 2) {
+        missing.push('UF (use a sigla com 2 letras)');
+      }
     }
     if (currentStep.key === 'GUARDIAN') {
       if (!form.guardianName?.trim()) missing.push('nome do responsável');
       if (!form.guardianCpf?.trim()) missing.push('CPF do responsável');
+      else if (!isValidCpf(form.guardianCpf)) missing.push('CPF do responsável (número inválido)');
+      if (form.guardianPhone?.trim() && !isValidBrazilianPhone(form.guardianPhone)) {
+        missing.push('telefone do responsável (número inválido)');
+      }
+      if (form.guardianEmail?.trim() && !isValidEmail(form.guardianEmail)) {
+        missing.push('e-mail do responsável (formato inválido)');
+      }
     }
     if (missing.length === 0) return true;
     setError(`Preencha os campos obrigatórios desta etapa: ${missing.join(', ')}.`);
@@ -1036,7 +1106,7 @@ function AuthenticatedFlow() {
 
   if (processes.length === 0) {
     return (
-      <PublicShell>
+      <PublicShell onLogout={handleLogout}>
         <div className="mx-auto max-w-lg rounded-2xl bg-white p-6 text-center shadow-sm">
           <h1 className="text-2xl font-semibold">Não foi possível abrir o pré-cadastro</h1>
           <p className="mt-2 text-slate-600">
@@ -1055,13 +1125,19 @@ function AuthenticatedFlow() {
   }
 
   if (!selectedAlunoId) {
-    return <ProcessSelector processes={processes} onSelect={(process) => void openProcess(process)} />;
+    return (
+      <ProcessSelector
+        processes={processes}
+        onSelect={(process) => void openProcess(process)}
+        onLogout={handleLogout}
+      />
+    );
   }
 
   if (selectedProcess?.requiresGuardianConfirmation) {
     const awaitingApproval = Boolean(selectedProcess.guardianAuthorizationRelationship);
     return (
-      <PublicShell>
+      <PublicShell onLogout={handleLogout}>
         <main className="mx-auto max-w-2xl rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-9">
           <ShieldCheck className="h-11 w-11 text-blue-600" aria-hidden="true" />
           <p className="mt-5 text-sm font-medium text-blue-700">Acesso de responsável</p>
@@ -1178,7 +1254,7 @@ function AuthenticatedFlow() {
 
   if (!session) {
     return (
-      <PublicShell>
+      <PublicShell onLogout={handleLogout}>
         <div className="mx-auto max-w-lg rounded-2xl bg-white p-6 text-center shadow-sm">
           <h1 className="text-2xl font-semibold">Não foi possível abrir o pré-cadastro</h1>
           <p className="mt-2 text-slate-600">{error}</p>
@@ -1196,7 +1272,7 @@ function AuthenticatedFlow() {
 
   if (session.status === 'PRE_REGISTRATION_COMPLETED') {
     return (
-      <PublicShell>
+      <PublicShell onLogout={handleLogout}>
         <main className="mx-auto w-full max-w-4xl space-y-6">
           <section className="rounded-3xl border border-emerald-200 bg-white p-6 shadow-sm sm:p-9">
             <CheckCircle2 className="h-12 w-12 text-emerald-600" aria-hidden="true" />
@@ -1270,7 +1346,7 @@ function AuthenticatedFlow() {
   );
 
   return (
-    <PublicShell>
+    <PublicShell onLogout={handleLogout}>
       <main className="mx-auto grid w-full max-w-6xl gap-5 lg:grid-cols-[280px_1fr]">
         <aside className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:sticky lg:top-5 lg:self-start">
           <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
@@ -1440,7 +1516,9 @@ function AuthenticatedFlow() {
                       autoComplete="off"
                       placeholder="000.000.000-00"
                       inputMode="numeric"
-                      onChange={(value) => setValue('cpf', value)}
+                      error={fieldError('cpf', 'CPF inválido', Boolean(form.cpf?.trim()) && !isValidCpf(form.cpf || ''))}
+                      onChange={(value) => setValue('cpf', formatBrazilianDocument(value, 'cpf'))}
+                      onBlur={() => markTouched('cpf')}
                     />
                     <div className="block space-y-2 text-sm font-medium text-slate-800">
                       <label htmlFor="pre-registration-gender">Sexo/gênero</label>
@@ -1468,7 +1546,15 @@ function AuthenticatedFlow() {
                       value={form.phone}
                       required
                       autoComplete="tel"
-                      onChange={(value) => setValue('phone', value)}
+                      placeholder="(11) 91234-5678"
+                      inputMode="numeric"
+                      error={fieldError(
+                        'phone',
+                        'Telefone inválido',
+                        Boolean(form.phone?.trim()) && !isValidBrazilianPhone(form.phone || '')
+                      )}
+                      onChange={(value) => setValue('phone', formatPhoneInput(value))}
+                      onBlur={() => markTouched('phone')}
                     />
                     <Field
                       label="E-mail principal"
@@ -1477,7 +1563,13 @@ function AuthenticatedFlow() {
                       value={form.email}
                       required
                       autoComplete="email"
+                      error={fieldError(
+                        'email',
+                        'E-mail inválido',
+                        Boolean(form.email?.trim()) && !isValidEmail(form.email || '')
+                      )}
                       onChange={(value) => setValue('email', value)}
+                      onBlur={() => markTouched('email')}
                     />
                     <Field
                       label="Telefone alternativo"
@@ -1485,7 +1577,15 @@ function AuthenticatedFlow() {
                       type="tel"
                       value={form.additionalPhone}
                       autoComplete="tel"
-                      onChange={(value) => setValue('additionalPhone', value)}
+                      placeholder="(11) 91234-5678"
+                      inputMode="numeric"
+                      error={fieldError(
+                        'additionalPhone',
+                        'Telefone inválido',
+                        Boolean(form.additionalPhone?.trim()) && !isValidBrazilianPhone(form.additionalPhone || '')
+                      )}
+                      onChange={(value) => setValue('additionalPhone', formatPhoneInput(value))}
+                      onBlur={() => markTouched('additionalPhone')}
                     />
                     <Field
                       label="E-mail alternativo"
@@ -1493,7 +1593,13 @@ function AuthenticatedFlow() {
                       type="email"
                       value={form.additionalEmail}
                       autoComplete="email"
+                      error={fieldError(
+                        'additionalEmail',
+                        'E-mail inválido',
+                        Boolean(form.additionalEmail?.trim()) && !isValidEmail(form.additionalEmail || '')
+                      )}
                       onChange={(value) => setValue('additionalEmail', value)}
+                      onBlur={() => markTouched('additionalEmail')}
                     />
                   </div>
                 ) : null}
@@ -1508,11 +1614,21 @@ function AuthenticatedFlow() {
                         autoComplete="postal-code"
                         inputMode="numeric"
                         placeholder="00000-000"
-                        error={cepError || undefined}
+                        error={
+                          cepError ||
+                          fieldError(
+                            'addressZipCode',
+                            'CEP inválido',
+                            Boolean(form.addressZipCode?.trim()) && !isValidCep(form.addressZipCode || '')
+                          )
+                        }
                         onChange={(value) =>
                           setValue('addressZipCode', formatZipCodeInput(value))
                         }
-                        onBlur={handleZipCodeBlur}
+                        onBlur={(event) => {
+                          markTouched('addressZipCode');
+                          handleZipCodeBlur(event);
+                        }}
                       />
                     </div>
                     <div className="sm:col-span-4">
@@ -1564,7 +1680,16 @@ function AuthenticatedFlow() {
                         name="addressState"
                         value={form.addressState}
                         autoComplete="address-level1"
-                        onChange={(value) => setValue('addressState', value)}
+                        placeholder="SP"
+                        error={fieldError(
+                          'addressState',
+                          'Use a sigla do estado (2 letras)',
+                          Boolean(form.addressState?.trim()) && form.addressState!.trim().length !== 2
+                        )}
+                        onChange={(value) =>
+                          setValue('addressState', value.replace(/[^a-zA-Z]/g, '').slice(0, 2).toUpperCase())
+                        }
+                        onBlur={() => markTouched('addressState')}
                       />
                     </div>
                     <p className="sm:col-span-6 text-sm text-slate-500">
@@ -1590,21 +1715,42 @@ function AuthenticatedFlow() {
                         value={form.guardianCpf}
                         required
                         inputMode="numeric"
-                        onChange={(value) => setValue('guardianCpf', value)}
+                        placeholder="000.000.000-00"
+                        error={fieldError(
+                          'guardianCpf',
+                          'CPF inválido',
+                          Boolean(form.guardianCpf?.trim()) && !isValidCpf(form.guardianCpf || '')
+                        )}
+                        onChange={(value) => setValue('guardianCpf', formatBrazilianDocument(value, 'cpf'))}
+                        onBlur={() => markTouched('guardianCpf')}
                       />
                       <Field
                         label="Telefone do responsável"
                         name="guardianPhone"
                         type="tel"
                         value={form.guardianPhone}
-                        onChange={(value) => setValue('guardianPhone', value)}
+                        placeholder="(11) 91234-5678"
+                        inputMode="numeric"
+                        error={fieldError(
+                          'guardianPhone',
+                          'Telefone inválido',
+                          Boolean(form.guardianPhone?.trim()) && !isValidBrazilianPhone(form.guardianPhone || '')
+                        )}
+                        onChange={(value) => setValue('guardianPhone', formatPhoneInput(value))}
+                        onBlur={() => markTouched('guardianPhone')}
                       />
                       <Field
                         label="E-mail do responsável"
                         name="guardianEmail"
                         type="email"
                         value={form.guardianEmail}
+                        error={fieldError(
+                          'guardianEmail',
+                          'E-mail inválido',
+                          Boolean(form.guardianEmail?.trim()) && !isValidEmail(form.guardianEmail || '')
+                        )}
                         onChange={(value) => setValue('guardianEmail', value)}
+                        onBlur={() => markTouched('guardianEmail')}
                       />
                     </div>
                     {session.claimRole === 'STUDENT' &&

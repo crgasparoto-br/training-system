@@ -20,6 +20,7 @@ import {
   normalizeStudentEmail,
   normalizeStudentPhone,
   upsertStudentIdentity,
+  StudentIdentityLockTimeoutError,
 } from './student-identity.service.js';
 
 const prisma = new PrismaClient();
@@ -180,6 +181,9 @@ export async function createStudentLead(input: CreateStudentLeadDTO): Promise<Al
   try {
     return await prisma.$transaction((tx) => createStudentLeadInTransaction(tx, input));
   } catch (error) {
+    if (error instanceof StudentIdentityLockTimeoutError) {
+      throw new StudentLifecycleError(error.message, 'CONCURRENT_MODIFICATION');
+    }
     const conflict = toDomainConflict(error);
     if (conflict) throw conflict;
     throw error;

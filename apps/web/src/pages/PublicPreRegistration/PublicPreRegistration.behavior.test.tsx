@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   claim: vi.fn(),
   registerAndClaim: vi.fn(),
   login: vi.fn(),
+  logout: vi.fn(),
   listProcesses: vi.fn(),
   getSession: vi.fn(),
   saveStep: vi.fn(),
@@ -31,6 +32,7 @@ vi.mock('../../stores/useAuthStore', () => ({
   useAuthStore: () => ({
     isAuthenticated: true,
     login: mocks.login,
+    logout: mocks.logout,
     user: { id: 'guardian-1', email: 'guardian@example.com', type: 'aluno' },
   }),
 }));
@@ -103,6 +105,7 @@ describe('PublicPreRegistration - resiliência, seleção e autorização', () =
     mocks.claim.mockReset();
     mocks.registerAndClaim.mockReset();
     mocks.login.mockReset();
+    mocks.logout.mockReset();
     mocks.listProcesses.mockReset();
     mocks.getSession.mockReset();
     mocks.saveStep.mockReset();
@@ -111,6 +114,7 @@ describe('PublicPreRegistration - resiliência, seleção e autorização', () =
     mocks.lookupCep.mockReset();
     mocks.routeToken = undefined;
     mocks.login.mockResolvedValue(undefined);
+    mocks.logout.mockResolvedValue(undefined);
     mocks.listProcesses.mockResolvedValue([baseProcess]);
     mocks.getSession.mockResolvedValue(baseSession);
     window.localStorage.clear();
@@ -462,5 +466,62 @@ describe('PublicPreRegistration - resiliência, seleção e autorização', () =
     await waitFor(() => expect(document.activeElement).toBe(awaitingHeading));
     expect(screen.getByText(/dados pessoais do menor continuarão protegidos/i)).toBeInTheDocument();
     expect(mocks.getSession).not.toHaveBeenCalled();
+  });
+
+  it('shows Anamnese and PAR-Q as clickable optional next steps once pre-registration is completed', async () => {
+    mocks.listProcesses.mockResolvedValue([
+      { ...baseProcess, status: 'PRE_REGISTRATION_COMPLETED' },
+    ]);
+    mocks.getSession.mockResolvedValue({
+      ...baseSession,
+      status: 'PRE_REGISTRATION_COMPLETED',
+      nextSteps: [
+        {
+          key: 'ANAMNESIS',
+          title: 'Responder Anamnese Inicial',
+          description: 'Conte informações importantes para orientar seu acompanhamento.',
+          optional: true,
+          status: 'NOT_STARTED',
+          action: 'START',
+          href: '/pre-cadastro/anamnese?alunoId=student-1',
+        },
+        {
+          key: 'PARQ',
+          title: 'Responder PAR-Q',
+          description: 'Responda o questionário de prontidão para atividade física.',
+          optional: true,
+          status: 'NOT_STARTED',
+          action: 'START',
+          href: '/pre-cadastro/par-q?alunoId=student-1',
+        },
+      ],
+    });
+
+    render(
+      <MemoryRouter>
+        <PublicPreRegistration />
+      </MemoryRouter>
+    );
+
+    await screen.findByRole('heading', { name: /Pré-cadastro concluído/i });
+
+    const links = await screen.findAllByRole('link', { name: /Iniciar/i });
+    expect(links).toHaveLength(2);
+    expect(links[0]).toHaveAttribute('href', '/pre-cadastro/anamnese?alunoId=student-1');
+    expect(links[1]).toHaveAttribute('href', '/pre-cadastro/par-q?alunoId=student-1');
+  });
+
+  it('lets the lead end their session from the pre-registration screen', async () => {
+    render(
+      <MemoryRouter>
+        <PublicPreRegistration />
+      </MemoryRouter>
+    );
+
+    await screen.findByLabelText(/Nome completo/i);
+    fireEvent.click(screen.getByRole('button', { name: /Encerrar sessão/i }));
+
+    await waitFor(() => expect(mocks.logout).toHaveBeenCalled());
+    expect(mocks.navigate).toHaveBeenCalledWith('/login', { replace: true });
   });
 });

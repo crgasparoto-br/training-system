@@ -3,7 +3,6 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AlertTriangle, ArrowLeft, CheckCircle2, ClipboardCheck, Loader2, Save, ShieldOff } from 'lucide-react';
 import type { ParqQuestionKey, ParqResponses, ParqSessionDTO } from '@corrida/types';
 import { PARQ_CATALOG_VERSION } from '@corrida/types';
-import { useAuthStore } from '../../stores/useAuthStore';
 import { preRegistrationPublicService } from '../../services/pre-registration-public.service';
 
 function PublicShell({ children }: { children: React.ReactNode }) {
@@ -74,7 +73,6 @@ export function Parq() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const alunoId = searchParams.get('alunoId') || '';
-  const { isAuthenticated } = useAuthStore();
   const [session, setSession] = useState<ParqSessionDTO | null>(null);
   const [responses, setResponses] = useState<ParqResponses>({});
   const [consentAccepted, setConsentAccepted] = useState(false);
@@ -88,6 +86,12 @@ export function Parq() {
 
   const complete = useMemo(
     () => Boolean(session?.catalog.questions.every((question) => typeof responses[question.key] === 'boolean')),
+    [responses, session]
+  );
+  const totalQuestions = session?.catalog.questions.length ?? 0;
+  const answeredCount = useMemo(
+    () =>
+      session?.catalog.questions.filter((question) => typeof responses[question.key] === 'boolean').length ?? 0,
     [responses, session]
   );
 
@@ -119,12 +123,8 @@ export function Parq() {
   };
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      navigate('/login', { replace: true });
-      return;
-    }
     void load();
-  }, [alunoId, isAuthenticated]);
+  }, [alunoId]);
 
   const payload = () => {
     if (!session) throw new Error('Sessão indisponível');
@@ -309,20 +309,35 @@ export function Parq() {
           ) : null}
         </section>
 
-        <section className="space-y-4" aria-labelledby="parq-questions-title">
-          <h2 id="parq-questions-title" className="sr-only">Perguntas do PAR-Q</h2>
-          {session.catalog.questions.map((question) => (
-            <fieldset key={question.key} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-              <legend className="px-1 text-base font-semibold leading-7 text-slate-950">
-                {question.order}. {question.text}
-              </legend>
-              <AnswerChoice
-                name={`parq-${question.key}`}
-                value={responses[question.key]}
-                onChange={(value) => setResponses((current) => ({ ...current, [question.key as ParqQuestionKey]: value }))}
-              />
-            </fieldset>
-          ))}
+        <section aria-labelledby="parq-questions-title">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 id="parq-questions-title" className="text-xl font-semibold text-slate-950">Perguntas do PAR-Q</h2>
+            <span className="text-sm font-medium text-slate-600" aria-live="polite">
+              {answeredCount} de {totalQuestions} respondidas
+            </span>
+          </div>
+          <div className="mt-4 divide-y divide-slate-200 rounded-3xl border border-slate-200 bg-white shadow-sm">
+            {session.catalog.questions.map((question) => {
+              const answered = typeof responses[question.key] === 'boolean';
+              return (
+                <fieldset key={question.key} className="p-5 sm:p-6">
+                  <legend className="px-1 text-base font-semibold leading-7 text-slate-950">
+                    {question.order}. {question.text}
+                  </legend>
+                  {!answered ? (
+                    <span className="mb-2 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
+                      Pendente
+                    </span>
+                  ) : null}
+                  <AnswerChoice
+                    name={`parq-${question.key}`}
+                    value={responses[question.key]}
+                    onChange={(value) => setResponses((current) => ({ ...current, [question.key as ParqQuestionKey]: value }))}
+                  />
+                </fieldset>
+              );
+            })}
+          </div>
         </section>
 
         <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">

@@ -38,6 +38,10 @@ export function formatCep(value: string): string {
   return `${digits.slice(0, 5)}-${digits.slice(5)}`;
 }
 
+export function isValidCep(value: string): boolean {
+  return onlyCepDigits(value).length === 8;
+}
+
 function asString(value: unknown): string {
   return typeof value === 'string' ? value : '';
 }

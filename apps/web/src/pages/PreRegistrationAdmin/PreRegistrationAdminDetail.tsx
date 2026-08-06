@@ -93,6 +93,12 @@ export function PreRegistrationAdminDetail() {
     }
   }, [inviteHandoff?.generatedInviteUrl, location.pathname, navigate]);
 
+  useEffect(() => {
+    if (copyState !== 'copied') return;
+    const timeout = setTimeout(() => setCopyState('idle'), 2500);
+    return () => clearTimeout(timeout);
+  }, [copyState]);
+
   const handleFailure = (failure: unknown) => {
     const parsed = parseError(failure);
     if (parsed.code === 'ACTIVE_STUDENT' && parsed.redirectTo) {

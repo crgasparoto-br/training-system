@@ -4,6 +4,7 @@ import {
   PreRegistrationPublicError,
   preRegistrationPublicService,
 } from '../src/modules/pre-registration-public/pre-registration-public.service.js';
+import { preRegistrationPublicAtomicService } from '../src/modules/pre-registration-public/pre-registration-public-atomic.service.js';
 import { hashInviteToken } from '../src/modules/pre-registration-invites/pre-registration-invite-token.js';
 
 const prisma = new PrismaClient();
@@ -578,6 +579,20 @@ describeDatabase('public pre-registration integration', () => {
     expect(completed.status).toBe('PRE_REGISTRATION_COMPLETED');
     expect(completed.privacy.acceptedAt).toBeTruthy();
     expect(completed.nextSteps.every((step) => Boolean(step.href))).toBe(true);
+
+    // The public routes actually serve /processes/:alunoId/complete and
+    // /processes/:alunoId/session through the atomic service, not through
+    // preRegistrationPublicService above. Both build the nextSteps hrefs
+    // independently, so assert the atomic-service copy here too: it drifted
+    // once already and dropped ?alunoId=, which silently broke the "open
+    // Anamnese/PAR-Q" links after a lead completed pre-registration.
+    const atomicSession = await preRegistrationPublicAtomicService.getSession(
+      guardian.id,
+      invited.alunoId
+    );
+    for (const step of atomicSession.nextSteps) {
+      expect(step.href).toContain(`alunoId=${invited.alunoId}`);
+    }
 
     const retried = await preRegistrationPublicService.complete(
       guardian.id,

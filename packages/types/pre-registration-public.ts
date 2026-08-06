@@ -28,6 +28,10 @@ export interface PreRegistrationPublicLandingDTO {
   expiresAt: string;
   greeting?: string;
   tenant: PreRegistrationPublicTenantDTO;
+  lead?: {
+    name?: string;
+    email?: string;
+  };
   stages: Array<{
     key: 'BASIC_DATA' | 'ANAMNESIS' | 'PARQ';
     title: string;

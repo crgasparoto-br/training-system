@@ -410,10 +410,13 @@ describe('issue 247 audit remediations on PostgreSQL', () => {
       ),
     ]);
     const tiedAt = new Date('2026-08-03T12:00:00.000Z');
-    await prisma.adipometryAssessment.updateMany({
-      where: { id: { in: [first.id, second.id] } },
-      data: { createdAt: tiedAt, updatedAt: tiedAt },
-    });
+    await prisma.$transaction([
+      prisma.$executeRaw`SELECT set_config('app.adipometry_actor_user_id', ${fixture.userId}, true)`,
+      prisma.adipometryAssessment.updateMany({
+        where: { id: { in: [first.id, second.id] } },
+        data: { createdAt: tiedAt, updatedAt: tiedAt },
+      }),
+    ]);
     const histories = await Promise.all(
     Array.from({ length: 4 }, () =>
       adipometryService.listAssessments(fixture.contractId, fixture.alunoId)

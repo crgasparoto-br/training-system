@@ -9,7 +9,10 @@ import {
   blockAccessMiddleware,
   screenAccessMiddleware,
 } from '../access-control/access-control.middleware.js';
-import { preRegistrationAdminService } from '../pre-registration-admin/pre-registration-admin.service.js';
+import {
+  PreRegistrationAdminError,
+  preRegistrationAdminService,
+} from '../pre-registration-admin/pre-registration-admin.service.js';
 import {
   assertPreRegistrationAlunoVisible,
 } from './pre-registration-enrollment-access.service.js';
@@ -44,6 +47,11 @@ type AuthUser = {
   contractId?: string;
 };
 
+type DomainError = Error & {
+  code?: string;
+  details?: Record<string, unknown>;
+};
+
 function actorFrom(req: Request): PreRegistrationEnrollmentActor {
   const user = req.user as AuthUser | undefined;
   return {
@@ -63,7 +71,10 @@ function statusFor(error: unknown): number {
     code === 'BLOCKING_DUPLICATE' ||
     code === 'REVIEW_STALE' ||
     code === 'CONCURRENT_MODIFICATION' ||
-    code === 'ACTIVE_STUDENT'
+    code === 'ACTIVE_STUDENT' ||
+    code === 'IDENTIFIER_CONFLICT' ||
+    code === 'POSSIBLE_DUPLICATE' ||
+    code === 'ACTIVE_INVITE_EXISTS'
   ) {
     return 409;
   }
@@ -73,7 +84,7 @@ function statusFor(error: unknown): number {
 
 function respondError(res: Response, error: unknown) {
   const status = statusFor(error);
-  const domain = error as { code?: string; details?: Record<string, unknown> };
+  const domain = error as DomainError;
   if (status === 500) console.error('Erro no fluxo de revisão e matrícula:', error);
   return res.status(status).json({
     success: false,
@@ -130,7 +141,12 @@ preRegistrationEnrollmentRoutes.post('/leads', createAccess, async (req, res, ne
     const data = await preRegistrationAdminService.getDetail(actor, leadId);
     return res.status(201).json({ success: true, data });
   } catch (error) {
-    if (error instanceof PreRegistrationEnrollmentError) return respondError(res, error);
+    if (
+      error instanceof PreRegistrationEnrollmentError ||
+      error instanceof PreRegistrationAdminError
+    ) {
+      return respondError(res, error);
+    }
     return next(error);
   }
 });

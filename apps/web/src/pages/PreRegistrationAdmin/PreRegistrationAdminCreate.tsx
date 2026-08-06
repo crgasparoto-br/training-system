@@ -15,21 +15,7 @@ import { Input } from '../../components/ui/Input';
 import { preRegistrationAdminService } from '../../services/pre-registration-admin.service';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { LeadForm, type LeadFormValues } from './LeadForm';
-
-type SubmissionFailure = {
-  response?: {
-    data?: {
-      error?: string;
-      code?: string;
-    };
-  };
-  message?: string;
-};
-
-function errorMessage(error: unknown) {
-  const value = error as SubmissionFailure;
-  return value.response?.data?.error || value.message || 'Não foi possível criar o lead.';
-}
+import { preRegistrationErrorMessage } from './pre-registration-error';
 
 async function copyGeneratedInvite(url: string) {
   try {
@@ -68,11 +54,6 @@ export function PreRegistrationAdminCreate() {
     setSubmitting(true);
     setError(null);
     try {
-      if (!values.phone.trim() && !values.email.trim()) {
-        setError('Informe pelo menos telefone ou e-mail para criar o lead.');
-        return;
-      }
-
       const duplicateResult = await preRegistrationAdminService.checkDuplicates(values);
       if (duplicateResult.hasBlockingCpfConflict || duplicateResult.classification === 'BLOCKING') {
         setDuplicates(duplicateResult);
@@ -139,14 +120,18 @@ export function PreRegistrationAdminCreate() {
           : undefined,
       });
     } catch (submissionError) {
-      const failure = submissionError as SubmissionFailure;
+      const failure = submissionError as {
+        response?: { data?: { code?: string } };
+      };
       if (
         failure.response?.data?.code === 'DUPLICATE_REVIEW_REQUIRED' ||
         failure.response?.data?.code === 'FORBIDDEN'
       ) {
         setConfirmDuplicate(false);
       }
-      setError(errorMessage(submissionError));
+      setError(
+        preRegistrationErrorMessage(submissionError, 'Não foi possível criar o lead.')
+      );
     } finally {
       setSubmitting(false);
     }

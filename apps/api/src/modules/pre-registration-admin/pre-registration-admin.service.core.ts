@@ -36,6 +36,7 @@ import {
   normalizeStudentEmail,
   normalizeStudentPhone,
   upsertStudentIdentity,
+  StudentIdentityLockTimeoutError,
   type StudentIdentityData,
 } from '../alunos/student-identity.service.js';
 import { preRegistrationInviteAdminService } from '../pre-registration-invites/pre-registration-invite-admin.service.js';
@@ -1026,6 +1027,9 @@ export const preRegistrationAdminService = {
       return this.getDetail(actor, leadId);
     } catch (error) {
       if (error instanceof PreRegistrationAdminError) throw error;
+      if (error instanceof StudentIdentityLockTimeoutError) {
+        throw new PreRegistrationAdminError(error.message, 'CONCURRENT_MODIFICATION');
+      }
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
@@ -1042,6 +1046,15 @@ export const preRegistrationAdminService = {
         throw new PreRegistrationAdminError(
           'O cadastro foi alterado por outra operação. Revise as duplicidades e tente novamente.',
           'CONCURRENT_MODIFICATION'
+        );
+      }
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2003'
+      ) {
+        throw new PreRegistrationAdminError(
+          'Seu contrato não foi encontrado ou não está mais ativo. Saia e entre novamente para atualizar sua sessão.',
+          'PRECONDITION_FAILED'
         );
       }
       throw error;
@@ -1083,6 +1096,13 @@ export const preRegistrationAdminService = {
             DISCARDED: 'Lead descartado',
             REOPENED: 'Lead reaberto',
             CONVERTED_TO_ACTIVE_STUDENT: 'Convertido em aluno ativo',
+            HEALTH_INTAKE_STARTED: 'Anamnese iniciada',
+            HEALTH_INTAKE_SAVED: 'Anamnese salva',
+            HEALTH_INTAKE_COMPLETED: 'Anamnese concluída',
+            PARQ_CONSENT_ACCEPTED: 'Consentimento do PAR-Q aceito',
+            PARQ_COMPLETED: 'PAR-Q concluído',
+            PARQ_CONSENT_REVOKED: 'Consentimento do PAR-Q revogado',
+            PARQ_REVIEWED: 'PAR-Q revisado',
           } as Record<string, string>)[event.eventType] || event.eventType,
         createdAt: event.createdAt.toISOString(),
       })),

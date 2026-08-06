@@ -1245,7 +1245,7 @@ export const adipometryService = {
     actorProfessorId: string,
     input: CreateAdipometryDraftInput
   ) {
-    return prisma.$transaction(async (tx) => {
+    return runSerializableTransaction(async (tx) => {
       await requireAluno(tx, contractId, alunoId);
       const assessmentDate = normalizeAdipometryDateOnly(input.assessmentDate);
       const profile = await getProfile(tx, contractId, alunoId);
@@ -1272,7 +1272,7 @@ export const adipometryService = {
       }
       await tx.adipometryAssessment.update({ where: { id }, data: data as any });
       return getDetail(tx, contractId, id);
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    });
   },
 
   async updateDraft(
@@ -1281,7 +1281,7 @@ export const adipometryService = {
     actorUserId: string,
     input: UpdateAdipometryDraftInput
   ) {
-    return prisma.$transaction(async (tx) => {
+    return runSerializableTransaction(async (tx) => {
       await setActor(tx, actorUserId);
       const current = await getAssessmentRow(tx, contractId, assessmentId, true);
       if (current.status !== 'DRAFT' || current.revisionStatus !== 'DRAFT') {
@@ -1335,7 +1335,7 @@ export const adipometryService = {
       }
       await tx.adipometryAssessment.update({ where: { id: assessmentId }, data: data as any });
       return getDetail(tx, contractId, assessmentId);
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    });
   },
 
   async calculate(
@@ -1344,7 +1344,7 @@ export const adipometryService = {
     actorUserId: string,
     options: { skinfoldCapacityWarningConfirmed?: boolean } = {}
   ) {
-    return prisma.$transaction(async (tx) => {
+    return runSerializableTransaction(async (tx) => {
       await setActor(tx, actorUserId);
       let row = await getAssessmentRow(tx, contractId, assessmentId, true);
       const initial = await buildPreview(tx, contractId, actorUserId, row);
@@ -1372,7 +1372,7 @@ export const adipometryService = {
       });
       row = await getAssessmentRow(tx, contractId, assessmentId, true);
       return buildPreview(tx, contractId, actorUserId, row);
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    });
   },
 
   async finalize(
@@ -1461,7 +1461,7 @@ export const adipometryService = {
     category: AdipometryCorrectionCategory,
     reason: string
   ) {
-    return prisma.$transaction(async (tx) => {
+    return runSerializableTransaction(async (tx) => {
       const current = await getAssessmentRow(tx, contractId, assessmentId, true);
       if (current.revisionStatus !== 'FINALIZED' || current.correctedByAssessmentId) {
         throw new AdipometryServiceError(
@@ -1477,11 +1477,11 @@ export const adipometryService = {
         )
       `);
       return getDetail(tx, contractId, rows[0]?.assessmentId ?? correctionId);
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    });
   },
 
   async cancelCorrection(contractId: string, assessmentId: string, actorUserId: string, reason: string) {
-    return prisma.$transaction(async (tx) => {
+    return runSerializableTransaction(async (tx) => {
       await setActor(tx, actorUserId);
       const row = await getAssessmentRow(tx, contractId, assessmentId, true);
       if (row.revisionStatus !== 'DRAFT' || row.revisionNumber <= 1) {
@@ -1502,7 +1502,7 @@ export const adipometryService = {
         },
       });
       return getDetail(tx, contractId, assessmentId);
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    });
   },
 
   async compare(contractId: string, alunoId: string, assessmentIds?: string[]): Promise<AdipometryComparison & {

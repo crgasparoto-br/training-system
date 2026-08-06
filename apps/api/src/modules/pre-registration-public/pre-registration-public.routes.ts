@@ -44,32 +44,41 @@ const guardianAuthorizationSchema = z.object({
   relationship: z.string().trim().min(2, 'Informe o vínculo com o menor').max(100),
   declarationAccepted: z.literal(true),
 }).strict();
+const nullableTrimmed = <T extends z.ZodTypeAny>(schema: T) =>
+  schema
+    .nullable()
+    .optional()
+    .transform((value) => value ?? undefined);
 const identificationStepDataSchema = z.object({
-  name: z.string().trim().min(3).max(200).optional(),
-  cpf: z.string().trim().max(20).optional(),
-  birthDate: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use a data no formato AAAA-MM-DD').optional(),
-  gender: z.enum(['male', 'female', 'other']).optional(),
+  name: nullableTrimmed(z.string().trim().min(3).max(200)),
+  cpf: nullableTrimmed(z.string().trim().max(20)),
+  birthDate: nullableTrimmed(
+    z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use a data no formato AAAA-MM-DD')
+  ),
+  gender: nullableTrimmed(z.enum(['male', 'female', 'other'])),
 }).strict();
 const contactStepDataSchema = z.object({
-  phone: z.string().trim().max(40).optional(),
-  additionalPhone: z.string().trim().max(40).optional(),
-  email: z.string().trim().email('E-mail inválido').max(320).optional(),
-  additionalEmail: z.string().trim().email('E-mail alternativo inválido').max(320).optional(),
+  phone: nullableTrimmed(z.string().trim().max(40)),
+  additionalPhone: nullableTrimmed(z.string().trim().max(40)),
+  email: nullableTrimmed(z.string().trim().email('E-mail inválido').max(320)),
+  additionalEmail: nullableTrimmed(
+    z.string().trim().email('E-mail alternativo inválido').max(320)
+  ),
 }).strict();
 const addressStepDataSchema = z.object({
-  addressStreet: z.string().trim().max(200).optional(),
-  addressNumber: z.string().trim().max(40).optional(),
-  addressComplement: z.string().trim().max(200).optional(),
-  addressNeighborhood: z.string().trim().max(150).optional(),
-  addressCity: z.string().trim().max(150).optional(),
-  addressState: z.string().trim().max(10).optional(),
-  addressZipCode: z.string().trim().max(20).optional(),
+  addressStreet: nullableTrimmed(z.string().trim().max(200)),
+  addressNumber: nullableTrimmed(z.string().trim().max(40)),
+  addressComplement: nullableTrimmed(z.string().trim().max(200)),
+  addressNeighborhood: nullableTrimmed(z.string().trim().max(150)),
+  addressCity: nullableTrimmed(z.string().trim().max(150)),
+  addressState: nullableTrimmed(z.string().trim().max(10)),
+  addressZipCode: nullableTrimmed(z.string().trim().max(20)),
 }).strict();
 const guardianStepDataSchema = z.object({
-  guardianName: z.string().trim().max(200).optional(),
-  guardianCpf: z.string().trim().max(20).optional(),
-  guardianPhone: z.string().trim().max(40).optional(),
-  guardianEmail: z.string().trim().email('E-mail do responsável inválido').max(320).optional(),
+  guardianName: nullableTrimmed(z.string().trim().max(200)),
+  guardianCpf: nullableTrimmed(z.string().trim().max(20)),
+  guardianPhone: nullableTrimmed(z.string().trim().max(40)),
+  guardianEmail: nullableTrimmed(z.string().trim().email('E-mail do responsável inválido').max(320)),
 }).strict();
 const saveStepSchema = z.discriminatedUnion('step', [
   z.object({
@@ -169,7 +178,7 @@ function handleError(res: Response, error: unknown) {
   });
 }
 
-function parseInput<T>(schema: z.ZodType<T>, value: unknown): T {
+function parseInput<T>(schema: z.ZodType<T, z.ZodTypeDef, unknown>, value: unknown): T {
   const validation = schema.safeParse(value);
   if (!validation.success) {
     throw new PreRegistrationPublicError(
