@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type {
   AdipometryAssessmentDetail,
@@ -137,8 +137,15 @@ function protocolLabel(assessment: AdipometryAssessmentSummary): string {
   return `${assessment.protocolCode} v${assessment.protocolVersion}`;
 }
 
+function correctionStateLabel(assessment: AdipometryAssessmentSummary): string | null {
+  if (assessment.revisionStatus !== 'FINALIZED' || assessment.revisionNumber <= 1) return null;
+  return `Avaliação corrigida — revisão ${assessment.revisionNumber} vigente`;
+}
+
 function revisionStateLabel(assessment: AdipometryAssessmentSummary): string {
-  if (assessment.revisionStatus === 'FINALIZED') return 'Concluída';
+  if (assessment.revisionStatus === 'FINALIZED') {
+    return correctionStateLabel(assessment) ?? 'Concluída';
+  }
   if (assessment.revisionStatus === 'SUPERSEDED') return 'Substituída';
   if (assessment.revisionStatus === 'CANCELLED') return 'Cancelada';
   if (assessment.revisionStatus === 'VOIDED') return 'Invalidada';
@@ -192,6 +199,8 @@ export function AlunoAdipometryEvolutionCard({
   const [comparison, setComparison] = useState<AdipometryComparison | null>(null);
   const [comparisonLoading, setComparisonLoading] = useState(false);
   const [comparisonError, setComparisonError] = useState<string | null>(null);
+  const loadRequestIdRef = useRef(0);
+  const comparisonRequestIdRef = useRef(0);
 
   const completedAssessments = useMemo(
     () => adipometryAssessments.filter(isCurrentCompleted).sort(compareByAssessmentDate),
@@ -213,6 +222,12 @@ export function AlunoAdipometryEvolutionCard({
 
   const loadAdipometry = useCallback(async () => {
     if (!canView) return;
+
+    const requestId = ++loadRequestIdRef.current;
+    comparisonRequestIdRef.current += 1;
+    setComparison(null);
+    setComparisonLoading(false);
+    setComparisonError(null);
     setLoading(true);
     setError(null);
 
@@ -221,10 +236,13 @@ export function AlunoAdipometryEvolutionCard({
         adipometryService.listAssessments(alunoId),
         adipometryService.listResponsibleProfessors().catch(() => []),
       ]);
+      if (requestId !== loadRequestIdRef.current) return;
+
       const sorted = [...loadedAssessments].sort(compareByAssessmentDate);
       const completed = sorted.filter(isCurrentCompleted);
       const latest = completed[0] ?? null;
       const detail = latest ? await adipometryService.getAssessment(latest.id) : null;
+      if (requestId !== loadRequestIdRef.current) return;
 
       setAdipometryAssessments(sorted);
       setLatestDetail(detail);
@@ -232,12 +250,13 @@ export function AlunoAdipometryEvolutionCard({
         Object.fromEntries(responsibleDirectory.map((responsible) => [responsible.id, responsible.name]))
       );
     } catch {
+      if (requestId !== loadRequestIdRef.current) return;
       setAdipometryAssessments([]);
       setLatestDetail(null);
       setComparison(null);
       setError('Não foi possível carregar a adipometria deste aluno. As demais áreas da Central continuam disponíveis.');
     } finally {
-      setLoading(false);
+      if (requestId === loadRequestIdRef.current) setLoading(false);
     }
   }, [alunoId, canView]);
 
@@ -245,11 +264,18 @@ export function AlunoAdipometryEvolutionCard({
     void loadAdipometry();
   }, [loadAdipometry, refreshToken]);
 
+  useEffect(() => () => {
+    loadRequestIdRef.current += 1;
+    comparisonRequestIdRef.current += 1;
+  }, []);
+
   useEffect(() => {
     const availableIds = new Set(completedAssessments.map((item) => item.id));
     const validSelection = selectedAssessmentIds.filter((id) => availableIds.has(id));
     if (validSelection.length === selectedAssessmentIds.length) return;
 
+    comparisonRequestIdRef.current += 1;
+    setComparisonLoading(false);
     setSelectedAssessmentIds(validSelection);
     setSelectionNotice('Uma avaliação selecionada deixou de estar disponível e foi removida da comparação.');
     setComparison(null);
@@ -306,11 +332,14 @@ export function AlunoAdipometryEvolutionCard({
   const latestResponsible = latestSummary
     ? responsibleNames[latestSummary.professorId] ?? 'Responsável não disponível'
     : 'Responsável não disponível';
+  const latestCorrectionState = latestSummary ? correctionStateLabel(latestSummary) : null;
   const latestResults = latestDetail?.results;
   const latestMeasurements = latestDetail?.measurements;
   const newAdipometryPath = `/protocolo-avaliacao-fisica/adipometria?alunoId=${encodeURIComponent(alunoId)}`;
 
   const toggleComparisonSelection = (assessmentId: string) => {
+    comparisonRequestIdRef.current += 1;
+    setComparisonLoading(false);
     setSelectionNotice(null);
     setComparison(null);
     setComparisonError(null);
@@ -326,16 +355,21 @@ export function AlunoAdipometryEvolutionCard({
 
   const compareSelected = async () => {
     if (selectedAssessmentIds.length !== 2) return;
+
+    const requestId = ++comparisonRequestIdRef.current;
+    const assessmentIds = [...selectedAssessmentIds];
     setComparisonLoading(true);
     setComparisonError(null);
     try {
-      const loaded = await adipometryService.compare(alunoId, selectedAssessmentIds);
+      const loaded = await adipometryService.compare(alunoId, assessmentIds);
+      if (requestId !== comparisonRequestIdRef.current) return;
       setComparison(loaded);
     } catch {
+      if (requestId !== comparisonRequestIdRef.current) return;
       setComparison(null);
       setComparisonError('Não foi possível comparar as avaliações selecionadas. Revise a seleção e tente novamente.');
     } finally {
-      setComparisonLoading(false);
+      if (requestId === comparisonRequestIdRef.current) setComparisonLoading(false);
     }
   };
 
@@ -388,6 +422,11 @@ export function AlunoAdipometryEvolutionCard({
                     <p className="mt-1 text-xs text-muted-foreground">
                       {formatDateBR(latestSummary.assessmentDate)} • {latestSummary.code} • {latestResponsible} • {protocolLabel(latestSummary)}
                     </p>
+                    {latestCorrectionState && (
+                      <p className="mt-2 text-xs font-semibold text-foreground">
+                        {latestCorrectionState}
+                      </p>
+                    )}
                   </div>
                   <Link to={assessmentPath(alunoId, latestSummary.id)}>
                     <Button variant="outline" size="sm">Abrir detalhe</Button>
@@ -499,7 +538,7 @@ export function AlunoAdipometryEvolutionCard({
                         <span className="text-sm text-foreground">
                           <span className="font-semibold">{assessment.code}</span>
                           <span className="block text-xs text-muted-foreground">
-                            {formatDateBR(assessment.assessmentDate)} • {protocolLabel(assessment)}
+                            {formatDateBR(assessment.assessmentDate)} • {protocolLabel(assessment)} • {revisionStateLabel(assessment)}
                           </span>
                         </span>
                       </label>
