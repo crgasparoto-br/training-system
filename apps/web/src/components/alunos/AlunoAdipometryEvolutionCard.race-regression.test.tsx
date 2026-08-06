@@ -6,7 +6,6 @@ import type {
   AdipometryAssessmentSummary,
   AdipometryComparison,
 } from '@corrida/types';
-import { adipometryService } from '../../services/adipometry.service';
 import { AlunoAdipometryEvolutionCard } from './AlunoAdipometryEvolutionCard';
 
 type MockUser = {
@@ -26,21 +25,21 @@ vi.mock('../../stores/useAuthStore', () => ({
     selector({ user: authState.user }),
 }));
 
-vi.mock('../../services/adipometry.service', () => ({
-  adipometryService: {
-    listAssessments: vi.fn(),
-    getAssessment: vi.fn(),
-    listResponsibleProfessors: vi.fn(),
-    compare: vi.fn(),
-  },
+const adipometryServiceMock = vi.hoisted(() => ({
+  listAssessments: vi.fn(),
+  getAssessment: vi.fn(),
+  listResponsibleProfessors: vi.fn(),
+  compare: vi.fn(),
 }));
 
-const listAssessmentsMock = vi.mocked(adipometryService.listAssessments);
-const getAssessmentMock = vi.mocked(adipometryService.getAssessment);
-const listResponsibleProfessorsMock = vi.mocked(
-  adipometryService.listResponsibleProfessors
-);
-const compareMock = vi.mocked(adipometryService.compare);
+vi.mock('../../services/adipometry.service', () => ({
+  adipometryService: adipometryServiceMock,
+}));
+
+const listAssessmentsMock = adipometryServiceMock.listAssessments;
+const getAssessmentMock = adipometryServiceMock.getAssessment;
+const listResponsibleProfessorsMock = adipometryServiceMock.listResponsibleProfessors;
+const compareMock = adipometryServiceMock.compare;
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -99,7 +98,7 @@ function detail(
 function comparison(
   previous: AdipometryAssessmentSummary,
   current: AdipometryAssessmentSummary
-): AdipometryComparison {
+): AdipmetryComparison {
   return {
     previous: {
       assessment: previous,
@@ -125,7 +124,7 @@ function renderCard() {
 
 describe('AlunoAdipometryEvolutionCard async regressions', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     authState.user = {
       type: 'professor',
       accessControl: { isMaster: true, permissions: [] },
