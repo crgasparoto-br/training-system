@@ -20,6 +20,7 @@ import {
   HeartPulse,
   Loader2,
   LockKeyhole,
+  LogOut,
   MapPin,
   ShieldCheck,
   UserRound,
@@ -279,8 +280,30 @@ function Field({
   );
 }
 
-function PublicShell({ children }: { children: ReactNode }) {
-  return <div className="min-h-screen bg-slate-100 px-4 py-5 text-slate-950 sm:px-6 sm:py-8">{children}</div>;
+function PublicShell({
+  children,
+  onLogout,
+}: {
+  children: ReactNode;
+  onLogout?: () => void;
+}) {
+  return (
+    <div className="min-h-screen bg-slate-100 px-4 py-5 text-slate-950 sm:px-6 sm:py-8">
+      {onLogout ? (
+        <div className="mx-auto mb-4 flex max-w-6xl justify-end">
+          <button
+            type="button"
+            onClick={onLogout}
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            <LogOut className="h-4 w-4" aria-hidden="true" />
+            Encerrar sessão
+          </button>
+        </div>
+      ) : null}
+      {children}
+    </div>
+  );
 }
 
 function FullPageLoading({ text }: { text: string }) {
@@ -508,12 +531,14 @@ function PublicLanding({ token }: { token: string }) {
 function ProcessSelector({
   processes,
   onSelect,
+  onLogout,
 }: {
   processes: PreRegistrationProcessSummaryDTO[];
   onSelect: (process: PreRegistrationProcessSummaryDTO) => void;
+  onLogout: () => void;
 }) {
   return (
-    <PublicShell>
+    <PublicShell onLogout={onLogout}>
       <main className="mx-auto w-full max-w-4xl">
         <header className="mb-6">
           <p className="text-sm font-medium text-blue-700">Pré-matrícula</p>
@@ -665,7 +690,7 @@ function ConflictResolutionPanel({
 function AuthenticatedFlow() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, logout } = useAuthStore();
   const [processes, setProcesses] = useState<PreRegistrationProcessSummaryDTO[]>([]);
   const [selectedAlunoId, setSelectedAlunoId] = useState<string | null>(null);
   const [session, setSession] = useState<PreRegistrationSessionDTO | null>(null);
@@ -801,6 +826,11 @@ function AuthenticatedFlow() {
     }
     void loadProcesses();
   }, [isAuthenticated, loadProcesses, navigate]);
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login', { replace: true });
+  };
 
   const visibleSteps = useMemo(() => (session ? stepsForSession(session) : STEPS), [session]);
   const currentStep =
@@ -1076,7 +1106,7 @@ function AuthenticatedFlow() {
 
   if (processes.length === 0) {
     return (
-      <PublicShell>
+      <PublicShell onLogout={handleLogout}>
         <div className="mx-auto max-w-lg rounded-2xl bg-white p-6 text-center shadow-sm">
           <h1 className="text-2xl font-semibold">Não foi possível abrir o pré-cadastro</h1>
           <p className="mt-2 text-slate-600">
@@ -1095,13 +1125,19 @@ function AuthenticatedFlow() {
   }
 
   if (!selectedAlunoId) {
-    return <ProcessSelector processes={processes} onSelect={(process) => void openProcess(process)} />;
+    return (
+      <ProcessSelector
+        processes={processes}
+        onSelect={(process) => void openProcess(process)}
+        onLogout={handleLogout}
+      />
+    );
   }
 
   if (selectedProcess?.requiresGuardianConfirmation) {
     const awaitingApproval = Boolean(selectedProcess.guardianAuthorizationRelationship);
     return (
-      <PublicShell>
+      <PublicShell onLogout={handleLogout}>
         <main className="mx-auto max-w-2xl rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-9">
           <ShieldCheck className="h-11 w-11 text-blue-600" aria-hidden="true" />
           <p className="mt-5 text-sm font-medium text-blue-700">Acesso de responsável</p>
@@ -1218,7 +1254,7 @@ function AuthenticatedFlow() {
 
   if (!session) {
     return (
-      <PublicShell>
+      <PublicShell onLogout={handleLogout}>
         <div className="mx-auto max-w-lg rounded-2xl bg-white p-6 text-center shadow-sm">
           <h1 className="text-2xl font-semibold">Não foi possível abrir o pré-cadastro</h1>
           <p className="mt-2 text-slate-600">{error}</p>
@@ -1236,7 +1272,7 @@ function AuthenticatedFlow() {
 
   if (session.status === 'PRE_REGISTRATION_COMPLETED') {
     return (
-      <PublicShell>
+      <PublicShell onLogout={handleLogout}>
         <main className="mx-auto w-full max-w-4xl space-y-6">
           <section className="rounded-3xl border border-emerald-200 bg-white p-6 shadow-sm sm:p-9">
             <CheckCircle2 className="h-12 w-12 text-emerald-600" aria-hidden="true" />
@@ -1310,7 +1346,7 @@ function AuthenticatedFlow() {
   );
 
   return (
-    <PublicShell>
+    <PublicShell onLogout={handleLogout}>
       <main className="mx-auto grid w-full max-w-6xl gap-5 lg:grid-cols-[280px_1fr]">
         <aside className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:sticky lg:top-5 lg:self-start">
           <div className="flex items-center gap-3 border-b border-slate-100 pb-4">

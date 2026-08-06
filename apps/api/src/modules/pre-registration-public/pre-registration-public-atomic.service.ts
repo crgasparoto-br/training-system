@@ -397,7 +397,7 @@ async function buildSessionInTransaction(
           : onboarding.healthModuleStatus === 'IN_PROGRESS'
             ? 'CONTINUE'
             : 'START',
-      href: '/pre-cadastro/anamnese',
+      href: `/pre-cadastro/anamnese?alunoId=${encodeURIComponent(access.alunoId)}`,
     },
     {
       key: 'PARQ',
@@ -411,7 +411,7 @@ async function buildSessionInTransaction(
           : onboarding.parqModuleStatus === 'IN_PROGRESS'
             ? 'CONTINUE'
             : 'START',
-      href: '/pre-cadastro/par-q',
+      href: `/pre-cadastro/par-q?alunoId=${encodeURIComponent(access.alunoId)}`,
     },
   ];
 

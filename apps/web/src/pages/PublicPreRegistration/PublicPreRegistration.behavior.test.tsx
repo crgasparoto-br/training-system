@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   claim: vi.fn(),
   registerAndClaim: vi.fn(),
   login: vi.fn(),
+  logout: vi.fn(),
   listProcesses: vi.fn(),
   getSession: vi.fn(),
   saveStep: vi.fn(),
@@ -31,6 +32,7 @@ vi.mock('../../stores/useAuthStore', () => ({
   useAuthStore: () => ({
     isAuthenticated: true,
     login: mocks.login,
+    logout: mocks.logout,
     user: { id: 'guardian-1', email: 'guardian@example.com', type: 'aluno' },
   }),
 }));
@@ -103,6 +105,7 @@ describe('PublicPreRegistration - resiliência, seleção e autorização', () =
     mocks.claim.mockReset();
     mocks.registerAndClaim.mockReset();
     mocks.login.mockReset();
+    mocks.logout.mockReset();
     mocks.listProcesses.mockReset();
     mocks.getSession.mockReset();
     mocks.saveStep.mockReset();
@@ -111,6 +114,7 @@ describe('PublicPreRegistration - resiliência, seleção e autorização', () =
     mocks.lookupCep.mockReset();
     mocks.routeToken = undefined;
     mocks.login.mockResolvedValue(undefined);
+    mocks.logout.mockResolvedValue(undefined);
     mocks.listProcesses.mockResolvedValue([baseProcess]);
     mocks.getSession.mockResolvedValue(baseSession);
     window.localStorage.clear();
@@ -505,5 +509,19 @@ describe('PublicPreRegistration - resiliência, seleção e autorização', () =
     expect(links).toHaveLength(2);
     expect(links[0]).toHaveAttribute('href', '/pre-cadastro/anamnese?alunoId=student-1');
     expect(links[1]).toHaveAttribute('href', '/pre-cadastro/par-q?alunoId=student-1');
+  });
+
+  it('lets the lead end their session from the pre-registration screen', async () => {
+    render(
+      <MemoryRouter>
+        <PublicPreRegistration />
+      </MemoryRouter>
+    );
+
+    await screen.findByLabelText(/Nome completo/i);
+    fireEvent.click(screen.getByRole('button', { name: /Encerrar sessão/i }));
+
+    await waitFor(() => expect(mocks.logout).toHaveBeenCalled());
+    expect(mocks.navigate).toHaveBeenCalledWith('/login', { replace: true });
   });
 });
