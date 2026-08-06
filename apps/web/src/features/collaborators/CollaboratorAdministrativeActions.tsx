@@ -63,7 +63,8 @@ export function CollaboratorAdministrativeActions({
       {hasVisibleAdministrativeContent ? (
         <CollaboratorSection
           title="Ações administrativas"
-          description="Disponíveis apenas na edição e protegidas por permissão e escopo do contrato."
+          description="Gerencie validação, acesso e situação do colaborador."
+          defaultOpen={Boolean(successMessage || temporaryPassword)}
         >
           <div className="space-y-3">
             {successMessage ? (
@@ -76,11 +77,12 @@ export function CollaboratorAdministrativeActions({
                 Senha temporária: <strong>{temporaryPassword}</strong>. Oriente o colaborador a alterá-la no próximo acesso.
               </div>
             ) : null}
-            <div className="flex flex-wrap gap-2">
+            <div className="grid gap-2 sm:flex sm:flex-wrap">
               {canValidateLegal ? (
                 <Button
                   type="button"
                   variant="outline"
+                  className="w-full sm:w-auto"
                   disabled={loading || !hasLegalFinancialData}
                   onClick={onValidateLegal}
                 >
@@ -88,17 +90,17 @@ export function CollaboratorAdministrativeActions({
                 </Button>
               ) : null}
               {canShowResetPassword ? (
-                <Button type="button" variant="outline" disabled={loading} onClick={onResetPassword}>
+                <Button type="button" variant="outline" className="w-full sm:w-auto" disabled={loading} onClick={onResetPassword}>
                   <KeyRound size={16} /> Redefinir senha
                 </Button>
               ) : null}
               {canShowActivate ? (
-                <Button type="button" variant="outline" disabled={loading} onClick={onActivate}>
+                <Button type="button" variant="outline" className="w-full sm:w-auto" disabled={loading} onClick={onActivate}>
                   <UserCheck size={16} /> Reativar
                 </Button>
               ) : null}
               {canShowDeactivate ? (
-                <Button type="button" variant="outline" disabled={loading} onClick={onDeactivate}>
+                <Button type="button" variant="outline" className="w-full sm:w-auto" disabled={loading} onClick={onDeactivate}>
                   <UserX size={16} /> Desativar
                 </Button>
               ) : null}
