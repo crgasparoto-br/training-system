@@ -542,3 +542,5 @@ try {
 } finally {
   await browser.close();
 }
+
+await import('./capture-adipometry-central-visual.mjs');

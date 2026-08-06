@@ -1,6 +1,8 @@
 import { useState } from 'react';
+import { useParams } from 'react-router-dom';
 import { Check, ChevronDown } from 'lucide-react';
 import type { AccessBlockKey } from '@corrida/types';
+import { AlunoAdipometryEvolutionTabSection } from './AlunoAdipometryEvolutionTabSection';
 
 type AlunoDetailsTab =
   | 'resumo'
@@ -133,6 +135,7 @@ export function getTabBlockKey(tab: AlunoDetailsTab): AccessBlockKey | undefined
 }
 
 export function AlunoDetailsTabs({ activeTab, onChange, visibleTabs }: AlunoDetailsTabsProps) {
+  const { id: alunoId } = useParams<{ id: string }>();
   const [openGroupId, setOpenGroupId] = useState<AlunoDetailsTabGroup | null>(null);
   const tabsToRender = visibleTabs
     ? tabs.filter((tab) => visibleTabs.includes(tab.id))
@@ -154,90 +157,98 @@ export function AlunoDetailsTabs({ activeTab, onChange, visibleTabs }: AlunoDeta
   }
 
   return (
-    <nav
-      id="aluno-details-tabs"
-      aria-label="Menu da consulta do aluno"
-      className="relative z-20 rounded-lg border border-border bg-card shadow-[var(--shadow-soft)]"
-    >
-      <div role="menubar" aria-label="Blocos da consulta do aluno" className="flex flex-wrap items-center gap-1 border-b border-border px-2 py-1">
-        {groupedTabs.map((group) => {
-          const active = activeGroup.id === group.id;
-          const open = openGroupId === group.id;
+    <>
+      <nav
+        id="aluno-details-tabs"
+        aria-label="Menu da consulta do aluno"
+        className="relative z-20 rounded-lg border border-border bg-card shadow-[var(--shadow-soft)]"
+      >
+        <div role="menubar" aria-label="Blocos da consulta do aluno" className="flex flex-wrap items-center gap-1 border-b border-border px-2 py-1">
+          {groupedTabs.map((group) => {
+            const active = activeGroup.id === group.id;
+            const open = openGroupId === group.id;
 
-          return (
-            <div key={group.id} className="relative">
-              <button
-                type="button"
-                role="menuitem"
-                id={`aluno-details-menu-${group.id}`}
-                aria-haspopup="menu"
-                aria-expanded={open}
-                aria-controls={`aluno-details-submenu-${group.id}`}
-                title={group.description}
-                onClick={() =>
-                  setOpenGroupId((currentGroupId) =>
-                    currentGroupId === group.id ? null : group.id
-                  )
-                }
-                className={`inline-flex h-9 items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
-                  open
-                    ? 'bg-accent text-accent-foreground'
-                    : active
-                      ? 'bg-primary/10 text-foreground'
-                      : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                }`}
-              >
-                {group.label}
-                <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
-              </button>
-
-              {open && (
-                <div
-                  id={`aluno-details-submenu-${group.id}`}
-                  role="menu"
-                  aria-labelledby={`aluno-details-menu-${group.id}`}
-                  className="absolute left-0 top-full z-50 mt-1 w-[340px] rounded-lg border border-border bg-popover p-1 shadow-[var(--shadow-card)]"
+            return (
+              <div key={group.id} className="relative">
+                <button
+                  type="button"
+                  role="menuitem"
+                  id={`aluno-details-menu-${group.id}`}
+                  aria-haspopup="menu"
+                  aria-expanded={open}
+                  aria-controls={`aluno-details-submenu-${group.id}`}
+                  title={group.description}
+                  onClick={() =>
+                    setOpenGroupId((currentGroupId) =>
+                      currentGroupId === group.id ? null : group.id
+                    )
+                  }
+                  className={`inline-flex h-9 items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+                    open
+                      ? 'bg-accent text-accent-foreground'
+                      : active
+                        ? 'bg-primary/10 text-foreground'
+                        : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                  }`}
                 >
-                  {group.tabs.map((tab) => {
-                    const selected = activeTab === tab.id;
+                  {group.label}
+                  <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
 
-                    return (
-                      <button
-                        key={tab.id}
-                        type="button"
-                        role="menuitem"
-                        id={`aluno-details-tab-${tab.id}`}
-                        aria-current={selected ? 'page' : undefined}
-                        title={tab.description}
-                        onClick={() => {
-                          onChange(tab.id);
-                          setOpenGroupId(null);
-                        }}
-                        className={`flex w-full items-start gap-3 rounded-md px-3 py-2.5 text-left transition-colors ${
-                          selected
-                            ? 'bg-primary/10 text-foreground'
-                            : 'text-popover-foreground hover:bg-accent hover:text-accent-foreground'
-                        }`}
-                      >
-                        <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border border-border bg-card">
-                          {selected && <Check className="h-3.5 w-3.5 text-primary" aria-hidden="true" />}
-                        </span>
-                        <span className="min-w-0">
-                          <span className="block text-sm font-semibold leading-5">{tab.label}</span>
-                          <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">
-                            {tab.description}
+                {open && (
+                  <div
+                    id={`aluno-details-submenu-${group.id}`}
+                    role="menu"
+                    aria-labelledby={`aluno-details-menu-${group.id}`}
+                    className="absolute left-0 top-full z-50 mt-1 w-[340px] rounded-lg border border-border bg-popover p-1 shadow-[var(--shadow-card)]"
+                  >
+                    {group.tabs.map((tab) => {
+                      const selected = activeTab === tab.id;
+
+                      return (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          role="menuitem"
+                          id={`aluno-details-tab-${tab.id}`}
+                          aria-current={selected ? 'page' : undefined}
+                          title={tab.description}
+                          onClick={() => {
+                            onChange(tab.id);
+                            setOpenGroupId(null);
+                          }}
+                          className={`flex w-full items-start gap-3 rounded-md px-3 py-2.5 text-left transition-colors ${
+                            selected
+                              ? 'bg-primary/10 text-foreground'
+                              : 'text-popover-foreground hover:bg-accent hover:text-accent-foreground'
+                          }`}
+                        >
+                          <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border border-border bg-card">
+                            {selected && <Check className="h-3.5 w-3.5 text-primary" aria-hidden="true" />}
                           </span>
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </nav>
+                          <span className="min-w-0">
+                            <span className="block text-sm font-semibold leading-5">{tab.label}</span>
+                            <span className="mt-0.5 block text-xs leading-5 text-muted-foreground">
+                              {tab.description}
+                            </span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </nav>
+
+      {activeTab === 'avaliacoes-fisicas' && alunoId && (
+        <div className="mt-6">
+          <AlunoAdipometryEvolutionTabSection alunoId={alunoId} />
+        </div>
+      )}
+    </>
   );
 }
 

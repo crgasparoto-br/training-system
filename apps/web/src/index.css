@@ -262,4 +262,34 @@
     text-overflow: clip;
     overflow-wrap: anywhere;
   }
+
+  .lucide-mail + span,
+  .lucide-phone + span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  @media (max-width: 639px) {
+    main > .space-y-6 > [class~='flex'][class~='items-center'][class~='justify-between']:first-child {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    main > .space-y-6 > [class~='flex'][class~='items-center'][class~='justify-between']:first-child > [class~='flex'],
+    main > .space-y-6 > [class~='flex'][class~='items-center'][class~='justify-between']:first-child > [class~='flex'] > [class~='flex'],
+    main > .space-y-6 > [class~='flex'][class~='items-center'][class~='justify-between']:first-child h1 {
+      min-width: 0;
+      max-width: 100%;
+    }
+
+    main > .space-y-6 > [class~='flex'][class~='items-center'][class~='justify-between']:first-child h1 {
+      overflow-wrap: anywhere;
+    }
+
+    main > .space-y-6 > [class~='flex'][class~='items-center'][class~='justify-between']:first-child > [class~='flex']:last-child {
+      flex-wrap: wrap;
+      width: 100%;
+    }
+  }
 }

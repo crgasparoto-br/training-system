@@ -6,6 +6,7 @@ import type {
   AdipometryResponsibleProfessor,
 } from '@corrida/types';
 import { canAccessBlock } from '../../access/access-control';
+import { canMutateAdipometryAssessment } from '../../access/adipometry-mutation-access';
 import { Button } from '../../components/ui/Button';
 import { adipometryService } from '../../services/adipometry.service';
 import { useAuthStore } from '../../stores/useAuthStore';
@@ -52,7 +53,10 @@ export function AdipometryScreen() {
   const canManage = canAccessBlock(user, 'physicalAssessment.adpt.actions.manage');
   const canCorrect = canAccessBlock(user, 'physicalAssessment.adpt.actions.correctCompleted');
   const isCorrectionDraft = Boolean(current && current.revisionStatus === 'DRAFT' && current.revisionNumber > 1);
-  const canMutate = canManage || (isCorrectionDraft && canCorrect);
+  const canMutate = canMutateAdipometryAssessment(current, {
+    canManage,
+    canCorrectCompleted: canCorrect,
+  });
   const defaultResponsibleProfessorId = user?.professor?.id ?? '';
   const contextBusy = loading || referencesLoading || !responsibleDirectoryReady;
   const currentResponsibleEligible = Boolean(

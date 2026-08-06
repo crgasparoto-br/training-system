@@ -7,10 +7,23 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../
 const prisma = new PrismaClient();
 const triggerName = 'issue_248_upsert_access_permission';
 const functionName = 'issue_248_upsert_access_permission';
+const onboardingTriggerName = 'issue_249_insert_student_onboarding_process';
+const onboardingFunctionName = 'issue_249_insert_student_onboarding_process';
 const puppeteerPreload = path.join(
   repoRoot,
   'apps/api/scripts/verify-issue-248-puppeteer-preload.mjs'
 );
+
+const verifiers = [
+  {
+    label: 'fluxo guiado ADPT da Issue 248',
+    script: 'scripts/verify-issue-248-adipometry-browser.ts',
+  },
+  {
+    label: 'Central ADPT da Issue 249',
+    script: 'scripts/verify-issue-249-adipometry-central-browser.ts',
+  },
+] as const;
 
 async function installFixturePermissionUpsert(): Promise<void> {
   await prisma.$executeRawUnsafe(
@@ -60,6 +73,71 @@ async function removeFixturePermissionUpsert(): Promise<void> {
   await prisma.$executeRawUnsafe(
     `DROP FUNCTION IF EXISTS "${functionName}"()`
   );
+}
+
+async function installFixtureOnboardingProcess(): Promise<void> {
+  await prisma.$executeRawUnsafe(
+    `DROP TRIGGER IF EXISTS "${onboardingTriggerName}" ON "Aluno"`
+  );
+  await prisma.$executeRawUnsafe(
+    `DROP FUNCTION IF EXISTS "${onboardingFunctionName}"()`
+  );
+  await prisma.$executeRawUnsafe(`
+    CREATE FUNCTION "${onboardingFunctionName}"()
+    RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1
+        FROM "Contract" contract
+        WHERE contract.id = NEW."contractId"
+          AND contract.document LIKE '248-browser-%'
+      ) THEN
+        INSERT INTO "StudentOnboardingProcess" (
+          "id",
+          "alunoId",
+          "contractId",
+          "createdAt",
+          "updatedAt"
+        ) VALUES (
+          'adpt-browser-onboarding-' || NEW.id,
+          NEW.id,
+          NEW."contractId",
+          CURRENT_TIMESTAMP,
+          CURRENT_TIMESTAMP
+        )
+        ON CONFLICT ("alunoId") DO NOTHING;
+      END IF;
+      RETURN NEW;
+    END;
+    $$
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TRIGGER "${onboardingTriggerName}"
+    AFTER INSERT ON "Aluno"
+    FOR EACH ROW
+    EXECUTE FUNCTION "${onboardingFunctionName}"()
+  `);
+}
+
+async function removeFixtureOnboardingProcess(): Promise<void> {
+  await prisma.$executeRawUnsafe(
+    `DROP TRIGGER IF EXISTS "${onboardingTriggerName}" ON "Aluno"`
+  );
+  await prisma.$executeRawUnsafe(
+    `DROP FUNCTION IF EXISTS "${onboardingFunctionName}"()`
+  );
+}
+
+async function installFixtureSupport(): Promise<void> {
+  await installFixturePermissionUpsert();
+  await installFixtureOnboardingProcess();
+}
+
+async function removeFixtureSupport(): Promise<void> {
+  await removeFixtureOnboardingProcess();
+  await removeFixturePermissionUpsert();
 }
 
 function assertFixtureCleanupAllowed(): void {
@@ -216,7 +294,7 @@ async function removeResidualBrowserFixture(): Promise<void> {
   }
 }
 
-function runBrowserVerifier(): void {
+function runBrowserVerifier(script: string, label: string): void {
   const inheritedNodeOptions = process.env.NODE_OPTIONS?.trim();
   const nodeOptions = [
     inheritedNodeOptions,
@@ -230,7 +308,7 @@ function runBrowserVerifier(): void {
       '@corrida/api',
       'exec',
       'tsx',
-      'scripts/verify-issue-248-adipometry-browser.ts',
+      script,
     ],
     {
       cwd: repoRoot,
@@ -244,13 +322,19 @@ function runBrowserVerifier(): void {
 
   if (result.error) throw result.error;
   if (result.signal) {
-    throw new Error(`Verificador ADPT terminou pelo sinal ${result.signal}.`);
+    throw new Error(`${label} terminou pelo sinal ${result.signal}.`);
   }
   if (result.status !== 0) {
     throw new Error(
-      `Verificador ADPT terminou com status ${result.status ?? 'desconhecido'}.`
+      `${label} terminou com status ${result.status ?? 'desconhecido'}.`
     );
   }
+}
+
+async function prepareVerifier(): Promise<void> {
+  await removeFixtureSupport();
+  await removeResidualBrowserFixture();
+  await installFixtureSupport();
 }
 
 async function main(): Promise<void> {
@@ -258,16 +342,16 @@ async function main(): Promise<void> {
   let cleanupError: unknown;
 
   try {
-    await removeFixturePermissionUpsert();
-    await removeResidualBrowserFixture();
-    await installFixturePermissionUpsert();
-    runBrowserVerifier();
+    for (const verifier of verifiers) {
+      await prepareVerifier();
+      runBrowserVerifier(verifier.script, verifier.label);
+    }
   } catch (error) {
     executionError = error;
   }
 
   try {
-    await removeFixturePermissionUpsert();
+    await removeFixtureSupport();
     await removeResidualBrowserFixture();
   } catch (error) {
     cleanupError = error;
@@ -284,7 +368,7 @@ async function main(): Promise<void> {
   if (executionError && cleanupError) {
     throw new AggregateError(
       [executionError, cleanupError],
-      'O verificador ADPT falhou e a limpeza da fixture também falhou.'
+      'Os verificadores ADPT falharam e a limpeza da fixture também falhou.'
     );
   }
   if (executionError) throw executionError;
