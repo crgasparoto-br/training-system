@@ -33,7 +33,7 @@ describe('SettingsHourlyRateLevels', () => {
     vi.mocked(hourlyRateLevelService.remove).mockResolvedValue([]);
   });
 
-  it('identifica os campos da tabela pelo nível e reserva a tabela para desktop amplo', async () => {
+  it('organiza as faixas para comparação no desktop amplo', async () => {
     render(<SettingsHourlyRateLevels />);
 
     await waitFor(() => {
@@ -48,6 +48,11 @@ describe('SettingsHourlyRateLevels', () => {
     ).toBeInTheDocument();
 
     expect(screen.getByRole('table').parentElement).toHaveClass('xl:block');
+    expect(screen.getByText('Faixa de valor/hora')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: `${settingsHourlyRateLevelsCopy.moveUp} Bronze` })).toBeDisabled();
+    expect(screen.getByRole('button', { name: `${settingsHourlyRateLevelsCopy.moveDown} Bronze` })).toBeDisabled();
+    expect(screen.getByRole('button', { name: `${settingsHourlyRateLevelsCopy.deleteLevel} Bronze` })).toBeInTheDocument();
+    expect(screen.getByText('1 nível')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: settingsHourlyRateLevelsCopy.addLevel })).toBeInTheDocument();
   });
 
