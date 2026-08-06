@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { ProfessorSummary } from '@corrida/types';
 import { CollaboratorAdministrativeActions } from './CollaboratorAdministrativeActions';
@@ -47,7 +47,7 @@ describe('CollaboratorAdministrativeActions', () => {
     expect(screen.queryByText('Ações administrativas')).not.toBeInTheDocument();
   });
 
-  it('exibe reativação quando o colaborador está inativo e a permissão é aplicável', () => {
+  it('mantém ações secundárias recolhidas até a expansão pelo usuário', () => {
     render(
       <CollaboratorAdministrativeActions
         collaborator={{
@@ -65,6 +65,32 @@ describe('CollaboratorAdministrativeActions', () => {
       />
     );
 
+    const title = screen.getByText('Ações administrativas');
+    const section = title.closest('details');
+    expect(section).not.toHaveAttribute('open');
+
+    fireEvent.click(title.closest('summary')!);
+
+    expect(section).toHaveAttribute('open');
     expect(screen.getByRole('button', { name: /reativar/i })).toBeInTheDocument();
+  });
+
+  it('abre a seção quando existe resultado administrativo para apresentar', () => {
+    render(
+      <CollaboratorAdministrativeActions
+        collaborator={collaborator}
+        canValidateLegal={false}
+        canResetPassword={false}
+        canActivate={false}
+        canDeactivate={false}
+        loading={false}
+        successMessage="Ação concluída com sucesso."
+        temporaryPassword={null}
+        {...callbacks}
+      />
+    );
+
+    expect(screen.getByText('Ações administrativas').closest('details')).toHaveAttribute('open');
+    expect(screen.getByRole('status')).toHaveTextContent('Ação concluída com sucesso.');
   });
 });
