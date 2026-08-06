@@ -13,7 +13,7 @@ import {
 
 interface ErrorPayload {
   message?: string;
-  error?: { message?: string; details?: { code?: string } };
+  error?: string | { message?: string; details?: { code?: string } };
   details?: { code?: string };
 }
 
@@ -27,14 +27,17 @@ export function readAdipometryApiError(error: unknown): {
     response?: { status?: number; data?: ErrorPayload };
   };
   const data = candidate.response?.data;
+  const errorField = data?.error;
+  const nestedError = typeof errorField === 'object' ? errorField : undefined;
   return {
     message:
-      data?.error?.message
+      nestedError?.message
+      ?? (typeof errorField === 'string' ? errorField : undefined)
       ?? data?.message
       ?? candidate.message
       ?? 'Não foi possível concluir a operação.',
     status: candidate.response?.status,
-    code: data?.error?.details?.code ?? data?.details?.code,
+    code: nestedError?.details?.code ?? data?.details?.code,
   };
 }
 

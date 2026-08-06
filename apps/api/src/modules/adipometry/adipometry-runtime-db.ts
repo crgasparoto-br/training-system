@@ -161,7 +161,7 @@ export async function getAdipometryProfile(
   }>>(Prisma.sql`
     SELECT
       COALESCE(
-        student_profile."identificationData" ->> 'birthDate',
+        LEFT(student_profile."identificationData" ->> 'birthDate', 10),
         TO_CHAR(aluno."birthDate", 'YYYY-MM-DD'),
         TO_CHAR(profile."birthDate", 'YYYY-MM-DD')
       ) AS "birthDate",
