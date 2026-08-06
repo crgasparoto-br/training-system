@@ -7,7 +7,8 @@ O pré-cadastro grava o endereço em `StudentProfile.identificationData`, fonte 
 ## Decisão
 
 - `StudentProfile.identificationData` continua sendo a única fonte canônica editável.
-- A ativação atualiza somente a projeção legada do `Profile` vinculado.
+- A ativação atualiza somente os campos de endereço da projeção legada do `Profile` vinculado.
+- Nome, documento, contato e demais dados pessoais não são regravados por esta correção.
 - A projeção ocorre apenas quando a conta pertence a exatamente um registro `Aluno`.
 - Vínculos ambíguos não recebem dados tenant-scoped no perfil global.
 - Uma migration idempotente repara matrículas já confirmadas antes desta correção.
@@ -22,7 +23,7 @@ O pré-cadastro grava o endereço em `StudentProfile.identificationData`, fonte 
 - estado;
 - CEP.
 
-A mesma fronteira também mantém as demais projeções pessoais já previstas pelo serviço de identidade, sem criar um segundo registro de aluno, usuário ou perfil.
+Nenhum novo registro de aluno, usuário ou perfil é criado, e o identificador canônico permanece inalterado.
 
 ## Arquivos
 
