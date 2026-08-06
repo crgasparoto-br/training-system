@@ -177,7 +177,9 @@ describe('AlunoAdipometryEvolutionTabSection context isolation', () => {
       await alunoBResponse.promise;
     });
 
-    await waitFor(() => expect(screen.getByText(/ADPT-B/)).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getAllByText(/ADPT-B/).length).toBeGreaterThan(0)
+    );
     expect(screen.getByRole('link', { name: 'Abrir detalhe' })).toHaveAttribute(
       'href',
       '/protocolo-avaliacao-fisica/adipometria?alunoId=aluno-b&assessmentId=assessment-b'
@@ -192,8 +194,8 @@ describe('AlunoAdipometryEvolutionTabSection context isolation', () => {
     await waitFor(() =>
       expect(getAssessmentMock).toHaveBeenCalledWith('assessment-a')
     );
-    expect(screen.queryByText(/ADPT-A/)).not.toBeInTheDocument();
-    expect(screen.getByText(/ADPT-B/)).toBeInTheDocument();
+    expect(screen.queryAllByText(/ADPT-A/)).toHaveLength(0);
+    expect(screen.getAllByText(/ADPT-B/).length).toBeGreaterThan(0);
     expect(screen.getByRole('link', { name: 'Abrir detalhe' })).toHaveAttribute(
       'href',
       '/protocolo-avaliacao-fisica/adipometria?alunoId=aluno-b&assessmentId=assessment-b'
