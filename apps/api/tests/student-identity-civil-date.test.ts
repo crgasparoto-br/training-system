@@ -29,8 +29,8 @@ describe('student identity civil birth date', () => {
       ),
       'utf8'
     );
-    expect(routes).toContain(
-      "birthDate: z.string().trim().regex(/^\\d{4}-\\d{2}-\\d{2}$/"
+    expect(routes).toMatch(
+      /birthDate: nullableTrimmed\(\s*z\.string\(\)\.trim\(\)\.regex\(\/\^\\d\{4\}-\\d\{2\}-\\d\{2\}\$\//
     );
   });
 });

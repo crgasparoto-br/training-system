@@ -39,7 +39,7 @@ describe('LeadForm duplicate confirmation boundary', () => {
       </MemoryRouter>
     );
 
-    fireEvent.change(screen.getByPlaceholderText('(15) 99999-9999'), {
+    fireEvent.change(screen.getByLabelText('Telefone'), {
       target: { value: '(15) 98888-7777' },
     });
     fireEvent.change(screen.getByPlaceholderText('nome@exemplo.com'), {

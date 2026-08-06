@@ -35,8 +35,30 @@ function runIsolatedDatabaseTests() {
   }
 }
 
+function runGeneralTestsInBatches() {
+  const listed = runJest(
+    ['--listTests', `--testPathIgnorePatterns=${generalIgnorePattern}`],
+    { capture: true },
+  );
+  const testFiles = listed
+    .split(/\r?\n/)
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  // ts-jest retém o programa TypeScript e os ASTs verificados por arquivo na
+  // memória do processo. Em uma suíte com centenas de arquivos, rodar tudo em
+  // um único `--runInBand` acumula essa memória até o processo ser encerrado
+  // pelo OOM killer do host. Reiniciar o processo a cada lote libera essa
+  // memória sem reduzir a cobertura executada.
+  const batchSize = Number.parseInt(process.env.JEST_TEST_BATCH_SIZE ?? '40', 10);
+  for (let offset = 0; offset < testFiles.length; offset += batchSize) {
+    const batch = testFiles.slice(offset, offset + batchSize);
+    runJest(['--runInBand', '--runTestsByPath', ...batch, ...forwardedArgs]);
+  }
+}
+
 if (!databaseIntegration) {
-  runJest(['--runInBand', `--testPathIgnorePatterns=${generalIgnorePattern}`, ...forwardedArgs]);
+  runGeneralTestsInBatches();
   runIsolatedDatabaseTests();
   process.exit(0);
 }
