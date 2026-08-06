@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import type { HourlyRateLevel } from '@corrida/types';
 import { Button } from '../../components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/Card';
@@ -19,6 +19,11 @@ type LevelFieldErrors = {
   maxValueInput?: string;
   range?: string;
 };
+
+const emptyStateTitle = 'Nenhum nível cadastrado';
+const emptyStateDescription = 'Crie o primeiro nível para definir as faixas de classificação por valor/hora.';
+const emptyStateAction = 'Criar primeiro nível';
+const desktopRangeColumnLabel = 'Faixa de valor/hora';
 
 function formatValue(value?: number | null) {
   if (typeof value !== 'number') {
@@ -126,6 +131,14 @@ function hasOverlappingRanges(levels: EditableLevel[]) {
   }
 
   return false;
+}
+
+function getLevelDisplayName(level: EditableLevel, levelIndex: number) {
+  return level.label.trim() || `nível ${levelIndex + 1}`;
+}
+
+function getFieldAriaLabel(fieldLabel: string, level: EditableLevel, levelIndex: number) {
+  return `${fieldLabel} de ${getLevelDisplayName(level, levelIndex)}`;
 }
 
 export default function SettingsHourlyRateLevels() {
@@ -280,35 +293,49 @@ export default function SettingsHourlyRateLevels() {
     });
   };
 
+  const emptyState = (
+    <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-muted/20 px-5 py-10 text-center">
+      <div>
+        <p className="font-semibold text-foreground">{emptyStateTitle}</p>
+        <p className="mt-1 max-w-md text-sm text-muted-foreground">{emptyStateDescription}</p>
+      </div>
+      <Button type="button" onClick={handleCreateLevel} disabled={isBusy}>
+        <Plus size={16} />
+        {emptyStateAction}
+      </Button>
+    </div>
+  );
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="max-w-3xl">
           <h1 className="text-2xl font-bold text-foreground">{settingsHourlyRateLevelsCopy.title}</h1>
-          <p className="text-sm text-muted-foreground">{settingsHourlyRateLevelsCopy.description}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{settingsHourlyRateLevelsCopy.description}</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" onClick={loadLevels} disabled={isBusy}>
-            {settingsHourlyRateLevelsCopy.refresh}
-          </Button>
-          <Button type="button" variant="secondary" onClick={handleCreateLevel} disabled={isBusy}>
+        <div className="grid w-full gap-2 sm:w-auto sm:grid-cols-2">
+          <Button type="button" className="w-full" onClick={handleCreateLevel} disabled={isBusy}>
             <Plus size={16} />
             {settingsHourlyRateLevelsCopy.addLevel}
           </Button>
+          <Button type="button" variant="outline" className="w-full" onClick={loadLevels} disabled={isBusy}>
+            <RefreshCw size={16} />
+            {settingsHourlyRateLevelsCopy.refresh}
+          </Button>
         </div>
-      </div>
+      </header>
 
-      {error && (
-        <div className="rounded-lg border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+      {error ? (
+        <div role="alert" className="rounded-lg border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {error}
         </div>
-      )}
+      ) : null}
 
-      {hasRangeOverlap && !error && (
-        <div className="rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">
+      {hasRangeOverlap && !error ? (
+        <div role="alert" className="rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-warning">
           {settingsHourlyRateLevelsCopy.overlapWarning}
         </div>
-      )}
+      ) : null}
 
       <div className="grid gap-3 sm:grid-cols-3">
         <Card className="border-primary/15 bg-primary/5">
@@ -331,30 +358,51 @@ export default function SettingsHourlyRateLevels() {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{settingsHourlyRateLevelsCopy.cardTitle}</CardTitle>
-          <CardDescription>{settingsHourlyRateLevelsCopy.cardDescription}</CardDescription>
+      <Card className="overflow-hidden">
+        <CardHeader className="border-b border-border bg-muted/20">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <CardTitle>{settingsHourlyRateLevelsCopy.cardTitle}</CardTitle>
+              <CardDescription>{settingsHourlyRateLevelsCopy.cardDescription}</CardDescription>
+            </div>
+            {!loading && levels.length > 0 ? (
+              <span className="inline-flex w-fit rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground">
+                {levels.length} {levels.length === 1 ? 'nível' : 'níveis'}
+              </span>
+            ) : null}
+          </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           <form className="space-y-4" onSubmit={handleSubmit}>
-            <div className="hidden overflow-x-auto md:block">
-              <table className="min-w-full text-sm">
-                <thead>
-                  <tr className="border-b text-left text-xs uppercase text-muted-foreground">
-                    <th className="px-3 py-2">{settingsHourlyRateLevelsCopy.orderLabel}</th>
-                    <th className="px-3 py-2">{settingsHourlyRateLevelsCopy.levelNameColumn}</th>
-                    <th className="px-3 py-2">{settingsHourlyRateLevelsCopy.minValueColumn}</th>
-                    <th className="px-3 py-2">{settingsHourlyRateLevelsCopy.maxValueColumn}</th>
-                    <th className="px-3 py-2">{settingsHourlyRateLevelsCopy.statusColumn}</th>
-                    <th className="px-3 py-2 text-right">{settingsHourlyRateLevelsCopy.actionsColumn}</th>
+            <div className="hidden overflow-hidden rounded-xl border border-border xl:block">
+              <table className="min-w-full table-fixed text-sm">
+                <colgroup>
+                  <col className="w-[148px]" />
+                  <col className="w-[28%]" />
+                  <col />
+                  <col className="w-[132px]" />
+                  <col className="w-[76px]" />
+                </colgroup>
+                <thead className="bg-muted/50">
+                  <tr className="text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    <th className="px-4 py-3">{settingsHourlyRateLevelsCopy.orderLabel}</th>
+                    <th className="px-4 py-3">{settingsHourlyRateLevelsCopy.levelNameColumn}</th>
+                    <th className="px-4 py-3">{desktopRangeColumnLabel}</th>
+                    <th className="px-4 py-3">{settingsHourlyRateLevelsCopy.statusColumn}</th>
+                    <th className="px-4 py-3 text-right">{settingsHourlyRateLevelsCopy.actionsColumn}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={6} className="px-3 py-6 text-center text-muted-foreground">
+                      <td colSpan={5} className="px-4 py-10 text-center text-muted-foreground">
                         {settingsHourlyRateLevelsCopy.loadingLevels}
+                      </td>
+                    </tr>
+                  ) : levels.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="p-4">
+                        {emptyState}
                       </td>
                     </tr>
                   ) : (
@@ -362,61 +410,92 @@ export default function SettingsHourlyRateLevels() {
                       const isConfigured =
                         parseValue(level.minValueInput) !== null && parseValue(level.maxValueInput) !== null;
                       const rowErrors = levelErrors[levelIndex];
+                      const levelDisplayName = getLevelDisplayName(level, levelIndex);
 
                       return (
-                        <tr key={level.id} className="border-b align-top">
-                          <td className="px-3 py-3">
-                            <span className="inline-flex rounded-md bg-muted px-2 py-1 text-xs font-semibold text-muted-foreground">
-                              {levelIndex + 1}
-                            </span>
+                        <tr key={level.id} className="border-t border-border align-middle transition-colors hover:bg-muted/20">
+                          <td className="px-4 py-4">
+                            <div className="flex items-center gap-2">
+                              <span className="inline-flex h-9 min-w-9 items-center justify-center rounded-lg bg-muted px-2 text-sm font-semibold text-foreground">
+                                {levelIndex + 1}
+                              </span>
+                              <div className="flex rounded-lg border border-border bg-card p-0.5">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => handleMoveLevel(level.id, 'up')}
+                                  disabled={isBusy || levelIndex === 0}
+                                  aria-label={`${settingsHourlyRateLevelsCopy.moveUp} ${levelDisplayName}`}
+                                  title={settingsHourlyRateLevelsCopy.moveUp}
+                                >
+                                  <ArrowUp size={15} />
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                  onClick={() => handleMoveLevel(level.id, 'down')}
+                                  disabled={isBusy || levelIndex === levels.length - 1}
+                                  aria-label={`${settingsHourlyRateLevelsCopy.moveDown} ${levelDisplayName}`}
+                                  title={settingsHourlyRateLevelsCopy.moveDown}
+                                >
+                                  <ArrowDown size={15} />
+                                </Button>
+                              </div>
+                            </div>
                           </td>
-                          <td className="px-3 py-3">
+                          <td className="px-4 py-4">
                             <Input
                               label=""
+                              aria-label={getFieldAriaLabel(settingsHourlyRateLevelsCopy.levelNameColumn, level, levelIndex)}
                               value={level.label}
                               error={rowErrors?.label}
                               onChange={(event) => updateLevelField(level.id, 'label', event.target.value)}
                               placeholder={settingsHourlyRateLevelsCopy.levelNamePlaceholder}
                             />
-                            <div className="mt-2">
-                              <span
-                                className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${getHourlyRateLevelBadgeClassName(level.label)}`}
-                              >
-                                {level.label.trim() || settingsHourlyRateLevelsCopy.levelNamePlaceholder}
-                              </span>
+                            <span
+                              className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${getHourlyRateLevelBadgeClassName(level.label)}`}
+                            >
+                              {level.label.trim() || settingsHourlyRateLevelsCopy.levelNamePlaceholder}
+                            </span>
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-3">
+                              <Input
+                                label={settingsHourlyRateLevelsCopy.minValueColumn}
+                                aria-label={getFieldAriaLabel(settingsHourlyRateLevelsCopy.minValueColumn, level, levelIndex)}
+                                type="text"
+                                inputMode="decimal"
+                                value={level.minValueInput}
+                                error={rowErrors?.minValueInput || rowErrors?.range}
+                                onChange={(event) =>
+                                  updateLevelField(level.id, 'minValueInput', normalizePtBrMoneyInput(event.target.value))
+                                }
+                                onBlur={() => handleMoneyBlur(level.id, 'minValueInput')}
+                                placeholder={settingsHourlyRateLevelsCopy.minValuePlaceholder}
+                              />
+                              <span className="mt-10 text-xs font-medium uppercase tracking-wide text-muted-foreground">até</span>
+                              <Input
+                                label={settingsHourlyRateLevelsCopy.maxValueColumn}
+                                aria-label={getFieldAriaLabel(settingsHourlyRateLevelsCopy.maxValueColumn, level, levelIndex)}
+                                type="text"
+                                inputMode="decimal"
+                                value={level.maxValueInput}
+                                error={rowErrors?.maxValueInput || rowErrors?.range}
+                                onChange={(event) =>
+                                  updateLevelField(level.id, 'maxValueInput', normalizePtBrMoneyInput(event.target.value))
+                                }
+                                onBlur={() => handleMoneyBlur(level.id, 'maxValueInput')}
+                                placeholder={settingsHourlyRateLevelsCopy.maxValuePlaceholder}
+                              />
                             </div>
                           </td>
-                          <td className="px-3 py-3">
-                            <Input
-                              label=""
-                              type="text"
-                              inputMode="decimal"
-                              value={level.minValueInput}
-                              error={rowErrors?.minValueInput || rowErrors?.range}
-                              onChange={(event) =>
-                                updateLevelField(level.id, 'minValueInput', normalizePtBrMoneyInput(event.target.value))
-                              }
-                              onBlur={() => handleMoneyBlur(level.id, 'minValueInput')}
-                              placeholder={settingsHourlyRateLevelsCopy.minValuePlaceholder}
-                            />
-                          </td>
-                          <td className="px-3 py-3">
-                            <Input
-                              label=""
-                              type="text"
-                              inputMode="decimal"
-                              value={level.maxValueInput}
-                              error={rowErrors?.maxValueInput || rowErrors?.range}
-                              onChange={(event) =>
-                                updateLevelField(level.id, 'maxValueInput', normalizePtBrMoneyInput(event.target.value))
-                              }
-                              onBlur={() => handleMoneyBlur(level.id, 'maxValueInput')}
-                              placeholder={settingsHourlyRateLevelsCopy.maxValuePlaceholder}
-                            />
-                          </td>
-                          <td className="px-3 py-3">
+                          <td className="px-4 py-4">
                             <span
-                              className={`rounded-full px-2 py-1 text-xs font-medium ${
+                              className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${
                                 isConfigured
                                   ? 'bg-success/10 text-success'
                                   : 'bg-warning/10 text-warning'
@@ -427,40 +506,19 @@ export default function SettingsHourlyRateLevels() {
                                 : settingsHourlyRateLevelsCopy.pendingStatus}
                             </span>
                           </td>
-                          <td className="px-3 py-3 text-right">
-                            <div className="flex justify-end gap-2">
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleMoveLevel(level.id, 'up')}
-                                disabled={isBusy || levelIndex === 0}
-                                aria-label={settingsHourlyRateLevelsCopy.moveUp}
-                                title={settingsHourlyRateLevelsCopy.moveUp}
-                              >
-                                <ArrowUp size={16} />
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleMoveLevel(level.id, 'down')}
-                                disabled={isBusy || levelIndex === levels.length - 1}
-                                aria-label={settingsHourlyRateLevelsCopy.moveDown}
-                                title={settingsHourlyRateLevelsCopy.moveDown}
-                              >
-                                <ArrowDown size={16} />
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                onClick={() => handleDeleteLevel(level.id)}
-                                disabled={isBusy || deletingId === level.id}
-                              >
-                                <Trash2 size={16} />
-                                <span className="hidden lg:inline">{settingsHourlyRateLevelsCopy.deleteLevel}</span>
-                              </Button>
-                            </div>
+                          <td className="px-4 py-4 text-right">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => handleDeleteLevel(level.id)}
+                              disabled={isBusy || deletingId === level.id}
+                              aria-label={`${settingsHourlyRateLevelsCopy.deleteLevel} ${levelDisplayName}`}
+                              title={settingsHourlyRateLevelsCopy.deleteLevel}
+                            >
+                              <Trash2 size={16} />
+                            </Button>
                           </td>
                         </tr>
                       );
@@ -470,11 +528,13 @@ export default function SettingsHourlyRateLevels() {
               </table>
             </div>
 
-            <div className="space-y-4 md:hidden">
+            <div className="space-y-4 xl:hidden">
               {loading ? (
                 <div className="rounded-lg border border-border bg-muted/30 px-4 py-6 text-center text-sm text-muted-foreground">
                   {settingsHourlyRateLevelsCopy.loadingLevels}
                 </div>
+              ) : levels.length === 0 ? (
+                emptyState
               ) : (
                 levels.map((level, levelIndex) => {
                   const isConfigured =
@@ -510,7 +570,7 @@ export default function SettingsHourlyRateLevels() {
                           placeholder={settingsHourlyRateLevelsCopy.levelNamePlaceholder}
                         />
 
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid gap-3 sm:grid-cols-2">
                           <Input
                             label={settingsHourlyRateLevelsCopy.minValueColumn}
                             type="text"
@@ -586,12 +646,17 @@ export default function SettingsHourlyRateLevels() {
               )}
             </div>
 
-            <p className="text-xs text-muted-foreground">{settingsHourlyRateLevelsCopy.hint}</p>
+            {levels.length > 0 ? <p className="text-xs text-muted-foreground">{settingsHourlyRateLevelsCopy.hint}</p> : null}
 
-            <div className="sticky bottom-3 z-10 rounded-xl border border-border bg-card/95 p-3 backdrop-blur-sm">
+            <div className="sticky bottom-3 z-10 rounded-xl border border-border bg-card/95 p-3 shadow-sm backdrop-blur-sm">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-xs text-muted-foreground">{settingsHourlyRateLevelsCopy.summaryTitle}</p>
-                <Button type="submit" isLoading={saving} disabled={loading || hasFieldErrors || hasRangeOverlap}>
+                <Button
+                  type="submit"
+                  className="w-full sm:w-auto"
+                  isLoading={saving}
+                  disabled={loading || levels.length === 0 || hasFieldErrors || hasRangeOverlap}
+                >
                   {settingsHourlyRateLevelsCopy.save}
                 </Button>
               </div>
