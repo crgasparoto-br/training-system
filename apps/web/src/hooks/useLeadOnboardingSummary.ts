@@ -29,7 +29,7 @@ function apiErrorMessage(error: unknown): string {
 
 const CADASTRO_CONCLUIDO_STATUSES = new Set(['PRE_REGISTRATION_COMPLETED', 'READY_FOR_ENROLLMENT']);
 
-export function useLeadOnboardingSummary(enabled: boolean) {
+export function useLeadOnboardingSummary(enabled: boolean, preferredAlunoId?: string) {
   const [state, setState] = useState<LeadOnboardingSummaryState>({ status: 'loading' });
   const [reloadToken, setReloadToken] = useState(0);
 
@@ -41,9 +41,19 @@ export function useLeadOnboardingSummary(enabled: boolean) {
     setState({ status: 'loading' });
     try {
       const processes = await preRegistrationPublicService.listProcesses();
-      const eligible = processes.find(
-        (process) => process.status !== 'ACTIVE_STUDENT' && process.status !== 'DISCARDED'
-      );
+      const preferred = preferredAlunoId
+        ? processes.find(
+            (process) =>
+              process.alunoId === preferredAlunoId &&
+              process.status !== 'ACTIVE_STUDENT' &&
+              process.status !== 'DISCARDED'
+          )
+        : undefined;
+      const eligible =
+        preferred ||
+        processes.find(
+          (process) => process.status !== 'ACTIVE_STUDENT' && process.status !== 'DISCARDED'
+        );
 
       if (!eligible) {
         if (processes.some((process) => process.status === 'ACTIVE_STUDENT')) {
@@ -82,7 +92,7 @@ export function useLeadOnboardingSummary(enabled: boolean) {
     } catch (error) {
       setState({ status: 'error', message: apiErrorMessage(error) });
     }
-  }, [enabled]);
+  }, [enabled, preferredAlunoId]);
 
   useEffect(() => {
     void load();
