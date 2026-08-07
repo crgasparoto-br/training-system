@@ -42,13 +42,22 @@ export function useLeadOnboardingSummary(enabled: boolean, preferredAlunoId?: st
     try {
       const processes = await preRegistrationPublicService.listProcesses();
       const preferred = preferredAlunoId
-        ? processes.find(
-            (process) =>
-              process.alunoId === preferredAlunoId &&
-              process.status !== 'ACTIVE_STUDENT' &&
-              process.status !== 'DISCARDED'
-          )
+        ? processes.find((process) => process.alunoId === preferredAlunoId)
         : undefined;
+
+      if (preferredAlunoId && !preferred) {
+        setState({ status: 'not-a-lead' });
+        return;
+      }
+      if (preferred?.status === 'ACTIVE_STUDENT') {
+        setState({ status: 'active-student' });
+        return;
+      }
+      if (preferred?.status === 'DISCARDED') {
+        setState({ status: 'discarded' });
+        return;
+      }
+
       const eligible =
         preferred ||
         processes.find(

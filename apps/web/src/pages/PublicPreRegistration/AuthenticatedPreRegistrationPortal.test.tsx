@@ -1,5 +1,5 @@
-import { render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter, useNavigate } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PreRegistrationSessionDTO } from '@corrida/types';
 import type { LeadOnboardingSummaryState } from '../../hooks/useLeadOnboardingSummary';
@@ -92,6 +92,21 @@ function renderPortal(initialEntry: string | { pathname: string; state?: unknown
   );
 }
 
+function SummaryNavigationHarness() {
+  const navigate = useNavigate();
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => navigate('/pre-cadastro?view=dados&alunoId=student-2')}
+      >
+        Trocar cadastro
+      </button>
+      <PreRegistrationDataSummary />
+    </>
+  );
+}
+
 describe('AuthenticatedPreRegistrationPortal', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -113,6 +128,18 @@ describe('AuthenticatedPreRegistrationPortal', () => {
       '/inicio'
     );
     expect(screen.getByText('Fluxo canônico do pré-cadastro')).toBeInTheDocument();
+  });
+
+  it('não monta o formulário legado quando o resumo autoritativo falha', () => {
+    mocks.summaryState = { status: 'error', message: 'Falha temporária' };
+
+    renderPortal();
+
+    expect(
+      screen.getByRole('heading', { name: 'Não foi possível carregar o resumo do pré-cadastro' })
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Tentar carregar o resumo novamente' })).toBeInTheDocument();
+    expect(screen.queryByText('Fluxo canônico do pré-cadastro')).not.toBeInTheDocument();
   });
 
   it('oferece consulta explícita do pré-cadastro concluído sem substituir os próximos passos', () => {
@@ -224,6 +251,47 @@ describe('PreRegistrationDataSummary', () => {
       await screen.findByRole('heading', { name: 'Não foi possível abrir o pré-cadastro' })
     ).toBeInTheDocument();
     expect(mocks.getSession).not.toHaveBeenCalled();
+  });
+
+  it('limpa os dados anteriores ao trocar de alunoId enquanto o novo processo carrega', async () => {
+    let resolveSecond: ((value: PreRegistrationSessionDTO) => void) | undefined;
+    const secondSession = new Promise<PreRegistrationSessionDTO>((resolve) => {
+      resolveSecond = resolve;
+    });
+    mocks.listProcesses.mockResolvedValue([
+      { alunoId: 'student-1', status: 'PRE_REGISTRATION_COMPLETED' },
+      { alunoId: 'student-2', status: 'PRE_REGISTRATION_COMPLETED' },
+    ]);
+    mocks.getSession
+      .mockResolvedValueOnce({
+        ...baseSession,
+        status: 'PRE_REGISTRATION_COMPLETED',
+        completedAt: '2026-08-01T12:30:00.000Z',
+      })
+      .mockImplementationOnce(() => secondSession);
+
+    render(
+      <MemoryRouter initialEntries={['/pre-cadastro?view=dados&alunoId=student-1']}>
+        <SummaryNavigationHarness />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText('Aluno Teste')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Trocar cadastro' }));
+
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: 'Carregando seus dados...' })).toBeInTheDocument()
+    );
+    expect(screen.queryByText('Aluno Teste')).not.toBeInTheDocument();
+
+    resolveSecond?.({
+      ...baseSession,
+      alunoId: 'student-2',
+      identity: { ...baseSession.identity, name: 'Aluno Dois' },
+      status: 'PRE_REGISTRATION_COMPLETED',
+      completedAt: '2026-08-02T12:30:00.000Z',
+    });
+    expect(await screen.findByText('Aluno Dois')).toBeInTheDocument();
   });
 
   it('orienta continuar o pré-cadastro quando os dados básicos ainda não foram concluídos', async () => {

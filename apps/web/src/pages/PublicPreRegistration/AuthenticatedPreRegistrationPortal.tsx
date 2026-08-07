@@ -92,23 +92,18 @@ function MainPortal({ children }: { children: ReactNode }) {
   }
   if (state.status === 'error') {
     return (
-      <div className="space-y-0">
-        <div className="bg-slate-100 px-4 pt-5 sm:px-6 sm:pt-8">
-          <div className="mx-auto w-full max-w-6xl space-y-5">
-            <BackToHomeLink />
-            <Message
-              title="Não foi possível carregar o resumo do pré-cadastro"
-              description={state.message}
-              action={
-                <button type="button" onClick={retry} className={primaryLinkClass}>
-                  Tentar carregar o resumo novamente
-                </button>
-              }
-            />
-          </div>
-        </div>
-        <div id="pre-registration-flow">{children}</div>
-      </div>
+      <Shell>
+        <BackToHomeLink />
+        <Message
+          title="Não foi possível carregar o resumo do pré-cadastro"
+          description={`${state.message} Para proteger seus dados e evitar alterações indevidas, o formulário ficará indisponível até confirmarmos o estado atual do processo.`}
+          action={
+            <button type="button" onClick={retry} className={primaryLinkClass}>
+              Tentar carregar o resumo novamente
+            </button>
+          }
+        />
+      </Shell>
     );
   }
   if (state.status === 'discarded') {
@@ -229,6 +224,7 @@ export function PreRegistrationDataSummary() {
   useEffect(() => {
     if (!isAuthenticated) return;
     let active = true;
+    setState({ status: 'loading' });
     void (async () => {
       try {
         const processes = await preRegistrationPublicService.listProcesses();
