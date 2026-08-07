@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { loadStudentIdentity, upsertStudentIdentity } from '../src/modules/alunos/student-identity.service.js';
+import { preRegistrationDuplicateReviewService } from '../src/modules/pre-registration-public/pre-registration-duplicate-review.service.js';
 import { preRegistrationHealthIntakeService } from '../src/modules/pre-registration-public/pre-registration-health-intake.service.js';
 import { preRegistrationParqService } from '../src/modules/pre-registration-public/pre-registration-parq.service.js';
 import { preRegistrationPublicAtomicService } from '../src/modules/pre-registration-public/pre-registration-public-atomic.service.js';
@@ -124,11 +125,34 @@ describeDatabase('issue 309 - READY_FOR_ENROLLMENT no onboarding autenticado', (
     }
   });
 
-  it('mantém os dados cadastrais somente leitura em READY_FOR_ENROLLMENT', async () => {
+  it('mantém os dados cadastrais somente leitura em READY_FOR_ENROLLMENT, inclusive com revisão de duplicidade pendente', async () => {
     const onboardingBefore = await prisma.studentOnboardingProcess.findUniqueOrThrow({
       where: { alunoId },
     });
     const identityBefore = await loadStudentIdentity(alunoId, contractId);
+
+    await prisma.studentProfileReview.create({
+      data: {
+        alunoId,
+        requestedByUserId: userId,
+        requestedAt: new Date(),
+        status: 'pending',
+        sectionsRequested: ['contact'],
+        snapshotBefore: { phone: identityBefore.phone || null },
+        snapshotAfter: { phone: '11988888888' },
+        changedFields: ['phone'],
+        requiresApproval: true,
+      },
+    });
+    expect(await preRegistrationDuplicateReviewService.hasPendingDuplicateReview(userId, alunoId)).toBe(true);
+
+    await expect(
+      preRegistrationDuplicateReviewService.preserveDuplicateConflict(userId, alunoId, {
+        expectedVersion: onboardingBefore.version,
+        step: 'CONTACT',
+        data: { phone: '11988888888' },
+      })
+    ).rejects.toMatchObject({ code: 'PRE_REGISTRATION_COMPLETED' });
 
     await expect(
       preRegistrationPublicAtomicService.saveStep(userId, alunoId, {
