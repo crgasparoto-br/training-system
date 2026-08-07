@@ -593,7 +593,8 @@ export const workoutBuilderGuideCopy = {
 
 export const alunoDetailsCopy = {
   loadError: 'Erro ao carregar aluno',
-  deleteConfirm: 'Tem certeza que deseja excluir este aluno?',
+  deleteConfirm: (alunoName: string) =>
+    `Excluir "${alunoName}" permanentemente? Esta ação não pode ser desfeita e removerá o cadastro, histórico e avaliações do aluno.`,
   deleteSuccess: 'Aluno excluído com sucesso!',
   deleteError: 'Erro ao excluir aluno',
   resetPasswordConfirm: 'Deseja gerar uma nova senha temporária para este aluno?',

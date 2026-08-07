@@ -641,7 +641,7 @@ export function AlunoDetails() {
       showToast('Você não possui permissão para excluir aluno.', 'error');
       return;
     }
-    if (!id || !confirm(alunoDetailsCopy.deleteConfirm)) {
+    if (!id || !confirm(alunoDetailsCopy.deleteConfirm(alunoName))) {
       return;
     }
 
@@ -1228,22 +1228,30 @@ export function AlunoDetails() {
           </div>
         </div>
         {(canEditStudent && canEditProfileAction) || canResetPasswordAction || canDeleteStudentAction ? (
-          <div className="flex gap-2">
-            {canEditStudent && canEditProfileAction && (
-              <Link to={`/alunos/${id}/edit`}>
-                <Button variant="outline">
-                  <Edit size={20} />
-                  {alunoDetailsCopy.edit}
-                </Button>
-              </Link>
-            )}
-            {canResetPasswordAction && (
-              <Button variant="outline" onClick={handleResetPassword} isLoading={isResetting}>
-                {alunoDetailsCopy.resetPassword}
-              </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {((canEditStudent && canEditProfileAction) || canResetPasswordAction) && (
+              <div className="flex flex-wrap gap-2">
+                {canEditStudent && canEditProfileAction && (
+                  <Link to={`/alunos/${id}/edit`}>
+                    <Button variant="outline">
+                      <Edit size={20} />
+                      {alunoDetailsCopy.edit}
+                    </Button>
+                  </Link>
+                )}
+                {canResetPasswordAction && (
+                  <Button variant="outline" onClick={handleResetPassword} isLoading={isResetting}>
+                    {alunoDetailsCopy.resetPassword}
+                  </Button>
+                )}
+              </div>
             )}
             {canDeleteStudentAction && (
-              <Button variant="destructive" onClick={handleDelete}>
+              <Button
+                variant="destructive"
+                onClick={handleDelete}
+                className="sm:ml-3 sm:border-l sm:border-border sm:pl-5"
+              >
                 <Trash2 size={20} />
                 {alunoDetailsCopy.delete}
               </Button>

@@ -190,6 +190,26 @@
     @apply border-input bg-card text-foreground;
   }
 
+  /* Padrão de navegação em abas documentado em docs/visual-guidelines.md
+     (referência: AlunoDetailsTabs.tsx). Sobrescreve a regra genérica de
+     [role='tablist'] acima, que ainda usa o estilo legado (borda + fundo
+     sólido no item ativo). */
+  #aluno-form-tablist > [role='tab'] {
+    @apply h-9 rounded-md border-0 bg-transparent px-3 text-muted-foreground shadow-none;
+  }
+
+  #aluno-form-tablist > [role='tab']:hover {
+    @apply bg-accent text-accent-foreground;
+  }
+
+  #aluno-form-tablist > [role='tab'][aria-selected='true'] {
+    @apply border-0 bg-primary/10 text-foreground shadow-none;
+  }
+
+  #aluno-form-tablist > [role='tab'][aria-selected='true']:hover {
+    @apply bg-primary/10 text-foreground;
+  }
+
   #create-collaborator-tab,
   #create-manager-tab,
   [id^='edit-collaborator-tab-'],
