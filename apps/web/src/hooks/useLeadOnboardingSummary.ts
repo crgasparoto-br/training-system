@@ -90,11 +90,7 @@ export function useLeadOnboardingSummary(enabled: boolean, preferredAlunoId?: st
 
       let parq: ParqSessionDTO | null = null;
       if (CADASTRO_CONCLUIDO_STATUSES.has(session.status)) {
-        try {
-          parq = await preRegistrationPublicService.getParq(eligible.alunoId);
-        } catch {
-          parq = null;
-        }
+        parq = await preRegistrationPublicService.getParq(eligible.alunoId);
       }
 
       setState({ status: 'open', session, parq });
