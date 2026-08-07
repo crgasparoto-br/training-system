@@ -100,6 +100,31 @@ function parqStatusCopy(
   }
 }
 
+function parqNextAction(
+  parq: import('@corrida/types').ParqSessionDTO | null,
+  fallbackStep: PreRegistrationNextStepDTO | undefined
+): string {
+  if (parq?.status === 'COMPLETED_REVIEW_REQUIRED') {
+    return 'Aguarde a análise profissional do PAR-Q e o contato da equipe.';
+  }
+  if (parq?.status === 'IN_PROGRESS') {
+    return 'Continue o PAR-Q quando puder.';
+  }
+  if (parq?.status === 'NOT_STARTED' || parq?.status === 'NEEDS_REPEAT') {
+    return 'Responda o PAR-Q quando puder.';
+  }
+  if (parq?.status === 'COMPLETED_NO_ALERT') {
+    return 'Aguarde o contato da equipe para os próximos passos da matrícula.';
+  }
+  if (fallbackStep?.status === 'IN_PROGRESS') {
+    return 'Continue o PAR-Q quando puder.';
+  }
+  if (fallbackStep?.status === 'NOT_STARTED') {
+    return 'Responda o PAR-Q quando puder.';
+  }
+  return 'Aguarde o contato da equipe para os próximos passos da matrícula.';
+}
+
 function LoadingState() {
   return (
     <Card>
@@ -175,9 +200,7 @@ export function LeadOnboardingHome({
     ? 'Conclua o seu cadastro básico para liberar a Anamnese e o PAR-Q.'
     : anamneseStep?.status !== 'COMPLETED'
       ? 'Responda a Anamnese Inicial quando puder.'
-      : parqCopy.label !== 'Concluído'
-        ? 'Responda o PAR-Q quando puder.'
-        : 'Aguarde o contato da equipe para os próximos passos da matrícula.';
+      : parqNextAction(parq, parqStep);
 
   return (
     <div className="space-y-6">
