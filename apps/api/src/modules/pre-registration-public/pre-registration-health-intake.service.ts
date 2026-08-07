@@ -8,6 +8,7 @@ import type {
   SaveHealthIntakeStepDTO,
 } from '@corrida/types';
 import {
+  isBasicPreRegistrationCompletedStatus,
   lockAndAuthorizePreRegistrationProcess,
   type LockedPreRegistrationAccess,
 } from './pre-registration-public-atomic.service.js';
@@ -70,7 +71,7 @@ function nextStep(step: HealthIntakeStep): HealthIntakeStep {
 }
 
 function requireBasicPreRegistration(access: LockedPreRegistrationAccess) {
-  if (access.status !== 'PRE_REGISTRATION_COMPLETED') {
+  if (!isBasicPreRegistrationCompletedStatus(access.status)) {
     throw new HealthIntakeError(
       'Conclua primeiro os dados básicos do pré-cadastro.',
       'BASIC_PRE_REGISTRATION_REQUIRED'
