@@ -1,8 +1,17 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CapacityPrescriptionSourceRef, CapacityPrescriptionView, ProntuarioOverview } from '@corrida/types';
 import { CapacityPrescriptionScreen } from './CapacityPrescriptionScreen';
+
+function renderScreen() {
+  return render(
+    <MemoryRouter>
+      <CapacityPrescriptionScreen />
+    </MemoryRouter>
+  );
+}
 
 const mocks = vi.hoisted(() => ({
   listStudents: vi.fn(),
@@ -169,7 +178,7 @@ beforeEach(() => {
 describe('CapacityPrescriptionScreen', () => {
   it('restaura fontes por capacidade sem marcar automaticamente fontes novas', async () => {
     const user = userEvent.setup();
-    render(<CapacityPrescriptionScreen />);
+    renderScreen();
 
     await user.selectOptions(await screen.findByLabelText('Aluno'), 'aluno-a');
     expect(await screen.findByText('Fontes para Resistido')).toBeInTheDocument();
@@ -187,7 +196,7 @@ describe('CapacityPrescriptionScreen', () => {
 
   it('permite editar zona cíclica completa e envia volume, pace e FC', async () => {
     const user = userEvent.setup();
-    render(<CapacityPrescriptionScreen />);
+    renderScreen();
 
     await user.selectOptions(await screen.findByLabelText('Aluno'), 'aluno-b');
     await user.click(await screen.findByRole('tab', { name: /Cíclico/i }));
@@ -242,7 +251,7 @@ describe('CapacityPrescriptionScreen', () => {
     mocks.listGoalClassifications.mockResolvedValueOnce([]);
     mocks.saveGoalClassification.mockResolvedValueOnce({});
 
-    render(<CapacityPrescriptionScreen />);
+    renderScreen();
     await user.selectOptions(await screen.findByLabelText('Aluno'), 'aluno-b');
     await user.click(await screen.findByRole('checkbox', { name: /Resistido/i }));
     await user.type(
@@ -285,7 +294,7 @@ describe('CapacityPrescriptionScreen', () => {
       },
     ]);
 
-    render(<CapacityPrescriptionScreen />);
+    renderScreen();
     await user.selectOptions(await screen.findByLabelText('Aluno'), 'aluno-b');
     await user.click(await screen.findByRole('tab', { name: /Flexibilidade/i }));
     await user.click(
