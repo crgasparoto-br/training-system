@@ -34,8 +34,21 @@ function nextStepActionLabel(step: PreRegistrationNextStepDTO) {
 function parqStatusCopy(
   parq: import('@corrida/types').ParqSessionDTO | null,
   fallbackStep: PreRegistrationNextStepDTO | undefined
-): { label: string; description: string; href: string; actionLabel: string; disabled: boolean } {
+): {
+  label: string;
+  description: string;
+  href: string;
+  actionLabel: string;
+  disabled: boolean;
+  nextAction: string;
+} {
   const href = fallbackStep?.href || '/pre-cadastro/par-q';
+  const fallbackNextAction =
+    fallbackStep?.status === 'IN_PROGRESS'
+      ? 'Continue o PAR-Q quando puder.'
+      : fallbackStep?.status === 'NOT_STARTED'
+        ? 'Responda o PAR-Q quando puder.'
+        : 'Aguarde o contato da equipe para os próximos passos da matrícula.';
 
   if (!parq) {
     return {
@@ -44,6 +57,7 @@ function parqStatusCopy(
       href,
       actionLabel: fallbackStep ? nextStepActionLabel(fallbackStep) : 'Responder PAR-Q',
       disabled: false,
+      nextAction: fallbackNextAction,
     };
   }
 
@@ -55,6 +69,7 @@ function parqStatusCopy(
         href,
         actionLabel: 'Responder PAR-Q',
         disabled: false,
+        nextAction: 'Responda o PAR-Q quando puder.',
       };
     case 'IN_PROGRESS':
       return {
@@ -63,6 +78,7 @@ function parqStatusCopy(
         href,
         actionLabel: 'Continuar PAR-Q',
         disabled: false,
+        nextAction: 'Continue o PAR-Q quando puder.',
       };
     case 'COMPLETED_NO_ALERT':
       return {
@@ -71,6 +87,7 @@ function parqStatusCopy(
         href,
         actionLabel: 'Ver concluído',
         disabled: false,
+        nextAction: 'Aguarde o contato da equipe para os próximos passos da matrícula.',
       };
     case 'COMPLETED_REVIEW_REQUIRED':
       return {
@@ -80,6 +97,7 @@ function parqStatusCopy(
         href,
         actionLabel: 'Ver respostas enviadas',
         disabled: false,
+        nextAction: 'Aguarde a análise profissional do PAR-Q e o contato da equipe.',
       };
     case 'NEEDS_REPEAT':
       return {
@@ -88,6 +106,7 @@ function parqStatusCopy(
         href,
         actionLabel: 'Responder PAR-Q',
         disabled: false,
+        nextAction: 'Responda o PAR-Q quando puder.',
       };
     default:
       return {
@@ -96,33 +115,9 @@ function parqStatusCopy(
         href,
         actionLabel: fallbackStep ? nextStepActionLabel(fallbackStep) : 'Responder PAR-Q',
         disabled: false,
+        nextAction: fallbackNextAction,
       };
   }
-}
-
-function parqNextAction(
-  parq: import('@corrida/types').ParqSessionDTO | null,
-  fallbackStep: PreRegistrationNextStepDTO | undefined
-): string {
-  if (parq?.status === 'COMPLETED_REVIEW_REQUIRED') {
-    return 'Aguarde a análise profissional do PAR-Q e o contato da equipe.';
-  }
-  if (parq?.status === 'IN_PROGRESS') {
-    return 'Continue o PAR-Q quando puder.';
-  }
-  if (parq?.status === 'NOT_STARTED' || parq?.status === 'NEEDS_REPEAT') {
-    return 'Responda o PAR-Q quando puder.';
-  }
-  if (parq?.status === 'COMPLETED_NO_ALERT') {
-    return 'Aguarde o contato da equipe para os próximos passos da matrícula.';
-  }
-  if (fallbackStep?.status === 'IN_PROGRESS') {
-    return 'Continue o PAR-Q quando puder.';
-  }
-  if (fallbackStep?.status === 'NOT_STARTED') {
-    return 'Responda o PAR-Q quando puder.';
-  }
-  return 'Aguarde o contato da equipe para os próximos passos da matrícula.';
 }
 
 function LoadingState() {
@@ -200,7 +195,7 @@ export function LeadOnboardingHome({
     ? 'Conclua o seu cadastro básico para liberar a Anamnese e o PAR-Q.'
     : anamneseStep?.status !== 'COMPLETED'
       ? 'Responda a Anamnese Inicial quando puder.'
-      : parqNextAction(parq, parqStep);
+      : parqCopy.nextAction;
 
   return (
     <div className="space-y-6">
