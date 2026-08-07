@@ -145,6 +145,26 @@ describe('Home - roteamento entre professor/gestor e lead de pré-matrícula', (
     expect(await screen.findByText('Ver meus dados')).toBeInTheDocument();
   });
 
+  it('mantém a home do lead e libera Anamnese/PAR-Q em READY_FOR_ENROLLMENT', async () => {
+    mocks.user = { id: 'a1', type: 'aluno' };
+    mocks.listProcesses.mockResolvedValue([
+      { alunoId: 'aluno-1', status: 'READY_FOR_ENROLLMENT' },
+    ]);
+    mocks.getSession.mockResolvedValue({ ...baseSession, status: 'READY_FOR_ENROLLMENT' });
+    mocks.getParq.mockResolvedValue({ alunoId: 'aluno-1', status: 'NOT_STARTED' });
+
+    renderHome();
+
+    expect(
+      await screen.findByText('Cadastro básico concluído, em análise para matrícula')
+    ).toBeInTheDocument();
+    expect(screen.getByText('Ver meus dados')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Responder Anamnese' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Responder PAR-Q' })).toBeInTheDocument();
+    expect(screen.queryByText('Nenhuma rotina liberada')).not.toBeInTheDocument();
+    expect(mocks.getParq).toHaveBeenCalledWith('aluno-1');
+  });
+
   it('mantém o mesmo registro canônico no ciclo /inicio → /pre-cadastro → /inicio com dois processos vinculados', async () => {
     mocks.user = { id: 'a1', type: 'aluno' };
     mocks.listProcesses.mockResolvedValue([
