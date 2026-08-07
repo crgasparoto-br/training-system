@@ -35,7 +35,12 @@ const ALLOWED_PRE_REGISTRATION_STATUSES: StudentLifecycleStatus[] = [
   'INVITED',
   'PRE_REGISTRATION_IN_PROGRESS',
   'PRE_REGISTRATION_COMPLETED',
+  'READY_FOR_ENROLLMENT',
 ];
+
+export function isBasicPreRegistrationCompletedStatus(status: StudentLifecycleStatus): boolean {
+  return status === 'PRE_REGISTRATION_COMPLETED' || status === 'READY_FOR_ENROLLMENT';
+}
 
 type LockedProcessRow = {
   id: string;
@@ -532,7 +537,7 @@ export const preRegistrationPublicAtomicService = {
     try {
       return await prisma.$transaction(async (tx) => {
         let access = await lockAndAuthorizePreRegistrationProcess(tx, userId, alunoId);
-        if (access.status === 'PRE_REGISTRATION_COMPLETED') {
+        if (isBasicPreRegistrationCompletedStatus(access.status)) {
           throw new PreRegistrationPublicError(
             'O pré-cadastro já foi concluído.',
             'PRE_REGISTRATION_COMPLETED'
