@@ -13,8 +13,19 @@ const primaryLinkClass =
   'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2';
 
 function BackToHomeLink() {
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const preferredAlunoId =
+    (location.state as { preferredAlunoId?: string } | null)?.preferredAlunoId ||
+    searchParams.get('alunoId') ||
+    undefined;
+
   return (
-    <Link to="/inicio" className={secondaryLinkClass}>
+    <Link
+      to="/inicio"
+      state={preferredAlunoId ? { preferredAlunoId } : undefined}
+      className={secondaryLinkClass}
+    >
       <ArrowLeft className="h-4 w-4" aria-hidden="true" />
       Voltar para início
     </Link>
@@ -77,7 +88,15 @@ function MainPortal({ children }: { children: ReactNode }) {
   const { state, retry } = useLeadOnboardingSummary(isAuthenticated, preferredAlunoId);
 
   if (!isAuthenticated) return <Navigate to="/login" replace />;
-  if (state.status === 'active-student') return <Navigate to="/inicio" replace />;
+  if (state.status === 'active-student') {
+    return (
+      <Navigate
+        to="/inicio"
+        replace
+        state={preferredAlunoId ? { preferredAlunoId } : undefined}
+      />
+    );
+  }
   if (state.status === 'loading') {
     return (
       <Shell>
@@ -271,7 +290,9 @@ export function PreRegistrationDataSummary() {
   }
 
   const { session } = state;
-  if (session.status === 'ACTIVE_STUDENT') return <Navigate to="/inicio" replace />;
+  if (session.status === 'ACTIVE_STUDENT') {
+    return <Navigate to="/inicio" replace state={{ preferredAlunoId: session.alunoId }} />;
+  }
   if (session.status === 'DISCARDED') {
     return (
       <Shell>

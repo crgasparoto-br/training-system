@@ -1,5 +1,5 @@
-import { render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../stores/useAuthStore', () => ({
-  useAuthStore: () => ({ user: mocks.user }),
+  useAuthStore: () => ({ user: mocks.user, isAuthenticated: true }),
 }));
 
 vi.mock('../services/pre-registration-public.service', () => ({
@@ -22,6 +22,7 @@ vi.mock('../services/pre-registration-public.service', () => ({
 }));
 
 import { Home } from './Home';
+import { AuthenticatedPreRegistrationPortal } from './PublicPreRegistration/AuthenticatedPreRegistrationPortal';
 
 const baseSession = {
   alunoId: 'aluno-1',
@@ -62,6 +63,24 @@ function renderHome() {
   return render(
     <MemoryRouter>
       <Home />
+    </MemoryRouter>
+  );
+}
+
+function renderLeadRoundTrip(initialEntry: { pathname: string; state?: unknown }) {
+  return render(
+    <MemoryRouter initialEntries={[initialEntry]}>
+      <Routes>
+        <Route path="/inicio" element={<Home />} />
+        <Route
+          path="/pre-cadastro"
+          element={
+            <AuthenticatedPreRegistrationPortal>
+              <div>Fluxo canônico do pré-cadastro</div>
+            </AuthenticatedPreRegistrationPortal>
+          }
+        />
+      </Routes>
     </MemoryRouter>
   );
 }
@@ -124,6 +143,36 @@ describe('Home - roteamento entre professor/gestor e lead de pré-matrícula', (
     renderHome();
 
     expect(await screen.findByText('Ver meus dados')).toBeInTheDocument();
+  });
+
+  it('mantém o mesmo registro canônico no ciclo /inicio → /pre-cadastro → /inicio com dois processos vinculados', async () => {
+    mocks.user = { id: 'a1', type: 'aluno' };
+    mocks.listProcesses.mockResolvedValue([
+      { alunoId: 'aluno-1', status: 'PRE_REGISTRATION_COMPLETED' },
+      { alunoId: 'aluno-2', status: 'PRE_REGISTRATION_COMPLETED' },
+    ]);
+    mocks.getSession.mockImplementation((alunoId: string) =>
+      Promise.resolve({ ...baseSession, alunoId, status: 'PRE_REGISTRATION_COMPLETED' })
+    );
+    mocks.getParq.mockImplementation((alunoId: string) =>
+      Promise.resolve({ alunoId, status: 'NOT_STARTED' })
+    );
+
+    renderLeadRoundTrip({ pathname: '/inicio', state: { preferredAlunoId: 'aluno-2' } });
+
+    expect(await screen.findByText('Ver meus dados')).toBeInTheDocument();
+    expect(mocks.getSession).toHaveBeenCalledWith('aluno-2');
+    expect(mocks.getSession).not.toHaveBeenCalledWith('aluno-1');
+
+    fireEvent.click(screen.getByRole('link', { name: 'Ver meus dados' }));
+    expect(await screen.findByRole('heading', { name: 'Dados cadastrais' })).toBeInTheDocument();
+
+    mocks.getSession.mockClear();
+    fireEvent.click(screen.getByRole('link', { name: 'Voltar para início' }));
+
+    expect(await screen.findByText('Ver meus dados')).toBeInTheDocument();
+    await waitFor(() => expect(mocks.getSession).toHaveBeenCalledWith('aluno-2'));
+    expect(mocks.getSession).not.toHaveBeenCalledWith('aluno-1');
   });
 
   it('mostra estado de análise profissional necessária para o PAR-Q sem sugerir liberação clínica', async () => {
