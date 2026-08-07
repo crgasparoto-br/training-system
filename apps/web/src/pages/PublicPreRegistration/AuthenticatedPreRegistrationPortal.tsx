@@ -1,26 +1,27 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { ArrowLeft, CheckCircle2, FileText, HeartPulse, Loader2 } from 'lucide-react';
 import type { PreRegistrationSessionDTO } from '@corrida/types';
+import { ArrowLeft, FileText, Loader2 } from 'lucide-react';
 import { Link, Navigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useLeadOnboardingSummary } from '../../hooks/useLeadOnboardingSummary';
 import { preRegistrationPublicService } from '../../services/pre-registration-public.service';
 import { useAuthStore } from '../../stores/useAuthStore';
 
-const COMPLETED_BASIC_STATUSES = new Set(['PRE_REGISTRATION_COMPLETED', 'READY_FOR_ENROLLMENT']);
+const COMPLETED_STATUSES = new Set(['PRE_REGISTRATION_COMPLETED', 'READY_FOR_ENROLLMENT']);
+const secondaryLinkClass =
+  'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2';
+const primaryLinkClass =
+  'inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2';
 
 function BackToHomeLink() {
   return (
-    <Link
-      to="/inicio"
-      className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
-    >
+    <Link to="/inicio" className={secondaryLinkClass}>
       <ArrowLeft className="h-4 w-4" aria-hidden="true" />
       Voltar para início
     </Link>
   );
 }
 
-function PortalShell({ children }: { children: ReactNode }) {
+function Shell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-slate-100 px-4 py-5 text-slate-950 sm:px-6 sm:py-8">
       <main className="mx-auto w-full max-w-6xl space-y-5">{children}</main>
@@ -28,15 +29,7 @@ function PortalShell({ children }: { children: ReactNode }) {
   );
 }
 
-function StatusPanel({
-  title,
-  description,
-  action,
-}: {
-  title: string;
-  description: string;
-  action?: ReactNode;
-}) {
+function Message({ title, description, action }: { title: string; description: string; action?: ReactNode }) {
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
       <h1 className="text-2xl font-semibold text-slate-950">{title}</h1>
@@ -52,36 +45,23 @@ function nextStepLabel(status: string) {
   return 'Concluído';
 }
 
-function OptionalNextSteps({ session }: { session: PreRegistrationSessionDTO }) {
-  if (session.nextSteps.length === 0) return null;
+function NextSteps({ session }: { session: PreRegistrationSessionDTO }) {
+  if (!session.nextSteps.length) return null;
   return (
-    <section aria-labelledby="authenticated-next-steps-title" className="space-y-4">
-      <div>
-        <h2 id="authenticated-next-steps-title" className="text-xl font-semibold text-slate-950">
-          Próximos passos opcionais
-        </h2>
-        <p className="mt-1 text-sm text-slate-600">
-          Anamnese e PAR-Q continuam opcionais e usam os formulários já vinculados ao seu processo.
-        </p>
-      </div>
-      <div className="grid gap-4 md:grid-cols-2">
+    <section aria-labelledby="lead-next-steps-title">
+      <h2 id="lead-next-steps-title" className="text-xl font-semibold text-slate-950">
+        Próximos passos opcionais
+      </h2>
+      <div className="mt-4 grid gap-4 md:grid-cols-2">
         {session.nextSteps.map((step) => (
           <article key={step.key} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <HeartPulse className="h-7 w-7 text-blue-600" aria-hidden="true" />
-            <h3 className="mt-4 font-semibold text-slate-950">{step.title}</h3>
+            <h3 className="font-semibold text-slate-950">{step.title}</h3>
             <p className="mt-2 text-sm leading-6 text-slate-600">{step.description}</p>
-            <p className="mt-4 text-xs font-medium uppercase tracking-wide text-slate-500">
+            <p className="mt-3 text-xs font-medium uppercase tracking-wide text-slate-500">
               Estado: {nextStepLabel(step.status)}
             </p>
-            <Link
-              to={step.href}
-              className="mt-4 inline-flex min-h-11 items-center justify-center rounded-xl border border-blue-600 px-4 text-sm font-semibold text-blue-700 transition hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
-            >
-              {step.action === 'START'
-                ? 'Iniciar'
-                : step.action === 'CONTINUE'
-                  ? 'Continuar'
-                  : 'Consultar conclusão'}
+            <Link to={step.href} className={`${secondaryLinkClass} mt-4 border-blue-600 text-blue-700`}>
+              {step.action === 'START' ? 'Iniciar' : step.action === 'CONTINUE' ? 'Continuar' : 'Consultar conclusão'}
             </Link>
           </article>
         ))}
@@ -90,106 +70,100 @@ function OptionalNextSteps({ session }: { session: PreRegistrationSessionDTO }) 
   );
 }
 
-function AuthenticatedPreRegistrationMain({ children }: { children: ReactNode }) {
-  const location = useLocation();
+function MainPortal({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAuthStore();
+  const location = useLocation();
   const preferredAlunoId = (location.state as { preferredAlunoId?: string } | null)?.preferredAlunoId;
   const { state, retry } = useLeadOnboardingSummary(isAuthenticated, preferredAlunoId);
 
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (state.status === 'active-student') return <Navigate to="/inicio" replace />;
-
   if (state.status === 'loading') {
     return (
-      <PortalShell>
+      <Shell>
         <BackToHomeLink />
-        <StatusPanel
+        <Message
           title="Carregando seu pré-cadastro..."
           description="Estamos buscando o estado mais recente do seu processo."
           action={<Loader2 className="h-6 w-6 animate-spin text-blue-600" aria-label="Carregando" />}
         />
-      </PortalShell>
+      </Shell>
     );
   }
-
   if (state.status === 'error') {
     return (
-      <PortalShell>
-        <BackToHomeLink />
-        <StatusPanel
-          title="Não foi possível carregar seu pré-cadastro"
-          description={state.message}
-          action={
-            <button
-              type="button"
-              onClick={retry}
-              className="min-h-11 rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
-            >
-              Tentar novamente
-            </button>
-          }
-        />
-      </PortalShell>
+      <div className="space-y-0">
+        <div className="bg-slate-100 px-4 pt-5 sm:px-6 sm:pt-8">
+          <div className="mx-auto w-full max-w-6xl space-y-5">
+            <BackToHomeLink />
+            <Message
+              title="Não foi possível carregar o resumo do pré-cadastro"
+              description={state.message}
+              action={
+                <button type="button" onClick={retry} className={primaryLinkClass}>
+                  Tentar carregar o resumo novamente
+                </button>
+              }
+            />
+          </div>
+        </div>
+        <div id="pre-registration-flow">{children}</div>
+      </div>
     );
   }
-
   if (state.status === 'discarded') {
     return (
-      <PortalShell>
+      <Shell>
         <BackToHomeLink />
-        <StatusPanel
+        <Message
           title="Processo encerrado"
-          description="Seu processo de pré-matrícula foi encerrado. Não é possível retomar o pré-cadastro, a Anamnese ou o PAR-Q por aqui. Entre em contato com a equipe caso precise de orientação."
+          description="Seu processo de pré-matrícula foi encerrado. Não é possível retomar o pré-cadastro, a Anamnese ou o PAR-Q por aqui."
         />
-      </PortalShell>
+      </Shell>
     );
   }
-
   if (state.status === 'not-a-lead') {
     return (
-      <PortalShell>
+      <Shell>
         <BackToHomeLink />
-        <StatusPanel
+        <Message
           title="Nenhum pré-cadastro disponível"
           description="Não encontramos um processo de pré-matrícula disponível para esta conta."
         />
-      </PortalShell>
+      </Shell>
     );
   }
 
   const { session } = state;
-  const basicCompleted = COMPLETED_BASIC_STATUSES.has(session.status);
-  const isReadyForEnrollment = session.status === 'READY_FOR_ENROLLMENT';
+  const completed = COMPLETED_STATUSES.has(session.status);
+  const readyForEnrollment = session.status === 'READY_FOR_ENROLLMENT';
 
   return (
     <div className="space-y-0">
-      <div className="bg-slate-100 px-4 pt-5 text-slate-950 sm:px-6 sm:pt-8">
+      <div className="bg-slate-100 px-4 pt-5 sm:px-6 sm:pt-8">
         <div className="mx-auto w-full max-w-6xl space-y-5">
           <BackToHomeLink />
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
             <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
               <div>
                 <p className="text-sm font-medium text-blue-700">Pré-cadastro</p>
-                <h1 className="mt-1 text-2xl font-semibold text-slate-950">Dados cadastrais</h1>
+                <h1 className="mt-1 text-2xl font-semibold">Dados cadastrais</h1>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-                  {basicCompleted
+                  {completed
                     ? 'Consulte os dados já enviados. Após a conclusão, esta visão é somente para leitura.'
                     : 'Continue o preenchimento dos seus dados pessoais a partir do ponto salvo.'}
                 </p>
               </div>
-              {basicCompleted ? (
+              {completed ? (
                 <Link
                   to={`/pre-cadastro?view=dados&alunoId=${encodeURIComponent(session.alunoId)}`}
-                  className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
+                  className={primaryLinkClass}
                 >
                   <FileText className="h-4 w-4" aria-hidden="true" />
                   Ver pré-cadastro
                 </Link>
               ) : (
-                <a
-                  href="#pre-registration-flow"
-                  className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
-                >
+                <a href="#pre-registration-flow" className={primaryLinkClass}>
                   Continuar pré-cadastro
                 </a>
               )}
@@ -198,23 +172,18 @@ function AuthenticatedPreRegistrationMain({ children }: { children: ReactNode })
         </div>
       </div>
 
-      {isReadyForEnrollment ? (
+      {readyForEnrollment ? (
         <div className="bg-slate-100 px-4 pb-8 pt-5 sm:px-6">
           <div className="mx-auto w-full max-w-6xl space-y-5">
-            <section className="rounded-2xl border border-emerald-200 bg-white p-5 shadow-sm sm:p-6">
-              <CheckCircle2 className="h-9 w-9 text-emerald-600" aria-hidden="true" />
-              <h2 className="mt-3 text-xl font-semibold text-slate-950">Pré-cadastro concluído e em análise</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                Seus dados cadastrais estão concluídos e permanecem somente para consulta neste fluxo.
-              </p>
-            </section>
-            <OptionalNextSteps session={session} />
+            <Message
+              title="Pré-cadastro concluído e em análise"
+              description="Seus dados cadastrais permanecem somente para consulta neste fluxo."
+            />
+            <NextSteps session={session} />
           </div>
         </div>
       ) : (
-        <div id="pre-registration-flow" className="scroll-mt-4">
-          {children}
-        </div>
+        <div id="pre-registration-flow" className="scroll-mt-4">{children}</div>
       )}
     </div>
   );
@@ -227,29 +196,23 @@ type SummaryState =
 
 function formatDate(value?: string) {
   if (!value) return 'Não informado';
-  const date = new Date(value.length === 10 ? `${value}T00:00:00` : value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString('pt-BR');
+  const parsed = new Date(value.length === 10 ? `${value}T00:00:00` : value);
+  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleDateString('pt-BR');
 }
 
-function valueOrFallback(value?: string) {
-  return value?.trim() ? value : 'Não informado';
+function display(value?: string) {
+  return value?.trim() || 'Não informado';
 }
 
-function SummaryGroup({
-  title,
-  items,
-}: {
-  title: string;
-  items: Array<{ label: string; value: string }>;
-}) {
+function DataGroup({ title, items }: { title: string; items: Array<[string, string]> }) {
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-      <h2 className="text-lg font-semibold text-slate-950">{title}</h2>
+      <h2 className="text-lg font-semibold">{title}</h2>
       <dl className="mt-4 grid gap-4 sm:grid-cols-2">
-        {items.map((item) => (
-          <div key={item.label} className="min-w-0 rounded-xl bg-slate-50 p-4">
-            <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">{item.label}</dt>
-            <dd className="mt-1 break-words text-sm font-medium text-slate-900">{item.value}</dd>
+        {items.map(([label, value]) => (
+          <div key={label} className="rounded-xl bg-slate-50 p-4">
+            <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</dt>
+            <dd className="mt-1 break-words text-sm font-medium">{value}</dd>
           </div>
         ))}
       </dl>
@@ -266,26 +229,18 @@ export function PreRegistrationDataSummary() {
   useEffect(() => {
     if (!isAuthenticated) return;
     let active = true;
-
-    const load = async () => {
-      setState({ status: 'loading' });
+    void (async () => {
       try {
         const processes = await preRegistrationPublicService.listProcesses();
         const selected = requestedAlunoId
           ? processes.find((process) => process.alunoId === requestedAlunoId)
-          : processes.find((process) => COMPLETED_BASIC_STATUSES.has(process.status));
-        if (!selected) {
-          throw new Error('Não encontramos esse pré-cadastro vinculado à sua conta.');
-        }
+          : processes.find((process) => COMPLETED_STATUSES.has(process.status));
+        if (!selected) throw new Error('Não encontramos esse pré-cadastro vinculado à sua conta.');
         const session = await preRegistrationPublicService.getSession(selected.alunoId);
-        if (!active) return;
-        setState({ status: 'ready', session });
+        if (active) setState({ status: 'ready', session });
       } catch (error) {
         if (!active) return;
-        const value = error as {
-          response?: { data?: { error?: string; message?: string } };
-          message?: string;
-        };
+        const value = error as { response?: { data?: { error?: string; message?: string } }; message?: string };
         setState({
           status: 'error',
           message:
@@ -295,168 +250,140 @@ export function PreRegistrationDataSummary() {
             'Não foi possível carregar os dados do pré-cadastro.',
         });
       }
-    };
-
-    void load();
+    })();
     return () => {
       active = false;
     };
   }, [isAuthenticated, requestedAlunoId]);
 
   if (!isAuthenticated) return <Navigate to="/login" replace />;
-
   if (state.status === 'loading') {
     return (
-      <PortalShell>
+      <Shell>
         <BackToHomeLink />
-        <StatusPanel
-          title="Carregando seus dados..."
-          description="Estamos buscando a versão mais recente do seu pré-cadastro."
-          action={<Loader2 className="h-6 w-6 animate-spin text-blue-600" aria-label="Carregando" />}
-        />
-      </PortalShell>
+        <Message title="Carregando seus dados..." description="Buscando a versão mais recente do pré-cadastro." />
+      </Shell>
     );
   }
-
   if (state.status === 'error') {
     return (
-      <PortalShell>
+      <Shell>
         <BackToHomeLink />
-        <StatusPanel title="Não foi possível abrir o pré-cadastro" description={state.message} />
-      </PortalShell>
+        <Message title="Não foi possível abrir o pré-cadastro" description={state.message} />
+      </Shell>
     );
   }
 
   const { session } = state;
   if (session.status === 'ACTIVE_STUDENT') return <Navigate to="/inicio" replace />;
-
   if (session.status === 'DISCARDED') {
     return (
-      <PortalShell>
+      <Shell>
         <BackToHomeLink />
-        <StatusPanel
-          title="Processo encerrado"
-          description="Este processo foi encerrado e não está disponível para continuidade pelo fluxo de pré-matrícula."
-        />
-      </PortalShell>
+        <Message title="Processo encerrado" description="Este processo foi encerrado e não pode ser retomado por aqui." />
+      </Shell>
     );
   }
-
-  if (!COMPLETED_BASIC_STATUSES.has(session.status)) {
+  if (!COMPLETED_STATUSES.has(session.status)) {
     return (
-      <PortalShell>
+      <Shell>
         <BackToHomeLink />
-        <StatusPanel
+        <Message
           title="Seu pré-cadastro ainda está em andamento"
           description="Conclua os dados cadastrais antes de abrir o resumo final."
           action={
-            <Link
-              to="/pre-cadastro"
-              state={{ preferredAlunoId: session.alunoId }}
-              className="inline-flex min-h-11 items-center rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
-            >
+            <Link to="/pre-cadastro" state={{ preferredAlunoId: session.alunoId }} className={primaryLinkClass}>
               Continuar pré-cadastro
             </Link>
           }
         />
-      </PortalShell>
+      </Shell>
     );
   }
 
   const identity = session.identity;
-  const addressLine = [identity.addressStreet, identity.addressNumber].filter(Boolean).join(', ');
-  const cityLine = [identity.addressCity, identity.addressState].filter(Boolean).join(' - ');
+  const gender =
+    identity.gender === 'male'
+      ? 'Masculino'
+      : identity.gender === 'female'
+        ? 'Feminino'
+        : identity.gender === 'other'
+          ? 'Outro'
+          : 'Não informado';
+  const address = [identity.addressStreet, identity.addressNumber].filter(Boolean).join(', ');
+  const city = [identity.addressCity, identity.addressState].filter(Boolean).join(' - ');
 
   return (
-    <PortalShell>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <Shell>
+      <div className="flex flex-col gap-3 sm:flex-row sm:justify-between">
         <BackToHomeLink />
-        <Link
-          to="/pre-cadastro"
-          state={{ preferredAlunoId: session.alunoId }}
-          className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
-        >
+        <Link to="/pre-cadastro" state={{ preferredAlunoId: session.alunoId }} className={secondaryLinkClass}>
           Voltar para pré-cadastro
         </Link>
       </div>
-
       <header className="rounded-2xl border border-emerald-200 bg-white p-5 shadow-sm sm:p-7">
         <p className="text-sm font-medium text-emerald-700">Pré-cadastro concluído</p>
-        <h1 className="mt-1 text-3xl font-semibold text-slate-950">Seus dados cadastrais</h1>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+        <h1 className="mt-1 text-3xl font-semibold">Seus dados cadastrais</h1>
+        <p className="mt-2 text-sm leading-6 text-slate-600">
           Esta consulta é somente para leitura. Correções após a conclusão seguem o processo normal da equipe.
         </p>
       </header>
-
-      <SummaryGroup
+      <DataGroup
         title="Identificação"
         items={[
-          { label: 'Nome completo', value: valueOrFallback(identity.name) },
-          { label: 'Data de nascimento', value: formatDate(identity.birthDate) },
-          { label: 'CPF', value: valueOrFallback(identity.cpf) },
-          {
-            label: 'Sexo/gênero',
-            value:
-              identity.gender === 'male'
-                ? 'Masculino'
-                : identity.gender === 'female'
-                  ? 'Feminino'
-                  : identity.gender === 'other'
-                    ? 'Outro'
-                    : 'Não informado',
-          },
+          ['Nome completo', display(identity.name)],
+          ['Data de nascimento', formatDate(identity.birthDate)],
+          ['CPF', display(identity.cpf)],
+          ['Sexo/gênero', gender],
         ]}
       />
-
-      <SummaryGroup
+      <DataGroup
         title="Contato"
         items={[
-          { label: 'Telefone principal', value: valueOrFallback(identity.phone) },
-          { label: 'Telefone alternativo', value: valueOrFallback(identity.additionalPhone) },
-          { label: 'E-mail principal', value: valueOrFallback(identity.email) },
-          { label: 'E-mail alternativo', value: valueOrFallback(identity.additionalEmail) },
+          ['Telefone principal', display(identity.phone)],
+          ['Telefone alternativo', display(identity.additionalPhone)],
+          ['E-mail principal', display(identity.email)],
+          ['E-mail alternativo', display(identity.additionalEmail)],
         ]}
       />
-
-      <SummaryGroup
+      <DataGroup
         title="Endereço"
         items={[
-          { label: 'CEP', value: valueOrFallback(identity.addressZipCode) },
-          { label: 'Endereço', value: valueOrFallback(addressLine) },
-          { label: 'Complemento', value: valueOrFallback(identity.addressComplement) },
-          { label: 'Bairro', value: valueOrFallback(identity.addressNeighborhood) },
-          { label: 'Cidade / UF', value: valueOrFallback(cityLine) },
+          ['CEP', display(identity.addressZipCode)],
+          ['Endereço', display(address)],
+          ['Complemento', display(identity.addressComplement)],
+          ['Bairro', display(identity.addressNeighborhood)],
+          ['Cidade / UF', display(city)],
         ]}
       />
-
       {session.isMinor || identity.guardianName ? (
-        <SummaryGroup
+        <DataGroup
           title="Responsável"
           items={[
-            { label: 'Nome', value: valueOrFallback(identity.guardianName) },
-            { label: 'CPF', value: valueOrFallback(identity.guardianCpf) },
-            { label: 'Telefone', value: valueOrFallback(identity.guardianPhone) },
-            { label: 'E-mail', value: valueOrFallback(identity.guardianEmail) },
+            ['Nome', display(identity.guardianName)],
+            ['CPF', display(identity.guardianCpf)],
+            ['Telefone', display(identity.guardianPhone)],
+            ['E-mail', display(identity.guardianEmail)],
           ]}
         />
       ) : null}
-
-      <SummaryGroup
+      <DataGroup
         title="Conclusão e privacidade"
         items={[
-          { label: 'Pré-cadastro concluído em', value: formatDate(session.completedAt) },
-          { label: 'Aviso de privacidade', value: session.privacy.noticeVersion },
-          { label: 'Consentimento registrado em', value: formatDate(session.privacy.acceptedAt) },
+          ['Pré-cadastro concluído em', formatDate(session.completedAt)],
+          ['Aviso de privacidade', session.privacy.noticeVersion],
+          ['Consentimento registrado em', formatDate(session.privacy.acceptedAt)],
         ]}
       />
-    </PortalShell>
+    </Shell>
   );
 }
 
 export function AuthenticatedPreRegistrationPortal({ children }: { children: ReactNode }) {
   const [searchParams] = useSearchParams();
-  if (searchParams.get('view') === 'dados') {
-    return <PreRegistrationDataSummary />;
-  }
-  return <AuthenticatedPreRegistrationMain>{children}</AuthenticatedPreRegistrationMain>;
+  return searchParams.get('view') === 'dados' ? (
+    <PreRegistrationDataSummary />
+  ) : (
+    <MainPortal>{children}</MainPortal>
+  );
 }
