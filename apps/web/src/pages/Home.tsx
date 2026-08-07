@@ -3,6 +3,9 @@ import { Link } from 'react-router-dom';
 import { canAccessScreen } from '../access/access-control';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
 import { useAuthStore } from '../stores/useAuthStore';
+import { PRE_REGISTRATION_UI_ENABLED } from '../config/pre-registration-rollout';
+import { useLeadOnboardingSummary } from '../hooks/useLeadOnboardingSummary';
+import { isGenericHomeFallback, LeadOnboardingHome } from './LeadOnboardingHome';
 
 type CurrentUser = AuthResponse['user'] | null | undefined;
 
@@ -134,6 +137,25 @@ function getRoleLabel(user: CurrentUser) {
 
 export function Home() {
   const { user } = useAuthStore();
+  const isAluno = user?.type === 'aluno';
+  const { state, retry } = useLeadOnboardingSummary(isAluno && PRE_REGISTRATION_UI_ENABLED);
+
+  if (isAluno && PRE_REGISTRATION_UI_ENABLED && !isGenericHomeFallback(state)) {
+    return (
+      <div className="space-y-6">
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-muted-foreground">Aluno</p>
+          <h1 className="text-2xl font-bold text-foreground">Inicio</h1>
+        </div>
+        <LeadOnboardingHome state={state} onRetry={retry} />
+      </div>
+    );
+  }
+
+  return <GenericHome user={user} />;
+}
+
+function GenericHome({ user }: { user: CurrentUser }) {
   const visibleShortcuts = shortcuts.filter((shortcut) => canAccessScreen(user, shortcut.screenKey));
   const visibleGroups = (Object.keys(groupLabels) as HomeShortcut['group'][])
     .map((group) => ({
