@@ -20,6 +20,7 @@ import {
 import { preRegistrationInviteRateLimit } from '../pre-registration-invites/pre-registration-invite-rate-limit.middleware.js';
 import { assertPreRegistrationClaimRoleEligibility } from './pre-registration-claim-role.guard.js';
 import { preRegistrationDuplicateReviewService } from './pre-registration-duplicate-review.service.js';
+import { preRegistrationProcessSummaryService } from './pre-registration-process-summary.service.js';
 import { preRegistrationPublicAtomicService } from './pre-registration-public-atomic.service.js';
 import {
   PreRegistrationPublicError,
@@ -259,7 +260,7 @@ authenticatedRouter.post('/claim', async (req, res) => {
 
 authenticatedRouter.get('/processes', async (req, res) => {
   try {
-    return sendSuccess(res, await preRegistrationPublicService.listProcesses(userIdOf(req)));
+    return sendSuccess(res, await preRegistrationProcessSummaryService.listProcesses(userIdOf(req)));
   } catch (error) {
     return handleError(res, error);
   }
