@@ -172,7 +172,6 @@ export function StudentCentral() {
                 onChange={(event) => setSearchQuery(event.target.value)}
                 onKeyDown={(event) => event.key === 'Enter' && searchStudents()}
               />
-              <p className="mt-2 text-xs text-muted-foreground">{searchContextLabel}</p>
             </div>
             <div className="w-full lg:w-52">
               <label className="mb-2 block text-sm font-medium">Status</label>
@@ -191,6 +190,7 @@ export function StudentCentral() {
               Buscar
             </Button>
           </div>
+          <p className="mt-2 text-xs text-muted-foreground">{searchContextLabel}</p>
         </CardContent>
       </Card>
 
@@ -265,8 +265,16 @@ export function StudentCentral() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold text-foreground">{alunoName}</p>
-                            <p className="mt-1 truncate text-xs text-muted-foreground">
+                            <p
+                              className="truncate text-sm font-semibold text-foreground"
+                              title={alunoName}
+                            >
+                              {alunoName}
+                            </p>
+                            <p
+                              className="mt-1 truncate text-xs text-muted-foreground"
+                              title={getStudentContactSummary(aluno)}
+                            >
                               {getStudentContactSummary(aluno)}
                             </p>
                             <p className="mt-1 text-xs text-muted-foreground">
