@@ -23,7 +23,10 @@ import {
   validateParqCatalogVersion,
   validateParqResponses,
 } from './pre-registration-parq.domain.js';
-import { lockAndAuthorizePreRegistrationProcess } from './pre-registration-public-atomic.service.js';
+import {
+  isBasicPreRegistrationCompletedStatus,
+  lockAndAuthorizePreRegistrationProcess,
+} from './pre-registration-public-atomic.service.js';
 
 const prisma = new PrismaClient();
 const NOTICE_VERSION =
@@ -458,7 +461,7 @@ export const preRegistrationParqService = {
   async getSession(userId: string, alunoId: string) {
     return prisma.$transaction(async (tx) => {
       const access = await lockAndAuthorizePreRegistrationProcess(tx, userId, alunoId);
-      if (access.status !== 'PRE_REGISTRATION_COMPLETED') {
+      if (!isBasicPreRegistrationCompletedStatus(access.status)) {
         throw new ParqServiceError('Conclua primeiro os dados básicos do pré-cadastro.', 'BASIC_PRE_REGISTRATION_REQUIRED');
       }
       return buildSession(tx, access.contractId, alunoId);
@@ -472,7 +475,7 @@ export const preRegistrationParqService = {
 
     return prisma.$transaction(async (tx) => {
       const access = await lockAndAuthorizePreRegistrationProcess(tx, userId, alunoId);
-      if (access.status !== 'PRE_REGISTRATION_COMPLETED') {
+      if (!isBasicPreRegistrationCompletedStatus(access.status)) {
         throw new ParqServiceError('Conclua primeiro os dados básicos do pré-cadastro.', 'BASIC_PRE_REGISTRATION_REQUIRED');
       }
       const [existing, process] = await Promise.all([
@@ -522,7 +525,7 @@ export const preRegistrationParqService = {
 
     return prisma.$transaction(async (tx) => {
       const access = await lockAndAuthorizePreRegistrationProcess(tx, userId, alunoId);
-      if (access.status !== 'PRE_REGISTRATION_COMPLETED') {
+      if (!isBasicPreRegistrationCompletedStatus(access.status)) {
         throw new ParqServiceError('Conclua primeiro os dados básicos do pré-cadastro.', 'BASIC_PRE_REGISTRATION_REQUIRED');
       }
 
@@ -611,7 +614,7 @@ export const preRegistrationParqService = {
   async revokeConsent(userId: string, alunoId: string, expectedVersion: number) {
     return prisma.$transaction(async (tx) => {
       const access = await lockAndAuthorizePreRegistrationProcess(tx, userId, alunoId);
-      if (access.status !== 'PRE_REGISTRATION_COMPLETED') {
+      if (!isBasicPreRegistrationCompletedStatus(access.status)) {
         throw new ParqServiceError('Conclua primeiro os dados básicos do pré-cadastro.', 'BASIC_PRE_REGISTRATION_REQUIRED');
       }
       const process = await readParqProcessState(tx, alunoId, access.contractId);
