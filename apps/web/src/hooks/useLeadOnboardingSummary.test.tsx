@@ -90,6 +90,38 @@ describe('useLeadOnboardingSummary', () => {
     await waitFor(() => expect(result.current.state.status).toBe('discarded'));
   });
 
+  it('preserva o processo preferido quando ele vira ACTIVE_STUDENT mesmo com outro processo aberto', async () => {
+    mocks.listProcesses.mockResolvedValue([
+      { alunoId: 'aluno-1', status: 'ACTIVE_STUDENT' },
+      { alunoId: 'aluno-2', status: 'PRE_REGISTRATION_IN_PROGRESS' },
+    ]);
+    const { result } = renderHook(() => useLeadOnboardingSummary(true, 'aluno-1'));
+
+    await waitFor(() => expect(result.current.state.status).toBe('active-student'));
+    expect(mocks.getSession).not.toHaveBeenCalled();
+  });
+
+  it('preserva o processo preferido quando ele vira DISCARDED mesmo com outro processo aberto', async () => {
+    mocks.listProcesses.mockResolvedValue([
+      { alunoId: 'aluno-1', status: 'DISCARDED' },
+      { alunoId: 'aluno-2', status: 'PRE_REGISTRATION_IN_PROGRESS' },
+    ]);
+    const { result } = renderHook(() => useLeadOnboardingSummary(true, 'aluno-1'));
+
+    await waitFor(() => expect(result.current.state.status).toBe('discarded'));
+    expect(mocks.getSession).not.toHaveBeenCalled();
+  });
+
+  it('não troca silenciosamente para outro processo quando o preferido não está mais vinculado', async () => {
+    mocks.listProcesses.mockResolvedValue([
+      { alunoId: 'aluno-2', status: 'PRE_REGISTRATION_IN_PROGRESS' },
+    ]);
+    const { result } = renderHook(() => useLeadOnboardingSummary(true, 'aluno-1'));
+
+    await waitFor(() => expect(result.current.state.status).toBe('not-a-lead'));
+    expect(mocks.getSession).not.toHaveBeenCalled();
+  });
+
   it('carrega a sessão e retorna open com nextSteps para processo em andamento', async () => {
     mocks.listProcesses.mockResolvedValue([
       { alunoId: 'aluno-1', status: 'PRE_REGISTRATION_IN_PROGRESS' },

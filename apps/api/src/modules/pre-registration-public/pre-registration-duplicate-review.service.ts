@@ -12,9 +12,11 @@ import {
 } from '../alunos/student-identity.service.js';
 import { detectPreRegistrationDuplicates } from '../pre-registration-enrollment/pre-registration-enrollment.service.js';
 import {
+  isBasicPreRegistrationCompletedStatus,
   lockAndAuthorizePreRegistrationProcess,
   startAuthorizedPreRegistrationInTransaction,
 } from './pre-registration-public-atomic.service.js';
+import { PreRegistrationPublicError } from './pre-registration-public.service.js';
 
 const prisma = new PrismaClient();
 
@@ -249,6 +251,12 @@ export const preRegistrationDuplicateReviewService = {
   ): Promise<PreservationResult> {
     return prisma.$transaction(async (tx) => {
       let access = await lockAndAuthorizePreRegistrationProcess(tx, userId, alunoId);
+      if (isBasicPreRegistrationCompletedStatus(access.status)) {
+        throw new PreRegistrationPublicError(
+          'O pré-cadastro já foi concluído.',
+          'PRE_REGISTRATION_COMPLETED'
+        );
+      }
       if (access.onboarding.version !== input.expectedVersion) {
         throw new Error('O rascunho foi alterado em outro acesso. Recarregue antes de continuar.');
       }

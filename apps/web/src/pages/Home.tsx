@@ -1,5 +1,5 @@
 import type { AuthResponse } from '@corrida/types';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { canAccessScreen } from '../access/access-control';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
 import { useAuthStore } from '../stores/useAuthStore';
@@ -137,8 +137,13 @@ function getRoleLabel(user: CurrentUser) {
 
 export function Home() {
   const { user } = useAuthStore();
+  const location = useLocation();
+  const preferredAlunoId = (location.state as { preferredAlunoId?: string } | null)?.preferredAlunoId;
   const isAluno = user?.type === 'aluno';
-  const { state, retry } = useLeadOnboardingSummary(isAluno && PRE_REGISTRATION_UI_ENABLED);
+  const { state, retry } = useLeadOnboardingSummary(
+    isAluno && PRE_REGISTRATION_UI_ENABLED,
+    preferredAlunoId
+  );
 
   if (isAluno && PRE_REGISTRATION_UI_ENABLED && !isGenericHomeFallback(state)) {
     return (

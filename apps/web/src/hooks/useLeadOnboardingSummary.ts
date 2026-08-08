@@ -29,7 +29,7 @@ function apiErrorMessage(error: unknown): string {
 
 const CADASTRO_CONCLUIDO_STATUSES = new Set(['PRE_REGISTRATION_COMPLETED', 'READY_FOR_ENROLLMENT']);
 
-export function useLeadOnboardingSummary(enabled: boolean) {
+export function useLeadOnboardingSummary(enabled: boolean, preferredAlunoId?: string) {
   const [state, setState] = useState<LeadOnboardingSummaryState>({ status: 'loading' });
   const [reloadToken, setReloadToken] = useState(0);
 
@@ -41,9 +41,28 @@ export function useLeadOnboardingSummary(enabled: boolean) {
     setState({ status: 'loading' });
     try {
       const processes = await preRegistrationPublicService.listProcesses();
-      const eligible = processes.find(
-        (process) => process.status !== 'ACTIVE_STUDENT' && process.status !== 'DISCARDED'
-      );
+      const preferred = preferredAlunoId
+        ? processes.find((process) => process.alunoId === preferredAlunoId)
+        : undefined;
+
+      if (preferredAlunoId && !preferred) {
+        setState({ status: 'not-a-lead' });
+        return;
+      }
+      if (preferred?.status === 'ACTIVE_STUDENT') {
+        setState({ status: 'active-student' });
+        return;
+      }
+      if (preferred?.status === 'DISCARDED') {
+        setState({ status: 'discarded' });
+        return;
+      }
+
+      const eligible =
+        preferred ||
+        processes.find(
+          (process) => process.status !== 'ACTIVE_STUDENT' && process.status !== 'DISCARDED'
+        );
 
       if (!eligible) {
         if (processes.some((process) => process.status === 'ACTIVE_STUDENT')) {
@@ -71,18 +90,14 @@ export function useLeadOnboardingSummary(enabled: boolean) {
 
       let parq: ParqSessionDTO | null = null;
       if (CADASTRO_CONCLUIDO_STATUSES.has(session.status)) {
-        try {
-          parq = await preRegistrationPublicService.getParq(eligible.alunoId);
-        } catch {
-          parq = null;
-        }
+        parq = await preRegistrationPublicService.getParq(eligible.alunoId);
       }
 
       setState({ status: 'open', session, parq });
     } catch (error) {
       setState({ status: 'error', message: apiErrorMessage(error) });
     }
-  }, [enabled]);
+  }, [enabled, preferredAlunoId]);
 
   useEffect(() => {
     void load();

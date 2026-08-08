@@ -698,7 +698,7 @@ async function listProcesses(userId: string): Promise<PreRegistrationProcessSumm
     LEFT JOIN "StudentProfile" AS profile ON profile."alunoId" = student."id"
     WHERE student."userId" = ${userId}
       AND onboarding."claimedByUserId" = ${userId}
-      AND student."status" IN ('INVITED', 'PRE_REGISTRATION_IN_PROGRESS', 'PRE_REGISTRATION_COMPLETED')
+      AND student."status" IN ('INVITED', 'PRE_REGISTRATION_IN_PROGRESS', 'PRE_REGISTRATION_COMPLETED', 'READY_FOR_ENROLLMENT')
   `;
   const guardianRows = await prisma.$queryRaw<ProcessAccessRow[]>`
     SELECT student."id" AS "alunoId", student."contractId", student."status",
@@ -721,7 +721,7 @@ async function listProcesses(userId: string): Promise<PreRegistrationProcessSumm
       AND auth."purpose" = 'PRE_REGISTRATION'
       AND auth."status" IN ('PENDING', 'ACTIVE')
       AND onboarding."claimedByUserId" = ${userId}
-      AND student."status" IN ('INVITED', 'PRE_REGISTRATION_IN_PROGRESS', 'PRE_REGISTRATION_COMPLETED')
+      AND student."status" IN ('INVITED', 'PRE_REGISTRATION_IN_PROGRESS', 'PRE_REGISTRATION_COMPLETED', 'READY_FOR_ENROLLMENT')
   `;
 
   const unique = new Map<string, PreRegistrationProcessSummaryDTO>();

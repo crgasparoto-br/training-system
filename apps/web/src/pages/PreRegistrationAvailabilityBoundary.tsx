@@ -8,6 +8,7 @@ import {
   PreRegistrationUnavailable,
   type PreRegistrationAudience,
 } from './PreRegistrationUnavailable';
+import { AuthenticatedPreRegistrationPortal } from './PublicPreRegistration/AuthenticatedPreRegistrationPortal';
 
 type Availability = 'checking' | 'enabled' | 'disabled';
 
@@ -71,6 +72,10 @@ export function PreRegistrationAvailabilityBoundary({
         </p>
       </main>
     );
+  }
+
+  if (audience === 'authenticated') {
+    return <AuthenticatedPreRegistrationPortal>{children}</AuthenticatedPreRegistrationPortal>;
   }
 
   return <>{children}</>;
