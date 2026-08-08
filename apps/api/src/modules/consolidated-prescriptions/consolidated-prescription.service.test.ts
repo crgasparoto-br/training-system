@@ -1,168 +1,296 @@
-import type { CapacityPrescriptionDraft, ConsolidatedCapacityBlock } from '@corrida/types';
-import { consolidatedPrescriptionService } from './consolidated-prescription.service.js';
+import { createConsolidatedPrescriptionService } from './consolidated-prescription.service.js';
 
-const makeDraft = (overrides: Partial<CapacityPrescriptionDraft> = {}): CapacityPrescriptionDraft => ({
-  alunoId: 'aluno-1',
+const now = new Date('2026-08-08T16:30:00.000Z');
+
+const assemblyRow = (overrides: Record<string, unknown> = {}) => ({
+  id: 'assembly-1',
   contractId: 'contract-1',
-  responsibleProfessorId: 'professor-1',
-  capacity: 'resisted',
-  status: 'active',
-  version: 1,
-  sourceRefs: [
-    {
-      type: 'prontuario_goal',
-      id: 'goal-1',
-      label: 'Objetivo PRNT principal',
-      assessedAt: '2026-06-12T00:00:00.000Z',
-      origin: 'PRNT-001',
-      version: 1,
-      responsibleProfessorId: 'professor-1',
-    },
-  ],
-  linkedProntuarioGoalIds: ['goal-1'],
-  technicalJustification: 'Treino de membro inferior com atenção ao joelho.',
-  professorSummary: 'Sessão de perna planejada com restrição monitorada.',
-  studentMessage: 'Siga as orientações de segurança do professor.',
-  alerts: [],
-  parameters: null,
-  createdAt: '2026-06-12T12:00:00.000Z',
-  updatedAt: '2026-06-12T12:00:00.000Z',
-  publishesTodayWorkout: false,
+  alunoId: 'aluno-1',
+  currentVersion: 1,
+  currentStatus: 'draft',
+  createdByProfessorId: 'professor-1',
+  updatedByProfessorId: 'professor-1',
+  createdAt: now,
+  updatedAt: now,
   ...overrides,
 });
 
-const makeBlock = (draft: CapacityPrescriptionDraft, validationStatus: ConsolidatedCapacityBlock['validationStatus'] = 'validated'): ConsolidatedCapacityBlock => ({
-  capacity: draft.capacity,
-  capacityVersion: draft.version,
-  status: draft.status,
-  validationStatus,
-  draft,
+const versionRow = (overrides: Record<string, unknown> = {}) => ({
+  id: 'assembly-version-1',
+  assemblyId: 'assembly-1',
+  contractId: 'contract-1',
+  alunoId: 'aluno-1',
+  version: 1,
+  previousVersionId: null,
+  status: 'draft',
+  responsibleProfessorId: 'professor-1',
+  technicalObservation: null,
+  professorJustification: 'Montagem inicial.',
+  studentInstruction: 'Aguarde a revisão do professor.',
+  reviewedByProfessorId: null,
+  reviewedAt: null,
+  approvedByProfessorId: null,
+  approvedAt: null,
+  blockedByProfessorId: null,
+  blockedAt: null,
+  blockReason: null,
+  createdByProfessorId: 'professor-1',
+  conflicts: [],
+  createdAt: now,
+  ...overrides,
 });
 
-describe('consolidatedPrescriptionService', () => {
-  it('cria montagem versionada com rastreabilidade dos blocos ativos e validados', () => {
-    const now = new Date('2026-06-15T10:00:00.000Z');
-    const assembly = consolidatedPrescriptionService.createAssembly(
+const capacityVersion = (overrides: Record<string, unknown> = {}) => ({
+  id: 'capacity-version-1',
+  prescriptionId: 'capacity-prescription-1',
+  contractId: 'contract-1',
+  alunoId: 'aluno-1',
+  responsibleProfessorId: 'professor-1',
+  capacity: 'resisted',
+  status: 'active',
+  version: 2,
+  technicalJustification: 'Treino resistido compatível com a avaliação vigente.',
+  professorSummary: 'Bloco ativo e validado.',
+  studentMessage: 'Siga as orientações do professor.',
+  methodologyVersion: null,
+  parameterSetIds: [],
+  parameters: null,
+  publishesTodayWorkout: false,
+  createdAt: now,
+  sources: [
+    {
+      id: 'capacity-source-1',
+      versionId: 'capacity-version-1',
+      sourceType: 'prontuario_goal',
+      sourceId: 'goal-1',
+      label: 'Objetivo do PRNT',
+      assessedAt: now,
+      origin: 'PRNT-001',
+      sourceVersion: '3',
+      responsibleProfessorId: 'professor-1',
+      createdAt: now,
+    },
+  ],
+  alerts: [],
+  ...overrides,
+});
+
+const persistedBlock = (overrides: Record<string, unknown> = {}) => ({
+  id: 'block-1',
+  capacityPrescriptionVersionId: 'capacity-version-1',
+  capacity: 'resisted',
+  capacityVersion: 2,
+  capacityStatus: 'active',
+  position: 0,
+  ...overrides,
+});
+
+const persistedRef = (overrides: Record<string, unknown> = {}) => ({
+  id: 'ref-1',
+  role: 'capacity_source',
+  sourceType: 'prontuario_goal',
+  sourceId: 'goal-1',
+  label: 'Objetivo do PRNT',
+  assessedAt: now,
+  origin: 'PRNT-001',
+  sourceVersion: '3',
+  responsibleProfessorId: 'professor-1',
+  context: null,
+  ...overrides,
+});
+
+function harness(rawResponses: unknown[][], capacityVersions = [capacityVersion()]) {
+  const queryRaw = jest.fn();
+  for (const response of rawResponses) queryRaw.mockResolvedValueOnce(response);
+
+  const tx = {
+    aluno: {
+      findFirst: jest.fn().mockResolvedValue({ id: 'aluno-1' }),
+    },
+    professor: {
+      findFirst: jest.fn().mockResolvedValue({ id: 'professor-1' }),
+    },
+    capacityPrescriptionVersion: {
+      findMany: jest.fn().mockResolvedValue(capacityVersions),
+    },
+    $queryRaw: queryRaw,
+    $executeRaw: jest.fn().mockResolvedValue(1),
+  };
+
+  const client = {
+    ...tx,
+    $transaction: jest.fn(async (callback: (client: typeof tx) => unknown) => callback(tx)),
+  };
+
+  return {
+    tx,
+    client,
+    service: createConsolidatedPrescriptionService(client as never),
+  };
+}
+
+describe('consolidatedPrescriptionService persistence contract', () => {
+  it('cria rascunho usando somente IDs persistidos e ignora autoridade forjada pelo cliente', async () => {
+    const createdAssembly = assemblyRow();
+    const createdVersion = versionRow();
+    const { service, tx } = harness([
+      [],
+      [createdAssembly],
+      [createdVersion],
+      [persistedBlock()],
+      [persistedRef()],
+    ]);
+
+    const result = await service.createDraft(
       {
-        alunoId: 'aluno-1',
         contractId: 'contract-1',
-        responsibleProfessorId: 'professor-1',
-        status: 'ready_for_review',
-        capacityBlocks: [makeBlock(makeDraft())],
-        professorJustification: 'Montagem pronta para revisão final.',
-        studentInstruction: 'Aguarde a liberação do professor.',
+        alunoId: 'aluno-1',
+        actorProfessorId: 'professor-1',
       },
+      {
+        capacityBlocks: [{ capacityPrescriptionVersionId: 'capacity-version-1' }],
+        professorJustification: 'Montagem inicial.',
+        studentInstruction: 'Aguarde a revisão do professor.',
+        status: 'approved',
+        validatedByProfessorId: 'attacker-professor',
+        validatedAt: '2026-08-08T00:00:00.000Z',
+        contractId: 'contract-other',
+      } as never,
       now
     );
 
-    expect(assembly).toMatchObject({
-      alunoId: 'aluno-1',
-      contractId: 'contract-1',
-      responsibleProfessorId: 'professor-1',
-      status: 'ready_for_review',
-      version: 1,
-      canReleaseOperationalWorkout: false,
-      createsTodayWorkoutDirectly: false,
-      createdAt: '2026-06-15T10:00:00.000Z',
-    });
-    expect(assembly.traceability).toEqual({
-      capacityCount: 1,
-      sourceRefIds: ['goal-1'],
-      capacityVersions: [{ capacity: 'resisted', version: 1 }],
-    });
-  });
-
-  it('bloqueia montagem com bloco pendente ou fora de status ativo', () => {
-    expect(() =>
-      consolidatedPrescriptionService.createAssembly({
-        alunoId: 'aluno-1',
-        contractId: 'contract-1',
-        responsibleProfessorId: 'professor-1',
-        capacityBlocks: [makeBlock(makeDraft(), 'pending')],
-        professorJustification: 'Tentativa sem validação.',
-      })
-    ).toThrow('Todos os blocos de capacidade precisam estar validados');
-
-    expect(() =>
-      consolidatedPrescriptionService.createAssembly({
-        alunoId: 'aluno-1',
-        contractId: 'contract-1',
-        responsibleProfessorId: 'professor-1',
-        capacityBlocks: [makeBlock(makeDraft({ status: 'planned' }))],
-        professorJustification: 'Tentativa com capacidade planejada.',
-      })
-    ).toThrow('Montagem consolidada recebe apenas capacidades ativas');
-  });
-
-  it('detecta conflito critico antes da liberacao operacional', () => {
-    const resisted = makeDraft({
-      capacity: 'resisted',
-      technicalJustification: 'Treino intenso de perna com agachamento.',
-      professorSummary: 'Membro inferior forte.',
-      alerts: [{ code: 'knee-pain', message: 'Dor relevante no joelho direito.', severity: 'critical' }],
-    });
-    const cyclic = makeDraft({
-      capacity: 'cyclic',
-      version: 2,
-      technicalJustification: 'Sessão intervalada forte.',
-      professorSummary: 'Alta intensidade cíclica.',
-      sourceRefs: [
-        {
-          type: 'physical_assessment',
-          id: 'assessment-1',
-          label: 'Avaliação física',
+    expect(result.currentStatus).toBe('draft');
+    expect(result.latestVersion.status).toBe('draft');
+    expect(result.latestVersion.approvedByProfessorId).toBeNull();
+    expect(result.latestVersion.capacityBlocks).toEqual([
+      expect.objectContaining({
+        capacityPrescriptionVersionId: 'capacity-version-1',
+        capacity: 'resisted',
+        capacityVersion: 2,
+        capacityStatus: 'active',
+      }),
+    ]);
+    expect(tx.capacityPrescriptionVersion.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: { in: ['capacity-version-1'] },
+          contractId: 'contract-1',
+          alunoId: 'aluno-1',
         },
-      ],
-    });
-
-    const assembly = consolidatedPrescriptionService.createAssembly({
-      alunoId: 'aluno-1',
-      contractId: 'contract-1',
-      responsibleProfessorId: 'professor-1',
-      status: 'approved',
-      validatedByProfessorId: 'professor-1',
-      validatedAt: '2026-06-15T10:00:00.000Z',
-      capacityBlocks: [makeBlock(resisted), makeBlock(cyclic)],
-      professorJustification: 'Avaliar conflito antes de liberar.',
-    });
-
-    expect(assembly.conflicts).toHaveLength(1);
-    expect(assembly.conflicts[0].code).toBe('lower-limb-intensity-knee-pain');
-    expect(assembly.canReleaseOperationalWorkout).toBe(false);
+      })
+    );
   });
 
-  it('exige validacao do professor antes de liberar saida operacional', () => {
-    const draft = makeDraft({
-      technicalJustification: 'Bloco sem conflito crítico.',
-      professorSummary: 'Pronto para aprovação.',
-      alerts: [],
+  it('rejeita referência de capacidade que não pertence ao contrato/aluno', async () => {
+    const { service, tx } = harness([[]], []);
+
+    await expect(
+      service.createDraft(
+        {
+          contractId: 'contract-1',
+          alunoId: 'aluno-1',
+          actorProfessorId: 'professor-1',
+        },
+        {
+          capacityBlocks: [{ capacityPrescriptionVersionId: 'capacity-version-other-tenant' }],
+          professorJustification: 'Não deve persistir.',
+        },
+        now
+      )
+    ).rejects.toMatchObject({ code: 'INVALID_CAPACITY_VERSION' });
+
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+  });
+
+  it('rejeita a segunda escrita quando a atualização otimista perde a corrida', async () => {
+    const currentAssembly = assemblyRow();
+    const currentVersion = versionRow();
+    const { service, tx } = harness([
+      [currentAssembly],
+      [currentVersion],
+      [persistedBlock()],
+      [persistedRef()],
+      [],
+    ]);
+
+    await expect(
+      service.updateComposition(
+        {
+          contractId: 'contract-1',
+          alunoId: 'aluno-1',
+          actorProfessorId: 'professor-1',
+        },
+        {
+          expectedCurrentVersion: 1,
+          capacityBlocks: [{ capacityPrescriptionVersionId: 'capacity-version-1' }],
+          professorJustification: 'Nova revisão concorrente.',
+        },
+        now
+      )
+    ).rejects.toMatchObject({
+      code: 'CONFLICT',
+      details: { expectedCurrentVersion: 1 },
     });
 
-    const pending = consolidatedPrescriptionService.createAssembly({
-      alunoId: 'aluno-1',
-      contractId: 'contract-1',
-      responsibleProfessorId: 'professor-1',
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+  });
+
+  it('aprova por comando próprio, cria nova versão e preserva a anterior', async () => {
+    const currentAssembly = assemblyRow({ currentVersion: 2, currentStatus: 'ready_for_review' });
+    const reviewVersion = versionRow({
+      id: 'assembly-version-2',
+      version: 2,
       status: 'ready_for_review',
-      capacityBlocks: [makeBlock(draft)],
-      professorJustification: 'Ainda em revisão.',
+      previousVersionId: 'assembly-version-1',
+      reviewedByProfessorId: 'professor-1',
+      reviewedAt: new Date('2026-08-08T15:00:00.000Z'),
+    });
+    const approvedAssembly = assemblyRow({
+      currentVersion: 3,
+      currentStatus: 'approved',
+      updatedAt: now,
+    });
+    const approvedVersion = versionRow({
+      id: 'assembly-version-3',
+      version: 3,
+      previousVersionId: 'assembly-version-2',
+      status: 'approved',
+      reviewedByProfessorId: 'professor-1',
+      reviewedAt: new Date('2026-08-08T15:00:00.000Z'),
+      approvedByProfessorId: 'professor-1',
+      approvedAt: now,
     });
 
-    expect(() => consolidatedPrescriptionService.assertProfessorValidatedBeforeRelease(pending)).toThrow(
-      'Montagem consolidada precisa de validação do professor antes da liberação operacional'
+    const { service } = harness([
+      [currentAssembly],
+      [reviewVersion],
+      [persistedBlock()],
+      [persistedRef()],
+      [approvedAssembly],
+      [approvedVersion],
+      [persistedBlock({ id: 'block-3' })],
+      [persistedRef({ id: 'ref-3' })],
+    ]);
+
+    const result = await service.approve(
+      {
+        contractId: 'contract-1',
+        alunoId: 'aluno-1',
+        actorProfessorId: 'professor-1',
+      },
+      { expectedCurrentVersion: 2 },
+      now
     );
 
-    const approved = consolidatedPrescriptionService.createAssembly({
-      alunoId: 'aluno-1',
-      contractId: 'contract-1',
-      responsibleProfessorId: 'professor-1',
+    expect(result.currentVersion).toBe(3);
+    expect(result.currentStatus).toBe('approved');
+    expect(result.latestVersion).toMatchObject({
+      version: 3,
+      previousVersionId: 'assembly-version-2',
       status: 'approved',
-      validatedByProfessorId: 'professor-1',
-      validatedAt: '2026-06-15T10:00:00.000Z',
-      capacityBlocks: [makeBlock(draft)],
-      professorJustification: 'Validado para preparação operacional.',
+      approvedByProfessorId: 'professor-1',
+      approvedAt: now.toISOString(),
     });
-
-    expect(approved.canReleaseOperationalWorkout).toBe(true);
-    expect(() => consolidatedPrescriptionService.assertProfessorValidatedBeforeRelease(approved)).not.toThrow();
+    expect(result.latestVersion.canReleaseOperationalWorkout).toBe(true);
   });
 });

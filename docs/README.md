@@ -24,6 +24,7 @@ Codigo, migrations e testes definem o comportamento efetivamente entregue. Plani
 - [`architecture/api.md`](architecture/api.md): padroes da API.
 - [`architecture/web.md`](architecture/web.md): padroes do frontend web.
 - [`architecture/database.md`](architecture/database.md): banco, Prisma e multi-tenant.
+- [`database/consolidated-prescription.md`](database/consolidated-prescription.md): persistência, histórico, concorrência e isolamento da Montagem Consolidada.
 - [`architecture/auth-and-access-control.md`](architecture/auth-and-access-control.md): autenticacao, autorizacao e escopo de dados.
 - [`architecture/deployment.md`](architecture/deployment.md): deploy, ambientes e variaveis.
 - [`architecture/pre-registration-api.md`](architecture/pre-registration-api.md): fronteiras HTTP, autenticacao, erros, concorrencia e telemetria da pre-matricula.
@@ -37,6 +38,7 @@ Codigo, migrations e testes definem o comportamento efetivamente entregue. Plani
 - [`product/access-control.md`](product/access-control.md): regras de produto para controle de acesso.
 - [`product/integrated-prescription-control.md`](product/integrated-prescription-control.md): fluxo PRNT/Avaliacao -> Prescricao -> Montagem -> Treino -> Feedback.
 - [`product/capacity-prescription-model.md`](product/capacity-prescription-model.md): persistência, API, versionamento e parâmetros da prescrição por capacidades.
+- [`product/consolidated-prescription-model.md`](product/consolidated-prescription-model.md): agregado, versionamento, estados, referências e contratos da Montagem Consolidada.
 - [`product/student-centered-training-experience.md`](product/student-centered-training-experience.md): experiencia de corrida, musculacao e treino combinado centrada no aluno.
 - [`product/future-evolution-roadmap.md`](product/future-evolution-roadmap.md): recorte complementar da issue #139, subordinado ao roadmap canonico e preservado ate seus itens virarem issues especificas.
 - [`product/navigation-information-architecture.md`](product/navigation-information-architecture.md): navegacao por hubs, Aluno 360 e rollout.
