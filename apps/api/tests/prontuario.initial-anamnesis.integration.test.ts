@@ -47,6 +47,7 @@ jest.mock('../src/modules/alunos/student-domain.service', () => ({
   studentDomainService: {
     getProfile: jest.fn(),
     getHealthIntake: jest.fn(),
+    loadAlunoDomainSnapshot: jest.fn(),
   },
 }));
 
@@ -74,24 +75,59 @@ const profile = {
   },
 };
 
-const canonicalIntake = {
+const canonicalSnapshot = {
+  id: 'lead-1',
+  createdAt: '2026-08-01T12:00:00.000Z',
+  updatedAt: '2026-08-07T12:00:00.000Z',
+  studentHealthIntake: {
+    sourceType: 'student',
+    sourceReference: 'onboarding:lead-1',
+    recordedByUserId: null,
+    assessmentDate: null,
+    status: 'COMPLETED',
+    version: 3,
+    currentStep: 'review',
+    questionnaireParq: { q1: true },
+    questionnaireAha: { chestPain: 'no' },
+    clinicalHistoryData: { medicalHistory: 'Histórico canônico' },
+    medicationData: null,
+    injuryData: { injuriesHistory: 'Entorse antiga' },
+    allergyData: { notes: 'Sem alergias conhecidas' },
+    rawFormResponses: {
+      mainGoal: 'Condicionamento',
+      parqResponses: { q2: true },
+      nested: { questionnaireParq: { q3: true } },
+    },
+    observations: null,
+    createdAt: '2026-08-02T12:00:00.000Z',
+    updatedAt: '2026-08-07T12:00:00.000Z',
+    legacyIntakeId: 'legacy-intake-1',
+    migrationReviewRequired: false,
+    migrationStatus: 'migrated',
+  },
+  intakeForm: {
+    id: 'legacy-intake-1',
+    assessmentDate: '2025-01-01T12:00:00.000Z',
+    medicalHistory: 'VALOR LEGADO NÃO DEVE COMPLETAR O CANÔNICO',
+    currentMedications: 'MEDICAÇÃO LEGADA NÃO DEVE APARECER',
+    observations: 'OBSERVAÇÃO LEGADA NÃO DEVE APARECER',
+  },
+};
+
+const legacyCompatibleIntake = {
   alunoId: 'lead-1',
-  status: 'COMPLETED',
-  assessmentDate: '2026-08-07T12:00:00.000Z',
+  status: 'NOT_STARTED',
+  assessmentDate: '2025-01-01T12:00:00.000Z',
   questionnaires: {
     parq: { q1: true },
-    american: { chestPain: 'no' },
+    american: null,
   },
-  clinicalHistory: { medicalHistory: 'Asma na infância' },
-  medications: { currentMedications: 'Nenhuma' },
-  injuries: { injuriesHistory: 'Entorse antiga' },
-  allergies: { notes: 'Sem alergias conhecidas' },
-  rawFormResponses: {
-    mainGoal: 'Condicionamento',
-    parqResponses: { q2: true },
-    nested: { questionnaireParq: { q3: true } },
-  },
-  observations: 'Prefere treinar pela manhã',
+  clinicalHistory: { medicalHistory: 'Compatibilidade legada' },
+  medications: null,
+  injuries: null,
+  allergies: null,
+  rawFormResponses: null,
+  observations: null,
 };
 
 describe('prontuario initial anamnesis authorization boundary', () => {
@@ -102,7 +138,8 @@ describe('prontuario initial anamnesis authorization boundary', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     (studentDomainService.getProfile as jest.Mock).mockResolvedValue(profile);
-    (studentDomainService.getHealthIntake as jest.Mock).mockResolvedValue(canonicalIntake);
+    (studentDomainService.loadAlunoDomainSnapshot as jest.Mock).mockResolvedValue(canonicalSnapshot);
+    (studentDomainService.getHealthIntake as jest.Mock).mockResolvedValue(legacyCompatibleIntake);
   });
 
   it('identifica o lead pelo alunoId da URL sem expor o perfil completo', async () => {
@@ -128,10 +165,11 @@ describe('prontuario initial anamnesis authorization boundary', () => {
       .set('x-allowed-blocks', SUMMARY_BLOCK);
 
     expect(response.status).toBe(403);
+    expect(studentDomainService.loadAlunoDomainSnapshot).not.toHaveBeenCalled();
     expect(studentDomainService.getHealthIntake).not.toHaveBeenCalled();
   });
 
-  it('retorna a Anamnese canônica sem incorporar respostas de PAR-Q', async () => {
+  it('retorna somente StudentHealthIntake quando a fonte canônica existe, sem completar nulos pelo legado', async () => {
     const response = await request(app)
       .get('/api/v1/prontuario/alunos/lead-1/initial-anamnesis')
       .set('x-allowed-blocks', ANAMNESIS_BLOCK);
@@ -140,21 +178,45 @@ describe('prontuario initial anamnesis authorization boundary', () => {
     expect(response.body.data).toMatchObject({
       alunoId: 'lead-1',
       status: 'COMPLETED',
-      clinicalHistory: { medicalHistory: 'Asma na infância' },
+      assessmentDate: null,
+      clinicalHistory: { medicalHistory: 'Histórico canônico' },
+      medications: null,
+      observations: null,
       questionnaires: { american: { chestPain: 'no' } },
     });
     expect(response.body.data.questionnaires.parq).toBeUndefined();
     const serialized = JSON.stringify(response.body.data);
+    expect(serialized).not.toContain('VALOR LEGADO');
+    expect(serialized).not.toContain('MEDICAÇÃO LEGADA');
+    expect(serialized).not.toContain('OBSERVAÇÃO LEGADA');
     expect(serialized).not.toContain('parqResponses');
     expect(serialized).not.toContain('questionnaireParq');
     expect(serialized).not.toContain('"q1":true');
+    expect(studentDomainService.loadAlunoDomainSnapshot).toHaveBeenCalledWith('lead-1', {
+      companyContractId: 'contract-1',
+    });
+    expect(studentDomainService.getHealthIntake).not.toHaveBeenCalled();
+  });
+
+  it('mantém compatibilidade legada somente quando ainda não existe StudentHealthIntake', async () => {
+    (studentDomainService.loadAlunoDomainSnapshot as jest.Mock).mockResolvedValueOnce({
+      ...canonicalSnapshot,
+      studentHealthIntake: null,
+    });
+
+    const response = await request(app)
+      .get('/api/v1/prontuario/alunos/lead-1/initial-anamnesis')
+      .set('x-allowed-blocks', ANAMNESIS_BLOCK);
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.clinicalHistory).toEqual({ medicalHistory: 'Compatibilidade legada' });
     expect(studentDomainService.getHealthIntake).toHaveBeenCalledWith('lead-1', {
       companyContractId: 'contract-1',
     });
   });
 
   it('trata outro tenant como recurso inexistente sem vazar conteúdo', async () => {
-    (studentDomainService.getHealthIntake as jest.Mock).mockResolvedValueOnce(null);
+    (studentDomainService.loadAlunoDomainSnapshot as jest.Mock).mockResolvedValueOnce(null);
 
     const response = await request(app)
       .get('/api/v1/prontuario/alunos/lead-outro-tenant/initial-anamnesis')
@@ -162,6 +224,7 @@ describe('prontuario initial anamnesis authorization boundary', () => {
 
     expect(response.status).toBe(404);
     expect(response.body.error).toBe('Aluno não encontrado no contrato');
-    expect(JSON.stringify(response.body)).not.toContain('Asma na infância');
+    expect(JSON.stringify(response.body)).not.toContain('Histórico canônico');
+    expect(studentDomainService.getHealthIntake).not.toHaveBeenCalled();
   });
 });
