@@ -511,7 +511,7 @@ export function ProntuarioScreen() {
         <div className="space-y-2">
           <p className="text-sm font-medium uppercase text-primary">Protocolo de Avaliação Física</p>
           <h1 className="text-3xl font-semibold tracking-tight text-foreground">Prontuário de entrevista e acompanhamento</h1>
-          <p className="max-w-3xl text-sm text-muted-foreground">Histórico PRNT separado do cadastro inicial, com anamnese acompanhável, dores, rotina e desconfortos.</p>
+          <p className="max-w-3xl text-sm text-muted-foreground">Histórico PRNT separado do cadastro inicial, com acompanhamento do PAR-Q, dores, rotina e desconfortos.</p>
         </div>
         <ProtocolNavTabs activeSlug="prontuario-entrevista-acompanhamento" alunoId={selectedAlunoId} />
       </div>
@@ -568,8 +568,8 @@ export function ProntuarioScreen() {
             {blocks.anamnesis && (
               <Card>
                 <CardHeader>
-                  <CardTitle>Última anamnese</CardTitle>
-                  <CardDescription>Itens positivos da submissão PAR-Q mais recente.</CardDescription>
+                  <CardTitle>Acompanhamento dos itens positivos do PAR-Q</CardTitle>
+                  <CardDescription>Itens positivos da submissão PAR-Q selecionada e seus acompanhamentos profissionais.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {latestPositiveItems.length ? latestPositiveItems.map((item) => (
