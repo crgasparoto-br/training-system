@@ -30,7 +30,7 @@ Existe no máximo uma cadeia lógica de Montagem Consolidada por `(contractId, a
 
 `ConsolidatedPrescription` guarda a identidade do agregado e o ponteiro sequencial `currentVersion`. `ConsolidatedPrescriptionVersion` é append-only: toda gravação material cria uma nova versão e mantém `previousVersionId` apontando para a revisão anterior.
 
-A versão corrente é atualizada por comparação de `expectedCurrentVersion`. A atualização usa CAS no banco; duas escritas baseadas na mesma versão não podem avançar silenciosamente.
+A versão corrente é atualizada por comparação de `expectedCurrentVersion`. A atualização usa row lock e CAS no banco; duas escritas baseadas na mesma versão não podem avançar silenciosamente.
 
 Uma nova revisão após `approved` ou, futuramente, `released` continua no mesmo agregado e cria uma nova versão `draft`, sem reescrever o histórico anterior.
 
@@ -76,6 +76,8 @@ A FK para `CapacityPrescriptionVersion` usa `ON DELETE RESTRICT`. Alterar, suspe
 
 Origens já preservadas na versão imutável da capacidade são derivadas pelo backend e gravadas como `capacity_source`; o cliente não pode declará-las.
 
+Essa autoridade existe em duas camadas: o contrato compartilhado exclui `capacity_source` de `ConsolidatedPrescriptionDataRefInput`, e o banco valida em runtime que toda linha com esse papel corresponde exatamente a uma `CapacityPrescriptionSource` de uma capacidade selecionada. Como a referência canônica é inserida antes dos `dataRefs` adicionais, uma declaração adversarial duplicada é rejeitada e a gravação inteira sofre rollback.
+
 Referências adicionais podem usar papéis:
 
 - `assessment`;
@@ -87,7 +89,7 @@ Cada referência guarda somente identificação suficiente para auditoria: tipo,
 
 ## Concorrência e imutabilidade
 
-Toda mutação material recebe `expectedCurrentVersion` depois da criação inicial. O update do agregado é condicionado à versão corrente observada. Se outra escrita avançar primeiro, o service retorna conflito e a transação não persiste uma nova versão.
+Toda mutação material recebe `expectedCurrentVersion` depois da criação inicial. O service bloqueia o agregado corrente com `FOR UPDATE`, relê a versão efetiva e condiciona o avanço à versão esperada. Se outra escrita avançar primeiro, retorna conflito e a transação não persiste uma nova versão.
 
 Versões históricas não são atualizadas. Transições de estado clonam a composição anterior para uma nova versão, adicionando metadados de revisão/aprovação/bloqueio sem modificar a revisão de origem.
 
@@ -116,9 +118,11 @@ A migration `20260808165000_issue_316_consolidated_prescription_persistence` é 
 - `ConsolidatedPrescriptionCapacityBlock`;
 - `ConsolidatedPrescriptionDataRef`.
 
-Ela não altera nem remove `WorkoutTemplate`, `WorkoutDay`, `WorkoutExercise`, planos ou execuções atuais.
+A migration complementar `20260808220000_issue_316_capacity_source_authority_guard` endurece a autoridade das referências `capacity_source` sem alterar os modelos operacionais existentes.
 
-Detalhes de índices, FKs, triggers e isolamento ficam em `../database/consolidated-prescription.md`.
+As migrations não alteram nem removem `WorkoutTemplate`, `WorkoutDay`, `WorkoutExercise`, planos ou execuções atuais.
+
+Detalhes de índices, FKs, triggers, isolamento e evidência de integração ficam em `../database/consolidated-prescription.md`.
 
 ## Limites desta fase
 
