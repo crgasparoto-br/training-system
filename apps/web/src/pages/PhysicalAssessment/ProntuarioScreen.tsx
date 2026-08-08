@@ -365,7 +365,7 @@ export function ProntuarioScreen() {
         id: item.id,
         title: item.title?.trim() || '',
         region: item.region?.trim() || null,
-        status: allowedPainCasesStatuses.includes(item.status as ProntuarioPainCase['status'])
+        status: allowedPainCaseStatuses.includes(item.status as ProntuarioPainCase['status'])
           ? (item.status as ProntuarioPainCase['status'])
           : 'active',
         onsetDate: item.onsetDate || null,
