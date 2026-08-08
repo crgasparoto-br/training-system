@@ -53,9 +53,11 @@ Um trigger confere que:
 
 Rastreabilidade mínima de dados-base e observações adicionais. Referências já presentes nas versões de capacidade são persistidas como `capacity_source`; dados completos não são duplicados quando a referência canônica é suficiente.
 
+`capacity_source` é papel reservado ao backend. O contrato TypeScript não o aceita em `dataRefs` adicionais e a migration `20260808220000_issue_316_capacity_source_authority_guard` reforça a fronteira em runtime: a referência precisa corresponder exatamente a uma `CapacityPrescriptionSource` de uma das versões de capacidade selecionadas e uma segunda declaração da mesma origem na mesma versão consolidada é rejeitada. Como o service persiste primeiro as referências canônicas derivadas das capacidades, um payload adversarial que tente declarar `capacity_source` provoca rollback da transação.
+
 ## Isolamento multi-tenant
 
-A aplicação sempre filtra `Aluno`, `Professor` e `CapacityPrescriptionVersion` por `contractId` antes da gravação. A migration adiciona triggers para revalidar as invariantes diretamente no banco e bloquear escrita direta cross-tenant/cross-student.
+A aplicação sempre filtra `Aluno`, `Professor` e `CapacityPrescriptionVersion` por `contractId` antes da gravação. As migrations adicionam triggers para revalidar as invariantes diretamente no banco e bloquear escrita direta cross-tenant/cross-student.
 
 Esses triggers complementam, e não substituem, a autorização da API.
 
@@ -69,7 +71,7 @@ SET currentVersion = currentVersion + 1, ...
 WHERE id = :id AND currentVersion = :expectedCurrentVersion
 ```
 
-Se nenhuma linha for atualizada, a operação retorna conflito. A criação da nova versão ocorre na mesma transação serializável, portanto uma corrida perdida não deixa versão órfã.
+A mutação ocorre dentro da mesma transação que bloqueia o agregado corrente com `SELECT ... FOR UPDATE`. Depois de adquirir o row lock, o service compara `expectedCurrentVersion` com a versão observada e o `UPDATE` mantém a condição CAS. Se outra escrita tiver avançado primeiro, a operação retorna conflito e a transação não persiste uma nova versão órfã. O service não depende de `SERIALIZABLE`; a garantia descrita aqui é row lock + CAS em transação PostgreSQL.
 
 ## Imutabilidade
 
@@ -86,7 +88,9 @@ Aprovação e bloqueio são estados de novas versões. O histórico que precedeu
 - não remove nem renomeia tabelas existentes;
 - preserva modelos operacionais de treino e execução existentes.
 
-Aplicar em banco vazio ou em banco existente produz as mesmas estruturas novas sem depender de transformação de dados legados da montagem em memória.
+`20260808220000_issue_316_capacity_source_authority_guard` também é aditiva: substitui somente a função de validação usada pelo trigger de `ConsolidatedPrescriptionDataRef`, sem remover dados ou estruturas existentes.
+
+Aplicar a cadeia em banco vazio ou em banco existente produz as mesmas estruturas novas sem depender de transformação de dados legados da montagem em memória. O teste de integração da issue monta um schema PostgreSQL previamente populado, aplica as duas migrations e comprova que dados operacionais anteriores continuam presentes.
 
 ## Índices principais
 
@@ -98,15 +102,18 @@ Aplicar em banco vazio ou em banco existente produz as mesmas estruturas novas s
 - versão de capacidade referenciada;
 - origem dos dados-base.
 
-## Validação esperada
+## Validação executável
 
-Além de `pnpm validate`, esta fundação deve ser verificada com cenários de:
+`apps/api/tests/consolidated-prescription-persistence.integration.test.ts`, quando `RUN_DATABASE_INTEGRATION_TESTS=true`, cobre em PostgreSQL real:
 
-- primeira montagem;
-- segunda versão preservando a primeira;
-- corrida de duas escritas com o mesmo `expectedCurrentVersion`;
-- tentativa cross-tenant/cross-student;
-- referência de capacidade incompatível;
-- tentativa de excluir `CapacityPrescriptionVersion` em uso;
-- atualização posterior da capacidade sem mutar montagem histórica;
-- aplicação da migration sobre banco já populado.
+- primeira montagem com Resistido, Flexibilidade, Cíclico e Equilíbrio;
+- revisão, aprovação e nova composição com histórico append-only;
+- atualização posterior de uma capacidade sem mutar a montagem aprovada anterior;
+- duas escritas com o mesmo `expectedCurrentVersion` usando conexões distintas, com uma rejeitada por `CONFLICT`;
+- referência cross-tenant e cross-student rejeitada pelo service;
+- escrita direta cross-tenant rejeitada pelo trigger;
+- `ON DELETE RESTRICT` para `CapacityPrescriptionVersion` em uso;
+- tentativa adversarial de declarar `capacity_source` com rollback completo;
+- aplicação das migrations sobre schema previamente populado, preservando dados operacionais existentes.
+
+A migration em banco vazio continua exercitada pelo `prisma migrate deploy` do gate `Validate PR`, antes da suíte de integração.
