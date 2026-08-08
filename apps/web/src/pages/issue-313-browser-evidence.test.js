@@ -17,6 +17,7 @@ const API_ORIGIN = `http://${HOST}:${API_PORT}`;
 const ALUNO_ID = 'lead-313-browser-evidence';
 const DESTINATION_PATH = '/protocolo-avaliacao-fisica/prontuario-entrevista-acompanhamento';
 const OP_TIMEOUT = 10000;
+const NORMALIZE_JS = `(v)=>(v||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').replace(/\\s+/g,' ').trim()`;
 
 const user = {
   id: 'professor-313-browser-evidence',
@@ -51,11 +52,7 @@ const lead = {
   createdAt: '2026-08-07T12:00:00.000Z',
   updatedAt: '2026-08-08T10:00:00.000Z',
   lastActivityAt: '2026-08-08T10:00:00.000Z',
-  inviteAllowedActions: {
-    canGenerate: false,
-    canRegenerate: false,
-    canRevoke: false,
-  },
+  inviteAllowedActions: { canGenerate: false, canRegenerate: false, canRevoke: false },
   progress: {
     basicRegistration: 'COMPLETED',
     healthModuleStatus: 'COMPLETED',
@@ -163,7 +160,9 @@ const parqSubmission = {
   catalogVersion: 'parq-2026-01',
   submittedAt: '2026-08-08T09:00:00.000Z',
   responses: { q1: true, q2: false },
-  positiveItems: [{ key: 'q1', label: 'Questao positiva de evidencia' }],
+  positiveItems: [
+    { key: 'q1', itemKey: 'q1', label: 'Questao positiva de evidencia', itemLabel: 'Questao positiva de evidencia' },
+  ],
   positiveCount: 1,
   declarationAccepted: true,
   sourceType: 'student',
@@ -182,9 +181,7 @@ function bounded(promise, ms, label) {
 function githubIdentity() {
   let event = {};
   try {
-    if (process.env.GITHUB_EVENT_PATH) {
-      event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
-    }
+    if (process.env.GITHUB_EVENT_PATH) event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
   } catch {}
   return {
     headSha: event?.pull_request?.head?.sha || process.env.GITHUB_SHA || 'unknown',
@@ -243,10 +240,7 @@ async function startApi() {
     if (url.pathname === '/api/v1/alunos') {
       return respond(res, 200, {
         success: true,
-        data: {
-          alunos: [],
-          pagination: { page: 1, limit: 100, total: 0, totalPages: 0 },
-        },
+        data: { alunos: [], pagination: { page: 1, limit: 100, total: 0, totalPages: 0 } },
       });
     }
 
@@ -266,7 +260,6 @@ async function startApi() {
     if (url.pathname === `/api/v1/prontuario/alunos/${ALUNO_ID}`) {
       return respond(res, 200, { success: true, data: fixture.overview });
     }
-
     return respond(res, 404, { error: 'Unexpected issue 313 browser evidence request', path: url.pathname });
   });
   await bounded(
@@ -287,10 +280,7 @@ async function stopApi(server) {
 }
 
 async function startVite() {
-  const previous = {
-    api: process.env.VITE_API_URL,
-    rollout: process.env.VITE_PRE_REGISTRATION_ENABLED,
-  };
+  const previous = { api: process.env.VITE_API_URL, rollout: process.env.VITE_PRE_REGISTRATION_ENABLED };
   process.env.VITE_API_URL = API_ORIGIN;
   process.env.VITE_PRE_REGISTRATION_ENABLED = 'true';
   const { createServer } = await import('vite');
@@ -427,9 +417,7 @@ class Cdp {
       new Promise((resolve, reject) => {
         if (this.ws.readyState === WebSocket.OPEN) return resolve();
         this.ws.addEventListener('open', resolve, { once: true });
-        this.ws.addEventListener('error', () => reject(new Error('CDP websocket connection failed')), {
-          once: true,
-        });
+        this.ws.addEventListener('error', () => reject(new Error('CDP websocket connection failed')), { once: true });
       }),
       OP_TIMEOUT,
       'CDP websocket connect'
@@ -465,14 +453,8 @@ class Cdp {
 }
 
 async function evaluate(cdp, expression) {
-  const response = await cdp.send('Runtime.evaluate', {
-    expression,
-    awaitPromise: true,
-    returnByValue: true,
-  });
-  if (response.exceptionDetails) {
-    throw new Error(response.exceptionDetails.text || 'Browser evaluation failed');
-  }
+  const response = await cdp.send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
+  if (response.exceptionDetails) throw new Error(response.exceptionDetails.text || 'Browser evaluation failed');
   return response.result?.value;
 }
 
@@ -499,12 +481,16 @@ async function navigate(cdp, url) {
 }
 
 const text = (cdp, value) =>
-  wait(cdp, `document.body?.innerText.includes(${JSON.stringify(value)})`, `text ${value}`);
+  wait(
+    cdp,
+    `(() => { const n=${NORMALIZE_JS}; return n(document.body?.innerText).includes(n(${JSON.stringify(value)})); })()`,
+    `text ${value}`
+  );
 
 async function click(cdp, label) {
   const ok = await evaluate(
     cdp,
-    `(() => { const n=(v)=>(v||'').replace(/\\s+/g,' ').trim(); const el=[...document.querySelectorAll('a,button')].find((x)=>n(x.textContent)===${JSON.stringify(label)}); if(!el)return false; el.click(); return true; })()`
+    `(() => { const n=${NORMALIZE_JS}; const expected=n(${JSON.stringify(label)}); const el=[...document.querySelectorAll('a,button')].find((x)=>n(x.textContent)===expected); if(!el)return false; el.click(); return true; })()`
   );
   if (!ok) throw new Error(`Interactive element not found: ${label}`);
 }
@@ -512,7 +498,7 @@ async function click(cdp, label) {
 async function layout(cdp, labels) {
   const value = await evaluate(
     cdp,
-    `(() => { const labels=${JSON.stringify(labels)}; const n=(v)=>(v||'').replace(/\\s+/g,' ').trim(); const nodes=[...document.querySelectorAll('a,button')]; return { pathname:location.pathname, search:location.search, innerWidth, innerHeight, scrollWidth:Math.max(document.documentElement.scrollWidth,document.body.scrollWidth), elements:labels.map((label)=>{const node=nodes.find((x)=>n(x.textContent)===label); if(!node)return {label,found:false}; const r=node.getBoundingClientRect(); const s=getComputedStyle(node); return {label,found:true,left:r.left,right:r.right,top:r.top,bottom:r.bottom,display:s.display,visibility:s.visibility};})}; })()`
+    `(() => { const n=${NORMALIZE_JS}; const labels=${JSON.stringify(labels)}; const nodes=[...document.querySelectorAll('a,button')]; return { pathname:location.pathname, search:location.search, innerWidth, innerHeight, scrollWidth:Math.max(document.documentElement.scrollWidth,document.body.scrollWidth), elements:labels.map((label)=>{const expected=n(label); const node=nodes.find((x)=>n(x.textContent)===expected); if(!node)return {label,found:false}; const r=node.getBoundingClientRect(); const s=getComputedStyle(node); return {label,found:true,left:r.left,right:r.right,display:s.display,visibility:s.visibility};})}; })()`
   );
   if (value.scrollWidth > value.innerWidth + 1) {
     throw new Error(`Horizontal overflow: ${value.scrollWidth} > ${value.innerWidth}`);
@@ -529,10 +515,7 @@ async function layout(cdp, labels) {
 }
 
 async function screenshotHash(cdp) {
-  const capture = await cdp.send('Page.captureScreenshot', {
-    format: 'png',
-    captureBeyondViewport: true,
-  });
+  const capture = await cdp.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true });
   const bytes = Buffer.from(capture.data, 'base64');
   return { bytes: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex') };
 }
@@ -540,7 +523,7 @@ async function screenshotHash(cdp) {
 async function assertReadOnlyOriginalAnswers(cdp) {
   const result = await evaluate(
     cdp,
-    `(() => { const controls=[...document.querySelectorAll('input,textarea,select')]; const forbidden=['Historico canonico da Anamnese 313','Resposta original somente leitura','Condicionamento']; const editable=controls.filter((node)=>forbidden.some((value)=>String(node.value||'').includes(value))).map((node)=>({tag:node.tagName,value:node.value})); const actions=[...document.querySelectorAll('button,a')].map((node)=>(node.textContent||'').replace(/\\s+/g,' ').trim()).filter(Boolean); return {editable,hasEditAction:actions.some((value)=>/Editar Anamnese|Salvar Anamnese|Alterar Anamnese/i.test(value))}; })()`
+    `(() => { const controls=[...document.querySelectorAll('input,textarea,select')]; const forbidden=['Historico canonico da Anamnese 313','Resposta original somente leitura','Condicionamento']; const editable=controls.filter((node)=>forbidden.some((value)=>String(node.value||'').includes(value))).map((node)=>({tag:node.tagName,value:node.value})); const n=${NORMALIZE_JS}; const actions=[...document.querySelectorAll('button,a')].map((node)=>n(node.textContent)).filter(Boolean); return {editable,hasEditAction:actions.some((value)=>/Editar Anamnese|Salvar Anamnese|Alterar Anamnese/i.test(value))}; })()`
   );
   if (result.editable.length || result.hasEditAction) {
     throw new Error(`Original Anamnese is editable: ${JSON.stringify(result)}`);
@@ -572,7 +555,12 @@ async function assertClinicalState(cdp, mode) {
   if (route.pathname !== DESTINATION_PATH || route.search !== `?alunoId=${ALUNO_ID}`) {
     throw new Error(`Canonical alunoId was not preserved: ${JSON.stringify(route)}`);
   }
-  return { mode, route, readOnly: await assertReadOnlyOriginalAnswers(cdp), screenshot: await screenshotHash(cdp) };
+  return {
+    mode,
+    route,
+    readOnly: await assertReadOnlyOriginalAnswers(cdp),
+    screenshot: await screenshotHash(cdp),
+  };
 }
 
 async function enterClinicalAreaFromPreRegistration(cdp, api, viewport) {
@@ -642,9 +630,7 @@ async function runBrowserEvidence() {
     await cdp.send('Page.enable');
     await cdp.send('Runtime.enable');
     const version = await bounded(
-      fetch(`http://127.0.0.1:${chrome.port}/json/version`, {
-        signal: AbortSignal.timeout(3000),
-      }).then((r) => r.json()),
+      fetch(`http://127.0.0.1:${chrome.port}/json/version`, { signal: AbortSignal.timeout(3000) }).then((r) => r.json()),
       4000,
       'Chrome version discovery'
     );
