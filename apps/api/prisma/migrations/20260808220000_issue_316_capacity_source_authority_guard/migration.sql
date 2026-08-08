@@ -30,10 +30,6 @@ BEGIN
   END IF;
 
   IF NEW."role" = 'capacity_source' THEN
-    IF NEW."context" IS NOT NULL THEN
-      RAISE EXCEPTION 'capacity_source context must be backend canonical' USING ERRCODE = '23514';
-    END IF;
-
     IF NOT EXISTS (
       SELECT 1
       FROM "ConsolidatedPrescriptionCapacityBlock" block
