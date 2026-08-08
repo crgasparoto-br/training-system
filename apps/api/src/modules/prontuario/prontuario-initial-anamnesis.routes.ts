@@ -11,6 +11,7 @@ import { stripLegacyParqFields } from '../alunos/student-parq-boundary.service.j
 const router: Router = Router();
 
 type JsonRecord = Record<string, unknown>;
+type AlunoDomainSnapshot = Awaited<ReturnType<typeof studentDomainService.loadAlunoDomainSnapshot>>;
 
 function asRecord(value: unknown): JsonRecord | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
@@ -39,6 +40,39 @@ function toClinicalIdentity(profile: unknown, alunoId: string) {
     alunoId,
     name: typeof identification?.name === 'string' ? identification.name : null,
     email: typeof identification?.email === 'string' ? identification.email : null,
+  };
+}
+
+function buildCanonicalInitialAnamnesis(aluno: NonNullable<AlunoDomainSnapshot>) {
+  const intake = aluno.studentHealthIntake;
+  if (!intake) return null;
+
+  return {
+    alunoId: aluno.id,
+    source: {
+      type: intake.sourceType ?? 'student',
+      reference: intake.sourceReference ?? aluno.id,
+      recordedByUserId: intake.recordedByUserId ?? null,
+    },
+    assessmentDate: intake.assessmentDate ?? null,
+    status: intake.status ?? 'IN_PROGRESS',
+    version: intake.version ?? 1,
+    currentStep: intake.currentStep ?? null,
+    questionnaires: {
+      american: intake.questionnaireAha ?? null,
+    },
+    clinicalHistory: intake.clinicalHistoryData ?? null,
+    medications: intake.medicationData ?? null,
+    injuries: intake.injuryData ?? null,
+    allergies: intake.allergyData ?? null,
+    rawFormResponses: intake.rawFormResponses ?? null,
+    observations: intake.observations ?? null,
+    updatedAt: intake.updatedAt,
+    createdAt: intake.createdAt,
+    legacyIntakeId: intake.legacyIntakeId ?? null,
+    migratedFromLegacy: Boolean(intake.legacyIntakeId),
+    migrationReviewRequired: intake.migrationReviewRequired ?? false,
+    migrationStatus: intake.migrationStatus ?? null,
   };
 }
 
@@ -85,9 +119,19 @@ router.get(
       const contractId = requestContractId(req);
       if (!contractId) return sendError(res, 'Contrato não encontrado', 404);
 
-      const intake = await studentDomainService.getHealthIntake(req.params.alunoId, {
+      const snapshot = await studentDomainService.loadAlunoDomainSnapshot(req.params.alunoId, {
         companyContractId: contractId,
       });
+      if (!snapshot) return sendError(res, 'Aluno não encontrado no contrato', 404);
+
+      // Quando a fonte canônica existe, não completar campos nulos com AlunoIntakeForm.
+      // O fallback legado fica restrito ao cenário em que ainda não há StudentHealthIntake.
+      const intake =
+        buildCanonicalInitialAnamnesis(snapshot) ??
+        (await studentDomainService.getHealthIntake(req.params.alunoId, {
+          companyContractId: contractId,
+        }));
+
       if (!intake) return sendError(res, 'Aluno não encontrado no contrato', 404);
 
       return sendSuccess(
