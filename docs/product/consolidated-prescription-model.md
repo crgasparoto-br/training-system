@@ -30,7 +30,7 @@ Existe no máximo uma cadeia lógica por `(contractId, alunoId)`.
 
 `ConsolidatedPrescription` guarda a identidade do agregado e `currentVersion`. `ConsolidatedPrescriptionVersion` é append-only: toda mutação material cria uma nova versão, preserva `previousVersionId` e nunca reescreve o histórico anterior.
 
-Todas as mutações recebem `expectedCurrentVersion` depois da criação inicial. A implementação combina `SELECT ... FOR UPDATE` com CAS no `UPDATE`; duas escritas baseadas na mesma versão não podem avançar silenciosamente. O conflito retorna HTTP `409` e a transação não deixa versão, auditoria ou relações parciais.
+Todas as mutações recebem `expectedCurrentVersion` depois da criação inicial. A implementação combina `SELECT ... FOR UPDATE` com CAS no `UPDATE`; duas escritas baseadas na mesma versão não podem avançar silenciosamente. O conflito retorna HTTP `409` e a transação não deixa versão ou relações parciais.
 
 ## Estados e workflow desta fase
 
@@ -106,7 +106,9 @@ Desbloquear para `ready_for_review` registra nova revisão pelo ator autenticado
 
 ## Auditoria
 
-As ações sensíveis geram `ConsolidatedPrescriptionAuditEvent` na **mesma transação** da nova versão:
+A cadeia `ConsolidatedPrescriptionVersion` é também a fonte auditável canônica. Isso evita duplicar a mesma transição em uma segunda tabela e mantém estado e auditoria atomicamente inseparáveis: se uma nova versão não é persistida por completo, não existe evento auditável correspondente.
+
+A consulta de histórico deriva `auditEvents` deterministicamente da cadeia append-only, usando `previousVersionId`, estados, metadados de decisão e autoria da versão. As ações distinguíveis são:
 
 - `created`;
 - `composition_updated`;
@@ -117,16 +119,16 @@ As ações sensíveis geram `ConsolidatedPrescriptionAuditEvent` na **mesma tran
 - `unblocked`;
 - `revision_created`.
 
-Cada evento registra:
+Cada evento derivado expõe:
 
-- ator derivado da autenticação;
-- agregado e versão criada;
+- ator backend (`createdByProfessorId` da versão materializada pela ação);
+- agregado e versão correspondente;
 - versão/estado anterior e novo;
-- motivo quando aplicável;
-- contagem de conflitos críticos como detalhe mínimo;
-- timestamp do backend.
+- motivo persistido quando a ação possui motivo canônico de bloqueio;
+- quantidade de conflitos críticos da versão como detalhe;
+- timestamp da versão.
 
-Se a auditoria falha, a mutação inteira é revertida.
+Atores/timestamps específicos de revisão, aprovação e bloqueio continuam persistidos nos campos próprios da versão. Nenhum evento é confiado ao payload do cliente.
 
 ## HTTP
 
