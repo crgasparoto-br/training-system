@@ -55,6 +55,13 @@ function contextFor(fixture: TenantFixture) {
   };
 }
 
+function capacityBlocks(capacities: CapacityFixture[]) {
+  return capacities.map((entry, position) => ({
+    capacityPrescriptionVersionId: entry.versionId,
+    position,
+  }));
+}
+
 async function cleanupFixtures() {
   await prisma.$executeRawUnsafe(
     'DROP TRIGGER IF EXISTS "test_issue316_delay_assembly_update" ON "ConsolidatedPrescription"'
@@ -67,6 +74,9 @@ async function cleanupFixtures() {
     where: { contractId: { in: [PRIMARY_CONTRACT_ID, FOREIGN_CONTRACT_ID] } },
   });
   await prisma.capacityPrescription.deleteMany({
+    where: { contractId: { in: [PRIMARY_CONTRACT_ID, FOREIGN_CONTRACT_ID] } },
+  });
+  await prisma.prontuarioRecord.deleteMany({
     where: { contractId: { in: [PRIMARY_CONTRACT_ID, FOREIGN_CONTRACT_ID] } },
   });
   await prisma.aluno.deleteMany({
@@ -181,6 +191,20 @@ async function seedCapacity(
   );
 }
 
+async function seedCapacitySet(
+  fixture: TenantFixture,
+  options: { alunoId?: string; sourcePrefix?: string } = {}
+) {
+  return Promise.all(
+    CAPACITIES.map((capacity) =>
+      seedCapacity(fixture, capacity, {
+        alunoId: options.alunoId,
+        sourceSuffix: `${options.sourcePrefix ?? 'set'}-${capacity}`,
+      })
+    )
+  );
+}
+
 async function addCapacityVersion(
   fixture: TenantFixture,
   prescriptionId: string,
@@ -224,6 +248,31 @@ async function addCapacityVersion(
     version,
     source,
   };
+}
+
+async function seedProntuarioGoal(
+  fixture: TenantFixture,
+  suffix: string,
+  alunoId = fixture.alunoId
+) {
+  const record = await prisma.prontuarioRecord.create({
+    data: {
+      contractId: fixture.contractId,
+      alunoId,
+      professorId: fixture.professorId,
+      code: `PRNT-316-${suffix}`,
+      recordDate: new Date(),
+    },
+  });
+  const goal = await prisma.prontuarioGoal.create({
+    data: {
+      recordId: record.id,
+      title: `Objetivo ${suffix}`,
+      status: 'active',
+      priority: 0,
+    },
+  });
+  return goal.id;
 }
 
 async function installConcurrentUpdateDelay() {
@@ -320,15 +369,10 @@ describeDatabase('consolidated prescription persistence - issue 316', () => {
       '11224488000339',
       'primary'
     );
-    const capacities = await Promise.all(
-      CAPACITIES.map((capacity) => seedCapacity(tenant, capacity))
-    );
+    const capacities = await seedCapacitySet(tenant, { sourcePrefix: 'history' });
 
     const draft = await service.createDraft(contextFor(tenant), {
-      capacityBlocks: capacities.map((entry, position) => ({
-        capacityPrescriptionVersionId: entry.versionId,
-        position,
-      })),
+      capacityBlocks: capacityBlocks(capacities),
       professorJustification: 'Montagem inicial com as quatro capacidades.',
       studentInstruction: 'Aguardar revisão técnica.',
     });
@@ -415,22 +459,47 @@ describeDatabase('consolidated prescription persistence - issue 316', () => {
     expect(approvedVersion?.traceability.capacityCount).toBe(4);
   });
 
+  it('rejeita montagem incompleta mesmo quando as três versões informadas são válidas', async () => {
+    const tenant = await seedTenant(
+      PRIMARY_CONTRACT_ID,
+      '11224488000339',
+      'primary'
+    );
+    const capacities = await seedCapacitySet(tenant, { sourcePrefix: 'incomplete' });
+
+    await expect(
+      service.createDraft(contextFor(tenant), {
+        capacityBlocks: capacityBlocks(capacities).slice(0, 3),
+        professorJustification: 'Montagem incompleta não deve ser persistida.',
+      })
+    ).rejects.toMatchObject({
+      code: 'INVALID_INPUT',
+      details: { missingCapacities: ['balance'] },
+    });
+
+    expect(
+      await prisma.consolidatedPrescription.count({
+        where: { contractId: tenant.contractId, alunoId: tenant.alunoId },
+      })
+    ).toBe(0);
+  });
+
   it('rejeita em runtime capacity_source forjado e desfaz a transação inteira', async () => {
     const tenant = await seedTenant(
       PRIMARY_CONTRACT_ID,
       '11224488000339',
       'primary'
     );
-    const capacity = await seedCapacity(tenant, 'resisted', {
-      sourceSuffix: 'forged-runtime',
-    });
+    const capacities = await seedCapacitySet(tenant, { sourcePrefix: 'forged-runtime' });
+    const capacity = capacities.find((entry) => entry.capacity === 'resisted');
+    if (!capacity) throw new Error('Capacidade resistida não encontrada');
 
     let caught: unknown;
     try {
       await service.createDraft(
         contextFor(tenant),
         {
-          capacityBlocks: [{ capacityPrescriptionVersionId: capacity.versionId }],
+          capacityBlocks: capacityBlocks(capacities),
           professorJustification: 'Tentativa adversarial.',
           dataRefs: [
             {
@@ -509,6 +578,70 @@ describeDatabase('consolidated prescription persistence - issue 316', () => {
     ).toBe(0);
   });
 
+  it('valida dataRefs adicionais no escopo canônico e rejeita cross-tenant/cross-student', async () => {
+    const primary = await seedTenant(
+      PRIMARY_CONTRACT_ID,
+      '11224488000339',
+      'primary'
+    );
+    const foreign = await seedTenant(
+      FOREIGN_CONTRACT_ID,
+      '11224488000410',
+      'foreign'
+    );
+    const siblingAlunoId = await seedAluno(
+      primary.contractId,
+      primary.professorId,
+      'primary-dataref-sibling'
+    );
+    const capacities = await seedCapacitySet(primary, { sourcePrefix: 'dataref' });
+    const foreignGoalId = await seedProntuarioGoal(foreign, 'foreign-goal');
+    const siblingGoalId = await seedProntuarioGoal(
+      primary,
+      'sibling-goal',
+      siblingAlunoId
+    );
+    const ownGoalId = await seedProntuarioGoal(primary, 'own-goal');
+
+    const createWithGoal = (sourceId: string) =>
+      service.createDraft(contextFor(primary), {
+        capacityBlocks: capacityBlocks(capacities),
+        dataRefs: [
+          {
+            role: 'assessment',
+            sourceType: 'prontuario_goal',
+            sourceId,
+            label: 'Objetivo complementar rastreável',
+          },
+        ],
+        professorJustification: 'Validação de origem adicional.',
+      });
+
+    await expect(createWithGoal(foreignGoalId)).rejects.toMatchObject({
+      code: 'INVALID_DATA_REFERENCE',
+    });
+    await expect(createWithGoal(siblingGoalId)).rejects.toMatchObject({
+      code: 'INVALID_DATA_REFERENCE',
+    });
+    expect(
+      await prisma.consolidatedPrescription.count({
+        where: { contractId: primary.contractId, alunoId: primary.alunoId },
+      })
+    ).toBe(0);
+
+    const accepted = await createWithGoal(ownGoalId);
+    expect(accepted.currentVersion).toBe(1);
+    expect(accepted.latestVersion.dataRefs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          role: 'assessment',
+          sourceType: 'prontuario_goal',
+          sourceId: ownGoalId,
+        }),
+      ])
+    );
+  });
+
   it('bloqueia vínculo direto cross-tenant no trigger e impede excluir CapacityPrescriptionVersion em uso', async () => {
     const primary = await seedTenant(
       PRIMARY_CONTRACT_ID,
@@ -520,11 +653,13 @@ describeDatabase('consolidated prescription persistence - issue 316', () => {
       '11224488000410',
       'foreign'
     );
-    const ownCapacity = await seedCapacity(primary, 'resisted');
+    const ownCapacities = await seedCapacitySet(primary, { sourcePrefix: 'integrity' });
+    const ownCapacity = ownCapacities.find((entry) => entry.capacity === 'resisted');
+    if (!ownCapacity) throw new Error('Capacidade resistida não encontrada');
     const foreignCapacity = await seedCapacity(foreign, 'flexibility');
 
     const assembly = await service.createDraft(contextFor(primary), {
-      capacityBlocks: [{ capacityPrescriptionVersionId: ownCapacity.versionId }],
+      capacityBlocks: capacityBlocks(ownCapacities),
       professorJustification: 'Montagem usada para validar integridade do banco.',
     });
 
@@ -538,7 +673,7 @@ describeDatabase('consolidated prescription persistence - issue 316', () => {
         ) VALUES (
           ${randomUUID()}, ${assembly.latestVersion.id}, ${primary.contractId},
           ${primary.alunoId}, ${foreignCapacity.versionId}, 'flexibility', 1,
-          'active', 1, ${new Date()}
+          'active', 4, ${new Date()}
         )
       `;
     } catch (error) {
@@ -578,10 +713,11 @@ describeDatabase('consolidated prescription persistence - issue 316', () => {
       '11224488000339',
       'primary'
     );
-    const capacity = await seedCapacity(tenant, 'resisted');
+    const capacities = await seedCapacitySet(tenant, { sourcePrefix: 'concurrency' });
+    const blocks = capacityBlocks(capacities);
 
     await service.createDraft(contextFor(tenant), {
-      capacityBlocks: [{ capacityPrescriptionVersionId: capacity.versionId }],
+      capacityBlocks: blocks,
       professorJustification: 'Versão base da concorrência.',
     });
     await installConcurrentUpdateDelay();
@@ -589,12 +725,12 @@ describeDatabase('consolidated prescription persistence - issue 316', () => {
     const writes = await Promise.allSettled([
       service.updateComposition(contextFor(tenant), {
         expectedCurrentVersion: 1,
-        capacityBlocks: [{ capacityPrescriptionVersionId: capacity.versionId }],
+        capacityBlocks: blocks,
         professorJustification: 'Escrita concorrente A.',
       }),
       concurrentService.updateComposition(contextFor(tenant), {
         expectedCurrentVersion: 1,
-        capacityBlocks: [{ capacityPrescriptionVersionId: capacity.versionId }],
+        capacityBlocks: blocks,
         professorJustification: 'Escrita concorrente B.',
       }),
     ]);
