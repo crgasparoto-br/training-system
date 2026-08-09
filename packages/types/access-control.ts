@@ -112,6 +112,9 @@ export const ACCESS_BLOCK_CATALOG = [
   { key: 'students.details.trainingPlans', screenKey: 'students.details', label: 'Aba Treinos / Planos' },
   { key: 'plans.capacityPrescriptions.view', screenKey: 'plans', label: 'Prescrição por capacidades: consultar' },
   { key: 'plans.capacityPrescriptions.manage', screenKey: 'plans', label: 'Prescrição por capacidades: criar versão' },
+  { key: 'plans.consolidatedPrescriptions.view', screenKey: 'plans', label: 'Montagem consolidada: consultar' },
+  { key: 'plans.consolidatedPrescriptions.manage', screenKey: 'plans', label: 'Montagem consolidada: criar e revisar' },
+  { key: 'plans.consolidatedPrescriptions.approve', screenKey: 'plans', label: 'Montagem consolidada: aprovar' },
   { key: 'settings.parameters.capacityPrescriptions', screenKey: 'settings.parameters', label: 'Parâmetros: prescrição por capacidades' },
   { key: 'students.details.integrations', screenKey: 'students.details', label: 'Aba Integracoes' },
   { key: 'students.details.audit', screenKey: 'students.details', label: 'Historico / Auditoria' },
@@ -163,6 +166,7 @@ export const ACCESS_DATA_SCOPE_SCREEN_KEYS = [
   'students.preRegistration',
   'collaborators.registration',
   'collaborators.consultation',
+  'plans',
 ] as const satisfies readonly AccessScreenKey[];
 
 export const ACCESS_DATA_SCOPE_OPTIONS = [
@@ -260,6 +264,8 @@ export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
       'students.details.trainingPlans',
       'plans.capacityPrescriptions.view',
       'plans.capacityPrescriptions.manage',
+      'plans.consolidatedPrescriptions.view',
+      'plans.consolidatedPrescriptions.manage',
       'students.details.integrations',
       'students.actions.editProfile',
       'students.actions.resetPassword',
@@ -286,6 +292,7 @@ export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
       'students.preRegistration': 'self',
       'collaborators.registration': 'self',
       'collaborators.consultation': 'self',
+      plans: 'self',
     },
   },
   manager: {
@@ -318,6 +325,9 @@ export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
       'students.details.trainingPlans',
       'plans.capacityPrescriptions.view',
       'plans.capacityPrescriptions.manage',
+      'plans.consolidatedPrescriptions.view',
+      'plans.consolidatedPrescriptions.manage',
+      'plans.consolidatedPrescriptions.approve',
       'settings.parameters.capacityPrescriptions',
       'students.details.integrations',
       'students.details.audit',
@@ -357,6 +367,7 @@ export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
       'students.preRegistration': 'contract',
       'collaborators.registration': 'contract',
       'collaborators.consultation': 'contract',
+      plans: 'contract',
     },
   },
   intern: {

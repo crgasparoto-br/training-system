@@ -1,132 +1,121 @@
 # Persistência da Montagem Consolidada
 
-Este documento descreve a persistência introduzida pela issue #316 para a Montagem Consolidada da Prescrição.
+Este documento descreve a persistência da Montagem Consolidada da Prescrição. A issue #316 criou o agregado versionado; a #317 acrescentou workflow backend, revalidação estruturada, autorização e auditoria derivada da cadeia imutável de versões.
 
-## Tabelas
+## Tabelas do agregado
 
 ### `ConsolidatedPrescription`
 
 Agregado lógico atual por `(contractId, alunoId)`.
 
-Campos centrais:
-
-- `id`;
-- `contractId`;
-- `alunoId`;
-- `currentVersion`;
-- `currentStatus`;
-- autoria de criação e atualização;
-- timestamps.
-
-A restrição única `(contractId, alunoId)` impede duas cadeias concorrentes para o mesmo aluno dentro do mesmo contrato.
+Campos centrais: `id`, `contractId`, `alunoId`, `currentVersion`, `currentStatus`, autoria de criação/atualização e timestamps. A restrição única `(contractId, alunoId)` impede duas cadeias concorrentes para o mesmo aluno no contrato.
 
 ### `ConsolidatedPrescriptionVersion`
 
-Histórico imutável das revisões e transições materiais.
+Histórico imutável das revisões e transições materiais. Cada linha guarda versão sequencial, `previousVersionId`, estado, responsável técnico, justificativa/instrução, metadados de revisão/aprovação/bloqueio, conflitos estruturados, autoria e data.
 
-Cada linha guarda:
+A chave `(assemblyId, version)` é única. Comandos normais nunca atualizam uma versão histórica.
 
-- versão sequencial;
-- `previousVersionId`;
-- estado;
-- professor responsável técnico;
-- justificativa interna e instrução prática separadas;
-- metadados de revisão, aprovação e bloqueio;
-- conflitos detectados;
-- autoria e data.
-
-A chave única `(assemblyId, version)` preserva uma única revisão para cada número de versão.
+Além de representar o histórico funcional, esta tabela é a fonte auditável canônica da montagem. Cada ação sensível materializa uma nova versão com ator backend e timestamp; por isso não existe uma segunda tabela de auditoria que possa divergir do estado. `auditEvents` é derivado na leitura a partir da própria cadeia de versões.
 
 ### `ConsolidatedPrescriptionCapacityBlock`
 
-Vínculo imutável entre uma versão da montagem e uma `CapacityPrescriptionVersion`.
+Vínculo imutável entre uma versão consolidada e uma `CapacityPrescriptionVersion`. Preserva ID canônico, capacidade, versão, status e posição. A FK usa `ON DELETE RESTRICT`.
 
-A tabela preserva o ID canônico da versão de capacidade, além do snapshot mínimo de capacidade, versão, status e posição. A FK para `CapacityPrescriptionVersion` usa `ON DELETE RESTRICT` para impedir exclusão de uma origem já usada por histórico.
+Triggers verificam que montagem e capacidade têm o mesmo `contractId + alunoId` e que o snapshot de capacidade/versão/status corresponde à versão canônica.
 
-O service exige uma composição completa com exatamente uma versão ativa de cada capacidade canônica: `resisted`, `flexibility`, `cyclic` e `balance`. Uma composição incompleta ou com capacidade repetida é rejeitada antes de criar ou avançar o agregado.
-
-Um trigger confere que:
-
-- montagem e capacidade pertencem ao mesmo `contractId`;
-- montagem e capacidade pertencem ao mesmo `alunoId`;
-- capacidade, número da versão e status gravados correspondem à `CapacityPrescriptionVersion` canônica.
+Na criação/edição, o service também exige exatamente `resisted`, `flexibility`, `cyclic` e `balance`, cada uma referenciando a versão corrente `active` de seu agregado de capacidade.
 
 ### `ConsolidatedPrescriptionDataRef`
 
-Rastreabilidade mínima de dados-base e observações adicionais. Referências já presentes nas versões de capacidade são persistidas como `capacity_source`; dados completos não são duplicados quando a referência canônica é suficiente.
+Rastreabilidade mínima das fontes. `capacity_source` é reservado ao backend e corresponde a `CapacityPrescriptionSource` das versões selecionadas. Referências adicionais são revalidadas por `contractId + alunoId` antes da persistência.
 
-`capacity_source` é papel reservado ao backend. O contrato TypeScript não o aceita em `dataRefs` adicionais e a migration `20260808220000_issue_316_capacity_source_authority_guard` reforça a fronteira em runtime: a referência precisa corresponder exatamente a uma `CapacityPrescriptionSource` de uma das versões de capacidade selecionadas e uma segunda declaração da mesma origem na mesma versão consolidada é rejeitada. Como o service persiste primeiro as referências canônicas derivadas das capacidades, um payload adversarial que tente declarar `capacity_source` provoca rollback da transação.
+## Auditoria sem duplicação de persistência
 
-Os `dataRefs` adicionais também não confiam em `sourceId` como prova de escopo. Antes de persistir, o backend resolve fontes canônicas suportadas com `contractId + alunoId`, reutilizando as mesmas autoridades do domínio de prescrição por capacidade:
+A auditoria é reconstruída deterministicamente de `ConsolidatedPrescriptionVersion`:
 
-- objetivo e alerta de PRNT;
-- avaliação física e antropometria;
-- adipometria, bioimpedância, ultrassom, ventilometria e avaliação de flexibilidade;
-- preferência persistida do aluno.
+- primeira versão: `created`;
+- `draft -> ready_for_review`: `sent_for_review`;
+- `ready_for_review -> approved`: `approved`;
+- transição para `blocked`: `blocked` ou `blocked_by_conflict` conforme o motivo canônico persistido;
+- `blocked -> blocked` por correção de composição: `composition_updated`;
+- `blocked -> draft/ready_for_review`: `unblocked`;
+- `approved -> draft`: `revision_created`;
+- demais novas versões editáveis: `composition_updated`.
 
-Referências canônicas inexistentes, cross-tenant ou de outro aluno são rejeitadas com `INVALID_DATA_REFERENCE`. Uma `manual_observation` é uma origem criada dentro da própria montagem: o backend gera seu identificador e autoria em vez de aceitar o `sourceId` do cliente como autoridade. Tipos sem objeto canônico persistido e verificável neste módulo, como `routine` e `exercise_substitution`, não são aceitos como referência adicional controlada pelo cliente até existir uma fonte capaz de comprovar o escopo; eles podem continuar aparecendo como `capacity_source` quando derivados de uma versão de capacidade persistida e protegida pelo guard do banco.
+O evento derivado usa `createdByProfessorId` da versão como ator da ação, `createdAt` como timestamp, `previousVersionId` para localizar versão/estado anterior e os campos específicos de revisão/aprovação/bloqueio para rastreabilidade adicional.
 
-## Isolamento multi-tenant
-
-A aplicação sempre filtra `Aluno`, `Professor`, `CapacityPrescriptionVersion` e fontes canônicas de `dataRefs` por `contractId` e, quando a origem é do aluno, também por `alunoId` antes da gravação. As migrations adicionam triggers para revalidar as invariantes persistentes diretamente no banco e bloquear escrita direta cross-tenant/cross-student nas relações protegidas.
-
-Esses triggers complementam, e não substituem, a autorização da API.
+Essa estratégia satisfaz atomicidade por construção: estado e trilha auditável são a mesma escrita append-only. Se a transação falha ao persistir a nova versão ou alguma de suas relações obrigatórias, nem a alteração funcional nem seu evento auditável passam a existir.
 
 ## Concorrência otimista
 
 O agregado usa `currentVersion` como CAS:
 
 ```text
+SELECT ... FROM ConsolidatedPrescription FOR UPDATE
+
 UPDATE ConsolidatedPrescription
 SET currentVersion = currentVersion + 1, ...
 WHERE id = :id AND currentVersion = :expectedCurrentVersion
 ```
 
-A mutação ocorre dentro da mesma transação que bloqueia o agregado corrente com `SELECT ... FOR UPDATE`. Depois de adquirir o row lock, o service compara `expectedCurrentVersion` com a versão observada e o `UPDATE` mantém a condição CAS. Se outra escrita tiver avançado primeiro, a operação retorna conflito e a transação não persiste uma nova versão órfã. O service não depende de `SERIALIZABLE`; a garantia descrita aqui é row lock + CAS em transação PostgreSQL.
+O row lock elimina TOCTOU entre leitura da versão atual e avanço do agregado; o `WHERE currentVersion = expected` mantém proteção adicional contra escrita concorrente. A divergência retorna `CONFLICT`/HTTP `409` e não persiste versão parcial.
 
-## Imutabilidade
+## Revalidação de conflitos
 
-`ConsolidatedPrescriptionVersion`, seus blocos e referências não são atualizados por comandos normais. Alterações de composição ou estado criam nova versão e preservam `previousVersionId`.
+A revalidação lê novamente `CapacityPrescriptionVersion`, `CapacityPrescription` e alertas estruturados dentro da operação protegida. Ela considera crítica uma referência que deixou de ser a versão corrente/ativa ou um alerta persistido com severidade `critical`.
 
-Aprovação e bloqueio são estados de novas versões. O histórico que precedeu a decisão não é reescrito.
+Campos de texto livre da capacidade ou da montagem não participam da decisão autoritativa.
 
-## Compatibilidade da migration
+Quando uma revalidação encontra `critical` em `draft`, `ready_for_review` ou `approved`, uma nova versão `blocked` é criada atomicamente. O motivo canônico diferencia no histórico um bloqueio derivado de conflito estruturado de um bloqueio manual.
 
-`20260808165000_issue_316_consolidated_prescription_persistence` é aditiva:
+Uma composição corretiva pode ser criada enquanto o agregado permanece `blocked`. O desbloqueio é outro comando: relê as fontes e somente cria a nova versão `draft` ou `ready_for_review` quando não existe conflito crítico.
 
-- cria somente tabelas, índices, FKs, funções e triggers novos;
-- não faz backfill obrigatório porque não existia autoridade persistente anterior para a montagem;
-- não remove nem renomeia tabelas existentes;
-- preserva modelos operacionais de treino e execução existentes.
+## Isolamento multi-tenant e escopo de dados
 
-`20260808220000_issue_316_capacity_source_authority_guard` também é aditiva: substitui somente a função de validação usada pelo trigger de `ConsolidatedPrescriptionDataRef`, sem remover dados ou estruturas existentes.
+A rota valida `contractId` e `dataScope` antes de entrar no domínio. O service revalida `Aluno`, ator e responsável técnico dentro da transação. Relações persistidas continuam protegidas pelos triggers introduzidos na #316.
 
-Aplicar a cadeia em banco vazio ou em banco existente produz as mesmas estruturas novas sem depender de transformação de dados legados da montagem em memória. O teste de integração da issue monta um schema PostgreSQL previamente populado, aplica as duas migrations e comprova que dados operacionais anteriores continuam presentes.
+Para `plans`:
+
+- `self`: aluno diretamente atribuído ao professor;
+- `managed`: aluno do professor ou de professor cujo `responsibleManagerId` é o ator;
+- `contract`: qualquer aluno do contrato autenticado.
+
+Acesso fora do contrato/escopo não expõe a existência do registro.
+
+## Migrations
+
+A #317 não adiciona nova tabela à persistência da #316. A cadeia relevante continua:
+
+1. `20260808165000_issue_316_consolidated_prescription_persistence` — agregado, versões, blocos, refs, FKs e guards;
+2. `20260808220000_issue_316_capacity_source_authority_guard` — autoridade de `capacity_source`.
+
+O workflow da #317 reutiliza essas estruturas e mantém `schema.prisma` e histórico de migrations alinhados, sem introduzir uma tabela paralela de auditoria.
 
 ## Índices principais
 
 - agregado por contrato/aluno/estado;
-- histórico por contrato/aluno/data;
-- histórico por contrato/aluno/estado;
+- histórico por contrato/aluno/data e estado;
 - referência à versão anterior;
-- professor responsável;
 - versão de capacidade referenciada;
 - origem dos dados-base.
 
 ## Validação executável
 
-`apps/api/tests/consolidated-prescription-persistence.integration.test.ts`, quando `RUN_DATABASE_INTEGRATION_TESTS=true`, cobre em PostgreSQL real:
+`apps/api/src/modules/consolidated-prescriptions/consolidated-prescription.service.test.ts` cobre o motor estruturado, ausência de heurística textual, `info`/`warning`/`critical`, autoridade do backend, composição completa, capacidade não ativa e falha de persistência da versão auditável.
 
-- primeira montagem com Resistido, Flexibilidade, Cíclico e Equilíbrio;
-- rejeição de montagem incompleta mesmo quando as versões informadas são válidas;
-- revisão, aprovação e nova composição com histórico append-only;
-- atualização posterior de uma capacidade sem mutar a montagem aprovada anterior;
-- duas escritas com o mesmo `expectedCurrentVersion` usando conexões distintas, com uma rejeitada por `CONFLICT`;
-- referência de capacidade cross-tenant e cross-student rejeitada pelo service;
-- `dataRef` adicional válido resolvido no escopo do aluno e referências cross-tenant/cross-student rejeitadas antes da persistência;
-- escrita direta cross-tenant rejeitada pelo trigger;
-- `ON DELETE RESTRICT` para `CapacityPrescriptionVersion` em uso;
-- tentativa adversarial de declarar `capacity_source` com rollback completo;
-- aplicação das migrations sobre schema previamente populado, preservando dados operacionais existentes.
+`apps/api/tests/consolidated-prescription-http.integration.test.ts`, quando `RUN_DATABASE_INTEGRATION_TESTS=true`, cobre PostgreSQL real e HTTP para:
 
-A migration em banco vazio continua exercitada pelo `prisma migrate deploy` do gate `Validate PR`, antes da suíte de integração.
+- payload com campos de autoridade rejeitado;
+- isolamento cross-tenant e `dataScope`;
+- permissão específica de aprovação;
+- fluxo `draft -> ready_for_review -> approved`;
+- texto livre sem bloqueio;
+- alerta `critical` levando a `blocked`;
+- remediação ainda bloqueada e desbloqueio explícito;
+- nova revisão após aprovação;
+- histórico com eventos de auditoria derivados das versões;
+- `expectedCurrentVersion` obsoleto retornando `409` sem avanço parcial;
+- inexistência de endpoint `released` nesta fase.
+
+`apps/api/tests/consolidated-prescription-persistence.integration.test.ts` preserva os testes PostgreSQL da #316, incluindo duas escritas concorrentes na mesma `expectedCurrentVersion`, rollback transacional por guard de origem e imutabilidade das versões anteriores.

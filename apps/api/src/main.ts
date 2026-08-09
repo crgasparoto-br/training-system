@@ -8,6 +8,7 @@ import { anthropometryRoutes } from './modules/anthropometry/index.js';
 import { adipometryRoutes } from './modules/adipometry/index.js';
 import adipometryGovernanceRoutes from './modules/adipometry/adipometry-governance.routes.js';
 import { capacityPrescriptionRoutes } from './modules/capacity-prescriptions/index.js';
+import { consolidatedPrescriptionRoutes } from './modules/consolidated-prescriptions/index.js';
 import { prontuarioRoutes } from './modules/prontuario/index.js';
 import { professorManualRoutes } from './modules/professor-manual/index.js';
 import { authRoutes } from './modules/auth/index.js';
@@ -141,6 +142,7 @@ app.get('/api/v1', (_req, res) => {
       anthropometry: '/api/v1/anthropometry',
       adipometry: '/api/v1/adipometry',
       capacityPrescriptions: '/api/v1/capacity-prescriptions',
+      consolidatedPrescriptions: '/api/v1/consolidated-prescriptions',
       prontuario: '/api/v1/prontuario',
       professorManual: '/api/v1/professor-manual',
       banks: '/api/v1/banks',
@@ -181,6 +183,7 @@ app.use('/api/v1/alunos', alunoRoutes);
 app.use('/api/v1/anthropometry', anthropometryRoutes);
 app.use('/api/v1/adipometry', adipometryRoutes);
 app.use('/api/v1/capacity-prescriptions', capacityPrescriptionRoutes);
+app.use('/api/v1/consolidated-prescriptions', consolidatedPrescriptionRoutes);
 app.use('/api/v1/prontuario', prontuarioRoutes);
 app.use('/api/v1/professor-manual', professorManualRoutes);
 app.use('/api/v1/banks', bankRoutes);
@@ -228,4 +231,3 @@ Environment: ${NODE_ENV}
 
 startProfileReviewScheduler();
 startStudentContractLifecycleScheduler();
-

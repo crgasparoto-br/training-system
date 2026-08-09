@@ -26,6 +26,20 @@ export const CONSOLIDATED_PRESCRIPTION_DATA_REF_ROLES = [
 export type ConsolidatedPrescriptionDataRefRole =
   (typeof CONSOLIDATED_PRESCRIPTION_DATA_REF_ROLES)[number];
 
+export const CONSOLIDATED_PRESCRIPTION_AUDIT_ACTIONS = [
+  'created',
+  'composition_updated',
+  'sent_for_review',
+  'approved',
+  'blocked',
+  'blocked_by_conflict',
+  'unblocked',
+  'revision_created',
+] as const;
+
+export type ConsolidatedPrescriptionAuditAction =
+  (typeof CONSOLIDATED_PRESCRIPTION_AUDIT_ACTIONS)[number];
+
 export interface ConsolidatedPrescriptionCapacityVersionInput {
   capacityPrescriptionVersionId: string;
   position?: number | null;
@@ -64,6 +78,18 @@ export interface ConsolidatedPrescriptionConflict {
   severity: 'info' | 'warning' | 'critical';
   affectedCapacities: PhysicalCapacityType[];
   sourceRefIds: string[];
+}
+
+export interface ConsolidatedPrescriptionConflictReport {
+  version: number;
+  status: ConsolidatedPrescriptionStatus;
+  conflicts: ConsolidatedPrescriptionConflict[];
+  hasCritical: boolean;
+  canUnblock: boolean;
+  unavailableChecks: Array<{
+    code: string;
+    message: string;
+  }>;
 }
 
 export interface ConsolidatedPrescriptionTraceability {
@@ -146,9 +172,37 @@ export interface BlockConsolidatedPrescriptionCommand extends ConsolidatedPrescr
   reason: string;
 }
 
+export interface UnblockConsolidatedPrescriptionCommand extends ConsolidatedPrescriptionVersionCommand {
+  targetStatus: 'draft' | 'ready_for_review';
+  reason?: string | null;
+}
+
+export interface CreateConsolidatedPrescriptionRevisionCommand
+  extends ConsolidatedPrescriptionVersionCommand {
+  reason?: string | null;
+}
+
+export interface ConsolidatedPrescriptionAuditEvent {
+  id: string;
+  assemblyId: string;
+  assemblyVersionId: string;
+  contractId: string;
+  alunoId: string;
+  actorProfessorId: string;
+  action: ConsolidatedPrescriptionAuditAction;
+  previousVersion: number | null;
+  newVersion: number;
+  previousStatus: ConsolidatedPrescriptionStatus | null;
+  newStatus: ConsolidatedPrescriptionStatus;
+  reason?: string | null;
+  details?: Record<string, unknown> | null;
+  createdAt: string;
+}
+
 export interface ConsolidatedPrescriptionHistory {
   assembly: ConsolidatedPrescriptionSummary;
   versions: ConsolidatedPrescriptionVersionDetail[];
+  auditEvents: ConsolidatedPrescriptionAuditEvent[];
 }
 
 export interface ConsolidatedPrescriptionConflictResponse {

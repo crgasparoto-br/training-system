@@ -9,7 +9,10 @@ import {
   type CapacityPrescriptionStatus,
   type ConsolidatedCapacityBlock,
   type ConsolidatedPrescriptionAssembly,
+  type ConsolidatedPrescriptionAuditAction,
+  type ConsolidatedPrescriptionAuditEvent,
   type ConsolidatedPrescriptionConflict,
+  type ConsolidatedPrescriptionConflictReport,
   type ConsolidatedPrescriptionDataRef,
   type ConsolidatedPrescriptionDataRefInput,
   type ConsolidatedPrescriptionHistory,
@@ -17,7 +20,9 @@ import {
   type ConsolidatedPrescriptionVersionCommand,
   type ConsolidatedPrescriptionVersionDetail,
   type CreateConsolidatedPrescriptionDraftPayload,
+  type CreateConsolidatedPrescriptionRevisionCommand,
   type PhysicalCapacityType,
+  type UnblockConsolidatedPrescriptionCommand,
   type UpdateConsolidatedPrescriptionCompositionPayload,
 } from '@corrida/types';
 
@@ -25,6 +30,7 @@ const prisma = new PrismaClient();
 const statusSet = new Set<string>(CONSOLIDATED_PRESCRIPTION_STATUSES);
 const capacitySet = new Set<string>(PHYSICAL_CAPACITY_TYPES);
 const capacityStatusSet = new Set<string>(CAPACITY_PRESCRIPTION_STATUSES);
+const conflictSeveritySet = new Set(['info', 'warning', 'critical']);
 const genericAssessmentCategories: Partial<
   Record<ConsolidatedPrescriptionDataRef['sourceType'], string[]>
 > = {
@@ -34,6 +40,16 @@ const genericAssessmentCategories: Partial<
   ventilometry: ['ventilometry', 'ventilometria', 'metabolic'],
   flexibility_assessment: ['flexibility', 'flexibilidade', 'flexibility_assessment'],
 };
+
+const unavailableChecks = [
+  {
+    code: 'canonical-clinical-correlation-unavailable',
+    message:
+      'Correlações adicionais de carga, intensidade e restrições clínicas exigem regra canônica parametrizada; nenhum bloqueio é inferido por texto livre.',
+  },
+] as const;
+
+const STRUCTURED_CONFLICT_BLOCK_REASON = 'Bloqueado por impedimento crítico estruturado.';
 
 type DbClient = Prisma.TransactionClient | PrismaClient;
 
@@ -122,6 +138,7 @@ interface DataRefRow {
 
 interface ResolvedCapacityVersion {
   id: string;
+  prescriptionId: string;
   capacity: PhysicalCapacityType;
   version: number;
   status: CapacityPrescriptionStatus;
@@ -138,7 +155,18 @@ interface ResolvedCapacityVersion {
     sourceVersion: string | null;
     responsibleProfessorId: string | null;
   }>;
-  alerts: Array<{ code: string; message: string; severity: string }>;
+  alerts: Array<{
+    code: string;
+    message: string;
+    severity: string;
+    sourceRefId: string | null;
+  }>;
+}
+
+interface CapacityRootState {
+  id: string;
+  currentVersion: number;
+  status: string;
 }
 
 function domainError(
@@ -261,8 +289,6 @@ async function validateAdditionalDataRef(
   context: ConsolidatedPrescriptionContext,
   ref: ConsolidatedPrescriptionDataRef
 ) {
-  // capacity_source is intentionally left to the database guard because it is
-  // backend-owned in the typed contract and the trigger also protects untyped callers.
   if (ref.role === 'capacity_source') return;
 
   if (ref.sourceType === 'manual_observation') {
@@ -339,10 +365,6 @@ async function validateAdditionalDataRef(
     case 'professor_note':
     case 'routine':
     case 'exercise_substitution':
-      // These source types do not have a canonical persisted object that can be
-      // revalidated for tenant/student scope in this module. They remain valid
-      // as backend-derived capacity_source values, but are rejected as client
-      // references until a canonical source exists.
       exists = false;
       break;
     default:
@@ -350,10 +372,7 @@ async function validateAdditionalDataRef(
   }
 
   if (!exists) {
-    domainError(
-      'INVALID_DATA_REFERENCE',
-      'Origem adicional inválida ou fora do contrato do aluno'
-    );
+    domainError('INVALID_DATA_REFERENCE', 'Origem adicional inválida ou fora do contrato do aluno');
   }
 }
 
@@ -363,9 +382,7 @@ async function resolveAdditionalDataRefs(
   inputs: ConsolidatedPrescriptionDataRefInput[]
 ) {
   const refs = inputs.map(normalizeDataRef);
-  for (const ref of refs) {
-    await validateAdditionalDataRef(client, context, ref);
-  }
+  for (const ref of refs) await validateAdditionalDataRef(client, context, ref);
   return refs;
 }
 
@@ -382,17 +399,12 @@ async function resolveCapacityVersions(
   }
 
   const versions = await client.capacityPrescriptionVersion.findMany({
-    where: {
-      id: { in: ids },
-      contractId: context.contractId,
-      alunoId: context.alunoId,
-    },
+    where: { id: { in: ids }, contractId: context.contractId, alunoId: context.alunoId },
     include: {
       sources: { orderBy: { createdAt: 'asc' } },
       alerts: { orderBy: { createdAt: 'asc' } },
     },
   });
-
   if (versions.length !== ids.length) {
     domainError(
       'INVALID_CAPACITY_VERSION',
@@ -400,22 +412,40 @@ async function resolveCapacityVersions(
     );
   }
 
+  const roots = await client.capacityPrescription.findMany({
+    where: {
+      id: { in: versions.map((version) => version.prescriptionId) },
+      contractId: context.contractId,
+      alunoId: context.alunoId,
+    },
+    select: { id: true, currentVersion: true, status: true },
+  });
+  const rootById = new Map(roots.map((root) => [root.id, root]));
   const byId = new Map(versions.map((version) => [version.id, version]));
   const usedCapacities = new Set<string>();
 
   const resolved = inputs.map((input, index) => {
     const version = byId.get(input.capacityPrescriptionVersionId.trim());
     if (!version) domainError('INVALID_CAPACITY_VERSION', 'Versão de capacidade inválida');
-
+    const root = rootById.get(version.prescriptionId);
     const capacity = asCapacity(version.capacity);
-    const status = asCapacityStatus(version.status);
+    const capacityStatus = asCapacityStatus(version.status);
+
     if (usedCapacities.has(capacity)) {
       domainError('INVALID_INPUT', `A capacidade ${capacity} foi informada mais de uma vez`);
     }
     usedCapacities.add(capacity);
 
-    if (status !== 'active') {
-      domainError('INVALID_CAPACITY_VERSION', 'Montagem consolidada recebe apenas capacidades ativas');
+    if (
+      capacityStatus !== 'active' ||
+      !root ||
+      root.status !== 'active' ||
+      root.currentVersion !== version.version
+    ) {
+      domainError(
+        'INVALID_CAPACITY_VERSION',
+        'A montagem consolidada recebe somente a versão vigente e ativa de cada capacidade'
+      );
     }
 
     const position = input.position ?? index;
@@ -425,9 +455,10 @@ async function resolveCapacityVersions(
 
     return {
       id: version.id,
+      prescriptionId: version.prescriptionId,
       capacity,
       version: version.version,
-      status,
+      status: capacityStatus,
       position,
       technicalJustification: version.technicalJustification,
       professorSummary: version.professorSummary,
@@ -447,7 +478,6 @@ async function resolveCapacityVersions(
       { missingCapacities }
     );
   }
-
   return resolved;
 }
 
@@ -474,44 +504,74 @@ function capacitySourceRefs(versions: ResolvedCapacityVersion[]): ConsolidatedPr
   return Array.from(unique.values());
 }
 
-function blockText(block: ResolvedCapacityVersion) {
-  return [
-    block.technicalJustification,
-    block.professorSummary,
-    block.studentMessage,
-    ...block.alerts.map((alert) => alert.message),
-  ]
-    .filter(Boolean)
-    .join(' ')
-    .toLocaleLowerCase('pt-BR');
+function alertConflict(
+  capacity: PhysicalCapacityType,
+  alert: { code: string; message: string; severity: string; sourceRefId: string | null }
+): ConsolidatedPrescriptionConflict | null {
+  if (!conflictSeveritySet.has(alert.severity)) return null;
+  return {
+    code: `capacity-alert:${capacity}:${alert.code}`,
+    message: alert.message,
+    severity: alert.severity as ConsolidatedPrescriptionConflict['severity'],
+    affectedCapacities: [capacity],
+    sourceRefIds: alert.sourceRefId ? [alert.sourceRefId] : [],
+  };
 }
 
-function detectBasicConflicts(blocks: ResolvedCapacityVersion[]): ConsolidatedPrescriptionConflict[] {
-  const resisted = blocks.find((block) => block.capacity === 'resisted');
-  const cyclic = blocks.find((block) => block.capacity === 'cyclic');
-  if (!resisted || !cyclic) return [];
-
-  const allText = blocks.map(blockText).join(' ');
-  const hasKneePain = ['joelho', 'dor relevante', 'dor intensa'].some((term) => allText.includes(term));
-  const hasLowerLimbIntensity = ['perna', 'membro inferior', 'agachamento'].some((term) =>
-    blockText(resisted).includes(term)
-  );
-  const hasStrongInterval = ['intervalado', 'forte', 'alta intensidade'].some((term) =>
-    blockText(cyclic).includes(term)
-  );
-
-  if (!hasKneePain || !hasLowerLimbIntensity || !hasStrongInterval) return [];
-
-  return [
-    {
-      code: 'lower-limb-intensity-knee-pain',
-      message:
-        'Conflito possível: estímulo intenso de membros inferiores, sessão cíclica forte e dor no joelho exigem revisão antes da liberação.',
+export function deriveStructuredConflicts(
+  blocks: Array<
+    Pick<ResolvedCapacityVersion, 'capacity' | 'alerts'> & {
+      isCurrent?: boolean;
+      rootStatus?: string | null;
+    }
+  >,
+  professorJustification?: string | null
+): ConsolidatedPrescriptionConflict[] {
+  const conflicts: ConsolidatedPrescriptionConflict[] = [];
+  const capacities = new Set(blocks.map((block) => block.capacity));
+  const missing = PHYSICAL_CAPACITY_TYPES.filter((capacity) => !capacities.has(capacity));
+  if (blocks.length !== PHYSICAL_CAPACITY_TYPES.length || missing.length) {
+    conflicts.push({
+      code: 'composition-incomplete',
+      message: `A montagem exige as quatro capacidades: ${PHYSICAL_CAPACITY_TYPES.join(', ')}.`,
       severity: 'critical',
-      affectedCapacities: ['resisted', 'cyclic'],
-      sourceRefIds: blocks.flatMap((block) => block.sources.map((source) => source.sourceId)),
-    },
-  ];
+      affectedCapacities: missing,
+      sourceRefIds: [],
+    });
+  }
+
+  if (!professorJustification?.trim()) {
+    conflicts.push({
+      code: 'professor-justification-missing',
+      message: 'A justificativa do professor é obrigatória antes da aprovação.',
+      severity: 'critical',
+      affectedCapacities: [],
+      sourceRefIds: [],
+    });
+  }
+
+  for (const block of blocks) {
+    if (block.isCurrent === false || (block.rootStatus !== undefined && block.rootStatus !== 'active')) {
+      conflicts.push({
+        code: `capacity-version-ineligible:${block.capacity}`,
+        message: `A versão selecionada da capacidade ${block.capacity} não é mais a versão vigente e ativa.`,
+        severity: 'critical',
+        affectedCapacities: [block.capacity],
+        sourceRefIds: [],
+      });
+    }
+    for (const alert of block.alerts) {
+      const conflict = alertConflict(block.capacity, alert);
+      if (conflict) conflicts.push(conflict);
+    }
+  }
+
+  const unique = new Map<string, ConsolidatedPrescriptionConflict>();
+  for (const conflict of conflicts) {
+    const key = `${conflict.code}:${conflict.affectedCapacities.join(',')}:${conflict.sourceRefIds.join(',')}`;
+    unique.set(key, conflict);
+  }
+  return Array.from(unique.values());
 }
 
 function toCapacityBlocks(resolved: ResolvedCapacityVersion[]): ConsolidatedCapacityBlock[] {
@@ -566,11 +626,18 @@ function mapConflictJson(value: unknown): ConsolidatedPrescriptionConflict[] {
 
 async function findAssemblyForUpdate(client: DbClient, context: ConsolidatedPrescriptionContext) {
   const rows = await client.$queryRaw<AssemblyRow[]>`
-    SELECT *
-    FROM "ConsolidatedPrescription"
-    WHERE "contractId" = ${context.contractId}
-      AND "alunoId" = ${context.alunoId}
+    SELECT * FROM "ConsolidatedPrescription"
+    WHERE "contractId" = ${context.contractId} AND "alunoId" = ${context.alunoId}
     FOR UPDATE
+  `;
+  return rows[0] ?? null;
+}
+
+async function findAssembly(client: DbClient, context: ConsolidatedPrescriptionContext) {
+  const rows = await client.$queryRaw<AssemblyRow[]>`
+    SELECT * FROM "ConsolidatedPrescription"
+    WHERE "contractId" = ${context.contractId} AND "alunoId" = ${context.alunoId}
+    LIMIT 1
   `;
   return rows[0] ?? null;
 }
@@ -609,12 +676,14 @@ async function loadDataRefs(client: DbClient, assemblyVersionId: string) {
   `;
 }
 
-async function mapVersionDetail(client: DbClient, row: VersionRow): Promise<ConsolidatedPrescriptionVersionDetail> {
+async function mapVersionDetail(
+  client: DbClient,
+  row: VersionRow
+): Promise<ConsolidatedPrescriptionVersionDetail> {
   const [blockRows, refRows] = await Promise.all([
     loadCapacityBlocks(client, row.id),
     loadDataRefs(client, row.id),
   ]);
-
   const capacityBlocks: ConsolidatedCapacityBlock[] = blockRows.map((block) => ({
     id: block.id,
     capacityPrescriptionVersionId: block.capacityPrescriptionVersionId,
@@ -623,7 +692,6 @@ async function mapVersionDetail(client: DbClient, row: VersionRow): Promise<Cons
     capacityStatus: asCapacityStatus(block.capacityStatus),
     position: block.position,
   }));
-
   const dataRefs: ConsolidatedPrescriptionDataRef[] = refRows.map((ref) => ({
     id: ref.id,
     role: ref.role,
@@ -638,7 +706,6 @@ async function mapVersionDetail(client: DbClient, row: VersionRow): Promise<Cons
   }));
   const conflicts = mapConflictJson(row.conflicts);
   const status = asConsolidatedStatus(row.status);
-
   return {
     id: row.id,
     assemblyId: row.assemblyId,
@@ -657,7 +724,7 @@ async function mapVersionDetail(client: DbClient, row: VersionRow): Promise<Cons
     approvedAt: row.approvedAt?.toISOString() ?? null,
     blockedByProfessorId: row.blockedByProfessorId,
     blockedAt: row.blockedAt?.toISOString() ?? null,
-    blockReason: row.blockReason,
+    blockReason: status === 'blocked' ? row.blockReason : null,
     createdByProfessorId: row.createdByProfessorId,
     createdAt: row.createdAt.toISOString(),
     capacityBlocks,
@@ -667,6 +734,59 @@ async function mapVersionDetail(client: DbClient, row: VersionRow): Promise<Cons
     canReleaseOperationalWorkout: canRelease(status, conflicts),
     createsTodayWorkoutDirectly: false,
   };
+}
+
+function auditActionForVersion(
+  current: ConsolidatedPrescriptionVersionDetail,
+  previous: ConsolidatedPrescriptionVersionDetail | null
+): ConsolidatedPrescriptionAuditAction {
+  if (!previous) return 'created';
+  if (previous.status === 'approved' && current.status === 'draft') return 'revision_created';
+  if (previous.status === 'blocked' && ['draft', 'ready_for_review'].includes(current.status)) {
+    return 'unblocked';
+  }
+  if (current.status === 'approved') return 'approved';
+  if (current.status === 'ready_for_review') return 'sent_for_review';
+  if (current.status === 'blocked') {
+    if (previous.status === 'blocked') return 'composition_updated';
+    return current.blockReason === STRUCTURED_CONFLICT_BLOCK_REASON ? 'blocked_by_conflict' : 'blocked';
+  }
+  return 'composition_updated';
+}
+
+function deriveAuditEvents(
+  versions: ConsolidatedPrescriptionVersionDetail[],
+  versionRows: VersionRow[]
+): ConsolidatedPrescriptionAuditEvent[] {
+  const byId = new Map(versions.map((version) => [version.id, version]));
+  const rowById = new Map(versionRows.map((row) => [row.id, row]));
+  return versions.map((current) => {
+    const previous = current.previousVersionId ? byId.get(current.previousVersionId) ?? null : null;
+    const action = auditActionForVersion(current, previous);
+    const auditReason = rowById.get(current.id)?.blockReason ?? null;
+    const reason = ['blocked', 'blocked_by_conflict', 'unblocked', 'revision_created'].includes(action)
+      ? auditReason
+      : null;
+    return {
+      id: `version-audit:${current.id}`,
+      assemblyId: current.assemblyId,
+      assemblyVersionId: current.id,
+      contractId: current.contractId,
+      alunoId: current.alunoId,
+      actorProfessorId: current.createdByProfessorId,
+      action,
+      previousVersion: previous?.version ?? null,
+      newVersion: current.version,
+      previousStatus: previous?.status ?? null,
+      newStatus: current.status,
+      reason,
+      details: {
+        source: 'consolidated_prescription_version',
+        criticalConflictCount: current.conflicts.filter((conflict) => conflict.severity === 'critical').length,
+      },
+      createdAt: current.createdAt,
+    };
+  });
 }
 
 async function persistVersion(
@@ -709,8 +829,7 @@ async function persistVersion(
       ${input.approvedByProfessorId ?? null}, ${input.approvedAt ?? null}, ${input.blockedByProfessorId ?? null},
       ${input.blockedAt ?? null}, ${input.blockReason ?? null}, ${input.createdByProfessorId},
       CAST(${conflictsJson} AS jsonb), ${input.createdAt}
-    )
-    RETURNING *
+    ) RETURNING *
   `;
 
   for (const block of input.capacityBlocks) {
@@ -739,7 +858,6 @@ async function persistVersion(
       )
     `;
   }
-
   return inserted[0];
 }
 
@@ -757,38 +875,19 @@ async function advanceAggregate(
       actualCurrentVersion: assembly.currentVersion,
     });
   }
-
   const rows = await client.$queryRaw<AssemblyRow[]>`
     UPDATE "ConsolidatedPrescription"
     SET "currentVersion" = "currentVersion" + 1,
         "currentStatus" = ${nextStatus},
         "updatedByProfessorId" = ${actorProfessorId},
         "updatedAt" = ${now}
-    WHERE "id" = ${assembly.id}
-      AND "currentVersion" = ${expectedCurrentVersion}
+    WHERE "id" = ${assembly.id} AND "currentVersion" = ${expectedCurrentVersion}
     RETURNING *
   `;
-
   if (rows.length !== 1) {
-    domainError('CONFLICT', 'A montagem foi alterada por outro usuário', {
-      expectedCurrentVersion,
-    });
+    domainError('CONFLICT', 'A montagem foi alterada por outro usuário', { expectedCurrentVersion });
   }
   return rows[0];
-}
-
-function assertTransition(from: ConsolidatedPrescriptionStatus, to: ConsolidatedPrescriptionStatus) {
-  const allowed: Record<ConsolidatedPrescriptionStatus, ConsolidatedPrescriptionStatus[]> = {
-    draft: ['ready_for_review'],
-    ready_for_review: ['approved', 'blocked'],
-    approved: [],
-    released: [],
-    blocked: [],
-    archived: [],
-  };
-  if (!allowed[from].includes(to)) {
-    domainError('INVALID_TRANSITION', `Transição ${from} -> ${to} não é permitida`);
-  }
 }
 
 async function currentVersionDetail(client: DbClient, assembly: AssemblyRow) {
@@ -805,7 +904,173 @@ function cloneBlocks(blocks: ConsolidatedCapacityBlock[]) {
   return blocks.map((block) => ({ ...block, id: randomUUID() }));
 }
 
+async function evaluatePersistedComposition(
+  client: DbClient,
+  context: ConsolidatedPrescriptionContext,
+  detail: ConsolidatedPrescriptionVersionDetail
+) {
+  const ids = detail.capacityBlocks.map((block) => block.capacityPrescriptionVersionId);
+  const versions = await client.capacityPrescriptionVersion.findMany({
+    where: { id: { in: ids }, contractId: context.contractId, alunoId: context.alunoId },
+    include: { alerts: { orderBy: { createdAt: 'asc' } } },
+  });
+  const roots = await client.capacityPrescription.findMany({
+    where: {
+      id: { in: versions.map((version) => version.prescriptionId) },
+      contractId: context.contractId,
+      alunoId: context.alunoId,
+    },
+    select: { id: true, currentVersion: true, status: true },
+  });
+  const versionById = new Map(versions.map((version) => [version.id, version]));
+  const rootById = new Map<string, CapacityRootState>(roots.map((root) => [root.id, root]));
+
+  const states = detail.capacityBlocks.map((block) => {
+    const version = versionById.get(block.capacityPrescriptionVersionId);
+    if (!version) {
+      return {
+        capacity: block.capacity,
+        alerts: [],
+        isCurrent: false,
+        rootStatus: null,
+      };
+    }
+    const root = rootById.get(version.prescriptionId);
+    return {
+      capacity: block.capacity,
+      alerts: version.alerts,
+      isCurrent:
+        version.status === 'active' &&
+        root?.status === 'active' &&
+        root.currentVersion === version.version,
+      rootStatus: root?.status ?? null,
+    };
+  });
+  return deriveStructuredConflicts(states, detail.professorJustification);
+}
+
+function buildConflictReport(
+  detail: ConsolidatedPrescriptionVersionDetail,
+  conflicts: ConsolidatedPrescriptionConflict[]
+): ConsolidatedPrescriptionConflictReport {
+  const hasCritical = conflicts.some((conflict) => conflict.severity === 'critical');
+  return {
+    version: detail.version,
+    status: detail.status,
+    conflicts,
+    hasCritical,
+    canUnblock: detail.status === 'blocked' && !hasCritical,
+    unavailableChecks: unavailableChecks.map((check) => ({ ...check })),
+  };
+}
+
 export function createConsolidatedPrescriptionService(client: PrismaClient = prisma) {
+  async function persistFromPrevious(input: {
+    tx: Prisma.TransactionClient;
+    context: ConsolidatedPrescriptionContext;
+    current: AssemblyRow;
+    previous: ConsolidatedPrescriptionVersionDetail;
+    expectedCurrentVersion: number;
+    nextStatus: ConsolidatedPrescriptionStatus;
+    now: Date;
+    reason?: string | null;
+    conflicts?: ConsolidatedPrescriptionConflict[];
+    reviewed?: boolean;
+    approved?: boolean;
+    clearDecisionMetadata?: boolean;
+  }): Promise<ConsolidatedPrescriptionAssembly> {
+    const nextAssembly = await advanceAggregate(
+      input.tx,
+      input.current,
+      input.expectedCurrentVersion,
+      input.nextStatus,
+      input.context.actorProfessorId,
+      input.now
+    );
+    const clear = input.clearDecisionMetadata ?? false;
+    const versionRow = await persistVersion(input.tx, {
+      assembly: nextAssembly,
+      previousVersionId: input.previous.id,
+      status: input.nextStatus,
+      responsibleProfessorId: input.previous.responsibleProfessorId,
+      technicalObservation: input.previous.technicalObservation ?? null,
+      professorJustification: input.previous.professorJustification,
+      studentInstruction: input.previous.studentInstruction ?? null,
+      reviewedByProfessorId: input.reviewed
+        ? input.context.actorProfessorId
+        : clear
+          ? null
+          : input.previous.reviewedByProfessorId,
+      reviewedAt: input.reviewed
+        ? input.now
+        : clear
+          ? null
+          : parseDate(input.previous.reviewedAt, 'Data de revisão'),
+      approvedByProfessorId: input.approved
+        ? input.context.actorProfessorId
+        : clear
+          ? null
+          : input.previous.approvedByProfessorId,
+      approvedAt: input.approved
+        ? input.now
+        : clear
+          ? null
+          : parseDate(input.previous.approvedAt, 'Data de aprovação'),
+      blockedByProfessorId:
+        input.nextStatus === 'blocked'
+          ? input.context.actorProfessorId
+          : clear
+            ? null
+            : input.previous.blockedByProfessorId,
+      blockedAt:
+        input.nextStatus === 'blocked'
+          ? input.now
+          : clear
+            ? null
+            : parseDate(input.previous.blockedAt, 'Data de bloqueio'),
+      // The append-only version row is the canonical audit record. On explicit unblock/revision
+      // transitions, this column stores the command reason internally while mapVersionDetail keeps
+      // blockReason scoped to blocked versions; deriveAuditEvents reads the raw row for audit history.
+      blockReason:
+        input.nextStatus === 'blocked'
+          ? input.reason ?? 'Bloqueio da montagem consolidada.'
+          : clear
+            ? input.reason ?? null
+            : input.previous.blockReason ?? null,
+      createdByProfessorId: input.context.actorProfessorId,
+      createdAt: input.now,
+      capacityBlocks: cloneBlocks(input.previous.capacityBlocks),
+      dataRefs: cloneDataRefs(input.previous.dataRefs),
+      conflicts: input.conflicts ?? input.previous.conflicts,
+    });
+    return {
+      ...mapAssembly(nextAssembly),
+      latestVersion: await mapVersionDetail(input.tx, versionRow),
+    };
+  }
+
+  async function blockFromCriticalConflicts(
+    tx: Prisma.TransactionClient,
+    context: ConsolidatedPrescriptionContext,
+    current: AssemblyRow,
+    previous: ConsolidatedPrescriptionVersionDetail,
+    expectedCurrentVersion: number,
+    conflicts: ConsolidatedPrescriptionConflict[],
+    now: Date
+  ) {
+    return persistFromPrevious({
+      tx,
+      context,
+      current,
+      previous,
+      expectedCurrentVersion,
+      nextStatus: 'blocked',
+      reason: STRUCTURED_CONFLICT_BLOCK_REASON,
+      conflicts,
+      now,
+    });
+  }
+
   return {
     async createDraft(
       context: ConsolidatedPrescriptionContext,
@@ -813,29 +1078,22 @@ export function createConsolidatedPrescriptionService(client: PrismaClient = pri
       now = new Date()
     ): Promise<ConsolidatedPrescriptionAssembly> {
       assertNonEmpty(payload.professorJustification, 'Justificativa do professor');
-
       return client.$transaction(async (tx) => {
         await assertScope(tx, context);
         const responsibleProfessorId = payload.responsibleProfessorId?.trim() || context.actorProfessorId;
         await assertProfessorInContract(tx, context.contractId, responsibleProfessorId);
-
         const existing = await findAssemblyForUpdate(tx, context);
         if (existing) {
           domainError('CONFLICT', 'Já existe uma montagem consolidada para este aluno e contrato', {
             actualCurrentVersion: existing.currentVersion,
           });
         }
-
         const resolved = await resolveCapacityVersions(tx, context, payload.capacityBlocks);
         const additionalDataRefs = await resolveAdditionalDataRefs(tx, context, payload.dataRefs ?? []);
         const capacityBlocks = toCapacityBlocks(resolved);
-        const dataRefs = [
-          ...capacitySourceRefs(resolved),
-          ...additionalDataRefs,
-        ];
-        const conflicts = detectBasicConflicts(resolved);
+        const dataRefs = [...capacitySourceRefs(resolved), ...additionalDataRefs];
+        const conflicts = deriveStructuredConflicts(resolved, payload.professorJustification);
         const assemblyId = randomUUID();
-
         const createdRows = await tx.$queryRaw<AssemblyRow[]>`
           INSERT INTO "ConsolidatedPrescription" (
             "id", "contractId", "alunoId", "currentVersion", "currentStatus",
@@ -843,12 +1101,10 @@ export function createConsolidatedPrescriptionService(client: PrismaClient = pri
           ) VALUES (
             ${assemblyId}, ${context.contractId}, ${context.alunoId}, 1, 'draft',
             ${context.actorProfessorId}, ${context.actorProfessorId}, ${now}, ${now}
-          )
-          RETURNING *
+          ) RETURNING *
         `;
         const assembly = createdRows[0];
         if (!assembly) domainError('CONFLICT', 'Não foi possível criar a montagem consolidada');
-
         const versionRow = await persistVersion(tx, {
           assembly,
           previousVersionId: null,
@@ -863,11 +1119,7 @@ export function createConsolidatedPrescriptionService(client: PrismaClient = pri
           dataRefs,
           conflicts,
         });
-
-        return {
-          ...mapAssembly(assembly),
-          latestVersion: await mapVersionDetail(tx, versionRow),
-        };
+        return { ...mapAssembly(assembly), latestVersion: await mapVersionDetail(tx, versionRow) };
       });
     },
 
@@ -878,39 +1130,37 @@ export function createConsolidatedPrescriptionService(client: PrismaClient = pri
     ): Promise<ConsolidatedPrescriptionAssembly> {
       assertExpectedVersion(payload.expectedCurrentVersion);
       assertNonEmpty(payload.professorJustification, 'Justificativa do professor');
-
       return client.$transaction(async (tx) => {
         await assertScope(tx, context);
         const current = await findAssemblyForUpdate(tx, context);
         if (!current) domainError('NOT_FOUND', 'Montagem consolidada não encontrada');
-        const currentStatus = asConsolidatedStatus(current.currentStatus);
-        if (currentStatus === 'archived') {
-          domainError('INVALID_TRANSITION', 'Montagem arquivada não pode receber nova revisão');
-        }
-
         const previous = await currentVersionDetail(tx, current);
+        if (previous.status === 'approved') {
+          domainError('INVALID_TRANSITION', 'Crie uma nova revisão explícita antes de editar uma montagem aprovada');
+        }
+        if (previous.status === 'released' || previous.status === 'archived') {
+          domainError('INVALID_TRANSITION', 'Montagem neste estado não pode receber nova composição');
+        }
         const responsibleProfessorId = payload.responsibleProfessorId?.trim() || context.actorProfessorId;
         await assertProfessorInContract(tx, context.contractId, responsibleProfessorId);
         const resolved = await resolveCapacityVersions(tx, context, payload.capacityBlocks);
         const additionalDataRefs = await resolveAdditionalDataRefs(tx, context, payload.dataRefs ?? []);
+        const nextStatus: ConsolidatedPrescriptionStatus = previous.status === 'blocked' ? 'blocked' : 'draft';
         const nextAssembly = await advanceAggregate(
           tx,
           current,
           payload.expectedCurrentVersion,
-          'draft',
+          nextStatus,
           context.actorProfessorId,
           now
         );
         const capacityBlocks = toCapacityBlocks(resolved);
-        const dataRefs = [
-          ...capacitySourceRefs(resolved),
-          ...additionalDataRefs,
-        ];
-        const conflicts = detectBasicConflicts(resolved);
+        const dataRefs = [...capacitySourceRefs(resolved), ...additionalDataRefs];
+        const conflicts = deriveStructuredConflicts(resolved, payload.professorJustification);
         const versionRow = await persistVersion(tx, {
           assembly: nextAssembly,
           previousVersionId: previous.id,
-          status: 'draft',
+          status: nextStatus,
           responsibleProfessorId,
           technicalObservation: normalizeOptional(payload.technicalObservation),
           professorJustification: payload.professorJustification.trim(),
@@ -921,11 +1171,62 @@ export function createConsolidatedPrescriptionService(client: PrismaClient = pri
           dataRefs,
           conflicts,
         });
+        return { ...mapAssembly(nextAssembly), latestVersion: await mapVersionDetail(tx, versionRow) };
+      });
+    },
 
-        return {
-          ...mapAssembly(nextAssembly),
-          latestVersion: await mapVersionDetail(tx, versionRow),
+    async getConflictReport(
+      context: ConsolidatedPrescriptionContext
+    ): Promise<ConsolidatedPrescriptionConflictReport | null> {
+      await assertScope(client, context);
+      const assembly = await findAssembly(client, context);
+      if (!assembly) return null;
+      const detail = await currentVersionDetail(client, assembly);
+      const conflicts = await evaluatePersistedComposition(client, context, detail);
+      return buildConflictReport(detail, conflicts);
+    },
+
+    async recalculateConflicts(
+      context: ConsolidatedPrescriptionContext,
+      command: ConsolidatedPrescriptionVersionCommand,
+      now = new Date()
+    ): Promise<{ assembly: ConsolidatedPrescriptionAssembly; report: ConsolidatedPrescriptionConflictReport }> {
+      assertExpectedVersion(command.expectedCurrentVersion);
+      return client.$transaction(async (tx) => {
+        await assertScope(tx, context);
+        const current = await findAssemblyForUpdate(tx, context);
+        if (!current) domainError('NOT_FOUND', 'Montagem consolidada não encontrada');
+        if (current.currentVersion !== command.expectedCurrentVersion) {
+          domainError('CONFLICT', 'A montagem foi alterada por outro usuário', {
+            expectedCurrentVersion: command.expectedCurrentVersion,
+            actualCurrentVersion: current.currentVersion,
+          });
+        }
+        const previous = await currentVersionDetail(tx, current);
+        const conflicts = await evaluatePersistedComposition(tx, context, previous);
+        const hasCritical = conflicts.some((conflict) => conflict.severity === 'critical');
+        if (hasCritical && previous.status !== 'blocked') {
+          if (!['draft', 'ready_for_review', 'approved'].includes(previous.status)) {
+            domainError('INVALID_TRANSITION', 'O estado atual não permite bloqueio por revalidação');
+          }
+          const blocked = await blockFromCriticalConflicts(
+            tx,
+            context,
+            current,
+            previous,
+            command.expectedCurrentVersion,
+            conflicts,
+            now
+          );
+          return { assembly: blocked, report: buildConflictReport(blocked.latestVersion, conflicts) };
+        }
+        const latestVersion: ConsolidatedPrescriptionVersionDetail = {
+          ...previous,
+          conflicts,
+          canReleaseOperationalWorkout: canRelease(previous.status, conflicts),
         };
+        const assembly = { ...mapAssembly(current), latestVersion };
+        return { assembly, report: buildConflictReport(latestVersion, conflicts) };
       });
     },
 
@@ -934,7 +1235,39 @@ export function createConsolidatedPrescriptionService(client: PrismaClient = pri
       command: ConsolidatedPrescriptionVersionCommand,
       now = new Date()
     ) {
-      return transition(context, command, 'ready_for_review', now);
+      assertExpectedVersion(command.expectedCurrentVersion);
+      return client.$transaction(async (tx) => {
+        await assertScope(tx, context);
+        const current = await findAssemblyForUpdate(tx, context);
+        if (!current) domainError('NOT_FOUND', 'Montagem consolidada não encontrada');
+        const previous = await currentVersionDetail(tx, current);
+        if (previous.status !== 'draft') {
+          domainError('INVALID_TRANSITION', 'Somente rascunho pode ser enviado para revisão');
+        }
+        const conflicts = await evaluatePersistedComposition(tx, context, previous);
+        if (conflicts.some((conflict) => conflict.severity === 'critical')) {
+          return blockFromCriticalConflicts(
+            tx,
+            context,
+            current,
+            previous,
+            command.expectedCurrentVersion,
+            conflicts,
+            now
+          );
+        }
+        return persistFromPrevious({
+          tx,
+          context,
+          current,
+          previous,
+          expectedCurrentVersion: command.expectedCurrentVersion,
+          nextStatus: 'ready_for_review',
+          conflicts,
+          reviewed: true,
+          now,
+        });
+      });
     },
 
     async approve(
@@ -942,7 +1275,39 @@ export function createConsolidatedPrescriptionService(client: PrismaClient = pri
       command: ConsolidatedPrescriptionVersionCommand,
       now = new Date()
     ) {
-      return transition(context, command, 'approved', now);
+      assertExpectedVersion(command.expectedCurrentVersion);
+      return client.$transaction(async (tx) => {
+        await assertScope(tx, context);
+        const current = await findAssemblyForUpdate(tx, context);
+        if (!current) domainError('NOT_FOUND', 'Montagem consolidada não encontrada');
+        const previous = await currentVersionDetail(tx, current);
+        if (previous.status !== 'ready_for_review') {
+          domainError('INVALID_TRANSITION', 'Somente montagem pronta para revisão pode ser aprovada');
+        }
+        const conflicts = await evaluatePersistedComposition(tx, context, previous);
+        if (conflicts.some((conflict) => conflict.severity === 'critical')) {
+          return blockFromCriticalConflicts(
+            tx,
+            context,
+            current,
+            previous,
+            command.expectedCurrentVersion,
+            conflicts,
+            now
+          );
+        }
+        return persistFromPrevious({
+          tx,
+          context,
+          current,
+          previous,
+          expectedCurrentVersion: command.expectedCurrentVersion,
+          nextStatus: 'approved',
+          conflicts,
+          approved: true,
+          now,
+        });
+      });
     },
 
     async block(
@@ -950,101 +1315,118 @@ export function createConsolidatedPrescriptionService(client: PrismaClient = pri
       command: BlockConsolidatedPrescriptionCommand,
       now = new Date()
     ) {
+      assertExpectedVersion(command.expectedCurrentVersion);
       assertNonEmpty(command.reason, 'Motivo do bloqueio');
-      return transition(context, command, 'blocked', now, command.reason.trim());
+      return client.$transaction(async (tx) => {
+        await assertScope(tx, context);
+        const current = await findAssemblyForUpdate(tx, context);
+        if (!current) domainError('NOT_FOUND', 'Montagem consolidada não encontrada');
+        const previous = await currentVersionDetail(tx, current);
+        if (!['draft', 'ready_for_review', 'approved'].includes(previous.status)) {
+          domainError('INVALID_TRANSITION', 'O estado atual não permite bloqueio');
+        }
+        const conflicts = await evaluatePersistedComposition(tx, context, previous);
+        return persistFromPrevious({
+          tx,
+          context,
+          current,
+          previous,
+          expectedCurrentVersion: command.expectedCurrentVersion,
+          nextStatus: 'blocked',
+          reason: command.reason.trim(),
+          conflicts,
+          now,
+        });
+      });
+    },
+
+    async unblock(
+      context: ConsolidatedPrescriptionContext,
+      command: UnblockConsolidatedPrescriptionCommand,
+      now = new Date()
+    ) {
+      assertExpectedVersion(command.expectedCurrentVersion);
+      if (!['draft', 'ready_for_review'].includes(command.targetStatus)) {
+        domainError('INVALID_INPUT', 'Destino de desbloqueio inválido');
+      }
+      return client.$transaction(async (tx) => {
+        await assertScope(tx, context);
+        const current = await findAssemblyForUpdate(tx, context);
+        if (!current) domainError('NOT_FOUND', 'Montagem consolidada não encontrada');
+        const previous = await currentVersionDetail(tx, current);
+        if (previous.status !== 'blocked') {
+          domainError('INVALID_TRANSITION', 'Somente montagem bloqueada pode ser desbloqueada');
+        }
+        const conflicts = await evaluatePersistedComposition(tx, context, previous);
+        if (conflicts.some((conflict) => conflict.severity === 'critical')) {
+          domainError('INVALID_TRANSITION', 'O impedimento crítico permanece ativo; desbloqueio não permitido');
+        }
+        return persistFromPrevious({
+          tx,
+          context,
+          current,
+          previous,
+          expectedCurrentVersion: command.expectedCurrentVersion,
+          nextStatus: command.targetStatus,
+          reason: normalizeOptional(command.reason),
+          conflicts,
+          reviewed: command.targetStatus === 'ready_for_review',
+          clearDecisionMetadata: true,
+          now,
+        });
+      });
+    },
+
+    async createRevision(
+      context: ConsolidatedPrescriptionContext,
+      command: CreateConsolidatedPrescriptionRevisionCommand,
+      now = new Date()
+    ) {
+      assertExpectedVersion(command.expectedCurrentVersion);
+      return client.$transaction(async (tx) => {
+        await assertScope(tx, context);
+        const current = await findAssemblyForUpdate(tx, context);
+        if (!current) domainError('NOT_FOUND', 'Montagem consolidada não encontrada');
+        const previous = await currentVersionDetail(tx, current);
+        if (previous.status !== 'approved') {
+          domainError('INVALID_TRANSITION', 'Nova revisão explícita só pode ser criada após aprovação');
+        }
+        const conflicts = await evaluatePersistedComposition(tx, context, previous);
+        return persistFromPrevious({
+          tx,
+          context,
+          current,
+          previous,
+          expectedCurrentVersion: command.expectedCurrentVersion,
+          nextStatus: 'draft',
+          reason: normalizeOptional(command.reason),
+          conflicts,
+          clearDecisionMetadata: true,
+          now,
+        });
+      });
     },
 
     async getCurrent(context: ConsolidatedPrescriptionContext): Promise<ConsolidatedPrescriptionAssembly | null> {
       await assertScope(client, context);
-      const rows = await client.$queryRaw<AssemblyRow[]>`
-        SELECT * FROM "ConsolidatedPrescription"
-        WHERE "contractId" = ${context.contractId} AND "alunoId" = ${context.alunoId}
-        LIMIT 1
-      `;
-      const assembly = rows[0];
+      const assembly = await findAssembly(client, context);
       if (!assembly) return null;
-      return {
-        ...mapAssembly(assembly),
-        latestVersion: await currentVersionDetail(client, assembly),
-      };
+      return { ...mapAssembly(assembly), latestVersion: await currentVersionDetail(client, assembly) };
     },
 
     async getHistory(context: ConsolidatedPrescriptionContext): Promise<ConsolidatedPrescriptionHistory | null> {
       await assertScope(client, context);
-      const rows = await client.$queryRaw<AssemblyRow[]>`
-        SELECT * FROM "ConsolidatedPrescription"
-        WHERE "contractId" = ${context.contractId} AND "alunoId" = ${context.alunoId}
-        LIMIT 1
-      `;
-      const assembly = rows[0];
+      const assembly = await findAssembly(client, context);
       if (!assembly) return null;
-      const versions = await loadVersionRows(client, assembly.id);
+      const versionRows = await loadVersionRows(client, assembly.id);
+      const versions = await Promise.all(versionRows.map((version) => mapVersionDetail(client, version)));
       return {
         assembly: mapAssembly(assembly),
-        versions: await Promise.all(versions.map((version) => mapVersionDetail(client, version))),
+        versions,
+        auditEvents: deriveAuditEvents(versions, versionRows),
       };
     },
   };
-
-  async function transition(
-    context: ConsolidatedPrescriptionContext,
-    command: ConsolidatedPrescriptionVersionCommand,
-    nextStatus: 'ready_for_review' | 'approved' | 'blocked',
-    now: Date,
-    blockReason?: string
-  ): Promise<ConsolidatedPrescriptionAssembly> {
-    assertExpectedVersion(command.expectedCurrentVersion);
-
-    return client.$transaction(async (tx) => {
-      await assertScope(tx, context);
-      const current = await findAssemblyForUpdate(tx, context);
-      if (!current) domainError('NOT_FOUND', 'Montagem consolidada não encontrada');
-      const previous = await currentVersionDetail(tx, current);
-      assertTransition(previous.status, nextStatus);
-
-      if (nextStatus === 'approved' && previous.conflicts.some((conflict) => conflict.severity === 'critical')) {
-        domainError('INVALID_TRANSITION', 'Montagem com conflito crítico não pode ser aprovada');
-      }
-
-      const nextAssembly = await advanceAggregate(
-        tx,
-        current,
-        command.expectedCurrentVersion,
-        nextStatus,
-        context.actorProfessorId,
-        now
-      );
-      const versionRow = await persistVersion(tx, {
-        assembly: nextAssembly,
-        previousVersionId: previous.id,
-        status: nextStatus,
-        responsibleProfessorId: previous.responsibleProfessorId,
-        technicalObservation: previous.technicalObservation ?? null,
-        professorJustification: previous.professorJustification,
-        studentInstruction: previous.studentInstruction ?? null,
-        reviewedByProfessorId:
-          nextStatus === 'ready_for_review' ? context.actorProfessorId : previous.reviewedByProfessorId,
-        reviewedAt: nextStatus === 'ready_for_review' ? now : parseDate(previous.reviewedAt, 'Data de revisão'),
-        approvedByProfessorId:
-          nextStatus === 'approved' ? context.actorProfessorId : previous.approvedByProfessorId,
-        approvedAt: nextStatus === 'approved' ? now : parseDate(previous.approvedAt, 'Data de aprovação'),
-        blockedByProfessorId:
-          nextStatus === 'blocked' ? context.actorProfessorId : previous.blockedByProfessorId,
-        blockedAt: nextStatus === 'blocked' ? now : parseDate(previous.blockedAt, 'Data de bloqueio'),
-        blockReason: nextStatus === 'blocked' ? blockReason ?? null : previous.blockReason ?? null,
-        createdByProfessorId: context.actorProfessorId,
-        createdAt: now,
-        capacityBlocks: cloneBlocks(previous.capacityBlocks),
-        dataRefs: cloneDataRefs(previous.dataRefs),
-        conflicts: previous.conflicts,
-      });
-
-      return {
-        ...mapAssembly(nextAssembly),
-        latestVersion: await mapVersionDetail(tx, versionRow),
-      };
-    });
-  }
 }
 
 export const consolidatedPrescriptionService = createConsolidatedPrescriptionService();
