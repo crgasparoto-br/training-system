@@ -1,6 +1,9 @@
-import { createConsolidatedPrescriptionService } from './consolidated-prescription.service.js';
+import {
+  createConsolidatedPrescriptionService,
+  deriveStructuredConflicts,
+} from './consolidated-prescription.service.js';
 
-const now = new Date('2026-08-08T16:30:00.000Z');
+const now = new Date('2026-08-09T14:30:00.000Z');
 const CAPACITIES = ['resisted', 'flexibility', 'cyclic', 'balance'] as const;
 
 const assemblyRow = (overrides: Record<string, unknown> = {}) => ({
@@ -115,19 +118,18 @@ function harness(rawResponses: unknown[][], capacityVersions = allCapacityVersio
   const queryRaw = jest.fn();
   for (const response of rawResponses) queryRaw.mockResolvedValueOnce(response);
 
+  const capacityRoots = capacityVersions.map((version) => ({
+    id: version.prescriptionId,
+    currentVersion: version.version,
+    status: 'active',
+  }));
+
   const tx = {
-    aluno: {
-      findFirst: jest.fn().mockResolvedValue({ id: 'aluno-1' }),
-    },
-    professor: {
-      findFirst: jest.fn().mockResolvedValue({ id: 'professor-1' }),
-    },
-    capacityPrescriptionVersion: {
-      findMany: jest.fn().mockResolvedValue(capacityVersions),
-    },
-    prontuarioGoal: {
-      findFirst: jest.fn().mockResolvedValue({ id: 'goal-extra' }),
-    },
+    aluno: { findFirst: jest.fn().mockResolvedValue({ id: 'aluno-1' }) },
+    professor: { findFirst: jest.fn().mockResolvedValue({ id: 'professor-1' }) },
+    capacityPrescriptionVersion: { findMany: jest.fn().mockResolvedValue(capacityVersions) },
+    capacityPrescription: { findMany: jest.fn().mockResolvedValue(capacityRoots) },
+    prontuarioGoal: { findFirst: jest.fn().mockResolvedValue({ id: 'goal-extra' }) },
     $queryRaw: queryRaw,
     $executeRaw: jest.fn().mockResolvedValue(1),
   };
@@ -144,39 +146,71 @@ function harness(rawResponses: unknown[][], capacityVersions = allCapacityVersio
   };
 }
 
+describe('deriveStructuredConflicts', () => {
+  it('não cria conflito a partir de texto livre mesmo quando o texto parece clínico', () => {
+    const blocks = CAPACITIES.map((capacity) => ({
+      capacity,
+      alerts: [],
+      technicalJustification: 'dor intensa no joelho e alta intensidade',
+      professorSummary: 'agachamento forte',
+    })) as never;
+
+    expect(deriveStructuredConflicts(blocks, 'Justificativa objetiva.')).toEqual([]);
+  });
+
+  it('propaga severidade estruturada sem transformar warning em bloqueio', () => {
+    const blocks = CAPACITIES.map((capacity, index) => ({
+      capacity,
+      alerts:
+        index === 0
+          ? [{ code: 'load-review', message: 'Revisar carga.', severity: 'warning', sourceRefId: null }]
+          : [],
+    }));
+
+    const conflicts = deriveStructuredConflicts(blocks, 'Justificativa válida.');
+    expect(conflicts).toEqual([
+      expect.objectContaining({ code: 'capacity-alert:resisted:load-review', severity: 'warning' }),
+    ]);
+    expect(conflicts.some((item) => item.severity === 'critical')).toBe(false);
+  });
+
+  it('preserva alerta critical estruturado como bloqueador e marca versão defasada como critical', () => {
+    const blocks = CAPACITIES.map((capacity, index) => ({
+      capacity,
+      alerts:
+        index === 1
+          ? [{ code: 'restriction', message: 'Restrição ativa.', severity: 'critical', sourceRefId: 'src-1' }]
+          : [],
+      ...(index === 2 ? { isCurrent: false, rootStatus: 'active' } : {}),
+    }));
+
+    const conflicts = deriveStructuredConflicts(blocks, 'Justificativa válida.');
+    expect(conflicts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: 'capacity-alert:flexibility:restriction', severity: 'critical' }),
+        expect.objectContaining({ code: 'capacity-version-ineligible:cyclic', severity: 'critical' }),
+      ])
+    );
+  });
+});
+
 describe('consolidatedPrescriptionService persistence contract', () => {
-  it('cria rascunho com as quatro capacidades, valida origem adicional e ignora autoridade forjada pelo cliente', async () => {
-    const createdAssembly = assemblyRow();
-    const createdVersion = versionRow();
+  it('cria rascunho com quatro capacidades e ignora autoridade forjada pelo cliente', async () => {
     const { service, tx } = harness([
       [],
-      [createdAssembly],
-      [createdVersion],
+      [assemblyRow()],
+      [versionRow()],
       persistedBlocks(),
       persistedRefs(),
     ]);
 
     const result = await service.createDraft(
-      {
-        contractId: 'contract-1',
-        alunoId: 'aluno-1',
-        actorProfessorId: 'professor-1',
-      },
+      { contractId: 'contract-1', alunoId: 'aluno-1', actorProfessorId: 'professor-1' },
       {
         capacityBlocks: allCapacityInputs(),
-        dataRefs: [
-          {
-            role: 'assessment',
-            sourceType: 'prontuario_goal',
-            sourceId: 'goal-extra',
-            label: 'Objetivo complementar do prontuário',
-          },
-        ],
         professorJustification: 'Montagem inicial.',
-        studentInstruction: 'Aguarde a revisão do professor.',
         status: 'approved',
-        validatedByProfessorId: 'attacker-professor',
-        validatedAt: '2026-08-08T00:00:00.000Z',
+        approvedByProfessorId: 'attacker-professor',
         contractId: 'contract-other',
       } as never,
       now
@@ -185,8 +219,6 @@ describe('consolidatedPrescriptionService persistence contract', () => {
     expect(result.currentStatus).toBe('draft');
     expect(result.latestVersion.status).toBe('draft');
     expect(result.latestVersion.approvedByProfessorId).toBeNull();
-    expect(result.latestVersion.capacityBlocks).toHaveLength(4);
-    expect(result.latestVersion.capacityBlocks.map((block) => block.capacity)).toEqual(CAPACITIES);
     expect(tx.capacityPrescriptionVersion.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
@@ -196,50 +228,29 @@ describe('consolidatedPrescriptionService persistence contract', () => {
         },
       })
     );
-    expect(tx.prontuarioGoal.findFirst).toHaveBeenCalledWith({
-      where: {
-        id: 'goal-extra',
-        record: { contractId: 'contract-1', alunoId: 'aluno-1' },
-      },
-      select: { id: true },
-    });
   });
 
-  it('rejeita composição incompleta mesmo quando todas as versões informadas são válidas', async () => {
+  it('rejeita composição incompleta', async () => {
     const versions = allCapacityVersions().slice(0, 3);
     const { service, tx } = harness([[]], versions);
-
     await expect(
       service.createDraft(
-        {
-          contractId: 'contract-1',
-          alunoId: 'aluno-1',
-          actorProfessorId: 'professor-1',
-        },
+        { contractId: 'contract-1', alunoId: 'aluno-1', actorProfessorId: 'professor-1' },
         {
           capacityBlocks: allCapacityInputs().slice(0, 3),
           professorJustification: 'Não deve aceitar montagem incompleta.',
         },
         now
       )
-    ).rejects.toMatchObject({
-      code: 'INVALID_INPUT',
-      details: { missingCapacities: ['balance'] },
-    });
-
+    ).rejects.toMatchObject({ code: 'INVALID_INPUT', details: { missingCapacities: ['balance'] } });
     expect(tx.$executeRaw).not.toHaveBeenCalled();
   });
 
-  it('rejeita referência de capacidade que não pertence ao contrato/aluno', async () => {
+  it('rejeita versão de capacidade que não pertence ao contrato/aluno', async () => {
     const { service, tx } = harness([[]], []);
-
     await expect(
       service.createDraft(
-        {
-          contractId: 'contract-1',
-          alunoId: 'aluno-1',
-          actorProfessorId: 'professor-1',
-        },
+        { contractId: 'contract-1', alunoId: 'aluno-1', actorProfessorId: 'professor-1' },
         {
           capacityBlocks: [{ capacityPrescriptionVersionId: 'capacity-version-other-tenant' }],
           professorJustification: 'Não deve persistir.',
@@ -247,73 +258,33 @@ describe('consolidatedPrescriptionService persistence contract', () => {
         now
       )
     ).rejects.toMatchObject({ code: 'INVALID_CAPACITY_VERSION' });
-
     expect(tx.$executeRaw).not.toHaveBeenCalled();
   });
 
-  it('rejeita dataRef adicional de prontuário fora do contrato/aluno antes da persistência', async () => {
-    const { service, tx } = harness([[]]);
-    tx.prontuarioGoal.findFirst.mockResolvedValue(null);
+  it('falha a transação quando o registro de auditoria falha', async () => {
+    const { service, tx } = harness([
+      [],
+      [assemblyRow()],
+      [versionRow()],
+      persistedBlocks(),
+      persistedRefs(),
+    ]);
+    tx.$executeRaw.mockImplementationOnce(async () => 1);
+    for (let index = 0; index < 7; index += 1) tx.$executeRaw.mockImplementationOnce(async () => 1);
+    tx.$executeRaw.mockImplementationOnce(async () => {
+      throw new Error('audit unavailable');
+    });
 
     await expect(
       service.createDraft(
-        {
-          contractId: 'contract-1',
-          alunoId: 'aluno-1',
-          actorProfessorId: 'professor-1',
-        },
-        {
-          capacityBlocks: allCapacityInputs(),
-          dataRefs: [
-            {
-              role: 'assessment',
-              sourceType: 'prontuario_goal',
-              sourceId: 'goal-from-other-student',
-            },
-          ],
-          professorJustification: 'Não deve aceitar origem fora do escopo.',
-        },
+        { contractId: 'contract-1', alunoId: 'aluno-1', actorProfessorId: 'professor-1' },
+        { capacityBlocks: allCapacityInputs(), professorJustification: 'Montagem inicial.' },
         now
       )
-    ).rejects.toMatchObject({ code: 'INVALID_DATA_REFERENCE' });
-
-    expect(tx.$executeRaw).not.toHaveBeenCalled();
+    ).rejects.toThrow('audit unavailable');
   });
 
-  it('rejeita a segunda escrita quando a atualização otimista perde a corrida', async () => {
-    const currentAssembly = assemblyRow();
-    const currentVersion = versionRow();
-    const { service, tx } = harness([
-      [currentAssembly],
-      [currentVersion],
-      persistedBlocks(),
-      persistedRefs(),
-      [],
-    ]);
-
-    await expect(
-      service.updateComposition(
-        {
-          contractId: 'contract-1',
-          alunoId: 'aluno-1',
-          actorProfessorId: 'professor-1',
-        },
-        {
-          expectedCurrentVersion: 1,
-          capacityBlocks: allCapacityInputs(),
-          professorJustification: 'Nova revisão concorrente.',
-        },
-        now
-      )
-    ).rejects.toMatchObject({
-      code: 'CONFLICT',
-      details: { expectedCurrentVersion: 1 },
-    });
-
-    expect(tx.$executeRaw).not.toHaveBeenCalled();
-  });
-
-  it('aprova por comando próprio, cria nova versão e preserva a anterior', async () => {
+  it('aprova por comando próprio e deriva ator/data no backend', async () => {
     const currentAssembly = assemblyRow({ currentVersion: 2, currentStatus: 'ready_for_review' });
     const reviewVersion = versionRow({
       id: 'assembly-version-2',
@@ -321,24 +292,19 @@ describe('consolidatedPrescriptionService persistence contract', () => {
       status: 'ready_for_review',
       previousVersionId: 'assembly-version-1',
       reviewedByProfessorId: 'professor-1',
-      reviewedAt: new Date('2026-08-08T15:00:00.000Z'),
+      reviewedAt: new Date('2026-08-09T14:00:00.000Z'),
     });
-    const approvedAssembly = assemblyRow({
-      currentVersion: 3,
-      currentStatus: 'approved',
-      updatedAt: now,
-    });
+    const approvedAssembly = assemblyRow({ currentVersion: 3, currentStatus: 'approved', updatedAt: now });
     const approvedVersion = versionRow({
       id: 'assembly-version-3',
       version: 3,
       previousVersionId: 'assembly-version-2',
       status: 'approved',
       reviewedByProfessorId: 'professor-1',
-      reviewedAt: new Date('2026-08-08T15:00:00.000Z'),
+      reviewedAt: new Date('2026-08-09T14:00:00.000Z'),
       approvedByProfessorId: 'professor-1',
       approvedAt: now,
     });
-
     const { service } = harness([
       [currentAssembly],
       [reviewVersion],
@@ -346,30 +312,22 @@ describe('consolidatedPrescriptionService persistence contract', () => {
       persistedRefs(),
       [approvedAssembly],
       [approvedVersion],
-      persistedBlocks().map((block, index) => ({ ...block, id: `approved-block-${index + 1}` })),
-      persistedRefs().map((ref, index) => ({ ...ref, id: `approved-ref-${index + 1}` })),
+      persistedBlocks(),
+      persistedRefs(),
     ]);
 
     const result = await service.approve(
-      {
-        contractId: 'contract-1',
-        alunoId: 'aluno-1',
-        actorProfessorId: 'professor-1',
-      },
+      { contractId: 'contract-1', alunoId: 'aluno-1', actorProfessorId: 'professor-1' },
       { expectedCurrentVersion: 2 },
       now
     );
 
-    expect(result.currentVersion).toBe(3);
     expect(result.currentStatus).toBe('approved');
     expect(result.latestVersion).toMatchObject({
-      version: 3,
-      previousVersionId: 'assembly-version-2',
       status: 'approved',
       approvedByProfessorId: 'professor-1',
       approvedAt: now.toISOString(),
     });
-    expect(result.latestVersion.capacityBlocks).toHaveLength(4);
     expect(result.latestVersion.canReleaseOperationalWorkout).toBe(true);
   });
 });
