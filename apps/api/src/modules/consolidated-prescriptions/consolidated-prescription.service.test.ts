@@ -308,6 +308,45 @@ describe('consolidatedPrescriptionService persistence contract', () => {
     ).rejects.toThrow('version relation unavailable');
   });
 
+  it('reflete conflitos recalculados na latestVersion sem persistir nova versão', async () => {
+    const currentAssembly = assemblyRow({ currentVersion: 3, currentStatus: 'approved' });
+    const approvedVersion = versionRow({
+      id: 'assembly-version-3',
+      version: 3,
+      previousVersionId: 'assembly-version-2',
+      status: 'approved',
+      approvedByProfessorId: 'professor-1',
+      approvedAt: now,
+      conflicts: [
+        {
+          code: 'capacity-alert:resisted:stale-critical',
+          message: 'Conflito crítico antigo.',
+          severity: 'critical',
+          affectedCapacities: ['resisted'],
+          sourceRefIds: [],
+        },
+      ],
+    });
+    const { service, tx } = harness([
+      [currentAssembly],
+      [approvedVersion],
+      persistedBlocks(),
+      persistedRefs(),
+    ]);
+
+    const result = await service.recalculateConflicts(
+      { contractId: 'contract-1', alunoId: 'aluno-1', actorProfessorId: 'professor-1' },
+      { expectedCurrentVersion: 3 },
+      now
+    );
+
+    expect(result.report.conflicts).toEqual([]);
+    expect(result.report.hasCritical).toBe(false);
+    expect(result.assembly.latestVersion.conflicts).toEqual([]);
+    expect(result.assembly.latestVersion.canReleaseOperationalWorkout).toBe(true);
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+  });
+
   it('aprova por comando próprio e deriva ator/data no backend', async () => {
     const currentAssembly = assemblyRow({ currentVersion: 2, currentStatus: 'ready_for_review' });
     const reviewVersion = versionRow({

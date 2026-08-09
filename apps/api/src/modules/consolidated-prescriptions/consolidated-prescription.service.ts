@@ -1220,8 +1220,13 @@ export function createConsolidatedPrescriptionService(client: PrismaClient = pri
           );
           return { assembly: blocked, report: buildConflictReport(blocked.latestVersion, conflicts) };
         }
-        const assembly = { ...mapAssembly(current), latestVersion: previous };
-        return { assembly, report: buildConflictReport(previous, conflicts) };
+        const latestVersion: ConsolidatedPrescriptionVersionDetail = {
+          ...previous,
+          conflicts,
+          canReleaseOperationalWorkout: canRelease(previous.status, conflicts),
+        };
+        const assembly = { ...mapAssembly(current), latestVersion };
+        return { assembly, report: buildConflictReport(latestVersion, conflicts) };
       });
     },
 
