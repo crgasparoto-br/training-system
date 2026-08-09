@@ -724,7 +724,7 @@ async function mapVersionDetail(
     approvedAt: row.approvedAt?.toISOString() ?? null,
     blockedByProfessorId: row.blockedByProfessorId,
     blockedAt: row.blockedAt?.toISOString() ?? null,
-    blockReason: row.blockReason,
+    blockReason: status === 'blocked' ? row.blockReason : null,
     createdByProfessorId: row.createdByProfessorId,
     createdAt: row.createdAt.toISOString(),
     capacityBlocks,
@@ -755,13 +755,18 @@ function auditActionForVersion(
 }
 
 function deriveAuditEvents(
-  versions: ConsolidatedPrescriptionVersionDetail[]
+  versions: ConsolidatedPrescriptionVersionDetail[],
+  versionRows: VersionRow[]
 ): ConsolidatedPrescriptionAuditEvent[] {
   const byId = new Map(versions.map((version) => [version.id, version]));
+  const rowById = new Map(versionRows.map((row) => [row.id, row]));
   return versions.map((current) => {
     const previous = current.previousVersionId ? byId.get(current.previousVersionId) ?? null : null;
     const action = auditActionForVersion(current, previous);
-    const reason = action === 'blocked' || action === 'blocked_by_conflict' ? current.blockReason ?? null : null;
+    const auditReason = rowById.get(current.id)?.blockReason ?? null;
+    const reason = ['blocked', 'blocked_by_conflict', 'unblocked', 'revision_created'].includes(action)
+      ? auditReason
+      : null;
     return {
       id: `version-audit:${current.id}`,
       assemblyId: current.assemblyId,
@@ -1023,11 +1028,14 @@ export function createConsolidatedPrescriptionService(client: PrismaClient = pri
           : clear
             ? null
             : parseDate(input.previous.blockedAt, 'Data de bloqueio'),
+      // The append-only version row is the canonical audit record. On explicit unblock/revision
+      // transitions, this column stores the command reason internally while mapVersionDetail keeps
+      // blockReason scoped to blocked versions; deriveAuditEvents reads the raw row for audit history.
       blockReason:
         input.nextStatus === 'blocked'
           ? input.reason ?? 'Bloqueio da montagem consolidada.'
           : clear
-            ? null
+            ? input.reason ?? null
             : input.previous.blockReason ?? null,
       createdByProfessorId: input.context.actorProfessorId,
       createdAt: input.now,
@@ -1410,7 +1418,7 @@ export function createConsolidatedPrescriptionService(client: PrismaClient = pri
       return {
         assembly: mapAssembly(assembly),
         versions,
-        auditEvents: deriveAuditEvents(versions),
+        auditEvents: deriveAuditEvents(versions, versionRows),
       };
     },
   };

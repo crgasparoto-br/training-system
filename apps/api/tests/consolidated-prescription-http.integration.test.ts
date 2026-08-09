@@ -469,6 +469,7 @@ describeDatabase('consolidated prescription workflow HTTP integration with Postg
     expect(unblocked.status).toBe(200);
     expect(unblocked.body.data.currentStatus).toBe('ready_for_review');
     expect(unblocked.body.data.latestVersion.approvedByProfessorId).toBeNull();
+    expect(unblocked.body.data.latestVersion.blockReason).toBeNull();
 
     const approved = await request(app)
       .post(`/consolidated-prescriptions/alunos/${alunoA}/approve`)
@@ -482,6 +483,7 @@ describeDatabase('consolidated prescription workflow HTTP integration with Postg
       .send({ expectedCurrentVersion: 5, reason: 'Novo ciclo de planejamento.' });
     expect(revision.status).toBe(201);
     expect(revision.body.data.currentStatus).toBe('draft');
+    expect(revision.body.data.latestVersion.blockReason).toBeNull();
 
     const history = await request(app)
       .get(`/consolidated-prescriptions/alunos/${alunoA}/history`)
@@ -497,6 +499,48 @@ describeDatabase('consolidated prescription workflow HTTP integration with Postg
         'revision_created',
       ])
     );
+    expect(history.body.data.auditEvents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ action: 'unblocked', reason: 'Restrição resolvida.' }),
+        expect.objectContaining({ action: 'revision_created', reason: 'Novo ciclo de planejamento.' }),
+      ])
+    );
+  });
+
+  it('não herda motivo de bloqueio quando o desbloqueio não informa motivo', async () => {
+    const versions = await createCapacitySet({
+      contractId: contractA,
+      alunoId: alunoA,
+      professorId: master.professor.id,
+      goalId: goalA,
+    });
+    await request(app)
+      .post(`/consolidated-prescriptions/alunos/${alunoA}`)
+      .set('Authorization', `Bearer ${master.token}`)
+      .send(compositionPayload(versions))
+      .expect(201);
+
+    await request(app)
+      .post(`/consolidated-prescriptions/alunos/${alunoA}/block`)
+      .set('Authorization', `Bearer ${master.token}`)
+      .send({ expectedCurrentVersion: 1, reason: 'Bloqueio temporário.' })
+      .expect(200);
+
+    const unblocked = await request(app)
+      .post(`/consolidated-prescriptions/alunos/${alunoA}/unblock`)
+      .set('Authorization', `Bearer ${master.token}`)
+      .send({ expectedCurrentVersion: 2, targetStatus: 'draft' });
+    expect(unblocked.status).toBe(200);
+    expect(unblocked.body.data.latestVersion.blockReason).toBeNull();
+
+    const history = await request(app)
+      .get(`/consolidated-prescriptions/alunos/${alunoA}/history`)
+      .set('Authorization', `Bearer ${master.token}`);
+    expect(history.status).toBe(200);
+    const unblockedEvent = history.body.data.auditEvents.find(
+      (event: { action: string }) => event.action === 'unblocked'
+    );
+    expect(unblockedEvent).toEqual(expect.objectContaining({ reason: null }));
   });
 
   it('retorna 409 para expectedCurrentVersion obsoleto sem criar versão parcial', async () => {
