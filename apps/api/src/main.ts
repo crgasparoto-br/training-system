@@ -166,13 +166,16 @@ app.get('/api/v1', (_req, res) => {
 
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/assessment-types', assessmentTypeRoutes);
+
 // A camada autoritativa intercepta create/update/review/convert antes das rotas
 // administrativas legadas para impedir bypass por referências livres.
 app.use('/api/v1/pre-registration-admin', preRegistrationEnrollmentRoutes);
 app.use('/api/v1/pre-registration-admin', preRegistrationAdminRoutes);
+
 app.use('/api/v1/pre-registration', preRegistrationAuthenticatedRoutes);
 app.use('/api/v1/pre-registration', preRegistrationHealthIntakeRoutes);
 app.use('/api/v1/pre-registration', preRegistrationParqRoutes);
+
 app.use('/api/v1/alunos', alunoAvatarUploadRoutes);
 app.use('/api/v1/alunos', studentContractLifecycleRoutes);
 app.use('/api/v1/alunos', preRegistrationInviteAdminRoutes);
