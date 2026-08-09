@@ -30,6 +30,8 @@ Existe no máximo uma cadeia lógica por `(contractId, alunoId)`.
 
 `ConsolidatedPrescription` guarda a identidade do agregado e `currentVersion`. `ConsolidatedPrescriptionVersion` é append-only: toda mutação material cria uma nova versão, preserva `previousVersionId` e nunca reescreve o histórico anterior.
 
+A API mantém contratos distintos para coleção e detalhe. `GET /alunos/:alunoId/assemblies` sempre devolve uma coleção e, pela cardinalidade atual do domínio, contém zero ou uma montagem. `GET /alunos/:alunoId` continua sendo a consulta da montagem corrente/detalhe. Essa separação preserva um contrato de listagem explícito sem criar uma segunda cadeia para o mesmo aluno.
+
 Todas as mutações recebem `expectedCurrentVersion` depois da criação inicial. A implementação combina `SELECT ... FOR UPDATE` com CAS no `UPDATE`; duas escritas baseadas na mesma versão não podem avançar silenciosamente. O conflito retorna HTTP `409` e a transação não deixa versão ou relações parciais.
 
 ## Estados e workflow desta fase
@@ -136,6 +138,7 @@ Base: `/api/v1/consolidated-prescriptions`.
 
 | Método | Rota | Permissão |
 | --- | --- | --- |
+| `GET` | `/alunos/:alunoId/assemblies` | `plans.consolidatedPrescriptions.view` |
 | `GET` | `/alunos/:alunoId` | `plans.consolidatedPrescriptions.view` |
 | `POST` | `/alunos/:alunoId` | `plans.consolidatedPrescriptions.manage` |
 | `PATCH` | `/alunos/:alunoId/composition` | `plans.consolidatedPrescriptions.manage` |
@@ -148,7 +151,7 @@ Base: `/api/v1/consolidated-prescriptions`.
 | `POST` | `/alunos/:alunoId/revisions` | `plans.consolidatedPrescriptions.manage` |
 | `GET` | `/alunos/:alunoId/history` | `plans.consolidatedPrescriptions.view` |
 
-Não existe endpoint `/release` nesta fase.
+A listagem usa a mesma autorização de leitura, aplica `contractId` e `dataScope` antes da consulta e não revela a existência do aluno para outro tenant. Não existe endpoint `/release` nesta fase.
 
 ## Autorização e privacidade
 
