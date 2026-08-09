@@ -15,12 +15,14 @@ O controle de acesso define o que cada função de colaborador pode ver e quais 
 
 - Pode acessar telas operacionais necessárias para sua rotina.
 - Em colaboradores, o padrão é `self`: somente o próprio cadastro.
+- Em `plans`, o padrão é `self`: somente alunos diretamente atribuídos ao professor.
 - Não deve visualizar dados financeiros ou administrativos sem permissão explícita.
 
 ### Gestor
 
 - Pode ter acesso ampliado conforme a configuração da função.
 - Para colaboradores, pode usar `managed` ou `contract` conforme decisão operacional.
+- Em `plans`, o preset de manager usa `contract`.
 
 ### Administrativo
 
@@ -52,6 +54,14 @@ Um `blockKey` registrado no catálogo compartilhado também pode proteger direta
 Aplique escopo de dados quando uma tela pode ser acessada por várias funções, mas cada função deve enxergar subconjuntos diferentes de registros.
 
 Exemplo: a função professor pode abrir Consulta de Colaboradores, mas deve ver somente o próprio cadastro.
+
+A tela `plans` também é data-scoped porque prescrição por capacidades e montagem consolidada operam sobre alunos. Para a montagem consolidada:
+
+- `self`: aluno diretamente atribuído ao professor;
+- `managed`: aluno diretamente atribuído ao professor ou a professor cujo `responsibleManagerId` é o ator;
+- `contract`: qualquer aluno do contrato autenticado.
+
+Permissão de bloco nunca amplia o `dataScope`.
 
 ## Contratos de colaboradores
 
@@ -145,11 +155,43 @@ Regras obrigatórias:
 - uma negação de outro tenant usa resposta genérica equivalente a recurso inexistente;
 - toda alteração cria versão nova; não existe sobrescrita silenciosa do histórico.
 
+## Montagem Consolidada da Prescrição
+
+A montagem consolidada reutiliza a tela `plans` e possui capacidades próprias, independentes das permissões da prescrição por capacidades:
+
+- `plans.consolidatedPrescriptions.view`: consultar montagem atual, conflitos, histórico e auditoria;
+- `plans.consolidatedPrescriptions.manage`: criar/editar composição, recalcular conflitos, enviar para revisão, bloquear/desbloquear e criar nova revisão;
+- `plans.consolidatedPrescriptions.approve`: aprovar uma montagem em `ready_for_review` depois da revalidação estruturada.
+
+Defaults:
+
+- `professor`: `view` + `manage`, com `plans=self`;
+- `manager`: `view` + `manage` + `approve`, com `plans=contract`;
+- `master`: acesso total dentro do contrato;
+- demais perfis não recebem as permissões automaticamente;
+- não existe `release` concedido nesta issue; a liberação operacional pertence à #320.
+
+Regras obrigatórias:
+
+- possuir `plans.capacityPrescriptions.*` não autoriza automaticamente a montagem consolidada;
+- `approve` é uma permissão separada de `manage`;
+- a API deriva `contractId` e professor ator da autenticação;
+- `dataScope` é validado antes de carregar/gravar a montagem e novamente o domínio revalida aluno/ator no contrato;
+- `self` limita a alunos diretamente atribuídos ao professor;
+- `managed` inclui alunos do próprio professor e de professores geridos pelo ator;
+- `contract` inclui alunos do contrato autenticado;
+- acesso cross-tenant ou fora do escopo retorna resposta genérica equivalente a recurso inexistente;
+- payload de composição não controla status, versão resultante, ator, timestamp de aprovação ou liberação;
+- `critical` impede aprovação; `info` e `warning` não bloqueiam isoladamente;
+- texto livre não é fonte de conflito autoritativo;
+- desbloqueio é explícito e só ocorre após nova revalidação sem `critical`;
+- auditoria de ações sensíveis é gravada na mesma transação da versão.
+
 ## Critérios de aceite para mudanças de acesso
 
 - Catálogo compartilhado atualizado.
 - Defaults por perfil revisados.
 - Backend bloqueia acesso indevido.
-- Frontend oculta menu, tela, aba ou ação sem permissão.
+- Frontend oculta menu, tela, aba ou ação sem permissão quando a interface correspondente existir.
 - Testes cobrem pelo menos um caso permitido e um negado.
 - `pnpm access:check` passa.
