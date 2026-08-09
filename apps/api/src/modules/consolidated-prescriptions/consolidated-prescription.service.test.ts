@@ -1,6 +1,7 @@
 import { createConsolidatedPrescriptionService } from './consolidated-prescription.service.js';
 
 const now = new Date('2026-08-08T16:30:00.000Z');
+const CAPACITIES = ['resisted', 'flexibility', 'cyclic', 'balance'] as const;
 
 const assemblyRow = (overrides: Record<string, unknown> = {}) => ({
   id: 'assembly-1',
@@ -40,57 +41,65 @@ const versionRow = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-const capacityVersion = (overrides: Record<string, unknown> = {}) => ({
-  id: 'capacity-version-1',
-  prescriptionId: 'capacity-prescription-1',
-  contractId: 'contract-1',
-  alunoId: 'aluno-1',
-  responsibleProfessorId: 'professor-1',
-  capacity: 'resisted',
-  status: 'active',
-  version: 2,
-  technicalJustification: 'Treino resistido compatível com a avaliação vigente.',
-  professorSummary: 'Bloco ativo e validado.',
-  studentMessage: 'Siga as orientações do professor.',
-  methodologyVersion: null,
-  parameterSetIds: [],
-  parameters: null,
-  publishesTodayWorkout: false,
-  createdAt: now,
-  sources: [
-    {
-      id: 'capacity-source-1',
-      versionId: 'capacity-version-1',
-      sourceType: 'prontuario_goal',
-      sourceId: 'goal-1',
-      label: 'Objetivo do PRNT',
-      assessedAt: now,
-      origin: 'PRNT-001',
-      sourceVersion: '3',
-      responsibleProfessorId: 'professor-1',
-      createdAt: now,
-    },
-  ],
-  alerts: [],
-  ...overrides,
-});
+const capacityVersion = (index: number, overrides: Record<string, unknown> = {}) => {
+  const capacity = CAPACITIES[index] ?? 'resisted';
+  const id = `capacity-version-${index + 1}`;
+  return {
+    id,
+    prescriptionId: `capacity-prescription-${index + 1}`,
+    contractId: 'contract-1',
+    alunoId: 'aluno-1',
+    responsibleProfessorId: 'professor-1',
+    capacity,
+    status: 'active',
+    version: 2,
+    technicalJustification: `Treino ${capacity} compatível com a avaliação vigente.`,
+    professorSummary: 'Bloco ativo e validado.',
+    studentMessage: 'Siga as orientações do professor.',
+    methodologyVersion: null,
+    parameterSetIds: [],
+    parameters: null,
+    publishesTodayWorkout: false,
+    createdAt: now,
+    sources: [
+      {
+        id: `capacity-source-${index + 1}`,
+        versionId: id,
+        sourceType: 'prontuario_goal',
+        sourceId: `goal-${index + 1}`,
+        label: `Objetivo do PRNT ${index + 1}`,
+        assessedAt: now,
+        origin: 'PRNT-001',
+        sourceVersion: '3',
+        responsibleProfessorId: 'professor-1',
+        createdAt: now,
+      },
+    ],
+    alerts: [],
+    ...overrides,
+  };
+};
 
-const persistedBlock = (overrides: Record<string, unknown> = {}) => ({
-  id: 'block-1',
-  capacityPrescriptionVersionId: 'capacity-version-1',
-  capacity: 'resisted',
+const allCapacityVersions = () => CAPACITIES.map((_, index) => capacityVersion(index));
+const allCapacityInputs = () =>
+  CAPACITIES.map((_, index) => ({ capacityPrescriptionVersionId: `capacity-version-${index + 1}` }));
+
+const persistedBlock = (index: number, overrides: Record<string, unknown> = {}) => ({
+  id: `block-${index + 1}`,
+  capacityPrescriptionVersionId: `capacity-version-${index + 1}`,
+  capacity: CAPACITIES[index] ?? 'resisted',
   capacityVersion: 2,
   capacityStatus: 'active',
-  position: 0,
+  position: index,
   ...overrides,
 });
 
-const persistedRef = (overrides: Record<string, unknown> = {}) => ({
-  id: 'ref-1',
+const persistedRef = (index: number, overrides: Record<string, unknown> = {}) => ({
+  id: `ref-${index + 1}`,
   role: 'capacity_source',
   sourceType: 'prontuario_goal',
-  sourceId: 'goal-1',
-  label: 'Objetivo do PRNT',
+  sourceId: `goal-${index + 1}`,
+  label: `Objetivo do PRNT ${index + 1}`,
   assessedAt: now,
   origin: 'PRNT-001',
   sourceVersion: '3',
@@ -99,7 +108,10 @@ const persistedRef = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-function harness(rawResponses: unknown[][], capacityVersions = [capacityVersion()]) {
+const persistedBlocks = () => CAPACITIES.map((_, index) => persistedBlock(index));
+const persistedRefs = () => CAPACITIES.map((_, index) => persistedRef(index));
+
+function harness(rawResponses: unknown[][], capacityVersions = allCapacityVersions()) {
   const queryRaw = jest.fn();
   for (const response of rawResponses) queryRaw.mockResolvedValueOnce(response);
 
@@ -112,6 +124,9 @@ function harness(rawResponses: unknown[][], capacityVersions = [capacityVersion(
     },
     capacityPrescriptionVersion: {
       findMany: jest.fn().mockResolvedValue(capacityVersions),
+    },
+    prontuarioGoal: {
+      findFirst: jest.fn().mockResolvedValue({ id: 'goal-extra' }),
     },
     $queryRaw: queryRaw,
     $executeRaw: jest.fn().mockResolvedValue(1),
@@ -130,15 +145,15 @@ function harness(rawResponses: unknown[][], capacityVersions = [capacityVersion(
 }
 
 describe('consolidatedPrescriptionService persistence contract', () => {
-  it('cria rascunho usando somente IDs persistidos e ignora autoridade forjada pelo cliente', async () => {
+  it('cria rascunho com as quatro capacidades, valida origem adicional e ignora autoridade forjada pelo cliente', async () => {
     const createdAssembly = assemblyRow();
     const createdVersion = versionRow();
     const { service, tx } = harness([
       [],
       [createdAssembly],
       [createdVersion],
-      [persistedBlock()],
-      [persistedRef()],
+      persistedBlocks(),
+      persistedRefs(),
     ]);
 
     const result = await service.createDraft(
@@ -148,7 +163,15 @@ describe('consolidatedPrescriptionService persistence contract', () => {
         actorProfessorId: 'professor-1',
       },
       {
-        capacityBlocks: [{ capacityPrescriptionVersionId: 'capacity-version-1' }],
+        capacityBlocks: allCapacityInputs(),
+        dataRefs: [
+          {
+            role: 'assessment',
+            sourceType: 'prontuario_goal',
+            sourceId: 'goal-extra',
+            label: 'Objetivo complementar do prontuário',
+          },
+        ],
         professorJustification: 'Montagem inicial.',
         studentInstruction: 'Aguarde a revisão do professor.',
         status: 'approved',
@@ -162,23 +185,49 @@ describe('consolidatedPrescriptionService persistence contract', () => {
     expect(result.currentStatus).toBe('draft');
     expect(result.latestVersion.status).toBe('draft');
     expect(result.latestVersion.approvedByProfessorId).toBeNull();
-    expect(result.latestVersion.capacityBlocks).toEqual([
-      expect.objectContaining({
-        capacityPrescriptionVersionId: 'capacity-version-1',
-        capacity: 'resisted',
-        capacityVersion: 2,
-        capacityStatus: 'active',
-      }),
-    ]);
+    expect(result.latestVersion.capacityBlocks).toHaveLength(4);
+    expect(result.latestVersion.capacityBlocks.map((block) => block.capacity)).toEqual(CAPACITIES);
     expect(tx.capacityPrescriptionVersion.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
-          id: { in: ['capacity-version-1'] },
+          id: { in: allCapacityInputs().map((entry) => entry.capacityPrescriptionVersionId) },
           contractId: 'contract-1',
           alunoId: 'aluno-1',
         },
       })
     );
+    expect(tx.prontuarioGoal.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: 'goal-extra',
+        record: { contractId: 'contract-1', alunoId: 'aluno-1' },
+      },
+      select: { id: true },
+    });
+  });
+
+  it('rejeita composição incompleta mesmo quando todas as versões informadas são válidas', async () => {
+    const versions = allCapacityVersions().slice(0, 3);
+    const { service, tx } = harness([[]], versions);
+
+    await expect(
+      service.createDraft(
+        {
+          contractId: 'contract-1',
+          alunoId: 'aluno-1',
+          actorProfessorId: 'professor-1',
+        },
+        {
+          capacityBlocks: allCapacityInputs().slice(0, 3),
+          professorJustification: 'Não deve aceitar montagem incompleta.',
+        },
+        now
+      )
+    ).rejects.toMatchObject({
+      code: 'INVALID_INPUT',
+      details: { missingCapacities: ['balance'] },
+    });
+
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
   });
 
   it('rejeita referência de capacidade que não pertence ao contrato/aluno', async () => {
@@ -202,14 +251,43 @@ describe('consolidatedPrescriptionService persistence contract', () => {
     expect(tx.$executeRaw).not.toHaveBeenCalled();
   });
 
+  it('rejeita dataRef adicional de prontuário fora do contrato/aluno antes da persistência', async () => {
+    const { service, tx } = harness([[]]);
+    tx.prontuarioGoal.findFirst.mockResolvedValue(null);
+
+    await expect(
+      service.createDraft(
+        {
+          contractId: 'contract-1',
+          alunoId: 'aluno-1',
+          actorProfessorId: 'professor-1',
+        },
+        {
+          capacityBlocks: allCapacityInputs(),
+          dataRefs: [
+            {
+              role: 'assessment',
+              sourceType: 'prontuario_goal',
+              sourceId: 'goal-from-other-student',
+            },
+          ],
+          professorJustification: 'Não deve aceitar origem fora do escopo.',
+        },
+        now
+      )
+    ).rejects.toMatchObject({ code: 'INVALID_DATA_REFERENCE' });
+
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+  });
+
   it('rejeita a segunda escrita quando a atualização otimista perde a corrida', async () => {
     const currentAssembly = assemblyRow();
     const currentVersion = versionRow();
     const { service, tx } = harness([
       [currentAssembly],
       [currentVersion],
-      [persistedBlock()],
-      [persistedRef()],
+      persistedBlocks(),
+      persistedRefs(),
       [],
     ]);
 
@@ -222,7 +300,7 @@ describe('consolidatedPrescriptionService persistence contract', () => {
         },
         {
           expectedCurrentVersion: 1,
-          capacityBlocks: [{ capacityPrescriptionVersionId: 'capacity-version-1' }],
+          capacityBlocks: allCapacityInputs(),
           professorJustification: 'Nova revisão concorrente.',
         },
         now
@@ -264,12 +342,12 @@ describe('consolidatedPrescriptionService persistence contract', () => {
     const { service } = harness([
       [currentAssembly],
       [reviewVersion],
-      [persistedBlock()],
-      [persistedRef()],
+      persistedBlocks(),
+      persistedRefs(),
       [approvedAssembly],
       [approvedVersion],
-      [persistedBlock({ id: 'block-3' })],
-      [persistedRef({ id: 'ref-3' })],
+      persistedBlocks().map((block, index) => ({ ...block, id: `approved-block-${index + 1}` })),
+      persistedRefs().map((ref, index) => ({ ...ref, id: `approved-ref-${index + 1}` })),
     ]);
 
     const result = await service.approve(
@@ -291,6 +369,7 @@ describe('consolidatedPrescriptionService persistence contract', () => {
       approvedByProfessorId: 'professor-1',
       approvedAt: now.toISOString(),
     });
+    expect(result.latestVersion.capacityBlocks).toHaveLength(4);
     expect(result.latestVersion.canReleaseOperationalWorkout).toBe(true);
   });
 });
