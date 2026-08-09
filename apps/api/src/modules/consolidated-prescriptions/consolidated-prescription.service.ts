@@ -49,6 +49,8 @@ const unavailableChecks = [
   },
 ] as const;
 
+const STRUCTURED_CONFLICT_BLOCK_REASON = 'Bloqueado por impedimento crítico estruturado.';
+
 type DbClient = Prisma.TransactionClient | PrismaClient;
 
 export type ConsolidatedPrescriptionErrorCode =
@@ -134,23 +136,6 @@ interface DataRefRow {
   context: unknown;
 }
 
-interface AuditRow {
-  id: string;
-  assemblyId: string;
-  assemblyVersionId: string;
-  contractId: string;
-  alunoId: string;
-  actorProfessorId: string;
-  action: string;
-  previousVersion: number | null;
-  newVersion: number;
-  previousStatus: string | null;
-  newStatus: string;
-  reason: string | null;
-  details: unknown;
-  createdAt: Date;
-}
-
 interface ResolvedCapacityVersion {
   id: string;
   prescriptionId: string;
@@ -217,23 +202,6 @@ function asCapacityStatus(value: string): CapacityPrescriptionStatus {
     domainError('INVALID_CAPACITY_VERSION', 'Estado persistido da capacidade é inválido');
   }
   return value as CapacityPrescriptionStatus;
-}
-
-function asAuditAction(value: string): ConsolidatedPrescriptionAuditAction {
-  const allowed = new Set<ConsolidatedPrescriptionAuditAction>([
-    'created',
-    'composition_updated',
-    'sent_for_review',
-    'approved',
-    'blocked',
-    'blocked_by_conflict',
-    'unblocked',
-    'revision_created',
-  ]);
-  if (!allowed.has(value as ConsolidatedPrescriptionAuditAction)) {
-    domainError('INVALID_INPUT', 'Ação de auditoria persistida é inválida');
-  }
-  return value as ConsolidatedPrescriptionAuditAction;
 }
 
 function normalizeOptional(value: string | null | undefined) {
@@ -708,14 +676,6 @@ async function loadDataRefs(client: DbClient, assemblyVersionId: string) {
   `;
 }
 
-async function loadAuditRows(client: DbClient, assemblyId: string) {
-  return client.$queryRaw<AuditRow[]>`
-    SELECT * FROM "ConsolidatedPrescriptionAuditEvent"
-    WHERE "assemblyId" = ${assemblyId}
-    ORDER BY "createdAt" DESC, "id" DESC
-  `;
-}
-
 async function mapVersionDetail(
   client: DbClient,
   row: VersionRow
@@ -776,23 +736,52 @@ async function mapVersionDetail(
   };
 }
 
-function mapAuditRow(row: AuditRow): ConsolidatedPrescriptionAuditEvent {
-  return {
-    id: row.id,
-    assemblyId: row.assemblyId,
-    assemblyVersionId: row.assemblyVersionId,
-    contractId: row.contractId,
-    alunoId: row.alunoId,
-    actorProfessorId: row.actorProfessorId,
-    action: asAuditAction(row.action),
-    previousVersion: row.previousVersion,
-    newVersion: row.newVersion,
-    previousStatus: row.previousStatus ? asConsolidatedStatus(row.previousStatus) : null,
-    newStatus: asConsolidatedStatus(row.newStatus),
-    reason: row.reason,
-    details: (row.details as Record<string, unknown> | null) ?? null,
-    createdAt: row.createdAt.toISOString(),
-  };
+function auditActionForVersion(
+  current: ConsolidatedPrescriptionVersionDetail,
+  previous: ConsolidatedPrescriptionVersionDetail | null
+): ConsolidatedPrescriptionAuditAction {
+  if (!previous) return 'created';
+  if (previous.status === 'approved' && current.status === 'draft') return 'revision_created';
+  if (previous.status === 'blocked' && ['draft', 'ready_for_review'].includes(current.status)) {
+    return 'unblocked';
+  }
+  if (current.status === 'approved') return 'approved';
+  if (current.status === 'ready_for_review') return 'sent_for_review';
+  if (current.status === 'blocked') {
+    if (previous.status === 'blocked') return 'composition_updated';
+    return current.blockReason === STRUCTURED_CONFLICT_BLOCK_REASON ? 'blocked_by_conflict' : 'blocked';
+  }
+  return 'composition_updated';
+}
+
+function deriveAuditEvents(
+  versions: ConsolidatedPrescriptionVersionDetail[]
+): ConsolidatedPrescriptionAuditEvent[] {
+  const byId = new Map(versions.map((version) => [version.id, version]));
+  return versions.map((current) => {
+    const previous = current.previousVersionId ? byId.get(current.previousVersionId) ?? null : null;
+    const action = auditActionForVersion(current, previous);
+    const reason = action === 'blocked' || action === 'blocked_by_conflict' ? current.blockReason ?? null : null;
+    return {
+      id: `version-audit:${current.id}`,
+      assemblyId: current.assemblyId,
+      assemblyVersionId: current.id,
+      contractId: current.contractId,
+      alunoId: current.alunoId,
+      actorProfessorId: current.createdByProfessorId,
+      action,
+      previousVersion: previous?.version ?? null,
+      newVersion: current.version,
+      previousStatus: previous?.status ?? null,
+      newStatus: current.status,
+      reason,
+      details: {
+        source: 'consolidated_prescription_version',
+        criticalConflictCount: current.conflicts.filter((conflict) => conflict.severity === 'critical').length,
+      },
+      createdAt: current.createdAt,
+    };
+  });
 }
 
 async function persistVersion(
@@ -865,33 +854,6 @@ async function persistVersion(
     `;
   }
   return inserted[0];
-}
-
-async function recordAudit(
-  client: DbClient,
-  input: {
-    context: ConsolidatedPrescriptionContext;
-    assembly: AssemblyRow;
-    version: VersionRow;
-    action: ConsolidatedPrescriptionAuditAction;
-    previousVersion: number | null;
-    previousStatus: ConsolidatedPrescriptionStatus | null;
-    reason?: string | null;
-    details?: Record<string, unknown> | null;
-    createdAt: Date;
-  }
-) {
-  const detailsJson = JSON.stringify(input.details ?? null);
-  await client.$executeRaw`
-    INSERT INTO "ConsolidatedPrescriptionAuditEvent" (
-      "id", "assemblyId", "assemblyVersionId", "contractId", "alunoId", "actorProfessorId",
-      "action", "previousVersion", "newVersion", "previousStatus", "newStatus", "reason", "details", "createdAt"
-    ) VALUES (
-      ${randomUUID()}, ${input.assembly.id}, ${input.version.id}, ${input.context.contractId}, ${input.context.alunoId},
-      ${input.context.actorProfessorId}, ${input.action}, ${input.previousVersion}, ${input.version.version},
-      ${input.previousStatus}, ${input.version.status}, ${input.reason ?? null}, CAST(${detailsJson} AS jsonb), ${input.createdAt}
-    )
-  `;
 }
 
 async function advanceAggregate(
@@ -1005,7 +967,6 @@ export function createConsolidatedPrescriptionService(client: PrismaClient = pri
     previous: ConsolidatedPrescriptionVersionDetail;
     expectedCurrentVersion: number;
     nextStatus: ConsolidatedPrescriptionStatus;
-    action: ConsolidatedPrescriptionAuditAction;
     now: Date;
     reason?: string | null;
     conflicts?: ConsolidatedPrescriptionConflict[];
@@ -1074,21 +1035,6 @@ export function createConsolidatedPrescriptionService(client: PrismaClient = pri
       dataRefs: cloneDataRefs(input.previous.dataRefs),
       conflicts: input.conflicts ?? input.previous.conflicts,
     });
-    await recordAudit(input.tx, {
-      context: input.context,
-      assembly: nextAssembly,
-      version: versionRow,
-      action: input.action,
-      previousVersion: input.previous.version,
-      previousStatus: input.previous.status,
-      reason: input.reason,
-      details: {
-        criticalConflictCount: (input.conflicts ?? input.previous.conflicts).filter(
-          (conflict) => conflict.severity === 'critical'
-        ).length,
-      },
-      createdAt: input.now,
-    });
     return {
       ...mapAssembly(nextAssembly),
       latestVersion: await mapVersionDetail(input.tx, versionRow),
@@ -1111,8 +1057,7 @@ export function createConsolidatedPrescriptionService(client: PrismaClient = pri
       previous,
       expectedCurrentVersion,
       nextStatus: 'blocked',
-      action: 'blocked_by_conflict',
-      reason: 'Bloqueado por impedimento crítico estruturado.',
+      reason: STRUCTURED_CONFLICT_BLOCK_REASON,
       conflicts,
       now,
     });
@@ -1166,16 +1111,6 @@ export function createConsolidatedPrescriptionService(client: PrismaClient = pri
           dataRefs,
           conflicts,
         });
-        await recordAudit(tx, {
-          context,
-          assembly,
-          version: versionRow,
-          action: 'created',
-          previousVersion: null,
-          previousStatus: null,
-          details: { criticalConflictCount: conflicts.filter((item) => item.severity === 'critical').length },
-          createdAt: now,
-        });
         return { ...mapAssembly(assembly), latestVersion: await mapVersionDetail(tx, versionRow) };
       });
     },
@@ -1227,16 +1162,6 @@ export function createConsolidatedPrescriptionService(client: PrismaClient = pri
           capacityBlocks,
           dataRefs,
           conflicts,
-        });
-        await recordAudit(tx, {
-          context,
-          assembly: nextAssembly,
-          version: versionRow,
-          action: 'composition_updated',
-          previousVersion: previous.version,
-          previousStatus: previous.status,
-          details: { criticalConflictCount: conflicts.filter((item) => item.severity === 'critical').length },
-          createdAt: now,
         });
         return { ...mapAssembly(nextAssembly), latestVersion: await mapVersionDetail(tx, versionRow) };
       });
@@ -1325,7 +1250,6 @@ export function createConsolidatedPrescriptionService(client: PrismaClient = pri
           previous,
           expectedCurrentVersion: command.expectedCurrentVersion,
           nextStatus: 'ready_for_review',
-          action: 'sent_for_review',
           conflicts,
           reviewed: true,
           now,
@@ -1366,7 +1290,6 @@ export function createConsolidatedPrescriptionService(client: PrismaClient = pri
           previous,
           expectedCurrentVersion: command.expectedCurrentVersion,
           nextStatus: 'approved',
-          action: 'approved',
           conflicts,
           approved: true,
           now,
@@ -1397,7 +1320,6 @@ export function createConsolidatedPrescriptionService(client: PrismaClient = pri
           previous,
           expectedCurrentVersion: command.expectedCurrentVersion,
           nextStatus: 'blocked',
-          action: 'blocked',
           reason: command.reason.trim(),
           conflicts,
           now,
@@ -1433,7 +1355,6 @@ export function createConsolidatedPrescriptionService(client: PrismaClient = pri
           previous,
           expectedCurrentVersion: command.expectedCurrentVersion,
           nextStatus: command.targetStatus,
-          action: 'unblocked',
           reason: normalizeOptional(command.reason),
           conflicts,
           reviewed: command.targetStatus === 'ready_for_review',
@@ -1465,7 +1386,6 @@ export function createConsolidatedPrescriptionService(client: PrismaClient = pri
           previous,
           expectedCurrentVersion: command.expectedCurrentVersion,
           nextStatus: 'draft',
-          action: 'revision_created',
           reason: normalizeOptional(command.reason),
           conflicts,
           clearDecisionMetadata: true,
@@ -1485,14 +1405,12 @@ export function createConsolidatedPrescriptionService(client: PrismaClient = pri
       await assertScope(client, context);
       const assembly = await findAssembly(client, context);
       if (!assembly) return null;
-      const [versions, auditRows] = await Promise.all([
-        loadVersionRows(client, assembly.id),
-        loadAuditRows(client, assembly.id),
-      ]);
+      const versionRows = await loadVersionRows(client, assembly.id);
+      const versions = await Promise.all(versionRows.map((version) => mapVersionDetail(client, version)));
       return {
         assembly: mapAssembly(assembly),
-        versions: await Promise.all(versions.map((version) => mapVersionDetail(client, version))),
-        auditEvents: auditRows.map(mapAuditRow),
+        versions,
+        auditEvents: deriveAuditEvents(versions),
       };
     },
   };
