@@ -25,6 +25,15 @@ const prisma = new PrismaClient();
 const statusSet = new Set<string>(CONSOLIDATED_PRESCRIPTION_STATUSES);
 const capacitySet = new Set<string>(PHYSICAL_CAPACITY_TYPES);
 const capacityStatusSet = new Set<string>(CAPACITY_PRESCRIPTION_STATUSES);
+const genericAssessmentCategories: Partial<
+  Record<ConsolidatedPrescriptionDataRef['sourceType'], string[]>
+> = {
+  adipometry: ['adipometry', 'adipometria', 'adpt'],
+  bioimpedance: ['bioimpedance', 'bioimpedanciometry', 'bioimpedanciometria'],
+  ultrasound: ['ultrasound', 'ultrassonografia', 'ultrassom'],
+  ventilometry: ['ventilometry', 'ventilometria', 'metabolic'],
+  flexibility_assessment: ['flexibility', 'flexibilidade', 'flexibility_assessment'],
+};
 
 type DbClient = Prisma.TransactionClient | PrismaClient;
 
@@ -33,6 +42,7 @@ export type ConsolidatedPrescriptionErrorCode =
   | 'CONFLICT'
   | 'INVALID_INPUT'
   | 'INVALID_CAPACITY_VERSION'
+  | 'INVALID_DATA_REFERENCE'
   | 'INVALID_TRANSITION';
 
 export class ConsolidatedPrescriptionDomainError extends Error {
@@ -220,6 +230,145 @@ async function assertProfessorInContract(client: DbClient, contractId: string, p
   if (!professor) domainError('NOT_FOUND', 'Recurso não encontrado');
 }
 
+async function validateProntuarioAlert(
+  client: DbClient,
+  context: ConsolidatedPrescriptionContext,
+  sourceId: string
+) {
+  const [painCase, followUp, medication, discomfort] = await Promise.all([
+    client.prontuarioPainCase.findFirst({
+      where: { id: sourceId, record: { contractId: context.contractId, alunoId: context.alunoId } },
+      select: { id: true },
+    }),
+    client.prontuarioAnamnesisFollowUp.findFirst({
+      where: { id: sourceId, record: { contractId: context.contractId, alunoId: context.alunoId } },
+      select: { id: true },
+    }),
+    client.prontuarioMedicationProcedure.findFirst({
+      where: { id: sourceId, record: { contractId: context.contractId, alunoId: context.alunoId } },
+      select: { id: true },
+    }),
+    client.prontuarioDiscomfortSnapshot.findFirst({
+      where: { id: sourceId, contractId: context.contractId, alunoId: context.alunoId },
+      select: { id: true },
+    }),
+  ]);
+  return Boolean(painCase || followUp || medication || discomfort);
+}
+
+async function validateAdditionalDataRef(
+  client: DbClient,
+  context: ConsolidatedPrescriptionContext,
+  ref: ConsolidatedPrescriptionDataRef
+) {
+  // capacity_source is intentionally left to the database guard because it is
+  // backend-owned in the typed contract and the trigger also protects untyped callers.
+  if (ref.role === 'capacity_source') return;
+
+  if (ref.sourceType === 'manual_observation') {
+    if (ref.role !== 'manual_observation') {
+      domainError('INVALID_DATA_REFERENCE', 'Observação manual possui papel de origem inválido');
+    }
+    ref.sourceId = ref.id;
+    ref.responsibleProfessorId = context.actorProfessorId;
+    ref.origin = ref.origin ?? 'consolidated_prescription';
+    return;
+  }
+
+  if (ref.responsibleProfessorId) {
+    await assertProfessorInContract(client, context.contractId, ref.responsibleProfessorId);
+  }
+
+  let exists = false;
+  switch (ref.sourceType) {
+    case 'prontuario_goal':
+      exists = Boolean(
+        await client.prontuarioGoal.findFirst({
+          where: {
+            id: ref.sourceId,
+            record: { contractId: context.contractId, alunoId: context.alunoId },
+          },
+          select: { id: true },
+        })
+      );
+      break;
+    case 'prontuario_alert':
+      exists = await validateProntuarioAlert(client, context, ref.sourceId);
+      break;
+    case 'anthropometry':
+      exists = Boolean(
+        await client.anthropometryAssessment.findFirst({
+          where: { id: ref.sourceId, contractId: context.contractId, alunoId: context.alunoId },
+          select: { id: true },
+        })
+      );
+      break;
+    case 'physical_assessment':
+      exists = Boolean(
+        await client.studentAssessmentRecord.findFirst({
+          where: { id: ref.sourceId, contractId: context.contractId, alunoId: context.alunoId },
+          select: { id: true },
+        })
+      );
+      break;
+    case 'adipometry':
+    case 'bioimpedance':
+    case 'ultrasound':
+    case 'ventilometry':
+    case 'flexibility_assessment':
+      exists = Boolean(
+        await client.studentAssessmentRecord.findFirst({
+          where: {
+            id: ref.sourceId,
+            contractId: context.contractId,
+            alunoId: context.alunoId,
+            assessmentCategory: { in: genericAssessmentCategories[ref.sourceType] ?? [] },
+          },
+          select: { id: true },
+        })
+      );
+      break;
+    case 'student_preference':
+      exists = Boolean(
+        await client.studentProfile.findFirst({
+          where: { id: ref.sourceId, contractId: context.contractId, alunoId: context.alunoId },
+          select: { id: true },
+        })
+      );
+      break;
+    case 'professor_note':
+    case 'routine':
+    case 'exercise_substitution':
+      // These source types do not have a canonical persisted object that can be
+      // revalidated for tenant/student scope in this module. They remain valid
+      // as backend-derived capacity_source values, but are rejected as client
+      // references until a canonical source exists.
+      exists = false;
+      break;
+    default:
+      exists = false;
+  }
+
+  if (!exists) {
+    domainError(
+      'INVALID_DATA_REFERENCE',
+      'Origem adicional inválida ou fora do contrato do aluno'
+    );
+  }
+}
+
+async function resolveAdditionalDataRefs(
+  client: DbClient,
+  context: ConsolidatedPrescriptionContext,
+  inputs: ConsolidatedPrescriptionDataRefInput[]
+) {
+  const refs = inputs.map(normalizeDataRef);
+  for (const ref of refs) {
+    await validateAdditionalDataRef(client, context, ref);
+  }
+  return refs;
+}
+
 async function resolveCapacityVersions(
   client: DbClient,
   context: ConsolidatedPrescriptionContext,
@@ -254,7 +403,7 @@ async function resolveCapacityVersions(
   const byId = new Map(versions.map((version) => [version.id, version]));
   const usedCapacities = new Set<string>();
 
-  return inputs.map((input, index) => {
+  const resolved = inputs.map((input, index) => {
     const version = byId.get(input.capacityPrescriptionVersionId.trim());
     if (!version) domainError('INVALID_CAPACITY_VERSION', 'Versão de capacidade inválida');
 
@@ -287,6 +436,19 @@ async function resolveCapacityVersions(
       alerts: version.alerts,
     };
   });
+
+  const missingCapacities = PHYSICAL_CAPACITY_TYPES.filter(
+    (capacity) => !usedCapacities.has(capacity)
+  );
+  if (resolved.length !== PHYSICAL_CAPACITY_TYPES.length || missingCapacities.length) {
+    domainError(
+      'INVALID_INPUT',
+      `A montagem consolidada exige exatamente as quatro capacidades: ${PHYSICAL_CAPACITY_TYPES.join(', ')}`,
+      { missingCapacities }
+    );
+  }
+
+  return resolved;
 }
 
 function capacitySourceRefs(versions: ResolvedCapacityVersion[]): ConsolidatedPrescriptionDataRef[] {
@@ -665,10 +827,11 @@ export function createConsolidatedPrescriptionService(client: PrismaClient = pri
         }
 
         const resolved = await resolveCapacityVersions(tx, context, payload.capacityBlocks);
+        const additionalDataRefs = await resolveAdditionalDataRefs(tx, context, payload.dataRefs ?? []);
         const capacityBlocks = toCapacityBlocks(resolved);
         const dataRefs = [
           ...capacitySourceRefs(resolved),
-          ...(payload.dataRefs ?? []).map(normalizeDataRef),
+          ...additionalDataRefs,
         ];
         const conflicts = detectBasicConflicts(resolved);
         const assemblyId = randomUUID();
@@ -729,6 +892,7 @@ export function createConsolidatedPrescriptionService(client: PrismaClient = pri
         const responsibleProfessorId = payload.responsibleProfessorId?.trim() || context.actorProfessorId;
         await assertProfessorInContract(tx, context.contractId, responsibleProfessorId);
         const resolved = await resolveCapacityVersions(tx, context, payload.capacityBlocks);
+        const additionalDataRefs = await resolveAdditionalDataRefs(tx, context, payload.dataRefs ?? []);
         const nextAssembly = await advanceAggregate(
           tx,
           current,
@@ -740,7 +904,7 @@ export function createConsolidatedPrescriptionService(client: PrismaClient = pri
         const capacityBlocks = toCapacityBlocks(resolved);
         const dataRefs = [
           ...capacitySourceRefs(resolved),
-          ...(payload.dataRefs ?? []).map(normalizeDataRef),
+          ...additionalDataRefs,
         ];
         const conflicts = detectBasicConflicts(resolved);
         const versionRow = await persistVersion(tx, {
