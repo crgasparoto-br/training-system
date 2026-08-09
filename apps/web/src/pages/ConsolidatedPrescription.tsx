@@ -7,7 +7,6 @@ import {
   ArrowLeft,
   ArrowUp,
   CheckCircle2,
-  CircleAlert,
   History,
   Info,
   Layers3,
@@ -94,7 +93,7 @@ const severityMeta = {
   critical: {
     label: 'Bloqueador crítico',
     className: 'border-red-200 bg-red-50/70 text-red-950',
-    icon: CircleAlert,
+    icon: AlertCircle,
   },
 } as const;
 
