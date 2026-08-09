@@ -295,19 +295,9 @@ describe('consolidatedPrescriptionService persistence contract', () => {
     expect(tx.$executeRaw).not.toHaveBeenCalled();
   });
 
-  it('falha a transação quando o registro de auditoria falha', async () => {
-    const { service, tx } = harness([
-      [],
-      [assemblyRow()],
-      [versionRow()],
-      persistedBlocks(),
-      persistedRefs(),
-    ]);
-    tx.$executeRaw.mockImplementationOnce(async () => 1);
-    for (let index = 0; index < 7; index += 1) tx.$executeRaw.mockImplementationOnce(async () => 1);
-    tx.$executeRaw.mockImplementationOnce(async () => {
-      throw new Error('audit unavailable');
-    });
+  it('propaga falha ao persistir uma relação da versão auditável', async () => {
+    const { service, tx } = harness([[], [assemblyRow()], [versionRow()]]);
+    tx.$executeRaw.mockRejectedValueOnce(new Error('version relation unavailable'));
 
     await expect(
       service.createDraft(
@@ -315,7 +305,7 @@ describe('consolidatedPrescriptionService persistence contract', () => {
         { capacityBlocks: allCapacityInputs(), professorJustification: 'Montagem inicial.' },
         now
       )
-    ).rejects.toThrow('audit unavailable');
+    ).rejects.toThrow('version relation unavailable');
   });
 
   it('aprova por comando próprio e deriva ator/data no backend', async () => {
