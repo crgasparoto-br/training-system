@@ -158,6 +158,22 @@ describe('deriveStructuredConflicts', () => {
     expect(deriveStructuredConflicts(blocks, 'Justificativa objetiva.')).toEqual([]);
   });
 
+  it('preserva info estruturado sem transformá-lo em bloqueio', () => {
+    const blocks = CAPACITIES.map((capacity, index) => ({
+      capacity,
+      alerts:
+        index === 0
+          ? [{ code: 'context', message: 'Contexto complementar.', severity: 'info', sourceRefId: null }]
+          : [],
+    }));
+
+    const conflicts = deriveStructuredConflicts(blocks, 'Justificativa válida.');
+    expect(conflicts).toEqual([
+      expect.objectContaining({ code: 'capacity-alert:resisted:context', severity: 'info' }),
+    ]);
+    expect(conflicts.some((item) => item.severity === 'critical')).toBe(false);
+  });
+
   it('propaga severidade estruturada sem transformar warning em bloqueio', () => {
     const blocks = CAPACITIES.map((capacity, index) => ({
       capacity,
@@ -243,6 +259,24 @@ describe('consolidatedPrescriptionService persistence contract', () => {
         now
       )
     ).rejects.toMatchObject({ code: 'INVALID_INPUT', details: { missingCapacities: ['balance'] } });
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+  });
+
+  it('rejeita capacidade persistida fora do estado active', async () => {
+    const versions = allCapacityVersions();
+    versions[0] = capacityVersion(0, { status: 'suspended' });
+    const { service, tx } = harness([[]], versions);
+
+    await expect(
+      service.createDraft(
+        { contractId: 'contract-1', alunoId: 'aluno-1', actorProfessorId: 'professor-1' },
+        {
+          capacityBlocks: allCapacityInputs(),
+          professorJustification: 'Não deve aceitar capacidade suspensa.',
+        },
+        now
+      )
+    ).rejects.toMatchObject({ code: 'INVALID_CAPACITY_VERSION' });
     expect(tx.$executeRaw).not.toHaveBeenCalled();
   });
 
