@@ -417,8 +417,15 @@ describeDatabase('consolidated prescription persistence - issue 316', () => {
       },
     });
 
-    const revised = await service.updateComposition(contextFor(tenant), {
+    const revision = await service.createRevision(contextFor(tenant), {
       expectedCurrentVersion: approved.currentVersion,
+      reason: 'Abrir nova revisão após atualização de capacidade.',
+    });
+    expect(revision.currentVersion).toBe(4);
+    expect(revision.currentStatus).toBe('draft');
+
+    const revised = await service.updateComposition(contextFor(tenant), {
+      expectedCurrentVersion: revision.currentVersion,
       capacityBlocks: capacities.map((entry, position) => ({
         capacityPrescriptionVersionId:
           entry.capacity === 'resisted' ? resistedV2.versionId : entry.versionId,
@@ -428,16 +435,16 @@ describeDatabase('consolidated prescription persistence - issue 316', () => {
       studentInstruction: 'Nova composição em revisão.',
     });
 
-    expect(revised.currentVersion).toBe(4);
+    expect(revised.currentVersion).toBe(5);
     expect(revised.currentStatus).toBe('draft');
 
     const history = await service.getHistory(contextFor(tenant));
     expect(history).not.toBeNull();
     if (!history) throw new Error('Histórico consolidado não encontrado');
-    expect(history.versions.map((version) => version.version)).toEqual([4, 3, 2, 1]);
+    expect(history.versions.map((version) => version.version)).toEqual([5, 4, 3, 2, 1]);
 
     const approvedVersion = history.versions.find((version) => version.version === 3);
-    const latestVersion = history.versions.find((version) => version.version === 4);
+    const latestVersion = history.versions.find((version) => version.version === 5);
     expect(approvedVersion?.status).toBe('approved');
     expect(latestVersion?.status).toBe('draft');
 
