@@ -205,8 +205,8 @@ describe('ConsolidatedPrescription', () => {
     renderPage();
 
     expect(await screen.findByRole('heading', { name: 'Montagem Consolidada da Prescrição' })).toBeInTheDocument();
-    expect(screen.getByText('Maria Atleta')).toBeInTheDocument();
-    expect(screen.getByText('Prof. Bruno')).toBeInTheDocument();
+    expect(screen.getByText('Aluno').parentElement).toHaveTextContent('Maria Atleta');
+    expect(screen.getByText('Professor responsável').parentElement).toHaveTextContent('Prof. Bruno');
     expect(screen.getByText('v3')).toBeInTheDocument();
     expect(screen.getByText('Rascunho')).toBeInTheDocument();
     expect(screen.getByText('Central do Aluno')).toBeInTheDocument();
