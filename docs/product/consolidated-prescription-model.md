@@ -1,6 +1,6 @@
 # Montagem Consolidada da Prescrição
 
-Este documento é a fonte de verdade do domínio persistente da Montagem Consolidada da Prescrição, introduzido pela issue #316 e subordinado ao fluxo integrado definido em `integrated-prescription-control.md`.
+Este documento é a fonte de verdade do domínio persistente e do workflow backend da Montagem Consolidada da Prescrição. A persistência base foi introduzida pela issue #316 e o workflow autoritativo até `approved` foi concluído pela issue #317.
 
 ## Papel no fluxo integrado
 
@@ -12,29 +12,27 @@ PRNT / Avaliação Física
   -> Feedback pós-treino
 ```
 
-A Montagem Consolidada é a fronteira persistente entre planejamento técnico e futura saída operacional. Ela não publica `Treino de hoje` diretamente nesta fase.
+A Montagem Consolidada é a fronteira persistente entre planejamento técnico e a futura saída operacional. Ela **não** publica `Treino de hoje` diretamente. A transição `approved -> released` e a geração operacional pertencem à #320.
 
 ## Autoridades
 
-- `contractId` vem do contexto autenticado do backend.
-- `alunoId` é resolvido no contexto do aluno dentro do contrato.
-- o professor autor e o professor responsável técnico precisam pertencer ao mesmo contrato;
-- versão corrente, estado, atores de revisão/aprovação/bloqueio e timestamps são definidos pelo backend;
+- `contractId` e professor ator vêm exclusivamente do contexto autenticado do backend;
+- `alunoId` é resolvido no contrato autenticado e também respeita o `dataScope` de `plans`;
+- o professor responsável técnico precisa pertencer ao mesmo contrato;
+- versão corrente, estado resultante, atores e timestamps de revisão/aprovação/bloqueio são definidos pelo backend;
 - o cliente referencia capacidades somente por `CapacityPrescriptionVersion.id`;
-- o cliente não envia `CapacityPrescriptionDraft` como autoridade persistente;
-- `released` existe no contrato persistente, mas não possui comando operacional nesta issue; sua transição pertence à #320.
+- criação/edição não aceitam `status`, `version`, `contractId`, ator/timestamp de aprovação ou `released` como autoridade do cliente;
+- payloads HTTP são estritos: campos de autoridade desconhecidos são rejeitados.
 
-## Agregado e histórico
+## Agregado, histórico e concorrência
 
-Existe no máximo uma cadeia lógica de Montagem Consolidada por `(contractId, alunoId)`.
+Existe no máximo uma cadeia lógica por `(contractId, alunoId)`.
 
-`ConsolidatedPrescription` guarda a identidade do agregado e o ponteiro sequencial `currentVersion`. `ConsolidatedPrescriptionVersion` é append-only: toda gravação material cria uma nova versão e mantém `previousVersionId` apontando para a revisão anterior.
+`ConsolidatedPrescription` guarda a identidade do agregado e `currentVersion`. `ConsolidatedPrescriptionVersion` é append-only: toda mutação material cria uma nova versão, preserva `previousVersionId` e nunca reescreve o histórico anterior.
 
-A versão corrente é atualizada por comparação de `expectedCurrentVersion`. A atualização usa row lock e CAS no banco; duas escritas baseadas na mesma versão não podem avançar silenciosamente.
+Todas as mutações recebem `expectedCurrentVersion` depois da criação inicial. A implementação combina `SELECT ... FOR UPDATE` com CAS no `UPDATE`; duas escritas baseadas na mesma versão não podem avançar silenciosamente. O conflito retorna HTTP `409` e a transação não deixa versão, auditoria ou relações parciais.
 
-Uma nova revisão após `approved` ou, futuramente, `released` continua no mesmo agregado e cria uma nova versão `draft`, sem reescrever o histórico anterior.
-
-## Estados e transições
+## Estados e workflow desta fase
 
 Estados persistidos:
 
@@ -45,93 +43,139 @@ Estados persistidos:
 - `blocked`;
 - `archived`.
 
-Transições operacionais desta fase:
+Transições operacionais implementadas pela #317:
 
-| Origem | Comando | Destino | Regra |
+| Origem | Ação | Destino | Regra |
 | --- | --- | --- | --- |
-| `draft` | enviar para revisão | `ready_for_review` | cria nova versão e registra revisor/data no backend |
-| `ready_for_review` | aprovar | `approved` | cria nova versão; conflito crítico impede aprovação |
-| `ready_for_review` | bloquear | `blocked` | cria nova versão e exige motivo |
-| `draft`, `ready_for_review`, `approved`, `blocked`, `released` | editar composição | `draft` | cria nova revisão na mesma cadeia |
-| qualquer | liberar | `released` | fora de escopo da #316; pertence à #320 |
-| `archived` | editar/transicionar | — | não permitido nesta fase |
+| criação | criar montagem | `draft` | composição completa e referências elegíveis |
+| `draft` | enviar para revisão | `ready_for_review` | sem conflito `critical`; registra revisor/data |
+| `draft` | enviar/recalcular com `critical` | `blocked` | bloqueio automático estruturado |
+| `ready_for_review` | aprovar | `approved` | revalida conflitos e registra ator/data |
+| `ready_for_review` | aprovar/recalcular com `critical` | `blocked` | aprovação não ocorre |
+| `draft`, `ready_for_review`, `approved` | bloquear explicitamente | `blocked` | exige motivo |
+| `blocked` | corrigir composição | `blocked` | permite trocar referências/capacidades sem liberar o estado |
+| `blocked` | desbloquear explicitamente | `draft` ou `ready_for_review` | somente após revalidação sem `critical`; nunca autoaprova |
+| `approved` | criar nova revisão | `draft` | nova versão na mesma cadeia; aprovação anterior permanece histórica |
+| `approved` | liberar | `released` | **não implementado**; reservado para #320 |
 
-Aprovação e bloqueio nunca são obtidos enviando `status` arbitrário em payload de composição.
+Editar uma montagem `approved` exige antes criar uma revisão explícita. `released` e `archived` não recebem comandos de alteração nesta fase.
 
 ## Referências às capacidades
 
-Cada `ConsolidatedPrescriptionCapacityBlock` guarda:
+A composição continua exigindo exatamente uma versão para cada capacidade canônica:
 
-- `capacityPrescriptionVersionId` canônico;
-- capacidade resolvida pelo backend;
-- número da versão resolvido pelo backend;
-- status imutável daquela versão no momento da composição;
-- posição do bloco.
+- `resisted`;
+- `flexibility`;
+- `cyclic`;
+- `balance`.
 
-O service resolve o ID em `CapacityPrescriptionVersion` filtrando simultaneamente por `contractId` e `alunoId`. A migration instala também um trigger de escopo para impedir vínculo cross-tenant/cross-student por escrita direta.
+Na criação/edição, cada referência precisa pertencer ao mesmo `contractId + alunoId`, estar com status `active` e corresponder à versão corrente do agregado de capacidade. Versão substituída, suspensa, inexistente, cross-tenant ou de outro aluno não é elegível.
 
-A FK para `CapacityPrescriptionVersion` usa `ON DELETE RESTRICT`. Alterar, suspender ou substituir uma capacidade posteriormente não modifica montagens históricas.
+No histórico consolidado, o vínculo é imutável e mantém a `CapacityPrescriptionVersion` original. Se uma capacidade selecionada deixar de ser corrente depois, a revalidação produz conflito `critical`; ela não altera retroativamente versões já aprovadas.
+
+## Motor de conflitos
+
+O motor autoritativo usa **somente dados estruturados persistidos**.
+
+Fontes atualmente usadas:
+
+- presença das quatro capacidades obrigatórias;
+- justificativa profissional obrigatória;
+- elegibilidade/vigência da versão selecionada;
+- `CapacityPrescriptionAlert` persistido, preservando `info`, `warning` ou `critical`.
+
+Texto livre de `technicalJustification`, `professorSummary`, `studentMessage`, justificativa da montagem ou observações **nunca** cria, remove ou aumenta severidade de conflito. Portanto frases como “dor intensa”, “joelho”, “agachamento forte” ou “alta intensidade” não são evidência autoritativa por si só.
+
+Regras clínicas adicionais — por exemplo correlação CIT/ACWR, carga/intensidade versus dor/restrição, anticoagulante versus risco específico, ou volume de membros inferiores — só podem bloquear quando existir regra canônica, estruturada e versionada no domínio correspondente. Enquanto essa fonte não existir, a API devolve a checagem como indisponível em `unavailableChecks`; não simula decisão clínica por heurística textual.
+
+### Severidade
+
+- `info`: informativo; não bloqueia fluxo;
+- `warning`: exige atenção profissional; não bloqueia por si só;
+- `critical`: impede aprovação e pode colocar a montagem em `blocked`.
+
+Não existe taxonomia paralela de bloqueio. `critical` é a autoridade bloqueadora.
+
+## Bloqueio e desbloqueio
+
+`blocked` não é aprovação negada definitiva nem aprovação implícita. Ele representa impedimento atual.
+
+Enquanto bloqueada, a montagem pode receber uma composição de remediação, mas continua `blocked`. Isso permite substituir uma capacidade que ficou inelegível ou cuja nova versão removeu um alerta crítico. O comando de desbloqueio é separado e obrigatório; ele reavalia as fontes atuais e só avança para `draft` ou `ready_for_review` quando não existe `critical`.
+
+Desbloquear para `ready_for_review` registra nova revisão pelo ator autenticado. Desbloquear nunca preenche `approvedByProfessorId`/`approvedAt`.
+
+## Auditoria
+
+As ações sensíveis geram `ConsolidatedPrescriptionAuditEvent` na **mesma transação** da nova versão:
+
+- `created`;
+- `composition_updated`;
+- `sent_for_review`;
+- `approved`;
+- `blocked`;
+- `blocked_by_conflict`;
+- `unblocked`;
+- `revision_created`.
+
+Cada evento registra:
+
+- ator derivado da autenticação;
+- agregado e versão criada;
+- versão/estado anterior e novo;
+- motivo quando aplicável;
+- contagem de conflitos críticos como detalhe mínimo;
+- timestamp do backend.
+
+Se a auditoria falha, a mutação inteira é revertida.
+
+## HTTP
+
+Base: `/api/v1/consolidated-prescriptions`.
+
+| Método | Rota | Permissão |
+| --- | --- | --- |
+| `GET` | `/alunos/:alunoId` | `plans.consolidatedPrescriptions.view` |
+| `POST` | `/alunos/:alunoId` | `plans.consolidatedPrescriptions.manage` |
+| `PATCH` | `/alunos/:alunoId/composition` | `plans.consolidatedPrescriptions.manage` |
+| `GET` | `/alunos/:alunoId/conflicts` | `plans.consolidatedPrescriptions.view` |
+| `POST` | `/alunos/:alunoId/conflicts/recalculate` | `plans.consolidatedPrescriptions.manage` |
+| `POST` | `/alunos/:alunoId/send-for-review` | `plans.consolidatedPrescriptions.manage` |
+| `POST` | `/alunos/:alunoId/approve` | `plans.consolidatedPrescriptions.approve` |
+| `POST` | `/alunos/:alunoId/block` | `plans.consolidatedPrescriptions.manage` |
+| `POST` | `/alunos/:alunoId/unblock` | `plans.consolidatedPrescriptions.manage` |
+| `POST` | `/alunos/:alunoId/revisions` | `plans.consolidatedPrescriptions.manage` |
+| `GET` | `/alunos/:alunoId/history` | `plans.consolidatedPrescriptions.view` |
+
+Não existe endpoint `/release` nesta fase.
+
+## Autorização e privacidade
+
+A API aplica, em conjunto:
+
+1. autenticação e vínculo profissional ativo;
+2. tela pai `plans`;
+3. bloco específico da operação;
+4. `contractId` do ator;
+5. `dataScope` da tela `plans` (`self`, `managed`, `contract`);
+6. escopo do aluno e responsável atual.
+
+Acesso cross-tenant ou fora do `dataScope` devolve resposta genérica equivalente a recurso inexistente, evitando revelar a existência do aluno ou da montagem.
+
+Defaults: `professor` recebe consulta/gestão e `plans=self`; `manager` recebe consulta/gestão/aprovação e `plans=contract`; `master` segue a regra global de acesso total dentro do contrato. `release` não foi concedido a nenhum perfil nesta issue.
 
 ## Dados-base e rastreabilidade
 
-Origens já preservadas na versão imutável da capacidade são derivadas pelo backend e gravadas como `capacity_source`; o cliente não pode declará-las.
+Origens presentes nas versões de capacidade são derivadas pelo backend e persistidas como `capacity_source`. O cliente não pode declarar esse papel.
 
-Essa autoridade existe em duas camadas: o contrato compartilhado exclui `capacity_source` de `ConsolidatedPrescriptionDataRefInput`, e o banco valida em runtime que toda linha com esse papel corresponde exatamente a uma `CapacityPrescriptionSource` de uma capacidade selecionada. Como a referência canônica é inserida antes dos `dataRefs` adicionais, uma declaração adversarial duplicada é rejeitada e a gravação inteira sofre rollback.
-
-Referências adicionais podem usar papéis:
-
-- `assessment`;
-- `routine`;
-- `manual_observation`;
-- `exercise_substitution`.
-
-Cada referência guarda somente identificação suficiente para auditoria: tipo, ID, rótulo opcional, data, origem, versão e contexto mínimo. Dados clínicos completos não devem ser copiados para a montagem quando a fonte canônica já existir.
-
-## Concorrência e imutabilidade
-
-Toda mutação material recebe `expectedCurrentVersion` depois da criação inicial. O service bloqueia o agregado corrente com `FOR UPDATE`, relê a versão efetiva e condiciona o avanço à versão esperada. Se outra escrita avançar primeiro, retorna conflito e a transação não persiste uma nova versão.
-
-Versões históricas não são atualizadas. Transições de estado clonam a composição anterior para uma nova versão, adicionando metadados de revisão/aprovação/bloqueio sem modificar a revisão de origem.
-
-## Contratos compartilhados
-
-`packages/types/consolidated-prescription.ts` separa:
-
-- resumo do agregado atual;
-- detalhe de versão;
-- referência de capacidade por ID persistido;
-- referência de dado-base;
-- criação de rascunho;
-- atualização com `expectedCurrentVersion`;
-- comandos de revisão, aprovação e bloqueio;
-- histórico;
-- conflitos e alertas.
-
-O alias legado `CreateConsolidatedPrescriptionAssemblyPayload` aponta para o novo payload de criação, mas não aceita mais `contractId`, `status`, `version`, ator ou timestamp de aprovação/liberação.
-
-## Persistência
-
-A migration `20260808165000_issue_316_consolidated_prescription_persistence` é aditiva e cria:
-
-- `ConsolidatedPrescription`;
-- `ConsolidatedPrescriptionVersion`;
-- `ConsolidatedPrescriptionCapacityBlock`;
-- `ConsolidatedPrescriptionDataRef`.
-
-A migration complementar `20260808220000_issue_316_capacity_source_authority_guard` endurece a autoridade das referências `capacity_source` sem alterar os modelos operacionais existentes.
-
-As migrations não alteram nem removem `WorkoutTemplate`, `WorkoutDay`, `WorkoutExercise`, planos ou execuções atuais.
-
-Detalhes de índices, FKs, triggers, isolamento e evidência de integração ficam em `../database/consolidated-prescription.md`.
+Referências adicionais continuam limitadas às origens canônicas que o backend consegue revalidar no mesmo contrato/aluno. `manual_observation` é criada pelo backend; tipos sem objeto persistente verificável não são aceitos como autoridade adicional.
 
 ## Limites desta fase
 
-Ficam fora da #316:
+Ficam fora da #317:
 
-- endpoints HTTP completos;
-- tela da montagem;
-- motor completo de conflitos;
-- integração final com Workout Builder;
-- geração/liberação de `Treino de hoje`;
-- feedback pós-treino;
-- comando operacional de `released`.
+- tela web da montagem;
+- motor clínico baseado em fórmulas ainda não formalizadas;
+- criação de novos indicadores sem fonte persistida canônica;
+- `approved -> released`;
+- geração de `Treino de hoje`;
+- feedback pós-treino.
