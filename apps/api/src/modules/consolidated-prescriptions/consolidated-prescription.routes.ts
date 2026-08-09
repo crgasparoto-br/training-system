@@ -164,6 +164,27 @@ async function ensureAlunoScope(req: ConsolidatedRequest, res: Response) {
 }
 
 router.get(
+  '/alunos/:alunoId/assemblies',
+  requireConsolidatedBlock('plans.consolidatedPrescriptions.view'),
+  async (req: ConsolidatedRequest, res: Response) => {
+    try {
+      const actor = await ensureAlunoScope(req, res);
+      if (!actor) return;
+      const current = await consolidatedPrescriptionService.getCurrent(
+        contextFor(actor, req.params.alunoId)
+      );
+      return sendSuccess(
+        res,
+        current ? [current] : [],
+        'Montagens consolidadas do aluno carregadas'
+      );
+    } catch (error) {
+      return handleError(res, error, 'Erro ao listar montagens consolidadas do aluno');
+    }
+  }
+);
+
+router.get(
   '/alunos/:alunoId',
   requireConsolidatedBlock('plans.consolidatedPrescriptions.view'),
   async (req: ConsolidatedRequest, res: Response) => {
