@@ -17,7 +17,7 @@ type ApiEnvelope<T> = {
 
 async function postVersionCommand(
   alunoId: string,
-  action: 'conflicts/recalculate' | 'send-for-review' | 'approve',
+  action: 'send-for-review' | 'approve',
   command: ConsolidatedPrescriptionVersionCommand
 ): Promise<ConsolidatedPrescriptionAssembly> {
   const response = await api.post<ApiEnvelope<ConsolidatedPrescriptionAssembly>>(
@@ -64,8 +64,10 @@ export const consolidatedPrescriptionService = {
     return response.data.data;
   },
 
-  async getConflicts(alunoId: string): Promise<ConsolidatedPrescriptionConflictReport> {
-    const response = await api.get<ApiEnvelope<ConsolidatedPrescriptionConflictReport>>(
+  async getConflicts(
+    alunoId: string
+  ): Promise<ConsolidatedPrescriptionConflictReport | null> {
+    const response = await api.get<ApiEnvelope<ConsolidatedPrescriptionConflictReport | null>>(
       `/consolidated-prescriptions/alunos/${alunoId}/conflicts`
     );
     return response.data.data;
@@ -74,8 +76,17 @@ export const consolidatedPrescriptionService = {
   async recalculateConflicts(
     alunoId: string,
     command: ConsolidatedPrescriptionVersionCommand
-  ): Promise<ConsolidatedPrescriptionAssembly> {
-    return postVersionCommand(alunoId, 'conflicts/recalculate', command);
+  ): Promise<{
+    assembly: ConsolidatedPrescriptionAssembly;
+    report: ConsolidatedPrescriptionConflictReport;
+  }> {
+    const response = await api.post<
+      ApiEnvelope<{
+        assembly: ConsolidatedPrescriptionAssembly;
+        report: ConsolidatedPrescriptionConflictReport;
+      }>
+    >(`/consolidated-prescriptions/alunos/${alunoId}/conflicts/recalculate`, command);
+    return response.data.data;
   },
 
   async sendForReview(
@@ -103,8 +114,8 @@ export const consolidatedPrescriptionService = {
     return response.data.data;
   },
 
-  async getHistory(alunoId: string): Promise<ConsolidatedPrescriptionHistory> {
-    const response = await api.get<ApiEnvelope<ConsolidatedPrescriptionHistory>>(
+  async getHistory(alunoId: string): Promise<ConsolidatedPrescriptionHistory | null> {
+    const response = await api.get<ApiEnvelope<ConsolidatedPrescriptionHistory | null>>(
       `/consolidated-prescriptions/alunos/${alunoId}/history`
     );
     return response.data.data;
