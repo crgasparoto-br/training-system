@@ -43,6 +43,8 @@ Vínculo imutável entre uma versão da montagem e uma `CapacityPrescriptionVers
 
 A tabela preserva o ID canônico da versão de capacidade, além do snapshot mínimo de capacidade, versão, status e posição. A FK para `CapacityPrescriptionVersion` usa `ON DELETE RESTRICT` para impedir exclusão de uma origem já usada por histórico.
 
+O service exige uma composição completa com exatamente uma versão ativa de cada capacidade canônica: `resisted`, `flexibility`, `cyclic` e `balance`. Uma composição incompleta ou com capacidade repetida é rejeitada antes de criar ou avançar o agregado.
+
 Um trigger confere que:
 
 - montagem e capacidade pertencem ao mesmo `contractId`;
@@ -55,9 +57,18 @@ Rastreabilidade mínima de dados-base e observações adicionais. Referências j
 
 `capacity_source` é papel reservado ao backend. O contrato TypeScript não o aceita em `dataRefs` adicionais e a migration `20260808220000_issue_316_capacity_source_authority_guard` reforça a fronteira em runtime: a referência precisa corresponder exatamente a uma `CapacityPrescriptionSource` de uma das versões de capacidade selecionadas e uma segunda declaração da mesma origem na mesma versão consolidada é rejeitada. Como o service persiste primeiro as referências canônicas derivadas das capacidades, um payload adversarial que tente declarar `capacity_source` provoca rollback da transação.
 
+Os `dataRefs` adicionais também não confiam em `sourceId` como prova de escopo. Antes de persistir, o backend resolve fontes canônicas suportadas com `contractId + alunoId`, reutilizando as mesmas autoridades do domínio de prescrição por capacidade:
+
+- objetivo e alerta de PRNT;
+- avaliação física e antropometria;
+- adipometria, bioimpedância, ultrassom, ventilometria e avaliação de flexibilidade;
+- preferência persistida do aluno.
+
+Referências canônicas inexistentes, cross-tenant ou de outro aluno são rejeitadas com `INVALID_DATA_REFERENCE`. Uma `manual_observation` é uma origem criada dentro da própria montagem: o backend gera seu identificador e autoria em vez de aceitar o `sourceId` do cliente como autoridade. Tipos sem objeto canônico persistido e verificável neste módulo, como `routine` e `exercise_substitution`, não são aceitos como referência adicional controlada pelo cliente até existir uma fonte capaz de comprovar o escopo; eles podem continuar aparecendo como `capacity_source` quando derivados de uma versão de capacidade persistida e protegida pelo guard do banco.
+
 ## Isolamento multi-tenant
 
-A aplicação sempre filtra `Aluno`, `Professor` e `CapacityPrescriptionVersion` por `contractId` antes da gravação. As migrations adicionam triggers para revalidar as invariantes diretamente no banco e bloquear escrita direta cross-tenant/cross-student.
+A aplicação sempre filtra `Aluno`, `Professor`, `CapacityPrescriptionVersion` e fontes canônicas de `dataRefs` por `contractId` e, quando a origem é do aluno, também por `alunoId` antes da gravação. As migrations adicionam triggers para revalidar as invariantes persistentes diretamente no banco e bloquear escrita direta cross-tenant/cross-student nas relações protegidas.
 
 Esses triggers complementam, e não substituem, a autorização da API.
 
@@ -107,10 +118,12 @@ Aplicar a cadeia em banco vazio ou em banco existente produz as mesmas estrutura
 `apps/api/tests/consolidated-prescription-persistence.integration.test.ts`, quando `RUN_DATABASE_INTEGRATION_TESTS=true`, cobre em PostgreSQL real:
 
 - primeira montagem com Resistido, Flexibilidade, Cíclico e Equilíbrio;
+- rejeição de montagem incompleta mesmo quando as versões informadas são válidas;
 - revisão, aprovação e nova composição com histórico append-only;
 - atualização posterior de uma capacidade sem mutar a montagem aprovada anterior;
 - duas escritas com o mesmo `expectedCurrentVersion` usando conexões distintas, com uma rejeitada por `CONFLICT`;
-- referência cross-tenant e cross-student rejeitada pelo service;
+- referência de capacidade cross-tenant e cross-student rejeitada pelo service;
+- `dataRef` adicional válido resolvido no escopo do aluno e referências cross-tenant/cross-student rejeitadas antes da persistência;
 - escrita direta cross-tenant rejeitada pelo trigger;
 - `ON DELETE RESTRICT` para `CapacityPrescriptionVersion` em uso;
 - tentativa adversarial de declarar `capacity_source` com rollback completo;
