@@ -240,6 +240,31 @@ function compositionPayload(versions: Record<string, { versionId: string }>) {
   };
 }
 
+async function cleanupFixtures() {
+  const contractIds = [contractA, contractB];
+
+  await prisma.consolidatedPrescription.deleteMany({
+    where: { contractId: { in: contractIds } },
+  });
+  await prisma.capacityPrescription.deleteMany({
+    where: { contractId: { in: contractIds } },
+  });
+  await prisma.prontuarioRecord.deleteMany({
+    where: { contractId: { in: contractIds } },
+  });
+  await prisma.aluno.deleteMany({
+    where: { contractId: { in: contractIds } },
+  });
+  await prisma.professor.deleteMany({
+    where: { contractId: { in: contractIds } },
+  });
+  await prisma.collaboratorFunctionOption.deleteMany({
+    where: { contractId: { in: contractIds } },
+  });
+  await prisma.companyContract.deleteMany({ where: { id: { in: contractIds } } });
+  await prisma.user.deleteMany({ where: { email: { startsWith: emailPrefix } } });
+}
+
 describeDatabase('consolidated prescription workflow HTTP integration with PostgreSQL', () => {
   const app = express();
   app.use(express.json());
@@ -252,8 +277,7 @@ describeDatabase('consolidated prescription workflow HTTP integration with Postg
   let goalA = '';
 
   beforeEach(async () => {
-    await prisma.companyContract.deleteMany({ where: { id: { in: [contractA, contractB] } } });
-    await prisma.user.deleteMany({ where: { email: { startsWith: emailPrefix } } });
+    await cleanupFixtures();
     await createContract(contractA, '57365610000701');
     await createContract(contractB, '57365610000702');
 
@@ -303,8 +327,7 @@ describeDatabase('consolidated prescription workflow HTTP integration with Postg
   });
 
   afterEach(async () => {
-    await prisma.companyContract.deleteMany({ where: { id: { in: [contractA, contractB] } } });
-    await prisma.user.deleteMany({ where: { email: { startsWith: emailPrefix } } });
+    await cleanupFixtures();
   });
 
   afterAll(async () => {
