@@ -129,6 +129,10 @@ function scenarioFixture(name) {
     assembly: assemblyFixture('approved', 6, []),
     conflicts: { version: 6, status: 'approved', conflicts: [], hasCritical: false, canUnblock: false, unavailableChecks: [] },
   };
+  if (name === 'released') return {
+    assembly: assemblyFixture('released', 7, []),
+    conflicts: { version: 7, status: 'released', conflicts: [], hasCritical: false, canUnblock: false, unavailableChecks: [] },
+  };
   throw new Error(`Cenário desconhecido: ${name}`);
 }
 
@@ -252,9 +256,17 @@ async function verifyScenario(browser, scenario, deviceLabel, viewport) {
   const label = `${deviceLabel}-${scenario}`;
   const { context, page, diagnostics } = await createScenarioPage(browser, scenario, label, viewport);
   try {
-    const expectedStatus = { draft: 'Rascunho', ready_for_review: 'Pronta para revisão', blocked: 'Bloqueada', approved: 'Aprovada' }[scenario];
+    const expectedStatus = {
+      draft: 'Rascunho',
+      ready_for_review: 'Pronta para revisão',
+      blocked: 'Bloqueada',
+      approved: 'Aprovada',
+      released: 'Liberada',
+    }[scenario];
     await page.getByText(expectedStatus, { exact: true }).first().waitFor();
     await page.getByText('Prof. Renata', { exact: true }).first().waitFor();
+    await page.getByText('Situação das origens', { exact: true }).waitFor();
+    await page.getByText('Sem incompatibilidade retornada pela API', { exact: true }).waitFor();
     await assertNoHorizontalOverflow(page, label);
 
     if (scenario === 'blocked') {
@@ -287,6 +299,7 @@ async function verifyScenario(browser, scenario, deviceLabel, viewport) {
     } else {
       await keyboardOpenAccordion(page, '7. Revisão e validação final');
       if (scenario === 'ready_for_review') await page.getByRole('button', { name: 'Aprovar montagem' }).waitFor();
+      if (scenario === 'released') await page.getByRole('button', { name: 'Criar nova revisão' }).waitFor();
     }
 
     await scanA11y(page, label);
@@ -375,7 +388,7 @@ async function main() {
   await waitForServer();
   const browser = await chromium.launch({ headless: true });
   try {
-    const scenarios = ['draft', 'ready_for_review', 'blocked', 'approved'];
+    const scenarios = ['draft', 'ready_for_review', 'blocked', 'approved', 'released'];
     const viewports = [
       ['desktop', { width: 1440, height: 1000 }],
       ['desktop-low-height', { width: 1366, height: 768 }],
@@ -395,8 +408,10 @@ async function main() {
       candidateSha: process.env.ISSUE318_HEAD_SHA || process.env.GITHUB_SHA || null,
       assertions: {
         responsiveViewports: ['1440x1000', '1366x768', '390x844'],
-        states: ['draft', 'ready_for_review', 'blocked', 'approved', 'concurrency-409'],
+        states: ['draft', 'ready_for_review', 'blocked', 'approved', 'released', 'concurrency-409'],
         authoritativeWorkspace: 'The browser only accepts the consolidated-prescriptions workspace endpoint for student context and capacity eligibility; generic /alunos and /capacity-prescriptions calls fail the harness.',
+        sourceStatusHeader: 'The header renders the API-derived source status without introducing a parallel client-side eligibility rule.',
+        releasedRevision: 'Released assemblies stay read-only and expose the explicit Criar nova revisão action to an authorized manager.',
         keyboard: 'Accordion sections and historical details are activated from focused controls with Enter.',
         accessibility: 'axe-core WCAG A/AA scans plus Chromium ARIA snapshots are produced for each state.',
         textZoom: 'Root font-size is doubled in a 1366x768 viewport and checked for horizontal overflow and axe violations.',
