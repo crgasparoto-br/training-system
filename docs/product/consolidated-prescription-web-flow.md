@@ -59,7 +59,7 @@ A tela usa oito seções colapsáveis:
 7. Revisão e validação final;
 8. Histórico de versões.
 
-O cabeçalho mantém visíveis aluno, professor responsável, versão corrente, estado, origem do acesso e datas de criação/atualização.
+O cabeçalho mantém visíveis aluno, professor responsável, versão corrente, estado, origem do acesso, situação das origens e datas de criação/atualização. A situação das origens apenas resume sinais já retornados pela API: erro parcial do workspace, candidatos inelegíveis ou conflito `critical`; o navegador não cria uma classificação técnica paralela.
 
 ## Capacidades e composição
 
@@ -127,9 +127,13 @@ Com `manage`, a composição pode receber correções, mas o salvamento permanec
 
 A versão aprovada é somente leitura. Com `manage`, o professor pode iniciar uma nova revisão explícita, criada pelo backend como novo rascunho na mesma cadeia.
 
-### Liberada ou arquivada
+### Liberada
 
-A tela permanece somente leitura nesta fase. A liberação operacional e a geração do Treino de hoje pertencem ao fluxo posterior.
+A versão liberada continua somente leitura e não é editada nem republicada por esta tela. Com `manage`, o professor pode iniciar uma nova revisão explícita; o backend cria outra versão `draft`, mantém a versão `released` no histórico e exige novamente revisão/aprovação antes de qualquer liberação operacional futura.
+
+### Arquivada
+
+A tela permanece somente leitura. Não existe ação de nova revisão a partir de `archived` nesta fase.
 
 ## Concorrência e recuperação
 
@@ -145,7 +149,7 @@ Quando a API responde `409`:
 
 ## Histórico
 
-As versões persistidas são apresentadas em modo somente leitura com número, estado, data, justificativa, observação e capacidades vinculadas. Nenhuma versão histórica pode ser editada pela tela.
+As versões persistidas são apresentadas em modo somente leitura com número, estado, data, justificativa, observação e capacidades vinculadas. Nenhuma versão histórica pode ser editada pela tela. Ao criar revisão depois de `released`, a versão liberada anterior permanece visível e imutável no histórico.
 
 ## Acessibilidade e responsividade
 
