@@ -50,6 +50,38 @@ Configuracao recomendada para evitar que a API consuma o limite da conta de migr
 
 O comando `pnpm start` executa as migrations com `MIGRATION_DATABASE_URL` e inicia a API novamente com a `DATABASE_URL` original. Quando `MIGRATION_DATABASE_URL` nao existe, o start usa `DATABASE_URL` para manter compatibilidade com ambientes antigos.
 
+### Recuperacao da migration transacional de adipometria
+
+O erro Prisma `P3009` para a migration
+`20260730170000_remediate_issue_246_audit_round_2` significa que o banco possui
+uma tentativa falha em `_prisma_migrations`. Novos deploys permanecem bloqueados
+ate essa tentativa ser resolvida; reiniciar o Render nao corrige o historico.
+
+Essa migration e integralmente transacional. Para recuperar somente essa falha,
+execute no ambiente de migration (por exemplo, um Shell/Job do Render):
+
+```bash
+pnpm --filter @corrida/api db:recover:issue-246-migration
+```
+
+O recuperador usa `MIGRATION_DATABASE_URL` quando configurada e, por
+compatibilidade, recorre a `DATABASE_URL`. Antes de executar `prisma migrate
+resolve --rolled-back`, ele recusa a operacao se:
+
+- nao existir uma tentativa falha ativa com esse nome;
+- o checksum do banco divergir do arquivo versionado;
+- o arquivo nao estiver protegido integralmente por `BEGIN`/`COMMIT`;
+- alguma das funcoes novas da migration existir, indicando efeito parcial ou
+  alteracao manual.
+
+Depois das verificacoes, o comando marca apenas a tentativa falha como revertida
+e executa `prisma migrate deploy` novamente. Nao use `prisma db push`, nao marque
+a migration como aplicada e nao edite `_prisma_migrations` manualmente.
+
+O workflow de producao executa primeiro o deploy normal das migrations. Somente
+se ele falhar, chama esse recuperador restrito; qualquer outra migration falha ou
+qualquer divergencia nas verificacoes continua bloqueando a publicacao.
+
 ### Recuperacao de conexoes esgotadas
 
 Quando os logs mostrarem `too many connections`:
