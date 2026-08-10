@@ -330,11 +330,11 @@ export function ConsolidatedPrescription() {
     setMutationError(null);
     setSuccessMessage(message);
     if (alunoId) {
-      const [nextWorkspace] = await Promise.all([
+      const [workspaceResult] = await Promise.allSettled([
         consolidatedPrescriptionService.getWorkspaceContext(alunoId),
         refreshRelatedData(alunoId),
       ]);
-      setWorkspace(nextWorkspace);
+      if (workspaceResult.status === 'fulfilled') setWorkspace(workspaceResult.value);
     }
   };
 

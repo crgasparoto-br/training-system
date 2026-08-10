@@ -274,6 +274,29 @@ describe('ConsolidatedPrescription', () => {
     );
   });
 
+  it('não transforma falha de refresh auxiliar em falso erro após save confirmado', async () => {
+    const user = userEvent.setup();
+    const current = assemblyFixture('draft', 3);
+    const saved = assemblyFixture('draft', 4);
+    vi.mocked(consolidatedPrescriptionService.getCurrent).mockResolvedValue(current);
+    vi.mocked(consolidatedPrescriptionService.getWorkspaceContext)
+      .mockResolvedValueOnce(workspace)
+      .mockRejectedValueOnce(new Error('workspace refresh unavailable'));
+    vi.mocked(consolidatedPrescriptionService.updateComposition).mockResolvedValue(saved);
+
+    renderPage();
+    await screen.findByText('Rascunho');
+    await user.click(screen.getByRole('button', { name: '5. Composição e ordem técnica' }));
+    const observation = screen.getByLabelText('Observação técnica interna');
+    await user.clear(observation);
+    await user.type(observation, 'Save confirmado com refresh auxiliar indisponível');
+    await user.click(screen.getByRole('button', { name: '7. Revisão e validação final' }));
+    await user.click(screen.getByRole('button', { name: 'Salvar rascunho' }));
+
+    expect(await screen.findByText('Rascunho atualizado e versionado pelo servidor.')).toBeInTheDocument();
+    expect(screen.queryByText('Não foi possível concluir a ação')).not.toBeInTheDocument();
+  });
+
   it('só mostra aprovada depois da confirmação retornada pelo backend', async () => {
     const user = userEvent.setup();
     const ready = assemblyFixture('ready_for_review', 4);
