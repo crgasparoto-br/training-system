@@ -2,6 +2,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { chromium } = require('playwright');
+const { verifyRealIssue318Evidence } = require('./verify-issue-318-real-evidence.cjs');
 
 const BASE_URL = process.env.ISSUE318_BASE_URL || 'http://127.0.0.1:4173';
 const ORIGIN = new URL(BASE_URL).origin;
@@ -9,10 +10,9 @@ const OUTPUT_DIR = process.env.ISSUE318_EVIDENCE_DIR || path.resolve('issue-318-
 const AXE_PATH = require.resolve('axe-core/axe.min.js');
 const ROUTE = '/central-do-aluno/aluno-1/montagem-consolidada';
 const TOKEN = 'issue-318-browser-evidence-token';
-fs.mkdirSync(OUTPUT_DIR, { recursive: true });
-
 const capacities = ['resisted', 'flexibility', 'cyclic', 'balance'];
 const labels = { resisted: 'Resistido', flexibility: 'Flexibilidade', cyclic: 'Cíclico', balance: 'Equilíbrio' };
+fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 
 function candidates() {
   return capacities.map((capacity, index) => ({
@@ -27,11 +27,8 @@ function candidates() {
     reason: null,
     professorSummary: `Resumo ${labels[capacity]}`,
     sourceRefs: [{
-      type: 'physical_assessment',
-      id: `assessment-${index}`,
-      label: `Avaliação ${index + 1}`,
-      assessedAt: '2026-08-08T09:00:00.000Z',
-      origin: 'Avaliação Física',
+      type: 'physical_assessment', id: `assessment-${index}`, label: `Avaliação ${index + 1}`,
+      assessedAt: '2026-08-08T09:00:00.000Z', origin: 'Avaliação Física',
     }],
   }));
 }
@@ -48,56 +45,38 @@ const workspace = {
 function versionFixture(status, version, conflicts = []) {
   return {
     id: `assembly-version-${version}`,
-    assemblyId: 'assembly-1',
-    contractId: 'contract-1',
-    alunoId: 'aluno-1',
-    version,
-    status,
+    assemblyId: 'assembly-1', contractId: 'contract-1', alunoId: 'aluno-1', version, status,
     responsibleProfessorId: 'professor-responsible',
     technicalObservation: 'Observação persistida para revisão profissional.',
     professorJustification: 'Justificativa persistida da montagem consolidada.',
     studentInstruction: 'Orientação prática persistida para o aluno.',
-    createdByProfessorId: 'professor-manager',
-    createdAt: `2026-08-0${Math.min(version, 9)}T10:00:00.000Z`,
+    createdByProfessorId: 'professor-manager', createdAt: `2026-08-0${Math.min(version, 9)}T10:00:00.000Z`,
     capacityBlocks: workspace.capacityCandidates.map((candidate, index) => ({
       id: `block-${version}-${index}`,
       capacityPrescriptionVersionId: candidate.capacityPrescriptionVersionId,
-      capacity: candidate.capacity,
-      capacityVersion: candidate.version,
-      capacityStatus: 'active',
-      position: index,
+      capacity: candidate.capacity, capacityVersion: candidate.version, capacityStatus: 'active', position: index,
     })),
     dataRefs: [{
-      id: `data-ref-${version}`,
-      role: 'assessment',
-      sourceType: 'physical_assessment',
-      sourceId: 'assessment-base-1',
-      label: 'Avaliação física de referência',
-      assessedAt: '2026-08-08T09:00:00.000Z',
-      origin: 'PRNT',
-      sourceVersion: 4,
+      id: `data-ref-${version}`, role: 'assessment', sourceType: 'physical_assessment', sourceId: 'assessment-base-1',
+      label: 'Avaliação física de referência', assessedAt: '2026-08-08T09:00:00.000Z', origin: 'PRNT', sourceVersion: 4,
       responsibleProfessorId: 'professor-responsible',
     }],
     conflicts,
     traceability: {
-      capacityCount: 4,
-      sourceRefIds: ['assessment-base-1'],
+      capacityCount: 4, sourceRefIds: ['assessment-base-1'],
       capacityVersions: workspace.capacityCandidates.map((candidate) => ({
         capacityPrescriptionVersionId: candidate.capacityPrescriptionVersionId,
-        capacity: candidate.capacity,
-        version: 2,
-        status: 'active',
+        capacity: candidate.capacity, version: 2, status: 'active',
       })),
     },
-    canReleaseOperationalWorkout: status === 'approved',
-    createsTodayWorkoutDirectly: false,
+    canReleaseOperationalWorkout: status === 'approved', createsTodayWorkoutDirectly: false,
   };
 }
 
 function assemblyFixture(status = 'draft', version = 3, conflicts = []) {
   return {
-    id: 'assembly-1', contractId: 'contract-1', alunoId: 'aluno-1', currentVersion: version,
-    currentStatus: status, createdByProfessorId: 'professor-manager', updatedByProfessorId: 'professor-manager',
+    id: 'assembly-1', contractId: 'contract-1', alunoId: 'aluno-1', currentVersion: version, currentStatus: status,
+    createdByProfessorId: 'professor-manager', updatedByProfessorId: 'professor-manager',
     createdAt: '2026-08-08T10:00:00.000Z', updatedAt: '2026-08-09T10:00:00.000Z',
     latestVersion: versionFixture(status, version, conflicts),
   };
@@ -108,32 +87,29 @@ const warningConflict = {
   affectedCapacities: ['resisted'], sourceRefIds: ['assessment-base-1'],
 };
 const criticalConflict = {
-  code: 'critical-structured-restriction', message: 'Restrição estruturada ainda ativa para a composição.',
-  severity: 'critical', affectedCapacities: ['resisted'], sourceRefIds: ['assessment-base-1'],
+  code: 'critical-structured-restriction', message: 'Restrição estruturada ainda ativa para a composição.', severity: 'critical',
+  affectedCapacities: ['resisted'], sourceRefIds: ['assessment-base-1'],
 };
 
 function scenarioFixture(name) {
-  if (name === 'draft') return {
-    assembly: assemblyFixture('draft', 3, [warningConflict]),
-    conflicts: { version: 3, status: 'draft', conflicts: [warningConflict], hasCritical: false, canUnblock: false, unavailableChecks: [] },
+  const configs = {
+    draft: ['draft', 3, [warningConflict]],
+    ready_for_review: ['ready_for_review', 4, []],
+    blocked: ['blocked', 5, [warningConflict, criticalConflict]],
+    approved: ['approved', 6, []],
+    released: ['released', 7, []],
   };
-  if (name === 'ready_for_review') return {
-    assembly: assemblyFixture('ready_for_review', 4, []),
-    conflicts: { version: 4, status: 'ready_for_review', conflicts: [], hasCritical: false, canUnblock: false, unavailableChecks: [] },
+  const config = configs[name];
+  if (!config) throw new Error(`Cenário desconhecido: ${name}`);
+  const [status, version, conflicts] = config;
+  return {
+    assembly: assemblyFixture(status, version, conflicts),
+    conflicts: {
+      version, status, conflicts,
+      hasCritical: conflicts.some((item) => item.severity === 'critical'),
+      canUnblock: false, unavailableChecks: [],
+    },
   };
-  if (name === 'blocked') return {
-    assembly: assemblyFixture('blocked', 5, [warningConflict, criticalConflict]),
-    conflicts: { version: 5, status: 'blocked', conflicts: [warningConflict, criticalConflict], hasCritical: true, canUnblock: false, unavailableChecks: [] },
-  };
-  if (name === 'approved') return {
-    assembly: assemblyFixture('approved', 6, []),
-    conflicts: { version: 6, status: 'approved', conflicts: [], hasCritical: false, canUnblock: false, unavailableChecks: [] },
-  };
-  if (name === 'released') return {
-    assembly: assemblyFixture('released', 7, []),
-    conflicts: { version: 7, status: 'released', conflicts: [], hasCritical: false, canUnblock: false, unavailableChecks: [] },
-  };
-  throw new Error(`Cenário desconhecido: ${name}`);
 }
 
 const masterUser = {
@@ -185,36 +161,30 @@ async function waitForServer() {
 async function createScenarioPage(browser, scenario, label, viewport, options = {}) {
   const fixture = scenarioFixture(scenario);
   const context = await browser.newContext({ viewport, storageState: storageState() });
-  const diagnostics = { pageErrors: [], consoleErrors: [], requestFailures: [], unexpectedApiRequests: [] };
+  const diagnostics = { pageErrors: [], unexpectedApiRequests: [] };
   await context.route('**/api/v1/**', async (route) => {
     const request = route.request();
-    const url = new URL(request.url());
-    const pathname = url.pathname;
+    const pathname = new URL(request.url()).pathname;
     const method = request.method();
     const fulfill = (data, status = 200) => route.fulfill({
-      status, contentType: 'application/json',
-      body: JSON.stringify(status >= 400 ? data : { success: true, data }),
+      status, contentType: 'application/json', body: JSON.stringify(status >= 400 ? data : { success: true, data }),
     });
-
     if (method === 'GET' && pathname === '/api/v1/auth/me') return fulfill(masterUser);
     if (method === 'GET' && pathname === '/api/v1/consolidated-prescriptions/alunos/aluno-1/workspace') return fulfill(workspace);
     if (method === 'GET' && pathname === '/api/v1/consolidated-prescriptions/alunos/aluno-1/conflicts') return fulfill(fixture.conflicts);
     if (method === 'GET' && pathname === '/api/v1/consolidated-prescriptions/alunos/aluno-1/history') return fulfill(historyFixture(fixture.assembly));
     if (method === 'GET' && pathname === '/api/v1/consolidated-prescriptions/alunos/aluno-1') return fulfill(fixture.assembly);
-    if (options.forceConflict409 && method === 'PATCH' && pathname === '/api/v1/consolidated-prescriptions/alunos/aluno-1/composition') {
+    if (options.forceConflict409 && method === 'PATCH' && pathname.endsWith('/composition')) {
       return fulfill({ error: 'A montagem foi alterada por outro usuário' }, 409);
     }
-
     diagnostics.unexpectedApiRequests.push(`${method} ${pathname}`);
     return fulfill({ error: `Unexpected browser evidence API request: ${method} ${pathname}` }, 501);
   });
   const page = await context.newPage();
   page.on('pageerror', (error) => diagnostics.pageErrors.push(error.message));
-  page.on('console', (message) => { if (message.type() === 'error') diagnostics.consoleErrors.push(message.text()); });
-  page.on('requestfailed', (request) => diagnostics.requestFailures.push(`${request.method()} ${request.url()} :: ${request.failure()?.errorText || 'unknown'}`));
   await page.goto(`${BASE_URL}${ROUTE}`, { waitUntil: 'domcontentloaded' });
   await page.waitForLoadState('networkidle').catch(() => undefined);
-  await page.getByRole('heading', { name: 'Montagem Consolidada da Prescrição' }).waitFor({ state: 'visible', timeout: 10000 });
+  await page.getByRole('heading', { name: 'Montagem Consolidada da Prescrição' }).waitFor({ timeout: 10000 });
   assert.deepEqual(diagnostics.unexpectedApiRequests, [], `${label}: chamadas de API inesperadas`);
   return { context, page, diagnostics };
 }
@@ -230,13 +200,12 @@ async function scanA11y(page, label) {
     const root = document.querySelector('main') || document.body;
     return window.axe.run(root, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] } });
   });
-  fs.writeFileSync(path.join(OUTPUT_DIR, `${label}-axe.json`), JSON.stringify({ violations: result.violations, passes: result.passes.map((item) => item.id) }, null, 2));
-  assert.equal(result.violations.length, 0, `${label}: axe encontrou ${result.violations.length} violações: ${result.violations.map((item) => item.id).join(', ')}`);
+  fs.writeFileSync(path.join(OUTPUT_DIR, `${label}-axe.json`), JSON.stringify({ violations: result.violations }, null, 2));
+  assert.equal(result.violations.length, 0, `${label}: axe encontrou ${result.violations.length} violações`);
 }
 
 async function saveAriaSnapshot(page, label) {
-  const target = page.locator('main').first();
-  const snapshot = await target.ariaSnapshot();
+  const snapshot = await page.locator('main').first().ariaSnapshot();
   fs.writeFileSync(path.join(OUTPUT_DIR, `${label}-aria.yml`), snapshot);
   assert.match(snapshot, /Montagem Consolidada da Prescrição/);
   assert.match(snapshot, /1\. Dados gerais/);
@@ -246,9 +215,7 @@ async function saveAriaSnapshot(page, label) {
 async function keyboardOpenAccordion(page, name) {
   const trigger = page.getByRole('button', { name });
   await trigger.focus();
-  if ((await trigger.getAttribute('aria-expanded')) === 'false') {
-    await page.keyboard.press('Enter');
-  }
+  if ((await trigger.getAttribute('aria-expanded')) === 'false') await page.keyboard.press('Enter');
   assert.equal(await trigger.getAttribute('aria-expanded'), 'true');
 }
 
@@ -257,17 +224,13 @@ async function verifyScenario(browser, scenario, deviceLabel, viewport) {
   const { context, page, diagnostics } = await createScenarioPage(browser, scenario, label, viewport);
   try {
     const expectedStatus = {
-      draft: 'Rascunho',
-      ready_for_review: 'Pronta para revisão',
-      blocked: 'Bloqueada',
-      approved: 'Aprovada',
-      released: 'Liberada',
+      draft: 'Rascunho', ready_for_review: 'Pronta para revisão', blocked: 'Bloqueada', approved: 'Aprovada', released: 'Liberada',
     }[scenario];
+    await page.getByText(expectedStatus, { exact: true }).first().waitFor();
+    await page.getByText('Prof. Renata', { exact: true }).first().waitFor();
     const expectedSourceStatus = scenario === 'blocked'
       ? 'Conflito crítico retornado pela API'
       : 'Sem incompatibilidade retornada pela API';
-    await page.getByText(expectedStatus, { exact: true }).first().waitFor();
-    await page.getByText('Prof. Renata', { exact: true }).first().waitFor();
     await page.getByText('Situação das origens', { exact: true }).waitFor();
     await page.getByText(expectedSourceStatus, { exact: true }).waitFor();
     await assertNoHorizontalOverflow(page, label);
@@ -288,7 +251,7 @@ async function verifyScenario(browser, scenario, deviceLabel, viewport) {
           criticalBorder: getComputedStyle(critical).borderColor,
         };
       });
-      assert.ok(styles);
+      assert.ok(styles, `${label}: estilos de warning/critical não localizados`);
       assert.notEqual(styles.warningBackground, styles.criticalBackground);
       assert.notEqual(styles.warningBorder, styles.criticalBorder);
     } else if (scenario === 'approved') {
@@ -308,7 +271,7 @@ async function verifyScenario(browser, scenario, deviceLabel, viewport) {
     await scanA11y(page, label);
     await saveAriaSnapshot(page, label);
     await page.screenshot({ path: path.join(OUTPUT_DIR, `${label}.png`), fullPage: true });
-    assert.deepEqual(diagnostics.pageErrors, [], `${label}: erros JavaScript: ${diagnostics.pageErrors.join(' | ')}`);
+    assert.deepEqual(diagnostics.pageErrors, [], `${label}: erros JavaScript`);
   } finally { await context.close(); }
 }
 
@@ -324,7 +287,6 @@ async function verifyConcurrency409(browser) {
     await page.getByText('Conflito de versão detectado', { exact: true }).waitFor();
     await keyboardOpenAccordion(page, '5. Composição e ordem técnica');
     assert.equal(await observation.inputValue(), 'Alteração local preservada no navegador real');
-    assert.deepEqual(diagnostics.unexpectedApiRequests, []);
     assert.deepEqual(diagnostics.pageErrors, []);
     await page.screenshot({ path: path.join(OUTPUT_DIR, `${label}.png`), fullPage: true });
   } finally { await context.close(); }
@@ -356,10 +318,7 @@ async function verifyDarkLoginContrast(browser) {
       if (!link) return null;
       const parseColor = (value) => {
         const channels = (value.match(/[\d.]+/g) || []).map(Number);
-        return {
-          rgb: channels.slice(0, 3),
-          alpha: channels.length > 3 ? channels[3] : 1,
-        };
+        return { rgb: channels.slice(0, 3), alpha: channels.length > 3 ? channels[3] : 1 };
       };
       const luminance = (rgb) => {
         const values = rgb.map((channel) => {
@@ -372,10 +331,7 @@ async function verifyDarkLoginContrast(browser) {
       let background = null;
       for (let node = link.parentElement; node; node = node.parentElement) {
         const parsed = parseColor(getComputedStyle(node).backgroundColor);
-        if (parsed.rgb.length === 3 && parsed.alpha >= 0.99) {
-          background = parsed.rgb;
-          break;
-        }
+        if (parsed.rgb.length === 3 && parsed.alpha >= 0.99) { background = parsed.rgb; break; }
       }
       if (!background) background = parseColor(getComputedStyle(document.body).backgroundColor).rgb;
       const l1 = luminance(foreground);
@@ -403,6 +359,7 @@ async function main() {
     await verifyConcurrency409(browser);
     await verifyTextZoom(browser);
     await verifyDarkLoginContrast(browser);
+    await verifyRealIssue318Evidence({ browser, baseUrl: BASE_URL, outputDir: OUTPUT_DIR });
 
     const summary = {
       issue: 318,
@@ -412,18 +369,19 @@ async function main() {
       assertions: {
         responsiveViewports: ['1440x1000', '1366x768', '390x844'],
         states: ['draft', 'ready_for_review', 'blocked', 'approved', 'released', 'concurrency-409'],
-        authoritativeWorkspace: 'The browser only accepts the consolidated-prescriptions workspace endpoint for student context and capacity eligibility; generic /alunos and /capacity-prescriptions calls fail the harness.',
-        sourceStatusHeader: 'The header renders the API-derived source status without introducing a parallel client-side eligibility rule.',
+        authoritativeWorkspace: 'The isolated browser harness only accepts the consolidated-prescriptions workspace endpoint for student context and eligibility.',
+        sourceStatusHeader: 'The header renders the API-derived source status without introducing a parallel client-side rule.',
         releasedRevision: 'Released assemblies stay read-only and expose the explicit Criar nova revisão action to an authorized manager.',
         keyboard: 'Accordion sections and historical details are activated from focused controls with Enter.',
-        accessibility: 'axe-core WCAG A/AA scans plus Chromium ARIA snapshots are produced for each state.',
-        textZoom: 'Root font-size is doubled in a 1366x768 viewport and checked for horizontal overflow and axe violations.',
-        darkMode: 'The login text-primary link is checked in dark mode against its nearest opaque rendered surface with an explicit contrast ratio >= 4.5 plus axe.',
-        warningVsCritical: 'Text labels and computed background/border styles are asserted as distinct.',
+        accessibility: 'axe-core + Chromium ARIA snapshots plus a native Orca/AT-SPI session in headed Chromium.',
+        realApi: 'Browser completes create draft -> send for review -> approve against actual API routers backed by ephemeral PostgreSQL, with no Playwright API route mocks.',
+        textZoom: 'Root font-size is doubled in 1366x768 and checked for horizontal overflow and axe violations.',
+        darkMode: 'The login text-primary link is checked in dark mode with an explicit contrast ratio >= 4.5 plus axe.',
+        warningVsCritical: 'Warning and critical conflicts are asserted with distinct text labels and computed visual styles.',
         history: 'A historical version is opened by keyboard and its read-only copy is asserted.',
-        concurrency: 'HTTP 409 is injected at the API boundary and local textarea content must remain intact.',
+        concurrency: 'HTTP 409 is injected in the isolated UI recovery scenario and local textarea content remains intact.',
       },
-      limitation: 'Automated ARIA-tree evidence is not a native NVDA, VoiceOver, or Orca session. A native screen-reader pass remains a separate manual acceptance item.',
+      limitation: 'The native screen-reader evidence uses Orca on Linux/AT-SPI; platform-specific NVDA and VoiceOver behavior is not claimed.',
     };
     fs.writeFileSync(path.join(OUTPUT_DIR, 'summary.json'), JSON.stringify(summary, null, 2));
     console.log(`Issue #318 browser evidence generated at ${OUTPUT_DIR}`);

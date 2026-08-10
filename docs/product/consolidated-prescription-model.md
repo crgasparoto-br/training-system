@@ -212,4 +212,4 @@ Ficam fora:
 - `approved -> released`;
 - geração de `Treino de hoje`;
 - feedback pós-treino;
-- sessão nativa de leitor de tela automatizada: a evidência web usa Chromium/axe/árvore ARIA, enquanto NVDA/VoiceOver/Orca continua sendo um gate manual da #318.
+- equivalência específica entre leitores de tela/plataformas além do gate nativo da #318: a evidência automatizada cobre Orca em Linux/AT-SPI com Chromium headed, sem declarar comportamento idêntico de NVDA/Windows ou VoiceOver/macOS.

@@ -51,8 +51,9 @@ Entregar o fluxo web do professor para montar, revisar e aprovar a Montagem Cons
 - [x] Permitir nova revisão explícita após `released`, preservando a versão liberada no histórico e classificando a transição como `revision_created`.
 - [x] Expor no cabeçalho a situação das origens usando apenas `capacityCandidatesError`, candidatos inelegíveis e conflitos retornados pela API.
 - [x] Adicionar controles discriminantes de backend PostgreSQL e UI para as duas pendências funcionais acima.
+- [x] Adicionar fluxo browser integrado sem mocks de `/api/v1/**`, usando PostgreSQL efêmero, migrations e routers reais para `workspace -> draft -> review -> approved`.
+- [x] Adicionar sessão nativa de leitor de tela com Orca/AT-SPI em Chromium headed, registrando versão, aplicações conhecidas e debug do conteúdo acessível.
 - [ ] Executar os gates do novo SHA em ambiente com checkout/dependências.
-- [ ] Executar sessão nativa de leitor de tela (NVDA, VoiceOver ou Orca). Axe/ARIA não substituem esse aceite.
 - [ ] Realizar nova auditoria independente em contexto separado após congelar o novo candidato.
 
 ## Validação esperada
@@ -67,7 +68,7 @@ pnpm docs:check
 pnpm validate
 ```
 
-O workflow de evidência existente executa o script `scripts/verify-issue-318-browser-evidence.cjs`. A remediação não altera `.github/workflows/**`; GitHub Actions permanece apenas como gate de validação do candidato publicado.
+O workflow de evidência existente continua executando `scripts/verify-issue-318-browser-evidence.cjs`; a remediação não altera `.github/workflows/**`. O script preserva a matriz isolada de UI e acrescenta o gate integrado com API/PostgreSQL real e o gate nativo Orca. GitHub Actions permanece apenas como gate de validação do candidato publicado, sem rerun/dispatch/cancelamento pela entrega.
 
 ## Evidência adversarial
 
@@ -79,8 +80,10 @@ Os controles discriminantes obrigatórios desta rodada são:
 4. prescrição suspensa com versão persistida ativa, verificando que `eligible=false` e o motivo vêm do backend;
 5. dark mode com `text-primary` medido em contraste >= 4.5:1;
 6. montagem simulada como `released`, verificando que `/revisions` cria novo `draft`, preserva a versão liberada e gera `revision_created` com `previousStatus=released`;
-7. tela em estado `released`, verificando ação de nova revisão e cabeçalho com indisponibilidade de origem exatamente a partir dos sinais da API.
+7. tela em estado `released`, verificando ação de nova revisão e cabeçalho com indisponibilidade de origem exatamente a partir dos sinais da API;
+8. navegador sem interceptação de API, verificando create/review/approve pelos routers reais e estado `approved` persistido em PostgreSQL;
+9. leitor de tela Orca nativo, verificando que o AT-SPI enumera Chromium e que o debug do Orca observa conteúdo acessível da Montagem Consolidada durante foco/teclado no histórico.
 
 ## Estado para freeze
 
-O candidato só pode ser declarado internamente aprovado após os gates executáveis do novo SHA. Mesmo com esses gates verdes, a issue permanece pendente do aceite manual de leitor de tela e de auditoria independente separada.
+O candidato só pode ser declarado internamente aprovado após os gates executáveis do novo SHA. Com esses gates verdes, a pendência de implementação/evidência da #318 fica encerrada nesta entrega, restando apenas a auditoria independente em contexto separado; a PR não deve ser mergeada pelo controlador de entrega.

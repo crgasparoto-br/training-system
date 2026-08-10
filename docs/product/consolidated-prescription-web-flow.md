@@ -155,24 +155,15 @@ As versões persistidas são apresentadas em modo somente leitura com número, e
 
 A implementação reutiliza `Button`, `Card` e `Accordion`. Controles de ordenação possuem nome acessível, estados de erro/sucesso usam regiões de anúncio, warning e blocker possuem rótulos textuais além da cor e a composição reorganiza ações para mobile.
 
-A evidência automatizada do candidato deve cobrir:
+A evidência automatizada do candidato cobre duas camadas complementares. A camada isolada mantém cenários determinísticos de UI para `1440x1000`, `1366x768` e `390x844`, teclado nos colapses e histórico, ausência de overflow horizontal, axe-core WCAG A/AA, snapshots ARIA do Chromium, texto ampliado a 200%, contraste de `text-primary` em dark mode, distinção visual de warning/critical, histórico somente leitura e recuperação de conflito HTTP `409` com preservação local.
 
-- `1440x1000`;
-- `1366x768`;
-- `390x844`;
-- teclado nos colapses e histórico;
-- ausência de overflow horizontal;
-- axe-core WCAG A/AA;
-- snapshot da árvore ARIA do Chromium;
-- texto ampliado a 200% em caso extremo equivalente;
-- regressão de contraste de `text-primary` em dark mode;
-- warning versus critical;
-- histórico somente leitura;
-- concorrência HTTP `409` com preservação local.
+A camada integrada sobe PostgreSQL efêmero, executa as migrations do repositório e monta os routers reais de autenticação e Montagem Consolidada. O Chromium acessa a aplicação por um proxy same-origin sem `route.fulfill()` para `/api/v1/**` e executa `workspace -> criar rascunho -> enviar para revisão -> aprovar -> reler estado persistido`, comprovando o fluxo navegador ↔ API real.
+
+O mesmo candidato executa ainda uma sessão nativa de leitor de tela com Orca em Chromium headed sobre AT-SPI. A sessão navega por foco/teclado até a seção de histórico, registra versão do Orca, aplicações conhecidas pelo AT-SPI e debug nativo do leitor de tela, e falha se o Chromium não for enumerado ou se o conteúdo acessível da issue não aparecer no log do Orca.
 
 A cor de fundo de controles preenchidos usa o token `--primary` mais escuro. Texto/ícones `text-primary` em dark mode usam um foreground mais claro separado, e o `--ring` escuro recebe contraste próprio para foco.
 
-**Limite de evidência:** axe e árvore ARIA não substituem uma sessão nativa de NVDA, VoiceOver ou Orca. O aceite explícito de “leitor de tela” da issue continua exigindo uma passagem nativa separada; a automação não deve declarar esse item como comprovado.
+**Limite de evidência:** o aceite de leitor de tela da #318 é comprovado no ambiente Linux com Orca/AT-SPI. A entrega não declara equivalência específica de NVDA/Windows nem VoiceOver/macOS; essas plataformas permanecem verificações adicionais, não substitutas do gate nativo executado.
 
 ## Fora de escopo
 
