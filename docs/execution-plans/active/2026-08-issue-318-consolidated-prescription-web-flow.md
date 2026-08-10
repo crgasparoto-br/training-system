@@ -35,6 +35,8 @@ Entregar o fluxo web do professor para montar, revisar e aprovar a Montagem Cons
 - Toda mutação após a criação usa `expectedCurrentVersion`.
 - HTTP `409` preserva edição local e exige reconciliação explícita.
 - Telas longas usam oito seções colapsáveis.
+- `approved` e `released` permanecem imutáveis; qualquer alteração material começa por nova revisão explícita em `draft`.
+- O cabeçalho resume somente sinais autoritativos da API para a situação das origens; o frontend não inventa regra técnica.
 
 ## Remediação da auditoria independente
 
@@ -46,6 +48,9 @@ Entregar o fluxo web do professor para montar, revisar e aprovar a Montagem Cons
 - [x] Adicionar teste HTTP com usuário `plans=contract` sobre aluno atribuído a outro professor e negações `self`/cross-tenant.
 - [x] Separar contraste de `text-primary` em dark mode do token usado como fundo de controles e reforçar `--ring` escuro.
 - [x] Ampliar evidência automatizada para `1440x1000`, `1366x768`, `390x844`, texto 200%, dark mode, teclado, axe, ARIA, warning/critical, histórico e `409`.
+- [x] Permitir nova revisão explícita após `released`, preservando a versão liberada no histórico e classificando a transição como `revision_created`.
+- [x] Expor no cabeçalho a situação das origens usando apenas `capacityCandidatesError`, candidatos inelegíveis e conflitos retornados pela API.
+- [x] Adicionar controles discriminantes de backend PostgreSQL e UI para as duas pendências funcionais acima.
 - [ ] Executar os gates do novo SHA em ambiente com checkout/dependências.
 - [ ] Executar sessão nativa de leitor de tela (NVDA, VoiceOver ou Orca). Axe/ARIA não substituem esse aceite.
 - [ ] Realizar nova auditoria independente em contexto separado após congelar o novo candidato.
@@ -72,7 +77,9 @@ Os controles discriminantes obrigatórios desta rodada são:
 2. referência adicional `assessment` existente, verificando que o save não a remove e não reenvia `capacity_source` derivada;
 3. usuário com `plans=contract` acessando aluno de outro professor, enquanto usuário `self` e outro tenant recebem 404;
 4. prescrição suspensa com versão persistida ativa, verificando que `eligible=false` e o motivo vêm do backend;
-5. dark mode com `text-primary` medido em contraste >= 4.5:1.
+5. dark mode com `text-primary` medido em contraste >= 4.5:1;
+6. montagem simulada como `released`, verificando que `/revisions` cria novo `draft`, preserva a versão liberada e gera `revision_created` com `previousStatus=released`;
+7. tela em estado `released`, verificando ação de nova revisão e cabeçalho com indisponibilidade de origem exatamente a partir dos sinais da API.
 
 ## Estado para freeze
 
