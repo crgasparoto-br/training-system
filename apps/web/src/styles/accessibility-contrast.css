@@ -10,3 +10,8 @@
 .dark .text-primary {
   color: hsl(142 65% 65%);
 }
+
+/* Auth cards remain on a white surface in the current shell, including dark mode. */
+.dark .auth-card-primary-text {
+  color: hsl(142 71% 30%);
+}
