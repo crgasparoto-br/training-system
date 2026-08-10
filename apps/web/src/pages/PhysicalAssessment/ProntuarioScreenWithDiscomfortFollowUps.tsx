@@ -4,6 +4,7 @@ import { Activity, Save } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
+import { Select } from '@/components/ui/Select';
 import type { ProntuarioOverview, ProntuarioPainCase } from '@corrida/types';
 import { prontuarioService } from '../../services/prontuario.service';
 import { ProntuarioScreen } from './ProntuarioScreen';
@@ -298,28 +299,23 @@ function PainFollowUpPanel({ alunoId }: { alunoId: string }) {
                         updateFollowUpDraft(caseItem.id, { intensity: event.target.value })
                       }
                     />
-                    <div>
-                      <label htmlFor={`pain-status-${caseItem.id}`} className="mb-1 block text-sm font-medium text-foreground">
-                        Status do caso
-                      </label>
-                      <select
-                        id={`pain-status-${caseItem.id}`}
-                        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                        value={status}
-                        onChange={(event) => {
-                          setStatusDrafts((current) => ({
-                            ...current,
-                            [caseItem.id]: event.target.value as ProntuarioPainCase['status'],
-                          }));
-                          setSuccess(null);
-                        }}
-                      >
-                        <option value="active">Ativo</option>
-                        <option value="monitoring">Em acompanhamento</option>
-                        <option value="resolved">Resolvido</option>
-                        <option value="archived">Arquivado</option>
-                      </select>
-                    </div>
+                    <Select
+                      id={`pain-status-${caseItem.id}`}
+                      label="Status do caso"
+                      value={status}
+                      onChange={(event) => {
+                        setStatusDrafts((current) => ({
+                          ...current,
+                          [caseItem.id]: event.target.value as ProntuarioPainCase['status'],
+                        }));
+                        setSuccess(null);
+                      }}
+                    >
+                      <option value="active">Ativo</option>
+                      <option value="monitoring">Em acompanhamento</option>
+                      <option value="resolved">Resolvido</option>
+                      <option value="archived">Arquivado</option>
+                    </Select>
                   </div>
 
                   <div className="grid gap-3 md:grid-cols-2">

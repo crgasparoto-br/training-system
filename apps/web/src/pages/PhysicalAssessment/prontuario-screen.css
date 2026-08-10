@@ -58,7 +58,7 @@
 }
 
 @media (max-width: 1023px) {
-  .prontuario-workspace > div > div:first-child > div:last-child {
+  .prontuario-workspace .protocol-nav-tabs {
     display: grid;
     grid-auto-flow: column;
     grid-auto-columns: max-content;
@@ -68,7 +68,7 @@
     scrollbar-width: thin;
   }
 
-  .prontuario-workspace > div > div:first-child > div:last-child > a {
+  .prontuario-workspace .protocol-nav-tab-link {
     scroll-snap-align: start;
   }
 }

@@ -6,7 +6,6 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { AdipometryScreen } from './PhysicalAssessment/AdipometryScreen';
 import { AnthropometryScreen } from './PhysicalAssessment/AnthropometryScreen';
 import { CapacityPrescriptionScreen } from './PhysicalAssessment/CapacityPrescriptionScreen';
-import { ProntuarioInitialAnamnesisCard } from './PhysicalAssessment/ProntuarioInitialAnamnesisCard';
 import { ProntuarioScreenWithDiscomfortFollowUps } from './PhysicalAssessment/ProntuarioScreenWithDiscomfortFollowUps';
 import { ProtocolNavTabs, buildProtocolPath } from './PhysicalAssessment/protocolNav';
 
@@ -194,12 +193,7 @@ export default function PhysicalAssessmentProtocol() {
   if (currentProtocol.slug === 'antropometria') return <AnthropometryScreen />;
   if (currentProtocol.slug === 'adipometria') return <AdipometryScreen />;
   if (currentProtocol.slug === 'prontuario-entrevista-acompanhamento') {
-    return (
-      <div className="space-y-6">
-        {alunoId ? <ProntuarioInitialAnamnesisCard alunoId={alunoId} /> : null}
-        <ProntuarioScreenWithDiscomfortFollowUps />
-      </div>
-    );
+    return <ProntuarioScreenWithDiscomfortFollowUps />;
   }
 
   if (currentProtocol.slug === 'prescricao-capacidades') {

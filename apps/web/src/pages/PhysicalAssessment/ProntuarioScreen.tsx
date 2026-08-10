@@ -4,7 +4,9 @@ import { Activity, ClipboardList, FilePlus2, Save } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { Select } from '@/components/ui/Select';
 import { BodyDiscomfortMap } from '../../components/BodyDiscomfortMap';
+import { ProntuarioInitialAnamnesisCard } from './ProntuarioInitialAnamnesisCard';
 import { canAccessBlock } from '../../access/access-control';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { alunoService, type Aluno } from '../../services/aluno.service';
@@ -518,15 +520,12 @@ export function ProntuarioScreen() {
 
       <Card>
         <CardContent className="grid gap-4 pt-6 lg:grid-cols-[minmax(260px,420px)_1fr_auto] lg:items-end">
-          <div>
-            <label className="mb-2 block text-sm font-medium text-foreground">Aluno</label>
-            <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={selectedAlunoId} onChange={(event) => handleAlunoSelectionChange(event.target.value)}>
-              <option value="">Selecione um aluno</option>
-              {students.map((student) => (
-                <option key={student.id} value={student.id}>{student.user.profile.name}</option>
-              ))}
-            </select>
-          </div>
+          <Select label="Aluno" value={selectedAlunoId} onChange={(event) => handleAlunoSelectionChange(event.target.value)}>
+            <option value="">Selecione um aluno</option>
+            {students.map((student) => (
+              <option key={student.id} value={student.id}>{student.user.profile.name}</option>
+            ))}
+          </Select>
           <div className="text-sm text-muted-foreground">
             {selectedStudent ? `${selectedStudent.user.profile.name} · ${selectedStudent.user.email}` : 'Escolha um aluno para carregar ou criar registros PRNT.'}
           </div>
@@ -539,6 +538,8 @@ export function ProntuarioScreen() {
         </CardContent>
       </Card>
 
+      {selectedAlunoId ? <ProntuarioInitialAnamnesisCard alunoId={selectedAlunoId} /> : null}
+
       {error ? <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div> : null}
       {loading ? <p className="text-sm text-muted-foreground">Carregando PRNT...</p> : null}
 
@@ -548,8 +549,15 @@ export function ProntuarioScreen() {
             {blocks.summary && (
               <Card>
                 <CardHeader>
-                  <CardTitle>Resumo do registro</CardTitle>
-                  <CardDescription>{currentRecord ? `${currentRecord.code} · ${currentRecord.status}` : 'Novo registro PRNT'}</CardDescription>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <CardTitle>Resumo do registro</CardTitle>
+                    {currentRecord ? (
+                      <span className="w-fit rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+                        {currentRecord.status}
+                      </span>
+                    ) : null}
+                  </div>
+                  <CardDescription>{currentRecord ? currentRecord.code : 'Novo registro PRNT'}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {currentRecord ? (
@@ -662,24 +670,33 @@ export function ProntuarioScreen() {
                 <CardTitle>Histórico</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
-                {(overview?.records || []).map((record) => (
-                  <button
-                    key={record.id}
-                    type="button"
-                    className={record.id === currentRecord?.id ? 'w-full rounded-md border border-primary bg-primary/5 px-3 py-2 text-left text-sm' : 'w-full rounded-md border border-border px-3 py-2 text-left text-sm hover:bg-muted/40'}
-                    onClick={() => {
-                      setSelectedRecordId(record.id);
-                      const recordParqId = inferParqSubmissionId(record, parqSubmissions);
-                      if (recordParqId) {
-                        setSelectedParqSubmissionId(recordParqId);
-                      }
-                      setDrafts(draftsFromRecord(record));
-                    }}
-                  >
-                    <div className="font-medium">{record.code}</div>
-                    <div className="text-xs text-muted-foreground">{toDateInput(record.recordDate)} · {record.status}</div>
-                  </button>
-                ))}
+                {(overview?.records || []).map((record) => {
+                  const isSelected = record.id === currentRecord?.id;
+                  return (
+                    <button
+                      key={record.id}
+                      type="button"
+                      aria-current={isSelected ? 'true' : undefined}
+                      className={isSelected ? 'flex w-full items-center justify-between gap-2 rounded-md border border-primary bg-primary/5 px-3 py-2 text-left text-sm' : 'flex w-full items-center justify-between gap-2 rounded-md border border-border px-3 py-2 text-left text-sm hover:bg-muted/40'}
+                      onClick={() => {
+                        setSelectedRecordId(record.id);
+                        const recordParqId = inferParqSubmissionId(record, parqSubmissions);
+                        if (recordParqId) {
+                          setSelectedParqSubmissionId(recordParqId);
+                        }
+                        setDrafts(draftsFromRecord(record));
+                      }}
+                    >
+                      <span>
+                        <span className="font-medium">{record.code}</span>
+                        <span className="block text-xs text-muted-foreground">{toDateInput(record.recordDate)} · {record.status}</span>
+                      </span>
+                      {isSelected ? (
+                        <span className="shrink-0 text-xs font-medium text-primary">Selecionado</span>
+                      ) : null}
+                    </button>
+                  );
+                })}
                 {!overview?.records.length ? <p className="text-sm text-muted-foreground">Sem registros PRNT.</p> : null}
               </CardContent>
             </Card>
@@ -690,8 +707,8 @@ export function ProntuarioScreen() {
               </CardHeader>
               <CardContent className="space-y-3 text-sm text-muted-foreground">
                 {parqSubmissions.length ? (
-                  <select
-                    className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground"
+                  <Select
+                    className="text-foreground"
                     value={selectedParqSubmission?.id || ''}
                     onChange={(event) => setSelectedParqSubmissionId(event.target.value || null)}
                   >
@@ -700,7 +717,7 @@ export function ProntuarioScreen() {
                         {toDateInput(submission.submittedAt)} · {submission.positiveItems?.length || 0} positivo(s)
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 ) : null}
                 {selectedParqSubmission ? (
                   <div className="space-y-3">
@@ -765,7 +782,16 @@ function GoalsEditor({
               <textarea className="min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="Descrição" value={item.description || ''} onChange={(event) => updateItem(index, { description: event.target.value })} />
             </div>
             <div className="md:col-span-2">
-              <Button type="button" variant="outline" onClick={() => onChange(items.filter((_, itemIndex) => itemIndex !== index))}>Remover</Button>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={() => {
+                  if (!confirm('Remover este objetivo?')) return;
+                  onChange(items.filter((_, itemIndex) => itemIndex !== index));
+                }}
+              >
+                Remover
+              </Button>
             </div>
           </div>
         ))}
@@ -795,26 +821,32 @@ function ActivityHistoryEditor({
         {items.map((item, index) => (
           <div key={item.id || index} className="grid gap-3 rounded-md border border-border bg-muted/20 p-3 md:grid-cols-2">
             <Input label="Descrição" value={item.description || ''} onChange={(event) => updateItem(index, { description: event.target.value })} />
-            <div>
-              <label className="mb-1 block text-sm font-medium text-foreground">Tipo</label>
-              <select
-                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                value={item.activityType || 'other'}
-                onChange={(event) => updateItem(index, { activityType: event.target.value as ProntuarioActivityHistory['activityType'] })}
-              >
-                <option value="running">Corrida</option>
-                <option value="strength">Força</option>
-                <option value="mobility">Mobilidade</option>
-                <option value="sport">Esporte</option>
-                <option value="occupational">Ocupacional</option>
-                <option value="other">Outro</option>
-              </select>
-            </div>
+            <Select
+              label="Tipo"
+              value={item.activityType || 'other'}
+              onChange={(event) => updateItem(index, { activityType: event.target.value as ProntuarioActivityHistory['activityType'] })}
+            >
+              <option value="running">Corrida</option>
+              <option value="strength">Força</option>
+              <option value="mobility">Mobilidade</option>
+              <option value="sport">Esporte</option>
+              <option value="occupational">Ocupacional</option>
+              <option value="other">Outro</option>
+            </Select>
             <Input label="Frequência" value={item.frequency || ''} onChange={(event) => updateItem(index, { frequency: event.target.value })} />
             <Input label="Duração" value={item.duration || ''} onChange={(event) => updateItem(index, { duration: event.target.value })} />
             <Input label="Intensidade" value={item.intensity || ''} onChange={(event) => updateItem(index, { intensity: event.target.value })} />
             <div className="md:col-span-2">
-              <Button type="button" variant="outline" onClick={() => onChange(items.filter((_, itemIndex) => itemIndex !== index))}>Remover</Button>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={() => {
+                  if (!confirm('Remover este item do histórico de atividades?')) return;
+                  onChange(items.filter((_, itemIndex) => itemIndex !== index));
+                }}
+              >
+                Remover
+              </Button>
             </div>
           </div>
         ))}
@@ -843,26 +875,32 @@ function MedicationsProceduresEditor({
       <CardContent className="space-y-3">
         {items.map((item, index) => (
           <div key={item.id || index} className="grid gap-3 rounded-md border border-border bg-muted/20 p-3 md:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-sm font-medium text-foreground">Tipo</label>
-              <select
-                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                value={item.type || 'medication'}
-                onChange={(event) => updateItem(index, { type: event.target.value as ProntuarioMedicationProcedure['type'] })}
-              >
-                <option value="medication">Medicação</option>
-                <option value="supplement">Suplemento</option>
-                <option value="procedure">Procedimento</option>
-                <option value="exam">Exame</option>
-                <option value="therapy">Terapia</option>
-                <option value="other">Outro</option>
-              </select>
-            </div>
+            <Select
+              label="Tipo"
+              value={item.type || 'medication'}
+              onChange={(event) => updateItem(index, { type: event.target.value as ProntuarioMedicationProcedure['type'] })}
+            >
+              <option value="medication">Medicação</option>
+              <option value="supplement">Suplemento</option>
+              <option value="procedure">Procedimento</option>
+              <option value="exam">Exame</option>
+              <option value="therapy">Terapia</option>
+              <option value="other">Outro</option>
+            </Select>
             <Input label="Nome" value={item.name || ''} onChange={(event) => updateItem(index, { name: event.target.value })} />
             <Input label="Dosagem" value={item.dosage || ''} onChange={(event) => updateItem(index, { dosage: event.target.value })} />
             <Input label="Frequência" value={item.frequency || ''} onChange={(event) => updateItem(index, { frequency: event.target.value })} />
             <div className="md:col-span-2">
-              <Button type="button" variant="outline" onClick={() => onChange(items.filter((_, itemIndex) => itemIndex !== index))}>Remover</Button>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={() => {
+                  if (!confirm('Remover esta medicação/procedimento?')) return;
+                  onChange(items.filter((_, itemIndex) => itemIndex !== index));
+                }}
+              >
+                Remover
+              </Button>
             </div>
           </div>
         ))}
@@ -898,7 +936,16 @@ function PainCasesEditor({
               <textarea className="min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm" placeholder="Descrição" value={item.description || ''} onChange={(event) => updateItem(index, { description: event.target.value })} />
             </div>
             <div className="md:col-span-2">
-              <Button type="button" variant="outline" onClick={() => onChange(items.filter((_, itemIndex) => itemIndex !== index))}>Remover</Button>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={() => {
+                  if (!confirm('Remover este caso de dor? O histórico de acompanhamento associado será perdido.')) return;
+                  onChange(items.filter((_, itemIndex) => itemIndex !== index));
+                }}
+              >
+                Remover
+              </Button>
             </div>
           </div>
         ))}
