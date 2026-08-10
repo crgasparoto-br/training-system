@@ -338,7 +338,13 @@ async function verifyDarkLoginContrast(browser) {
     const contrast = await page.evaluate(() => {
       const link = document.querySelector('a.text-primary');
       if (!link) return null;
-      const parse = (value) => (value.match(/[\d.]+/g) || []).slice(0, 3).map(Number);
+      const parseColor = (value) => {
+        const channels = (value.match(/[\d.]+/g) || []).map(Number);
+        return {
+          rgb: channels.slice(0, 3),
+          alpha: channels.length > 3 ? channels[3] : 1,
+        };
+      };
       const luminance = (rgb) => {
         const values = rgb.map((channel) => {
           const normalized = channel / 255;
@@ -346,8 +352,16 @@ async function verifyDarkLoginContrast(browser) {
         });
         return 0.2126 * values[0] + 0.7152 * values[1] + 0.0722 * values[2];
       };
-      const foreground = parse(getComputedStyle(link).color);
-      const background = parse(getComputedStyle(document.body).backgroundColor);
+      const foreground = parseColor(getComputedStyle(link).color).rgb;
+      let background = null;
+      for (let node = link.parentElement; node; node = node.parentElement) {
+        const parsed = parseColor(getComputedStyle(node).backgroundColor);
+        if (parsed.rgb.length === 3 && parsed.alpha >= 0.99) {
+          background = parsed.rgb;
+          break;
+        }
+      }
+      if (!background) background = parseColor(getComputedStyle(document.body).backgroundColor).rgb;
       const l1 = luminance(foreground);
       const l2 = luminance(background);
       return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
@@ -386,7 +400,7 @@ async function main() {
         keyboard: 'Accordion sections and historical details are activated from focused controls with Enter.',
         accessibility: 'axe-core WCAG A/AA scans plus Chromium ARIA snapshots are produced for each state.',
         textZoom: 'Root font-size is doubled in a 1366x768 viewport and checked for horizontal overflow and axe violations.',
-        darkMode: 'The login text-primary link is checked in dark mode with an explicit contrast ratio >= 4.5 plus axe.',
+        darkMode: 'The login text-primary link is checked in dark mode against its nearest opaque rendered surface with an explicit contrast ratio >= 4.5 plus axe.',
         warningVsCritical: 'Text labels and computed background/border styles are asserted as distinct.',
         history: 'A historical version is opened by keyboard and its read-only copy is asserted.',
         concurrency: 'HTTP 409 is injected at the API boundary and local textarea content must remain intact.',
