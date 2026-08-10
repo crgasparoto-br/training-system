@@ -56,8 +56,8 @@ Entregar o fluxo web do professor para montar, revisar e aprovar a Montagem Cons
 - [x] Construir `@corrida/types` e `@corrida/utils` antes de iniciar a API real do harness, evitando import runtime sem `dist/`.
 - [x] Fazer o workflow de evidência observar mudanças em `apps/api/**`, `packages/types/**`, `packages/utils/**`, nos três scripts do harness e no lockfile.
 - [x] Corrigir documentação para distinguir contrato do gate de evidência efetivamente concluída no SHA candidato.
-- [ ] Executar os gates do novo SHA em ambiente com checkout/dependências.
-- [ ] Realizar nova auditoria independente em contexto separado após congelar o novo candidato.
+- [ ] Aguardar conclusão dos gates automáticos do SHA final sem rerun ou polling ativo.
+- [ ] Realizar nova auditoria independente em contexto separado após os gates do SHA final.
 
 ## Validação esperada
 
@@ -90,4 +90,4 @@ Os controles discriminantes obrigatórios desta rodada são:
 
 ## Estado para freeze
 
-O candidato só pode ser declarado internamente aprovado após os gates executáveis do novo SHA. Com esses gates verdes, a pendência de implementação/evidência da #318 fica encerrada nesta entrega, restando apenas a auditoria independente em contexto separado; a PR não deve ser mergeada pelo controlador de entrega.
+O candidato só pode ser declarado internamente aprovado após os gates executáveis do SHA final. Com esses gates verdes, a pendência de implementação/evidência da #318 fica encerrada nesta entrega, restando apenas a auditoria independente em contexto separado; a PR não deve ser mergeada pelo controlador de entrega.
