@@ -365,7 +365,7 @@ describe('ConsolidatedPrescription', () => {
     await user.click(screen.getByRole('button', { name: '7. Revisão e validação final' }));
 
     expect(screen.queryByRole('button', { name: 'Desbloquear para revisão' })).not.toBeInTheDocument();
-    expect(screen.getByText(/permanece bloqueada enquanto a API reportar conflito crítico/i)).toBeInTheDocument();
+    expect(screen.getByText(/O desbloqueio só aparece após reavaliação favorável do servidor/i)).toBeInTheDocument();
   });
 
   it('mostra o status real da prescricao quando a raiz esta inativa mas a ultima versao esta ativa', async () => {
