@@ -50,7 +50,7 @@ type RouteState = {
   from?: 'student-central';
 };
 
-type MutationAction = 'save' | 'review' | 'approve' | 'recalculate' | 'revision' | null;
+type MutationAction = 'save' | 'review' | 'approve' | 'recalculate' | 'unblock' | 'revision' | null;
 
 const CAPACITY_ORDER: PhysicalCapacityType[] = ['resisted', 'flexibility', 'cyclic', 'balance'];
 
@@ -129,8 +129,11 @@ function getCapacityCandidateReason(prescription?: CapacityPrescriptionView) {
   if (!prescription.latestVersion) {
     return 'A API não retornou uma versão vigente para esta capacidade.';
   }
-  if (prescription.status !== 'active' || prescription.latestVersion.status !== 'active') {
-    return `Status retornado pela API: ${prescription.latestVersion.status}. A montagem desta fase aceita somente versões ativas e o backend revalida essa condição ao salvar.`;
+  if (prescription.status !== 'active') {
+    return `Status da prescrição retornado pela API: ${prescription.status}. A montagem desta fase aceita somente prescrições ativas e o backend revalida essa condição ao salvar.`;
+  }
+  if (prescription.latestVersion.status !== 'active') {
+    return `Status da versão vigente retornado pela API: ${prescription.latestVersion.status}. A montagem desta fase aceita somente versões ativas e o backend revalida essa condição ao salvar.`;
   }
   if (prescription.latestVersion.version !== prescription.currentVersion) {
     return 'A versão pública carregada não corresponde à versão corrente. Recarregue os dados antes de montar.';
@@ -271,6 +274,14 @@ export function ConsolidatedPrescription() {
     new Set(selectedCapacityTypes).size === CAPACITY_ORDER.length;
   const hasCriticalConflict = conflictReport?.hasCritical || currentVersion?.conflicts.some((item) => item.severity === 'critical') || false;
   const conflicts = conflictReport?.conflicts ?? currentVersion?.conflicts ?? [];
+  const canUnblock =
+    canManage &&
+    currentStatus === 'blocked' &&
+    !dirty &&
+    conflictReport?.status === 'blocked' &&
+    conflictReport.version === assembly?.currentVersion &&
+    conflictReport.canUnblock === true &&
+    !hasCriticalConflict;
 
   const hydrateForm = (nextAssembly: ConsolidatedPrescriptionAssembly | null) => {
     const version = nextAssembly?.latestVersion;
@@ -402,6 +413,7 @@ export function ConsolidatedPrescription() {
   };
 
   const handleMutationFailure = (error: unknown, fallback: string) => {
+    setSuccessMessage(null);
     if (isConflictError(error)) {
       setConcurrencyConflict(
         'Outra versão foi salva no servidor enquanto esta tela estava aberta. Suas alterações locais foram preservadas. Recarregue explicitamente para reconciliar antes de tentar gravar novamente.'
@@ -414,10 +426,12 @@ export function ConsolidatedPrescription() {
   const handleSave = async () => {
     if (!alunoId || !canEditComposition) return;
     if (!hasAllCapacities) {
+      setSuccessMessage(null);
       setMutationError('A montagem exige uma versão de Resistido, Flexibilidade, Cíclico e Equilíbrio. Corrija as capacidades indisponíveis antes de salvar.');
       return;
     }
     if (!professorJustification.trim()) {
+      setSuccessMessage(null);
       setMutationError('Informe a justificativa profissional da montagem antes de salvar.');
       return;
     }
@@ -435,6 +449,7 @@ export function ConsolidatedPrescription() {
     setMutationAction('save');
     setMutationError(null);
     setConcurrencyConflict(null);
+    setSuccessMessage(null);
     try {
       const saved = assembly
         ? await consolidatedPrescriptionService.updateComposition(alunoId, {
@@ -442,7 +457,12 @@ export function ConsolidatedPrescription() {
             expectedCurrentVersion: assembly.currentVersion,
           })
         : await consolidatedPrescriptionService.createDraft(alunoId, payload);
-      await applyServerAssembly(saved, assembly ? 'Rascunho atualizado e versionado pelo servidor.' : 'Rascunho criado pelo servidor.');
+      const message = !assembly
+        ? 'Rascunho criado pelo servidor.'
+        : saved.latestVersion.status === 'blocked'
+          ? 'Correções salvas pelo servidor. A montagem permanece bloqueada até o desbloqueio explícito após a reavaliação.'
+          : 'Rascunho atualizado e versionado pelo servidor.';
+      await applyServerAssembly(saved, message);
     } catch (error) {
       handleMutationFailure(error, 'Não foi possível salvar a montagem. As alterações locais foram mantidas.');
     } finally {
@@ -454,6 +474,7 @@ export function ConsolidatedPrescription() {
     if (!alunoId || !assembly || currentStatus !== 'draft' || dirty || !canManage) return;
     setMutationAction('review');
     setMutationError(null);
+    setSuccessMessage(null);
     try {
       const result = await consolidatedPrescriptionService.sendForReview(alunoId, {
         expectedCurrentVersion: assembly.currentVersion,
@@ -475,6 +496,7 @@ export function ConsolidatedPrescription() {
     if (!alunoId || !assembly || currentStatus !== 'ready_for_review' || dirty || !canApprove) return;
     setMutationAction('approve');
     setMutationError(null);
+    setSuccessMessage(null);
     try {
       const result = await consolidatedPrescriptionService.approve(alunoId, {
         expectedCurrentVersion: assembly.currentVersion,
@@ -496,6 +518,7 @@ export function ConsolidatedPrescription() {
     if (!alunoId || !assembly || !canManage || dirty) return;
     setMutationAction('recalculate');
     setMutationError(null);
+    setSuccessMessage(null);
     try {
       const result = await consolidatedPrescriptionService.recalculateConflicts(alunoId, {
         expectedCurrentVersion: assembly.currentVersion,
@@ -509,10 +532,30 @@ export function ConsolidatedPrescription() {
     }
   };
 
+  const handleUnblock = async () => {
+    if (!alunoId || !assembly || !canUnblock) return;
+    setMutationAction('unblock');
+    setMutationError(null);
+    setSuccessMessage(null);
+    try {
+      const result = await consolidatedPrescriptionService.unblock(alunoId, {
+        expectedCurrentVersion: assembly.currentVersion,
+        targetStatus: 'ready_for_review',
+        reason: 'Conflitos críticos resolvidos e reavaliados na interface da Montagem Consolidada.',
+      });
+      await applyServerAssembly(result, 'Montagem desbloqueada e enviada para revisão pelo servidor.');
+    } catch (error) {
+      handleMutationFailure(error, 'Não foi possível desbloquear a montagem. Reavalie os conflitos e tente novamente.');
+    } finally {
+      setMutationAction(null);
+    }
+  };
+
   const handleCreateRevision = async () => {
     if (!alunoId || !assembly || currentStatus !== 'approved' || !canManage) return;
     setMutationAction('revision');
     setMutationError(null);
+    setSuccessMessage(null);
     try {
       const result = await consolidatedPrescriptionService.createRevision(alunoId, {
         expectedCurrentVersion: assembly.currentVersion,
@@ -833,6 +876,15 @@ export function ConsolidatedPrescription() {
                 {dirty && assembly && canManage && (
                   <p className="mb-4 text-xs text-amber-700">Salve as alterações locais antes de pedir nova reavaliação ao servidor.</p>
                 )}
+                {currentStatus === 'blocked' && canManage && !dirty && canUnblock && (
+                  <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50/70 p-4 text-sm text-emerald-900" role="status" aria-live="polite">
+                    <p className="font-semibold">Remediação validada pelo servidor</p>
+                    <p className="mt-1">A reavaliação não encontrou conflito crítico. O desbloqueio continua explícito e está disponível na revisão final.</p>
+                  </div>
+                )}
+                {currentStatus === 'blocked' && canManage && !dirty && !canUnblock && (
+                  <p className="mb-4 text-xs text-red-700">A montagem permanece bloqueada enquanto a API reportar conflito crítico. Corrija a origem, salve e reavalie antes do desbloqueio.</p>
+                )}
                 <ConflictList conflicts={conflicts} />
                 {conflictReport?.unavailableChecks.length ? (
                   <div className="mt-4 space-y-2">
@@ -1009,6 +1061,19 @@ export function ConsolidatedPrescription() {
                       Enviar para revisão
                     </Button>
                   )}
+                  {canUnblock && (
+                    <Button
+                      type="button"
+                      variant="success"
+                      onClick={handleUnblock}
+                      isLoading={mutationAction === 'unblock'}
+                      loadingText="Desbloqueando..."
+                      className="w-full sm:w-auto"
+                    >
+                      <CheckCircle2 size={16} />
+                      Desbloquear para revisão
+                    </Button>
+                  )}
                   {canApprove && currentStatus === 'ready_for_review' && (
                     <Button
                       type="button"
@@ -1040,6 +1105,15 @@ export function ConsolidatedPrescription() {
 
                 {dirty && currentStatus === 'draft' && (
                   <p className="mt-3 text-xs text-amber-700">Salve o rascunho antes de enviar para revisão.</p>
+                )}
+                {dirty && currentStatus === 'blocked' && (
+                  <p className="mt-3 text-xs text-amber-700">Salve a correção e reavalie os conflitos antes de solicitar o desbloqueio.</p>
+                )}
+                {currentStatus === 'blocked' && !dirty && canManage && !canUnblock && (
+                  <p className="mt-3 text-xs text-red-700">A montagem permanece bloqueada enquanto a API reportar conflito crítico. O desbloqueio só aparece após reavaliação favorável do servidor.</p>
+                )}
+                {currentStatus === 'blocked' && !canManage && (
+                  <p className="mt-3 text-xs text-muted-foreground">Seu perfil pode consultar o bloqueio, mas não possui permissão para corrigir ou desbloquear esta montagem.</p>
                 )}
                 {currentStatus === 'ready_for_review' && !canApprove && (
                   <p className="mt-3 text-xs text-muted-foreground">Seu perfil pode consultar esta revisão, mas não possui o bloco de aprovação.</p>

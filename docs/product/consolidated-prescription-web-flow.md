@@ -19,7 +19,7 @@ A Central do Aluno oferece um ponto de entrada contextual quando o usuário poss
 A interface usa os mesmos blocos introduzidos no backend:
 
 - `plans.consolidatedPrescriptions.view`: consultar a montagem e seu histórico;
-- `plans.consolidatedPrescriptions.manage`: criar/editar rascunho, enviar para revisão, recalcular conflitos e iniciar nova revisão quando permitido pelo estado;
+- `plans.consolidatedPrescriptions.manage`: criar/editar rascunho, enviar para revisão, recalcular conflitos, desbloquear explicitamente uma montagem remediada e iniciar nova revisão quando permitido pelo estado;
 - `plans.consolidatedPrescriptions.approve`: aprovar uma montagem pronta para revisão.
 
 Ocultar controles no frontend melhora a experiência, mas não é barreira de segurança. A API continua revalidando autenticação, `contractId`, `dataScope`, aluno acessível, estado, versão e bloco da operação.
@@ -49,7 +49,8 @@ Nesta fase a Montagem Consolidada recebe blocos de capacidade e não possui cont
 - a ordem dos quatro blocos pode ser alterada com controles acessíveis por teclado;
 - exercícios, séries, repetições, métodos e outros itens permanecem dentro das prescrições de capacidade e do fluxo específico de treino;
 - a interface não cria um editor paralelo do Workout Builder;
-- a montagem exige uma versão para cada capacidade canônica antes de salvar.
+- a montagem exige uma versão para cada capacidade canônica antes de salvar;
+- indisponibilidade diferencia o status do agregado de prescrição do status da versão vigente, evitando informar uma versão `active` como motivo quando a própria prescrição está suspensa/inativa.
 
 ## Alertas e conflitos
 
@@ -77,7 +78,11 @@ A composição fica somente leitura. O usuário com `approve` pode aprovar quand
 
 ### Bloqueada
 
-A composição pode receber correções quando `manage` permite. A reavaliação dos conflitos é uma ação explícita do servidor. A interface não desbloqueia nem promove estado por inferência local.
+Com `manage`, a composição pode receber correções, mas o salvamento permanece em `blocked`, conforme o contrato da API. Depois da correção, o professor executa a reavaliação explícita de conflitos no servidor.
+
+O desbloqueio também é explícito. A interface só oferece **Desbloquear para revisão** quando o relatório de conflitos corresponde exatamente à versão corrente, está em `blocked`, informa `canUnblock=true`, não contém `critical` e não há edição local pendente. A ação chama o endpoint autoritativo `/unblock` com destino `ready_for_review`; a UI não promove o estado por inferência ou atualização otimista.
+
+Se a API mantiver conflito crítico, se o relatório estiver defasado ou se houver alterações locais não salvas, o controle de desbloqueio permanece indisponível e a tela orienta corrigir, salvar e reavaliar.
 
 ### Aprovada
 
@@ -99,7 +104,7 @@ Quando a API responde `409`:
 - recarregar do servidor é uma ação deliberada;
 - se houver edição local, a tela pede confirmação antes de substituí-la.
 
-Falhas parciais no carregamento das prescrições por capacidade não apagam a montagem já carregada. Falhas de salvamento também preservam o conteúdo local quando seguro.
+Falhas parciais no carregamento das prescrições por capacidade não apagam a montagem já carregada. Falhas de salvamento também preservam o conteúdo local quando seguro. Uma nova tentativa de mutação limpa mensagens de sucesso anteriores para não apresentar sucesso e erro simultaneamente.
 
 ## Histórico
 
@@ -114,7 +119,7 @@ Nenhuma versão histórica pode ser editada pela tela.
 
 ## Acessibilidade e responsividade
 
-A implementação reutiliza `Button`, `Card`, `Accordion`, tokens Tailwind e utilitários `ts-*` existentes. Os controles de ordenação possuem nome acessível, estados de erro/sucesso usam regiões de anúncio, e a composição reorganiza ações e cartões para mobile sem depender apenas de cor para transmitir severidade.
+A implementação reutiliza `Button`, `Card`, `Accordion`, tokens Tailwind e utilitários `ts-*` existentes. Os controles de ordenação possuem nome acessível, estados de erro/sucesso usam regiões de anúncio, warning e blocker possuem rótulos textuais além da cor, e a composição reorganiza ações e cartões para mobile.
 
 A validação visual deve cobrir, no mínimo:
 
@@ -122,6 +127,8 @@ A validação visual deve cobrir, no mínimo:
 - desktop com baixa altura;
 - mobile;
 - navegação por teclado nos colapses, campos e ações principais.
+
+A suíte de componente cobre controles de permissão, semântica distinta de `warning`/`critical`, estado bloqueado com e sem `canUnblock`, concorrência `409` e motivos de capacidade inelegível. Essa cobertura não substitui a evidência visual/manual em navegador real.
 
 ## Fora de escopo
 

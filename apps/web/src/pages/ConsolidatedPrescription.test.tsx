@@ -12,8 +12,12 @@ import { alunoService } from '../services/aluno.service';
 import { consolidatedPrescriptionService } from '../services/consolidated-prescription.service';
 import { ConsolidatedPrescription } from './ConsolidatedPrescription';
 
+const accessState = vi.hoisted(() => ({
+  allowed: new Set<string>(),
+}));
+
 vi.mock('../access/access-control', () => ({
-  canAccessBlock: () => true,
+  canAccessBlock: (_user: unknown, blockKey: string) => accessState.allowed.has(blockKey),
 }));
 
 vi.mock('../stores/useAuthStore', () => ({
@@ -37,6 +41,7 @@ vi.mock('../services/consolidated-prescription.service', () => ({
     recalculateConflicts: vi.fn(),
     sendForReview: vi.fn(),
     approve: vi.fn(),
+    unblock: vi.fn(),
     createRevision: vi.fn(),
   },
 }));
@@ -158,7 +163,7 @@ const conflictReport: ConsolidatedPrescriptionConflictReport = {
   status: 'draft',
   conflicts: [
     {
-      code: 'review-info',
+      code: 'review-warning',
       message: 'Revisar origem antes do envio.',
       severity: 'warning',
       affectedCapacities: ['resisted'],
@@ -192,6 +197,11 @@ function renderPage() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  accessState.allowed = new Set([
+    'plans.consolidatedPrescriptions.view',
+    'plans.consolidatedPrescriptions.manage',
+    'plans.consolidatedPrescriptions.approve',
+  ]);
   vi.mocked(alunoService.getById).mockResolvedValue(aluno);
   vi.mocked(consolidatedPrescriptionService.listCapacities).mockResolvedValue(capacities);
   vi.mocked(consolidatedPrescriptionService.getConflicts).mockResolvedValue(conflictReport);
@@ -289,5 +299,152 @@ describe('ConsolidatedPrescription', () => {
     expect(screen.getByLabelText('Observação técnica interna')).toHaveValue(
       'Alteração local que deve permanecer'
     );
+  });
+
+  it('desbloqueia explicitamente uma montagem somente depois que a API confirma canUnblock', async () => {
+    const user = userEvent.setup();
+    const blocked = assemblyFixture('blocked', 3);
+    const ready = assemblyFixture('ready_for_review', 4);
+    vi.mocked(consolidatedPrescriptionService.getCurrent).mockResolvedValue(blocked);
+    vi.mocked(consolidatedPrescriptionService.getConflicts)
+      .mockResolvedValueOnce({
+        ...conflictReport,
+        version: 3,
+        status: 'blocked',
+        conflicts: [],
+        hasCritical: false,
+        canUnblock: true,
+      })
+      .mockResolvedValue({
+        ...conflictReport,
+        version: 4,
+        status: 'ready_for_review',
+        conflicts: [],
+        hasCritical: false,
+        canUnblock: false,
+      });
+    vi.mocked(consolidatedPrescriptionService.unblock).mockResolvedValue(ready);
+
+    renderPage();
+    expect(await screen.findByText('Bloqueada')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '7. Revisão e validação final' }));
+    await user.click(screen.getByRole('button', { name: 'Desbloquear para revisão' }));
+
+    expect(consolidatedPrescriptionService.unblock).toHaveBeenCalledWith('aluno-1', {
+      expectedCurrentVersion: 3,
+      targetStatus: 'ready_for_review',
+      reason: 'Conflitos críticos resolvidos e reavaliados na interface da Montagem Consolidada.',
+    });
+    expect(await screen.findByText('Pronta para revisão')).toBeInTheDocument();
+    expect(screen.getByText('Montagem desbloqueada e enviada para revisão pelo servidor.')).toBeInTheDocument();
+  });
+
+  it('nao oferece desbloqueio enquanto a API mantem conflito critical', async () => {
+    const user = userEvent.setup();
+    vi.mocked(consolidatedPrescriptionService.getCurrent).mockResolvedValue(assemblyFixture('blocked', 3));
+    vi.mocked(consolidatedPrescriptionService.getConflicts).mockResolvedValue({
+      version: 3,
+      status: 'blocked',
+      conflicts: [
+        {
+          code: 'critical-1',
+          message: 'Restrição estruturada ainda ativa.',
+          severity: 'critical',
+          affectedCapacities: ['resisted'],
+          sourceRefIds: [],
+        },
+      ],
+      hasCritical: true,
+      canUnblock: false,
+      unavailableChecks: [],
+    });
+
+    renderPage();
+    await screen.findByText('Bloqueada');
+    await user.click(screen.getByRole('button', { name: '7. Revisão e validação final' }));
+
+    expect(screen.queryByRole('button', { name: 'Desbloquear para revisão' })).not.toBeInTheDocument();
+    expect(screen.getByText(/permanece bloqueada enquanto a API reportar conflito crítico/i)).toBeInTheDocument();
+  });
+
+  it('mostra o status real da prescricao quando a raiz esta inativa mas a ultima versao esta ativa', async () => {
+    const user = userEvent.setup();
+    const suspendedCapacities = capacities.map((prescription) =>
+      prescription.capacity === 'resisted' ? { ...prescription, status: 'suspended' as const } : prescription
+    );
+    vi.mocked(consolidatedPrescriptionService.getCurrent).mockResolvedValue(null);
+    vi.mocked(consolidatedPrescriptionService.listCapacities).mockResolvedValue(suspendedCapacities);
+
+    renderPage();
+    await screen.findByText('Ainda não criada');
+    await user.click(screen.getByRole('button', { name: '2. Capacidades recebidas' }));
+
+    expect(
+      screen.getByText(/Status da prescrição retornado pela API: suspended/i)
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Status retornado pela API: active/i)).not.toBeInTheDocument();
+  });
+
+  it('oculta controles de gestao para perfil somente leitura', async () => {
+    const user = userEvent.setup();
+    accessState.allowed = new Set(['plans.consolidatedPrescriptions.view']);
+    vi.mocked(consolidatedPrescriptionService.getCurrent).mockResolvedValue(assemblyFixture('draft', 3));
+
+    renderPage();
+    await screen.findByText('Rascunho');
+
+    await user.click(screen.getByRole('button', { name: '4. Alertas e conflitos' }));
+    expect(screen.queryByRole('button', { name: 'Reavaliar conflitos' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '5. Composição e ordem técnica' }));
+    expect(screen.getByLabelText('Observação técnica interna')).toHaveAttribute('readonly');
+
+    await user.click(screen.getByRole('button', { name: '7. Revisão e validação final' }));
+    expect(screen.queryByRole('button', { name: 'Salvar rascunho' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Enviar para revisão' })).not.toBeInTheDocument();
+  });
+
+  it('mantem aprovacao separada de manage e diferencia warning de blocker sem depender apenas de cor', async () => {
+    const user = userEvent.setup();
+    accessState.allowed = new Set([
+      'plans.consolidatedPrescriptions.view',
+      'plans.consolidatedPrescriptions.manage',
+    ]);
+    vi.mocked(consolidatedPrescriptionService.getCurrent).mockResolvedValue(assemblyFixture('ready_for_review', 4));
+    vi.mocked(consolidatedPrescriptionService.getConflicts).mockResolvedValue({
+      version: 4,
+      status: 'ready_for_review',
+      conflicts: [
+        {
+          code: 'warning-1',
+          message: 'Atenção estruturada.',
+          severity: 'warning',
+          affectedCapacities: ['balance'],
+          sourceRefIds: [],
+        },
+        {
+          code: 'critical-1',
+          message: 'Bloqueio estruturado.',
+          severity: 'critical',
+          affectedCapacities: ['resisted'],
+          sourceRefIds: [],
+        },
+      ],
+      hasCritical: true,
+      canUnblock: false,
+      unavailableChecks: [],
+    });
+
+    renderPage();
+    await screen.findByText('Pronta para revisão');
+
+    await user.click(screen.getByRole('button', { name: '4. Alertas e conflitos' }));
+    expect(screen.getByText('Atenção')).toBeInTheDocument();
+    expect(screen.getByText('Bloqueador crítico')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: '7. Revisão e validação final' }));
+    expect(screen.queryByRole('button', { name: 'Aprovar montagem' })).not.toBeInTheDocument();
+    expect(screen.getByText(/não possui o bloco de aprovação/i)).toBeInTheDocument();
   });
 });

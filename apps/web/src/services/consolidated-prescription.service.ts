@@ -6,6 +6,7 @@ import type {
   ConsolidatedPrescriptionVersionCommand,
   CreateConsolidatedPrescriptionDraftPayload,
   CreateConsolidatedPrescriptionRevisionCommand,
+  UnblockConsolidatedPrescriptionCommand,
   UpdateConsolidatedPrescriptionCompositionPayload,
 } from '@corrida/types';
 import api from './api';
@@ -101,6 +102,17 @@ export const consolidatedPrescriptionService = {
     command: ConsolidatedPrescriptionVersionCommand
   ): Promise<ConsolidatedPrescriptionAssembly> {
     return postVersionCommand(alunoId, 'approve', command);
+  },
+
+  async unblock(
+    alunoId: string,
+    command: UnblockConsolidatedPrescriptionCommand
+  ): Promise<ConsolidatedPrescriptionAssembly> {
+    const response = await api.post<ApiEnvelope<ConsolidatedPrescriptionAssembly>>(
+      `/consolidated-prescriptions/alunos/${alunoId}/unblock`,
+      command
+    );
+    return response.data.data;
   },
 
   async createRevision(
