@@ -13,6 +13,13 @@ export const professorService = {
     return response.data.data;
   },
 
+  async get(id: string): Promise<ProfessorSummary> {
+    const response = await api.get<{ success: boolean; data: ProfessorSummary }>(
+      `/professores/${id}`
+    );
+    return response.data.data;
+  },
+
   async create(data: CreateProfessorRequest): Promise<ProfessorSummary> {
     const response = await api.post<{ success: boolean; data: ProfessorSummary }>('/professores', data);
     return response.data.data;
@@ -46,23 +53,6 @@ export const professorService = {
     return response.data.data.url;
   },
 
-  async uploadSignedContract(file: File): Promise<string> {
-    const formData = new FormData();
-    formData.append('file', file);
-
-    const response = await api.post<{ success: boolean; data: { url: string } }>(
-      '/professores/signed-contract-upload',
-      formData,
-      {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      }
-    );
-
-    return response.data.data.url;
-  },
-
   async deactivate(id: string): Promise<void> {
     await api.post(`/professores/${id}/deactivate`);
   },
@@ -85,4 +75,3 @@ export const professorService = {
     return response.data.data;
   },
 };
-

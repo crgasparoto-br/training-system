@@ -24,15 +24,21 @@ Codigo, migrations e testes definem o comportamento efetivamente entregue. Plani
 - [`architecture/api.md`](architecture/api.md): padroes da API.
 - [`architecture/web.md`](architecture/web.md): padroes do frontend web.
 - [`architecture/database.md`](architecture/database.md): banco, Prisma e multi-tenant.
+- [`database/consolidated-prescription.md`](database/consolidated-prescription.md): persistência, histórico, concorrência e isolamento da Montagem Consolidada.
 - [`architecture/auth-and-access-control.md`](architecture/auth-and-access-control.md): autenticacao, autorizacao e escopo de dados.
 - [`architecture/deployment.md`](architecture/deployment.md): deploy, ambientes e variaveis.
+- [`architecture/pre-registration-api.md`](architecture/pre-registration-api.md): fronteiras HTTP, autenticacao, erros, concorrencia e telemetria da pre-matricula.
+- [`architecture/pre-registration-enrollment.md`](architecture/pre-registration-enrollment.md): deduplicacao, revisao versionada, consolidacao e ativacao da pre-matricula.
 - [`quality/validation.md`](quality/validation.md): comandos e criterios de validacao.
+- [`quality/issue-274-visual-contract.md`](quality/issue-274-visual-contract.md): contrato permanente de evidencia visual e acessibilidade da revisao de pre-matricula.
 
 ### Produto
 
 - [`product/roadmap.md`](product/roadmap.md): roadmap canonico, estado funcional e prioridades do Sistema ACESSO.
 - [`product/access-control.md`](product/access-control.md): regras de produto para controle de acesso.
 - [`product/integrated-prescription-control.md`](product/integrated-prescription-control.md): fluxo PRNT/Avaliacao -> Prescricao -> Montagem -> Treino -> Feedback.
+- [`product/capacity-prescription-model.md`](product/capacity-prescription-model.md): persistência, API, versionamento e parâmetros da prescrição por capacidades.
+- [`product/consolidated-prescription-model.md`](product/consolidated-prescription-model.md): agregado, versionamento, estados, referências e contratos da Montagem Consolidada.
 - [`product/student-centered-training-experience.md`](product/student-centered-training-experience.md): experiencia de corrida, musculacao e treino combinado centrada no aluno.
 - [`product/future-evolution-roadmap.md`](product/future-evolution-roadmap.md): recorte complementar da issue #139, subordinado ao roadmap canonico e preservado ate seus itens virarem issues especificas.
 - [`product/navigation-information-architecture.md`](product/navigation-information-architecture.md): navegacao por hubs, Aluno 360 e rollout.
@@ -40,12 +46,27 @@ Codigo, migrations e testes definem o comportamento efetivamente entregue. Plani
 - [`product/student-central-action-patterns.md`](product/student-central-action-patterns.md): padrao de pop-up, painel lateral e fluxo guiado.
 - [`product/student-central-domain-matrix.md`](product/student-central-domain-matrix.md): fronteira entre Central do Aluno, administracao geral e dominios hibridos.
 - [`product/prnt-discomfort-followup-flow.md`](product/prnt-discomfort-followup-flow.md): fluxo implementado de desconfortos e acompanhamentos do PRNT.
+- [`product/pre-registration.md`](product/pre-registration.md): ciclo unico de lead, convite, preenchimento, revisao e ativacao no mesmo aluno.
+- [`product/pre-registration-health-intake.md`](product/pre-registration-health-intake.md): Anamnese Inicial canônica, opcional, autenticada e retomável.
+- [`product/pre-registration-parq.md`](product/pre-registration-parq.md): PAR-Q canônico, versionado, retomável e integrado à análise profissional.
+- [`product/pre-registration-enrollment-conversion.md`](product/pre-registration-enrollment-conversion.md): regras permanentes de deduplicacao, decisao administrativa e conversao no mesmo registro.
+- [`product/adipometry-protocol.md`](product/adipometry-protocol.md): protocolos, disponibilidade clínica, histórico e política de correção ADPT.
+- [`product/adipometry-api.md`](product/adipometry-api.md): contrato operacional, autorização, cálculo, conclusão, correção e erros da API ADPT.
+- [`product/adipometry-web.md`](product/adipometry-web.md): fluxo guiado, ajuda técnica, estados e integração da interface ADPT.
+- [`product/adipometry-professional-actor.md`](product/adipometry-professional-actor.md): separação entre autorização do ator e elegibilidade do responsável clínico ADPT.
 
 ### Operacao e documentos complementares
 
 - [`operations/api-scripts.md`](operations/api-scripts.md): scripts oficiais de manutencao da API.
 - [`operations/services-commercial-catalog-rollout.md`](operations/services-commercial-catalog-rollout.md): rollout do catalogo comercial.
 - [`operations/student-financial-service-and-contract-history.md`](operations/student-financial-service-and-contract-history.md): autoridade, vigencia e historico contratual do aluno.
+- [`operations/health-intake-cutover.md`](operations/health-intake-cutover.md): backfill, precedencia, verificacao e rollback do corte da Anamnese.
+- [`operations/parq-cutover.md`](operations/parq-cutover.md): reconciliação, cutover, verificação e rollback do PAR-Q.
+- [`operations/pre-registration-rollout-and-qa.md`](operations/pre-registration-rollout-and-qa.md): QA integrado, privacidade, rollout, observabilidade, go/no-go e rollback da pre-matricula.
+- [`operations/pre-registration-rollout-audience-contract.md`](operations/pre-registration-rollout-audience-contract.md): contrato de mensagens e evidencias discriminantes para as audiencias publica, autenticada e administrativa durante indisponibilidade.
+- [`operations/issue-275-literal-evidence.md`](operations/issue-275-literal-evidence.md): requisitos executáveis para compatibilidade com a web anterior e retomada por autenticação real.
+- [`database/adipometry.md`](database/adipometry.md): persistência, isolamento, concorrência, conclusão e auditoria ADPT.
+- [`database/adipometry-demographic-provenance.md`](database/adipometry-demographic-provenance.md): origem canônica de idade, sexo e maturação usada na conclusão ADPT.
 - [`internal-test-deploy.md`](internal-test-deploy.md): orientacao rapida complementar para testes internos.
 - [`ACCESS_CONTROL.md`](ACCESS_CONTROL.md): exemplos operacionais legados; as regras canonicas permanecem nos documentos de arquitetura e produto de acesso.
 
@@ -66,12 +87,18 @@ Planos ativos relevantes:
 - [`execution-plans/active/2026-06-navigation-information-architecture.md`](execution-plans/active/2026-06-navigation-information-architecture.md)
 - [`execution-plans/active/2026-07-student-central-roadmap.md`](execution-plans/active/2026-07-student-central-roadmap.md)
 - [`execution-plans/active/2026-07-services-commercial-catalog.md`](execution-plans/active/2026-07-services-commercial-catalog.md)
+- [`execution-plans/active/2026-07-issue-272-canonical-health-intake.md`](execution-plans/active/2026-07-issue-272-canonical-health-intake.md)
+- [`execution-plans/active/2026-07-issue-136-capacity-prescription-persistence.md`](execution-plans/active/2026-07-issue-136-capacity-prescription-persistence.md)
+- [`execution-plans/active/2026-07-issue-274-enrollment-conversion.md`](execution-plans/active/2026-07-issue-274-enrollment-conversion.md)
+- [`execution-plans/active/2026-07-issue-275-pre-registration-qa-rollout.md`](execution-plans/active/2026-07-issue-275-pre-registration-qa-rollout.md)
+- [`execution-plans/issue-246-adipometry-foundation.md`](execution-plans/issue-246-adipometry-foundation.md) — fundação estrutural em validação; gate clínico ainda pendente.
 
 Registros concluidos preservados:
 
 - [`execution-plans/completed/2026-05-harness-engineering-foundation.md`](execution-plans/completed/2026-05-harness-engineering-foundation.md)
 - [`execution-plans/completed/2026-07-epic-172-completion-assessment.md`](execution-plans/completed/2026-07-epic-172-completion-assessment.md)
 - [`execution-plans/completed/2026-07-prnt-followup-implementation-plan.md`](execution-plans/completed/2026-07-prnt-followup-implementation-plan.md)
+- [`execution-plans/completed/2026-07-issue-273-canonical-parq.md`](execution-plans/completed/2026-07-issue-273-canonical-parq.md)
 
 ## Regras de manutencao
 

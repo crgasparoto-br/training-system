@@ -2,26 +2,22 @@ import { PrismaClient, type Prisma } from '@prisma/client';
 import bcryptjs from 'bcryptjs';
 import crypto from 'crypto';
 import { assertStudentInterestServiceSelectable } from './aluno.service-selection.js';
+import { legacyDirectActiveStudentCreationFields } from './student-lifecycle.service.js';
+import { upsertStudentIdentity } from './student-identity.service.js';
+import {
+  hasCanonicalHealthIntakeMutation,
+  upsertCanonicalStudentHealthIntake,
+} from './student-health-intake-write.service.js';
 import type { CreateAlunoDTO, UpdateAlunoDTO } from './aluno.service.js';
 import { contractDocumentService } from '../contracts/contract-document.service.js';
 import { loadContractServiceVariableContext } from '../contracts/contract-service-context.js';
 import { parseActiveContractTemplateReference } from '../student-contracts/student-contract-reference.js';
+import { assertNoLegacyParqWrite } from './student-parq-legacy-cutover.js';
 import { prepareOrActivateStudentContractInTransaction } from '../student-contracts/student-contract-lifecycle-transaction.js';
 
 const prisma = new PrismaClient();
 
 type DbClient = Prisma.TransactionClient;
-
-type ParqResponseShape = {
-  q1: boolean;
-  q2: boolean;
-  q3: boolean;
-  q4: boolean;
-  q5: boolean;
-  q6: boolean;
-  q7: boolean;
-  q8: boolean;
-};
 
 export type StudentFinancialContractInput = {
   contractId: string;
@@ -35,16 +31,6 @@ export type StudentFinancialContractInput = {
 export type StudentFinancialContractOperationOptions = {
   professorId: string;
   companyContractId: string;
-};
-
-const PARQ_LABELS: Record<string, string> = {
-  q1: 'Algum médico já disse que você possui problema no coração e recomendou atividade física apenas sob supervisão?',
-  q2: 'Você sente dor no peito causada pela prática de atividade física?',
-  q3: 'Você sentiu dor no peito no último mês?',
-  q4: 'Você perde o equilíbrio por tontura ou já perdeu a consciência?',
-  q5: 'Você tem problema ósseo ou articular que poderia piorar com atividade física?',
-  q6: 'Algum médico prescreveu medicamento para pressão arterial ou condição cardíaca?',
-  q7: 'Você conhece outro motivo para não realizar atividade física?',
 };
 
 const alunoInclude = {
@@ -80,60 +66,6 @@ const studentContractInclude = {
   },
 } satisfies Prisma.StudentContractInclude;
 
-const normalizeParqResponses = (
-  responses?: Partial<ParqResponseShape> | null
-): ParqResponseShape | null => {
-  if (!responses) return null;
-  return {
-    q1: responses.q1 === true,
-    q2: responses.q2 === true,
-    q3: responses.q3 === true,
-    q4: responses.q4 === true,
-    q5: responses.q5 === true,
-    q6: responses.q6 === true,
-    q7: responses.q7 === true,
-    q8: responses.q8 === true,
-  };
-};
-
-const positiveParqItems = (responses: ParqResponseShape) =>
-  Object.entries(PARQ_LABELS)
-    .filter(([key]) => responses[key as keyof ParqResponseShape] === true)
-    .map(([key, label]) => ({ key, label }));
-
-const createParqSubmission = async (
-  tx: DbClient,
-  data: {
-    alunoId: string;
-    contractId: string;
-    responses?: Partial<ParqResponseShape> | null;
-  }
-) => {
-  const normalized = normalizeParqResponses(data.responses);
-  if (!normalized) return;
-
-  await tx.studentParqSubmission.create({
-    data: {
-      alunoId: data.alunoId,
-      contractId: data.contractId,
-      sourceType: 'professional',
-      responses: normalized as Prisma.InputJsonValue,
-      positiveItems: positiveParqItems(normalized) as Prisma.InputJsonValue,
-      declarationAccepted: normalized.q8,
-    },
-  });
-};
-
-const hasParqResponsesChanged = (
-  currentResponses: Partial<ParqResponseShape> | null | undefined,
-  nextResponses?: Partial<ParqResponseShape> | null
-) => {
-  const nextNormalized = normalizeParqResponses(nextResponses);
-  if (!nextNormalized) return false;
-  const currentNormalized = normalizeParqResponses(currentResponses);
-  return !currentNormalized || JSON.stringify(currentNormalized) !== JSON.stringify(nextNormalized);
-};
-
 const hasAnyValue = (payload: Record<string, unknown>) =>
   Object.values(payload).some((value) => {
     if (value === undefined || value === null) return false;
@@ -149,19 +81,10 @@ const hasAnyValue = (payload: Record<string, unknown>) =>
     return true;
   });
 
-const toInputJson = (value?: Record<string, unknown>): Prisma.InputJsonValue | undefined =>
-  value as Prisma.InputJsonValue | undefined;
-
 const asRecord = (value: unknown): Record<string, unknown> | null =>
   value && typeof value === 'object' && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null;
-
-const readPersistedFinancialCurrentService = (formResponses: unknown) => {
-  const financial = asRecord(asRecord(formResponses)?.financial);
-  const currentService = financial?.currentService;
-  return typeof currentService === 'string' ? currentService : undefined;
-};
 
 /**
  * currentService is a denormalized read model. During the atomic mutation the
@@ -255,6 +178,10 @@ const createAlunoRecord = async (
     data: {
       userId: user.id,
       professorId: options.professorId,
+      // Fluxo comercial legado: aluno já nasce ativo, com conta e professor
+      // completos (issue #268 não altera este fluxo).
+      contractId: professor.contractId,
+      ...legacyDirectActiveStudentCreationFields(),
       serviceId,
       schedulePlan: data.schedulePlan,
       age: data.age,
@@ -270,6 +197,24 @@ const createAlunoRecord = async (
     },
   });
 
+  await upsertStudentIdentity(
+    aluno.id,
+    options.companyContractId,
+    {
+      name: data.name,
+      email: data.email,
+      phone: data.phone,
+      birthDate: data.birthDate,
+      gender: data.gender,
+    },
+    {
+      client: tx,
+      sourceType: 'professional',
+      sourceReference: 'financial_contract_create',
+      syncLegacyProfile: true,
+    }
+  );
+
   if (data.macronutrients && hasAnyValue(data.macronutrients)) {
     await tx.macronutrients.create({
       data: {
@@ -282,28 +227,16 @@ const createAlunoRecord = async (
     });
   }
 
-  if (data.intakeForm && hasAnyValue(data.intakeForm)) {
-    await tx.alunoIntakeForm.create({
-      data: {
+  if (data.intakeForm) {
+    if (hasCanonicalHealthIntakeMutation(data.intakeForm)) {
+      await upsertCanonicalStudentHealthIntake(tx, {
         alunoId: aluno.id,
-        assessmentDate: data.intakeForm.assessmentDate,
-        mainGoal: data.intakeForm.mainGoal,
-        medicalHistory: data.intakeForm.medicalHistory,
-        currentMedications: data.intakeForm.currentMedications,
-        injuriesHistory: data.intakeForm.injuriesHistory,
-        trainingBackground: data.intakeForm.trainingBackground,
-        observations: data.intakeForm.observations,
-        parqResponses: data.intakeForm.parqResponses,
-        formResponses: toInputJson(
-          preserveAuthoritativeFinancialCurrentService(data.intakeForm.formResponses)
-        ),
-      },
-    });
-    await createParqSubmission(tx, {
-      alunoId: aluno.id,
-      contractId: options.companyContractId,
-      responses: data.intakeForm.parqResponses,
-    });
+        contractId: options.companyContractId,
+        sourceType: 'professional',
+        sourceReference: 'financial_contract_create',
+        health: data.intakeForm,
+      });
+    }
   }
 
   if (data.intakeForm?.assessmentDate) {
@@ -342,17 +275,15 @@ const updateAlunoRecord = async (
   const currentAluno = await tx.aluno.findUniqueOrThrow({
     where: { id: alunoId },
     include: {
-      professor: { select: { contractId: true } },
       currentStudentContract: {
         select: { contract: { select: { companyContractId: true } } },
       },
-      intakeForm: { select: { parqResponses: true, formResponses: true } },
+      intakeForm: { select: { parqResponses: true } },
     },
   });
 
-  const scopedContractId =
-    currentAluno.currentStudentContract?.contract.companyContractId ||
-    currentAluno.professor.contractId;
+  // Issue #268: Aluno.contractId é a barreira tenant-scoped canônica.
+  const scopedContractId = currentAluno.contractId;
   if (scopedContractId !== options.companyContractId) {
     throw new Error('Aluno não pertence ao contrato autenticado');
   }
@@ -387,15 +318,25 @@ const updateAlunoRecord = async (
 
   const aluno = await tx.aluno.update({ where: { id: alunoId }, data: alunoData });
 
-  if (avatar !== undefined || birthDate !== undefined || gender !== undefined) {
-    await tx.profile.update({
-      where: { userId: aluno.userId },
-      data: {
-        ...(avatar !== undefined ? { avatar } : {}),
+  if (birthDate !== undefined || gender !== undefined) {
+    await upsertStudentIdentity(
+      aluno.id,
+      options.companyContractId,
+      {
         ...(birthDate !== undefined ? { birthDate } : {}),
         ...(gender !== undefined ? { gender } : {}),
       },
-    });
+      {
+        client: tx,
+        sourceType: 'professional',
+        sourceReference: 'financial_contract_update',
+        syncLegacyProfile: true,
+      }
+    );
+  }
+
+  if (aluno.userId && avatar !== undefined) {
+    await tx.profile.update({ where: { userId: aluno.userId }, data: { avatar } });
   }
 
   if (macronutrients && hasAnyValue(macronutrients)) {
@@ -417,58 +358,17 @@ const updateAlunoRecord = async (
     });
   }
 
-  if (intakeForm && hasAnyValue(intakeForm)) {
-    const persistedCurrentService = readPersistedFinancialCurrentService(
-      currentAluno.intakeForm?.formResponses
-    );
-    const formResponses = preserveAuthoritativeFinancialCurrentService(
-      intakeForm.formResponses,
-      persistedCurrentService
-    );
-
-    await tx.alunoIntakeForm.upsert({
-      where: { alunoId },
-      create: {
-        alunoId,
-        assessmentDate: intakeForm.assessmentDate,
-        mainGoal: intakeForm.mainGoal,
-        medicalHistory: intakeForm.medicalHistory,
-        currentMedications: intakeForm.currentMedications,
-        injuriesHistory: intakeForm.injuriesHistory,
-        trainingBackground: intakeForm.trainingBackground,
-        observations: intakeForm.observations,
-        parqResponses: intakeForm.parqResponses,
-        formResponses: toInputJson(formResponses),
-      },
-      update: {
-        assessmentDate: intakeForm.assessmentDate,
-        mainGoal: intakeForm.mainGoal,
-        medicalHistory: intakeForm.medicalHistory,
-        currentMedications: intakeForm.currentMedications,
-        injuriesHistory: intakeForm.injuriesHistory,
-        trainingBackground: intakeForm.trainingBackground,
-        observations: intakeForm.observations,
-        parqResponses: intakeForm.parqResponses,
-        formResponses: toInputJson(formResponses),
-      },
-    });
-
-    if (
-      hasParqResponsesChanged(
-        currentAluno.intakeForm?.parqResponses as
-          | Partial<ParqResponseShape>
-          | null
-          | undefined,
-        intakeForm.parqResponses
-      )
-    ) {
-      await createParqSubmission(tx, {
+  if (intakeForm) {
+    if (hasCanonicalHealthIntakeMutation(intakeForm)) {
+      await upsertCanonicalStudentHealthIntake(tx, {
         alunoId,
         contractId: options.companyContractId,
-        responses: intakeForm.parqResponses,
+        sourceType: 'professional',
+        sourceReference: 'financial_contract_update',
+        health: intakeForm,
       });
     }
-  }
+    }
 };
 
 const currency = new Intl.NumberFormat('pt-BR', {
@@ -541,6 +441,12 @@ const buildTemplateContext = async (
       include: { user: { include: { profile: true } } },
     }),
   ]);
+
+  if (!aluno.user) {
+    throw new Error(
+      'Aluno ainda não possui conta vinculada; não é possível gerar contrato financeiro para um registro incompleto (lead)'
+    );
+  }
 
   const selectedService = await loadScopedFinancialService(
     tx,
@@ -697,10 +603,12 @@ const loadAuthoritativeStudentContractServiceId = async (
     where: { id: alunoId },
     select: {
       serviceId: true,
-      professor: { select: { contractId: true } },
+      contractId: true,
     },
   });
-  if (aluno.professor.contractId !== companyContractId) {
+  // Issue #268: contractId direto em Aluno evita depender de professor
+  // estar vinculado.
+  if (aluno.contractId !== companyContractId) {
     throw new Error('Aluno não pertence ao contrato autenticado');
   }
 
@@ -776,6 +684,7 @@ export const studentFinancialContractService = {
     contractInput: StudentFinancialContractInput,
     options: StudentFinancialContractOperationOptions
   ) {
+    assertNoLegacyParqWrite(data);
     const tempPassword = `temp-${crypto.randomBytes(4).toString('hex')}`;
     const passwordHash = await bcryptjs.hash(tempPassword, 10);
 
@@ -801,6 +710,7 @@ export const studentFinancialContractService = {
     contractInput: StudentFinancialContractInput,
     options: StudentFinancialContractOperationOptions
   ) {
+    assertNoLegacyParqWrite(data);
     return prisma.$transaction(async (tx) => {
       await updateAlunoRecord(tx, alunoId, data, options);
       const studentContract = await persistStudentContractWithLifecycle(

@@ -35,6 +35,7 @@ export const assessmentPlanNotificationService = {
       where: { id: alunoId },
       select: {
         id: true,
+        contractId: true,
         user: {
           select: {
             id: true,
@@ -134,20 +135,17 @@ export const assessmentPlanNotificationService = {
 
     const alunos = await prisma.aluno.findMany({
       where: {
+        status: 'ACTIVE_STUDENT',
         user: {
           isActive: true,
         },
       },
       select: {
         id: true,
+        contractId: true,
         user: {
           select: {
             id: true,
-          },
-        },
-        professor: {
-          select: {
-            contractId: true,
           },
         },
       },
@@ -163,7 +161,7 @@ export const assessmentPlanNotificationService = {
 
     for (const aluno of alunos) {
       try {
-        const created = await this.dispatchForAluno(aluno.id, aluno.professor.contractId, {
+        const created = await this.dispatchForAluno(aluno.id, aluno.contractId, {
           now,
           upcomingWindowDays,
           dryRun,

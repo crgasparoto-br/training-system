@@ -307,6 +307,12 @@ export const contractDocumentService = {
       input.serviceId ? prisma.serviceOption.findUnique({ where: { id: input.serviceId } }) : null,
     ]);
 
+    if (!aluno.user) {
+      throw new Error(
+        'Aluno ainda não possui conta vinculada; não é possível gerar contrato para um registro incompleto (lead)'
+      );
+    }
+
     const professorId = input.professorId || aluno.professorId;
     const professor = professorId
       ? await prisma.professor.findFirst({

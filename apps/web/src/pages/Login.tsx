@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -16,8 +16,15 @@ const loginSchema = z.object({
 
 type LoginFormData = z.infer<typeof loginSchema>;
 
+function safeReturnPath(value: string | null) {
+  return value && value.startsWith('/') && !value.startsWith('//') && !value.startsWith('/login')
+    ? value
+    : '/';
+}
+
 export function Login() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { login, error, clearError } = useAuthStore();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -35,7 +42,7 @@ export function Login() {
 
     try {
       await login(data);
-      navigate('/');
+      navigate(safeReturnPath(searchParams.get('returnTo')), { replace: true });
     } finally {
       setIsLoading(false);
     }

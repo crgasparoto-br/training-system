@@ -15,11 +15,17 @@ import {
 import { professorService } from '../services/professor.service';
 import { serviceCatalogService } from '../services/service.service';
 import { contractService, type AvailableStudentContract } from '../services/contract.service';
-import { formatCep, getCepLookupFeedbackMessage, lookupCep, onlyCepDigits } from '../services/cep.service';
+import { formatCep } from '../services/cep.service';
+import { useCepAutofill } from '../hooks/useCepAutofill';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/Card';
-import { ArrowLeft, ClipboardList, FileText, HeartPulse, Sparkles, Upload, User, Wallet, X } from 'lucide-react';
+import {
+  FixedScheduleEditor,
+  serializeFixedScheduleSlots,
+  type FixedScheduleSlotDraft,
+} from '../components/alunos/FixedScheduleEditor';
+import { ArrowLeft, FileText, HeartPulse, Sparkles, Upload, User, Wallet, X } from 'lucide-react';
 import { alunoFormCopy } from '../i18n/ptBR';
 import { useAuthStore } from '../stores/useAuthStore';
 import { canAccessScreen } from '../access/access-control';
@@ -106,16 +112,6 @@ const alunoSchema = z.object({
     personalInfo: identificationSchema,
     financialInfo: financialSchema,
     preferencesInfo: preferencesSchema,
-    parqResponses: z.object({
-      q1: z.boolean(),
-      q2: z.boolean(),
-      q3: z.boolean(),
-      q4: z.boolean(),
-      q5: z.boolean(),
-      q6: z.boolean(),
-      q7: z.boolean(),
-      q8: z.boolean(),
-    }),
     ahaResponses: z.record(ahaResponseSchema),
   }),
 });
@@ -144,39 +140,6 @@ const compactSelectClassName =
 
 const textareaClassName =
   'flex min-h-[120px] w-full rounded-xl border border-[#cbd5e1] bg-background px-4 py-3 text-base ring-offset-background placeholder:text-[#94a3b8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3b82f6] focus-visible:ring-offset-2 focus-visible:shadow-[0_0_0_6px_rgba(59,130,246,0.15)]';
-
-const parqQuestions = [
-  {
-    key: 'q1',
-    label:
-      '1. Algum médico já disse que você possui algum problema de coração e que só deveria realizar atividade física recomendada por um médico?',
-  },
-  { key: 'q2', label: '2. Você sente dor no tórax quando pratica uma atividade física?' },
-  {
-    key: 'q3',
-    label:
-      '3. No último mês, você sentiu dor no tórax quando não estava praticando atividade física?',
-  },
-  {
-    key: 'q4',
-    label: '4. Você perde o equilíbrio por causa de tontura ou já perdeu a consciência?',
-  },
-  {
-    key: 'q5',
-    label:
-      '5. Você tem algum problema ósseo ou articular que poderia piorar por uma mudança na sua atividade física?',
-  },
-  {
-    key: 'q6',
-    label:
-      '6. Algum médico está prescrevendo medicamento para sua pressão arterial ou condição cardíaca?',
-  },
-  {
-    key: 'q7',
-    label:
-      '7. Você sabe de qualquer outro motivo pelo qual não deveria praticar atividade física?',
-  },
-] as const;
 
 const ahaQuestionGroups = [
   {
@@ -251,13 +214,12 @@ const ahaAnswerOptions = [
   { value: 'unknown', label: 'Não sei' },
 ] as const;
 
-type AlunoFormTab = 'anamneseInicial' | 'identificacao' | 'financeiro' | 'preferencias' | 'parq' | 'aha';
+type AlunoFormTab = 'anamneseInicial' | 'identificacao' | 'financeiro' | 'preferencias' | 'aha';
 
 type AlunoFormResponses = {
   identification?: Partial<AlunoFormData['intakeForm']['personalInfo']>;
   financial?: Partial<AlunoFormData['intakeForm']['financialInfo']>;
   preferences?: Partial<AlunoFormData['intakeForm']['preferencesInfo']>;
-  parqResponses?: Partial<AlunoFormData['intakeForm']['parqResponses']>;
   ahaResponses?: Record<string, unknown>;
 };
 
@@ -315,7 +277,6 @@ const getBlockKeyForTab = (tab: AlunoFormTab): string => {
   const blockMap: Record<AlunoFormTab, string> = {
     anamneseInicial: 'students.registration.identification',
     identificacao: 'students.registration.initialAnamnesis',
-    parq: 'students.registration.parq',
     aha: 'students.registration.aha',
     financeiro: 'students.registration.financial',
     preferencias: 'students.registration.preferences',
@@ -366,8 +327,10 @@ export function AlunoForm() {
   const [availableContractsError, setAvailableContractsError] = useState<string | null>(null);
   const [activeStudentContract, setActiveStudentContract] = useState<StudentContractLink | null>(null);
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
-  const [cepError, setCepError] = useState<string | null>(null);
   const [originalResponsibleProfessorId, setOriginalResponsibleProfessorId] = useState('');
+  const [originalSchedulePlan, setOriginalSchedulePlan] = useState<'free' | 'fixed'>('free');
+  const [fixedScheduleSlots, setFixedScheduleSlots] = useState<FixedScheduleSlotDraft[]>([]);
+  const [fixedScheduleRefreshKey, setFixedScheduleRefreshKey] = useState(0);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
 
   const {
@@ -440,16 +403,6 @@ export function AlunoForm() {
           favoriteChocolate: '',
           preferredNickname: '',
         },
-        parqResponses: {
-          q1: false,
-          q2: false,
-          q3: false,
-          q4: false,
-          q5: false,
-          q6: false,
-          q7: false,
-          q8: false,
-        },
         ahaResponses: defaultAhaResponses,
       },
     },
@@ -457,12 +410,12 @@ export function AlunoForm() {
 
   const birthDate = watch('birthDate');
   const selectedServiceId = watch('serviceId');
+  const schedulePlan = watch('schedulePlan');
   const avatar = watch('avatar');
   const studentName = watch('name');
   const cameFromReferral = watch('intakeForm.financialInfo.cameFromReferral');
   const selectedContractId = watch('intakeForm.financialInfo.selectedContractId');
   const calculatedAge = calculateAgeFromBirthDate(birthDate);
-  const parqDeclarationAccepted = watch('intakeForm.parqResponses.q8');
   const resolvedAvatar = resolveAssetUrl(avatar);
   const canSelectInactiveContract =
     user?.professor?.role === 'master' ||
@@ -475,7 +428,6 @@ export function AlunoForm() {
       'identificacao',
       'financeiro',
       'preferencias',
-      'parq',
       'aha',
     ];
     return tabs.filter((tab) => canAccessScreen(user, getBlockKeyForTab(tab)));
@@ -875,32 +827,8 @@ export function AlunoForm() {
     '';
   const zipCodeField = register('intakeForm.personalInfo.zipCode');
 
-  const handleZipCodeChange = (event: ChangeEvent<HTMLInputElement>) => {
-    setCepError(null);
-    setValue('intakeForm.personalInfo.zipCode', formatCep(event.target.value), {
-      shouldDirty: true,
-      shouldValidate: true,
-    });
-  };
-
-  const handleZipCodeBlur = async (event: FocusEvent<HTMLInputElement>) => {
-    zipCodeField.onBlur(event);
-
-    const cep = onlyCepDigits(event.target.value);
-
-    if (cep.length < 8) {
-      return;
-    }
-
-    setCepError(null);
-
-    try {
-      const address = await lookupCep(cep);
-
-      if (!address) {
-        return;
-      }
-
+  const { cepError, formatZipCodeInput, handleZipCodeBlur: onCepAutofillBlur } = useCepAutofill(
+    (address) => {
       setValue('intakeForm.personalInfo.address', address.street, {
         shouldDirty: true,
         shouldValidate: true,
@@ -917,9 +845,19 @@ export function AlunoForm() {
         shouldDirty: true,
         shouldValidate: true,
       });
-    } catch (error) {
-      setCepError(getCepLookupFeedbackMessage(error));
     }
+  );
+
+  const handleZipCodeChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setValue('intakeForm.personalInfo.zipCode', formatZipCodeInput(event.target.value), {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+  };
+
+  const handleZipCodeBlur = async (event: FocusEvent<HTMLInputElement>) => {
+    zipCodeField.onBlur(event);
+    await onCepAutofillBlur(event);
   };
 
   const loadAlunoData = async (alunoId: string) => {
@@ -937,6 +875,7 @@ export function AlunoForm() {
       setValue('birthDate', formatDateForInput(aluno.user.profile.birthDate));
       setValue('gender', aluno.user.profile.gender || 'male');
       setValue('schedulePlan', aluno.schedulePlan);
+      setOriginalSchedulePlan(aluno.schedulePlan);
       setValue('age', aluno.age);
       setValue('intakeForm.mainGoal', aluno.intakeForm?.mainGoal || '');
       setValue('intakeForm.medicalHistory', aluno.intakeForm?.medicalHistory || '');
@@ -1013,14 +952,6 @@ export function AlunoForm() {
       setValue('intakeForm.preferencesInfo.favoriteMusicGenre', preferences.favoriteMusicGenre || '');
       setValue('intakeForm.preferencesInfo.favoriteChocolate', preferences.favoriteChocolate || '');
       setValue('intakeForm.preferencesInfo.preferredNickname', preferences.preferredNickname || '');
-      setValue('intakeForm.parqResponses.q1', aluno.intakeForm?.parqResponses?.q1 ?? false);
-      setValue('intakeForm.parqResponses.q2', aluno.intakeForm?.parqResponses?.q2 ?? false);
-      setValue('intakeForm.parqResponses.q3', aluno.intakeForm?.parqResponses?.q3 ?? false);
-      setValue('intakeForm.parqResponses.q4', aluno.intakeForm?.parqResponses?.q4 ?? false);
-      setValue('intakeForm.parqResponses.q5', aluno.intakeForm?.parqResponses?.q5 ?? false);
-      setValue('intakeForm.parqResponses.q6', aluno.intakeForm?.parqResponses?.q6 ?? false);
-      setValue('intakeForm.parqResponses.q7', aluno.intakeForm?.parqResponses?.q7 ?? false);
-      setValue('intakeForm.parqResponses.q8', aluno.intakeForm?.parqResponses?.q8 ?? false);
       Object.keys(defaultAhaResponses).forEach((key) => {
         setValue(
           `intakeForm.ahaResponses.${key}` as `intakeForm.ahaResponses.${string}`,
@@ -1054,17 +985,6 @@ export function AlunoForm() {
       );
       const legacyContractLabel =
         selectedGeneratedContract?.title || data.intakeForm.financialInfo.contract;
-
-      const parqResponses = {
-        q1: data.intakeForm.parqResponses.q1,
-        q2: data.intakeForm.parqResponses.q2,
-        q3: data.intakeForm.parqResponses.q3,
-        q4: data.intakeForm.parqResponses.q4,
-        q5: data.intakeForm.parqResponses.q5,
-        q6: data.intakeForm.parqResponses.q6,
-        q7: data.intakeForm.parqResponses.q7,
-        q8: data.intakeForm.parqResponses.q8,
-      };
       const formResponses = {
         identification: data.intakeForm.personalInfo,
         financial: {
@@ -1078,9 +998,34 @@ export function AlunoForm() {
             ) || data.intakeForm.financialInfo.contractDueDate,
         },
         preferences: data.intakeForm.preferencesInfo,
-        parqResponses,
         ahaResponses: data.intakeForm.ahaResponses,
       };
+
+      if (
+        data.schedulePlan === 'fixed' &&
+        (fixedScheduleSlots.length === 0 ||
+          fixedScheduleSlots.some(
+            (slot) =>
+              !slot.professorId ||
+              !slot.spaceId ||
+              !slot.startTime ||
+              !slot.endTime ||
+              slot.startTime >= slot.endTime
+          ))
+      ) {
+        alert('Preencha ao menos um horário recorrente válido para usar a agenda fixa.');
+        return;
+      }
+
+      let confirmKeepFutureBookings = false;
+      if (isEditMode && originalSchedulePlan === 'fixed' && data.schedulePlan === 'free') {
+        confirmKeepFutureBookings = window.confirm(
+          'Ao mudar para agenda livre, os horários fixos serão inativados. Agendamentos futuros já criados serão mantidos e deverão ser cancelados separadamente quando necessário. Deseja continuar?'
+        );
+        if (!confirmKeepFutureBookings) return;
+      }
+
+      const serializedFixedScheduleSlots = serializeFixedScheduleSlots(fixedScheduleSlots);
 
       const updatePayload: UpdateAlunoDTO = {
         avatar: data.avatar || undefined,
@@ -1089,6 +1034,8 @@ export function AlunoForm() {
         birthDate: data.birthDate || undefined,
         gender: data.gender,
         schedulePlan: data.schedulePlan,
+        fixedScheduleSlots: data.schedulePlan === 'fixed' ? serializedFixedScheduleSlots : [],
+        confirmKeepFutureBookings,
         age: resolvedAge,
         intakeForm: {
           mainGoal: data.intakeForm.mainGoal || undefined,
@@ -1097,8 +1044,7 @@ export function AlunoForm() {
           injuriesHistory: data.intakeForm.injuriesHistory || undefined,
           trainingBackground: data.intakeForm.trainingBackground || undefined,
           observations: data.intakeForm.observations || undefined,
-          parqResponses,
-          formResponses,
+            formResponses,
         },
       };
 
@@ -1123,6 +1069,8 @@ export function AlunoForm() {
           setSaveNotice('Dados do aluno atualizados com sucesso.');
         }
 
+        setOriginalSchedulePlan(data.schedulePlan);
+        setFixedScheduleRefreshKey((current) => current + 1);
         return;
       }
 
@@ -1135,6 +1083,8 @@ export function AlunoForm() {
         birthDate: data.birthDate || undefined,
         gender: data.gender,
         schedulePlan: data.schedulePlan,
+        fixedScheduleSlots: data.schedulePlan === 'fixed' ? serializedFixedScheduleSlots : [],
+        confirmKeepFutureBookings,
         age: resolvedAge,
         intakeForm: {
           mainGoal: data.intakeForm.mainGoal || undefined,
@@ -1143,8 +1093,7 @@ export function AlunoForm() {
           injuriesHistory: data.intakeForm.injuriesHistory || undefined,
           trainingBackground: data.intakeForm.trainingBackground || undefined,
           observations: data.intakeForm.observations || undefined,
-          parqResponses,
-          formResponses,
+            formResponses,
         },
       };
 
@@ -1155,7 +1104,28 @@ export function AlunoForm() {
       });
     } catch (error: any) {
       console.error('Erro ao salvar aluno:', error);
-      alert(error.response?.data?.error || alunoFormCopy.saveError);
+      const scheduleError = error.response?.data;
+      if (typeof scheduleError?.rowIndex === 'number') {
+        setFixedScheduleSlots((current) =>
+          current.map((slot, rowIndex) =>
+            rowIndex === scheduleError.rowIndex
+              ? {
+                  ...slot,
+                  availability: {
+                    rowIndex,
+                    clientKey: slot.clientKey,
+                    slotId: slot.id,
+                    available: false,
+                    code: scheduleError.code || 'FIXED_SCHEDULE_CHANGED',
+                    message: scheduleError.error || alunoFormCopy.saveError,
+                    stage: scheduleError.stage || 'schedule',
+                  },
+                }
+              : slot
+          )
+        );
+      }
+      alert(scheduleError?.error || alunoFormCopy.saveError);
     } finally {
       setLoading(false);
     }
@@ -1188,11 +1158,6 @@ export function AlunoForm() {
 
     if (formErrors.intakeForm?.preferencesInfo) {
       setActiveTab('preferencias');
-      return;
-    }
-
-    if (formErrors.intakeForm?.parqResponses) {
-      setActiveTab('parq');
       return;
     }
 
@@ -1236,7 +1201,7 @@ export function AlunoForm() {
 
       <form onSubmit={handleSubmit(onSubmit, handleInvalidSubmit)} className="space-y-6">
         <Card className="overflow-hidden">
-          <CardHeader className="space-y-0 border-b border-border p-0">
+          <CardHeader className="space-y-0 p-0">
             <div className="flex flex-col gap-4 p-6 md:flex-row md:items-start md:justify-between">
               <div className="space-y-1.5">
                 <CardTitle>Cadastro do aluno</CardTitle>
@@ -1255,8 +1220,13 @@ export function AlunoForm() {
               </Button>
             </div>
 
-            <div className="overflow-x-auto bg-muted/30 px-4 py-2">
-              <div role="tablist" aria-label="Guias do cadastro do aluno" className="flex min-w-max gap-2">
+            <div className="overflow-x-auto border-b border-border px-2 py-1">
+              <div
+                id="aluno-form-tablist"
+                role="tablist"
+                aria-label="Guias do cadastro do aluno"
+                className="flex min-w-max flex-wrap items-center gap-1"
+              >
                 {[
                   {
                     key: 'anamneseInicial' as AlunoFormTab,
@@ -1271,13 +1241,6 @@ export function AlunoForm() {
                     panelId: 'aluno-panel-identificacao',
                     label: 'Anamnese Inicial',
                     Icon: FileText,
-                  },
-                  {
-                    key: 'parq' as AlunoFormTab,
-                    tabId: 'aluno-tab-parq',
-                    panelId: 'aluno-panel-parq',
-                    label: 'Questionário "PARQ"',
-                    Icon: ClipboardList,
                   },
                   {
                     key: 'aha' as AlunoFormTab,
@@ -1311,10 +1274,10 @@ export function AlunoForm() {
                       aria-controls={tab.panelId}
                       aria-selected={activeTab === tab.key}
                       onClick={() => setActiveTab(tab.key)}
-                      className={`inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-medium transition-colors ${
+                      className={`inline-flex h-9 items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                         activeTab === tab.key
-                          ? 'bg-card text-primary shadow-sm ring-1 ring-border'
-                          : 'text-muted-foreground hover:bg-card/70 hover:text-foreground'
+                          ? 'bg-primary/10 text-foreground'
+                          : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
                       }`}
                     >
                       <tab.Icon size={16} />
@@ -1471,6 +1434,31 @@ export function AlunoForm() {
                           )}
                         </div>
 
+                        <div className="space-y-3">
+                          <div>
+                            <label className="block text-sm font-medium text-foreground">
+                              Plano de agenda <span className="ml-1 text-destructive">*</span>
+                            </label>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                              Na agenda fixa, informe todos os dias e horários recorrentes antes de salvar.
+                            </p>
+                          </div>
+                          <select className={selectClassName} {...register('schedulePlan')}>
+                            <option value="free">Agenda livre</option>
+                            <option value="fixed">Agenda fixa</option>
+                          </select>
+                          {errors.schedulePlan?.message && (
+                            <p className="text-sm text-destructive">{errors.schedulePlan.message}</p>
+                          )}
+                        </div>
+
+                        <FixedScheduleEditor
+                          alunoId={isEditMode ? id : undefined}
+                          plan={schedulePlan}
+                          value={fixedScheduleSlots}
+                          onChange={setFixedScheduleSlots}
+                          refreshKey={fixedScheduleRefreshKey}
+                        />
                       </div>
                     </div>
                   </div>
@@ -2105,56 +2093,6 @@ export function AlunoForm() {
                   </div>
                 </section>
 
-              </div>
-            )}
-
-            {accessibleTabs.includes('parq') && activeTab === 'parq' && (
-              <div
-                id="aluno-panel-parq"
-                role="tabpanel"
-                aria-labelledby="aluno-tab-parq"
-                className="space-y-4"
-              >
-                <div>
-                  <h2 className="text-lg font-semibold text-foreground">Questionário "PARQ"</h2>
-                  <p className="text-sm text-muted-foreground">Questionário de prontidão para atividade física registrado junto ao cadastro.</p>
-                </div>
-                <div className="space-y-3">
-                  {parqQuestions.map((question) => (
-                    <label key={question.key} className="flex items-start gap-3 rounded-xl border border-[#e2e8f0] px-4 py-3 text-sm">
-                      <input type="checkbox" className="mt-1 h-4 w-4" {...register(`intakeForm.parqResponses.${question.key}` as const)} />
-                      <span>{question.label}</span>
-                    </label>
-                  ))}
-                </div>
-                <div className="rounded-xl border border-[#e2e8f0] px-4 py-4">
-                  <p className="text-sm leading-6 text-foreground">
-                    <span className="font-semibold">DECLARAÇÃO DE RESPONSABILIDADE:</span> Assumo a veracidade das informações prestadas no questionário &quot;PAR-Q&quot;.
-                  </p>
-                  <div className="mt-5 flex flex-wrap items-center gap-6">
-                    <label className="flex items-center gap-3 text-sm text-foreground">
-                      <input
-                        type="radio"
-                        name="parq-declaration"
-                        className="h-4 w-4"
-                        checked={parqDeclarationAccepted === true}
-                        onChange={() => setValue('intakeForm.parqResponses.q8', true, { shouldDirty: true, shouldTouch: true })}
-                      />
-                      <span>Sim</span>
-                    </label>
-                    <label className="flex items-center gap-3 text-sm text-foreground">
-                      <input
-                        type="radio"
-                        name="parq-declaration"
-                        className="h-4 w-4"
-                        checked={parqDeclarationAccepted === false}
-                        onChange={() => setValue('intakeForm.parqResponses.q8', false, { shouldDirty: true, shouldTouch: true })}
-                      />
-                      <span>Não</span>
-                    </label>
-                  </div>
-                </div>
-                <p className="text-sm text-muted-foreground">Marque as respostas positivas. Se todas permanecerem desmarcadas, o aluno não sinalizou restrições no PAR-Q.</p>
               </div>
             )}
 

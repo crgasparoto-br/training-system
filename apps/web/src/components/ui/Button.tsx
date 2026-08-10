@@ -2,42 +2,69 @@ import * as React from 'react';
 import { cn } from '@/utils/cn';
 import { commonCopy } from '../../i18n/ptBR';
 
+export type ButtonVariant =
+  | 'default'
+  | 'destructive'
+  | 'success'
+  | 'outline'
+  | 'secondary'
+  | 'ghost'
+  | 'link'
+  | 'info'
+  | 'warning';
+
+export type ButtonSize = 'default' | 'sm' | 'lg' | 'icon';
+
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'default' | 'destructive' | 'success' | 'outline' | 'secondary' | 'ghost' | 'link' | 'info' | 'warning';
-  size?: 'default' | 'sm' | 'lg' | 'icon';
+  variant?: ButtonVariant;
+  size?: ButtonSize;
   isLoading?: boolean;
   loadingText?: string;
 }
 
+export type ButtonClassNameOptions = {
+  variant?: ButtonVariant;
+  size?: ButtonSize;
+  className?: string;
+};
+
+export function buttonClassName({
+  variant = 'default',
+  size = 'default',
+  className,
+}: ButtonClassNameOptions = {}): string {
+  const variantStyles: Record<ButtonVariant, string> = {
+    default: 'bg-primary text-primary-foreground hover:bg-primary-hover shadow-sm',
+    destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive-hover shadow-sm',
+    success: 'bg-success text-white hover:bg-success-hover shadow-sm',
+    info: 'bg-info text-white hover:bg-info-hover shadow-sm',
+    warning: 'bg-warning text-white hover:brightness-95 shadow-sm',
+    outline: 'border border-input bg-card text-foreground hover:bg-accent hover:text-accent-foreground',
+    secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary-hover shadow-sm',
+    ghost: 'hover:bg-accent hover:text-accent-foreground',
+    link: 'text-primary underline-offset-4 hover:underline',
+  };
+
+  const sizeStyles: Record<ButtonSize, string> = {
+    default: 'h-10 px-4 py-2',
+    sm: 'h-9 rounded-md px-3',
+    lg: 'h-11 rounded-md px-8',
+    icon: 'h-10 w-10',
+  };
+
+  return cn(
+    'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
+    variantStyles[variant],
+    sizeStyles[size],
+    className
+  );
+}
+
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant = 'default', size = 'default', isLoading, loadingText, children, disabled, ...props }, ref) => {
-    const variantStyles = {
-      default: 'bg-primary text-primary-foreground hover:bg-primary-hover shadow-sm',
-      destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive-hover shadow-sm',
-      success: 'bg-success text-white hover:bg-success-hover shadow-sm',
-      info: 'bg-info text-white hover:bg-info-hover shadow-sm',
-      warning: 'bg-warning text-white hover:brightness-95 shadow-sm',
-      outline: 'border border-input bg-card text-foreground hover:bg-accent hover:text-accent-foreground',
-      secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary-hover shadow-sm',
-      ghost: 'hover:bg-accent hover:text-accent-foreground',
-      link: 'text-primary underline-offset-4 hover:underline',
-    };
-
-    const sizeStyles = {
-      default: 'h-10 px-4 py-2',
-      sm: 'h-9 rounded-md px-3',
-      lg: 'h-11 rounded-md px-8',
-      icon: 'h-10 w-10',
-    };
-
     return (
       <button
-        className={cn(
-          'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
-          variantStyles[variant],
-          sizeStyles[size],
-          className
-        )}
+        className={buttonClassName({ variant, size, className })}
         ref={ref}
         disabled={disabled || isLoading}
         {...props}

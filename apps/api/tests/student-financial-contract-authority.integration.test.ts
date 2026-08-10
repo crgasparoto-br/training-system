@@ -41,7 +41,7 @@ describeDatabase('student financial contract authority with PostgreSQL', () => {
     await prisma.$disconnect();
   });
 
-  it('uses GeneratedContract.serviceId on insert/update and synchronizes currentService', async () => {
+  it('uses GeneratedContract.serviceId without writing the historical intake table', async () => {
     const collaboratorFunction = await prisma.collaboratorFunctionOption.create({
       data: {
         contractId: companyContractId,
@@ -77,21 +77,20 @@ describeDatabase('student financial contract authority with PostgreSQL', () => {
       data: {
         userId: alunoUser.id,
         professorId: professor.id,
+        contractId: professor.contractId,
         schedulePlan: 'free',
         age: 30,
       },
     });
-    await prisma.alunoIntakeForm.create({
-      data: {
-        alunoId: aluno.id,
-        formResponses: {
-          financial: {
-            currentService: 'valor legado',
-            paymentDay: '10',
-          },
+
+    await expect(
+      prisma.alunoIntakeForm.create({
+        data: {
+          alunoId: aluno.id,
+          formResponses: { financial: { currentService: 'valor legado' } },
         },
-      },
-    });
+      })
+    ).rejects.toThrow(/read-only after issue #272 cutover/u);
 
     const interestService = await prisma.serviceOption.create({
       data: {
@@ -148,21 +147,13 @@ describeDatabase('student financial contract authority with PostgreSQL', () => {
       data: { currentStudentContractId: link.id },
     });
 
-    const afterInsert = await prisma.studentContract.findUniqueOrThrow({
-      where: { id: link.id },
-    });
-    const intakeAfterInsert = await prisma.alunoIntakeForm.findUniqueOrThrow({
-      where: { alunoId: aluno.id },
-    });
-    expect(afterInsert.serviceId).toBe(contractService.id);
-    expect(intakeAfterInsert.formResponses).toEqual(
-      expect.objectContaining({
-        financial: expect.objectContaining({
-          currentService: contractService.name,
-          paymentDay: '10',
-        }),
-      })
-    );
+    expect(
+      (
+        await prisma.studentContract.findUniqueOrThrow({
+          where: { id: link.id },
+        })
+      ).serviceId
+    ).toBe(contractService.id);
 
     await prisma.studentContract.update({
       where: { id: link.id },
@@ -181,18 +172,13 @@ describeDatabase('student financial contract authority with PostgreSQL', () => {
       data: { serviceId: interestService.id },
     });
 
-    const [afterContractUpdate, intakeAfterContractUpdate] = await Promise.all([
-      prisma.studentContract.findUniqueOrThrow({ where: { id: link.id } }),
-      prisma.alunoIntakeForm.findUniqueOrThrow({ where: { alunoId: aluno.id } }),
-    ]);
-    expect(afterContractUpdate.serviceId).toBe(interestService.id);
-    expect(intakeAfterContractUpdate.formResponses).toEqual(
-      expect.objectContaining({
-        financial: expect.objectContaining({
-          currentService: interestService.name,
-          paymentDay: '10',
-        }),
-      })
-    );
+    expect(
+      (
+        await prisma.studentContract.findUniqueOrThrow({
+          where: { id: link.id },
+        })
+      ).serviceId
+    ).toBe(interestService.id);
+    expect(await prisma.alunoIntakeForm.findUnique({ where: { alunoId: aluno.id } })).toBeNull();
   });
 });

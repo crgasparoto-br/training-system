@@ -4,6 +4,11 @@ import { sendError, sendSuccess } from '@corrida/utils';
 import { PrismaClient } from '@prisma/client';
 import { authMiddleware } from '../auth/auth.middleware.js';
 import {
+  normalizeRequestedStudentContractId,
+  resolveActiveStudentMembership,
+  StudentAccountContextError,
+} from '../alunos/student-account-context.service.js';
+import {
   ensureDefaultSubjectiveScalesForContract,
   subjectiveScaleService,
 } from './subjective-scale.service.js';
@@ -22,18 +27,16 @@ router.get('/', async (req: Request, res: Response) => {
     if (!contractId && (req as any).user?.userId) {
       const user = await prisma.user.findUnique({
         where: { id: (req as any).user.userId },
-        include: {
-          professor: true,
-          aluno: {
-            include: {
-              professor: true,
-            },
-          },
-        },
+        include: { professor: true },
       });
-
-      contractId =
-        user?.professor?.contractId || user?.aluno?.professor?.contractId || undefined;
+      contractId = user?.professor?.contractId;
+      if (!contractId && user?.type === 'aluno') {
+        const membership = await resolveActiveStudentMembership(
+          user.id,
+          normalizeRequestedStudentContractId(req.header('x-contract-id'))
+        );
+        contractId = membership.contractId;
+      }
     }
 
     if (!contractId) {
@@ -49,6 +52,13 @@ router.get('/', async (req: Request, res: Response) => {
     const items = await subjectiveScaleService.listByContract(contractId, type);
     return sendSuccess(res, items, 'Escalas carregadas');
   } catch (error: any) {
+    if (error instanceof StudentAccountContextError) {
+      return sendError(
+        res,
+        error.message,
+        error.code === 'STUDENT_CONTRACT_CONTEXT_REQUIRED' ? 409 : 404
+      );
+    }
     if (error instanceof z.ZodError) {
       return sendError(res, 'Tipo de escala inválido', 400, error.errors);
     }

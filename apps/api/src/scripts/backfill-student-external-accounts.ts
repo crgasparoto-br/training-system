@@ -66,6 +66,7 @@ const run = async () => {
       createdAt: true,
       aluno: {
         select: {
+          contractId: true,
           professor: {
             select: {
               contractId: true,
@@ -89,7 +90,7 @@ const run = async () => {
   report.summary.integrationsScanned = integrations.length;
 
   for (const integration of integrations) {
-    const contractId = integration.aluno.professor?.contractId ?? null;
+    const contractId = integration.aluno.contractId;
     const provider = normalizeProvider(String(integration.type));
 
     if (!contractId) {

@@ -2,7 +2,7 @@
 // Mocks – must be declared before imports (jest.mock is hoisted)
 // ---------------------------------------------------------------------------
 jest.mock('@prisma/client', () => {
-  const aluno = { findUnique: jest.fn() };
+  const aluno = { findUnique: jest.fn(), findFirst: jest.fn(), update: jest.fn(), count: jest.fn() };
   const studentProfileReview = {
     findUnique: jest.fn(),
     findMany: jest.fn(),
@@ -13,7 +13,9 @@ jest.mock('@prisma/client', () => {
   const alunoProfileReviewSettings = { findUnique: jest.fn(), upsert: jest.fn() };
   const profileReviewPolicy = { findFirst: jest.fn() };
   const profile = { update: jest.fn() };
-  const alunoModel = { update: jest.fn() };
+  const studentProfile = { upsert: jest.fn() };
+  const studentLifecycleEvent = { create: jest.fn() };
+  const alunoModel = { update: aluno.update };
   const alunoIntakeForm = { upsert: jest.fn() };
   const studentParqSubmission = { create: jest.fn() };
 
@@ -23,6 +25,8 @@ jest.mock('@prisma/client', () => {
     alunoProfileReviewSettings,
     profileReviewPolicy,
     profile,
+    studentProfile,
+    studentLifecycleEvent,
     aluno_update: alunoModel, // held separately to avoid name clash
     alunoIntakeForm,
     studentParqSubmission,
@@ -60,11 +64,13 @@ jest.mock('../src/modules/alunos/profile-audit.service', () => ({
 import { profileReviewService } from '../src/modules/alunos/profile-review.service';
 
 type DbMock = {
-  aluno: { findUnique: jest.Mock; update: jest.Mock };
+  aluno: { findUnique: jest.Mock; findFirst: jest.Mock; update: jest.Mock; count: jest.Mock };
   studentProfileReview: { findUnique: jest.Mock; findMany: jest.Mock; create: jest.Mock; update: jest.Mock };
   alunoProfileReviewSettings: { findUnique: jest.Mock; upsert: jest.Mock };
   profileReviewPolicy: { findFirst: jest.Mock };
   profile: { update: jest.Mock };
+  studentProfile: { upsert: jest.Mock };
+  studentLifecycleEvent: { create: jest.Mock };
   alunoIntakeForm: { upsert: jest.Mock };
   studentParqSubmission: { create: jest.Mock };
   $transaction: jest.Mock;
@@ -86,7 +92,17 @@ const CONTRACT_ID = 'contract-1';
 function makeAlunoRecord(overrides: Record<string, unknown> = {}) {
   return {
     id: ALUNO_ID,
+    contractId: CONTRACT_ID,
     userId: ALUNO_USER_ID,
+    leadName: null,
+    leadEmail: null,
+    leadEmailNormalized: null,
+    leadPhone: null,
+    leadPhoneNormalized: null,
+    leadCpf: null,
+    leadCpfNormalized: null,
+    birthDate: null,
+    studentProfile: null,
     age: 30,
     weight: 75,
     height: 175,
@@ -165,6 +181,10 @@ beforeEach(() => {
     return Promise.all(arg as Promise<unknown>[]);
   });
   notificationService.create.mockResolvedValue(true);
+  db.aluno.findFirst.mockImplementation((args: unknown) => db.aluno.findUnique(args));
+  db.aluno.count.mockResolvedValue(1);
+  db.studentProfile.upsert.mockResolvedValue({});
+  db.studentLifecycleEvent.create.mockResolvedValue({});
 });
 
 // ---------------------------------------------------------------------------
@@ -395,16 +415,7 @@ describe('profileReviewService', () => {
 
   // ── approveReview ─────────────────────────────────────────────────────────
   describe('approveReview', () => {
-    it('gera submissão histórica de PAR-Q aprovado usando o contrato atual do aluno', async () => {
-      db.aluno.findUnique.mockResolvedValue(
-        makeAlunoRecord({
-          currentStudentContract: {
-            contract: {
-              companyContractId: 'contract-current',
-            },
-          },
-        })
-      );
+    it('rejeita a aprovação de alteração legada do PAR-Q sem criar dual-write', async () => {
       const reviewWithPending = {
         ...makePendingReview({
           status: 'completed_with_changes',
@@ -430,42 +441,21 @@ describe('profileReviewService', () => {
           aluno: {
             id: ALUNO_ID,
             user: { id: ALUNO_USER_ID },
-            professor: { contractId: CONTRACT_ID },
-            currentStudentContract: {
-              contract: {
-                companyContractId: 'contract-current',
-              },
-            },
           },
         }),
       };
       db.studentProfileReview.findUnique.mockResolvedValue(reviewWithPending);
-      db.alunoIntakeForm.upsert.mockResolvedValue({});
-      db.studentProfileReview.update.mockResolvedValue({
-        ...reviewWithPending,
-        approvedByUserId: 'prof-1',
-        approvedAt: new Date(),
-        requiresApproval: false,
-        changedFields: [
-          { path: 'intakeForm.parqResponses.q1', before: false, after: true, requiresApproval: true, status: 'approved' },
-          { path: 'intakeForm.parqResponses.q8', before: false, after: true, requiresApproval: true, status: 'approved' },
-        ],
-        rejectedByUserId: null,
-        rejectedAt: null,
-        rejectionReason: null,
+
+      await expect(
+        profileReviewService.approveReview(ALUNO_ID, REVIEW_ID, 'prof-1')
+      ).rejects.toMatchObject({
+        code: 'LEGACY_WRITE_DISABLED',
+        statusCode: 410,
       });
 
-      await profileReviewService.approveReview(ALUNO_ID, REVIEW_ID, 'prof-1');
-
-      expect(db.studentParqSubmission.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            alunoId: ALUNO_ID,
-            contractId: 'contract-current',
-            declarationAccepted: true,
-          }),
-        })
-      );
+      expect(db.studentParqSubmission.create).not.toHaveBeenCalled();
+      expect(db.alunoIntakeForm.upsert).not.toHaveBeenCalled();
+      expect(db.studentProfileReview.update).not.toHaveBeenCalled();
     });
 
     it('aprova alteração sensível e aplica o patch', async () => {

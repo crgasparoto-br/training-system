@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { sendError, sendSuccess } from '@corrida/utils';
 import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js';
 import { agendaService } from './agenda.service.js';
+import { FixedScheduleError } from './fixed-schedule.service.js';
 
 const router: Router = Router();
 
@@ -33,14 +34,29 @@ const createAvailabilitySchema = z.object({
   endTime: hhmm,
 });
 
-const createFixedSlotSchema = z.object({
-  alunoId: z.string().cuid(),
+const fixedScheduleSlotInputSchema = z.object({
+  id: z.string().cuid().optional(),
+  clientKey: z.string().min(1).optional(),
   professorId: z.string().cuid(),
+  spaceId: z.string().cuid(),
   dayOfWeek: z.number().int().min(1).max(7),
   startTime: hhmm,
   endTime: hhmm,
-  spaceId: z.string().cuid().optional(),
-  notes: z.string().optional(),
+  notes: z.string().nullable().optional(),
+  availabilityConfirmed: z.boolean().optional(),
+});
+
+const createFixedSlotSchema = fixedScheduleSlotInputSchema.extend({
+  alunoId: z.string().cuid(),
+});
+
+const checkFixedScheduleSchema = z.object({
+  alunoId: z.string().cuid().optional(),
+  slots: z.array(fixedScheduleSlotInputSchema).min(1),
+});
+
+const deactivateFixedSlotSchema = z.object({
+  confirmKeepFutureBookings: z.boolean().optional(),
 });
 
 const updateFixedSlotSchema = z.object({
@@ -68,6 +84,21 @@ const updateBookingStatusSchema = z.object({
   status: z.enum(['scheduled', 'completed', 'canceled', 'no_show']),
   canceledReason: z.string().nullable().optional(),
 });
+
+const sendFixedScheduleError = (res: Response, error: unknown, fallback: string) => {
+  if (error instanceof FixedScheduleError) {
+    return res.status(error.statusCode).json({
+      success: false,
+      error: error.message,
+      code: error.code,
+      stage: error.stage,
+      rowIndex: error.rowIndex,
+      reasonCode: error.reasonCode,
+    });
+  }
+  const message = error instanceof Error ? error.message : fallback;
+  return sendError(res, message || fallback, 400);
+};
 
 router.get('/metadata', async (req: Request, res: Response) => {
   try {
@@ -186,6 +217,21 @@ router.get('/fixed-slots', async (req: Request, res: Response) => {
   }
 });
 
+router.post('/fixed-slots/check', async (req: Request, res: Response) => {
+  try {
+    const contractId = (req as any).user.contractId as string | undefined;
+    if (!contractId) return sendError(res, 'Contrato nao encontrado', 404);
+    const validated = checkFixedScheduleSchema.parse(req.body);
+    const results = await agendaService.checkFixedSchedule(contractId, validated);
+    return sendSuccess(res, results, 'Disponibilidade dos horários verificada');
+  } catch (error: any) {
+    if (error instanceof z.ZodError) {
+      return sendError(res, 'Dados inválidos', 400, error.errors);
+    }
+    return sendFixedScheduleError(res, error, 'Erro ao verificar horários fixos');
+  }
+});
+
 router.post('/fixed-slots', async (req: Request, res: Response) => {
   try {
     const contractId = (req as any).user.contractId as string | undefined;
@@ -197,7 +243,7 @@ router.post('/fixed-slots', async (req: Request, res: Response) => {
     if (error instanceof z.ZodError) {
       return sendError(res, 'Dados inválidos', 400, error.errors);
     }
-    return sendError(res, error.message || 'Erro ao criar horario fixo', 400);
+    return sendFixedScheduleError(res, error, 'Erro ao criar horario fixo');
   }
 });
 
@@ -212,7 +258,7 @@ router.put('/fixed-slots/:id', async (req: Request, res: Response) => {
     if (error instanceof z.ZodError) {
       return sendError(res, 'Dados inválidos', 400, error.errors);
     }
-    return sendError(res, error.message || 'Erro ao atualizar horario fixo', 400);
+    return sendFixedScheduleError(res, error, 'Erro ao atualizar horario fixo');
   }
 });
 
@@ -220,10 +266,18 @@ router.delete('/fixed-slots/:id', async (req: Request, res: Response) => {
   try {
     const contractId = (req as any).user.contractId as string | undefined;
     if (!contractId) return sendError(res, 'Contrato nao encontrado', 404);
-    const item = await agendaService.deactivateFixedSlot(contractId, req.params.id);
+    const validated = deactivateFixedSlotSchema.parse(req.body ?? {});
+    const item = await agendaService.deactivateFixedSlot(
+      contractId,
+      req.params.id,
+      validated
+    );
     return sendSuccess(res, item, 'Horario fixo inativado com sucesso');
   } catch (error: any) {
-    return sendError(res, error.message || 'Erro ao inativar horario fixo', 400);
+    if (error instanceof z.ZodError) {
+      return sendError(res, 'Dados inválidos', 400, error.errors);
+    }
+    return sendFixedScheduleError(res, error, 'Erro ao inativar horario fixo');
   }
 });
 

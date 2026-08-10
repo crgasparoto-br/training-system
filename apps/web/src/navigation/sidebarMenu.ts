@@ -133,6 +133,12 @@ export const sidebarMenuItems: SidebarNavItem[] = [
         screenKey: 'physicalAssessment.protocol',
       },
       {
+        id: 'physical-assessment-protocol-capacity-prescription',
+        label: 'Prescrição por capacidades',
+        path: '/protocolo-avaliacao-fisica/prescricao-capacidades',
+        screenKey: 'physicalAssessment.protocol',
+      },
+      {
         id: 'physical-assessment-protocol-adipometry',
         label: 'Adipometria',
         path: '/protocolo-avaliacao-fisica/adipometria',

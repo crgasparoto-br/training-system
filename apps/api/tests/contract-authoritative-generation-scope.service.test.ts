@@ -69,6 +69,7 @@ describe('authoritative generation actor scope and service semantics', () => {
       id: 'student-1',
       serviceId: 'interest-service',
       professorId: 'professor-1',
+      contractId: 'company-1',
       professor: { contractId: 'company-1' },
       user: {
         email: 'student@example.com',
@@ -96,6 +97,7 @@ describe('authoritative generation actor scope and service semantics', () => {
       id: 'student-2',
       serviceId: null,
       professorId: 'professor-2',
+      contractId: 'company-1',
       professor: { contractId: 'company-1' },
       user: {
         email: 'other@example.com',
@@ -127,6 +129,7 @@ describe('authoritative generation actor scope and service semantics', () => {
       id: 'student-2',
       serviceId: null,
       professorId: 'professor-2',
+      contractId: 'company-1',
       professor: { contractId: 'company-1' },
       user: {
         email: 'other@example.com',

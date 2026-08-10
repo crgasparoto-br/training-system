@@ -41,7 +41,7 @@ describeDatabase('student financial contract persisted interest fallback with Po
     await prisma.$disconnect();
   });
 
-  it('ignores a supplied link service, follows Aluno.serviceId and repairs a simulated legacy divergence', async () => {
+  it('ignores an untrusted link service, follows Aluno.serviceId and repairs contract divergence', async () => {
     const [interestService, nextInterestService, untrustedService] = await Promise.all([
       prisma.serviceOption.create({
         data: {
@@ -101,20 +101,10 @@ describeDatabase('student financial contract persisted interest fallback with Po
       data: {
         userId: alunoUser.id,
         professorId: professor.id,
+        contractId: professor.contractId,
         serviceId: interestService.id,
         schedulePlan: 'free',
         age: 30,
-      },
-    });
-    await prisma.alunoIntakeForm.create({
-      data: {
-        alunoId: aluno.id,
-        formResponses: {
-          financial: {
-            currentService: 'valor legado',
-            paymentDay: '10',
-          },
-        },
       },
     });
 
@@ -171,26 +161,16 @@ describeDatabase('student financial contract persisted interest fallback with Po
       where: { id: aluno.id },
       data: { serviceId: nextInterestService.id },
     });
-
-    const [afterInterestChange, intakeAfterInterestChange] = await Promise.all([
-      prisma.studentContract.findUniqueOrThrow({ where: { id: link.id } }),
-      prisma.alunoIntakeForm.findUniqueOrThrow({ where: { alunoId: aluno.id } }),
-    ]);
-    expect(afterInterestChange.serviceId).toBe(nextInterestService.id);
-    expect(intakeAfterInterestChange.formResponses).toEqual(
-      expect.objectContaining({
-        financial: expect.objectContaining({
-          currentService: nextInterestService.name,
-          paymentDay: '10',
-        }),
-      })
-    );
+    expect(
+      (
+        await prisma.studentContract.findUniqueOrThrow({
+          where: { id: link.id },
+        })
+      ).serviceId
+    ).toBe(nextInterestService.id);
 
     await prisma.$executeRawUnsafe(
       'ALTER TABLE "StudentContract" DISABLE TRIGGER "StudentContract_enforce_contract_service_update"'
-    );
-    await prisma.$executeRawUnsafe(
-      'ALTER TABLE "StudentContract" DISABLE TRIGGER "StudentContract_sync_financial_service_update"'
     );
     try {
       await prisma.studentContract.update({
@@ -201,55 +181,28 @@ describeDatabase('student financial contract persisted interest fallback with Po
       await prisma.$executeRawUnsafe(
         'ALTER TABLE "StudentContract" ENABLE TRIGGER "StudentContract_enforce_contract_service_update"'
       );
-      await prisma.$executeRawUnsafe(
-        'ALTER TABLE "StudentContract" ENABLE TRIGGER "StudentContract_sync_financial_service_update"'
-      );
     }
-    await prisma.alunoIntakeForm.update({
-      where: { alunoId: aluno.id },
-      data: {
-        formResponses: {
-          financial: {
-            currentService: 'valor divergente pré-migration',
-            paymentDay: '10',
-          },
-        },
-      },
-    });
 
     await prisma.$executeRawUnsafe('SELECT repair_student_contract_service_authority_data()');
-
-    const [afterRepair, intakeAfterRepair] = await Promise.all([
-      prisma.studentContract.findUniqueOrThrow({ where: { id: link.id } }),
-      prisma.alunoIntakeForm.findUniqueOrThrow({ where: { alunoId: aluno.id } }),
-    ]);
-    expect(afterRepair.serviceId).toBe(nextInterestService.id);
-    expect(intakeAfterRepair.formResponses).toEqual(
-      expect.objectContaining({
-        financial: expect.objectContaining({
-          currentService: nextInterestService.name,
-          paymentDay: '10',
-        }),
-      })
-    );
+    expect(
+      (
+        await prisma.studentContract.findUniqueOrThrow({
+          where: { id: link.id },
+        })
+      ).serviceId
+    ).toBe(nextInterestService.id);
 
     await prisma.aluno.update({
       where: { id: aluno.id },
       data: { serviceId: null },
     });
-
-    const [afterClear, intakeAfterClear] = await Promise.all([
-      prisma.studentContract.findUniqueOrThrow({ where: { id: link.id } }),
-      prisma.alunoIntakeForm.findUniqueOrThrow({ where: { alunoId: aluno.id } }),
-    ]);
-    expect(afterClear.serviceId).toBeNull();
-    expect(intakeAfterClear.formResponses).toEqual(
-      expect.objectContaining({
-        financial: expect.objectContaining({
-          currentService: '',
-          paymentDay: '10',
-        }),
-      })
-    );
+    expect(
+      (
+        await prisma.studentContract.findUniqueOrThrow({
+          where: { id: link.id },
+        })
+      ).serviceId
+    ).toBeNull();
+    expect(await prisma.alunoIntakeForm.findUnique({ where: { alunoId: aluno.id } })).toBeNull();
   });
 });

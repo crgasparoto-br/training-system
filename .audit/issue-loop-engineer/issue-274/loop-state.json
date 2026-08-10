@@ -1,0 +1,161 @@
+{
+  "schema_version": 3,
+  "issue": 274,
+  "cycle": 2,
+  "state": "internally-verified",
+  "single_invocation_mode": true,
+  "controller_mode": "issue-loop-single-invocation",
+  "execution_mode": "implement-pendencies",
+  "frozen_identity": {
+    "repository": "crgasparoto-br/training-system",
+    "issue": 274,
+    "pull_request": 284,
+    "branch": "feat/274-enrollment-conversion",
+    "head_sha": "417a347ea88d74bb18bd1dd7528a47409cd38ee9",
+    "base_sha": "737a4b580dbe70ec6f6e6ce8c3fc1ade5e286df5",
+    "merge_preview_sha": "021808765a9301fcc01ce594c96246ea103f957a",
+    "captured_at": "2026-07-28T14:27:00Z",
+    "kind": "functional-snapshot-before-operational-metadata"
+  },
+  "current_identity": {
+    "repository": "crgasparoto-br/training-system",
+    "issue": 274,
+    "pull_request": 284,
+    "branch": "feat/274-enrollment-conversion",
+    "head_sha": "417a347ea88d74bb18bd1dd7528a47409cd38ee9",
+    "base_sha": "737a4b580dbe70ec6f6e6ce8c3fc1ade5e286df5",
+    "merge_preview_sha": "021808765a9301fcc01ce594c96246ea103f957a",
+    "captured_at": "2026-07-28T14:27:00Z",
+    "kind": "functional-snapshot-before-operational-metadata"
+  },
+  "audit": {
+    "validity": "absent",
+    "verdict": "not-run",
+    "identity": null,
+    "implementation_context_id": "issue-loop-2026-07-28-274-cycle-2",
+    "audit_context_id": null,
+    "read_only": true,
+    "requirements_rederived": false,
+    "modifications_detected": false,
+    "isolation_proven": false,
+    "external_context_proven": false,
+    "signature_required": false,
+    "signature_valid": null
+  },
+  "requirements_inventory_complete": true,
+  "requirements": [
+    {
+      "id": "AUD-274-17",
+      "status": "Implementado",
+      "scope_basis": "Prior independent audit finding"
+    },
+    {
+      "id": "AUD-274-18",
+      "status": "Implementado",
+      "scope_basis": "Prior independent audit finding"
+    },
+    {
+      "id": "AUD-274-19",
+      "status": "Implementado",
+      "scope_basis": "Prior independent audit finding"
+    },
+    {
+      "id": "AUD-274-20",
+      "status": "Implementado",
+      "scope_basis": "Independent audit finding",
+      "evidence": "Typed scalar inventory, Prisma preflight and PostgreSQL trigger cover all nine scalar clinical fields; service and direct-write rollback scenarios passed in run 30367842305."
+    },
+    {
+      "id": "DOC-274-01",
+      "status": "Implementado",
+      "scope_basis": "Independent audit documentation finding",
+      "evidence": "Architecture source now distinguishes SERIALIZABLE administrative flows from READ COMMITTED public preservation with explicit locks."
+    }
+  ],
+  "gate_inventory_complete": true,
+  "gates": [
+    {
+      "name": "validate-pr-full",
+      "required": true,
+      "status": "passed",
+      "run_id": "30367842258",
+      "head_sha": "417a347ea88d74bb18bd1dd7528a47409cd38ee9",
+      "evidence": "Migrations, backfill, rerun, type-check, lint, 134 API suites with 631 passed tests, build, architecture, access catalog and documentation."
+    },
+    {
+      "name": "scalar-clinical-ownership-postgresql",
+      "required": true,
+      "status": "passed",
+      "run_id": "30367842305",
+      "head_sha": "417a347ea88d74bb18bd1dd7528a47409cd38ee9",
+      "evidence": "Service preflight and direct database trigger reject consolidation while preserving source and target."
+    },
+    {
+      "name": "ownership-contract-and-visual-regression",
+      "required": true,
+      "status": "passed",
+      "run_id": "30367842305",
+      "head_sha": "417a347ea88d74bb18bd1dd7528a47409cd38ee9",
+      "evidence": "Typed inventory alignment, API/web type-check and existing visual scenarios passed."
+    }
+  ],
+  "findings": [
+    {
+      "id": "AUD-274-17",
+      "status": "closed",
+      "disposition": "blocking",
+      "cause": "implementation-defect"
+    },
+    {
+      "id": "AUD-274-18",
+      "status": "closed",
+      "disposition": "blocking",
+      "cause": "implementation-defect"
+    },
+    {
+      "id": "AUD-274-19",
+      "status": "closed",
+      "disposition": "blocking",
+      "cause": "implementation-defect"
+    },
+    {
+      "id": "AUD-274-20",
+      "fingerprint": "scalar-clinical-ownership-not-blocking-duplicate-consolidation",
+      "severity": "Bloqueador",
+      "status": "closed",
+      "disposition": "blocking",
+      "occurrence_count": 1,
+      "requirement_id": "AUD-274-20",
+      "cause": "implementation-defect"
+    }
+  ],
+  "regressions": [],
+  "limitations": [
+    {
+      "description": "The functional implementation snapshot is 417a347ea88d74bb18bd1dd7528a47409cd38ee9; subsequent commits update only issue-loop state and learning metadata. The complete branch head must be revalidated and frozen before controller-adversarial audit.",
+      "material": false
+    }
+  ],
+  "skill_changes": [],
+  "operational_amendments": [
+    {
+      "id": "OA-274-02",
+      "rule": "Run database-heavy scalar ownership scenarios only in the dedicated PostgreSQL gate to avoid artificial connection exhaustion in the monolithic suite; do not reduce scenario coverage.",
+      "scope": "Issue 274 cycle 2",
+      "effective_cycle": 2
+    }
+  ],
+  "learning_review": {
+    "required": true,
+    "completed": true,
+    "reviewed_finding_ids": ["AUD-274-17", "AUD-274-18", "AUD-274-19", "AUD-274-20"],
+    "ledger_path": ".audit/issue-loop-engineer/issue-274/learning-ledger.json",
+    "decision": "no-skill-change-required"
+  },
+  "blocked": {
+    "active": false,
+    "external": false,
+    "alternatives_exhausted": false,
+    "reason": null
+  }
+}

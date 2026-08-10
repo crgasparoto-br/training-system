@@ -46,7 +46,7 @@ async function seedBase() {
       profile: {
         create: {
           name: 'Aluno Geração Autoritativa',
-          cpf: '12345678901',
+          cpf: '11122233396',
         },
       },
     },
@@ -81,6 +81,7 @@ async function seedBase() {
     data: {
       userId: alunoUser.id,
       professorId: professor.id,
+      contractId: professor.contractId,
       serviceId: interestService.id,
       schedulePlan: 'free',
       age: 29,

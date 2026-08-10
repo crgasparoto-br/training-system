@@ -2,6 +2,7 @@ const findUniqueMock = jest.fn();
 const mockPrisma = {
   aluno: {
     findUnique: findUniqueMock,
+    findFirst: findUniqueMock,
   },
 };
 

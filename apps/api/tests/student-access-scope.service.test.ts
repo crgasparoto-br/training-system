@@ -25,6 +25,7 @@ describe('studentAccessScopeService', () => {
     mockPrisma.aluno.findUnique.mockResolvedValue({
       id: 'student-1',
       professorId: 'professor-1',
+      contractId: 'company-1',
       professor: { contractId: 'company-1' },
     });
     mockPrisma.contract.findFirst.mockResolvedValue({
@@ -47,6 +48,7 @@ describe('studentAccessScopeService', () => {
     mockPrisma.aluno.findUnique.mockResolvedValue({
       id: 'student-2',
       professorId: 'professor-2',
+      contractId: 'company-1',
       professor: { contractId: 'company-1' },
     });
 
@@ -63,6 +65,7 @@ describe('studentAccessScopeService', () => {
     mockPrisma.aluno.findUnique.mockResolvedValue({
       id: 'student-2',
       professorId: 'professor-2',
+      contractId: 'company-1',
       professor: { contractId: 'company-1' },
     });
 
@@ -83,7 +86,12 @@ describe('studentAccessScopeService', () => {
     );
 
     expect(mockPrisma.contract.findFirst).toHaveBeenCalledWith({
-      where: { id: 'document-1', companyContractId: 'company-1' },
+      where: {
+      id: 'document-1',
+      companyContractId: 'company-1',
+      partyType: 'STUDENT',
+      alunoId: { not: null },
+    },
       select: { id: true, alunoId: true },
     });
     expect(mockPrisma.aluno.findUnique).toHaveBeenCalledWith(

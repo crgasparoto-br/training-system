@@ -256,21 +256,11 @@ export const CreateProfessorSchema = z.object({
   currentStatus: optionalTextSchema,
   operationalRoleIds: z.array(z.string().trim().min(1, 'Cargo invalido')).optional(),
   hourlyRates: professorHourlyRatesSchema.optional(),
-  hasSignedContract: z.boolean().optional(),
-  signedContractDocumentUrl: optionalUrlSchema,
   collaboratorFunctionId: z.string().trim().min(1, 'Funcao do colaborador invalida'),
   responsibleManagerId: z.preprocess(
     emptyStringToUndefined,
     z.string().trim().min(1, 'Gestor responsavel invalido').optional()
   ),
-}).superRefine((data, ctx) => {
-  if (data.hasSignedContract && !data.signedContractDocumentUrl) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['signedContractDocumentUrl'],
-      message: 'Envie o PDF do contrato assinado',
-    });
-  }
 });
 
 export const UpdateProfessorSchema = z.object({
@@ -310,8 +300,6 @@ export const UpdateProfessorSchema = z.object({
   currentStatus: optionalNullableTextSchema,
   operationalRoleIds: z.array(z.string().trim().min(1, 'Cargo invalido')).optional(),
   hourlyRates: professorHourlyRatesNullableSchema.optional(),
-  hasSignedContract: z.boolean().optional(),
-  signedContractDocumentUrl: optionalNullableUrlSchema,
   collaboratorFunctionId: z.preprocess(
     emptyStringToUndefined,
     z.string().trim().min(1, 'Funcao do colaborador invalida').optional()
@@ -320,14 +308,6 @@ export const UpdateProfessorSchema = z.object({
     emptyStringToUndefined,
     z.string().trim().min(1, 'Gestor responsavel invalido').optional()
   ),
-}).superRefine((data, ctx) => {
-  if (data.hasSignedContract && !data.signedContractDocumentUrl) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['signedContractDocumentUrl'],
-      message: 'Envie o PDF do contrato assinado',
-    });
-  }
 });
 
 export const CreateCollaboratorFunctionSchema = z.object({
@@ -372,6 +352,18 @@ export const UpdateServiceSchema = z.object({
 // ALUNOS
 // ============================================================================
 
+const fixedScheduleSlotSchema = z.object({
+  id: z.string().trim().min(1).optional(),
+  clientKey: z.string().trim().min(1).optional(),
+  professorId: z.string().trim().min(1, 'Selecione o professor responsável'),
+  spaceId: z.string().trim().min(1, 'Selecione o espaço da academia'),
+  dayOfWeek: z.number().int().min(1).max(7),
+  startTime: z.string().regex(/^\d{2}:\d{2}$/, 'Horário inicial inválido'),
+  endTime: z.string().regex(/^\d{2}:\d{2}$/, 'Horário final inválido'),
+  notes: z.string().trim().nullable().optional(),
+  availabilityConfirmed: z.boolean().optional(),
+});
+
 export const CreateAlunoSchema = z.object({
   name: z.string().trim().min(3, 'Nome deve ter no minimo 3 caracteres'),
   email: z.string().trim().toLowerCase().email('Email invalido'),
@@ -383,6 +375,8 @@ export const CreateAlunoSchema = z.object({
   schedulePlan: z.enum(['free', 'fixed'], {
     errorMap: () => ({ message: 'Plano de agenda deve ser free ou fixed' }),
   }),
+  fixedScheduleSlots: z.array(fixedScheduleSlotSchema).optional(),
+  confirmKeepFutureBookings: z.boolean().optional(),
   age: z.number().int().min(10, 'Idade minima: 10 anos').max(100, 'Idade maxima: 100 anos'),
   weight: optionalNumberSchema(z.number().positive('Peso deve ser positivo')),
   height: optionalNumberSchema(z.number().positive('Altura deve ser positiva')),
@@ -451,6 +445,8 @@ export const UpdateAlunoSchema = z.object({
   professorId: z.preprocess(emptyStringToUndefined, z.string().trim().optional()),
   serviceId: z.preprocess(emptyStringToUndefined, z.string().trim().optional()),
   schedulePlan: z.enum(['free', 'fixed']).optional(),
+  fixedScheduleSlots: z.array(fixedScheduleSlotSchema).optional(),
+  confirmKeepFutureBookings: z.boolean().optional(),
   birthDate: optionalDateSchema,
   gender: z.enum(['male', 'female', 'other']).optional(),
   age: z.number().int().min(10, 'Idade minima: 10 anos').max(100, 'Idade maxima: 100 anos').optional(),

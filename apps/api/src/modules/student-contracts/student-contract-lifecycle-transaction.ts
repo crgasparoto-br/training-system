@@ -10,7 +10,52 @@ export type TransactionalStudentContractLifecycleResult = {
   effectiveAt?: Date;
 };
 
-const activateCandidateAt = async (
+export type CollaboratorContractRow = {
+  id: string;
+  collaboratorId: string;
+  contractId: string | null;
+  status: 'draft' | 'pending_signature' | 'active' | 'expired' | 'canceled' | 'terminated' | 'legacy';
+  origin: 'ELECTRONIC' | 'LEGACY_PDF' | 'LEGACY_DECLARATION';
+  startDate: Date | null;
+  endDate: Date | null;
+  signedAt: Date | null;
+  canceledAt: Date | null;
+  cancellationReason: string | null;
+  notes: string | null;
+  legacyDocumentUrl: string | null;
+  legacySourceKey: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type TransactionalCollaboratorContractLifecycleResult = {
+  collaboratorContract: CollaboratorContractRow;
+  activationDeferred: boolean;
+  reason: 'awaiting_signature' | 'scheduled_start' | 'activated';
+  effectiveAt?: Date;
+};
+
+const loadCollaboratorCandidate = async (
+  tx: TransactionClient,
+  collaboratorContractId: string
+) => {
+  const rows = await tx.$queryRaw<Array<CollaboratorContractRow & {
+    documentStatus: string | null;
+    documentSignedAt: Date | null;
+  }>>(Prisma.sql`
+    SELECT
+      cc.*,
+      gc."status"::text AS "documentStatus",
+      gc."signedAt" AS "documentSignedAt"
+    FROM "CollaboratorContract" cc
+    LEFT JOIN "GeneratedContract" gc ON gc."id" = cc."contractId"
+    WHERE cc."id" = ${collaboratorContractId}
+    LIMIT 1
+  `);
+  return rows[0] ?? null;
+};
+
+const activateStudentCandidateAt = async (
   tx: TransactionClient,
   studentContractId: string,
   effectiveAt: Date
@@ -34,13 +79,7 @@ const activateCandidateAt = async (
   const candidate = await tx.studentContract.findUnique({
     where: { id: studentContractId },
     include: {
-      contract: {
-        select: {
-          id: true,
-          status: true,
-          signedAt: true,
-        },
-      },
+      contract: { select: { id: true, status: true, signedAt: true } },
     },
   });
 
@@ -74,10 +113,7 @@ const activateCandidateAt = async (
       status: 'active',
       id: { not: candidate.id },
     },
-    data: {
-      status: 'terminated',
-      endDate: effectiveAt,
-    },
+    data: { status: 'terminated', endDate: effectiveAt },
   });
 
   const activated = await tx.studentContract.update({
@@ -99,18 +135,13 @@ const activateCandidateAt = async (
   return activated;
 };
 
-const registerSignedCandidate = async (
+const registerSignedStudentCandidate = async (
   tx: TransactionClient,
   studentContractId: string,
   signedAt: Date
 ) => {
-  const candidate = await tx.studentContract.findUnique({
-    where: { id: studentContractId },
-  });
-
-  if (!candidate) {
-    throw new Error('Vínculo do contrato assinado não encontrado');
-  }
+  const candidate = await tx.studentContract.findUnique({ where: { id: studentContractId } });
+  if (!candidate) throw new Error('Vínculo do contrato assinado não encontrado');
 
   const activation = resolveSignedContractActivation({
     signedAt,
@@ -128,22 +159,15 @@ const registerSignedCandidate = async (
         cancellationReason: null,
       },
     });
-
-    return {
-      studentContract: scheduled,
-      activation,
-    };
+    return { studentContract: scheduled, activation };
   }
 
-  const activated = await activateCandidateAt(
+  const activated = await activateStudentCandidateAt(
     tx,
     candidate.id,
     activation.effectiveAt
   );
-  return {
-    studentContract: activated,
-    activation,
-  };
+  return { studentContract: activated, activation };
 };
 
 export async function prepareOrActivateStudentContractInTransaction(
@@ -153,19 +177,10 @@ export async function prepareOrActivateStudentContractInTransaction(
 ): Promise<TransactionalStudentContractLifecycleResult> {
   const candidate = await tx.studentContract.findUnique({
     where: { id: studentContractId },
-    include: {
-      contract: {
-        select: {
-          status: true,
-          signedAt: true,
-        },
-      },
-    },
+    include: { contract: { select: { status: true, signedAt: true } } },
   });
 
-  if (!candidate) {
-    throw new Error('Vínculo de contrato do aluno não encontrado');
-  }
+  if (!candidate) throw new Error('Vínculo de contrato do aluno não encontrado');
 
   if (
     candidate.contract.status === 'CANCELLED' ||
@@ -188,9 +203,7 @@ export async function prepareOrActivateStudentContractInTransaction(
         : 'draft';
     const prepared = await tx.studentContract.update({
       where: { id: candidate.id },
-      data: {
-        status: pendingStatus,
-      },
+      data: { status: pendingStatus },
     });
 
     return {
@@ -201,17 +214,13 @@ export async function prepareOrActivateStudentContractInTransaction(
   }
 
   const persistedSignedAt = candidate.contract.signedAt ?? candidate.signedAt;
-
-  // Only a link that already recorded the signature and remained scheduled may
-  // activate at its planned start date. A newly signed document can have an old
-  // requested start date, but its effective date must never precede signedAt.
   if (
     candidate.status === 'pending_signature' &&
     candidate.signedAt &&
     candidate.startDate &&
     candidate.startDate.getTime() <= now.getTime()
   ) {
-    const activated = await activateCandidateAt(
+    const activated = await activateStudentCandidateAt(
       tx,
       candidate.id,
       candidate.startDate
@@ -225,12 +234,141 @@ export async function prepareOrActivateStudentContractInTransaction(
   }
 
   const signedAt = persistedSignedAt ?? now;
-  const lifecycle = await registerSignedCandidate(tx, candidate.id, signedAt);
+  const lifecycle = await registerSignedStudentCandidate(tx, candidate.id, signedAt);
 
   return {
     studentContract: lifecycle.studentContract,
     activationDeferred: lifecycle.activation.scheduled,
     reason: lifecycle.activation.scheduled ? 'scheduled_start' : 'activated',
     effectiveAt: lifecycle.activation.effectiveAt,
+  };
+}
+
+export async function prepareOrActivateCollaboratorContractInTransaction(
+  tx: TransactionClient,
+  collaboratorContractId: string,
+  now = new Date()
+): Promise<TransactionalCollaboratorContractLifecycleResult> {
+  let candidate = await loadCollaboratorCandidate(tx, collaboratorContractId);
+  if (!candidate) throw new Error('Vínculo de contrato do colaborador não encontrado');
+  if (candidate.origin !== 'ELECTRONIC' || !candidate.contractId) {
+    throw new Error('Registro legado não participa do ciclo de vigência eletrônico');
+  }
+
+  if (
+    candidate.documentStatus === 'CANCELLED' ||
+    candidate.documentStatus === 'EXPIRED' ||
+    candidate.status === 'canceled' ||
+    candidate.status === 'expired' ||
+    candidate.status === 'terminated' ||
+    candidate.status === 'legacy'
+  ) {
+    throw new Error('Contrato substituto não está disponível para ativação');
+  }
+
+  if (candidate.documentStatus !== 'SIGNED') {
+    if (candidate.status === 'active') {
+      throw new Error('Contrato vigente possui documento eletrônico não assinado');
+    }
+    const pendingStatus =
+      candidate.documentStatus === 'SENT' || candidate.documentStatus === 'VIEWED'
+        ? 'pending_signature'
+        : 'draft';
+    await tx.$executeRaw(Prisma.sql`
+      UPDATE "CollaboratorContract"
+      SET "status" = ${pendingStatus}::"CollaboratorContractStatus", "updatedAt" = CURRENT_TIMESTAMP
+      WHERE "id" = ${candidate.id}
+    `);
+    candidate = (await loadCollaboratorCandidate(tx, candidate.id))!;
+    return {
+      collaboratorContract: candidate,
+      activationDeferred: true,
+      reason: 'awaiting_signature',
+    };
+  }
+
+  await tx.$queryRaw(Prisma.sql`
+    SELECT "id" FROM "Professor"
+    WHERE "id" = ${candidate.collaboratorId}
+    FOR UPDATE
+  `);
+  candidate = (await loadCollaboratorCandidate(tx, candidate.id))!;
+
+  const persistedSignedAt = candidate.documentSignedAt ?? candidate.signedAt ?? now;
+  let effectiveAt: Date;
+  let scheduled = false;
+
+  if (
+    candidate.status === 'pending_signature' &&
+    candidate.signedAt &&
+    candidate.startDate &&
+    candidate.startDate.getTime() <= now.getTime()
+  ) {
+    effectiveAt = candidate.startDate;
+  } else {
+    const activation = resolveSignedContractActivation({
+      signedAt: persistedSignedAt,
+      requestedStartDate: candidate.startDate,
+    });
+    effectiveAt = activation.effectiveAt;
+    scheduled = activation.scheduled;
+  }
+
+  if (scheduled) {
+    await tx.$executeRaw(Prisma.sql`
+      UPDATE "CollaboratorContract"
+      SET
+        "status" = 'pending_signature'::"CollaboratorContractStatus",
+        "signedAt" = ${persistedSignedAt},
+        "startDate" = ${effectiveAt},
+        "canceledAt" = NULL,
+        "cancellationReason" = NULL,
+        "updatedAt" = CURRENT_TIMESTAMP
+      WHERE "id" = ${candidate.id}
+    `);
+    candidate = (await loadCollaboratorCandidate(tx, candidate.id))!;
+    return {
+      collaboratorContract: candidate,
+      activationDeferred: true,
+      reason: 'scheduled_start',
+      effectiveAt,
+    };
+  }
+
+  await tx.$executeRaw(Prisma.sql`
+    UPDATE "CollaboratorContract"
+    SET
+      "status" = 'terminated'::"CollaboratorContractStatus",
+      "endDate" = ${effectiveAt},
+      "updatedAt" = CURRENT_TIMESTAMP
+    WHERE "collaboratorId" = ${candidate.collaboratorId}
+      AND "status" = 'active'::"CollaboratorContractStatus"
+      AND "id" <> ${candidate.id}
+  `);
+
+  await tx.$executeRaw(Prisma.sql`
+    UPDATE "CollaboratorContract"
+    SET
+      "status" = 'active'::"CollaboratorContractStatus",
+      "startDate" = ${effectiveAt},
+      "signedAt" = COALESCE("signedAt", ${persistedSignedAt}),
+      "canceledAt" = NULL,
+      "cancellationReason" = NULL,
+      "updatedAt" = CURRENT_TIMESTAMP
+    WHERE "id" = ${candidate.id}
+  `);
+
+  await tx.$executeRaw(Prisma.sql`
+    UPDATE "Professor"
+    SET "currentCollaboratorContractId" = ${candidate.id}, "updatedAt" = CURRENT_TIMESTAMP
+    WHERE "id" = ${candidate.collaboratorId}
+  `);
+
+  candidate = (await loadCollaboratorCandidate(tx, candidate.id))!;
+  return {
+    collaboratorContract: candidate,
+    activationDeferred: false,
+    reason: 'activated',
+    effectiveAt,
   };
 }

@@ -1,0 +1,197 @@
+.collaborator-functions-page,
+.collaborator-functions-page > div,
+.collaborator-functions-page .cf-layout,
+.collaborator-functions-page .cf-workspace,
+.collaborator-functions-page .cf-editor,
+.collaborator-functions-page .cf-editor form {
+  min-width: 0;
+  min-height: 0;
+}
+
+.collaborator-functions-page :is(button, input, select, summary):focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+.collaborator-functions-page summary::-webkit-details-marker {
+  display: none;
+}
+
+.collaborator-functions-page .cf-tabs > [role='tab'] {
+  height: auto;
+  border-width: 0 0 2px;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.collaborator-functions-page .cf-tabs > [role='tab'][aria-selected='true'] {
+  border-color: hsl(var(--primary));
+  background: transparent;
+  color: hsl(var(--primary));
+}
+
+.collaborator-functions-page .cf-tabs > [role='tab'][aria-selected='false'] {
+  border-color: transparent;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+}
+
+.collaborator-functions-page .cf-group-actions[open] > summary,
+.collaborator-functions-page .cf-bulk-actions[open] > summary {
+  background: hsl(var(--accent));
+  color: hsl(var(--foreground));
+}
+
+@media (min-width: 768px) {
+  .collaborator-functions-page .cf-workspace {
+    height: calc(100vh - 8.25rem);
+  }
+
+  .collaborator-functions-page .cf-function-list,
+  .collaborator-functions-page .cf-editor {
+    height: 100%;
+  }
+}
+
+@media (max-width: 1023px) {
+  .collaborator-functions-page .cf-function-list {
+    width: 17rem;
+  }
+
+  .collaborator-functions-page .cf-page-header {
+    padding: 1rem;
+  }
+
+  .collaborator-functions-page .cf-editor-heading,
+  .collaborator-functions-page .cf-save-bar {
+    padding-inline: 1rem;
+  }
+
+  .collaborator-functions-page .cf-editor-scroll > div {
+    padding: 1rem;
+  }
+}
+
+@media (max-width: 767px) {
+  .collaborator-functions-page .cf-layout {
+    min-height: calc(100dvh - 4rem);
+  }
+
+  .collaborator-functions-page .cf-layout--editing .cf-page-header {
+    display: none;
+  }
+
+  .collaborator-functions-page .cf-page-header {
+    align-items: flex-start;
+  }
+
+  .collaborator-functions-page .cf-page-header > div:last-child {
+    width: 100%;
+  }
+
+  .collaborator-functions-page .cf-page-header > div:last-child > button {
+    min-height: 2.75rem;
+    flex: 1 1 0;
+  }
+
+  .collaborator-functions-page .cf-workspace {
+    display: block;
+  }
+
+  .collaborator-functions-page .cf-function-list {
+    width: 100%;
+    min-height: calc(100dvh - 12rem);
+    border-right: 0;
+  }
+
+  .collaborator-functions-page .cf-function-list--editor-open {
+    display: none;
+  }
+
+  .collaborator-functions-page .cf-editor--empty {
+    display: none;
+  }
+
+  .collaborator-functions-page .cf-editor--open {
+    display: block;
+    min-height: calc(100dvh - 4rem);
+  }
+
+  .collaborator-functions-page .cf-editor--open form {
+    min-height: calc(100dvh - 4rem);
+  }
+
+  .collaborator-functions-page .cf-mobile-back {
+    display: inline-flex;
+  }
+
+  .collaborator-functions-page .cf-page-header h1 {
+    font-size: 1.5rem;
+    line-height: 2rem;
+  }
+
+  .collaborator-functions-page .cf-tabs {
+    margin-inline: -1rem;
+    padding-inline: 1rem;
+  }
+
+  .collaborator-functions-page .cf-access-toolbar {
+    top: 0;
+  }
+
+  .collaborator-functions-page .cf-access-toolbar > div:first-child > * {
+    width: 100%;
+  }
+
+  .collaborator-functions-page .cf-access-toolbar [aria-label='Filtro de permissões'] > button {
+    flex: 1 1 0;
+  }
+
+  .collaborator-functions-page .cf-bulk-actions > summary {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .collaborator-functions-page .cf-bulk-actions > div {
+    left: 0;
+    right: 0;
+    width: auto;
+  }
+
+  .collaborator-functions-page .cf-save-bar {
+    position: sticky;
+    bottom: 0;
+    z-index: 30;
+    box-shadow: 0 -8px 20px rgb(27 29 33 / 0.08);
+  }
+
+  .collaborator-functions-page .cf-save-bar > div:first-child {
+    width: 100%;
+  }
+}
+
+@media (max-width: 479px) {
+  .collaborator-functions-page .cf-editor-heading h2 {
+    max-width: 15rem;
+  }
+
+  .collaborator-functions-page .cf-group-actions > div {
+    right: -0.5rem;
+  }
+
+  .collaborator-functions-page .cf-save-bar {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .collaborator-functions-page *,
+  .collaborator-functions-page *::before,
+  .collaborator-functions-page *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

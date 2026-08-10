@@ -1,4 +1,6 @@
 ﻿import api from './api';
+import type { FixedScheduleSlotInput } from './agenda.service';
+import type { ParqAdministrativeSummaryDTO } from '@corrida/types';
 
 export interface Aluno {
   id: string;
@@ -47,6 +49,7 @@ export interface Aluno {
     lipidsPercentage: number;
     dailyCalories?: number;
   };
+  parq?: ParqAdministrativeSummaryDTO;
   intakeForm?: {
     assessmentDate?: string;
     mainGoal?: string;
@@ -116,6 +119,8 @@ export interface CreateAlunoDTO {
   phone?: string;
   serviceId?: string;
   schedulePlan: 'free' | 'fixed';
+  fixedScheduleSlots?: FixedScheduleSlotInput[];
+  confirmKeepFutureBookings?: boolean;
   birthDate?: string;
   gender?: 'male' | 'female' | 'other';
   age: number;
@@ -160,6 +165,8 @@ export interface UpdateAlunoDTO {
   avatar?: string;
   serviceId?: string;
   schedulePlan?: 'free' | 'fixed';
+  fixedScheduleSlots?: FixedScheduleSlotInput[];
+  confirmKeepFutureBookings?: boolean;
   birthDate?: string;
   gender?: 'male' | 'female' | 'other';
   age?: number;
@@ -440,6 +447,9 @@ export interface StudentSegmentedProfile {
 export interface StudentSegmentedIntake {
   alunoId: string;
   source: StudentDomainSource;
+  status?: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
+  version?: number;
+  currentStep?: string | null;
   assessmentDate?: string | null;
   questionnaires: {
     parq?: Record<string, unknown> | null;
@@ -454,6 +464,9 @@ export interface StudentSegmentedIntake {
   updatedAt?: string | null;
   createdAt?: string | null;
   legacyIntakeId?: string | null;
+  migratedFromLegacy?: boolean;
+  migrationReviewRequired?: boolean;
+  migrationStatus?: string | null;
 }
 
 export interface StudentAssessmentMeasurement {
