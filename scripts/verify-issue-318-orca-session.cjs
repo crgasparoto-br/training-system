@@ -20,23 +20,39 @@ const stdout = fs.openSync(stdoutFile, 'w');
 
 function delay(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
 
-async function main() {
-  const orca = spawn('orca', [
-    '--replace',
-    '--enable=braille-monitor',
-    '--disable=speech',
-    '--debug',
-    `--debug-file=${debugFile}`,
-  ], { stdio: ['ignore', stdout, stdout], env: process.env });
+async function stopChild(child) {
+  if (!child || child.exitCode !== null) return;
+  child.kill('SIGTERM');
+  const exited = await Promise.race([
+    new Promise((resolve) => child.once('exit', () => resolve(true))),
+    delay(5000).then(() => false),
+  ]);
+  if (!exited && child.exitCode === null) {
+    child.kill('SIGKILL');
+    await Promise.race([
+      new Promise((resolve) => child.once('exit', resolve)),
+      delay(2000),
+    ]);
+  }
+}
 
+async function closeWithTimeout(closeFn) {
+  await Promise.race([
+    Promise.resolve().then(closeFn).catch(() => undefined),
+    delay(5000),
+  ]);
+}
+
+async function main() {
   let browser;
+  let context;
+  let orca;
   try {
-    await delay(2500);
     browser = await chromium.launch({
       headless: false,
       args: ['--force-renderer-accessibility', '--disable-gpu', '--no-sandbox'],
     });
-    const context = await browser.newContext({
+    context = await browser.newContext({
       viewport: { width: 1366, height: 768 },
       storageState: {
         cookies: [],
@@ -50,27 +66,49 @@ async function main() {
       },
     });
     const page = await context.newPage();
-    await page.goto(url, { waitUntil: 'domcontentloaded' });
+
+    // Load the application before Orca starts consuming the Chromium AT-SPI tree.
+    // In CI, starting Orca first can stall Playwright navigation while the reader
+    // synchronously inspects the accessibility tree during initial document load.
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
     await page.getByRole('heading', { name: 'Montagem Consolidada da Prescrição' }).waitFor({ timeout: 15000 });
 
-    const history = page.getByRole('button', { name: '8. Histórico de versões' });
-    await history.focus();
-    await page.keyboard.press('Enter');
-    const summary = page.locator('summary').first();
-    await summary.focus();
-    await page.keyboard.press('Enter');
-    await delay(2500);
+    orca = spawn('orca', [
+      '--replace',
+      '--disable=speech',
+      '--debug',
+      `--debug-file=${debugFile}`,
+    ], { stdio: ['ignore', stdout, stdout], env: process.env });
+    await delay(3000);
 
     const listed = spawnSync('orca', ['--list-apps'], { encoding: 'utf8', env: process.env });
     const listedApps = `${listed.stdout || ''}\n${listed.stderr || ''}`;
     fs.writeFileSync(path.join(outputDir, 'native-orca-apps.txt'), listedApps);
+    assert.equal(listed.status, 0, `Orca application enumeration failed: ${listedApps}`);
     assert.match(listedApps, /(chromium|chrome)/i, 'Orca did not enumerate Chromium as an AT-SPI application');
 
-    await context.close();
+    const history = page.getByRole('button', { name: '8. Histórico de versões' });
+    await history.focus();
+    if ((await history.getAttribute('aria-expanded')) === 'false') await page.keyboard.press('Enter');
+    assert.equal(await history.getAttribute('aria-expanded'), 'true');
+
+    const summary = page.locator('summary').first();
+    await summary.waitFor({ state: 'visible', timeout: 10000 });
+    await summary.focus();
+    await page.keyboard.press('Enter');
+    await delay(2500);
+
+    // Stop Orca first so Chromium teardown cannot deadlock on AT-SPI callbacks.
+    await stopChild(orca);
+    orca = undefined;
+    await closeWithTimeout(() => context.close());
+    context = undefined;
+    await closeWithTimeout(() => browser.close());
+    browser = undefined;
   } finally {
-    if (browser) await browser.close().catch(() => undefined);
-    orca.kill('SIGTERM');
-    await delay(1000);
+    await stopChild(orca);
+    if (context) await closeWithTimeout(() => context.close());
+    if (browser) await closeWithTimeout(() => browser.close());
     fs.closeSync(stdout);
   }
 
