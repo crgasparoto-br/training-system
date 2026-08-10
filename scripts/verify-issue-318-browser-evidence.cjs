@@ -275,6 +275,9 @@ async function installSessionAndApiMocks(page, scenario, options = {}) {
       body: JSON.stringify(status >= 400 ? data : { success: true, data }),
     });
 
+    if (method === 'GET' && pathname.endsWith('/auth/me')) {
+      return fulfill(masterUser);
+    }
     if (method === 'GET' && pathname.endsWith('/alunos/aluno-1')) {
       return fulfill(aluno);
     }
@@ -298,7 +301,7 @@ async function installSessionAndApiMocks(page, scenario, options = {}) {
       return fulfill({ error: 'A montagem foi alterada por outro usuário' }, 409);
     }
 
-    return fulfill([]);
+    return fulfill({ error: `Unexpected browser evidence API request: ${method} ${pathname}` }, 501);
   });
 }
 
