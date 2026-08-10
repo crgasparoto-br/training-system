@@ -741,7 +741,12 @@ function auditActionForVersion(
   previous: ConsolidatedPrescriptionVersionDetail | null
 ): ConsolidatedPrescriptionAuditAction {
   if (!previous) return 'created';
-  if (previous.status === 'approved' && current.status === 'draft') return 'revision_created';
+  if (
+    (previous.status === 'approved' || previous.status === 'released') &&
+    current.status === 'draft'
+  ) {
+    return 'revision_created';
+  }
   if (previous.status === 'blocked' && ['draft', 'ready_for_review'].includes(current.status)) {
     return 'unblocked';
   }
@@ -1388,8 +1393,11 @@ export function createConsolidatedPrescriptionService(client: PrismaClient = pri
         const current = await findAssemblyForUpdate(tx, context);
         if (!current) domainError('NOT_FOUND', 'Montagem consolidada não encontrada');
         const previous = await currentVersionDetail(tx, current);
-        if (previous.status !== 'approved') {
-          domainError('INVALID_TRANSITION', 'Nova revisão explícita só pode ser criada após aprovação');
+        if (!['approved', 'released'].includes(previous.status)) {
+          domainError(
+            'INVALID_TRANSITION',
+            'Nova revisão explícita só pode ser criada após aprovação ou liberação'
+          );
         }
         const conflicts = await evaluatePersistedComposition(tx, context, previous);
         return persistFromPrevious({
