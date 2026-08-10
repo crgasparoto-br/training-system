@@ -279,13 +279,13 @@ async function createScenarioPage(browser, scenario, deviceLabel, viewport, opti
       body: JSON.stringify(status >= 400 ? data : { success: true, data }),
     });
 
-    if (method === 'GET' && pathname.endsWith('/auth/me')) return fulfill(masterUser);
-    if (method === 'GET' && pathname.endsWith('/alunos/aluno-1')) return fulfill(aluno);
-    if (method === 'GET' && pathname.endsWith('/capacity-prescriptions/alunos/aluno-1')) return fulfill(capacities);
-    if (method === 'GET' && pathname.endsWith('/consolidated-prescriptions/alunos/aluno-1/conflicts')) return fulfill(fixture.conflicts);
-    if (method === 'GET' && pathname.endsWith('/consolidated-prescriptions/alunos/aluno-1/history')) return fulfill(historyFixture(fixture.assembly));
-    if (method === 'GET' && pathname.endsWith('/consolidated-prescriptions/alunos/aluno-1')) return fulfill(fixture.assembly);
-    if (options.forceConflict409 && method === 'PATCH' && pathname.endsWith('/consolidated-prescriptions/alunos/aluno-1/composition')) {
+    if (method === 'GET' && pathname === '/api/v1/auth/me') return fulfill(masterUser);
+    if (method === 'GET' && pathname === '/api/v1/alunos/aluno-1') return fulfill(aluno);
+    if (method === 'GET' && pathname === '/api/v1/capacity-prescriptions/alunos/aluno-1') return fulfill(capacities);
+    if (method === 'GET' && pathname === '/api/v1/consolidated-prescriptions/alunos/aluno-1/conflicts') return fulfill(fixture.conflicts);
+    if (method === 'GET' && pathname === '/api/v1/consolidated-prescriptions/alunos/aluno-1/history') return fulfill(historyFixture(fixture.assembly));
+    if (method === 'GET' && pathname === '/api/v1/consolidated-prescriptions/alunos/aluno-1') return fulfill(fixture.assembly);
+    if (options.forceConflict409 && method === 'PATCH' && pathname === '/api/v1/consolidated-prescriptions/alunos/aluno-1/composition') {
       return fulfill({ error: 'A montagem foi alterada por outro usuário' }, 409);
     }
 
