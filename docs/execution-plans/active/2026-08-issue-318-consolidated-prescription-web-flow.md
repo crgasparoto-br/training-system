@@ -2,81 +2,78 @@
 
 ## Objetivo
 
-Entregar o fluxo web do professor para montar, revisar e aprovar a Montagem Consolidada da Prescrição, preservando o contexto do aluno e consumindo exclusivamente os contratos autoritativos da API implementados pela issue #317.
+Entregar o fluxo web do professor para montar, revisar e aprovar a Montagem Consolidada da Prescrição, preservando o contexto do aluno e consumindo exclusivamente os contratos autoritativos da API da #317.
 
 ## Contexto
 
 - Issue: #318.
 - Dependência #317 concluída em `develop` pela PR #322.
 - Fonte de verdade do domínio: `docs/product/consolidated-prescription-model.md`.
-- Fonte da experiência web desta entrega: `docs/product/consolidated-prescription-web-flow.md`.
-- A Montagem Consolidada é a fronteira entre prescrição por capacidades e a futura saída operacional; esta entrega não publica Treino de hoje.
+- Fonte da experiência web: `docs/product/consolidated-prescription-web-flow.md`.
+- Branch de trabalho: `feat/318-consolidated-prescription-web-flow`.
+- A Montagem Consolidada não publica Treino de hoje nesta fase.
 
 ## Fora de escopo
 
-- Cálculo de conflito no frontend.
-- Geração ou publicação do Treino de hoje.
-- Feedback pós-treino.
-- Decisão técnica automática.
-- Reconstrução do Workout Builder.
-- Envio de WhatsApp.
-- Operações em massa.
+- cálculo de conflito no frontend;
+- `approved -> released`;
+- geração/publicação do Treino de hoje;
+- feedback pós-treino;
+- decisão técnica automática;
+- reconstrução do Workout Builder;
+- envio de WhatsApp;
+- operações em massa.
 
-## Arquivos e modulos principais
+## Contratos e decisões
 
-- `apps/web/src/pages/ConsolidatedPrescription.tsx`
-- `apps/web/src/pages/ConsolidatedPrescription.test.tsx`
-- `apps/web/src/services/consolidated-prescription.service.ts`
-- `apps/web/src/App.tsx`
-- `apps/web/src/components/alunos/AlunoResumoHubTab.tsx`
-- `docs/product/consolidated-prescription-web-flow.md`
-
-## Regras e restricoes
-
-- `contractId`, `dataScope`, ator, versão e transições continuam sendo autoridade do backend.
-- Permissões usam os blocos `plans.consolidatedPrescriptions.view`, `manage` e `approve` existentes.
+- `contractId`, `dataScope`, ator, versão e transições são autoridade do backend.
+- Permissões usam `plans.consolidatedPrescriptions.view`, `manage` e `approve`.
+- O workspace web usa `GET /consolidated-prescriptions/alunos/:alunoId/workspace`; não usa `GET /alunos/:id` como gate de escopo.
+- Elegibilidade e motivo das capacidades vêm do workspace backend; a UI não reclassifica status.
+- Edição comum preserva `responsibleProfessorId` e referências adicionais persistidas; `capacity_source` continua derivada no backend.
 - A UI não promove localmente uma montagem para `approved` antes da resposta da API.
 - Toda mutação após a criação usa `expectedCurrentVersion`.
-- Um `409` preserva edição local e exige reconciliação explícita.
-- O `alunoId` permanece na rota da Central do Aluno durante todo o fluxo.
-- Telas longas agrupam seções relacionadas em componentes colapsáveis.
+- HTTP `409` preserva edição local e exige reconciliação explícita.
+- Telas longas usam oito seções colapsáveis.
 
-## Passos de implementacao
+## Remediação da auditoria independente
 
-- [x] Mapear contrato e estados da API da issue #317.
-- [x] Criar client web para montagem, conflitos, workflow e histórico.
-- [x] Criar rota protegida por aluno e ponto de entrada na Central do Aluno.
-- [x] Implementar seções colapsáveis, estados, permissões e concorrência otimista.
-- [x] Adicionar testes focados para contexto, aprovação autoritativa e conflito `409`.
-- [x] Documentar o fluxo web e seus limites.
-- [ ] Executar gates completos do repositório em ambiente com checkout/dependências disponíveis.
-- [ ] Registrar evidência visual desktop/mobile em ambiente executável.
-- [ ] Realizar auditoria independente em contexto separado após congelar o candidato.
+- [x] Remover dependência da tela em `alunoService.getById`, que reduzia indevidamente o `plans=contract` do gestor.
+- [x] Adicionar read-model autoritativo de workspace com o mesmo `dataScope` de `plans`.
+- [x] Mover decisão/motivo de elegibilidade de capacidade para o backend.
+- [x] Preservar responsável técnico e referências adicionais em saves comuns.
+- [x] Adicionar controles negativos com ator diferente do responsável e referência adicional persistida.
+- [x] Adicionar teste HTTP com usuário `plans=contract` sobre aluno atribuído a outro professor e negações `self`/cross-tenant.
+- [x] Separar contraste de `text-primary` em dark mode do token usado como fundo de controles e reforçar `--ring` escuro.
+- [x] Ampliar evidência automatizada para `1440x1000`, `1366x768`, `390x844`, texto 200%, dark mode, teclado, axe, ARIA, warning/critical, histórico e `409`.
+- [ ] Executar os gates do novo SHA em ambiente com checkout/dependências.
+- [ ] Executar sessão nativa de leitor de tela (NVDA, VoiceOver ou Orca). Axe/ARIA não substituem esse aceite.
+- [ ] Realizar nova auditoria independente em contexto separado após congelar o novo candidato.
 
-## Criterios de aceite
+## Validação esperada
 
-- [x] Testes relevantes foram adicionados ou atualizados.
-- [x] Documentacao foi atualizada.
-- [ ] `pnpm validate` passa.
-- [x] Riscos conhecidos foram registrados no plano e serão registrados no PR.
+```bash
+pnpm --filter @corrida/web test
+pnpm --filter @corrida/api test
+pnpm type-check
+pnpm lint
+pnpm access:check
+pnpm docs:check
+pnpm validate
+```
 
-## Validacao manual
+O workflow de evidência existente executa o script `scripts/verify-issue-318-browser-evidence.cjs`. A remediação não altera `.github/workflows/**`; GitHub Actions permanece apenas como gate de validação do candidato publicado.
 
-1. Abrir a Central do Aluno e acessar a montagem sem trocar o aluno selecionado.
-2. Validar cabeçalho com aluno, professor, versão, estado, origem e datas.
-3. Percorrer as oito seções por teclado em desktop e mobile.
-4. Confirmar estado sem montagem e capacidade indisponível.
-5. Salvar rascunho com as quatro capacidades e justificativa.
-6. Enviar rascunho persistido para revisão.
-7. Confirmar que `warning` não aparece como bloqueador crítico e `critical` impede aprovação.
-8. Aprovar somente com bloco `approve` e confirmar que a UI só mostra `Aprovada` após resposta do backend.
-9. Simular `409`, verificar preservação dos campos locais e usar recarga explícita para reconciliar.
-10. Consultar versões históricas em modo somente leitura.
-11. Confirmar que usuário sem `view` não recebe ponto de entrada e que ausência de `manage`/`approve` não bloqueia outras áreas autorizadas da ficha do aluno.
+## Evidência adversarial
 
-## Decisoes e pendencias
+Os controles discriminantes obrigatórios desta rodada são:
 
-- O contrato atual da Montagem Consolidada não expõe edição de exercícios individuais; por isso a UI organiza blocos de capacidade e não cria um editor paralelo.
-- A seleção usa a versão ativa pública apenas como candidato; a elegibilidade definitiva é revalidada pelo backend.
-- A execução está em modo connector-only porque o ambiente local não conseguiu resolver `github.com`; por isso os gates locais e screenshots permanecem pendentes até execução via CI/ambiente com checkout.
-- A entrega não faz merge e permanece pendente de auditoria independente após o candidato final.
+1. ator da edição diferente de `responsibleProfessorId`, verificando que o save não reatribui responsabilidade;
+2. referência adicional `assessment` existente, verificando que o save não a remove e não reenvia `capacity_source` derivada;
+3. usuário com `plans=contract` acessando aluno de outro professor, enquanto usuário `self` e outro tenant recebem 404;
+4. prescrição suspensa com versão persistida ativa, verificando que `eligible=false` e o motivo vêm do backend;
+5. dark mode com `text-primary` medido em contraste >= 4.5:1.
+
+## Estado para freeze
+
+O candidato só pode ser declarado internamente aprovado após os gates executáveis do novo SHA. Mesmo com esses gates verdes, a issue permanece pendente do aceite manual de leitor de tela e de auditoria independente separada.

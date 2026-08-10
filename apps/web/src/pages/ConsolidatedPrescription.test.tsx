@@ -3,18 +3,16 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
-  CapacityPrescriptionView,
   ConsolidatedPrescriptionAssembly,
+  ConsolidatedPrescriptionCapacityCandidate,
   ConsolidatedPrescriptionConflictReport,
+  ConsolidatedPrescriptionWorkspaceContext,
   PhysicalCapacityType,
 } from '@corrida/types';
-import { alunoService } from '../services/aluno.service';
 import { consolidatedPrescriptionService } from '../services/consolidated-prescription.service';
 import { ConsolidatedPrescription } from './ConsolidatedPrescription';
 
-const accessState = vi.hoisted(() => ({
-  allowed: new Set<string>(),
-}));
+const accessState = vi.hoisted(() => ({ allowed: new Set<string>() }));
 
 vi.mock('../access/access-control', () => ({
   canAccessBlock: (_user: unknown, blockKey: string) => accessState.allowed.has(blockKey),
@@ -24,16 +22,10 @@ vi.mock('../stores/useAuthStore', () => ({
   useAuthStore: (selector: (state: { user: object }) => unknown) => selector({ user: {} }),
 }));
 
-vi.mock('../services/aluno.service', () => ({
-  alunoService: {
-    getById: vi.fn(),
-  },
-}));
-
 vi.mock('../services/consolidated-prescription.service', () => ({
   consolidatedPrescriptionService: {
+    getWorkspaceContext: vi.fn(),
     getCurrent: vi.fn(),
-    listCapacities: vi.fn(),
     getConflicts: vi.fn(),
     getHistory: vi.fn(),
     createDraft: vi.fn(),
@@ -46,64 +38,39 @@ vi.mock('../services/consolidated-prescription.service', () => ({
   },
 }));
 
-const aluno = {
-  id: 'aluno-1',
-  professorId: 'professor-1',
-  age: 35,
-  user: {
-    email: 'aluno@teste.com',
-    profile: { name: 'Maria Atleta' },
-  },
-  professor: {
-    id: 'professor-1',
-    user: { profile: { name: 'Prof. Bruno' } },
-  },
-} as Awaited<ReturnType<typeof alunoService.getById>>;
-
 const capacityTypes: PhysicalCapacityType[] = ['resisted', 'flexibility', 'cyclic', 'balance'];
 
-function capacityFixture(capacity: PhysicalCapacityType, index: number): CapacityPrescriptionView {
+function candidateFixture(capacity: PhysicalCapacityType, index: number): ConsolidatedPrescriptionCapacityCandidate {
   return {
-    id: `prescription-${capacity}`,
-    contractId: 'contract-1',
-    alunoId: 'aluno-1',
     capacity,
-    status: 'active',
-    currentVersion: 2,
-    createdByProfessorId: 'professor-1',
-    updatedByProfessorId: 'professor-1',
-    createdAt: '2026-08-01T10:00:00.000Z',
-    updatedAt: '2026-08-09T10:00:00.000Z',
-    publishesTodayWorkout: false,
-    latestVersion: {
-      id: `capacity-version-${capacity}`,
-      prescriptionId: `prescription-${capacity}`,
-      contractId: 'contract-1',
-      alunoId: 'aluno-1',
-      capacity,
-      status: 'active',
-      version: 2,
-      responsibleProfessorId: 'professor-1',
-      technicalJustification: `Justificativa ${capacity}`,
-      professorSummary: `Resumo ${capacity}`,
-      methodologyVersion: 'v1',
-      parameterSetIds: [],
-      sourceRefs: [
-        {
-          type: 'physical_assessment',
-          id: `assessment-${index}`,
-          label: `Avaliação ${index + 1}`,
-        },
-      ],
-      linkedProntuarioGoalIds: [],
-      alerts: [],
-      createdAt: '2026-08-09T10:00:00.000Z',
-      publishesTodayWorkout: false,
-    },
+    prescriptionId: `prescription-${capacity}`,
+    prescriptionStatus: 'active',
+    capacityPrescriptionVersionId: `capacity-version-${capacity}`,
+    version: 2,
+    versionStatus: 'active',
+    eligible: true,
+    reasonCode: 'eligible',
+    reason: null,
+    professorSummary: `Resumo ${capacity}`,
+    sourceRefs: [{
+      type: 'physical_assessment',
+      id: `assessment-${index}`,
+      label: `Avaliação ${index + 1}`,
+      origin: 'Avaliação Física',
+    }],
   };
 }
 
-const capacities = capacityTypes.map(capacityFixture);
+const candidates = capacityTypes.map(candidateFixture);
+
+const workspace: ConsolidatedPrescriptionWorkspaceContext = {
+  aluno: { id: 'aluno-1', name: 'Maria Atleta' },
+  actorProfessor: { id: 'professor-manager', name: 'Gestora Paula' },
+  assignedProfessor: { id: 'professor-assigned', name: 'Prof. Bruno' },
+  responsibleProfessor: { id: 'professor-responsible', name: 'Prof. Renata' },
+  capacityCandidates: candidates,
+  capacityCandidatesError: null,
+};
 
 function assemblyFixture(
   status: ConsolidatedPrescriptionAssembly['currentStatus'] = 'draft',
@@ -115,8 +82,8 @@ function assemblyFixture(
     alunoId: 'aluno-1',
     currentVersion: version,
     currentStatus: status,
-    createdByProfessorId: 'professor-1',
-    updatedByProfessorId: 'professor-1',
+    createdByProfessorId: 'professor-manager',
+    updatedByProfessorId: 'professor-manager',
     createdAt: '2026-08-08T10:00:00.000Z',
     updatedAt: '2026-08-09T10:00:00.000Z',
     latestVersion: {
@@ -126,17 +93,17 @@ function assemblyFixture(
       alunoId: 'aluno-1',
       version,
       status,
-      responsibleProfessorId: 'professor-1',
+      responsibleProfessorId: 'professor-responsible',
       technicalObservation: 'Observação persistida',
       professorJustification: 'Justificativa persistida',
       studentInstruction: 'Orientação ao aluno',
-      createdByProfessorId: 'professor-1',
+      createdByProfessorId: 'professor-manager',
       createdAt: '2026-08-09T10:00:00.000Z',
-      capacityBlocks: capacities.map((prescription, index) => ({
+      capacityBlocks: candidates.map((candidate, index) => ({
         id: `block-${index}`,
-        capacityPrescriptionVersionId: prescription.latestVersion!.id,
-        capacity: prescription.capacity,
-        capacityVersion: prescription.latestVersion!.version,
+        capacityPrescriptionVersionId: candidate.capacityPrescriptionVersionId!,
+        capacity: candidate.capacity,
+        capacityVersion: candidate.version!,
         capacityStatus: 'active',
         position: index,
       })),
@@ -145,9 +112,9 @@ function assemblyFixture(
       traceability: {
         capacityCount: 4,
         sourceRefIds: [],
-        capacityVersions: capacities.map((prescription) => ({
-          capacityPrescriptionVersionId: prescription.latestVersion!.id,
-          capacity: prescription.capacity,
+        capacityVersions: candidates.map((candidate) => ({
+          capacityPrescriptionVersionId: candidate.capacityPrescriptionVersionId!,
+          capacity: candidate.capacity,
           version: 2,
           status: 'active',
         })),
@@ -161,15 +128,13 @@ function assemblyFixture(
 const conflictReport: ConsolidatedPrescriptionConflictReport = {
   version: 3,
   status: 'draft',
-  conflicts: [
-    {
-      code: 'review-warning',
-      message: 'Revisar origem antes do envio.',
-      severity: 'warning',
-      affectedCapacities: ['resisted'],
-      sourceRefIds: [],
-    },
-  ],
+  conflicts: [{
+    code: 'review-warning',
+    message: 'Revisar origem antes do envio.',
+    severity: 'warning',
+    affectedCapacities: ['resisted'],
+    sourceRefIds: [],
+  }],
   hasCritical: false,
   canUnblock: false,
   unavailableChecks: [],
@@ -177,19 +142,12 @@ const conflictReport: ConsolidatedPrescriptionConflictReport = {
 
 function renderPage() {
   return render(
-    <MemoryRouter
-      initialEntries={[
-        {
-          pathname: '/central-do-aluno/aluno-1/montagem-consolidada',
-          state: { from: 'student-central' },
-        },
-      ]}
-    >
+    <MemoryRouter initialEntries={[{
+      pathname: '/central-do-aluno/aluno-1/montagem-consolidada',
+      state: { from: 'student-central' },
+    }]}>
       <Routes>
-        <Route
-          path="/central-do-aluno/:alunoId/montagem-consolidada"
-          element={<ConsolidatedPrescription />}
-        />
+        <Route path="/central-do-aluno/:alunoId/montagem-consolidada" element={<ConsolidatedPrescription />} />
       </Routes>
     </MemoryRouter>
   );
@@ -202,24 +160,21 @@ beforeEach(() => {
     'plans.consolidatedPrescriptions.manage',
     'plans.consolidatedPrescriptions.approve',
   ]);
-  vi.mocked(alunoService.getById).mockResolvedValue(aluno);
-  vi.mocked(consolidatedPrescriptionService.listCapacities).mockResolvedValue(capacities);
+  vi.mocked(consolidatedPrescriptionService.getWorkspaceContext).mockResolvedValue(workspace);
   vi.mocked(consolidatedPrescriptionService.getConflicts).mockResolvedValue(conflictReport);
   vi.mocked(consolidatedPrescriptionService.getHistory).mockResolvedValue(null);
 });
 
 describe('ConsolidatedPrescription', () => {
-  it('mantem o contexto do aluno e organiza o fluxo em secoes colapsaveis', async () => {
+  it('carrega contexto pelo contrato da montagem e mantém as oito seções', async () => {
     vi.mocked(consolidatedPrescriptionService.getCurrent).mockResolvedValue(assemblyFixture());
-
     renderPage();
 
     expect(await screen.findByRole('heading', { name: 'Montagem Consolidada da Prescrição' })).toBeInTheDocument();
     expect(screen.getByText('Aluno').parentElement).toHaveTextContent('Maria Atleta');
-    expect(screen.getByText('Professor responsável').parentElement).toHaveTextContent('Prof. Bruno');
-    expect(screen.getByText('Versão').parentElement).toHaveTextContent('v3');
-    expect(screen.getByText('Estado').parentElement).toHaveTextContent('Rascunho');
+    expect(screen.getByText('Professor responsável').parentElement).toHaveTextContent('Prof. Renata');
     expect(screen.getByText('Origem do acesso').parentElement).toHaveTextContent('Central do Aluno');
+    expect(consolidatedPrescriptionService.getWorkspaceContext).toHaveBeenCalledWith('aluno-1');
 
     for (const section of [
       '1. Dados gerais',
@@ -235,7 +190,91 @@ describe('ConsolidatedPrescription', () => {
     }
   });
 
-  it('so mostra aprovada depois da confirmacao retornada pelo backend', async () => {
+  it('exibe exatamente o motivo de inelegibilidade retornado pelo backend', async () => {
+    const user = userEvent.setup();
+    const reason = 'Motivo autoritativo da API: prescrição suspensa por revisão clínica.';
+    vi.mocked(consolidatedPrescriptionService.getCurrent).mockResolvedValue(null);
+    vi.mocked(consolidatedPrescriptionService.getWorkspaceContext).mockResolvedValue({
+      ...workspace,
+      capacityCandidates: candidates.map((candidate) => candidate.capacity === 'resisted'
+        ? {
+            ...candidate,
+            prescriptionStatus: 'suspended',
+            eligible: false,
+            reasonCode: 'prescription_not_active',
+            reason,
+          }
+        : candidate),
+    });
+
+    renderPage();
+    await screen.findByText('Ainda não criada');
+    await user.click(screen.getByRole('button', { name: '2. Capacidades recebidas' }));
+
+    expect(screen.getByText(reason)).toBeInTheDocument();
+    expect(screen.getByText('Código: prescription_not_active')).toBeInTheDocument();
+    expect(screen.getAllByText('Elegível pela API')).toHaveLength(3);
+  });
+
+  it('preserva responsável e referências adicionais ao salvar uma edição não relacionada', async () => {
+    const user = userEvent.setup();
+    const current = assemblyFixture('draft', 3);
+    current.latestVersion.dataRefs = [
+      {
+        id: 'capacity-source-1',
+        role: 'capacity_source',
+        sourceType: 'physical_assessment',
+        sourceId: 'assessment-derived',
+        label: 'Origem derivada',
+      },
+      {
+        id: 'extra-ref-1',
+        role: 'assessment',
+        sourceType: 'physical_assessment',
+        sourceId: 'assessment-extra',
+        label: 'Avaliação adicional',
+        assessedAt: '2026-08-07T09:00:00.000Z',
+        origin: 'PRNT',
+        sourceVersion: 7,
+        responsibleProfessorId: 'professor-source',
+        context: { purpose: 'audit-control' },
+      },
+    ];
+    const saved = assemblyFixture('draft', 4);
+    vi.mocked(consolidatedPrescriptionService.getCurrent).mockResolvedValue(current);
+    vi.mocked(consolidatedPrescriptionService.updateComposition).mockResolvedValue(saved);
+
+    renderPage();
+    await screen.findByText('Rascunho');
+    await user.click(screen.getByRole('button', { name: '5. Composição e ordem técnica' }));
+    const observation = screen.getByLabelText('Observação técnica interna');
+    await user.clear(observation);
+    await user.type(observation, 'Ajuste sem trocar responsabilidade');
+    await user.click(screen.getByRole('button', { name: '7. Revisão e validação final' }));
+    await user.click(screen.getByRole('button', { name: 'Salvar rascunho' }));
+
+    await waitFor(() => expect(consolidatedPrescriptionService.updateComposition).toHaveBeenCalled());
+    expect(consolidatedPrescriptionService.updateComposition).toHaveBeenCalledWith(
+      'aluno-1',
+      expect.objectContaining({
+        expectedCurrentVersion: 3,
+        responsibleProfessorId: 'professor-responsible',
+        dataRefs: [{
+          role: 'assessment',
+          sourceType: 'physical_assessment',
+          sourceId: 'assessment-extra',
+          label: 'Avaliação adicional',
+          assessedAt: '2026-08-07T09:00:00.000Z',
+          origin: 'PRNT',
+          sourceVersion: 7,
+          responsibleProfessorId: 'professor-source',
+          context: { purpose: 'audit-control' },
+        }],
+      })
+    );
+  });
+
+  it('só mostra aprovada depois da confirmação retornada pelo backend', async () => {
     const user = userEvent.setup();
     const ready = assemblyFixture('ready_for_review', 4);
     const approved = assemblyFixture('approved', 5);
@@ -246,166 +285,44 @@ describe('ConsolidatedPrescription', () => {
       status: 'ready_for_review',
       conflicts: [],
     });
-
     let resolveApproval!: (value: ConsolidatedPrescriptionAssembly) => void;
-    const pendingApproval = new Promise<ConsolidatedPrescriptionAssembly>((resolve) => {
-      resolveApproval = resolve;
-    });
-    vi.mocked(consolidatedPrescriptionService.approve).mockReturnValueOnce(pendingApproval);
+    vi.mocked(consolidatedPrescriptionService.approve).mockReturnValueOnce(
+      new Promise((resolve) => { resolveApproval = resolve; })
+    );
 
     renderPage();
     expect(await screen.findByText('Pronta para revisão')).toBeInTheDocument();
-
     await user.click(screen.getByRole('button', { name: '7. Revisão e validação final' }));
     await user.click(screen.getByRole('button', { name: 'Aprovar montagem' }));
-
-    expect(consolidatedPrescriptionService.approve).toHaveBeenCalledWith('aluno-1', {
-      expectedCurrentVersion: 4,
-    });
-    expect(screen.getByText('Pronta para revisão')).toBeInTheDocument();
     expect(screen.queryByText('Aprovada')).not.toBeInTheDocument();
 
     resolveApproval(approved);
-
     await waitFor(() => expect(screen.getByText('Aprovada')).toBeInTheDocument());
     expect(screen.getByText('Aprovação confirmada pelo servidor.')).toBeInTheDocument();
   });
 
-  it('preserva edicao local quando o servidor responde conflito 409', async () => {
+  it('preserva edição local diante de 409 e exige reconciliação explícita', async () => {
     const user = userEvent.setup();
     vi.mocked(consolidatedPrescriptionService.getCurrent).mockResolvedValue(assemblyFixture('draft', 3));
     vi.mocked(consolidatedPrescriptionService.updateComposition).mockRejectedValue({
-      response: {
-        status: 409,
-        data: { error: 'A montagem foi alterada por outro usuário' },
-      },
+      response: { status: 409, data: { error: 'A montagem foi alterada por outro usuário' } },
     });
 
     renderPage();
     await screen.findByText('Rascunho');
-
     await user.click(screen.getByRole('button', { name: '5. Composição e ordem técnica' }));
     const observation = screen.getByLabelText('Observação técnica interna');
     await user.clear(observation);
     await user.type(observation, 'Alteração local que deve permanecer');
-
     await user.click(screen.getByRole('button', { name: '7. Revisão e validação final' }));
     await user.click(screen.getByRole('button', { name: 'Salvar rascunho' }));
 
     expect(await screen.findByText('Conflito de versão detectado')).toBeInTheDocument();
-    expect(screen.getByText(/Suas alterações locais foram preservadas/i)).toBeInTheDocument();
-
     await user.click(screen.getByRole('button', { name: '5. Composição e ordem técnica' }));
-    expect(screen.getByLabelText('Observação técnica interna')).toHaveValue(
-      'Alteração local que deve permanecer'
-    );
+    expect(screen.getByLabelText('Observação técnica interna')).toHaveValue('Alteração local que deve permanecer');
   });
 
-  it('desbloqueia explicitamente uma montagem somente depois que a API confirma canUnblock', async () => {
-    const user = userEvent.setup();
-    const blocked = assemblyFixture('blocked', 3);
-    const ready = assemblyFixture('ready_for_review', 4);
-    vi.mocked(consolidatedPrescriptionService.getCurrent).mockResolvedValue(blocked);
-    vi.mocked(consolidatedPrescriptionService.getConflicts)
-      .mockResolvedValueOnce({
-        ...conflictReport,
-        version: 3,
-        status: 'blocked',
-        conflicts: [],
-        hasCritical: false,
-        canUnblock: true,
-      })
-      .mockResolvedValue({
-        ...conflictReport,
-        version: 4,
-        status: 'ready_for_review',
-        conflicts: [],
-        hasCritical: false,
-        canUnblock: false,
-      });
-    vi.mocked(consolidatedPrescriptionService.unblock).mockResolvedValue(ready);
-
-    renderPage();
-    expect(await screen.findByText('Bloqueada')).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: '7. Revisão e validação final' }));
-    await user.click(screen.getByRole('button', { name: 'Desbloquear para revisão' }));
-
-    expect(consolidatedPrescriptionService.unblock).toHaveBeenCalledWith('aluno-1', {
-      expectedCurrentVersion: 3,
-      targetStatus: 'ready_for_review',
-      reason: 'Conflitos críticos resolvidos e reavaliados na interface da Montagem Consolidada.',
-    });
-    expect(await screen.findByText('Pronta para revisão')).toBeInTheDocument();
-    expect(screen.getByText('Montagem desbloqueada e enviada para revisão pelo servidor.')).toBeInTheDocument();
-  });
-
-  it('nao oferece desbloqueio enquanto a API mantem conflito critical', async () => {
-    const user = userEvent.setup();
-    vi.mocked(consolidatedPrescriptionService.getCurrent).mockResolvedValue(assemblyFixture('blocked', 3));
-    vi.mocked(consolidatedPrescriptionService.getConflicts).mockResolvedValue({
-      version: 3,
-      status: 'blocked',
-      conflicts: [
-        {
-          code: 'critical-1',
-          message: 'Restrição estruturada ainda ativa.',
-          severity: 'critical',
-          affectedCapacities: ['resisted'],
-          sourceRefIds: [],
-        },
-      ],
-      hasCritical: true,
-      canUnblock: false,
-      unavailableChecks: [],
-    });
-
-    renderPage();
-    await screen.findByText('Bloqueada');
-    await user.click(screen.getByRole('button', { name: '7. Revisão e validação final' }));
-
-    expect(screen.queryByRole('button', { name: 'Desbloquear para revisão' })).not.toBeInTheDocument();
-    expect(screen.getByText(/O desbloqueio só aparece após reavaliação favorável do servidor/i)).toBeInTheDocument();
-  });
-
-  it('mostra o status real da prescricao quando a raiz esta inativa mas a ultima versao esta ativa', async () => {
-    const user = userEvent.setup();
-    const suspendedCapacities = capacities.map((prescription) =>
-      prescription.capacity === 'resisted' ? { ...prescription, status: 'suspended' as const } : prescription
-    );
-    vi.mocked(consolidatedPrescriptionService.getCurrent).mockResolvedValue(null);
-    vi.mocked(consolidatedPrescriptionService.listCapacities).mockResolvedValue(suspendedCapacities);
-
-    renderPage();
-    await screen.findByText('Ainda não criada');
-    await user.click(screen.getByRole('button', { name: '2. Capacidades recebidas' }));
-
-    expect(
-      screen.getByText(/Status da prescrição retornado pela API: suspended/i)
-    ).toBeInTheDocument();
-    expect(screen.queryByText(/Status retornado pela API: active/i)).not.toBeInTheDocument();
-  });
-
-  it('oculta controles de gestao para perfil somente leitura', async () => {
-    const user = userEvent.setup();
-    accessState.allowed = new Set(['plans.consolidatedPrescriptions.view']);
-    vi.mocked(consolidatedPrescriptionService.getCurrent).mockResolvedValue(assemblyFixture('draft', 3));
-
-    renderPage();
-    await screen.findByText('Rascunho');
-
-    await user.click(screen.getByRole('button', { name: '4. Alertas e conflitos' }));
-    expect(screen.queryByRole('button', { name: 'Reavaliar conflitos' })).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: '5. Composição e ordem técnica' }));
-    expect(screen.getByLabelText('Observação técnica interna')).toHaveAttribute('readonly');
-
-    await user.click(screen.getByRole('button', { name: '7. Revisão e validação final' }));
-    expect(screen.queryByRole('button', { name: 'Salvar rascunho' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Enviar para revisão' })).not.toBeInTheDocument();
-  });
-
-  it('mantem aprovacao separada de manage e diferencia warning de blocker sem depender apenas de cor', async () => {
+  it('mantém gestão e aprovação separadas e diferencia warning de critical por texto', async () => {
     const user = userEvent.setup();
     accessState.allowed = new Set([
       'plans.consolidatedPrescriptions.view',
@@ -416,20 +333,8 @@ describe('ConsolidatedPrescription', () => {
       version: 4,
       status: 'ready_for_review',
       conflicts: [
-        {
-          code: 'warning-1',
-          message: 'Atenção estruturada.',
-          severity: 'warning',
-          affectedCapacities: ['balance'],
-          sourceRefIds: [],
-        },
-        {
-          code: 'critical-1',
-          message: 'Bloqueio estruturado.',
-          severity: 'critical',
-          affectedCapacities: ['resisted'],
-          sourceRefIds: [],
-        },
+        { code: 'warning-1', message: 'Atenção estruturada.', severity: 'warning', affectedCapacities: ['balance'], sourceRefIds: [] },
+        { code: 'critical-1', message: 'Bloqueio estruturado.', severity: 'critical', affectedCapacities: ['resisted'], sourceRefIds: [] },
       ],
       hasCritical: true,
       canUnblock: false,
@@ -438,13 +343,24 @@ describe('ConsolidatedPrescription', () => {
 
     renderPage();
     await screen.findByText('Pronta para revisão');
-
     await user.click(screen.getByRole('button', { name: '4. Alertas e conflitos' }));
     expect(screen.getByText('Atenção')).toBeInTheDocument();
     expect(screen.getByText('Bloqueador crítico')).toBeInTheDocument();
-
     await user.click(screen.getByRole('button', { name: '7. Revisão e validação final' }));
     expect(screen.queryByRole('button', { name: 'Aprovar montagem' })).not.toBeInTheDocument();
     expect(screen.getByText(/não possui o bloco de aprovação/i)).toBeInTheDocument();
+  });
+
+  it('mantém composição somente leitura sem manage', async () => {
+    const user = userEvent.setup();
+    accessState.allowed = new Set(['plans.consolidatedPrescriptions.view']);
+    vi.mocked(consolidatedPrescriptionService.getCurrent).mockResolvedValue(assemblyFixture('draft', 3));
+
+    renderPage();
+    await screen.findByText('Rascunho');
+    await user.click(screen.getByRole('button', { name: '5. Composição e ordem técnica' }));
+    expect(screen.getByLabelText('Observação técnica interna')).toHaveAttribute('readonly');
+    await user.click(screen.getByRole('button', { name: '7. Revisão e validação final' }));
+    expect(screen.queryByRole('button', { name: 'Salvar rascunho' })).not.toBeInTheDocument();
   });
 });

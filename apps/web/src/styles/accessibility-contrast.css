@@ -1,0 +1,12 @@
+/*
+ * Primary is intentionally dark enough to support white text on filled controls.
+ * Text links/icons in dark mode need a separate foreground tone instead of reusing
+ * that background token. Keep focus rings visibly distinct for keyboard users.
+ */
+.dark {
+  --ring: 142 65% 58%;
+}
+
+.dark .text-primary {
+  color: hsl(142 65% 65%);
+}

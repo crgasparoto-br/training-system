@@ -1,6 +1,6 @@
 # Fluxo web da Montagem Consolidada da Prescrição
 
-Este documento define a experiência do professor para a Montagem Consolidada implementada pela issue #318. O domínio persistente, as transições e os contratos HTTP continuam definidos em `docs/product/consolidated-prescription-model.md`.
+Este documento define a experiência do professor para a Montagem Consolidada implementada pela issue #318. O domínio persistente, as transições e os contratos HTTP permanecem definidos em `docs/product/consolidated-prescription-model.md`.
 
 ## Objetivo
 
@@ -12,21 +12,43 @@ Rota protegida:
 /central-do-aluno/:alunoId/montagem-consolidada
 ```
 
-A Central do Aluno oferece um ponto de entrada contextual quando o usuário possui `plans.consolidatedPrescriptions.view`. O `alunoId` permanece na URL durante todo o fluxo e o retorno sempre aponta para a ficha do mesmo aluno.
+A Central do Aluno oferece um ponto de entrada contextual quando o usuário possui `plans.consolidatedPrescriptions.view`. O `alunoId` permanece na URL durante todo o fluxo e o retorno aponta para a ficha do mesmo aluno.
+
+## Read-model autoritativo do workspace
+
+A tela não usa `GET /alunos/:id` para decidir se o professor pode trabalhar com o aluno. Esse endpoint possui regras próprias do domínio de alunos e não é a autoridade de escopo da montagem.
+
+O frontend usa:
+
+```text
+GET /api/v1/consolidated-prescriptions/alunos/:alunoId/workspace
+```
+
+Esse read-model é protegido por `plans.consolidatedPrescriptions.view`, aplica o mesmo `dataScope` de `plans` usado pelas demais operações da montagem e devolve somente o contexto necessário ao fluxo:
+
+- aluno;
+- professor ator;
+- professor atribuído ao aluno;
+- professor responsável pela versão corrente, quando houver;
+- candidatos das quatro capacidades com decisão de elegibilidade, motivo e origens técnicas.
+
+Assim, um gestor com `plans=contract` pode consultar e aprovar uma montagem de aluno atribuído a outro professor quando sua função tiver os blocos correspondentes. Usuário `self`, `managed` ou de outro tenant continua limitado pelo mesmo escopo usado na API autoritativa.
+
+A carga dos candidatos é parcial: uma falha ao montar a lista de elegibilidade não apaga a montagem já carregada. O workspace devolve `capacityCandidatesError` e a UI mantém consulta, histórico e estado corrente disponíveis, mas não oferece novas versões de capacidade até a recarga bem-sucedida.
 
 ## Autoridade e permissões
 
-A interface usa os mesmos blocos introduzidos no backend:
+A interface usa os blocos do backend:
 
-- `plans.consolidatedPrescriptions.view`: consultar a montagem e seu histórico;
-- `plans.consolidatedPrescriptions.manage`: criar/editar rascunho, enviar para revisão, recalcular conflitos, desbloquear explicitamente uma montagem remediada e iniciar nova revisão quando permitido pelo estado;
+- `plans.consolidatedPrescriptions.view`: consultar montagem, workspace, conflitos e histórico;
+- `plans.consolidatedPrescriptions.manage`: criar/editar rascunho, enviar para revisão, recalcular conflitos, desbloquear explicitamente uma montagem remediada e iniciar nova revisão;
 - `plans.consolidatedPrescriptions.approve`: aprovar uma montagem pronta para revisão.
 
 Ocultar controles no frontend melhora a experiência, mas não é barreira de segurança. A API continua revalidando autenticação, `contractId`, `dataScope`, aluno acessível, estado, versão e bloco da operação.
 
 ## Organização da tela
 
-A tela é longa e usa seções colapsáveis:
+A tela usa oito seções colapsáveis:
 
 1. Dados gerais;
 2. Capacidades recebidas;
@@ -41,16 +63,37 @@ O cabeçalho mantém visíveis aluno, professor responsável, versão corrente, 
 
 ## Capacidades e composição
 
-A UI carrega as prescrições públicas por capacidade apenas para apresentar o estado retornado pela API e a versão ativa disponível. A elegibilidade definitiva continua no backend.
+O navegador não interpreta `status` para decidir elegibilidade. Para cada capacidade, o workspace retorna:
+
+- prescrição e status persistido;
+- ID e número da versão corrente;
+- status persistido da versão;
+- `eligible`;
+- `reasonCode`;
+- `reason` já redigido pelo backend;
+- resumo profissional e origens técnicas.
+
+Somente candidato com `eligible=true` pode ser apresentado como opção de substituição. Quando `eligible=false`, a UI mostra o motivo recebido sem criar uma explicação técnica própria.
 
 Nesta fase a Montagem Consolidada recebe blocos de capacidade e não possui contrato de edição de exercícios individuais. Por isso:
 
-- a tela permite atualizar uma capacidade para sua versão ativa quando o estado atual permite edição;
-- a ordem dos quatro blocos pode ser alterada com controles acessíveis por teclado;
-- exercícios, séries, repetições, métodos e outros itens permanecem dentro das prescrições de capacidade e do fluxo específico de treino;
+- a tela permite trocar uma capacidade pela versão que o workspace autorizou;
+- a ordem dos quatro blocos pode ser alterada com controles nomeados para teclado e leitor de tela;
+- exercícios, séries, repetições e métodos permanecem dentro das prescrições de capacidade;
 - a interface não cria um editor paralelo do Workout Builder;
-- a montagem exige uma versão para cada capacidade canônica antes de salvar;
-- indisponibilidade diferencia o status do agregado de prescrição do status da versão vigente, evitando informar uma versão `active` como motivo quando a própria prescrição está suspensa/inativa.
+- a montagem exige uma versão para cada capacidade canônica antes de salvar.
+
+## Preservação de responsabilidade e rastreabilidade
+
+Uma edição comum não pode trocar silenciosamente o professor responsável nem apagar dados-base já persistidos.
+
+Ao salvar uma versão existente, o frontend envia novamente:
+
+- `responsibleProfessorId` da versão corrente;
+- referências adicionais persistidas cujo `role` não seja `capacity_source`;
+- composição, observação, justificativa e orientação atuais.
+
+Referências `capacity_source` não são reenviadas pelo cliente porque continuam derivadas pelo backend a partir das versões de capacidade. O ator autenticado permanece uma identidade separada do responsável técnico e é registrado pela API/auditoria.
 
 ## Alertas e conflitos
 
@@ -60,13 +103,13 @@ A interface representa a severidade retornada pelo backend sem reclassificação
 - `warning`: atenção profissional, não bloqueante por si só;
 - `critical`: impedimento para aprovação.
 
-Checagens ainda indisponíveis no motor aparecem separadamente a partir de `unavailableChecks`. Texto livre de observação, justificativa ou mensagem ao aluno não cria nem remove conflitos.
+Checagens ainda indisponíveis aparecem em `unavailableChecks`. Texto livre de observação, justificativa ou mensagem ao aluno não cria nem remove conflitos.
 
 ## Workflow
 
 ### Sem montagem
 
-O professor revisa as quatro capacidades, informa a justificativa e cria o primeiro rascunho. Se alguma capacidade não estiver ativa/disponível, a tela explica o estado retornado e orienta a correção na origem antes de salvar.
+O professor revisa os quatro candidatos autorizados, informa a justificativa e cria o primeiro rascunho. Se alguma capacidade estiver inelegível, a tela mostra o motivo recebido do workspace e orienta correção na origem.
 
 ### Rascunho
 
@@ -74,23 +117,19 @@ Com `manage`, o professor pode atualizar a composição e salvar. Toda edição 
 
 ### Pronta para revisão
 
-A composição fica somente leitura. O usuário com `approve` pode aprovar quando não há conflito crítico carregado. A UI nunca muda o estado para `approved` de forma otimista: o estado só muda após a resposta de sucesso da API.
+A composição fica somente leitura. O usuário com `approve` pode aprovar quando não há conflito crítico carregado. A UI nunca muda o estado para `approved` de forma otimista: o estado só muda após a resposta da API.
 
 ### Bloqueada
 
-Com `manage`, a composição pode receber correções, mas o salvamento permanece em `blocked`, conforme o contrato da API. Depois da correção, o professor executa a reavaliação explícita de conflitos no servidor.
-
-O desbloqueio também é explícito. A interface só oferece **Desbloquear para revisão** quando o relatório de conflitos corresponde exatamente à versão corrente, está em `blocked`, informa `canUnblock=true`, não contém `critical` e não há edição local pendente. A ação chama o endpoint autoritativo `/unblock` com destino `ready_for_review`; a UI não promove o estado por inferência ou atualização otimista.
-
-Se a API mantiver conflito crítico, se o relatório estiver defasado ou se houver alterações locais não salvas, o controle de desbloqueio permanece indisponível e a tela orienta corrigir, salvar e reavaliar.
+Com `manage`, a composição pode receber correções, mas o salvamento permanece em `blocked`. Depois da correção, o professor executa a reavaliação explícita de conflitos. O desbloqueio só aparece quando o relatório corresponde à versão corrente, informa `canUnblock=true`, não contém `critical` e não existe edição local pendente.
 
 ### Aprovada
 
-A versão aprovada é somente leitura. Com `manage`, o professor pode iniciar uma nova revisão explícita, que o backend cria como novo rascunho na mesma cadeia.
+A versão aprovada é somente leitura. Com `manage`, o professor pode iniciar uma nova revisão explícita, criada pelo backend como novo rascunho na mesma cadeia.
 
 ### Liberada ou arquivada
 
-A tela permanece somente leitura nesta fase. A liberação operacional e a geração do Treino de hoje pertencem às issues posteriores do fluxo integrado.
+A tela permanece somente leitura nesta fase. A liberação operacional e a geração do Treino de hoje pertencem ao fluxo posterior.
 
 ## Concorrência e recuperação
 
@@ -99,45 +138,38 @@ Todas as mutações posteriores à criação usam `expectedCurrentVersion`.
 Quando a API responde `409`:
 
 - a tela não sobrescreve automaticamente a versão do servidor;
-- as alterações locais permanecem no formulário;
-- o professor recebe uma mensagem explícita de conflito;
+- alterações locais permanecem no formulário;
+- o professor recebe mensagem explícita de conflito;
 - recarregar do servidor é uma ação deliberada;
 - se houver edição local, a tela pede confirmação antes de substituí-la.
 
-Falhas parciais no carregamento das prescrições por capacidade não apagam a montagem já carregada. Falhas de salvamento também preservam o conteúdo local quando seguro. Uma nova tentativa de mutação limpa mensagens de sucesso anteriores para não apresentar sucesso e erro simultaneamente.
-
 ## Histórico
 
-As versões persistidas são apresentadas em modo somente leitura com:
-
-- número e estado;
-- data;
-- justificativa e observação técnica quando existentes;
-- capacidades e versões vinculadas.
-
-Nenhuma versão histórica pode ser editada pela tela.
+As versões persistidas são apresentadas em modo somente leitura com número, estado, data, justificativa, observação e capacidades vinculadas. Nenhuma versão histórica pode ser editada pela tela.
 
 ## Acessibilidade e responsividade
 
-A implementação reutiliza `Button`, `Card`, `Accordion`, tokens Tailwind e utilitários `ts-*` existentes. Os controles de ordenação possuem nome acessível, estados de erro/sucesso usam regiões de anúncio, warning e blocker possuem rótulos textuais além da cor, e a composição reorganiza ações e cartões para mobile.
+A implementação reutiliza `Button`, `Card` e `Accordion`. Controles de ordenação possuem nome acessível, estados de erro/sucesso usam regiões de anúncio, warning e blocker possuem rótulos textuais além da cor e a composição reorganiza ações para mobile.
 
-A validação visual deve cobrir, no mínimo:
+A evidência automatizada do candidato deve cobrir:
 
-- desktop amplo;
-- desktop com baixa altura;
-- mobile;
-- navegação por teclado nos colapses, campos e ações principais.
+- `1440x1000`;
+- `1366x768`;
+- `390x844`;
+- teclado nos colapses e histórico;
+- ausência de overflow horizontal;
+- axe-core WCAG A/AA;
+- snapshot da árvore ARIA do Chromium;
+- texto ampliado a 200% em caso extremo equivalente;
+- regressão de contraste de `text-primary` em dark mode;
+- warning versus critical;
+- histórico somente leitura;
+- concorrência HTTP `409` com preservação local.
 
-A suíte de componente cobre controles de permissão, semântica distinta de `warning`/`critical`, estado bloqueado com e sem `canUnblock`, concorrência `409` e motivos de capacidade inelegível. Essa cobertura não substitui a evidência visual/manual em navegador real.
+A cor de fundo de controles preenchidos usa o token `--primary` mais escuro. Texto/ícones `text-primary` em dark mode usam um foreground mais claro separado, e o `--ring` escuro recebe contraste próprio para foco.
+
+**Limite de evidência:** axe e árvore ARIA não substituem uma sessão nativa de NVDA, VoiceOver ou Orca. O aceite explícito de “leitor de tela” da issue continua exigindo uma passagem nativa separada; a automação não deve declarar esse item como comprovado.
 
 ## Fora de escopo
 
-Esta interface não implementa:
-
-- cálculo de conflito no frontend;
-- publicação direta do Treino de hoje;
-- feedback pós-treino;
-- decisão técnica automática;
-- editor completo de exercícios/Workout Builder;
-- envio de WhatsApp;
-- aplicação em massa para vários alunos.
+Esta interface não implementa cálculo de conflito no frontend, publicação direta do Treino de hoje, feedback pós-treino, decisão automática, editor completo de exercícios, WhatsApp ou aplicação em massa.

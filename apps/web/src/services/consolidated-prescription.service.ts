@@ -4,6 +4,7 @@ import type {
   ConsolidatedPrescriptionConflictReport,
   ConsolidatedPrescriptionHistory,
   ConsolidatedPrescriptionVersionCommand,
+  ConsolidatedPrescriptionWorkspaceContext,
   CreateConsolidatedPrescriptionDraftPayload,
   CreateConsolidatedPrescriptionRevisionCommand,
   UnblockConsolidatedPrescriptionCommand,
@@ -29,6 +30,13 @@ async function postVersionCommand(
 }
 
 export const consolidatedPrescriptionService = {
+  async getWorkspaceContext(alunoId: string): Promise<ConsolidatedPrescriptionWorkspaceContext> {
+    const response = await api.get<ApiEnvelope<ConsolidatedPrescriptionWorkspaceContext>>(
+      `/consolidated-prescriptions/alunos/${alunoId}/workspace`
+    );
+    return response.data.data;
+  },
+
   async getCurrent(alunoId: string): Promise<ConsolidatedPrescriptionAssembly | null> {
     const response = await api.get<ApiEnvelope<ConsolidatedPrescriptionAssembly | null>>(
       `/consolidated-prescriptions/alunos/${alunoId}`
