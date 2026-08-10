@@ -230,6 +230,28 @@ describe('ConsolidatedPrescription', () => {
     expect(screen.getAllByText('Elegível pela API')).toHaveLength(3);
   });
 
+  it('resume no cabeçalho a indisponibilidade decidida pela API', async () => {
+    vi.mocked(consolidatedPrescriptionService.getCurrent).mockResolvedValue(null);
+    vi.mocked(consolidatedPrescriptionService.getWorkspaceContext).mockResolvedValue({
+      ...workspace,
+      capacityCandidates: candidates.map((candidate) => candidate.capacity === 'resisted'
+        ? {
+            ...candidate,
+            eligible: false,
+            reasonCode: 'prescription_not_active',
+            reason: 'Prescrição indisponível segundo a API.',
+          }
+        : candidate),
+    });
+
+    renderPage();
+
+    expect(await screen.findByText('1 capacidade indisponível pela API')).toBeInTheDocument();
+    expect(screen.getByText('Situação das origens').parentElement).toHaveTextContent(
+      '1 capacidade indisponível pela API'
+    );
+  });
+
   it('preserva responsável e referências adicionais ao salvar uma edição não relacionada', async () => {
     const user = userEvent.setup();
     const current = assemblyFixture('draft', 3);
@@ -336,6 +358,32 @@ describe('ConsolidatedPrescription', () => {
     resolveApproval(approved);
     await waitFor(() => expect(screen.getByText('Aprovada')).toBeInTheDocument());
     expect(screen.getByText('Aprovação confirmada pelo servidor.')).toBeInTheDocument();
+  });
+
+  it('inicia nova revisão de montagem liberada e só troca o estado após resposta do backend', async () => {
+    const user = userEvent.setup();
+    const released = assemblyFixture('released', 6);
+    const revised = assemblyFixture('draft', 7);
+    vi.mocked(consolidatedPrescriptionService.getCurrent).mockResolvedValue(released);
+    vi.mocked(consolidatedPrescriptionService.getConflicts).mockResolvedValue({
+      ...conflictReport,
+      version: 6,
+      status: 'released',
+      conflicts: [],
+    });
+    vi.mocked(consolidatedPrescriptionService.createRevision).mockResolvedValue(revised);
+
+    renderPage();
+    expect(await screen.findByText('Liberada')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '7. Revisão e validação final' }));
+    await user.click(screen.getByRole('button', { name: 'Criar nova revisão' }));
+
+    expect(consolidatedPrescriptionService.createRevision).toHaveBeenCalledWith('aluno-1', {
+      expectedCurrentVersion: 6,
+      reason: 'Nova revisão iniciada pela interface da Montagem Consolidada.',
+    });
+    expect(await screen.findByText('Nova revisão criada como rascunho pelo servidor.')).toBeInTheDocument();
+    expect(screen.getByText('Rascunho')).toBeInTheDocument();
   });
 
   it('preserva edição local diante de 409 e exige reconciliação explícita', async () => {
