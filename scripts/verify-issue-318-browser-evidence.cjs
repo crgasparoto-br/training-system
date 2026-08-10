@@ -398,10 +398,12 @@ async function verifyScenario(browser, scenario, deviceLabel, viewport) {
     } else if (scenario === 'approved') {
       await keyboardOpenAccordion(page, '8. Histórico de versões');
       const summary = page.locator('summary').filter({ hasText: 'Versão 2' }).first();
+      const historyItem = summary.locator('xpath=..');
       await summary.waitFor();
       await summary.focus();
       await page.keyboard.press('Enter');
-      await page.getByText(/Somente leitura — versões históricas nunca são editadas nesta tela\./).first().waitFor();
+      assert.notEqual(await historyItem.getAttribute('open'), null, `${label}: versão histórica não abriu via teclado`);
+      await historyItem.getByText(/Somente leitura — versões históricas nunca são editadas nesta tela\./).waitFor();
     } else {
       await keyboardOpenAccordion(page, '7. Revisão e validação final');
       if (scenario === 'ready_for_review') await page.getByRole('button', { name: 'Aprovar montagem' }).waitFor();
