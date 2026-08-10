@@ -53,6 +53,9 @@ Entregar o fluxo web do professor para montar, revisar e aprovar a Montagem Cons
 - [x] Adicionar controles discriminantes de backend PostgreSQL e UI para as duas pendências funcionais acima.
 - [x] Adicionar fluxo browser integrado sem mocks de `/api/v1/**`, usando PostgreSQL efêmero, migrations e routers reais para `workspace -> draft -> review -> approved`.
 - [x] Adicionar sessão nativa de leitor de tela com Orca/AT-SPI em Chromium headed, registrando versão, aplicações conhecidas e debug do conteúdo acessível.
+- [x] Construir `@corrida/types` e `@corrida/utils` antes de iniciar a API real do harness, evitando import runtime sem `dist/`.
+- [x] Fazer o workflow de evidência observar mudanças em `apps/api/**`, `packages/types/**`, `packages/utils/**`, nos três scripts do harness e no lockfile.
+- [x] Corrigir documentação para distinguir contrato do gate de evidência efetivamente concluída no SHA candidato.
 - [ ] Executar os gates do novo SHA em ambiente com checkout/dependências.
 - [ ] Realizar nova auditoria independente em contexto separado após congelar o novo candidato.
 
@@ -68,7 +71,7 @@ pnpm docs:check
 pnpm validate
 ```
 
-O workflow de evidência existente continua executando `scripts/verify-issue-318-browser-evidence.cjs`; a remediação não altera `.github/workflows/**`. O script preserva a matriz isolada de UI e acrescenta o gate integrado com API/PostgreSQL real e o gate nativo Orca. GitHub Actions permanece apenas como gate de validação do candidato publicado, sem rerun/dispatch/cancelamento pela entrega.
+O workflow `.github/workflows/issue-318-browser-evidence.yml` executa `scripts/verify-issue-318-browser-evidence.cjs`. Após a remediação, ele compila explicitamente as dependências workspace necessárias ao runtime da API real e observa todas as dependências materiais do harness. GitHub Actions permanece somente como gate de validação do candidato publicado: a entrega não faz rerun, dispatch, cancelamento nem aprovação manual de workflow.
 
 ## Evidência adversarial
 
@@ -82,7 +85,8 @@ Os controles discriminantes obrigatórios desta rodada são:
 6. montagem simulada como `released`, verificando que `/revisions` cria novo `draft`, preserva a versão liberada e gera `revision_created` com `previousStatus=released`;
 7. tela em estado `released`, verificando ação de nova revisão e cabeçalho com indisponibilidade de origem exatamente a partir dos sinais da API;
 8. navegador sem interceptação de API, verificando create/review/approve pelos routers reais e estado `approved` persistido em PostgreSQL;
-9. leitor de tela Orca nativo, verificando que o AT-SPI enumera Chromium e que o debug do Orca observa conteúdo acessível da Montagem Consolidada durante foco/teclado no histórico.
+9. leitor de tela Orca nativo, verificando que o AT-SPI enumera Chromium e que o debug do Orca observa conteúdo acessível da Montagem Consolidada durante foco/teclado no histórico;
+10. bootstrap do harness real, verificando que os imports runtime de `@corrida/types` e `@corrida/utils` estão construídos antes de iniciar a API.
 
 ## Estado para freeze
 
