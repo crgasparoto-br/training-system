@@ -148,6 +148,7 @@ async function verifyRealIssue318Evidence({ browser, baseUrl, outputDir }) {
 
     await openAccordion(page, '5. Composição e ordem técnica');
     await page.getByLabel(/Justificativa profissional/).fill('Composição validada em navegador contra a API real e PostgreSQL efêmero.');
+    await openAccordion(page, '6. Mensagem prática ao aluno');
     await page.getByLabel('Orientação prática').fill('Orientação persistida pela API real.');
     await openAccordion(page, '7. Revisão e validação final');
     await page.getByRole('button', { name: 'Salvar rascunho' }).click();
