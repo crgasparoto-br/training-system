@@ -190,6 +190,20 @@ describe('ConsolidatedPrescription', () => {
     }
   });
 
+  it('preserva o aluno selecionado no retorno quando o carregamento falha', async () => {
+    vi.mocked(consolidatedPrescriptionService.getWorkspaceContext).mockRejectedValueOnce({
+      response: { status: 404, data: { error: 'Recurso não encontrado' } },
+    });
+    vi.mocked(consolidatedPrescriptionService.getCurrent).mockResolvedValue(null);
+
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'Montagem Consolidada indisponível' })).toBeInTheDocument();
+    const backLink = screen.getByRole('link', { name: 'Voltar à Central do Aluno' });
+    expect(backLink).toHaveAttribute('href', '/central-do-aluno/aluno-1');
+    expect(backLink).not.toHaveAttribute('href', '/central-do-aluno');
+  });
+
   it('exibe exatamente o motivo de inelegibilidade retornado pelo backend', async () => {
     const user = userEvent.setup();
     const reason = 'Motivo autoritativo da API: prescrição suspensa por revisão clínica.';
