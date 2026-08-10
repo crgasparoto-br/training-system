@@ -6,7 +6,13 @@ on:
       - develop
     paths:
       - 'apps/web/**'
+      - 'apps/api/**'
+      - 'packages/types/**'
+      - 'packages/utils/**'
       - 'scripts/verify-issue-318-browser-evidence.cjs'
+      - 'scripts/verify-issue-318-real-evidence.cjs'
+      - 'scripts/verify-issue-318-orca-session.cjs'
+      - 'pnpm-lock.yaml'
       - '.github/workflows/issue-318-browser-evidence.yml'
 
 permissions:
@@ -35,6 +41,11 @@ jobs:
 
       - name: Install repository dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Build API workspace runtime dependencies
+        run: |
+          pnpm --filter @corrida/types build
+          pnpm --filter @corrida/utils build
 
       - name: Build web application
         run: pnpm --filter @corrida/web build
