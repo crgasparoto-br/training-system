@@ -15,3 +15,17 @@
 .dark .auth-card-primary-text {
   color: hsl(142 71% 30%);
 }
+
+/*
+ * The consolidated workspace must reflow at 200% text zoom without introducing
+ * horizontal scrolling. Grid tracks already use minmax(0, 1fr), but long
+ * Portuguese status labels still need an explicit shrink/wrap boundary.
+ */
+[data-testid='consolidated-prescription-workspace'] .grid > * {
+  min-width: 0;
+}
+
+[data-testid='consolidated-prescription-workspace'] p,
+[data-testid='consolidated-prescription-workspace'] span {
+  overflow-wrap: anywhere;
+}
