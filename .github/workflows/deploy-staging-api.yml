@@ -48,10 +48,10 @@ jobs:
       - name: Generate Prisma Client (api)
         working-directory: apps/api
         run: pnpm exec prisma generate
-  
+
       - name: Generate Prisma Client
         run: pnpm --filter @corrida/api prisma generate
-       
+
       # -----------------------------------------------------------------------
       # 4. Type-check & build
       # -----------------------------------------------------------------------
@@ -70,7 +70,12 @@ jobs:
       - name: Run database migrations
         env:
           DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
-        run: pnpm --filter @corrida/api db:migrate:prod
+        run: |
+          if pnpm --filter @corrida/api db:migrate:prod; then
+            exit 0
+          fi
+
+          pnpm --filter @corrida/api db:recover:issue-246-migration
 
       # -----------------------------------------------------------------------
       # 6. Deploy
