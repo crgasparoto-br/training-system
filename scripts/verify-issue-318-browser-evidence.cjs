@@ -263,10 +263,13 @@ async function verifyScenario(browser, scenario, deviceLabel, viewport) {
       approved: 'Aprovada',
       released: 'Liberada',
     }[scenario];
+    const expectedSourceStatus = scenario === 'blocked'
+      ? 'Conflito crítico retornado pela API'
+      : 'Sem incompatibilidade retornada pela API';
     await page.getByText(expectedStatus, { exact: true }).first().waitFor();
     await page.getByText('Prof. Renata', { exact: true }).first().waitFor();
     await page.getByText('Situação das origens', { exact: true }).waitFor();
-    await page.getByText('Sem incompatibilidade retornada pela API', { exact: true }).waitFor();
+    await page.getByText(expectedSourceStatus, { exact: true }).waitFor();
     await assertNoHorizontalOverflow(page, label);
 
     if (scenario === 'blocked') {
