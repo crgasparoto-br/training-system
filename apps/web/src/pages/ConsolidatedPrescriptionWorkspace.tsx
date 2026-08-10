@@ -462,7 +462,7 @@ export function ConsolidatedPrescription() {
   }
 
   if (loadError || !workspace || !alunoId) {
-    return <Card><CardHeader><CardTitle>Montagem Consolidada indisponível</CardTitle><CardDescription>{loadError || 'Não foi possível identificar o aluno desta montagem.'}</CardDescription></CardHeader><CardContent><Link to="/central-do-aluno"><Button variant="outline"><ArrowLeft size={16} />Voltar à Central do Aluno</Button></Link></CardContent></Card>;
+    return <Card><CardHeader><CardTitle>Montagem Consolidada indisponível</CardTitle><CardDescription>{loadError || 'Não foi possível identificar o aluno desta montagem.'}</CardDescription></CardHeader><CardContent><Link to={alunoId ? `/central-do-aluno/${alunoId}` : '/central-do-aluno'}><Button variant="outline"><ArrowLeft size={16} />Voltar à Central do Aluno</Button></Link></CardContent></Card>;
   }
 
   const alunoName = workspace.aluno.name || `Aluno ${workspace.aluno.id}`;
