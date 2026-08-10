@@ -57,8 +57,9 @@ Estados persistidos:
 | `blocked` | desbloquear explicitamente | `draft` ou `ready_for_review` | somente após revalidação sem `critical`; nunca autoaprova |
 | `approved` | criar nova revisão | `draft` | nova versão na mesma cadeia; aprovação anterior permanece histórica |
 | `approved` | liberar | `released` | não implementado; reservado para #320 |
+| `released` | criar nova revisão | `draft` | versão liberada permanece histórica; a nova versão volta ao fluxo de revisão/aprovação |
 
-Editar uma montagem `approved` exige antes criar uma revisão explícita. `released` e `archived` não recebem comandos de alteração nesta fase.
+Editar diretamente uma montagem `approved` ou `released` não é permitido. Nos dois estados, qualquer alteração material começa por `POST /revisions`, que cria uma nova versão `draft` e preserva a versão aprovada/liberada anterior. `archived` não recebe comandos de alteração nesta fase.
 
 ## Referências às capacidades
 
@@ -108,6 +109,8 @@ A UI não deriva elegibilidade a partir desses status. Ela usa `eligible` e `rea
 
 A falha de candidatos é degradável: se o contexto do aluno for autorizado e carregado, o endpoint pode responder com `capacityCandidates=[]` e `capacityCandidatesError`, permitindo consulta da montagem/histórico sem oferecer novas seleções até nova leitura válida.
 
+O cabeçalho web pode resumir `capacityCandidatesError`, contagem de candidatos `eligible=false` e conflito `critical` já retornado pela API para indicar a situação das origens. Esse resumo é apenas apresentação; o navegador não cria regra técnica nem reclassifica elegibilidade.
+
 ## Responsável técnico e referências adicionais
 
 `responsibleProfessorId` representa responsabilidade técnica da versão; `createdByProfessorId`/ator representam quem executou a ação. Essas identidades não são equivalentes.
@@ -156,7 +159,7 @@ Ações distinguíveis:
 - `unblocked`;
 - `revision_created`.
 
-Cada evento expõe ator backend, agregado/versão, estado anterior/novo, motivo quando aplicável, quantidade de conflitos críticos e timestamp da versão. Nenhum evento é confiado ao payload do cliente.
+`revision_created` cobre tanto `approved -> draft` quanto `released -> draft`; o `previousStatus` preservado no evento distingue a origem. Cada evento expõe ator backend, agregado/versão, estado anterior/novo, motivo quando aplicável, quantidade de conflitos críticos e timestamp da versão. Nenhum evento é confiado ao payload do cliente.
 
 ## HTTP
 
@@ -178,7 +181,7 @@ Base: `/api/v1/consolidated-prescriptions`.
 | `POST` | `/alunos/:alunoId/revisions` | `plans.consolidatedPrescriptions.manage` |
 | `GET` | `/alunos/:alunoId/history` | `plans.consolidatedPrescriptions.view` |
 
-Não existe endpoint `/release` nesta fase.
+Não existe endpoint `/release` nesta fase. O endpoint `/revisions` apenas cria uma nova versão `draft` de uma montagem já `approved` ou `released`; ele não executa nem repete a liberação operacional.
 
 ## Autorização e privacidade
 
