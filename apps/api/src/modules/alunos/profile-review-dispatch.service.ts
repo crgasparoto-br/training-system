@@ -175,12 +175,14 @@ export const profileReviewDispatchService = {
 
     const activeAlunos = await prisma.aluno.findMany({
       where: {
+        status: 'ACTIVE_STUDENT',
         user: {
           isActive: true,
         },
       },
       select: {
         id: true,
+        contractId: true,
         createdAt: true,
         user: {
           select: {
@@ -206,6 +208,7 @@ export const profileReviewDispatchService = {
     };
 
     for (const aluno of activeAlunos) {
+      if (!aluno.user) continue;
       try {
         const [settings, policy, latestReview, pendingReview] = await Promise.all([
           prisma.alunoProfileReviewSettings.findUnique({
@@ -213,7 +216,7 @@ export const profileReviewDispatchService = {
           }),
           prisma.profileReviewPolicy.findFirst({
             where: {
-              contractId: aluno.professor.contractId,
+              contractId: aluno.contractId,
               isActive: true,
             },
             orderBy: {

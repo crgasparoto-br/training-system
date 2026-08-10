@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { Activity, ClipboardList, FilePlus2, Save } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -21,14 +21,7 @@ import type {
   StudentParqSubmission,
 } from '@corrida/types';
 import type { BodyDiscomfortEntry } from '../../constants/bodyRegions';
-
-const protocolLinks = [
-  ['antropometria', 'Antropometria'],
-  ['prontuario-entrevista-acompanhamento', 'Prontuário'],
-  ['adipometria', 'Adipometria'],
-  ['bioimpedanciometria', 'Bioimpedanciometria'],
-  ['ultrassonografia', 'Ultrassonografia'],
-] as const;
+import { ProtocolNavTabs } from './protocolNav';
 
 type ProntuarioBlockName =
   | 'summary'
@@ -40,7 +33,8 @@ type ProntuarioBlockName =
   | 'discomforts'
   | 'create'
   | 'edit'
-  | 'closeFollowUp';
+  | 'closeFollowUp'
+  | 'reviewParq';
 
 const prontuarioBlockKeys = {
   summary: 'physicalAssessment.prnt.summary',
@@ -53,6 +47,7 @@ const prontuarioBlockKeys = {
   create: 'physicalAssessment.prnt.actions.createRecord',
   edit: 'physicalAssessment.prnt.actions.editRecord',
   closeFollowUp: 'physicalAssessment.prnt.actions.closeFollowUp',
+  reviewParq: 'physicalAssessment.prnt.actions.reviewParq',
 } as const satisfies Record<ProntuarioBlockName, AccessBlockKey>;
 
 const prontuarioBlockEntries = Object.entries(prontuarioBlockKeys) as Array<[
@@ -163,6 +158,7 @@ export function ProntuarioScreen() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [parqReviewNotes, setParqReviewNotes] = useState('');
   const overviewRequestIdRef = useRef(0);
 
   const currentRecord = useMemo(() => {
@@ -193,7 +189,7 @@ export function ProntuarioScreen() {
   useEffect(() => {
     let isActive = true;
 
-    alunoService.list(1, 100, undefined, 'active')
+    alunoService.list(1, 100, undefined, 'all')
       .then((response) => {
         if (isActive) {
           setStudents(response.alunos || []);
@@ -302,6 +298,22 @@ export function ProntuarioScreen() {
   const handleAlunoSelectionChange = (alunoId: string) => {
     setSelectedAlunoId(alunoId);
     setSearchParams(alunoId ? { alunoId } : {}, { replace: true });
+  };
+
+  const reviewSelectedParq = async () => {
+    const reviewId = selectedParqSubmission?.review?.id;
+    if (!selectedAlunoId || !reviewId) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const data = await prontuarioService.reviewParq(selectedAlunoId, reviewId, parqReviewNotes || null);
+      setOverview(data);
+      setParqReviewNotes('');
+    } catch (err) {
+      setError(getProntuarioErrorMessage(err));
+    } finally {
+      setSaving(false);
+    }
   };
 
   const normalizeGoalsPayload = (goals: Drafts['goals']) =>
@@ -499,15 +511,9 @@ export function ProntuarioScreen() {
         <div className="space-y-2">
           <p className="text-sm font-medium uppercase text-primary">Protocolo de Avaliação Física</p>
           <h1 className="text-3xl font-semibold tracking-tight text-foreground">Prontuário de entrevista e acompanhamento</h1>
-          <p className="max-w-3xl text-sm text-muted-foreground">Histórico PRNT separado do cadastro inicial, com anamnese acompanhável, dores, rotina e desconfortos.</p>
+          <p className="max-w-3xl text-sm text-muted-foreground">Histórico PRNT separado do cadastro inicial, com acompanhamento do PAR-Q, dores, rotina e desconfortos.</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {protocolLinks.map(([slug, label]) => (
-            <Link key={slug} to={`/protocolo-avaliacao-fisica/${slug}`} className={slug === 'prontuario-entrevista-acompanhamento' ? 'rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground' : 'rounded-md border border-border px-3 py-2 text-sm text-foreground hover:bg-muted'}>
-              {label}
-            </Link>
-          ))}
-        </div>
+        <ProtocolNavTabs activeSlug="prontuario-entrevista-acompanhamento" alunoId={selectedAlunoId} />
       </div>
 
       <Card>
@@ -562,8 +568,8 @@ export function ProntuarioScreen() {
             {blocks.anamnesis && (
               <Card>
                 <CardHeader>
-                  <CardTitle>Última anamnese</CardTitle>
-                  <CardDescription>Itens positivos da submissão PAR-Q mais recente.</CardDescription>
+                  <CardTitle>Acompanhamento dos itens positivos do PAR-Q</CardTitle>
+                  <CardDescription>Itens positivos da submissão PAR-Q selecionada e seus acompanhamentos profissionais.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {latestPositiveItems.length ? latestPositiveItems.map((item) => (
@@ -696,9 +702,35 @@ export function ProntuarioScreen() {
                     ))}
                   </select>
                 ) : null}
-                {selectedParqSubmission
-                  ? `${latestPositiveItems.length} item(ns) positivo(s) em ${toDateInput(selectedParqSubmission.submittedAt)}.`
-                  : 'Sem submissões históricas.'}
+                {selectedParqSubmission ? (
+                  <div className="space-y-3">
+                    <p>{latestPositiveItems.length} item(ns) positivo(s) em {toDateInput(selectedParqSubmission.submittedAt)}.</p>
+                    <p className="text-xs">Versão: {selectedParqSubmission.catalogVersion}</p>
+                    {selectedParqSubmission.review?.status === 'PENDING' ? (
+                      <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-amber-950">
+                        <p className="font-medium">Análise profissional pendente</p>
+                        {blocks.reviewParq ? (
+                          <>
+                            <textarea
+                              className="mt-3 min-h-[88px] w-full rounded-md border border-amber-300 bg-white px-3 py-2 text-sm text-foreground"
+                              placeholder="Observação permitida da análise"
+                              value={parqReviewNotes}
+                              onChange={(event) => setParqReviewNotes(event.target.value)}
+                              maxLength={4000}
+                            />
+                            <Button type="button" className="mt-3 w-full" onClick={reviewSelectedParq} disabled={saving}>
+                              Registrar análise
+                            </Button>
+                          </>
+                        ) : null}
+                      </div>
+                    ) : selectedParqSubmission.review?.status === 'REVIEWED' ? (
+                      <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-emerald-950">
+                        Analisado em {selectedParqSubmission.review.reviewedAt ? toDateInput(selectedParqSubmission.review.reviewedAt) : 'data não informada'}.
+                      </div>
+                    ) : null}
+                  </div>
+                ) : 'Sem submissões históricas.'}
               </CardContent>
             </Card>
           </aside>

@@ -1,6 +1,7 @@
 export const ACCESS_SCREEN_CATALOG = [
   { key: 'students.registration', label: 'Cadastro de alunos' },
   { key: 'students.details', label: 'Detalhes do aluno' },
+  { key: 'students.preRegistration', label: 'Gestão de leads e pré-matrículas' },
   { key: 'students.assessmentPlan', label: 'Plano de avaliacoes do aluno' },
   { key: 'students.profileReview', label: 'Revisao cadastral do aluno' },
   { key: 'students.financialData', label: 'Dados financeiros do aluno' },
@@ -40,6 +41,7 @@ export const ACCESS_PERMISSION_GROUPS = [
     label: 'Cadastros',
     screenKeys: [
       'students.registration',
+      'students.preRegistration',
       'students.assessmentPlan',
       'students.profileReview',
       'students.financialData',
@@ -95,235 +97,83 @@ export const ACCESS_PERMISSION_GROUPS = [
 }[];
 
 export const ACCESS_BLOCK_CATALOG = [
-  {
-    key: 'students.registration.identification',
-    screenKey: 'students.registration',
-    label: 'Aba Identificação',
-  },
-  {
-    key: 'students.registration.parq',
-    screenKey: 'students.registration',
-    label: 'Aba Questionário PAR-Q',
-  },
-  {
-    key: 'students.registration.aha',
-    screenKey: 'students.registration',
-    label: 'Aba Questionário American Heart Association',
-  },
-  {
-    key: 'students.registration.financial',
-    screenKey: 'students.registration',
-    label: 'Aba Financeiro',
-  },
-  {
-    key: 'students.registration.preferences',
-    screenKey: 'students.registration',
-    label: 'Aba Preferências',
-  },
-  {
-    key: 'students.registration.initialAnamnesis',
-    screenKey: 'students.registration',
-    label: 'Aba Anamnese Inicial',
-  },
-  {
-    key: 'students.details.summary',
-    screenKey: 'students.details',
-    label: 'Aba Resumo',
-  },
-  {
-    key: 'students.details.profile',
-    screenKey: 'students.details',
-    label: 'Aba Cadastro',
-  },
-  {
-    key: 'students.details.health',
-    screenKey: 'students.details',
-    label: 'Aba Saude / Anamnese',
-  },
-  {
-    key: 'students.details.financialContract',
-    screenKey: 'students.details',
-    label: 'Aba Financeiro / Contrato',
-  },
-  {
-    key: 'students.details.assessmentPlan',
-    screenKey: 'students.details',
-    label: 'Aba Plano de Avaliacoes',
-  },
-  {
-    key: 'students.details.assessments',
-    screenKey: 'students.details',
-    label: 'Aba Avaliacoes Fisicas',
-  },
-  {
-    key: 'students.details.profileReviews',
-    screenKey: 'students.details',
-    label: 'Aba Revisoes Cadastrais',
-  },
-  {
-    key: 'students.details.trainingPlans',
-    screenKey: 'students.details',
-    label: 'Aba Treinos / Planos',
-  },
-  {
-    key: 'students.details.integrations',
-    screenKey: 'students.details',
-    label: 'Aba Integracoes',
-  },
-  {
-    key: 'students.details.audit',
-    screenKey: 'students.details',
-    label: 'Historico / Auditoria',
-  },
-  {
-    key: 'students.actions.editProfile',
-    screenKey: 'students.details',
-    label: 'Acao: Editar cadastro do aluno',
-  },
-  {
-    key: 'students.actions.deleteStudent',
-    screenKey: 'students.details',
-    label: 'Acao: Excluir aluno',
-  },
-  {
-    key: 'students.actions.resetPassword',
-    screenKey: 'students.details',
-    label: 'Acao: Redefinir senha do aluno',
-  },
-  {
-    key: 'students.actions.manageAssessments',
-    screenKey: 'students.details',
-    label: 'Acao: Gerenciar avaliacoes fisicas',
-  },
-  {
-    key: 'students.actions.manageFinancialContract',
-    screenKey: 'students.details',
-    label: 'Acao: Gerenciar financeiro/contrato',
-  },
-  {
-    key: 'students.actions.manageProfileReviews',
-    screenKey: 'students.details',
-    label: 'Acao: Gerenciar revisoes cadastrais',
-  },
-  {
-    key: 'students.actions.manageAssessmentPlan',
-    screenKey: 'students.details',
-    label: 'Acao: Gerenciar plano de avaliacoes',
-  },
-  {
-    key: 'collaborators.registration.collaborator',
-    screenKey: 'collaborators.registration',
-    label: 'Aba Colaborador',
-  },
-  {
-    key: 'collaborators.registration.manager',
-    screenKey: 'collaborators.registration',
-    label: 'Aba Gestor',
-  },
-  {
-    key: 'collaborators.actions.validateLegalFinancial',
-    screenKey: 'collaborators.registration',
-    label: 'Acao: Validar juridico/financeiro do colaborador',
-  },
-  {
-    key: 'collaborators.actions.resetPassword',
-    screenKey: 'collaborators.registration',
-    label: 'Acao: Redefinir senha do colaborador',
-  },
-  {
-    key: 'collaborators.actions.activate',
-    screenKey: 'collaborators.registration',
-    label: 'Acao: Reativar colaborador',
-  },
-  {
-    key: 'collaborators.actions.deactivate',
-    screenKey: 'collaborators.registration',
-    label: 'Acao: Desativar colaborador',
-  },
-  {
-    key: 'collaborators.actions.uploadSignedContract',
-    screenKey: 'collaborators.registration',
-    label: 'Acao: Upload de contrato assinado do colaborador',
-  },
-  {
-    key: 'physicalAssessment.prnt.summary',
-    screenKey: 'physicalAssessment.protocol',
-    label: 'PRNT: Resumo',
-  },
-  {
-    key: 'physicalAssessment.prnt.goals',
-    screenKey: 'physicalAssessment.protocol',
-    label: 'PRNT: Objetivos',
-  },
-  {
-    key: 'physicalAssessment.prnt.anamnesisFollowUp',
-    screenKey: 'physicalAssessment.protocol',
-    label: 'PRNT: Acompanhamento da anamnese',
-  },
-  {
-    key: 'physicalAssessment.prnt.activityHistory',
-    screenKey: 'physicalAssessment.protocol',
-    label: 'PRNT: Historico de atividades',
-  },
-  {
-    key: 'physicalAssessment.prnt.medicationsProcedures',
-    screenKey: 'physicalAssessment.protocol',
-    label: 'PRNT: Medicacoes e procedimentos',
-  },
-  {
-    key: 'physicalAssessment.prnt.painCases',
-    screenKey: 'physicalAssessment.protocol',
-    label: 'PRNT: Casos de dor',
-  },
-  {
-    key: 'physicalAssessment.prnt.discomforts',
-    screenKey: 'physicalAssessment.protocol',
-    label: 'PRNT: Desconfortos',
-  },
-  {
-    key: 'physicalAssessment.prnt.parqSubmissions',
-    screenKey: 'physicalAssessment.protocol',
-    label: 'PRNT: Submissoes PAR-Q',
-  },
-  {
-    key: 'physicalAssessment.prnt.actions.createParqSubmission',
-    screenKey: 'physicalAssessment.protocol',
-    label: 'PRNT: Acao criar submissao PAR-Q',
-  },
-  {
-    key: 'physicalAssessment.prnt.actions.createRecord',
-    screenKey: 'physicalAssessment.protocol',
-    label: 'PRNT: Acao criar registro',
-  },
-  {
-    key: 'physicalAssessment.prnt.actions.editRecord',
-    screenKey: 'physicalAssessment.protocol',
-    label: 'PRNT: Acao editar registro',
-  },
-  {
-    key: 'physicalAssessment.prnt.actions.closeFollowUp',
-    screenKey: 'physicalAssessment.protocol',
-    label: 'PRNT: Acao encerrar acompanhamento',
-  },
+  { key: 'students.registration.identification', screenKey: 'students.registration', label: 'Aba Identificação' },
+  { key: 'students.registration.aha', screenKey: 'students.registration', label: 'Aba Questionário American Heart Association' },
+  { key: 'students.registration.financial', screenKey: 'students.registration', label: 'Aba Financeiro' },
+  { key: 'students.registration.preferences', screenKey: 'students.registration', label: 'Aba Preferências' },
+  { key: 'students.registration.initialAnamnesis', screenKey: 'students.registration', label: 'Aba Anamnese Inicial' },
+  { key: 'students.details.summary', screenKey: 'students.details', label: 'Aba Resumo' },
+  { key: 'students.details.profile', screenKey: 'students.details', label: 'Aba Cadastro' },
+  { key: 'students.details.health', screenKey: 'students.details', label: 'Aba Saude / Anamnese' },
+  { key: 'students.details.financialContract', screenKey: 'students.details', label: 'Aba Financeiro / Contrato' },
+  { key: 'students.details.assessmentPlan', screenKey: 'students.details', label: 'Aba Plano de Avaliacoes' },
+  { key: 'students.details.assessments', screenKey: 'students.details', label: 'Aba Avaliacoes Fisicas' },
+  { key: 'students.details.profileReviews', screenKey: 'students.details', label: 'Aba Revisoes Cadastrais' },
+  { key: 'students.details.trainingPlans', screenKey: 'students.details', label: 'Aba Treinos / Planos' },
+  { key: 'plans.capacityPrescriptions.view', screenKey: 'plans', label: 'Prescrição por capacidades: consultar' },
+  { key: 'plans.capacityPrescriptions.manage', screenKey: 'plans', label: 'Prescrição por capacidades: criar versão' },
+  { key: 'plans.consolidatedPrescriptions.view', screenKey: 'plans', label: 'Montagem consolidada: consultar' },
+  { key: 'plans.consolidatedPrescriptions.manage', screenKey: 'plans', label: 'Montagem consolidada: criar e revisar' },
+  { key: 'plans.consolidatedPrescriptions.approve', screenKey: 'plans', label: 'Montagem consolidada: aprovar' },
+  { key: 'settings.parameters.capacityPrescriptions', screenKey: 'settings.parameters', label: 'Parâmetros: prescrição por capacidades' },
+  { key: 'students.details.integrations', screenKey: 'students.details', label: 'Aba Integracoes' },
+  { key: 'students.details.audit', screenKey: 'students.details', label: 'Historico / Auditoria' },
+  { key: 'students.actions.editProfile', screenKey: 'students.details', label: 'Acao: Editar cadastro do aluno' },
+  { key: 'students.actions.deleteStudent', screenKey: 'students.details', label: 'Acao: Excluir aluno' },
+  { key: 'students.actions.resetPassword', screenKey: 'students.details', label: 'Acao: Redefinir senha do aluno' },
+  { key: 'students.actions.manageAssessments', screenKey: 'students.details', label: 'Acao: Gerenciar avaliacoes fisicas' },
+  { key: 'students.actions.manageFinancialContract', screenKey: 'students.details', label: 'Acao: Gerenciar financeiro/contrato' },
+  { key: 'students.actions.manageProfileReviews', screenKey: 'students.details', label: 'Acao: Gerenciar revisoes cadastrais' },
+  { key: 'students.actions.manageAssessmentPlan', screenKey: 'students.details', label: 'Acao: Gerenciar plano de avaliacoes' },
+  { key: 'students.actions.manageEnrollmentInvite', screenKey: 'students.details', label: 'Acao: Gerenciar convite de pre-cadastro' },
+  { key: 'students.preRegistration.create', screenKey: 'students.preRegistration', label: 'Ação: Criar lead' },
+  { key: 'students.preRegistration.editCommercial', screenKey: 'students.preRegistration', label: 'Ação: Editar dados comerciais do lead' },
+  { key: 'students.preRegistration.generateInvite', screenKey: 'students.preRegistration', label: 'Ação: Gerar ou substituir convite' },
+  { key: 'students.preRegistration.revokeInvite', screenKey: 'students.preRegistration', label: 'Ação: Revogar convite' },
+  { key: 'students.preRegistration.review', screenKey: 'students.preRegistration', label: 'Ação: Revisar pré-matrícula' },
+  { key: 'students.preRegistration.discardReopen', screenKey: 'students.preRegistration', label: 'Ação: Descartar ou reabrir lead' },
+  { key: 'students.preRegistration.convert', screenKey: 'students.preRegistration', label: 'Ação: Converter em aluno ativo' },
+  { key: 'collaborators.registration.collaborator', screenKey: 'collaborators.registration', label: 'Aba Colaborador' },
+  { key: 'collaborators.registration.manager', screenKey: 'collaborators.registration', label: 'Aba Gestor' },
+  { key: 'collaborators.actions.validateLegalFinancial', screenKey: 'collaborators.registration', label: 'Acao: Validar juridico/financeiro do colaborador' },
+  { key: 'collaborators.actions.resetPassword', screenKey: 'collaborators.registration', label: 'Acao: Redefinir senha do colaborador' },
+  { key: 'collaborators.actions.activate', screenKey: 'collaborators.registration', label: 'Acao: Reativar colaborador' },
+  { key: 'collaborators.actions.deactivate', screenKey: 'collaborators.registration', label: 'Acao: Desativar colaborador' },
+  { key: 'collaborators.actions.uploadSignedContract', screenKey: 'collaborators.registration', label: 'Acao: Gerenciar contrato do colaborador' },
+  { key: 'physicalAssessment.prnt.summary', screenKey: 'physicalAssessment.protocol', label: 'PRNT: Resumo' },
+  { key: 'physicalAssessment.prnt.goals', screenKey: 'physicalAssessment.protocol', label: 'PRNT: Objetivos' },
+  { key: 'physicalAssessment.prnt.anamnesisFollowUp', screenKey: 'physicalAssessment.protocol', label: 'PRNT: Acompanhamento da anamnese' },
+  { key: 'physicalAssessment.prnt.activityHistory', screenKey: 'physicalAssessment.protocol', label: 'PRNT: Historico de atividades' },
+  { key: 'physicalAssessment.prnt.medicationsProcedures', screenKey: 'physicalAssessment.protocol', label: 'PRNT: Medicacoes e procedimentos' },
+  { key: 'physicalAssessment.prnt.painCases', screenKey: 'physicalAssessment.protocol', label: 'PRNT: Casos de dor' },
+  { key: 'physicalAssessment.prnt.discomforts', screenKey: 'physicalAssessment.protocol', label: 'PRNT: Desconfortos' },
+  { key: 'physicalAssessment.prnt.parqSubmissions', screenKey: 'physicalAssessment.protocol', label: 'PRNT: Submissoes PAR-Q' },
+  { key: 'physicalAssessment.prnt.actions.reviewParq', screenKey: 'physicalAssessment.protocol', label: 'PRNT: Ação analisar pendência PAR-Q' },
+  { key: 'physicalAssessment.prnt.actions.createRecord', screenKey: 'physicalAssessment.protocol', label: 'PRNT: Acao criar registro' },
+  { key: 'physicalAssessment.prnt.actions.editRecord', screenKey: 'physicalAssessment.protocol', label: 'PRNT: Acao editar registro' },
+  { key: 'physicalAssessment.prnt.actions.closeFollowUp', screenKey: 'physicalAssessment.protocol', label: 'PRNT: Acao encerrar acompanhamento' },
+  { key: 'physicalAssessment.adpt.view', screenKey: 'physicalAssessment.protocol', label: 'ADPT: Consultar avaliações e protocolos' },
+  { key: 'physicalAssessment.adpt.actions.manage', screenKey: 'physicalAssessment.protocol', label: 'ADPT: Criar, editar, calcular e concluir rascunhos' },
+  { key: 'physicalAssessment.adpt.actions.correctCompleted', screenKey: 'physicalAssessment.protocol', label: 'ADPT: Corrigir avaliação concluída' },
+  { key: 'settings.contract.adipometryProtocolApproval', screenKey: 'settings.contract', label: 'Contrato: aprovar ou revogar protocolo clínico de adipometria' },
+  { key: 'settings.contract.actions.manageClinicalTechnicalResponsibility', screenKey: 'settings.contract', label: 'Contrato: gerenciar responsabilidade técnica clínica' },
 ] as const;
 
 export type AccessBlockKey = (typeof ACCESS_BLOCK_CATALOG)[number]['key'];
-
 export type AccessDataScope = 'self' | 'managed' | 'contract';
 
 export const ACCESS_DATA_SCOPE_SCREEN_KEYS = [
+  'students.preRegistration',
   'collaborators.registration',
   'collaborators.consultation',
+  'plans',
 ] as const satisfies readonly AccessScreenKey[];
 
 export const ACCESS_DATA_SCOPE_OPTIONS = [
-  { value: 'self', label: 'Somente próprio cadastro' },
-  { value: 'managed', label: 'Próprio cadastro e liderados' },
-  { value: 'contract', label: 'Todos os colaboradores do contrato' },
-] as const satisfies readonly {
-  value: AccessDataScope;
-  label: string;
-}[];
+  { value: 'self', label: 'Somente registros próprios' },
+  { value: 'managed', label: 'Registros próprios e da equipe' },
+  { value: 'contract', label: 'Todos os registros do contrato' },
+] as const satisfies readonly { value: AccessDataScope; label: string }[];
 
 export interface AccessPermission {
   id?: string;
@@ -352,6 +202,7 @@ const commonProfessorScreens = [
   'students.registration',
   'students.consultation',
   'students.details',
+  'students.preRegistration',
   'students.contracts.view',
   'students.assessmentPlan',
   'students.profileReview',
@@ -376,6 +227,20 @@ const commonReadOnlyStudentScreens = [
   'students.profileReview',
 ] as const satisfies readonly AccessScreenKey[];
 
+const operationalLeadBlocks = [
+  'students.preRegistration.create',
+  'students.preRegistration.editCommercial',
+  'students.preRegistration.generateInvite',
+  'students.preRegistration.revokeInvite',
+  'students.preRegistration.discardReopen',
+] as const satisfies readonly AccessBlockKey[];
+
+const managementLeadBlocks = [
+  ...operationalLeadBlocks,
+  'students.preRegistration.review',
+  'students.preRegistration.convert',
+] as const satisfies readonly AccessBlockKey[];
+
 export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
   professor: {
     screens: [
@@ -387,7 +252,6 @@ export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
     ],
     blocks: [
       'students.registration.identification',
-      'students.registration.parq',
       'students.registration.aha',
       'students.registration.financial',
       'students.registration.preferences',
@@ -398,11 +262,16 @@ export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
       'students.details.assessmentPlan',
       'students.details.assessments',
       'students.details.trainingPlans',
+      'plans.capacityPrescriptions.view',
+      'plans.capacityPrescriptions.manage',
+      'plans.consolidatedPrescriptions.view',
+      'plans.consolidatedPrescriptions.manage',
       'students.details.integrations',
       'students.actions.editProfile',
       'students.actions.resetPassword',
       'students.actions.manageAssessments',
       'students.actions.manageAssessmentPlan',
+      ...operationalLeadBlocks,
       'collaborators.registration.collaborator',
       'physicalAssessment.prnt.summary',
       'physicalAssessment.prnt.goals',
@@ -412,14 +281,18 @@ export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
       'physicalAssessment.prnt.painCases',
       'physicalAssessment.prnt.discomforts',
       'physicalAssessment.prnt.parqSubmissions',
-      'physicalAssessment.prnt.actions.createParqSubmission',
+      'physicalAssessment.prnt.actions.reviewParq',
       'physicalAssessment.prnt.actions.createRecord',
       'physicalAssessment.prnt.actions.editRecord',
       'physicalAssessment.prnt.actions.closeFollowUp',
+      'physicalAssessment.adpt.view',
+      'physicalAssessment.adpt.actions.manage',
     ],
     dataScopes: {
+      'students.preRegistration': 'self',
       'collaborators.registration': 'self',
       'collaborators.consultation': 'self',
+      plans: 'self',
     },
   },
   manager: {
@@ -438,7 +311,6 @@ export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
     ],
     blocks: [
       'students.registration.identification',
-      'students.registration.parq',
       'students.registration.aha',
       'students.registration.financial',
       'students.registration.preferences',
@@ -451,6 +323,12 @@ export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
       'students.details.assessments',
       'students.details.profileReviews',
       'students.details.trainingPlans',
+      'plans.capacityPrescriptions.view',
+      'plans.capacityPrescriptions.manage',
+      'plans.consolidatedPrescriptions.view',
+      'plans.consolidatedPrescriptions.manage',
+      'plans.consolidatedPrescriptions.approve',
+      'settings.parameters.capacityPrescriptions',
       'students.details.integrations',
       'students.details.audit',
       'students.actions.editProfile',
@@ -460,6 +338,8 @@ export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
       'students.actions.manageFinancialContract',
       'students.actions.manageProfileReviews',
       'students.actions.manageAssessmentPlan',
+      'students.actions.manageEnrollmentInvite',
+      ...managementLeadBlocks,
       'collaborators.registration.collaborator',
       'collaborators.registration.manager',
       'collaborators.actions.validateLegalFinancial',
@@ -475,20 +355,26 @@ export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
       'physicalAssessment.prnt.painCases',
       'physicalAssessment.prnt.discomforts',
       'physicalAssessment.prnt.parqSubmissions',
-      'physicalAssessment.prnt.actions.createParqSubmission',
+      'physicalAssessment.prnt.actions.reviewParq',
       'physicalAssessment.prnt.actions.createRecord',
       'physicalAssessment.prnt.actions.editRecord',
       'physicalAssessment.prnt.actions.closeFollowUp',
+      'physicalAssessment.adpt.view',
+      'physicalAssessment.adpt.actions.manage',
+      'physicalAssessment.adpt.actions.correctCompleted',
     ],
     dataScopes: {
+      'students.preRegistration': 'contract',
       'collaborators.registration': 'contract',
       'collaborators.consultation': 'contract',
+      plans: 'contract',
     },
   },
   intern: {
-    screens: commonReadOnlyStudentScreens,
+    screens: [...commonReadOnlyStudentScreens, 'students.preRegistration'],
     blocks: ['students.details.summary'],
     dataScopes: {
+      'students.preRegistration': 'self',
       'collaborators.registration': 'self',
       'collaborators.consultation': 'self',
     },
@@ -496,6 +382,7 @@ export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
   administrative: {
     screens: [
       ...commonReadOnlyStudentScreens,
+      'students.preRegistration',
       'students.financialData',
       'students.contracts.view',
       'students.contracts.manage',
@@ -511,8 +398,11 @@ export const DEFAULT_ACCESS_BY_PROFILE_CODE = {
       'students.details.profileReviews',
       'students.actions.manageFinancialContract',
       'students.actions.manageProfileReviews',
+      'students.actions.manageEnrollmentInvite',
+      ...managementLeadBlocks,
     ],
     dataScopes: {
+      'students.preRegistration': 'contract',
       'collaborators.registration': 'self',
       'collaborators.consultation': 'self',
     },

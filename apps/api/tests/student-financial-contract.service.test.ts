@@ -9,6 +9,8 @@ const tx = {
   serviceOption: { findFirst: jest.fn(), findUnique: jest.fn() },
   macronutrients: { upsert: jest.fn(), create: jest.fn() },
   alunoIntakeForm: { upsert: jest.fn(), create: jest.fn() },
+  studentHealthIntake: { findUnique: jest.fn(), upsert: jest.fn() },
+  studentOnboardingProcess: { updateMany: jest.fn() },
   studentParqSubmission: { create: jest.fn() },
   progressMetric: { create: jest.fn() },
   contract: { findUnique: jest.fn(), create: jest.fn() },
@@ -54,6 +56,12 @@ describe('student financial contract service', () => {
     prisma.$transaction.mockImplementation(
       async (callback: (client: typeof tx) => unknown) => callback(tx)
     );
+    tx.studentHealthIntake.findUnique.mockResolvedValue(null);
+    tx.studentHealthIntake.upsert.mockResolvedValue({
+      id: 'health-intake-1',
+      status: 'IN_PROGRESS',
+      completedAt: null,
+    });
   });
 
   it('always prioritizes the service persisted on the generated contract', () => {
@@ -100,6 +108,7 @@ describe('student financial contract service', () => {
     tx.aluno.findUniqueOrThrow
       .mockResolvedValueOnce({
         id: 'student-1',
+        contractId: 'company-1',
         userId: 'user-1',
         professorId: 'professor-1',
         serviceId: 'interest-service',
@@ -115,6 +124,7 @@ describe('student financial contract service', () => {
         },
       })
       .mockResolvedValueOnce({
+        contractId: 'company-1',
         serviceId: 'interest-service',
         professor: { contractId: 'company-1' },
       })
@@ -194,18 +204,8 @@ describe('student financial contract service', () => {
 
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
     expect(tx.aluno.update).toHaveBeenCalledTimes(1);
-    expect(tx.alunoIntakeForm.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        update: expect.objectContaining({
-          formResponses: expect.objectContaining({
-            financial: {
-              currentService: 'active-contract-service',
-              monthlyValue: '350,00',
-            },
-          }),
-        }),
-      })
-    );
+    expect(tx.alunoIntakeForm.upsert).not.toHaveBeenCalled();
+    expect(tx.studentHealthIntake.upsert).not.toHaveBeenCalled();
     expect(tx.serviceOption.findFirst).toHaveBeenCalledWith({
       where: { id: 'interest-service', contractId: 'company-1' },
       select: { id: true },
@@ -241,6 +241,7 @@ describe('student financial contract service', () => {
     tx.aluno.findUniqueOrThrow
       .mockResolvedValueOnce({
         id: 'student-1',
+        contractId: 'company-1',
         userId: 'user-1',
         professorId: 'professor-1',
         serviceId: 'foreign-service',
@@ -249,6 +250,7 @@ describe('student financial contract service', () => {
         intakeForm: null,
       })
       .mockResolvedValueOnce({
+        contractId: 'company-1',
         serviceId: 'foreign-service',
         professor: { contractId: 'company-1' },
       });
@@ -279,6 +281,7 @@ describe('student financial contract service', () => {
   it('rejects the whole transaction when the selected contract cannot be resolved', async () => {
     tx.aluno.findUniqueOrThrow.mockResolvedValue({
       id: 'student-1',
+      contractId: 'company-1',
       userId: 'user-1',
       professorId: 'professor-1',
       serviceId: 'interest-service',
@@ -306,6 +309,7 @@ describe('student financial contract service', () => {
   it('rejects an aluno owned by another company contract before writing the profile', async () => {
     tx.aluno.findUniqueOrThrow.mockResolvedValue({
       id: 'student-other-company',
+      contractId: 'company-other',
       userId: 'user-other-company',
       professorId: 'professor-other-company',
       serviceId: null,
@@ -331,6 +335,7 @@ describe('student financial contract service', () => {
   it('rejects a generated contract from another company contract', async () => {
     tx.aluno.findUniqueOrThrow.mockResolvedValue({
       id: 'student-1',
+      contractId: 'company-1',
       userId: 'user-1',
       professorId: 'professor-1',
       serviceId: null,

@@ -31,11 +31,14 @@ export const studentAccessScopeService = {
       select: {
         id: true,
         professorId: true,
-        professor: { select: { contractId: true } },
+        contractId: true,
       },
     });
 
-    if (!aluno || aluno.professor.contractId !== companyContractId) {
+    // Issue #268: contractId agora vive diretamente em Aluno (fonte tenant
+    // scoped independente de professor estar vinculado). Tentativa
+    // cross-tenant responde como recurso inexistente, sem revelar dado.
+    if (!aluno || aluno.contractId !== companyContractId) {
       throw new Error('Aluno não encontrado ou fora do contrato autenticado');
     }
 
@@ -56,6 +59,8 @@ export const studentAccessScopeService = {
       where: {
         id: contractDocumentId,
         companyContractId,
+        partyType: 'STUDENT',
+        alunoId: { not: null },
       },
       select: {
         id: true,
@@ -63,8 +68,8 @@ export const studentAccessScopeService = {
       },
     });
 
-    if (!contract) {
-      throw new Error('Contrato não encontrado');
+    if (!contract?.alunoId) {
+      throw new Error('Contrato do aluno não encontrado');
     }
 
     await this.assertAlunoAccess(contract.alunoId, context, client);

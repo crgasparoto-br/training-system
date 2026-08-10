@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 3,
+  "issue": "crgasparoto-br/training-system#299",
+  "level": "controller-adversarial",
+  "verdict": "INTERNALLY_APPROVED_PENDING_INDEPENDENT_AUDIT",
+  "sourceManifestCount": 9,
+  "snapshotRederivationDivergences": 0,
+  "blockingFindings": [],
+  "optionalRecommendations": [
+    "Executar validação manual em base com matrícula já convertida após aplicação da migration."
+  ],
+  "riskFamilies": [
+    "canonical-legacy-projection",
+    "tenant-isolation",
+    "data-migration",
+    "idempotent-enrollment"
+  ],
+  "negativeAndRegressionControls": 6,
+  "limitations": [
+    "Repositório não pôde ser clonado no runtime por indisponibilidade de DNS.",
+    "Type-check, lint, Jest e migration real dependem do workflow remoto existente.",
+    "Nenhum workflow associado ao SHA final apareceu na consulta observe-only."
+  ],
+  "mergeAuthorized": false
+}

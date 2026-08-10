@@ -13,6 +13,7 @@ import type { AnthropometryObservation, AnthropometrySegment } from '../../types
 import { AnthropometryComparisonTable } from './AnthropometryComparisonTable';
 import { AnthropometryHelpDialog } from './AnthropometryHelpDialog';
 import { AnthropometrySegmentSettings } from './AnthropometrySegmentSettings';
+import { ProtocolNavTabs } from './protocolNav';
 
 type ProfessorOption = {
   id: string;
@@ -26,14 +27,6 @@ type GuidedStep = {
   description: string;
   tone: GuidedStepTone;
 };
-
-const protocolLinks = [
-  ['antropometria', 'Antropometria'],
-  ['prontuario-entrevista-acompanhamento', 'Prontuário de entrevista e acompanhamento'],
-  ['adipometria', 'Adipometria'],
-  ['bioimpedanciometria', 'Bioimpedanciometria'],
-  ['ultrassonografia', 'Ultrassonografia'],
-] as const;
 
 const toDateInput = (value?: string) => (value ? new Date(value).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10));
 
@@ -231,9 +224,6 @@ export function AnthropometryScreen() {
     );
   };
 
-  const protocolLinkTo = (slug: string) =>
-    selectedAlunoId ? `/protocolo-avaliacao-fisica/${slug}?alunoId=${selectedAlunoId}` : `/protocolo-avaliacao-fisica/${slug}`;
-
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -244,17 +234,7 @@ export function AnthropometryScreen() {
             Histórico por aluno com avaliações ANTR lado a lado, segmentos configuráveis e ajuda técnica por medida.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {protocolLinks.map(([slug, label]) => (
-            <Link
-              key={slug}
-              to={protocolLinkTo(slug)}
-              className={slug === 'antropometria' ? 'rounded-lg border border-primary bg-primary/10 px-3 py-2 text-sm font-medium text-primary' : 'rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground hover:bg-muted'}
-            >
-              {label}
-            </Link>
-          ))}
-        </div>
+        <ProtocolNavTabs activeSlug="antropometria" alunoId={selectedAlunoId} />
       </div>
 
       {startedFromCentral ? (

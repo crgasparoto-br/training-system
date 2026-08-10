@@ -25,17 +25,18 @@ const tokenHash = (token: string) =>
   crypto.createHash('sha256').update(token).digest('hex');
 
 async function seedBase() {
+  sequence += 1;
   const collaboratorFunction = await prisma.collaboratorFunctionOption.create({
     data: {
       contractId: companyContractId,
       name: 'Professor',
-      code: 'contract-lifecycle-professor',
+      code: `contract-lifecycle-professor-${sequence}`,
       isActive: true,
     },
   });
   const professorUser = await prisma.user.create({
     data: {
-      email: `${emailPrefix}professor@example.com`,
+      email: `${emailPrefix}professor-${sequence}@example.com`,
       passwordHash: 'test-hash',
       type: UserType.professor,
       profile: { create: { name: 'Professor Ciclo Contratual' } },
@@ -51,7 +52,7 @@ async function seedBase() {
   });
   const alunoUser = await prisma.user.create({
     data: {
-      email: `${emailPrefix}aluno@example.com`,
+      email: `${emailPrefix}aluno-${sequence}@example.com`,
       passwordHash: 'test-hash',
       type: UserType.aluno,
       profile: { create: { name: 'Aluno Ciclo Contratual' } },
@@ -61,6 +62,7 @@ async function seedBase() {
     data: {
       userId: alunoUser.id,
       professorId: professor.id,
+      contractId: professor.contractId,
       schedulePlan: 'free',
       age: 35,
     },
@@ -470,5 +472,80 @@ describeDatabase('student contract lifecycle with PostgreSQL', () => {
     expect(signatures).toBe(0);
     expect(lifecycle.aluno.currentStudentContractId).toBe(fixture.oldLink.id);
     expect(lifecycle.links.filter((link) => link.status === 'active')).toHaveLength(1);
+  });
+
+  it('activates the remaining valid candidates when one candidate fails within the same scheduler batch', async () => {
+    // Regressao: activateDueSignedContracts roda todos os candidatos do lote
+    // dentro de UMA unica transacao externa (necessaria para o advisory lock
+    // que serializa execucoes concorrentes do scheduler). Em Postgres, um erro
+    // real (nao apenas um throw de JS) aborta a transacao inteira ate um
+    // ROLLBACK/ROLLBACK TO SAVEPOINT. Sem SAVEPOINT por candidato, a falha de
+    // um candidato derrubava silenciosamente os demais candidatos validos do
+    // mesmo lote. Usa-se um trigger real de Postgres (mesma tecnica do teste
+    // acima) para injetar uma falha genuina de SQL em um unico candidato.
+    const effectiveAt = new Date(Date.now() + 60 * 60 * 1000);
+    const healthyFixture = await createFixture({ candidateStartDate: effectiveAt });
+    const failingFixture = await createFixture({ candidateStartDate: effectiveAt });
+
+    await studentContractLifecycleService.signPublicContract(healthyFixture.token, {
+      signerName: 'Aluno Saudavel',
+      signerCpf: '12345678901',
+    });
+    await studentContractLifecycleService.signPublicContract(failingFixture.token, {
+      signerName: 'Aluno Com Falha',
+      signerCpf: '12345678901',
+    });
+
+    await prisma.$executeRawUnsafe(`
+      CREATE OR REPLACE FUNCTION "test_fail_contract_activation_update"()
+      RETURNS trigger AS $$
+      BEGIN
+        IF NEW."id" = '${failingFixture.candidateLink.id}' AND NEW."status" = 'active' THEN
+          RAISE EXCEPTION 'injected activation failure for batch isolation test';
+        END IF;
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql
+    `);
+    await prisma.$executeRawUnsafe(`
+      CREATE TRIGGER "test_fail_contract_activation"
+      BEFORE UPDATE ON "StudentContract"
+      FOR EACH ROW EXECUTE FUNCTION "test_fail_contract_activation_update"()
+    `);
+
+    const result = await studentContractLifecycleService.activateDueSignedContracts(
+      effectiveAt
+    );
+
+    expect(result.activated).toBe(1);
+    expect(result.failures).toHaveLength(1);
+    expect(result.failures[0]).toMatchObject({
+      partyType: 'STUDENT',
+      linkId: failingFixture.candidateLink.id,
+    });
+    expect(result.failures[0].error).toContain('injected activation failure');
+
+    const [healthyLifecycle, failingLifecycle] = await Promise.all([
+      readLifecycle(healthyFixture.aluno.id),
+      readLifecycle(failingFixture.aluno.id),
+    ]);
+
+    const healthyCandidate = healthyLifecycle.links.find(
+      (link) => link.id === healthyFixture.candidateLink.id
+    )!;
+    expect(healthyCandidate.status).toBe('active');
+    expect(healthyLifecycle.aluno.currentStudentContractId).toBe(
+      healthyFixture.candidateLink.id
+    );
+    expect(healthyLifecycle.links.filter((link) => link.status === 'active')).toHaveLength(1);
+
+    const failingCandidate = failingLifecycle.links.find(
+      (link) => link.id === failingFixture.candidateLink.id
+    )!;
+    expect(failingCandidate.status).not.toBe('active');
+    expect(failingLifecycle.aluno.currentStudentContractId).toBe(
+      failingFixture.oldLink.id
+    );
+    expect(failingLifecycle.links.filter((link) => link.status === 'active')).toHaveLength(1);
   });
 });

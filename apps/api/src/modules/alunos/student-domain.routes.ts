@@ -1,11 +1,14 @@
+import { PrismaClient } from '@prisma/client';
 import { Router, Request, Response } from 'express';
 import { sendError, sendSuccess } from '@corrida/utils';
 import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js';
 import { blockAccessMiddleware } from '../access-control/access-control.middleware.js';
 import { alunoService } from './aluno.service.js';
 import { studentDomainService } from './student-domain.service.js';
+import { studentParqBoundaryService } from './student-parq-boundary.service.js';
 
 const router: Router = Router();
+const prisma = new PrismaClient();
 
 router.use(authMiddleware);
 router.use(professorMiddleware);
@@ -44,13 +47,10 @@ router.get(
     try {
       const { id } = req.params;
       const { contractId } = getProfessorContext(req);
-      if (!(await ensureAlunoAccess(req, res, id))) {
-        return;
-      }
+      if (!contractId) return sendError(res, 'Contrato não encontrado', 404);
+      if (!(await ensureAlunoAccess(req, res, id))) return;
 
-      const summary = await studentDomainService.getSummary(id, {
-        companyContractId: contractId,
-      });
+      const summary = await studentParqBoundaryService.getAdministrativeSummary(contractId, id);
       if (!summary) {
         return sendError(res, 'Aluno não encontrado', 404);
       }
@@ -69,16 +69,31 @@ router.get(
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
+      const { contractId } = getProfessorContext(req);
       if (!(await ensureAlunoAccess(req, res, id))) {
         return;
       }
 
-      const profile = await studentDomainService.getProfile(id);
+      const [profile, profileRecord] = await Promise.all([
+        studentDomainService.getProfile(id, {
+          companyContractId: contractId,
+        }),
+        contractId
+          ? prisma.studentProfile.findFirst({
+              where: { alunoId: id, contractId },
+              select: { id: true },
+            })
+          : Promise.resolve(null),
+      ]);
       if (!profile) {
         return sendError(res, 'Aluno não encontrado', 404);
       }
 
-      return sendSuccess(res, profile, 'Perfil segmentado do aluno carregado com sucesso');
+      return sendSuccess(
+        res,
+        { ...profile, recordId: profileRecord?.id ?? null },
+        'Perfil segmentado do aluno carregado com sucesso'
+      );
     } catch (error) {
       console.error('Erro ao carregar perfil segmentado do aluno:', error);
       return sendError(res, 'Erro ao carregar perfil segmentado do aluno', 500);
@@ -92,11 +107,11 @@ router.get(
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
-      if (!(await ensureAlunoAccess(req, res, id))) {
-        return;
-      }
+      const { contractId } = getProfessorContext(req);
+      if (!contractId) return sendError(res, 'Contrato não encontrado', 404);
+      if (!(await ensureAlunoAccess(req, res, id))) return;
 
-      const intake = await studentDomainService.getHealthIntake(id);
+      const intake = await studentParqBoundaryService.getClinicalIntake(contractId, id);
       if (!intake) {
         return sendError(res, 'Aluno não encontrado', 404);
       }
@@ -115,11 +130,14 @@ router.get(
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
+      const { contractId } = getProfessorContext(req);
       if (!(await ensureAlunoAccess(req, res, id))) {
         return;
       }
 
-      const assessments = await studentDomainService.listAssessmentRecords(id);
+      const assessments = await studentDomainService.listAssessmentRecords(id, {
+        companyContractId: contractId,
+      });
       if (!assessments) {
         return sendError(res, 'Aluno não encontrado', 404);
       }
@@ -164,11 +182,14 @@ router.get(
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
+      const { contractId } = getProfessorContext(req);
       if (!(await ensureAlunoAccess(req, res, id))) {
         return;
       }
 
-      const integrations = await studentDomainService.getIntegrations(id);
+      const integrations = await studentDomainService.getIntegrations(id, {
+        companyContractId: contractId,
+      });
       if (!integrations) {
         return sendError(res, 'Aluno não encontrado', 404);
       }
@@ -187,11 +208,14 @@ router.get(
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
+      const { contractId } = getProfessorContext(req);
       if (!(await ensureAlunoAccess(req, res, id))) {
         return;
       }
 
-      const activities = await studentDomainService.listExternalActivities(id);
+      const activities = await studentDomainService.listExternalActivities(id, {
+        companyContractId: contractId,
+      });
       if (!activities) {
         return sendError(res, 'Aluno não encontrado', 404);
       }

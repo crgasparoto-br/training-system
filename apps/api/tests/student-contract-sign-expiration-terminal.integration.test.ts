@@ -78,6 +78,7 @@ describeDatabase('expired public signature and terminal link consistency', () =>
       data: {
         userId: alunoUser.id,
         professorId: professor.id,
+        contractId: professor.contractId,
         schedulePlan: 'free',
         age: 36,
       },

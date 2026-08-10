@@ -4,7 +4,10 @@ import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js'
 import { blockAccessMiddleware } from '../access-control/access-control.middleware.js';
 import { studentAccessScopeService } from '../alunos/student-access-scope.service.js';
 import legacyContractRoutes from './contract.routes.js';
+import collaboratorContractRoutes from './collaborator-contract.routes.js';
+import contractTemplateApplicabilityRoutes from './contract-template-applicability.routes.js';
 import { contractAuthoritativeGenerationService } from './contract-authoritative-generation.service.js';
+import { normalizeContractDateFields } from './contract-date-input.js';
 import { contractPreviewAccessMiddleware } from './contract-preview-access.middleware.js';
 import { contractPublicAccessService } from './contract-public-access.service.js';
 
@@ -33,10 +36,7 @@ const companyContractIdFromRequest = (req: Request) => {
 
 const contractGenerationErrorStatus = (error: unknown) => {
   const message = error instanceof Error ? error.message : '';
-  if (
-    message.includes('fora do escopo') ||
-    message.includes('não pertence ao contrato autenticado')
-  ) {
+  if (message.includes('fora do escopo') || message.includes('não pertence ao contrato autenticado')) {
     return 404;
   }
   return 400;
@@ -73,6 +73,11 @@ router.get('/public/:token', async (req: Request, res: Response) => {
 
 router.use(authMiddleware);
 router.use(professorMiddleware);
+router.use((req: Request, _res: Response, next: NextFunction) => {
+  req.body = normalizeContractDateFields(req.body);
+  return next();
+});
+router.use(contractTemplateApplicabilityRoutes);
 
 router.post(
   '/preview',
@@ -80,9 +85,7 @@ router.post(
   async (req: Request, res: Response) => {
     try {
       const companyContractId = companyContractIdFromRequest(req);
-      if (!companyContractId) {
-        return sendError(res, 'Contrato autenticado não encontrado', 403);
-      }
+      if (!companyContractId) return sendError(res, 'Contrato autenticado não encontrado', 403);
 
       const preview = await contractAuthoritativeGenerationService.preview(
         companyContractId,
@@ -106,9 +109,7 @@ router.post(
   async (req: Request, res: Response) => {
     try {
       const companyContractId = companyContractIdFromRequest(req);
-      if (!companyContractId) {
-        return sendError(res, 'Contrato autenticado não encontrado', 403);
-      }
+      if (!companyContractId) return sendError(res, 'Contrato autenticado não encontrado', 403);
 
       const contract = await contractAuthoritativeGenerationService.generate(
         companyContractId,
@@ -125,6 +126,9 @@ router.post(
     }
   }
 );
+
+// Must run before student-only document guards and the legacy router.
+router.use(collaboratorContractRoutes);
 
 router.use(
   '/alunos/:alunoId',

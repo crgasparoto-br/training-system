@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "issue": 274,
+  "cycle": 2,
+  "reviewed_at": "2026-07-28T14:27:00Z",
+  "items": [
+    {
+      "finding_id": "AUD-274-17",
+      "fingerprint": "public-identity-dedup-race-between-detection-and-write",
+      "cause": "implementation-defect",
+      "affected_skills": ["implementar-issue", "orquestrador"],
+      "decision": "no-change",
+      "rationale": "A falha estava na implementacao concreta da fronteira transacional, nao nas instrucoes das skills. O fluxo ja exigia concorrencia, revalidacao e testes adversariais.",
+      "test_evidence": "GitHub Actions run 30360020335, step Validate atomicity and concurrent deduplication"
+    },
+    {
+      "finding_id": "AUD-274-18",
+      "fingerprint": "claim-commit-before-private-duplicate-review-audit",
+      "cause": "implementation-defect",
+      "affected_skills": ["implementar-issue", "orquestrador"],
+      "decision": "no-change",
+      "rationale": "A especificacao e as skills ja determinavam atomicidade e auditoria no commit. A remediacao moveu a persistencia da pendencia para a mesma transacao do claim.",
+      "test_evidence": "GitHub Actions run 30360020335, injected StudentProfileReview failure with full rollback"
+    },
+    {
+      "finding_id": "AUD-274-19",
+      "fingerprint": "birth-date-timezone-shifts-civil-day",
+      "cause": "implementation-defect",
+      "affected_skills": ["implementar-issue"],
+      "decision": "no-change",
+      "rationale": "O contrato da issue era explicito sobre data civil. A falha foi corrigida na validacao de entrada, normalizacao canonica e testes de offset, sem lacuna de skill.",
+      "test_evidence": "GitHub Actions run 30360020335, step Validate civil date contract"
+    },
+    {
+      "finding_id": "AUD-274-20",
+      "fingerprint": "scalar-clinical-ownership-not-blocking-duplicate-consolidation",
+      "cause": "implementation-defect",
+      "affected_skills": ["implementar-issue", "orquestrador", "auditar-issue"],
+      "decision": "no-change",
+      "rationale": "As skills ja exigiam inspecao de schema, variantes legadas, ownership, protecao no banco e teste discriminante. A lacuna estava no inventario concreto da implementacao, que enumerava relacoes mas omitia campos clinicos escalares de Aluno.",
+      "test_evidence": "GitHub Actions runs 30367842258 and 30367842305; PostgreSQL service-preflight and direct-trigger scenarios passed"
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/Card';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../ui/Accordion';
 import { Button } from '../ui/Button';
 import { isDateWithinRange, formatDateBR } from '../../utils/date';
 import type { Aluno, StudentContractLink, StudentSegmentedSummary } from '../../services/aluno.service';
@@ -345,7 +346,7 @@ export function AlunoResumoHubTab({
   const allergies = getRecordText(intake?.allergies, ['allergies', 'description', 'notes']);
   const observations = normalizeText(intake?.observations) ?? normalizeText(aluno.intakeForm?.observations);
   const hasCadastroEssentials = Boolean(displayName && displayEmail && aluno.age);
-  const parqPositiveCount = Object.values(aluno.intakeForm?.parqResponses || {}).filter(Boolean).length;
+  const parqPositiveCount = aluno.parq?.latestSubmission?.positiveCount ?? 0;
   const hasHealthAlert = parqPositiveCount > 0;
   const hasPrntGoal = Boolean(displayMainGoal);
   const hasPrntIntake = Boolean(displayIntakeDate);
@@ -710,17 +711,25 @@ export function AlunoResumoHubTab({
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Visão geral do aluno</CardTitle>
-          <CardDescription>
-            Leitura rápida com situação atual, evidência carregada e próxima ação recomendada para cada domínio da Central.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {summaryCards.map((card) => <SummaryStatusCard key={card.title} {...card} />)}
-          </div>
-        </CardContent>
+        <Accordion type="single" collapsible>
+          <AccordionItem value="visao-geral" className="border-b-0">
+            <CardHeader className="pb-0">
+              <AccordionTrigger className="p-0 hover:no-underline">
+                <CardTitle>Visão geral do aluno</CardTitle>
+              </AccordionTrigger>
+              <CardDescription>
+                Leitura rápida com situação atual, evidência carregada e próxima ação recomendada para cada domínio da Central. Os detalhes já apareceram nas secoes acima; abra apenas se precisar de um resumo consolidado.
+              </CardDescription>
+            </CardHeader>
+            <AccordionContent>
+              <CardContent>
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  {summaryCards.map((card) => <SummaryStatusCard key={card.title} {...card} />)}
+                </div>
+              </CardContent>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
       </Card>
     </div>
   );

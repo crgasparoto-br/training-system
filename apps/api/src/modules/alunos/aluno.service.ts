@@ -3,99 +3,31 @@ import bcryptjs from 'bcryptjs';
 import crypto from 'crypto';
 import { getServiceForContract } from '../services/service.service.js';
 import { assertStudentInterestServiceSelectable } from './aluno.service-selection.js';
+import { legacyDirectActiveStudentCreationFields } from './student-lifecycle.service.js';
+import { upsertStudentIdentity } from './student-identity.service.js';
+import {
+  hasCanonicalHealthIntakeMutation,
+  hasCanonicalHealthIntakeValue,
+  upsertCanonicalStudentHealthIntake,
+} from './student-health-intake-write.service.js';
+import { preRegistrationParqService } from '../pre-registration-public/pre-registration-parq.service.js';
+import { assertNoLegacyParqWrite } from './student-parq-legacy-cutover.js';
+import {
+  syncStudentFixedSchedule,
+  type FixedScheduleSlotInput,
+} from '../agenda/fixed-schedule.service.js';
 
 const prisma = new PrismaClient();
 
-const PARQ_LABELS: Record<string, string> = {
-  q1: 'Algum médico já disse que você possui problema no coração e recomendou atividade física apenas sob supervisão?',
-  q2: 'Você sente dor no peito causada pela prática de atividade física?',
-  q3: 'Você sentiu dor no peito no último mês?',
-  q4: 'Você perde o equilíbrio por tontura ou já perdeu a consciência?',
-  q5: 'Você tem problema ósseo ou articular que poderia piorar com atividade física?',
-  q6: 'Algum médico prescreveu medicamento para pressão arterial ou condição cardíaca?',
-  q7: 'Você conhece outro motivo para não realizar atividade física?',
-};
-
-type ParqResponseShape = {
-  q1: boolean;
-  q2: boolean;
-  q3: boolean;
-  q4: boolean;
-  q5: boolean;
-  q6: boolean;
-  q7: boolean;
-  q8: boolean;
-};
-
-const normalizeParqResponses = (responses?: Partial<ParqResponseShape> | null): ParqResponseShape | null => {
-  if (!responses) return null;
-  return {
-    q1: responses.q1 === true,
-    q2: responses.q2 === true,
-    q3: responses.q3 === true,
-    q4: responses.q4 === true,
-    q5: responses.q5 === true,
-    q6: responses.q6 === true,
-    q7: responses.q7 === true,
-    q8: responses.q8 === true,
-  };
-};
-
-const positiveParqItems = (responses: ParqResponseShape) =>
-  Object.entries(PARQ_LABELS)
-    .filter(([key]) => responses[key as keyof ParqResponseShape] === true)
-    .map(([key, label]) => ({ key, label }));
-
 const resolveAlunoCompanyContractId = (alunoLike: {
+  contractId?: string | null;
   professor?: { contractId?: string | null } | null;
   currentStudentContract?: { contract?: { companyContractId?: string | null } | null } | null;
 }) =>
+  alunoLike.contractId ||
   alunoLike.currentStudentContract?.contract?.companyContractId ||
   alunoLike.professor?.contractId ||
   null;
-
-const createParqSubmission = async (
-  tx: Prisma.TransactionClient,
-  data: {
-    alunoId: string;
-    contractId: string;
-    sourceType: 'student' | 'professional' | 'integration' | 'system';
-    submittedByUserId?: string;
-    responses?: Partial<ParqResponseShape> | null;
-  }
-) => {
-  const normalized = normalizeParqResponses(data.responses);
-  if (!normalized) return;
-
-  await tx.studentParqSubmission.create({
-    data: {
-      alunoId: data.alunoId,
-      contractId: data.contractId,
-      sourceType: data.sourceType,
-      submittedByUserId: data.submittedByUserId,
-      responses: normalized as Prisma.InputJsonValue,
-      positiveItems: positiveParqItems(normalized) as Prisma.InputJsonValue,
-      declarationAccepted: normalized.q8,
-    },
-  });
-};
-
-const hasParqResponsesChanged = (
-  currentResponses: Partial<ParqResponseShape> | null | undefined,
-  nextResponses?: Partial<ParqResponseShape> | null
-) => {
-  const nextNormalized = normalizeParqResponses(nextResponses);
-  if (!nextNormalized) {
-    return false;
-  }
-
-  const currentNormalized = normalizeParqResponses(currentResponses);
-  if (!currentNormalized) {
-    return true;
-  }
-
-  return JSON.stringify(currentNormalized) !== JSON.stringify(nextNormalized);
-};
 
 export interface CreateAlunoDTO {
   name: string;
@@ -105,6 +37,8 @@ export interface CreateAlunoDTO {
   professorId: string;
   serviceId?: string;
   schedulePlan: 'free' | 'fixed';
+  fixedScheduleSlots?: FixedScheduleSlotInput[];
+  confirmKeepFutureBookings?: boolean;
   birthDate?: Date;
   gender?: 'male' | 'female' | 'other';
   age: number;
@@ -150,6 +84,8 @@ export interface UpdateAlunoDTO {
   professorId?: string;
   serviceId?: string;
   schedulePlan?: 'free' | 'fixed';
+  fixedScheduleSlots?: FixedScheduleSlotInput[];
+  confirmKeepFutureBookings?: boolean;
   birthDate?: Date;
   gender?: 'male' | 'female' | 'other';
   age?: number;
@@ -204,8 +140,6 @@ const hasAnyValue = (payload: Record<string, unknown>) =>
     return true;
   });
 
-const toInputJson = (value?: Record<string, unknown>): Prisma.InputJsonValue | undefined =>
-  value as Prisma.InputJsonValue | undefined;
 
 const getResponsibleProfessorIdFromFormResponses = (
   formResponses?: Record<string, unknown>
@@ -227,6 +161,7 @@ export const alunoService = {
    * Criar novo aluno
    */
   async create(data: CreateAlunoDTO) {
+    assertNoLegacyParqWrite(data);
     const existingUser = await prisma.user.findUnique({
       where: { email: data.email },
     });
@@ -276,6 +211,12 @@ export const alunoService = {
         data: {
           userId: user.id,
           professorId: data.professorId,
+          // Cadastro administrativo legado: sempre cria um aluno já ativo,
+          // com conta e professor completos (issue #268 não altera este
+          // fluxo). contractId é derivado do professor responsável para
+          // preservar o isolamento multi-tenant já existente.
+          contractId: professor.contractId,
+          ...legacyDirectActiveStudentCreationFields(),
           serviceId,
           schedulePlan: data.schedulePlan,
           age: data.age,
@@ -310,6 +251,24 @@ export const alunoService = {
         },
       });
 
+      await upsertStudentIdentity(
+        aluno.id,
+        professor.contractId,
+        {
+          name: data.name,
+          email: data.email,
+          phone: data.phone,
+          birthDate: data.birthDate,
+          gender: data.gender,
+        },
+        {
+          client: tx,
+          sourceType: 'professional',
+          sourceReference: 'legacy_admin_create',
+          syncLegacyProfile: true,
+        }
+      );
+
       if (data.macronutrients && hasAnyValue(data.macronutrients)) {
         await tx.macronutrients.create({
           data: {
@@ -322,28 +281,16 @@ export const alunoService = {
         });
       }
 
-      if (data.intakeForm && hasAnyValue(data.intakeForm)) {
-        await tx.alunoIntakeForm.create({
-          data: {
+      if (data.intakeForm) {
+        if (hasCanonicalHealthIntakeValue(data.intakeForm)) {
+          await upsertCanonicalStudentHealthIntake(tx, {
             alunoId: aluno.id,
-            assessmentDate: data.intakeForm.assessmentDate,
-            mainGoal: data.intakeForm.mainGoal,
-            medicalHistory: data.intakeForm.medicalHistory,
-            currentMedications: data.intakeForm.currentMedications,
-            injuriesHistory: data.intakeForm.injuriesHistory,
-            trainingBackground: data.intakeForm.trainingBackground,
-            observations: data.intakeForm.observations,
-            parqResponses: data.intakeForm.parqResponses,
-            formResponses: toInputJson(data.intakeForm.formResponses),
-          },
-        });
-
-        await createParqSubmission(tx, {
-          alunoId: aluno.id,
-          contractId: professor.contractId,
-          sourceType: 'professional',
-          responses: data.intakeForm.parqResponses,
-        });
+            contractId: professor.contractId,
+            sourceType: 'professional',
+            sourceReference: 'legacy_admin_create',
+            health: data.intakeForm,
+          });
+        }
       }
 
       if (data.intakeForm?.assessmentDate) {
@@ -357,6 +304,17 @@ export const alunoService = {
             notes: data.intakeForm.observations,
           },
         });
+      }
+
+      if (data.schedulePlan === 'fixed') {
+        await syncStudentFixedSchedule(
+          tx,
+          professor.contractId,
+          aluno.id,
+          'fixed',
+          data.fixedScheduleSlots ?? [],
+          { confirmKeepFutureBookings: data.confirmKeepFutureBookings }
+        );
       }
 
       return tx.aluno.findUniqueOrThrow({
@@ -401,10 +359,14 @@ export const alunoService = {
     const skip = (page - 1) * limit;
     const statusFilter =
       status === 'all' ? {} : { user: { isActive: status === 'active' } };
+    // Issue #268: esta listagem sempre representou alunos ativos (fluxo
+    // legado só cria Aluno já com status ACTIVE_STUDENT). Explicitar o
+    // filtro para que leads futuros (#269+) nunca apareçam aqui por acidente.
+    const lifecycleFilter = { status: 'ACTIVE_STUDENT' as const };
 
     const [alunos, total] = await Promise.all([
       prisma.aluno.findMany({
-        where: { professorId, ...statusFilter },
+        where: { professorId, ...statusFilter, ...lifecycleFilter },
         include: {
           user: {
             include: {
@@ -430,7 +392,7 @@ export const alunoService = {
         take: limit,
       }),
       prisma.aluno.count({
-        where: { professorId, ...statusFilter },
+        where: { professorId, ...statusFilter, ...lifecycleFilter },
       }),
     ]);
 
@@ -467,8 +429,11 @@ export const alunoService = {
     const statusFilter =
       status === 'all' ? {} : { user: { isActive: status === 'active' } };
 
+    // Issue #268: filtro explícito para que leads futuros (#269+) nunca
+    // apareçam nesta listagem de alunos ativos.
     const where = {
       professorId: { in: professorIds },
+      status: 'ACTIVE_STUDENT' as const,
       ...statusFilter,
     };
 
@@ -528,14 +493,19 @@ export const alunoService = {
     const skip = (page - 1) * limit;
     const statusFilter =
       status === 'all' ? {} : { user: { isActive: status === 'active' } };
+    // Issue #268: contractId agora vive diretamente em Aluno (fonte de
+    // verdade tenant-scoped) e o filtro de status evita que leads futuros
+    // (#269+) apareçam como aluno ativo nesta listagem.
     const where: any = professorId
       ? {
           professorId,
-          professor: { contractId },
+          contractId,
+          status: 'ACTIVE_STUDENT',
           ...statusFilter,
         }
       : {
-          professor: { contractId },
+          contractId,
+          status: 'ACTIVE_STUDENT',
           ...statusFilter,
         };
 
@@ -586,7 +556,7 @@ export const alunoService = {
    * Obter aluno por ID
    */
   async findById(id: string) {
-    return await prisma.aluno.findUnique({
+    const aluno = await prisma.aluno.findUnique({
       where: { id },
       include: {
         user: {
@@ -620,15 +590,22 @@ export const alunoService = {
         },
       },
     });
+    if (!aluno) return null;
+    const parq = await preRegistrationParqService.summary(aluno.contractId, aluno.id);
+    return { ...aluno, parq };
   },
 
   /**
    * Atualizar aluno
    */
   async update(id: string, data: UpdateAlunoDTO) {
+    assertNoLegacyParqWrite(data);
     const {
       avatar,
       professorId,
+      schedulePlan,
+      fixedScheduleSlots,
+      confirmKeepFutureBookings,
       birthDate,
       gender,
       macronutrients,
@@ -704,14 +681,27 @@ export const alunoService = {
         data: alunoData,
       });
 
-      if (avatar !== undefined || birthDate !== undefined || gender !== undefined) {
-        await tx.profile.update({
-          where: { userId: aluno.userId },
-          data: {
-            ...(avatar !== undefined ? { avatar } : {}),
+      if (birthDate !== undefined || gender !== undefined) {
+        await upsertStudentIdentity(
+          aluno.id,
+          alunoContractId,
+          {
             ...(birthDate !== undefined ? { birthDate } : {}),
             ...(gender !== undefined ? { gender } : {}),
           },
+          {
+            client: tx,
+            sourceType: 'professional',
+            sourceReference: 'legacy_admin_update',
+            syncLegacyProfile: true,
+          }
+        );
+      }
+
+      if (aluno.userId && avatar !== undefined) {
+        await tx.profile.update({
+          where: { userId: aluno.userId },
+          data: { avatar },
         });
       }
 
@@ -737,43 +727,27 @@ export const alunoService = {
       }
 
       if (intakeForm) {
-        if (hasAnyValue(intakeForm)) {
-          await tx.alunoIntakeForm.upsert({
-            where: { alunoId: id },
-            create: {
-              alunoId: id,
-              assessmentDate: intakeForm.assessmentDate,
-              mainGoal: intakeForm.mainGoal,
-              medicalHistory: intakeForm.medicalHistory,
-              currentMedications: intakeForm.currentMedications,
-              injuriesHistory: intakeForm.injuriesHistory,
-              trainingBackground: intakeForm.trainingBackground,
-              observations: intakeForm.observations,
-              parqResponses: intakeForm.parqResponses,
-              formResponses: toInputJson(intakeForm.formResponses),
-            },
-            update: {
-              assessmentDate: intakeForm.assessmentDate,
-              mainGoal: intakeForm.mainGoal,
-              medicalHistory: intakeForm.medicalHistory,
-              currentMedications: intakeForm.currentMedications,
-              injuriesHistory: intakeForm.injuriesHistory,
-              trainingBackground: intakeForm.trainingBackground,
-              observations: intakeForm.observations,
-              parqResponses: intakeForm.parqResponses,
-              formResponses: toInputJson(intakeForm.formResponses),
-            },
+        if (hasCanonicalHealthIntakeMutation(intakeForm)) {
+          await upsertCanonicalStudentHealthIntake(tx, {
+            alunoId: id,
+            contractId: alunoContractId,
+            sourceType: 'professional',
+            sourceReference: 'legacy_admin_update',
+            health: intakeForm,
           });
-
-          if (hasParqResponsesChanged(currentAluno.intakeForm?.parqResponses as Partial<ParqResponseShape> | null | undefined, intakeForm.parqResponses)) {
-            await createParqSubmission(tx, {
-              alunoId: id,
-              contractId: alunoContractId,
-              sourceType: 'professional',
-              responses: intakeForm.parqResponses,
-            });
-          }
         }
+      }
+
+      if (schedulePlan !== undefined || fixedScheduleSlots !== undefined) {
+        const desiredSchedulePlan = schedulePlan ?? currentAluno.schedulePlan;
+        await syncStudentFixedSchedule(
+          tx,
+          alunoContractId,
+          id,
+          desiredSchedulePlan,
+          desiredSchedulePlan === 'fixed' ? fixedScheduleSlots ?? [] : [],
+          { confirmKeepFutureBookings }
+        );
       }
 
       return tx.aluno.findUniqueOrThrow({
@@ -890,7 +864,11 @@ export const alunoService = {
     status?: 'active' | 'inactive' | 'all';
   }) {
     const { query, professorId, professorIds, contractId, status = 'active' } = params;
+    // Issue #268: busca de aluno continua restrita a quem já tem conta/perfil
+    // (leads pré-cadastro não são indexados aqui) e explicitamente a
+    // ACTIVE_STUDENT, para não confundir lead com aluno ativo.
     const where: any = {
+      status: 'ACTIVE_STUDENT',
       user: {
         profile: {
           name: {
@@ -917,7 +895,7 @@ export const alunoService = {
     }
 
     if (contractId) {
-      where.professor = { contractId };
+      where.contractId = contractId;
     }
 
     return await prisma.aluno.findMany({
@@ -947,10 +925,7 @@ export const alunoService = {
    */
   async belongsToContract(alunoId: string, contractId: string): Promise<boolean> {
     const aluno = await prisma.aluno.findFirst({
-      where: {
-        id: alunoId,
-        professor: { contractId },
-      },
+      where: { id: alunoId, contractId },
     });
     return !!aluno;
   },

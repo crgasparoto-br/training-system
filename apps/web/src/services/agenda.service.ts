@@ -1,4 +1,4 @@
-﻿import api from './api';
+import api from './api';
 
 export type AgendaBookingType = 'free' | 'fixed_makeup';
 export type AgendaBookingStatus = 'scheduled' | 'completed' | 'canceled' | 'no_show';
@@ -38,6 +38,48 @@ export interface AgendaAvailability {
   endTime: string;
   isActive: boolean;
   professor: AgendaProfessor;
+}
+
+export type FixedScheduleErrorCode =
+  | 'FIXED_SCHEDULE_REQUIRED'
+  | 'INVALID_DAY_OF_WEEK'
+  | 'INVALID_TIME_RANGE'
+  | 'SPACE_NOT_FOUND'
+  | 'SPACE_INACTIVE'
+  | 'SPACE_CAPACITY_FULL'
+  | 'PROFESSOR_NOT_FOUND'
+  | 'PROFESSOR_INACTIVE'
+  | 'PROFESSOR_OUTSIDE_AVAILABILITY'
+  | 'PROFESSOR_FIXED_SLOT_CONFLICT'
+  | 'PROFESSOR_BOOKING_CONFLICT'
+  | 'STUDENT_FIXED_SLOT_CONFLICT'
+  | 'FIXED_SLOT_NOT_FOUND'
+  | 'FIXED_SLOT_INACTIVE'
+  | 'FIXED_SLOT_ID_DUPLICATE'
+  | 'FIXED_TO_FREE_CONFIRMATION_REQUIRED'
+  | 'FUTURE_BOOKINGS_CONFIRMATION_REQUIRED'
+  | 'FIXED_SCHEDULE_CHANGED';
+
+export interface FixedScheduleSlotInput {
+  id?: string;
+  clientKey?: string;
+  professorId: string;
+  spaceId: string;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  notes?: string | null;
+  availabilityConfirmed?: boolean;
+}
+
+export interface FixedScheduleAvailabilityResult {
+  rowIndex: number;
+  slotId?: string;
+  clientKey?: string;
+  available: boolean;
+  code: FixedScheduleErrorCode | 'AVAILABLE';
+  message: string;
+  stage: 'schedule' | 'student' | 'space' | 'professor';
 }
 
 export interface FixedScheduleSlot {
@@ -143,21 +185,38 @@ export const agendaService = {
     return response.data.data;
   },
 
+  async checkFixedScheduleAvailability(data: {
+    alunoId?: string;
+    slots: FixedScheduleSlotInput[];
+  }): Promise<FixedScheduleAvailabilityResult[]> {
+    const response = await api.post<{ success: boolean; data: FixedScheduleAvailabilityResult[] }>(
+      '/agenda/fixed-slots/check',
+      data
+    );
+    return response.data.data;
+  },
+
   async createFixedSlot(data: {
     alunoId: string;
     professorId: string;
     dayOfWeek: number;
     startTime: string;
     endTime: string;
-    spaceId?: string;
+    spaceId: string;
     notes?: string;
   }): Promise<FixedScheduleSlot> {
     const response = await api.post<{ success: boolean; data: FixedScheduleSlot }>('/agenda/fixed-slots', data);
     return response.data.data;
   },
 
-  async deactivateFixedSlot(id: string): Promise<FixedScheduleSlot> {
-    const response = await api.delete<{ success: boolean; data: FixedScheduleSlot }>(`/agenda/fixed-slots/${id}`);
+  async deactivateFixedSlot(
+    id: string,
+    confirmKeepFutureBookings = false
+  ): Promise<FixedScheduleSlot> {
+    const response = await api.delete<{ success: boolean; data: FixedScheduleSlot }>(
+      `/agenda/fixed-slots/${id}`,
+      { data: { confirmKeepFutureBookings } }
+    );
     return response.data.data;
   },
 
@@ -171,5 +230,3 @@ export const agendaService = {
     return response.data.data;
   },
 };
-
-

@@ -178,12 +178,17 @@ function nextCodeFrom(code?: string | null) {
 }
 
 async function assertAlunoInContract(alunoId: string, contractId: string) {
+  // Issue #268: contractId direto em Aluno é a fonte tenant-scoped correta
+  // (não depende de professor estar vinculado).
   const aluno = await prisma.aluno.findFirst({
-    where: { id: alunoId, professor: { contractId } },
+    where: { id: alunoId, contractId },
     include: { user: { include: { profile: true } }, professor: true },
   });
   if (!aluno) throw new Error('Aluno não encontrado no contrato');
-  return aluno;
+  if (!aluno.user) {
+    throw new Error('Aluno ainda não possui conta vinculada (registro incompleto)');
+  }
+  return aluno as typeof aluno & { user: NonNullable<typeof aluno.user> };
 }
 
 export const anthropometryService = {
@@ -300,7 +305,7 @@ export const anthropometryService = {
 
     const code = nextCodeFrom(lastAssessment?.code);
     const sourceValues = new Map(lastAssessment?.values.map((item) => [item.segmentId, item]) ?? []);
-    const requestedProfessorId = data.professorId || professorId || aluno.professorId;
+    const requestedProfessorId = data.professorId || professorId || aluno.professorId || undefined;
     const targetProfessor = await prisma.professor.findFirst({
       where: { id: requestedProfessorId, contractId },
       select: { id: true },

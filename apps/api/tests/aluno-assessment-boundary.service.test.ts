@@ -9,6 +9,14 @@ const mockTx = {
     create: jest.fn(),
     update: jest.fn(),
     findUniqueOrThrow: jest.fn(),
+    findFirst: jest.fn(),
+    count: jest.fn(),
+  },
+  studentProfile: {
+    upsert: jest.fn(),
+  },
+  studentLifecycleEvent: {
+    create: jest.fn(),
   },
   profile: {
     update: jest.fn(),
@@ -20,6 +28,13 @@ const mockTx = {
   alunoIntakeForm: {
     create: jest.fn(),
     upsert: jest.fn(),
+  },
+  studentHealthIntake: {
+    findUnique: jest.fn(),
+    upsert: jest.fn(),
+  },
+  studentOnboardingProcess: {
+    updateMany: jest.fn(),
   },
   progressMetric: {
     create: jest.fn(),
@@ -85,6 +100,49 @@ describe('alunoService assessment boundary', () => {
     mockTx.aluno.create.mockResolvedValue({ id: 'aluno-1' });
     mockTx.aluno.update.mockResolvedValue({ id: 'aluno-1', userId: 'user-1' });
     mockTx.aluno.findUniqueOrThrow.mockResolvedValue({ id: 'aluno-1' });
+    mockTx.aluno.count.mockResolvedValue(1);
+    mockTx.aluno.findFirst.mockResolvedValue({
+      id: 'aluno-1',
+      contractId: 'contract-1',
+      userId: 'user-1',
+      leadName: null,
+      leadEmail: null,
+      leadEmailNormalized: null,
+      leadPhone: null,
+      leadPhoneNormalized: null,
+      leadCpf: null,
+      leadCpfNormalized: null,
+      birthDate: null,
+      studentProfile: null,
+      user: {
+        email: 'novo@example.com',
+        profile: {
+          name: 'Aluno Novo',
+          phone: null,
+          cpf: null,
+          birthDate: null,
+          gender: null,
+          rg: null,
+          maritalStatus: null,
+          addressStreet: null,
+          addressNumber: null,
+          addressComplement: null,
+          addressNeighborhood: null,
+          addressCity: null,
+          addressState: null,
+          addressZipCode: null,
+          instagramHandle: null,
+        },
+      },
+    });
+    mockTx.studentProfile.upsert.mockResolvedValue({});
+    mockTx.studentLifecycleEvent.create.mockResolvedValue({});
+    mockTx.studentHealthIntake.findUnique.mockResolvedValue(null);
+    mockTx.studentHealthIntake.upsert.mockResolvedValue({
+      id: 'health-intake-1',
+      status: 'IN_PROGRESS',
+      completedAt: null,
+    });
   });
 
   it('cria aluno sem macronutrientes ou métrica de progresso quando o formulário não envia avaliação', async () => {
@@ -99,7 +157,6 @@ describe('alunoService assessment boundary', () => {
         mainGoal: 'Condicionamento físico',
         trainingBackground: 'Iniciante',
         observations: 'Cadastro inicial',
-        parqResponses: emptyParq,
         formResponses: {
           identification: {},
           financial: {},
@@ -133,7 +190,7 @@ describe('alunoService assessment boundary', () => {
     expect(mockTx.progressMetric.create).not.toHaveBeenCalled();
   });
 
-  it('preserva avaliação, macronutrientes e métricas ao atualizar somente cadastro e anamnese', async () => {
+  it('preserva avaliação, macronutrientes, métricas e o legado PAR-Q ao atualizar somente cadastro e anamnese', async () => {
     mockTx.aluno.findUniqueOrThrow
       .mockResolvedValueOnce({
         id: 'aluno-1',
@@ -153,7 +210,6 @@ describe('alunoService assessment boundary', () => {
         injuriesHistory: 'Sem lesões',
         trainingBackground: 'Treino atualizado',
         observations: 'Observação atualizada',
-        parqResponses: emptyParq,
         formResponses: {
           identification: {},
           financial: {},
@@ -170,15 +226,22 @@ describe('alunoService assessment boundary', () => {
     expect(mockTx.macronutrients.upsert).not.toHaveBeenCalled();
     expect(mockTx.progressMetric.create).not.toHaveBeenCalled();
 
-    const intakeUpsert = mockTx.alunoIntakeForm.upsert.mock.calls[0][0];
-    expect(intakeUpsert.update.assessmentDate).toBeUndefined();
-    expect(intakeUpsert.update).toMatchObject({
-      mainGoal: 'Objetivo atualizado',
-      medicalHistory: 'Histórico preservado',
-      currentMedications: 'Nenhuma',
-      injuriesHistory: 'Sem lesões',
-      trainingBackground: 'Treino atualizado',
-      observations: 'Observação atualizada',
-    });
+    expect(mockTx.alunoIntakeForm.upsert).not.toHaveBeenCalled();
+    expect(mockTx.studentParqSubmission.create).not.toHaveBeenCalled();
+    expect(mockTx.studentHealthIntake.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { alunoId: 'aluno-1' },
+        create: expect.objectContaining({
+          clinicalHistoryData: expect.objectContaining({
+            mainGoal: 'Objetivo atualizado',
+            medicalHistory: 'Histórico preservado',
+            trainingBackground: 'Treino atualizado',
+          }),
+          medicationData: expect.objectContaining({ currentMedications: 'Nenhuma' }),
+          injuryData: expect.objectContaining({ injuriesHistory: 'Sem lesões' }),
+          observations: 'Observação atualizada',
+        }),
+      })
+    );
   });
 });

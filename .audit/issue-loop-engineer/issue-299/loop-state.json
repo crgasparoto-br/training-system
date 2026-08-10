@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 3,
+  "issue": "crgasparoto-br/training-system#299",
+  "baseBranch": "develop",
+  "baseSha": "923f3bda8bf900125203caefa81b5bdd1ecd4ee6",
+  "branch": "fix/299-lead-address-enrollment",
+  "cycle": 1,
+  "riskFamilies": [
+    "canonical-legacy-projection",
+    "tenant-isolation",
+    "data-migration",
+    "idempotent-enrollment"
+  ],
+  "negativeControls": [
+    "shared-user-does-not-receive-tenant-scoped-address",
+    "migration-does-not-update-student-profile"
+  ],
+  "validation": {
+    "localExecution": "blocked-network-clone-unavailable",
+    "staticReview": "completed",
+    "remoteActions": "observe-only"
+  },
+  "mergeAuthorized": false
+}

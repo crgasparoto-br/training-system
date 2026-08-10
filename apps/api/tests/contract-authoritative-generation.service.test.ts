@@ -56,6 +56,7 @@ describe('authoritative contract generation service', () => {
       id: 'student-1',
       serviceId: 'interest-service',
       professorId: 'professor-1',
+      contractId: 'company-1',
       professor: { contractId: 'company-1' },
       user: {
         email: 'student@example.com',
@@ -154,6 +155,7 @@ describe('authoritative contract generation service', () => {
       id: 'student-1',
       serviceId: null,
       professorId: 'professor-other',
+      contractId: 'company-other',
       professor: { contractId: 'company-other' },
       user: { email: 'student@example.com', profile: { name: 'Aluno Teste' } },
     });

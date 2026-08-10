@@ -1,0 +1,212 @@
+import {
+  Router,
+  type ErrorRequestHandler,
+  type NextFunction,
+  type Request,
+  type RequestHandler,
+  type Response,
+} from 'express';
+import { sendError, sendSuccess } from '@corrida/utils';
+import { PRE_REGISTRATION_INVITE_GENERIC_PUBLIC_ERROR } from '@corrida/types';
+import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js';
+import { blockAccessMiddleware } from '../access-control/access-control.middleware.js';
+import {
+  PreRegistrationInviteError,
+  preRegistrationInviteService,
+} from './pre-registration-invite.service.js';
+import { preRegistrationInviteRateLimit } from './pre-registration-invite-rate-limit.middleware.js';
+
+const adminRouter: Router = Router();
+const publicRouter: Router = Router();
+
+const ERROR_STATUS_BY_CODE: Record<string, number> = {
+  NOT_FOUND: 404,
+  FORBIDDEN: 403,
+  PRECONDITION_FAILED: 409,
+  ACTIVE_INVITE_EXISTS: 409,
+  CONCURRENT_MODIFICATION: 409,
+  MISSING_REQUIRED_FIELDS: 400,
+  INVALID_REASON: 400,
+};
+
+function actorFromRequest(req: Request) {
+  return {
+    userId: req.user?.userId,
+    professorId: req.user?.professorId,
+  };
+}
+
+function contractIdOf(req: Request): string {
+  return req.user!.contractId as string;
+}
+
+function handleDomainError(res: Response, error: unknown) {
+  if (error instanceof PreRegistrationInviteError) {
+    const status = ERROR_STATUS_BY_CODE[error.code] ?? 400;
+    return sendError(res, error.message, status, { code: error.code, ...error.details });
+  }
+  const message = error instanceof Error ? error.message : 'Erro inesperado.';
+  return sendError(res, message, 500);
+}
+
+function withDomainErrorHandling(
+  handler: (req: Request, res: Response) => Promise<Response>
+): RequestHandler {
+  return async (req, res) => {
+    try {
+      await handler(req, res);
+    } catch (error) {
+      handleDomainError(res, error);
+    }
+  };
+}
+
+const requireProfessor = [authMiddleware, professorMiddleware];
+const requireInviteManagementAccess = [
+  ...requireProfessor,
+  blockAccessMiddleware('students.actions.manageEnrollmentInvite'),
+];
+
+adminRouter.post(
+  '/:alunoId/pre-registration-invites',
+  ...requireInviteManagementAccess,
+  withDomainErrorHandling(async (req, res) => {
+    const result = await preRegistrationInviteService.generateFirstInvite(
+      req.params.alunoId,
+      contractIdOf(req),
+      actorFromRequest(req)
+    );
+    return sendSuccess(res, result, 'Convite de pré-cadastro gerado com sucesso');
+  })
+);
+
+adminRouter.post(
+  '/:alunoId/pre-registration-invites/regenerate',
+  ...requireInviteManagementAccess,
+  withDomainErrorHandling(async (req, res) => {
+    const result = await preRegistrationInviteService.regenerateInvite(
+      req.params.alunoId,
+      contractIdOf(req),
+      actorFromRequest(req)
+    );
+    return sendSuccess(res, result, 'Novo convite gerado; o link anterior foi invalidado');
+  })
+);
+
+adminRouter.post(
+  '/:alunoId/pre-registration-invites/revoke',
+  ...requireInviteManagementAccess,
+  withDomainErrorHandling(async (req, res) => {
+    const inviteId = typeof req.body?.inviteId === 'string' ? req.body.inviteId : '';
+    const reason = typeof req.body?.reason === 'string' ? req.body.reason : '';
+    const summary = await preRegistrationInviteService.revokeInvite(
+      req.params.alunoId,
+      contractIdOf(req),
+      { inviteId, reason },
+      actorFromRequest(req)
+    );
+    return sendSuccess(res, summary, 'Convite revogado');
+  })
+);
+
+adminRouter.get(
+  '/:alunoId/pre-registration-invites/summary',
+  ...requireInviteManagementAccess,
+  withDomainErrorHandling(async (req, res) => {
+    const summary = await preRegistrationInviteService.getSummary(
+      req.params.alunoId,
+      contractIdOf(req),
+      actorFromRequest(req)
+    );
+    return sendSuccess(res, summary);
+  })
+);
+
+adminRouter.get(
+  '/:alunoId/pre-registration-invites/history',
+  ...requireInviteManagementAccess,
+  withDomainErrorHandling(async (req, res) => {
+    const history = await preRegistrationInviteService.getHistory(
+      req.params.alunoId,
+      contractIdOf(req),
+      actorFromRequest(req)
+    );
+    return sendSuccess(res, history);
+  })
+);
+
+adminRouter.get(
+  '/:alunoId/pre-registration-invites/allowed-actions',
+  ...requireInviteManagementAccess,
+  withDomainErrorHandling(async (req, res) => {
+    const actions = await preRegistrationInviteService.getAllowedActions(
+      req.params.alunoId,
+      contractIdOf(req),
+      actorFromRequest(req)
+    );
+    return sendSuccess(res, actions);
+  })
+);
+
+function setPublicInviteSecurityHeaders(res: Response) {
+  res.setHeader('Cache-Control', 'no-store, private');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+}
+
+export function preRegistrationInvitePublicHeaders(
+  _req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  setPublicInviteSecurityHeaders(res);
+  next();
+}
+
+function sendGenericPublicInviteError(res: Response) {
+  return sendError(res, PRE_REGISTRATION_INVITE_GENERIC_PUBLIC_ERROR, 404);
+}
+
+/**
+ * Última barreira do namespace público. Erros de CORS, parsing de rota ou
+ * middlewares anteriores são convertidos sem logar nem devolver detalhes.
+ */
+export const preRegistrationInvitePublicErrorHandler: ErrorRequestHandler = (
+  _error,
+  _req,
+  res,
+  _next
+) => {
+  setPublicInviteSecurityHeaders(res);
+  sendGenericPublicInviteError(res);
+};
+
+publicRouter.get(
+  '/pre-cadastro/:token',
+  preRegistrationInvitePublicHeaders,
+  preRegistrationInviteRateLimit,
+  async (req: Request, res: Response) => {
+    try {
+      const view = await preRegistrationInviteService.openPublicInvite(req.params.token, {
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent') || undefined,
+      });
+      return sendSuccess(res, view);
+    } catch {
+      return sendGenericPublicInviteError(res);
+    }
+  }
+);
+
+// Qualquer método ou variação de caminho sob /pre-cadastro deve encerrar dentro
+// do domínio público seguro. Isso evita que o 404 global reflita o token por
+// meio de req.path e garante os mesmos headers e rate limit da rota nominal.
+publicRouter.use(
+  '/pre-cadastro',
+  preRegistrationInvitePublicHeaders,
+  preRegistrationInviteRateLimit,
+  (_req: Request, res: Response) => sendGenericPublicInviteError(res)
+);
+
+export default adminRouter;
+export { adminRouter as preRegistrationInviteAdminRoutes };
+export { publicRouter as preRegistrationInvitePublicRoutes };

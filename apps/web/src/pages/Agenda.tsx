@@ -189,6 +189,10 @@ export function Agenda() {
 
   const handleCreateFixedSlot = async () => {
     clearMessages();
+    if (!fixedSlotForm.spaceId) {
+      setError('Selecione o espaço da academia antes de criar o horário fixo.');
+      return;
+    }
     try {
       await agendaService.createFixedSlot({
         alunoId: fixedSlotForm.alunoId,
@@ -196,7 +200,7 @@ export function Agenda() {
         dayOfWeek: fixedSlotForm.dayOfWeek,
         startTime: fixedSlotForm.startTime,
         endTime: fixedSlotForm.endTime,
-        spaceId: fixedSlotForm.spaceId || undefined,
+        spaceId: fixedSlotForm.spaceId,
         notes: fixedSlotForm.notes || undefined,
       });
       await reloadData();
@@ -208,13 +212,47 @@ export function Agenda() {
 
   const handleDeactivateFixedSlot = async (id: string) => {
     clearMessages();
-    try {
-      await agendaService.deactivateFixedSlot(id);
-      await reloadData();
-      setSuccess(agendaCopy.fixedSlotDeactivateSuccess);
-    } catch (err: any) {
-      setError(err?.response?.data?.error || agendaCopy.fixedSlotDeactivateError);
+    const selectedSlot = fixedSlots.find((slot) => slot.id === id);
+    const isLastActiveSlotForStudent =
+      selectedSlot != null &&
+      fixedSlots.filter((slot) => slot.alunoId === selectedSlot.alunoId && slot.isActive).length === 1;
+
+    let confirmedPlanChange = false;
+    if (isLastActiveSlotForStudent) {
+      confirmedPlanChange = window.confirm(
+        'Este é o último horário fixo ativo. Ao inativá-lo, o aluno passará para a agenda livre. Agendamentos futuros já criados serão mantidos para cancelamento separado. Deseja continuar?'
+      );
+      if (!confirmedPlanChange) return;
     }
+
+    try {
+      await agendaService.deactivateFixedSlot(id, confirmedPlanChange);
+    } catch (err: any) {
+      const code = err?.response?.data?.code;
+      if (
+        code !== 'FIXED_TO_FREE_CONFIRMATION_REQUIRED' &&
+        code !== 'FUTURE_BOOKINGS_CONFIRMATION_REQUIRED'
+      ) {
+        setError(err?.response?.data?.error || agendaCopy.fixedSlotDeactivateError);
+        return;
+      }
+
+      const confirmed = window.confirm(
+        'Ao inativar este horário, o aluno passará para a agenda livre. Agendamentos futuros já criados serão mantidos para cancelamento separado. Deseja continuar?'
+      );
+      if (!confirmed) return;
+      try {
+        await agendaService.deactivateFixedSlot(id, true);
+      } catch (retryError: any) {
+        setError(
+          retryError?.response?.data?.error || agendaCopy.fixedSlotDeactivateError
+        );
+        return;
+      }
+    }
+
+    await reloadData();
+    setSuccess(agendaCopy.fixedSlotDeactivateSuccess);
   };
 
   const handleCreateSpace = async () => {

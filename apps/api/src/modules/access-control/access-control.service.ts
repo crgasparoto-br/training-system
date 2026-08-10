@@ -263,7 +263,8 @@ export async function getEffectiveDataScopeForProfessor(
       code: string;
     };
   },
-  screenKey: AccessScreenKey | string
+  screenKey: AccessScreenKey | string,
+  client: DbClient = prisma
 ): Promise<AccessDataScope | null> {
   if (professor.role === 'master') {
     return 'contract';
@@ -275,7 +276,8 @@ export async function getEffectiveDataScopeForProfessor(
 
   const permissions = await syncAccessPermissionsForFunction(
     professor.collaboratorFunction.id,
-    professor.collaboratorFunction.code
+    professor.collaboratorFunction.code,
+    client
   );
 
   const permission = permissions.find(
@@ -361,7 +363,8 @@ export async function canProfessorAccessScreen(
       code: string;
     };
   },
-  screenKey: AccessScreenKey | string
+  screenKey: AccessScreenKey | string,
+  client: DbClient = prisma
 ) {
   if (professor.role === 'master') {
     return true;
@@ -369,7 +372,8 @@ export async function canProfessorAccessScreen(
 
   const permissions = await syncAccessPermissionsForFunction(
     professor.collaboratorFunction.id,
-    professor.collaboratorFunction.code
+    professor.collaboratorFunction.code,
+    client
   );
 
   return permissions.some(
@@ -388,7 +392,8 @@ export async function canProfessorAccessBlock(
       code: string;
     };
   },
-  blockKey: string
+  blockKey: string,
+  client: DbClient = prisma
 ) {
   if (professor.role === 'master') {
     return true;
@@ -400,14 +405,15 @@ export async function canProfessorAccessBlock(
   }
 
   // First check if professor can access the parent screen
-  const hasScreenAccess = await canProfessorAccessScreen(professor, block.screenKey);
+  const hasScreenAccess = await canProfessorAccessScreen(professor, block.screenKey, client);
   if (!hasScreenAccess) {
     return false;
   }
 
   const permissions = await syncAccessPermissionsForFunction(
     professor.collaboratorFunction.id,
-    professor.collaboratorFunction.code
+    professor.collaboratorFunction.code,
+    client
   );
 
   return permissions.some(

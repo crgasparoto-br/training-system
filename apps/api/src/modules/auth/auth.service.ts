@@ -519,7 +519,11 @@ export class AuthService {
             },
           },
         },
-        aluno: true,
+        alunos: {
+          where: { status: 'ACTIVE_STUDENT' },
+          orderBy: { createdAt: 'asc' },
+          take: 2,
+        },
       },
     });
   }
@@ -544,7 +548,8 @@ export class AuthService {
       name: user.profile?.name || '',
       type: user.type,
       profile: user.profile,
-      aluno: user.aluno,
+      aluno: user.alunos.length === 1 ? user.alunos[0] : null,
+      alunos: user.alunos,
       accessControl,
       professor: user.professor
         ? {

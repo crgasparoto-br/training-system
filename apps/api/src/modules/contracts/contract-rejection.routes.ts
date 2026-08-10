@@ -4,8 +4,8 @@ import { PrismaClient } from '@prisma/client';
 import { sendError, sendSuccess } from '@corrida/utils';
 import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js';
 import { studentAccessScopeService } from '../alunos/student-access-scope.service.js';
-import { studentContractService } from '../student-contracts/student-contract.service.js';
 import { contractPublicAccessService } from './contract-public-access.service.js';
+import { contractPartyLinkService } from './contract-party-link.service.js';
 import {
   buildContractRejectionAuditDetails,
   buildContractRejectionClaimWhere,
@@ -16,9 +16,7 @@ import {
 
 const router: Router = Router();
 const prisma = new PrismaClient();
-
-const tokenHash = (token: string) =>
-  crypto.createHash('sha256').update(token).digest('hex');
+const tokenHash = (token: string) => crypto.createHash('sha256').update(token).digest('hex');
 
 const actorFromRequest = (req: Request) => ({
   userId: req.user?.userId,
@@ -37,18 +35,11 @@ const loadRejection = async (contractId: string) => {
     where: {
       contractId,
       action: 'UPDATED',
-      details: {
-        path: ['kind'],
-        equals: CONTRACT_REJECTION_AUDIT_KIND,
-      },
+      details: { path: ['kind'], equals: CONTRACT_REJECTION_AUDIT_KIND },
     },
     orderBy: { createdAt: 'desc' },
-    select: {
-      details: true,
-      createdAt: true,
-    },
+    select: { details: true, createdAt: true },
   });
-
   return auditLog ? resolveContractRejection([auditLog]) : null;
 };
 
@@ -67,50 +58,32 @@ router.post('/public/:token/reject', async (req: Request, res: Response) => {
       },
     });
 
-    if (!contract) {
-      return sendError(res, 'Link inválido ou já utilizado', 404);
-    }
+    if (!contract) return sendError(res, 'Link inválido ou já utilizado', 404);
 
     if (contract.publicTokenExpiresAt && contract.publicTokenExpiresAt < new Date()) {
-      await contractPublicAccessService.open(
-        req.params.token,
-        actorFromRequest(req),
-        prisma,
-        new Date()
-      );
+      await contractPublicAccessService.open(req.params.token, actorFromRequest(req), prisma, new Date());
       return sendError(res, 'Link expirado', 400);
     }
-
-    if (contract.status === 'SIGNED') {
-      return sendError(res, 'Contrato já assinado', 400);
-    }
-
+    if (contract.status === 'SIGNED') return sendError(res, 'Contrato já assinado', 400);
     if (contract.status === 'CANCELLED' || contract.status === 'EXPIRED') {
       return sendError(res, 'Contrato não está disponível para recusa', 400);
     }
 
+    const link = await contractPartyLinkService.resolveByGeneratedContractId(contract.id, prisma);
+    if (!link) return sendError(res, 'Vínculo do documento contratual não encontrado', 400);
+
     const rejectedAt = new Date();
     const actor = actorFromRequest(req);
     const cancellationReason = rejectionReason
-      ? `Recusado pelo aluno: ${rejectionReason}`
-      : 'Recusado pelo aluno';
+      ? `Recusado pela parte contratante: ${rejectionReason}`
+      : 'Recusado pela parte contratante';
 
     await prisma.$transaction(async (tx) => {
       const claimed = await tx.contract.updateMany({
-        where: buildContractRejectionClaimWhere(
-          contract.id,
-          tokenDigest,
-          rejectedAt
-        ),
-        data: {
-          publicTokenHash: null,
-          publicTokenExpiresAt: null,
-        },
+        where: buildContractRejectionClaimWhere(contract.id, tokenDigest, rejectedAt),
+        data: { publicTokenHash: null, publicTokenExpiresAt: null },
       });
-
-      if (claimed.count !== 1) {
-        throw new Error('Link inválido ou já utilizado');
-      }
+      if (claimed.count !== 1) throw new Error('Link inválido ou já utilizado');
 
       await tx.contractAuditLog.create({
         data: {
@@ -119,11 +92,15 @@ router.post('/public/:token/reject', async (req: Request, res: Response) => {
           action: 'UPDATED',
           ipAddress: actor.ipAddress,
           userAgent: actor.userAgent,
-          details: buildContractRejectionAuditDetails(rejectedAt, rejectionReason),
+          details: {
+            ...buildContractRejectionAuditDetails(rejectedAt, rejectionReason),
+            partyType: link.partyType,
+            partyId: link.partyId,
+          },
         },
       });
 
-      await studentContractService.setStatusByGeneratedContractId(
+      await contractPartyLinkService.setStatusByGeneratedContractId(
         contract.id,
         'canceled',
         {
@@ -152,6 +129,7 @@ router.post('/public/:token/reject', async (req: Request, res: Response) => {
   }
 });
 
+// Student-specific protected routes remain compatible with existing URLs.
 router.get(
   '/documents/:contractDocumentId/rejection',
   authMiddleware,
@@ -159,24 +137,21 @@ router.get(
   async (req: Request, res: Response) => {
     try {
       const companyContractId = (req as any).user.contractId as string | undefined;
-      if (!companyContractId) {
-        return sendError(res, 'Contrato da empresa não encontrado', 404);
-      }
+      if (!companyContractId) return sendError(res, 'Contrato da empresa não encontrado', 404);
 
       const contract = await prisma.contract.findFirst({
-        where: {
-          id: req.params.contractDocumentId,
-          companyContractId,
-        },
-        select: { id: true, alunoId: true },
+        where: { id: req.params.contractDocumentId, companyContractId },
+        select: { id: true },
       });
+      if (!contract) return sendError(res, 'Contrato não encontrado', 404);
 
-      if (!contract) {
-        return sendError(res, 'Contrato não encontrado', 404);
+      const link = await contractPartyLinkService.resolveByGeneratedContractId(contract.id, prisma);
+      if (!link || link.partyType !== 'STUDENT') {
+        return sendError(res, 'Contrato do aluno não encontrado', 404);
       }
 
       await studentAccessScopeService.assertAlunoAccess(
-        contract.alunoId,
+        link.partyId,
         studentAccessContextFromRequest(req),
         prisma
       );
@@ -203,24 +178,19 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const companyContractId = (req as any).user.contractId as string | undefined;
-      if (!companyContractId) {
-        return sendError(res, 'Contrato da empresa não encontrado', 404);
-      }
+      if (!companyContractId) return sendError(res, 'Contrato da empresa não encontrado', 404);
 
       const contract = await prisma.contract.findFirst({
-        where: {
-          id: req.params.contractDocumentId,
-          companyContractId,
-        },
-        select: { id: true, alunoId: true },
+        where: { id: req.params.contractDocumentId, companyContractId },
+        select: { id: true },
       });
+      if (!contract) return sendError(res, 'Contrato não encontrado', 404);
 
-      if (!contract) {
-        return sendError(res, 'Contrato não encontrado', 404);
-      }
+      const link = await contractPartyLinkService.resolveByGeneratedContractId(contract.id, prisma);
+      if (!link || link.partyType !== 'STUDENT') return next();
 
       await studentAccessScopeService.assertAlunoAccess(
-        contract.alunoId,
+        link.partyId,
         studentAccessContextFromRequest(req),
         prisma
       );
@@ -229,11 +199,10 @@ router.post(
       if (rejection) {
         return sendError(
           res,
-          'Contrato recusado pelo aluno não pode ser reenviado. Gere um novo documento.',
+          'Contrato recusado não pode ser reenviado. Gere um novo documento.',
           400
         );
       }
-
       return next();
     } catch (error: any) {
       const status = error?.message?.includes('fora do escopo') ? 404 : 500;
