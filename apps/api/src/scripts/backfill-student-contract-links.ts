@@ -260,7 +260,7 @@ const run = async () => {
     const generatedContracts = aluno.contracts.filter(
       (contract) =>
         contract.companyContractId === alunoContractId &&
-        contract.studentContracts.length === 0
+        contract.studentContracts === null
     );
 
     if (generatedContracts.length === 0) {
@@ -363,7 +363,7 @@ const run = async () => {
       continue;
     }
 
-    if (selectedContract.studentContracts.length > 0) {
+    if (selectedContract.studentContracts !== null) {
       report.summary.manualReview += 1;
       report.manualReview.push({
         alunoId: aluno.id,

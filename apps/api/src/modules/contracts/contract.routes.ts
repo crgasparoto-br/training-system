@@ -125,9 +125,7 @@ router.get(
           ...(alunoId ? { alunoId } : {}),
           ...(onlyUnlinked
             ? {
-                studentContracts: {
-                  none: {},
-                },
+                studentContracts: null,
               }
             : {}),
         },
@@ -156,7 +154,6 @@ router.get(
               alunoId: true,
               status: true,
             },
-            take: 1,
           },
         },
         orderBy: {
@@ -164,7 +161,16 @@ router.get(
         },
       });
 
-      return sendSuccess(res, contracts, 'Contratos disponíveis para vínculo recuperados com sucesso');
+      const contractsWithStudentContractsList = contracts.map((contract) => ({
+        ...contract,
+        studentContracts: contract.studentContracts ? [contract.studentContracts] : [],
+      }));
+
+      return sendSuccess(
+        res,
+        contractsWithStudentContractsList,
+        'Contratos disponíveis para vínculo recuperados com sucesso'
+      );
     } catch (error: any) {
       console.error('Erro ao listar contratos disponíveis para aluno:', error);
       return sendError(res, error?.message || 'Erro ao listar contratos disponíveis', 500);

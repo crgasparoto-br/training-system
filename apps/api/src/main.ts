@@ -1,4 +1,5 @@
 import './bootstrap-env.js';
+import fs from 'fs';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -71,6 +72,7 @@ app.use(
     crossOriginResourcePolicy: { policy: 'cross-origin' },
   })
 );
+
 
 // Establish the sanitizing boundary before parsers, authentication, CORS and
 // route-local handlers. This also protects legacy handlers that consume an
@@ -209,6 +211,7 @@ app.use(createPreRegistrationUnexpectedErrorHandler());
 
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('Error:', err);
+  fs.appendFileSync('/tmp/api-trace.log', `[DEBUG-ERROR] ${new Date().toISOString()} ${err?.message}\n${err?.stack}\n`);
   const statusCode = err.statusCode || 500;
   const message = err.message || 'Internal Server Error';
   res.status(statusCode).json({
