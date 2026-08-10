@@ -47,6 +47,10 @@ jobs:
           pnpm --filter @corrida/types build
           pnpm --filter @corrida/utils build
 
+      - name: Verify API workspace runtime imports
+        run: |
+          pnpm --filter @corrida/api exec node --input-type=module -e "await import('@corrida/types'); await import('@corrida/utils');"
+
       - name: Build web application
         run: pnpm --filter @corrida/web build
 
