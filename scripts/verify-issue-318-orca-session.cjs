@@ -275,7 +275,9 @@ async function main() {
     await stopChild(nativeChrome);
     fs.closeSync(orcaStdout);
     fs.closeSync(chromeStdout);
-    fs.rmSync(profileDir, { recursive: true, force: true });
+    // Chrome may keep profile cache writes alive briefly after its main process exits.
+    // Let Node retry ENOTEMPTY/EBUSY cleanup races instead of failing the evidence run.
+    fs.rmSync(profileDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 250 });
   }
 
   const debug = fs.readFileSync(debugFile, 'utf8');
