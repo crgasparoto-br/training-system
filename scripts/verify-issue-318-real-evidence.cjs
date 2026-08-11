@@ -19,6 +19,34 @@ function run(command, args, options = {}) {
   return result;
 }
 
+function runAsync(command, args, options = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      stdio: options.stdio || 'pipe',
+      env: options.env || process.env,
+      cwd: options.cwd || process.cwd(),
+    });
+    let stdout = '';
+    let stderr = '';
+    if (child.stdout) {
+      child.stdout.setEncoding('utf8');
+      child.stdout.on('data', (chunk) => { stdout += chunk; });
+    }
+    if (child.stderr) {
+      child.stderr.setEncoding('utf8');
+      child.stderr.on('data', (chunk) => { stderr += chunk; });
+    }
+    child.once('error', reject);
+    child.once('close', (code, signal) => {
+      if (code !== 0) {
+        reject(new Error(`${command} ${args.join(' ')} failed (${code ?? signal})\n${stdout}\n${stderr}`));
+        return;
+      }
+      resolve({ status: code, signal, stdout, stderr });
+    });
+  });
+}
+
 async function waitForHttp(url, options = {}) {
   let lastError;
   for (let attempt = 0; attempt < (options.attempts || 80); attempt += 1) {
@@ -208,7 +236,10 @@ async function verifyRealIssue318Evidence({ browser, baseUrl, outputDir }) {
 
     ensureNativeOrcaInstalled();
     const screenReaderUrl = `${proxyOrigin}/central-do-aluno/${fixture.alunoId}/montagem-consolidada`;
-    run('dbus-run-session', [
+    // Keep the parent event loop alive while the native Orca process runs. The
+    // same process owns the HTTP proxy on port 4180, so a synchronous child
+    // process would prevent that proxy from serving the screen-reader browser.
+    await runAsync('dbus-run-session', [
       '--', 'xvfb-run', '-a', process.execPath, 'scripts/verify-issue-318-orca-session.cjs',
     ], {
       stdio: 'inherit',
