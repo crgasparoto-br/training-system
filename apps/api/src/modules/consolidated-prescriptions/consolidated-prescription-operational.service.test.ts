@@ -30,6 +30,27 @@ const mapping = (overrides: Partial<TechnicalExerciseOperationalMapping> = {}): 
   ...overrides,
 });
 
+const substitution = (currentExerciseAvailable: boolean) => ({
+  originalTechnicalCatalogItemId: 'technical-squat',
+  originalExerciseLibraryId: 'library-squat',
+  substituteExerciseLibraryId: 'library-leg-press',
+  substituteExerciseSnapshot: {
+    id: 'library-leg-press',
+    name: 'Leg press',
+    videoUrl: null,
+    loadType: null,
+    movementType: null,
+    countingType: null,
+    category: 'resisted',
+    muscleGroup: 'Quadríceps',
+    notes: null,
+    updatedAt: '2026-08-11T10:00:00.000Z',
+  },
+  recordedAt: '2026-08-11T10:00:00.000Z',
+  recordedByProfessorId: 'professor-1',
+  currentExerciseAvailable,
+});
+
 describe('buildOperationalProjectionItems', () => {
   it('maps resisted capacity only through the explicit technical id', () => {
     const items = buildOperationalProjectionItems(
@@ -163,30 +184,7 @@ describe('buildOperationalProjectionItems', () => {
   );
 
   it('applies only an explicitly recorded substitute id', () => {
-    const substitutions = new Map([
-      [
-        'technical-squat',
-        {
-          originalTechnicalCatalogItemId: 'technical-squat',
-          originalExerciseLibraryId: 'library-squat',
-          substituteExerciseLibraryId: 'library-leg-press',
-          substituteExerciseSnapshot: {
-            id: 'library-leg-press',
-            name: 'Leg press',
-            videoUrl: null,
-            loadType: null,
-            movementType: null,
-            countingType: null,
-            category: 'resisted',
-            muscleGroup: 'Quadríceps',
-            notes: null,
-            updatedAt: '2026-08-11T10:00:00.000Z',
-          },
-          recordedAt: '2026-08-11T10:00:00.000Z',
-          recordedByProfessorId: 'professor-1',
-        },
-      ],
-    ]);
+    const substitutions = new Map([['technical-squat', substitution(true)]]);
     const items = buildOperationalProjectionItems(
       [
         {
@@ -203,10 +201,36 @@ describe('buildOperationalProjectionItems', () => {
     );
 
     expect(items[0]).toMatchObject({
+      compatibility: 'mapped',
       substituted: true,
       effectiveExerciseLibraryId: 'library-leg-press',
       mappedExerciseLibraryId: 'library-squat',
     });
     expect(items[0].operationalExerciseSnapshot?.name).toBe('Leg press');
+  });
+
+  it('marks a removed recorded substitute as operationally unavailable', () => {
+    const substitutions = new Map([['technical-squat', substitution(false)]]);
+    const items = buildOperationalProjectionItems(
+      [
+        {
+          id: 'capacity-resisted-v1',
+          capacity: 'resisted',
+          parameters: {
+            type: 'resisted',
+            resisted: { exerciseTechnicalCatalogItemIds: ['technical-squat'] },
+          },
+        },
+      ],
+      new Map([['technical-squat', mapping()]]),
+      substitutions as never
+    );
+
+    expect(items[0]).toMatchObject({
+      compatibility: 'incompatible',
+      incompatibilityCode: 'operational_exercise_unavailable',
+      substituted: true,
+      effectiveExerciseLibraryId: 'library-leg-press',
+    });
   });
 });
