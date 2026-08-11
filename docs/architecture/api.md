@@ -25,6 +25,22 @@ A API fica em `apps/api`.
 4. Criar testes unitarios ou de integracao para regras de permissao e dados.
 5. Atualizar docs quando a regra de negocio mudar.
 
+## Montagem Consolidada e integração operacional
+
+O módulo autoritativo continua em `apps/api/src/modules/consolidated-prescriptions` e é montado em `/api/v1/consolidated-prescriptions`.
+
+A integração operacional da issue #319 adiciona somente preparação e rastreabilidade:
+
+- leitura da biblioteca e da projeção exige `plans.consolidatedPrescriptions.view`;
+- vínculo técnico, preparação e substituição exigem `plans.consolidatedPrescriptions.manage`;
+- todas as rotas aplicam o `dataScope` da tela `plans` e `contractId` da sessão;
+- o vínculo `CapacityTechnicalCatalogItem(category=exercise)` -> `ExerciseLibrary` é feito somente por IDs persistidos e revisão concorrente;
+- snapshots internos de projeção/substituição são server-owned e preservados nas versões da Montagem Consolidada;
+- a API não cria, altera nem libera `WorkoutTemplate`, `WorkoutDay` ou `WorkoutExercise` nesta fase;
+- a rota dedicada de capacidade versiona `exerciseTechnicalCatalogItemIds` sem usar nome/código como chave de integração.
+
+O contrato permanente está em `docs/product/consolidated-prescription-operational-integration.md`. A mutação operacional e `released` pertencem à issue #320.
+
 ## Adipometria (ADPT)
 
 O módulo autoritativo fica em `apps/api/src/modules/adipometry` e é montado em `/api/v1/adipometry`.
