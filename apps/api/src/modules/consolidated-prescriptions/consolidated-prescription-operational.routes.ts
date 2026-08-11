@@ -8,12 +8,17 @@ import {
   getEffectiveDataScopeForProfessor,
 } from '../access-control/access-control.service.js';
 import { authMiddleware, professorMiddleware } from '../auth/auth.middleware.js';
+import { capacityExerciseMappingService } from '../capacity-prescriptions/capacity-exercise-mapping.service.js';
 import { ConsolidatedPrescriptionDomainError } from './consolidated-prescription.service.js';
 import {
   consolidatedPrescriptionOperationalService,
-  isReservedOperationalDataRef,
   mergeServerOwnedOperationalRefs,
 } from './consolidated-prescription-operational.service.js';
+import {
+  getOperationalSubstitutionCompatibilityIssue,
+  hasReservedOperationalOrigin,
+  OPERATIONAL_MAPPING_REQUIRED_BLOCKS,
+} from './consolidated-prescription-operational-integrity.js';
 
 const router: Router = Router();
 const prisma = new PrismaClient();
@@ -40,18 +45,19 @@ router.use(async (req: Request, res: Response, next: NextFunction) => {
     const incoming = Array.isArray(req.body?.dataRefs)
       ? (req.body.dataRefs as ConsolidatedPrescriptionDataRefInput[])
       : [];
+    const clientOwnedRefs = incoming.filter((ref) => !hasReservedOperationalOrigin(ref));
 
     if (createMatch) {
       req.body = {
         ...req.body,
-        dataRefs: incoming.filter((ref) => !isReservedOperationalDataRef(ref)),
+        dataRefs: clientOwnedRefs,
       };
       return next();
     }
 
     const normalized = await mergeServerOwnedOperationalRefs(
       { contractId, alunoId, actorProfessorId: professorId },
-      { dataRefs: incoming }
+      { dataRefs: clientOwnedRefs }
     );
     req.body = { ...req.body, dataRefs: normalized.dataRefs };
     return next();
@@ -85,7 +91,7 @@ const substitutionSchema = z
   })
   .strict();
 
-function requireConsolidatedBlock(blockKey: string) {
+function requireConsolidatedBlocks(...blockKeys: string[]) {
   return async (req: OperationalRequest, res: Response, next: NextFunction) => {
     try {
       const contractId = req.user?.contractId;
@@ -95,8 +101,11 @@ function requireConsolidatedBlock(blockKey: string) {
         where: { id: professorId, contractId },
         include: { collaboratorFunction: true },
       });
-      if (!professor || !(await canProfessorAccessBlock(professor, blockKey))) {
-        return sendError(res, 'Perfil sem permissão para acessar este recurso', 403);
+      if (!professor) return sendError(res, 'Perfil sem permissão para acessar este recurso', 403);
+      for (const blockKey of blockKeys) {
+        if (!(await canProfessorAccessBlock(professor, blockKey))) {
+          return sendError(res, 'Perfil sem permissão para acessar este recurso', 403);
+        }
       }
       const dataScope = await getEffectiveDataScopeForProfessor(professor, 'plans');
       if (!dataScope) return sendError(res, 'Perfil sem permissão para acessar este recurso', 403);
@@ -162,7 +171,7 @@ function handleError(res: Response, error: unknown, fallback: string) {
 
 router.get(
   '/alunos/:alunoId/operational-exercises',
-  requireConsolidatedBlock('plans.consolidatedPrescriptions.view'),
+  requireConsolidatedBlocks('plans.consolidatedPrescriptions.view'),
   async (req: OperationalRequest, res: Response) => {
     try {
       const actor = await ensureAlunoScope(req, res);
@@ -187,7 +196,7 @@ router.get(
 
 router.put(
   '/alunos/:alunoId/exercise-mappings/:technicalCatalogItemId',
-  requireConsolidatedBlock('plans.consolidatedPrescriptions.manage'),
+  requireConsolidatedBlocks(...OPERATIONAL_MAPPING_REQUIRED_BLOCKS),
   async (req: OperationalRequest, res: Response) => {
     try {
       const actor = await ensureAlunoScope(req, res);
@@ -207,7 +216,7 @@ router.put(
 
 router.get(
   '/alunos/:alunoId/operational-preview',
-  requireConsolidatedBlock('plans.consolidatedPrescriptions.view'),
+  requireConsolidatedBlocks('plans.consolidatedPrescriptions.view'),
   async (req: OperationalRequest, res: Response) => {
     try {
       const actor = await ensureAlunoScope(req, res);
@@ -224,7 +233,7 @@ router.get(
 
 router.post(
   '/alunos/:alunoId/operational-preview/prepare',
-  requireConsolidatedBlock('plans.consolidatedPrescriptions.manage'),
+  requireConsolidatedBlocks('plans.consolidatedPrescriptions.manage'),
   async (req: OperationalRequest, res: Response) => {
     try {
       const actor = await ensureAlunoScope(req, res);
@@ -243,14 +252,63 @@ router.post(
 
 router.post(
   '/alunos/:alunoId/exercise-substitutions',
-  requireConsolidatedBlock('plans.consolidatedPrescriptions.manage'),
+  requireConsolidatedBlocks('plans.consolidatedPrescriptions.manage'),
   async (req: OperationalRequest, res: Response) => {
     try {
       const actor = await ensureAlunoScope(req, res);
       if (!actor) return;
       const command = substitutionSchema.parse(req.body);
+      const operationContext = contextFor(actor, req.params.alunoId);
+      const projection = await consolidatedPrescriptionOperationalService.getProjection(
+        operationContext
+      );
+      const original = projection.items.find(
+        (item) => item.technicalCatalogItemId === command.originalTechnicalCatalogItemId
+      );
+      if (!original?.mappedExerciseLibraryId) {
+        throw new ConsolidatedPrescriptionDomainError(
+          'INVALID_INPUT',
+          'A substituição exige um exercício técnico com mapeamento operacional explícito'
+        );
+      }
+      const mapping = await capacityExerciseMappingService.resolveMapping(
+        actor.contractId,
+        command.originalTechnicalCatalogItemId
+      );
+      if (
+        !mapping?.operationalExerciseSnapshot ||
+        mapping.exerciseLibraryId !== original.mappedExerciseLibraryId
+      ) {
+        throw new ConsolidatedPrescriptionDomainError(
+          'CONFLICT',
+          'O mapeamento técnico foi alterado; recarregue antes de registrar a substituição'
+        );
+      }
+      const substitute = await prisma.exerciseLibrary.findFirst({
+        where: { id: command.substituteExerciseLibraryId, contractId: actor.contractId },
+        select: {
+          loadType: true,
+          movementType: true,
+          countingType: true,
+          category: true,
+          muscleGroup: true,
+        },
+      });
+      if (!substitute) {
+        throw new ConsolidatedPrescriptionDomainError(
+          'INVALID_INPUT',
+          'Exercício substituto inexistente ou fora do contrato'
+        );
+      }
+      const compatibilityIssue = getOperationalSubstitutionCompatibilityIssue(
+        mapping.operationalExerciseSnapshot,
+        substitute
+      );
+      if (compatibilityIssue) {
+        throw new ConsolidatedPrescriptionDomainError('INVALID_INPUT', compatibilityIssue);
+      }
       const result = await consolidatedPrescriptionOperationalService.createExerciseSubstitution(
-        contextFor(actor, req.params.alunoId),
+        operationContext,
         command
       );
       return sendSuccess(res, result, 'Substituição operacional registrada na montagem', 201);

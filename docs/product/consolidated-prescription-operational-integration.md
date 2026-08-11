@@ -57,7 +57,7 @@ A rota é:
 
 `PUT /api/v1/consolidated-prescriptions/alunos/:alunoId/exercise-mappings/:technicalCatalogItemId`
 
-O comando exige `expectedMappingRevision`, evitando sobrescrita silenciosa de vínculo concorrente.
+O comando exige `expectedMappingRevision`, evitando sobrescrita silenciosa de vínculo concorrente. Como o vínculo é persistido no catálogo técnico do contrato e pode afetar montagens de vários alunos, a mutação exige simultaneamente `plans.consolidatedPrescriptions.manage` e `settings.parameters.capacityPrescriptions`. O `dataScope` de `plans` continua validando o aluno usado como contexto da operação, mas não concede por si só autoridade para alterar configuração global do catálogo.
 
 ## Busca da biblioteca
 
@@ -75,7 +75,7 @@ Somente os campos realmente presentes no `ExerciseLibrary` são retornados: ID, 
 
 `POST /api/v1/consolidated-prescriptions/alunos/:alunoId/operational-preview/prepare` grava snapshots da proposta em uma nova versão da Montagem Consolidada. O comando usa `expectedCurrentVersion`.
 
-Os snapshots são referências internas `manual_observation` com origem reservada `consolidated_operational_projection_v1`. As rotas normais de criação/edição da montagem não podem substituir essas referências com conteúdo fornecido pelo cliente; o middleware do adaptador reaproveita somente as referências internas já persistidas pelo servidor.
+Os snapshots são referências internas `manual_observation` com origem reservada `consolidated_operational_projection_v1`. Nas rotas normais de criação/edição da montagem, **qualquer** referência fornecida pelo cliente com uma origem operacional reservada é descartada antes da validação da composição, independentemente do `sourceType` informado. Somente referências internas já persistidas pelo servidor com o contrato canônico são reaproveitadas. Isso impede que uma fonte ordinária válida seja usada para forjar `origin/context` de preparação ou substituição.
 
 ### Resistido
 
@@ -144,15 +144,18 @@ registra uma substituição manual em nova versão da Montagem Consolidada. O re
 
 O substituto precisa existir no mesmo contrato e ser diferente do exercício original. Não há escolha automática de alternativa.
 
-Se a capacidade possui restrições estruturadas, mas o `ExerciseLibrary` não modela atributos suficientes para verificar essas restrições, a substituição é recusada em vez de ser declarada compatível por inferência.
+Antes de registrar a substituição, o backend exige uma compatibilidade estrutural mínima baseada somente nos atributos realmente modelados no `ExerciseLibrary`. Pelo menos um dos campos estruturados `loadType`, `movementType` ou `countingType` precisa existir no snapshot do exercício original, e todo campo estruturado conhecido deve ser igual no substituto. Quando `category` ou `muscleGroup` estiverem presentes no original, eles também precisam coincidir como restrições adicionais; esses textos nunca são usados isoladamente para inferir compatibilidade clínica. Se não houver atributos estruturados suficientes, a substituição é recusada em vez de assumir equivalência.
 
-As substituições usam origem interna reservada `consolidated_exercise_substitution_v1`. Em edições comuns da montagem, referências internas fornecidas pelo cliente são descartadas e substituídas pelas cópias canônicas já persistidas no servidor.
+Se a capacidade possui restrições estruturadas, mas o `ExerciseLibrary` não modela atributos suficientes para verificar essas restrições, a substituição também é recusada em vez de ser declarada compatível por inferência.
+
+As substituições usam origem interna reservada `consolidated_exercise_substitution_v1`. Em edições comuns da montagem, referências com qualquer origem operacional reservada fornecidas pelo cliente são descartadas, e apenas as cópias canônicas já persistidas pelo servidor podem ser preservadas.
 
 ## Concorrência, permissões e tenant
 
 - rotas de leitura exigem `plans.consolidatedPrescriptions.view`;
-- vínculo, preparação e substituição exigem `plans.consolidatedPrescriptions.manage`;
-- o `dataScope` da tela `plans` é aplicado ao aluno;
+- preparação e substituição exigem `plans.consolidatedPrescriptions.manage`;
+- alteração do vínculo técnico-operacional exige `plans.consolidatedPrescriptions.manage` **e** `settings.parameters.capacityPrescriptions`, porque modifica configuração reutilizada no contrato inteiro;
+- o `dataScope` da tela `plans` é aplicado ao aluno, sem ampliar autoridade global de catálogo;
 - `contractId` e professor ator vêm da sessão;
 - IDs cross-tenant recebem erro sem promover associação;
 - versões usam `expectedCurrentVersion` e vínculos usam `expectedMappingRevision`;
