@@ -75,6 +75,13 @@ jobs:
             exit 0
           fi
 
+          # A primeira recuperacao pode resolver 170000/180000 e, ao retomar a
+          # cadeia, revelar a falha transacional conhecida em 190000. Uma segunda
+          # passagem e permitida somente pelo recuperador restrito/checksummed.
+          if pnpm --filter @corrida/api db:recover:issue-246-migration; then
+            exit 0
+          fi
+
           pnpm --filter @corrida/api db:recover:issue-246-migration
 
       # -----------------------------------------------------------------------
