@@ -59,7 +59,7 @@ export function Login() {
           </Button>
           <div className="text-center text-sm text-muted-foreground">
             {authCopy.login.noAccount}{' '}
-            <Link to="/register" className="font-medium text-primary hover:underline">
+            <Link to="/register" className="auth-card-primary-text font-medium text-primary hover:underline">
               {authCopy.register.title}
             </Link>
           </div>
@@ -92,7 +92,7 @@ export function Login() {
         />
 
         <div className="flex items-center justify-end text-sm">
-          <Link to="/forgot-password" className="text-primary hover:underline">
+          <Link to="/forgot-password" className="auth-card-primary-text text-primary hover:underline">
             {authCopy.login.forgotPassword}
           </Link>
         </div>

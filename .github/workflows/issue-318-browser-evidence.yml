@@ -1,0 +1,90 @@
+name: Issue 318 Browser Evidence
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - 'apps/web/**'
+      - 'apps/api/**'
+      - 'packages/types/**'
+      - 'packages/utils/**'
+      - 'scripts/verify-issue-318-browser-evidence.cjs'
+      - 'scripts/verify-issue-318-real-evidence.cjs'
+      - 'scripts/verify-issue-318-orca-session.cjs'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/issue-318-browser-evidence.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  browser-evidence:
+    name: Chromium responsive and accessibility evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install repository dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build API workspace runtime dependencies
+        run: |
+          pnpm --filter @corrida/types build
+          pnpm --filter @corrida/utils build
+
+      - name: Verify API workspace runtime imports
+        run: |
+          pnpm --filter @corrida/api exec node --input-type=module -e "await import('@corrida/types'); await import('@corrida/utils');"
+
+      - name: Build web application
+        run: pnpm --filter @corrida/web build
+
+      - name: Install isolated browser evidence runtime
+        run: |
+          mkdir -p .tmp/issue-318-browser
+          npm install \
+            --prefix .tmp/issue-318-browser \
+            --no-package-lock \
+            --no-save \
+            playwright@1.55.0 \
+            axe-core@4.10.3
+          .tmp/issue-318-browser/node_modules/.bin/playwright install --with-deps chromium
+
+      - name: Verify Issue 318 in real Chromium
+        env:
+          NODE_PATH: ${{ github.workspace }}/.tmp/issue-318-browser/node_modules
+          ISSUE318_BASE_URL: http://127.0.0.1:4173
+          ISSUE318_EVIDENCE_DIR: ${{ github.workspace }}/issue-318-browser-evidence
+          ISSUE318_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          pnpm --filter @corrida/web preview -- --host 127.0.0.1 --port 4173 > issue-318-preview.log 2>&1 &
+          preview_pid=$!
+          trap 'kill "$preview_pid" 2>/dev/null || true' EXIT
+          node scripts/verify-issue-318-browser-evidence.cjs
+
+      - name: Upload Issue 318 browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-318-browser-evidence-${{ github.run_id }}
+          path: |
+            issue-318-browser-evidence/
+            issue-318-preview.log
+          if-no-files-found: warn
+          retention-days: 14

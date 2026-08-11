@@ -13,6 +13,7 @@ import { CollaboratorFormPage } from './pages/CollaboratorFormPage';
 import { Alunos } from './pages/Alunos';
 import { StudentCentral } from './pages/StudentCentral';
 import { StudentCentralEdit } from './pages/StudentCentralEdit';
+import { ConsolidatedPrescription } from './pages/ConsolidatedPrescription';
 import { AlunoFormWithContractEndDate } from './pages/AlunoFormWithContractEndDate';
 import { AlunoFormWithContractValidityOptions } from './pages/AlunoFormWithContractValidityOptions';
 import { AlunoDetails } from './pages/AlunoDetails';
@@ -121,6 +122,10 @@ function App() {
             <Route path="central-do-aluno" element={withAccess('students.consultation', <StudentCentral />)} />
             <Route path="central-do-aluno/:id" element={withAnyAccess(['students.registration', 'students.consultation', 'students.details'], <AlunoDetails />)} />
             <Route path="central-do-aluno/:id/edit" element={withAccess('students.registration', <StudentCentralEdit />)} />
+            <Route
+              path="central-do-aluno/:alunoId/montagem-consolidada"
+              element={withAccess('plans.consolidatedPrescriptions.view', <ConsolidatedPrescription />)}
+            />
             <Route
               path="pre-matriculas"
               element={withAccess(

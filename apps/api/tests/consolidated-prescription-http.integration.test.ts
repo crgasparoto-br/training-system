@@ -407,6 +407,80 @@ describeDatabase('consolidated prescription workflow HTTP integration with Postg
     expect(release.status).toBe(404);
   });
 
+  it('cria nova revisão a partir de montagem liberada sem alterar a versão histórica liberada', async () => {
+    const versions = await createCapacitySet({
+      contractId: contractA,
+      alunoId: alunoA,
+      professorId: master.professor.id,
+      goalId: goalA,
+    });
+    await request(app)
+      .post(`/consolidated-prescriptions/alunos/${alunoA}`)
+      .set('Authorization', `Bearer ${master.token}`)
+      .send(compositionPayload(versions))
+      .expect(201);
+    await request(app)
+      .post(`/consolidated-prescriptions/alunos/${alunoA}/send-for-review`)
+      .set('Authorization', `Bearer ${master.token}`)
+      .send({ expectedCurrentVersion: 1 })
+      .expect(200);
+    const approved = await request(app)
+      .post(`/consolidated-prescriptions/alunos/${alunoA}/approve`)
+      .set('Authorization', `Bearer ${master.token}`)
+      .send({ expectedCurrentVersion: 2 });
+    expect(approved.status).toBe(200);
+
+    const assemblyId = approved.body.data.id as string;
+    const releasedVersionId = approved.body.data.latestVersion.id as string;
+    await prisma.$transaction([
+      prisma.consolidatedPrescription.update({
+        where: { id: assemblyId },
+        data: { currentStatus: 'released' },
+      }),
+      prisma.consolidatedPrescriptionVersion.update({
+        where: { id: releasedVersionId },
+        data: { status: 'released' },
+      }),
+    ]);
+
+    const revision = await request(app)
+      .post(`/consolidated-prescriptions/alunos/${alunoA}/revisions`)
+      .set('Authorization', `Bearer ${master.token}`)
+      .send({ expectedCurrentVersion: 3, reason: 'Revisão após liberação operacional.' });
+
+    expect(revision.status).toBe(201);
+    expect(revision.body.data.currentStatus).toBe('draft');
+    expect(revision.body.data.latestVersion).toEqual(
+      expect.objectContaining({
+        previousVersionId: releasedVersionId,
+        status: 'draft',
+        approvedByProfessorId: null,
+        approvedAt: null,
+      })
+    );
+
+    const releasedVersion = await prisma.consolidatedPrescriptionVersion.findUnique({
+      where: { id: releasedVersionId },
+      select: { status: true },
+    });
+    expect(releasedVersion?.status).toBe('released');
+
+    const history = await request(app)
+      .get(`/consolidated-prescriptions/alunos/${alunoA}/history`)
+      .set('Authorization', `Bearer ${master.token}`);
+    expect(history.status).toBe(200);
+    expect(history.body.data.auditEvents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: 'revision_created',
+          previousStatus: 'released',
+          newStatus: 'draft',
+          reason: 'Revisão após liberação operacional.',
+        }),
+      ])
+    );
+  });
+
   it('bloqueia critical estruturado, permite remediação ainda bloqueada e exige desbloqueio explícito', async () => {
     const versions = await createCapacitySet({
       contractId: contractA,
