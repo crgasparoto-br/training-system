@@ -120,7 +120,7 @@ describe('consolidated operational exercise substitution persistence', () => {
 
     expect(updateComposition).toHaveBeenCalledTimes(1);
     const [, payload] = updateComposition.mock.calls[0];
-    const persistedRef = payload.dataRefs.find(
+    const persistedRef = (payload.dataRefs ?? []).find(
       (ref) => ref.origin === CONSOLIDATED_EXERCISE_SUBSTITUTION_ORIGIN
     );
     expect(persistedRef).toMatchObject({
