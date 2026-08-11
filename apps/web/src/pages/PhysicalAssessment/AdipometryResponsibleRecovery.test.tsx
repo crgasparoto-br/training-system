@@ -160,10 +160,19 @@ describe('ADPT responsible recovery', () => {
       'Atualize o responsável acima para editar, calcular ou concluir este rascunho.'
     );
 
-    fireEvent.change(screen.getByLabelText('Novo responsável elegível'), {
+    const responsibleSelect = screen.getByLabelText('Novo responsável elegível');
+    const updateResponsibleButton = screen.getByRole('button', { name: 'Atualizar responsável' });
+
+    await waitFor(() => {
+      expect(responsibleSelect).toHaveValue('');
+      expect(updateResponsibleButton).toBeDisabled();
+    });
+
+    fireEvent.change(responsibleSelect, {
       target: { value: 'professor-replacement' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Atualizar responsável' }));
+    await waitFor(() => expect(updateResponsibleButton).toBeEnabled());
+    fireEvent.click(updateResponsibleButton);
 
     await waitFor(() => expect(mocks.reassignResponsible).toHaveBeenCalledWith(
       'assessment-1',
