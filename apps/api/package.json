@@ -7,7 +7,7 @@
     "dev": "tsx watch src/main.ts",
     "build": "pnpm --filter @corrida/types build && pnpm --filter @corrida/utils build && pnpm db:generate && tsc",
     "start": "node scripts/migrate-and-start.mjs",
-    "test": "node scripts/run-jest-tests.mjs",
+    "test": "node scripts/run-jest-tests.mjs && node --test scripts/lib/*.test.mjs",
     "test:watch": "jest --watch",
     "lint": "eslint src --ext .ts",
     "format": "prettier --write \"src/**/*.ts\"",
