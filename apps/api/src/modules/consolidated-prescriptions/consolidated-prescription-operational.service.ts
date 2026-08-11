@@ -46,6 +46,7 @@ type SubstitutionSnapshot = {
   recordedAt: string;
   recordedByProfessorId: string;
   currentExerciseAvailable: boolean;
+  currentExerciseUpdatedAt: string | null;
 };
 
 function invalid(message: string): never {
@@ -89,7 +90,7 @@ function parseMinutes(value: unknown): number | null {
   const match = /^(\d+(?:\.\d+)?)\s*(?:min|mins|minuto|minutos)$/i.exec(value.trim());
   if (!match) return null;
   const parsed = Number(match[1]);
-  return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed) : null;
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
 function parseKilometers(value: unknown): number | null {
@@ -189,6 +190,7 @@ function substitutionSnapshots(dataRefs: ConsolidatedPrescriptionDataRef[]) {
       recordedAt: context.recordedAt,
       recordedByProfessorId: context.recordedByProfessorId,
       currentExerciseAvailable: false,
+      currentExerciseUpdatedAt: null,
     };
     const previous = byTechnicalItem.get(candidate.originalTechnicalCatalogItemId);
     if (!previous || previous.recordedAt < candidate.recordedAt) {
@@ -266,6 +268,9 @@ export function buildOperationalProjectionItems(
         const effectiveExerciseId = substitution?.substituteExerciseLibraryId ?? mapping?.exerciseLibraryId ?? null;
         const operationalSnapshot =
           substitution?.substituteExerciseSnapshot ?? mapping?.operationalExerciseSnapshot ?? null;
+        const operationalExerciseUpdatedAt = substitution
+          ? substitution.currentExerciseUpdatedAt
+          : mapping?.currentExerciseUpdatedAt ?? null;
         const available = substitution
           ? substitution.currentExerciseAvailable
           : Boolean(mapping?.currentExerciseAvailable);
@@ -299,6 +304,7 @@ export function buildOperationalProjectionItems(
           substituted: Boolean(substitution),
           technicalSnapshot: mapping?.technicalSnapshot ?? null,
           operationalExerciseSnapshot: operationalSnapshot,
+          operationalExerciseUpdatedAt,
           proposedFields: {
             ...(Object.keys(workoutTemplate).length ? { WorkoutTemplate: workoutTemplate } : {}),
             ...(Object.keys(workoutExercise).length ? { WorkoutExercise: workoutExercise } : {}),
@@ -386,6 +392,17 @@ function currentPreparedVersion(dataRefs: ConsolidatedPrescriptionDataRef[]) {
   return version;
 }
 
+export function isPreparedOperationalSnapshotItemStale(
+  item: ConsolidatedOperationalProjectionItem,
+  prepared: Record<string, unknown> | undefined
+) {
+  if (!prepared) return true;
+  return (
+    prepared.mappingRevision !== item.mappingRevision ||
+    prepared.operationalExerciseUpdatedAt !== item.operationalExerciseUpdatedAt
+  );
+}
+
 async function loadCapacityVersions(
   context: ConsolidatedPrescriptionContext,
   ids: string[],
@@ -441,13 +458,15 @@ export function createConsolidatedPrescriptionOperationalService(client: PrismaC
     if (substituteIds.length) {
       const liveSubstitutes = await client.exerciseLibrary.findMany({
         where: { id: { in: substituteIds }, contractId: context.contractId },
-        select: { id: true },
+        select: { id: true, updatedAt: true },
       });
-      const availableIds = new Set(liveSubstitutes.map((item) => item.id));
+      const currentById = new Map(
+        liveSubstitutes.map((item) => [item.id, item.updatedAt.toISOString()])
+      );
       for (const substitution of substitutions.values()) {
-        substitution.currentExerciseAvailable = availableIds.has(
-          substitution.substituteExerciseLibraryId
-        );
+        const currentUpdatedAt = currentById.get(substitution.substituteExerciseLibraryId) ?? null;
+        substitution.currentExerciseAvailable = currentUpdatedAt !== null;
+        substitution.currentExerciseUpdatedAt = currentUpdatedAt;
       }
     }
 
@@ -461,7 +480,7 @@ export function createConsolidatedPrescriptionOperationalService(client: PrismaC
     for (const item of items) {
       if (!item.technicalCatalogItemId) continue;
       const prepared = preparedRefs.find((candidate) => candidate.key === item.key);
-      if (!prepared || prepared.mappingRevision !== item.mappingRevision) {
+      if (isPreparedOperationalSnapshotItemStale(item, prepared)) {
         mappingSnapshotIsStale = true;
         break;
       }

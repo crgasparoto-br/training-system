@@ -1,5 +1,8 @@
 import type { TechnicalExerciseOperationalMapping } from '@corrida/types';
-import { buildOperationalProjectionItems } from './consolidated-prescription-operational.service.js';
+import {
+  buildOperationalProjectionItems,
+  isPreparedOperationalSnapshotItemStale,
+} from './consolidated-prescription-operational.service.js';
 
 const mapping = (overrides: Partial<TechnicalExerciseOperationalMapping> = {}): TechnicalExerciseOperationalMapping => ({
   technicalCatalogItemId: 'technical-squat',
@@ -26,6 +29,7 @@ const mapping = (overrides: Partial<TechnicalExerciseOperationalMapping> = {}): 
   mappedAt: '2026-08-10T12:00:00.000Z',
   mappedByProfessorId: 'professor-1',
   currentExerciseAvailable: true,
+  currentExerciseUpdatedAt: '2026-08-10T12:00:00.000Z',
   curationStatus: 'not_modeled',
   ...overrides,
 });
@@ -49,6 +53,7 @@ const substitution = (currentExerciseAvailable: boolean) => ({
   recordedAt: '2026-08-11T10:00:00.000Z',
   recordedByProfessorId: 'professor-1',
   currentExerciseAvailable,
+  currentExerciseUpdatedAt: currentExerciseAvailable ? '2026-08-11T10:00:00.000Z' : null,
 });
 
 describe('buildOperationalProjectionItems', () => {
@@ -161,6 +166,71 @@ describe('buildOperationalProjectionItems', () => {
       },
     });
     expect(items[0].unsupportedParameters).toContain('zones');
+  });
+
+  it('does not round a fractional duration that the operational model cannot represent exactly', () => {
+    const items = buildOperationalProjectionItems(
+      [
+        {
+          id: 'capacity-cyclic-fractional',
+          capacity: 'cyclic',
+          parameters: {
+            type: 'cyclic',
+            cyclic: { category: 'continuo', time: '30.4 min' },
+          },
+        },
+      ],
+      new Map()
+    );
+
+    expect(items[0]).toMatchObject({
+      compatibility: 'mapped',
+      proposedFields: { WorkoutDay: { method: 'continuo' } },
+    });
+    expect(items[0].proposedFields).not.toMatchObject({
+      WorkoutDay: { stimulusDurationMin: expect.any(Number) },
+    });
+    expect(items[0].unsupportedParameters).toContain('time');
+    expect(items[0].sourceParameters).toMatchObject({ time: '30.4 min' });
+  });
+
+  it('marks a prepared snapshot stale when the library changes without a mapping revision change', () => {
+    const [item] = buildOperationalProjectionItems(
+      [
+        {
+          id: 'capacity-resisted-v1',
+          capacity: 'resisted',
+          parameters: {
+            type: 'resisted',
+            resisted: { exerciseTechnicalCatalogItemIds: ['technical-squat'] },
+          },
+        },
+      ],
+      new Map([
+        [
+          'technical-squat',
+          mapping({ currentExerciseUpdatedAt: '2026-08-11T15:00:00.000Z' }),
+        ],
+      ])
+    );
+
+    expect(item.mappingRevision).toBe(3);
+    expect(item.operationalExerciseSnapshot?.updatedAt).toBe('2026-08-10T12:00:00.000Z');
+    expect(item.operationalExerciseUpdatedAt).toBe('2026-08-11T15:00:00.000Z');
+    expect(
+      isPreparedOperationalSnapshotItemStale(item, {
+        key: item.key,
+        mappingRevision: 3,
+        operationalExerciseUpdatedAt: '2026-08-10T12:00:00.000Z',
+      })
+    ).toBe(true);
+    expect(
+      isPreparedOperationalSnapshotItemStale(item, {
+        key: item.key,
+        mappingRevision: 3,
+        operationalExerciseUpdatedAt: '2026-08-11T15:00:00.000Z',
+      })
+    ).toBe(false);
   });
 
   it.each(['flexibility', 'balance'] as const)(

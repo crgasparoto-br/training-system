@@ -114,9 +114,20 @@ export function assertCapacityParameters(
   }
 
   if (parameters.type === 'resisted') {
-    const { sets } = parameters.resisted;
+    const { sets, exerciseTechnicalCatalogItemIds } = parameters.resisted;
     if (sets !== undefined && sets !== null && (!Number.isInteger(sets) || sets <= 0)) {
       domainError('INVALID_INPUT', 'Séries devem ser um inteiro positivo');
+    }
+    if (exerciseTechnicalCatalogItemIds !== undefined) {
+      if (
+        exerciseTechnicalCatalogItemIds.some((id) => !id.trim()) ||
+        new Set(exerciseTechnicalCatalogItemIds).size !== exerciseTechnicalCatalogItemIds.length
+      ) {
+        domainError(
+          'INVALID_INPUT',
+          'As referências técnicas de exercícios devem usar IDs únicos e válidos'
+        );
+      }
     }
   }
 
@@ -157,6 +168,39 @@ export function assertCapacityParameters(
       }
     }
   }
+}
+
+function persistedResistedExerciseTechnicalCatalogItemIds(
+  value: unknown
+): string[] | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const candidate = value as { type?: unknown; resisted?: unknown };
+  if (candidate.type !== 'resisted' || !candidate.resisted || typeof candidate.resisted !== 'object') {
+    return undefined;
+  }
+  const ids = (candidate.resisted as { exerciseTechnicalCatalogItemIds?: unknown })
+    .exerciseTechnicalCatalogItemIds;
+  if (!Array.isArray(ids) || !ids.every((id): id is string => typeof id === 'string')) {
+    return undefined;
+  }
+  return ids;
+}
+
+export function preserveResistedExerciseTechnicalCatalogItemIds(
+  parameters: CapacityPrescriptionParameters | null,
+  previousParameters: unknown
+): CapacityPrescriptionParameters | null {
+  if (parameters?.type !== 'resisted') return parameters;
+  if (parameters.resisted.exerciseTechnicalCatalogItemIds !== undefined) return parameters;
+  const previousIds = persistedResistedExerciseTechnicalCatalogItemIds(previousParameters);
+  if (previousIds === undefined) return parameters;
+  return {
+    ...parameters,
+    resisted: {
+      ...parameters.resisted,
+      exerciseTechnicalCatalogItemIds: previousIds,
+    },
+  };
 }
 
 export function calculateCyclicHeartRateZones(input: {
@@ -613,6 +657,48 @@ export function createCapacityPrescriptionService(client: PrismaClient = prisma)
           },
         });
 
+        let versionParameters = resolvedParameters;
+        if (
+          existing &&
+          payload.capacity === 'resisted' &&
+          resolvedParameters?.type === 'resisted' &&
+          resolvedParameters.resisted.exerciseTechnicalCatalogItemIds === undefined
+        ) {
+          const previousVersion = await tx.capacityPrescriptionVersion.findFirst({
+            where: {
+              prescriptionId: existing.id,
+              contractId: context.contractId,
+              version: existing.currentVersion,
+            },
+            select: { parameters: true },
+          });
+          versionParameters = preserveResistedExerciseTechnicalCatalogItemIds(
+            resolvedParameters,
+            previousVersion?.parameters
+          );
+        }
+
+        if (versionParameters?.type === 'resisted') {
+          const exerciseIds = versionParameters.resisted.exerciseTechnicalCatalogItemIds ?? [];
+          if (exerciseIds.length) {
+            const technicalExercises = await tx.capacityTechnicalCatalogItem.findMany({
+              where: {
+                id: { in: exerciseIds },
+                contractId: context.contractId,
+                category: 'exercise',
+                isCurrent: true,
+              },
+              select: { id: true },
+            });
+            if (technicalExercises.length !== exerciseIds.length) {
+              domainError(
+                'INVALID_INPUT',
+                'Uma ou mais referências técnicas de exercícios são inválidas para este contrato'
+              );
+            }
+          }
+        }
+
         let prescriptionId: string;
         let nextVersion: number;
         if (!existing) {
@@ -673,7 +759,7 @@ export function createCapacityPrescriptionService(client: PrismaClient = prisma)
             professorSummary: payload.professorSummary,
             studentMessage: payload.studentMessage,
             alerts: payload.alerts,
-            parameters: resolvedParameters,
+            parameters: versionParameters,
           },
           now
         );

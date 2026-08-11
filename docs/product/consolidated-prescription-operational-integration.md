@@ -31,7 +31,7 @@ A rota dedicada para versionar essas referências é:
 
 `PATCH /api/v1/capacity-prescriptions/alunos/:alunoId/resisted/:prescriptionId/technical-exercises`
 
-Ela copia a versão técnica corrente, altera somente os IDs técnicos de exercício e cria uma nova versão usando `expectedCurrentVersion`.
+Ela copia a versão técnica corrente, altera somente os IDs técnicos de exercício e cria uma nova versão usando `expectedCurrentVersion`. O `POST /api/v1/capacity-prescriptions/alunos/:alunoId` também aceita `exerciseTechnicalCatalogItemIds`; quando uma nova versão resistida envia parâmetros atualizados sem repetir somente esse campo, o backend preserva os IDs da versão corrente. Uma lista enviada explicitamente — inclusive vazia — continua sendo autoridade para substituir ou limpar as referências. A validação de existência, categoria corrente e `contractId` ocorre dentro da mesma transação que versiona a prescrição, antes de qualquer mutação da raiz.
 
 ## Vínculo técnico -> biblioteca operacional
 
@@ -99,10 +99,10 @@ Somente campos com representação explícita são propostos:
 
 - categoria -> `WorkoutDay.method`;
 - percentual de VO2máx -> `WorkoutDay.vo2maxPct`;
-- tempo expresso explicitamente em minutos -> `WorkoutDay.stimulusDurationMin`;
+- tempo expresso explicitamente em **minutos inteiros** -> `WorkoutDay.stimulusDurationMin`;
 - distância expressa explicitamente em quilômetros -> `WorkoutTemplate.totalVolumeKm`.
 
-Zonas, limiar, princípio de reversibilidade, PSE esperado e qualquer texto sem unidade inequívoca permanecem rastreados como não suportados.
+Zonas, limiar, princípio de reversibilidade, PSE esperado e qualquer texto sem unidade inequívoca permanecem rastreados como não suportados. Durações fracionárias em minutos também permanecem em `unsupportedParameters`; o adaptador não arredonda o valor para caber silenciosamente no campo inteiro do `WorkoutDay`.
 
 ### Flexibilidade e equilíbrio
 
@@ -112,12 +112,13 @@ O modelo operacional atual não possui representação suficiente para transport
 
 A preparação grava snapshot dos IDs, metadados e `mappingRevision` usados naquela versão da Montagem Consolidada. Assim, mudança posterior de nome ou metadados da biblioteca não reescreve a montagem histórica.
 
-A visualização corrente também verifica a disponibilidade atual do `ExerciseLibrary`. Se o exercício vinculado for removido ou ficar inacessível, a projeção corrente passa a `operational_exercise_unavailable`, preservando no histórico o snapshot anterior.
+A visualização corrente também verifica a disponibilidade e o `updatedAt` atual do `ExerciseLibrary`. Se o exercício vinculado for removido ou ficar inacessível, a projeção corrente passa a `operational_exercise_unavailable`, preservando no histórico o snapshot anterior. Se nome ou outro metadado da biblioteca mudar mantendo o mesmo ID, o snapshot histórico também permanece intacto, mas a projeção preparada é marcada como desatualizada para exigir nova validação.
 
 `hasStalePreparedSnapshot` fica verdadeiro quando:
 
-- a montagem avançou para outra versão sem nova preparação; ou
-- a revisão do vínculo técnico mudou desde o snapshot preparado.
+- a montagem avançou para outra versão sem nova preparação;
+- a revisão do vínculo técnico mudou desde o snapshot preparado; ou
+- o `updatedAt` atual do exercício operacional efetivo diverge daquele usado na preparação, inclusive em substituições.
 
 A correção exige nova preparação explícita; não há atualização automática da montagem histórica.
 

@@ -41,6 +41,7 @@ export interface TechnicalExerciseOperationalMapping {
   mappedAt: string | null;
   mappedByProfessorId: string | null;
   currentExerciseAvailable: boolean;
+  currentExerciseUpdatedAt: string | null;
   curationStatus: 'not_modeled';
 }
 
@@ -64,6 +65,7 @@ export interface ConsolidatedOperationalProjectionItem {
   substituted?: boolean;
   technicalSnapshot?: TechnicalExerciseSnapshot | null;
   operationalExerciseSnapshot?: OperationalExerciseSnapshot | null;
+  operationalExerciseUpdatedAt?: string | null;
   proposedFields: Record<string, unknown>;
   unsupportedParameters: string[];
   sourceParameters: Record<string, unknown> | null;

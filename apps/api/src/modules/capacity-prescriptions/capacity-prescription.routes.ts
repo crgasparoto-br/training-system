@@ -52,6 +52,7 @@ const resistedParametersSchema = z
     resisted: z
       .object({
         muscleGroups: z.array(z.string().trim().min(1)).optional(),
+        exerciseTechnicalCatalogItemIds: z.array(z.string().trim().min(1)).optional(),
         method: z.string().trim().optional().nullable(),
         split: z.string().trim().optional().nullable(),
         sets: z.number().int().positive().optional().nullable(),
@@ -176,7 +177,7 @@ type CapacityRequest = Request & { capacityActor?: CapacityActor };
 function requireCapacityBlock(blockKey: string) {
   return async (req: CapacityRequest, res: Response, next: NextFunction) => {
     try {
-      const contractId = req.user?.contractId;
+      contractId = req.user?.contractId;
       const professorId = req.user?.professorId;
       if (!contractId || !professorId) {
         return sendError(res, 'Não autenticado', 401);
