@@ -54,14 +54,37 @@ async function closeWithTimeout(closeFn) {
   ]);
 }
 
+async function waitForApplicationDom(cdp, timeoutMs = 25000) {
+  const title = 'Montagem Consolidada da Prescrição';
+  const deadline = Date.now() + timeoutMs;
+  let lastError;
+
+  while (Date.now() < deadline) {
+    try {
+      const result = await cdp.send('Runtime.evaluate', {
+        expression: `Boolean(document.body && document.body.innerText.includes(${JSON.stringify(title)}))`,
+        returnByValue: true,
+      });
+      if (result.result?.value === true) return;
+    } catch (error) {
+      // Runtime contexts are briefly unavailable while the main frame commits.
+      lastError = error;
+    }
+    await delay(250);
+  }
+
+  throw new Error(`Chrome did not render the Issue 318 application within ${timeoutMs}ms${lastError ? `: ${lastError.message}` : ''}`);
+}
+
 async function main() {
   let browser;
   let context;
   let orca;
   try {
-    // Use the runner's system Chrome for the native AT-SPI session. The Playwright-
-    // bundled Chromium used by the other evidence scenarios stalls before the first
-    // navigation commit when renderer accessibility activates the Linux AT-SPI bridge.
+    // Use the runner's system Chrome for the native AT-SPI session. Navigate via
+    // CDP instead of Playwright's lifecycle waiter: with renderer accessibility
+    // forced on Linux, Playwright page.goto() can time out while AT-SPI initializes
+    // even though Chrome itself can commit and render the document.
     browser = await chromium.launch({
       executablePath: chromeExecutable,
       headless: false,
@@ -81,9 +104,10 @@ async function main() {
       },
     });
     const page = await context.newPage();
-
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
-    await page.getByText('Montagem Consolidada da Prescrição', { exact: true }).first().waitFor({ timeout: 20000 });
+    const cdp = await context.newCDPSession(page);
+    const navigation = await cdp.send('Page.navigate', { url });
+    if (navigation.errorText) throw new Error(`Chrome navigation failed: ${navigation.errorText}`);
+    await waitForApplicationDom(cdp);
 
     orca = spawn('orca', [
       '--replace',
@@ -131,7 +155,7 @@ async function main() {
   fs.writeFileSync(path.join(outputDir, 'native-orca-summary.json'), JSON.stringify({
     screenReader: 'Orca',
     transport: 'AT-SPI',
-    browser: 'system Google Chrome controlled by Playwright',
+    browser: 'system Google Chrome controlled by Playwright/CDP',
     interaction: 'keyboard focus + Enter on accordion/history',
     evidence: ['native-orca-version.txt', 'native-chrome-version.txt', 'native-orca-debug.log', 'native-orca-apps.txt', 'native-orca-stdout.log'],
   }, null, 2));
