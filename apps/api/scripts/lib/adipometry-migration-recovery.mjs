@@ -25,6 +25,18 @@ export function isLegacyAdipometryPrivilegeMutation(statement) {
   );
 }
 
+function isPrivilegeMutation(statement) {
+  const sql = compactSql(statement);
+  return sql.startsWith('REVOKE ') || sql.startsWith('GRANT ');
+}
+
+export function isAdipometryAuditTablePrivilegeMutation(statement) {
+  return (
+    compactSql(statement) ===
+    'REVOKE INSERT ON TABLE "ADIPOMETRYAUDITEVENT" FROM PUBLIC;'
+  );
+}
+
 function assertTransactional(statements, migrationName) {
   if (statements[0] !== 'BEGIN;' || statements.at(-1) !== 'COMMIT;') {
     throw new Error(`${migrationName} não está integralmente protegida por BEGIN/COMMIT`);
@@ -57,6 +69,23 @@ export function assertAclOnlyLegacyMigration(statements, migrationName) {
       `${migrationName} deixou de ser uma migration exclusivamente de ACL conhecida`
     );
   }
+}
+
+export function getCompatiblePersistenceBypassStatements(statements, migrationName) {
+  assertTransactional(statements, migrationName);
+  const innerStatements = statements.slice(1, -1);
+  const privilegeMutations = innerStatements.filter(isPrivilegeMutation);
+
+  if (
+    privilegeMutations.length !== 1 ||
+    !isAdipometryAuditTablePrivilegeMutation(privilegeMutations[0])
+  ) {
+    throw new Error(
+      `${migrationName} deveria conter exatamente 1 REVOKE de INSERT conhecido`
+    );
+  }
+
+  return innerStatements.filter((statement) => !isAdipometryAuditTablePrivilegeMutation(statement));
 }
 
 export function assertTerminalLegacyOverloadGuard(statements, migrationName) {

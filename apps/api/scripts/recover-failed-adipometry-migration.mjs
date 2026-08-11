@@ -9,11 +9,13 @@ import {
   assertAclOnlyLegacyMigration,
   assertTerminalLegacyOverloadGuard,
   getCompatibleAuditRemediationStatements,
+  getCompatiblePersistenceBypassStatements,
 } from './lib/adipometry-migration-recovery.mjs';
 import { splitSqlStatements } from './lib/split-sql-statements.mjs';
 
 const auditMigrationName = '20260730170000_remediate_issue_246_audit_round_2';
 const aclMigrationName = '20260730180000_restrict_legacy_adipometry_draft_overloads';
+const persistenceMigrationName = '20260730190000_close_issue_246_persistence_bypasses';
 const terminalMigrationName = '20260811141500_disable_legacy_adipometry_draft_overloads';
 const apiDirectory = fileURLToPath(new URL('..', import.meta.url));
 const migrationDatabaseUrl = process.env.MIGRATION_DATABASE_URL || process.env.DATABASE_URL;
@@ -85,11 +87,13 @@ function isActiveFailure(attempt) {
   return Boolean(attempt && !attempt.finishedAt && !attempt.rolledBackAt);
 }
 
-const [auditMigrationSql, aclMigrationSql, terminalMigrationSql] = await Promise.all([
-  readFile(migrationFile(auditMigrationName), 'utf8'),
-  readFile(migrationFile(aclMigrationName), 'utf8'),
-  readFile(migrationFile(terminalMigrationName), 'utf8'),
-]);
+const [auditMigrationSql, aclMigrationSql, persistenceMigrationSql, terminalMigrationSql] =
+  await Promise.all([
+    readFile(migrationFile(auditMigrationName), 'utf8'),
+    readFile(migrationFile(aclMigrationName), 'utf8'),
+    readFile(migrationFile(persistenceMigrationName), 'utf8'),
+    readFile(migrationFile(terminalMigrationName), 'utf8'),
+  ]);
 
 const auditStatements = splitSqlStatements(auditMigrationSql);
 const compatibleAuditStatements = getCompatibleAuditRemediationStatements(
@@ -98,11 +102,17 @@ const compatibleAuditStatements = getCompatibleAuditRemediationStatements(
 );
 const aclStatements = splitSqlStatements(aclMigrationSql);
 assertAclOnlyLegacyMigration(aclStatements, aclMigrationName);
+const persistenceStatements = splitSqlStatements(persistenceMigrationSql);
+const compatiblePersistenceStatements = getCompatiblePersistenceBypassStatements(
+  persistenceStatements,
+  persistenceMigrationName
+);
 const terminalStatements = splitSqlStatements(terminalMigrationSql);
 assertTerminalLegacyOverloadGuard(terminalStatements, terminalMigrationName);
 
 const auditChecksum = checksum(auditMigrationSql);
 const aclChecksum = checksum(aclMigrationSql);
+const persistenceChecksum = checksum(persistenceMigrationSql);
 const prisma = new PrismaClient({
   datasources: { db: { url: migrationDatabaseUrl } },
 });
@@ -112,6 +122,7 @@ let recoveryMode;
 try {
   const auditAttempt = await latestMigrationAttempt(prisma, auditMigrationName);
   const aclAttempt = await latestMigrationAttempt(prisma, aclMigrationName);
+  const persistenceAttempt = await latestMigrationAttempt(prisma, persistenceMigrationName);
 
   if (isActiveFailure(auditAttempt)) {
     if (auditAttempt.checksum !== auditChecksum) {
@@ -142,9 +153,33 @@ try {
       );
     }
     recoveryMode = 'acl';
+  } else if (isActiveFailure(persistenceAttempt)) {
+    if (persistenceAttempt.checksum !== persistenceChecksum) {
+      throw new Error(`checksum de ${persistenceMigrationName} diverge do arquivo desta release`);
+    }
+    if (!auditAttempt?.finishedAt || !aclAttempt?.finishedAt) {
+      throw new Error(
+        `${persistenceMigrationName} falhou sem as migrations anteriores estarem resolvidas; recuperação recusada`
+      );
+    }
+
+    const effects = await prisma.$queryRaw`
+      SELECT
+        TO_REGPROCEDURE('"roundAdipometryValue"(numeric,integer,text)')::TEXT AS "roundFunction",
+        TO_REGPROCEDURE('"allocateAdipometryAssessmentIdentity"()')::TEXT AS "identityFunction",
+        TO_REGPROCEDURE('"canonicalizeAdipometryCompletion"()')::TEXT AS "completionFunction"
+    `;
+    const effect = effects[0];
+    if (effect.roundFunction || effect.identityFunction || effect.completionFunction) {
+      throw new Error(
+        `${persistenceMigrationName} deixou funções novas no banco; a recuperação automática foi recusada`
+      );
+    }
+
+    recoveryMode = 'persistence';
   } else {
     throw new Error(
-      `não existe execução falha ativa conhecida em ${auditMigrationName} ou ${aclMigrationName}`
+      `não existe execução falha ativa conhecida em ${auditMigrationName}, ${aclMigrationName} ou ${persistenceMigrationName}`
     );
   }
 } catch (error) {
@@ -157,20 +192,15 @@ try {
 
 if (process.exitCode) process.exit(process.exitCode);
 
-if (recoveryMode === 'audit') {
-  console.log(`[migration-recovery] marcando ${auditMigrationName} como rolled back`);
-  await resolveMigration('--rolled-back', auditMigrationName);
-
-  console.log(
-    `[migration-recovery] aplicando ${compatibleAuditStatements.length} instruções compatíveis e omitindo somente os 2 REVOKEs legados`
-  );
+async function applyCompatibleStatements(statements, label) {
+  console.log(`[migration-recovery] aplicando ${statements.length} instruções compatíveis de ${label}`);
   const migrationPrisma = new PrismaClient({
     datasources: { db: { url: migrationDatabaseUrl } },
   });
   try {
     await migrationPrisma.$transaction(
       async (transaction) => {
-        for (const statement of compatibleAuditStatements) {
+        for (const statement of statements) {
           await transaction.$executeRawUnsafe(statement);
         }
       },
@@ -179,6 +209,14 @@ if (recoveryMode === 'audit') {
   } finally {
     await migrationPrisma.$disconnect();
   }
+}
+
+if (recoveryMode === 'audit') {
+  console.log(`[migration-recovery] marcando ${auditMigrationName} como rolled back`);
+  await resolveMigration('--rolled-back', auditMigrationName);
+
+  console.log('[migration-recovery] omitindo somente os 2 REVOKEs legados incompatíveis');
+  await applyCompatibleStatements(compatibleAuditStatements, auditMigrationName);
 
   console.log(`[migration-recovery] registrando ${auditMigrationName} como aplicada`);
   await resolveMigration('--applied', auditMigrationName);
@@ -187,13 +225,24 @@ if (recoveryMode === 'audit') {
     `[migration-recovery] registrando ${aclMigrationName} como aplicada; o guard fail-closed será materializado por ${terminalMigrationName}`
   );
   await resolveMigration('--applied', aclMigrationName);
-} else {
+} else if (recoveryMode === 'acl') {
   console.log(`[migration-recovery] marcando ${aclMigrationName} como rolled back`);
   await resolveMigration('--rolled-back', aclMigrationName);
   console.log(
     `[migration-recovery] registrando ${aclMigrationName} como aplicada; o guard fail-closed será materializado por ${terminalMigrationName}`
   );
   await resolveMigration('--applied', aclMigrationName);
+} else {
+  console.log(`[migration-recovery] marcando ${persistenceMigrationName} como rolled back`);
+  await resolveMigration('--rolled-back', persistenceMigrationName);
+
+  console.log(
+    '[migration-recovery] omitindo somente REVOKE INSERT ON TABLE "AdipometryAuditEvent" FROM PUBLIC;'
+  );
+  await applyCompatibleStatements(compatiblePersistenceStatements, persistenceMigrationName);
+
+  console.log(`[migration-recovery] registrando ${persistenceMigrationName} como aplicada`);
+  await resolveMigration('--applied', persistenceMigrationName);
 }
 
 console.log('[migration-recovery] reaplicando migrations pendentes');

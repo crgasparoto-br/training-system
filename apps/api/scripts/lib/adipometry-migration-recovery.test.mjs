@@ -5,6 +5,8 @@ import {
   assertAclOnlyLegacyMigration,
   assertTerminalLegacyOverloadGuard,
   getCompatibleAuditRemediationStatements,
+  getCompatiblePersistenceBypassStatements,
+  isAdipometryAuditTablePrivilegeMutation,
   isLegacyAdipometryPrivilegeMutation,
 } from './adipometry-migration-recovery.mjs';
 
@@ -54,6 +56,59 @@ test('aceita somente a migration ACL-only esperada', () => {
       ],
       'acl-only'
     )
+  );
+});
+
+test('identifica somente o REVOKE de INSERT da tabela de auditoria', () => {
+  assert.equal(
+    isAdipometryAuditTablePrivilegeMutation(
+      'REVOKE INSERT ON TABLE "AdipometryAuditEvent" FROM PUBLIC;'
+    ),
+    true
+  );
+  assert.equal(
+    isAdipometryAuditTablePrivilegeMutation(
+      'REVOKE UPDATE ON TABLE "AdipometryAuditEvent" FROM PUBLIC;'
+    ),
+    false
+  );
+  assert.equal(
+    isAdipometryAuditTablePrivilegeMutation(
+      'REVOKE INSERT ON TABLE "OtherTable" FROM PUBLIC;'
+    ),
+    false
+  );
+});
+
+test('remove apenas o REVOKE de INSERT incompatível da persistence bypass migration', () => {
+  const statements = [
+    'BEGIN;',
+    'CREATE FUNCTION first() RETURNS void LANGUAGE SQL AS $$ SELECT 1; $$;',
+    'REVOKE INSERT ON TABLE "AdipometryAuditEvent" FROM PUBLIC;',
+    'CREATE FUNCTION last() RETURNS void LANGUAGE SQL AS $$ SELECT 1; $$;',
+    'COMMIT;',
+  ];
+
+  const compatible = getCompatiblePersistenceBypassStatements(
+    statements,
+    'persistence-bypasses'
+  );
+  assert.deepEqual(compatible, [statements[1], statements[3]]);
+});
+
+test('recusa ampliar o bypass para outra mutação de privilégio', () => {
+  assert.throws(
+    () =>
+      getCompatiblePersistenceBypassStatements(
+        [
+          'BEGIN;',
+          'REVOKE INSERT ON TABLE "AdipometryAuditEvent" FROM PUBLIC;',
+          'REVOKE UPDATE ON TABLE "AdipometryAuditEvent" FROM PUBLIC;',
+          'COMMIT;',
+        ],
+        'persistence-bypasses'
+      ),
+    /exatamente 1 REVOKE de INSERT conhecido/
   );
 });
 
