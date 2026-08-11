@@ -48,6 +48,20 @@ const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'issue-318-native-profi
 
 function delay(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
 
+async function waitForListedApp(pattern, label, timeoutMs = 20000) {
+  const deadline = Date.now() + timeoutMs;
+  let lastListedApps = '';
+  let lastStatus = null;
+  while (Date.now() < deadline) {
+    const listed = spawnSync('orca', ['--list-apps'], { encoding: 'utf8', env: process.env, timeout: 10000 });
+    lastStatus = listed.status;
+    lastListedApps = `${listed.stdout || ''}\n${listed.stderr || ''}`;
+    if (listed.status === 0 && pattern.test(lastListedApps)) return lastListedApps;
+    await delay(500);
+  }
+  throw new Error(`${label} was not registered in AT-SPI (orca --list-apps status ${lastStatus}): ${lastListedApps}`);
+}
+
 async function stopChild(child) {
   if (!child || child.exitCode !== null) return;
   child.kill('SIGTERM');
@@ -179,6 +193,17 @@ async function main() {
     await prepareAuthenticatedProfile();
     await delay(1000);
 
+    // Start Orca first so the AT-SPI registry exists before Chrome tries to register.
+    // The previous order launched Chrome before org.a11y.atspi.Registry was available,
+    // which left the browser absent from `orca --list-apps` for the whole session.
+    orca = spawn('orca', [
+      '--replace',
+      '--disable=speech',
+      '--debug',
+      `--debug-file=${debugFile}`,
+    ], { stdio: ['ignore', orcaStdout, orcaStdout], env: process.env });
+    await waitForListedApp(/\borca\b/i, 'Orca', 15000);
+
     nativeChrome = spawn(chromeExecutable, [
       `--user-data-dir=${profileDir}`,
       '--no-first-run',
@@ -188,22 +213,13 @@ async function main() {
       '--no-sandbox',
       '--disable-dev-shm-usage',
       url,
-    ], { stdio: ['ignore', chromeStdout, chromeStdout], env: process.env });
-    await delay(5000);
+    ], {
+      stdio: ['ignore', chromeStdout, chromeStdout],
+      env: { ...process.env, NO_AT_BRIDGE: '0' },
+    });
 
-    orca = spawn('orca', [
-      '--replace',
-      '--disable=speech',
-      '--debug',
-      `--debug-file=${debugFile}`,
-    ], { stdio: ['ignore', orcaStdout, orcaStdout], env: process.env });
-    await delay(3000);
-
-    const listed = spawnSync('orca', ['--list-apps'], { encoding: 'utf8', env: process.env, timeout: 10000 });
-    const listedApps = `${listed.stdout || ''}\n${listed.stderr || ''}`;
+    const listedApps = await waitForListedApp(/(chromium|chrome)/i, 'Chrome', 20000);
     fs.writeFileSync(path.join(outputDir, 'native-orca-apps.txt'), listedApps);
-    assert.equal(listed.status, 0, `Orca application enumeration failed: ${listedApps}`);
-    assert.match(listedApps, /(chromium|chrome)/i, 'Orca did not enumerate Chrome as an AT-SPI application');
 
     const atspi = runNativeAtspiInteraction();
     if (atspi.error) throw atspi.error;
